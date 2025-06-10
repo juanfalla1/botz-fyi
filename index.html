@@ -55,23 +55,9 @@
     section {
       padding: 4em 2em;
       border-bottom: 1px solid #222;
-      position: relative;
-      z-index: 1;
-    }
-    .background-gif {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 0;
       background-size: cover;
       background-position: center;
-      opacity: 0.15;
-      pointer-events: none;
-    }
-    h3, ul, p {
-      position: relative;
-      z-index: 2;
+      background-repeat: no-repeat;
     }
     h3 {
       color: #00baff;
@@ -87,6 +73,17 @@
       max-width: 100%;
       border-radius: 8px;
       margin: 1em 0;
+    }
+    .funcionalidades {
+      background-image: url('https://images.unsplash.com/photo-1581090700227-1e37b190418e');
+    }
+    .beneficios {
+      background-image: url('https://images.unsplash.com/photo-1633113210194-25dfaa262f3c');
+    }
+    .overlay {
+      background-color: rgba(0, 0, 0, 0.6);
+      padding: 2em;
+      border-radius: 12px;
     }
   </style>
 </head>
@@ -109,26 +106,28 @@
     <a href="#demo" class="btn">Solicitar Demo</a>
   </div>
 
-  <section id="funcionalidades">
-    <div class="background-gif" style="background-image: url('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeTJwOG1xM3M4bm13d3M1YjhoZmhma3dqZXV6NHM3ODZ1YW92cjNreCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/aXPZ6Dr62Q5424yKs4/giphy.gif');"></div>
-    <h3>Funcionalidades Inteligentes</h3>
-    <ul>
-      <li>Automatización por agentes de IA</li>
-      <li>Predicción basada en datos históricos</li>
-      <li>Optimización de tareas repetitivas</li>
-      <li>Control de procesos con dashboards inteligentes</li>
-    </ul>
+  <section id="funcionalidades" class="funcionalidades">
+    <div class="overlay">
+      <h3>Funcionalidades Inteligentes</h3>
+      <ul>
+        <li>Automatización por agentes de IA</li>
+        <li>Predicción basada en datos históricos</li>
+        <li>Optimización de tareas repetitivas</li>
+        <li>Control de procesos con dashboards inteligentes</li>
+      </ul>
+    </div>
   </section>
 
-  <section id="beneficios">
-    <div class="background-gif" style="background-image: url('https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3NXJieWVwMXk3a245bXl0eTRxNHl1OWIzYXBzbmQwaGFlZW5qYXN5NiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/cnzou4ydGM7GJZ7VTz/giphy.gif');"></div>
-    <h3>Beneficios Clave</h3>
-    <ul>
-      <li>Menos errores humanos y más velocidad</li>
-      <li>Reducción de costos operativos</li>
-      <li>Escalabilidad sin fricción</li>
-      <li>Toma de decisiones asistida por IA</li>
-    </ul>
+  <section id="beneficios" class="beneficios">
+    <div class="overlay">
+      <h3>Beneficios Clave</h3>
+      <ul>
+        <li>Menos errores humanos y más velocidad</li>
+        <li>Reducción de costos operativos</li>
+        <li>Escalabilidad sin fricción</li>
+        <li>Toma de decisiones asistida por IA</li>
+      </ul>
+    </div>
   </section>
 
   <section id="demo">
@@ -148,5 +147,6 @@
 
 </body>
 </html>
+
 
 
