@@ -3,76 +3,134 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Botz | Automatización Inteligente</title>
+  <title>botz</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
       margin: 0;
-      background-color: #f9f9f9;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #0a0f1c;
+      color: #ffffff;
     }
     header {
-      background-color: #222;
-      color: white;
-      padding: 20px;
+      background-color: #081229;
+      padding: 1em 2em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 {
+      margin: 0;
+      color: #00baff;
+    }
+    nav a {
+      margin-left: 1em;
+      color: #ffffff;
+      text-decoration: none;
+    }
+    .hero {
+      padding: 4em 2em;
       text-align: center;
+      background: linear-gradient(145deg, #0a0f1c, #001f3f);
+    }
+    .hero h2 {
+      font-size: 2.5em;
+      color: #00baff;
+    }
+    .hero p {
+      max-width: 600px;
+      margin: 1em auto;
+    }
+    .btn {
+      background-color: #00baff;
+      color: #000;
+      padding: 1em 2em;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      margin-top: 1.5em;
     }
     section {
-      padding: 30px;
-      max-width: 800px;
-      margin: auto;
+      padding: 4em 2em;
+      border-bottom: 1px solid #222;
     }
-    img {
-      width: 100%;
-      height: auto;
-      border-radius: 8px;
-      margin-top: 20px;
-    }
-    h2 {
-      color: #222;
+    h3 {
+      color: #00baff;
     }
     footer {
-      background-color: #222;
-      color: white;
+      background: #05080f;
       text-align: center;
-      padding: 10px;
+      padding: 2em;
+      font-size: 0.9em;
+      color: #888;
+    }
+    img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin: 1em 0;
     }
   </style>
 </head>
 <body>
 
   <header>
-    <h1>Botz | Automatización de Procesos</h1>
-    <p>Soluciones digitales para simplificar tu trabajo</p>
+    <h1>botz</h1>
+    <nav>
+      <a href="#funcionalidades">Funcionalidades</a>
+      <a href="#beneficios">Beneficios</a>
+      <a href="#demo">Demo</a>
+    </nav>
   </header>
 
-  <section>
-    <h2>¿Qué hacemos?</h2>
-    <p>Botz desarrolla soluciones de automatización para negocios que buscan eficiencia, ahorro de tiempo y reducción de errores humanos. Integramos bots, flujos inteligentes y plataformas sin código.</p>
-    <img src="https://images.unsplash.com/photo-1581092916370-1e7f83e5df94?auto=format&fit=crop&w=800&q=80" alt="Automatización industrial" />
-  </section>
+  <div class="hero">
+    <h2>Automatización inteligente de procesos con IA</h2>
+    <p>
+      botz es tu plataforma para transformar la productividad empresarial mediante agentes inteligentes que automatizan tareas y decisiones.
+    </p>
+    <a href="#demo" class="btn">Solicitar Demo</a>
+  </div>
 
-  <section>
-    <h2>Beneficios clave</h2>
+  <section id="funcionalidades">
+    <h3>Funcionalidades Inteligentes</h3>
+    <img src="https://source.unsplash.com/800x400/?robot,technology" alt="Imagen libre de automatización" />
     <ul>
-      <li>Reduce el trabajo manual repetitivo</li>
-      <li>Conecta tus herramientas favoritas</li>
-      <li>Incrementa la productividad del equipo</li>
-      <li>Mejora la precisión de los procesos</li>
+      <li>Automatización por agentes de IA</li>
+      <li>Predicción basada en datos históricos</li>
+      <li>Optimización de tareas repetitivas</li>
+      <li>Control de procesos con dashboards inteligentes</li>
     </ul>
-    <img src="https://images.unsplash.com/photo-1581092580508-8362a08a52b0?auto=format&fit=crop&w=800&q=80" alt="Procesos digitales" />
   </section>
 
-  <section>
-    <h2>Casos de uso</h2>
-    <p>Desde el envío automático de correos y reportes hasta la integración con sistemas como CRM, ERP y plataformas de atención al cliente.</p>
-    <img src="https://images.unsplash.com/photo-1603791440384-56cd371ee9a7?auto=format&fit=crop&w=800&q=80" alt="Automatización empresarial" />
+  <section id="beneficios">
+    <h3>Beneficios Clave</h3>
+    <img src="https://source.unsplash.com/800x400/?workflow,automation" alt="Imagen libre de beneficios" />
+    <ul>
+      <li>Menos errores humanos y más velocidad</li>
+      <li>Reducción de costos operativos</li>
+      <li>Escalabilidad sin fricción</li>
+      <li>Toma de decisiones asistida por IA</li>
+    </ul>
+  </section>
+
+  <section id="demo">
+    <h3>Solicita una Demo</h3>
+    <p>¿Listo para experimentar una nueva forma de trabajar? Escríbenos para agendar una demostración personalizada.</p>
+    <form action="https://formsubmit.co/tu-correo@botz.fyi" method="POST">
+      <input type="text" name="nombre" placeholder="Tu nombre" required /><br /><br />
+      <input type="email" name="email" placeholder="Tu correo electrónico" required /><br /><br />
+      <textarea name="mensaje" placeholder="Tu mensaje" rows="5" required></textarea><br /><br />
+      <button type="submit" class="btn">Enviar</button>
+    </form>
   </section>
 
   <footer>
-    <p>&copy; 2025 Botz. Todos los derechos reservados.</p>
+    © 2025 botz | Juan Carlos García
   </footer>
 
 </body>
 </html>
+
 
 
