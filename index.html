@@ -55,9 +55,24 @@
     section {
       padding: 4em 2em;
       border-bottom: 1px solid #222;
+      position: relative;
     }
     h3 {
       color: #00baff;
+      position: relative;
+      z-index: 2;
+    }
+    ul {
+      position: relative;
+      z-index: 2;
+    }
+    p {
+      position: relative;
+      z-index: 2;
+    }
+    form {
+      position: relative;
+      z-index: 2;
     }
     footer {
       background: #05080f;
@@ -66,10 +81,16 @@
       font-size: 0.9em;
       color: #888;
     }
-    img {
-      max-width: 100%;
+    img.moving {
+      position: absolute;
+      top: 1em;
+      right: 2em;
+      width: 150px;
+      height: auto;
       border-radius: 8px;
-      margin: 1em 0;
+      opacity: 0.85;
+      z-index: 1;
+      pointer-events: none; /* para que no interfiera con clicks */
     }
   </style>
 </head>
@@ -94,7 +115,7 @@
 
   <section id="funcionalidades">
     <h3>Funcionalidades Inteligentes</h3>
-    <img src="https://source.unsplash.com/800x400/?robot,technology" alt="Imagen libre de automatización" />
+    <img class="moving" src="https://media.giphy.com/media/QpVUMRUJGokfqXyfa1/giphy.gif" alt="Automatización animada" />
     <ul>
       <li>Automatización por agentes de IA</li>
       <li>Predicción basada en datos históricos</li>
@@ -105,7 +126,7 @@
 
   <section id="beneficios">
     <h3>Beneficios Clave</h3>
-    <img src="https://source.unsplash.com/800x400/?workflow,automation" alt="Imagen libre de beneficios" />
+    <img class="moving" src="https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif" alt="Beneficios animados" />
     <ul>
       <li>Menos errores humanos y más velocidad</li>
       <li>Reducción de costos operativos</li>
@@ -116,6 +137,7 @@
 
   <section id="demo">
     <h3>Solicita una Demo</h3>
+    <img class="moving" src="https://media.giphy.com/media/xT0BKmtQGLbumr5RCM/giphy.gif" alt="Demo animado" />
     <p>¿Listo para experimentar una nueva forma de trabajar? Escríbenos para agendar una demostración personalizada.</p>
     <form action="https://formsubmit.co/tu-correo@botz.fyi" method="POST">
       <input type="text" name="nombre" placeholder="Tu nombre" required /><br /><br />
@@ -131,5 +153,4 @@
 
 </body>
 </html>
-
 
