@@ -339,13 +339,14 @@
       box-shadow: 0 0 10px rgba(0, 186, 255, 0.5);
     }
     
-    /* Elementos flotantes */
+    /* Elementos flotantes con interacción */
     .floating-elements {
       position: absolute;
       width: 100%;
       height: 100%;
       top: 0;
       left: 0;
+      pointer-events: none;
       z-index: 0;
       overflow: hidden;
     }
@@ -358,11 +359,40 @@
       pointer-events: auto;
       cursor: pointer;
       transition: all 0.3s ease;
+      z-index: 5;
     }
     
     .floating-element:hover {
       background: rgba(0, 186, 255, 0.3);
-      transform: scale(1.1);
+    }
+    
+    /* Tooltips para elementos flotantes */
+    .floating-tooltip {
+      position: absolute;
+      background: rgba(0, 186, 255, 0.9);
+      color: #000;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: bold;
+      white-space: nowrap;
+      z-index: 100;
+      animation: fadeIn 0.3s ease;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+    
+    .floating-tooltip.fade-out {
+      animation: fadeOut 0.5s ease;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
     }
     
     /* Responsive */
@@ -455,38 +485,6 @@
     .feature-card h4 {
       color: var(--primary);
       margin-top: 0;
-    }
-    
-    /* Tooltip para elementos flotantes */
-    .floating-tooltip {
-      background: rgba(10, 15, 28, 0.9);
-      color: var(--primary);
-      padding: 10px 15px;
-      border-radius: 20px;
-      box-shadow: 0 4px 15px rgba(0, 186, 255, 0.3);
-      border: 1px solid rgba(0, 186, 255, 0.2);
-      font-size: 14px;
-      max-width: 200px;
-      text-align: center;
-      z-index: 10000;
-      opacity: 1;
-      transition: opacity 0.5s ease;
-      position: fixed;
-    }
-    
-    .floating-tooltip.fade-out {
-      opacity: 0;
-    }
-    
-    .floating-tooltip::after {
-      content: '';
-      position: absolute;
-      bottom: -10px;
-      left: 50%;
-      transform: translateX(-50%);
-      border-width: 10px 10px 0;
-      border-style: solid;
-      border-color: rgba(10, 15, 28, 0.9) transparent transparent;
     }
   </style>
 </head>
@@ -693,103 +691,18 @@
       });
       
       // Efecto de partículas flotantes
-      const floatingContainers = document.querySelectorAll('.floating-elements');
-      floatingContainers.forEach(container => {
-        for (let i = 0; i < 3; i++) {
-          const element = document.createElement('div');
-          element.classList.add('floating-element');
-          const size = Math.random() * 100 + 50;
-          element.style.width = `${size}px`;
-          element.style.height = `${size}px`;
-          element.style.top = `${Math.random() * 100}%`;
-          element.style.left = `${Math.random() * 100}%`;
-          element.style.animationDelay = `${Math.random() * 5}s`;
-          container.appendChild(element);
-        }
-      });
-      
-      // Contenido relacionado para cada sección
-      const floatingContent = {
-        hero: [
-          "¡Bienvenido a botz!",
-          "Automatización inteligente para tu negocio",
-          "Descubre cómo podemos ayudarte",
-          "Haz clic para solicitar una demo"
-        ],
-        funcionalidades: [
-          "Agentes autónomos 24/7",
-          "NLP avanzado para interacciones fluidas",
-          "Predicción con 95% de precisión",
-          "Optimización de flujos de trabajo"
-        ],
-        beneficios: [
-          "Ahorra hasta 20 horas semanales",
-          "Reduce costos operativos",
-          "Escalabilidad sin límites",
-          "Decisiones basadas en datos"
-        ],
-        vision: [
-          "Transformación de productividad",
-          "Aprendizaje continuo automático",
-          "Gestión predictiva de recursos",
-          "Automatización completa"
-        ]
-      };
-      
-      // Manejar clics en elementos flotantes
-      document.querySelectorAll('.floating-element').forEach(el => {
-        el.addEventListener('click', function() {
-          // Determinar en qué sección estamos
-          let section = 'hero';
-          const hero = document.querySelector('.hero');
-          const func = document.getElementById('funcionalidades');
-          const ben = document.getElementById('beneficios');
-          const vis = document.getElementById('vision');
-          
-          const rect = this.getBoundingClientRect();
-          const elementCenterY = rect.top + rect.height / 2;
-          
-          if (this.closest('#funcionalidades') || 
-              (elementCenterY >= func.offsetTop && elementCenterY < ben.offsetTop)) {
-            section = 'funcionalidades';
-          } else if (this.closest('#beneficios') || 
-                     (elementCenterY >= ben.offsetTop && elementCenterY < vis.offsetTop)) {
-            section = 'beneficios';
-          } else if (this.closest('#vision') || 
-                     (elementCenterY >= vis.offsetTop)) {
-            section = 'vision';
-          }
-          
-          // Seleccionar contenido aleatorio para esta sección
-          const contents = floatingContent[section];
-          const randomContent = contents[Math.floor(Math.random() * contents.length)];
-          
-          // Mostrar tooltip
-          const tooltip = document.createElement('div');
-          tooltip.className = 'floating-tooltip';
-          tooltip.textContent = randomContent;
-          
-          // Posicionamiento
-          tooltip.style.left = `${rect.left + window.scrollX}px`;
-          tooltip.style.top = `${rect.top + window.scrollY - 40}px`;
-          
-          document.body.appendChild(tooltip);
-          
-          // Eliminar después de 3 segundos
-          setTimeout(() => {
-            tooltip.classList.add('fade-out');
-            setTimeout(() => tooltip.remove(), 500);
-          }, 3000);
-          
-          // Efecto visual al hacer clic
-          this.style.transform = 'scale(1.3)';
-          this.style.background = 'rgba(0, 186, 255, 0.5)';
-          setTimeout(() => {
-            this.style.transform = '';
-            this.style.background = '';
-          }, 500);
-        });
-      });
+      const floatingContainer = document.querySelector('.hero .floating-elements');
+      for (let i = 0; i < 5; i++) {
+        const element = document.createElement('div');
+        element.classList.add('floating-element');
+        const size = Math.random() * 100 + 50;
+        element.style.width = `${size}px`;
+        element.style.height = `${size}px`;
+        element.style.top = `${Math.random() * 100}%`;
+        element.style.left = `${Math.random() * 100}%`;
+        element.style.animationDelay = `${Math.random() * 5}s`;
+        floatingContainer.appendChild(element);
+      }
     });
     
     // Efecto smooth scroll para los enlaces del menú
@@ -799,6 +712,76 @@
         document.querySelector(this.getAttribute('href')).scrollIntoView({
           behavior: 'smooth'
         });
+      });
+    });
+    
+    // Manejar clics en elementos flotantes - Versión mejorada
+    document.querySelectorAll('.floating-element').forEach(el => {
+      el.addEventListener('click', function(e) {
+        e.stopPropagation(); // Previene eventos no deseados
+      
+        // Sistema mejorado para detectar sección
+        let section = 'hero';
+        const sections = {
+          'funcionalidades': document.getElementById('funcionalidades'),
+          'beneficios': document.getElementById('beneficios'),
+          'vision': document.getElementById('vision')
+        };
+      
+        // Encuentra la sección padre más cercana
+        for (const [secName, secElement] of Object.entries(sections)) {
+          if (secElement.contains(this) || 
+              this.closest('.floating-elements')?.parentElement === secElement) {
+            section = secName;
+            break;
+          }
+        }
+      
+        // Contenido para tooltips
+        const messages = {
+          hero: [
+            "¡Bienvenido a botz!",
+            "Automatización inteligente para tu negocio",
+            "Haz clic para solicitar una demo"
+          ],
+          funcionalidades: [
+            "Agentes autónomos 24/7",
+            "Predicción con 95% de precisión"
+          ],
+          beneficios: [
+            "Ahorra hasta 20 horas semanales",
+            "Reduce costos operativos"
+          ],
+          vision: [
+            "Transformación de productividad",
+            "Aprendizaje automático"
+          ]
+        };
+      
+        // Crea y muestra el tooltip
+        const tooltip = document.createElement('div');
+        tooltip.className = 'floating-tooltip';
+        tooltip.textContent = messages[section][Math.floor(Math.random() * messages[section].length)];
+      
+        const rect = this.getBoundingClientRect();
+        tooltip.style.left = `${rect.left + window.scrollX}px`;
+        tooltip.style.top = `${rect.top + window.scrollY - 40}px`;
+      
+        document.body.appendChild(tooltip);
+      
+        // Elimina el tooltip después de 3 segundos
+        setTimeout(() => {
+          tooltip.classList.add('fade-out');
+          setTimeout(() => tooltip.remove(), 500);
+        }, 3000);
+      
+        // Efecto visual
+        this.style.transform = 'scale(1.3)';
+        this.style.background = 'rgba(0, 186, 255, 0.5)';
+        setTimeout(() => {
+          this.style.transform = '';
+          this.style.background = '';
+        }, 500);
       });
     });
   </script>
