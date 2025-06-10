@@ -59,6 +59,16 @@
     h3 {
       color: #00baff;
     }
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5em;
+      margin-top: 2em;
+    }
+    .image-grid img {
+      width: 100%;
+      border-radius: 12px;
+    }
     footer {
       background: #05080f;
       text-align: center;
@@ -71,8 +81,7 @@
 <body>
 
   <header>
-    <h1><title>Botz</title>
-</h1>
+    <h1>botz</h1>
     <nav>
       <a href="#funcionalidades">Funcionalidades</a>
       <a href="#beneficios">Beneficios</a>
@@ -83,7 +92,7 @@
   <div class="hero">
     <h2>Impulsa tu productividad con AI Agents</h2>
     <p>
-      Botz es tu plataforma inteligente para transformar la gestión de tareas con automatización y predicción impulsadas por IA.
+      botz es tu plataforma inteligente para transformar la gestión de tareas con automatización y predicción impulsadas por IA.
     </p>
     <a href="#demo" class="btn">Solicitar Demo</a>
   </div>
@@ -96,6 +105,10 @@
       <li>Asignación de recursos y optimización de flujos</li>
       <li>Gestión organizacional con roles y permisos</li>
     </ul>
+    <div class="image-grid">
+      <img src="https://source.unsplash.com/400x300/?automation" alt="Automatización - imagen libre" />
+      <img src="https://source.unsplash.com/400x300/?robotics" alt="Robótica - imagen libre" />
+    </div>
   </section>
 
   <section id="beneficios">
@@ -106,6 +119,10 @@
       <li>Escalabilidad organizacional (+35%)</li>
       <li>Automatización sin intervención manual</li>
     </ul>
+    <div class="image-grid">
+      <img src="https://source.unsplash.com/400x300/?productivity" alt="Productividad - imagen libre" />
+      <img src="https://source.unsplash.com/400x300/?workflow" alt="Flujo de trabajo - imagen libre" />
+    </div>
   </section>
 
   <section id="demo">
@@ -120,8 +137,9 @@
   </section>
 
   <footer>
-    © 2025 Botz | Juan Carlos García
+    © botz | Juan Carlos García
   </footer>
 
 </body>
 </html>
+
