@@ -53,14 +53,18 @@
       margin-top: 1.5em;
     }
     section {
+      position: relative;
       padding: 4em 2em;
+      color: white;
+      max-width: 900px;
+      margin: auto;
       border-bottom: 1px solid #222;
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
+      border-radius: 10px;
+      margin-bottom: 2em;
     }
     h3 {
       color: #00baff;
+      margin-bottom: 1em;
     }
     footer {
       background: #05080f;
@@ -69,10 +73,23 @@
       font-size: 0.9em;
       color: #888;
     }
-    img {
-      max-width: 100%;
-      border-radius: 8px;
-      margin: 1em 0;
+    ul {
+      list-style-type: disc;
+      margin-left: 1.5em;
+      font-size: 1.1em;
+    }
+    /* Overlay negro semitransparente */
+    .overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(0,0,0,0.5);
+      border-radius: 10px;
+      z-index: 1;
+    }
+    /* Contenido encima del overlay */
+    .content {
+      position: relative;
+      z-index: 2;
     }
   </style>
 </head>
@@ -101,7 +118,8 @@
     background-position: center;
     background-repeat: no-repeat;
   ">
-    <div style="background-color: rgba(0,0,0,0.7); padding: 2em; border-radius: 10px;">
+    <div class="overlay"></div>
+    <div class="content">
       <h3>Funcionalidades Inteligentes</h3>
       <ul>
         <li>Automatización por agentes de IA</li>
@@ -118,7 +136,8 @@
     background-position: center;
     background-repeat: no-repeat;
   ">
-    <div style="background-color: rgba(0,0,0,0.7); padding: 2em; border-radius: 10px;">
+    <div class="overlay"></div>
+    <div class="content">
       <h3>Beneficios Clave</h3>
       <ul>
         <li>Menos errores humanos y más velocidad</li>
@@ -146,6 +165,7 @@
 
 </body>
 </html>
+
 
 
 
