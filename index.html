@@ -44,7 +44,7 @@
       background-color: var(--dark);
       padding: 1em 2em;
       display: flex;
-      justify-content: space-between;
+      flex-direction: column;
       align-items: center;
       position: fixed;
       width: 100%;
@@ -52,6 +52,21 @@
       z-index: 1000;
       box-shadow: 0 4px 30px rgba(0, 186, 255, 0.1);
       backdrop-filter: blur(5px);
+    }
+    
+    .header-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 1200px;
+    }
+    
+    .logo-nav-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
     }
     
     header h1 {
@@ -62,13 +77,27 @@
       text-shadow: 0 0 10px rgba(0, 186, 255, 0.3);
     }
     
+    .nav-container {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      margin-top: 1em;
+    }
+    
+    nav {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 1.5em;
+    }
+    
     nav a {
-      margin-left: 1.5em;
       color: var(--light);
       text-decoration: none;
       font-weight: 500;
       transition: all 0.3s ease;
       position: relative;
+      white-space: nowrap;
     }
     
     nav a:hover {
@@ -91,7 +120,7 @@
     }
     
     .hero {
-      padding: 8em 2em 4em;
+      padding: 12em 2em 4em;
       text-align: center;
       background: linear-gradient(145deg, #0a0f1c, #001f3f);
       position: relative;
@@ -397,17 +426,25 @@
     
     /* Responsive */
     @media (max-width: 768px) {
-      header {
+      .logo-nav-container {
         flex-direction: column;
-        padding: 1em;
+      }
+      
+      .nav-container {
+        margin-top: 1.5em;
       }
       
       nav {
-        margin-top: 1em;
+        gap: 0.8em;
+        flex-wrap: wrap;
       }
       
       nav a {
-        margin: 0 0.5em;
+        font-size: 0.9em;
+      }
+      
+      .hero {
+        padding-top: 15em;
       }
       
       .hero h2 {
@@ -491,13 +528,19 @@
 <body>
 
   <header>
-    <h1 class="glow">botz</h1>
-    <nav>
-      <a href="#funcionalidades">Funcionalidades</a>
-      <a href="#beneficios">Beneficios</a>
-      <a href="#vision">Visión</a>
-      <a href="#demo">Demo</a>
-    </nav>
+    <div class="header-container">
+      <div class="logo-nav-container">
+        <h1 class="glow">botz</h1>
+        <div class="nav-container">
+          <nav>
+            <a href="#funcionalidades">Funcionalidades</a>
+            <a href="#beneficios">Beneficios</a>
+            <a href="#vision">Visión</a>
+            <a href="#demo">Demo</a>
+          </nav>
+        </div>
+      </div>
+    </div>
   </header>
 
   <div class="hero">
