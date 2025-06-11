@@ -13,6 +13,10 @@
       --dark: #081229;
       --light: #ffffff;
       --accent: #00ffea;
+
+      --neural-1: #ff6ec7;
+      --neural-2: #6e78ff;
+      --neural-3: #ffb86c;
     }
     
     @keyframes float {
@@ -30,6 +34,16 @@
       0% { transform: scale(1); }
       50% { transform: scale(1.05); }
       100% { transform: scale(1); }
+    }
+    
+    @keyframes neuralPulse {
+      0% { box-shadow: 0 0 0 0 rgba(110, 120, 255, 0.7); }
+      100% { box-shadow: 0 0 0 20px rgba(110, 120, 255, 0); }
+    }
+    
+    @keyframes neuralConnection {
+      0% { stroke-dashoffset: 100; }
+      100% { stroke-dashoffset: 0; }
     }
     
     body {
@@ -302,6 +316,27 @@
       background: linear-gradient(to right, transparent, var(--primary), transparent);
     }
     
+    .contact-info {
+      margin: 1em 0;
+      font-size: 1.2em;
+    }
+    
+    .email-link {
+      color: var(--primary);
+      text-decoration: none;
+      display: inline-block;
+      margin-top: 0.5em;
+      padding: 0.5em 1.5em;
+      border-radius: 30px;
+      background: rgba(0, 186, 255, 0.1);
+      transition: all 0.3s ease;
+    }
+    
+    .email-link:hover {
+      background: rgba(0, 186, 255, 0.2);
+      transform: translateY(-3px);
+    }
+    
     /* Fondos de secciones con animaciones */
     #funcionalidades {
       background: url('https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1950&q=80') center/cover no-repeat fixed;
@@ -338,6 +373,186 @@
     
     #vision .content {
       background: rgba(15, 23, 42, 0.9);
+    }
+    
+    /* Nueva sección de arquitectura de agentes */
+    #arquitectura {
+      background: linear-gradient(135deg, #0a0f1c 0%, #1a1f30 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    #arquitectura::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: 
+        radial-gradient(circle at 20% 30%, rgba(110, 120, 255, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(255, 110, 199, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 50% 20%, rgba(255, 184, 108, 0.1) 0%, transparent 40%);
+      z-index: 0;
+    }
+    
+    .architecture-diagram {
+      position: relative;
+      width: 100%;
+      height: 500px;
+      margin: 3em 0;
+    }
+    
+    .neural-core {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      background: rgba(10, 15, 28, 0.9);
+      border: 3px solid var(--neural-1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      z-index: 10;
+      box-shadow: 0 0 30px rgba(255, 110, 199, 0.3);
+      transition: all 0.5s ease;
+      animation: neuralPulse 3s infinite;
+    }
+    
+    .neural-core:hover {
+      transform: translate(-50%, -50%) scale(1.1);
+      box-shadow: 0 0 50px rgba(255, 110, 199, 0.5);
+    }
+    
+    .neural-node {
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: rgba(10, 15, 28, 0.9);
+      border: 2px solid;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      padding: 1em;
+      transition: all 0.4s ease;
+      cursor: pointer;
+      z-index: 5;
+    }
+    
+    .neural-node:hover {
+      transform: scale(1.15);
+      z-index: 15;
+    }
+    
+    .node-1 {
+      top: 20%;
+      left: 20%;
+      border-color: var(--neural-2);
+      box-shadow: 0 0 20px rgba(110, 120, 255, 0.3);
+    }
+    
+    .node-2 {
+      top: 20%;
+      right: 20%;
+      border-color: var(--neural-3);
+      box-shadow: 0 0 20px rgba(255, 184, 108, 0.3);
+    }
+    
+    .node-3 {
+      bottom: 20%;
+      left: 20%;
+      border-color: var(--neural-1);
+      box-shadow: 0 0 20px rgba(255, 110, 199, 0.3);
+    }
+    
+    .node-4 {
+      bottom: 20%;
+      right: 20%;
+      border-color: var(--accent);
+      box-shadow: 0 0 20px rgba(0, 255, 234, 0.3);
+    }
+    
+    .node-icon {
+      font-size: 2em;
+      margin-bottom: 10px;
+    }
+    
+    .node-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    
+    .node-desc {
+      font-size: 0.8em;
+      opacity: 0.8;
+    }
+    
+    .neural-connection {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    
+    .connection {
+      stroke: rgba(110, 120, 255, 0.5);
+      stroke-width: 2;
+      stroke-dasharray: 10, 5;
+      animation: neuralConnection 30s linear infinite;
+    }
+    
+    .architecture-content {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2em;
+      margin-top: 3em;
+    }
+    
+    .architecture-text {
+      flex: 1;
+      min-width: 300px;
+    }
+    
+    .architecture-features {
+      flex: 1;
+      min-width: 300px;
+      background: rgba(10, 15, 28, 0.7);
+      border-radius: 12px;
+      padding: 2em;
+      border-left: 4px solid var(--primary);
+    }
+    
+    .architecture-features h4 {
+      color: var(--primary);
+      margin-top: 0;
+    }
+    
+    .feature-list {
+      list-style-type: none;
+      padding: 0;
+    }
+    
+    .feature-list li {
+      margin-bottom: 1em;
+      padding-left: 2em;
+      position: relative;
+    }
+    
+    .feature-list li::before {
+      content: '▹';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
     }
     
     /* Formulario mejorado */
@@ -458,6 +673,34 @@
       .content {
         padding: 2em 1em;
       }
+      
+      .architecture-diagram {
+        height: 400px;
+      }
+      
+      .neural-node {
+        width: 100px;
+        height: 100px;
+        font-size: 0.9em;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .architecture-diagram {
+        height: 300px;
+      }
+      
+      .neural-core {
+        width: 120px;
+        height: 120px;
+        font-size: 0.9em;
+      }
+      
+      .neural-node {
+        width: 80px;
+        height: 80px;
+        font-size: 0.8em;
+      }
     }
     
     /* Efectos especiales */
@@ -536,6 +779,7 @@
             <a href="#funcionalidades">Funcionalidades</a>
             <a href="#beneficios">Beneficios</a>
             <a href="#vision">Visión</a>
+            <a href="#arquitectura">Arquitectura IA</a>
             <a href="#demo">Demo</a>
           </nav>
         </div>
@@ -656,24 +900,6 @@
       <p>Los agentes de botz manejan tareas actualmente realizadas por humanos usando lenguaje natural y notifican al usuario solo cuando se requiere intervención humana. Operan bajo condiciones límite, alineándose perfectamente con tus directrices empresariales.</p>
       <p>Nuestro propósito es que los agentes actúen como catalizadores para la transformación de la productividad, convirtiéndose en verdaderos multiplicadores de eficiencia organizacional.</p>
       
-      <div class="feature-cards">
-        <div class="feature-card">
-          <div class="feature-icon">
-            <i class="fas fa-cogs"></i>
-          </div>
-          <h4>Automatización Completa</h4>
-          <p>Delegación inteligente con priorización automática y ETA predictivo.</p>
-        </div>
-        
-        <div class="feature-card">
-          <div class="feature-icon">
-            <i class="fas fa-project-diagram"></i>
-          </div>
-          <h4>Gestión Predictiva</h4>
-          <p>Cronogramas optimizados y asignación inteligente de recursos.</p>
-        </div>
-      </div>
-
       <h4 style="color: var(--primary); margin-top: 2em;">Funcionalidades Clave Impulsadas por IA</h4>
       <ul>
         <li><strong>Automatización de Tareas:</strong> Delegación inteligente con prioridad, categorías, ETA predictivo y respuestas contextuales. Sin intervención manual cuando sea posible.</li>
@@ -681,15 +907,87 @@
         <li><strong>Optimización de Flujos de Trabajo:</strong> Machine learning avanzado para reducir errores en un 95% y ahorrar costos operativos.</li>
         <li><strong>Aprendizaje Continuo:</strong> Diseño adaptativo que mejora su precisión en un 3% mensual sin necesidad de reprogramación.</li>
       </ul>
+    </div>
+  </section>
 
-      <h4 style="color: var(--primary);">Funcionalidades Esenciales</h4>
-      <ul>
-        <li><strong>Estructura Organizacional:</strong> Gestión jerárquica de divisiones, proyectos, tareas y clientes con visualización 360°.</li>
-        <li><strong>Gestión de Recursos:</strong> Control inteligente de productos, usuarios y permisos basados en roles dinámicos.</li>
-        <li><strong>Visibilidad Total:</strong> Seguimiento en tiempo real con dashboards interactivos y fuente única de verdad.</li>
-        <li><strong>Planificación Inteligente:</strong> Herramientas visuales para asignación y monitoreo con alertas predictivas.</li>
-        <li><strong>Medición de Resultados:</strong> Productividad basada en OKRs con correlación automática entre proyectos.</li>
-      </ul>
+  <!-- Nueva sección de Arquitectura IA -->
+  <section id="arquitectura">
+    <h3 class="section-title">Arquitectura de Nuestros Agentes IA</h3>
+    <div class="content">
+      <p>Descubre cómo están construidos nuestros agentes inteligentes y cuál es su propósito fundamental. La arquitectura neuronal de botz se basa en cuatro módulos interconectados que trabajan en armonía para resolver problemas complejos.</p>
+      
+      <div class="architecture-diagram">
+        <svg class="neural-connection" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+          <!-- Conexiones neuronales -->
+          <line x1="200" y1="100" x2="500" y2="250" class="connection" />
+          <line x1="800" y1="100" x2="500" y2="250" class="connection" />
+          <line x1="200" y1="400" x2="500" y2="250" class="connection" />
+          <line x1="800" y1="400" x2="500" y2="250" class="connection" />
+          <line x1="200" y1="100" x2="800" y2="100" class="connection" />
+          <line x1="200" y1="400" x2="800" y2="400" class="connection" />
+          <line x1="200" y1="100" x2="200" y2="400" class="connection" />
+          <line x1="800" y1="100" x2="800" y2="400" class="connection" />
+        </svg>
+        
+        <div class="neural-core">
+          <i class="fas fa-brain node-icon"></i>
+          <div class="node-title">Núcleo Cognitivo</div>
+          <div class="node-desc">Motor de decisiones</div>
+        </div>
+        
+        <div class="neural-node node-1">
+          <i class="fas fa-eye node-icon"></i>
+          <div class="node-title">Percepción</div>
+          <div class="node-desc">Entrada de datos</div>
+        </div>
+        
+        <div class="neural-node node-2">
+          <i class="fas fa-cogs node-icon"></i>
+          <div class="node-title">Procesamiento</div>
+          <div class="node-desc">Análisis contextual</div>
+        </div>
+        
+        <div class="neural-node node-3">
+          <i class="fas fa-database node-icon"></i>
+          <div class="node-title">Memoria</div>
+          <div class="node-desc">Base de conocimiento</div>
+        </div>
+        
+        <div class="neural-node node-4">
+          <i class="fas fa-bolt node-icon"></i>
+          <div class="node-title">Acción</div>
+          <div class="node-desc">Ejecución de tareas</div>
+        </div>
+      </div>
+      
+      <div class="architecture-content">
+        <div class="architecture-text">
+          <h3>Propósito Fundamental</h3>
+          <p>Los agentes de botz están diseñados para convertirse en <strong>extensiones cognitivas</strong> de tu equipo humano. Su propósito no es reemplazar, sino potenciar las capacidades humanas mediante:</p>
+          
+          <ul>
+            <li><strong>Autonomía inteligente:</strong> Toman decisiones dentro de parámetros predefinidos</li>
+            <li><strong>Aprendizaje continuo:</strong> Mejoran con cada interacción y conjunto de datos</li>
+            <li><strong>Adaptabilidad contextual:</strong> Se ajustan a diferentes escenarios empresariales</li>
+            <li><strong>Colaboración aumentada:</strong> Trabajan junto a humanos complementando habilidades</li>
+          </ul>
+          
+          <p>Nuestra arquitectura neuronal única permite que los agentes desarrollen comprensión contextual profunda, manteniendo transparencia en sus procesos de toma de decisiones.</p>
+        </div>
+        
+        <div class="architecture-features">
+          <h4>Características Técnicas</h4>
+          <ul class="feature-list">
+            <li>Arquitectura de red neuronal modular</li>
+            <li>Capas de transformadores para comprensión del lenguaje</li>
+            <li>Memoria a corto y largo plazo con atención diferencial</li>
+            <li>Mecanismos de retroalimentación reforzada</li>
+            <li>Modelos de autoaprendizaje no supervisado</li>
+            <li>Sistema de valores éticos integrado</li>
+            <li>Capacidad de razonamiento multi-paso</li>
+          </ul>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -717,6 +1015,9 @@
       <a href="#" style="color: #888; margin: 0 10px; font-size: 1.5em;"><i class="fab fa-github"></i></a>
     </div>
     © 2025 <span class="glow">botz</span> | Transformando la productividad con IA<br>
+    <div class="contact-info">
+      Contáctanos: <a href="mailto:info@botz.fyi" class="email-link">info@botz.fyi</a>
+    </div>
     Juan Carlos García 
   </footer>
 
@@ -748,6 +1049,12 @@
         element.style.animationDelay = `${Math.random() * 5}s`;
         floatingContainer.appendChild(element);
       }
+      
+      // Animación para conexiones neuronales
+      const connections = document.querySelectorAll('.connection');
+      connections.forEach((conn, index) => {
+        conn.style.animationDelay = `${index * 2}s`;
+      });
     });
     
     // Efecto smooth scroll para los enlaces del menú
@@ -770,7 +1077,8 @@
         const sections = {
           'funcionalidades': document.getElementById('funcionalidades'),
           'beneficios': document.getElementById('beneficios'),
-          'vision': document.getElementById('vision')
+          'vision': document.getElementById('vision'),
+          'arquitectura': document.getElementById('arquitectura')
         };
       
         // Encuentra la sección padre más cercana
@@ -800,6 +1108,10 @@
           vision: [
             "Transformación de productividad",
             "Aprendizaje automático"
+          ],
+          arquitectura: [
+            "Arquitectura neuronal modular",
+            "Agentes con capacidad de aprendizaje"
           ]
         };
       
@@ -829,9 +1141,23 @@
         }, 500);
       });
     });
+    
+    // Interacción con los nodos neuronales
+    document.querySelectorAll('.neural-node').forEach(node => {
+      node.addEventListener('mouseenter', function() {
+        this.style.zIndex = '20';
+        const core = document.querySelector('.neural-core');
+        core.style.transform = 'translate(-50%, -50%) scale(1.05)';
+      });
+      
+      node.addEventListener('mouseleave', function() {
+        this.style.zIndex = '5';
+        const core = document.querySelector('.neural-core');
+        core.style.transform = 'translate(-50%, -50%)';
+      });
+    });
   </script>
 </body>
 </html>
-
 
 
