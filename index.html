@@ -46,6 +46,29 @@
       100% { stroke-dashoffset: 0; }
     }
     
+    @keyframes dataFlow {
+      0% { transform: translateX(-100%); opacity: 0; }
+      20% { opacity: 1; }
+      80% { opacity: 1; }
+      100% { transform: translateX(100%); opacity: 0; }
+    }
+    
+    @keyframes gearRotate {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    @keyframes pulseGlow {
+      0% { box-shadow: 0 0 0 0 rgba(0, 186, 255, 0.5); }
+      100% { box-shadow: 0 0 0 20px rgba(0, 186, 255, 0); }
+    }
+    
+    @keyframes pulseStorage {
+      0% { transform: scale(1); opacity: 0.7; }
+      50% { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(1); opacity: 0.7; }
+    }
+    
     body {
       margin: 0;
       font-family: 'Segoe UI', sans-serif;
@@ -766,6 +789,241 @@
       color: var(--primary);
       margin-top: 0;
     }
+    
+    /* Nuevos estilos para las visualizaciones */
+    .visualization-container {
+      position: relative;
+      height: 300px;
+      margin: 2em 0;
+      border-radius: 10px;
+      overflow: hidden;
+      background: rgba(10, 15, 28, 0.8);
+      border: 1px solid rgba(0, 186, 255, 0.2);
+    }
+    
+    .visualization-title {
+      text-align: center;
+      font-size: 1.5em;
+      color: var(--primary);
+      margin-bottom: 1em;
+      padding-top: 1em;
+    }
+    
+    .data-flow {
+      position: relative;
+      width: 100%;
+      height: 100px;
+      overflow: hidden;
+    }
+    
+    .data-item {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: rgba(0, 186, 255, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: dataFlow 8s linear infinite;
+      box-shadow: 0 0 10px rgba(0, 186, 255, 0.5);
+    }
+    
+    .gear-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100%;
+      gap: 50px;
+    }
+    
+    .gear {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: rgba(255, 184, 108, 0.1);
+      border: 2px solid var(--neural-3);
+      position: relative;
+      animation: gearRotate 10s linear infinite;
+    }
+    
+    .gear::before {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: 
+        radial-gradient(circle at center, transparent 35%, var(--neural-3) 35%),
+        linear-gradient(0deg, transparent 48%, var(--neural-3) 48%, var(--neural-3) 52%, transparent 52%),
+        linear-gradient(60deg, transparent 48%, var(--neural-3) 48%, var(--neural-3) 52%, transparent 52%),
+        linear-gradient(120deg, transparent 48%, var(--neural-3) 48%, var(--neural-3) 52%, transparent 52%);
+    }
+    
+    .gear.small {
+      width: 50px;
+      height: 50px;
+      animation-duration: 5s;
+      animation-direction: reverse;
+    }
+    
+    .memory-visual {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      padding: 20px;
+    }
+    
+    .memory-cell {
+      background: rgba(255, 110, 199, 0.1);
+      border: 1px solid var(--neural-1);
+      border-radius: 5px;
+      padding: 10px;
+      text-align: center;
+      animation: pulseStorage 3s infinite;
+    }
+    
+    .memory-cell:nth-child(2) { animation-delay: 0.5s; }
+    .memory-cell:nth-child(3) { animation-delay: 1s; }
+    .memory-cell:nth-child(4) { animation-delay: 1.5s; }
+    .memory-cell:nth-child(5) { animation-delay: 2s; }
+    .memory-cell:nth-child(6) { animation-delay: 2.5s; }
+    
+    .action-visual {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100%;
+    }
+    
+    .action-bolt {
+      font-size: 5em;
+      color: var(--accent);
+      animation: pulse 1.5s infinite;
+      text-shadow: 0 0 20px rgba(0, 255, 234, 0.7);
+    }
+    
+    /* Modal para visualizaciones */
+    .node-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+    }
+    
+    .node-modal.active {
+      opacity: 1;
+      visibility: visible;
+    }
+    
+    .modal-content {
+      background: rgba(10, 15, 28, 0.95);
+      border-radius: 15px;
+      width: 90%;
+      max-width: 700px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 2em;
+      position: relative;
+      border: 1px solid var(--primary);
+      box-shadow: 0 0 30px rgba(0, 186, 255, 0.3);
+    }
+    
+    .close-modal {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: none;
+      border: none;
+      color: var(--light);
+      font-size: 1.5em;
+      cursor: pointer;
+      transition: color 0.3s ease;
+    }
+    
+    .close-modal:hover {
+      color: var(--primary);
+    }
+    
+    .modal-title {
+      color: var(--primary);
+      margin-top: 0;
+      text-align: center;
+      font-size: 2em;
+    }
+    
+    .modal-description {
+      line-height: 1.6;
+      margin-bottom: 2em;
+    }
+    
+    .process-steps {
+      display: flex;
+      justify-content: space-between;
+      margin: 2em 0;
+      position: relative;
+    }
+    
+    .step {
+      background: rgba(0, 186, 255, 0.1);
+      border-radius: 10px;
+      padding: 1em;
+      width: 30%;
+      text-align: center;
+      position: relative;
+      z-index: 2;
+      border: 1px solid rgba(0, 186, 255, 0.3);
+    }
+    
+    .step-number {
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      background: var(--primary);
+      color: var(--dark);
+      border-radius: 50%;
+      line-height: 30px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    
+    .process-line {
+      position: absolute;
+      top: 50%;
+      left: 15%;
+      width: 70%;
+      height: 2px;
+      background: linear-gradient(to right, transparent, var(--primary), transparent);
+      z-index: 1;
+    }
+    
+    .process-line::after {
+      content: '';
+      position: absolute;
+      top: -5px;
+      right: 0;
+      width: 10px;
+      height: 10px;
+      border-right: 2px solid var(--primary);
+      border-bottom: 2px solid var(--primary);
+      transform: rotate(-45deg);
+    }
+    
+    .modal-footer {
+      text-align: center;
+      margin-top: 2em;
+      font-size: 0.9em;
+      color: #888;
+    }
   </style>
 </head>
 <body>
@@ -935,25 +1193,25 @@
           <div class="node-desc">Motor de decisiones</div>
         </div>
         
-        <div class="neural-node node-1">
+        <div class="neural-node node-1" data-node="perception">
           <i class="fas fa-eye node-icon"></i>
           <div class="node-title">Percepción</div>
           <div class="node-desc">Entrada de datos</div>
         </div>
         
-        <div class="neural-node node-2">
+        <div class="neural-node node-2" data-node="processing">
           <i class="fas fa-cogs node-icon"></i>
           <div class="node-title">Procesamiento</div>
           <div class="node-desc">Análisis contextual</div>
         </div>
         
-        <div class="neural-node node-3">
+        <div class="neural-node node-3" data-node="memory">
           <i class="fas fa-database node-icon"></i>
           <div class="node-title">Memoria</div>
           <div class="node-desc">Base de conocimiento</div>
         </div>
         
-        <div class="neural-node node-4">
+        <div class="neural-node node-4" data-node="action">
           <i class="fas fa-bolt node-icon"></i>
           <div class="node-title">Acción</div>
           <div class="node-desc">Ejecución de tareas</div>
@@ -990,6 +1248,55 @@
       </div>
     </div>
   </section>
+
+  <!-- Modal para visualización de procesos -->
+  <div class="node-modal" id="node-modal">
+    <div class="modal-content">
+      <button class="close-modal" id="close-modal">
+        <i class="fas fa-times"></i>
+      </button>
+      <h2 class="modal-title" id="modal-title">Proceso de Percepción</h2>
+      <p class="modal-description" id="modal-description">
+        Este módulo se encarga de capturar y procesar los datos de entrada de múltiples fuentes. 
+        Transforma información cruda en un formato estructurado para el análisis posterior.
+      </p>
+      
+      <div class="visualization-container">
+        <div class="visualization-title">Flujo de datos de entrada</div>
+        <div class="data-flow">
+          <div class="data-item" style="top: 20px; animation-delay: 0s;"><i class="fas fa-file"></i></div>
+          <div class="data-item" style="top: 50px; animation-delay: 1s;"><i class="fas fa-image"></i></div>
+          <div class="data-item" style="top: 80px; animation-delay: 2s;"><i class="fas fa-database"></i></div>
+          <div class="data-item" style="top: 20px; animation-delay: 3s;"><i class="fas fa-chart-bar"></i></div>
+          <div class="data-item" style="top: 50px; animation-delay: 4s;"><i class="fas fa-microphone"></i></div>
+          <div class="data-item" style="top: 80px; animation-delay: 5s;"><i class="fas fa-video"></i></div>
+        </div>
+      </div>
+      
+      <div class="process-steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <strong>Captura</strong>
+          <p>Recolección de datos desde múltiples fuentes</p>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <strong>Filtrado</strong>
+          <p>Eliminación de ruido y datos irrelevantes</p>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <strong>Estructuración</strong>
+          <p>Organización en formato utilizable</p>
+        </div>
+        <div class="process-line"></div>
+      </div>
+      
+      <p class="modal-footer">
+        Cada paso del proceso de percepción es fundamental para garantizar la calidad y utilidad de los datos que alimentarán al núcleo cognitivo.
+      </p>
+    </div>
+  </div>
 
   <section id="demo" style="background: linear-gradient(135deg, #0a0f1c 0%, #001f3f 100%);">
     <h3 class="section-title">Solicita una Demo Personalizada</h3>
@@ -1155,9 +1462,96 @@
         const core = document.querySelector('.neural-core');
         core.style.transform = 'translate(-50%, -50%)';
       });
+      
+      // Manejar clic en nodo
+      node.addEventListener('click', function() {
+        const nodeType = this.getAttribute('data-node');
+        const modal = document.getElementById('node-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalDescription = document.getElementById('modal-description');
+        const visualizationContainer = document.querySelector('.visualization-container');
+        
+        // Actualizar contenido del modal según el nodo
+        switch(nodeType) {
+          case 'perception':
+            modalTitle.textContent = "Proceso de Percepción";
+            modalDescription.textContent = "Este módulo se encarga de capturar y procesar los datos de entrada de múltiples fuentes. Transforma información cruda en un formato estructurado para el análisis posterior.";
+            visualizationContainer.innerHTML = `
+              <div class="visualization-title">Flujo de datos de entrada</div>
+              <div class="data-flow">
+                <div class="data-item" style="top: 20px; animation-delay: 0s;"><i class="fas fa-file"></i></div>
+                <div class="data-item" style="top: 50px; animation-delay: 1s;"><i class="fas fa-image"></i></div>
+                <div class="data-item" style="top: 80px; animation-delay: 2s;"><i class="fas fa-database"></i></div>
+                <div class="data-item" style="top: 20px; animation-delay: 3s;"><i class="fas fa-chart-bar"></i></div>
+                <div class="data-item" style="top: 50px; animation-delay: 4s;"><i class="fas fa-microphone"></i></div>
+                <div class="data-item" style="top: 80px; animation-delay: 5s;"><i class="fas fa-video"></i></div>
+              </div>
+            `;
+            break;
+            
+          case 'processing':
+            modalTitle.textContent = "Proceso de Análisis";
+            modalDescription.textContent = "El módulo de procesamiento aplica algoritmos avanzados para interpretar y contextualizar la información recibida, identificando patrones y relaciones clave.";
+            visualizationContainer.innerHTML = `
+              <div class="visualization-title">Transformación de datos</div>
+              <div class="gear-container">
+                <div class="gear"></div>
+                <div class="gear small"></div>
+                <div class="gear"></div>
+              </div>
+            `;
+            break;
+            
+          case 'memory':
+            modalTitle.textContent = "Sistema de Memoria";
+            modalDescription.textContent = "Este componente almacena información relevante para futuras decisiones, permitiendo aprendizaje continuo y acceso rápido a conocimientos previos.";
+            visualizationContainer.innerHTML = `
+              <div class="visualization-title">Almacenamiento y recuperación</div>
+              <div class="memory-visual">
+                <div class="memory-cell">Datos 1</div>
+                <div class="memory-cell">Datos 2</div>
+                <div class="memory-cell">Datos 3</div>
+                <div class="memory-cell">Datos 4</div>
+                <div class="memory-cell">Datos 5</div>
+                <div class="memory-cell">Datos 6</div>
+              </div>
+            `;
+            break;
+            
+          case 'action':
+            modalTitle.textContent = "Módulo de Acción";
+            modalDescription.textContent = "El componente de acción ejecuta decisiones basadas en el análisis, interactuando con sistemas externos y generando resultados tangibles.";
+            visualizationContainer.innerHTML = `
+              <div class="visualization-title">Ejecución de resultados</div>
+              <div class="action-visual">
+                <div class="action-bolt">
+                  <i class="fas fa-bolt"></i>
+                </div>
+              </div>
+            `;
+            break;
+        }
+        
+        // Mostrar modal
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      });
+    });
+    
+    // Cerrar modal
+    document.getElementById('close-modal').addEventListener('click', function() {
+      const modal = document.getElementById('node-modal');
+      modal.classList.remove('active');
+      document.body.style.overflow = 'auto';
+    });
+    
+    // Cerrar modal al hacer clic fuera del contenido
+    document.getElementById('node-modal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        this.classList.remove('active');
+        document.body.style.overflow = 'auto';
+      }
     });
   </script>
 </body>
 </html>
-
-
