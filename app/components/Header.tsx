@@ -27,7 +27,7 @@ const Header: React.FC = () => {
             className="hamburger"
             aria-label="Abrir menú"
             aria-expanded={open}
-            onClick={() => setOpen(v => !v)}
+            onClick={() => setOpen((v) => !v)}
           >
             <span />
             <span />
