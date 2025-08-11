@@ -646,19 +646,17 @@ footer::before {
 
 }
 
-/* ==== FIX HEADER LINE & SPACING ==== */
-header {
-  margin: 0;
-  padding: 0;
-  border: none;
-}
-body {
-  margin: 0;
-  padding: 0;
-}
-@media (min-width: 1024px) {
-  .header-container {
-    padding-top: 10px;
-    padding-bottom: 10px;
-  }
+/* ======== BOTZ responsive fixes (appended) ======== */
+header { border-top: 0 !important; box-shadow: none !important; margin: 0 !important; }
+body { margin: 0 !important; padding: 0 !important; }
+
+@media (max-width: 1024px) {
+  .hamburger { display: flex !important; }
+  .nav-container { display: none !important; width: 100%; }
+  .nav-container.is-open { display: block !important; }
+  nav { flex-direction: column; align-items: stretch; gap: .65rem; padding: .75rem 0; }
+  .dropdown-content { position: static !important; display: block !important; box-shadow: none !important; background: transparent !important; padding: .25rem 0 !important; }
+  .dropdown > a { pointer-events: none; }
+  main { padding-top: 76px !important; }
+  .hero { padding-top: 7rem !important; }
 }
