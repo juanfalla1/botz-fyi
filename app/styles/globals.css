@@ -645,3 +645,20 @@ footer::before {
 
 
 }
+
+/* ==== FIX HEADER LINE & SPACING ==== */
+header {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+body {
+  margin: 0;
+  padding: 0;
+}
+@media (min-width: 1024px) {
+  .header-container {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+}
