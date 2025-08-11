@@ -542,6 +542,8 @@ footer::before {
 
 .botz-glow-button {
   animation: chat-glow 2s infinite;
+}
+
 
 /* =========================
    DEMO COMPRA AUTOMATIZADA PRO
@@ -644,7 +646,6 @@ footer::before {
 
 
 
-}
 
 /* ==== HOTFIX: header compacto + sin raya + hero sin hueco ==== */
 :root { --header-h: 64px; }
@@ -680,110 +681,318 @@ main{ padding-top: 0 !important; }
 }
 
 /* ======== BOTZ responsive fixes (appended) ======== */
-header { border-top: 0 !important; }
-body { margin: 0 !important; padding: 0 !important; }
-@media (max-width: 1024px) {
-  nav { flex-direction: column; align-items: stretch; gap: .65rem; padding: .75rem 0; }
-  .dropdown-content { position: static !important; display: block !important; box-shadow: none !important; background: transparent !important; padding: .25rem 0 !important; }
-  .dropdown > a { pointer-events: none; }
 
-/* === RESET toque/outline en móviles (quita “rayita”) === */
-* { -webkit-tap-highlight-color: transparent; }
-:focus { outline: none; }
-header h1 { text-decoration: none !important; }
-header h1:focus, header h1:active { outline: none !important; box-shadow: none !important; }
+/* ====== CLEAN, BALANCED RESPONSIVE FIXES (no rompe dropdown en desktop) ====== */
 
-/* === Altura de header y separación justa del hero === */
+/* Header base */
 :root { --header-h: 64px; }
-@media (max-width: 480px){ :root { --header-h: 56px; } }
+@media (max-width:1024px){ :root { --header-h: 58px; } }
 
 header{
-  height: var(--header-h) !important;
-  padding: 0 12px !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  background: rgba(8,18,41,.98) !important;
+  position: sticky; top: 0; z-index: 1000;
+  height: var(--header-h);
+  padding: 0 16px;
+  background: #0b1324;
+  border: 0; box-shadow: none;
 }
-.header-container{ height: 100% !important; align-items: center !important; }
-.logo-nav-container{ align-items: center !important; }
-.nav-container{ margin-top: 0 !important; }
 
-/* Solo el HERO se separa del header (para que lo demás no “corra”) */
-.hero{ padding-top: calc(var(--header-h) + 12px) !important; }
-@media (max-width:480px){ .hero{ padding-top: calc(var(--header-h) + 8px) !important; } }
+.header-container{ height: 100%; display:flex; align-items:center; justify-content:space-between; }
+.logo-nav-container{ display:flex; align-items:center; gap:12px; }
+.nav-container{ margin-top: 0; }
 
-/* === Menú móvil cerrado de verdad === */
-@media (max-width: 1024px){
-  .hamburger{ display:flex !important; }
+/* Hero spacing only */
+.hero{ padding-top: calc(var(--header-h) + 12px); }
+@media (max-width:480px){ .hero{ padding-top: calc(var(--header-h) + 8px); } }
+
+/* Desktop nav visible */
+@media (min-width:1025px){
+  .nav-container{ display:flex !important; }
+}
+
+/* Mobile menu collapsed by default */
+@media (max-width:1024px){
+  .hamburger{ display:flex; flex-direction:column; gap:5px; background:transparent; border:0; padding:8px; }
+  .hamburger span{ width:26px; height:2px; background:#fff; display:block; }
+
   .nav-container{ display:none !important; width:100%; }
   .nav-container.is-open{ display:block !important; }
-  nav{ flex-direction:column; align-items:stretch; gap:.65rem; padding:.75rem 0; }
-  /* En mobile, los dropdowns se listan abiertos (sin hovers) */
-  .dropdown-content{
-    position:static !important; display:block !important;
-    box-shadow:none !important; background:transparent !important; padding:.25rem 0 !important;
-  }
-  .dropdown > a{ pointer-events:none; }
-}
 
-/* === Anclas: que no queden ocultas bajo el header fijo === */
-section[id] { scroll-margin-top: calc(var(--header-h) + 12px); }
-@media (max-width:480px){ section[id]{ scroll-margin-top: calc(var(--header-h) + 8px); } }
-
-/* === Fondos “fixed” que rompen en móviles (evita saltos/solapes) === */
-@media (max-width:1024px){
-  #funcionalidades, #beneficios { background-attachment: scroll !important; }
-}
-
-/* === Safe-area en teléfonos con notch (iOS/Android) === */
-header { padding-top: max(0px, env(safe-area-inset-top)) !important; }
-.hero  { padding-top: calc(var(--header-h) + 8px + max(0px, env(safe-area-inset-top))) !important; }
-
-/* === Previene saltos por overscroll y barras === */
-html, body { overscroll-behavior-y: none; }
-
-/* ——— Header estable (sticky) y sin “rayita” ——— */
-* { -webkit-tap-highlight-color: transparent; }
-header { 
-  position: sticky; top: 0; z-index: 1000;
-  background: #0b1324; /* sólido para evitar líneas de unión */
-  border: 0 !important; box-shadow: none !important;
-  height: 64px; padding: 0 12px;
-}
-@media (max-width:480px){ header { height: 56px; } }
-.header-container { height: 100%; display:flex; align-items:center; justify-content:space-between; }
-.logo-nav-container { display:flex; align-items:center; gap:12px; }
-header h1, header h1:focus, header h1:active { outline: none !important; box-shadow:none !important; text-decoration:none !important; }
-
-/* ——— Nav: desktop vs móvil ——— */
-.nav-container { align-items:center; }
-@media (min-width:1025px){
-  .nav-container { display:flex !important; } /* desktop siempre visible */
-}
-@media (max-width:1024px){
-  .hamburger{ display:flex; flex-direction:column; gap:5px; background:transparent;border:0;padding:8px; }
-  .hamburger span{ width:26px; height:2px; background:#fff; display:block; }
   nav{ display:flex; flex-direction:column; align-items:stretch; gap:.65rem; padding:.75rem 0; }
+
+  /* Mobile dropdown flows in column (no absolute) */
   .dropdown-content{
-    position: static !important; display:block !important;
-    background: transparent !important; box-shadow:none !important;
+    position: static !important;
+    display:block !important;
+    background: transparent !important;
+    box-shadow: none !important;
     padding:.25rem 0 !important;
   }
-  .dropdown > a{ pointer-events:none; }
 }
 
-/* ——— Hero: espacio exacto bajo header ——— */
-.hero{ padding-top: clamp(64px, 8vh, 88px); }
-@media (max-width:480px){ .hero { padding-top: clamp(56px, 7vh, 72px); } }
+/* Desktop dropdown: hover/focus shows panel */
+@media (min-width:1025px){
+  .dropdown{ position:relative; }
+  .dropdown-content{
+    position:absolute; left:0; top: calc(100% + 10px);
+    min-width: 220px;
+    background-color: var(--dark);
+    border-radius: 8px;
+    padding: .5em 0;
+    box-shadow: 0 8px 16px rgba(0,0,0,.2);
+    display: none;
+    z-index: 1100;
+  }
+  .dropdown:hover > .dropdown-content,
+  .dropdown:focus-within > .dropdown-content{
+    display:block;
+  }
+}
 
-/* ——— Anclas: que no queden bajo el header ——— */
-section[id] { scroll-margin-top: 80px; }
-@media (max-width:480px){ section[id]{ scroll-margin-top: 68px; } }
+/* Anchors offset */
+section[id]{ scroll-margin-top: calc(var(--header-h) + 8px); }
 
-/* ——— Fondos “fixed” que rompen en mobile ——— */
+/* Fixed backgrounds bug on mobile */
 @media (max-width:1024px){
-  #funcionalidades, #beneficios { background-attachment: scroll !important; }
+  #funcionalidades, #beneficios{ background-attachment: scroll !important; }
 }
 
+/* Touch/outline polish */
+* { -webkit-tap-highlight-color: transparent; }
+a:focus-visible, button:focus-visible{ outline:2px solid var(--primary); outline-offset:2px; border-radius:6px; }
+/* === PATCH ÚLTIMO (no toca estructura, arregla dropdown y colores) === */
 
+/* Colores consistentes en la barra */
+#header a, #header a:visited { color:#fff !important; text-decoration:none; }
+
+/* Ocultar SIEMPRE el panel por defecto */
+.dropdown .dropdown-content { display: none !important; }
+
+/* Desktop: abrir en hover/focus-within, con panel absoluto */
+@media (min-width:1025px){
+  .dropdown { position: relative; }
+  .dropdown:hover > .dropdown-content,
+  .dropdown:focus-within > .dropdown-content {
+    display: block !important;
+    position: absolute; left: 0; top: calc(100% + 10px);
+    min-width: 260px;
+    background: var(--dark);
+    border-radius: 8px;
+    padding: 8px 0;
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    z-index: 1200;
+  }
+  .dropdown-content a { display:block; padding:10px 14px; white-space:nowrap; color:#fff; }
+  .dropdown-content a:hover { background: rgba(0,186,255,.1); color: var(--primary); }
 }
+
+/* Móvil/Tablet: por defecto oculto; se muestra solo si <details open> o clase .open */
+@media (max-width:1024px){
+  .nav-container .dropdown-content {
+    display: none !important;
+    position: static !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 6px 0 !important;
+  }
+  /* Soporte HTML nativo con <details> */
+  details[open] > .dropdown-content { display:block !important; }
+  /* Soporte toggle por clase (si tu JS añade .open) */
+  .dropdown.open > .dropdown-content { display:block !important; }
+}
+/* === DROPDOWN KILL-SWITCH (forzar comportamiento correcto) === */
+
+/* Ocultar SIEMPRE por defecto */
+.dropdown-content{ display:none !important; }
+
+/* DESKTOP (>=1025px): abrir solo en hover/focus-within */
+@media (min-width:1025px){
+  .dropdown{ position:relative; }
+  .dropdown:hover > .dropdown-content,
+  .dropdown:focus-within > .dropdown-content{
+    display:block !important;
+    position:absolute; left:0; top:calc(100% + 10px);
+    min-width:260px; background:#0e1a33; border-radius:10px;
+    padding:8px 0; box-shadow:0 10px 30px rgba(0,0,0,.35); z-index:1200;
+  }
+}
+
+/* MÓVIL/TABLET (<=1024px): seguir toggle real (details.open o .open) */
+@media (max-width:1024px){
+  .nav-container .dropdown-content{
+    display:none !important;
+    position:static !important; background:transparent !important;
+    box-shadow:none !important; padding:6px 0 !important;
+  }
+  details[open] > .dropdown-content,
+  .dropdown.open > .dropdown-content{ display:block !important; }
+}
+
+/* Color enlaces header (evita morado/azul visited) */
+#header a, #header a:visited{ color:#fff !important; text-decoration:none; }
+
+/* ===== HEADER (para Header.tsx que usa .nav-desktop + <details>) ===== */
+
+/* Base */
+#header{ position:sticky; top:0; z-index:1000; background:#0b1324; }
+#header a, #header a:visited{ color:#fff; text-decoration:none; }
+#header .header-inner{ max-width:1200px; margin:0 auto; height:64px; padding:0 16px;
+  display:flex; align-items:center; justify-content:space-between; }
+#header .brand{ margin:0; color:#00baff; cursor:pointer; }
+
+/* Desktop vs móvil */
+.nav-desktop{ display:none; gap:28px; align-items:center; }
+.menu-btn{ display:flex; flex-direction:column; gap:5px; background:transparent; border:0; padding:8px; }
+.menu-btn span{ width:26px; height:2px; background:#fff; display:block; }
+
+@media (min-width:1025px){
+  .nav-desktop{ display:flex; }
+  .menu-btn{ display:none; }
+}
+
+/* Enlaces top */
+.nav-desktop > a{ font-weight:600; position:relative; white-space:nowrap; }
+.nav-desktop > a::after{ content:""; position:absolute; left:0; bottom:-6px; height:2px; width:0; background:#00baff; transition:width .2s; }
+.nav-desktop > a:hover::after{ width:100%; }
+
+/* Dropdown con <details> */
+.nav-desktop details{ position:relative; }
+.nav-desktop summary{ list-style:none; cursor:pointer; font-weight:600; color:#fff; }
+.nav-desktop summary::-webkit-details-marker{ display:none; }
+
+/* Oculto por defecto (desktop) */
+@media (min-width:1025px){
+  .nav-desktop .dropdown-list{
+    position:absolute; top:calc(100% + 10px); left:0; min-width:280px;
+    background:#0e1a33; border-radius:10px; padding:8px 0;
+    box-shadow:0 10px 30px rgba(0,0,0,.35); display:none; z-index:1200;
+  }
+  /* Mostrar cuando el <details> está abierto o con foco/hover */
+  .nav-desktop details[open] > .dropdown-list,
+  .nav-desktop details:focus-within > .dropdown-list,
+  .nav-desktop details:hover > .dropdown-list{ display:block; }
+  .nav-desktop .dropdown-list a{ display:block; padding:10px 14px; color:#fff; white-space:nowrap; }
+  .nav-desktop .dropdown-list a:hover{ background:rgba(0,186,255,.1); color:#00baff; }
+}
+
+/* Móvil: overlay */
+.mobile-overlay{
+  position:fixed; inset:64px 0 0 0; background:rgba(6,10,22,.92); backdrop-filter:blur(4px);
+  opacity:0; transform:translateY(-8px); pointer-events:none; transition:opacity .18s, transform .18s;
+}
+.mobile-overlay.open{ opacity:1; transform:translateY(0); pointer-events:auto; }
+.mobile-menu{ padding:14px 18px 28px; color:#fff; display:flex; flex-direction:column; gap:12px; }
+.mobile-menu a, .mobile-menu .group-title{ color:#fff; }
+
+/* Anclas: que no queden bajo el header */
+section[id]{ scroll-margin-top:72px; }
+
+/* ===== HEADER para Header.tsx (.dropdown + .dropdown-content) ===== */
+
+/* Base del header */
+#header{
+  position: sticky; top: 0; z-index: 1000;
+  background:#0b1324;
+}
+#header .header-container{
+  max-width:1200px; margin:0 auto;
+  height:64px; padding:0 16px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+#header .logo-nav-container{ display:flex; align-items:center; gap:16px; }
+#header .glow{ margin:0; color:#00baff; cursor:pointer; }
+#header a, #header a:visited{ color:#fff; text-decoration:none; }
+
+/* Nav + enlaces */
+#header .nav-container{ margin:0; }
+#header nav{
+  display:flex; align-items:center; gap:28px; flex-wrap:wrap;
+}
+#header nav > a{
+  font-weight:600; position:relative; white-space:nowrap;
+}
+#header nav > a::after{
+  content:""; position:absolute; left:0; bottom:-6px; height:2px; width:0;
+  background:#00baff; transition:width .2s ease;
+}
+#header nav > a:hover::after{ width:100%; }
+
+/* Botón hamburguesa (visible solo en móvil) */
+#header .hamburger{
+  display:flex; flex-direction:column; gap:5px;
+  background:transparent; border:0; padding:8px;
+}
+#header .hamburger span{ width:26px; height:2px; background:#fff; display:block; }
+
+/* Desktop vs móvil */
+@media (min-width:1025px){
+  #header .hamburger{ display:none; }
+  #header .nav-container{ display:block !important; }
+}
+@media (max-width:1024px){
+  #header .nav-container{ display:none; width:100%; }
+  #header .nav-container.is-open{ display:block; }
+  #header nav{ flex-direction:column; align-items:stretch; gap:.65rem; padding:.75rem 0; }
+}
+
+/* ===== Dropdown (tu estructura: .dropdown > a + .dropdown-content) ===== */
+
+/* Oculto por defecto dentro del header */
+#header .dropdown-content{ display:none; }
+
+/* Desktop: abrir SOLO en hover/focus-within, con panel absoluto */
+@media (min-width:1025px){
+  #header .dropdown{ position:relative; }
+  #header .dropdown:hover > .dropdown-content,
+  #header .dropdown:focus-within > .dropdown-content{
+    display:block;
+    position:absolute; left:0; top:calc(100% + 10px);
+    min-width:280px; background:#0e1a33; border-radius:10px; padding:8px 0;
+    box-shadow:0 10px 30px rgba(0,0,0,.35); z-index:1200;
+  }
+  #header .dropdown-content a{
+    display:block; padding:10px 14px; white-space:nowrap; color:#fff;
+  }
+  #header .dropdown-content a:hover{ background:rgba(0,186,255,.1); color:#00baff; }
+}
+
+/* Móvil/Tablet: el contenido fluye (sin absolute) y se muestra siempre que el menú esté abierto */
+@media (max-width:1024px){
+  /* cuando el menú está abierto, listamos los hijos de cada dropdown */
+  #header .nav-container.is-open .dropdown-content{
+    display:block;
+    position:static; background:transparent; box-shadow:none; padding:6px 0;
+  }
+}
+
+/* Anclas: que no queden debajo del header fijo */
+section[id]{ scroll-margin-top:72px; }
+/* ==== HEADER FIJO (no desaparece al hacer scroll) ==== */
+:root{ --header-h: 72px; }
+@media (max-width:1024px){ :root{ --header-h: 64px; } }
+
+/* Fijar el header arriba y por encima de todo */
+#header{
+  position: fixed;           /* en vez de sticky */
+  top: 0; left: 0; right: 0;
+  height: var(--header-h);
+  z-index: 2000;             /* por encima del hero */
+  background: #0b1324;       /* sólido para que no “trasluzca” */
+}
+
+/* Compensar el alto del header para que el contenido no “salte” debajo */
+html, body{ margin:0; }
+body{ padding-top: var(--header-h); }
+
+/* Anclas: que no queden ocultas bajo el header fijo */
+section[id]{ scroll-margin-top: calc(var(--header-h) + 8px); }
+
+/* Overlay del menú móvil: que arranque justo debajo del header */
+.mobile-overlay{
+  position: fixed;
+  inset: var(--header-h) 0 0 0;   /* respeta la altura del header */
+  z-index: 1900;
+}
+
+/* Asegura que nada tape el header por transforms/overflow de ancestros */
+main, .hero, #app{ position: relative; z-index: 1; }
+
