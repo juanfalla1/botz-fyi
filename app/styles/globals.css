@@ -742,6 +742,48 @@ header { padding-top: max(0px, env(safe-area-inset-top)) !important; }
 /* === Previene saltos por overscroll y barras === */
 html, body { overscroll-behavior-y: none; }
 
+/* ——— Header estable (sticky) y sin “rayita” ——— */
+* { -webkit-tap-highlight-color: transparent; }
+header { 
+  position: sticky; top: 0; z-index: 1000;
+  background: #0b1324; /* sólido para evitar líneas de unión */
+  border: 0 !important; box-shadow: none !important;
+  height: 64px; padding: 0 12px;
+}
+@media (max-width:480px){ header { height: 56px; } }
+.header-container { height: 100%; display:flex; align-items:center; justify-content:space-between; }
+.logo-nav-container { display:flex; align-items:center; gap:12px; }
+header h1, header h1:focus, header h1:active { outline: none !important; box-shadow:none !important; text-decoration:none !important; }
+
+/* ——— Nav: desktop vs móvil ——— */
+.nav-container { align-items:center; }
+@media (min-width:1025px){
+  .nav-container { display:flex !important; } /* desktop siempre visible */
+}
+@media (max-width:1024px){
+  .hamburger{ display:flex; flex-direction:column; gap:5px; background:transparent;border:0;padding:8px; }
+  .hamburger span{ width:26px; height:2px; background:#fff; display:block; }
+  nav{ display:flex; flex-direction:column; align-items:stretch; gap:.65rem; padding:.75rem 0; }
+  .dropdown-content{
+    position: static !important; display:block !important;
+    background: transparent !important; box-shadow:none !important;
+    padding:.25rem 0 !important;
+  }
+  .dropdown > a{ pointer-events:none; }
+}
+
+/* ——— Hero: espacio exacto bajo header ——— */
+.hero{ padding-top: clamp(64px, 8vh, 88px); }
+@media (max-width:480px){ .hero { padding-top: clamp(56px, 7vh, 72px); } }
+
+/* ——— Anclas: que no queden bajo el header ——— */
+section[id] { scroll-margin-top: 80px; }
+@media (max-width:480px){ section[id]{ scroll-margin-top: 68px; } }
+
+/* ——— Fondos “fixed” que rompen en mobile ——— */
+@media (max-width:1024px){
+  #funcionalidades, #beneficios { background-attachment: scroll !important; }
+}
 
 
 }
