@@ -686,4 +686,62 @@ body { margin: 0 !important; padding: 0 !important; }
   nav { flex-direction: column; align-items: stretch; gap: .65rem; padding: .75rem 0; }
   .dropdown-content { position: static !important; display: block !important; box-shadow: none !important; background: transparent !important; padding: .25rem 0 !important; }
   .dropdown > a { pointer-events: none; }
+
+/* === RESET toque/outline en móviles (quita “rayita”) === */
+* { -webkit-tap-highlight-color: transparent; }
+:focus { outline: none; }
+header h1 { text-decoration: none !important; }
+header h1:focus, header h1:active { outline: none !important; box-shadow: none !important; }
+
+/* === Altura de header y separación justa del hero === */
+:root { --header-h: 64px; }
+@media (max-width: 480px){ :root { --header-h: 56px; } }
+
+header{
+  height: var(--header-h) !important;
+  padding: 0 12px !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: rgba(8,18,41,.98) !important;
+}
+.header-container{ height: 100% !important; align-items: center !important; }
+.logo-nav-container{ align-items: center !important; }
+.nav-container{ margin-top: 0 !important; }
+
+/* Solo el HERO se separa del header (para que lo demás no “corra”) */
+.hero{ padding-top: calc(var(--header-h) + 12px) !important; }
+@media (max-width:480px){ .hero{ padding-top: calc(var(--header-h) + 8px) !important; } }
+
+/* === Menú móvil cerrado de verdad === */
+@media (max-width: 1024px){
+  .hamburger{ display:flex !important; }
+  .nav-container{ display:none !important; width:100%; }
+  .nav-container.is-open{ display:block !important; }
+  nav{ flex-direction:column; align-items:stretch; gap:.65rem; padding:.75rem 0; }
+  /* En mobile, los dropdowns se listan abiertos (sin hovers) */
+  .dropdown-content{
+    position:static !important; display:block !important;
+    box-shadow:none !important; background:transparent !important; padding:.25rem 0 !important;
+  }
+  .dropdown > a{ pointer-events:none; }
+}
+
+/* === Anclas: que no queden ocultas bajo el header fijo === */
+section[id] { scroll-margin-top: calc(var(--header-h) + 12px); }
+@media (max-width:480px){ section[id]{ scroll-margin-top: calc(var(--header-h) + 8px); } }
+
+/* === Fondos “fixed” que rompen en móviles (evita saltos/solapes) === */
+@media (max-width:1024px){
+  #funcionalidades, #beneficios { background-attachment: scroll !important; }
+}
+
+/* === Safe-area en teléfonos con notch (iOS/Android) === */
+header { padding-top: max(0px, env(safe-area-inset-top)) !important; }
+.hero  { padding-top: calc(var(--header-h) + 8px + max(0px, env(safe-area-inset-top))) !important; }
+
+/* === Previene saltos por overscroll y barras === */
+html, body { overscroll-behavior-y: none; }
+
+
+
 }
