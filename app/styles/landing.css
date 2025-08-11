@@ -1,0 +1,364 @@
+:root {
+  --primary: #00baff;
+  --secondary: #0a0f1c;
+  --dark: #081229;
+  --light: #ffffff;
+  --accent: #00ffea;
+  --neural-1: #ff6ec7;
+  --neural-2: #6e78ff;
+  --neural-3: #ffb86c;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background-color: var(--secondary);
+  color: var(--light);
+  overflow-x: hidden;
+}
+
+.glow {
+  text-shadow: 0 0 10px rgba(0, 186, 255, 0.7);
+}
+
+/* Header */
+header {
+  background-color: var(--dark);
+  padding: 1em 2em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: fixed;
+  width: 100%;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 4px 30px rgba(0, 186, 255, 0.1);
+  backdrop-filter: blur(5px);
+}
+
+.header-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 1200px;
+}
+
+.logo-nav-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.nav-container {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 1em;
+}
+
+nav {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 1.5em;
+}
+
+nav a {
+  color: var(--light);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  position: relative;
+  white-space: nowrap;
+}
+
+nav a:hover {
+  color: var(--primary);
+}
+
+nav a::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 2px;
+  bottom: -5px;
+  left: 0;
+  background-color: var(--primary);
+  transition: width 0.3s ease;
+}
+
+nav a:hover::after {
+  width: 100%;
+}
+
+/* SECCIÓN TÍTULO */
+.section-title {
+  text-align: center;
+  font-size: 2.5em;
+  margin-bottom: 1.5em;
+  color: var(--primary);
+  position: relative;
+}
+
+.section-title::after {
+  content: '';
+  display: block;
+  width: 80px;
+  height: 4px;
+  background: var(--primary);
+  margin: 15px auto;
+  border-radius: 2px;
+}
+
+/* ------------------- */
+/* DIAGRAMA DE NODOS   */
+/* ------------------- */
+
+.architecture-diagram {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 4em 0;
+  gap: 2em;
+}
+
+.diagram-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2em;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.node-circle {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: #0f172a;
+  border: 3px solid var(--primary);
+  box-shadow: 0 0 18px 2px rgba(0,186,255,0.15), 0 0 80px 1px rgba(0,186,255,0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(.4,2.3,.3,1), box-shadow 0.2s;
+  position: relative;
+  font-size: 1.05em;
+}
+
+.node-circle .node-icon {
+  font-size: 2.3em;
+  margin-bottom: 0.1em;
+}
+
+.node-circle.node-cognitive {
+  border-color: var(--neural-1);
+  background: linear-gradient(145deg, #232041 65%, #181a29 100%);
+  box-shadow: 0 0 28px 4px rgba(255,110,199,0.22), 0 0 85px 2px rgba(255,110,199,0.11);
+}
+
+.node-circle.node-percepcion { border-color: var(--neural-2);}
+.node-circle.node-procesamiento { border-color: var(--neural-3);}
+.node-circle.node-accion { border-color: var(--accent);}
+.node-circle.node-memoria { border-color: var(--neural-1);}
+
+.node-circle.selected,
+.node-circle:hover {
+  transform: scale(1.07);
+  box-shadow: 0 0 40px 7px var(--primary), 0 0 140px 12px var(--primary), 0 0 12px 2px rgba(0, 186, 255, 0.22);
+  z-index: 10;
+}
+
+.node-label {
+  font-weight: bold;
+  color: #fff;
+  font-size: 1.08em;
+  margin-bottom: 0.1em;
+}
+
+.node-desc {
+  font-size: 0.98em;
+  color: #eee;
+}
+
+.diagram-connector {
+  position: absolute;
+  z-index: 0;
+  /* Si usas SVG puedes poner los conectores aquí */
+}
+
+/* Modal info nodo */
+.node-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 99999;
+  background: rgba(8, 18, 41, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.18s;
+}
+
+.node-modal-content {
+  background: #0a0f1c;
+  border-radius: 24px;
+  padding: 2.5em 2em 1.5em 2em;
+  box-shadow: 0 4px 50px 8px rgba(0,186,255,0.12), 0 0 22px 2px #121325;
+  color: #fff;
+  min-width: 280px;
+  max-width: 98vw;
+  max-height: 88vh;
+  overflow-y: auto;
+  text-align: left;
+  position: relative;
+  font-size: 1.12em;
+}
+
+.node-modal-close {
+  position: absolute;
+  top: 0.6em;
+  right: 1em;
+  font-size: 1.7em;
+  cursor: pointer;
+  color: var(--primary);
+  background: none;
+  border: none;
+}
+
+/* --- Fin nodos diagrama --- */
+
+/* CARD ECOMMERCE (puedes ajustar esto para las tarjetas de flujo de ecommerce) */
+.ecom-flow-icons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2em;
+}
+.circle-box {
+  position: relative;
+  width: 120px;
+  text-align: center;
+  color: white;
+}
+.circle {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  margin: 0 auto;
+  margin-bottom: 1em;
+  box-shadow: 0 0 10px rgba(0, 186, 255, 0.3);
+  position: relative;
+}
+.icon-inside {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -90%);
+  color: white;
+}
+.border-blue {
+  border: 3px solid #6e78ff;
+}
+.border-yellow {
+  border: 3px solid #ffb86c;
+}
+.border-pink {
+  border: 3px solid #ff6ec7;
+}
+.border-cyan {
+  border: 3px solid #00ffea;
+}
+.border-white {
+  border: 3px solid #ffffff;
+}
+
+/* Dropdown Menu para Casos de Éxito */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+.dropdown-toggle {
+  cursor: pointer;
+  color: var(--light);
+  text-decoration: none;
+  padding: 0 10px;
+  position: relative;
+  white-space: nowrap;
+}
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: var(--dark);
+  box-shadow: 0px 8px 16px rgba(0,0,0,0.3);
+  padding: 10px 0;
+  min-width: 180px;
+  z-index: 1000;
+}
+.dropdown-menu a {
+  display: block;
+  padding: 10px 20px;
+  color: var(--light);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.dropdown-menu a:hover {
+  background-color: var(--primary);
+  color: var(--dark);
+}
+.dropdown:hover .dropdown-menu {
+  display: block;
+}
+
+/* Casos de Éxito */
+.casos-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2em;
+  margin-top: 2em;
+}
+.caso {
+  background-color: #11192c;
+  border-radius: 12px;
+  padding: 2em;
+  max-width: 300px;
+  flex: 1 1 250px;
+  box-shadow: 0 0 15px rgba(0, 186, 255, 0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.caso:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 0 25px rgba(0, 186, 255, 0.3);
+}
+.icono {
+  color: var(--primary);
+  margin-bottom: 1em;
+}
+
+/* Animaciones y media queries */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 1000px) {
+  .architecture-diagram { flex-direction: column; gap: 1.2em; }
+  .diagram-nodes { flex-wrap: wrap; gap: 1.1em; }
+}
+@media (max-width: 650px) {
+  .diagram-nodes { flex-direction: column; gap: 1em; }
+  .node-circle { width: 120px; height: 120px; font-size: .96em;}
+}
+
+@media (max-width: 480px) {
+  .section-title { font-size: 1.5em; }
+  .node-modal-content { font-size: 1em; padding: 1.1em; }
+}
+
+/* Puedes seguir agregando detalles extra de tu HTML original debajo */

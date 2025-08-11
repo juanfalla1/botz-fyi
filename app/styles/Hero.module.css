@@ -1,0 +1,97 @@
+.hero {
+  padding: 12em 2em 4em;
+  text-align: center;
+  background: linear-gradient(145deg, #0a0f1c, #001f3f);
+  position: relative;
+  overflow: hidden;
+  min-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: url('https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=1950&q=80') center/cover no-repeat;
+  opacity: 0.15;
+  z-index: 0;
+}
+
+.heroContent {
+  position: relative;
+  z-index: 2;
+  max-width: 800px;
+}
+
+.heroTitle {
+  font-size: 2.8rem;
+  color: #00baff;
+  margin-bottom: 0.5em;
+  font-weight: bold;
+}
+
+.heroSubtitle {
+  font-size: 1.3rem;
+  color: #f1f1f1;
+  margin-bottom: 1.5em;
+}
+
+.heroButton {
+  background-color: #00baff;
+  color: #fff;
+  font-size: 1.2rem;
+  padding: 0.8em 2em;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.3s ease;
+  box-shadow: 0 0 20px rgba(0, 186, 255, 0.4);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  z-index: 2;
+  position: relative;
+}
+
+.heroButton:hover {
+  background-color: #009fd6;
+  transform: scale(1.05);
+}
+
+/* Elementos flotantes */
+.floatingElements {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.floatingElement {
+  position: absolute;
+  background: rgba(0, 186, 255, 0.1);
+  border-radius: 50%;
+  animation: float 6s ease-in-out infinite;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 5;
+}
+
+.floatingElement:hover {
+  background: rgba(0, 186, 255, 0.3);
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}

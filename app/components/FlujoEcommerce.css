@@ -1,0 +1,117 @@
+.flujo-e-container {
+  position: relative;
+  width: 660px;
+  height: 520px;
+  margin: 0 auto;
+  min-height: 420px;
+}
+.flujo-e-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+.flujo-e-line {
+  stroke: #00fff2;
+  stroke-width: 6;
+  stroke-dasharray: 14 12;
+  filter: drop-shadow(0 0 8px #00fff288);
+  animation: flujo-e-move 1.2s linear infinite;
+}
+@keyframes flujo-e-move {
+  to { stroke-dashoffset: -26; }
+}
+
+.flujo-e-node {
+  border-radius: 50%;
+  border: 4px solid #00fff2;
+  background: #111622;
+  box-shadow: 0 0 30px #00fff255;
+  color: #fff;
+  font-size: 0.98em;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  cursor: pointer;
+  transition: box-shadow 0.28s, border-color 0.28s;
+  text-align: center;
+  z-index: 2;
+  padding: 0 7px;
+  user-select: none;
+  overflow: visible;
+}
+.flujo-e-node:hover {
+  box-shadow: 0 0 44px #00fff2cc;
+  border-color: #10b2cb;
+}
+.flujo-e-title {
+  font-weight: 700;
+  font-size: 1.06em;
+  color: #00baff;
+  text-shadow: 0 2px 6px #081229cc;
+  word-break: break-word;
+  line-height: 1.15;
+  margin-top: 1px;
+}
+
+.flujo-e-modal {
+  position: fixed;
+  left: 0; top: 0; right: 0; bottom: 0;
+  background: rgba(10,16,34,0.97);
+  z-index: 99;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.flujo-e-modal-content {
+  background: #101827;
+  border-radius: 22px;
+  padding: 2.4em 2.6em 2.2em;
+  min-width: 310px;
+  max-width: 94vw;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 8px 50px #00fff244;
+}
+.flujo-e-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 27px;
+  background: transparent;
+  border: none;
+  font-size: 2.3em;
+  color: #00fff2;
+  cursor: pointer;
+  transition: color 0.15s;
+  line-height: 1;
+}
+.flujo-e-modal-close:hover {
+  color: #ff6ec7;
+}
+
+/* Responsive (ajusta tamaño de los nodos y SVG) */
+@media (max-width: 900px) {
+  .flujo-e-container {
+    width: 97vw;
+    min-width: 340px;
+    height: 350px;
+  }
+  .flujo-e-node {
+    width: 80px !important;
+    height: 80px !important;
+    font-size: 0.85em;
+  }
+  .flujo-e-title {
+    font-size: 0.82em;
+  }
+  .flujo-e-svg {
+    width: 100% !important;
+    height: 100% !important;
+  }
+}

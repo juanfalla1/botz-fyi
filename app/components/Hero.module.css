@@ -1,0 +1,80 @@
+.hero {
+  padding: 12em 2em 4em;
+  text-align: center;
+  background: linear-gradient(145deg, #0a0f1c, #001f3f);
+  position: relative;
+  overflow: hidden;
+  min-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: url('https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=1950&q=80') center/cover no-repeat;
+  opacity: 0.15;
+  z-index: 0;
+}
+.floatingElements {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+.floatingElement {
+  position: absolute;
+  background: rgba(0, 186, 255, 0.15);
+  border-radius: 50%;
+  animation: float 6s ease-in-out infinite;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 1;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+.heroContent {
+  position: relative;
+  z-index: 2;
+  max-width: 800px;
+}
+.heroTitle {
+  font-size: 3rem;
+  font-weight: bold;
+  color: #00baff;
+  text-shadow: 0 0 32px #00baffaa, 2px 2px 4px rgba(0,186,255,0.3);
+  margin-bottom: 1rem;
+}
+.heroSubtitle {
+  font-size: 1.35rem;
+  color: white;
+  margin-bottom: 2rem;
+}
+.heroButton {
+  display: inline-block;
+  padding: 0.75em 1.5em;
+  background-color: #00baff;
+  color: white;
+  font-weight: 600;
+  border-radius: 9999px;
+  text-decoration: none;
+  transition: background-color 0.3s ease;
+  font-size: 1.2rem;
+  box-shadow: 0 0 20px #00baff55;
+}
+.heroButton:hover {
+  background-color: #009ed6;
+}
+@media (max-width: 768px) {
+  .hero { padding-top: 15em; }
+  .heroTitle { font-size: 2rem; }
+}
