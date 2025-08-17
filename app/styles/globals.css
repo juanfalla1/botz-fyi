@@ -995,4 +995,136 @@ section[id]{ scroll-margin-top: calc(var(--header-h) + 8px); }
 
 /* Asegura que nada tape el header por transforms/overflow de ancestros */
 main, .hero, #app{ position: relative; z-index: 1; }
+/* ===== Flujos/Diagrama responsive (sin tocar JSX) ===== */
+
+/* Contenedor del diagrama: si existe alguno, se ajusta */
+.architecture-diagram,
+.flows-diagram,
+.diagram,
+.canvas,
+#arquitectura,
+#funcionalidades .content .architecture-diagram {
+  position: relative;
+  max-width: 100%;
+}
+
+/* ---------- Móvil: apilar nodos y ocultar líneas ---------- */
+@media (max-width: 640px){
+  /* apilo como cards legibles */
+  .architecture-diagram,
+  .flows-diagram,
+  .diagram,
+  .canvas {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    overflow: visible;
+  }
+
+  /* nodos sin position absoluta */
+  .architecture-diagram .neural-node,
+  .architecture-diagram .neural-core,
+  .architecture-diagram [class*="node"],
+  .flows-diagram [class*="node"]{
+    position: static !important;
+    left: auto !important; top: auto !important;
+    transform: none !important;
+    width: min(520px, 92vw);
+    margin: 0 auto;
+  }
+
+  /* oculto líneas/conexiones para que no crucen el texto */
+  .architecture-diagram .edges,
+  .architecture-diagram .edge,
+  .architecture-diagram svg,
+  .architecture-diagram canvas,
+  .flows-diagram .edges,
+  .flows-diagram svg { display: none !important; }
+}
+
+/* ---------- Tablet: escalar y permitir scroll horizontal ---------- */
+@media (min-width: 641px) and (max-width: 1024px){
+  /* wrapper “virtual” con scroll horizontal */
+  .architecture-diagram,
+  .flows-diagram,
+  .diagram,
+  .canvas {
+    width: max(100%, 1200px);      /* da espacio al layout absoluto */
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+  }
+
+  /* reduce un poco los nodos para que entren mejor */
+  .architecture-diagram .neural-node,
+  .architecture-diagram .neural-core,
+  .architecture-diagram [class*="node"],
+  .flows-diagram [class*="node"]{
+    transform: scale(.9);
+    transform-origin: top left;
+  }
+}
+
+/* ---------- Siempre: el header por encima del diagrama ---------- */
+#header{ z-index: 3000; }
+
+/* ==== HEADER FIJO Y RESPONSIVE ==== */
+header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+}
+
+body {
+  padding-top: 80px; /* Ajusta según la altura del header */
+}
+
+/* ==== MENÚ DESKTOP ==== */
+.nav-container nav ul li ul {
+  display: none;
+}
+
+.nav-container nav ul li:hover > ul {
+  display: block;
+}
+
+/* ==== MENÚ MÓVIL ==== */
+@media (max-width: 768px) {
+  .nav-container nav ul {
+    display: block;
+  }
+  .nav-container nav ul li ul {
+    display: block; /* Abierto en móvil */
+    margin-left: 10px;
+  }
+}
+
+/* ==== AJUSTE FLUJOS VISUALES ==== */
+@media (max-width: 768px) {
+  .flujo-visual,
+  .nodos-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  .flujo-linea,
+  .conector-linea {
+    display: none; /* Oculta líneas en móvil */
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .flujo-visual,
+  .nodos-container {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 40px;
+    transform: scale(0.9);
+  }
+  
+}
+
 
