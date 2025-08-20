@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./FlujoEcommerce.css";
 
 const steps = [
@@ -35,77 +35,186 @@ const steps = [
   }
 ];
 
+// ✅ Layout responsivo para FlujoEcommerce
+const getEcommerceLayout = (width: number) => {
+  if (width <= 650) {
+    // Móvil: Layout en lista vertical
+    return {
+      containerWidth: width,
+      containerHeight: steps.length * 120 + 40,
+      showConnections: false,
+      isMobile: true
+    };
+  } else if (width <= 900) {
+    // Tablet: Layout circular más pequeño
+    const centerX = width * 0.5;
+    const centerY = 200;
+    const radius = Math.min(120, width * 0.25);
+    return {
+      centerX,
+      centerY,
+      radius,
+      containerWidth: width,
+      containerHeight: 400,
+      showConnections: true,
+      isMobile: false
+    };
+  } else {
+    // Escritorio: Layout original
+    return {
+      centerX: 330,
+      centerY: 280,
+      radius: 190,
+      containerWidth: 660,
+      containerHeight: 560,
+      showConnections: true,
+      isMobile: false
+    };
+  }
+};
+
 export default function FlujoEcommerce() {
   const [selected, setSelected] = useState<number | null>(null);
+  const [layout, setLayout] = useState(() => getEcommerceLayout(660));
 
-  const centerX = 330;
-  const centerY = 280;
-  const radius = 190;
+  // ✅ Listener para redimensionamiento
+  useEffect(() => {
+    const handleResize = () => {
+      const container = document.querySelector('.flujo-e-container')?.parentElement;
+      if (container) {
+        const width = Math.min(container.clientWidth - 40, 660);
+        setLayout(getEcommerceLayout(width));
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const angleStep = (2 * Math.PI) / steps.length;
 
   return (
-    <section style={{ margin: "70px 0 70px 0" }}>
-      <h2 className="section-title" style={{ color: "#00fff2" }}>
+    <section style={{ margin: "70px 0 70px 0", padding: "0 1rem" }}>
+      <h2 className="section-title" style={{ 
+        color: "#00fff2",
+        fontSize: "clamp(1.5em, 4vw, 2.5em)"
+      }}>
         Arquitectura Ecommerce HOOK
       </h2>
-      <p style={{ textAlign: "center", color: "#ccc", fontSize: "1.18em", marginBottom: 35 }}>
+      <p style={{ 
+        textAlign: "center", 
+        color: "#ccc", 
+        fontSize: "clamp(1em, 2.5vw, 1.18em)", 
+        marginBottom: 35,
+        maxWidth: "min(700px, 95vw)",
+        margin: "0 auto 35px"
+      }}>
         Descubre cómo la tecnología conecta y automatiza cada etapa del ecommerce moderno.
       </p>
-      <div className="flujo-e-container">
-        {/* Líneas del flujo */}
-        <svg
-          width={centerX * 2}
-          height={centerY * 2}
-          className="flujo-e-svg"
-        >
-          {steps.map((_, i) => {
-            const x1 = centerX + radius * Math.cos(i * angleStep - Math.PI / 2);
-            const y1 = centerY + radius * Math.sin(i * angleStep - Math.PI / 2);
-            const x2 =
-              centerX +
-              radius *
-                Math.cos(((i + 1) % steps.length) * angleStep - Math.PI / 2);
-            const y2 =
-              centerY +
-              radius *
-                Math.sin(((i + 1) % steps.length) * angleStep - Math.PI / 2);
-            return (
-              <line
-                key={i}
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-                className="flujo-e-line"
-              />
-            );
-          })}
-        </svg>
+      <div 
+        className="flujo-e-container"
+        style={{
+          position: "relative",
+          width: "min(660px, 98vw)",
+          height: layout.containerHeight,
+          margin: "0 auto"
+        }}
+      >
+        {/* Líneas del flujo - Solo mostrar en desktop y tablet */}
+        {layout.showConnections && !layout.isMobile && (
+          <svg
+            width="100%"
+            height="100%"
+            className="flujo-e-svg"
+            viewBox={`0 0 ${layout.containerWidth} ${layout.containerHeight}`}
+            preserveAspectRatio="xMidYMid meet"
+          >
+            {steps.map((_, i) => {
+              const x1 = layout.centerX + layout.radius * Math.cos(i * angleStep - Math.PI / 2);
+              const y1 = layout.centerY + layout.radius * Math.sin(i * angleStep - Math.PI / 2);
+              const x2 = layout.centerX + layout.radius * Math.cos(((i + 1) % steps.length) * angleStep - Math.PI / 2);
+              const y2 = layout.centerY + layout.radius * Math.sin(((i + 1) % steps.length) * angleStep - Math.PI / 2);
+              return (
+                <line
+                  key={i}
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  className="flujo-e-line"
+                />
+              );
+            })}
+          </svg>
+        )}
         {/* Nodos */}
         {steps.map((step, i) => {
-          const x = centerX + radius * Math.cos(i * angleStep - Math.PI / 2) - 70;
-          const y = centerY + radius * Math.sin(i * angleStep - Math.PI / 2) - 70;
+          let nodeStyle: React.CSSProperties;
+          
+          if (layout.isMobile) {
+            // Layout vertical para móvil
+            nodeStyle = {
+              position: "static",
+              display: "flex",
+              alignItems: "center",
+              textAlign: "left",
+              width: "min(340px, 90vw)",
+              height: "auto",
+              margin: "0 auto 16px auto",
+              padding: "16px",
+              borderRadius: "16px",
+              gap: "16px"
+            };
+          } else {
+            // Layout circular para desktop/tablet
+            const x = layout.centerX + layout.radius * Math.cos(i * angleStep - Math.PI / 2) - 70;
+            const y = layout.centerY + layout.radius * Math.sin(i * angleStep - Math.PI / 2) - 70;
+            nodeStyle = {
+              left: x,
+              top: y,
+              position: "absolute",
+              width: 140,
+              height: 140
+            };
+          }
+          
           return (
             <div
               key={i}
               className="flujo-e-node"
-              style={{
-                left: x,
-                top: y,
-                position: "absolute",
-                width: 140,
-                height: 140
-              }}
+              style={nodeStyle}
               onClick={() => setSelected(i)}
             >
-              <div style={{ fontSize: "2.1em", marginBottom: 6 }}>{step.icon}</div>
-              <div className="flujo-e-title">
-                {step.title.split("\n").map((line, idx) => (
-                  <span key={idx}>
-                    {line}
-                    <br />
-                  </span>
-                ))}
+              <div style={{ 
+                fontSize: layout.isMobile ? "2em" : "2.1em", 
+                marginBottom: layout.isMobile ? 0 : 6,
+                flexShrink: 0,
+                width: layout.isMobile ? "60px" : "auto",
+                textAlign: "center"
+              }}>
+                {step.icon}
+              </div>
+              <div className="flujo-e-content">
+                <div className="flujo-e-title">
+                  {step.title.split("\n").map((line, idx) => (
+                    <span key={idx}>
+                      {line}
+                      {!layout.isMobile && <br />}
+                      {layout.isMobile && idx < step.title.split("\n").length - 1 && " "}
+                    </span>
+                  ))}
+                </div>
+                {layout.isMobile && (
+                  <div className="flujo-e-desc" style={{
+                    fontSize: "0.9em",
+                    color: "#ccc",
+                    marginTop: "4px",
+                    lineHeight: 1.3
+                  }}>
+                    {step.desc}
+                  </div>
+                )}
               </div>
             </div>
           );

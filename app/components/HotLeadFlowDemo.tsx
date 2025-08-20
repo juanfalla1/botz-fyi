@@ -44,22 +44,76 @@ const HotLeadFlowDemo = () => {
   return (  
     <section className="py-20 px-6 bg-[#0a0f1c] text-white">
       <div className="max-w-6xl mx-auto text-center">
-        <h2 className="text-4xl font-bold text-cyan-400 mb-4">Solucion Para la Captación de Leads con HotLead</h2>
-        <p className="text-lg text-gray-300 mb-10">
+        <h2 style={{
+          fontSize: "clamp(1.8em, 5vw, 2.5em)",
+          fontWeight: "bold",
+          color: "#00baff",
+          marginBottom: "1rem",
+          lineHeight: 1.2
+        }}>
+          Solución Para la Captación de Leads con HotLead
+        </h2>
+        <p style={{
+          fontSize: "clamp(1em, 2.5vw, 1.125rem)",
+          color: "#ccc",
+          marginBottom: "2.5rem",
+          maxWidth: "min(700px, 95vw)",
+          margin: "0 auto 2.5rem",
+          lineHeight: 1.6
+        }}>
           Este flujo muestra paso a paso cómo HotLead transforma un contacto frío en una oportunidad real.
         </p>
-        <div className="grid md:grid-cols-3 gap-10">
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 90vw), 1fr))",
+          gap: "1.5rem",
+          maxWidth: "100%"
+        }}>
           {steps.map((step, index) => (
             <motion.div
               key={index}
-              className="bg-[#121827] rounded-xl p-6 shadow-md border border-gray-700"
+              style={{
+                background: "#121827",
+                borderRadius: "12px",
+                padding: "1.5rem",
+                boxShadow: "0 4px 6px rgba(0, 0, 0, 0.3)",
+                border: "1px solid #374151",
+                minHeight: "200px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                alignItems: "center",
+                textAlign: "center"
+              }}
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.2 }}
             >
-              <div className="flex justify-center mb-4">{step.icon}</div>
-              <h3 className="text-xl font-semibold mb-2 text-cyan-300">{step.title}</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">{step.description}</p>
+              <div style={{
+                display: "flex",
+                justifyContent: "center",
+                marginBottom: "1rem",
+                fontSize: "2.5rem"
+              }}>
+                {step.icon}
+              </div>
+              <h3 style={{
+                fontSize: "clamp(1.1em, 3vw, 1.25rem)",
+                fontWeight: "600",
+                marginBottom: "0.5rem",
+                color: "#00baff",
+                lineHeight: 1.3
+              }}>
+                {step.title}
+              </h3>
+              <p style={{
+                fontSize: "clamp(0.85em, 2.2vw, 0.875rem)",
+                color: "#9CA3AF",
+                lineHeight: 1.6,
+                margin: 0
+              }}>
+                {step.description}
+              </p>
             </motion.div>
           ))}
         </div>

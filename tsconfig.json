@@ -1,7 +1,10 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["dom", "es2022"],
+    "lib": [
+      "dom",
+      "es2022"
+    ],
     "jsx": "preserve",
     "module": "esnext",
     "moduleResolution": "bundler",
@@ -14,15 +17,39 @@
     "incremental": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "@/components/*": ["./app/components/*"],
-      "@/hooks/*": ["./app/hooks/*"],
-      "@/styles/*": ["./app/styles/*"],
-      "@/assets/*": ["./assets/*"]   // <- si tus assets están en /assets
+      "@/*": [
+        "./*"
+      ],
+      "@/components/*": [
+        "./app/components/*"
+      ],
+      "@/hooks/*": [
+        "./app/hooks/*"
+      ],
+      "@/styles/*": [
+        "./app/styles/*"
+      ],
+      "@/assets/*": [
+        "./assets/*"
+      ] // <- si tus assets están en /assets
       // Si realmente están en /public, NO uses alias; usa rutas absolutas: "/img/...", "/videos/..."
     },
-    "plugins": [{ "name": "next" }]
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true
   },
-  "include": ["**/*.ts", "**/*.tsx", "next-env.d.ts", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "next-env.d.ts",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./FlujoVisual.css";
 
 const nodes = [
@@ -47,20 +47,75 @@ const connections = [
   [4, 2]
 ];
 
-// ✅ Espaciado más amplio para separación visual
-const nodePos = [
-  { x: 180, y: 100 },
-  { x: 180, y: 280 },
-  { x: 440, y: 190 },
-  { x: 700, y: 100 },
-  { x: 700, y: 280 }
-];
-
-const nodeWidth = 180;
-const nodeHeight = 180;
+// ✅ Función para obtener posiciones responsivas
+const getResponsiveLayout = (width: number) => {
+  if (width <= 650) {
+    // Móvil: Layout en lista vertical
+    return {
+      positions: [
+        { x: width / 2, y: 80 },
+        { x: width / 2, y: 180 },
+        { x: width / 2, y: 280 },
+        { x: width / 2, y: 380 },
+        { x: width / 2, y: 480 }
+      ],
+      nodeSize: { width: Math.min(140, width * 0.8), height: Math.min(140, width * 0.8) },
+      containerHeight: 580,
+      showConnections: false
+    };
+  } else if (width <= 900) {
+    // Tablet: Layout compacto
+    return {
+      positions: [
+        { x: width * 0.2, y: 80 },
+        { x: width * 0.2, y: 220 },
+        { x: width * 0.5, y: 150 },
+        { x: width * 0.8, y: 80 },
+        { x: width * 0.8, y: 220 }
+      ],
+      nodeSize: { width: 120, height: 120 },
+      containerHeight: 320,
+      showConnections: true
+    };
+  } else {
+    // Escritorio: Layout original
+    return {
+      positions: [
+        { x: 180, y: 100 },
+        { x: 180, y: 280 },
+        { x: 440, y: 190 },
+        { x: 700, y: 100 },
+        { x: 700, y: 280 }
+      ],
+      nodeSize: { width: 180, height: 180 },
+      containerHeight: 420,
+      showConnections: true
+    };
+  }
+};
 
 export default function FlujoVisual() {
   const [selectedNode, setSelectedNode] = useState<number | null>(null);
+  const [layout, setLayout] = useState(() => getResponsiveLayout(880));
+
+  // ✅ Listener para redimensionamiento
+  useEffect(() => {
+    const handleResize = () => {
+      const container = document.getElementById("flujo-cognitivo-visual");
+      if (container) {
+        const width = Math.min(container.offsetWidth - 40, 880);
+        setLayout(getResponsiveLayout(width));
+      }
+    };
+
+    handleResize(); // Ejecutar inmediatamente
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const containerWidth = typeof window !== 'undefined' 
+    ? Math.min(880, window.innerWidth - 40) 
+    : 880;
 
   return (
     <section id="flujo-cognitivo-visual" style={{ marginBottom: 60 }}>
@@ -68,54 +123,58 @@ export default function FlujoVisual() {
         color: "#00baff",
         textAlign: "center",
         marginBottom: "0.5em",
-        fontSize: "2em"
+        fontSize: "clamp(1.5em, 4vw, 2em)"
       }}>
         <span role="img" aria-label="Flujo" style={{ marginRight: 10 }}>📊</span>
         Flujo Cognitivo Visual
       </h2>
       <p style={{
-        fontSize: "1.1em",
+        fontSize: "clamp(1em, 2.5vw, 1.1em)",
         textAlign: "center",
         margin: "0 auto 1.5em",
-        maxWidth: 700,
-        color: "#e6e6e6"
+        maxWidth: "min(700px, 95vw)",
+        color: "#e6e6e6",
+        padding: "0 1rem"
       }}>
         Este diagrama muestra cómo BOTZ procesa datos desde la percepción, consulta su memoria, analiza en su núcleo cognitivo y ejecuta acciones automatizadas.        
       </p>
       <div style={{
         position: "relative",
-        width: 880,
-        maxWidth: "98vw",
+        width: "min(880px, 98vw)",
         margin: "0 auto",
-        height: 420,
-        minHeight: 360
+        height: layout.containerHeight,
+        minHeight: layout.containerHeight
       }}>
-        <svg
-          className="flujo-svg"
-          width="880"
-          height="420"
-          style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 1 }}
-        >
-          {connections.map(([from, to], idx) => (
-            <line
-              key={idx}
-              x1={nodePos[from].x}
-              y1={nodePos[from].y}
-              x2={nodePos[to].x}
-              y2={nodePos[to].y}
-            />
-          ))}
-        </svg>
+        {layout.showConnections && (
+          <svg
+            className="flujo-svg"
+            width="100%"
+            height="100%"
+            style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 1 }}
+            viewBox={`0 0 ${containerWidth} ${layout.containerHeight}`}
+            preserveAspectRatio="xMidYMid meet"
+          >
+            {connections.map(([from, to], idx) => (
+              <line
+                key={idx}
+                x1={layout.positions[from].x}
+                y1={layout.positions[from].y}
+                x2={layout.positions[to].x}
+                y2={layout.positions[to].y}
+              />
+            ))}
+          </svg>
+        )}
         {nodes.map((node, i) => (
           <div
             key={node.id}
             className={`flujo-node node-${node.id}`}
             style={{
               position: "absolute",
-              left: nodePos[i].x - nodeWidth / 2,
-              top: nodePos[i].y - nodeHeight / 2,
-              width: nodeWidth,
-              height: nodeHeight,
+              left: layout.positions[i].x - layout.nodeSize.width / 2,
+              top: layout.positions[i].y - layout.nodeSize.height / 2,
+              width: layout.nodeSize.width,
+              height: layout.nodeSize.height,
               zIndex: 2,
               textAlign: "center",
               cursor: "pointer",
@@ -123,19 +182,26 @@ export default function FlujoVisual() {
             }}
             onClick={() => setSelectedNode(i)}
           >
-            <div className="flujo-node-icon" style={{ fontSize: "2.5em", margin: "14px auto 5px" }}>
+            <div className="flujo-node-icon" style={{ 
+              fontSize: `clamp(1.5em, ${layout.nodeSize.width / 80}em, 2.5em)`,
+              margin: "14px auto 5px" 
+            }}>
               {node.icon}
             </div>
-            <div className="flujo-node-label" style={{
-              fontWeight: 700,
-              fontSize: "1.27em",
-              marginBottom: 4,
-              color: "#00baff"
-            }}>
-              {node.label}
-            </div>
-            <div className="flujo-node-desc">
-              {node.desc}
+            <div className="flujo-node-content">
+              <div className="flujo-node-label" style={{
+                fontWeight: 700,
+                fontSize: `clamp(0.9em, ${layout.nodeSize.width / 140}em, 1.27em)`,
+                marginBottom: 4,
+                color: "#00baff"
+              }}>
+                {node.label}
+              </div>
+              <div className="flujo-node-desc" style={{
+                fontSize: `clamp(0.8em, ${layout.nodeSize.width / 160}em, 1em)`
+              }}>
+                {node.desc}
+              </div>
             </div>
           </div>
         ))}
