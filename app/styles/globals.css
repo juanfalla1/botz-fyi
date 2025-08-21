@@ -1222,5 +1222,58 @@ body {
   }
 
 }
+/* =========================
+   FIX RESPONSIVE - SOLO MÓVILES
+=========================== */
+@media (max-width: 768px) {
+  /* Contenedores principales centrados */
+  .flujo-container,
+  .arquitectura-container,
+  .automatizacion-container,
+  .cognitivo-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 0 12px;
+  }
+
+  /* Cards ocupan todo el ancho con márgenes */
+  .flujo-card,
+  .hotlead-card,
+  .arquitectura-card,
+  .cognitivo-card {
+    width: 100%;
+    margin: 8px 0;
+  }
+
+  /* Nodos más pequeños y centrados */
+  .nodo,
+  .cognitivo-nodo {
+    width: 70px !important;
+    height: 70px !important;
+    margin: 10px auto !important;
+  }
+
+  /* Conexiones (líneas) debajo para que no se corten */
+  .linea-conexion {
+    position: relative;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    width: 80% !important;
+    height: 2px !important;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /* Textos centrados */
+  .flujo-card h3,
+  .flujo-card p,
+  .hotlead-card h3,
+  .hotlead-card p {
+    text-align: center;
+  }
+}
+
 
 
