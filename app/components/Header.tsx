@@ -23,7 +23,6 @@ const Header: React.FC = () => {
           <h1
             className="glow"
             onClick={toTop}
-            // quita “rayita”/tap highlight en Android
             style={{ cursor: "pointer", WebkitTapHighlightColor: "transparent" }}
           >
             botz
@@ -150,6 +149,11 @@ const Header: React.FC = () => {
                 </a>
               </div>
             </div>
+
+            {/* 🔹 Nuevo link Login */}
+            <a href="/dashboard" style={{ fontWeight: "bold", color: "#10b2cb" }}>
+              Login
+            </a>
           </nav>
         </div>
       </div>
