@@ -1274,6 +1274,12 @@ body {
     text-align: center;
   }
 }
+/* ✅ Fondo solo para el login */
+.login-page {
+  min-height: 100vh;
+  background: url('/bg-leads.jpg') no-repeat center center fixed;
+  background-size: cover;
+}
 
 
 
