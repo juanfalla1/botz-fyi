@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "../../supabaseClient";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Search, Calendar, Download } from "lucide-react";
 
 type Lead = {
   id: string;
@@ -24,17 +24,26 @@ export default function LeadsTable({
 }) {
   const [search, setSearch] = useState("");
   const [updatedRow, setUpdatedRow] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
 
+  // 🔎 Filtro texto + fechas
   const filteredLeads = leads.filter((l) => {
     const query = search.toLowerCase();
-    return (
+    const matchesSearch =
       l.name?.toLowerCase().includes(query) ||
       l.email?.toLowerCase().includes(query) ||
       l.phone?.toLowerCase().includes(query) ||
       l.company?.toLowerCase().includes(query) ||
       l.interest?.toLowerCase().includes(query) ||
-      l.status?.toLowerCase().includes(query)
-    );
+      l.status?.toLowerCase().includes(query);
+
+    const leadDate = l.created_at ? new Date(l.created_at) : null;
+    const matchesDate =
+      (!startDate || (leadDate && leadDate >= new Date(startDate))) &&
+      (!endDate || (leadDate && leadDate <= new Date(endDate)));
+
+    return matchesSearch && matchesDate;
   });
 
   // 🚀 Actualizar estado en Supabase
@@ -48,7 +57,7 @@ export default function LeadsTable({
     }
   };
 
-  // 📤 Exportar a Excel
+  // 📤 Exportar a Excel (solo lo filtrado)
   const exportExcel = () => {
     const worksheet = XLSX.utils.json_to_sheet(filteredLeads);
     const workbook = XLSX.utils.book_new();
@@ -57,25 +66,60 @@ export default function LeadsTable({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-4 mt-6">
-      <div className="flex justify-between items-center mb-4">
-        <input
-          type="text"
-          placeholder="Buscar..."
-          className="border rounded-lg px-3 py-2 w-2/3 focus:outline-none focus:ring-2 focus:ring-[#10b2cb]"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+    <div className="bg-white rounded-xl shadow-lg p-4 mt-12">
+      {/* Header con título y botón de exportar */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+        <h2 className="text-xl font-bold text-[#112f46] mb-2 md:mb-0">Gestión de Leads</h2>
         <button
           onClick={exportExcel}
-          className="bg-[#10b2cb] text-white px-4 py-2 rounded-lg shadow hover:bg-[#0d8ca3]"
+          className="bg-[#10b2cb] text-white px-4 py-2 rounded-lg shadow hover:bg-[#0d8ca3] flex items-center gap-2 self-end md:self-auto"
         >
+          <Download size={16} />
           Exportar Excel
         </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full border border-gray-200 rounded-lg text-sm">
+      {/* 🔎 Filtros en una sola esquina */}
+      <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-gray-50 rounded-lg">
+        {/* Buscador con icono */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Buscar leads..."
+            className="border rounded-lg pl-10 pr-3 py-2 w-64 focus:outline-none focus:ring-2 focus:ring-[#10b2cb]"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        {/* Fechas con icono */}
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="date"
+              className="border rounded-lg pl-10 pr-3 py-2 w-44 focus:outline-none focus:ring-2 focus:ring-[#10b2cb]"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </div>
+          <span className="text-gray-600">a</span>
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="date"
+              className="border rounded-lg pl-10 pr-3 py-2 w-44 focus:outline-none focus:ring-2 focus:ring-[#10b2cb]"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Tabla */}
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="min-w-full bg-white text-sm">
           <thead className="bg-[#112f46] text-white uppercase text-xs font-semibold">
             <tr>
               <th className="px-4 py-3 text-left">Nombre</th>
@@ -88,36 +132,51 @@ export default function LeadsTable({
             </tr>
           </thead>
           <tbody>
-            {filteredLeads.map((lead, i) => (
-              <tr
-                key={i}
-                className={`${i % 2 === 0 ? "bg-gray-50" : "bg-white"} hover:bg-[#10b2cb]/10`}
-              >
-                <td className="px-4 py-2">{lead.name || "-"}</td>
-                <td className="px-4 py-2">{lead.email || "-"}</td>
-                <td className="px-4 py-2">{lead.phone || "-"}</td>
-                <td className="px-4 py-2">{lead.company || "-"}</td>
-                <td className="px-4 py-2">{lead.interest || "-"}</td>
-                <td className="px-4 py-2 flex items-center gap-2">
-                  <select
-                    value={lead.status || "new"}
-                    onChange={(e) => updateStatus(lead.id, e.target.value)}
-                    className="px-3 py-1 rounded-full text-xs font-semibold cursor-pointer"
-                  >
-                    <option value="new">Nuevo</option>
-                    <option value="seguimiento">En seguimiento</option>
-                    <option value="convertido">Convertido</option>
-                  </select>
-                  {updatedRow === lead.id && <CheckCircle className="text-green-500 w-5 h-5" />}
+            {filteredLeads.length > 0 ? (
+              filteredLeads.map((lead, i) => (
+                <tr
+                  key={i}
+                  className={`${i % 2 === 0 ? "bg-gray-50" : "bg-white"} hover:bg-[#10b2cb]/10 transition-colors`}
+                >
+                  <td className="px-4 py-3 border-t border-gray-200">{lead.name || "-"}</td>
+                  <td className="px-4 py-3 border-t border-gray-200">{lead.email || "-"}</td>
+                  <td className="px-4 py-3 border-t border-gray-200">{lead.phone || "-"}</td>
+                  <td className="px-4 py-3 border-t border-gray-200">{lead.company || "-"}</td>
+                  <td className="px-4 py-3 border-t border-gray-200">{lead.interest || "-"}</td>
+                  <td className="px-4 py-3 border-t border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={lead.status || "new"}
+                        onChange={(e) => updateStatus(lead.id, e.target.value)}
+                        className="px-3 py-1 rounded-full text-xs font-semibold cursor-pointer border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#10b2cb]"
+                      >
+                        <option value="new" className="text-blue-600">Nuevo</option>
+                        <option value="seguimiento" className="text-yellow-600">En seguimiento</option>
+                        <option value="convertido" className="text-green-600">Convertido</option>
+                      </select>
+                      {updatedRow === lead.id && <CheckCircle className="text-green-500 w-4 h-4" />}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 border-t border-gray-200">
+                    {lead.created_at ? new Date(lead.created_at).toLocaleDateString() : "-"}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={7} className="px-4 py-6 text-center text-gray-500 border-t border-gray-200">
+                  No se encontraron leads que coincidan con los filtros
                 </td>
-                <td className="px-4 py-2">{lead.created_at ? new Date(lead.created_at).toLocaleDateString() : "-"}</td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
+      </div>
+
+      {/* Contador de resultados */}
+      <div className="mt-4 text-sm text-gray-600">
+        Mostrando {filteredLeads.length} de {leads.length} leads
       </div>
     </div>
   );
 }
-
-
