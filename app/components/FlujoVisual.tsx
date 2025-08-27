@@ -3,41 +3,11 @@ import React, { useState, useEffect } from "react";
 import "./FlujoVisual.css";
 
 const nodes = [
-  {
-    id: "percepcion",
-    label: "Percepción",
-    desc: "Entrada omnicanal",
-    detail: "Entrada de datos desde formularios o mensajería.",
-    icon: "👁️"
-  },
-  {
-    id: "memoria",
-    label: "Memoria",
-    desc: "Consulta de datos",
-    detail: "Consulta a fuentes como Google Sheets o bases de datos.",
-    icon: "💾"
-  },
-  {
-    id: "nucleo",
-    label: "Núcleo Cognitivo",
-    desc: "Inteligencia central",
-    detail: "Análisis y toma de decisiones usando OpenAI.",
-    icon: "🧠"
-  },
-  {
-    id: "procesamiento",
-    label: "Procesamiento",
-    desc: "Automatización",
-    detail: "Evaluación contextual y lógica basada en datos.",
-    icon: "⚙️"
-  },
-  {
-    id: "accion",
-    label: "Acción",
-    desc: "Respuesta automática",
-    detail: "Respuesta automática enviada al cliente.",
-    icon: "⚡"
-  }
+  { id: "percepcion", label: "Percepción", desc: "Entrada omnicanal", detail: "Entrada de datos desde formularios o mensajería.", icon: "👁️" },
+  { id: "memoria", label: "Memoria", desc: "Consulta de datos", detail: "Consulta a fuentes como Google Sheets o bases de datos.", icon: "💾" },
+  { id: "nucleo", label: "Núcleo Cognitivo", desc: "Inteligencia central", detail: "Análisis y toma de decisiones usando OpenAI.", icon: "🧠" },
+  { id: "procesamiento", label: "Procesamiento", desc: "Automatización", detail: "Evaluación contextual y lógica basada en datos.", icon: "⚙️" },
+  { id: "accion", label: "Acción", desc: "Respuesta automática", detail: "Respuesta automática enviada al cliente.", icon: "⚡" }
 ];
 
 const connections = [
@@ -50,7 +20,6 @@ const connections = [
 // ✅ Función para obtener posiciones responsivas
 const getResponsiveLayout = (width: number) => {
   if (width <= 650) {
-    // Móvil: Layout en lista vertical
     return {
       positions: [
         { x: width / 2, y: 80 },
@@ -64,7 +33,6 @@ const getResponsiveLayout = (width: number) => {
       showConnections: false
     };
   } else if (width <= 900) {
-    // Tablet: Layout compacto
     return {
       positions: [
         { x: width * 0.2, y: 80 },
@@ -78,7 +46,6 @@ const getResponsiveLayout = (width: number) => {
       showConnections: true
     };
   } else {
-    // Escritorio: Layout original
     return {
       positions: [
         { x: 180, y: 100 },
@@ -96,6 +63,9 @@ const getResponsiveLayout = (width: number) => {
 
 export default function FlujoVisual() {
   const [selectedNode, setSelectedNode] = useState<number | null>(null);
+
+  // ✅ Estado seguro para SSR → arranca con 880 (coincide con HTML del server)
+  const [containerWidth, setContainerWidth] = useState(880);
   const [layout, setLayout] = useState(() => getResponsiveLayout(880));
 
   // ✅ Listener para redimensionamiento
@@ -104,47 +74,53 @@ export default function FlujoVisual() {
       const container = document.getElementById("flujo-cognitivo-visual");
       if (container) {
         const width = Math.min(container.offsetWidth - 40, 880);
+        setContainerWidth(width);
         setLayout(getResponsiveLayout(width));
       }
     };
 
-    handleResize(); // Ejecutar inmediatamente
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    handleResize(); // Ejecutar inmediatamente en el cliente
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
-
-  const containerWidth = typeof window !== 'undefined' 
-    ? Math.min(880, window.innerWidth - 40) 
-    : 880;
 
   return (
     <section id="flujo-cognitivo-visual" style={{ marginBottom: 60 }}>
-      <h2 className="section-title" style={{
-        color: "#00baff",
-        textAlign: "center",
-        marginBottom: "0.5em",
-        fontSize: "clamp(1.5em, 4vw, 2em)"
-      }}>
-        <span role="img" aria-label="Flujo" style={{ marginRight: 10 }}>📊</span>
+      <h2
+        className="section-title"
+        style={{
+          color: "#00baff",
+          textAlign: "center",
+          marginBottom: "0.5em",
+          fontSize: "clamp(1.5em, 4vw, 2em)"
+        }}
+      >
+        <span role="img" aria-label="Flujo" style={{ marginRight: 10 }}>
+          📊
+        </span>
         Flujo Cognitivo Visual
       </h2>
-      <p style={{
-        fontSize: "clamp(1em, 2.5vw, 1.1em)",
-        textAlign: "center",
-        margin: "0 auto 1.5em",
-        maxWidth: "min(700px, 95vw)",
-        color: "#e6e6e6",
-        padding: "0 1rem"
-      }}>
-        Este diagrama muestra cómo BOTZ procesa datos desde la percepción, consulta su memoria, analiza en su núcleo cognitivo y ejecuta acciones automatizadas.        
+      <p
+        style={{
+          fontSize: "clamp(1em, 2.5vw, 1.1em)",
+          textAlign: "center",
+          margin: "0 auto 1.5em",
+          maxWidth: "min(700px, 95vw)",
+          color: "#e6e6e6",
+          padding: "0 1rem"
+        }}
+      >
+        Este diagrama muestra cómo BOTZ procesa datos desde la percepción, consulta su memoria, analiza en su núcleo cognitivo y ejecuta acciones automatizadas.
       </p>
-      <div style={{
-        position: "relative",
-        width: "min(880px, 98vw)",
-        margin: "0 auto",
-        height: layout.containerHeight,
-        minHeight: layout.containerHeight
-      }}>
+      <div
+        style={{
+          position: "relative",
+          width: "min(880px, 98vw)",
+          margin: "0 auto",
+          height: layout.containerHeight,
+          minHeight: layout.containerHeight
+        }}
+      >
         {layout.showConnections && (
           <svg
             className="flujo-svg"
@@ -182,24 +158,33 @@ export default function FlujoVisual() {
             }}
             onClick={() => setSelectedNode(i)}
           >
-            <div className="flujo-node-icon" style={{ 
-              fontSize: `clamp(1.5em, ${layout.nodeSize.width / 80}em, 2.5em)`,
-              margin: "14px auto 5px" 
-            }}>
+            <div
+              className="flujo-node-icon"
+              style={{
+                fontSize: `clamp(1.5em, ${layout.nodeSize.width / 80}em, 2.5em)`,
+                margin: "14px auto 5px"
+              }}
+            >
               {node.icon}
             </div>
             <div className="flujo-node-content">
-              <div className="flujo-node-label" style={{
-                fontWeight: 700,
-                fontSize: `clamp(0.9em, ${layout.nodeSize.width / 140}em, 1.27em)`,
-                marginBottom: 4,
-                color: "#00baff"
-              }}>
+              <div
+                className="flujo-node-label"
+                style={{
+                  fontWeight: 700,
+                  fontSize: `clamp(0.9em, ${layout.nodeSize.width / 140}em, 1.27em)`,
+                  marginBottom: 4,
+                  color: "#00baff"
+                }}
+              >
                 {node.label}
               </div>
-              <div className="flujo-node-desc" style={{
-                fontSize: `clamp(0.8em, ${layout.nodeSize.width / 160}em, 1em)`
-              }}>
+              <div
+                className="flujo-node-desc"
+                style={{
+                  fontSize: `clamp(0.8em, ${layout.nodeSize.width / 160}em, 1em)`
+                }}
+              >
                 {node.desc}
               </div>
             </div>
@@ -210,11 +195,27 @@ export default function FlujoVisual() {
       {/* Modal */}
       {selectedNode !== null && (
         <div className="node-modal" onClick={() => setSelectedNode(null)}>
-          <div className="node-modal-content" onClick={e => e.stopPropagation()}>
-            <button className="node-modal-close" onClick={() => setSelectedNode(null)} title="Cerrar">&times;</button>
-            <div style={{ fontSize: "2.8em", marginBottom: ".3em" }}>{nodes[selectedNode].icon}</div>
+          <div className="node-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="node-modal-close"
+              onClick={() => setSelectedNode(null)}
+              title="Cerrar"
+            >
+              &times;
+            </button>
+            <div style={{ fontSize: "2.8em", marginBottom: ".3em" }}>
+              {nodes[selectedNode].icon}
+            </div>
             <h3 style={{ color: "#00baff", marginTop: 0 }}>{nodes[selectedNode].label}</h3>
-            <div style={{ fontSize: "1.35em", marginBottom: "1.3em", color: "#fff" }}>{nodes[selectedNode].detail}</div>
+            <div
+              style={{
+                fontSize: "1.35em",
+                marginBottom: "1.3em",
+                color: "#fff"
+              }}
+            >
+              {nodes[selectedNode].detail}
+            </div>
           </div>
         </div>
       )}
