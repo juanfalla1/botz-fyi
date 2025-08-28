@@ -40,6 +40,29 @@ const Header = () => {
     setOpenDropdown(null);
   };
 
+  // Función para manejar el clic en dropdowns
+  const handleDropdownClick = (e: React.MouseEvent, name: string) => {
+    e.preventDefault();
+    if (isMobile) {
+      toggleDropdown(name);
+    }
+    // En escritorio no hacemos nada, se maneja con hover
+  };
+
+  // Función para manejar hover en escritorio
+  const handleDropdownHover = (name: string) => {
+    if (!isMobile) {
+      setOpenDropdown(name);
+    }
+  };
+
+  // Función para manejar cuando el mouse sale del dropdown
+  const handleDropdownLeave = () => {
+    if (!isMobile) {
+      setOpenDropdown(null);
+    }
+  };
+
   return (
     <>
       <header id="header">
@@ -99,14 +122,14 @@ const Header = () => {
               </a>
 
               {/* Dropdown 1 */}
-              <div className={`dropdown ${openDropdown === "ia" ? "open" : ""}`}>
+              <div 
+                className={`dropdown ${openDropdown === "ia" ? "open" : ""}`}
+                onMouseEnter={() => handleDropdownHover("ia")}
+                onMouseLeave={handleDropdownLeave}
+              >
                 <a
                   href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    isMobile ? toggleDropdown("ia") : null;
-                  }}
-                  onMouseEnter={!isMobile ? () => setOpenDropdown("ia") : undefined}
+                  onClick={(e) => handleDropdownClick(e, "ia")}
                 >
                   Procesos y Flujos con IA {isMobile ? (openDropdown === "ia" ? "▴" : "▾") : "▾"}
                 </a>
@@ -135,14 +158,14 @@ const Header = () => {
               </div>
 
               {/* Dropdown 2 */}
-              <div className={`dropdown ${openDropdown === "auto" ? "open" : ""}`}>
+              <div 
+                className={`dropdown ${openDropdown === "auto" ? "open" : ""}`}
+                onMouseEnter={() => handleDropdownHover("auto")}
+                onMouseLeave={handleDropdownLeave}
+              >
                 <a
                   href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    isMobile ? toggleDropdown("auto") : null;
-                  }}
-                  onMouseEnter={!isMobile ? () => setOpenDropdown("auto") : undefined}
+                  onClick={(e) => handleDropdownClick(e, "auto")}
                 >
                   Soluciones de Automatización {isMobile ? (openDropdown === "auto" ? "▴" : "▾") : "▾"}
                 </a>
@@ -181,14 +204,14 @@ const Header = () => {
               </div>
 
               {/* Dropdown 3 */}
-              <div className={`dropdown ${openDropdown === "exito" ? "open" : ""}`}>
+              <div 
+                className={`dropdown ${openDropdown === "exito" ? "open" : ""}`}
+                onMouseEnter={() => handleDropdownHover("exito")}
+                onMouseLeave={handleDropdownLeave}
+              >
                 <a
                   href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    isMobile ? toggleDropdown("exito") : null;
-                  }}
-                  onMouseEnter={!isMobile ? () => setOpenDropdown("exito") : undefined}
+                  onClick={(e) => handleDropdownClick(e, "exito")}
                 >
                   Casos de Éxito {isMobile ? (openDropdown === "exito" ? "▴" : "▾") : "▾"}
                 </a>

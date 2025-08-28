@@ -1312,6 +1312,19 @@ body {
     display: none !important;
   }
 }
+/* ===== FIX BOTZ DROPDOWN ===== */
+
+/* Respetar clase .open para que funcione con React */
+.dropdown.open > .dropdown-content {
+  display: block !important;
+}
+
+/* En móvil: permitir clic en los links principales */
+@media (max-width:1024px){
+  .dropdown > a {
+    pointer-events: auto !important;
+  }
+}
 
 
 
