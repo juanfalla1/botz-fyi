@@ -1280,38 +1280,6 @@ body {
   background: url('/bg-leads.jpg') no-repeat center center fixed;
   background-size: cover;
 }
-/* ✅ Ajuste responsive para nodos circulares */
-@media (max-width: 768px) {
-  .architecture-diagram,
-  .flows-diagram,
-  .cognitivo-container,
-  .automatizacion-container,
-  .flujo-container {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    gap: 20px !important;
-  }
-
-  .nodo,
-  .cognitivo-nodo,
-  .architecture-diagram .neural-node,
-  .architecture-diagram .neural-core {
-    position: static !important;
-    transform: none !important;
-    margin: 0 auto !important;
-    width: 80px !important;
-    height: 80px !important;
-  }
-
-  /* Ocultar líneas/conexiones que se desajustan en móvil */
-  .linea-conexion,
-  .conector-linea,
-  .architecture-diagram svg,
-  .architecture-diagram .edges {
-    display: none !important;
-  }
-}
 /* ===== FIX BOTZ DROPDOWN ===== */
 
 /* Respetar clase .open para que funcione con React */
@@ -1323,6 +1291,66 @@ body {
 @media (max-width:1024px){
   .dropdown > a {
     pointer-events: auto !important;
+  }
+}
+/* 📱 Ajustes especiales para móviles en métricas y barras */
+@media (max-width: 650px) {
+  .benefit-dashboard {
+    display: flex;
+    flex-direction: column !important; /* Métrica arriba, barra abajo */
+    align-items: flex-start !important;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .benefit-metric {
+    font-size: 0.9em;
+    white-space: normal !important;  /* Permite salto de línea */
+    word-break: break-word !important;
+  }
+
+  .metric-bar {
+    width: 100% !important;          /* Que nunca sobresalga */
+    max-width: 220px !important;     /* límite en móvil */
+    height: 6px !important;
+  }
+
+  .bar-fill {
+    height: 6px !important;
+  }
+}
+/* 📱 Ajuste de tamaño de texto en móviles */
+@media (max-width: 1000px) {
+  .benefit-metric {
+    font-size: 0.60em !important;   /* más pequeño */
+    line-height: 1.2 !important;    /* compacto */
+  }
+}
+/* 📱 En móviles, mostrar solo el número en la barra */
+@media (max-width: 650px) {
+  .benefit-metric span {
+    display: none !important;  /* Oculta las etiquetas tipo "Leads capturados:" */
+  }
+
+  .benefit-metric {
+    font-size: 0.9em !important;
+    font-weight: 600;
+    text-align: right;          /* Alinea el número */
+    width: 100%;                /* que ocupe toda la barra */
+  }
+
+  .metric-bar {
+    position: relative;
+  }
+
+  .metric-bar::after {
+    content: attr(data-value);   /* Inserta el número dinámico */
+    position: absolute;
+    right: 8px;                  /* lo coloca al final de la barra */
+    top: -18px;                  /* arriba de la barra */
+    font-size: 0.85em;
+    color: #00fff2;
+    font-weight: bold;
   }
 }
 

@@ -44,26 +44,29 @@ const ventajas = [
   { icon: "🔍", title: "Monitoreo en Tiempo Real", desc: "Observa, depura y optimiza todos tus flujos en vivo." }
 ];
 
-// ✅ Layout responsivo
+// ✅ Layout responsivo para AutomatizacionN8N
 const getN8nLayout = (width: number) => {
   if (width <= 650) {
+    // Móvil: tarjetas horizontales
     return {
       containerWidth: width,
       containerHeight: steps.length * 140 + 40,
       showConnections: false,
       isMobile: true,
-      nodePositions: []
+      nodePositions: [] // No se usan en móvil
     };
   } else if (width <= 900) {
+    // Tablet: horizontal compacto
     const nodeSpacing = (width - 160) / (steps.length - 1);
     return {
       containerWidth: width,
-      containerHeight: steps.length * 140 + 40,
+      containerHeight: 200,
       showConnections: true,
       isMobile: false,
       nodePositions: steps.map((_, i) => ({ x: 80 + i * nodeSpacing, y: 80 }))
     };
   } else {
+    // Escritorio: fila horizontal con conexiones SVG
     return {
       containerWidth: 1000,
       containerHeight: 200,
@@ -103,18 +106,8 @@ export default function AutomatizacionN8N() {
       <h2 className="section-title" style={{ color: "#10b2cb", fontSize: "clamp(1.5em, 4vw, 2.5em)" }}>
         Automatizaciones de flujos
       </h2>
-      <p
-        style={{
-          textAlign: "center",
-          color: "#ccc",
-          fontSize: "clamp(1em, 2.5vw, 1.12em)",
-          marginBottom: 28,
-          maxWidth: "min(280px, 60vw)",
-          margin: "0 auto 28px"
-        }}
-      >
-        Un flujo inteligente para transformar tu operación:{" "}
-        <b>botzflow orquesta tu proceso de extremo a extremo.</b>
+      <p style={{ textAlign: "center", color: "#ccc", fontSize: "clamp(1em, 2.5vw, 1.12em)", marginBottom: 28, maxWidth: "min(320px, 60vw)", margin: "0 auto 28px" }}>
+        Un flujo inteligente para transformar tu operación: <b>botzflow orquesta tu proceso de extremo a extremo.</b>
       </p>
 
       {/* === Fondo y flujo n8n === */}
@@ -124,29 +117,18 @@ export default function AutomatizacionN8N() {
         style={{
           width: "min(1000px, 98vw)",
           height: layout.containerHeight,
-          margin: layout.isMobile ? "0 0 12px 0" : "0 auto 12px auto", // 👈 aquí
-          display: layout.isMobile ? "flex" : "block",
-          flexDirection: layout.isMobile ? "column" : undefined,
-          alignItems: layout.isMobile ? "flex-start" : undefined
+          margin: layout.isMobile ? "0 0 12px 0" : "0 auto 12px auto"
         }}
       >
         {/* SVG conexiones */}
         {layout.showConnections && !layout.isMobile && (
-          <svg
-            className="n8n-flowchart-svg"
-            width="100%"
-            height="100%"
-            viewBox={`0 0 ${layout.containerWidth} ${layout.containerHeight}`}
-            preserveAspectRatio="xMidYMid meet"
-          >
+          <svg className="n8n-flowchart-svg" width="100%" height="100%" viewBox={`0 0 ${layout.containerWidth} ${layout.containerHeight}`} preserveAspectRatio="xMidYMid meet">
             {steps.map((_, i) =>
               i < steps.length - 1 ? (
                 <path
                   key={i}
                   d={`M${layout.nodePositions[i].x + 60},${layout.nodePositions[i].y + 60}
-                     C${layout.nodePositions[i].x + 100},${layout.nodePositions[i].y + 60}
-                      ${layout.nodePositions[i + 1].x + 20},${layout.nodePositions[i + 1].y + 60}
-                      ${layout.nodePositions[i + 1].x + 60},${layout.nodePositions[i + 1].y + 60}`}
+                      C${layout.nodePositions[i].x + 100},${layout.nodePositions[i].y + 60} ${layout.nodePositions[i + 1].x + 20},${layout.nodePositions[i + 1].y + 60} ${layout.nodePositions[i + 1].x + 60},${layout.nodePositions[i + 1].y + 60}`}
                   className="n8n-flowchart-connector"
                 />
               ) : null
@@ -156,32 +138,32 @@ export default function AutomatizacionN8N() {
 
         {/* Nodos */}
         {steps.map((step, i) => {
-          const nodeStyle: React.CSSProperties = layout.isMobile
-            ? {
-                position: "static",
-                display: "flex",
-                alignItems: "center",
-                textAlign: "left",
-                width: "min(340px, 90vw)",
-                height: "auto",
-                margin: "0 0 16px 0", // 👈 nodos pegados a la izquierda
-                padding: "16px",
-                borderRadius: "16px",
-                gap: "16px"
-              }
-            : {
-                left: layout.nodePositions[i].x,
-                top: layout.nodePositions[i].y,
-                position: "absolute"
-              };
+          let nodeStyle: React.CSSProperties;
+
+          if (layout.isMobile) {
+            nodeStyle = {
+              position: "static",
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "center",
+              textAlign: "left",
+              width: "min(340px, 90vw)",
+              height: "auto",
+              margin: "0 0 16px 0",
+              padding: "16px",
+              borderRadius: "16px",
+              gap: "16px"
+            };
+          } else {
+            nodeStyle = {
+              left: layout.nodePositions[i].x,
+              top: layout.nodePositions[i].y,
+              position: "absolute"
+            };
+          }
 
           return (
-            <div
-              key={i}
-              className="n8n-flowchart-node"
-              style={nodeStyle}
-              onClick={() => setSelected(i)}
-            >
+            <div key={i} className="n8n-flowchart-node" style={nodeStyle} onClick={() => setSelected(i)}>
               <div
                 className="n8n-flowchart-node-icon"
                 style={{
@@ -198,15 +180,7 @@ export default function AutomatizacionN8N() {
                 <div className="n8n-flowchart-node-label">{step.label}</div>
                 <div className="n8n-flowchart-node-desc">{step.desc}</div>
                 {layout.isMobile && (
-                  <div
-                    className="n8n-flowchart-node-detail"
-                    style={{
-                      fontSize: "0.85em",
-                      color: "#b8b8b8",
-                      marginTop: "4px",
-                      lineHeight: 1.3
-                    }}
-                  >
+                  <div className="n8n-flowchart-node-detail" style={{ fontSize: "0.85em", color: "#b8b8b8", marginTop: "4px", lineHeight: 1.3 }}>
                     {step.detail}
                   </div>
                 )}
@@ -216,7 +190,7 @@ export default function AutomatizacionN8N() {
         })}
       </div>
 
-      {/* Ventajas */}
+      {/* === Ventajas === */}
       <div style={{ margin: "70px auto 0", maxWidth: 950 }}>
         <h3 style={{ color: "#10b2cb", marginBottom: 24, fontWeight: 600, textAlign: "center", fontSize: "1.28em" }}>
           Ventajas Clave de Automatizar con botzflow
@@ -232,7 +206,7 @@ export default function AutomatizacionN8N() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* === Modal explicativo === */}
       {selected !== null && (
         <div className="n8n-modal" onClick={() => setSelected(null)}>
           <div className="n8n-modal-content" onClick={(e) => e.stopPropagation()}>
