@@ -1404,6 +1404,10 @@ body {
     padding-bottom: 10px !important;
   }
 }
-
+div:hover .whatsapp-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+  
 
 

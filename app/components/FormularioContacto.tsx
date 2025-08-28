@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import emailjs from "@emailjs/browser";
 
 const FormularioContacto = () => {
   const [formData, setFormData] = useState({
@@ -20,18 +19,24 @@ const FormularioContacto = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Parámetros EmailJS
-    const serviceID = "TU_SERVICE_ID";
-    const templateID = "TU_TEMPLATE_ID";
-    const publicKey = "TU_PUBLIC_KEY";
-
     try {
-      await emailjs.send(serviceID, templateID, formData, publicKey);
-      setEnviado(true);
-      setFormData({ nombre: "", email: "", mensaje: "" });
+      const res = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setEnviado(true);
+        setFormData({ nombre: "", email: "", mensaje: "" });
+        setError("");
+      } else {
+        setError(data.error || "Hubo un error al enviar tu mensaje. Intenta de nuevo.");
+      }
     } catch (err) {
       console.error("Error al enviar el correo:", err);
-      setError("Hubo un error al enviar tu mensaje. Intenta de nuevo.");
+      setError("Error de conexión con el servidor. Intenta más tarde.");
     }
   };
 
@@ -83,3 +88,4 @@ const FormularioContacto = () => {
 };
 
 export default FormularioContacto;
+

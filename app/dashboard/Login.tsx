@@ -22,7 +22,11 @@ export default function Login() {
           onClick={() => (window.location.href = "/")}
           whileHover={{ scale: 1.1, rotate: 2 }}
           whileTap={{ scale: 0.95 }}
-          className="relative flex items-center gap-4 bg-gradient-to-r from-sky-400 via-cyan-500 to-blue-500 hover:from-sky-500 hover:via-cyan-600 hover:to-blue-600 text-white px-10 py-4 text-2xl font-extrabold rounded-3xl shadow-2xl hover:shadow-sky-400/40 transition-all duration-300 transform hover:-translate-y-2"
+          className="relative flex items-center gap-3 
+             bg-gradient-to-r from-sky-400 via-cyan-500 to-indigo-500
+             hover:from-sky-500 hover:via-cyan-600 hover:to-indigo-600
+             text-white px-6 py-3 text-lg font-bold rounded-full
+             shadow-lg hover:shadow-sky-400/40 transition-all duration-300 hover:scale-110"
         >
           {/* Efecto de brillo de fondo */}
           <div className="absolute inset-0 bg-gradient-to-r from-sky-300/40 via-cyan-400/40 to-blue-400/40 rounded-3xl blur-xl opacity-70 animate-pulse"></div>

@@ -41,8 +41,8 @@ const getResponsiveLayout = (width: number) => {
         { x: width * 0.8, y: 80 },
         { x: width * 0.8, y: 220 }
       ],
-      nodeSize: { width: 120, height: 120 },
-      containerHeight: 320,
+      nodeSize: { width: 160, height: 160 },
+      containerHeight: 360,
       showConnections: true
     };
   } else {
@@ -171,28 +171,29 @@ export default function FlujoVisual() {
               <div
                 className="flujo-node-label"
                 style={{
-                  fontWeight: 700,
-                  fontSize: `clamp(0.9em, ${layout.nodeSize.width / 140}em, 1.27em)`,
+                  fontWeight: 500,
+                  fontSize: `clamp(0.8em, ${layout.nodeSize.width / 200}em, 1em)`, // 🔹 más chico
                   marginBottom: 4,
                   color: "#00baff"
                 }}
               >
                 {node.label}
               </div>
+              {typeof window !== "undefined" && window.innerWidth  <= 900 && (
               <div
-                className="flujo-node-desc"
+                className="flujo-node-desc" 
                 style={{
                   fontSize: `clamp(0.8em, ${layout.nodeSize.width / 160}em, 1em)`
                 }}
               >
                 {node.desc}
               </div>
+              )}
             </div>
           </div>
         ))}
       </div>
-
-      {/* Modal */}
+     {/* Modal */}
       {selectedNode !== null && (
         <div className="node-modal" onClick={() => setSelectedNode(null)}>
           <div className="node-modal-content" onClick={(e) => e.stopPropagation()}>

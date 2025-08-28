@@ -34,7 +34,7 @@ Siempre debes responder como una persona real del equipo Botz, con tono amigable
     ];
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o-mini", // 🔹 antes era "gpt-4"
       messages,
     });
 
@@ -48,4 +48,3 @@ Siempre debes responder como una persona real del equipo Botz, con tono amigable
     );
   }
 }
-

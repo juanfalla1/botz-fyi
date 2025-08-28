@@ -13,6 +13,7 @@
     user-select: none;
     overflow: hidden;
     padding: 0;
+    
   }
 
   .node-percepcion {
@@ -46,16 +47,17 @@
 
   .flujo-node-label {
     font-weight: 700;
-    font-size: 1.1em;
+    font-size: 0.95em;
     color: #00baff;
     text-shadow: 0 2px 6px #081229cc;
     margin-bottom: 2px;
     line-height: 1.13em;
+    margin-top: -15px; /* súbelo un poquito, ajusta -5px o -10px según lo necesites */
   }
 
   .flujo-node-desc {
     font-weight: 400;
-    font-size: 1em;
+    font-size: 0.8em;
     color: #dadada;
     text-shadow: 0 0 8px #202c39;
     padding: 0 10px;
@@ -216,5 +218,35 @@
 @media (max-width: 650px) {
   #flujo-cognitivo-visual {
     margin: 60px 0 0px 0 !important; /* reduce el espacio arriba y abajo */
+  }
+}
+@media (min-width: 901px) {
+  .flujo-node {
+    width: 180px !important;
+    height: 180px !important;
+  }
+
+  .flujo-node-icon {
+    font-size: 3em !important;
+    margin: 18px auto 6px !important;
+  }
+
+  .flujo-node-label {
+    font-size: 1.3em !important;
+  }
+
+  .flujo-node-desc {
+    font-size: 1.05em !important;
+  }
+}
+/* ✅ Ajuste de textos cuando los nodos son grandes en escritorio */
+@media (min-width: 901px) {
+  .flujo-node-label {
+    font-size: 1.05em !important;  /* título más chico */
+  }
+
+  .flujo-node-desc {
+    font-size: 0.9em !important;   /* descripción más chica */
+    line-height: 1.2 !important;
   }
 }
