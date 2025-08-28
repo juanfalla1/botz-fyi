@@ -154,19 +154,19 @@
       align-items: center !important;
       text-align: left !important;
       border-radius: 16px !important;
-      margin: 0 auto 16px auto !important;
-      padding: 16px !important;
-      width: min(340px, 90vw) !important;
+      margin: 0 0 16px 20px !important;
+      padding: 12px !important;
+      width: min(280px, 85vw) !important;
       height: auto !important;
-      gap: 16px !important;
+      gap: 16 px !important;
       transform: none !important;
     }
     
     .flujo-node-icon {
-      font-size: 2em !important;
+      font-size: 1.5em !important;
       margin: 0 !important;
       flex-shrink: 0;
-      width: 60px;
+      width: 45px;
       text-align: center;
     }
     

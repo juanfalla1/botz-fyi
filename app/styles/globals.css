@@ -1280,17 +1280,36 @@ body {
   background: url('/bg-leads.jpg') no-repeat center center fixed;
   background-size: cover;
 }
-/* ===== FIX BOTZ DROPDOWN ===== */
+/* ✅ Ajuste responsive para nodos circulares */
+@media (max-width: 768px) {
+  .architecture-diagram,
+  .flows-diagram,
+  .cognitivo-container,
+  .automatizacion-container,
+  .flujo-container {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 20px !important;
+  }
 
-/* Respetar clase .open para que funcione con React */
-.dropdown.open > .dropdown-content {
-  display: block !important;
-}
+  .nodo,
+  .cognitivo-nodo,
+  .architecture-diagram .neural-node,
+  .architecture-diagram .neural-core {
+    position: static !important;
+    transform: none !important;
+    margin: 0 auto !important;
+    width: 80px !important;
+    height: 80px !important;
+  }
 
-/* En móvil: permitir clic en los links principales */
-@media (max-width:1024px){
-  .dropdown > a {
-    pointer-events: auto !important;
+  /* Ocultar líneas/conexiones que se desajustan en móvil */
+  .linea-conexion,
+  .conector-linea,
+  .architecture-diagram svg,
+  .architecture-diagram .edges {
+    display: none !important;
   }
 }
 

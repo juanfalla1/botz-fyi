@@ -31,22 +31,19 @@ const steps = [
     icon: "🤝",
     title: "Cierre\nAutomático",
     desc: "Cierra ventas y notifica éxito al equipo.",
-    usecase: "Confirma automáticamente ventas exitosas y dispara agradecimientos."
+    usecase: "Confirma automáticamente ventas exitosas y dispara agradecimientos." 
   }
 ];
 
-// ✅ Layout responsivo para FlujoEcommerce
 const getEcommerceLayout = (width: number) => {
   if (width <= 650) {
-    // Móvil: Layout en lista vertical
     return {
       containerWidth: width,
-      containerHeight: steps.length * 120 + 40,
+      containerHeight: steps.length * 80 + 40,
       showConnections: false,
       isMobile: true
     };
   } else if (width <= 900) {
-    // Tablet: Layout circular más pequeño
     const centerX = width * 0.5;
     const centerY = 200;
     const radius = Math.min(120, width * 0.25);
@@ -60,7 +57,6 @@ const getEcommerceLayout = (width: number) => {
       isMobile: false
     };
   } else {
-    // Escritorio: Layout original
     return {
       centerX: 330,
       centerY: 280,
@@ -77,10 +73,9 @@ export default function FlujoEcommerce() {
   const [selected, setSelected] = useState<number | null>(null);
   const [layout, setLayout] = useState(() => getEcommerceLayout(660));
 
-  // ✅ Listener para redimensionamiento
   useEffect(() => {
     const handleResize = () => {
-      const container = document.querySelector('.flujo-e-container')?.parentElement;
+      const container = document.querySelector(".flujo-e-container")?.parentElement;
       if (container) {
         const width = Math.min(container.clientWidth - 40, 660);
         setLayout(getEcommerceLayout(width));
@@ -88,40 +83,44 @@ export default function FlujoEcommerce() {
     };
 
     handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const angleStep = (2 * Math.PI) / steps.length;
 
   return (
     <section style={{ margin: "70px 0 70px 0", padding: "0 1rem" }}>
-      <h2 className="section-title" style={{ 
-        color: "#00fff2",
-        fontSize: "clamp(1.5em, 4vw, 2.5em)"
-      }}>
+      <h2
+        className="section-title"
+        style={{
+          color: "#00fff2",
+          fontSize: "clamp(1.5em, 4vw, 2.5em)"
+        }}
+      >
         Arquitectura Ecommerce HOOK
       </h2>
-      <p style={{ 
-        textAlign: "center", 
-        color: "#ccc", 
-        fontSize: "clamp(1em, 2.5vw, 1.18em)", 
-        marginBottom: 35,
-        maxWidth: "min(700px, 95vw)",
-        margin: "0 auto 35px"
-      }}>
+      <p
+        style={{
+          textAlign: "center",
+          color: "#ccc",
+          fontSize: "clamp(1em, 2.5vw, 1.18em)",
+          marginBottom: 35,
+          maxWidth: "min(700px, 95vw)",
+          margin: "0 auto 35px"
+        }}
+      >
         Descubre cómo la tecnología conecta y automatiza cada etapa del ecommerce moderno.
       </p>
-      <div 
+      <div
         className="flujo-e-container"
         style={{
           position: "relative",
           width: "min(660px, 98vw)",
           height: layout.containerHeight,
-          margin: "0 auto"
+          margin: layout.isMobile ? "0" : "0 auto"
         }}
       >
-        {/* Líneas del flujo - Solo mostrar en desktop y tablet */}
         {layout.showConnections && !layout.isMobile && (
           <svg
             width="100%"
@@ -131,45 +130,42 @@ export default function FlujoEcommerce() {
             preserveAspectRatio="xMidYMid meet"
           >
             {steps.map((_, i) => {
-              const x1 = layout.centerX + layout.radius * Math.cos(i * angleStep - Math.PI / 2);
-              const y1 = layout.centerY + layout.radius * Math.sin(i * angleStep - Math.PI / 2);
-              const x2 = layout.centerX + layout.radius * Math.cos(((i + 1) % steps.length) * angleStep - Math.PI / 2);
-              const y2 = layout.centerY + layout.radius * Math.sin(((i + 1) % steps.length) * angleStep - Math.PI / 2);
+              const x1 = layout.centerX! + layout.radius! * Math.cos(i * angleStep - Math.PI / 2);
+              const y1 = layout.centerY! + layout.radius! * Math.sin(i * angleStep - Math.PI / 2);
+              const x2 =
+                layout.centerX! +
+                layout.radius! * Math.cos(((i + 1) % steps.length) * angleStep - Math.PI / 2);
+              const y2 =
+                layout.centerY! +
+                layout.radius! * Math.sin(((i + 1) % steps.length) * angleStep - Math.PI / 2);
               return (
-                <line
-                  key={i}
-                  x1={x1}
-                  y1={y1}
-                  x2={x2}
-                  y2={y2}
-                  className="flujo-e-line"
-                />
+                <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} className="flujo-e-line" />
               );
             })}
           </svg>
         )}
-        {/* Nodos */}
+
         {steps.map((step, i) => {
           let nodeStyle: React.CSSProperties;
-          
+
           if (layout.isMobile) {
-            // Layout vertical para móvil
             nodeStyle = {
               position: "static",
               display: "flex",
               alignItems: "center",
               textAlign: "left",
-              width: "min(340px, 90vw)",
+              width: "min(320px, 85vw)",
               height: "auto",
-              margin: "0 auto 16px auto",
-              padding: "16px",
+              margin: "0 0 16px 20px", // corrido a la izquierda
+              padding: "12px",
               borderRadius: "16px",
-              gap: "16px"
+              gap: "12px"
             };
           } else {
-            // Layout circular para desktop/tablet
-            const x = layout.centerX + layout.radius * Math.cos(i * angleStep - Math.PI / 2) - 70;
-            const y = layout.centerY + layout.radius * Math.sin(i * angleStep - Math.PI / 2) - 70;
+            const x =
+              layout.centerX! + layout.radius! * Math.cos(i * angleStep - Math.PI / 2) - 70;
+            const y =
+              layout.centerY! + layout.radius! * Math.sin(i * angleStep - Math.PI / 2) - 70;
             nodeStyle = {
               left: x,
               top: y,
@@ -178,7 +174,7 @@ export default function FlujoEcommerce() {
               height: 140
             };
           }
-          
+
           return (
             <div
               key={i}
@@ -186,13 +182,15 @@ export default function FlujoEcommerce() {
               style={nodeStyle}
               onClick={() => setSelected(i)}
             >
-              <div style={{ 
-                fontSize: layout.isMobile ? "2em" : "2.1em", 
-                marginBottom: layout.isMobile ? 0 : 6,
-                flexShrink: 0,
-                width: layout.isMobile ? "60px" : "auto",
-                textAlign: "center"
-              }}>
+              <div
+                style={{
+                  fontSize: layout.isMobile ? "2em" : "2.1em",
+                  marginBottom: layout.isMobile ? 0 : 6,
+                  flexShrink: 0,
+                  width: layout.isMobile ? "60px" : "auto",
+                  textAlign: "center"
+                }}
+              >
                 {step.icon}
               </div>
               <div className="flujo-e-content">
@@ -206,12 +204,15 @@ export default function FlujoEcommerce() {
                   ))}
                 </div>
                 {layout.isMobile && (
-                  <div className="flujo-e-desc" style={{
-                    fontSize: "0.9em",
-                    color: "#ccc",
-                    marginTop: "4px",
-                    lineHeight: 1.3
-                  }}>
+                  <div
+                    className="flujo-e-desc"
+                    style={{
+                      fontSize: "0.9em",
+                      color: "#ccc",
+                      marginTop: "4px",
+                      lineHeight: 1.3
+                    }}
+                  >
                     {step.desc}
                   </div>
                 )}
@@ -220,17 +221,29 @@ export default function FlujoEcommerce() {
           );
         })}
       </div>
-      {/* Modal explicativo */}
+
       {selected !== null && (
         <div className="flujo-e-modal" onClick={() => setSelected(null)}>
           <div className="flujo-e-modal-content" onClick={e => e.stopPropagation()}>
-            <button className="flujo-e-modal-close" onClick={() => setSelected(null)} title="Cerrar">
+            <button
+              className="flujo-e-modal-close"
+              onClick={() => setSelected(null)}
+              title="Cerrar"
+            >
               ×
             </button>
-            <div style={{ fontSize: "2.5em", marginBottom: ".3em" }}>{steps[selected].icon}</div>
-            <h3 style={{ color: "#00fff2", marginTop: 0 }}>{steps[selected].title.replace('\n', ' ')}</h3>
-            <div style={{ fontSize: "1.12em", margin: "1em 0" }}>{steps[selected].desc}</div>
-            <div style={{ fontWeight: 700, color: "#fff", marginBottom: ".4em" }}>Caso de Uso:</div>
+            <div style={{ fontSize: "2.5em", marginBottom: ".3em" }}>
+              {steps[selected].icon}
+            </div>
+            <h3 style={{ color: "#00fff2", marginTop: 0 }}>
+              {steps[selected].title.replace("\n", " ")}
+            </h3>
+            <div style={{ fontSize: "1.12em", margin: "1em 0" }}>
+              {steps[selected].desc}
+            </div>
+            <div style={{ fontWeight: 700, color: "#fff", marginBottom: ".4em" }}>
+              Caso de Uso:
+            </div>
             <div style={{ fontSize: "1.13em" }}>{steps[selected].usecase}</div>
           </div>
         </div>
@@ -238,5 +251,3 @@ export default function FlujoEcommerce() {
     </section>
   );
 }
-
-
