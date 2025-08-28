@@ -52,7 +52,7 @@
   background: #19263b;
   border-radius: 18px;
   padding: 2.2em 1.5em 1.7em;
-  min-width: 280px;
+  min-width: 340px;
   max-width: 92vw;
   text-align: center;
   position: relative;
@@ -76,4 +76,20 @@
   .agente-card { width: 85px; min-height: 80px; font-size: 0.7em; }
   .agente-title { font-size: 0.75em; }
   .agente-icon { font-size: 1em; }
+}
+/* 📱 Ajuste para móviles: agentes en columna */
+@media (max-width: 650px) {
+  .agentes-grid {
+    display: flex !important;
+    flex-direction: column !important; /* 🔹 vertical */
+    align-items: center !important;    /* 🔹 centradas */
+    gap: 16px !important;              /* 🔹 espacio entre tarjetas */
+  }
+
+  .agente-card {
+    width: 90% !important;             /* 🔹 más grandes */
+    max-width: 320px !important;       /* 🔹 límite */
+    min-height: auto !important;       /* 🔹 altura adaptable */
+    font-size: 0.9em !important;
+  }
 }

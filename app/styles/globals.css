@@ -1302,7 +1302,7 @@ body {
     gap: 6px;
     width: 100%;
   }
-
+   /* 🔹 Oculta texto y número del bloque original */   
   .benefit-metric {
     font-size: 0.9em;
     white-space: normal !important;  /* Permite salto de línea */
@@ -1310,8 +1310,9 @@ body {
   }
 
   .metric-bar {
+    position: relative;
     width: 100% !important;          /* Que nunca sobresalga */
-    max-width: 220px !important;     /* límite en móvil */
+    max-width: 120px !important;     /* límite en móvil */
     height: 6px !important;
   }
 
@@ -1330,27 +1331,74 @@ body {
 @media (max-width: 650px) {
   .benefit-metric span {
     display: none !important;  /* Oculta las etiquetas tipo "Leads capturados:" */
+
   }
 
   .benefit-metric {
     font-size: 0.9em !important;
     font-weight: 600;
-    text-align: right;          /* Alinea el número */
+    text-align: center !important; /* ⬅️ centra el número */
     width: 100%;                /* que ocupe toda la barra */
+    display: block;               /* asegura que sea un bloque */
   }
 
   .metric-bar {
     position: relative;
   }
+   /* 🔹 Insertamos SOLO el número encima de la barra */
+  .metric-bar::after {
+  content: attr(data-value);   
+  position: absolute;
+  left: 50%;                  /* lo centra */
+  transform: translateX(-50%);/* corrige el centrado */
+  top: -18px;                 
+  font-size: 0.85em;
+  color: #00fff2;
+  font-weight: bold;
+  }
+}
+@media (max-width: 750px) {
+  .metric-bar {
+    max-width: 100px !important;   /* 🔹 más estrecho en móviles */
+    overflow: hidden;              /* evita desbordes */
+  }
 
   .metric-bar::after {
-    content: attr(data-value);   /* Inserta el número dinámico */
-    position: absolute;
-    right: 8px;                  /* lo coloca al final de la barra */
-    top: -18px;                  /* arriba de la barra */
-    font-size: 0.85em;
-    color: #00fff2;
-    font-weight: bold;
+    right: 0;                      /* lo pega al borde derecho */
+    top: -18px;
+    max-width: 100%;               /* no se sale de la tarjeta */
+    text-align: right;
+  }
+
+  .benefit-metric {
+    text-align: left !important;   /* ocultamos la etiqueta pero dejamos limpio */
+    width: auto;
+  }
+}
+@media (max-width: 650px) {
+  .benefit-metric {
+    display: flex;
+    flex-direction: column; /* Pone SVG arriba y número abajo */
+    align-items: center;    /* Centra en el medio */
+    gap: 2px;
+  }
+
+  .benefit-metric svg {
+    margin-bottom: 2px;
+  }
+
+  .benefit-metric span {
+    display: none !important; /* Oculta "Leads almacenados:" */
+  }
+}
+/* 📱 Reducir espacio después de agentes en móviles */
+@media (max-width: 650px) {
+  .agentes-grid {
+    margin-bottom: 20px !important; /* 🔹 menos espacio debajo */
+  }
+
+  .agente-card {
+    margin-bottom: 12px !important; /* 🔹 espacio compacto entre tarjetas */
   }
 }
 

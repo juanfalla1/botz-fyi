@@ -158,10 +158,15 @@
       padding: 12px !important;
       width: min(280px, 85vw) !important;
       height: auto !important;
-      gap: 16 px !important;
+      gap: 16px !important;
       transform: none !important;
+    
+      
     }
     
+    
+
+
     .flujo-node-icon {
       font-size: 1.5em !important;
       margin: 0 !important;
@@ -207,3 +212,9 @@
       line-height: 1.4 !important;
     }
   }
+/* 📱 Ajuste de espacio entre secciones en móviles */
+@media (max-width: 650px) {
+  #flujo-cognitivo-visual {
+    margin: 60px 0 0px 0 !important; /* reduce el espacio arriba y abajo */
+  }
+}
