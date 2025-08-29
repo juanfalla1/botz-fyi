@@ -1,5 +1,6 @@
 import "./styles/globals.css";
 import CookieBanner from "./components/CookieBanner";
+import Header from "./components/Header";   // 👈 agrega esto
 
 export const metadata = {
   title: "botz - Automatización Inteligente",
@@ -15,12 +16,14 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body>
+        <Header />   {/* 👈 ahora el header siempre está visible */}
         {children}
         <CookieBanner />
       </body>
     </html>
   );
 }
+
 
 
 

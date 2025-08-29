@@ -140,7 +140,7 @@ header {
 header h1 {
   margin: 0;
   color: var(--primary);
-  font-size: 2rem;
+  font-size: 3rem;
   font-weight: 700;
   text-shadow: 0 0 10px rgba(0, 186, 255, 0.3);
 }
@@ -1079,7 +1079,7 @@ header {
 }
 
 body {
-  padding-top: 80px; /* Ajusta según la altura del header */
+/* Ajusta según la altura del header */
 }
 
 /* ==== MENÚ DESKTOP ==== */

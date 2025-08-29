@@ -12,54 +12,7 @@ export default function Login() {
   return (
     <div className="relative min-h-screen w-full">
       {/* 🔹 Botón Home MEJORADO */}
-      <motion.div 
-        className="absolute top-6 right-8 z-50"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.3 }}
-      >
-        <motion.button
-          onClick={() => (window.location.href = "/")}
-          whileHover={{ scale: 1.1, rotate: 2 }}
-          whileTap={{ scale: 0.95 }}
-          className="relative flex items-center gap-3 
-             bg-gradient-to-r from-sky-400 via-cyan-500 to-indigo-500
-             hover:from-sky-500 hover:via-cyan-600 hover:to-indigo-600
-             text-white px-6 py-3 text-lg font-bold rounded-full
-             shadow-lg hover:shadow-sky-400/40 transition-all duration-300 hover:scale-110"
-        >
-          {/* Efecto de brillo de fondo */}
-          <div className="absolute inset-0 bg-gradient-to-r from-sky-300/40 via-cyan-400/40 to-blue-400/40 rounded-3xl blur-xl opacity-70 animate-pulse"></div>
-          
-          {/* Contenido del botón */}
-          <div className="relative z-10 flex items-center gap-4">
-            <div className="bg-white/20 p-2 rounded-xl backdrop-blur-sm">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-8 w-8 drop-shadow-lg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={3}
-                  d="M3 9.75L12 4l9 5.75M4.5 10.5v9.75h15V10.5M9 21V12h6v9"
-                />
-              </svg>
-            </div>
-            <span className="text-2xl font-black tracking-wider drop-shadow-lg">
-              HOME
-            </span>
-          </div>
-          
-          {/* Partículas decorativas */}
-          <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-400 rounded-full animate-bounce"></div>
-          <div className="absolute -bottom-2 -left-2 w-3 h-3 bg-cyan-400 rounded-full animate-pulse delay-500"></div>
-          <div className="absolute top-1/2 -left-3 w-2 h-2 bg-green-400 rounded-full animate-ping delay-1000"></div>
-        </motion.button>
-      </motion.div>
+     
 
       {/* 🔹 Login / Signup Card */}
       <motion.div
