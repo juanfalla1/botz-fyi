@@ -13,8 +13,6 @@ import ChatBot from '@/components/ChatBot';
 import IntelligentFlowDemo from '@/components/IntelligentFlowDemo';
 import HotLeadFlowDemo from '@/components/HotLeadFlowDemo';
 
-// ⬇️ Asegúrate de importar tu nuevo componente
-import CookieConsent from "@/components/CookieConsent";
 
 import CasoExitoHook from '@/components/CasoExitoHook';
 
@@ -58,10 +56,7 @@ export default function Home() {
 
         <Servicios />
       </main>
-
-      {/* Aquí lo agregamos para que salga como modal global */}
-      <CookieConsent /> 
-
+      
       <ChatBot />
       <Footer />
     </>
