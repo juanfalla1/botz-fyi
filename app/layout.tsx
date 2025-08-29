@@ -1,6 +1,6 @@
 import "./styles/globals.css";
 import CookieBanner from "./components/CookieBanner";
-import CookieConsent from "./components/CookieConsent"; // 👈 importar modal
+import CookieConsent from "./components/CookieConsent";
 
 export const metadata = {
   title: "botz - Automatización Inteligente",
@@ -17,12 +17,11 @@ export default function RootLayout({
     <html lang="es">
       <body>
         {children}
-        {/* Modal inicial */}
         <CookieConsent />
-        {/* Recordatorio abajo */}
         <CookieBanner />
       </body>
     </html>
   );
 }
+
 
