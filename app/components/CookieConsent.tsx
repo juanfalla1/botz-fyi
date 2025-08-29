@@ -14,7 +14,7 @@ const CookieConsent = () => {
 
   const handleConsent = (choice: string) => {
     localStorage.setItem("cookiesConsent", choice);
-    setVisible(false);
+    setVisible(false); // 👈 antes tenías setVisible(true)
   };
 
   if (!visible) return null;
@@ -37,9 +37,8 @@ const CookieConsent = () => {
 
         {/* Texto */}
         <p className="text-sm text-gray-300 leading-relaxed mb-6">
-          En <strong>BOTZ</strong> utilizamos cookies para mejorar tu experiencia
-          en nuestro sitio. Puedes aceptar o denegar tu consentimiento en este
-          momento. Siempre podrás revisar nuestra política más adelante.
+          En <strong>BOTZ</strong> utilizamos cookies para mejorar tu experiencia.
+          Puedes aceptar o denegar tu consentimiento ahora mismo. 
         </p>
 
         {/* Botones */}
