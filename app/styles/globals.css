@@ -1404,10 +1404,28 @@ body {
     padding-bottom: 10px !important;
   }
 }
-div:hover .whatsapp-tooltip {
-  visibility: visible;
-  opacity: 1;
+html, body {
+  overflow-x: hidden;
+  overflow-y: auto !important; /* asegura scroll vertical */
 }
-  
+body {
+  padding-bottom: 120px; /* deja espacio para el banner */
+}
+/* ==== Fix CookieBanner ==== */
+body {
+  /* deja espacio para que el footer no tape el banner */
+  padding-bottom: 120px; 
+}
+
+/* fuerza al banner a estar visible siempre arriba del footer */
+.fixed.bottom-0 {
+  position: fixed !important;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  z-index: 2147483647 !important; /* nivel más alto */
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2); /* sombra ligera para destacarlo */
+}
+
 
 

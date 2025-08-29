@@ -64,9 +64,16 @@ const getResponsiveLayout = (width: number) => {
 export default function FlujoVisual() {
   const [selectedNode, setSelectedNode] = useState<number | null>(null);
 
-  // ✅ Estado seguro para SSR → arranca con 880 (coincide con HTML del server)
+  // ✅ Estado seguro para SSR → arranca con 880
   const [containerWidth, setContainerWidth] = useState(880);
   const [layout, setLayout] = useState(() => getResponsiveLayout(880));
+
+  // ✅ Flag de montaje
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true); // se activa en cliente
+  }, []);
 
   // ✅ Listener para redimensionamiento
   useEffect(() => {
@@ -110,7 +117,8 @@ export default function FlujoVisual() {
           padding: "0 1rem"
         }}
       >
-        Este diagrama muestra cómo BOTZ procesa datos desde la percepción, consulta su memoria, analiza en su núcleo cognitivo y ejecuta acciones automatizadas.
+        Este diagrama muestra cómo BOTZ procesa datos desde la percepción, consulta su memoria,
+        analiza en su núcleo cognitivo y ejecuta acciones automatizadas.
       </p>
       <div
         style={{
@@ -172,28 +180,30 @@ export default function FlujoVisual() {
                 className="flujo-node-label"
                 style={{
                   fontWeight: 500,
-                  fontSize: `clamp(0.8em, ${layout.nodeSize.width / 200}em, 1em)`, // 🔹 más chico
+                  fontSize: `clamp(0.8em, ${layout.nodeSize.width / 200}em, 1em)`,
                   marginBottom: 4,
                   color: "#00baff"
                 }}
               >
                 {node.label}
               </div>
-              {typeof window !== "undefined" && window.innerWidth  <= 900 && (
-              <div
-                className="flujo-node-desc" 
-                style={{
-                  fontSize: `clamp(0.8em, ${layout.nodeSize.width / 160}em, 1em)`
-                }}
-              >
-                {node.desc}
-              </div>
+              {/* ✅ Se renderiza solo en cliente después de montar */}
+              {mounted && window.innerWidth <= 900 && (
+                <div
+                  className="flujo-node-desc"
+                  style={{
+                    fontSize: `clamp(0.8em, ${layout.nodeSize.width / 160}em, 1em)`
+                  }}
+                >
+                  {node.desc}
+                </div>
               )}
             </div>
           </div>
         ))}
       </div>
-     {/* Modal */}
+
+      {/* Modal */}
       {selectedNode !== null && (
         <div className="node-modal" onClick={() => setSelectedNode(null)}>
           <div className="node-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -207,7 +217,9 @@ export default function FlujoVisual() {
             <div style={{ fontSize: "2.8em", marginBottom: ".3em" }}>
               {nodes[selectedNode].icon}
             </div>
-            <h3 style={{ color: "#00baff", marginTop: 0 }}>{nodes[selectedNode].label}</h3>
+            <h3 style={{ color: "#00baff", marginTop: 0 }}>
+              {nodes[selectedNode].label}
+            </h3>
             <div
               style={{
                 fontSize: "1.35em",
