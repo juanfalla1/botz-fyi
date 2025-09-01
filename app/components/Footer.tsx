@@ -29,7 +29,7 @@ const Footer = () => {
           </p>
         </div>
 
-        {/* Redes sociales PRO */}
+        {/* Redes sociales */}
         <div className="flex justify-center space-x-10 mt-6">
           <a
             href="https://www.instagram.com/tu_usuario"
@@ -37,15 +37,15 @@ const Footer = () => {
             rel="noopener noreferrer"
             aria-label="Instagram"
           >
-            <FaInstagram className="text-pink-500 text-5xl hover:scale-110 transition-transform" />
+            <FaInstagram className="text-pink-500 text-4xl hover:scale-110 transition-transform" />
           </a>
           <a
-            href="https://www.linkedin.com/in/tu_usuario"
+            href="https://www.linkedin.com/company/botz-ai/"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="LinkedIn"
           >
-            <FaLinkedin className="text-blue-600 text-5xl hover:scale-110 transition-transform" />
+            <FaLinkedin className="text-blue-500 text-4xl hover:scale-110 transition-transform" />
           </a>
           <a
             href="https://wa.me/14374351594"
@@ -53,10 +53,10 @@ const Footer = () => {
             rel="noopener noreferrer"
             aria-label="WhatsApp"
           >
-            <FaWhatsapp className="text-green-500 text-5xl hover:scale-110 transition-transform" />
+            <FaWhatsapp className="text-green-500 text-4xl hover:scale-110 transition-transform" />
           </a>
           <a href="mailto:info@botz.fyi" aria-label="Email">
-            <FaEnvelope className="text-cyan-400 text-5xl hover:scale-110 transition-transform" />
+            <FaEnvelope className="text-cyan-400 text-4xl hover:scale-110 transition-transform" />
           </a>
         </div>
 
