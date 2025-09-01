@@ -10,7 +10,7 @@ export default function SobreNosotros() {
           <h1 className="hero-title">botz</h1>
 
           <p className="hero-subtitle">
-            Somos pioneros en la implementación de{" "}
+            Somos Especialistas en la implementación de{" "}
             <strong>automatización inteligente y procesos innovadores</strong>{" "}
             con IA para ayudar a empresas a gestionar de forma eficiente{" "}
             <strong>datos, leads y operaciones digitales</strong>.
@@ -26,7 +26,7 @@ export default function SobreNosotros() {
               <div className="content-card">
                 <h2 className="content-title">Nuestra Misión</h2>
                 <p className="content-text">
-                  En <strong>botz</strong>, creemos que el talento de las
+                  En <strong>Botz</strong>, creemos que el talento de las
                   empresas debe centrarse en aportar valor estratégico, no en
                   procesos manuales repetitivos. Por eso desarrollamos soluciones
                   basadas en <strong>IA, n8n, Supabase y OpenAI</strong> que
@@ -37,7 +37,7 @@ export default function SobreNosotros() {
               <div className="content-card" style={{ marginTop: "2rem" }}>
                 <h2 className="content-title">Quiénes Somos</h2>
                 <p className="content-text">
-                  <strong>botz</strong> es una compañía de tecnología con alma
+                  <strong>Botz</strong> es una compañía de tecnología con alma
                   de consultor. Nacimos para ayudar a las empresas a ser más
                   ágiles, competitivas y productivas, creando soluciones de{" "}
                   <strong>
@@ -95,7 +95,7 @@ export default function SobreNosotros() {
           <div className="grid-2cols">
             <div className="content-card">
               <p className="content-text">
-                botz nació con el objetivo de transformar la manera en que las
+               botz nació con el objetivo de transformar la manera en que las
                 empresas gestionan sus procesos digitales. Desde su fundación,
                 hemos desarrollado soluciones en sectores como el financiero,
                 automotriz, retail y tecnología, integrando inteligencia
