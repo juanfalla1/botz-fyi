@@ -98,7 +98,7 @@ export default function FlujoEcommerce() {
           fontSize: "clamp(1.5em, 4vw, 2.5em)"
         }}
       >
-        Arquitectura Ecommerce HOOK
+        Arquitectura E-commerce HOOK
       </h2>
       <p
         style={{

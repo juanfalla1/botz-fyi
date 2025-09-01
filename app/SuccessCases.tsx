@@ -12,7 +12,7 @@ const SuccessCases = () => {
           <i className="fas fa-shoe-prints fa-3x icono"></i>
           <h4>HOOK E-commerce Inteligente</h4>
           <p>
-            Desde el diseño hasta el despliegue final, botz lideró el desarrollo integral del ecommerce HOOK, destacando un diseño visual atractivo, completamente responsivo y adaptado a los colores corporativos. Se integró una pasarela de pagos segura con Wompi, un chatbot con inteligencia artificial conectado a OpenAI y flujos automatizados vía WhatsApp y Telegram. Además, se realizó una optimización avanzada para buscadores (SEO), configuración de dominio personalizado y soporte técnico post-lanzamiento. Andrés Castillo, CEO de HOOK, confió plenamente en botz para llevar su visión digital al siguiente nivel.
+            Desde el diseño hasta el despliegue final, botz lideró el desarrollo integral del E-commerce HOOK, destacando un diseño visual atractivo, completamente responsivo y adaptado a los colores corporativos. Se integró una pasarela de pagos segura con Wompi, un chatbot con inteligencia artificial conectado a OpenAI y flujos automatizados vía WhatsApp y Telegram. Además, se realizó una optimización avanzada para buscadores (SEO), configuración de dominio personalizado y soporte técnico post-lanzamiento. Andrés Castillo, CEO de HOOK, confió plenamente en botz para llevar su visión digital al siguiente nivel.
           </p>
         </div>
 

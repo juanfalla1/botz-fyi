@@ -375,7 +375,8 @@ ul li {
   padding-left: 2em;
   line-height: 1.6;
 }
-ul li::before {
+/* Después */
+.otra-seccion ul li::before {
   content: '\f00c';
   font-family: 'Font Awesome 6 Free';
   font-weight: 900;
@@ -680,7 +681,7 @@ main{ padding-top: 0 !important; }
   .dropdown > a{ pointer-events:none; }
 }
 
-/* ======== BOTZ responsive fixes (appended) ======== */
+/* ========botz responsive fixes (appended) ======== */
 
 /* ====== CLEAN, BALANCED RESPONSIVE FIXES (no rompe dropdown en desktop) ====== */
 
@@ -1280,7 +1281,7 @@ body {
   background: url('/bg-leads.jpg') no-repeat center center fixed;
   background-size: cover;
 }
-/* ===== FIX BOTZ DROPDOWN ===== */
+/* ===== FIXbotz DROPDOWN ===== */
 
 /* Respetar clase .open para que funcione con React */
 .dropdown.open > .dropdown-content {

@@ -13,15 +13,25 @@ export default function Funcionalidades() {
       <div className="overlay"></div>
       <div className="content animate__animated animate__fadeInUp">
         <h3>Funcionalidades Inteligentes</h3>
-        <ul>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {funcionalidades.map((item, idx) => (
-            <li key={idx}>
-              <i className="fas fa-check" style={{
-                color: "var(--primary)",
-                marginRight: "0.6em",
-                fontSize: "1.2em"
-              }}></i>
-              {item}
+            <li
+              key={idx}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                marginBottom: "0.8em"
+              }}
+            >
+              <i
+                className="fas fa-check-circle"
+                style={{
+                  color: "var(--primary)", // o "#00B4D8"
+                  marginRight: "0.6em",
+                  fontSize: "1.2em"
+                }}
+              ></i>
+              <span>{item}</span>
             </li>
           ))}
         </ul>

@@ -34,7 +34,7 @@ export default function Home() {
           <FlujoVisual />
         </section>
 
-        <section id="arquitectura-ecommerce-hook">
+        <section id="arquitectura-E-commerce-hook">
           <FlujoEcommerce />
         </section>
 

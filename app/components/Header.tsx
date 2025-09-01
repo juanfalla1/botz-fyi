@@ -130,8 +130,8 @@ const Header = () => {
                   Soluciones de Automatización {isMobile ? (openDropdown === "auto" ? "▴" : "▾") : "▾"}
                 </a>
                 <div className="dropdown-content">
-                  <Link href="/#arquitectura-ecommerce-hook" onClick={closeMenu}>
-                    🛍️ Desarrollo de eCommerce con IA
+                  <Link href="/#arquitectura-E-commerce-hook" onClick={closeMenu}>
+                    🛍️ Desarrollo de E-commerce con IA
                   </Link>
                   <Link href="/#automatizaciones-n8n" onClick={closeMenu}>
                     🤖  Automatización de flujos
@@ -185,7 +185,7 @@ const Header = () => {
                       closeMenu();
                     }}
                   >
-                    🏆 Desarrollo de eCommerce para HOOK 
+                    🏆 Desarrollo de E-commerce para HOOK 
                   </a>
                 </div>
               </div>
