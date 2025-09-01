@@ -5,7 +5,7 @@ import Header from "./components/Header";
 export const metadata = {
   title: "botz - Automatización Inteligente",
   description:
-    "Botz: Automatización Inteligente con IA, optimización de procesos y dashboards en tiempo real.",
+    "Botz transforma la productividad empresarial con inteligencia artificial: agentes autónomos, predicciones precisas y dashboards en tiempo real que optimizan procesos y ahorran recursos.",
   keywords: [
     "botz",
     "automatización",
@@ -24,15 +24,15 @@ export const metadata = {
   openGraph: {
     title: "botz - Automatización Inteligente",
     description:
-      "Automatización con IA: predicciones, optimización y dashboards en tiempo real.",
-    url: "https://tusitio.com", // 🔹 cámbialo por tu dominio real
+      "Automatización con IA: predicciones basadas en datos, optimización de tareas repetitivas y dashboards inteligentes en tiempo real para tu negocio.",
+    url: "https://www.botz.fyi", // cámbialo por tu dominio si es distinto
     siteName: "botz",
     images: [
       {
-        url: "/favicon-512x512.png", // 🔹 puedes cambiarlo por un banner más grande si quieres
-        width: 512,
-        height: 512,
-        alt: "botz logo",
+        url: "/og-image.png", // 🔹 Aquí va la imagen OG que te generaré (1200x630)
+        width: 1200,
+        height: 630,
+        alt: "botz - Automatización Inteligente",
       },
     ],
     locale: "es_ES",
@@ -42,8 +42,8 @@ export const metadata = {
     card: "summary_large_image",
     title: "botz - Automatización Inteligente",
     description:
-      "Automatización con IA: predicciones, optimización y dashboards en tiempo real.",
-    images: ["/favicon-512x512.png"], // 🔹 también puedes usar un banner aquí
+      "Potencia tu empresa con inteligencia artificial: agentes autónomos, analítica predictiva y dashboards en tiempo real.",
+    images: ["/og-image.png"], // 🔹 Usamos la misma imagen OG
   },
 };
 
@@ -62,6 +62,7 @@ export default function RootLayout({
     </html>
   );
 }
+
 
 
 
