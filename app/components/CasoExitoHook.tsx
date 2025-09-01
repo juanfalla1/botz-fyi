@@ -7,7 +7,7 @@ const CasoExitoHook = () => {
     <section id="caso-exito-hook" className="content animate__animated animate__fadeIn">
       <h3 style={{ color: "var(--primary)" }}>🚀 Caso de Éxito: HOOK</h3>
       <p>
-        El cliente <strong>HOOK</strong>, confió en <strong>Botz</strong> para crear una solución digital desde cero, con altos estándares técnicos y enfoque profesional.
+        El cliente <strong>HOOK</strong>, confió en <strong>botz</strong> para crear una solución digital desde cero, con altos estándares técnicos y enfoque profesional.
       </p>
 
       <p style={{ marginTop: "1em" }}>

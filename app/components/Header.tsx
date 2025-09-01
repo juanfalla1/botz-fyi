@@ -117,7 +117,32 @@ const Header = () => {
                 Sobre Nosotros
               </Link>
 
-              {/* Dropdown 1 */}
+              {/* Soluciones de Automatización (ahora va antes) */}
+              <div 
+                className={`dropdown ${openDropdown === "auto" ? "open" : ""}`}
+                onMouseEnter={() => handleDropdownHover("auto")}
+                onMouseLeave={handleDropdownLeave}
+              >
+                <a
+                  href="#"
+                  onClick={(e) => handleDropdownClick(e, "auto")}
+                >
+                  Soluciones de Automatización {isMobile ? (openDropdown === "auto" ? "▴" : "▾") : "▾"}
+                </a>
+                <div className="dropdown-content">
+                  <Link href="/#arquitectura-ecommerce-hook" onClick={closeMenu}>
+                    🛍️ Desarrollo de eCommerce con IA
+                  </Link>
+                  <Link href="/#automatizaciones-n8n" onClick={closeMenu}>
+                    🤖  Automatización de flujos
+                  </Link>
+                  <Link href="/#caso-de-exito-hotlead" onClick={closeMenu}>
+                    🚀 Gestion de Leads con HotLead
+                  </Link>
+                </div>
+              </div>
+
+              {/* Procesos y Flujos con IA (ahora pasa después) */}
               <div 
                 className={`dropdown ${openDropdown === "ia" ? "open" : ""}`}
                 onMouseEnter={() => handleDropdownHover("ia")}
@@ -139,32 +164,7 @@ const Header = () => {
                 </div>
               </div>
 
-              {/* Dropdown 2 */}
-              <div 
-                className={`dropdown ${openDropdown === "auto" ? "open" : ""}`}
-                onMouseEnter={() => handleDropdownHover("auto")}
-                onMouseLeave={handleDropdownLeave}
-              >
-                <a
-                  href="#"
-                  onClick={(e) => handleDropdownClick(e, "auto")}
-                >
-                  Soluciones de Automatización {isMobile ? (openDropdown === "auto" ? "▴" : "▾") : "▾"}
-                </a>
-                <div className="dropdown-content">
-                  <Link href="/#arquitectura-ecommerce-hook" onClick={closeMenu}>
-                    🛍️ Arquitectura Ecommerce HOOK
-                  </Link>
-                  <Link href="/#automatizaciones-n8n" onClick={closeMenu}>
-                    🤖 Automatizaciones con n8n
-                  </Link>
-                  <Link href="/#caso-de-exito-hotlead" onClick={closeMenu}>
-                    🚀 Solución con HotLead
-                  </Link>
-                </div>
-              </div>
-
-              {/* Dropdown 3 */}
+              {/* Casos de Éxito */}
               <div 
                 className={`dropdown ${openDropdown === "exito" ? "open" : ""}`}
                 onMouseEnter={() => handleDropdownHover("exito")}
@@ -185,7 +185,7 @@ const Header = () => {
                       closeMenu();
                     }}
                   >
-                    🏆 Proyecto HOOK con IA
+                    🏆 Desarrollo de eCommerce para HOOK 
                   </a>
                 </div>
               </div>
@@ -244,8 +244,7 @@ const Header = () => {
 
         #main-nav a { color: #fff; text-decoration: none; padding: 10px 15px; border-radius: 6px; transition: all 0.3s ease; font-weight: 600; font-size: 16px; }
         #main-nav a:hover { background: rgba(255, 255, 255, 0.1); color: #10b2cb; }
-        #main-nav :global(a) {font-size:/* tamaño uniforme */ 16px;font-weight: 600;  /* grosor consistente */
-}
+        #main-nav :global(a) {font-size: 16px;font-weight: 600;}
 
         a.login-btn { font-weight: bold; color: #10b2cb !important; background: rgba(16, 178, 203, 0.1); }
         a.login-btn:hover { background: rgba(16, 178, 203, 0.2) !important; }
