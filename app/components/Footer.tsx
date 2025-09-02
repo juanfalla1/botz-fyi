@@ -5,7 +5,7 @@ import { FaInstagram, FaLinkedin, FaWhatsapp, FaEnvelope } from "react-icons/fa"
 
 const Footer = () => {
   return (
-    <footer className="bg-[#040917] text-white py-12">
+    <footer id="contacto" className="bg-[#040917] text-white py-12">
       <div className="max-w-7xl mx-auto px-4 text-center space-y-8">
         {/* Derechos reservados */}
         <p className="text-sm text-gray-400">

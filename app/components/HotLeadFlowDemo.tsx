@@ -51,7 +51,7 @@ const HotLeadFlowDemo = () => {
           marginBottom: "1rem",
           lineHeight: 1.2
         }}>
-          Solución Para la Captación de Leads con HotLead
+          Solución Para la Captación de Leads con hotLead
         </h2>
         <p style={{
           fontSize: "clamp(1em, 2.5vw, 1.125rem)",
@@ -61,7 +61,7 @@ const HotLeadFlowDemo = () => {
           margin: "0 auto 2.5rem",
           lineHeight: 1.6
         }}>
-          Este flujo muestra paso a paso cómo HotLead transforma un contacto frío en una oportunidad real.
+          Este flujo muestra paso a paso cómo hotLead transforma un contacto frío en una oportunidad real.
         </p>
         <div style={{
           display: "grid",

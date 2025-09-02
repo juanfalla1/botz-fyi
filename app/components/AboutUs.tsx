@@ -40,7 +40,7 @@ const AboutUs = () => {
 
         {/* Cierre inspirador */}
         <p className="text-lg font-semibold text-gray-200 max-w-3xl mx-auto">
-          En BOTZ no solo construimos soluciones tecnológicas,  
+          En botz no solo construimos soluciones tecnológicas,  
           <span className="text-cyan-400"> construimos confianza, eficiencia y futuro.</span>
         </p>
       </div>

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   });
 
   const mailOptions = {
-    from: `"Solicitud de Demo Botz" <${process.env.MAIL_USER}>`,
+    from: `"Solicitud de Demo botz" <${process.env.MAIL_USER}>`,
     to: process.env.MAIL_TO || process.env.MAIL_USER,
     subject: "Nueva solicitud de demo personalizada",
     html: `

@@ -117,7 +117,7 @@ export default function FlujoVisual() {
           padding: "0 1rem"
         }}
       >
-        Este diagrama muestra cómo BOTZ procesa datos desde la percepción, consulta su memoria,
+        Este diagrama muestra cómo botz procesa datos desde la percepción, consulta su memoria,
         analiza en su núcleo cognitivo y ejecuta acciones automatizadas.
       </p>
       <div

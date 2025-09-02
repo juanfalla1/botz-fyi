@@ -98,7 +98,7 @@ const Header = () => {
                   href="#"
                   onClick={(e) => handleDropdownClick(e, "propuesta")}
                 >
-                  Nuestra Propuesta {isMobile ? (openDropdown === "propuesta" ? "▴" : "▾") : "▾"}
+                  Nuestra Propuesta {isMobile ? (openDropdown === "propuesta" ? "▴" : "▾") : ""}
                 </a>
                 <div className="dropdown-content">
                   <Link href="/#funcionalidades" onClick={closeMenu}>
@@ -113,11 +113,17 @@ const Header = () => {
                 </div>
               </div>
 
-              <Link href="/sobre-nosotros" onClick={closeMenu}>
-                Sobre Nosotros
-              </Link>
+              <div 
+                className={`dropdown ${openDropdown === "nosotros" ? "open" : ""}`}
+                onMouseEnter={() => handleDropdownHover("nosotros")}
+                onMouseLeave={handleDropdownLeave}
+              >
+                <Link href="/sobre-nosotros" onClick={closeMenu}>
+                  Sobre Nosotros
+                </Link>
+              </div>
 
-              {/* Soluciones de Automatización (ahora va antes) */}
+              {/* Soluciones de Automatización */}
               <div 
                 className={`dropdown ${openDropdown === "auto" ? "open" : ""}`}
                 onMouseEnter={() => handleDropdownHover("auto")}
@@ -127,22 +133,22 @@ const Header = () => {
                   href="#"
                   onClick={(e) => handleDropdownClick(e, "auto")}
                 >
-                  Soluciones de Automatización {isMobile ? (openDropdown === "auto" ? "▴" : "▾") : "▾"}
+                  Soluciones de Automatización {isMobile ? (openDropdown === "auto" ? "▴" : "▾") : ""}
                 </a>
                 <div className="dropdown-content">
                   <Link href="/#arquitectura-E-commerce-hook" onClick={closeMenu}>
-                    🛍️ Desarrollo de E-commerce con IA
+                    🛍️ boty, E-commerce con IA
                   </Link>
                   <Link href="/#automatizaciones-n8n" onClick={closeMenu}>
-                    🤖  Automatización de flujos
+                    🤖  botzflow, Automatización de Flujos de Procesos
                   </Link>
                   <Link href="/#caso-de-exito-hotlead" onClick={closeMenu}>
-                    🚀 Gestion de Leads con HotLead
+                    🚀 hotLead, Gestion de Leads 
                   </Link>
                 </div>
               </div>
 
-              {/* Procesos y Flujos con IA (ahora pasa después) */}
+              {/* Procesos y Flujos con IA */}
               <div 
                 className={`dropdown ${openDropdown === "ia" ? "open" : ""}`}
                 onMouseEnter={() => handleDropdownHover("ia")}
@@ -152,7 +158,7 @@ const Header = () => {
                   href="#"
                   onClick={(e) => handleDropdownClick(e, "ia")}
                 >
-                  Procesos y Flujos con IA {isMobile ? (openDropdown === "ia" ? "▴" : "▾") : "▾"}
+                  Procesos y Flujos con IA {isMobile ? (openDropdown === "ia" ? "▴" : "▾") : ""}
                 </a>
                 <div className="dropdown-content">
                   <Link href="/#arquitectura-agentes-ia" onClick={closeMenu}>
@@ -174,7 +180,7 @@ const Header = () => {
                   href="#"
                   onClick={(e) => handleDropdownClick(e, "exito")}
                 >
-                  Casos de Éxito {isMobile ? (openDropdown === "exito" ? "▴" : "▾") : "▾"}
+                  Casos de Éxito {isMobile ? (openDropdown === "exito" ? "▴" : "▾") : ""}
                 </a>
                 <div className="dropdown-content">
                   <a
@@ -189,6 +195,19 @@ const Header = () => {
                   </a>
                 </div>
               </div>
+
+              {/* Contáctenos solo en móviles */}
+              <a
+                href="#contacto"
+                onClick={(e) => {
+                  e.preventDefault();
+                  smoothScrollTo("contacto");
+                  closeMenu();
+                }}
+                className="contacto-link font-semibold text-cyan-400"
+              >
+                Contáctenos
+              </a>
 
               {/* Login */}
               <a
@@ -251,7 +270,7 @@ const Header = () => {
 
         .dropdown { position: relative; }
         .dropdown-content { display: none; position: absolute; background: #0d2537; min-width: 250px; box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3); border-radius: 8px; overflow: hidden; z-index: 1000; top: 100%; left: 0; }
-        .dropdown-content a { display: block; padding: 12px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); font-size: 12px; color: #fff; text-decoration: none; }
+        .dropdown-content a { display: block; padding: 12px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); font-size: 12px; color: #fff; text-decoration: none; text-align: left; }
         .dropdown-content a:last-child { border-bottom: none; }
         .dropdown-content a:hover { background: rgba(255, 255, 255, 0.08); }
 
@@ -267,11 +286,21 @@ const Header = () => {
           #main-nav a:last-child { border-bottom: none; }
           #main-nav a:hover { background: rgba(255, 255, 255, 0.08); }
           .dropdown { width: 100%; }
-          .dropdown-content { display: none; position: static; flex-direction: column; background: #0d2537; width: 100%; box-shadow: none; border-radius: 0; }
+          .dropdown-content { display: none; position: static; flex-direction: column; background: #0d2537; width: 100%; box-shadow: none; border-radius: 0; text-align: left; }
           .dropdown.open .dropdown-content { display: flex !important; }
-          .dropdown-content a { padding: 12px 45px; font-size: 15px; }
-          .dropdown > a::after { content: " ▾"; float: right; }
-          .dropdown.open > a::after { content: " ▴"; }
+          .dropdown-content a { padding: 12px 25px; font-size: 15px; text-align: left; }
+          .dropdown > a::after { content: ""; } /* Eliminado doble triangulito */
+        }
+
+        /* Contáctenos solo visible en móviles */
+        .contacto-link {
+          display: none;
+        }
+
+        @media (max-width: 768px) {
+          .contacto-link {
+            display: block;
+          }
         }
       `}</style>
     </>
@@ -279,3 +308,4 @@ const Header = () => {
 };
 
 export default Header;
+

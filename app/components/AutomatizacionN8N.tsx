@@ -104,7 +104,7 @@ export default function AutomatizacionN8N() {
   return (
     <section style={{ margin: "60px 0 80px 0", position: "relative", padding: "0 1rem" }}>
       <h2 className="section-title" style={{ color: "#10b2cb", fontSize: "clamp(1.5em, 4vw, 2.5em)" }}>
-        Automatizaciones de flujos
+      botzflow, Automatización de Flujos de Procesos
       </h2>
       <p style={{ textAlign: "center", color: "#ccc", fontSize: "clamp(1em, 2.5vw, 1.12em)", marginBottom: 28, maxWidth: "min(320px, 60vw)", margin: "0 auto 28px" }}>
         Un flujo inteligente para transformar tu operación: <b>botzflow orquesta tu proceso de extremo a extremo.</b>

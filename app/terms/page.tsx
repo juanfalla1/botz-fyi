@@ -17,14 +17,14 @@ export default function TermsPage() {
 
         <h2 className="text-xl font-semibold mt-6 mb-2">Uso del sitio</h2>
         <p>
-          El contenido de este sitio es para tu información general. BOTZ se
+          El contenido de este sitio es para tu información general. botz se
           reserva el derecho de modificar el contenido sin previo aviso.
         </p>
 
         <h2 className="text-xl font-semibold mt-6 mb-2">Limitación de
           responsabilidad</h2>
         <p>
-          BOTZ no será responsable por pérdidas o daños derivados del uso de la
+          botz no será responsable por pérdidas o daños derivados del uso de la
           información o servicios de este sitio.
         </p>
 

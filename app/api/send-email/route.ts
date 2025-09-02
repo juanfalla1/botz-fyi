@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
     // Construir y enviar el correo
     const info = await transporter.sendMail({
-      from: `"Web Botz" <${process.env.ZOHO_USER}>`,
+      from: `"Web botz" <${process.env.ZOHO_USER}>`,
       to: process.env.ZOHO_USER, // lo recibes en tu mismo correo
       subject: "Nueva solicitud de demo personalizada",
       text: `
