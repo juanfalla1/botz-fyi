@@ -12,7 +12,9 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose }) => {
   const [empresa, setEmpresa] = useState("");
   const [telefono, setTelefono] = useState("");
   const [interes, setInteres] = useState("");
-  const [status, setStatus] = useState<"idle" | "enviando" | "ok" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "enviando" | "ok" | "error">(
+    "idle"
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +44,6 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose }) => {
         setEmpresa("");
         setTelefono("");
         setInteres("");
-        // 👇 Mantengo abierto el modal para mostrar el mensaje
       } else {
         setStatus("error");
       }
@@ -69,6 +70,8 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose }) => {
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
                 required
+                pattern="^[A-Za-zÁÉÍÓÚÑáéíóúñ ]+$"
+                title="El nombre solo puede contener letras y espacios"
               />
               <input
                 type="email"
@@ -76,6 +79,7 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose }) => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                title="Por favor, introduce un correo válido"
               />
               <input
                 type="text"
@@ -83,6 +87,8 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose }) => {
                 value={empresa}
                 onChange={(e) => setEmpresa(e.target.value)}
                 required
+                minLength={2}
+                title="La empresa debe tener al menos 2 caracteres"
               />
               <input
                 type="tel"
@@ -90,6 +96,8 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose }) => {
                 value={telefono}
                 onChange={(e) => setTelefono(e.target.value)}
                 required
+                pattern="^[0-9]{7,15}$"
+                title="El teléfono debe tener entre 7 y 15 dígitos numéricos"
               />
               <textarea
                 placeholder="¿Qué te interesa ver en la demo?"
@@ -97,6 +105,8 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose }) => {
                 onChange={(e) => setInteres(e.target.value)}
                 rows={4}
                 required
+                minLength={5}
+                title="Por favor, escribe al menos 5 caracteres"
               />
               <button type="submit">
                 {status === "enviando" ? "Enviando..." : "Enviar solicitud"}
@@ -112,7 +122,9 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose }) => {
         ) : (
           // ✅ Mensaje de confirmación
           <div className="text-center p-4">
-            <h2 className="text-green-400 mb-4">✅ ¡Solicitud enviada con éxito!</h2>
+            <h2 className="text-green-400 mb-4">
+              ✅ ¡Solicitud enviada con éxito!
+            </h2>
             <p className="text-white">
               📧 Revisa tu correo, te enviamos el link para acceder a tu demo.
             </p>
@@ -130,4 +142,3 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose }) => {
 };
 
 export default DemoModal;
-
