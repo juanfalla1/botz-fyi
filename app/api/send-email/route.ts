@@ -1,4 +1,4 @@
-// Fuerza a que se ejecute en Node.js, no en Edge
+// Fuerza a que se ejecute en Node.js, no en Edge 
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
@@ -129,7 +129,7 @@ export async function POST(req: Request) {
         empresa,
         telefono,
         interes,
-        token_demo: leadId,
+        token_demo: leadId, // columna corregida
         status: "nuevo",
       },
     ]);
@@ -138,10 +138,19 @@ export async function POST(req: Request) {
       console.error("❌ Error guardando en Supabase:", dbError);
     }
 
-    // 4️⃣ Notificar a n8n (nuevo lead → flujo separado)
+    // 4️⃣ Notificar a n8n (nuevo lead → flujo separado) con POST
     try {
-      await fetch(`${process.env.N8N_WEBHOOK_NEW_LEAD}?lead_id=${leadId}`, {
-        method: "GET",
+      await fetch(process.env.N8N_WEBHOOK_NEW_LEAD!, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lead_id: leadId,
+          nombre,
+          email,
+          empresa,
+          telefono,
+          interes,
+        }),
       });
     } catch (n8nError) {
       console.error("❌ Error notificando a n8n (new-lead):", n8nError);
@@ -159,4 +168,3 @@ export async function POST(req: Request) {
     );
   }
 }
-
