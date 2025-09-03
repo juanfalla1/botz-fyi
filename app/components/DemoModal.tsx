@@ -19,6 +19,7 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose }) => {
     setStatus("enviando");
 
     try {
+      // 1️⃣ Enviar correo al cliente y a ti
       const res = await fetch("/api/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -26,15 +27,22 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose }) => {
       });
 
       const data = await res.json();
+
       if (data.success) {
+        // 2️⃣ Guardar lead en Supabase vía n8n
+        await fetch("https://n8nio-n8n-latest.onrender.com/webhook/new-lead", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nombre, email, empresa, telefono, interes }),
+        });
+
         setStatus("ok");
         setNombre("");
         setEmail("");
         setEmpresa("");
         setTelefono("");
         setInteres("");
-        // 👇 Ya no cierro el modal aquí para que vea el mensaje
-        // onClose();
+        // 👇 Mantengo abierto el modal para mostrar el mensaje
       } else {
         setStatus("error");
       }
