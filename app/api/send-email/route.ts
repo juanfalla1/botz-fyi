@@ -3,17 +3,21 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { randomUUID } from "crypto";
 
 export async function POST(req: Request) {
   try {
     const { nombre, empresa, telefono, interes, email, user_id } = await req.json();
 
-    if (!nombre || !empresa || !telefono || !interes || !email || !user_id) {
+    if (!nombre || !empresa || !telefono || !interes || !email) {
       return NextResponse.json(
-        { success: false, error: "Todos los campos son obligatorios (incluido user_id)" },
+        { success: false, error: "Todos los campos son obligatorios" },
         { status: 400 }
       );
     }
+
+    // Si no viene user_id desde el cliente → generamos uno único
+    const leadId = user_id || randomUUID();
 
     // Configuración SMTP Zoho
     const transporter = nodemailer.createTransport({
@@ -38,12 +42,12 @@ export async function POST(req: Request) {
         <p><b>Empresa:</b> ${empresa}</p>
         <p><b>Teléfono:</b> ${telefono}</p>
         <p><b>Interés:</b> ${interes}</p>
-        <p><b>User ID:</b> ${user_id}</p>
+        <p><b>User ID:</b> ${leadId}</p>
       `,
     });
 
-    // 🔑 Link a la página de demo en frontend (mejor que llamar directo al webhook)
-    const demoLink = `https://www.botz.fyi/demo?lead=${user_id}`;
+    // 🔑 Link a la página de demo (frontend) con token único
+    const demoLink = `https://www.botz.fyi/demo?lead=${leadId}`;
 
     // 2️⃣ Correo automático para el cliente
     await transporter.sendMail({
