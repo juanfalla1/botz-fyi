@@ -4,6 +4,13 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { randomUUID } from "crypto";
+import { createClient } from "@supabase/supabase-js";
+
+// Cliente de Supabase (usa SERVICE_ROLE_KEY, no el anon)
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(req: Request) {
   try {
@@ -114,12 +121,42 @@ export async function POST(req: Request) {
       `,
     });
 
-    return NextResponse.json({ success: true, message: "Correos enviados 🚀" });
+    // 3️⃣ Guardar lead en Supabase
+    const { error: dbError } = await supabase.from("Demo Tracker Botz").insert([
+      {
+        nombre,
+        email,
+        empresa,
+        telefono,
+        interes,
+        token_demo: leadId,
+        status: "nuevo",
+      },
+    ]);
+
+    if (dbError) {
+      console.error("❌ Error guardando en Supabase:", dbError);
+    }
+
+    // 4️⃣ Notificar a n8n (nuevo lead → flujo separado)
+    try {
+      await fetch(`${process.env.N8N_WEBHOOK_NEW_LEAD}?lead_id=${leadId}`, {
+        method: "GET",
+      });
+    } catch (n8nError) {
+      console.error("❌ Error notificando a n8n (new-lead):", n8nError);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Correos enviados, lead guardado y notificación enviada 🚀",
+    });
   } catch (error: any) {
-    console.error("❌ Error enviando correo:", error);
+    console.error("❌ Error en el endpoint:", error);
     return NextResponse.json(
       { success: false, error: error.message || JSON.stringify(error) },
       { status: 500 }
     );
   }
 }
+
