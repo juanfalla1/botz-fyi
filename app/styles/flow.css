@@ -1,0 +1,28 @@
+.flow-container {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 3rem;
+}
+
+.flow-step {
+  border: 2px solid;
+  border-radius: 15px;
+  padding: 1.5rem;
+  background: #0a0f1c;
+  color: white;
+  text-align: center;
+  width: 220px;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.4);
+  transition: transform 0.3s;
+}
+
+.flow-step:hover {
+  transform: scale(1.05);
+}
+
+.icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}

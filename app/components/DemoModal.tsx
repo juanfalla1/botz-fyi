@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import { v4 as uuidv4 } from "uuid";
 import "../styles/DemoModal.css";
 
 interface DemoModalProps {
@@ -12,32 +13,23 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose }) => {
   const [empresa, setEmpresa] = useState("");
   const [telefono, setTelefono] = useState("");
   const [interes, setInteres] = useState("");
-  const [status, setStatus] = useState<"idle" | "enviando" | "ok" | "error">(
-    "idle"
-  );
+  const [status, setStatus] = useState<"idle" | "enviando" | "ok" | "error">("idle");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus("enviando");
 
     try {
-      // 1️⃣ Enviar correo al cliente y a ti
-      const res = await fetch("/api/send-email", {
+      const lead_id = uuidv4();
+
+      // 🔗 Enviar directo a tu webhook de n8n
+      const res = await fetch("https://n8nio-n8n-latest.onrender.com/webhook/demo-opened", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre, email, empresa, telefono, interes }),
+        body: JSON.stringify({ lead_id, nombre, email, empresa, telefono, interes }),
       });
 
-      const data = await res.json();
-
-      if (data.success) {
-        // 2️⃣ Guardar lead en Supabase vía n8n
-        await fetch("https://n8nio-n8n-latest.onrender.com/webhook/new-lead", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nombre, email, empresa, telefono, interes }),
-        });
-
+      if (res.ok) {
         setStatus("ok");
         setNombre("");
         setEmail("");
@@ -120,7 +112,6 @@ const DemoModal: React.FC<DemoModalProps> = ({ onClose }) => {
             )}
           </>
         ) : (
-          // ✅ Mensaje de confirmación
           <div className="text-center p-4">
             <h2 className="text-green-400 mb-4">
               ✅ ¡Solicitud enviada con éxito!
