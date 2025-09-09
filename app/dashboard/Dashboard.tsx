@@ -43,13 +43,44 @@ export default function Dashboard() {
 
   const fetchLeads = async () => {
     if (!session) return;
-    const { data, error } = await supabase
+
+    // 1. Leads normales
+    const { data: leadsData, error: leadsError } = await supabase
       .from("leads")
       .select(
         "id, name, email, phone, company, interest, status, created_at, user_id"
       )
       .eq("user_id", session.user.id);
-    if (!error) setLeads(data || []);
+
+    // 2. Demo tracker
+    const { data: trackerData, error: trackerError } = await supabase
+      .from("demo_tracker_botz")
+      .select(
+        "id, name, email, phone, company, interest, status, created_at, user_id"
+      )
+      .eq("user_id", session.user.id);
+
+    // 🔥 3. Normalizar datos
+    const normalize = (arr: any[], source: string) =>
+      arr.map((l) => ({
+        id: l.id,
+        name: l.name || "Sin nombre",
+        email: l.email || "Sin email",
+        phone: l.phone || "Sin teléfono",
+        company: l.company || "N/A",
+        interest: l.interest || "Sin interés",
+        status: l.status || "sin_estado",
+        created_at: l.created_at,
+        user_id: l.user_id,
+        sourceTable: source, // 👈 saber de qué tabla viene
+      }));
+
+    const allData = [
+      ...normalize(leadsData || [], "leads"),
+      ...normalize(trackerData || [], "demo_tracker_botz"),
+    ];
+
+    if (!leadsError && !trackerError) setLeads(allData);
   };
 
   const handleLogout = async () => {
@@ -214,7 +245,7 @@ export default function Dashboard() {
                 nameKey="name"
                 cx="50%"
                 cy="50%"
-                outerRadius={70} // más compacto en móvil
+                outerRadius={70}
                 label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
               >
                 {pieData.map((entry, index) => (

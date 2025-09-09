@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { supabase } from "../supabaseClient"; // 👈 agregado
 
 const FormularioContacto = () => {
   const [formData, setFormData] = useState({
@@ -30,9 +31,14 @@ const FormularioContacto = () => {
       // ✅ Generar un lead_id único para cada envío
       const leadId = `demo-${Date.now()}`;
 
+      // ✅ Obtener user_id de Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+
       const payload = {
         ...formData,
-        lead_id: leadId, // 🔑 Se envía a n8n junto con los datos
+        lead_id: leadId,
+        origen: "web", // 🔑 para identificar origen
+        user_id: user?.id || null, // 🔑 asociar lead al usuario
       };
 
       const res = await fetch(

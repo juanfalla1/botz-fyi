@@ -13,6 +13,7 @@ type Lead = {
   interest?: string;
   status?: string;
   created_at?: string;
+  sourceTable?: string; // 👈 agregado para mostrar origen
 };
 
 export default function LeadsTable({
@@ -36,7 +37,8 @@ export default function LeadsTable({
       l.phone?.toLowerCase().includes(query) ||
       l.company?.toLowerCase().includes(query) ||
       l.interest?.toLowerCase().includes(query) ||
-      l.status?.toLowerCase().includes(query);
+      l.status?.toLowerCase().includes(query) ||
+      l.sourceTable?.toLowerCase().includes(query); // 👈 ahora también busca por origen
 
     const leadDate = l.created_at ? new Date(l.created_at) : null;
     const matchesDate =
@@ -46,12 +48,14 @@ export default function LeadsTable({
     return matchesSearch && matchesDate;
   });
 
-  // 🚀 Actualizar estado en Supabase
+  // 🚀 Actualizar estado en Supabase (ojo: por ahora solo actualiza en tabla "leads")
   const updateStatus = async (id: string, newStatus: string) => {
     const { error } = await supabase.from("leads").update({ status: newStatus }).eq("id", id);
 
     if (!error) {
-      setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status: newStatus } : l)));
+      setLeads((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status: newStatus } : l))
+      );
       setUpdatedRow(id);
       setTimeout(() => setUpdatedRow(null), 3000);
     }
@@ -79,9 +83,9 @@ export default function LeadsTable({
         </button>
       </div>
 
-      {/* 🔎 Filtros en una sola esquina */}
+      {/* 🔎 Filtros */}
       <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-gray-50 rounded-lg">
-        {/* Buscador con icono */}
+        {/* Buscador */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
           <input
@@ -93,7 +97,7 @@ export default function LeadsTable({
           />
         </div>
 
-        {/* Fechas con icono */}
+        {/* Fechas */}
         <div className="flex items-center gap-2">
           <div className="relative">
             <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
@@ -129,6 +133,7 @@ export default function LeadsTable({
               <th className="px-4 py-3 text-left">Interés</th>
               <th className="px-4 py-3 text-left">Estado</th>
               <th className="px-4 py-3 text-left">Fecha</th>
+              <th className="px-4 py-3 text-left">Origen</th>
             </tr>
           </thead>
           <tbody>
@@ -136,7 +141,9 @@ export default function LeadsTable({
               filteredLeads.map((lead, i) => (
                 <tr
                   key={i}
-                  className={`${i % 2 === 0 ? "bg-gray-50" : "bg-white"} hover:bg-[#10b2cb]/10 transition-colors`}
+                  className={`${
+                    i % 2 === 0 ? "bg-gray-50" : "bg-white"
+                  } hover:bg-[#10b2cb]/10 transition-colors`}
                 >
                   <td className="px-4 py-3 border-t border-gray-200">{lead.name || "-"}</td>
                   <td className="px-4 py-3 border-t border-gray-200">{lead.email || "-"}</td>
@@ -153,6 +160,7 @@ export default function LeadsTable({
                         <option value="new" className="text-blue-600">Nuevo</option>
                         <option value="seguimiento" className="text-yellow-600">En seguimiento</option>
                         <option value="convertido" className="text-green-600">Convertido</option>
+                        <option value="atendido" className="text-purple-600">Atendido</option> {/* 👈 agregado */}
                       </select>
                       {updatedRow === lead.id && <CheckCircle className="text-green-500 w-4 h-4" />}
                     </div>
@@ -160,11 +168,12 @@ export default function LeadsTable({
                   <td className="px-4 py-3 border-t border-gray-200">
                     {lead.created_at ? new Date(lead.created_at).toLocaleDateString() : "-"}
                   </td>
+                  <td className="px-4 py-3 border-t border-gray-200">{lead.sourceTable || "-"}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-gray-500 border-t border-gray-200">
+                <td colSpan={8} className="px-4 py-6 text-center text-gray-500 border-t border-gray-200">
                   No se encontraron leads que coincidan con los filtros
                 </td>
               </tr>
@@ -173,7 +182,7 @@ export default function LeadsTable({
         </table>
       </div>
 
-      {/* Contador de resultados */}
+      {/* Contador */}
       <div className="mt-4 text-sm text-gray-600">
         Mostrando {filteredLeads.length} de {leads.length} leads
       </div>
