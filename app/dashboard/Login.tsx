@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { supabase } from "../../supabaseClient";
+import { supabase } from "./supabaseClient";
 import { motion } from "framer-motion";
 
 export default function Login() {

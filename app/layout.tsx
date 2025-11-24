@@ -1,7 +1,7 @@
 import "./styles/globals.css";
 import CookieBanner from "./components/CookieBanner";
 import Header from "./components/Header";
-
+export const dynamic = 'force-dynamic';
 export const metadata = {
   title: "botz - Automatización Inteligente",
   description:

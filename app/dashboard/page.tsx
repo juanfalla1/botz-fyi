@@ -1,6 +1,7 @@
 "use client";
+export const dynamic = 'force-dynamic';
 import React, { useEffect, useState } from "react";
-import { supabase } from "../supabaseClient"; 
+import { supabase } from "./supabaseClient";
 import Dashboard from "./Dashboard";
 import Login from "./Login";
 

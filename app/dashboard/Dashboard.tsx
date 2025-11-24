@@ -1,6 +1,7 @@
 "use client";
+export const dynamic = 'force-dynamic';
 import React, { useEffect, useState } from "react";
-import { supabase } from "../../supabaseClient";
+import { supabase } from "./supabaseClient";
 import {
   PieChart,
   Pie,
@@ -48,11 +49,11 @@ export default function Dashboard() {
     const { data: leadsData, error: leadsError } = await supabase
       .from("leads")
       .select(
-        "id, name, email, phone, company, interest, status, created_at, user_id"
+        "id, name, email, phone, company, interest, status, created_at, user_id, notes, next_action, calificacion, etapa, resumen_chat"
       )
       .eq("user_id", session.user.id);
 
-    // 2. Demo tracker
+    // 2. Demo tracker (si aplica)
     const { data: trackerData, error: trackerError } = await supabase
       .from("demo_tracker_botz")
       .select(
@@ -72,7 +73,13 @@ export default function Dashboard() {
         status: l.status || "sin_estado",
         created_at: l.created_at,
         user_id: l.user_id,
-        sourceTable: source, // 👈 saber de qué tabla viene
+        sourceTable: source,
+        // Campos nuevos
+        notes: l.notes,
+        next_action: l.next_action,
+        calificacion: l.calificacion,
+        etapa: l.etapa,
+        resumen_chat: l.resumen_chat,
       }));
 
     const allData = [
@@ -80,7 +87,7 @@ export default function Dashboard() {
       ...normalize(trackerData || [], "demo_tracker_botz"),
     ];
 
-    if (!leadsError && !trackerError) setLeads(allData);
+    if (!leadsError) setLeads(allData);
   };
 
   const handleLogout = async () => {
@@ -171,19 +178,20 @@ export default function Dashboard() {
           Panel de Leads
         </h1>
         <div className="flex items-center gap-4">
+          {/* BOTÓN HOME - Estilo Redondo (Píldora) */}
           <button
             onClick={() => (window.location.href = "/")}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 
-                       hover:from-blue-700 hover:to-cyan-600 text-white px-4 py-2 
-                       rounded-xl shadow-lg hover:shadow-xl transition-transform 
-                       transform hover:scale-105 text-sm sm:text-lg"
+            className="bg-white text-[#112f46] font-bold py-1 px-6 rounded-full shadow hover:bg-gray-100 transition-all border border-gray-200 text-sm"
           >
             Home
           </button>
-          <span className="text-white font-medium text-sm sm:text-lg">👤 {userName}</span>
+          
+          <span className="text-white font-medium text-sm sm:text-base">👤 {userName}</span>
+          
+          {/* BOTÓN CERRAR SESIÓN - Estilo Redondo (Píldora) */}
           <button
             onClick={handleLogout}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition text-sm sm:text-lg"
+            className="bg-white text-[#112f46] font-bold py-1 px-6 rounded-full shadow hover:bg-gray-100 transition-all border border-gray-200 text-sm"
           >
             Cerrar sesión
           </button>
