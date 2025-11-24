@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import * as XLSX from "xlsx";
-import { supabase } from "./supabaseClient";
+import { supabase } from "../../supabaseClient";
 import {
   Search,
   Calendar,
@@ -114,6 +114,7 @@ export default function LeadsTable({
     XLSX.writeFile(workbook, "leads_efiteca.xlsx");
   };
 
+  // Estilos
   const getStatusStyles = (status: string | undefined) => {
     const s = (status || "").toLowerCase();
     if (s.includes("nuevo")) return 'bg-blue-100 text-blue-700 border-blue-200';
@@ -159,36 +160,67 @@ export default function LeadsTable({
   return (
     <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-6 mt-8 relative w-full overflow-hidden">
       
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-            <h2 className="text-2xl font-bold text-[#112f46]">Gestión de Leads</h2>
-            <p className="text-gray-500 text-sm mt-1">Administra tus oportunidades de venta</p>
-        </div>
-        <div className="w-fit">
-            <button onClick={exportExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-full shadow-md transition-all flex items-center gap-2 text-sm font-bold">
-                <Download size={18} /> Exportar Excel
-            </button>
-        </div>
-      </div>
+      {/* ESTILOS FORZADOS PARA LOS INPUTS DE FECHA */}
+      <style jsx>{`
+        .date-input-force-white {
+          color-scheme: light !important;
+          background-color: white !important;
+          color: #374151 !important; /* gray-700 */
+        }
+        .date-input-force-white::-webkit-calendar-picker-indicator {
+          filter: invert(0); 
+          cursor: pointer;
+        }
+      `}</style>
 
-      {/* FILTROS */}
-      <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-slate-50 rounded-3xl border border-slate-200">
-        <div className="relative flex-grow md:flex-grow-0 w-full md:w-auto">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-          <input
-            type="text"
-            placeholder="Buscar..."
-            className="border border-gray-300 rounded-full pl-12 pr-6 py-2.5 w-full md:w-80 focus:outline-none focus:ring-2 focus:ring-[#10b2cb] text-sm text-gray-700 bg-white shadow-sm"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+        <div>
+            <h2 className="text-xl font-bold text-[#112f46]">Gestión de Leads</h2>
+            <p className="text-gray-500 text-xs mt-0.5">Administra tus oportunidades de venta</p>
         </div>
-        <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-full border border-gray-300 shadow-sm w-full md:w-auto">
-            <Calendar size={18} className="text-gray-500"/>
-            <input type="date" className="outline-none text-xs text-gray-600 cursor-pointer bg-transparent font-medium" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            <span className="text-gray-400">|</span>
-            <input type="date" className="outline-none text-xs text-gray-600 cursor-pointer bg-transparent font-medium" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        
+        {/* FILTROS */}
+        <div className="flex flex-wrap items-center gap-3">
+            
+            {/* 1. BUSCADOR */}
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#112f46]" size={14} />
+                <input
+                    type="text"
+                    placeholder="Buscar..."
+                    className="bg-white border border-gray-300 focus:border-[#112f46] focus:ring-1 focus:ring-[#112f46] rounded-full pl-9 pr-4 py-1.5 w-48 text-xs text-[#112f46] font-semibold outline-none transition-all placeholder-gray-400 shadow-sm"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                />
+            </div>
+
+            {/* 2. FECHAS */}
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-gray-300 shadow-sm overflow-hidden">
+                <Calendar size={14} className="text-gray-500 shrink-0"/>
+                <input 
+                    type="date" 
+                    className="date-input-force-white outline-none text-[10px] font-bold uppercase cursor-pointer placeholder-gray-500 bg-transparent border-none w-24" 
+                    value={startDate} 
+                    onChange={(e) => setStartDate(e.target.value)} 
+                />
+                <span className="text-gray-300 text-[10px]">|</span>
+                <input 
+                    type="date" 
+                    className="date-input-force-white outline-none text-[10px] font-bold uppercase cursor-pointer placeholder-gray-500 bg-transparent border-none w-24" 
+                    value={endDate} 
+                    onChange={(e) => setEndDate(e.target.value)} 
+                />
+            </div>
+
+            {/* 3. BOTÓN EXPORTAR (Color Azul Email: #0072C6) */}
+            <button 
+                onClick={exportExcel} 
+                className="bg-[#0072C6] hover:bg-[#005a9e] text-white px-4 py-1.5 rounded-full shadow-md transition-all flex items-center gap-2 text-xs font-bold transform hover:scale-105"
+            >
+                <Download size={14} />
+                Exportar
+            </button>
         </div>
       </div>
 
@@ -198,7 +230,6 @@ export default function LeadsTable({
           <thead className="bg-[#112f46] text-white uppercase text-[11px] font-bold tracking-wider">
             <tr>
               <th className="px-2 py-4 text-center w-[70px]">Contactar</th>
-              {/* Anchos optimizados: 150px se lee bien y cabe en pantalla */}
               <th className="px-2 py-4 text-left w-[150px]">Nombre</th> 
               <th className="px-2 py-4 text-left w-[150px]">Email</th>
               <th className="px-2 py-4 text-left w-[100px]">Teléfono</th>
@@ -224,7 +255,7 @@ export default function LeadsTable({
                     </div>
                   </td>
 
-                  {/* NOMBRE: text-[11px] (Intermedio y legible) */}
+                  {/* NOMBRE */}
                   <td className="px-2 py-3 font-bold text-gray-800 text-[11px]">
                     <div className="truncate w-full" title={lead.name}>{lead.name || "-"}</div>
                   </td>
@@ -250,8 +281,7 @@ export default function LeadsTable({
                         >
                             <option value="new">🔵 Nuevo</option>
                             <option value="seguimiento">🟡 Seguimiento</option>
-                            <option value="convertido">🟢 Vendido</option>
-                            <option value="atendido">🟣 Atendido</option>
+                            <option value="convertido">🟢 Convertido</option>
                             <option value="no_interesado">⚪ No Interesado</option>
                         </select>
                   </td>
