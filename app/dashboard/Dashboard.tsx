@@ -49,7 +49,8 @@ export default function Dashboard() {
     const { data: leadsData, error: leadsError } = await supabase
       .from("leads")
       .select(
-        "id, name, email, phone, company, interest, status, created_at, user_id, notes, next_action, calificacion, etapa, resumen_chat"
+        // 👇 AQUÍ AGREGUÉ "origen"
+        "id, name, email, phone, company, interest, status, created_at, user_id, notes, next_action, calificacion, etapa, resumen_chat, origen"
       )
       .eq("user_id", session.user.id);
 
@@ -80,6 +81,7 @@ export default function Dashboard() {
         calificacion: l.calificacion,
         etapa: l.etapa,
         resumen_chat: l.resumen_chat,
+        origen: l.origen || l.source || "web", // 👈 Mapeo correcto del origen
       }));
 
     const allData = [
@@ -135,7 +137,8 @@ export default function Dashboard() {
   ];
 
   const getOrigin = (l: any) =>
-    l.origin || l.channel || l.source || l.company || "Desconocido";
+    l.origen || l.origin || l.channel || l.source || "Desconocido";
+    
   const origenMap: Record<string, number> = {};
   leads.forEach((l) => {
     const key = String(getOrigin(l));
@@ -178,7 +181,6 @@ export default function Dashboard() {
           Panel de Leads
         </h1>
         <div className="flex items-center gap-4">
-          {/* BOTÓN HOME - Estilo Redondo (Píldora) */}
           <button
             onClick={() => (window.location.href = "/")}
             className="bg-white text-[#112f46] font-bold py-1 px-6 rounded-full shadow hover:bg-gray-100 transition-all border border-gray-200 text-sm"
@@ -188,7 +190,6 @@ export default function Dashboard() {
           
           <span className="text-white font-medium text-sm sm:text-base">👤 {userName}</span>
           
-          {/* BOTÓN CERRAR SESIÓN - Estilo Redondo (Píldora) */}
           <button
             onClick={handleLogout}
             className="bg-white text-[#112f46] font-bold py-1 px-6 rounded-full shadow hover:bg-gray-100 transition-all border border-gray-200 text-sm"

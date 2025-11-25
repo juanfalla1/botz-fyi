@@ -12,7 +12,9 @@ import {
   CheckCircle,
   Bot,
   FileText,    // Icono para Plantilla
-  UploadCloud  // Icono para Cargar
+  UploadCloud, // Icono para Cargar
+  Instagram,   // Nuevo Icono
+  Facebook     // Nuevo Icono
 } from "lucide-react";
 
 type Lead = {
@@ -45,11 +47,11 @@ export default function LeadsTable({
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
-  // 1. FUNCIÓN DE PLANTILLA (Con columna "Resumen Bot")
+  // --- FUNCIÓN DE PLANTILLA (Excel Real .xlsx) ---
   const downloadTemplate = () => {
     const data = [
-      ["Nombre", "Email", "Telefono", "Estado", "Origen", "Notas", "Resumen Bot"], // Cabeceras
-      ["Juan Pérez", "juan@ejemplo.com", "5512345678", "nuevo", "instagram", "Interesado", "A-B-C"] // Ejemplo
+      ["Nombre", "Email", "Telefono", "Estado", "Origen", "Notas", "Resumen Bot"], 
+      ["Juan Pérez", "juan@ejemplo.com", "5512345678", "nuevo", "instagram", "Interesado", "A-B-C"]
     ];
     const worksheet = XLSX.utils.aoa_to_sheet(data);
     worksheet['!cols'] = [{ wch: 20 }, { wch: 25 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 20 }, { wch: 15 }];
@@ -58,20 +60,17 @@ export default function LeadsTable({
     XLSX.writeFile(workbook, "plantilla_carga_leads.xlsx");
   };
 
-  // 2. FUNCIÓN DE CARGA (Conectada al API Route / Puente)
+  // --- FUNCIÓN DE CARGA (Conectada al API Route / Puente) ---
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     const formData = new FormData();
     formData.append("file", file);
-    // Enviamos el user_id para asignar el dueño correctamente
     formData.append("user_id", session?.user?.id || ""); 
 
     try {
       alert("📤 Subiendo archivo y procesando ventas...");
-      
-      // Llamamos a tu API interna para evitar errores CORS
       const response = await fetch("/api/upload-leads", {
         method: "POST",
         body: formData,
@@ -88,11 +87,10 @@ export default function LeadsTable({
       console.error("Error subiendo archivo:", error);
       alert("❌ Error de conexión con el servidor.");
     }
-    
-    event.target.value = ""; // Limpiar input
+    event.target.value = ""; 
   };
 
-  // FILTROS
+  // --- FILTROS ---
   const filteredLeads = leads.filter((l) => {
     const query = search.toLowerCase();
     const matchesSearch =
@@ -115,7 +113,6 @@ export default function LeadsTable({
   });
 
   // --- FUNCIONES DE ACTUALIZACIÓN ---
-
   const updateStatus = async (id: string, newStatus: string) => {
     const { error } = await supabase.from("leads").update({ status: newStatus }).eq("id", id);
     if (error) {
@@ -126,7 +123,6 @@ export default function LeadsTable({
       triggerUpdateAnimation(id);
     }
   };
-
   const updateNextAction = async (id: string, newAction: string) => {
     const { error } = await supabase.from("leads").update({ next_action: newAction }).eq("id", id);
     if (error) {
@@ -137,7 +133,6 @@ export default function LeadsTable({
       triggerUpdateAnimation(id);
     }
   };
-
   const updateNote = async (id: string, newNote: string) => {
     const { error } = await supabase.from("leads").update({ notes: newNote }).eq("id", id);
     if (error) {
@@ -148,16 +143,24 @@ export default function LeadsTable({
       triggerUpdateAnimation(id);
     }
   };
-
   const triggerUpdateAnimation = (id: string) => {
       setUpdatedRow(id);
       setTimeout(() => setUpdatedRow(null), 2000);
   }
 
+  // --- HELPERS VISUALES ---
   const openWhatsApp = (phone: string | undefined) => {
     if (!phone) return;
     const cleanPhone = phone.replace(/[^0-9]/g, "");
     window.open(`https://wa.me/${cleanPhone}`, "_blank");
+  };
+
+  const getOriginIcon = (origin: string | undefined) => {
+    const o = (origin || "").toLowerCase();
+    if (o.includes("whatsapp")) return <MessageCircle size={14} className="text-green-500" />;
+    if (o.includes("instagram")) return <Instagram size={14} className="text-pink-500" />;
+    if (o.includes("facebook") || o.includes("meta")) return <Facebook size={14} className="text-blue-600" />;
+    return <Globe size={14} className="text-gray-400" />;
   };
 
   const exportExcel = () => {
@@ -179,7 +182,6 @@ export default function LeadsTable({
     XLSX.writeFile(workbook, "leads_efiteca.xlsx");
   };
 
-  // --- ESTILOS VISUALES ---
   const getStatusStyles = (status: string | undefined) => {
     const s = (status || "").toLowerCase();
     if (s.includes("nuevo")) return 'bg-blue-100 text-blue-700 border-blue-200';
@@ -221,7 +223,6 @@ export default function LeadsTable({
   return (
     <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-6 mt-8 relative w-full overflow-hidden">
       
-      {/* Estilos CSS Inline */}
       <style jsx>{`
         .date-input-force-white {
           color-scheme: light !important;
@@ -411,48 +412,34 @@ export default function LeadsTable({
                         </select>
                   </td>
 
-                  {/* BOT / IA + TOOLTIP VERTICAL LIMPIO */}
+                  {/* BOT / IA + TOOLTIP MEJORADO */}
                   <td className="px-2 py-3 overflow-visible relative">
-                     
                      {lead.calificacion ? (
                          <div className="flex items-center justify-center group">
-                            
-                            {/* 1. Badge */}
-                            <div 
-                                className={`flex items-center gap-1 px-3 py-1 rounded-full border shadow-sm cursor-help transition-all hover:scale-105 w-full justify-center ${getBotBadgeStyle(lead.calificacion)}`}
-                            >
+                            {/* Badge */}
+                            <div className={`flex items-center gap-1 px-3 py-1 rounded-full border shadow-sm cursor-help transition-all hover:scale-105 w-full justify-center ${getBotBadgeStyle(lead.calificacion)}`}>
                                 <Bot size={14} />
                                 <span className="text-[10px] font-black uppercase tracking-wider truncate">
                                     {lead.calificacion}
                                 </span>
                             </div>
-
-                            {/* 2. Tooltip Vertical Mejorado */}
+                            {/* Tooltip Vertical */}
                             <div className="hidden group-hover:block absolute bottom-[110%] left-1/2 transform -translate-x-1/2 min-w-[320px] w-max max-w-[400px] bg-[#0f172a] text-white p-0 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] z-[9999] border border-slate-600">
-                                
-                                {/* Cabecera */}
                                 <div className="bg-slate-800 px-4 py-3 rounded-t-xl border-b border-slate-600 flex justify-between items-center">
                                     <span className="font-bold text-xs text-cyan-400 flex items-center gap-2 uppercase tracking-wide">
                                         <Bot size={14} /> Resumen del Chat
                                     </span>
                                 </div>
-
-                                {/* Cuerpo */}
                                 <div className="p-4 bg-[#0f172a] rounded-b-xl">
-                                    {/* LISTA VERTICAL (text-left + font-mono) */}
                                     <div className="text-xs font-mono text-gray-200 bg-slate-900/50 px-4 py-3 rounded-lg border border-slate-700/50 w-full text-left shadow-inner leading-relaxed whitespace-pre-wrap">
                                         {lead.resumen_chat || "Sin datos"}
                                     </div>
-                                    
                                     <p className="text-[10px] text-slate-500 mt-2 italic text-right pr-1">
                                         *Datos capturados vía WhatsApp
                                     </p>
                                 </div>
-
-                                {/* Flecha */}
                                 <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-[#0f172a]"></div>
                             </div>
-
                          </div>
                      ) : (
                          <div className="text-center text-gray-300 text-[10px]">-</div>
@@ -489,11 +476,13 @@ export default function LeadsTable({
                     {lead.created_at ? new Date(lead.created_at).toLocaleDateString('es-ES') : "-"}
                   </td>
                   
-                  {/* ORIGEN */}
+                  {/* ORIGEN (Icono Dinámico) */}
                   <td className="px-2 py-3 text-[11px] text-gray-500">
-                    <div className="flex items-center gap-1">
-                      <Globe size={11} className="text-gray-400"/>
-                      <span className="font-medium truncate max-w-[50px]">{lead.origen || "web"}</span> 
+                    <div className="flex items-center gap-1.5" title={lead.origen || "web"}>
+                      {getOriginIcon(lead.origen)}
+                      <span className="font-medium truncate max-w-[70px] capitalize">
+                        {(lead.origen || "web").replace("Bot ", "")}
+                      </span> 
                     </div>
                   </td>
                 </tr>
