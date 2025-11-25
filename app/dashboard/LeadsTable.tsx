@@ -45,14 +45,14 @@ export default function LeadsTable({
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
-  // 1. FUNCIÓN DE PLANTILLA (Excel Real .xlsx)
+  // 1. FUNCIÓN DE PLANTILLA (Con columna "Resumen Bot")
   const downloadTemplate = () => {
     const data = [
-      ["Nombre", "Email", "Telefono", "Estado", "Origen", "Notas"], // Cabeceras
-      ["Juan Pérez", "juan@ejemplo.com", "5512345678", "nuevo", "instagram", "Interesado en promo"] // Ejemplo
+      ["Nombre", "Email", "Telefono", "Estado", "Origen", "Notas", "Resumen Bot"], // Cabeceras
+      ["Juan Pérez", "juan@ejemplo.com", "5512345678", "nuevo", "instagram", "Interesado", "A-B-C"] // Ejemplo
     ];
     const worksheet = XLSX.utils.aoa_to_sheet(data);
-    worksheet['!cols'] = [{ wch: 20 }, { wch: 25 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 30 }];
+    worksheet['!cols'] = [{ wch: 20 }, { wch: 25 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 20 }, { wch: 15 }];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Plantilla");
     XLSX.writeFile(workbook, "plantilla_carga_leads.xlsx");
@@ -232,6 +232,16 @@ export default function LeadsTable({
           filter: invert(0); 
           cursor: pointer;
         }
+        .tooltip-scroll::-webkit-scrollbar {
+          width: 4px;
+        }
+        .tooltip-scroll::-webkit-scrollbar-track {
+          background: #333; 
+        }
+        .tooltip-scroll::-webkit-scrollbar-thumb {
+          background: #666; 
+          border-radius: 2px;
+        }
       `}</style>
 
       {/* HEADER */}
@@ -401,34 +411,48 @@ export default function LeadsTable({
                         </select>
                   </td>
 
-                  {/* BOT / IA + TOOLTIP PREMIUM (Sólido) */}
+                  {/* BOT / IA + TOOLTIP VERTICAL LIMPIO */}
                   <td className="px-2 py-3 overflow-visible relative">
+                     
                      {lead.calificacion ? (
                          <div className="flex items-center justify-center group">
+                            
                             {/* 1. Badge */}
-                            <div className={`flex items-center gap-1 px-3 py-1 rounded-full border shadow-sm cursor-help transition-all hover:scale-105 w-full justify-center ${getBotBadgeStyle(lead.calificacion)}`}>
+                            <div 
+                                className={`flex items-center gap-1 px-3 py-1 rounded-full border shadow-sm cursor-help transition-all hover:scale-105 w-full justify-center ${getBotBadgeStyle(lead.calificacion)}`}
+                            >
                                 <Bot size={14} />
                                 <span className="text-[10px] font-black uppercase tracking-wider truncate">
                                     {lead.calificacion}
                                 </span>
                             </div>
-                            {/* 2. Tooltip */}
-                            <div className="hidden group-hover:block absolute bottom-[110%] left-1/2 transform -translate-x-1/2 w-64 bg-[#0f172a] text-white p-0 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] z-[9999] border border-slate-600">
-                                <div className="bg-slate-800 px-4 py-2 rounded-t-xl border-b border-slate-600 flex justify-between items-center">
-                                    <span className="font-bold text-xs text-cyan-400 flex items-center gap-2">
-                                        <Bot size={12} /> Secuencia IA
+
+                            {/* 2. Tooltip Vertical Mejorado */}
+                            <div className="hidden group-hover:block absolute bottom-[110%] left-1/2 transform -translate-x-1/2 min-w-[320px] w-max max-w-[400px] bg-[#0f172a] text-white p-0 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] z-[9999] border border-slate-600">
+                                
+                                {/* Cabecera */}
+                                <div className="bg-slate-800 px-4 py-3 rounded-t-xl border-b border-slate-600 flex justify-between items-center">
+                                    <span className="font-bold text-xs text-cyan-400 flex items-center gap-2 uppercase tracking-wide">
+                                        <Bot size={14} /> Resumen del Chat
                                     </span>
                                 </div>
-                                <div className="p-4 flex flex-col items-center justify-center bg-[#0f172a] rounded-b-xl">
-                                    <div className="text-base font-mono font-bold text-white tracking-widest bg-slate-900 px-3 py-2 rounded-lg border border-slate-700 w-full text-center shadow-inner">
+
+                                {/* Cuerpo */}
+                                <div className="p-4 bg-[#0f172a] rounded-b-xl">
+                                    {/* LISTA VERTICAL (text-left + font-mono) */}
+                                    <div className="text-xs font-mono text-gray-200 bg-slate-900/50 px-4 py-3 rounded-lg border border-slate-700/50 w-full text-left shadow-inner leading-relaxed whitespace-pre-wrap">
                                         {lead.resumen_chat || "Sin datos"}
                                     </div>
-                                    <p className="text-[10px] text-slate-400 mt-2 italic text-center leading-tight">
-                                        Respuestas capturadas vía WhatsApp
+                                    
+                                    <p className="text-[10px] text-slate-500 mt-2 italic text-right pr-1">
+                                        *Datos capturados vía WhatsApp
                                     </p>
                                 </div>
+
+                                {/* Flecha */}
                                 <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-[#0f172a]"></div>
                             </div>
+
                          </div>
                      ) : (
                          <div className="text-center text-gray-300 text-[10px]">-</div>
