@@ -384,8 +384,7 @@ export default function LeadsTable({
                         >
                             <option value="new">🔵 Nuevo</option>
                             <option value="seguimiento">🟡 Seguimiento</option>
-                            <option value="convertido">🟢 Vendido</option>
-                            <option value="atendido">🟣 Atendido</option>
+                            <option value="convertido">🟢 Convertido</option>
                             <option value="no_interesado">⚪ No Interesado</option>
                         </select>
                   </td>
