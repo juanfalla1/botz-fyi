@@ -18,6 +18,33 @@ import {
 } from "recharts";
 import LeadsTable from "./LeadsTable";
 
+// 🔥 1. COMPONENTE CUSTOM TOOLTIP PARA EL PIECHART
+const CustomTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const name = payload[0].name;
+    const value = payload[0].value;
+    
+    return (
+      <div style={{
+        backgroundColor: '#0d2236', // Fondo oscuro
+        border: '1px solid #10b2cb', // Borde cian
+        borderRadius: '8px',
+        padding: '8px 12px',
+        color: '#ffffff', // 🔥 Fuerza el texto a blanco
+        fontSize: '12px',
+      }}>
+        {/* Nombre de la Categoría (seguimiento, nuevo, etc.) */}
+        <p className="label font-bold capitalize">{`${name}`}</p>
+        {/* Valor o Conteo */}
+        <p className="desc text-cyan-400">{`Leads: ${value}`}</p>
+      </div>
+    );
+  }
+  return null;
+};
+// -------------------------------------------------------------------------
+
+
 export default function Dashboard() {
   const [leads, setLeads] = useState<any[]>([]);
   const [session, setSession] = useState<any>(null);
@@ -172,24 +199,52 @@ export default function Dashboard() {
     value,
   }));
 
-  const fechaData: Record<string, number> = {};
-  validLeads.forEach((l) => { // Usamos validLeads
-    const d = l.created_at
-      ? new Date(l.created_at).toLocaleDateString()
-      : "Sin fecha";
-    fechaData[d] = (fechaData[d] || 0) + 1;
+  // 🔥 3. CÁLCULO Y ORDENAMIENTO PARA LEADS POR FECHA
+  const dateObjects: Record<string, { date: Date, count: number }> = {}; 
+  
+  validLeads.forEach((l) => {
+    if (l.created_at) {
+        // Usar la fecha sin hora para agrupar
+        const dateObj = new Date(l.created_at);
+        dateObj.setHours(0, 0, 0, 0); 
+        
+        // Usamos formato YYYY-MM-DD para la clave de agrupación
+        const dateKey = dateObj.toISOString().split('T')[0]; 
+        
+        if (dateObjects[dateKey]) {
+            dateObjects[dateKey].count += 1;
+        } else {
+            dateObjects[dateKey] = { date: dateObj, count: 1 };
+        }
+    }
   });
-  const barData = Object.entries(fechaData).map(([date, count]) => ({
-    date,
-    count,
-  }));
 
-  // 3. Cálculo para Leads por Fecha
+  // Convertir a array y ordenar cronológicamente por la fecha real
+  const barData = Object.values(dateObjects)
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .map(item => ({
+        // Formatear la fecha para la visualización (ej: DD/MM/YYYY)
+        date: item.date.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'),
+        count: item.count,
+    }));
+
+
+  // 4. Cálculo para Leads por Fecha
   const maxFechaValue = Math.max(...barData.map(item => item.count), 0);
   const fechaYMax = Math.ceil(maxFechaValue * 1.1 / 5) * 5;
   // -------------------------------------------------------------------------
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+
+  // 🔥 ESTILO DE TOOLTIP PERSONALIZADO PARA EL CONTENEDOR (Solo para los BarCharts)
+  const customTooltipStyle = {
+    backgroundColor: '#0d2236', // Fondo oscuro
+    border: '1px solid #10b2cb', // Borde cian
+    borderRadius: '8px',
+    color: '#ffffff', // Esto solo afecta al texto si NO hay Custom component
+    fontSize: '12px',
+    padding: '8px',
+  };
 
   return (
     <div className="space-y-6 p-4 sm:p-6 bg-[#112f46] min-h-screen">
@@ -233,7 +288,8 @@ export default function Dashboard() {
               <XAxis dataKey="name" tick={{ fontSize: 12 }} />
               {/* KPI Y-AXIS AJUSTADO */}
               <YAxis allowDecimals={false} tick={{ fontSize: 12 }} domain={[0, kpiYMax]} /> 
-              <Tooltip />
+              {/* Tooltip con estilo personalizado (Oscuro) */}
+              <Tooltip contentStyle={customTooltipStyle} /> 
               {/* ANCHO DE BARRA FIJO */}
               <Bar dataKey="value" fill="#2c6bed" barSize={60} radius={[4, 4, 0, 0]}> 
                 <LabelList dataKey="value" position="top" fontSize={12} />
@@ -249,10 +305,11 @@ export default function Dashboard() {
           <ResponsiveContainer width="100%" height={200} className="sm:h-[250px] md:h-[300px]">
             <BarChart data={origenData} margin={{ top: 20, right: 20, left: 20, bottom: 40 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="label" angle={-45} textAnchor="end" height={60} tick={{ fontSize: 10 }} />
+              {/* Visualización de Fechas: Ajuste a ángulo más suave (-25) */}
+              <XAxis dataKey="label" angle={-25} textAnchor="end" height={60} tick={{ fontSize: 10 }} />
               {/* ORIGEN Y-AXIS AJUSTADO */}
               <YAxis allowDecimals={false} tick={{ fontSize: 12 }} domain={[0, origenYMax]} />
-              <Tooltip contentStyle={{ backgroundColor: 'white', borderRadius: '5px', fontSize: '12px' }} />
+              <Tooltip contentStyle={customTooltipStyle} />
               <Bar dataKey="value" fill="#2c6bed" name="Leads">
                 <LabelList dataKey="value" position="top" fontSize={12} />
               </Bar>
@@ -282,7 +339,8 @@ export default function Dashboard() {
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip />
+              {/* 🔥 CORRECCIÓN FINAL: Usamos el Custom Tooltip para forzar el color del texto a blanco */}
+              <Tooltip content={<CustomTooltip />} />
               <Legend layout="vertical" verticalAlign="middle" align="right" />
             </PieChart>
           </ResponsiveContainer>
@@ -293,12 +351,14 @@ export default function Dashboard() {
             Leads por Fecha
           </h3>
           <ResponsiveContainer width="100%" height={200} className="sm:h-[250px] md:h-[300px]">
+            {/* barData ahora está ordenado cronológicamente */}
             <BarChart data={barData} margin={{ top: 20, right: 20, left: 20, bottom: 40 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} tick={{ fontSize: 10 }} />
+              {/* Visualización de Fechas: Ajuste a ángulo más suave (-25) */}
+              <XAxis dataKey="date" angle={-25} textAnchor="end" height={60} tick={{ fontSize: 10 }} />
               {/* FECHA Y-AXIS AJUSTADO */}
               <YAxis allowDecimals={false} tick={{ fontSize: 12 }} domain={[0, fechaYMax]}/> 
-              <Tooltip />
+              <Tooltip contentStyle={customTooltipStyle} />
               <Bar dataKey="count" fill="#10b2cb">
                 <LabelList dataKey="count" position="top" fontSize={12} />
               </Bar>
