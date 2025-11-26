@@ -1465,6 +1465,15 @@ body {
 html {
   scroll-behavior: smooth;
 }
-
-
+/* =========================
+   FIXES DE ESTILO PARA INPUTS DE TABLA
+=========================== */
+.filter-input-fix {
+  /* Forzar redondeo y bordes con la máxima prioridad */
+  border-radius: 9999px !important; 
+  border-width: 1px !important;
+  /* Asegura que el elemento sea tratado como un bloque de contenido */
+  display: inline-flex !important; 
+  align-items: center !important;
+}
 

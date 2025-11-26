@@ -11,10 +11,10 @@ import {
   Globe,
   CheckCircle,
   Bot,
-  FileText,    // Icono para Plantilla
-  UploadCloud, // Icono para Cargar
-  Instagram,   // Nuevo Icono
-  Facebook     // Nuevo Icono
+  FileText,    
+  UploadCloud, 
+  Instagram,   
+  Facebook     
 } from "lucide-react";
 
 type Lead = {
@@ -46,6 +46,8 @@ export default function LeadsTable({
   const [updatedRow, setUpdatedRow] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  // Estado para el filtro de ESTADO global
+  const [statusFilter, setStatusFilter] = useState<string>("all"); 
 
   // --- FUNCIÓN DE PLANTILLA (Excel Real .xlsx) ---
   const downloadTemplate = () => {
@@ -93,6 +95,11 @@ export default function LeadsTable({
   // --- FILTROS ---
   const filteredLeads = leads.filter((l) => {
     const query = search.toLowerCase();
+    
+    // FILTRO DE ESTADO GLOBAL
+    const matchesStatus = statusFilter === "all" || 
+                          (l.status && l.status.toLowerCase() === statusFilter.toLowerCase());
+
     const matchesSearch =
       (l.name && l.name.toLowerCase().includes(query)) ||
       (l.email && l.email.toLowerCase().includes(query)) ||
@@ -109,12 +116,16 @@ export default function LeadsTable({
       (!startDate || (leadDate && leadDate >= new Date(startDate))) &&
       (!endDate || (leadDate && leadDate <= new Date(endDate)));
 
-    return matchesSearch && matchesDate;
+    // Se combinan todos los filtros
+    return matchesSearch && matchesDate && matchesStatus;
   });
 
-  // --- FUNCIONES DE ACTUALIZACIÓN ---
+  // --- FUNCIONES DE ACTUALIZACIÓN (El guardado es automático al cambiar el select) ---
   const updateStatus = async (id: string, newStatus: string) => {
-    const { error } = await supabase.from("leads").update({ status: newStatus }).eq("id", id);
+    // Evitar guardar si el valor es el placeholder 'nuevo' cuando realmente es nulo
+    const statusToSave = newStatus === "nuevo" && !leads.find(l => l.id === id)?.status ? null : newStatus;
+
+    const { error } = await supabase.from("leads").update({ status: statusToSave }).eq("id", id);
     if (error) {
       console.error("Error status:", error);
       alert("❌ No se pudo guardar. Verifica que el lead te pertenezca.");
@@ -187,6 +198,7 @@ export default function LeadsTable({
     if (s.includes("nuevo")) return 'bg-blue-100 text-blue-700 border-blue-200';
     if (s.includes("seguimiento")) return 'bg-amber-100 text-amber-700 border-amber-200';
     if (s.includes("vendido") || s.includes("convertido")) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    if (s.includes("no_interesado")) return 'bg-gray-100 text-gray-500 border-gray-200'; 
     if (s.includes("atendido")) return 'bg-purple-100 text-purple-700 border-purple-200';
     return 'bg-gray-100 text-gray-600 border-gray-200';
   };
@@ -252,23 +264,39 @@ export default function LeadsTable({
             <p className="text-gray-500 text-xs mt-0.5">Administra tus oportunidades de venta</p>
         </div>
         
-        {/* FILTROS Y BOTONES */}
+        {/* FILTROS Y BOTONES (Diseño uniforme con separación forzada) */}
         <div className="flex flex-wrap items-center gap-3">
             
-            {/* 1. BUSCADOR */}
-            <div className="relative">
+            {/* 1. BUSCADOR (Añadimos mr-3 para separación y filter-input-fix para redondeo) */}
+            <div className="relative mr-3">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#112f46]" size={14} />
                 <input
                     type="text"
                     placeholder="Buscar..."
-                    className="bg-white border border-gray-300 focus:border-[#112f46] focus:ring-1 focus:ring-[#112f46] rounded-full pl-9 pr-4 py-1.5 w-48 text-xs text-[#112f46] font-semibold outline-none transition-all placeholder-gray-400 shadow-sm"
+                    className="bg-white border border-gray-300 focus:border-[#112f46] focus:ring-1 focus:ring-[#112f46] rounded-full pl-9 pr-4 py-1.5 w-48 text-xs text-[#112f46] font-semibold outline-none transition-all placeholder-gray-400 shadow-sm filter-input-fix"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                 />
             </div>
 
-            {/* 2. FECHAS */}
-            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-gray-300 shadow-sm overflow-hidden">
+            {/* 2. FILTRO GLOBAL DE ESTADO (AÑADIMOS filter-input-fix) */}
+            <div className="relative">
+                <select
+                    value={statusFilter} 
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="appearance-none bg-white border border-gray-300 focus:border-[#112f46] focus:ring-1 focus:ring-[#112f46] rounded-full pl-3 pr-8 py-1.5 w-36 text-xs text-[#112f46] font-bold outline-none cursor-pointer shadow-sm transition-all uppercase tracking-wide truncate filter-input-fix"
+                    style={selectArrowStyle}
+                >
+                    <option value="all">⭐ Todos</option> 
+                    <option value="nuevo">🔵 Nuevo</option>
+                    <option value="seguimiento">🟡 Seguimiento</option>
+                    <option value="convertido">🟢 Convertido</option>
+                    <option value="no_interesado">⚪ No Interesado</option>
+                </select>
+            </div>
+
+            {/* 3. FECHAS (AÑADIMOS filter-input-fix al contenedor) */}
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 shadow-sm overflow-hidden filter-input-fix">
                 <Calendar size={14} className="text-gray-500 shrink-0"/>
                 <input 
                     type="date" 
@@ -337,8 +365,10 @@ export default function LeadsTable({
               <th className="px-2 py-4 text-left w-[150px]">Email</th>
               <th className="px-2 py-4 text-left w-[100px]">Teléfono</th>
               <th className="px-2 py-4 text-left w-[130px]">Estado</th>
-              <th className="px-2 py-4 text-left w-[130px]">Próxima Acción</th>
-              <th className="px-2 py-4 text-left w-[100px]">🤖 Bot / IA</th>
+              {/* ANCHO CORREGIDO */}
+              <th className="px-2 py-4 text-left w-[150px]">Próxima Acción</th> 
+              {/* ANCHO CORREGIDO */}
+              <th className="px-2 py-4 text-left w-[110px]">🤖 Bot / IA</th>     
               <th className="px-2 py-4 text-left w-[130px]">Calificación</th>
               <th className="px-2 py-4 text-left w-[85px]">Fecha</th>
               <th className="px-2 py-4 text-left w-[60px]">Origen</th>
@@ -376,13 +406,14 @@ export default function LeadsTable({
                   {/* ESTADO */}
                   <td className="px-2 py-3">
                         <select
-                            value={lead.status || "new"}
+                            // Usamos "nuevo" como fallback consistente
+                            value={lead.status || "nuevo"} 
                             onChange={(e) => updateStatus(lead.id, e.target.value)}
                             className={`appearance-none w-full pl-3 pr-6 py-1.5 rounded-full text-[11px] font-bold border cursor-pointer outline-none shadow-sm transition-all uppercase tracking-wide truncate
                             ${getStatusStyles(lead.status)}`}
                             style={selectArrowStyle}
                         >
-                            <option value="new">🔵 Nuevo</option>
+                            <option value="nuevo">🔵 Nuevo</option>
                             <option value="seguimiento">🟡 Seguimiento</option>
                             <option value="convertido">🟢 Convertido</option>
                             <option value="no_interesado">⚪ No Interesado</option>
@@ -411,7 +442,7 @@ export default function LeadsTable({
                         </select>
                   </td>
 
-                  {/* BOT / IA + TOOLTIP MEJORADO */}
+                  {/* BOT / IA + TOOLTIP MEJORADO (POSICIÓN CORREGIDA) */}
                   <td className="px-2 py-3 overflow-visible relative">
                      {lead.calificacion ? (
                          <div className="flex items-center justify-center group">
@@ -422,8 +453,8 @@ export default function LeadsTable({
                                     {lead.calificacion}
                                 </span>
                             </div>
-                            {/* Tooltip Vertical */}
-                            <div className="hidden group-hover:block absolute bottom-[110%] left-1/2 transform -translate-x-1/2 min-w-[320px] w-max max-w-[400px] bg-[#0f172a] text-white p-0 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] z-[9999] border border-slate-600">
+                            {/* Tooltip con top-[110%] */}
+                            <div className="hidden group-hover:block absolute top-[110%] left-1/2 transform -translate-x-1/2 min-w-[320px] w-max max-w-[400px] bg-[#0f172a] text-white p-0 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] z-[9999] border border-slate-600">
                                 <div className="bg-slate-800 px-4 py-3 rounded-t-xl border-b border-slate-600 flex justify-between items-center">
                                     <span className="font-bold text-xs text-cyan-400 flex items-center gap-2 uppercase tracking-wide">
                                         <Bot size={14} /> Resumen del Chat
@@ -437,7 +468,8 @@ export default function LeadsTable({
                                         *Datos capturados vía WhatsApp
                                     </p>
                                 </div>
-                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-t-[#0f172a]"></div>
+                                {/* Flecha con bottom-full */}
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-b-[#0f172a]"></div>
                             </div>
                          </div>
                      ) : (

@@ -49,7 +49,6 @@ export default function Dashboard() {
     const { data: leadsData, error: leadsError } = await supabase
       .from("leads")
       .select(
-        // 👇 ASEGURAMOS QUE TRAE EL ORIGEN Y LA FECHA DE LLAMADA
         "id, name, email, phone, company, interest, status, created_at, user_id, notes, next_action, calificacion, etapa, resumen_chat, origen, next_call_date" 
       )
       .eq("user_id", session.user.id);
@@ -82,7 +81,7 @@ export default function Dashboard() {
         etapa: l.etapa,
         resumen_chat: l.resumen_chat,
         origen: l.origen || l.source || "web", 
-        next_call_date: l.next_call_date, // 👈 Se mapea la fecha de recordatorio
+        next_call_date: l.next_call_date, // Mapeo de la fecha de recordatorio
       }));
 
     const allData = [
@@ -109,10 +108,12 @@ export default function Dashboard() {
   }
 
   // 📊 KPIs
-  const total = leads.length;
+  // 🚨 FIX: Aseguramos que leads sea un array antes de leer length
+  const validLeads = leads || [];
+  const total = validLeads.length; 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const leadsMes = leads.filter((l) => {
+  const leadsMes = validLeads.filter((l) => {
     if (!l.created_at) return false;
     const d = new Date(l.created_at);
     return d >= monthStart && d <= now;
@@ -126,7 +127,7 @@ export default function Dashboard() {
     "cerrado",
     "vendido",
   ];
-  const convertidos = leads.filter((l) =>
+  const convertidos = validLeads.filter((l) =>
     estadosGanadores.includes(String(l.status || "").toLowerCase())
   ).length;
   const tasaConversionNum = total ? (convertidos / total) * 100 : 0;
@@ -138,7 +139,7 @@ export default function Dashboard() {
   ];
 
   // -------------------------------------------------------------------------
-  // 👇 CÁLCULOS DINÁMICOS DEL MÁXIMO DEL EJE Y
+  // 👇 CÁLCULO DINÁMICO DEL MÁXIMO DEL EJE Y (Aplicado a los 3 gráficos de barras)
   
   // 1. Cálculo para Indicadores Clave (KPIs)
   const maxKpiValue = Math.max(...kpiData.map(item => item.value));
@@ -148,7 +149,7 @@ export default function Dashboard() {
     l.origen || l.origin || l.channel || l.source || "Desconocido";
     
   const origenMap: Record<string, number> = {};
-  leads.forEach((l) => {
+  validLeads.forEach((l) => { // Usamos validLeads
     const key = String(getOrigin(l));
     origenMap[key] = (origenMap[key] || 0) + 1;
   });
@@ -161,7 +162,7 @@ export default function Dashboard() {
   const maxOrigenValue = Math.max(...origenData.map(item => item.value), 0);
   const origenYMax = Math.ceil(maxOrigenValue * 1.1 / 5) * 5;
 
-  const statusData = leads.reduce((acc: any, l) => {
+  const statusData = validLeads.reduce((acc: any, l) => { // Usamos validLeads
     const k = l.status || "sin_estado";
     acc[k] = (acc[k] || 0) + 1;
     return acc;
@@ -172,7 +173,7 @@ export default function Dashboard() {
   }));
 
   const fechaData: Record<string, number> = {};
-  leads.forEach((l) => {
+  validLeads.forEach((l) => { // Usamos validLeads
     const d = l.created_at
       ? new Date(l.created_at).toLocaleDateString()
       : "Sin fecha";

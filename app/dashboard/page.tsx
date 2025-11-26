@@ -31,17 +31,13 @@ export default function Page() {
 
   // 👇 Si hay sesión → Dashboard
   return (
-    <div style={{ background: "var(--botz-bg)", minHeight: "100vh" }}>
+    // 🔥 CAMBIO: Usamos clases de Tailwind en lugar de style inline
+    <div className="bg-[#112f46] min-h-screen"> 
       <main
-        style={{
-          maxWidth: 1200,
-          margin: "0 auto",
-          padding: "32px 20px",
-        }}
+        className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8" // 1200px es aprox max-w-6xl
       >
         <Dashboard />
       </main>
     </div>
   );
 }
-
