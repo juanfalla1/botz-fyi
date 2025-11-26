@@ -461,6 +461,7 @@ export default function LeadsTable({
                             <option value="Pendiente documentación">📂 Docs</option>
                             <option value="Revisar con comercial">💼 Revisar</option>
                             <option value="Reasignar a otro asesor">🔄 Reasignar</option>
+                            <option value="Cliente no calificado para una solicitud">🔄 No viable</option>
                         </select>
 
                         {updatedRow === lead.id && (

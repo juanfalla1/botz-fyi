@@ -49,8 +49,8 @@ export default function Dashboard() {
     const { data: leadsData, error: leadsError } = await supabase
       .from("leads")
       .select(
-        // 👇 AQUÍ AGREGUÉ "origen"
-        "id, name, email, phone, company, interest, status, created_at, user_id, notes, next_action, calificacion, etapa, resumen_chat, origen"
+        // 👇 ASEGURAMOS QUE TRAE EL ORIGEN Y LA FECHA DE LLAMADA
+        "id, name, email, phone, company, interest, status, created_at, user_id, notes, next_action, calificacion, etapa, resumen_chat, origen, next_call_date" 
       )
       .eq("user_id", session.user.id);
 
@@ -81,7 +81,8 @@ export default function Dashboard() {
         calificacion: l.calificacion,
         etapa: l.etapa,
         resumen_chat: l.resumen_chat,
-        origen: l.origen || l.source || "web", // 👈 Mapeo correcto del origen
+        origen: l.origen || l.source || "web", 
+        next_call_date: l.next_call_date, // 👈 Se mapea la fecha de recordatorio
       }));
 
     const allData = [
@@ -136,6 +137,13 @@ export default function Dashboard() {
     { name: "Conversión %", value: tasaConversion },
   ];
 
+  // -------------------------------------------------------------------------
+  // 👇 CÁLCULOS DINÁMICOS DEL MÁXIMO DEL EJE Y
+  
+  // 1. Cálculo para Indicadores Clave (KPIs)
+  const maxKpiValue = Math.max(...kpiData.map(item => item.value));
+  const kpiYMax = Math.ceil(maxKpiValue * 1.1 / 5) * 5; 
+  
   const getOrigin = (l: any) =>
     l.origen || l.origin || l.channel || l.source || "Desconocido";
     
@@ -148,6 +156,10 @@ export default function Dashboard() {
     label,
     value,
   }));
+
+  // 2. Cálculo para Leads por Origen
+  const maxOrigenValue = Math.max(...origenData.map(item => item.value), 0);
+  const origenYMax = Math.ceil(maxOrigenValue * 1.1 / 5) * 5;
 
   const statusData = leads.reduce((acc: any, l) => {
     const k = l.status || "sin_estado";
@@ -170,6 +182,11 @@ export default function Dashboard() {
     date,
     count,
   }));
+
+  // 3. Cálculo para Leads por Fecha
+  const maxFechaValue = Math.max(...barData.map(item => item.count), 0);
+  const fechaYMax = Math.ceil(maxFechaValue * 1.1 / 5) * 5;
+  // -------------------------------------------------------------------------
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
@@ -213,9 +230,11 @@ export default function Dashboard() {
             <BarChart data={kpiData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+              {/* KPI Y-AXIS AJUSTADO */}
+              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} domain={[0, kpiYMax]} /> 
               <Tooltip />
-              <Bar dataKey="value" fill="#2c6bed">
+              {/* ANCHO DE BARRA FIJO */}
+              <Bar dataKey="value" fill="#2c6bed" barSize={60} radius={[4, 4, 0, 0]}> 
                 <LabelList dataKey="value" position="top" fontSize={12} />
               </Bar>
             </BarChart>
@@ -230,7 +249,8 @@ export default function Dashboard() {
             <BarChart data={origenData} margin={{ top: 20, right: 20, left: 20, bottom: 40 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="label" angle={-45} textAnchor="end" height={60} tick={{ fontSize: 10 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+              {/* ORIGEN Y-AXIS AJUSTADO */}
+              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} domain={[0, origenYMax]} />
               <Tooltip contentStyle={{ backgroundColor: 'white', borderRadius: '5px', fontSize: '12px' }} />
               <Bar dataKey="value" fill="#2c6bed" name="Leads">
                 <LabelList dataKey="value" position="top" fontSize={12} />
@@ -275,7 +295,8 @@ export default function Dashboard() {
             <BarChart data={barData} margin={{ top: 20, right: 20, left: 20, bottom: 40 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 12 }} />
+              {/* FECHA Y-AXIS AJUSTADO */}
+              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} domain={[0, fechaYMax]}/> 
               <Tooltip />
               <Bar dataKey="count" fill="#10b2cb">
                 <LabelList dataKey="count" position="top" fontSize={12} />
