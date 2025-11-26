@@ -46,8 +46,26 @@ export default function LeadsTable({
   const [updatedRow, setUpdatedRow] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-  // Estado para el filtro de ESTADO global
   const [statusFilter, setStatusFilter] = useState<string>("all"); 
+  
+  // 🔥 ESTADO PARA EL TOOLTIP DINÁMICO: Guarda qué tooltips deben aparecer arriba
+  const [tooltipUp, setTooltipUp] = useState<Record<string, boolean>>({}); 
+
+  // --- FUNCIÓN DE DETECCIÓN DE POSICIÓN ---
+  const handleTooltipPosition = (e: React.MouseEvent<HTMLDivElement, MouseEvent>, id: string) => {
+      // 1. Obtener la posición del elemento (el badge)
+      const element = e.currentTarget;
+      const rect = element.getBoundingClientRect();
+      
+      // 2. Definir la altura requerida para el tooltip (ej: 200px)
+      const requiredSpace = 200; 
+      
+      // 3. Comprobar si hay menos espacio ABAJO del requerido
+      const isNearBottom = window.innerHeight - rect.bottom < requiredSpace;
+      
+      // 4. Actualizar el estado (true = mostrar arriba; false = mostrar abajo)
+      setTooltipUp(prev => ({ ...prev, [id]: isNearBottom }));
+  };
 
   // --- FUNCIÓN DE PLANTILLA (Excel Real .xlsx) ---
   const downloadTemplate = () => {
@@ -279,7 +297,7 @@ export default function LeadsTable({
                 />
             </div>
 
-            {/* 2. FILTRO GLOBAL DE ESTADO (Ajustado tamaño, filter-input-fix para redondeo) */}
+            {/* 2. FILTRO GLOBAL DE ESTADO (Restaurado py-1.5 y text-xs) */}
             <div className="relative">
                 <select
                     value={statusFilter} 
@@ -287,15 +305,15 @@ export default function LeadsTable({
                     className="appearance-none bg-white border border-gray-300 focus:border-[#112f46] focus:ring-1 focus:ring-[#112f46] rounded-full pl-3 pr-8 py-1.5 w-36 text-xs text-[#112f46] font-bold outline-none cursor-pointer shadow-sm transition-all uppercase tracking-wide truncate filter-input-fix"
                     style={selectArrowStyle}
                 >
-                    <option value="all">⭐ Todos</option> 
-                    <option value="nuevo">🔵 Nuevo</option>
-                    <option value="seguimiento">🟡 Seguimiento</option>
-                    <option value="convertido">🟢 Convertido</option>
-                    <option value="no_interesado">⚪ No Interesado</option>
+                    <option value="all">⭐ TODOS</option> 
+                    <option value="nuevo">🔵 NUEVO</option>
+                    <option value="seguimiento">🟡 SEGUIMIENTO</option>
+                    <option value="convertido">🟢 CONVERTIDO</option>
+                    <option value="no_interesado">⚪ NO INTERESADO</option>
                 </select>
             </div>
 
-            {/* 3. FECHAS (Ajustado font-bold y padding, filter-input-fix para redondeo) */}
+            {/* 3. FECHAS (Restaurado py-1.5 y font-normal, filter-input-fix para redondeo) */}
             <div className="flex items-center gap-2 bg-white px-3 py-1.5 shadow-sm overflow-hidden filter-input-fix">
                 <Calendar size={14} className="text-gray-500 shrink-0"/>
                 <input 
@@ -442,10 +460,13 @@ export default function LeadsTable({
                         </select>
                   </td>
 
-                  {/* BOT / IA + TOOLTIP MEJORADO (POSICIÓN CORREGIDA) */}
+                  {/* BOT / IA + TOOLTIP MEJORADO (POSICIÓN DINÁMICA) */}
                   <td className="px-2 py-3 overflow-visible relative">
                      {lead.calificacion ? (
-                         <div className="flex items-center justify-center group">
+                         <div 
+                             className="flex items-center justify-center group"
+                             onMouseOver={(e) => handleTooltipPosition(e, lead.id)} // 🔥 Detectar posición
+                         >
                             {/* Badge */}
                             <div className={`flex items-center gap-1 px-3 py-1 rounded-full border shadow-sm cursor-help transition-all hover:scale-105 w-full justify-center ${getBotBadgeStyle(lead.calificacion)}`}>
                                 <Bot size={14} />
@@ -453,8 +474,10 @@ export default function LeadsTable({
                                     {lead.calificacion}
                                 </span>
                             </div>
-                            {/* Tooltip con top-[110%] */}
-                            <div className="hidden group-hover:block absolute top-[110%] left-1/2 transform -translate-x-1/2 min-w-[320px] w-max max-w-[400px] bg-[#0f172a] text-white p-0 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] z-[9999] border border-slate-600">
+                            
+                            {/* Tooltip con Posicionamiento Condicional */}
+                            <div className={`hidden group-hover:block absolute left-1/2 transform -translate-x-1/2 min-w-[320px] w-max max-w-[400px] bg-[#0f172a] text-white p-0 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] z-[9999] border border-slate-600 ${tooltipUp[lead.id] ? 'bottom-[110%]' : 'top-[110%]'}`}>
+                                
                                 <div className="bg-slate-800 px-4 py-3 rounded-t-xl border-b border-slate-600 flex justify-between items-center">
                                     <span className="font-bold text-xs text-cyan-400 flex items-center gap-2 uppercase tracking-wide">
                                         <Bot size={14} /> Resumen del Chat
@@ -468,8 +491,9 @@ export default function LeadsTable({
                                         *Datos capturados vía WhatsApp
                                     </p>
                                 </div>
-                                {/* Flecha con bottom-full */}
-                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 border-8 border-transparent border-b-[#0f172a]"></div>
+                                
+                                {/* Flecha Condicional */}
+                                <div className={`absolute left-1/2 transform -translate-x-1/2 border-8 border-transparent ${tooltipUp[lead.id] ? 'top-full border-t-[#0f172a]' : 'bottom-full border-b-[#0f172a]'}`}></div>
                             </div>
                          </div>
                      ) : (
