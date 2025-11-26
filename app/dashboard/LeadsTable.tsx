@@ -264,11 +264,11 @@ export default function LeadsTable({
             <p className="text-gray-500 text-xs mt-0.5">Administra tus oportunidades de venta</p>
         </div>
         
-        {/* FILTROS Y BOTONES (Diseño uniforme con separación forzada) */}
-        <div className="flex flex-wrap items-center gap-3">
+        {/* FILTROS Y BOTONES (Usando filter-wrapper para forzar separación) */}
+        <div className="filter-wrapper">
             
-            {/* 1. BUSCADOR (Añadimos mr-3 para separación y filter-input-fix para redondeo) */}
-            <div className="relative mr-3">
+            {/* 1. BUSCADOR (filter-input-fix para redondeo) */}
+            <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#112f46]" size={14} />
                 <input
                     type="text"
@@ -279,7 +279,7 @@ export default function LeadsTable({
                 />
             </div>
 
-            {/* 2. FILTRO GLOBAL DE ESTADO (AÑADIMOS filter-input-fix) */}
+            {/* 2. FILTRO GLOBAL DE ESTADO (Ajustado tamaño, filter-input-fix para redondeo) */}
             <div className="relative">
                 <select
                     value={statusFilter} 
@@ -295,12 +295,12 @@ export default function LeadsTable({
                 </select>
             </div>
 
-            {/* 3. FECHAS (AÑADIMOS filter-input-fix al contenedor) */}
+            {/* 3. FECHAS (Ajustado font-bold y padding, filter-input-fix para redondeo) */}
             <div className="flex items-center gap-2 bg-white px-3 py-1.5 shadow-sm overflow-hidden filter-input-fix">
                 <Calendar size={14} className="text-gray-500 shrink-0"/>
                 <input 
                     type="date" 
-                    className="date-input-force-white outline-none text-[11px] font-bold uppercase cursor-pointer bg-transparent text-gray-700 border-none w-24" 
+                    className="date-input-force-white outline-none text-xs uppercase cursor-pointer bg-transparent text-gray-700 border-none w-24 font-normal" 
                     value={startDate} 
                     onChange={(e) => setStartDate(e.target.value)} 
                     style={{ colorScheme: 'light' }}
@@ -308,7 +308,7 @@ export default function LeadsTable({
                 <span className="text-gray-300 text-[10px]">|</span>
                 <input 
                     type="date" 
-                    className="date-input-force-white outline-none text-[11px] font-bold uppercase cursor-pointer bg-transparent text-gray-700 border-none w-24" 
+                    className="date-input-force-white outline-none text-xs uppercase cursor-pointer bg-transparent text-gray-700 border-none w-24 font-normal" 
                     value={endDate} 
                     onChange={(e) => setEndDate(e.target.value)} 
                     style={{ colorScheme: 'light' }}

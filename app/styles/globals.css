@@ -1465,15 +1465,28 @@ body {
 html {
   scroll-behavior: smooth;
 }
-/* =========================
-   FIXES DE ESTILO PARA INPUTS DE TABLA
-=========================== */
+/* =======================================================
+   FIXES DE ESTILO PARA INPUTS DE TABLA (SOLUCIÓN FINAL)
+========================================================= */
 .filter-input-fix {
-  /* Forzar redondeo y bordes con la máxima prioridad */
+  /* Forzar redondeo y bordes */
   border-radius: 9999px !important; 
   border-width: 1px !important;
-  /* Asegura que el elemento sea tratado como un bloque de contenido */
+  border-style: solid !important;
+  
+  /* Asegura que el elemento sea tratado como un bloque de contenido flex item */
   display: inline-flex !important; 
   align-items: center !important;
+  
+  /* Asegura que los hijos de .filter-input-fix (como el input de fecha) NO tengan un borde adicional. */
+  border: none !important; /* Desactiva el borde en los inputs internos si lo tienen */
+}
+
+/* Aplicar la clase de borde y redondeo al contenedor DIV/SELECT y no a los inputs internos */
+.filter-wrapper {
+  /* Restaura la capacidad de separación del contenedor flex principal */
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 12px !important; /* 12px es equivalente a gap-3 de Tailwind */
 }
 
