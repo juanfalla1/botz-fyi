@@ -457,6 +457,8 @@ export default function LeadsTable({
                             <option value="Reconfirmar interés">❓ Reconfirmar</option>
                             <option value="Esperando respuesta cliente">⏳ Esperando</option>
                             <option value="Enviar recordatorio">⏰ Recordatorio</option>
+                            <option value="Finalizado">✔️ Finalizado</option>
+                            
                         </select>
                   </td>
 
