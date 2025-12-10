@@ -54,6 +54,7 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // 🔹 Schema de Organization (ya validado)
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -90,13 +91,71 @@ export default function RootLayout({
     },
   };
 
+  // 🔹 Schema de FAQPage (las 5 preguntas)
+  const faqJson = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "¿Qué es BOTZ y cómo ayuda a automatizar procesos empresariales?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text:
+            "BOTZ es una plataforma de automatización inteligente que integra IA, bots de WhatsApp, n8n y flujos automatizados para optimizar tareas repetitivas, mejorar la atención al cliente y aumentar la productividad de las empresas.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "¿BOTZ se conecta con WhatsApp, CRM y otras herramientas?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text:
+            "Sí. BOTZ integra WhatsApp API, CRMs, Google Sheets, Gmail, Telegram, bases de datos, ERPs y otros sistemas mediante n8n e integraciones personalizadas, para que toda la información quede centralizada y automatizada.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "¿Qué tipo de procesos puedo automatizar con BOTZ?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text:
+            "Con BOTZ puedes automatizar la captación y calificación de leads, respuestas automáticas con IA, envíos de información, validación de datos y documentos, registro en CRM o bases de datos, notificaciones internas y creación de dashboards para seguimiento de tus flujos.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "¿Necesito conocimientos técnicos para usar BOTZ?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text:
+            "No. BOTZ diseña, configura y mantiene las automatizaciones por ti. Solo defines el proceso que quieres mejorar y nosotros te entregamos el flujo listo, documentado y con monitoreo, para que tu equipo lo use sin conocimientos técnicos.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "¿Cuánto tiempo toma implementar una automatización con BOTZ?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text:
+            "Depende del alcance del proyecto. Automatizaciones puntuales, como flujos de leads o atención inicial por WhatsApp, pueden estar listas entre 48 y 72 horas. Proyectos más complejos, integrados con ERPs o múltiples sistemas, suelen tardar entre 7 y 14 días.",
+        },
+      },
+    ],
+  };
+
   return (
     <html lang="es">
       <head>
+        {/* Organization */}
         <script
           type="application/ld+json"
-          // 👇 Schema.org para Google
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        {/* FAQPage */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJson) }}
         />
       </head>
       <body>
@@ -107,8 +166,6 @@ export default function RootLayout({
     </html>
   );
 }
-
-
 
 
 
