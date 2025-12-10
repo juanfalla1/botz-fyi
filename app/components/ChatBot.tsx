@@ -179,7 +179,7 @@ const ChatBot = () => {
 
             {/* Botón WhatsApp con SVG */}
             <a
-              href="https://wa.me/14374351594"
+              href="https://wa.me/573154829949"
               target="_blank"
               rel="noopener noreferrer"
               style={{
