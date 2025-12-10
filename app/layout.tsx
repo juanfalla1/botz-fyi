@@ -1,7 +1,9 @@
 import "./styles/globals.css";
 import CookieBanner from "./components/CookieBanner";
 import Header from "./components/Header";
-export const dynamic = 'force-dynamic';
+
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "botz - Automatización Inteligente",
   description:
@@ -14,7 +16,7 @@ export const metadata = {
     "procesos",
     "dashboards",
     "optimización",
-    "predicción"
+    "predicción",
   ],
   icons: {
     icon: "/favicon.ico",
@@ -25,11 +27,11 @@ export const metadata = {
     title: "botz - Automatización Inteligente",
     description:
       "Automatización con IA: predicciones basadas en datos, optimización de tareas repetitivas y dashboards inteligentes en tiempo real para tu negocio.",
-    url: "https://www.botz.fyi", // cámbialo por tu dominio si es distinto
+    url: "https://www.botz.fyi",
     siteName: "botz",
     images: [
       {
-        url: "/og-image.png", // 🔹 Aquí va la imagen OG que te generaré (1200x630)
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: "botz - Automatización Inteligente",
@@ -43,7 +45,7 @@ export const metadata = {
     title: "botz - Automatización Inteligente",
     description:
       "Potencia tu empresa con inteligencia artificial: agentes autónomos, analítica predictiva y dashboards en tiempo real.",
-    images: ["/og-image.png"], // 🔹 Usamos la misma imagen OG
+    images: ["/og-image.png"],
   },
 };
 
@@ -52,8 +54,51 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "BOTZ",
+    url: "https://www.botz.fyi",
+    description:
+      "BOTZ automatiza procesos empresariales con IA, WhatsApp bots, n8n e integraciones.",
+    logo: "https://www.botz.fyi/og-image.png",
+    sameAs: [
+      "https://www.instagram.com/botz.fyi/",
+      "https://www.linkedin.com/company/botz-ai/",
+    ],
+    address: [
+      {
+        "@type": "PostalAddress",
+        addressLocality: "Toronto",
+        addressRegion: "Ontario",
+        streetAddress: "689 The Queensway",
+        postalCode: "M8Y 1L1",
+        addressCountry: "CA",
+      },
+      {
+        "@type": "PostalAddress",
+        addressLocality: "Bogotá",
+        addressRegion: "Cundinamarca",
+        streetAddress: "Calle 127A # C46-5",
+        addressCountry: "CO",
+      },
+    ],
+    contactPoint: {
+      "@type": "ContactPoint",
+      telephone: "+57 315 482 9949",
+      contactType: "customer service",
+    },
+  };
+
   return (
     <html lang="es">
+      <head>
+        <script
+          type="application/ld+json"
+          // 👇 Schema.org para Google
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body>
         <Header />
         {children}
