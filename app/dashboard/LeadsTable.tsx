@@ -436,7 +436,7 @@ export default function LeadsTable({
                             <option value="seguimiento">🟡 Seguimiento</option>
                             <option value="convertido">🟢 Convertido</option>
                             <option value="no_interesado">⚪ No Interesado</option>
-                            <option value="no_converido">🔴 No Converido</option>
+                            <option value="no_converido">🔴 No Convertido</option>
                         </select>
                   </td>
 
