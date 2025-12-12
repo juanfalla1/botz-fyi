@@ -217,6 +217,7 @@ export default function LeadsTable({
     if (s.includes("seguimiento")) return 'bg-amber-100 text-amber-700 border-amber-200';
     if (s.includes("vendido") || s.includes("convertido")) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
     if (s.includes("no_interesado")) return 'bg-gray-100 text-gray-500 border-gray-200'; 
+    if (s.includes("atendido")) return 'bg-purple-100 text-purple-700 border-purple-200';
     return 'bg-gray-100 text-gray-600 border-gray-200';
   };
   const getActionStyles = (action: string | undefined) => {
@@ -309,6 +310,7 @@ export default function LeadsTable({
                     <option value="seguimiento">🟡 SEGUIMIENTO</option>
                     <option value="convertido">🟢 CONVERTIDO</option>
                     <option value="no_interesado">⚪ NO INTERESADO</option>
+                    <option value="no_converido">🔴 NO convertido</option>
                 </select>
             </div>
 
@@ -434,6 +436,7 @@ export default function LeadsTable({
                             <option value="seguimiento">🟡 Seguimiento</option>
                             <option value="convertido">🟢 Convertido</option>
                             <option value="no_interesado">⚪ No Interesado</option>
+                            <option value="no_converido">🔴 No Converido</option>
                         </select>
                   </td>
 
