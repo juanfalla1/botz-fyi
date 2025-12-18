@@ -311,6 +311,8 @@ export default function LeadsTable({
                     <option value="convertido">🟢 CONVERTIDO</option>
                     <option value="no_interesado">⚪ NO INTERESADO</option>
                     <option value="no_converido">🔴 NO convertido</option>
+                    <option value="Segundo contacto">📨 Segundo contacto</option>
+                    
                 </select>
             </div>
 
@@ -437,6 +439,7 @@ export default function LeadsTable({
                             <option value="convertido">🟢 Convertido</option>
                             <option value="no_interesado">⚪ No Interesado</option>
                             <option value="no_converido">🔴 No Convertido</option>
+                            <option value="Segundo contacto">📨 Segundo contacto</option>
                         </select>
                   </td>
 
@@ -522,6 +525,7 @@ export default function LeadsTable({
                             <option value="Revisar con comercial">💼 Revisar</option>
                             <option value="Reasignar a otro asesor">🔄 Reasignar</option>
                             <option value="Cliente no calificado para una solicitud">🔄 No viable</option>
+                            <option value="Sin respuesta">📭 Sin respuesta</option>
                         </select>
 
                         {updatedRow === lead.id && (
