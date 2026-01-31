@@ -2,7 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { supabase } from "../dashboard/supabaseClient";
+import { supabase } from "../supabaseClient";
 
 export default function SetPasswordPage() {
   const router = useRouter();
