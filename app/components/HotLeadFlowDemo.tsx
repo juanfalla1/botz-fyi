@@ -3,7 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { FaRobot, FaCheckCircle, FaEnvelope, FaTelegramPlane } from "react-icons/fa";
+import { FaRobot, FaCheckCircle, FaEnvelope, FaTelegramPlane, FaArrowRight } from "react-icons/fa";
 import { MdHttp, MdEmail, MdOutlineAnalytics } from "react-icons/md";
 import { SiGooglesheets } from "react-icons/si";
 
@@ -21,7 +21,7 @@ const steps = [
   {
     icon: <SiGooglesheets size={40} className="text-green-400" />,
     title: "Registro en Google Sheets",
-    description: "Los datos del lead son almacenados ordenadamente en una hoja de cálculo en tiempo real."
+    description: "Los datos del lead son almacenados ordenadamente en una hoja de cálculo  o en base de datos en tiempo real."
   },
   {
     icon: <FaEnvelope size={40} className="text-indigo-400" />,
@@ -41,7 +41,7 @@ const steps = [
 ];
 
 const HotLeadFlowDemo = () => {
-  return (  
+  return (
     <section className="py-20 px-6 bg-[#0a0f1c] text-white">
       <div className="max-w-6xl mx-auto text-center">
         <h2 style={{
@@ -56,13 +56,45 @@ const HotLeadFlowDemo = () => {
         <p style={{
           fontSize: "clamp(1em, 2.5vw, 1.125rem)",
           color: "#ccc",
-          marginBottom: "2.5rem",
+          marginBottom: "2rem",
           maxWidth: "min(700px, 95vw)",
-          margin: "0 auto 2.5rem",
+          margin: "0 auto 2rem",
           lineHeight: 1.6
         }}>
           Este flujo muestra paso a paso cómo hotLead transforma un contacto frío en una oportunidad real.
         </p>
+
+        {/* BOTÓN AÑADIDO EN LA MITAD */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="mb-12"
+        >
+          <a 
+            href="/start" 
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "12px",
+              background: "linear-gradient(90deg, #00baff 0%, #007bff 100%)",
+              color: "#fff",
+              padding: "1rem 2.5rem",
+              borderRadius: "50px",
+              fontSize: "1.1rem",
+              fontWeight: "bold",
+              textDecoration: "none",
+              boxShadow: "0 10px 20px rgba(0, 186, 255, 0.3)",
+              transition: "transform 0.3s ease"
+            }}
+            onMouseOver={(e) => e.currentTarget.style.transform = "translateY(-5px)"}
+            onMouseOut={(e) => e.currentTarget.style.transform = "translateY(0)"}
+          >
+            Prueba la herramienta para gestión de leads de hipotecas
+            <FaArrowRight />
+          </a>
+        </motion.div>
+
         <div style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 90vw), 1fr))",

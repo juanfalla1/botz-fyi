@@ -1,6 +1,8 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import Link from "next/link";
+// Importamos Sparkles para el toque estelar visual
+import { Sparkles } from "lucide-react";
 
 const Header = () => {
   const [open, setOpen] = useState(false);
@@ -25,11 +27,6 @@ const Header = () => {
     if (typeof window === "undefined") return;
     const el = document.getElementById(id);
     el?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  const toTop = () => {
-    if (typeof window === "undefined") return;
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const toggleDropdown = (name: string) => {
@@ -65,6 +62,7 @@ const Header = () => {
       <header id="header">
         <div className="header-container">
           <div className="logo-nav-container">
+            {/* LOGO MANTENIDO EN LA ESQUINA IZQUIERDA */}
             <Link href="/" passHref>
               <h1 className="logo glow" style={{ cursor: "pointer" }}>
                 botz
@@ -123,7 +121,7 @@ const Header = () => {
                 </Link>
               </div>
 
-              {/* Soluciones de Automatización */}
+              {/* SOLUCIONES DE AUTOMATIZACIÓN */}
               <div 
                 className={`dropdown ${openDropdown === "auto" ? "open" : ""}`}
                 onMouseEnter={() => handleDropdownHover("auto")}
@@ -137,18 +135,18 @@ const Header = () => {
                 </a>
                 <div className="dropdown-content">
                   <Link href="/#arquitectura-E-commerce-hook" onClick={closeMenu}>
-                    🛍️ boty, E-commerce con IA
+                    🛍️ boty E-commerce con IA
                   </Link>
                   <Link href="/#automatizaciones-n8n" onClick={closeMenu}>
-                    🤖  botzflow, Automatización de Flujos de Procesos
+                    🤖 botzflow Automatización de Flujos
                   </Link>
                   <Link href="/#caso-de-exito-hotlead" onClick={closeMenu}>
-                    🚀 hotLead, Gestion de Leads 
+                    🚀 hotLead Gestion de Leads 
                   </Link>
                 </div>
               </div>
 
-              {/* Procesos y Flujos con IA */}
+              {/* PROCESOS Y FLUJOS CON IA */}
               <div 
                 className={`dropdown ${openDropdown === "ia" ? "open" : ""}`}
                 onMouseEnter={() => handleDropdownHover("ia")}
@@ -162,7 +160,7 @@ const Header = () => {
                 </a>
                 <div className="dropdown-content">
                   <Link href="/#arquitectura-agentes-ia" onClick={closeMenu}>
-                    🧠 Arquitectura de Nuestros Agentes IA
+                    🧠 Arquitectura Agentes IA
                   </Link>
                   <Link href="/#flujo-cognitivo-visual" onClick={closeMenu}>
                     🧩 Flujo Cognitivo Visual
@@ -170,7 +168,7 @@ const Header = () => {
                 </div>
               </div>
 
-              {/* Casos de Éxito */}
+              {/* CASOS DE ÉXITO */}
               <div 
                 className={`dropdown ${openDropdown === "exito" ? "open" : ""}`}
                 onMouseEnter={() => handleDropdownHover("exito")}
@@ -191,12 +189,12 @@ const Header = () => {
                       closeMenu();
                     }}
                   >
-                    🏆 Desarrollo de E-commerce para HOOK 
+                    🏆 E-commerce HOOK 
                   </a>
                 </div>
               </div>
 
-              {/* Contáctenos solo en móviles */}
+              {/* CONTÁCTENOS - MÓVIL */}
               <a
                 href="#contacto"
                 onClick={(e) => {
@@ -209,14 +207,14 @@ const Header = () => {
                 Contáctenos
               </a>
 
-              {/* Login */}
-              <a
-                href="/dashboard"
-                className="login-btn"
+              {/* BOTÓN ESTELAR AJUSTADO */}
+              <Link
+                href="/start"
+                className="stelar-btn-short"
                 onClick={closeMenu}
               >
-                Login
-              </a>
+                <Sparkles size={14} style={{marginRight: '6px'}} /> Sotfware CRM Hipotecario
+              </Link>
             </nav>
           </div>
         </div>
@@ -228,7 +226,6 @@ const Header = () => {
         .header-container {
           display: flex;
           flex-wrap: nowrap;
-          font-size: 12px;
           justify-content: space-between;
           align-items: center;
           padding: 15px 20px;
@@ -246,32 +243,56 @@ const Header = () => {
           font-weight: 800;
           color: #10b2cb;
           text-shadow: 0 0 10px rgba(16, 178, 203, 0.7);
-          cursor: pointer;
           transition: all 0.3s ease;
         }
 
         .logo:hover { text-shadow: 0 0 15px rgba(16, 178, 203, 1); transform: scale(1.05); }
 
-        .hamburger { display: none; flex-direction: column; justify-content: space-between; width: 40px; height: 30px; background: none; border: none; cursor: pointer; z-index: 9999; position: relative; }
-        .hamburger span { display: block; height: 4px; width: 100%; background: #10b2cb; border-radius: 2px; transition: all 0.3s ease; }
-        .hamburger.active span:nth-child(1) { transform: rotate(45deg) translate(8px, 8px); }
-        .hamburger.active span:nth-child(2) { opacity: 0; }
-        .hamburger.active span:nth-child(3) { transform: rotate(-45deg) translate(8px, -8px); }
+        .hamburger { display: none; flex-direction: column; justify-content: space-between; width: 40px; height: 30px; background: none; border: none; cursor: pointer; z-index: 9999; }
+        .hamburger span { display: block; height: 4px; width: 100%; background: #10b2cb; border-radius: 2px; }
 
         .nav-container { display: flex; gap: 20px; }
         #main-nav { display: flex; align-items: center; gap: 5px; }
 
-        #main-nav a { color: #fff; text-decoration: none; padding: 10px 15px; border-radius: 6px; transition: all 0.3s ease; font-weight: 600; font-size: 16px; }
+        /* UNIFICACIÓN DE TAMAÑO DE TÍTULOS */
+        #main-nav a, 
+        #main-nav :global(a) { 
+          color: #fff; 
+          text-decoration: none; 
+          padding: 10px 15px; 
+          border-radius: 6px; 
+          transition: all 0.3s ease; 
+          font-weight: 600; 
+          font-size: 14px; /* Tamaño unificado para todos los títulos */
+          white-space: nowrap;
+        }
+        
         #main-nav a:hover { background: rgba(255, 255, 255, 0.1); color: #10b2cb; }
-        #main-nav :global(a) {font-size: 16px;font-weight: 600;}
 
-        a.login-btn { font-weight: bold; color: #10b2cb !important; background: rgba(16, 178, 203, 0.1); }
-        a.login-btn:hover { background: rgba(16, 178, 203, 0.2) !important; }
+        /* ESTILO COMPACTO PARA EL BOTÓN ESTELAR */
+        .stelar-btn-short { 
+          font-weight: 800 !important; 
+          color: #fff !important; 
+          background: linear-gradient(135deg, #10b2cb 0%, #2c6bed 100%) !important;
+          padding: 8px 18px !important;
+          border-radius: 50px !important;
+          font-size: 12px !important; /* Ligeramente menor para compensar el peso visual del gradiente */
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          display: flex;
+          align-items: center;
+          white-space: nowrap;
+          box-shadow: 0 0 15px rgba(16, 178, 203, 0.4);
+          margin-left: 10px;
+        }
+        .stelar-btn-short:hover { 
+          transform: translateY(-2px);
+          filter: brightness(1.1);
+        }
 
         .dropdown { position: relative; }
-        .dropdown-content { display: none; position: absolute; background: #0d2537; min-width: 250px; box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3); border-radius: 8px; overflow: hidden; z-index: 1000; top: 100%; left: 0; }
-        .dropdown-content a { display: block; padding: 12px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); font-size: 12px; color: #fff; text-decoration: none; text-align: left; }
-        .dropdown-content a:last-child { border-bottom: none; }
+        .dropdown-content { display: none; position: absolute; background: #0d2537; min-width: 250px; box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3); border-radius: 8px; overflow: hidden; z-index: 1000; top: 100%; left: 0; border: 1px solid rgba(255,255,255,0.05); }
+        .dropdown-content a { display: block; padding: 12px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); font-size: 13px; color: #fff; text-decoration: none; }
         .dropdown-content a:hover { background: rgba(255, 255, 255, 0.08); }
 
         @media (min-width: 769px) { .dropdown:hover .dropdown-content { display: block; } }
@@ -279,33 +300,20 @@ const Header = () => {
 
         @media (max-width: 768px) {
           .hamburger { display: flex; }
-          .nav-container { position: fixed; top: 0; right: -100%; width: 280px; height: 100vh; background: #112f46; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 100px 0 30px 0; transition: right 0.4s ease-in-out; z-index: 2000; }
+          .nav-container { position: fixed; top: 0; right: -100%; width: 280px; height: 100vh; background: #112f46; flex-direction: column; padding: 100px 0 30px 0; transition: right 0.4s ease-in-out; z-index: 2000; }
           .nav-container.is-open { right: 0; }
           #main-nav { flex-direction: column; width: 100%; gap: 0; }
-          #main-nav a, .dropdown > a { display: block; width: 100%; text-align: left; padding: 15px 25px; border-bottom: 1px solid rgba(255, 255, 255, 0.15); border-radius: 0; }
-          #main-nav a:last-child { border-bottom: none; }
-          #main-nav a:hover { background: rgba(255, 255, 255, 0.08); }
-          .dropdown { width: 100%; }
-          .dropdown-content { display: none; position: static; flex-direction: column; background: #0d2537; width: 100%; box-shadow: none; border-radius: 0; text-align: left; }
-          .dropdown.open .dropdown-content { display: flex !important; }
-          .dropdown-content a { padding: 12px 25px; font-size: 15px; text-align: left; }
-          .dropdown > a::after { content: ""; } /* Eliminado doble triangulito */
+          #main-nav a { font-size: 16px; padding: 15px 25px; width: 100%; border-bottom: 1px solid rgba(255,255,255,0.1); }
+          .dropdown-content { position: static; display: none; width: 100%; }
+          .dropdown.open .dropdown-content { display: flex !important; flex-direction: column; }
+          .stelar-btn-short { margin: 20px 25px; justify-content: center; font-size: 14px !important; }
         }
 
-        /* Contáctenos solo visible en móviles */
-        .contacto-link {
-          display: none;
-        }
-
-        @media (max-width: 768px) {
-          .contacto-link {
-            display: block;
-          }
-        }
+        .contacto-link { display: none; }
+        @media (max-width: 768px) { .contacto-link { display: block; } }
       `}</style>
     </>
   );
 };
 
 export default Header;
-

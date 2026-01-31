@@ -26,16 +26,29 @@ const Hero = () => {
         <h2 className={styles.heroTitle}>
           Automatización inteligente de procesos con IA
         </h2>
+
         <p className={styles.heroSubtitle}>
           botz es tu plataforma para transformar la productividad empresarial
           mediante agentes inteligentes que automatizan tareas y decisiones.
         </p>
+
         <button
           className={styles.heroButton}
           onClick={() => setShowModal(true)}
         >
-          Solicitar Demo <i className="fas fa-arrow-right"></i>
+          Prueba Demo en vivo <i className="fas fa-arrow-right"></i>
         </button>
+
+        {/* 👇 TEXTO NUEVO (CLAVE PARA EL TRIAL) */}
+        <p
+          style={{
+            marginTop: "12px",
+            fontSize: "0.9rem",
+            color: "rgba(255,255,255,0.8)",
+          }}
+        >
+          Demo en vivo · Sin tarjeta
+        </p>
       </div>
 
       {showModal && <DemoModal onClose={() => setShowModal(false)} />}
@@ -44,5 +57,3 @@ const Hero = () => {
 };
 
 export default Hero;
-
-

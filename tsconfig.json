@@ -15,6 +15,7 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "incremental": true,
+
     "baseUrl": ".",
     "paths": {
       "@/*": [
@@ -31,9 +32,12 @@
       ],
       "@/assets/*": [
         "./assets/*"
-      ] // <- si tus assets están en /assets
-      // Si realmente están en /public, NO uses alias; usa rutas absolutas: "/img/...", "/videos/..."
+      ],
+      "@/lib/*": [
+        "./app/lib/*"
+      ]
     },
+
     "plugins": [
       {
         "name": "next"
@@ -54,3 +58,4 @@
     "node_modules"
   ]
 }
+
