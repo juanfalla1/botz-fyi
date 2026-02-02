@@ -29,18 +29,49 @@ export default function PricingPage() {
   const [showModal, setShowModal] = useState(false);
   const [modalStep, setModalStep] = useState<"register" | "checkout">("register");
   const [selectedPlan, setSelectedPlan] = useState("");
-  const handlePayWithStripe = () => {
-  // ✅ selectedPlan es el que ya tienes en tu estado
-  const url = getStripeLinkByPlan(selectedPlan);
+  const handlePayWithStripe = async () => {
+    if (!selectedPlan) {
+      alert("Selecciona un plan válido antes de pagar.");
+      return;
+    }
 
-  if (!url) {
-    alert("Selecciona un plan válido antes de pagar.");
-    return;
-  }
+    setPaymentLoading(true);
 
-  // ✅ redirige a Stripe (TEST)
-  window.location.href = url;
-};
+    try {
+      // 1. Obtener el usuario actual de Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        alert("Debes estar registrado para continuar con el pago.");
+        setPaymentLoading(false);
+        return;
+      }
+
+      // 2. Llamar a tu API dinámica (el archivo route.ts que me pasaste antes)
+      const response = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planName: selectedPlan,
+          userId: user.id, // <--- Aquí pasamos el ID vital para Supabase
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.url) {
+        // 3. Redirigir a la sesión generada en tiempo real
+        window.location.href = data.url;
+      } else {
+        throw new Error(data.error || "Error al crear la sesión de pago");
+      }
+    } catch (error: any) {
+      console.error("Error en Stripe:", error);
+      alert("No se pudo iniciar el pago: " + error.message);
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
 
 
   // ✅ Modal bonito de éxito

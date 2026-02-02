@@ -1,46 +1,46 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-// ✅ stripe@20.3.0: no uses apiVersion en el constructor
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+async function getStripe() {
+  const secret = process.env.STRIPE_SECRET_KEY;
+  if (!secret) throw new Error("Missing STRIPE_SECRET_KEY");
+  const Stripe = (await import("stripe")).default;
+  return new Stripe(secret);
+}
 
-// ✅ usa keys simples para plan (evita "Básico" con tilde)
-const PRICE_BY_PLAN: Record<string, string> = {
-  basic: process.env.STRIPE_PRICE_BASIC_MONTHLY!,   // price_xxx
-  growth: process.env.STRIPE_PRICE_GROWTH_MONTHLY!, // price_xxx
+const PRICE_BY_PLAN: Record<string, string | undefined> = {
+  Basico: process.env.STRIPE_PRICE_BASIC_MONTHLY,
+  Growth: process.env.STRIPE_PRICE_GROWTH_MONTHLY,
 };
 
 export async function POST(req: Request) {
   try {
+    const stripe = await getStripe();
+
     const origin = req.headers.get("origin") || "http://localhost:3000";
     const body = await req.json();
 
-    const planKey = String(body.planKey || "").trim(); // basic | growth
-    const userId = String(body.userId || "").trim();
+    const planName = String(body.planName || "");
+    const userId = String(body.userId || "");
+    const tenantId = body.tenantId ? String(body.tenantId) : "";
 
-    if (!planKey || !PRICE_BY_PLAN[planKey]) {
-      return NextResponse.json(
-        { error: "PLAN_INVALIDO_O_SIN_PRICE_ID", planKey, allowed: Object.keys(PRICE_BY_PLAN) },
-        { status: 400 }
-      );
-    }
-    if (!userId) {
-      return NextResponse.json({ error: "NO_USER_ID" }, { status: 400 });
-    }
+    const priceId = PRICE_BY_PLAN[planName];
+    if (!planName || !priceId) return NextResponse.json({ error: "PLAN_INVALIDO_O_SIN_PRICE_ID" }, { status: 400 });
+    if (!userId) return NextResponse.json({ error: "NO_USER_ID" }, { status: 400 });
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      line_items: [{ price: PRICE_BY_PLAN[planKey], quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${origin}/start?stripe=success`,
       cancel_url: `${origin}/pricing?stripe=cancel`,
-
-      // ✅ CLAVE para amarrar pago ↔ usuario (esto te estaba llegando null)
       client_reference_id: userId,
-
-      // ✅ Útil para backups y debugging
-      metadata: { user_id: userId, plan: planKey },
+      metadata: {
+        user_id: userId,
+        plan: planName,
+        ...(tenantId ? { tenant_id: tenantId } : {}),
+      },
     });
 
     return NextResponse.json({ url: session.url });
