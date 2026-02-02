@@ -48,7 +48,7 @@ export default function PricingPage() {
       }
 
       // 2. Llamar a tu API dinámica (el archivo route.ts que me pasaste antes)
-      const response = await fetch('/api/stripe/checkout', {
+      const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
