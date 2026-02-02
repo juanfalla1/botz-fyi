@@ -333,7 +333,7 @@ if (subError) {
       {/* HEADER */}
       <div style={{ textAlign: "center", padding: "60px 20px 40px" }}>
         <h1 style={{ fontSize: "42px", fontWeight: "800", marginBottom: "16px", background: "linear-gradient(90deg, #fff, #94a3b8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          Automatiza tu Inmobiliaria.<br />Cierra más ventas.
+          Automatiza tus leds.<br />Cierra más ventas.
         </h1>
         <p style={{ fontSize: "16px", color: "#64748b", maxWidth: "600px", margin: "0 auto 40px" }}>
           Deja que nuestra Inteligencia Artificial pre-califique a tus clientes, calcule hipotecas y organice tu agenda las 24 horas del día.

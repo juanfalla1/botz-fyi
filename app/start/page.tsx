@@ -18,6 +18,9 @@ import KanbanBoard from "./components/KanbanBoard";
 import SLAControlCenter from "./components/SLAControlCenter";
 import { supabase } from "./components/supabaseClient";
 import AuthModal from "./components/AuthModal";
+import ChatBot from "@/components/ChatBot";
+
+
 
 
 import { 
@@ -393,6 +396,8 @@ export default function BotzLandingExperience() {
       globalFilter={globalFilter ?? undefined}
       setGlobalFilter={setGlobalFilter}
       botzProps={botzProps as any}
+      
+      
     >
       {/* ✅ Modal de auth SOLO para usuarios no logueados */}
       <AuthModal
@@ -400,6 +405,8 @@ export default function BotzLandingExperience() {
         onClose={() => setOpenAuth(false)}
         onLoggedIn={() => setOpenAuth(false)}
       />
+      <ChatBot />
+
       {activeTab === "demo" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%", paddingBottom: "20px", overflowX: "hidden", overflowY: "auto" }}>
           
