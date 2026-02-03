@@ -164,12 +164,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("🔍 Buscando suscripción para usuario:", userId);
 
       const { data, error } = await supabase
-        .from("subscriptions")
-        .select("*")
-        .eq("user_id", userId)
-        .in("status", ["active", "trialing"])
-        .order("created_at", { ascending: false })
-        .limit(1);
+  .from("subscriptions")
+  .select("*")
+  .eq("user_id", userId)
+  .in("status", ["active", "trialing"])
+  .order("created_at", { ascending: false })
+  .limit(1);
+
+if (error) {
+  console.error("❌ Error al buscar suscripción:", error);
+  return null;
+}
+
+const subscription = data?.[0] ?? null; // <-- aquí tienes la suscripción o null
+
+        
+        
 
       if (error) {
         console.error("❌ Error al buscar suscripción:", error);
