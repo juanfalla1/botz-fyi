@@ -64,7 +64,8 @@ const PLAN_FEATURES: Record<string, string[]> = {
   free: ["demo"],
 
   // ✅ Cualquier plan pagado: todo habilitado
-  Básico: ALL_FEATURES,
+  "Básico": ALL_FEATURES,
+  "Basico": ALL_FEATURES,   // ✅ AGREGA ESTA LÍNEA
   Growth: ALL_FEATURES,
   "A la Medida": ALL_FEATURES,
   Enterprise: ALL_FEATURES,
@@ -80,6 +81,7 @@ const FEATURE_MIN_PLAN: Record<string, string> = {
   sla: "A la Medida",
   kanban: "Growth",
 };
+
 
 // Labels amigables para las features
 const FEATURE_LABELS: Record<string, string> = {
@@ -437,7 +439,12 @@ const FeatureLockedModal = ({
   };
 
   // Features que incluye el plan requerido
-  const planFeatures = PLAN_FEATURES[requiredPlan] || [];
+  const planKey = String(requiredPlan || "").trim();
+const normalizedPlan =
+  planKey === "Basico" || planKey === "Básico" ? "Basico" : planKey;
+
+const planFeatures = PLAN_FEATURES[normalizedPlan] || PLAN_FEATURES["free"] || [];
+
 
   return (
     <div

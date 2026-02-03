@@ -29,8 +29,18 @@ export default function PricingPage() {
   const [showModal, setShowModal] = useState(false);
   const [modalStep, setModalStep] = useState<"register" | "checkout">("register");
   const [selectedPlan, setSelectedPlan] = useState("");
-  const handlePayWithStripe = async () => {
-    if (!selectedPlan) {
+
+  // ✅ Normaliza el nombre del plan (UI) a una key estable para Stripe
+  const getPlanKey = (planName: string) => {
+    const s = String(planName || "").trim().toLowerCase();
+    if (s === "basic" || s === "básico" || s === "basico" || s.includes("básico") || s.includes("basico")) return "basic";
+    if (s === "growth" || s.includes("growth")) return "growth";
+    return "";
+  };
+  const handlePayWithStripe = async (planName?: string) => {
+    const planToPay = planName ?? selectedPlan;
+    const planKey = getPlanKey(planToPay);
+    if (!planKey) {
       alert("Selecciona un plan válido antes de pagar.");
       return;
     }
@@ -52,8 +62,12 @@ export default function PricingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          planName: selectedPlan,
-          userId: user.id, // <--- Aquí pasamos el ID vital para Supabase
+          // ✅ Mantengo planName por compatibilidad, pero el backend debe usar "plan"
+          plan: planKey,
+          planName: planToPay,
+          billing: isAnnual ? "year" : "month",
+          userId: user.id, // <--- ID vital para Supabase
+          email: user.email,
         }),
       });
 
@@ -126,8 +140,17 @@ export default function PricingPage() {
     checkUser();
   }, []);
 
-  const handleOpenModal = (planName: string) => {
+  const handleOpenModal = async (planName: string) => {
     setSelectedPlan(planName);
+
+    // ✅ Si ya está logueado, NO muestres modal viejo: manda directo a Stripe
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await handlePayWithStripe(planName);
+      return;
+    }
+
+    // Si NO está logueado, abre SOLO el modal de registro/login
     setModalStep("register");
     setShowModal(true);
   };
@@ -226,7 +249,21 @@ export default function PricingPage() {
       setRegisterLoading(false);
     } else {
       setRegisterLoading(false);
-      setModalStep("checkout");
+      try {
+        // ✅ Intentar iniciar sesión para obtener userId y pagar con Stripe
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) {
+          alert("Cuenta creada. Inicia sesión para continuar con el pago.");
+          setShowModal(false);
+          return;
+        }
+
+        setShowModal(false);
+        await handlePayWithStripe(selectedPlan);
+      } catch (err: any) {
+        console.warn("Error post-registro:", err?.message || err);
+        setShowModal(false);
+      }
     }
   };
 
@@ -533,7 +570,7 @@ if (subError) {
               {modalStep === "register" && (
                 <div style={{ padding: "40px" }}>
                     <div style={{ textAlign: "center", marginBottom: "30px" }}>
-                        <div style={{ fontSize: "11px", color: "#22d3ee", fontWeight: "800", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px" }}>PASO 1 DE 2</div>
+                        <div style={{ fontSize: "11px", color: "#22d3ee", fontWeight: "800", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px" }}>PASO 1 DE 1</div>
                         <h2 style={{ fontSize: "28px", fontWeight: "bold", color: "#fff", margin: 0 }}>Crea tu cuenta</h2>
                         <p style={{ fontSize: "15px", color: "#94a3b8", marginTop: "8px" }}>Para contratar <strong style={{ color: "#fff" }}>Plan {selectedPlan}</strong></p>
                     </div>
@@ -552,81 +589,40 @@ if (subError) {
                         <input type="text" placeholder="Nombre Completo" value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
                         <input type="email" placeholder="Correo Electrónico" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
                         <input type="password" placeholder="Crear Contraseña" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
-                        <button type="submit" disabled={registerLoading} style={{ marginTop: "8px", width: "100%", padding: "16px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #22d3ee 0%, #3b82f6 100%)", color: "#fff", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>{registerLoading ? "Cargando..." : "Continuar al Pago →"}</button>
+                        <button type="submit" disabled={registerLoading} style={{ marginTop: "8px", width: "100%", padding: "16px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #22d3ee 0%, #3b82f6 100%)", color: "#fff", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>{registerLoading ? "Cargando..." : "Continuar a Stripe →"}</button>
                     </form>
                 </div>
               )}
 
               {modalStep === "checkout" && (
-                <div style={{ display: "flex", flexDirection: "row", flexWrap: "wrap", background: "#1e293b", borderRadius: "24px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.08)" }}>
-                    {/* Resumen (Izq) */}
-                    <div style={{ flex: "1 1 300px", padding: "40px", background: "#172033", borderRight: "1px solid rgba(255,255,255,0.05)" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "30px", color: "#22d3ee" }}>
-                            <ShieldCheck size={20} />
-                            <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "bold", color: "#fff" }}>Resumen del Pedido</h3>
-                        </div>
-                        <div style={{ marginBottom: "30px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "4px" }}>
-                                <span style={{ fontSize: "18px", fontWeight: "bold", color: "#fff" }}>Plan {selectedPlan}</span>
-                                <span style={{ fontSize: "18px", fontWeight: "bold", color: "#fff" }}>${getPlanPrice()}</span>
-                            </div>
-                            <div style={{ fontSize: "14px", color: "#94a3b8" }}>{isAnnual ? "Suscripción Anual" : "Suscripción Mensual"}</div>
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "12px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "20px", marginBottom: "20px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8", fontSize: "14px" }}><span>Subtotal</span><span>${getPlanPrice()}</span></div>
-                            <div style={{ display: "flex", justifyContent: "space-between", color: "#94a3b8", fontSize: "14px" }}><span>Impuestos</span><span>$0.00</span></div>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "20px", marginBottom: "40px" }}>
-                            <span style={{ fontSize: "16px", fontWeight: "bold", color: "#fff" }}>Total a Pagar</span>
-                            <span style={{ fontSize: "32px", fontWeight: "900", color: "#22d3ee" }}>${getPlanPrice()}</span>
-                        </div>
-                        <div style={{ background: "rgba(15, 23, 42, 0.6)", border: "1px solid rgba(34, 211, 238, 0.2)", borderRadius: "16px", padding: "20px", display: "flex", gap: "16px" }}>
-                            <div style={{ color: "#22d3ee", flexShrink: 0 }}><ShieldCheck size={24} /></div>
-                            <div>
-                                <div style={{ fontSize: "14px", fontWeight: "bold", color: "#fff", marginBottom: "4px" }}>Garantía de 7 días</div>
-                                <div style={{ fontSize: "13px", color: "#94a3b8", lineHeight: "1.4" }}>Si no estás satisfecho con la herramienta, te devolvemos el 100% de tu dinero sin preguntas.</div>
-                            </div>
-                        </div>
-                    </div>
+                <div style={{ padding: "40px", background: "#1e293b", borderRadius: "24px", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: "11px", color: "#64748b", letterSpacing: "1px", marginBottom: "8px" }}>REDIRIGIENDO</div>
+                    <h2 style={{ fontSize: "28px", fontWeight: "bold", color: "#fff", margin: 0 }}>Te llevamos a Stripe</h2>
+                    <p style={{ fontSize: "15px", color: "#94a3b8", marginTop: "10px" }}>
+                      Ya no usamos el formulario viejo. El pago se hace en Stripe Checkout.
+                    </p>
 
-                    {/* Formulario (Der) */}
-                    <div style={{ flex: "1.2 1 300px", padding: "40px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "30px" }}>
-                            <CreditCard size={22} color="#fff" />
-                            <h3 style={{ margin: 0, fontSize: "20px", fontWeight: "bold", color: "#fff" }}>Detalles de Pago</h3>
-                        </div>
-                        <form onSubmit={handlePayment} style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                            <div>
-                                <label style={labelStyle}>TITULAR DE LA TARJETA</label>
-                                <input type="text" placeholder="Nombre como aparece en la tarjeta" value={cardName} onChange={e => setCardName(e.target.value)} style={inputStyle} />
-                            </div>
-                            <div>
-                                <label style={labelStyle}>NÚMERO DE TARJETA</label>
-                                <div style={{ position: "relative" }}>
-                                    <input type="text" placeholder="0000 0000 0000 0000" value={cardNumber} onChange={e => setCardNumber(e.target.value)} style={{...inputStyle, paddingRight: "40px", fontFamily: "monospace", letterSpacing: "2px"}} />
-                                    <div style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }}><Lock size={16} /></div>
-                                </div>
-                            </div>
-                            <div style={{ display: "flex", gap: "20px" }}>
-                                <div style={{ flex: 1 }}>
-                                    <label style={labelStyle}>EXPIRACIÓN</label>
-                                    <input type="text" placeholder="MM/AA" value={expiry} onChange={e => setExpiry(e.target.value)} style={{...inputStyle, textAlign: "center"}} />
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <label style={labelStyle}>CVC</label>
-                                    <input type="text" placeholder="123" value={cvc} onChange={e => setCvc(e.target.value)} style={{...inputStyle, textAlign: "center"}} />
-                                </div>
-                            </div>
-                            <button type="button"
-  disabled={paymentLoading}
-  onClick={handlePayWithStripe}
-  style={{ marginTop: "10px", width: "100%", padding: "16px", borderRadius: "10px", background: "#22d3ee", border: "none", color: "#000", fontWeight: "bold", fontSize: "16px", cursor: "pointer", boxShadow: "0 4px 14px 0 rgba(34, 211, 238, 0.39)" }}>{paymentLoading ? "Procesando..." : `Pagar $${getPlanPrice()}`}</button>
-                            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "6px", color: "#64748b", fontSize: "12px", marginTop: "10px" }}>
-                                <Lock size={12} color="#10b981" />
-                                <span>Pagos seguros encriptados con SSL de 256-bits.</span>
-                            </div>
-                        </form>
-                    </div>
+                    <button
+                      onClick={() => handlePayWithStripe(selectedPlan)}
+                      disabled={paymentLoading}
+                      style={{
+                        marginTop: "18px",
+                        width: "100%",
+                        padding: "16px",
+                        borderRadius: "12px",
+                        background: "#22d3ee",
+                        border: "none",
+                        color: "#000",
+                        fontWeight: "bold",
+                        fontSize: "16px",
+                        cursor: "pointer",
+                        boxShadow: "0 4px 14px 0 rgba(34, 211, 238, 0.39)",
+                      }}
+                    >
+                      {paymentLoading ? "Procesando..." : `Continuar a Stripe ($${getPlanPrice()})`}
+                    </button>
+                  </div>
                 </div>
               )}
             </motion.div>

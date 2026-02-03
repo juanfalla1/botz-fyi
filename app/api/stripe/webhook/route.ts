@@ -2,121 +2,73 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
-// ✅ Stripe client
-function getStripe() {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error("Missing STRIPE_SECRET_KEY");
-  return new Stripe(key);
-}
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string // ✅ SOLO BACKEND
 );
 
-// ✅ CORREGIDO: Agregar AMBOS precios con nombres correctos
-function planFromPriceId(priceId?: string | null) {
-  if (!priceId) return null;
-  const map: Record<string, string> = {
-    "price_1SvQCC2a7HFRxbhS1TZEjL2C": "Basico",  // ✅ Con mayúscula
-    "price_1SvQFf2a7HFRxbhSCH1sla5T": "Growth",  // ✅ Agregado
-  };
-  return map[priceId] ?? null;
-}
-
-// ✅ GET para testing
-export async function GET() {
-  return NextResponse.json({ ok: true, route: "/api/stripe/webhook" });
-}
-
 export async function POST(req: Request) {
+  const sig = req.headers.get("stripe-signature");
+  if (!sig) {
+    return NextResponse.json({ error: "NO_SIGNATURE" }, { status: 400 });
+  }
+
+  const rawBody = await req.text();
+
+  let event: Stripe.Event;
   try {
-    const stripe = getStripe();
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET as string
+    );
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
+  }
 
-    const sig = req.headers.get("stripe-signature");
-    if (!sig) {
-      console.error("❌ Missing stripe-signature header");
-      return NextResponse.json({ error: "Missing stripe-signature" }, { status: 400 });
-    }
-
-    const rawBody = Buffer.from(await req.arrayBuffer());
-
-    const whsec = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!whsec) {
-      console.error("❌ Missing STRIPE_WEBHOOK_SECRET env var");
-      return NextResponse.json({ error: "Missing STRIPE_WEBHOOK_SECRET" }, { status: 500 });
-    }
-
-    const event = stripe.webhooks.constructEvent(rawBody, sig, whsec);
-    
-    console.log("✅ Webhook received:", event.type);
-
+  try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
 
-      const userId = session.client_reference_id || session.metadata?.user_id || null;
-      if (!userId) {
-        console.error("❌ NO_USER_ID in session:", session.id);
-        return NextResponse.json({ received: true, warning: "NO_USER_ID" });
-      }
+      const userId = session.metadata?.userId || session.client_reference_id || "";
+      const plan = session.metadata?.plan || "";
+      const billing = session.metadata?.billing || "month";
 
-      const subId = typeof session.subscription === "string" ? session.subscription : null;
-      if (!subId) {
-        console.error("❌ NO_SUBSCRIPTION in session:", session.id);
-        return NextResponse.json({ received: true, warning: "NO_SUBSCRIPTION" });
-      }
+      const customerId =
+        typeof session.customer === "string" ? session.customer : null;
 
-      const sub = await stripe.subscriptions.retrieve(subId, {
-        expand: ["items.data.price"],
-      });
+      const subscriptionId =
+        typeof session.subscription === "string" ? session.subscription : null;
 
-      const item = sub.items.data[0];
-      const priceId = (item?.price?.id as string) ?? null;
-      
-      console.log("📋 Price ID:", priceId);
-
-      const plan = planFromPriceId(priceId) || session.metadata?.plan || "Basico";
-      const billing_cycle = item?.price?.recurring?.interval ?? "month";
-
-      console.log("💾 Saving subscription:", {
-        user_id: userId,
-        plan,
-        price: priceId,
-        billing_cycle,
-        status: sub.status,
-      });
-
-      const { data, error } = await supabaseAdmin
-        .from("subscriptions")
-        .upsert(
+      if (userId && plan) {
+        const { data, error } = await supabase.from("subscriptions").upsert(
           {
             user_id: userId,
             plan,
-            price: priceId,
-            billing_cycle,
-            status: sub.status,
+            billing,
+            status: "active",
+            stripe_customer_id: customerId,
+            stripe_subscription_id: subscriptionId,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "user_id" }
-        )
-        .select();
+        );
 
-      if (error) {
-        console.error("❌ Supabase error:", error);
-        throw error;
+        if (error) {
+          console.log("❌ Supabase upsert error:", error);
+        } else {
+          console.log("✅ Subscription saved:", data);
+        }
       }
-
-      console.log("✅ Subscription saved:", data);
-
-      return NextResponse.json({ received: true, subscription: data });
     }
 
     return NextResponse.json({ received: true });
   } catch (e: any) {
-    console.error("❌ Webhook error:", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json(
+      { error: e?.message || "WEBHOOK_ERROR" },
+      { status: 500 }
+    );
   }
 }
