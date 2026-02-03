@@ -1,11 +1,6 @@
-// next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Si no necesitas opciones, deja "serverActions" como objeto vacío
-  experimental: {
-    serverActions: {}, // <- antes era true
-  },
-
+  // Quitamos 'experimental' porque serverActions ya es estándar y aquí causa error
   images: {
     remotePatterns: [
       {
@@ -18,9 +13,6 @@ const nextConfig = {
       },
     ],
   },
-
-  // Opcional: evita que un warning de lint/ts te rompa el build en Vercel
-  // (no cambia el runtime)
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
 };
