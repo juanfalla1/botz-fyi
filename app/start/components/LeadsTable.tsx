@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "./supabaseClient";
 import LeadDetailsDrawer from "./LeadDetailsDrawer";
@@ -52,20 +52,32 @@ export interface Lead {
 }
 
 export default function LeadsTable({
-  initialLeads = [],
+  initialLeads,
   session,
   globalFilter,
+  onLeadPatch,
 }: {
   initialLeads: Lead[];
   session: any;
   globalFilter?: string | null;
+ onLeadPatch?: ((..._args: any[]) => void) | undefined;
+
+
 }) {
+
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("TODOS");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+  // =========================
+  // ✅ PAGINACIÓN DE VISTA (UI)
+  // =========================
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+
 
   const safeLeads = leads || [];
 
@@ -325,9 +337,37 @@ export default function LeadsTable({
     return matchesSearch && matchesStatus && matchesDate && matchesGlobal;
   });
 
+  // =========================
+  // ✅ PAGINACIÓN (solo vista, NO filtra data)
+  // =========================
+  const totalFiltered = filteredLeads.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const safePage = Math.min(page, totalPages);
+
+  const pageStart = (safePage - 1) * pageSize;
+  const pageEnd = pageStart + pageSize;
+  const paginatedLeads = filteredLeads.slice(pageStart, pageEnd);
+
+  useEffect(() => {
+    // Si cambian filtros/búsqueda, vuelve a la primera página
+    setPage(1);
+  }, [searchTerm, statusFilter, startDate, endDate, globalFilter]);
+
+  useEffect(() => {
+    // Si la página actual queda fuera del rango (por cambio de tamaño/filtros), ajusta
+    if (page > totalPages) setPage(totalPages);
+  }, [totalPages]);
+
+
   const handleUpdate = async (id: string, field: string, value: string) => {
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, [field]: value } : l)));
-    const { error } = await supabase.from("leads").update({ [field]: value }).eq("id", id);
+    const cleanValue =
+    field === "status"
+      ? String(value || "NUEVO").trim().toUpperCase().replace(/\s+/g, "_")
+      : value;
+
+  setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, [field]: cleanValue } : l)));
+  onLeadPatch?.(id, { [field]: cleanValue } as any);
+  const { error } = await supabase.from("leads").update({ [field]: cleanValue }).eq("id", id);
     if (error) console.error("Error saving:", error);
 
     if (field === "status" || field === "calificacion" || field === "next_action") {
@@ -541,6 +581,18 @@ export default function LeadsTable({
               <option value="NO INTERESADO" style={{ background: "#0f172a", color: "#f87171" }}>
                 🔴 No interesado
               </option>
+              <option value="CONTACTADO" style={{ background: "#0f172a", color: "#a78bfa" }}>
+  🟣 Contactado
+</option>
+
+<option value="SEGUNDO_CONTACTO" style={{ background: "#0f172a", color: "#f59e0b" }}>
+  🟠 Segundo Contacto
+</option>
+
+<option value="DOCUMENTACIÓN" style={{ background: "#0f172a", color: "#fde047" }}>
+  🟡 Documentación
+</option>
+
             </select>
 
             <div style={{ display: "flex", gap: "5px" }}>
@@ -650,7 +702,7 @@ export default function LeadsTable({
 
         <div style={{ display: "flex", gap: "16px", marginBottom: "16px", fontSize: "12px", color: "#64748b", alignItems: "center" }}>
           <span>
-            Mostrando <strong style={{ color: "#22d3ee" }}>{filteredLeads.length}</strong> de {safeLeads.length} leads
+            Mostrando <strong style={{ color: "#22d3ee" }}>{paginatedLeads.length}</strong> de {filteredLeads.length} leads
           </span>
           {(statusFilter !== "TODOS" || globalFilter) && (
             <button type="button"
@@ -684,7 +736,7 @@ export default function LeadsTable({
               </tr>
             </thead>
             <tbody>
-              {filteredLeads.map((lead) => {
+              {paginatedLeads.map((lead) => {
                 const cleanStatus = normalizeStatus(lead.status);
                 const statusStyles = getStatusColor(cleanStatus);
                 const calificacionStyles = getCalificacionColor(lead.calificacion);
@@ -793,6 +845,14 @@ export default function LeadsTable({
                         <option value="CONVERTIDO" style={{ background: "#0f172a" }}>🟢 CONVERTIDO</option>
                         <option value="FIRMADO" style={{ background: "#0f172a" }}>🟢 FIRMADO</option>
                         <option value="NO CONVERTIDO" style={{ background: "#0f172a" }}>🔴 NO CONVERTIDO</option>
+                        <option value="CONTACTADO" style={{ background: "#0f172a" }}>🟣 CONTACTADO</option>
+                        <option value="SEGUNDO_CONTACTO" style={{ background: "#0f172a" }}>🟠 SEGUNDO CONTACTO</option>
+                        <option value="DOCUMENTACIÓN" style={{ background: "#0f172a" }}>🟡 DOCUMENTACIÓN</option>
+                        <option value="NO_INTERESADO" style={{ background: "#0f172a" }}>
+  🟦 NO INTERESADO
+</option>
+
+
                       </select>
                     </td>
 
@@ -868,6 +928,85 @@ export default function LeadsTable({
               })}
             </tbody>
           </table>
+
+          {/* ========================= */}
+          {/* ✅ CONTROLES DE PAGINACIÓN */}
+          {/* ========================= */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "12px",
+              marginTop: "14px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#94a3b8", fontSize: "12px" }}>
+              <span>Filas por página:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(parseInt(e.target.value, 10))}
+                style={{
+                  background: "rgba(30, 41, 59, 0.5)",
+                  border: "1px solid rgba(71, 85, 105, 0.5)",
+                  padding: "8px 10px",
+                  borderRadius: "10px",
+                  color: "#fff",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
+
+              <span style={{ opacity: 0.9 }}>
+                Página <strong style={{ color: "#22d3ee" }}>{safePage}</strong> de {totalPages}
+              </span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+                style={{
+                  background: "rgba(30, 41, 59, 0.5)",
+                  border: "1px solid rgba(71, 85, 105, 0.5)",
+                  padding: "8px 12px",
+                  borderRadius: "10px",
+                  color: "#fff",
+                  cursor: safePage <= 1 ? "not-allowed" : "pointer",
+                  opacity: safePage <= 1 ? 0.5 : 1,
+                  fontWeight: 700,
+                  fontSize: "12px",
+                }}
+              >
+                Anterior
+              </button>
+
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                style={{
+                  background: "rgba(30, 41, 59, 0.5)",
+                  border: "1px solid rgba(71, 85, 105, 0.5)",
+                  padding: "8px 12px",
+                  borderRadius: "10px",
+                  color: "#fff",
+                  cursor: safePage >= totalPages ? "not-allowed" : "pointer",
+                  opacity: safePage >= totalPages ? 0.5 : 1,
+                  fontWeight: 700,
+                  fontSize: "12px",
+                }}
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+
 
           {filteredLeads.length === 0 && (
             <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
@@ -1082,6 +1221,10 @@ export default function LeadsTable({
                       <option value="CONVERTIDO" style={{ background: "#0f172a" }}>🟢 CONVERTIDO</option>
                       <option value="FIRMADO" style={{ background: "#0f172a" }}>🟢 FIRMADO</option>
                       <option value="NO CONVERTIDO" style={{ background: "#0f172a" }}>🔴 NO CONVERTIDO</option>
+                      <option value="CONTACTADO" style={{ background: "#0f172a" }}>🟣 CONTACTADO</option>
+                      <option value="SEGUNDO_CONTACTO" style={{ background: "#0f172a" }}>🟠 SEGUNDO CONTACTO</option>
+                      <option value="DOCUMENTACIÓN" style={{ background: "#0f172a" }}>🟡 DOCUMENTACIÓN</option>
+
                     </select>
                   </div>
 

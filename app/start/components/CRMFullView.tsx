@@ -104,6 +104,37 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
   const [activeConfigTab, setActiveConfigTab] = useState("canales");
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
 
+
+  // ✅ FIX: traer TODOS los registros (evita límite ~1000) sin cambiar el diseño
+  const fetchAllByUser = async (table: string, userId: string) => {
+    const pageSize = 500;
+    let from = 0;
+    let all: any[] = [];
+
+    while (true) {
+      const to = from + pageSize - 1;
+
+      const { data, error } = await supabase
+        .from(table)
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+
+      all = all.concat(data);
+
+      // si la página trae menos que el tamaño, ya no hay más
+      if (data.length < pageSize) break;
+
+      from += pageSize;
+    }
+
+    return all;
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -111,8 +142,8 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
       setSession(session);
 
       if (session) {
-        const { data: leadsData } = await supabase.from("leads").select("*").eq("user_id", session.user.id);
-        const { data: trackerData } = await supabase.from("demo_tracker_botz").select("*").eq("user_id", session.user.id);
+        const leadsData = await fetchAllByUser("leads", session.user.id);
+        const trackerData = await fetchAllByUser("demo_tracker_botz", session.user.id);
 
         const normalize = (arr: any[], source: string) => arr.map((l) => {
             let rawOrigin = l.origen || l.source || l.channel;
@@ -299,7 +330,7 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={statusData} layout="vertical">
               <XAxis type="number" hide />
-              <YAxis dataKey="name" type="category" width={80} stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+              <YAxis dataKey="name" type="category" width={110} stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
               <Tooltip content={<CustomTooltip />} />
               <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}>
                 {statusData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
@@ -310,11 +341,17 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
       </div>
 
       {/* ✅ SE PASA EL FILTRO A LA TABLA */}
-      <LeadsTable 
-        initialLeads={leads} 
-        session={session} 
-        globalFilter={globalFilter}
-      />
+    <LeadsTable
+  initialLeads={leads}
+  session={session}
+  globalFilter={globalFilter}
+  onLeadPatch={(id, patch) => {
+    setLeads((prev: any[]) =>
+      prev.map((l: any) => (String(l.id) === String(id) ? { ...l, ...patch } : l))
+    );
+  }}
+/>
+
 
       {/* ✅ MODAL CONFIGURACIÓN CON PERSISTENCIA */}
       {showConfig && (
