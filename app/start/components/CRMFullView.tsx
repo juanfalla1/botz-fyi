@@ -153,7 +153,7 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
             return {
                 ...l,
                 sourceTable: source,
-                status: l.status || "nuevo",
+                status: (String(l.status || "new").toLowerCase() === "nuevo" ? "new" : (l.status || "new")),
                 created_at: l.created_at || new Date().toISOString(),
                 origen: String(rawOrigin).trim()
             };
