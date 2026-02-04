@@ -213,7 +213,7 @@ const Header = () => {
                 className="stelar-btn-short"
                 onClick={closeMenu}
               >
-                <Sparkles size={14} style={{marginRight: '6px'}} /> Sotfware CRM Hipotecario
+                <Sparkles size={14} style={{marginRight: '6px'}} /> Botztera
               </Link>
             </nav>
           </div>
