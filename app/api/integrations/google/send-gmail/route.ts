@@ -8,14 +8,16 @@ function isUuid(v: string) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    // ✅ CAMBIO: Permitir tenant_id null
     const tenant_id = body?.tenant_id && String(body.tenant_id).trim() !== "" 
       ? String(body.tenant_id).trim() 
       : null;
     const user_id = String(body?.user_id || "").trim();
     const integration_id = String(body?.integration_id || "").trim();
+    const to = String(body?.to || "").trim();
+    const subject = String(body?.subject || "").trim();
+    const email_body = String(body?.body || "").trim();
 
-    // ✅ CAMBIO: Solo validar user_id e integration_id como obligatorios
+    // Validar campos obligatorios
     if (!isUuid(user_id) || !isUuid(integration_id)) {
       return NextResponse.json(
         { ok: false, error: "INVALID_INPUT", details: "user_id o integration_id inválidos" },
@@ -23,10 +25,16 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ CAMBIO: Si tenant_id existe, validar que sea UUID válido
     if (tenant_id !== null && !isUuid(tenant_id)) {
       return NextResponse.json(
         { ok: false, error: "INVALID_INPUT", details: "tenant_id debe ser UUID válido o null" },
+        { status: 400 }
+      );
+    }
+
+    if (!to || !subject || !email_body) {
+      return NextResponse.json(
+        { ok: false, error: "INVALID_INPUT", details: "to, subject y body son obligatorios" },
         { status: 400 }
       );
     }
@@ -53,7 +61,7 @@ export async function POST(req: Request) {
       auth: { persistSession: false },
     });
 
-    // 1) Obtener la integración (sin filtrar por tenant_id del request)
+    // 1) Obtener la integración
     const { data: integ, error: integErr } = await supabase
       .from("integrations")
       .select("id, tenant_id, user_id, provider, channel_type, status, credentials")
@@ -84,11 +92,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ USAR EL tenant_id DE LA BD, no del request
-    const db_tenant_id = integ.tenant_id;
-
     const creds = (integ.credentials || {}) as any;
-
     let access_token: string | null = creds.access_token || null;
     const refresh_token: string | null = creds.refresh_token || null;
     const expires_at = creds.expires_at ? Number(creds.expires_at) : null;
@@ -131,7 +135,6 @@ export async function POST(req: Request) {
       const expires_in = Number(tokenJson.expires_in || 3600);
       const new_expires_at = now + expires_in;
 
-      // Actualizar token
       const newCreds = {
         ...creds,
         access_token,
@@ -146,115 +149,57 @@ export async function POST(req: Request) {
         .eq("id", integration_id);
     }
 
-    // 3) Obtener mensajes de Gmail (últimos 50)
-    const gmailRes = await fetch(
-      "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=50&labelIds=INBOX",
+    // 3) Construir el email en formato RFC 2822 con todos los headers necesarios
+    const emailLines = [
+      `From: me`,
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: text/plain; charset=utf-8`,
+      `Content-Transfer-Encoding: 7bit`,
+      ``,
+      email_body,
+    ];
+    const rawEmail = emailLines.join("\r\n");
+    
+    // Convertir a base64url (sin padding, sin +, sin /)
+    const base64Email = Buffer.from(rawEmail)
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+
+    // 4) Enviar el email usando Gmail API
+    const sendRes = await fetch(
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
       {
-        headers: { Authorization: `Bearer ${access_token}` },
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          raw: base64Email,
+        }),
       }
     );
 
-    const gmailJson = await gmailRes.json();
+    const sendJson = await sendRes.json();
 
-    if (!gmailRes.ok) {
+    if (!sendRes.ok) {
+      console.error("Gmail send error:", sendJson);
       return NextResponse.json(
-        { ok: false, error: "GMAIL_API_FAILED", details: gmailJson },
+        { 
+          ok: false, 
+          error: "GMAIL_SEND_FAILED", 
+          details: sendJson,
+          gmail_error: sendJson.error?.message || JSON.stringify(sendJson)
+        },
         { status: 502 }
       );
     }
 
-    const messages = gmailJson.messages || [];
-    const savedEmails: any[] = [];
-
-    // 4) Por cada mensaje, obtener los detalles y guardarlo en Supabase
-    for (const msg of messages.slice(0, 20)) {
-      try {
-        const detailRes = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
-          {
-            headers: { Authorization: `Bearer ${access_token}` },
-          }
-        );
-
-        const detail = await detailRes.json();
-
-        if (!detailRes.ok) continue;
-
-        // Extraer headers
-        const headers = detail.payload?.headers || [];
-        const subject = headers.find((h: any) => h.name === "Subject")?.value || "(Sin asunto)";
-        const from = headers.find((h: any) => h.name === "From")?.value || "";
-        const to = headers.find((h: any) => h.name === "To")?.value || "";
-        const date = headers.find((h: any) => h.name === "Date")?.value || "";
-
-        // Extraer cuerpo (snippet o body)
-        let bodyContent = detail.snippet || "";
-        
-        // Intentar obtener el body completo
-        if (detail.payload?.parts) {
-          const textPart = detail.payload.parts.find((p: any) => p.mimeType === "text/plain");
-          if (textPart?.body?.data) {
-            bodyContent = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
-          }
-        } else if (detail.payload?.body?.data) {
-          bodyContent = Buffer.from(detail.payload.body.data, 'base64').toString('utf-8');
-        }
-
-        // 5) Guardar en la tabla email_messages con las columnas correctas
-        // ✅ Buscar duplicados usando el tenant_id de la BD
-        let existingQuery = supabase
-          .from("email_messages")
-          .select("id")
-          .eq("provider_message_id", msg.id)
-          .eq("user_id", user_id);
-
-        // Filtrar por tenant_id si existe en la BD
-        if (db_tenant_id !== null) {
-          existingQuery = existingQuery.eq("tenant_id", db_tenant_id);
-        } else {
-          existingQuery = existingQuery.is("tenant_id", null);
-        }
-
-        const { data: existing } = await existingQuery.maybeSingle();
-
-        if (!existing) {
-          const { data: inserted, error: insertErr } = await supabase
-            .from("email_messages")
-            .insert({
-              tenant_id: db_tenant_id,
-              user_id,
-              integration_id,
-              provider: "gmail",
-              external_id: msg.id,  // ✅ AGREGAR: ID externo del mensaje
-              provider_message_id: msg.id,
-              thread_id: detail.threadId || null,
-              provider_thread_id: detail.threadId || null,
-              from_email: from,
-              to_email: to,
-              subject,
-              snippet: detail.snippet || "",
-              body_text: bodyContent,
-              received_at: date ? new Date(date).toISOString() : new Date().toISOString(),
-              sent_at: date ? new Date(date).toISOString() : new Date().toISOString(),
-              has_attachments: false,
-              raw: detail,
-            })
-            .select()
-            .single();
-
-          if (!insertErr && inserted) {
-            savedEmails.push(inserted);
-          } else if (insertErr) {
-            console.error("Error insertando email:", insertErr);
-          }
-        }
-      } catch (err) {
-        console.error("Error procesando mensaje:", err);
-        continue;
-      }
-    }
-
-    // 6) Actualizar last_activity de la integración
+    // 5) Actualizar last_activity
     await supabase
       .from("integrations")
       .update({ last_activity: new Date().toISOString() })
@@ -262,12 +207,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      tenant_id: db_tenant_id,  // ✅ Retornar el tenant_id de la BD
-      user_id,
-      integration_id,
-      messages_found: messages.length,
-      emails_saved: savedEmails.length,
-      emails: savedEmails,
+      message_id: sendJson.id,
+      thread_id: sendJson.threadId,
+      to,
+      subject,
     });
   } catch (e: any) {
     return NextResponse.json(

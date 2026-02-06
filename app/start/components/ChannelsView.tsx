@@ -162,6 +162,16 @@ export default function ChannelsView({
   const [emailsLoading, setEmailsLoading] = useState(false);
   const [emailsError, setEmailsError] = useState<string | null>(null);
   const [emailsByIntegration, setEmailsByIntegration] = useState<Record<string, ChannelItem["emails"]>>({});
+  
+  // 🔥 NUEVO: Estados para ver detalle y responder
+  const [selectedEmail, setSelectedEmail] = useState<ChannelItem["emails"][0] | null>(null);
+  const [replyModal, setReplyModal] = useState<{
+    open: boolean;
+    to: string;
+    subject: string;
+    body: string;
+  }>({ open: false, to: "", subject: "", body: "" });
+  const [sendingReply, setSendingReply] = useState(false);
 
 
   // ✅ FUNCIÓN ACTUALIZADA: Sincroniza emails desde Gmail y luego los lee
@@ -256,6 +266,63 @@ try {
       setEmailsError(err.message || "Error desconocido");
     } finally {
       setEmailsLoading(false);
+    }
+  };
+
+  // 🔥 NUEVO: Función para enviar respuesta
+  const handleSendReply = async () => {
+    if (!replyModal.to || !replyModal.subject || !replyModal.body) {
+      pushNotice("error", "Por favor completa todos los campos");
+      return;
+    }
+
+    if (!selected.integrationId) {
+      pushNotice("error", "No hay integración de Gmail");
+      return;
+    }
+
+    try {
+      setSendingReply(true);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+      const tenantId =
+        (user?.user_metadata as any)?.tenant_id ||
+        (user?.app_metadata as any)?.tenant_id ||
+        null;
+
+      const response = await fetch("/api/integrations/google/send-gmail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: tenantId,
+          user_id: userId,
+          integration_id: selected.integrationId,
+          to: replyModal.to,
+          subject: replyModal.subject,
+          body: replyModal.body,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Error al enviar email");
+      }
+
+      pushNotice("success", "✅ Email enviado correctamente");
+      setReplyModal({ open: false, to: "", subject: "", body: "" });
+      setSelectedEmail(null);
+
+      // Recargar emails
+      if (selected.integrationId) {
+        loadEmails(selected.integrationId);
+      }
+    } catch (error: any) {
+      console.error("❌ Error enviando email:", error);
+      pushNotice("error", `Error: ${error.message}`);
+    } finally {
+      setSendingReply(false);
     }
   };
 
@@ -1444,7 +1511,7 @@ if (gmailId) await loadEmails(gmailId);
                   fontSize: "11px",
                   marginLeft: "auto",
                 }}
-                onClick={() => pushNotice("info", `Ver email: ${email.subject}`)}
+                onClick={() => setSelectedEmail(email)}
               >
                 <Eye size={12} /> Ver email
               </button>
@@ -2777,6 +2844,268 @@ if (gmailId) await loadEmails(gmailId);
           animation: spin 1s linear infinite;
         }
       `}</style>
+
+      {/* 🔥 MODAL: Detalle de Email */}
+      {selectedEmail && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 10000,
+            background: "rgba(0,0,0,0.8)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            animation: "fadeIn 0.2s",
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedEmail(null);
+            }
+          }}
+        >
+          <div
+            style={{
+              background: "#1e293b",
+              borderRadius: "24px",
+              padding: "32px",
+              maxWidth: "700px",
+              width: "90%",
+              maxHeight: "80vh",
+              overflow: "auto",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+              <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#fff" }}>
+                {selectedEmail.subject}
+              </h3>
+              <button
+                onClick={() => setSelectedEmail(null)}
+                style={{
+                  ...miniBtn,
+                  padding: "8px",
+                  background: "rgba(255,255,255,0.1)",
+                  color: "#fff",
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: "24px", paddingBottom: "16px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+              <div style={{ color: "#94a3b8", fontSize: "13px", marginBottom: "8px" }}>
+                <strong>De:</strong> {selectedEmail.from}
+              </div>
+              <div style={{ color: "#94a3b8", fontSize: "13px" }}>
+                <strong>Fecha:</strong> {selectedEmail.timestamp}
+              </div>
+            </div>
+
+            <div style={{ 
+              background: "rgba(255,255,255,0.03)", 
+              padding: "20px", 
+              borderRadius: "12px", 
+              marginBottom: "24px",
+              color: "#cbd5e1",
+              fontSize: "14px",
+              lineHeight: "1.6"
+            }}>
+              {selectedEmail.preview}
+            </div>
+
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                onClick={() => {
+                  setReplyModal({
+                    open: true,
+                    to: selectedEmail.from,
+                    subject: `Re: ${selectedEmail.subject}`,
+                    body: "",
+                  });
+                  setSelectedEmail(null);
+                }}
+                style={{
+                  ...miniBtn,
+                  background: "#3b82f6",
+                  color: "#fff",
+                  flex: 1,
+                }}
+              >
+                <Mail size={16} />
+                Responder
+              </button>
+              <button
+                onClick={() => setSelectedEmail(null)}
+                style={{
+                  ...miniBtn,
+                  background: "rgba(255,255,255,0.1)",
+                  color: "#fff",
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔥 MODAL: Responder Email */}
+      {replyModal.open && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 10000,
+            background: "rgba(0,0,0,0.8)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            animation: "fadeIn 0.2s",
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setReplyModal({ open: false, to: "", subject: "", body: "" });
+            }
+          }}
+        >
+          <div
+            style={{
+              background: "#1e293b",
+              borderRadius: "24px",
+              padding: "32px",
+              maxWidth: "600px",
+              width: "90%",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+              <h3 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>
+                Responder Email
+              </h3>
+              <button
+                onClick={() => setReplyModal({ open: false, to: "", subject: "", body: "" })}
+                style={{
+                  ...miniBtn,
+                  padding: "8px",
+                  background: "rgba(255,255,255,0.1)",
+                  color: "#fff",
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div>
+                <label style={{ display: "block", color: "#94a3b8", fontSize: "13px", marginBottom: "8px", fontWeight: 600 }}>
+                  Para:
+                </label>
+                <input
+                  type="email"
+                  value={replyModal.to}
+                  onChange={(e) => setReplyModal({ ...replyModal, to: e.target.value })}
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px",
+                    borderRadius: "12px",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "14px",
+                    outline: "none",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", color: "#94a3b8", fontSize: "13px", marginBottom: "8px", fontWeight: 600 }}>
+                  Asunto:
+                </label>
+                <input
+                  type="text"
+                  value={replyModal.subject}
+                  onChange={(e) => setReplyModal({ ...replyModal, subject: e.target.value })}
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px",
+                    borderRadius: "12px",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "14px",
+                    outline: "none",
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", color: "#94a3b8", fontSize: "13px", marginBottom: "8px", fontWeight: 600 }}>
+                  Mensaje:
+                </label>
+                <textarea
+                  value={replyModal.body}
+                  onChange={(e) => setReplyModal({ ...replyModal, body: e.target.value })}
+                  rows={8}
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px",
+                    borderRadius: "12px",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: "14px",
+                    outline: "none",
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "8px" }}>
+                <button
+                  onClick={() => setReplyModal({ open: false, to: "", subject: "", body: "" })}
+                  style={{
+                    ...miniBtn,
+                    background: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSendReply}
+                  disabled={sendingReply}
+                  style={{
+                    ...miniBtn,
+                    background: sendingReply ? "rgba(59,130,246,0.5)" : "#3b82f6",
+                    color: "#fff",
+                    cursor: sendingReply ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {sendingReply ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Mail size={16} />
+                      Enviar
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
