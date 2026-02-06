@@ -32,9 +32,17 @@ export async function POST(req: Request) {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
 
-      const userId = session.metadata?.userId || session.client_reference_id || "";
-      const plan = session.metadata?.plan || "";
-      const billing = session.metadata?.billing || "month";
+      // ✅ userId puede venir por metadata o por client_reference_id
+      const userId =
+        session.metadata?.userId || (session.client_reference_id ?? "");
+
+      const plan = session.metadata?.plan || "unknown";
+      const billing_cycle = session.metadata?.billing || "month";
+
+      if (!userId) {
+        console.log("❌ NO_USER_ID in session:", session.id);
+        return NextResponse.json({ received: true });
+      }
 
       const customerId =
         typeof session.customer === "string" ? session.customer : null;
@@ -42,25 +50,27 @@ export async function POST(req: Request) {
       const subscriptionId =
         typeof session.subscription === "string" ? session.subscription : null;
 
-      if (userId && plan) {
-        const { data, error } = await supabase.from("subscriptions").upsert(
-          {
-            user_id: userId,
-            plan,
-            billing,
-            status: "active",
-            stripe_customer_id: customerId,
-            stripe_subscription_id: subscriptionId,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" }
-        );
+      // Tu tabla tiene price TEXT (dejamos string)
+      const price = String(session.amount_total ?? "");
 
-        if (error) {
-          console.log("❌ Supabase upsert error:", error);
-        } else {
-          console.log("✅ Subscription saved:", data);
-        }
+      const { error } = await supabase.from("subscriptions").upsert(
+        {
+          user_id: userId,
+          plan,
+          price,
+          billing_cycle,
+          status: "active",
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscriptionId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" } // ✅ REQUIERE user_id UNIQUE
+      );
+
+      if (error) {
+        console.log("❌ Supabase upsert error:", error);
+      } else {
+        console.log("✅ Subscription saved for user_id:", userId);
       }
     }
 
