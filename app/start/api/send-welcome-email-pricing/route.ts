@@ -7,7 +7,10 @@ export async function POST(req: NextRequest) {
     const { to, userName, plan } = await req.json();
 
     if (!to) {
-      return NextResponse.json({ error: "Falta 'to' (email del cliente)" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Falta 'to' (email del cliente)" },
+        { status: 400 }
+      );
     }
 
     const host = process.env.ZOHO_HOST;
@@ -16,11 +19,14 @@ export async function POST(req: NextRequest) {
     const pass = process.env.ZOHO_APP_PASSWORD;
     const from = process.env.MAIL_FROM || (user ? `Botz <${user}>` : undefined);
 
-    const onboardingUrl = process.env.ONBOARDING_URL_PRICING; // ✅ la nueva que ya pusiste
+    const onboardingUrl = process.env.ONBOARDING_URL_PRICING;
 
     if (!host || !user || !pass || !from) {
       return NextResponse.json(
-        { error: "Faltan variables SMTP (ZOHO_HOST/ZOHO_PORT/ZOHO_USER/ZOHO_APP_PASSWORD/MAIL_FROM)" },
+        {
+          error:
+            "Faltan variables SMTP (ZOHO_HOST/ZOHO_PORT/ZOHO_USER/ZOHO_APP_PASSWORD/MAIL_FROM)",
+        },
         { status: 500 }
       );
     }
@@ -49,24 +55,31 @@ export async function POST(req: NextRequest) {
                   📅 Agendar sesión virtual
                 </a>
               </p>`
-            : `<p style="color:#b91c1c"><b>Falta ONBOARDING_URL_PRICING</b> en .env.local</p>`
+            : `<p style="color:#b91c1c"><b>Falta ONBOARDING_URL_PRICING</b> en el .env</p>`
         }
 
-        <hr/>
-        <p style="color:#6b7280;font-size:12px">Botz · info@botz.fyi</p>
+        <hr />
+        <p style="font-size:12px;color:#6b7280">
+          Si no solicitaste esto, puedes ignorar este mensaje.
+        </p>
       </div>
     `;
+
+    const bccTo = process.env.MAIL_TO || "info@botz.fyi";
 
     await transporter.sendMail({
       from,
       to,
       subject,
       html,
-      bcc: process.env.MAIL_TO || undefined,
+      bcc: bccTo || undefined,
     });
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
-    return NextResponse.json({ error: "Error interno", detail: e?.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Error interno", detail: e?.message },
+      { status: 500 }
+    );
   }
 }

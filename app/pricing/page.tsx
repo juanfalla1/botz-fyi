@@ -57,7 +57,16 @@ export default function PricingPage() {
         return;
       }
 
-      // 2. Llamar a tu API dinámica (el archivo route.ts que me pasaste antes)
+      // 2. Obtener o crear tenant_id
+      let tenantId = user.user_metadata?.tenant_id;
+      if (!tenantId) {
+        tenantId = crypto.randomUUID();
+        await supabase.auth.updateUser({
+          data: { tenant_id: tenantId }
+        });
+      }
+
+      // 3. Llamar a tu API dinámica (el archivo route.ts que me pasaste antes)
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -68,6 +77,7 @@ export default function PricingPage() {
           billing: isAnnual ? "year" : "month",
           userId: user.id, // <--- ID vital para Supabase
           email: user.email,
+          tenant_id: tenantId, // <--- tenant_id para n8n
         }),
       });
 
@@ -138,6 +148,21 @@ export default function PricingPage() {
       }
     };
     checkUser();
+  }, []);
+
+  // Crear tenant_id para usuarios de Google
+  useEffect(() => {
+    const handleGoogleCallback = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && user.app_metadata?.provider === 'google' && !user.user_metadata?.tenant_id) {
+        const tenantId = crypto.randomUUID();
+        await supabase.auth.updateUser({
+          data: { tenant_id: tenantId }
+        });
+        console.log('✅ tenant_id creado para usuario de Google:', tenantId);
+      }
+    };
+    handleGoogleCallback();
   }, []);
 
   const handleOpenModal = async (planName: string) => {
@@ -238,10 +263,13 @@ export default function PricingPage() {
     e.preventDefault();
     setRegisterLoading(true);
 
+    // Generar tenant_id único
+    const tenantId = crypto.randomUUID();
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: name, plan_intento: selectedPlan } }
+      options: { data: { full_name: name, plan_intento: selectedPlan, tenant_id: tenantId } }
     });
 
     if (error) {
