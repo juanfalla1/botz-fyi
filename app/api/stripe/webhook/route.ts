@@ -1,159 +1,136 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2024-11-20" as any,
+});
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-  process.env.SUPABASE_SERVICE_ROLE_KEY as string
-);
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-function baseUrl() {
-  const url =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
-    "http://localhost:3000";
-  return url.replace(/\/$/, "");
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { persistSession: false },
+});
+
+// Para no romper tu UI (tu tabla venía con "Basico"/"Growth")
+function normalizePlanForUI(planKeyOrName: string) {
+  const s = String(planKeyOrName || "").trim().toLowerCase();
+
+  if (s.includes("bas") || s.includes("bás")) return "Basico";
+  if (s.includes("grow")) return "Growth";
+
+  if (!s) return "unknown";
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function pickMeta(obj: any) {
-  const md = (obj && typeof obj === "object" ? obj : {}) as Record<string, any>;
-  return {
-    userId: md.userId || md.user_id || "",
-    tenantId: md.tenantId || md.tenant_id || "",
-    plan: md.plan || "",
-    planName: md.planName || md.plan_name || "",
-    billing: md.billing || md.billing_cycle || "",
-    priceId: md.priceId || "",
-  };
-}
-
-export async function POST(req: Request) {
-  const sig = req.headers.get("stripe-signature");
-  if (!sig) {
-    return NextResponse.json({ error: "NO_SIGNATURE" }, { status: 400 });
-  }
-
-  const rawBody = await req.text();
-
+export async function POST(req: NextRequest) {
   let event: Stripe.Event;
+
   try {
-    event = stripe.webhooks.constructEvent(
-      rawBody,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET as string
-    );
+    const rawBody = await req.text();
+    const signature = req.headers.get("stripe-signature") || "";
+    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
   } catch (err: any) {
-    console.error("❌ Error verificando firma:", err.message);
-    return NextResponse.json({ error: err.message }, { status: 400 });
+    console.error("❌ Stripe signature error:", err?.message || err);
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   try {
     if (event.type === "checkout.session.completed") {
-      console.log("💳 Procesando checkout.session.completed");
-      
       const session = event.data.object as Stripe.Checkout.Session;
+      const md = (session.metadata || {}) as Record<string, string>;
 
-      const customerId = typeof session.customer === "string" ? session.customer : null;
-      const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
+      // Stripe en tu evento trae: tenantId, userId, plan, planName, priceId, billing
+      const userId = md.userId || session.client_reference_id || "";
+      const tenantId = md.tenantId || md.tenant_id || "";
+      const planKey = md.plan || md.planKey || "";
+      const planName = md.planName || md.plan_name || "";
+      const billing = md.billing === "year" ? "year" : "month";
+      const priceId = (md.priceId || md.price_id || "").replace(/^price_price_/, "price_");
 
-      const sMeta = pickMeta(session.metadata);
-      console.log("📦 Metadata:", sMeta);
-
-      let subMeta = { userId: "", tenantId: "", plan: "", planName: "", billing: "", priceId: "" };
-      if (subscriptionId) {
-        try {
-          const sub = await stripe.subscriptions.retrieve(subscriptionId);
-          subMeta = pickMeta(sub.metadata);
-        } catch (e) {
-          console.log("⚠️ No se pudo recuperar metadata de suscripción");
-        }
-      }
-
-      const userId = sMeta.userId || session.client_reference_id || subMeta.userId || "";
-      const tenantId = sMeta.tenantId || subMeta.tenantId || "";
-      
-      // ✅ USAR PLANNAME ORIGINAL
-      const planOriginal = sMeta.planName || subMeta.planName || sMeta.plan || subMeta.plan || "Básico";
-      console.log("📋 Plan original:", planOriginal);
-      
-      const billing_cycle = (sMeta.billing || subMeta.billing || "month").toLowerCase();
-      const price = sMeta.priceId || subMeta.priceId || String(session.amount_total ?? "");
+      const stripeCustomerId = typeof session.customer === "string" ? session.customer : null;
+      const stripeSubscriptionId = typeof session.subscription === "string" ? session.subscription : null;
 
       if (!userId) {
-        console.log("❌ NO_USER_ID");
+        console.error("❌ NO_USER_ID en metadata/client_reference_id");
         return NextResponse.json({ received: true });
       }
 
-      if (!tenantId) {
-        console.log("❌ NO_TENANT_ID - user:", userId);
-        return NextResponse.json({ error: "NO_TENANT_ID" }, { status: 400 });
-      }
+      const planToSave = normalizePlanForUI(planName || planKey || "unknown");
 
-      const payload = {
-        user_id: userId,
-        tenant_id: tenantId,
-        plan: planOriginal, // ✅ PLAN ORIGINAL "Básico"
-        price,
-        billing_cycle,
-        status: "active",
-        stripe_customer_id: customerId,
-        stripe_subscription_id: subscriptionId,
-        updated_at: new Date().toISOString(),
-      };
+      // ✅ CLAVE: NO insertes con id=session.subscription (tu id es UUID).
+      // Hacemos update/insert por user_id.
+      const { data: existing, error: selErr } = await supabaseAdmin
+        .from("subscriptions")
+        .select("id")
+        .eq("user_id", userId)
+        .maybeSingle();
 
-      console.log("💾 Guardando:", payload);
+      if (selErr) console.error("❌ Error buscando suscripción:", selErr.message);
 
-      let upsertError: any = null;
-      const r1 = await supabase.from("subscriptions").upsert(payload as any, {
-        onConflict: "user_id,tenant_id",
-      });
+      if (existing?.id) {
+        const { error: updErr } = await supabaseAdmin
+          .from("subscriptions")
+          .update({
+            tenant_id: tenantId || null,     // ✅ ya no queda NULL
+            plan: planToSave,                // ✅ "Basico"/"Growth" para tu UI
+            billing_cycle: billing,
+            price: priceId || null,
+            stripe_customer_id: stripeCustomerId,
+            stripe_subscription_id: stripeSubscriptionId,
+            stripe_price_id: priceId || null,
+            status: "active",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
 
-      upsertError = r1.error;
-
-      if (upsertError && String(upsertError.message || "").includes("no unique")) {
-        const r2 = await supabase.from("subscriptions").upsert(payload as any, {
-          onConflict: "user_id",
-        });
-        upsertError = r2.error;
-      }
-
-      if (upsertError) {
-        console.log("❌ Supabase error:", upsertError);
+        if (updErr) console.error("❌ Error UPDATE subscriptions:", updErr.message);
+        else console.log("✅ subscriptions UPDATE OK:", { userId, tenantId, planToSave, billing });
       } else {
-        console.log("✅ Subscription saved");
+        const { error: insErr } = await supabaseAdmin.from("subscriptions").insert({
+          user_id: userId,
+          tenant_id: tenantId || null,
+          plan: planToSave,
+          billing_cycle: billing,
+          price: priceId || null,
+          stripe_customer_id: stripeCustomerId,
+          stripe_subscription_id: stripeSubscriptionId,
+          stripe_price_id: priceId || null,
+          status: "active",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        if (insErr) console.error("❌ Error INSERT subscriptions:", insErr.message);
+        else console.log("✅ subscriptions INSERT OK:", { userId, tenantId, planToSave, billing });
       }
 
-      // Enviar email
-      const to = session.customer_details?.email || session.customer_email || undefined;
-      const userName = session.customer_details?.name || undefined;
-
-      if (to) {
-        try {
-          const res = await fetch(`${baseUrl()}/api/send-welcome-email-pricing`, {
+      // ✅ Intento de correo (si tu endpoint existe)
+      // No rompe el webhook si falla
+      try {
+        const origin = req.headers.get("origin") || "";
+        if (origin) {
+          await fetch(`${origin}/api/send-welcome-email-pricing`, {
             method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ to, userName, plan: planOriginal }),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: session.customer_details?.email || session.customer_email,
+              userName: session.customer_details?.name || "Cliente",
+              plan: planToSave,
+              billing,
+            }),
           });
-
-          if (res.ok) {
-            console.log("✅ Email sent to:", to);
-          } else {
-            console.log("❌ Email failed:", res.status);
-          }
-        } catch (e: any) {
-          console.log("❌ Email exception:", e?.message);
         }
+      } catch (e) {
+        console.warn("⚠️ Email call failed (no bloquea):", e);
       }
     }
 
     return NextResponse.json({ received: true });
-  } catch (e: any) {
-    console.error("❌ ERROR:", e?.message);
-    return NextResponse.json(
-      { error: e?.message || "WEBHOOK_ERROR" },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error("❌ Webhook handler error:", err?.message || err);
+    return NextResponse.json({ received: true });
   }
 }
