@@ -213,7 +213,7 @@ const Header = () => {
                 className="stelar-btn-short"
                 onClick={closeMenu}
               >
-                <Sparkles size={14} style={{marginRight: '6px'}} /> Botztera
+                <Sparkles size={14} style={{marginRight: '6px'}} /> Qualibotz
               </Link>
             </nav>
           </div>

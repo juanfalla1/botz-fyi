@@ -11,5 +11,7 @@ const supabaseKey = envKey || "placeholder-key";
 // 3. Creamos el cliente (NO lo borramos, solo lo comentamos)
 // export const supabase = createClient(supabaseUrl, supabaseKey);
 
-// ✅ Usar el único cliente global
+// ✅ Usar el único cliente global (app/supabaseClient.ts)
 export { supabase } from "../../supabaseClient";
+
+
