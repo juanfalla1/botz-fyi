@@ -45,12 +45,24 @@ export default function KanbanBoard({ globalFilter }: { globalFilter?: string | 
   const [historyLead, setHistoryLead] = useState<Lead | null>(null);
   const [leadLogs, setLeadLogs] = useState<any[]>([]);
 
-  // 1. CARGAR DATOS
-  useEffect(() => { fetchLeads(false); }, [globalFilter]);
+  // 1. CARGAR DATOS (filtrado por tenant_id)
+  const [tenantId, setTenantId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const getTenant = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const tid = session?.user?.user_metadata?.tenant_id || session?.user?.app_metadata?.tenant_id || null;
+      setTenantId(tid);
+    };
+    getTenant();
+  }, []);
+
+  useEffect(() => { if (tenantId) fetchLeads(false); }, [globalFilter, tenantId]);
 
   const fetchLeads = async (silent: boolean) => {
     if (!silent) setLoading(true);
     let query = supabase.from("leads").select("*");
+    if (tenantId) query = query.eq("tenant_id", tenantId);
     if (globalFilter) query = query.or(`source.ilike.%${globalFilter}%,origen.ilike.%${globalFilter}%`);
     const { data } = await query;
     if (data) setLeads(data as Lead[]);
