@@ -1,10 +1,14 @@
 import "./styles/globals.css";
 import CookieBanner from "./components/CookieBanner";
 import Header from "./components/Header";
+import type { Metadata } from "next";
+
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
+export const metadata: Metadata = {
+
+
   title: "botz - Automatización Inteligente",
   description:
     "Botz transforma la productividad empresarial con inteligencia artificial: agentes autónomos, predicciones precisas y dashboards en tiempo real que optimizan procesos y ahorran recursos.",
@@ -159,6 +163,22 @@ export default function RootLayout({
         />
       </head>
       <body>
+        {/* ✅ Redirect recovery hash (/#access_token=...&type=recovery) -> /auth/reset#... */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                try {
+                  var h = window.location.hash || "";
+                  if (h.includes("access_token=") && h.includes("type=recovery")) {
+                    window.location.replace("/auth/reset" + h);
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+
         <Header />
         {children}
         <CookieBanner />
@@ -166,8 +186,6 @@ export default function RootLayout({
     </html>
   );
 }
-
-
 
 
 

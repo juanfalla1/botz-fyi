@@ -41,7 +41,7 @@ import {
   Home,
 } from "lucide-react";
 import { supabase } from "../supabaseClient"; // Ajusta la ruta según tu proyecto
-import AuthModal from "./AuthModal"; // ✅ AJUSTA ESTA RUTA si tu AuthModal está en otro lugar
+import AuthModal from "./components/AuthModal";
 import ActionsDock from "./components/ActionsDock"; // Ajusta la ruta según tu estructura
 
 // ============================================================================
