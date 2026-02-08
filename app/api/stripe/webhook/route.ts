@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import nodemailer from "nodemailer";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-11-20" as any,
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -14,123 +13,219 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { persistSession: false },
 });
 
-// Para no romper tu UI (tu tabla venía con "Basico"/"Growth")
-function normalizePlanForUI(planKeyOrName: string) {
-  const s = String(planKeyOrName || "").trim().toLowerCase();
+function normalizePlanForDb(meta: any) {
+  const planName = String(meta?.planName ?? "").trim();
+  const planKey = String(meta?.plan ?? "").trim().toLowerCase();
+  if (["basic", "basico", "básico"].includes(planKey) || /basi/i.test(planName)) return "Basico";
+  return "Growth";
+}
 
-  if (s.includes("bas") || s.includes("bás")) return "Basico";
-  if (s.includes("grow")) return "Growth";
+function normalizeBilling(meta: any): "month" | "year" {
+  const b = String(meta?.billing ?? meta?.billing_cycle ?? "").toLowerCase();
+  return b === "year" || b === "annual" ? "year" : "month";
+}
 
-  if (!s) return "unknown";
-  return s.charAt(0).toUpperCase() + s.slice(1);
+async function sendWelcomeEmailPricing(params: { to: string; userName?: string; plan?: string }) {
+  try {
+    const host = process.env.ZOHO_HOST;
+    const port = Number(process.env.ZOHO_PORT || 465);
+    const user = process.env.ZOHO_USER;
+    const pass = process.env.ZOHO_APP_PASSWORD;
+    const from = process.env.MAIL_FROM || (user ? `Botz <${user}>` : undefined);
+
+    const onboardingUrl = process.env.ONBOARDING_URL_PRICING;
+    const bccTo = process.env.MAIL_TO || "info@botz.fyi";
+
+    if (!host || !user || !pass || !from) {
+      console.error(
+        "❌ Faltan variables SMTP:",
+        "ZOHO_HOST/ZOHO_PORT/ZOHO_USER/ZOHO_APP_PASSWORD/MAIL_FROM"
+      );
+      return { ok: false };
+    }
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+    });
+
+    const subject = `🎉 ¡Bienvenido a Botz${params.userName ? `, ${params.userName}` : ""}!`;
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;background:#f4f4f4;padding:24px">
+        <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden">
+          <div style="background:linear-gradient(135deg,#667eea,#764ba2);padding:28px;text-align:center">
+            <h2 style="color:#fff;margin:0">🎉 ¡Bienvenido a Botz!</h2>
+          </div>
+          <div style="padding:24px">
+            <p style="margin:0 0 12px 0">Hola <b>${params.userName || ""}</b>,</p>
+            <p style="margin:0 0 12px 0">
+              Tu suscripción al <b>Plan ${params.plan || "Básico"}</b> está activa.
+            </p>
+            <p style="margin:0 0 16px 0"><b>Siguiente paso:</b> agenda tu sesión virtual para empezar las integraciones.</p>
+
+            ${
+              onboardingUrl
+                ? `<p style="text-align:center;margin:22px 0">
+                    <a href="${onboardingUrl}"
+                       style="display:inline-block;padding:12px 18px;background:#111827;color:#fff;text-decoration:none;border-radius:10px">
+                      📅 Agendar sesión virtual
+                    </a>
+                   </p>`
+                : `<p style="color:#b91c1c"><b>⚠️ Falta ONBOARDING_URL_PRICING</b> en .env.local</p>`
+            }
+
+            <hr style="border:none;border-top:1px solid #eee;margin:18px 0" />
+            <p style="font-size:12px;color:#6b7280;margin:0">Si no solicitaste esto, puedes ignorar este mensaje.</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from,
+      to: params.to,
+      subject,
+      html,
+      bcc: bccTo || undefined,
+    });
+
+    console.log("✅ Email enviado a:", params.to, "| BCC:", bccTo);
+    return { ok: true };
+  } catch (e: any) {
+    console.error("❌ Error enviando email (webhook):", e?.message || e);
+    return { ok: false };
+  }
 }
 
 export async function POST(req: NextRequest) {
-  let event: Stripe.Event;
+  console.log(">>> WEBHOOK RECIBIDO");
 
+  const sig = req.headers.get("stripe-signature");
+  console.log(">>> Signature:", sig ? "presente" : "NO presente");
+
+  let event: Stripe.Event;
   try {
     const rawBody = await req.text();
-    const signature = req.headers.get("stripe-signature") || "";
-    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    console.log(">>> Body recibido, longitud:", rawBody.length);
+
+    event = stripe.webhooks.constructEvent(rawBody, sig as string, webhookSecret);
+    console.log(">>> Evento construido:", event.type);
   } catch (err: any) {
-    console.error("❌ Stripe signature error:", err?.message || err);
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    console.error("❌ Error construyendo evento:", err.message);
+    return NextResponse.json({ error: err?.message }, { status: 400 });
   }
 
   try {
     if (event.type === "checkout.session.completed") {
+      console.log(">>> Procesando checkout.session.completed");
+
       const session = event.data.object as Stripe.Checkout.Session;
-      const md = (session.metadata || {}) as Record<string, string>;
+      const meta = (session.metadata || {}) as Record<string, string>;
 
-      // Stripe en tu evento trae: tenantId, userId, plan, planName, priceId, billing
-      const userId = md.userId || session.client_reference_id || "";
-      const tenantId = md.tenantId || md.tenant_id || "";
-      const planKey = md.plan || md.planKey || "";
-      const planName = md.planName || md.plan_name || "";
-      const billing = md.billing === "year" ? "year" : "month";
-      const priceId = (md.priceId || md.price_id || "").replace(/^price_price_/, "price_");
+      const tenantId = String(meta.tenantId || meta.tenant_id || "");
+      const userId = String(meta.userId || "");
 
-      const stripeCustomerId = typeof session.customer === "string" ? session.customer : null;
-      const stripeSubscriptionId = typeof session.subscription === "string" ? session.subscription : null;
+      console.log(">>> tenantId:", tenantId);
+      console.log(">>> userId:", userId);
 
-      if (!userId) {
-        console.error("❌ NO_USER_ID en metadata/client_reference_id");
-        return NextResponse.json({ received: true });
+      if (!tenantId || !userId) {
+        console.error("❌ NO_TENANT_OR_USER");
+        return NextResponse.json({ received: true, warning: "MISSING_META" }, { status: 200 });
       }
 
-      const planToSave = normalizePlanForUI(planName || planKey || "unknown");
+      const billing_cycle = normalizeBilling(meta);
+      const plan = normalizePlanForDb(meta);
+      const priceId = String(meta.priceId || "");
 
-      // ✅ CLAVE: NO insertes con id=session.subscription (tu id es UUID).
-      // Hacemos update/insert por user_id.
-      const { data: existing, error: selErr } = await supabaseAdmin
+      const stripe_customer_id = session.customer
+        ? typeof session.customer === "string"
+          ? session.customer
+          : (session.customer as any).id
+        : null;
+
+      const stripe_subscription_id = session.subscription
+        ? typeof session.subscription === "string"
+          ? session.subscription
+          : (session.subscription as any).id
+        : null;
+
+      console.log(">>> stripe_customer_id:", stripe_customer_id);
+      console.log(">>> stripe_subscription_id:", stripe_subscription_id);
+
+      const payload = {
+        user_id: userId,
+        tenant_id: tenantId,
+        plan,
+        billing_cycle,
+        stripe_customer_id,
+        stripe_subscription_id,
+        stripe_price_id: priceId || null,
+        status: "active",
+        updated_at: new Date().toISOString(),
+      } as any;
+
+      // 1) Upsert principal por stripe_subscription_id
+      const { error: upsertError } = await supabaseAdmin
         .from("subscriptions")
-        .select("id")
-        .eq("user_id", userId)
-        .maybeSingle();
+        .upsert(payload, { onConflict: "stripe_subscription_id" });
 
-      if (selErr) console.error("❌ Error buscando suscripción:", selErr.message);
+      if (upsertError) {
+        console.error("❌ Error upsert:", upsertError);
 
-      if (existing?.id) {
-        const { error: updErr } = await supabaseAdmin
+        // 2) Fallback por user_id,tenant_id
+        const { error: fallbackErr } = await supabaseAdmin
           .from("subscriptions")
-          .update({
-            tenant_id: tenantId || null,     // ✅ ya no queda NULL
-            plan: planToSave,                // ✅ "Basico"/"Growth" para tu UI
-            billing_cycle: billing,
-            price: priceId || null,
-            stripe_customer_id: stripeCustomerId,
-            stripe_subscription_id: stripeSubscriptionId,
-            stripe_price_id: priceId || null,
-            status: "active",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existing.id);
+          .upsert(payload, { onConflict: "user_id,tenant_id" });
 
-        if (updErr) console.error("❌ Error UPDATE subscriptions:", updErr.message);
-        else console.log("✅ subscriptions UPDATE OK:", { userId, tenantId, planToSave, billing });
+        if (fallbackErr) {
+          console.error("❌ Fallback error:", fallbackErr);
+          throw fallbackErr;
+        } else {
+          console.log("✅ Guardado con fallback");
+        }
       } else {
-        const { error: insErr } = await supabaseAdmin.from("subscriptions").insert({
-          user_id: userId,
-          tenant_id: tenantId || null,
-          plan: planToSave,
-          billing_cycle: billing,
-          price: priceId || null,
-          stripe_customer_id: stripeCustomerId,
-          stripe_subscription_id: stripeSubscriptionId,
-          stripe_price_id: priceId || null,
-          status: "active",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-
-        if (insErr) console.error("❌ Error INSERT subscriptions:", insErr.message);
-        else console.log("✅ subscriptions INSERT OK:", { userId, tenantId, planToSave, billing });
+        console.log("✅ Guardado correctamente");
       }
 
-      // ✅ Intento de correo (si tu endpoint existe)
-      // No rompe el webhook si falla
-      try {
-        const origin = req.headers.get("origin") || "";
-        if (origin) {
-          await fetch(`${origin}/api/send-welcome-email-pricing`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              to: session.customer_details?.email || session.customer_email,
-              userName: session.customer_details?.name || "Cliente",
-              plan: planToSave,
-              billing,
-            }),
-          });
+      // ✅ EMAIL DEL CLIENTE (con fallback real)
+      let to =
+        session.customer_details?.email ||
+        session.customer_email ||
+        meta.email ||
+        "";
+
+      if (!to && stripe_customer_id) {
+        try {
+          const customer = await stripe.customers.retrieve(stripe_customer_id);
+          if ((customer as any)?.email) to = String((customer as any).email);
+        } catch (e: any) {
+          console.error("⚠️ No pude obtener email desde customer:", e?.message || e);
         }
-      } catch (e) {
-        console.warn("⚠️ Email call failed (no bloquea):", e);
+      }
+
+      const userName =
+        session.customer_details?.name ||
+        meta.userName ||
+        undefined;
+
+      if (to) {
+        // ✅ No rompe webhook si falla
+        await sendWelcomeEmailPricing({
+          to,
+          userName,
+          plan,
+        });
+      } else {
+        console.error("⚠️ No hay email del cliente en Stripe (customer_details.email / customer_email / customer.email)");
       }
     }
 
-    return NextResponse.json({ received: true });
+    return NextResponse.json({ received: true }, { status: 200 });
   } catch (err: any) {
-    console.error("❌ Webhook handler error:", err?.message || err);
-    return NextResponse.json({ received: true });
+    console.error("❌ Error general:", err);
+    return NextResponse.json({ error: err?.message }, { status: 500 });
   }
 }
