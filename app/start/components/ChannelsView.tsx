@@ -40,6 +40,9 @@ import {
   Download,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
+import { WhatsAppConnectModal } from "./WhatsAppConnectModal";
+
+
 
 interface Integration {
   id: string;
@@ -140,6 +143,8 @@ export default function ChannelsView({
   const oauthPollRef = useRef<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<'channels' | 'messages' | 'emails'>('channels');
+  const [waModalOpen, setWaModalOpen] = useState(false);
+  const [waProvider, setWaProvider] = useState<"evolution" | "meta">("evolution");
 
   // Modal QR mejorado
   const [qrModal, setQrModal] = useState<{ 
@@ -164,7 +169,8 @@ export default function ChannelsView({
   const [emailsByIntegration, setEmailsByIntegration] = useState<Record<string, ChannelItem["emails"]>>({});
   
   // 🔥 NUEVO: Estados para ver detalle y responder
-  const [selectedEmail, setSelectedEmail] = useState<ChannelItem["emails"][0] | null>(null);
+  type EmailItem = NonNullable<ChannelItem["emails"]>[number];
+  const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null);
   const [replyModal, setReplyModal] = useState<{
     open: boolean;
     to: string;
@@ -172,6 +178,11 @@ export default function ChannelsView({
     body: string;
   }>({ open: false, to: "", subject: "", body: "" });
   const [sendingReply, setSendingReply] = useState(false);
+
+  // WhatsApp states
+  const [whatsappStatus, setWhatsappStatus] = useState<any>(null);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [tenantId, setTenantId] = useState<string>('');
 
 
   // ✅ FUNCIÓN ACTUALIZADA: Sincroniza emails desde Gmail y luego los lee
@@ -364,6 +375,7 @@ useEffect(() => {
   useEffect(() => {
     loadUserIntegrations();
     loadRecentActivity();
+    checkWhatsAppStatus();
   }, []);
 
   // -----------------------------
@@ -514,6 +526,57 @@ if (gmail?.id) await loadEmails(gmail.id);
   setRemoteEvents([]);
 }
 
+  };
+
+  // WhatsApp Functions
+  const checkWhatsAppStatus = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const tid = (user?.user_metadata as any)?.tenant_id || (user?.app_metadata as any)?.tenant_id;
+      if (!tid) return;
+
+      setTenantId(tid);
+
+      const response = await fetch(`/api/whatsapp/status/${tid}`);
+      const status = await response.json();
+      setWhatsappStatus(status);
+    } catch (error) {
+      console.error('Error checking WhatsApp status:', error);
+    }
+  };
+
+  const handleWhatsAppConnect = () => {
+    setShowWhatsAppModal(true);
+  };
+
+  const handleWhatsAppDisconnect = async () => {
+    if (!confirm('¿Desconectar WhatsApp?')) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const tenantId = (user?.user_metadata as any)?.tenant_id || (user?.app_metadata as any)?.tenant_id;
+      if (!tenantId) return;
+
+      const response = await fetch('/api/whatsapp/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenant_id: tenantId })
+      });
+
+      if (response.ok) {
+        await checkWhatsAppStatus();
+        setUiNotice({ type: "success", message: "WhatsApp desconectado correctamente" });
+      } else {
+        setUiNotice({ type: "error", message: "Error al desconectar WhatsApp" });
+      }
+    } catch (error) {
+      console.error('Error disconnecting WhatsApp:', error);
+      setUiNotice({ type: "error", message: "Error al desconectar WhatsApp" });
+    }
   };
 
   // Lista base de canales con datos demo
@@ -2038,6 +2101,130 @@ if (gmailId) await loadEmails(gmailId);
         </div>
       </div>
 
+      {/* WHATSAPP CARD */}
+      <div style={{
+        background: "linear-gradient(135deg, rgba(37, 211, 102, 0.1) 0%, rgba(0, 100, 50, 0.1) 100%)",
+        borderRadius: "20px",
+        padding: "24px",
+        border: "2px solid rgba(37, 211, 102, 0.3)",
+        marginTop: "-10px",
+        marginBottom: "20px"
+      }}>
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "20px"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <div style={{
+              width: "60px",
+              height: "60px",
+              borderRadius: "16px",
+              background: "rgba(37, 211, 102, 0.2)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "1px solid rgba(37, 211, 102, 0.3)"
+            }}>
+              <FaWhatsapp size={32} color="#25D366" />
+            </div>
+            <div>
+              <h3 style={{
+                fontSize: "20px",
+                fontWeight: "800",
+                color: "#fff",
+                marginBottom: "6px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px"
+              }}>
+                WhatsApp Business
+                {whatsappStatus?.connected && (
+                  <span style={{
+                    background: "rgba(34, 197, 94, 0.2)",
+                    color: "#22c55e",
+                    padding: "4px 12px",
+                    borderRadius: "999px",
+                    fontSize: "12px",
+                    fontWeight: "700",
+                    border: "1px solid rgba(34, 197, 94, 0.3)"
+                  }}>
+                    ✓ Conectado
+                  </span>
+                )}
+              </h3>
+              <p style={{ color: "#94a3b8", fontSize: "14px", margin: 0 }}>
+                {whatsappStatus?.connected 
+                  ? `${whatsappStatus.provider === 'meta' ? 'Meta Cloud API' : 'Evolution API'} • Activo desde ${whatsappStatus.connected_at ? new Date(whatsappStatus.connected_at).toLocaleDateString() : 'hoy'}`
+                  : "Conecta tu número de WhatsApp para automatizar respuestas"}
+              </p>
+            </div>
+          </div>
+          
+          <div style={{ display: "flex", gap: "12px" }}>
+            {whatsappStatus?.connected ? (
+              <>
+                <button
+                  onClick={handleWhatsAppDisconnect}
+                  style={{
+                    padding: "12px 24px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                    background: "rgba(239, 68, 68, 0.1)",
+                    color: "#ef4444",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"}
+                >
+                  <LogOut size={16} />
+                  Desconectar
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={handleWhatsAppConnect}
+                style={{
+                  padding: "14px 28px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(37, 211, 102, 0.4)",
+                  background: "linear-gradient(135deg, #25D366 0%, #128C7E 100%)",
+                  color: "#fff",
+                  fontWeight: "800",
+                  cursor: "pointer",
+                  fontSize: "15px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  transition: "all 0.3s",
+                  boxShadow: "0 4px 12px rgba(37, 211, 102, 0.3)"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 8px 20px rgba(37, 211, 102, 0.4)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(37, 211, 102, 0.3)";
+                }}
+              >
+                <QrCode size={18} />
+                Conectar WhatsApp
+                <ArrowRight size={18} />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* TABS PARA CAMBIAR VISTA - VISIBLES Y CLARAS */}
       <div style={{ 
         background: "rgba(10, 15, 30, 0.6)", 
@@ -2629,7 +2816,28 @@ if (gmailId) await loadEmails(gmailId);
                   .map((connector) => (
                     <button
                       key={connector.id}
-                      onClick={() => handleConnect(connector.id, connector.title)}
+                      onClick={() => {
+  const id = String(connector.id || "").toLowerCase();
+  const title = String(connector.title || "").toLowerCase();
+
+  // ✅ SOLO WhatsApp: decide si es Meta o Evolution
+  if (id.includes("whatsapp")) {
+    const isMeta =
+      id.includes("meta") ||
+      id.includes("business") ||
+      id.includes("api") ||
+      title.includes("business") ||
+      title.includes("api");
+
+    setWaProvider(isMeta ? "meta" : "evolution");
+    setWaModalOpen(true);
+    return; // ⛔ no ejecuta handleConnect para WhatsApp
+  }
+
+  // ✅ TODO lo demás (Gmail incluido) sigue igual
+  handleConnect(connector.id, connector.title);
+}}
+
                       disabled={connectBusy === connector.id}
                       style={{
                         width: "100%",
@@ -3105,6 +3313,16 @@ if (gmailId) await loadEmails(gmailId);
             </div>
           </div>
         </div>
+      )}
+
+      {/* WhatsApp Connect Modal */}
+      {showWhatsAppModal && (
+        <WhatsAppConnectModal
+          isOpen={showWhatsAppModal}
+          onClose={() => setShowWhatsAppModal(false)}
+          tenantId={tenantId}
+          onConnected={checkWhatsAppStatus}
+        />
       )}
     </div>
   );
