@@ -41,6 +41,8 @@ import {
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import { WhatsAppConnectModal } from "./WhatsAppConnectModal";
+import WhatsAppMetaConnectModal from "./WhatsAppMetaConnectModal";
+
 
 
 
@@ -125,6 +127,8 @@ export default function ChannelsView({
   const [connectError, setConnectError] = useState<string | null>(null);
   const [uiNotice, setUiNotice] = useState<{ type: "info" | "success" | "error"; message: string } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
+    
+    
     open: boolean;
     title?: string;
     description?: string;
@@ -143,8 +147,8 @@ export default function ChannelsView({
   const oauthPollRef = useRef<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<'channels' | 'messages' | 'emails'>('channels');
-  const [waModalOpen, setWaModalOpen] = useState(false);
-  const [waProvider, setWaProvider] = useState<"evolution" | "meta">("evolution");
+const [waProvider, setWaProvider] = useState<"evolution" | "meta">("evolution");
+  const [showMetaModal, setShowMetaModal] = useState(false);
 
   // Modal QR mejorado
   const [qrModal, setQrModal] = useState<{ 
@@ -548,7 +552,24 @@ if (gmail?.id) await loadEmails(gmail.id);
   };
 
   const handleWhatsAppConnect = () => {
-    setShowWhatsAppModal(true);
+    // ✅ En WhatsApp ofrecemos 2 formas: QR (Evolution) o Business API (Meta)
+    setConfirmModal({
+      open: true,
+      title: "Conectar WhatsApp",
+      description: "Elige el tipo de conexión:",
+      confirmText: "WhatsApp Business (Meta)",
+      cancelText: "QR (Evolution)",
+      onConfirm: () => {
+        setConfirmModal({ open: false });
+        setWaProvider("meta");
+        setShowMetaModal(true);
+      },
+      onCancel: () => {
+        setConfirmModal({ open: false });
+        setWaProvider("evolution");
+        setShowWhatsAppModal(true);
+      },
+    });
   };
 
   const handleWhatsAppDisconnect = async () => {
@@ -821,6 +842,36 @@ return channelSafe;
         window.location.href = `${baseUrl}/api/integrations/google/start?user_id=${userId}&tenant_id=${tenantId}`;
         return; // Detenemos la ejecución aquí para que redirija
       }
+
+           // ✅ META: abre modal en vez de QR
+      if (connectorId === "whatsapp_business") {
+        // Si no hay tenantId aún, intenta resolverlo desde subscriptions
+        let tid = tenantId;
+
+        if (!tid) {
+          const { data: sub } = await supabase
+            .from("subscriptions")
+            .select("tenant_id")
+            .eq("user_id", user.id)
+            .limit(1)
+            .maybeSingle();
+
+          tid = (sub as any)?.tenant_id || "";
+          if (tid) setTenantId(tid);
+        }
+
+        if (!tid) {
+          pushNotice("error", "No se encontró tenantId para conectar Meta");
+          setConnectError("No se encontró tenantId para conectar Meta");
+          setConnectBusy(null);
+          return;
+        }
+
+        setShowMetaModal(true);
+        setConnectBusy(null);
+        return;
+      }
+ 
       // ---------------------------------------------------------
 
       // Aquí sigue el resto de tu lógica para otros conectores.
@@ -2829,9 +2880,15 @@ if (gmailId) await loadEmails(gmailId);
       title.includes("business") ||
       title.includes("api");
 
+    // (opcional) guardamos provider para logging/estado
     setWaProvider(isMeta ? "meta" : "evolution");
-    setWaModalOpen(true);
-    return; // ⛔ no ejecuta handleConnect para WhatsApp
+
+    if (isMeta) {
+      setShowMetaModal(true); // ✅ abre modal Meta
+    } else {
+      setShowWhatsAppModal(true); // ✅ abre modal QR (Evolution)
+    }
+    return;
   }
 
   // ✅ TODO lo demás (Gmail incluido) sigue igual
@@ -3294,6 +3351,7 @@ if (gmailId) await loadEmails(gmailId);
                     ...miniBtn,
                     background: sendingReply ? "rgba(59,130,246,0.5)" : "#3b82f6",
                     color: "#fff",
+                  
                     cursor: sendingReply ? "not-allowed" : "pointer",
                   }}
                 >
@@ -3324,6 +3382,20 @@ if (gmailId) await loadEmails(gmailId);
           onConnected={checkWhatsAppStatus}
         />
       )}
+            {/* WhatsApp Meta Connect Modal */}
+      {showMetaModal && (
+        <WhatsAppMetaConnectModal
+          isOpen={showMetaModal}
+          onClose={() => setShowMetaModal(false)}
+          tenantId={tenantId}
+          onSaved={() => {
+            setShowMetaModal(false);
+            // opcional: refrescar para reflejar estado
+            window.location.reload();
+          }}
+        />
+      )}
+
     </div>
   );
 }
