@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 interface WhatsAppConnectModalProps {
   isOpen: boolean;
@@ -8,6 +9,15 @@ interface WhatsAppConnectModalProps {
   tenantId?: string | null;
   onConnected: () => void;
 }
+
+// ✅ Supabase client (browser)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
+
+const supabase =
+  supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : null;
 
 export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
   isOpen,
@@ -18,6 +28,9 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
   const [connectionData, setConnectionData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ✅ tenant resuelto desde DB si no viene por props
+  const [resolvedTenantId, setResolvedTenantId] = useState<string | null>(null);
 
   // ✅ para poder limpiar intervalos/timeouts al cerrar
   const pollingRef = useRef<number | null>(null);
@@ -30,19 +43,59 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
     return s.startsWith("tenant_") ? s.replace(/^tenant_/, "") : s;
   };
 
+  // ✅ Usa tenantId prop si viene, si no usa el resuelto
+  const getTenantId = () => {
+    const tid = normalizeTenantId(tenantId || resolvedTenantId);
+    return tid || "";
+  };
+
+  // ✅ Resuelve tenant_id desde subscriptions por user_id (solo si no viene por prop)
+  const resolveTenantFromSubscriptions = async (): Promise<string> => {
+    if (!supabase) return "";
+
+    const { data: auth } = await supabase.auth.getUser();
+    const userId = auth?.user?.id;
+    if (!userId) return "";
+
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("tenant_id")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+
+    const tid = normalizeTenantId(sub?.tenant_id);
+    return tid || "";
+  };
+
   useEffect(() => {
     if (isOpen) {
-      const tid = normalizeTenantId(tenantId);
-      if (!tid) {
-        setError("tenantId is required");
-        return;
-      }
-      initConnection();
+      (async () => {
+        setError(null);
+
+        // ✅ Si no viene tenantId por prop, lo buscamos en subscriptions
+        let tid = normalizeTenantId(tenantId);
+        if (!tid) {
+          tid = await resolveTenantFromSubscriptions();
+          if (tid) setResolvedTenantId(tid);
+        } else {
+          // si viene por props, lo guardamos también
+          setResolvedTenantId(tid);
+        }
+
+        if (!tid) {
+          setError("tenantId is required");
+          return;
+        }
+
+        initConnection(tid);
+      })();
     } else {
       stopPolling();
       setConnectionData(null);
       setError(null);
       setLoading(false);
+      setResolvedTenantId(null);
     }
 
     return () => stopPolling();
@@ -111,13 +164,18 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
     }, 250);
   };
 
-  const initConnection = async () => {
+  // ✅ Ahora recibe tid opcional (si no, usa getTenantId())
+  const initConnection = async (tidFromCall?: string) => {
     stopPolling();
     setLoading(true);
     setError(null);
 
     try {
-      const tid = normalizeTenantId(tenantId);
+      if (!supabase) {
+        throw new Error("Supabase env missing (NEXT_PUBLIC_SUPABASE_URL/ANON_KEY)");
+      }
+
+      const tid = normalizeTenantId(tidFromCall || getTenantId());
       if (!tid) throw new Error("tenantId is required");
 
       const response = await fetch("/api/whatsapp/connect", {
@@ -140,7 +198,7 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
       }
 
       if (data.connection_type === "qr") {
-        startPolling();
+        startPolling(tid);
       } else if (data.connection_type === "oauth") {
         window.location.href = data.auth_url;
       }
@@ -151,8 +209,8 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
     }
   };
 
-  const startPolling = () => {
-    const tid = normalizeTenantId(tenantId);
+  const startPolling = (tidFromCall?: string) => {
+    const tid = normalizeTenantId(tidFromCall || getTenantId());
     if (!tid) {
       setError("tenantId is required");
       return;
@@ -213,7 +271,7 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
         {error && (
           <div style={styles.center}>
             <p style={styles.error}>❌ Error: {error}</p>
-            <button style={styles.retryButton} onClick={initConnection}>
+            <button style={styles.retryButton} onClick={() => initConnection()}>
               Reintentar
             </button>
           </div>
