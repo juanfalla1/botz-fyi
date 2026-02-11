@@ -1,0 +1,92 @@
+[
+  {
+    "email": "contacto@lanueva.com.co",
+    "name": "Contacto La Nueva",
+    "type": "corredor",
+    "city": "Bogotá"
+  },
+  {
+    "email": "gerencia@inmobiliariavillarreal.co",
+    "name": "Gerencia Inmobiliaria Villarreal",
+    "type": "corredor", 
+    "city": "Medellín"
+  },
+  {
+    "email": "ventas@casadelainmobiliaria.com.co",
+    "name": "Ventas Casa Dani",
+    "type": "corredor",
+    "city": "Bogotá"
+  },
+  {
+    "email": "info@inmobiliariamad.co",
+    "name": "Info Inmobiliaria MAD",
+    "type": "corredor",
+    "city": "Bogotá"
+  },
+  {
+    "email": "servicios@remaxcolombia.com.co",
+    "name": "Servicios RE/MAX Colombia",
+    "type": "corredor",
+    "city": "Bogotá"
+  },
+  {
+    "email": "ventas@cotemar.com.co",
+    "name": "Ventas Cotemar",
+    "type": "corredor",
+    "city": "Cali"
+  },
+  {
+    "email": "gerencia@metropolitana.com.co",
+    "name": "Gerencia Metropolitana",
+    "type": "corredor",
+    "city": "Bogotá"
+  },
+  {
+    "email": "info@invercasas.co",
+    "name": "Info Invercasas",
+    "type": "corredor",
+    "city": "Bogotá"
+  },
+  {
+    "email": "contacto@propiedades.co",
+    "name": "Contacto Propiedades.co",
+    "type": "corredor",
+    "city": "Bogotá"
+  },
+  {
+    "email": "digitaltransformation@bancolombia.com.co",
+    "name": "Digital Transformation Bancolombia",
+    "type": "banco",
+    "city": "Bogotá"
+  },
+  {
+    "email": "innovation@davivienda.com",
+    "name": "Innovation Davivienda",
+    "type": "banco",
+    "city": "Bogotá"
+  },
+  {
+    "email": "fintech@bbva.com.co",
+    "name": "FinTech BBVA Colombia",
+    "type": "banco",
+    "city": "Bogotá"
+  },
+  {
+    "email": "ventas@conconcreto.com.co",
+    "name": "Ventas Conconcreto",
+    "type": "constructor",
+    "city": "Bogotá"
+  },
+  {
+    "email": "marketing@marval.com.co",
+    "name": "Marketing Marval",
+    "type": "constructor",
+    "city": "Bogotá"
+  },
+  {
+    "email": "gerencia@puntoazul.com.co",
+    "name": "Gerencia Punto Azul",
+    "type": "constructor",
+    "city": "Bogotá"
+  }
+]

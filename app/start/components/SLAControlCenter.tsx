@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
+import { useAuth } from "../MainLayout";
 import {
   FaWhatsapp,
   FaPhone,
@@ -73,6 +74,7 @@ const SLA_CONFIG: Record<string, { sla: number; prioridad: "alta" | "media" | "b
 // COMPONENTE PRINCIPAL
 // ============================================
 export default function SLAControlCenter() {
+  const { isAsesor, teamMemberId, tenantId, loading: authLoading, dataRefreshKey } = useAuth();
   const [alerts, setAlerts] = useState<SLAAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<SLAFilters>({
@@ -97,6 +99,15 @@ export default function SLAControlCenter() {
   const fetchLeads = async (showFullLoading = false) => {
     try {
       if (showFullLoading) setLoading(true);
+
+      if (authLoading) {
+        return;
+      }
+
+      if (isAsesor && !teamMemberId) {
+        setAlerts([]);
+        return;
+      }
       
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -105,11 +116,20 @@ export default function SLAControlCenter() {
         return;
       }
 
-      // Cargar leads
-      const { data: leadsData } = await supabase
-        .from("leads")
-        .select("*")
-        .eq("user_id", session.user.id);
+      // Cargar leads por tenant y rol
+      let query = supabase.from("leads").select("*");
+
+      if (tenantId) {
+        query = query.eq("tenant_id", tenantId);
+      }
+
+      if (isAsesor && teamMemberId) {
+        query = query.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
+      }
+
+      const { data: leadsData, error: leadsError } = await query;
+      if (leadsError) throw leadsError;
+
       // Transformar a alertas SLA (solo tabla: leads)
       const allLeads = [
         ...(leadsData || []).map(l => ({ ...l, sourceTable: "leads" }))
@@ -133,7 +153,12 @@ export default function SLAControlCenter() {
   // ============================================
   const transformToSLAAlert = (lead: any): SLAAlert | null => {
     // Usar etapa o status, lo que exista
-    const status = (lead.etapa || lead.status || "nuevo").toLowerCase();
+    const status = String(lead.etapa || lead.status || "nuevo")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[\s-]+/g, "_");
     const config = SLA_CONFIG[status] || SLA_CONFIG["default"];
     
     // Calcular tiempo transcurrido desde última actualización
@@ -197,12 +222,20 @@ export default function SLAControlCenter() {
   };
 
   useEffect(() => {
+    if (authLoading) return;
+
     fetchLeads(true); // Primera carga: mostrar loading completo
     
     // Actualizar cada 2 minutos (sin loading completo)
     const interval = setInterval(() => fetchLeads(false), 120000);
     return () => clearInterval(interval);
-  }, []);
+  }, [authLoading, isAsesor, teamMemberId, tenantId]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      fetchLeads(false);
+    }
+  }, [dataRefreshKey, authLoading]);
 
   // Filtrar alertas
   const filteredAlerts = alerts.filter(alert => {

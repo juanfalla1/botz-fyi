@@ -95,12 +95,36 @@ export async function POST(req: Request) {
     const creds = (integ.credentials || {}) as any;
     let access_token: string | null = creds.access_token || null;
     const refresh_token: string | null = creds.refresh_token || null;
-    const expires_at = creds.expires_at ? Number(creds.expires_at) : null;
     const now = Math.floor(Date.now() / 1000);
+
+    // expires_at puede ser Unix timestamp (number) o ISO string
+    let expires_at: number | null = null;
+    if (creds.expires_at) {
+      const raw = creds.expires_at;
+      if (typeof raw === "number") {
+        expires_at = raw;
+      } else if (typeof raw === "string") {
+        const parsed = Date.parse(raw);
+        expires_at = isNaN(parsed) ? null : Math.floor(parsed / 1000);
+      }
+    }
+    // También revisar expires_in original de Google
+    if (!expires_at && creds.expires_in) {
+      expires_at = now + Number(creds.expires_in);
+    }
+
+    console.log("📧 SEND-GMAIL DEBUG:", {
+      has_access_token: !!access_token,
+      has_refresh_token: !!refresh_token,
+      expires_at,
+      now,
+      expired: expires_at ? expires_at <= now + 60 : "unknown",
+      scope: creds.scope,
+    });
 
     const mustRefresh =
       !access_token ||
-      (expires_at && Number.isFinite(expires_at) && expires_at <= now + 60);
+      (expires_at !== null && expires_at <= now + 60);
 
     // 2) Refrescar token si es necesario
     if (mustRefresh) {
@@ -149,16 +173,44 @@ export async function POST(req: Request) {
         .eq("id", integration_id);
     }
 
-    // 3) Construir el email en formato RFC 2822 con todos los headers necesarios
+    // 2.5) Verificar que el token tenga scope de envío
+    const tokenInfoRes = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?access_token=${access_token}`
+    );
+    const tokenInfo = await tokenInfoRes.json();
+    console.log("📧 TOKEN SCOPES:", tokenInfo.scope);
+
+    const hasMailScope = tokenInfo.scope && (
+      tokenInfo.scope.includes("mail.google.com") ||
+      tokenInfo.scope.includes("gmail.send") ||
+      tokenInfo.scope.includes("gmail.modify")
+    );
+
+    if (tokenInfoRes.ok && tokenInfo.scope && !hasMailScope) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "MISSING_SEND_SCOPE",
+          gmail_error: "El token no tiene permiso para enviar emails. Desconecta Gmail y vuelve a conectar.",
+          current_scopes: tokenInfo.scope,
+        },
+        { status: 403 }
+      );
+    }
+
+    // 3) Construir el email en formato RFC 2822
+    // Codificar subject en base64 para soportar tildes/ñ
+    const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`;
+    
     const emailLines = [
       `From: me`,
       `To: ${to}`,
-      `Subject: ${subject}`,
+      `Subject: ${encodedSubject}`,
       `MIME-Version: 1.0`,
       `Content-Type: text/plain; charset=utf-8`,
-      `Content-Transfer-Encoding: 7bit`,
+      `Content-Transfer-Encoding: base64`,
       ``,
-      email_body,
+      Buffer.from(email_body).toString("base64"),
     ];
     const rawEmail = emailLines.join("\r\n");
     
@@ -187,13 +239,16 @@ export async function POST(req: Request) {
     const sendJson = await sendRes.json();
 
     if (!sendRes.ok) {
-      console.error("Gmail send error:", sendJson);
+      console.error("Gmail send error:", JSON.stringify(sendJson, null, 2));
+      console.error("Gmail send status:", sendRes.status);
+      console.error("Token usado (primeros 20 chars):", access_token?.substring(0, 20));
       return NextResponse.json(
         { 
           ok: false, 
           error: "GMAIL_SEND_FAILED", 
           details: sendJson,
-          gmail_error: sendJson.error?.message || JSON.stringify(sendJson)
+          gmail_error: sendJson.error?.message || JSON.stringify(sendJson),
+          gmail_status: sendRes.status,
         },
         { status: 502 }
       );

@@ -1,0 +1,246 @@
+{
+  "name": "Lead Scoring - Botz Hipotecas",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-lead",
+        "options": {}
+      },
+      "id": "webhook-lead",
+      "name": "Webhook - New Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "nombre_completo",
+              "value": "={{ $json.lead.nombre }}"
+            },
+            {
+              "name": "email",
+              "value": "={{ $json.lead.email }}"
+            },
+            {
+              "name": "telefono",
+              "value": "={{ $json.lead.telefono || 'No proporcionado' }}"
+            },
+            {
+              "name": "pais",
+              "value": "={{ $json.lead.pais }}"
+            },
+            {
+              "name": "lead_score",
+              "value": "={{ $json.score }}"
+            },
+            {
+              "name": "categoria",
+              "value": "={{ $json.categoria }}"
+            },
+            {
+              "name": "accion_recomendada",
+              "value": "={{ $json.accion_recomendada }}"
+            },
+            {
+              "name": "propiedad_valor",
+              "value": "={{ $json.lead.valor_propiedad }}"
+            },
+            {
+              "name": "cuota_mensual",
+              "value": "={{ $json.lead.cuota_mensual }}"
+            },
+            {
+              "name": "dti",
+              "value": "={{ $json.lead.dti }}"
+            }
+          ]
+        }
+      },
+      "id": "set-lead-data",
+      "name": "Set Lead Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.categoria }}",
+              "operation": "equal",
+              "value2": "caliente"
+            }
+          ]
+        }
+      },
+      "id": "if-caliente",
+      "name": "IF - Lead Caliente",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.categoria }}",
+              "operation": "equal",
+              "value2": "templado"
+            }
+          ]
+        }
+      },
+      "id": "if-templado",
+      "name": "IF - Lead Templado",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "generic",
+        "generic": {
+          "host": "{{ $env.ZOHO_HOST }}",
+          "port": {{ $env.ZOHO_PORT }},
+          "security": "ssl",
+          "user": "{{ $env.ZOHO_USER }}",
+          "password": "{{ $env.ZOHO_APP_PASSWORD }}"
+        },
+        "fromEmail": "info@botz.fyi",
+        "fromName": "Botz Fintech",
+        "subject": "🔥 ¡Tu hipoteca está aprobada! - Siguiente paso inmediato",
+        "html": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 15px;'><div style='text-align: center; margin-bottom: 30px;'><h1 style='color: #ef4444; font-size: 28px; margin: 0;'>🔥 ¡FELICIDADES!</h1><h2 style='color: #fff; font-size: 20px; margin: 10px 0;'>Tu hipoteca está APROBADA</h2><p style='color: #94a3b8; margin: 0;'>Score: {{ $json.lead_score }}/100 - Caliente</p></div><div style='background: rgba(255,255,255,0.1); border-radius: 10px; padding: 20px; margin: 20px 0;'><h3 style='color: #22d3ee; margin-top: 0;'>📋 Resumen de tu Evaluación:</h3><p style='color: #e2e8f0; margin: 8px 0;'><strong>Nombre:</strong> {{ $json.nombre_completo }}</p><p style='color: #e2e8f0; margin: 8px 0;'><strong>Propiedad:</strong> ${{ $json.propiedad_valor.toLocaleString() }}</p><p style='color: #e2e8f0; margin: 8px 0;'><strong>Cuota mensual:</strong> ${{ $json.cuota_mensual.toLocaleString() }}</p><p style='color: #e2e8f0; margin: 8px 0;'><strong>DTI:</strong> {{ $json.dti }}%</p></div><div style='background: rgba(239, 68, 68, 0.1); border: 2px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 20px; margin: 20px 0;'><h3 style='color: #ef4444; margin-top: 0;'>⚡ ACCIÓN INMEDIATA REQUERIDA:</h3><p style='color: #fff; font-size: 16px; font-weight: bold;'>{{ $json.accion_recomendada }}</p></div><div style='text-align: center; margin: 30px 0;'><a href='https://botz.zohobookings.ca/#/botz' style='display: inline-block; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;'>📅 AGENDAR LLAMADA INMEDIATA</a></div><div style='border-top: 1px solid rgba(255,255,255,0.2); padding-top: 20px; margin-top: 30px; text-align: center;'><p style='color: #64748b; font-size: 12px; margin: 0;'>Botz Fintech - Tu experto en hipotecas</p><p style='color: #64748b; font-size: 12px; margin: 0;'>📞 Respuesta prioritaria para leads calientes</p></div></div>",
+        "toEmail": "={{ $json.email }}",
+        "options": {}
+      },
+      "id": "email-caliente",
+      "name": "Enviar Email - Caliente",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [900, 100]
+    },
+    {
+      "parameters": {
+        "authentication": "generic",
+        "generic": {
+          "host": "{{ $env.ZOHO_HOST }}",
+          "port": {{ $env.ZOHO_PORT }},
+          "security": "ssl",
+          "user": "{{ $env.ZOHO_USER }}",
+          "password": "{{ $env.ZOHO_APP_PASSWORD }}"
+        },
+        "fromEmail": "info@botz.fyi",
+        "fromName": "Botz Fintech",
+        "subject": "⚡ Tu evaluación hipotecaria - Próximos pasos personalizados",
+        "html": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 15px;'><div style='text-align: center; margin-bottom: 30px;'><h1 style='color: #f59e0b; font-size: 28px; margin: 0;'>⚡ BUENAS NOTICIAS</h1><h2 style='color: #fff; font-size: 20px; margin: 10px 0;'>Tienes potencial hipotecario</h2><p style='color: #94a3b8; margin: 0;'>Score: {{ $json.lead_score }}/100 - Templado</p></div><div style='background: rgba(255,255,255,0.1); border-radius: 10px; padding: 20px; margin: 20px 0;'><h3 style='color: #22d3ee; margin-top: 0;'>📋 Resumen de tu Evaluación:</h3><p style='color: #e2e8f0; margin: 8px 0;'><strong>Nombre:</strong> {{ $json.nombre_completo }}</p><p style='color: #e2e8f0; margin: 8px 0;'><strong>Propiedad:</strong> ${{ $json.propiedad_valor.toLocaleString() }}</p><p style='color: #e2e8f0; margin: 8px 0;'><strong>Cuota mensual:</strong> ${{ $json.cuota_mensual.toLocaleString() }}</p><p style='color: #e2e8f0; margin: 8px 0;'><strong>DTI:</strong> {{ $json.dti }}%</p></div><div style='background: rgba(245, 158, 11, 0.1); border: 2px solid rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 20px; margin: 20px 0;'><h3 style='color: #f59e0b; margin-top: 0;'>🎯 RECOMENDACIONES PERSONALIZADAS:</h3><p style='color: #fff; font-size: 16px;'>{{ $json.accion_recomendada }}</p></div><div style='display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 25px 0;'><div style='text-align: center;'><a href='https://botz.zohobookings.ca/#/botz' style='display: inline-block; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;'>📅 Asesoría Gratuita</a></div><div style='text-align: center;'><a href='https://cal.com/juan-carlos-garcia-falla-f3alks/30min' style='display: inline-block; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;'>💬 WhatsApp</a></div></div><div style='border-top: 1px solid rgba(255,255,255,0.2); padding-top: 20px; margin-top: 30px; text-align: center;'><p style='color: #64748b; font-size: 12px; margin: 0;'>Botz Fintech - Tu experto en hipotecas</p><p style='color: #64748b; font-size: 12px; margin: 0;'>📧 Te contactaremos en 24h para seguimiento personalizado</p></div></div>",
+        "toEmail": "={{ $json.email }}",
+        "options": {}
+      },
+      "id": "email-templado",
+      "name": "Enviar Email - Templado",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [900, 350]
+    },
+    {
+      "parameters": {
+        "authentication": "generic",
+        "generic": {
+          "host": "{{ $env.ZOHO_HOST }}",
+          "port": {{ $env.ZOHO_PORT }},
+          "security": "ssl",
+          "user": "{{ $env.ZOHO_USER }}",
+          "password": "{{ $env.ZOHO_APP_PASSWORD }}"
+        },
+        "fromEmail": "info@botz.fyi",
+        "fromName": "Botz Fintech",
+        "subject": "📊 Tu evaluación hipotecaria - Guía para mejorar tu perfil",
+        "html": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 15px;'><div style='text-align: center; margin-bottom: 30px;'><h1 style='color: #3b82f6; font-size: 28px; margin: 0;'>📊 EVALUACIÓN RECIBIDA</h1><h2 style='color: #fff; font-size: 20px; margin: 10px 0;'>Vamos a mejorar tu perfil</h2><p style='color: #94a3b8; margin: 0;'>Score: {{ $json.lead_score }}/100 - Potencial de mejora</p></div><div style='background: rgba(255,255,255,0.1); border-radius: 10px; padding: 20px; margin: 20px 0;'><h3 style='color: #22d3ee; margin-top: 0;'>📋 Tu Evaluación Actual:</h3><p style='color: #e2e8f0; margin: 8px 0;'><strong>Nombre:</strong> {{ $json.nombre_completo }}</p><p style='color: #e2e8f0; margin: 8px 0;'><strong>Propiedad deseada:</strong> ${{ $json.propiedad_valor.toLocaleString() }}</p><p style='color: #e2e8f0; margin: 8px 0;'><strong>Cuota estimada:</strong> ${{ $json.cuota_mensual.toLocaleString() }}</p><p style='color: #e2e8f0; margin: 8px 0;'><strong>Ratio DTI:</strong> {{ $json.dti }}%</p></div><div style='background: rgba(59, 130, 246, 0.1); border: 2px solid rgba(59, 130, 246, 0.3); border-radius: 10px; padding: 20px; margin: 20px 0;'><h3 style='color: #3b82f6; margin-top: 0;'>🎯 PLAN DE ACCIÓN RECOMENDADO:</h3><p style='color: #fff; font-size: 16px;'>{{ $json.accion_recomendada }}</p></div><div style='background: rgba(255,255,255,0.05); border-radius: 10px; padding: 20px; margin: 20px 0;'><h3 style='color: #22d3ee; margin-top: 0;'>📚 GUÍA GRATIS - Mejora tu Perfil Hipotecario:</h3><ul style='color: #e2e8f0; padding-left: 20px;'><li>💰 Reduce deudas existentes un 20%</li><li>💼 Aumenta estabilidad laboral (6+ meses)</li><li>📈 Mejora tu score crediticio (+100 puntos)</li><li>💳 Consolida tarjetas de crédito</li><li>🏦 Ahorra para mayor cuota inicial (25%+)</li></ul></div><div style='text-align: center; margin: 25px 0;'><a href='https://botz.zohobookings.ca/#/botz' style='display: inline-block; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;'>📅 Asesoría Gratuita</a></div><div style='border-top: 1px solid rgba(255,255,255,0.2); padding-top: 20px; margin-top: 30px; text-align: center;'><p style='color: #64748b; font-size: 12px; margin: 0;'>Botz Fintech - Tu experto en hipotecas</p><p style='color: #64748b; font-size: 12px; margin: 0;'>📧 Te enviaremos tips semanales para mejorar tu perfil</p></div></div>",
+        "toEmail": "={{ $json.email }}",
+        "options": {}
+      },
+      "id": "email-frio",
+      "name": "Enviar Email - Frío",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [900, 600]
+    }
+  ],
+  "connections": {
+    "Webhook - New Lead": {
+      "main": [
+        [
+          {
+            "node": "Set Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Lead Data": {
+      "main": [
+        [
+          {
+            "node": "IF - Lead Caliente",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "IF - Lead Templado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Lead Caliente": {
+      "main": [
+        [
+          {
+            "node": "Enviar Email - Caliente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Email - Frío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Lead Templado": {
+      "main": [
+        [
+          {
+            "node": "Enviar Email - Templado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Email - Frío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

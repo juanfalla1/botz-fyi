@@ -25,7 +25,12 @@ export async function POST(req: Request) {
       return await handleWelcomeEmail(data);
     }
     
-    // ✅ CASO 3: Demo de HotLead (original)
+    // ✅ CASO 3: Lead Scoring Hipotecario
+    if (requestType === "lead_scoring") {
+      return await handleLeadScoringEmail(data);
+    }
+    
+    // ✅ CASO 4: Demo de HotLead (original)
     return await handleHotLeadDemo(data);
     
   } catch (error: any) {
@@ -243,6 +248,148 @@ async function handleSalesQuote(data: any) {
       { 
         success: false, 
         error: "No se pudo enviar el correo",
+        details: emailError.message
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// 🔄 Función para manejar emails de Lead Scoring Hipotecario
+async function handleLeadScoringEmail(data: any) {
+  console.log("🔄 Procesando lead scoring email...");
+  
+  const { 
+    nombre = "",
+    email = "",
+    score = 0,
+    categoria = "",
+    accion_recomendada = "",
+    tenant_config = null
+  } = data;
+
+  if (!email) {
+    return NextResponse.json(
+      { success: false, error: "Email es obligatorio" },
+      { status: 400 }
+    );
+  }
+
+  // Usar configuración SMTP del tenant si existe, si no la default
+  const zohoUser = tenant_config?.smtp_user || process.env.ZOHO_USER;
+  const zohoPass = tenant_config?.smtp_password || process.env.ZOHO_PASS || process.env.ZOHO_APP_PASSWORD;
+  const zohoHost = tenant_config?.smtp_host || process.env.ZOHO_HOST || "smtp.zohocloud.ca";
+  const zohoPort = tenant_config?.smtp_port || Number(process.env.ZOHO_PORT) || 465;
+  const fromName = tenant_config?.from_name || "Botz Fintech";
+  const fromEmail = tenant_config?.from_email || process.env.ZOHO_USER;
+  
+  if (!zohoUser || !zohoPass) {
+    console.error("❌ Credenciales SMTP faltantes para lead scoring");
+    return NextResponse.json(
+      { success: false, error: "Configuración de email no encontrada" },
+      { status: 500 }
+    );
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: zohoHost,
+    port: zohoPort,
+    secure: true,
+    auth: {
+      user: zohoUser,
+      pass: zohoPass,
+    },
+  });
+
+  try {
+    // Obtener configuración de enlaces del tenant
+    const bookingUrl = tenant_config?.booking_url || process.env.ONBOARDING_URL || "https://botz.zohobookings.ca/#/botz";
+    const whatsappUrl = tenant_config?.whatsapp_url || "";
+    const companyName = tenant_config?.company_name || fromName;
+    const companyWebsite = tenant_config?.website || "";
+
+    let emailSubject = '';
+    let emailHtml = '';
+
+    if (categoria === 'caliente') {
+      emailSubject = `🔥 ¡Tu hipoteca está aprobada! - ${companyName}`;
+      emailHtml = `
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 15px;'>
+          <div style='text-align: center; margin-bottom: 30px;'>
+            <h1 style='color: #ef4444; font-size: 28px; margin: 0;'>🔥 ¡FELICIDADES!</h1>
+            <h2 style='color: #fff; font-size: 20px; margin: 10px 0;'>Tu hipoteca está APROBADA</h2>
+            <p style='color: #94a3b8; margin: 0;'>Score: ${score}/100 - Caliente</p>
+            <p style='color: #94a3b8; margin: 5px 0 0 0; font-size: 14px;'>${companyName}</p>
+          </div>
+          <div style='background: rgba(239, 68, 68, 0.1); border: 2px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 20px; margin: 20px 0;'>
+            <h3 style='color: #ef4444; margin-top: 0; font-size: 16px;'>⚡ ACCIÓN INMEDIATA REQUERIDA:</h3>
+            <p style='color: #fff; font-size: 14px;'>${accion_recomendada}</p>
+          </div>
+          <div style='text-align: center; margin: 30px 0;'>
+            <a href='${bookingUrl}' style='display: inline-block; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin: 5px;'>📅 AGENDAR LLAMADA INMEDIATA</a>
+            ${whatsappUrl ? `<a href='${whatsappUrl}' style='display: inline-block; background: linear-gradient(135deg, #25D366, #128C7E); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin: 5px;'>💬 WHATSAPP</a>` : ''}
+          </div>
+        </div>`;
+    } else if (categoria === 'templado') {
+      emailSubject = `⚡ Tu evaluación hipotecaria - Próximos pasos - ${companyName}`;
+      emailHtml = `
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 15px;'>
+          <div style='text-align: center; margin-bottom: 30px;'>
+            <h1 style='color: #f59e0b; font-size: 28px; margin: 0;'>⚡ BUENAS NOTICIAS</h1>
+            <h2 style='color: #fff; font-size: 20px; margin: 10px 0;'>Tienes potencial hipotecario</h2>
+            <p style='color: #94a3b8; margin: 0;'>Score: ${score}/100 - Templado</p>
+            <p style='color: #94a3b8; margin: 5px 0 0 0; font-size: 14px;'>${companyName}</p>
+          </div>
+          <div style='background: rgba(245, 158, 11, 0.1); border: 2px solid rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 20px; margin: 20px 0;'>
+            <h3 style='color: #f59e0b; margin-top: 0; font-size: 16px;'>🎯 RECOMENDACIONES PERSONALIZADAS:</h3>
+            <p style='color: #fff; font-size: 14px;'>${accion_recomendada}</p>
+          </div>
+          <div style='text-align: center; margin: 30px 0;'>
+            <a href='${bookingUrl}' style='display: inline-block; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin: 5px;'>📅 ASESORÍA GRATUITA</a>
+            ${whatsappUrl ? `<a href='${whatsappUrl}' style='display: inline-block; background: linear-gradient(135deg, #25D366, #128C7E); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin: 5px;'>💬 CONSULTAR POR WHATSAPP</a>` : ''}
+          </div>
+        </div>`;
+    } else {
+      emailSubject = `📊 Tu evaluación hipotecaria - Guía - ${companyName}`;
+      emailHtml = `
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 15px;'>
+          <div style='text-align: center; margin-bottom: 30px;'>
+            <h1 style='color: #3b82f6; font-size: 28px; margin: 0;'>📊 EVALUACIÓN RECIBIDA</h1>
+            <h2 style='color: #fff; font-size: 20px; margin: 10px 0;'>Vamos a mejorar tu perfil</h2>
+            <p style='color: #94a3b8; margin: 0;'>Score: ${score}/100 - Potencial de mejora</p>
+            <p style='color: #94a3b8; margin: 5px 0 0 0; font-size: 14px;'>${companyName}</p>
+          </div>
+          <div style='background: rgba(59, 130, 246, 0.1); border: 2px solid rgba(59, 130, 246, 0.3); border-radius: 10px; padding: 20px; margin: 20px 0;'>
+            <h3 style='color: #3b82f6; margin-top: 0; font-size: 16px;'>🎯 PLAN DE ACCIÓN RECOMENDADO:</h3>
+            <p style='color: #fff; font-size: 14px;'>${accion_recomendada}</p>
+          </div>
+          <div style='text-align: center; margin: 30px 0;'>
+            <a href='${bookingUrl}' style='display: inline-block; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin: 5px;'>📅 ASESORÍA GRATUITA</a>
+            ${whatsappUrl ? `<a href='${whatsappUrl}' style='display: inline-block; background: linear-gradient(135deg, #25D366, #128C7E); color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin: 5px;'>💬 CONSULTAR POR WHATSAPP</a>` : ''}
+          </div>
+        </div>`;
+    }
+
+    // Enviar email al cliente
+    await transporter.sendMail({
+      from: `${fromName} <${fromEmail}>`,
+      to: email,
+      subject: emailSubject,
+      html: emailHtml,
+    });
+
+    console.log("✅ Email de lead scoring enviado");
+    return NextResponse.json({ 
+      success: true, 
+      message: "Email de lead scoring enviado correctamente"
+    });
+
+  } catch (emailError: any) {
+    console.error("❌ Error enviando email de lead scoring:", emailError);
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: "No se pudo enviar el email de lead scoring",
         details: emailError.message
       },
       { status: 500 }

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { X, Save, Loader2, Trash2 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import { Lead } from "./LeadsTable";
+import { useAuth } from "../MainLayout";
 
 type Props = {
   isOpen: boolean;
@@ -15,6 +16,7 @@ type Props = {
 };
 
 export default function LeadUpsertModal({ isOpen, mode, lead, onClose, onSaved }: Props) {
+  const { user, isAsesor, teamMemberId, tenantId: authTenantId, triggerDataRefresh } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -28,8 +30,8 @@ export default function LeadUpsertModal({ isOpen, mode, lead, onClose, onSaved }
   const [source, setSource] = useState("Web");
 
   // Si tu Lead tiene tenant_id/user_id, se usan; si no existen, no rompen.
-  const tenantId = (lead as any)?.tenant_id ?? null;
-  const userId = (lead as any)?.user_id ?? null;
+  const tenantId = (lead as any)?.tenant_id ?? authTenantId ?? null;
+  const userId = (lead as any)?.user_id ?? user?.id ?? null;
 
   useEffect(() => setMounted(true), []);
 
@@ -94,10 +96,61 @@ export default function LeadUpsertModal({ isOpen, mode, lead, onClose, onSaved }
         if (error) throw error;
 
         setMsg("✓ Guardado");
+        triggerDataRefresh();
         onSaved?.();
         setTimeout(() => onClose(), 300);
       } else {
         // CREATE (INSERT)
+        let resolvedTenantId = tenantId;
+        let resolvedTeamMemberId = teamMemberId;
+
+        if (isAsesor && (!resolvedTenantId || !resolvedTeamMemberId)) {
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+
+          const authUserId = authUser?.id || null;
+          const authEmail = authUser?.email || user?.email || null;
+
+          if (authUserId) {
+            const { data: tmByAuth } = await supabase
+              .from("team_members")
+              .select("id, tenant_id")
+              .eq("auth_user_id", authUserId)
+              .eq("activo", true)
+              .maybeSingle();
+
+            if (tmByAuth) {
+              resolvedTeamMemberId = tmByAuth.id || resolvedTeamMemberId;
+              resolvedTenantId = tmByAuth.tenant_id || resolvedTenantId;
+            }
+          }
+
+          if ((!resolvedTenantId || !resolvedTeamMemberId) && authEmail) {
+            const { data: tmByEmail } = await supabase
+              .from("team_members")
+              .select("id, tenant_id")
+              .eq("email", authEmail)
+              .eq("activo", true)
+              .maybeSingle();
+
+            if (tmByEmail) {
+              resolvedTeamMemberId = tmByEmail.id || resolvedTeamMemberId;
+              resolvedTenantId = tmByEmail.tenant_id || resolvedTenantId;
+            }
+          }
+        }
+
+        if (isAsesor && !resolvedTeamMemberId) {
+          setMsg("❌ No se pudo identificar el asesor. Revisa team_members.");
+          setSaving(false);
+          return;
+        }
+
+        if (!resolvedTenantId) {
+          setMsg("❌ No se pudo resolver tenant_id para este lead.");
+          setSaving(false);
+          return;
+        }
+
         const payload: any = {
           name: name || "Cliente",
           phone: normalizedPhone,
@@ -110,13 +163,20 @@ export default function LeadUpsertModal({ isOpen, mode, lead, onClose, onSaved }
 
         // Si tu app es multi-tenant, normalmente aquí deberías pasar tenant_id real.
         // SOLO lo seteo si tú ya lo tienes disponible.
-        if (tenantId) payload.tenant_id = tenantId;
+        payload.tenant_id = resolvedTenantId;
         if (userId) payload.user_id = userId;
+
+        // Si crea un asesor, el lead queda asignado para su tablero
+        if (isAsesor && resolvedTeamMemberId) {
+          payload.asesor_id = resolvedTeamMemberId;
+          payload.assigned_to = resolvedTeamMemberId;
+        }
 
         const { error } = await supabase.from("leads").insert([payload]);
         if (error) throw error;
 
         setMsg("✓ Creado");
+        triggerDataRefresh();
         onSaved?.();
         setTimeout(() => onClose(), 300);
       }
@@ -141,6 +201,7 @@ export default function LeadUpsertModal({ isOpen, mode, lead, onClose, onSaved }
       if (error) throw error;
 
       setMsg("✓ Eliminado");
+      triggerDataRefresh();
       onSaved?.();
       setTimeout(() => onClose(), 300);
     } catch (e: any) {

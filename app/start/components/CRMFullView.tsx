@@ -3,8 +3,8 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { 
   Users, Calendar, Activity, TrendingUp, BarChart3, Globe, PieChart as PieIcon,
-  Loader2, LogOut, Settings, X, Zap, MessageCircle, Share2, 
-  ChevronLeft, Layout, Save, Briefcase
+  Loader2, Settings, X, Zap, MessageCircle, Share2, 
+  ChevronLeft, Layout, Save, Briefcase, CreditCard, Clock3, ShieldCheck, AlertTriangle, CheckCircle2
 } from "lucide-react";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -12,7 +12,9 @@ import {
 } from "recharts";
 import LeadsTable, { Lead } from "./LeadsTable";
 import LoginForm from "./LoginForm";
-import RegistroAsesor from "./RegistroAsesor"; // ✅ CAMBIO 1: Nuevo import
+import RegistroAsesor from "./RegistroAsesor";
+import TeamManagement from "./TeamManagement";
+import { useAuth } from "../MainLayout";
 
 // ================= 1. ESQUEMAS DE CONFIGURACIÓN =================
 const CHANNEL_SCHEMAS: Record<string, any> = {
@@ -97,16 +99,151 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<'week' | 'month'>('month');
-  const [authView, setAuthView] = useState<"login" | "register">("login"); // ✅ CAMBIO 2: Nuevo estado
-  
+  const [authView, setAuthView] = useState<"login" | "register">("login");
+  const { isAdmin, isAsesor, user, tenantId, teamMemberId, userPlan, subscription } = useAuth(); // Hook para detectar rol y obtener datos
+   
   // ESTADOS PARA EL MODAL
   const [showConfig, setShowConfig] = useState(false);
   const [activeConfigTab, setActiveConfigTab] = useState("canales");
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
 
+  const [accountLoading, setAccountLoading] = useState(false);
+  const [accountSummary, setAccountSummary] = useState<{
+    tenantId: string | null;
+    plan: string;
+    status: string;
+    billingCycle: string;
+    nextInvoiceDate: string | null;
+    teamUsed: number;
+    leadsMonthUsed: number;
+    channelsUsed: number;
+    teamLimit: number | null;
+    leadsMonthLimit: number | null;
+    channelsLimit: number | null;
+  } | null>(null);
 
-  // ✅ FIX: traer TODOS los registros (evita límite ~1000) sin cambiar el diseño
-  const fetchAllByUser = async (table: string, userId: string) => {
+  const PLAN_LIMITS: Record<string, { team: number | null; leadsMonthly: number | null; channels: number | null }> = {
+    free: { team: 1, leadsMonthly: 100, channels: 2 },
+    basico: { team: 3, leadsMonthly: 500, channels: 4 },
+    basic: { team: 3, leadsMonthly: 500, channels: 4 },
+    starter: { team: 3, leadsMonthly: 500, channels: 4 },
+    pro: { team: 10, leadsMonthly: 5000, channels: 10 },
+    premium: { team: 10, leadsMonthly: 5000, channels: 10 },
+    business: { team: 25, leadsMonthly: 20000, channels: 20 },
+    enterprise: { team: null, leadsMonthly: null, channels: null },
+  };
+
+  const normalizePlan = (planRaw: string | null | undefined) =>
+    String(planRaw || "free")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  const formatDate = (dateRaw?: string | null) => {
+    if (!dateRaw) return "No disponible";
+    const d = new Date(dateRaw);
+    if (Number.isNaN(d.getTime())) return "No disponible";
+    return d.toLocaleDateString("es-CO", { year: "numeric", month: "short", day: "numeric" });
+  };
+
+  const getProgress = (used: number, limit: number | null) => {
+    if (!limit || limit <= 0) return 0;
+    return Math.min(100, Math.round((used / limit) * 100));
+  };
+
+  const loadAccountSummary = async () => {
+    try {
+      setAccountLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const resolvedTenantId =
+        tenantId ||
+        session.user?.user_metadata?.tenant_id ||
+        session.user?.app_metadata?.tenant_id ||
+        null;
+
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+
+      let teamUsed = 0;
+      let leadsMonthUsed = 0;
+      let channelsUsed = 0;
+
+      if (resolvedTenantId) {
+        const [teamRes, leadsMonthRes] = await Promise.all([
+          supabase
+            .from("team_members")
+            .select("id", { count: "exact", head: true })
+            .eq("tenant_id", resolvedTenantId)
+            .eq("activo", true),
+          supabase
+            .from("leads")
+            .select("id", { count: "exact", head: true })
+            .eq("tenant_id", resolvedTenantId)
+            .gte("created_at", monthStart.toISOString()),
+        ]);
+
+        teamUsed = teamRes.count || 0;
+        leadsMonthUsed = leadsMonthRes.count || 0;
+      } else {
+        const myLeads = leads.filter((l: any) => {
+          const created = l?.created_at ? new Date(l.created_at) : null;
+          return !!created && created >= monthStart;
+        });
+        leadsMonthUsed = myLeads.length;
+        teamUsed = isAsesor ? 1 : 0;
+      }
+
+      const { data: channelsData } = await supabase
+        .from("user_configs")
+        .select("channel")
+        .eq("user_id", session.user.id);
+
+      channelsUsed = new Set((channelsData || []).map((c: any) => c.channel)).size;
+
+      const planKey = normalizePlan(subscription?.plan || userPlan || "free");
+      const planLimits = PLAN_LIMITS[planKey] || PLAN_LIMITS.free;
+
+      const subscriptionAny = (subscription || {}) as any;
+      const nextInvoiceDate =
+        subscriptionAny.current_period_end ||
+        subscriptionAny.next_billing_date ||
+        subscriptionAny.renew_at ||
+        subscriptionAny.expires_at ||
+        null;
+
+      setAccountSummary({
+        tenantId: resolvedTenantId,
+        plan: subscription?.plan || userPlan || "free",
+        status: subscription?.status || "free",
+        billingCycle: String(subscriptionAny.billing_cycle || "mensual"),
+        nextInvoiceDate,
+        teamUsed,
+        leadsMonthUsed,
+        channelsUsed,
+        teamLimit: planLimits.team,
+        leadsMonthLimit: planLimits.leadsMonthly,
+        channelsLimit: planLimits.channels,
+      });
+    } catch (e) {
+      console.error("Error cargando resumen de cuenta:", e);
+    } finally {
+      setAccountLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showConfig || activeConfigTab !== "cuenta") return;
+    loadAccountSummary();
+  }, [showConfig, activeConfigTab, tenantId, subscription?.id, userPlan, isAsesor, leads.length]);
+
+
+  // ✅ FIX: traer TODOS los registros con paginación
+  // Soporta filtro por user_id (admin) o sin filtro (para buscar por tenant/todos)
+  const fetchAllFromTable = async (table: string, filterField?: string, filterValue?: string) => {
     const pageSize = 500;
     let from = 0;
     let all: any[] = [];
@@ -114,12 +251,17 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
     while (true) {
       const to = from + pageSize - 1;
 
-      const { data, error } = await supabase
+      let query = supabase
         .from(table)
         .select("*")
-        .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .range(from, to);
+
+      if (filterField && filterValue) {
+        query = query.eq(filterField, filterValue);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       if (!data || data.length === 0) break;
@@ -142,8 +284,22 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
       setSession(session);
 
       if (session) {
-        const leadsData = await fetchAllByUser("leads", session.user.id);
-        const trackerData = await fetchAllByUser("demo_tracker_botz", session.user.id);
+        let finalLeadsData: any[] = [];
+
+        if (isAsesor && teamMemberId) {
+          // ✅ ASESOR: Solo traer leads asignados a este asesor
+          console.log("👤 [CRM] Asesor detectado, buscando leads por asesor_id:", teamMemberId);
+          finalLeadsData = await fetchAllFromTable("leads", "asesor_id", teamMemberId);
+          console.log("📊 [CRM] Leads del asesor:", finalLeadsData.length);
+        } else {
+          // ✅ ADMIN: Traer TODOS los leads (sin filtro de user_id)
+          // Algunos leads entran por webhook/API y no tienen user_id del admin
+          console.log("👑 [CRM] Admin detectado, trayendo TODOS los leads");
+          finalLeadsData = await fetchAllFromTable("leads");
+          console.log("📊 [CRM] Total leads:", finalLeadsData.length);
+        }
+        
+        const trackerData = await fetchAllFromTable("demo_tracker_botz", "user_id", session.user.id);
 
         const normalize = (arr: any[], source: string) => arr.map((l) => {
             let rawOrigin = l.origen || l.source || l.channel;
@@ -161,7 +317,7 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
         });
 
         const allData = [
-          ...normalize(leadsData || [], "leads"),
+          ...normalize(finalLeadsData || [], "leads"),
           ...normalize(trackerData || [], "demo_tracker_botz")
         ];
 
@@ -178,14 +334,15 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
     fetchData();
   }, []);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setLeads([]);
-  };
-
-  // Lógica de filtrado unificada (Fecha + Filtro Global del Dock)
+  // Lógica de filtrado unificada (Fecha + Filtro Global del Dock + Rol)
   const filteredLeads = leads.filter(l => {
+    // 0. Filtro por rol - ASESORES solo ven sus leads asignados
+    if (isAsesor && teamMemberId) {
+      if (l.asesor_id !== teamMemberId) {
+        return false;
+      }
+    }
+
     // 1. Filtro de Fecha
     if (!l.created_at) return false;
     const date = new Date(l.created_at);
@@ -280,7 +437,6 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
           <button onClick={() => setShowConfig(true)} style={btnConfigStyle}><Settings size={14} /> Centro de Control</button>
-          <button onClick={handleLogout} style={btnLogoutStyle}><LogOut size={14} /> Salir</button>
         </div>
       </div>
 
@@ -359,16 +515,19 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
         <div style={overlayStyle}>
           <div style={modalContainerStyle}>
             <button onClick={() => {setShowConfig(false); setSelectedChannel(null);}} style={closeButtonStyle}><X size={24} /></button>
-            <div style={{ padding: "40px" }}>
+            <div style={{ padding: activeConfigTab === "equipo" ? "24px" : "40px" }}>
               <h2 style={{ color: "#fff", fontSize: "24px", fontWeight: "800", marginBottom: "30px", display: "flex", alignItems: "center", gap: "12px" }}>
                 <Zap color="#10b2cb" fill="#10b2cb" size={24} /> Centro de Control Botz
               </h2>
 
-              <div style={{ display: "flex", gap: "30px", minHeight: "480px" }}>
+              <div style={{ display: "flex", gap: activeConfigTab === "equipo" ? "18px" : "30px", minHeight: "480px" }}>
                 <aside style={sidebarStyle}>
                   <MenuButton label="Canales" id="canales" icon={<Globe size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
                   <MenuButton label="Estrategia" id="strategy" icon={<Briefcase size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
                   <MenuButton label="Cuenta" id="cuenta" icon={<Users size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
+                  {isAdmin && (
+                    <MenuButton label="Equipo" id="equipo" icon={<Users size={18} color="#22d3ee" />} active={activeConfigTab} onClick={setActiveConfigTab} />
+                  )}
                 </aside>
 
                 <main style={contentAreaStyle}>
@@ -386,6 +545,88 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
                   )}
                   {activeConfigTab === "strategy" && (
                     <PersistConfigForm channelId="mortgage_strategy" onBack={() => setActiveConfigTab("canales")} />
+                  )}
+                  {activeConfigTab === "cuenta" && (
+                    <div style={{ animation: "fadeIn 0.3s ease" }}>
+                      <h3 style={{ color: "#fff", marginBottom: "18px", display: "flex", alignItems: "center", gap: "8px" }}>
+                        <CreditCard size={18} color="#22d3ee" /> Cuenta y Suscripción
+                      </h3>
+
+                      {accountLoading ? (
+                        <div style={{ display: "flex", justifyContent: "center", padding: "40px" }}>
+                          <Loader2 className="animate-spin" color="#10b2cb" />
+                        </div>
+                      ) : accountSummary ? (
+                        <>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "12px", marginBottom: "14px" }}>
+                            <AccountKpi
+                              title="Plan"
+                              value={String(accountSummary.plan || "free").toUpperCase()}
+                              subtitle={`Estado: ${accountSummary.status}`}
+                              icon={<ShieldCheck size={16} color="#22d3ee" />}
+                            />
+                            <AccountKpi
+                              title="Próxima Factura"
+                              value={isAdmin ? formatDate(accountSummary.nextInvoiceDate) : "Solo admin"}
+                              subtitle={isAdmin ? `Ciclo: ${accountSummary.billingCycle}` : "Información de pago oculta"}
+                              icon={<Clock3 size={16} color="#fbbf24" />}
+                            />
+                            <AccountKpi
+                              title="Tenant"
+                              value={accountSummary.tenantId ? `${accountSummary.tenantId.slice(0, 8)}...` : "No disponible"}
+                              subtitle="Identificador de la cuenta"
+                              icon={<Users size={16} color="#10b981" />}
+                            />
+                          </div>
+
+                          <div style={{ background: "rgba(15, 23, 42, 0.45)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "16px" }}>
+                            <div style={{ color: "#f8fafc", fontWeight: 700, marginBottom: "12px" }}>Uso y limites del plan</div>
+
+                            <UsageRow
+                              label="Asesores activos"
+                              used={accountSummary.teamUsed}
+                              limit={accountSummary.teamLimit}
+                              progress={getProgress(accountSummary.teamUsed, accountSummary.teamLimit)}
+                            />
+                            <UsageRow
+                              label="Leads este mes"
+                              used={accountSummary.leadsMonthUsed}
+                              limit={accountSummary.leadsMonthLimit}
+                              progress={getProgress(accountSummary.leadsMonthUsed, accountSummary.leadsMonthLimit)}
+                            />
+                            <UsageRow
+                              label="Canales configurados"
+                              used={accountSummary.channelsUsed}
+                              limit={accountSummary.channelsLimit}
+                              progress={getProgress(accountSummary.channelsUsed, accountSummary.channelsLimit)}
+                            />
+
+                            {!isAdmin && (
+                              <div style={{ marginTop: "12px", fontSize: "12px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "6px" }}>
+                                <AlertTriangle size={13} color="#fbbf24" />
+                                Como asesor, no ves datos sensibles de facturación. Solo el admin puede ver pago y renovación.
+                              </div>
+                            )}
+
+                            {isAdmin && (
+                              <div style={{ marginTop: "12px", fontSize: "12px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "6px" }}>
+                                <CheckCircle2 size={13} color="#10b981" />
+                                Recomendación: revisa este panel al inicio de cada semana para anticipar límites y renovaciones.
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ color: "#94a3b8", fontSize: "14px", padding: "20px" }}>
+                          No se pudo cargar la información de cuenta.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {activeConfigTab === "equipo" && isAdmin && (
+                    <div style={{ animation: "fadeIn 0.3s ease" }}>
+                      <TeamManagement />
+                    </div>
                   )}
                 </main>
               </div>
@@ -473,10 +714,72 @@ function ChannelRow({ label, icon, onConfigure }: any) {
   );
 }
 
+function AccountKpi({ title, value, subtitle, icon }: { title: string; value: string; subtitle: string; icon: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        background: "rgba(15, 23, 42, 0.45)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: "14px",
+        padding: "14px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+        <span style={{ fontSize: "12px", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>{title}</span>
+        <span>{icon}</span>
+      </div>
+      <div style={{ color: "#f8fafc", fontSize: "18px", fontWeight: 800, marginBottom: "4px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={value}>
+        {value}
+      </div>
+      <div style={{ color: "#94a3b8", fontSize: "12px" }}>{subtitle}</div>
+    </div>
+  );
+}
+
+function UsageRow({ label, used, limit, progress }: { label: string; used: number; limit: number | null; progress: number }) {
+  const overLimit = !!limit && used > limit;
+
+  return (
+    <div style={{ marginBottom: "12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+        <span style={{ color: "#cbd5e1", fontSize: "13px" }}>{label}</span>
+        <span style={{ color: overLimit ? "#f87171" : "#e2e8f0", fontSize: "12px", fontWeight: 700 }}>
+          {limit ? `${used} / ${limit}` : `${used} / ilimitado`}
+        </span>
+      </div>
+      <div style={{ height: "8px", background: "rgba(148,163,184,0.2)", borderRadius: "999px", overflow: "hidden" }}>
+        <div
+          style={{
+            width: `${limit ? Math.min(100, progress) : 100}%`,
+            height: "100%",
+            background: overLimit ? "#ef4444" : progress >= 90 ? "#f59e0b" : "#22d3ee",
+            transition: "width 0.25s ease",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 const btnConfigStyle = { display: "flex", alignItems: "center", gap: "8px", background: "rgba(16, 178, 203, 0.1)", color: "#10b2cb", border: "1px solid rgba(16, 178, 203, 0.3)", padding: "8px 16px", borderRadius: "10px", fontSize: "12px", fontWeight: "bold" as const, cursor: "pointer" };
-const btnLogoutStyle = { display: "flex", alignItems: "center", gap: "8px", background: "rgba(239, 68, 68, 0.1)", color: "#f87171", border: "1px solid rgba(239, 68, 68, 0.2)", padding: "8px 16px", borderRadius: "10px", fontSize: "12px", fontWeight: "bold" as const, cursor: "pointer" };
 const overlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center" };
-const modalContainerStyle: React.CSSProperties = { width: "95%", maxWidth: "850px", background: "#0d1117", borderRadius: "24px", border: "1px solid rgba(16, 178, 203, 0.3)", position: "relative" };
-const sidebarStyle: React.CSSProperties = { width: "220px", display: "flex", flexDirection: "column", gap: "5px" };
-const contentAreaStyle: React.CSSProperties = { flex: 1, background: "rgba(255,255,255,0.02)", borderRadius: "20px", padding: "30px", border: "1px solid rgba(255,255,255,0.05)" };
+const modalContainerStyle: React.CSSProperties = {
+  width: "98%",
+  maxWidth: "1180px",
+  background: "#0d1117",
+  borderRadius: "24px",
+  border: "1px solid rgba(16, 178, 203, 0.3)",
+  position: "relative",
+  maxHeight: "94vh",
+  overflow: "auto",
+};
+const sidebarStyle: React.CSSProperties = { width: "170px", flexShrink: 0, display: "flex", flexDirection: "column", gap: "5px" };
+const contentAreaStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  background: "rgba(255,255,255,0.02)",
+  borderRadius: "20px",
+  padding: "20px",
+  border: "1px solid rgba(255,255,255,0.05)",
+};
 const closeButtonStyle: React.CSSProperties = { position: "absolute", top: "20px", right: "20px", background: "none", border: "none", color: "#64748b", cursor: "pointer" };

@@ -1963,11 +1963,26 @@ const saveLeadScoreToCRM = async () => {
 
         </div>
       </div>
+      
+      <style jsx global>{`
+        select option {
+          background: #1e293b !important;
+          color: #fff !important;
+          padding: 8px !important;
+        }
+        
+        select option:hover,
+        select option:focus,
+        select option:checked {
+          background: #334155 !important;
+          color: #fff !important;
+        }
+      `}</style>
     </div>
   );
 }
 
-const InputField = ({ label, value, onChange, prefix, suffix, step = "1" }: { 
+const InputField = ({ label, value, onChange, prefix, suffix, step = "1" }: {
   label: string; value: number; onChange: (v: string) => void; 
   prefix?: string; suffix?: string; step?: string;
 }) => (
@@ -2017,8 +2032,8 @@ const inputPanelStyle: React.CSSProperties = {
 const selectStyle: React.CSSProperties = {
   padding: "6px 10px",
   borderRadius: "8px",
-  border: "1px solid rgba(255,255,255,0.15)",
-  background: "rgba(0,0,0,0.3)",
+  border: "1px solid rgba(255,255,255,0.3)",
+  background: "rgba(30, 41, 59, 0.9)",
   color: "#fff",
   fontSize: "12px",
   cursor: "pointer",
@@ -2147,3 +2162,4 @@ const coachPanelStyle: React.CSSProperties = {
   padding: "16px",
   boxShadow: "0 0 20px rgba(139, 92, 246, 0.05)"
 };
+

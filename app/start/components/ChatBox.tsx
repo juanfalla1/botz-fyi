@@ -19,12 +19,28 @@ interface ChatBoxProps {
 export default function ChatBox({ chat, isTyping, onSend }: ChatBoxProps) {
   const [input, setInput] = useState("");
   const [isFocused, setIsFocused] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: "smooth" });
+    // Limpiar timeout anterior si existe
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
     }
+    
+    // Delay para asegurar que el mensaje se renderizó
+    scrollTimeoutRef.current = setTimeout(() => {
+      if (messagesContainerRef.current) {
+        const container = messagesContainerRef.current;
+        container.scrollTop = container.scrollHeight;
+      }
+    }, 100);
+
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
   }, [chat, isTyping]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -127,14 +143,17 @@ export default function ChatBox({ chat, isTyping, onSend }: ChatBoxProps) {
       </div>
 
       {/* Mensajes */}
-      <div style={{ 
-        flex: 1, 
-        padding: "24px", 
-        overflowY: "auto", 
-        display: "flex", 
-        flexDirection: "column", 
-        gap: "20px"
-      }}>
+      <div 
+        ref={messagesContainerRef}
+        style={{ 
+          flex: 1, 
+          padding: "24px", 
+          overflowY: "auto", 
+          display: "flex", 
+          flexDirection: "column", 
+          gap: "20px"
+        }}
+      >
         {chat.length === 0 && (
           <div style={{ 
             textAlign: "center", 
@@ -323,8 +342,6 @@ export default function ChatBox({ chat, isTyping, onSend }: ChatBoxProps) {
             </div>
           </div>
         )}
-        
-        <div ref={scrollRef} />
       </div>
 
       {/* Input Premium */}

@@ -160,11 +160,30 @@ export async function GET(req: Request) {
       );
     }
 
-    // Limpieza cookies state (y opcionalmente tenant/user)
-    const res = NextResponse.redirect(`${url.origin}/start?google=ok`);
+    // Limpieza cookies state
+    // En vez de redirect, cerramos el popup y la página principal se refresca sola
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head><title>Gmail conectado</title></head>
+        <body style="background:#0f172a;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+          <div style="text-align:center">
+            <div style="font-size:48px;margin-bottom:16px">✅</div>
+            <h2>Gmail conectado exitosamente</h2>
+            <p style="color:#94a3b8">Esta ventana se cerrará automáticamente...</p>
+          </div>
+          <script>
+            setTimeout(function() { window.close(); }, 1500);
+          </script>
+        </body>
+      </html>
+    `;
+
+    const res = new NextResponse(html, {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
     res.cookies.set("botz_google_oauth_state", "", { path: "/", maxAge: 0 });
-    // res.cookies.set("botz_google_oauth_tenant", "", { path: "/", maxAge: 0 });
-    // res.cookies.set("botz_google_oauth_user", "", { path: "/", maxAge: 0 });
 
     return res;
   } catch (e: any) {

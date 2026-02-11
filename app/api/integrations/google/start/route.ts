@@ -31,15 +31,12 @@ export async function GET(req: Request) {
 
     const state = makeState();
 
-    // Scopes completos: Gmail (leer, enviar, modificar) + email del usuario
+    // Scope completo de Gmail (leer, enviar, modificar, todo)
     const scope = [
       "openid",
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/userinfo.profile",
-      "https://www.googleapis.com/auth/gmail.readonly",
-      "https://www.googleapis.com/auth/gmail.send",      // ✅ AGREGAR: Enviar emails
-      "https://www.googleapis.com/auth/gmail.modify",    // ✅ AGREGAR: Modificar emails
-      // Si vas a usar Drive también:
+      "https://mail.google.com/",
       "https://www.googleapis.com/auth/drive.readonly",
     ].join(" ");
 

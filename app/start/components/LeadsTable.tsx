@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import { supabase } from "./supabaseClient";
 import LeadDetailsDrawer from "./LeadDetailsDrawer";
 import AsignarAsesor from "./Asignarasesor";
+import { useAuth } from "../MainLayout";
 import {
   Search,
   Download,
@@ -95,6 +96,9 @@ export default function LeadsTable({
   const [formNextAction, setFormNextAction] = useState<string>("");
   const [formCalificacion, setFormCalificacion] = useState<string>("");
 
+  // ✅ NUEVO: Acceso a sincronización global
+  const { triggerDataRefresh, isAsesor, teamMemberId, tenantId: authTenantId, user } = useAuth();
+
   // =========================
   // ✅ Confirmación bonita para eliminar
   // =========================
@@ -161,6 +165,50 @@ export default function LeadsTable({
     setLeadModalLoading(true);
 
     try {
+      let resolvedTenantId = safeTenantId || authTenantId || null;
+      let resolvedTeamMemberId = teamMemberId || null;
+
+      if (isAsesor && (!resolvedTenantId || !resolvedTeamMemberId)) {
+        const authUserId = session?.user?.id || user?.id || null;
+        const authEmail = session?.user?.email || user?.email || null;
+
+        if (authUserId) {
+          const { data: tmByAuth } = await supabase
+            .from("team_members")
+            .select("id, tenant_id")
+            .eq("auth_user_id", authUserId)
+            .eq("activo", true)
+            .maybeSingle();
+
+          if (tmByAuth) {
+            resolvedTeamMemberId = tmByAuth.id || resolvedTeamMemberId;
+            resolvedTenantId = tmByAuth.tenant_id || resolvedTenantId;
+          }
+        }
+
+        if ((!resolvedTenantId || !resolvedTeamMemberId) && authEmail) {
+          const { data: tmByEmail } = await supabase
+            .from("team_members")
+            .select("id, tenant_id")
+            .eq("email", authEmail)
+            .eq("activo", true)
+            .maybeSingle();
+
+          if (tmByEmail) {
+            resolvedTeamMemberId = tmByEmail.id || resolvedTeamMemberId;
+            resolvedTenantId = tmByEmail.tenant_id || resolvedTenantId;
+          }
+        }
+      }
+
+      if (isAsesor && !resolvedTeamMemberId) {
+        throw new Error("No se pudo identificar el asesor actual. Revisa team_members (auth_user_id/email).");
+      }
+
+      if (!resolvedTenantId) {
+        throw new Error("No se pudo resolver tenant_id para este lead.");
+      }
+
       const payload: any = {
         name: formName.trim(),
         email: formEmail.trim(),
@@ -172,7 +220,12 @@ export default function LeadsTable({
       };
 
       if (session?.user?.id) payload.user_id = session.user.id;
-      if (safeTenantId) payload.tenant_id = safeTenantId;
+      payload.tenant_id = resolvedTenantId;
+
+      if (isAsesor && resolvedTeamMemberId) {
+        payload.asesor_id = resolvedTeamMemberId;
+        payload.assigned_to = resolvedTeamMemberId;
+      }
 
       const { data, error } = await supabase
         .from("leads")
@@ -198,6 +251,8 @@ export default function LeadsTable({
         } catch (e) {
           console.warn("lead_logs insert skipped:", e);
         }
+
+        triggerDataRefresh();
       }
 
       closeLeadModal();
@@ -365,12 +420,23 @@ export default function LeadsTable({
       ? String(value || "NUEVO").trim().toUpperCase().replace(/\s+/g, "_")
       : value;
 
+  const previousLead = leads.find((l) => l.id === id) as any;
+  const previousValue = previousLead ? previousLead[field] : undefined;
+
   setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, [field]: cleanValue } : l)));
   onLeadPatch?.(id, { [field]: cleanValue } as any);
   const { error } = await supabase.from("leads").update({ [field]: cleanValue }).eq("id", id);
-    if (error) console.error("Error saving:", error);
+    if (error) {
+      console.error("Error saving:", error);
+      setLeads((prev) => prev.map((l: any) => (l.id === id ? { ...l, [field]: previousValue } : l)));
+      onLeadPatch?.(id, { [field]: previousValue } as any);
+      alert("No se pudo guardar el cambio. Verifica permisos de edición para este lead.");
+    } else {
+      // ✅ NUEVO: Sincronizar con dashboard ejecutivo
+      triggerDataRefresh();
+    }
 
-    if (field === "status" || field === "calificacion" || field === "next_action") {
+    if (!error && (field === "status" || field === "calificacion" || field === "next_action")) {
       let tipo = "status";
       let texto = `Cambio de estado a ${value.toUpperCase()}`;
       if (field === "calificacion") {

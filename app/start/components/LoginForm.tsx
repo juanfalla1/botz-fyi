@@ -32,7 +32,7 @@ export default function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps
         const { data: profileData } = await supabase
           .from("team_members")
           .select("id, nombre, rol, activo")
-          .eq("user_id", data.session.user.id)
+          .eq("auth_user_id", data.session.user.id)
           .single();
 
         if (profileData && !profileData.activo) {

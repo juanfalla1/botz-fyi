@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
 import { Lead } from "./LeadsTable";
+import { useAuth } from "../MainLayout";
 import { 
   MoreHorizontal, MessageCircle, Phone, 
   DollarSign, Calendar, MoreVertical,
@@ -27,9 +28,12 @@ function normalizeColumnId(input: string) {
 
 export default function KanbanBoard({ globalFilter }: { globalFilter?: string | null }) {
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [columns, setColumns] = useState<Column[]>([]); // Se inicializa vacío para cargar persistencia correctamente
+  const [columns, setColumns] = useState<Column[]>([]);
   const [draggedLead, setDraggedLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user, isAsesor, teamMemberId, tenantId: authTenantId, loading: authLoading, triggerDataRefresh } = useAuth();
+  
+  console.log('[Kanban] 🔄 Component rendered, user:', user?.email, 'isAsesor:', isAsesor);
 
   // UI States para Menús
   const [activeMenuColId, setActiveMenuColId] = useState<string | null>(null);
@@ -45,28 +49,93 @@ export default function KanbanBoard({ globalFilter }: { globalFilter?: string | 
   const [historyLead, setHistoryLead] = useState<Lead | null>(null);
   const [leadLogs, setLeadLogs] = useState<any[]>([]);
 
-  // 1. CARGAR DATOS (filtrado por tenant_id)
-  const [tenantId, setTenantId] = useState<string | null>(null);
+  // 1. CARGAR DATOS (filtrado por tenant_id y rol)
+  const [tenantId, setTenantId] = useState<string | null>(authTenantId || null);
+  const [tenantResolved, setTenantResolved] = useState(false);
 
   useEffect(() => {
-    const getTenant = async () => {
+    const resolveTenant = async () => {
+      if (authLoading) return;
+
+      if (authTenantId) {
+        setTenantId(authTenantId);
+        setTenantResolved(true);
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
-      const tid = session?.user?.user_metadata?.tenant_id || session?.user?.app_metadata?.tenant_id || null;
+      const tid =
+        session?.user?.user_metadata?.tenant_id ||
+        session?.user?.app_metadata?.tenant_id ||
+        null;
+      console.log('[Kanban] 🎯 Tenant ID resolved:', tid);
       setTenantId(tid);
+      setTenantResolved(true);
     };
-    getTenant();
-  }, []);
 
-  useEffect(() => { if (tenantId) fetchLeads(false); }, [globalFilter, tenantId]);
+    resolveTenant();
+  }, [authLoading, authTenantId]);
 
-  const fetchLeads = async (silent: boolean) => {
+  useEffect(() => {
+    if (tenantResolved && !authLoading) {
+      fetchLeads(false);
+    }
+  }, [globalFilter, tenantResolved, authLoading, isAsesor, teamMemberId, tenantId]);
+
+const fetchLeads = async (silent: boolean) => {
+    console.log('[Kanban] 🚀 fetchLeads started, silent:', silent);
     if (!silent) setLoading(true);
-    let query = supabase.from("leads").select("*");
-    if (tenantId) query = query.eq("tenant_id", tenantId);
-    if (globalFilter) query = query.or(`source.ilike.%${globalFilter}%,origen.ilike.%${globalFilter}%`);
-    const { data } = await query;
-    if (data) setLeads(data as Lead[]);
-    setLoading(false);
+    
+    try {
+      console.log('[Kanban] 📡 Fetching leads for tenant:', tenantId, 'isAsesor:', isAsesor, 'teamMemberId:', teamMemberId);
+      if (isAsesor && !teamMemberId) {
+        console.warn('[Kanban] ⚠️ Asesor sin teamMemberId, no se consultan leads');
+        setLeads([]);
+        return;
+      }
+
+      let query = supabase.from("leads").select("*");
+      
+      // Filtrar por tenant
+      if (tenantId) {
+        console.log('[Kanban] ✅ Adding tenant_id filter:', tenantId);
+        query = query.eq("tenant_id", tenantId);
+      } else {
+        console.warn('[Kanban] ⚠️ NO tenant_id found!');
+      }
+      
+      // Si es asesor, filtrar solo sus leads asignados
+      if (isAsesor && teamMemberId) {
+        console.log('[Kanban] 👤 Asesor detectado, filtrando por asesor_id/assigned_to:', teamMemberId);
+        query = query.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('[Kanban] ❌ Error fetching leads:', error);
+      } else {
+        console.log('[Kanban] ✅ Query succeeded, leads count:', data?.length || 0);
+      }
+      
+      if (data) {
+        const rows = data as Lead[];
+        const filteredRows = globalFilter
+          ? rows.filter((lead: any) => {
+              const source = String(lead?.source || lead?.origen || '').toLowerCase();
+              return source.includes(globalFilter.toLowerCase());
+            })
+          : rows;
+
+        console.log('[Kanban] 📊 Setting', filteredRows.length, 'leads to state');
+        setLeads(filteredRows);
+      }
+    } catch (err) {
+      console.error('[Kanban] 💥 Exception in fetchLeads:', err);
+    } finally {
+      console.log('[Kanban] 🏁 Setting loading to false');
+      setLoading(false);
+    }
   };
 
   // ✅ PERSISTENCIA CORREGIDA: Solo carga BASE_COLUMNS si el localStorage está vacío
@@ -124,10 +193,24 @@ export default function KanbanBoard({ globalFilter }: { globalFilter?: string | 
 
   const confirmDeleteCol = async () => {
     if (!modalDeleteCol) return;
-    const hasLeads = leads.some(l => (l.status || "NUEVO").toUpperCase() === modalDeleteCol.id);
-    if (hasLeads) {
-      setLeads(prev => prev.map(l => (l.status || "NUEVO").toUpperCase() === modalDeleteCol.id ? { ...l, status: "NUEVO" } : l));
-      await supabase.from("leads").update({ status: "NUEVO" }).eq("status", modalDeleteCol.id);
+    const leadsInColumn = leads.filter((l) => (l.status || "NUEVO").toUpperCase() === modalDeleteCol.id);
+    if (leadsInColumn.length > 0) {
+      const leadIds = leadsInColumn.map((l) => l.id);
+      setLeads((prev) => prev.map((l) => (leadIds.includes(l.id) ? { ...l, status: "NUEVO" } : l)));
+
+      const { error } = await supabase
+        .from("leads")
+        .update({ status: "NUEVO", updated_at: new Date().toISOString() })
+        .in("id", leadIds);
+
+      if (error) {
+        console.error('[Kanban] ❌ Error devolviendo leads a NUEVO:', error);
+        await fetchLeads(false);
+        alert('No se pudo guardar el cambio de estado. Revisa permisos de este usuario.');
+        return;
+      }
+
+      triggerDataRefresh();
     }
     setColumns(prev => prev.filter(c => c.id !== modalDeleteCol.id));
     setModalDeleteCol(null); setActiveMenuColId(null);
@@ -142,8 +225,38 @@ export default function KanbanBoard({ globalFilter }: { globalFilter?: string | 
   const onDrop = async (e: React.DragEvent, targetStatus: string) => {
     e.preventDefault();
     if (!draggedLead) return;
-    setLeads(prev => prev.map(l => l.id === draggedLead.id ? { ...l, status: targetStatus } : l));
-    await supabase.from("leads").update({ status: targetStatus }).eq("id", draggedLead.id);
+
+    const previousStatus = draggedLead.status || "NUEVO";
+
+    setLeads((prev) => prev.map((l) => (l.id === draggedLead.id ? { ...l, status: targetStatus } : l)));
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update({ status: targetStatus, updated_at: new Date().toISOString() })
+      .eq("id", draggedLead.id);
+
+    if (updateError) {
+      console.error('[Kanban] ❌ Error actualizando estado:', updateError);
+      setLeads((prev) => prev.map((l) => (l.id === draggedLead.id ? { ...l, status: previousStatus } : l)));
+      alert('No se pudo guardar el cambio de estado. Revisa permisos del asesor sobre este lead.');
+      setDraggedLead(null);
+      return;
+    }
+
+    try {
+      await supabase.from("lead_logs").insert([
+        {
+          lead_id: draggedLead.id,
+          type: "status",
+          text: `Cambio de estado en Kanban: ${String(previousStatus).toUpperCase()} → ${String(targetStatus).toUpperCase()}`,
+          user_name: user?.email || "Sistema",
+        },
+      ]);
+    } catch (logError) {
+      console.warn('[Kanban] ⚠️ No se pudo insertar en bitácora lead_logs:', logError);
+    }
+
+    triggerDataRefresh();
     setDraggedLead(null);
   };
 

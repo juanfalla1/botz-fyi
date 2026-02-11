@@ -130,6 +130,15 @@ interface AuthContextType {
   hasFeatureAccess: (featureId: string) => boolean;
   refreshSubscription: () => Promise<void>;
   enabledFeatures: string[];
+  // ✅ NUEVO: Sistema de roles
+  userRole: 'admin' | 'asesor' | null;
+  isAdmin: boolean;
+  isAsesor: boolean;
+  teamMemberId: string | null;
+  tenantId: string | null;
+  // ✅ NUEVO: Sincronización global
+  triggerDataRefresh: () => void;
+  dataRefreshKey: number;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -141,6 +150,15 @@ const AuthContext = createContext<AuthContextType>({
   hasFeatureAccess: () => false,
   refreshSubscription: async () => {},
   enabledFeatures: ["demo"],
+  // ✅ NUEVO: Valores por defecto para roles
+  userRole: null,
+  isAdmin: false,
+  isAsesor: false,
+  teamMemberId: null,
+  tenantId: null,
+  // ✅ NUEVO: Sincronización global
+  triggerDataRefresh: () => {},
+  dataRefreshKey: 0,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -157,65 +175,126 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
   const [loading, setLoading] = useState(true);
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>(["demo"]);
+  
+  // ✅ NUEVO: Estados para sistema de roles
+  const [userRole, setUserRole] = useState<'admin' | 'asesor' | null>(null);
+  const [teamMemberId, setTeamMemberId] = useState<string | null>(null);
+  const [tenantId, setTenantId] = useState<string | null>(null);
+  // ✅ NUEVO: Sincronización global
+  const [dataRefreshKey, setDataRefreshKey] = useState(0);
+  const triggerDataRefresh = useCallback(() => {
+    setDataRefreshKey((prev) => prev + 1);
+  }, []);
 
-  // ✅ Función para obtener la suscripción activa del usuario
-  const fetchUserSubscription = useCallback(async (userId: string) => {
-    try {
-      console.log("🔍 Buscando suscripción para usuario:", userId);
-
-      const { data, error } = await supabase
-  .from("subscriptions")
-  .select("*")
-  .eq("user_id", userId)
-  .in("status", ["active", "trialing"])
-  .order("created_at", { ascending: false })
-  .limit(1);
-
-if (error) {
-  console.error("❌ Error al buscar suscripción:", error);
-  return null;
-}
-
-const subscription = data?.[0] ?? null; // <-- aquí tienes la suscripción o null
-
-        
-        
-
-      if (error) {
-        console.error("❌ Error al buscar suscripción:", error);
-        setUserPlan("free");
-        setSubscription(null);
-        setEnabledFeatures(PLAN_FEATURES["free"]);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        const activeSub = data[0];
-        console.log("✅ Suscripción encontrada:", activeSub);
-
-        setSubscription(activeSub);
-        setUserPlan(activeSub.plan);
-
-        // Obtener features del plan
-        const planFeatures =
-          PLAN_FEATURES[activeSub.plan] || PLAN_FEATURES["free"];
-        setEnabledFeatures(planFeatures);
-
-        console.log("🎯 Plan activo:", activeSub.plan);
-        console.log("🔓 Features habilitadas:", planFeatures);
-      } else {
-        console.log("ℹ️ No se encontró suscripción activa, usando plan free");
-        setUserPlan("free");
-        setSubscription(null);
-        setEnabledFeatures(PLAN_FEATURES["free"]);
-      }
-    } catch (error) {
-      console.error("❌ Error en fetchUserSubscription:", error);
+  // ✅ Función para aplicar suscripción encontrada al estado
+  const applySubscription = useCallback((activeSub: any | null) => {
+    if (activeSub) {
+      console.log("✅ [SUB] Plan final:", activeSub.plan, "| Status:", activeSub.status);
+      setSubscription(activeSub);
+      const tenantPlan = activeSub.plan || "free";
+      setUserPlan(tenantPlan);
+      const planFeatures = PLAN_FEATURES[tenantPlan] || PLAN_FEATURES["free"];
+      setEnabledFeatures(planFeatures);
+      console.log("🎯 [SUB] Plan:", tenantPlan, "| Features:", planFeatures);
+    } else {
+      console.log("ℹ️ [SUB] No se encontró suscripción activa → plan free");
       setUserPlan("free");
       setSubscription(null);
       setEnabledFeatures(PLAN_FEATURES["free"]);
     }
   }, []);
+
+  // ✅ Función para obtener la suscripción activa del usuario
+  // Recibe userId (auth) y opcionalmente tenantId (de team_members, sin RLS)
+  const fetchUserSubscription = useCallback(async (userId: string, tenantId?: string | null) => {
+    try {
+      console.log("🔍 [SUB] Buscando suscripción | auth_user_id:", userId, "| tenant_id:", tenantId || "N/A");
+
+      // ── PASO 1: Buscar suscripción directamente por user_id (funciona para admin) ──
+      const { data: directData, error: directError } = await supabase
+        .from("subscriptions")
+        .select("*")
+        .eq("user_id", userId)
+        .in("status", ["active", "trialing"])
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (directError) {
+        console.error("❌ [SUB] Error buscando por user_id:", directError);
+      }
+
+      let activeSub = directData?.[0] ?? null;
+      console.log("🔍 [SUB] Paso 1 (por user_id):", activeSub ? `ENCONTRADA - plan: ${activeSub.plan}` : "NO encontrada");
+
+      // ── PASO 2: Si no encontró por user_id Y tenemos tenant_id, buscar por tenant ──
+      if (!activeSub && tenantId) {
+        console.log("🏢 [SUB] Paso 2: Buscando por tenant_id:", tenantId);
+
+        const { data: tenantSubData, error: tenantSubError } = await supabase
+          .from("subscriptions")
+          .select("*")
+          .eq("tenant_id", tenantId)
+          .in("status", ["active", "trialing"])
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (tenantSubError) {
+          console.error("❌ [SUB] Error buscando por tenant_id:", tenantSubError);
+        }
+
+        activeSub = tenantSubData?.[0] ?? null;
+        console.log("🔍 [SUB] Paso 2 resultado:", activeSub ? `ENCONTRADA - plan: ${activeSub.plan}` : "NO encontrada");
+      }
+
+      // ── PASO 3: Si aún no encontró, intentar obtener tenant_id de team_members ──
+      if (!activeSub && !tenantId) {
+        console.log("🔄 [SUB] Paso 3: Buscando tenant_id en team_members...");
+
+        // Buscar por auth_user_id (team_members NO tiene RLS)
+        const { data: tmByAuth } = await supabase
+          .from("team_members")
+          .select("tenant_id, email, rol")
+          .eq("auth_user_id", userId)
+          .eq("activo", true)
+          .maybeSingle();
+
+        let foundTenantId = tmByAuth?.tenant_id || null;
+
+        if (!foundTenantId) {
+          // Fallback: buscar por email
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          if (authUser?.email) {
+            const { data: tmByEmail } = await supabase
+              .from("team_members")
+              .select("tenant_id")
+              .eq("email", authUser.email)
+              .eq("activo", true)
+              .maybeSingle();
+            foundTenantId = tmByEmail?.tenant_id || null;
+          }
+        }
+
+        if (foundTenantId) {
+          console.log("🏢 [SUB] tenant_id encontrado:", foundTenantId);
+          const { data: tenantSubData } = await supabase
+            .from("subscriptions")
+            .select("*")
+            .eq("tenant_id", foundTenantId)
+            .in("status", ["active", "trialing"])
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          activeSub = tenantSubData?.[0] ?? null;
+          console.log("🔍 [SUB] Paso 3 resultado:", activeSub ? `ENCONTRADA - plan: ${activeSub.plan}` : "NO encontrada");
+        }
+      }
+
+      applySubscription(activeSub);
+    } catch (error) {
+      console.error("❌ [SUB] Error en fetchUserSubscription:", error);
+      applySubscription(null);
+    }
+  }, [applySubscription]);
 
   // ✅ Función pública para refrescar la suscripción
   const refreshSubscription = useCallback(async () => {
@@ -224,6 +303,53 @@ const subscription = data?.[0] ?? null; // <-- aquí tienes la suscripción o nu
       await fetchUserSubscription(user.id);
     }
   }, [user?.id, fetchUserSubscription]);
+
+  // ✅ Función para detectar rol del usuario Y retornar tenant_id
+  const detectUserRole = async (authUserId: string, email: string): Promise<string | null> => {
+    try {
+      // Buscar primero por auth_user_id, luego por email
+      let teamMember: any = null;
+
+      const { data: tmByAuth } = await supabase
+        .from('team_members')
+        .select('id, nombre, email, rol, tenant_id')
+        .eq('auth_user_id', authUserId)
+        .eq('activo', true)
+        .maybeSingle();
+
+      teamMember = tmByAuth;
+
+      if (!teamMember) {
+        const { data: tmByEmail } = await supabase
+          .from('team_members')
+          .select('id, nombre, email, rol, tenant_id')
+          .eq('email', email)
+          .eq('activo', true)
+          .maybeSingle();
+        teamMember = tmByEmail;
+      }
+
+      if (teamMember) {
+        setUserRole(teamMember.rol === 'asesor' ? 'asesor' : 'admin');
+        setTeamMemberId(teamMember.id);
+        setTenantId(teamMember.tenant_id || null);
+        console.log("👥 [ROL] Usuario:", teamMember.email, "| Rol:", teamMember.rol, "| tenant_id:", teamMember.tenant_id);
+        return teamMember.tenant_id || null;
+      } else {
+        setUserRole('admin');
+        setTeamMemberId(null);
+        setTenantId(null);
+        console.log("👤 [ROL] Usuario es admin (no está en team_members)");
+        return null;
+      }
+    } catch (error) {
+      console.error("❌ [ROL] Error detecting user role:", error);
+      setUserRole('admin');
+      setTeamMemberId(null);
+      setTenantId(null);
+      return null;
+    }
+  };
 
   // ✅ Verificar sesión al montar
   useEffect(() => {
@@ -236,12 +362,16 @@ const subscription = data?.[0] ?? null; // <-- aquí tienes la suscripción o nu
         if (session?.user) {
           console.log("👤 Usuario logueado:", session.user.email);
           setUser(session.user);
-          await fetchUserSubscription(session.user.id);
+          const tenantId = await detectUserRole(session.user.id, session.user.email || '');
+          await fetchUserSubscription(session.user.id, tenantId);
         } else {
           console.log("👤 No hay sesión activa");
           setUser(null);
           setUserPlan("free");
           setEnabledFeatures(PLAN_FEATURES["free"]);
+          setUserRole(null);
+          setTeamMemberId(null);
+          setTenantId(null);
         }
       } catch (error) {
         console.error("Error checking session:", error);
@@ -261,9 +391,10 @@ const subscription = data?.[0] ?? null; // <-- aquí tienes la suscripción o nu
       if (event === "SIGNED_IN" && session?.user) {
         console.log("✅ Usuario inició sesión:", session.user.email);
         setUser(session.user);
+        const tenantId = await detectUserRole(session.user.id, session.user.email || '');
         // Pequeño delay para asegurar que la DB se haya actualizado
         setTimeout(async () => {
-          await fetchUserSubscription(session.user.id);
+          await fetchUserSubscription(session.user.id, tenantId);
           setLoading(false);
         }, 500);
       } else if (event === "SIGNED_OUT") {
@@ -272,10 +403,10 @@ const subscription = data?.[0] ?? null; // <-- aquí tienes la suscripción o nu
         setUserPlan("free");
         setSubscription(null);
         setEnabledFeatures(PLAN_FEATURES["free"]);
+        setUserRole(null);
+        setTeamMemberId(null);
+        setTenantId(null);
         setLoading(false);
-      } else if (event === "TOKEN_REFRESHED" && session?.user) {
-        // Refrescar suscripción cuando se refresca el token
-        await fetchUserSubscription(session.user.id);
       }
     });
 
@@ -331,6 +462,8 @@ const subscription = data?.[0] ?? null; // <-- aquí tienes la suscripción o nu
 
     console.log("📡 Configurando listener en tiempo real para subscriptions...");
 
+    // Escuchar cambios por user_id (admin) Y todos los cambios en subscriptions
+    // para capturar cambios de tenant (asesores)
     const channel = supabase
       .channel("subscription-changes")
       .on(
@@ -339,7 +472,6 @@ const subscription = data?.[0] ?? null; // <-- aquí tienes la suscripción o nu
           event: "*",
           schema: "public",
           table: "subscriptions",
-          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
           console.log("🔔 Cambio detectado en subscriptions:", payload);
@@ -388,6 +520,15 @@ const subscription = data?.[0] ?? null; // <-- aquí tienes la suscripción o nu
         hasFeatureAccess,
         refreshSubscription,
         enabledFeatures,
+        // ✅ NUEVO: Campos de rol
+        userRole,
+        isAdmin: userRole === 'admin',
+        isAsesor: userRole === 'asesor',
+        teamMemberId,
+        tenantId,
+        // ✅ NUEVO: Sincronización global
+        triggerDataRefresh,
+        dataRefreshKey,
       }}
     >
       {children}

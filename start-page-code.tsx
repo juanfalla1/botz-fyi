@@ -27,7 +27,7 @@ import {
   FaWhatsapp, FaFacebook, FaInstagram, FaGoogle, 
   FaMeta, FaTiktok, FaTelegram, FaShopify 
 } from "react-icons/fa6";
-import { RefreshCw, Users, ShieldCheck } from "lucide-react"; 
+import { RefreshCw, Users } from "lucide-react"; 
 
 type Tab = "demo" | "channels" | "crm" | "metrics" | "kanban" | "hipoteca" | "n8n-config" | "sla";
 
@@ -79,7 +79,7 @@ export default function BotzLandingExperience() {
   const router = useRouter(); 
   
   // ✅ Usar el contexto de autenticación
-  const { user, loading: authLoading, isAdmin, isAsesor } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   
   const [activeTab, setActiveTab] = useState<Tab>("demo");
   const [hipotecaMode, setHipotecaMode] = useState<"manual" | "lead">("manual");
@@ -216,120 +216,123 @@ export default function BotzLandingExperience() {
   }, [step]);
 
   const handleSendChat = async (text: string) => { 
-    // Agregar mensaje del usuario inmediatamente
     setChat(prev => [...prev, { role: "user", text }]);
     setIsTyping(true);
-
-    // Pequeña pausa para simular procesamiento
-    await new Promise(resolve => setTimeout(resolve, 800));
 
     const numeroEncontrado = parseInt(text.replace(/[^0-9]/g, ""));
     let nuevoPrecio = calculoHipoteca.valorVivienda;
     let nuevosIngresos = calculoHipoteca.ingresosMensuales;
-    const txt = text.toLowerCase();
 
-    // Detectar valor de vivienda (primer número grande)
     if (calculoHipoteca.valorVivienda === 0 && numeroEncontrado > 10000) {
         nuevoPrecio = numeroEncontrado;
         setCalculoHipoteca(prev => ({ ...prev, valorVivienda: nuevoPrecio }));
         setFormData(prev => ({ ...prev, valorVivienda: nuevoPrecio.toString() }));
-        
-        setIsTyping(false);
-        setChat(prev => [...prev, { 
-            role: "bot", 
-            text: `¡Perfecto! Vivienda valorada en $${nuevoPrecio.toLocaleString()}.\n\nAhora necesito conocer tus ingresos mensuales brutos para calcular tu capacidad de pago (DTI).`,
-            options: ["$2,000", "$3,500", "$5,000", "$8,000", "$12,000"]
-        }]);
-        return;
-    }
-
-    // Detectar ingresos mensuales
-    if (calculoHipoteca.valorVivienda > 0 && calculoHipoteca.ingresosMensuales === 0 && numeroEncontrado > 500) {
+    } else if (numeroEncontrado > 500) {
         nuevosIngresos = numeroEncontrado;
-        const resultado = calcularMotorLocal(calculoHipoteca.valorVivienda, nuevosIngresos);
-        
+        const local = calcularMotorLocal(nuevoPrecio, nuevosIngresos);
         setCalculoHipoteca(prev => ({ 
             ...prev, 
             ingresosMensuales: nuevosIngresos, 
-            cuotaEstimada: resultado.cuota, 
-            financiacion: resultado.financiacion,
-            score: resultado.score,
-            dti: resultado.dti,
-            aprobado: resultado.aprobado
+            cuotaEstimada: local.cuota, 
+            financiacion: local.financiacion,
+            score: local.score,
+            dti: local.dti,
+            aprobado: local.aprobado
         }));
         setFormData(prev => ({ ...prev, ingresoMensual: nuevosIngresos.toString() }));
-        
-        const estado = resultado.aprobado ? "✅ APROBADO" : "⚠️ REVISAR";
-        const mensajeDTI = resultado.dti > 40 
-            ? `Tu DTI es del ${resultado.dti}%, lo cual es alto. Se recomienda no superar el 40%.`
-            : `Tu DTI es del ${resultado.dti}%, dentro del rango saludable (<40%).`;
-        
-        setIsTyping(false);
-        setChat(prev => [...prev, { 
-            role: "bot", 
-            text: `**${estado}**\n\n📊 **Resultado del Análisis:**\n\n💰 Vivienda: $${calculoHipoteca.valorVivienda.toLocaleString()}\n💵 Ingresos: $${nuevosIngresos.toLocaleString()}/mes\n📈 Cuota estimada: $${resultado.cuota.toLocaleString()}/mes\n📊 Score: ${resultado.score}/100\n\n${mensajeDTI}\n\n¿Qué deseas hacer ahora?`,
-            options: ["📄 Descargar Informe", "📅 Agendar Asesoría", "🔄 Nueva Simulación", "💬 Más información"]
-        }]);
-        return;
     }
 
-    // Manejar opciones de botones y comandos especiales
-    setIsTyping(false);
-    
-    if (txt.includes("pdf") || txt.includes("descargar") || txt.includes("informe")) {
-        setChat(prev => [...prev, { 
-            role: "bot", 
-            text: "📄 **Generando tu informe personalizado...**\n\n✅ Estudio de viabilidad completo\n✅ Análisis DTI detallado\n✅ Recomendaciones personalizadas\n\n📧 El informe ha sido enviado a tu correo registrado. También puedes descargarlo aquí.",
-            options: ["📅 Agendar Asesoría", "🔄 Nueva Simulación"]
-        }]);
-    } 
-    else if (txt.includes("cita") || txt.includes("agendar") || txt.includes("asesor")) {
-        setChat(prev => [...prev, { 
-            role: "bot", 
-            text: "📅 **¡Excelente decisión!**\n\nUn asesor hipotecario especializado revisará tu caso en detalle y te contactará en menos de 24 horas vía WhatsApp.\n\n📞 También puedes llamarnos al: +57 300 123 4567",
-            options: ["🔄 Nueva Simulación", "💬 Otra pregunta"]
-        }]);
-    }
-    else if (txt.includes("reiniciar") || txt.includes("nueva")) {
-        demoReset();
-        setTimeout(() => {
-            setChat([{ 
+    try {
+      const response = await fetch(N8N_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          precio: nuevoPrecio,
+          ingresos: nuevosIngresos,
+          edad: 35,
+          tasa: calculoHipoteca.tasa,
+          plazo: calculoHipoteca.plazo,
+          respuesta_whatsapp: text,
+          nombre: formData.name || "Visitante Web",
+          email: formData.email,
+          phone: formData.phone || "573000000000",
+          pais: formData.country,
+          interes: formData.interest,
+          empresa: formData.company,
+          source: "web_demo"
+        })
+      });
+
+      const data = await response.json();
+      setIsTyping(false);
+
+      if (data.calculo) {
+        const c = data.calculo;
+        setCalculoHipoteca(prev => ({
+          ...prev,
+          cuotaEstimada: c.cuotaMensual,
+          dti: c.dti,
+          score: c.score,
+          aprobado: c.viabilidad
+        }));
+      }
+
+      if (data.mensaje_bot) {
+         setChat(prev => [...prev, { role: "bot", text: data.mensaje_bot }]);
+      } 
+      else {
+         const txt = text.toLowerCase();
+         if (txt.includes("pdf") || txt.includes("descargar")) {
+            setChat(prev => [...prev, { 
                 role: "bot", 
-                text: `¡Hola de nuevo ${formData.name || "amigo"}! 🏠\n\nVamos a hacer una nueva simulación. ¿Cuál es el valor aproximado de la vivienda que te interesa?`,
-                options: ["$150,000", "$250,000", "$350,000", "$500,000", "$750,000+"]
+                text: "📄 **Generando Informe...**\n\nAquí tienes tu estudio de viabilidad detallado listo para descargar.",
+                options: ["📅 Agendar Cita con Asesor", "🔄 Reiniciar Simulación"]
             }]);
-        }, 500);
-    }
-    else if (txt.includes("info") || txt.includes("información")) {
-        setChat(prev => [...prev, { 
-            role: "bot", 
-            text: "💡 **¿Cómo funciona el DTI?**\n\nEl DTI (Debt-to-Income) mide qué porcentaje de tus ingresos se destinará a pagar la hipoteca.\n\n✅ **Ideal:** Menos del 30%\n⚠️ **Aceptable:** 30-40%\n❌ **Riesgoso:** Más del 40%\n\nBancos generalmente rechazan operaciones con DTI superior al 40-45%.",
-            options: ["📄 Descargar Informe", "📅 Agendar Asesoría"]
-        }]);
-    }
-    else if (calculoHipoteca.valorVivienda === 0) {
-        // Aún no ha proporcionado valor de vivienda
-        setChat(prev => [...prev, { 
-            role: "bot", 
-            text: "Para comenzar el análisis, necesito saber el valor aproximado de la vivienda que te interesa.",
-            options: ["$150,000", "$250,000", "$350,000", "$500,000", "$750,000+"]
-        }]);
-    }
-    else if (calculoHipoteca.ingresosMensuales === 0) {
-        // Tiene vivienda pero no ingresos
-        setChat(prev => [...prev, { 
-            role: "bot", 
-            text: `Vale, vivienda de $${calculoHipoteca.valorVivienda.toLocaleString()}. Ahora dime tus ingresos mensuales brutos para calcular tu capacidad de endeudamiento.`,
-            options: ["$2,000", "$3,500", "$5,000", "$8,000", "$12,000"]
-        }]);
-    }
-    else {
-        // Ya tiene ambos datos
-        setChat(prev => [...prev, { 
-            role: "bot", 
-            text: "¿En qué más puedo ayudarte con tu análisis hipotecario?",
-            options: ["📄 Descargar Informe", "📅 Agendar Asesoría", "🔄 Nueva Simulación", "💬 Más información"]
-        }]);
+         } 
+         else if (txt.includes("cita") || txt.includes("agendar")) {
+            setChat(prev => [...prev, { 
+                role: "bot", 
+                text: "📅 **Agenda Confirmada**\n\nUn asesor hipotecario revisará tu caso y te contactará en breve al WhatsApp registrado.",
+                options: ["🔄 Reiniciar"]
+            }]);
+         }
+         else if (nuevosIngresos === 0) {
+             setChat(prev => [...prev, { 
+                 role: "bot", 
+                 text: `Entendido ($${nuevoPrecio.toLocaleString()}). Ahora necesito saber tus ingresos mensuales para calcular tu DTI.`,
+                 options: ["$2,000", "$4,000", "$8,000"]
+             }]);
+         } 
+         else if (numeroEncontrado > 0) {
+             const resultadoTexto = calculoHipoteca.aprobado ? "VIABLE ✅" : "DTI ALTO ⚠️";
+             setChat(prev => [...prev, { 
+                 role: "bot", 
+                 text: `✅ **Cálculo Oficial Completado**\n\n• Cuota Real: **$${(data.calculo?.cuotaMensual || calculoHipoteca.cuotaEstimada).toLocaleString()}**\n• Score de Riesgo: **${data.calculo?.score || calculoHipoteca.score}/100**\n\nEl sistema indica que la operación es: **${resultadoTexto}**`,
+                 options: ["📄 Ver PDF Detallado", "📅 Agendar Cita"]
+             }]);
+         }
+         else {
+             setChat(prev => [...prev, { 
+                 role: "bot", 
+                 text: "¿En qué más puedo ayudarte con tu hipoteca?",
+                 options: ["📄 Ver PDF Detallado", "📅 Agendar Cita"]
+             }]);
+         }
+      }
+
+    } catch (error) {
+      console.error("Error n8n:", error);
+      setIsTyping(false);
+      if (nuevosIngresos === 0) {
+          setChat(prev => [...prev, { role: "bot", text: "Anotado. ¿Cuáles son tus ingresos mensuales?", options: ["$3,000", "$5,000"] }]);
+      } else {
+          const txt = text.toLowerCase();
+          if (txt.includes("pdf")) {
+            setChat(prev => [...prev, { role: "bot", text: "📄 Aquí tienes tu PDF (Modo Offline)." }]);
+          } else {
+            setChat(prev => [...prev, { role: "bot", text: "Cálculo listo. ¿Quieres ver el detalle?" }]);
+          }
+      }
     }
   };
 
@@ -454,22 +457,7 @@ export default function BotzLandingExperience() {
       
       {activeTab === "sla" && <SLAControlCenter />}
       
-      {activeTab === "n8n-config" && isAdmin && <ExecutiveDashboard filter={globalFilter ?? undefined} />}
-      {activeTab === "n8n-config" && isAsesor && (
-        <div style={{
-          display: "flex",
-          alignItems: "center", 
-          justifyContent: "center",
-          height: "400px",
-          color: "#94a3b8"
-        }}>
-          <div style={{ textAlign: "center" }}>
-            <ShieldCheck size={48} style={{ marginBottom: "16px", opacity: 0.5 }} />
-            <h3 style={{ fontSize: "18px", marginBottom: "8px" }}>Acceso Restringido</h3>
-            <p>Esta función solo está disponible para administradores</p>
-          </div>
-        </div>
-      )} 
+      {activeTab === "n8n-config" && <ExecutiveDashboard filter={globalFilter ?? undefined} />} 
 
       {activeTab === "hipoteca" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%", overflowY: "auto" }}>
@@ -547,7 +535,7 @@ export default function BotzLandingExperience() {
                         <option key={lead.id} value={lead.id}>
                          {lead.name || "Sin nombre"}
                          {lead.phone ? ` - ${lead.phone}` : ""}
-                        {lead.created_at ? ` - ${timeAgo(lead.created_at)}` : ""}
+                         {lead.created_at ? ` - ${timeAgo(lead.created_at)}` : ""}
 
                         </option>
                       ))}

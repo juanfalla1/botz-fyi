@@ -1,0 +1,172 @@
+{
+  "name": "Email Campaign - Botz Masivo",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-email-campaign",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplit": "contacts",
+        "options": {}
+      },
+      "id": "split-batch",
+      "name": "Split in Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        620,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "generic",
+        "generic": {
+          "host": "smtp.gmail.com",
+          "port": 587,
+          "security": "starttls",
+          "user": "info@botz.fyi",
+          "password": "YOUR_APP_PASSWORD"
+        },
+        "fromEmail": "info@botz.fyi",
+        "fromName": "Botz Fintech",
+        "subject": "={{ $node[\"Set Subject\"].json[\"subject\"] }}",
+        "html": "={{ $node[\"HTML Template\"].json[\"html\"] }}",
+        "toEmail": "={{ $json.email }}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        820,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "subject": "🏠 Aumenta 40% tus conversiones hipotecarias - Botz Fintech",
+        "values": {
+          "string": [
+            {
+              "name": "subject",
+              "value": "🏠 Aumenta 40% tus conversiones hipotecarias - Botz Fintech"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-subject",
+      "name": "Set Subject",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        420,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "string": "html",
+        "string1": "<!-- Preheader (texto oculto que se ve en la bandeja) -->\n<div style=\"display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;\">\n  Botz: plataforma todo-en-uno (WhatsApp + CRM + automatizaciones). Mira el demo en vivo en /start.\n</div>\n\n<div style=\"font-family: Arial, sans-serif; background:#0a0f1c; padding:0; border-radius:12px; color:white; max-width:600px; margin:auto; overflow:hidden;\">\n\n  <!-- Header -->\n  <div style=\"padding:28px 20px 10px; text-align:center;\">\n    <img src=\"https://www.botz.fyi/botz-logo.png\" alt=\"Botz\" style=\"max-width:110px; height:auto; margin-bottom:14px;\" />\n\n    <h1 style=\"color:#ffffff; font-size:22px; margin:0; line-height:1.25;\">\n      No es \"otro bot\".<br>\n      <span style=\"color:#00e1ff;\">Es la plataforma completa</span> para no perder leads.\n    </h1>\n\n    <p style=\"color:#8899bb; font-size:14px; margin:10px 0 0; line-height:1.55;\">\n      Botz centraliza <b>WhatsApp</b>, <b>CRM</b>, <b>seguimiento</b> y <b>automatizaciones</b>.\n      Los bots son solo el \"front\"; <b>el valor real</b> es que todo queda controlado en un solo lugar.\n    </p>\n  </div>\n\n  <!-- Bloque: Qué resuelve (dolor) -->\n  <div style=\"margin:16px 16px 0; background:#0c152d; border:1px solid #1f2f55; border-radius:14px; padding:14px 14px; text-align:left;\">\n    <p style=\"margin:0 0 8px; font-size:13px; color:#00e1ff; font-weight:bold; letter-spacing:0.8px;\">\n      LO QUE HOY TE HACE PERDER VENTAS\n    </p>\n    <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"font-size:14px; color:#dbe6ff; line-height:1.55;\">\n      <tr><td style=\"padding:5px 0;\">• Leads en visto / respuesta tarde.</td></tr>\n      <tr><td style=\"padding:5px 0;\">• Información regada (WhatsApp, Excel, llamadas, Instagram).</td></tr>\n      <tr><td style=\"padding:5px 0;\">• Seguimiento inconsistente: el cliente se enfría.</td></tr>\n      <tr><td style=\"padding:5px 0;\">• El asesor pierde tiempo con casos que no califican.</td></tr>\n    </table>\n  </div>\n\n  <!-- HERO GRANDE CTA: demo -->\n  <div style=\"margin:18px 16px; background: linear-gradient(135deg, #00e1ff 0%, #0088cc 100%); border-radius:14px; padding:26px 18px; text-align:center;\">\n    <p style=\"font-size:34px; margin:0;\">🚀</p>\n    <h2 style=\"color:#000000; font-size:24px; margin:10px 0 6px; font-weight:800; letter-spacing:0.3px;\">\n      MIRA EL DEMO EN VIVO\n    </h2>\n    <p style=\"color:#000000; font-size:13px; margin:0; opacity:0.85; line-height:1.45;\">\n      Sin registro · Gratis · 2 minutos\n      <br>Verás el flujo completo: WhatsApp → Calificación → CRM → Seguimiento\n    </p>\n\n    <a href=\"https://www.botz.fyi/start\"\n       style=\"background:#000000; color:#00e1ff !important; padding:14px 42px; border-radius:10px; text-decoration:none; font-weight:bold; font-size:16px; display:inline-block; margin-top:16px;\">\n      Entrar al Demo →\n    </a>\n  </div>\n\n  <!-- Botz = plataforma centralizada (no solo bots) -->\n  <div style=\"padding:0 16px 6px; text-align:center;\">\n    <p style=\"color:#00e1ff; font-size:13px; font-weight:bold; margin:0 0 12px; letter-spacing:1px;\">\n      BOTZ = TODO CENTRALIZADO (NO SOLO BOTS)\n    </p>\n\n    <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n      <tr>\n        <td width=\"50%\" style=\"padding:7px 6px;\">\n          <div style=\"background:#101a33; border:1px solid #203055; border-radius:12px; padding:12px; text-align:left;\">\n            <p style=\"margin:0; color:#ffffff; font-weight:bold; font-size:13px;\">📥 Captura & Calificación</p>\n            <p style=\"margin:6px 0 0; color:#9bb0d1; font-size:12px; line-height:1.45;\">\n              El bot pregunta, entiende el caso, califica y deja un resumen listo para el asesor.\n            </p>\n          </div>\n        </td>\n        <td width=\"50%\" style=\"padding:7px 6px;\">\n          <div style=\"background:#101a33; border:1px solid #203055; border-radius:12px; padding:12px; text-align:left;\">\n            <p style=\"margin:0; color:#ffffff; font-weight:bold; font-size:13px;\">📋 CRM + Pipeline</p>\n            <p style=\"margin:6px 0 0; color:#9bb0d1; font-size:12px; line-height:1.45;\">\n              Cada lead queda creado, con estado, historial, notas, tareas y próximo paso.\n            </p>\n          </div>\n        </td>\n      </tr>\n\n      <tr>\n        <td width=\"50%\" style=\"padding:7px 6px;\">\n          <div style=\"background:#101a33; border:1px solid #203055; border-radius:12px; padding:12px; text-align:left;\">\n            <p style=\"margin:0; color:#ffffff; font-weight:bold; font-size:13px;\">📊 Kanban + SLA</p>\n            <p style=\"margin:6px 0 0; color:#9bb0d1; font-size:12px; line-height:1.45;\">\n              Visualiza el avance, tiempos de respuesta, cuellos de botella y conversiones.\n            </p>\n          </div>\n        </td>\n        <td width=\"50%\" style=\"padding:7px 6px;\">\n          <div style=\"background:#101a33; border:1px solid #203055; border-radius:12px; padding:12px; text-align:left;\">\n            <p style=\"margin:0; color:#ffffff; font-weight:bold; font-size:13px;\">⚙️ Automatización Total</p>\n            <p style=\"margin:6px 0 0; color:#9bb0d1; font-size:12px; line-height:1.45;\">\n              Agenda, recordatorios, seguimiento, emails, integraciones y acciones automáticas.\n            </p>\n          </div>\n        </td>\n      </tr>\n    </table>\n  </div>\n\n  <!-- Casos reales (España) -->\n  <div style=\"margin:12px 16px 0; background:#0b1226; border:1px solid #1a2540; border-radius:14px; padding:14px; text-align:left;\">\n    <p style=\"margin:0 0 8px; font-size:13px; color:#00e1ff; font-weight:bold; letter-spacing:0.8px;\">\n      CASOS REALES IMPLEMENTADOS (ESPAÑA)\n    </p>\n\n    <p style=\"margin:0; color:#dbe6ff; font-size:13px; line-height:1.55;\">\n      ✅ Implementado en <b>EFITECA</b>: captación + análisis de viabilidad + resumen para asesor + seguimiento.<br>\n      ✅ Implementado en <b>Inmolender</b>: captura y calificación de leads + CRM + automatizaciones.\n    </p>\n\n    <p style=\"margin:10px 0 0; color:#9bb0d1; font-size:12px; line-height:1.45;\">\n      En el demo ves la lógica funcionando y luego lo adaptamos a tu operación (ciudad, equipo, proceso, CRM).\n    </p>\n  </div>\n\n  <!-- CTA WhatsApp -->\n  <div style=\"padding:18px 20px 24px; text-align:center;\">\n    <a href=\"https://wa.me/573154829949?text=Hola%20Juan%20Carlos%2C%20vi%20el%20demo%20de%20Botz%20en%20https%3A%2F%2Fwww.botz.fyi%2Fstart%20y%20quiero%20una%20demo%20real%20con%20mi%20WhatsApp.%20Soy%20%5Binmobiliaria%2Fbroker%5D%20en%20%5Bciudad%5D%20y%20manejo%20%5B%23%5D%20leads%20al%20d%C3%ADa.\"\n       style=\"background:#25D366; color:#ffffff !important; padding:14px 34px; border-radius:10px; text-decoration:none; font-weight:bold; font-size:15px; display:inline-block;\">\n      💬 Quiero una demo real por WhatsApp\n    </a>\n\n    <div style=\"margin-top:10px;\">\n      <a href=\"https://www.botz.fyi/start\" style=\"color:#00e1ff; text-decoration:none; font-weight:bold; font-size:13px;\">\n        👉 Abrir demo ahora: www.botz.fyi/start\n      </a>\n    </div>\n  </div>\n\n  <!-- Footer -->\n  <div style=\"background:#080c18; padding:14px 20px; text-align:center; border-top:1px solid #1a2540;\">\n    <p style=\"color:#556677; font-size:11px; margin:0; line-height:1.5;\">\n      <a href=\"https://www.botz.fyi\" style=\"color:#00e1ff; text-decoration:none;\">www.botz.fyi</a> · 📱 315 482 9949 · © 2025 Botz\n    </p>\n  </div>\n\n</div>",
+        "options": {}
+      },
+      "id": "html-template",
+      "name": "HTML Template",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        620,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{ \"status\": \"success\", \"sent\": \"{{ $runIndex }}\", \"to\": \"{{ $json.email }}\" }",
+        "options": {}
+      },
+      "id": "response",
+      "name": "Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1020,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Split in Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Subject": {
+      "main": [
+        [
+          {
+            "node": "HTML Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML Template": {
+      "main": [
+        [
+          {
+            "node": "Split in Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split in Batches": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1"
+}
