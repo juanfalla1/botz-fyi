@@ -71,6 +71,7 @@ interface ChannelItem {
   integrationId?: string;
   isLoading?: boolean;
   isDisconnecting?: boolean;
+  disabled?: boolean;
   messages?: Array<{
     id: string;
     content: string;
@@ -320,9 +321,16 @@ try {
       });
 
       const result = await response.json();
+      console.log("📧 send-gmail response:", response.status, result);
 
       if (!response.ok) {
-        throw new Error(result.error || "Error al enviar email");
+        // Si es problema de scopes, pedir reconectar
+        if (result.gmail_status === 403 || (result.gmail_error && result.gmail_error.includes("scope"))) {
+          pushNotice("error", "Gmail necesita permisos de envío. Desconecta y vuelve a conectar Gmail.");
+          return;
+        }
+        const detail = result.gmail_error || result.details?.error?.message || result.error || "Error al enviar email";
+        throw new Error(detail);
       }
 
       pushNotice("success", "✅ Email enviado correctamente");
@@ -633,9 +641,10 @@ if (gmail?.id) await loadEmails(gmail.id);
             icon: <FaMicrosoft />,
             color: "#0078D4", 
             connected: false, 
-            leadsToday: 5, 
-            lastEvent: "Documentación recibida", 
+            leadsToday: 0, 
+            lastEvent: "Próximamente", 
             lastEventAt: undefined,
+            disabled: true,
           },
           { 
             id: "meta", 
@@ -643,18 +652,22 @@ if (gmail?.id) await loadEmails(gmail.id);
             icon: <FaFacebook />, 
             color: "#1877F2", 
             connected: false, 
-            leadsToday: 5, 
-            lastEvent: "Nuevo formulario", 
-            lastEventAt: undefined},
+            leadsToday: 0, 
+            lastEvent: "Próximamente", 
+            lastEventAt: undefined,
+            disabled: true,
+          },
           { 
             id: "instagram", 
             name: "Instagram", 
             icon: <FaInstagram />, 
             color: "#E4405F", 
             connected: false, 
-            leadsToday: 3, 
-            lastEvent: "DM entrante", 
-            lastEventAt: undefined,},
+            leadsToday: 0, 
+            lastEvent: "Próximamente", 
+            lastEventAt: undefined,
+            disabled: true,
+          },
         ];
 
     // ✅ Aunque el padre pase channels, garantizamos que existan Gmail y WhatsApp Business
@@ -689,6 +702,20 @@ if (gmail?.id) await loadEmails(gmail.id);
         emails: demoEmails,
       });
     }
+
+    if (!ids.has("lead_scoring")) {
+      base.push({
+        id: "lead_scoring",
+        name: "Lead Scoring Hipotecario",
+        icon: <FileText />,
+        color: "#f59e0b",
+        connected: false,
+        leadsToday: 0,
+        lastEvent: "Configuración automática",
+        lastEventAt: undefined,
+      });
+    }
+
 const stripDynamic = (obj: any) => {
   if (!obj || typeof obj !== "object") return obj;
   const { params, searchParams, ...rest } = obj; // ✅ quita Promises de Next
@@ -721,22 +748,33 @@ const stripDynamic = (obj: any) => {
         return i.channel_type === channel.id || provider === channel.id;
       });
       
-      if (integration) {
+if (integration) {
   const isConnected = integration.status === 'connected';
+  
+  // Para Lead Scoring, mostrar estado diferente
+  let detail = undefined;
+  if (channel.id === "lead_scoring") {
+    const hasEmailConfig = integration.credentials?.smtp_user && integration.config?.company_name;
+    detail = hasEmailConfig ? 
+      `Configurado para ${integration.config.company_name}` : 
+      "Configuración pendiente";
+  } else if (channel.id === "gmail") {
+    detail = (pickEmail(integration) || undefined);
+  }
+
   return {
     ...channelSafe,
     connected: isConnected,
     integrationId: integration.id,
-    // ✅ Muestra el correo real debajo del nombre del canal (si existe)
-    detail: channel.id === "gmail" ? (pickEmail(integration) || undefined) : undefined,
+    detail: detail,
     lastEvent: isConnected ? "Conectado y sincronizando" : "Desconectado",
     lastEventAt: integration.last_activity 
       ? new Date(integration.last_activity).toLocaleTimeString('es-ES', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          day: '2-digit',
-          month: 'short'
-        })
+        hour: '2-digit', 
+        minute: '2-digit',
+        day: '2-digit',
+        month: 'short'
+      })
       : (isConnected ? "Activo ahora" : "."),
     emails: (channel.id === "gmail" && integration.id)
       ? (emailsByIntegration[integration.id] || [])
@@ -784,29 +822,39 @@ return channelSafe;
       {
         id: "outlook",
         title: "Outlook / Microsoft 365",
-        subtitle: "Correo corporativo y OneDrive",
+        subtitle: "Próximamente",
         icon: <Mail size={16} />,
         color: "#3b82f6",
         type: "oauth",
+        disabled: true,
       },
       {
         id: "google_ads",
         title: "Google Ads",
-        subtitle: "Leads desde formularios de Google",
+        subtitle: "Próximamente",
         icon: <FaGoogle size={16} />,
         color: "#4285F4",
         type: "oauth",
+        disabled: true,
       },
       {
         id: "meta_ads",
         title: "Meta Business Suite",
-        subtitle: "Facebook e Instagram leads",
+        subtitle: "Próximamente",
         icon: <FaFacebook size={16} />,
         color: "#1877F2",
         type: "api",
+        disabled: true,
       },
-    ],
-    []
+      {
+        id: "lead_scoring",
+        title: "Lead Scoring Hipotecario",
+        subtitle: "Configuración de emails y scoring automático",
+        icon: <FileText size={16} />,
+        color: "#f59e0b",
+        type: "config",
+      },
+    ]
   );
 
   // Función para conectar canales
@@ -827,20 +875,31 @@ return channelSafe;
         setConnectBusy(null);
         return;
       }
-// --- ESTO ES LO QUE DEBES AGREGAR O CAMBIAR PARA GOOGLE ---
-      if (connectorId === 'google') {
-        // Sacamos el ID del usuario y el tenant_id de los metadatos o del objeto user
+// --- GOOGLE/GMAIL: siempre abrir popup, NO salir de la página ---
+      if (connectorId === 'google' || connectorId === 'gmail' || connectorId.includes('google') || connectorId.includes('gmail')) {
         const userId = user.id;
-        const tenantId = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id;
+        const tid = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id || user.id;
 
-        if (!tenantId) {
-            console.error("El usuario no tiene un tenant_id asociado");
-            // Si no tienes tenant_id en el user, puedes probar mandando uno por defecto o el mismo userId
-        }
+        const authStart =
+          `/api/integrations/google/start` +
+          `?tenant_id=${encodeURIComponent(tid)}` +
+          `&user_id=${encodeURIComponent(userId)}`;
 
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-        window.location.href = `${baseUrl}/api/integrations/google/start?user_id=${userId}&tenant_id=${tenantId}`;
-        return; // Detenemos la ejecución aquí para que redirija
+        // Abrir popup en vez de salir de la página
+        const popup = window.open(authStart, "botz-oauth", "width=520,height=720");
+
+        // Vigilar cuando el popup cierre para refrescar integraciones
+        const pollTimer = window.setInterval(() => {
+          if (!popup || popup.closed) {
+            window.clearInterval(pollTimer);
+            // Refrescar integraciones al cerrar popup
+            loadUserIntegrations();
+            pushNotice("info", "Verificando conexión de Gmail...");
+          }
+        }, 1000);
+
+        setConnectBusy(null);
+        return;
       }
 
            // ✅ META: abre modal en vez de QR
@@ -868,6 +927,13 @@ return channelSafe;
         }
 
         setShowMetaModal(true);
+        setConnectBusy(null);
+        return;
+      }
+
+      // Lead Scoring: redirigir a configuración completa
+      if (connectorId === "lead_scoring") {
+        window.location.href = "/settings";
         setConnectBusy(null);
         return;
       }
@@ -964,6 +1030,13 @@ return channelSafe;
           }
         }, 5000);
 
+} else if (connector?.type === "config") {
+        // ✅ Configuración directa (Lead Scoring)
+        if (connectorId === "lead_scoring") {
+          // Redirigir a la página de configuración de Lead Scoring
+          window.location.href = "/settings";
+          return;
+        }
       } else if (connector?.type === "oauth") {
         // ✅ Conexión real (requiere backend OAuth). 
         // Este frontend pide al backend un authUrl y luego espera que el callback guarde la integración en Supabase.
@@ -976,23 +1049,13 @@ return channelSafe;
         });
 
         try {
-          const resp = await fetch("/api/integrations/oauth/start", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ provider: connectorId }),
-          });
-// ✅ Gmail/Google: NO usar fetch + JSON. Redirigir al endpoint real
-// ✅ Gmail/Google: abrir el start real con tenant_id y user_id (NO fetch)
+// ✅ Gmail/Google: redirigir directo al endpoint real (NO usar oauth/start genérico)
 if (
   connectorId === "gmail" ||
   connectorId.includes("gmail") ||
   connectorId.includes("google")
 ) {
-  // 1) Obtenemos los datos directamente del objeto 'user' de Supabase que ya tienes arriba
   const userId = user?.id;
-  
-  // 2) El tenant_id: Pruébalo primero con user.id si no estás seguro de dónde viene, 
-  // o usa la variable que ya estés usando en este archivo para filtrar tus canales.
   const tenantId = user?.user_metadata?.tenant_id || user?.id; 
 
   if (!tenantId || !userId) {
@@ -1001,20 +1064,21 @@ if (
      return;
   }
 
-  // 3) Construimos la URL con los datos reales
   const authStart =
     `/api/integrations/google/start` +
     `?tenant_id=${encodeURIComponent(tenantId)}` +
     `&user_id=${encodeURIComponent(userId)}`;
 
-  // Abrimos la ventana
   window.open(authStart, "botz-oauth", "width=520,height=720,noopener,noreferrer");
-  
-  // Limpiamos el estado de carga ya que abrimos una ventana nueva
   setConnectBusy(null);
   return;
 }
- 
+
+          const resp = await fetch("/api/integrations/oauth/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ provider: connectorId }),
+          });
 
           if (!resp.ok) throw new Error(`oauth_start_failed_${resp.status}`);
 
@@ -1113,43 +1177,8 @@ if (
           return;
         }
         } else {
-        setTimeout(async () => {
-          try {
-            const { data: integration, error } = await supabase
-              .from('integrations')
-              .upsert(
-                  {
-                user_id: user.id,
-                channel_type: channelType,
-                provider: connectorId,
-                status: 'connected',
-                last_activity: new Date().toISOString()
-              }, {
-                  onConflict: 'user_id,channel_type,provider'
-                })
-                .select('id')
-                .single();
-
-            if (error) throw error;
-
-            await supabase
-              .from('channel_activities')
-              .insert({
-                integration_id: integration?.id,
-                type: 'connection',
-                content: `${connectorName || channelType} conectado exitosamente`,
-                metadata: { status: 'connected' }
-              });
-
-            await loadUserIntegrations();
-            pushNotice("success", `${connectorName || channelType} conectado exitosamente`);
-
-          } catch (error) {
-            console.error("Error conectando:", error);
-            pushNotice("error", "Error conectando");
-            setConnectError("Error conectando");
-          }
-        }, 2000);
+        // Canal sin backend implementado - no simular conexión falsa
+        pushNotice("info", `${connectorName || channelType} estará disponible próximamente`);
       }
 
     } catch (error: any) {
@@ -2504,41 +2533,42 @@ if (gmailId) await loadEmails(gmailId);
                   const isActive = c.id === selectedId;
                   const isBusy = connectBusy === c.id;
                   const isDisconnecting = disconnectBusy === c.id;
+                  const isDisabled = !!(c as any).disabled;
                   const integration = userIntegrations.find(i => i.id === c.integrationId);
                   
                   return (
                     <button
                       key={c.id}
-                      onClick={() => !isBusy && !isDisconnecting && setSelectedId(c.id)}
-                      disabled={isBusy || isDisconnecting}
+                      onClick={() => !isBusy && !isDisconnecting && !isDisabled && setSelectedId(c.id)}
+                      disabled={isBusy || isDisconnecting || isDisabled}
                       style={{
                         width: "100%",
                         textAlign: "left",
                         padding: "14px 16px",
                         borderRadius: "16px",
-                        border: isActive ? `1px solid ${c.color || "rgba(99,102,241,0.6)"}` : "1px solid rgba(255,255,255,0.10)",
-                        background: isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
-                        color: "#fff",
-                        cursor: isBusy || isDisconnecting ? "not-allowed" : "pointer",
+                        border: isDisabled ? "1px solid rgba(255,255,255,0.05)" : isActive ? `1px solid ${c.color || "rgba(99,102,241,0.6)"}` : "1px solid rgba(255,255,255,0.10)",
+                        background: isDisabled ? "rgba(255,255,255,0.02)" : isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
+                        color: isDisabled ? "#475569" : "#fff",
+                        cursor: isDisabled ? "default" : isBusy || isDisconnecting ? "not-allowed" : "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
                         gap: "10px",
-                        opacity: isBusy || isDisconnecting ? 0.7 : 1,
+                        opacity: isDisabled ? 0.45 : isBusy || isDisconnecting ? 0.7 : 1,
                         transition: "all 0.2s",
                       }}
-                      onMouseEnter={(e) => !isBusy && !isDisconnecting && (e.currentTarget.style.background = isActive ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)")}
-                      onMouseLeave={(e) => !isBusy && !isDisconnecting && (e.currentTarget.style.background = isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)")}
+                      onMouseEnter={(e) => !isDisabled && !isBusy && !isDisconnecting && (e.currentTarget.style.background = isActive ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)")}
+                      onMouseLeave={(e) => !isDisabled && !isBusy && !isDisconnecting && (e.currentTarget.style.background = isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)")}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <div style={{ fontSize: "22px", color: c.color || "#fff" }}>
+                        <div style={{ fontSize: "22px", color: isDisabled ? "#475569" : c.color || "#fff" }}>
                           {isBusy ? <Loader2 size={22} className="animate-spin" /> : 
                            isDisconnecting ? <Loader2 size={22} className="animate-spin" /> : c.icon}
                         </div>
                         <div>
                           <div style={{ fontWeight: 800, fontSize: "15px" }}>{c.name}</div>
                           <div style={{ color: "#94a3b8", fontSize: "12px", marginTop: "2px" }}>
-                            {c.lastEvent || "-"} • {c.lastEventAt || "-"}
+                            {isDisabled ? "Próximamente" : `${c.lastEvent || "-"} • ${c.lastEventAt || "-"}`}
                           </div>
                         </div>
                       </div>
@@ -2551,21 +2581,26 @@ if (gmailId) await loadEmails(gmailId);
                             padding: "6px 10px",
                             borderRadius: "999px",
                             border: "1px solid rgba(255,255,255,0.12)",
-                            background: isBusy ? "rgba(251,191,36,0.12)" : 
+                            background: isDisabled ? "rgba(100,116,139,0.1)" :
+                                      isBusy ? "rgba(251,191,36,0.12)" : 
                                       isDisconnecting ? "rgba(251,191,36,0.12)" :
                                       c.connected ? "rgba(34,197,94,0.12)" : "rgba(248,113,113,0.10)",
-                            color: isBusy ? "#fbbf24" : 
+                            color: isDisabled ? "#64748b" :
+                                  isBusy ? "#fbbf24" : 
                                   isDisconnecting ? "#fbbf24" :
                                   c.connected ? "#22c55e" : "#f87171",
                           }}
                         >
-                          {isBusy ? "Conectando..." : 
+                          {isDisabled ? "Próximamente" :
+                           isBusy ? "Conectando..." : 
                            isDisconnecting ? "Desconectando..." : 
-                           c.connected ? "✅ Conectado" : "Desconectado"}
+                           c.connected ? "Conectado" : "Desconectado"}
                         </div>
+                        {!isDisabled && (
                         <div style={{ color: "#cbd5e1", fontSize: "12px" }}>
                           Leads hoy: <span style={{ color: "#fff", fontWeight: 800 }}>{c.leadsToday ?? 0}</span>
                         </div>
+                        )}
                       </div>
                     </button>
                   );
@@ -2868,6 +2903,9 @@ if (gmailId) await loadEmails(gmailId);
                     <button
                       key={connector.id}
                       onClick={() => {
+  // Si está deshabilitado, no hacer nada
+  if ((connector as any).disabled) return;
+
   const id = String(connector.id || "").toLowerCase();
   const title = String(connector.title || "").toLowerCase();
 
@@ -2880,13 +2918,12 @@ if (gmailId) await loadEmails(gmailId);
       title.includes("business") ||
       title.includes("api");
 
-    // (opcional) guardamos provider para logging/estado
     setWaProvider(isMeta ? "meta" : "evolution");
 
     if (isMeta) {
-      setShowMetaModal(true); // ✅ abre modal Meta
+      setShowMetaModal(true);
     } else {
-      setShowWhatsAppModal(true); // ✅ abre modal QR (Evolution)
+      setShowWhatsAppModal(true);
     }
     return;
   }
@@ -2895,29 +2932,31 @@ if (gmailId) await loadEmails(gmailId);
   handleConnect(connector.id, connector.title);
 }}
 
-                      disabled={connectBusy === connector.id}
+                      disabled={connectBusy === connector.id || !!(connector as any).disabled}
                       style={{
                         width: "100%",
                         padding: "14px 16px",
                         borderRadius: "14px",
                         border: "1px solid rgba(255,255,255,0.10)",
-                        background: connectBusy === connector.id 
-                          ? "rgba(251,191,36,0.10)" 
-                          : "rgba(255,255,255,0.04)",
-                        color: "#fff",
+                        background: (connector as any).disabled
+                          ? "rgba(255,255,255,0.02)"
+                          : connectBusy === connector.id 
+                            ? "rgba(251,191,36,0.10)" 
+                            : "rgba(255,255,255,0.04)",
+                        color: (connector as any).disabled ? "#64748b" : "#fff",
                         textAlign: "left",
-                        cursor: connectBusy === connector.id ? "not-allowed" : "pointer",
+                        cursor: (connector as any).disabled ? "default" : connectBusy === connector.id ? "not-allowed" : "pointer",
                         display: "flex",
                         alignItems: "center",
                         gap: "12px",
-                        opacity: connectBusy === connector.id ? 0.7 : 1,
+                        opacity: (connector as any).disabled ? 0.5 : connectBusy === connector.id ? 0.7 : 1,
                         transition: "all 0.2s",
                       }}
-                      onMouseEnter={(e) => connectBusy !== connector.id && (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
-                      onMouseLeave={(e) => connectBusy !== connector.id && (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
+                      onMouseEnter={(e) => !(connector as any).disabled && connectBusy !== connector.id && (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
+                      onMouseLeave={(e) => !(connector as any).disabled && connectBusy !== connector.id && (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
                     >
                       <div style={{ 
-                        color: connector.color, 
+                        color: (connector as any).disabled ? "#475569" : connector.color, 
                         fontSize: "16px",
                         display: "flex",
                         alignItems: "center",
@@ -2930,8 +2969,24 @@ if (gmailId) await loadEmails(gmailId);
                         )}
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: "13px" }}>{connector.title}</div>
-                        <div style={{ color: "#94a3b8", fontSize: "12px", marginTop: "2px" }}>{connector.subtitle}</div>
+                        <div style={{ fontWeight: 700, fontSize: "13px", display: "flex", alignItems: "center", gap: "8px" }}>
+                          {connector.title}
+                          {(connector as any).disabled && (
+                            <span style={{
+                              fontSize: "10px",
+                              fontWeight: 600,
+                              background: "rgba(100, 116, 139, 0.2)",
+                              color: "#94a3b8",
+                              padding: "2px 8px",
+                              borderRadius: "6px",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.5px",
+                            }}>
+                              Próximamente
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ color: "#94a3b8", fontSize: "12px", marginTop: "2px" }}>{(connector as any).disabled ? "" : connector.subtitle}</div>
                       </div>
                       <div style={{ 
                         fontSize: "12px", 

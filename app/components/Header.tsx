@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from "next/link";
 // Importamos Sparkles para el toque estelar visual
-import { Sparkles } from "lucide-react";
+import { Sparkles, Settings } from "lucide-react";
 
 const Header = () => {
   const [open, setOpen] = useState(false);
@@ -247,6 +247,26 @@ const Header = () => {
         }
 
         .logo:hover { text-shadow: 0 0 15px rgba(16, 178, 203, 1); transform: scale(1.05); }
+
+        .settings-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 8px 12px;
+          background: rgba(16, 185, 129, 0.1);
+          border: 1px solid rgba(16, 185, 129, 0.3);
+          border-radius: 8px;
+          color: #10b981;
+          text-decoration: none;
+          transition: all 0.3s ease;
+          margin-left: 12px;
+        }
+
+        .settings-btn:hover {
+          background: rgba(16, 185, 129, 0.2);
+          border-color: rgba(16, 185, 129, 0.5);
+          transform: translateY(-1px);
+        }
 
         .hamburger { display: none; flex-direction: column; justify-content: space-between; width: 40px; height: 30px; background: none; border: none; cursor: pointer; z-index: 9999; }
         .hamburger span { display: block; height: 4px; width: 100%; background: #10b2cb; border-radius: 2px; }

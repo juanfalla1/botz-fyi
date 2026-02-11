@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Quitamos 'experimental' porque serverActions ya es estándar y aquí causa error
   images: {
     remotePatterns: [
       {

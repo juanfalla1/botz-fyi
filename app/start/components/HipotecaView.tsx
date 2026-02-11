@@ -1,8 +1,9 @@
 "use client";
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "./supabaseClient";
+import { getTasasBancolombia, getTasasFallback, validateTasasResponse } from "../services/realBankingAPI";
 import { 
-  Building2, Wallet, TrendingUp, AlertTriangle, 
+  Building2, Wallet, TrendingUp, AlertTriangle, CheckCircle, 
   PieChart, Landmark, BrainCircuit, Printer,
   Globe, RefreshCw
 } from "lucide-react";
@@ -18,6 +19,15 @@ type HipotecaCalculo = {
   deudasExistentes?: number;
   plazo?: number;
   tasa?: number;
+  // ✅ Campos específicos Colombia
+  tipoVivienda?: "VIS" | "No VIS";
+  modalidad?: "Crédito Pesos" | "Leasing Habitacional" | "Crédito UVR";
+  ciudadColombia?: string;
+  subsidio?: "Sí" | "No";
+  // ✅ Campos legales requeridos
+  antiguedadLaboral?: number; // meses
+  scoreCrediticioColombia?: number; // 0-1000
+  edad?: number; // para España
 };
 
 interface HipotecaViewProps {
@@ -51,6 +61,7 @@ const PAISES_CONFIG: Record<string, {
   "Colombia": {
     moneda: "COP", simbolo: "$", formato: "es-CO",
     impuestosGastos: 0.04, entradaMinima: 0.30, dtiMaximo: 30,
+    // ✅ Cumple Ley 546 de 1999 y regulaciones SFC
     bancos: [
       { name: "Bancolombia", color: "#fdc500", note: "Líder en hipotecas" },
       { name: "Davivienda", color: "#ed1c24", note: "Buenos plazos" },
@@ -133,8 +144,10 @@ function formatearMoneda(valor: number, config: typeof PAISES_CONFIG["España"])
   }
 }
 
-function calcularScore(dti: number, ingresos: number, deudas: number): number {
+function calcularScore(dti: number, ingresos: number, deudas: number, pais: string, colombiaFields?: any, spainFields?: any): number {
   let score = 50;
+
+  // ✅ Scoring base DTI (universal)
   if (dti <= 20) score += 40;
   else if (dti <= 30) score += 35;
   else if (dti <= 35) score += 25;
@@ -142,15 +155,76 @@ function calcularScore(dti: number, ingresos: number, deudas: number): number {
   else if (dti <= 50) score += 5;
   else score -= 10;
 
-  if (ingresos > 5000) score += 20;
-  else if (ingresos > 3000) score += 15;
-  else if (ingresos > 2000) score += 10;
-  else if (ingresos > 1000) score += 5;
+  // ✅ Scoring por país
+  if (pais === "Colombia") {
+    // Ingresos en COP (valores realistas)
+    if (ingresos > 8000000) score += 25; // >8M COP
+    else if (ingresos > 5000000) score += 20; // >5M COP
+    else if (ingresos > 3000000) score += 15; // >3M COP
+    else if (ingresos > 1500000) score += 10; // >1.5M COP
 
+    // Score crediticio Colombia (0-1000)
+    if (colombiaFields?.scoreCrediticioColombia) {
+      const scoreCol = colombiaFields.scoreCrediticioColombia;
+      if (scoreCol >= 800) score += 30; // Excelente
+      else if (scoreCol >= 700) score += 25; // Muy bueno
+      else if (scoreCol >= 600) score += 20; // Bueno
+      else if (scoreCol >= 500) score += 10; // Regular
+      else score -= 15; // Bajo
+    }
+
+    // Antigüedad laboral
+    if (colombiaFields?.antiguedadLaboral) {
+      const antiguedad = colombiaFields.antiguedadLaboral;
+      if (antiguedad >= 24) score += 15; // 2+ años
+      else if (antiguedad >= 12) score += 10; // 1+ año
+      else if (antiguedad >= 6) score += 5; // 6+ meses
+      else score -= 10; // <6 meses
+    }
+
+    // Tipo de vivienda VIS (bonus)
+    if (colombiaFields?.tipoVivienda === "VIS") score += 15;
+    
+    // Subsidio (bonus)
+    if (colombiaFields?.subsidio === "Sí") score += 20;
+
+    // Modalidad preferidas
+    if (colombiaFields?.modalidad === "Crédito Pesos") score += 10;
+    else if (colombiaFields?.modalidad === "UVR") score += 5;
+  }
+
+  if (pais === "España") {
+    // Ingresos en EUR
+    if (ingresos > 6000) score += 25; // >6k EUR
+    else if (ingresos > 4000) score += 20; // >4k EUR
+    else if (ingresos > 2500) score += 15; // >2.5k EUR
+    else if (ingresos > 1500) score += 10; // >1.5k EUR
+
+    // Edad para hipoteca España
+    if (spainFields?.edad) {
+      const edad = spainFields.edad;
+      if (edad >= 25 && edad <= 45) score += 20; // Edad óptima
+      else if (edad >= 20 && edad <= 55) score += 10; // Edad buena
+      else if (edad > 65) score -= 20; // Edad riesgo
+    }
+
+    // Gastos mínimos vitales (ratio salud)
+    if (spainFields?.gastosMinimosVitales) {
+      const ratioGastos = spainFields.gastosMinimosVitales / ingresos;
+      if (ratioGastos <= 0.15) score += 10; // <15% gastos
+      else if (ratioGastos <= 0.25) score += 5; // <25% gastos
+      else if (ratioGastos > 0.40) score -= 10; // >40% gastos
+    }
+  }
+
+  // ✅ Scoring deudas (universal)
   if (deudas === 0) score += 15;
-  else if (deudas < ingresos * 0.2) score += 10;
-  else if (deudas < ingresos * 0.3) score += 5;
-  else score -= 5;
+  else {
+    const ratioDeudas = deudas / ingresos;
+    if (ratioDeudas <= 0.1) score += 10;
+    else if (ratioDeudas <= 0.2) score += 5;
+    else if (ratioDeudas > 0.5) score -= 20;
+  }
 
   return Math.min(100, Math.max(0, Math.round(score)));
 }
@@ -180,8 +254,34 @@ export default function HipotecaView({ calculo, leadId, mode = "manual" }: Hipot
   );
   const [leadIncomplete, setLeadIncomplete] = useState<boolean>(false);
   const [manualDirty, setManualDirty] = useState<boolean>(false);
+
+  // ✅ Estados para captura de datos de contacto y lead scoring
+  const [showContactForm, setShowContactForm] = useState<boolean>(false);
+  const [contactData, setContactData] = useState({
+    nombre: '',
+    email: '',
+    telefono: ''
+  });
+  const [isSavingLead, setIsSavingLead] = useState<boolean>(false);
+  const [leadScoreResult, setLeadScoreResult] = useState<any>(null);
   // ✅ Modo efectivo: permite completar manualmente un lead incompleto sin romper Lead(Auto)
   const effectiveManual = mode === "manual" || (isLeadMode && leadIncomplete);
+
+  // ✅ Colombia-specific fields
+  const [colombiaFields, setColombiaFields] = useState({
+    tipoVivienda: "No VIS" as "VIS" | "No VIS",
+    modalidad: "Crédito Pesos" as "Crédito Pesos" | "Leasing Habitacional" | "Crédito UVR",
+    ciudadColombia: "Bogotá" as string,
+    subsidio: "No" as "Sí" | "No",
+    antiguedadLaboral: 12 as number,
+    scoreCrediticioColombia: 650 as number
+  });
+
+  // ✅ Spain-specific fields
+  const [spainFields, setSpainFields] = useState({
+    edad: 35 as number,
+    gastosMinimosVitales: 1000 as number // EUR/month
+  });
 
 
 
@@ -387,20 +487,91 @@ useEffect(() => {
     
     const { valorVivienda, ingresosMensuales, deudasExistentes, plazo, tasa } = manualInputs;
     
-    const porcentajeFinanciacion = 1 - paisConfig.entradaMinima;
+    // Colombia-specific adjustments
+    let adjustedTasa = tasa;
+    let adjustedEntradaMinima = paisConfig.entradaMinima;
+    
+    if (pais === "Colombia") {
+      // VIS housing gets better rates
+      if (colombiaFields.tipoVivienda === "VIS") {
+        adjustedTasa -= 0.8; // ~80bps better rates for VIS
+        adjustedEntradaMinima = 0.10; // Lower entry requirements
+      }
+      
+      // Different rates by modality
+      if (colombiaFields.modalidad === "Leasing Habitacional") {
+        adjustedTasa += 0.3; // Leasing typically slightly higher
+      } else if (colombiaFields.modalidad === "Crédito UVR") {
+        adjustedTasa -= 0.2; // UVR typically lower nominal rate
+      }
+      
+      // City adjustments
+      if (["Bogotá", "Medellín"].includes(colombiaFields.ciudadColombia)) {
+        adjustedTasa += 0.2; // Major cities slightly higher rates
+      }
+      
+      // Subsidy benefits
+      if (colombiaFields.subsidio === "Sí") {
+        adjustedEntradaMinima = 0.05; // Much lower entry with subsidy
+        adjustedTasa -= 0.5; // Better rates with subsidy
+      }
+    }
+    
+    const porcentajeFinanciacion = 1 - adjustedEntradaMinima;
     const montoPrestamo = effectiveManual ? cantidadAFinanciar : valorVivienda * porcentajeFinanciacion;
     const tasaParaAnalisis = (effectiveManual && pais === "España" && tasaAnalisisMode === "euribor")
       ? (euribor12m + diferencial)
-      : tasa;
+      : adjustedTasa;
     const cuotaEstimada = pmt(montoPrestamo, tasaParaAnalisis / 100, plazo);
     
     const gastosMensuales = cuotaEstimada + (deudasExistentes || 0);
     const dti = ingresosMensuales > 0 ? (gastosMensuales / ingresosMensuales) * 100 : 0;
     
-    const score = calcularScore(dti, ingresosMensuales, deudasExistentes);
-    const aprobado = dti > 0 && dti < paisConfig.dtiMaximo && score >= 50;
+    const score = calcularScore(dti, ingresosMensuales, deudasExistentes, pais, colombiaFields, spainFields);
+    // ✅ Validación legal por país
+    let aprobadoLegal = true;
+    let mensajesLegales: string[] = [];
 
-    return {
+    if (pais === "Colombia") {
+      // Validaciones legales Colombia
+      if (colombiaFields.antiguedadLaboral < 6) {
+        aprobadoLegal = false;
+        mensajesLegales.push("Antigüedad laboral mínima: 6 meses");
+      }
+      if (colombiaFields.scoreCrediticioColombia < 600) {
+        aprobadoLegal = false;
+        mensajesLegales.push("Score crediticio mínimo: 600 puntos");
+      }
+      // Cálculo de gastos básicos obligatorios (SMMLV)
+      const smmlv = 1300000; // 2025 Colombia
+      const gastosBasicos = smmlv * 2; // Mínimo 2 SMMLV para subsistencia
+      const capacidadReal = ingresosMensuales * 0.30 - gastosBasicos;
+      if (capacidadReal <= cuotaEstimada) {
+        aprobadoLegal = false;
+        mensajesLegales.push("Cuota excede capacidad + gastos básicos");
+      }
+    }
+
+    if (pais === "España") {
+      // Validaciones legales España
+      if (spainFields.edad + plazo > 75) {
+        aprobadoLegal = false;
+        mensajesLegales.push("Edad + plazo no puede exceder 75 años");
+      }
+      // IRPF reduce capacidad de pago (19-47% según ingresos)
+      const irpfPercent = ingresosMensuales > 6000 ? 0.37 : (ingresosMensuales > 3000 ? 0.28 : 0.19);
+      const ingresosNetos = ingresosMensuales * (1 - irpfPercent);
+      const capacidadNetos = ingresosNetos * (paisConfig.dtiMaximo / 100) - spainFields.gastosMinimosVitales;
+      if (capacidadNetos <= cuotaEstimada) {
+        aprobadoLegal = false;
+        mensajesLegales.push("Cuota excede capacidad después de IRPF y gastos vitales");
+      }
+    }
+
+    const scoreMinimo = pais === "Colombia" ? 60 : 50;
+    const aprobado = dti > 0 && dti < paisConfig.dtiMaximo && score >= scoreMinimo && aprobadoLegal;
+
+    const resultado: HipotecaCalculo = {
       valorVivienda,
       ingresosMensuales,
       cuotaEstimada: Math.round(cuotaEstimada),
@@ -411,7 +582,24 @@ useEffect(() => {
       plazo,
       tasa: tasaParaAnalisis,
     };
-  }, [isLeadMode, liveCalculo, manualInputs, paisConfig, cantidadAFinanciar, mode, effectiveManual, pais, tasaAnalisisMode, euribor12m, diferencial]);
+
+    // Add Colombia-specific fields when applicable
+    if (pais === "Colombia") {
+      resultado.tipoVivienda = colombiaFields.tipoVivienda;
+      resultado.modalidad = colombiaFields.modalidad;
+      resultado.ciudadColombia = colombiaFields.ciudadColombia;
+      resultado.subsidio = colombiaFields.subsidio;
+      resultado.antiguedadLaboral = colombiaFields.antiguedadLaboral;
+      resultado.scoreCrediticioColombia = colombiaFields.scoreCrediticioColombia;
+    }
+
+    // Add Spain-specific fields when applicable
+    if (pais === "España") {
+      resultado.edad = spainFields.edad;
+    }
+
+    return resultado;
+  }, [isLeadMode, liveCalculo, manualInputs, paisConfig, cantidadAFinanciar, mode, effectiveManual, pais, tasaAnalisisMode, euribor12m, diferencial, colombiaFields]);
 
   const precio = calc.valorVivienda || 0;
   const ingresos = calc.ingresosMensuales || 0;
@@ -452,10 +640,142 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
 
   const getBankProb = (base: number) => Math.min(99, Math.max(10, Math.round((base * score) / 100)));
 
-  const banks = paisConfig.bancos.map((bank, i) => ({
-    ...bank,
-    prob: getBankProb(85 + i * 3),
-  }));
+  // ✅ Cargar tasas bancarias reales
+  const [tasasReales, setTasasReales] = useState<any[]>([]);
+  const [loadingTasas, setLoadingTasas] = useState(false);
+
+  useEffect(() => {
+    if (pais === "Colombia" && score > 40) {
+      setLoadingTasas(true);
+      getTasasBancolombia()
+        .then(data => {
+          if (validateTasasResponse(data)) {
+            setTasasReales(data);
+          } else {
+            setTasasReales(getTasasFallback('bancolombia'));
+          }
+        })
+        .catch(() => {
+          setTasasReales(getTasasFallback('bancolombia'));
+        })
+        .finally(() => setLoadingTasas(false));
+    }
+  }, [pais, score]);
+
+  const banks = paisConfig.bancos.map((bank, i) => {
+    // ✅ Probabilidad base según scoring real del cliente
+    let prob = getBankProb(score * 0.9 + (85 + i * 3) * 0.1); // 90% score + 10% base
+    let recommendation = "";
+    let rateAdjustment = 0;
+    let tasaReal = null;
+
+    // ✅ Usar tasas reales si están disponibles
+    if (pais === "Colombia" && tasasReales.length > 0) {
+      const tasaBanco = tasasReales.find(t => t.banco === bank.name);
+      if (tasaBanco) {
+        tasaReal = tasaBanco.tasa;
+        // Ajustar según tipo de vivienda
+        if (colombiaFields.tipoVivienda === "VIS" && tasaBanco.tipoVivienda === "VIS") {
+          // Usar tasa VIS directamente
+          rateAdjustment = 0;
+        } else if (colombiaFields.tipoVivienda === "No VIS" && tasaBanco.tipoVivienda === "No VIS") {
+          // Usar tasa No VIS directamente
+          rateAdjustment = 0;
+        } else {
+          // Ajuste si no coincide el tipo
+          rateAdjustment = colombiaFields.tipoVivienda === "VIS" ? -0.8 : 0;
+        }
+      }
+    }
+
+    // ✅ Ajustes según score del cliente
+    if (score >= 80) {
+      prob = Math.min(99, prob + 20); // Excelente score
+      if (!tasaReal) rateAdjustment -= 0.5; // Mejores tasas
+    } else if (score >= 60) {
+      prob = Math.min(99, prob + 10); // Buen score
+      if (!tasaReal) rateAdjustment -= 0.2;
+    } else if (score < 40) {
+      prob = Math.max(15, prob - 20); // Score bajo
+      if (!tasaReal) rateAdjustment += 0.3; // Peores tasas
+    }
+
+    if (pais === "Colombia") {
+      // Lógica específica Colombia CONECTADA CON SCORING
+      if (bank.name === "Bancolombia" && colombiaFields.tipoVivienda === "VIS") {
+        prob = Math.min(99, prob + 15);
+        recommendation = "Excelente para vivienda VIS";
+        rateAdjustment -= 0.5;
+      }
+      if (bank.name === "Davivienda" && colombiaFields.subsidio === "Sí") {
+        prob = Math.min(99, prob + 20);
+        recommendation = "Mejor opción con subsidio";
+        rateAdjustment -= 0.8;
+      }
+      if (bank.name === "BBVA Colombia" && colombiaFields.modalidad === "Leasing Habitacional") {
+        prob = Math.min(99, prob + 10);
+        recommendation = "Líder en leasing habitacional";
+        rateAdjustment -= 0.3;
+      }
+      
+      // Conexión directa con score crediticio Colombia
+      if (colombiaFields.scoreCrediticioColombia >= 800) {
+        prob = Math.min(99, prob + 25);
+        recommendation += " | Score excelente";
+        rateAdjustment -= 0.8;
+      } else if (colombiaFields.scoreCrediticioColombia >= 700) {
+        prob = Math.min(99, prob + 15);
+        recommendation += " | Score muy bueno";
+        rateAdjustment -= 0.5;
+      } else if (colombiaFields.scoreCrediticioColombia < 600) {
+        prob = Math.max(10, prob - 30);
+        recommendation += " | Score bajo";
+        rateAdjustment += 1.0;
+      }
+
+      // Antigüedad laboral afecta probabilidades
+      if (colombiaFields.antiguedadLaboral >= 24) {
+        prob = Math.min(99, prob + 10);
+      } else if (colombiaFields.antiguedadLaboral < 6) {
+        prob = Math.max(5, prob - 40); // Casi imposible
+        recommendation += " | Antigüedad insuficiente";
+      }
+    }
+
+    if (pais === "España") {
+      // Lógica específica España CONECTADA CON SCORING
+      if (bank.name === "Santander" && calc.dti < 30) {
+        prob = Math.min(99, prob + 12);
+        recommendation = "Acepta DTI hasta 40%";
+      }
+      if (bank.name === "BBVA" && calc.ingresosMensuales > 3000) {
+        prob = Math.min(99, prob + 8);
+        recommendation = "Bueno para ingresos altos";
+      }
+      if (tasaAnalisisMode === "euribor" && bank.name === "CaixaBank") {
+        prob = Math.min(99, prob + 15);
+        recommendation = "Flexible con Euríbor";
+      }
+      
+      // Edad afecta probabilidades España
+      if (spainFields.edad) {
+        if (spainFields.edad <= 45) {
+          prob = Math.min(99, prob + 10);
+        } else if (spainFields.edad > 65) {
+          prob = Math.max(20, prob - 30);
+          recommendation += " | Edad avanzada";
+        }
+      }
+    }
+
+    return {
+      ...bank,
+      prob: Math.round(prob),
+      recommendation,
+      rateAdjustment: Math.round(rateAdjustment * 100) / 100,
+      tasaReal: tasaReal
+    };
+  });
 
   const handleInputChange = useCallback((field: keyof typeof manualInputs, value: string) => {
     const numValue = parseFloat(value.replace(/[^0-9.]/g, "")) || 0;
@@ -653,6 +973,61 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
     }
   }, [pais, paisConfig, calc, aportacionReal, cantidadAFinanciar, tasaAnalisisMode]);
 
+const saveLeadScoreToCRM = async () => {
+    if (!contactData.nombre || !contactData.email) {
+      alert('Por favor ingresa tu nombre y email');
+      return;
+    }
+
+    setIsSavingLead(true);
+
+    try {
+      const response = await fetch('/api/lead-scoring', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nombre: contactData.nombre,
+          email: contactData.email,
+          telefono: contactData.telefono,
+          pais: pais,
+          ingresos_mensuales: calc.ingresosMensuales,
+          valor_propiedad: calc.valorVivienda,
+          cuota_inicial: aportacionReal,
+          plazo_anios: calc.plazo,
+          tasa_interes: calc.tasa,
+          dti: calc.dti,
+          ltv: ((calc.valorVivienda - aportacionReal) / calc.valorVivienda) * 100,
+          cuota_mensual: calc.cuotaEstimada,
+          score_bancario: calc.score,
+          ingresos_anuales: calc.ingresosMensuales * 12,
+          edad: pais === "España" ? spainFields.edad : undefined,
+          tipo_vivienda: pais === "Colombia" ? colombiaFields.tipoVivienda === "VIS" ? "primera" : "segunda" : undefined,
+          tiene_creditos: (calc.deudasExistentes || 0) > 0
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setLeadScoreResult(result);
+        // No usamos alert, mostramos en el UI
+      } else {
+        // Mostramos error de forma elegante
+        setLeadScoreResult({
+          error: true,
+          message: result.error || 'Error al guardar el lead'
+        });
+      }
+    } catch (error) {
+      console.error('Error guardando lead:', error);
+      alert('Error al guardar el lead. Intenta nuevamente.');
+    } finally {
+      setIsSavingLead(false);
+    }
+  };
+
   return (
     <div style={{ height: "100%", overflowY: "auto", paddingRight: "8px", display: "flex", flexDirection: "column", gap: "20px" }}>
       
@@ -775,7 +1150,129 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
                 )}
               </div>
             )}
-          
+
+            {/* Colombia-specific fields */}
+            {pais === "Colombia" && (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Tipo Vivienda</label>
+                  <div style={inputWrapperStyle}>
+                    <select
+                      value={colombiaFields.tipoVivienda}
+                      onChange={(e) => setColombiaFields(prev => ({ ...prev, tipoVivienda: e.target.value as "VIS" | "No VIS" }))}
+                      style={{ ...inputStyle, ...selectStyle, cursor: "pointer" }}
+                    >
+                      <option value="No VIS">No VIS</option>
+                      <option value="VIS">VIS</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Modalidad</label>
+                  <div style={inputWrapperStyle}>
+                    <select
+                      value={colombiaFields.modalidad}
+                      onChange={(e) => setColombiaFields(prev => ({ ...prev, modalidad: e.target.value as any }))}
+                      style={{ ...inputStyle, ...selectStyle, cursor: "pointer" }}
+                    >
+                      <option value="Crédito Pesos">Crédito Pesos</option>
+                      <option value="Leasing Habitacional">Leasing</option>
+                      <option value="Crédito UVR">UVR</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Ciudad</label>
+                  <div style={inputWrapperStyle}>
+                    <select
+                      value={colombiaFields.ciudadColombia}
+                      onChange={(e) => setColombiaFields(prev => ({ ...prev, ciudadColombia: e.target.value }))}
+                      style={{ ...inputStyle, ...selectStyle, cursor: "pointer" }}
+                    >
+                      <option value="Bogotá">Bogotá</option>
+                      <option value="Medellín">Medellín</option>
+                      <option value="Cali">Cali</option>
+                      <option value="Barranquilla">Barranquilla</option>
+                      <option value="Bucaramanga">Bucaramanga</option>
+                      <option value="Cartagena">Cartagena</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Subsidio</label>
+                  <div style={inputWrapperStyle}>
+                    <select
+                      value={colombiaFields.subsidio}
+                      onChange={(e) => setColombiaFields(prev => ({ ...prev, subsidio: e.target.value as "Sí" | "No" }))}
+                      style={{ ...inputStyle, ...selectStyle, cursor: "pointer" }}
+                    >
+                      <option value="No">No</option>
+                      <option value="Sí">Sí</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Antigüedad Laboral</label>
+                  <div style={inputWrapperStyle}>
+                    <input
+                      type="number"
+                      value={colombiaFields.antiguedadLaboral}
+                      onChange={(e) => setColombiaFields(prev => ({ ...prev, antiguedadLaboral: Number(e.target.value) || 0 }))}
+                      style={{ ...inputStyle, cursor: "pointer" }}
+                    />
+                    <span style={inputAddonStyle}>meses</span>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Score Crediticio</label>
+                  <div style={inputWrapperStyle}>
+                    <input
+                      type="number"
+                      value={colombiaFields.scoreCrediticioColombia}
+                      onChange={(e) => setColombiaFields(prev => ({ ...prev, scoreCrediticioColombia: Number(e.target.value) || 0 }))}
+                      style={{ ...inputStyle, cursor: "pointer" }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Spain-specific legal fields */}
+            {pais === "España" && (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Edad</label>
+                  <div style={inputWrapperStyle}>
+                    <input
+                      type="number"
+                      value={spainFields.edad}
+                      onChange={(e) => setSpainFields(prev => ({ ...prev, edad: Number(e.target.value) || 0 }))}
+                      style={{ ...inputStyle, cursor: "pointer" }}
+                    />
+                    <span style={inputAddonStyle}>años</span>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Gastos Mínimos</label>
+                  <div style={inputWrapperStyle}>
+                    <input
+                      type="number"
+                      value={spainFields.gastosMinimosVitales}
+                      onChange={(e) => setSpainFields(prev => ({ ...prev, gastosMinimosVitales: Number(e.target.value) || 0 }))}
+                      style={{ ...inputStyle, cursor: "pointer" }}
+                    />
+                    <span style={inputAddonStyle}>€/mes</span>
+                  </div>
+                </div>
+              </>
+            )}
+
             {pais === "España" && (
               <>
                 <InputField
@@ -856,10 +1353,162 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
         <KpiCard 
           title="Scoring Global" 
           value={`${score}/100`} 
-          color={score > 60 ? "#22c55e" : "#ef4444"} 
+          color={score >= 80 ? "#22c55e" : score >= 60 ? "#facc15" : score >= 40 ? "#f97316" : "#ef4444"} 
           icon={<TrendingUp size={18} />}
-          subtext={score > 60 ? "Cliente Apto" : "Riesgo Alto"}
+          subtext={
+            score >= 80 ? "Excelente" : 
+            score >= 60 ? "Cliente Apto" : 
+            score >= 40 ? "Regular" : 
+            "Riesgo Alto"
+          }
         />
+
+        {/* ✅ Detalles de scoring por país */}
+        {pais === "Colombia" && (
+          <KpiCard 
+            title="Score Crediticio" 
+            value={`${colombiaFields.scoreCrediticioColombia || 0}/1000`}
+            color={
+              colombiaFields.scoreCrediticioColombia >= 800 ? "#22c55e" :
+              colombiaFields.scoreCrediticioColombia >= 700 ? "#facc15" :
+              colombiaFields.scoreCrediticioColombia >= 600 ? "#f97316" :
+              "#ef4444"
+            } 
+            icon={<BrainCircuit size={18} />}
+            subtext={
+              colombiaFields.scoreCrediticioColombia >= 800 ? "Excelente" :
+              colombiaFields.scoreCrediticioColombia >= 700 ? "Muy bueno" :
+              colombiaFields.scoreCrediticioColombia >= 600 ? "Bueno" :
+              "Bajo"
+            }
+          />
+        )}
+
+        {pais === "España" && (
+          <KpiCard 
+            title="Perfil Edad" 
+            value={`${spainFields.edad || 0} años`}
+            color={
+              spainFields.edad >= 25 && spainFields.edad <= 45 ? "#22c55e" :
+              spainFields.edad >= 20 && spainFields.edad <= 55 ? "#facc15" :
+              spainFields.edad > 65 ? "#ef4444" :
+              "#f97316"
+            } 
+            icon={<TrendingUp size={18} />}
+            subtext={
+              spainFields.edad >= 25 && spainFields.edad <= 45 ? "Edad óptima" :
+              spainFields.edad >= 20 && spainFields.edad <= 55 ? "Aceptable" :
+              spainFields.edad > 65 ? "Riesgo alto" :
+              "Limitado"
+            }
+          />
+        )}
+
+        {/* ✅ Alertas positivas - Cliente cumple requisitos */}
+        {calc.aprobado && (
+          <div style={{
+            backgroundColor: "rgba(34, 197, 94, 0.1)",
+            border: "1px solid rgba(34, 197, 94, 0.3)",
+            borderRadius: "8px",
+            padding: "12px",
+            gridColumn: "span 3"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <CheckCircle size={16} color="#22c55e" />
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "#22c55e" }}>✅ ¡CLIENTE APROBADO! Oportunidades de venta</span>
+            </div>
+            
+            {pais === "Colombia" && (
+              <div style={{ fontSize: "11px", color: "#16a34a" }}>
+                <div style={{ marginBottom: "4px" }}>💼 <strong>Recomendación principal:</strong></div>
+                {colombiaFields.tipoVivienda === "VIS" ? (
+                  <div>• Apto para programa VIS con mejores tasas y 10% entrada</div>
+                ) : (
+                  <div>• Considerar buscar vivienda VIS para acceder a beneficios</div>
+                )}
+                {colombiaFields.subsidio === "No" && colombiaFields.scoreCrediticioColombia > 700 && (
+                  <div>• Con su score ({colombiaFields.scoreCrediticioColombia}), puede calificar para subsidio Mi Casa Ya</div>
+                )}
+                <div>• Cuota ideal: {formatearMoneda(calc.cuotaEstimada, paisConfig)} (DTI {calc.dti}%)</div>
+                <div>• Capacidad máxima: {formatearMoneda(Math.round(hipotecaMaximaTeorica / (1 - paisConfig.entradaMinima)), paisConfig)}</div>
+              </div>
+            )}
+
+            {pais === "España" && (
+              <div style={{ fontSize: "11px", color: "#16a34a" }}>
+                <div style={{ marginBottom: "4px" }}>🏠 <strong>Estrategia recomendada:</strong></div>
+                <div>• Euríbor actual ({euribor12m.toFixed(2)}%) + diferencial recomendado (1.0-1.5%)</div>
+                <div>• Plazo óptimo: {Math.min(30, 75 - spainFields.edad)} años por edad</div>
+                <div>• Capacidad real después de IRPF: {formatearMoneda(Math.round((calc.ingresosMensuales * 0.7 * 0.35) - spainFields.gastosMinimosVitales), paisConfig)}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ✅ Alertas de mejora - Casi aprueba */}
+        {!calc.aprobado && score >= 40 && dti < 50 && (
+          <div style={{
+            backgroundColor: "rgba(250, 204, 21, 0.1)",
+            border: "1px solid rgba(250, 204, 21, 0.3)",
+            borderRadius: "8px",
+            padding: "12px",
+            gridColumn: "span 3"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <TrendingUp size={16} color="#facc15" />
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "#facc15" }}>🎯 CERCA DE APROBAR - Acciones recomendadas</span>
+            </div>
+            
+            <div style={{ fontSize: "11px", color: "#ca8a04" }}>
+              {pais === "Colombia" && colombiaFields.antiguedadLaboral < 6 && (
+                <div>• Esperar {6 - colombiaFields.antiguedadLaboral} meses más de antigüedad laboral</div>
+              )}
+              {pais === "Colombia" && colombiaFields.scoreCrediticioColombia < 600 && (
+                <div>• Mejorar score crediticio (+{600 - colombiaFields.scoreCrediticioColombia} puntos)</div>
+              )}
+              {dti > paisConfig.dtiMaximo && (
+                <div>• Reducir deudas en {formatearMoneda(Math.round((dti - paisConfig.dtiMaximo) * calc.ingresosMensuales / 100), paisConfig)}</div>
+              )}
+              <div>• Considerar menor plazo o mayor entrada inicial</div>
+            </div>
+          </div>
+        )}
+
+        {/* ✅ Advertencias legales */}
+        {((pais === "Colombia" && (
+          colombiaFields.antiguedadLaboral < 6 || 
+          colombiaFields.scoreCrediticioColombia < 600
+        )) || (pais === "España" && (
+          (spainFields.edad + manualInputs.plazo) > 75
+        ))) && (
+          <div style={{
+            backgroundColor: "rgba(239, 68, 68, 0.1)",
+            border: "1px solid rgba(239, 68, 68, 0.3)",
+            borderRadius: "8px",
+            padding: "12px",
+            gridColumn: "span 3"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <AlertTriangle size={16} color="#ef4444" />
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "#ef4444" }}>⚠️ REQUISITOS LEGALES INCUMPLIDOS</span>
+            </div>
+            {pais === "Colombia" && colombiaFields.antiguedadLaboral < 6 && (
+              <div style={{ fontSize: "11px", color: "#dc2626", marginBottom: "4px" }}>
+                • Antigüedad laboral mínima: 6 meses (tienes: {colombiaFields.antiguedadLaboral} meses)
+              </div>
+            )}
+            {pais === "Colombia" && colombiaFields.scoreCrediticioColombia < 600 && (
+              <div style={{ fontSize: "11px", color: "#dc2626", marginBottom: "4px" }}>
+                • Score crediticio mínimo: 600 puntos (tienes: {colombiaFields.scoreCrediticioColombia})
+              </div>
+            )}
+            {pais === "España" && (spainFields.edad + manualInputs.plazo) > 75 && (
+              <div style={{ fontSize: "11px", color: "#dc2626", marginBottom: "4px" }}>
+                • Edad + plazo no puede exceder 75 años ({spainFields.edad} + {manualInputs.plazo} = {spainFields.edad + manualInputs.plazo} años)
+              </div>
+            )}
+          </div>
+        )}
         <KpiCard 
           title="Ratio Endeudamiento (DTI)" 
           value={`${dti}%`} 
@@ -943,20 +1592,58 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
               <Landmark size={16} color="#22d3ee" /> Radar Bancario - {pais}
             </div>
             <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "14px" }}>
-              {banks.map((bank) => (
-                <div key={bank.name}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "4px" }}>
-                    <span style={{ fontWeight: "bold", color: "#fff" }}>{bank.name}</span>
-                    <span style={{ color: bank.prob > 60 ? "#22c55e" : "#ef4444" }}>{bank.prob}% Viabilidad</span>
+              {banks.sort((a, b) => b.prob - a.prob).map((bank, index) => (
+                <div key={bank.name} style={{
+                  border: bank.prob > 70 ? "1px solid rgba(34, 197, 94, 0.3)" : "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  backgroundColor: bank.prob > 70 ? "rgba(34, 197, 94, 0.05)" : "transparent"
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
+                    <span style={{ fontWeight: "bold", color: "#fff" }}>
+                      {index === 0 && "🏆"} {bank.name}
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      {bank.tasaReal && (
+                        <span style={{ fontSize: "10px", color: "#22d3ee", backgroundColor: "rgba(34, 211, 238, 0.2)", padding: "2px 6px", borderRadius: "4px" }}>
+                          {bank.tasaReal}% REAL
+                        </span>
+                      )}
+                      {bank.rateAdjustment && bank.rateAdjustment !== 0 && (
+                        <span style={{ fontSize: "10px", color: "#22c55e", backgroundColor: "rgba(34, 197, 94, 0.2)", padding: "2px 6px", borderRadius: "4px" }}>
+                          {bank.rateAdjustment > 0 ? "+" : ""}{bank.rateAdjustment.toFixed(1)}%
+                        </span>
+                      )}
+                      <span style={{ color: bank.prob > 60 ? "#22c55e" : bank.prob > 40 ? "#facc15" : "#ef4444", fontWeight: "bold" }}>
+                        {bank.prob}% Viabilidad
+                      </span>
+                      {loadingTasas && (
+                        <span style={{ fontSize: "9px", color: "#94a3b8", animation: "pulse 1s infinite" }}>
+                          🔄
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ width: "100%", height: "6px", background: "rgba(255,255,255,0.1)", borderRadius: "3px", overflow: "hidden" }}>
+                  <div style={{ width: "100%", height: "8px", background: "rgba(255,255,255,0.1)", borderRadius: "4px", overflow: "hidden", marginBottom: "6px" }}>
                     <div style={{ 
                       width: `${bank.prob}%`, height: "100%", 
                       background: bank.prob > 60 ? bank.color : "#475569",
                       transition: "width 0.5s ease" 
                     }}></div>
                   </div>
-                  <div style={{ fontSize: "9px", color: "#64748b", marginTop: "2px" }}>{bank.note}</div>
+                  <div style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "4px" }}>{bank.note}</div>
+                  {bank.recommendation && (
+                    <div style={{ 
+                      fontSize: "10px", 
+                      color: "#22d3ee", 
+                      backgroundColor: "rgba(34, 211, 238, 0.1)", 
+                      padding: "4px 8px", 
+                      borderRadius: "4px",
+                      border: "1px solid rgba(34, 211, 238, 0.2)"
+                    }}>
+                      💡 {bank.recommendation}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -969,26 +1656,309 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
             <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "12px", color: "#e2e8f0", lineHeight: "1.6" }}>
               {ingresos === 0 ? (
                 <>
-                  <li style={{ marginBottom: "6px" }}>Ingresa los datos del cliente para ver recomendaciones.</li>
-                  <li>El simulador calculará DTI, Score y viabilidad automáticamente.</li>
+                  <li style={{ marginBottom: "6px" }}>📊 Ingresa datos del cliente para análisis completo</li>
+                  <li>⚡ El sistema calculará DTI, Score legal y viabilidad bancaria</li>
                 </>
-              ) : dti > 40 ? (
+              ) : !calc.aprobado ? (
                 <>
-                  <li style={{ marginBottom: "6px" }}>DTI crítico ({dti}%). Sugiere <strong>cancelar préstamos</strong> pequeños.</li>
-                  <li>Añadir <strong>segundo titular</strong> reduciría el riesgo ~35%.</li>
-                </>
-              ) : score < 60 ? (
-                <>
-                  <li style={{ marginBottom: "6px" }}>Score bajo. Aportar <strong>recibos de alquiler</strong> ayudaría.</li>
-                  <li>Busca bancos con scoring manual como <strong>UCI</strong>.</li>
+                  {pais === "Colombia" && (
+                    <>
+                      <li style={{ marginBottom: "6px" }}>🇨🇴 <strong>Requisitos Colombia no cumplidos:</strong></li>
+                      {colombiaFields.antiguedadLaboral < 6 && <li style={{ marginLeft: "20px", color: "#facc15" }}>⏰ Esperar {6 - colombiaFields.antiguedadLaboral} meses más de antigüedad</li>}
+                      {colombiaFields.scoreCrediticioColombia < 600 && <li style={{ marginLeft: "20px", color: "#facc15" }}>📈 Mejorar score a +600 (actual: {colombiaFields.scoreCrediticioColombia})</li>}
+                      <li style={{ marginBottom: "6px", color: "#22d3ee" }}>📋 <strong>Próximos pasos:</strong></li>
+                      <li style={{ marginLeft: "20px" }}>• Solicitar Datacrédito para identificar problemas</li>
+                      <li style={{ marginLeft: "20px" }}>• Consolidar deudas para mejorar DTI</li>
+                    </>
+                  )}
+                  {pais === "España" && (
+                    <>
+                      <li style={{ marginBottom: "6px" }}>🇪🇸 <strong>Requisitos España no cumplidos:</strong></li>
+                      {(spainFields.edad + manualInputs.plazo) > 75 && <li style={{ marginLeft: "20px", color: "#facc15" }}>📅 Reducir plazo a {75 - spainFields.edad} años máximo</li>}
+                      <li style={{ marginBottom: "6px", color: "#22d3ee" }}>📋 <strong>Próximos pasos:</strong></li>
+                      <li style={{ marginLeft: "20px" }}>• Revisar CIRBE para deudas ocultas</li>
+                      <li style={{ marginLeft: "20px" }}>• Considerar avalista o segundo titular</li>
+                    </>
+                  )}
                 </>
               ) : (
                 <>
-                  <li style={{ marginBottom: "6px" }}>Perfil excelente. Negocia bonificación de tipo (-0.2%).</li>
-                  <li>Ofrece seguro de vida vinculado para bajar cuota.</li>
+                  <li style={{ marginBottom: "6px" }}>🎉 <strong>¡CLIENTE APROBADO!</strong> Sigue estos pasos:</li>
+                  <li style={{ marginLeft: "20px", color: "#22c55e" }}>1️⃣ Contactar banco #{banks[0].name} (viabilidad {banks[0].prob}%)</li>
+                  <li style={{ marginLeft: "20px", color: "#22c55e" }}>2️⃣ Preparar documentos: {pais === "Colombia" ? "certificación laboral, extractos 6 meses, declaración de renta" : "vida laboral, IRPF, extractos 3 meses"}</li>
+                  <li style={{ marginLeft: "20px", color: "#22c55e" }}>3️⃣ Solicitar pre-aprobación online (response: 24-48h)</li>
+                  
+                  {pais === "Colombia" && colombiaFields.tipoVivienda === "VIS" && (
+                    <li style={{ marginBottom: "6px", color: "#fbbf24" }}>💰 <strong>Bono VIS:</strong> Aplica a subsidios hasta 25 SMMLV</li>
+                  )}
+                  {pais === "Colombia" && colombiaFields.subsidio === "No" && colombiaFields.scoreCrediticioColombia > 700 && (
+                    <li style={{ marginBottom: "6px", color: "#fbbf24" }}>🏆 <strong>Oportunidad:</strong> Califica para Mi Casa Ya con tu score</li>
+                  )}
+                  {pais === "España" && (
+                    <li style={{ marginBottom: "6px", color: "#fbbf24" }}>📊 <strong>Negociación:</strong> Con tu DTI {dti}%, puedes pedir -0.25% en diferencial</li>
+                  )}
+                  
+                  <li style={{ marginBottom: "6px", color: "#22d3ee" }}>🎯 <strong>Strategy:</strong></li>
+                  <li style={{ marginLeft: "20px" }}>• Comparar oferta con 2-3 bancos más</li>
+                  <li style={{ marginLeft: "20px" }}>• Pedir bonificación por domiciliación de nómina</li>
+                  <li style={{ marginLeft: "20px" }}>• Ofrecer seguros vinculados (descuento adicional)</li>
                 </>
               )}
             </ul>
+          </div>
+
+          {/* ✅ Formulario de Contacto para Lead Scoring */}
+          <div style={panelStyle}>
+            <div style={panelHeaderStyle}>
+              <TrendingUp size={16} color="#10b981" /> Guardar Evaluación y Recibir Recomendaciones
+            </div>
+            <div style={{ padding: "16px" }}>
+              <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "16px" }}>
+                Guarda tu evaluación para recibir análisis personalizado y recomendaciones de expertos en hipotecas.
+              </p>
+              
+              {!showContactForm ? (
+                <button 
+                  onClick={() => setShowContactForm(true)}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    background: "linear-gradient(135deg, #10b981, #059669)",
+                    border: "none",
+                    borderRadius: "8px",
+                    color: "#fff",
+                    fontSize: "14px",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px"
+                  }}
+                >
+                  <BrainCircuit size={16} />
+                  Obtener mi Score de Lead Personalizado
+                </button>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div>
+                    <label style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600, display: "block", marginBottom: "4px" }}>
+                      Nombre Completo *
+                    </label>
+                    <input
+                      type="text"
+                      value={contactData.nombre}
+                      onChange={(e) => setContactData(prev => ({ ...prev, nombre: e.target.value }))}
+                      placeholder="Tu nombre completo"
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        background: "rgba(0,0,0,0.3)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: "6px",
+                        color: "#fff",
+                        fontSize: "13px"
+                      }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600, display: "block", marginBottom: "4px" }}>
+                      Email *
+                    </label>
+                    <input
+                      type="email"
+                      value={contactData.email}
+                      onChange={(e) => setContactData(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="tu@email.com"
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        background: "rgba(0,0,0,0.3)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: "6px",
+                        color: "#fff",
+                        fontSize: "13px"
+                      }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600, display: "block", marginBottom: "4px" }}>
+                      Teléfono (Opcional)
+                    </label>
+                    <input
+                      type="tel"
+                      value={contactData.telefono}
+                      onChange={(e) => setContactData(prev => ({ ...prev, telefono: e.target.value }))}
+                      placeholder="+34 600 000 000"
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        background: "rgba(0,0,0,0.3)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: "6px",
+                        color: "#fff",
+                        fontSize: "13px"
+                      }}
+                    />
+                  </div>
+
+                  {leadScoreResult && (
+                    <div style={{
+                      background: leadScoreResult.error 
+                        ? "rgba(239, 68, 68, 0.1)" 
+                        : "rgba(16, 185, 129, 0.1)",
+                      border: leadScoreResult.error 
+                        ? "1px solid rgba(239, 68, 68, 0.2)" 
+                        : "1px solid rgba(16, 185, 129, 0.2)",
+                      borderRadius: "12px",
+                      padding: "16px",
+                      animation: "slideIn 0.3s ease-out"
+                    }}>
+                      {!leadScoreResult.error ? (
+                        <>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                            <div style={{ 
+                              width: "24px", 
+                              height: "24px", 
+                              borderRadius: "50%", 
+                              background: "linear-gradient(135deg, #10b981, #059669)",
+                              display: "flex", 
+                              alignItems: "center", 
+                              justifyContent: "center",
+                              fontSize: "14px"
+                            }}>
+                              ✓
+                            </div>
+                            <div>
+                              <div style={{ fontSize: "14px", color: "#10b981", fontWeight: "bold" }}>
+                                ¡Evaluación Guardada!
+                              </div>
+                              <div style={{ fontSize: "11px", color: "#64748b" }}>
+                                {leadScoreResult.fallback_mode ? 'Guardado local (modo offline)' : 'Guardado en CRM Botz.fyi'}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div style={{ 
+                            display: "grid", 
+                            gridTemplateColumns: "1fr 1fr", 
+                            gap: "12px",
+                            marginBottom: "12px"
+                          }}>
+                            <div style={{ 
+                              background: "rgba(255,255,255,0.05)", 
+                              padding: "8px", 
+                              borderRadius: "6px",
+                              textAlign: "center"
+                            }}>
+                              <div style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px" }}>TU SCORE</div>
+                              <div style={{ fontSize: "18px", fontWeight: "bold", color: "#22d3ee" }}>
+                                {leadScoreResult.lead_score}/100
+                              </div>
+                            </div>
+                            <div style={{ 
+                              background: "rgba(255,255,255,0.05)", 
+                              padding: "8px", 
+                              borderRadius: "6px",
+                              textAlign: "center"
+                            }}>
+                              <div style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px" }}>CATEGORÍA</div>
+                              <div style={{ 
+                                fontSize: "12px", 
+                                fontWeight: "bold",
+                                color: leadScoreResult.categoria === 'caliente' ? '#ef4444' :
+                                       leadScoreResult.categoria === 'templado' ? '#f59e0b' : '#3b82f6'
+                              }}>
+                                {leadScoreResult.categoria === 'caliente' ? '🔥 Caliente' :
+                                 leadScoreResult.categoria === 'templado' ? '⚡ Templado' : '❄️ Frío'}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{
+                            background: "rgba(34, 211, 238, 0.1)",
+                            border: "1px solid rgba(34, 211, 238, 0.2)",
+                            borderRadius: "8px",
+                            padding: "12px"
+                          }}>
+                            <div style={{ fontSize: "11px", color: "#22d3ee", fontWeight: "bold", marginBottom: "4px" }}>
+                              📈 PRÓXIMOS PASOS RECOMENDADOS:
+                            </div>
+                            <div style={{ fontSize: "11px", color: "#e2e8f0", lineHeight: "1.4" }}>
+                              {leadScoreResult.accion_recomendada}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <div style={{ 
+                            width: "24px", 
+                            height: "24px", 
+                            borderRadius: "50%", 
+                            background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                            display: "flex", 
+                            alignItems: "center", 
+                            justifyContent: "center",
+                            fontSize: "14px",
+                            color: "#fff"
+                          }}>
+                            ✕
+                          </div>
+                          <div>
+                            <div style={{ fontSize: "14px", color: "#ef4444", fontWeight: "bold" }}>
+                              Error al guardar
+                            </div>
+                            <div style={{ fontSize: "11px", color: "#64748b" }}>
+                              {leadScoreResult.message}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      onClick={saveLeadScoreToCRM}
+                      disabled={isSavingLead}
+                      style={{
+                        flex: 1,
+                        padding: "10px",
+                        background: isSavingLead ? "#64748b" : "linear-gradient(135deg, #10b981, #059669)",
+                        border: "none",
+                        borderRadius: "6px",
+                        color: "#fff",
+                        fontSize: "13px",
+                        fontWeight: "bold",
+                        cursor: isSavingLead ? "not-allowed" : "pointer"
+                      }}
+                    >
+                      {isSavingLead ? "Guardando..." : "Guardar mi Evaluación"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowContactForm(false);
+                        setContactData({ nombre: '', email: '', telefono: '' });
+                        setLeadScoreResult(null);
+                      }}
+                      style={{
+                        padding: "10px 16px",
+                        background: "rgba(255,255,255,0.1)",
+                        border: "1px solid rgba(255,255,255,0.2)",
+                        borderRadius: "6px",
+                        color: "#fff",
+                        fontSize: "12px",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
         </div>

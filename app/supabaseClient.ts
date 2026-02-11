@@ -9,5 +9,11 @@ const envKey =
 const supabaseUrl = envUrl || "https://placeholder.supabase.co";
 const supabaseKey = envKey || "placeholder-key";
 
-// 3) cliente
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// 3) cliente con manejo de errores de refresh token
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+});
