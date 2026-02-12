@@ -16,6 +16,8 @@ import LiveSystemMonitor from "./components/LiveSystemMonitor";
 import IntegrationsSection from "./components/IntegrationsSection"; 
 import KanbanBoard from "./components/KanbanBoard";
 import SLAControlCenter from "./components/SLAControlCenter";
+import AgentsStudio from "./components/AgentsStudio";
+import useBotzLanguage from "./hooks/useBotzLanguage";
 import { supabase } from "./components/supabaseClient";
 import AuthModal from "./components/AuthModal";
 import ChatBot from "@/components/ChatBot";
@@ -29,7 +31,7 @@ import {
 } from "react-icons/fa6";
 import { RefreshCw, Users, ShieldCheck } from "lucide-react"; 
 
-type Tab = "demo" | "channels" | "crm" | "metrics" | "kanban" | "hipoteca" | "n8n-config" | "sla";
+type Tab = "demo" | "channels" | "agents" | "crm" | "metrics" | "kanban" | "hipoteca" | "n8n-config" | "sla";
 
 type LeadOption = {
   id: string;
@@ -49,7 +51,7 @@ const CHANNELS = [
   { id: "shopify", name: "Shopify", icon: <FaShopify size={24} />, color: "#7AB55C", active: false },
 ];
 
-const N8N_WEBHOOK_URL = "/api/n8n"; 
+const AUTOMATION_WEBHOOK_URL = "/api/n8n"; 
 
 function pmt(principal: number, annualRate: number, years: number) {
   if (!principal || principal <= 0 || !years || years <= 0) return 0;
@@ -60,13 +62,21 @@ function pmt(principal: number, annualRate: number, years: number) {
   return (principal * r) / (1 - Math.pow(1 + r, -n));
 }
 
-function timeAgo(dateString: string): string {
+function timeAgo(dateString: string, language: "es" | "en"): string {
   const now = new Date();
   const date = new Date(dateString);
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
+
+  if (language === "en") {
+    if (diffMins < 1) return "now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString("en-US", { day: "2-digit", month: "short" });
+  }
 
   if (diffMins < 1) return "ahora";
   if (diffMins < 60) return `hace ${diffMins}m`;
@@ -77,9 +87,39 @@ function timeAgo(dateString: string): string {
 
 export default function BotzLandingExperience() {
   const router = useRouter(); 
+  const language = useBotzLanguage();
+  const copy = {
+    es: {
+      mode: "Modo:",
+      manual: "Manual",
+      leadAuto: "Lead (Auto)",
+      selectLead: "-- Selecciona un Lead --",
+      unnamed: "Sin nombre",
+      refreshLeads: "Refrescar lista de leads",
+      connected: "Conectado",
+      manualHint: "Simulación manual con datos personalizados",
+      leadsAvailable: (n: number) => `${n} leads disponibles`,
+      loading: "Cargando...",
+      noLeads: "Sin leads",
+    },
+    en: {
+      mode: "Mode:",
+      manual: "Manual",
+      leadAuto: "Lead (Auto)",
+      selectLead: "-- Select a Lead --",
+      unnamed: "Unnamed",
+      refreshLeads: "Refresh leads list",
+      connected: "Connected",
+      manualHint: "Manual simulation with custom inputs",
+      leadsAvailable: (n: number) => `${n} leads available`,
+      loading: "Loading...",
+      noLeads: "No leads",
+    },
+  } as const;
+  const t = copy[language];
   
   // ✅ Usar el contexto de autenticación
-  const { user, loading: authLoading, isAdmin, isAsesor } = useAuth();
+  const { user, loading: authLoading, isAdmin, isAsesor, isPlatformAdmin } = useAuth();
   
   const [activeTab, setActiveTab] = useState<Tab>("demo");
   const [hipotecaMode, setHipotecaMode] = useState<"manual" | "lead">("manual");
@@ -130,7 +170,7 @@ export default function BotzLandingExperience() {
     deudasExistentes: 0
   });
 
-  const [n8nWebhookURL, setN8nWebhookURL] = useState(N8N_WEBHOOK_URL);
+  const [n8nWebhookURL, setN8nWebhookURL] = useState(AUTOMATION_WEBHOOK_URL);
   const [useRealN8n, setUseRealN8n] = useState(true);
   const [n8nStatus, setN8nStatus] = useState<string>("disconnected");
   const [n8nStats, setN8nStats] = useState({ leadsEnviados: 0, mensajesProcesados: 0, ultimoEnvio: "--:--", errores: 0 });
@@ -428,7 +468,7 @@ export default function BotzLandingExperience() {
               ) : (
                 <div style={{ flexShrink: 0, padding: "10px 16px", background: "rgba(255,255,255,0.05)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: "12px", color: "#8b949e" }}>Lead: <strong style={{ color: "#fff" }}>{formData.name || "Usuario"}</strong></span>
-                  <span style={{ fontSize: "10px", color: "#22d3ee" }}>● En vivo (Motor n8n)</span>
+                  <span style={{ fontSize: "10px", color: "#22d3ee" }}>● En vivo (Automatización)</span>
                 </div>
               )}
 
@@ -469,7 +509,9 @@ export default function BotzLandingExperience() {
             <p>Esta función solo está disponible para administradores</p>
           </div>
         </div>
-      )} 
+      )}
+
+      {activeTab === "agents" && (isAdmin || isPlatformAdmin ? <AgentsStudio /> : null)}
 
       {activeTab === "hipoteca" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%", overflowY: "auto" }}>
@@ -488,7 +530,7 @@ export default function BotzLandingExperience() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-              <span style={{ fontSize: "12px", color: "#8b949e" }}>Modo:</span>
+              <span style={{ fontSize: "12px", color: "#8b949e" }}>{t.mode}</span>
 
               <button
                 onClick={() => setHipotecaMode("manual")}
@@ -503,7 +545,7 @@ export default function BotzLandingExperience() {
                   cursor: "pointer",
                 }}
               >
-                Manual
+                {t.manual}
               </button>
 
               <button
@@ -519,7 +561,7 @@ export default function BotzLandingExperience() {
                   cursor: "pointer",
                 }}
               >
-                Lead (Auto)
+                {t.leadAuto}
               </button>
 
               {hipotecaMode === "lead" && (
@@ -542,12 +584,12 @@ export default function BotzLandingExperience() {
                         outline: "none",
                       }}
                     >
-                      <option value="">-- Selecciona un Lead --</option>
+                      <option value="">{t.selectLead}</option>
                       {leadsOptions.map((lead) => (
                         <option key={lead.id} value={lead.id}>
-                         {lead.name || "Sin nombre"}
+                         {lead.name || t.unnamed}
                          {lead.phone ? ` - ${lead.phone}` : ""}
-                        {lead.created_at ? ` - ${timeAgo(lead.created_at)}` : ""}
+                        {lead.created_at ? ` - ${timeAgo(lead.created_at, language)}` : ""}
 
                         </option>
                       ))}
@@ -567,7 +609,7 @@ export default function BotzLandingExperience() {
                         alignItems: "center",
                         justifyContent: "center",
                       }}
-                      title="Refrescar lista de leads"
+                      title={t.refreshLeads}
                     >
                       <RefreshCw size={14} className={loadingLeads ? "animate-spin" : ""} />
                     </button>
@@ -587,7 +629,7 @@ export default function BotzLandingExperience() {
                       gap: "6px"
                     }}>
                       <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#22c55e" }} />
-                      Conectado
+                      {t.connected}
                     </div>
                   )}
                 </>
@@ -597,13 +639,13 @@ export default function BotzLandingExperience() {
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               {hipotecaMode === "manual" ? (
                 <span style={{ fontSize: "11px", color: "#94a3b8" }}>
-                  Simulación manual con datos personalizados
+                  {t.manualHint}
                 </span>
               ) : (
                 <span style={{ fontSize: "11px", color: "#94a3b8" }}>
                   {leadsOptions.length > 0 
-                    ? `${leadsOptions.length} leads disponibles` 
-                    : loadingLeads ? "Cargando..." : "Sin leads"
+                    ? t.leadsAvailable(leadsOptions.length)
+                    : loadingLeads ? t.loading : t.noLeads
                   }
                 </span>
               )}

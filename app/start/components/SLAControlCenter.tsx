@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "../MainLayout";
-import {
+import { 
   FaWhatsapp,
   FaPhone,
   FaCalendarAlt,
@@ -24,6 +24,262 @@ import {
   RefreshCw,
   Loader2
 } from "lucide-react";
+
+type AppLanguage = "es" | "en";
+
+const SLA_TEXT: Record<
+  AppLanguage,
+  {
+    title: string;
+    noAlerts: string;
+    noEmail: string;
+    suggestedActions: string;
+    createTask: string;
+    cancel: string;
+    saving: string;
+    confirmAppointment: string;
+    scheduleAppointmentTitle: string;
+    dateLabel: string;
+    timeLabel: string;
+    quickTimes: string;
+
+    refresh: string;
+    autoPlay: string;
+    activeAlerts: string;
+    critical: string;
+
+    all: string;
+    priorityAll: string;
+    priorityHigh: string;
+    priorityMedium: string;
+    priorityLow: string;
+
+    informationTitle: string;
+    resendMessage: string;
+    docTemplate: string;
+    escalate: string;
+    dtiLabel: string;
+    scoreLabel: string;
+
+    autoPlayActivatedTitle: string;
+    autoPlayActivatedDesc: string;
+    ignore: string;
+    executeAll: string;
+    slaShort: string;
+    channel: string;
+    stage: string;
+    advisor: string;
+    amount: string;
+    suggestedWhatsapp: string;
+    suggestedUpdateContacted: string;
+    suggestedLogAction: string;
+    pendingAction: string;
+    noInitialResponse: string;
+    followUpPending: string;
+    waitingDocs: string;
+    noAppointment: string;
+    unnamedLead: string;
+    unassigned: string;
+    leadReceived: string;
+
+    priority: string;
+    criticalTitle: string;
+    criticalSubtitle: string;
+    dueSoonTitle: string;
+    dueSoonSubtitle: string;
+    watchTitle: string;
+    watchSubtitle: string;
+
+    taskDescription: string;
+    taskPlaceholder: string;
+    quickTasks: string;
+    quickTasksItems: string[];
+
+    overdueAgo: string;
+    dueIn: string;
+    min: string;
+    overdueTag: string;
+    dueTag: string;
+
+    actionWhatsapp: string;
+    actionCall: string;
+    actionSchedule: string;
+    actionResolved: string;
+  }
+> = {
+  es: {
+    title: "Centro de Control SLA",
+    noAlerts: "✅ Sin alertas en esta categoría",
+    noEmail: "Sin email",
+    suggestedActions: "Acciones sugeridas:",
+    createTask: "Crear Tarea",
+    cancel: "Cancelar",
+    saving: "Guardando...",
+    confirmAppointment: "Confirmar Cita",
+    scheduleAppointmentTitle: "Agendar Cita",
+    dateLabel: "Fecha",
+    timeLabel: "Hora",
+    quickTimes: "Horarios rápidos",
+
+    refresh: "Actualizar",
+    autoPlay: "Auto-Play SLA",
+    activeAlerts: "alertas activas",
+    critical: "críticas",
+
+    all: "Todos",
+    priorityAll: "Todas",
+    priorityHigh: "alta",
+    priorityMedium: "media",
+    priorityLow: "baja",
+
+    informationTitle: "Información",
+    resendMessage: "Reenviar mensaje",
+    docTemplate: "Plantilla Doc",
+    escalate: "Escalar",
+    dtiLabel: "DTI",
+    scoreLabel: "Score",
+
+    autoPlayActivatedTitle: "Auto-Play SLA Activado",
+    autoPlayActivatedDesc: "Se detectó una alerta crítica que requiere acción inmediata",
+    ignore: "Ignorar",
+    executeAll: "Ejecutar Todo",
+    slaShort: "SLA",
+    channel: "Canal",
+    stage: "Etapa",
+    advisor: "Asesor",
+    amount: "Monto",
+    suggestedWhatsapp: "Enviar WhatsApp con plantilla de seguimiento",
+    suggestedUpdateContacted: "Actualizar estado a 'Contactado'",
+    suggestedLogAction: "Registrar acción en historial",
+    pendingAction: "Pendiente de acción",
+    noInitialResponse: "Sin respuesta inicial",
+    followUpPending: "Follow-up pendiente",
+    waitingDocs: "Esperando documentos",
+    noAppointment: "Sin cita agendada",
+    unnamedLead: "Sin nombre",
+    unassigned: "Sin asignar",
+    leadReceived: "Lead recibido",
+
+    priority: "Prioridad",
+    criticalTitle: "🔥 Críticas",
+    criticalSubtitle: "Vencidas o < 10 min",
+    dueSoonTitle: "⏳ Por Vencer",
+    dueSoonSubtitle: "Próximas 2 horas",
+    watchTitle: "🧊 En Observación",
+    watchSubtitle: "Riesgo no urgente",
+
+    taskDescription: "Descripción de la tarea",
+    taskPlaceholder: "¿Qué hay que hacer con este lead?",
+    quickTasks: "Tareas rápidas",
+    quickTasksItems: [
+      "Llamar para seguimiento",
+      "Enviar información adicional",
+      "Solicitar documentos faltantes",
+      "Revisar expediente",
+      "Confirmar datos bancarios",
+    ],
+
+    overdueAgo: "Vencido hace",
+    dueIn: "Vence en",
+    min: "min",
+    overdueTag: "VENCIDO",
+    dueTag: "VENCE EN",
+
+    actionWhatsapp: "WhatsApp",
+    actionCall: "Llamar",
+    actionSchedule: "Agendar",
+    actionResolved: "Resuelto",
+  },
+  en: {
+    title: "SLA Control Center",
+    noAlerts: "✅ No alerts in this category",
+    noEmail: "No email",
+    suggestedActions: "Suggested actions:",
+    createTask: "Create Task",
+    cancel: "Cancel",
+    saving: "Saving...",
+    confirmAppointment: "Confirm Appointment",
+    scheduleAppointmentTitle: "Schedule Appointment",
+    dateLabel: "Date",
+    timeLabel: "Time",
+    quickTimes: "Quick times",
+
+    refresh: "Refresh",
+    autoPlay: "Auto-Play SLA",
+    activeAlerts: "active alerts",
+    critical: "critical",
+
+    all: "All",
+    priorityAll: "All",
+    priorityHigh: "high",
+    priorityMedium: "medium",
+    priorityLow: "low",
+
+    informationTitle: "Information",
+    resendMessage: "Resend message",
+    docTemplate: "Doc template",
+    escalate: "Escalate",
+    dtiLabel: "DTI",
+    scoreLabel: "Score",
+
+    autoPlayActivatedTitle: "Auto-Play SLA Activated",
+    autoPlayActivatedDesc: "A critical alert requires immediate action",
+    ignore: "Ignore",
+    executeAll: "Run All",
+    slaShort: "SLA",
+    channel: "Channel",
+    stage: "Stage",
+    advisor: "Advisor",
+    amount: "Amount",
+    suggestedWhatsapp: "Send WhatsApp follow-up template",
+    suggestedUpdateContacted: "Update status to 'Contactado'",
+    suggestedLogAction: "Log action to history",
+    pendingAction: "Pending action",
+    noInitialResponse: "No initial response",
+    followUpPending: "Follow-up pending",
+    waitingDocs: "Waiting for documents",
+    noAppointment: "No appointment scheduled",
+    unnamedLead: "Unnamed",
+    unassigned: "Unassigned",
+    leadReceived: "Lead received",
+
+    priority: "Priority",
+    criticalTitle: "🔥 Critical",
+    criticalSubtitle: "Overdue or < 10 min",
+    dueSoonTitle: "⏳ Due Soon",
+    dueSoonSubtitle: "Next 2 hours",
+    watchTitle: "🧊 Watch",
+    watchSubtitle: "Non-urgent risk",
+
+    taskDescription: "Task description",
+    taskPlaceholder: "What needs to be done for this lead?",
+    quickTasks: "Quick tasks",
+    quickTasksItems: [
+      "Call for follow-up",
+      "Send additional information",
+      "Request missing documents",
+      "Review file",
+      "Confirm banking details",
+    ],
+
+    overdueAgo: "Overdue by",
+    dueIn: "Due in",
+    min: "min",
+    overdueTag: "OVERDUE",
+    dueTag: "DUE IN",
+
+    actionWhatsapp: "WhatsApp",
+    actionCall: "Call",
+    actionSchedule: "Schedule",
+    actionResolved: "Resolved",
+  },
+};
+
+function getUiLanguage(): AppLanguage {
+  if (typeof window === "undefined") return "es";
+  const saved = localStorage.getItem("botz-language");
+  return saved === "en" ? "en" : "es";
+}
 
 // ============================================
 // TIPOS
@@ -57,6 +313,8 @@ interface SLAFilters {
   prioridad: string | null;
 }
 
+type FilterOption = string | { value: string; label: string };
+
 // ============================================
 // CONFIGURACIÓN DE SLAs POR ETAPA (en minutos)
 // ============================================
@@ -77,6 +335,8 @@ export default function SLAControlCenter() {
   const { isAsesor, teamMemberId, tenantId, loading: authLoading, dataRefreshKey } = useAuth();
   const [alerts, setAlerts] = useState<SLAAlert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [language, setLanguage] = useState<AppLanguage>(getUiLanguage());
+  const t = SLA_TEXT[language];
   const [filters, setFilters] = useState<SLAFilters>({
     canal: null,
     etapa: null,
@@ -92,6 +352,30 @@ export default function SLAControlCenter() {
   const [agendaAlert, setAgendaAlert] = useState<SLAAlert | null>(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [taskAlert, setTaskAlert] = useState<SLAAlert | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") {
+      setLanguage(saved);
+    }
+
+    const onLangChange = (event: Event) => {
+      const next = (event as CustomEvent<AppLanguage>).detail;
+      if (next === "es" || next === "en") {
+        setLanguage(next);
+      }
+    };
+
+    window.addEventListener("botz-language-change", onLangChange);
+    return () => window.removeEventListener("botz-language-change", onLangChange);
+  }, []);
+
+  // Re-transform alerts when language changes
+  useEffect(() => {
+    if (authLoading) return;
+    fetchLeads(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language]);
 
   // ============================================
   // CARGAR LEADS DESDE SUPABASE
@@ -152,6 +436,27 @@ export default function SLAControlCenter() {
   // TRANSFORMAR LEAD A ALERTA SLA
   // ============================================
   const transformToSLAAlert = (lead: any): SLAAlert | null => {
+    const translateMotivo = (raw: string) => {
+      if (language !== "en") return raw;
+      const normalized = String(raw || "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ");
+
+      const map: Record<string, string> = {
+        "pendiente de accion": "Pending action",
+        "sin respuesta inicial": "No initial response",
+        "follow-up pendiente": "Follow-up pending",
+        "follow up pendiente": "Follow-up pending",
+        "esperando documentos": "Waiting for documents",
+        "sin cita agendada": "No appointment scheduled",
+      };
+
+      return map[normalized] || raw;
+    };
+
     // Usar etapa o status, lo que exista
     const status = String(lead.etapa || lead.status || "nuevo")
       .trim()
@@ -178,17 +483,17 @@ export default function SLAControlCenter() {
     }
 
     // Determinar motivo basado en datos reales
-    let motivo = lead.motivo_principal || "Pendiente de acción";
+    let motivo = lead.motivo_principal ? translateMotivo(lead.motivo_principal) : t.pendingAction;
     if (status === "nuevo" && minutosTranscurridos > 5) {
-      motivo = "Sin respuesta inicial";
+      motivo = t.noInitialResponse;
     } else if (status === "contactado") {
-      motivo = "Follow-up pendiente";
+      motivo = t.followUpPending;
     } else if (status === "documentacion") {
-      motivo = "Esperando documentos";
+      motivo = t.waitingDocs;
     } else if (status === "interesado") {
-      motivo = "Sin cita agendada";
+      motivo = t.noAppointment;
     } else if (lead.siguiente_paso) {
-      motivo = lead.siguiente_paso;
+      motivo = translateMotivo(lead.siguiente_paso);
     }
 
     // Determinar canal
@@ -201,18 +506,18 @@ export default function SLAControlCenter() {
     return {
       id: lead.id,
       leadId: lead.lead_id || lead.id,
-      leadName: lead.name || lead.nombre || "Sin nombre",
+      leadName: lead.name || lead.nombre || t.unnamedLead,
       phone: lead.phone || lead.telefono || "",
       email: lead.email || "",
       canal,
       etapa: status.charAt(0).toUpperCase() + status.slice(1),
-      asesor: (lead.asesor_nombre || lead.asesor) || "Sin asignar",
+      asesor: (lead.asesor_nombre || lead.asesor) || t.unassigned,
       prioridad: config.prioridad,
       tipo,
       motivo,
       tiempoRestante,
       slaMinutos: config.sla,
-      ultimoEvento: lead.next_action || lead.notes || "Lead recibido",
+      ultimoEvento: lead.next_action || lead.notes || t.leadReceived,
       fechaCreacion: new Date(lead.created_at),
       monto: lead.precio_real || lead.precio_inmueble_eur || lead.monto,
       dti: lead.dti,
@@ -239,10 +544,10 @@ export default function SLAControlCenter() {
 
   // Filtrar alertas
   const filteredAlerts = alerts.filter(alert => {
-    if (filters.canal && filters.canal !== "Todos" && alert.canal !== filters.canal) return false;
-    if (filters.etapa && filters.etapa !== "Todos" && alert.etapa.toLowerCase() !== filters.etapa.toLowerCase()) return false;
-    if (filters.asesor && filters.asesor !== "Todos" && alert.asesor !== filters.asesor) return false;
-    if (filters.prioridad && filters.prioridad !== "Todas" && alert.prioridad !== filters.prioridad) return false;
+    if (filters.canal && filters.canal !== "all" && alert.canal !== filters.canal) return false;
+    if (filters.etapa && filters.etapa !== "all" && alert.etapa.toLowerCase() !== filters.etapa.toLowerCase()) return false;
+    if (filters.asesor && filters.asesor !== "all" && alert.asesor !== filters.asesor) return false;
+    if (filters.prioridad && filters.prioridad !== "all" && alert.prioridad !== filters.prioridad) return false;
     return true;
   });
 
@@ -252,9 +557,15 @@ export default function SLAControlCenter() {
   const observacion = filteredAlerts.filter(a => a.tipo === "observacion");
 
   // Obtener valores únicos para filtros
-  const etapasUnicas = ["Todos", ...new Set(alerts.map(a => a.etapa))];
-  const canalesUnicos = ["Todos", ...new Set(alerts.map(a => a.canal))];
-  const asesoresUnicos = ["Todos", ...new Set(alerts.map(a => a.asesor))];
+  const etapasUnicas: FilterOption[] = [{ value: "all", label: t.all }, ...Array.from(new Set(alerts.map(a => a.etapa)))];
+  const canalesUnicos: FilterOption[] = [{ value: "all", label: t.all }, ...Array.from(new Set(alerts.map(a => a.canal)))];
+  const asesoresUnicos: FilterOption[] = [{ value: "all", label: t.all }, ...Array.from(new Set(alerts.map(a => a.asesor)))];
+  const prioridadesUnicas: FilterOption[] = [
+    { value: "all", label: t.priorityAll },
+    { value: "alta", label: t.priorityHigh },
+    { value: "media", label: t.priorityMedium },
+    { value: "baja", label: t.priorityLow },
+  ];
 
   // Auto-play: detectar alertas críticas
   useEffect(() => {
@@ -427,8 +738,8 @@ export default function SLAControlCenter() {
       {/* HEADER */}
       <div style={{
         padding: "20px 24px",
-        borderBottom: "1px solid rgba(255,255,255,0.08)",
-        background: "rgba(0,0,0,0.3)",
+        borderBottom: "1px solid var(--botz-border-soft)",
+        background: "var(--botz-panel)",
         backdropFilter: "blur(10px)",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
@@ -445,11 +756,11 @@ export default function SLAControlCenter() {
               <AlertTriangle size={20} color="#fff" />
             </div>
             <div>
-              <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#fff" }}>
-                Centro de Control SLA
+              <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--botz-text)" }}>
+                {t.title}
               </h1>
-              <p style={{ margin: 0, fontSize: "12px", color: "#71717a" }}>
-                {filteredAlerts.length} alertas activas • {criticas.length} críticas
+              <p style={{ margin: 0, fontSize: "12px", color: "var(--botz-muted)" }}>
+                {filteredAlerts.length} {t.activeAlerts} • {criticas.length} {t.critical}
               </p>
             </div>
           </div>
@@ -463,16 +774,16 @@ export default function SLAControlCenter() {
                 alignItems: "center",
                 gap: "6px",
                 padding: "8px 12px",
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.1)",
+                background: "var(--botz-surface-3)",
+                border: "1px solid var(--botz-border)",
                 borderRadius: "8px",
-                color: "#a1a1aa",
+                color: "var(--botz-muted)",
                 fontSize: "12px",
                 cursor: "pointer",
               }}
             >
               <RefreshCw size={14} />
-              Actualizar
+              {t.refresh}
             </button>
 
             {/* Toggle Auto/Manual */}
@@ -481,23 +792,23 @@ export default function SLAControlCenter() {
               alignItems: "center",
               gap: "12px",
               padding: "8px 16px",
-              background: autoMode ? "rgba(34, 197, 94, 0.15)" : "rgba(255,255,255,0.05)",
+              background: autoMode ? "rgba(34, 197, 94, 0.15)" : "var(--botz-surface-3)",
               borderRadius: "10px",
-              border: `1px solid ${autoMode ? "rgba(34, 197, 94, 0.3)" : "rgba(255,255,255,0.1)"}`,
+              border: `1px solid ${autoMode ? "rgba(34, 197, 94, 0.3)" : "var(--botz-border)"}`,
               cursor: "pointer",
               transition: "all 0.3s ease",
             }}
             onClick={() => setAutoMode(!autoMode)}
             >
               <Zap size={16} color={autoMode ? "#22c55e" : "#71717a"} />
-              <span style={{ fontSize: "13px", fontWeight: 600, color: autoMode ? "#22c55e" : "#a1a1aa" }}>
-                Auto-Play SLA
+              <span style={{ fontSize: "13px", fontWeight: 600, color: autoMode ? "#22c55e" : "var(--botz-muted)" }}>
+                {t.autoPlay}
               </span>
               <div style={{
                 width: "36px",
                 height: "20px",
                 borderRadius: "10px",
-                background: autoMode ? "#22c55e" : "#3f3f46",
+                background: autoMode ? "#22c55e" : "var(--botz-border-strong)",
                 position: "relative",
                 transition: "all 0.3s ease",
               }}>
@@ -520,27 +831,27 @@ export default function SLAControlCenter() {
         {/* Filtros */}
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
           <FilterSelect
-            label="Canal"
-            value={filters.canal || "Todos"}
+            label={t.channel}
+            value={filters.canal || "all"}
             options={canalesUnicos}
             onChange={(v) => setFilters(prev => ({ ...prev, canal: v }))}
           />
           <FilterSelect
-            label="Etapa"
-            value={filters.etapa || "Todos"}
+            label={t.stage}
+            value={filters.etapa || "all"}
             options={etapasUnicas}
             onChange={(v) => setFilters(prev => ({ ...prev, etapa: v }))}
           />
           <FilterSelect
-            label="Asesor"
-            value={filters.asesor || "Todos"}
+            label={t.advisor}
+            value={filters.asesor || "all"}
             options={asesoresUnicos}
             onChange={(v) => setFilters(prev => ({ ...prev, asesor: v }))}
           />
           <FilterSelect
-            label="Prioridad"
-            value={filters.prioridad || "Todas"}
-            options={["Todas", "alta", "media", "baja"]}
+            label={t.priority}
+            value={filters.prioridad || "all"}
+            options={prioridadesUnicas}
             onChange={(v) => setFilters(prev => ({ ...prev, prioridad: v }))}
           />
         </div>
@@ -556,8 +867,8 @@ export default function SLAControlCenter() {
         overflow: "hidden",
       }}>
         <SLAColumn
-          title="🔥 Críticas"
-          subtitle="Vencidas o < 10 min"
+          title={t.criticalTitle}
+          subtitle={t.criticalSubtitle}
           alerts={criticas}
           color="#ef4444"
           bgColor="rgba(239, 68, 68, 0.08)"
@@ -568,8 +879,8 @@ export default function SLAControlCenter() {
         />
 
         <SLAColumn
-          title="⏳ Por Vencer"
-          subtitle="Próximas 2 horas"
+          title={t.dueSoonTitle}
+          subtitle={t.dueSoonSubtitle}
           alerts={porVencer}
           color="#f59e0b"
           bgColor="rgba(245, 158, 11, 0.08)"
@@ -580,8 +891,8 @@ export default function SLAControlCenter() {
         />
 
         <SLAColumn
-          title="🧊 En Observación"
-          subtitle="Riesgo no urgente"
+          title={t.watchTitle}
+          subtitle={t.watchSubtitle}
           alerts={observacion}
           color="#3b82f6"
           bgColor="rgba(59, 130, 246, 0.08)"
@@ -647,7 +958,7 @@ export default function SLAControlCenter() {
 function FilterSelect({ label, value, options, onChange }: {
   label: string;
   value: string;
-  options: string[];
+  options: FilterOption[];
   onChange: (v: string) => void;
 }) {
   return (
@@ -676,11 +987,14 @@ function FilterSelect({ label, value, options, onChange }: {
           outline: "none",
         }}
       >
-        {options.map(opt => (
-          <option key={opt} value={opt} style={{ background: "#1a1a2e", color: "#fff" }}>
-            {opt}
-          </option>
-        ))}
+        {options.map((opt) => {
+          const o = typeof opt === "string" ? { value: opt, label: opt } : opt;
+          return (
+            <option key={o.value} value={o.value} style={{ background: "#1a1a2e", color: "#fff" }}>
+              {o.label}
+            </option>
+          );
+        })}
       </select>
     </div>
   );
@@ -697,6 +1011,7 @@ function SLAColumn({ title, subtitle, alerts, color, bgColor, borderColor, onSel
   onAction: (action: string, alert: SLAAlert) => void;
   actionLoading: string | null;
 }) {
+  const t = SLA_TEXT[getUiLanguage()];
   return (
     <div style={{
       display: "flex",
@@ -744,7 +1059,7 @@ function SLAColumn({ title, subtitle, alerts, color, bgColor, borderColor, onSel
             color: "#52525b",
             fontSize: "13px",
           }}>
-            ✅ Sin alertas en esta categoría
+            {t.noAlerts}
           </div>
         ) : (
           alerts.map(alert => (
@@ -770,10 +1085,18 @@ function SLACard({ alert, color, onClick, onAction, actionLoading }: {
   onAction: (action: string, alert: SLAAlert) => void;
   actionLoading: string | null;
 }) {
+  const t = SLA_TEXT[getUiLanguage()];
   const isOverdue = alert.tiempoRestante < 0;
   const timeDisplay = isOverdue
-    ? `Vencido hace ${Math.abs(alert.tiempoRestante)} min`
-    : `Vence en ${alert.tiempoRestante} min`;
+    ? `${t.overdueAgo} ${Math.abs(alert.tiempoRestante)} ${t.min}`
+    : `${t.dueIn} ${alert.tiempoRestante} ${t.min}`;
+
+  const priorityLabel =
+    alert.prioridad === "alta"
+      ? t.priorityHigh
+      : alert.prioridad === "media"
+        ? t.priorityMedium
+        : t.priorityLow;
 
   return (
     <div
@@ -808,7 +1131,7 @@ function SLACard({ alert, color, onClick, onAction, actionLoading }: {
               fontWeight: 600,
               textTransform: "uppercase",
             }}>
-              {alert.prioridad}
+              {priorityLabel}
             </span>
           </div>
           <div style={{ fontSize: "11px", color: "#71717a", marginTop: "2px" }}>
@@ -836,7 +1159,7 @@ function SLACard({ alert, color, onClick, onAction, actionLoading }: {
           {timeDisplay}
         </span>
         <span style={{ fontSize: "11px", color: "#71717a", marginLeft: "auto" }}>
-          SLA: {alert.slaMinutos} min
+          {t.slaShort}: {alert.slaMinutos} {t.min}
         </span>
       </div>
 
@@ -855,28 +1178,28 @@ function SLACard({ alert, color, onClick, onAction, actionLoading }: {
       <div style={{ display: "flex", gap: "6px" }} onClick={(e) => e.stopPropagation()}>
         <ActionButton 
           icon={<FaWhatsapp size={12} />} 
-          label="WhatsApp" 
+          label={t.actionWhatsapp}
           color="#25D366" 
           onClick={() => onAction("whatsapp", alert)} 
           loading={actionLoading === `whatsapp-${alert.id}`}
         />
         <ActionButton 
           icon={<FaPhone size={12} />} 
-          label="Llamar" 
+          label={t.actionCall}
           color="#3b82f6" 
           onClick={() => onAction("llamar", alert)} 
           loading={actionLoading === `llamar-${alert.id}`}
         />
         <ActionButton 
           icon={<FaCalendarAlt size={12} />} 
-          label="Agendar" 
+          label={t.actionSchedule}
           color="#8b5cf6" 
           onClick={() => onAction("agendar", alert)} 
           loading={actionLoading === `agendar-${alert.id}`}
         />
         <ActionButton 
           icon={<FaCheckCircle size={12} />} 
-          label="Resuelto" 
+          label={t.actionResolved}
           color="#22c55e" 
           onClick={() => onAction("resuelto", alert)} 
           loading={actionLoading === `resuelto-${alert.id}`}
@@ -932,6 +1255,7 @@ function SLADrawer({ alert, onClose, onAction }: {
   onClose: () => void;
   onAction: (action: string, alert: SLAAlert) => void;
 }) {
+  const t = SLA_TEXT[getUiLanguage()];
   return (
     <>
       <div
@@ -970,7 +1294,7 @@ function SLADrawer({ alert, onClose, onAction }: {
               {alert.leadName}
             </h2>
             <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#71717a" }}>
-              {alert.phone} • {alert.email || "Sin email"}
+              {alert.phone} • {alert.email || t.noEmail}
             </p>
           </div>
           <button
@@ -993,23 +1317,23 @@ function SLADrawer({ alert, onClose, onAction }: {
 
         <div style={{ padding: "20px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-            <InfoCard label="Monto" value={alert.monto ? `€${alert.monto.toLocaleString()}` : "-"} icon={<TrendingUp size={14} />} />
-            <InfoCard label="Canal" value={alert.canal} icon={<User size={14} />} />
-            <InfoCard label="DTI" value={alert.dti ? `${alert.dti}%` : "-"} icon={<TrendingUp size={14} />} color={alert.dti && alert.dti > 40 ? "#ef4444" : "#22c55e"} />
-            <InfoCard label="Score" value={alert.score ? `${alert.score}/100` : "-"} icon={<Zap size={14} />} color={alert.score && alert.score >= 70 ? "#22c55e" : "#f59e0b"} />
+            <InfoCard label={t.amount} value={alert.monto ? `€${alert.monto.toLocaleString()}` : "-"} icon={<TrendingUp size={14} />} />
+            <InfoCard label={t.channel} value={alert.canal} icon={<User size={14} />} />
+            <InfoCard label={t.dtiLabel} value={alert.dti ? `${alert.dti}%` : "-"} icon={<TrendingUp size={14} />} color={alert.dti && alert.dti > 40 ? "#ef4444" : "#22c55e"} />
+            <InfoCard label={t.scoreLabel} value={alert.score ? `${alert.score}/100` : "-"} icon={<Zap size={14} />} color={alert.score && alert.score >= 70 ? "#22c55e" : "#f59e0b"} />
           </div>
         </div>
 
         <div style={{ flex: 1, padding: "20px", overflowY: "auto" }}>
           <h4 style={{ margin: "0 0 16px", fontSize: "13px", fontWeight: 600, color: "#a1a1aa", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Información
+            {t.informationTitle}
           </h4>
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <div style={{ display: "flex", gap: "12px" }}>
               <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#3b82f6", marginTop: "6px", flexShrink: 0 }} />
               <div>
-                <p style={{ margin: 0, fontSize: "13px", color: "#e4e4e7" }}>Etapa: {alert.etapa}</p>
-                <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#52525b" }}>Asesor: {alert.asesor}</p>
+                <p style={{ margin: 0, fontSize: "13px", color: "#e4e4e7" }}>{t.stage}: {alert.etapa}</p>
+                <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#52525b" }}>{t.advisor}: {alert.asesor}</p>
               </div>
             </div>
             <div style={{ display: "flex", gap: "12px" }}>
@@ -1031,10 +1355,10 @@ function SLADrawer({ alert, onClose, onAction }: {
           gridTemplateColumns: "1fr 1fr",
           gap: "10px",
         }}>
-          <DrawerAction icon={<RefreshCw size={14} />} label="Reenviar mensaje" color="#f59e0b" onClick={() => onAction("reintentar", alert)} />
-          <DrawerAction icon={<MessageSquare size={14} />} label="Plantilla Doc" color="#3b82f6" onClick={() => onAction("plantilla", alert)} />
-          <DrawerAction icon={<Calendar size={14} />} label="Crear Tarea" color="#8b5cf6" onClick={() => onAction("tarea", alert)} />
-          <DrawerAction icon={<FaExclamationTriangle size={14} />} label="Escalar" color="#ef4444" onClick={() => onAction("escalar", alert)} />
+          <DrawerAction icon={<RefreshCw size={14} />} label={t.resendMessage} color="#f59e0b" onClick={() => onAction("reintentar", alert)} />
+          <DrawerAction icon={<MessageSquare size={14} />} label={t.docTemplate} color="#3b82f6" onClick={() => onAction("plantilla", alert)} />
+          <DrawerAction icon={<Calendar size={14} />} label={t.createTask} color="#8b5cf6" onClick={() => onAction("tarea", alert)} />
+          <DrawerAction icon={<FaExclamationTriangle size={14} />} label={t.escalate} color="#ef4444" onClick={() => onAction("escalar", alert)} />
         </div>
       </div>
 
@@ -1112,6 +1436,7 @@ function AutoPlayModal({ alert, onClose, onExecute }: {
   onClose: () => void;
   onExecute: () => void;
 }) {
+  const t = SLA_TEXT[getUiLanguage()];
   return (
     <>
       <div
@@ -1159,10 +1484,10 @@ function AutoPlayModal({ alert, onClose, onExecute }: {
               <Zap size={28} color="#fff" />
             </div>
             <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#fff" }}>
-              Auto-Play SLA Activado
+              {t.autoPlayActivatedTitle}
             </h2>
             <p style={{ margin: "8px 0 0", fontSize: "13px", color: "#a1a1aa" }}>
-              Se detectó una alerta crítica que requiere acción inmediata
+              {t.autoPlayActivatedDesc}
             </p>
           </div>
 
@@ -1184,7 +1509,9 @@ function AutoPlayModal({ alert, onClose, onExecute }: {
                   fontWeight: 700,
                   color: "#fff",
                 }}>
-                  {alert.tiempoRestante < 0 ? `VENCIDO ${Math.abs(alert.tiempoRestante)} min` : `VENCE EN ${alert.tiempoRestante} min`}
+                  {alert.tiempoRestante < 0
+                    ? `${t.overdueTag} ${Math.abs(alert.tiempoRestante)} ${t.min}`
+                    : `${t.dueTag} ${alert.tiempoRestante} ${t.min}`}
                 </span>
               </div>
               <p style={{ margin: 0, fontSize: "12px", color: "#a1a1aa" }}>
@@ -1193,12 +1520,12 @@ function AutoPlayModal({ alert, onClose, onExecute }: {
             </div>
 
             <h4 style={{ margin: "0 0 12px", fontSize: "12px", fontWeight: 600, color: "#71717a", textTransform: "uppercase" }}>
-              Acciones sugeridas:
+              {t.suggestedActions}
             </h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px" }}>
-              <SuggestedAction icon={<FaWhatsapp />} text="Enviar WhatsApp con plantilla de seguimiento" />
-              <SuggestedAction icon={<FaCalendarAlt />} text="Actualizar estado a 'Contactado'" />
-              <SuggestedAction icon={<FaCheckCircle />} text="Registrar acción en historial" />
+              <SuggestedAction icon={<FaWhatsapp />} text={t.suggestedWhatsapp} />
+              <SuggestedAction icon={<FaCalendarAlt />} text={t.suggestedUpdateContacted} />
+              <SuggestedAction icon={<FaCheckCircle />} text={t.suggestedLogAction} />
             </div>
           </div>
 
@@ -1222,7 +1549,7 @@ function AutoPlayModal({ alert, onClose, onExecute }: {
                 cursor: "pointer",
               }}
             >
-              Ignorar
+              {t.ignore}
             </button>
             <button
               onClick={onExecute}
@@ -1244,7 +1571,7 @@ function AutoPlayModal({ alert, onClose, onExecute }: {
               }}
             >
               <FaPlay size={12} />
-              Ejecutar Todo
+              {t.executeAll}
             </button>
           </div>
         </div>
@@ -1290,6 +1617,7 @@ function AgendaModal({ alert, onClose, onSubmit }: {
   onClose: () => void;
   onSubmit: (fecha: string, hora: string) => void;
 }) {
+  const t = SLA_TEXT[getUiLanguage()];
   const [fecha, setFecha] = useState("");
   const [hora, setHora] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1351,7 +1679,7 @@ function AgendaModal({ alert, onClose, onSubmit }: {
               </div>
               <div>
                 <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#fff" }}>
-                  Agendar Cita
+                  {t.scheduleAppointmentTitle}
                 </h2>
                 <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#a1a1aa" }}>
                   {alert.leadName}
@@ -1364,7 +1692,7 @@ function AgendaModal({ alert, onClose, onSubmit }: {
           <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
             <div>
               <label style={{ display: "block", fontSize: "12px", color: "#71717a", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                Fecha
+                {t.dateLabel}
               </label>
               <input
                 type="date"
@@ -1386,7 +1714,7 @@ function AgendaModal({ alert, onClose, onSubmit }: {
 
             <div>
               <label style={{ display: "block", fontSize: "12px", color: "#71717a", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                Hora
+                {t.timeLabel}
               </label>
               <input
                 type="time"
@@ -1408,7 +1736,7 @@ function AgendaModal({ alert, onClose, onSubmit }: {
             {/* Quick options */}
             <div>
               <label style={{ display: "block", fontSize: "12px", color: "#71717a", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                Horarios rápidos
+                {t.quickTimes}
               </label>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 {["09:00", "10:00", "11:00", "12:00", "16:00", "17:00", "18:00"].map(h => (
@@ -1454,7 +1782,7 @@ function AgendaModal({ alert, onClose, onSubmit }: {
                 cursor: "pointer",
               }}
             >
-              Cancelar
+              {t.cancel}
             </button>
             <button
               onClick={handleSubmit}
@@ -1477,7 +1805,7 @@ function AgendaModal({ alert, onClose, onSubmit }: {
               }}
             >
               {loading ? <Loader2 className="animate-spin" size={16} /> : <Calendar size={16} />}
-              {loading ? "Guardando..." : "Confirmar Cita"}
+              {loading ? t.saving : t.confirmAppointment}
             </button>
           </div>
         </div>
@@ -1508,6 +1836,7 @@ function TaskModal({ alert, onClose, onSubmit }: {
   onClose: () => void;
   onSubmit: (descripcion: string) => void;
 }) {
+  const t = SLA_TEXT[getUiLanguage()];
   const [descripcion, setDescripcion] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -1518,13 +1847,7 @@ function TaskModal({ alert, onClose, onSubmit }: {
     setLoading(false);
   };
 
-  const quickTasks = [
-    "Llamar para seguimiento",
-    "Enviar información adicional",
-    "Solicitar documentos faltantes",
-    "Revisar expediente",
-    "Confirmar datos bancarios",
-  ];
+  const quickTasks = t.quickTasksItems;
 
   return (
     <>
@@ -1573,7 +1896,7 @@ function TaskModal({ alert, onClose, onSubmit }: {
               </div>
               <div>
                 <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#fff" }}>
-                  Crear Tarea
+                   {t.createTask}
                 </h2>
                 <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#a1a1aa" }}>
                   {alert.leadName}
@@ -1586,12 +1909,12 @@ function TaskModal({ alert, onClose, onSubmit }: {
           <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
             <div>
               <label style={{ display: "block", fontSize: "12px", color: "#71717a", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                Descripción de la tarea
+                {t.taskDescription}
               </label>
               <textarea
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
-                placeholder="¿Qué hay que hacer con este lead?"
+                placeholder={t.taskPlaceholder}
                 rows={3}
                 style={{
                   width: "100%",
@@ -1611,7 +1934,7 @@ function TaskModal({ alert, onClose, onSubmit }: {
             {/* Quick tasks */}
             <div>
               <label style={{ display: "block", fontSize: "12px", color: "#71717a", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                Tareas rápidas
+                {t.quickTasks}
               </label>
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 {quickTasks.map(task => (
@@ -1658,7 +1981,7 @@ function TaskModal({ alert, onClose, onSubmit }: {
                 cursor: "pointer",
               }}
             >
-              Cancelar
+              {t.cancel}
             </button>
             <button
               onClick={handleSubmit}
@@ -1681,7 +2004,7 @@ function TaskModal({ alert, onClose, onSubmit }: {
               }}
             >
               {loading ? <Loader2 className="animate-spin" size={16} /> : <FaCheckCircle size={16} />}
-              {loading ? "Guardando..." : "Crear Tarea"}
+              {loading ? t.saving : t.createTask}
             </button>
           </div>
         </div>

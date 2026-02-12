@@ -20,17 +20,26 @@ import {
 import { FaWhatsapp } from "react-icons/fa6";
 import { BotzProps } from "../types";
 import { VisualNode, VisualConnector } from "./VisualComponents";
+import useBotzLanguage from "../hooks/useBotzLanguage";
 
 const glassStyle: React.CSSProperties = {
-  background: "rgba(10, 15, 30, 0.8)",
-  border: "1px solid rgba(255,255,255,0.1)",
+  background: "var(--botz-panel)",
+  border: "1px solid var(--botz-border)",
   borderRadius: "20px",
   padding: "24px",
   backdropFilter: "blur(12px)",
-  boxShadow: "0 20px 40px rgba(0,0,0,0.4)"
+  boxShadow: "var(--botz-shadow)"
 };
 
-const FLOW = [
+type FlowNode = {
+  key: string;
+  title: string;
+  icon: React.ReactElement<any>;
+  color: string;
+  tooltip: string;
+};
+
+const FLOW_ES: FlowNode[] = [
   {
     key: "form",
     title: "Formulario enviado",
@@ -124,19 +133,128 @@ const FLOW = [
   }
 ];
 
+const FLOW_EN: FlowNode[] = [
+  {
+    key: "form",
+    title: "Form submitted",
+    icon: <ClipboardList size={22} />,
+    color: "#22d3ee",
+    tooltip: "I receive your details and open your case as a LEAD (you are not a customer yet).",
+  },
+  {
+    key: "registro",
+    title: "Lead record",
+    icon: <Database size={20} />,
+    color: "#22d3ee",
+    tooltip: "I store your information so nothing gets lost and we can follow up.",
+  },
+  {
+    key: "perfilado",
+    title: "We understand your needs",
+    icon: <Cpu size={22} />,
+    color: "#c084fc",
+    tooltip: "I organize what you need and guide you clearly (no jargon).",
+  },
+  {
+    key: "correo",
+    title: "Welcome email",
+    icon: <Mail size={20} />,
+    color: "#34d399",
+    tooltip: "You receive an email with a summary and next steps (the inbox lights up).",
+  },
+  {
+    key: "whatsapp",
+    title: "WhatsApp activated",
+    icon: <FaWhatsapp size={20} />,
+    color: "#34d399",
+    tooltip: "We open a chat to answer questions and move forward. You can chat here.",
+  },
+  {
+    key: "calculo_hipotecario",
+    title: "Mortgage calculation",
+    icon: <Calculator size={20} />,
+    color: "#8b5cf6",
+    tooltip: "We calculate affordability and estimated monthly payment.",
+  },
+  {
+    key: "criterios_viabilidad",
+    title: "Eligibility criteria",
+    icon: <CheckCircle2 size={20} />,
+    color: "#10b981",
+    tooltip: "We evaluate DTI, LTV, and credit score.",
+  },
+  {
+    key: "calificacion_lead",
+    title: "How the lead is scored",
+    icon: <TrendingUp size={20} />,
+    color: "#f59e0b",
+    tooltip: "We assign a score based on profile and documentation.",
+  },
+  {
+    key: "analisis_aprobacion",
+    title: "Why it gets approved (or not)",
+    icon: <Shield size={20} />,
+    color: "#ef4444",
+    tooltip: "Final approval analysis based on policies.",
+  },
+  {
+    key: "seguimiento",
+    title: "Respectful follow-up",
+    icon: <Share2 size={20} />,
+    color: "#fbbf24",
+    tooltip: "If you do not reply, I gently remind you (without spamming).",
+  },
+  {
+    key: "agenda",
+    title: "Schedule a meeting",
+    icon: <CalendarDays size={20} />,
+    color: "#fbbf24",
+    tooltip: "If needed, we book 15 minutes to align on clarity and timing.",
+  },
+  {
+    key: "propuesta",
+    title: "Proposal / plan",
+    icon: <FileText size={20} />,
+    color: "#60a5fa",
+    tooltip: "I prepare a simple proposal: what we will do, timeline, and cost.",
+  },
+  {
+    key: "confirmacion",
+    title: "Confirmation & start",
+    icon: <Handshake size={20} />,
+    color: "#60a5fa",
+    tooltip: "When you say 'ready', we confirm and start (that is when you become a customer).",
+  },
+];
+
 function DemoProgress(props: BotzProps) {
   const { activeStep, showExplanation, demoReset } = props;
+  const language = useBotzLanguage();
+  const copy = {
+    es: {
+      title: "Proceso de Onboarding Hipotecario",
+      entryLabel: "Entrada (Anuncio / Web)",
+      reset: "REINICIAR FLUJO COMPLETO",
+    },
+    en: {
+      title: "Mortgage Onboarding Flow",
+      entryLabel: "Entry (Ad / Website)",
+      reset: "RESET FULL FLOW",
+    },
+  } as const;
+  const t = copy[language];
+  const FLOW = language === "en" ? FLOW_EN : FLOW_ES;
 
   return (
     <div style={glassStyle}>
       <h2 style={{ fontSize: "28px", fontWeight: "bold", marginBottom: "30px", display: "flex", alignItems: "center", gap: "12px" }}>
-        <Target size={28} /> Proceso de Onboarding Hipotecario
+        <Target size={28} /> {t.title}
       </h2>
       
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "20px" }}>
         <VisualNode 
           icon={<Share2 size={32} />} 
-          label="Entrada (Anuncio / Web)" 
+          label={t.entryLabel} 
           active={activeStep >= 1} 
           color="#22d3ee" 
           current={activeStep === 0}
@@ -202,7 +320,7 @@ function DemoProgress(props: BotzProps) {
               margin: "0 auto"
             }}
           >
-            <RefreshCcw size={16} /> REINICIAR FLUJO COMPLETA
+            <RefreshCcw size={16} /> {t.reset}
           </button>
         </div>
       </div>

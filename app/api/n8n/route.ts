@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
 
-// ⚠️ VERIFICA: ¿Es esta la URL correcta de tu Webhook ACTIVO en n8n?
-// Si tu flujo usa "botz-wh-001", cámbialo aquí.
-const N8N_URL = "https://n8nio-n8n-latest.onrender.com/webhook/botz-wh-001"; 
+// Webhook del motor de automatización (interno)
+const AUTOMATION_WEBHOOK_URL =
+  process.env.AUTOMATION_WEBHOOK_URL ||
+  "https://n8nio-n8n-latest.onrender.com/webhook/botz-wh-001";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log("📤 Enviando a n8n:", body);
+    console.log("📤 Enviando al motor de automatización:", body);
 
-    const response = await fetch(N8N_URL, {
+    const response = await fetch(AUTOMATION_WEBHOOK_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -19,10 +20,10 @@ export async function POST(req: Request) {
 
     // 1. Obtenemos la respuesta como TEXTO primero para no romper el servidor
     const textData = await response.text();
-    console.log("📥 Respuesta cruda de n8n:", textData);
+    console.log("📥 Respuesta cruda del motor:", textData);
 
     if (!response.ok) {
-      throw new Error(`Error n8n (${response.status}): ${textData}`);
+      throw new Error(`Error motor (${response.status}): ${textData}`);
     }
 
     // 2. Intentamos convertir a JSON de forma segura
@@ -31,9 +32,9 @@ export async function POST(req: Request) {
       return NextResponse.json(jsonData);
     } catch (e) {
       // Si n8n devolvió texto plano (ej: "Workflow executed"), lo envolvemos en JSON
-      console.warn("⚠️ n8n no devolvió JSON, se usará fallback de texto.");
+      console.warn("⚠️ El motor no devolvió JSON, usando fallback de texto.");
       return NextResponse.json({ 
-        mensaje_bot: textData, // Usamos el texto como respuesta del bot
+        mensaje_bot: textData,
         calculo: null 
       });
     }

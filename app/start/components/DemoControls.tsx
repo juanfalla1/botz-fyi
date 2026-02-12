@@ -110,17 +110,17 @@ export function ExplanationBanner({ show }: ExplanationBannerProps) {
         lineHeight: 1.6
       }}
     >
-      <strong>🚀 Cómo funciona este proceso (Real con n8n):</strong>
+      <strong>🚀 Cómo funciona este proceso (Automatización en vivo):</strong>
 
       <p style={{ margin: "10px 0 0 0" }}>
         Este flujo se ejecuta en tiempo real: al completar el formulario y avanzar,
-        tu aplicación envía los datos a n8n y n8n responde con el estado del proceso,
+        tu aplicación envía los datos al motor de automatización y recibes el estado del proceso,
         el siguiente paso y las métricas.
       </p>
 
       <p style={{ margin: "10px 0 0 0", color: "#c084fc", fontWeight: "bold" }}>
         🔑 Instrucción: Completa el formulario y luego haz click en "CONTINUAR" para avanzar.
-        Cada paso debe venir confirmado por n8n.
+        Cada paso debe venir confirmado por el motor.
       </p>
     </div>
   );

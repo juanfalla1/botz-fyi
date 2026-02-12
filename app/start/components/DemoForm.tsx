@@ -1,9 +1,56 @@
 "use client";
 import React, { useState } from "react";
 import { User, Mail, MapPin, ArrowRight, Home, Sparkles, Zap, CheckCircle2 } from "lucide-react";
+import useBotzLanguage from "../hooks/useBotzLanguage";
 
 export default function DemoForm(props: any) {
   const { formData, setFormData, handleLeadCapture, step } = props;
+  const language = useBotzLanguage();
+  const copy = {
+    es: {
+      leadCaptured: "Lead Capturado",
+      undefined: "Sin definir",
+      inProcess: "EN PROCESO",
+      heading: "Simula un Lead Entrante",
+      subheading: "Completa los datos y mira la magia de Botz en acción",
+      fieldsCompleted: "campos completados",
+      fullName: "Nombre Completo",
+      fullNamePh: "Ej: Carlos Gómez",
+      email: "Email",
+      emailPh: "Ej: carlos@gmail.com",
+      country: "País de Interés",
+      goal: "Objetivo",
+      selectPlaceholder: "Selecciona...",
+      goalFirstHome: "🏠 Comprar 1ª Vivienda",
+      goalSecondHome: "🏡 Segunda Residencia",
+      goalInvestment: "📈 Inversión",
+      goalRefinance: "💰 Mejorar mi Hipoteca",
+      startFlow: "Iniciar Flujo Interactivo",
+      startHint: "Al iniciar, Botz IA te contactará instantáneamente",
+    },
+    en: {
+      leadCaptured: "Lead Captured",
+      undefined: "Not set",
+      inProcess: "IN PROGRESS",
+      heading: "Simulate an Incoming Lead",
+      subheading: "Fill in the details and watch Botz in action",
+      fieldsCompleted: "fields completed",
+      fullName: "Full Name",
+      fullNamePh: "e.g. Carlos Gómez",
+      email: "Email",
+      emailPh: "e.g. carlos@gmail.com",
+      country: "Country of Interest",
+      goal: "Goal",
+      selectPlaceholder: "Select...",
+      goalFirstHome: "🏠 Buy 1st Home",
+      goalSecondHome: "🏡 Second Home",
+      goalInvestment: "📈 Investment",
+      goalRefinance: "💰 Improve My Mortgage",
+      startFlow: "Start Interactive Flow",
+      startHint: "Once you start, Botz AI will contact you instantly",
+    },
+  } as const;
+  const t = copy[language];
   const [isHovered, setIsHovered] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
@@ -45,10 +92,10 @@ export default function DemoForm(props: any) {
           </div>
           <div>
             <div style={{ fontSize: "13px", fontWeight: "700", color: "#fff" }}>
-              Lead Capturado: {formData.name}
+              {t.leadCaptured}: {formData.name}
             </div>
             <div style={{ fontSize: "11px", color: "#94a3b8" }}>
-              {formData.interest || "Sin definir"} • {formData.country}
+              {formData.interest || t.undefined} • {formData.country}
             </div>
           </div>
         </div>
@@ -64,7 +111,7 @@ export default function DemoForm(props: any) {
           gap: "4px"
         }}>
           <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#000", animation: "pulse 2s infinite" }} />
-          EN PROCESO
+          {t.inProcess}
         </div>
       </div>
     );
@@ -109,10 +156,10 @@ export default function DemoForm(props: any) {
           </div>
           <div>
             <h2 style={{ fontSize: "24px", fontWeight: "800", margin: 0, color: "#fff", letterSpacing: "-0.5px" }}>
-              Simula un Lead Entrante
+              {t.heading}
             </h2>
             <p style={{ fontSize: "13px", color: "#94a3b8", margin: "4px 0 0 0" }}>
-              Completa los datos y mira la magia de Botz en acción
+              {t.subheading}
             </p>
           </div>
         </div>
@@ -135,7 +182,7 @@ export default function DemoForm(props: any) {
           ))}
         </div>
         <div style={{ fontSize: "11px", color: "#64748b", marginTop: "8px" }}>
-          {completedFields}/3 campos completados
+          {completedFields}/3 {t.fieldsCompleted}
         </div>
       </div>
 
@@ -155,14 +202,14 @@ export default function DemoForm(props: any) {
               fontWeight: "600",
               transition: "color 0.2s"
             }}>
-              <User size={14} /> Nombre Completo
+              <User size={14} /> {t.fullName}
               {isNameFilled && <CheckCircle2 size={12} color="#22c55e" />}
             </label>
             <input
               type="text"
               name="name"
               required
-              placeholder="Ej: Carlos Gómez"
+              placeholder={t.fullNamePh}
               value={formData.name}
               onChange={handleChange}
               onFocus={() => setFocusedField("name")}
@@ -193,14 +240,14 @@ export default function DemoForm(props: any) {
               fontWeight: "600",
               transition: "color 0.2s"
             }}>
-              <Mail size={14} /> Email
+              <Mail size={14} /> {t.email}
               {isEmailFilled && <CheckCircle2 size={12} color="#22c55e" />}
             </label>
             <input
               type="email"
               name="email"
               required
-              placeholder="Ej: carlos@gmail.com"
+              placeholder={t.emailPh}
               value={formData.email}
               onChange={handleChange}
               onFocus={() => setFocusedField("email")}
@@ -233,7 +280,7 @@ export default function DemoForm(props: any) {
               gap: "6px",
               fontWeight: "600"
             }}>
-              <MapPin size={14} /> País de Interés
+              <MapPin size={14} /> {t.country}
             </label>
             <select
               name="country"
@@ -270,7 +317,7 @@ export default function DemoForm(props: any) {
               gap: "6px",
               fontWeight: "600"
             }}>
-              <Home size={14} /> Objetivo
+              <Home size={14} /> {t.goal}
               {isInterestFilled && <CheckCircle2 size={12} color="#22c55e" />}
             </label>
             <select
@@ -290,11 +337,11 @@ export default function DemoForm(props: any) {
                 cursor: "pointer"
               }}
             >
-              <option value="">Selecciona...</option>
-              <option value="Compra Primera Vivienda">🏠 Comprar 1ª Vivienda</option>
-              <option value="Segunda Residencia">🏡 Segunda Residencia</option>
-              <option value="Inversión">📈 Inversión</option>
-              <option value="Refinanciamiento">💰 Mejorar mi Hipoteca</option>
+              <option value="">{t.selectPlaceholder}</option>
+              <option value="Compra Primera Vivienda">{t.goalFirstHome}</option>
+              <option value="Segunda Residencia">{t.goalSecondHome}</option>
+              <option value="Inversión">{t.goalInvestment}</option>
+              <option value="Refinanciamiento">{t.goalRefinance}</option>
             </select>
           </div>
         </div>
@@ -327,13 +374,13 @@ export default function DemoForm(props: any) {
           }}
         >
           <Zap size={20} />
-          Iniciar Flujo Interactivo
+          {t.startFlow}
           <ArrowRight size={20} />
         </button>
         
         <p style={{ textAlign: "center", fontSize: "12px", color: "#64748b", margin: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
           <Sparkles size={14} color="#c084fc" />
-          Al iniciar, Botz IA te contactará instantáneamente
+          {t.startHint}
         </p>
       </form>
 

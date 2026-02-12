@@ -4,6 +4,32 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
 import { User, ChevronDown, Check, Loader2, X, UserPlus } from "lucide-react";
 
+type AppLanguage = "es" | "en";
+
+const ASSIGN_TEXT: Record<AppLanguage, { assign: string; loading: string; unassigned: string }> = {
+  es: { assign: "Asignar", loading: "Cargando...", unassigned: "Sin asignar" },
+  en: { assign: "Assign", loading: "Loading...", unassigned: "Unassigned" },
+};
+
+function useUiLanguage(): AppLanguage {
+  const [language, setLanguage] = useState<AppLanguage>("es");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") setLanguage(saved);
+
+    const onLangChange = (event: Event) => {
+      const next = (event as CustomEvent<AppLanguage>).detail;
+      if (next === "es" || next === "en") setLanguage(next);
+    };
+
+    window.addEventListener("botz-language-change", onLangChange);
+    return () => window.removeEventListener("botz-language-change", onLangChange);
+  }, []);
+
+  return language;
+}
+
 interface Asesor {
   id: string;
   nombre: string;
@@ -28,6 +54,8 @@ export default function AsignarAsesor({
   variant = "dropdown",
   size = "md",
 }: AsignarAsesorProps) {
+  const language = useUiLanguage();
+  const t = ASSIGN_TEXT[language];
   const [asesores, setAsesores] = useState<Asesor[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingAsesores, setLoadingAsesores] = useState(true);
@@ -139,7 +167,7 @@ export default function AsignarAsesor({
     }
   };
 
-  const displayName = selectedAsesor?.nombre || currentAsesorNombre || "Sin asignar";
+  const displayName = selectedAsesor?.nombre || currentAsesorNombre || t.unassigned;
   const isAssigned = selectedAsesor || currentAsesorId;
 
   const sizeStyles = {
@@ -171,7 +199,7 @@ export default function AsignarAsesor({
         }}
       >
         <UserPlus size={s.iconSize} />
-        {isAssigned ? displayName : "Asignar"}
+        {isAssigned ? displayName : t.assign}
       </button>
     );
   }
@@ -218,7 +246,7 @@ export default function AsignarAsesor({
       >
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <User size={s.iconSize} color={isAssigned ? "#22c55e" : "#52525b"} />
-          <span>{loadingAsesores ? "Cargando..." : displayName}</span>
+          <span>{loadingAsesores ? t.loading : displayName}</span>
         </div>
         <ChevronDown
           size={s.iconSize}

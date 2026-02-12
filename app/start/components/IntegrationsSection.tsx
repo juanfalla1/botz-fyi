@@ -7,6 +7,7 @@ import {
   FaFilter 
 } from "react-icons/fa6";
 import { SiZoom, SiNotion, SiZapier, SiAsana, SiGmail } from "react-icons/si";
+import useBotzLanguage from "../hooks/useBotzLanguage";
 
 const LOGOS = [
   { name: "Google", icon: <FaGoogle size={30} />, color: "#4285F4" },
@@ -23,6 +24,21 @@ const LOGOS = [
 ];
 
 export default function IntegrationsSection() {
+  const language = useBotzLanguage();
+  const copy = {
+    es: {
+      titleStart: "Conecta Botz con ",
+      titleAccent: "tu ecosistema",
+      subtitle: "Sincronización nativa con tus herramientas favoritas.",
+    },
+    en: {
+      titleStart: "Connect Botz to ",
+      titleAccent: "your ecosystem",
+      subtitle: "Native sync with your favorite tools.",
+    },
+  } as const;
+  const t = copy[language];
+
   return (
     <div style={{ padding: "40px 0", background: "transparent", overflow: "hidden", position: "relative" }}>
       
@@ -40,10 +56,10 @@ export default function IntegrationsSection() {
       {/* Título */}
       <div style={{ textAlign: "center", marginBottom: "30px", padding: "0 20px" }}>
         <h3 style={{ fontSize: "20px", fontWeight: "bold", color: "#fff", marginBottom: "8px" }}>
-          Conecta Botz con <span style={{ color: "#22d3ee" }}>tu ecosistema</span>
+          {t.titleStart}<span style={{ color: "#22d3ee" }}>{t.titleAccent}</span>
         </h3>
         <p style={{ color: "#94a3b8", fontSize: "13px" }}>
-          Sincronización nativa con tus herramientas favoritas.
+          {t.subtitle}
         </p>
       </div>
 

@@ -429,7 +429,7 @@ if (subError) {
       {/* HEADER */}
       <div style={{ textAlign: "center", padding: "60px 20px 40px" }}>
         <h1 style={{ fontSize: "42px", fontWeight: "800", marginBottom: "16px", background: "linear-gradient(90deg, #fff, #94a3b8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          Automatiza tus leds.<br />Cierra más ventas.
+          Automatiza tus leads.<br />Cierra más ventas.
         </h1>
         <p style={{ fontSize: "16px", color: "#64748b", maxWidth: "600px", margin: "0 auto 40px" }}>
           Deja que nuestra Inteligencia Artificial pre-califique a tus clientes, calcule hipotecas y organice tu agenda las 24 horas del día.
@@ -449,10 +449,13 @@ if (subError) {
         <PricingCard 
           title="Básico"
           price={isAnnual ? "55" : "69"}
-          description="Para agentes que quieren captar leads y centralizar todo en un CRM. Tú haces el resto."
+          description="Para agentes que quieren captar leads y centralizar todo en un CRM. Elige 1 canal de captura y empieza."
           icon={<Zap size={24} color="#facc15" />}
           features={[
-            "Bot WhatsApp 24/7",
+            "1 asesor (1 usuario)",
+            "1 canal de captura (WhatsApp o Formulario Web/landing)",
+            "Si eliges WhatsApp: 1 agente IA base (preguntas + respuestas)",
+            "Si eliges Formulario: webhook al CRM (sin bot)",
             "Captura de leads automática",
             "Integración CRM Botz",
             "Notificaciones por Email",
@@ -473,10 +476,13 @@ if (subError) {
         <PricingCard 
           title="Growth"
           price={isAnnual ? "199" : "249"}
-          description="La suite completa. El bot captura, calcula hipotecas, analiza viabilidad y genera PDF. Tú solo cierras."
+          description="La suite completa para operar en equipo. Multi-canal, hipotecas y automatización. Tú solo cierras."
           icon={<Building2 size={24} color="#22d3ee" />}
           isPopular
           features={[
+            "Hasta 5 asesores (usuarios)",
+            "Multi-canal (WhatsApp + Web + integraciones según tu stack)",
+            "1 agente IA base (califica, responde y enruta)",
             "Todo lo del plan Básico",
             "Motor Hipotecario Completo",
             "Pre-scoring y Viabilidad Financiera",
@@ -501,6 +507,8 @@ if (subError) {
           description="Conectamos el bot donde tú quieras. Tu CRM, tus bancos, tu marca. 100% personalizado."
           icon={<Crown size={24} color="#c084fc" />}
           features={[
+            "10+ asesores / equipos",
+            "Multi-agente IA / multi-número",
             "Todo lo del plan Growth",
             "Integración con TU CRM (HubSpot, Sheets, etc)",
             "Motor ajustado a tus bancos",
@@ -514,6 +522,19 @@ if (subError) {
           setupFee="1,997"
           onBuy={openSalesModal}
         />
+      </div>
+
+      {/* Nota de asientos/bots */}
+      <div style={{ maxWidth: "1200px", margin: "18px auto 0", padding: "0 20px" }}>
+        <div style={{
+          fontSize: "12px",
+          color: "#94a3b8",
+          lineHeight: 1.5,
+          textAlign: "center",
+        }}>
+          Asesor adicional desde $15/mes. WhatsApp requiere un numero conectado (puede ser tuyo).<br />
+          Agente IA adicional y numero adicional: cotizar.
+        </div>
       </div>
 
       {/* COMPARATIVA RÁPIDA */}
@@ -1098,8 +1119,8 @@ function PricingCard({ title, price, description, icon, features, missing, isPop
         position: "relative",
         display: "flex", 
         flexDirection: "column",
-        boxShadow: isPopular ? "0 0 40px rgba(34, 211, 238, 0.1)" : "none",
-        transform: isPopular ? "scale(1.05)" : "scale(1)",
+        boxShadow: isPopular ? "0 0 26px rgba(34, 211, 238, 0.10)" : "0 16px 40px rgba(0,0,0,0.22)",
+        transform: isPopular ? "translateY(-4px)" : "none",
         zIndex: isPopular ? 10 : 1
       }}>
         {isPopular && <div style={{ position: "absolute", top: "-14px", left: "50%", transform: "translateX(-50%)", background: "#22d3ee", color: "#000", padding: "4px 12px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold" }}>MÁS VENDIDO</div>}

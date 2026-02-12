@@ -10,6 +10,49 @@ import {
   Pencil, Trash2, History, X, Plus, Clock 
 } from "lucide-react";
 
+type AppLanguage = "es" | "en";
+
+const KANBAN_TEXT: Record<
+  AppLanguage,
+  {
+    loadingBoard: string;
+    rename: string;
+    deleteStage: string;
+    deleteLead: string;
+    newStage: string;
+    deleteStageQuestion: string;
+    deleteStageConfirm: (title?: string) => string;
+    irreversible: string;
+    delete: string;
+    save: string;
+  }
+> = {
+  es: {
+    loadingBoard: "Cargando Tablero...",
+    rename: "Cambiar nombre",
+    deleteStage: "Eliminar etapa",
+    deleteLead: "Eliminar lead",
+    newStage: "Nueva Etapa",
+    deleteStageQuestion: "¿Eliminar etapa?",
+    deleteStageConfirm: (title) => `¿Eliminar \"${title || ""}\"?`,
+    irreversible: "Esta acción no se puede deshacer.",
+    delete: "Eliminar",
+    save: "Guardar",
+  },
+  en: {
+    loadingBoard: "Loading board...",
+    rename: "Rename",
+    deleteStage: "Delete stage",
+    deleteLead: "Delete lead",
+    newStage: "New Stage",
+    deleteStageQuestion: "Delete stage?",
+    deleteStageConfirm: (title) => `Delete \"${title || ""}\"?`,
+    irreversible: "This action cannot be undone.",
+    delete: "Delete",
+    save: "Save",
+  },
+};
+
 // COLUMNAS BASE (Se usan solo la primera vez)
 const BASE_COLUMNS = [
   { id: "NUEVO", title: "🆕 Nuevo Lead", color: "#64748b", base: true },
@@ -32,6 +75,26 @@ export default function KanbanBoard({ globalFilter }: { globalFilter?: string | 
   const [draggedLead, setDraggedLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
   const { user, isAsesor, teamMemberId, tenantId: authTenantId, loading: authLoading, triggerDataRefresh } = useAuth();
+  const [language, setLanguage] = useState<AppLanguage>("es");
+  const [resolvedTeamMemberId, setResolvedTeamMemberId] = useState<string | null>(teamMemberId || null);
+  const t = KANBAN_TEXT[language];
+
+  useEffect(() => {
+    const saved = localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") {
+      setLanguage(saved);
+    }
+
+    const onLangChange = (event: Event) => {
+      const next = (event as CustomEvent<AppLanguage>).detail;
+      if (next === "es" || next === "en") {
+        setLanguage(next);
+      }
+    };
+
+    window.addEventListener("botz-language-change", onLangChange);
+    return () => window.removeEventListener("botz-language-change", onLangChange);
+  }, []);
   
   console.log('[Kanban] 🔄 Component rendered, user:', user?.email, 'isAsesor:', isAsesor);
 
@@ -57,38 +120,86 @@ export default function KanbanBoard({ globalFilter }: { globalFilter?: string | 
     const resolveTenant = async () => {
       if (authLoading) return;
 
-      if (authTenantId) {
-        setTenantId(authTenantId);
-        setTenantResolved(true);
-        return;
-      }
+      try {
+        // 1) Preferir lo que ya resolvio el AuthProvider (team_members)
+        if (authTenantId) {
+          setTenantId(authTenantId);
+        }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const tid =
-        session?.user?.user_metadata?.tenant_id ||
-        session?.user?.app_metadata?.tenant_id ||
-        null;
-      console.log('[Kanban] 🎯 Tenant ID resolved:', tid);
-      setTenantId(tid);
-      setTenantResolved(true);
+        if (teamMemberId) {
+          setResolvedTeamMemberId(teamMemberId);
+        }
+
+        // 2) Fallback: JWT metadata
+        if (!authTenantId) {
+          const { data: { session } } = await supabase.auth.getSession();
+          const tid =
+            session?.user?.user_metadata?.tenant_id ||
+            session?.user?.app_metadata?.tenant_id ||
+            null;
+          console.log('[Kanban] 🎯 Tenant ID resolved (metadata):', tid);
+          if (tid) setTenantId(tid);
+        }
+
+        // 3) Fallback final (clave para asesores): resolver desde team_members
+        // Esto evita quedarse pegado en "Cargando" si no existe tenant_id en metadata.
+        if (isAsesor && (!authTenantId || !teamMemberId)) {
+          const authUserId = user?.id || null;
+          const authEmail = user?.email || null;
+
+          if (authUserId) {
+            const { data: tmByAuth } = await supabase
+              .from('team_members')
+              .select('id, tenant_id')
+              .eq('auth_user_id', authUserId)
+              .eq('activo', true)
+              .maybeSingle();
+
+            const fallbackTeamMemberId = tmByAuth?.id || null;
+            const fallbackTenantId = tmByAuth?.tenant_id || null;
+
+            if (fallbackTeamMemberId) setResolvedTeamMemberId(fallbackTeamMemberId);
+            if (fallbackTenantId) setTenantId(fallbackTenantId);
+          }
+
+          if ((!resolvedTeamMemberId || !tenantId) && authEmail) {
+            const { data: tmByEmail } = await supabase
+              .from('team_members')
+              .select('id, tenant_id')
+              .eq('email', authEmail)
+              .eq('activo', true)
+              .maybeSingle();
+
+            const fallbackTeamMemberId = tmByEmail?.id || null;
+            const fallbackTenantId = tmByEmail?.tenant_id || null;
+
+            if (fallbackTeamMemberId) setResolvedTeamMemberId(fallbackTeamMemberId);
+            if (fallbackTenantId) setTenantId(fallbackTenantId);
+          }
+        }
+      } catch (e) {
+        console.error('[Kanban] ❌ Error resolviendo tenant/teamMember:', e);
+      } finally {
+        setTenantResolved(true);
+      }
     };
 
     resolveTenant();
-  }, [authLoading, authTenantId]);
+  }, [authLoading, authTenantId, isAsesor, teamMemberId, user?.id, user?.email]);
 
   useEffect(() => {
     if (tenantResolved && !authLoading) {
       fetchLeads(false);
     }
-  }, [globalFilter, tenantResolved, authLoading, isAsesor, teamMemberId, tenantId]);
+  }, [globalFilter, tenantResolved, authLoading, isAsesor, resolvedTeamMemberId, tenantId]);
 
 const fetchLeads = async (silent: boolean) => {
     console.log('[Kanban] 🚀 fetchLeads started, silent:', silent);
     if (!silent) setLoading(true);
     
     try {
-      console.log('[Kanban] 📡 Fetching leads for tenant:', tenantId, 'isAsesor:', isAsesor, 'teamMemberId:', teamMemberId);
-      if (isAsesor && !teamMemberId) {
+      console.log('[Kanban] 📡 Fetching leads for tenant:', tenantId, 'isAsesor:', isAsesor, 'teamMemberId:', resolvedTeamMemberId);
+      if (isAsesor && !resolvedTeamMemberId) {
         console.warn('[Kanban] ⚠️ Asesor sin teamMemberId, no se consultan leads');
         setLeads([]);
         return;
@@ -105,9 +216,9 @@ const fetchLeads = async (silent: boolean) => {
       }
       
       // Si es asesor, filtrar solo sus leads asignados
-      if (isAsesor && teamMemberId) {
-        console.log('[Kanban] 👤 Asesor detectado, filtrando por asesor_id/assigned_to:', teamMemberId);
-        query = query.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
+      if (isAsesor && resolvedTeamMemberId) {
+        console.log('[Kanban] 👤 Asesor detectado, filtrando por asesor_id/assigned_to:', resolvedTeamMemberId);
+        query = query.or(`asesor_id.eq.${resolvedTeamMemberId},assigned_to.eq.${resolvedTeamMemberId}`);
       }
       
       const { data, error } = await query;
@@ -271,30 +382,30 @@ const fetchLeads = async (silent: boolean) => {
     return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(amount);
   };
 
-  if (loading && leads.length === 0) return <div style={{ padding: "40px", color: "#64748b", textAlign: "center" }}>Cargando Tablero...</div>;
+  if (loading && leads.length === 0) return <div style={{ padding: "40px", color: "var(--botz-muted)", textAlign: "center" }}>{t.loadingBoard}</div>;
 
   return (
     <div onClick={() => { setActiveMenuLeadId(null); setActiveMenuColId(null); }} style={{ display: "flex", gap: "16px", overflowX: "auto", paddingBottom: "20px", height: "calc(100vh - 200px)", alignItems: "flex-start" }}>
       {columns.map((col) => {
         const colLeads = leads.filter(l => (l.status || "NUEVO").toUpperCase() === col.id);
         return (
-          <div key={col.id} onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDrop(e, col.id)} style={{ minWidth: "280px", maxWidth: "280px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "16px", display: "flex", flexDirection: "column", height: "100%", backdropFilter: "blur(10px)" }}>
+          <div key={col.id} onDragOver={(e) => e.preventDefault()} onDrop={(e) => onDrop(e, col.id)} style={{ minWidth: "280px", maxWidth: "280px", background: "var(--botz-panel)", border: "1px solid var(--botz-border-soft)", borderRadius: "16px", display: "flex", flexDirection: "column", height: "100%", backdropFilter: "blur(10px)" }}>
             
-            <div style={{ padding: "16px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative" }}>
+            <div style={{ padding: "16px", borderBottom: "1px solid var(--botz-border-soft)", display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <div style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: col.color }} />
-                <span style={{ fontWeight: "bold", color: "#fff", fontSize: "13px" }}>{col.title}</span>
-                <span style={{ background: "rgba(255,255,255,0.1)", padding: "2px 8px", borderRadius: "10px", fontSize: "11px", color: "#cbd5e1" }}>{colLeads.length}</span>
+                <span style={{ fontWeight: "bold", color: "var(--botz-text)", fontSize: "13px" }}>{col.title}</span>
+                <span style={{ background: "var(--botz-surface-3)", padding: "2px 8px", borderRadius: "10px", fontSize: "11px", color: "var(--botz-muted)" }}>{colLeads.length}</span>
               </div>
-              <MoreVertical size={16} color="#64748b" style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setActiveMenuColId(activeMenuColId === col.id ? null : col.id); }} />
+              <MoreVertical size={16} color="var(--botz-muted-2)" style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setActiveMenuColId(activeMenuColId === col.id ? null : col.id); }} />
               
               {activeMenuColId === col.id && (
-                <div style={{ position: "absolute", top: "40px", right: "10px", background: "#0f172a", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)", zIndex: 100, padding: "6px", minWidth: "170px", boxShadow: "0 20px 40px rgba(0,0,0,0.45)" }}>
-                  <button onClick={() => setModalEditCol({id: col.id, title: col.title})} style={{ width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#fff", padding: "10px", borderRadius: "10px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
-                    <Pencil size={14} /> Cambiar nombre
+                <div style={{ position: "absolute", top: "40px", right: "10px", background: "var(--botz-surface-2)", borderRadius: "12px", border: "1px solid var(--botz-border)", zIndex: 100, padding: "6px", minWidth: "170px", boxShadow: "var(--botz-shadow-2)" }}>
+                  <button onClick={() => setModalEditCol({id: col.id, title: col.title})} style={{ width: "100%", textAlign: "left", background: "transparent", border: "none", color: "var(--botz-text)", padding: "10px", borderRadius: "10px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+                    <Pencil size={14} /> {t.rename}
                   </button>
                   <button onClick={() => setModalDeleteCol(col)} style={{ width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#ef4444", padding: "10px", borderRadius: "10px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
-                    <Trash2 size={14} /> Eliminar etapa
+                    <Trash2 size={14} /> {t.deleteStage}
                   </button>
                 </div>
               )}
@@ -302,30 +413,30 @@ const fetchLeads = async (silent: boolean) => {
 
             <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "10px", overflowY: "auto", flex: 1 }}>
               {colLeads.map((lead) => (
-                <div key={lead.id} draggable onDragStart={(e) => onDragStart(e, lead)} style={{ background: "#1e293b", padding: "14px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.05)", cursor: "grab", position: "relative" }}>
+                <div key={lead.id} draggable onDragStart={(e) => onDragStart(e, lead)} style={{ background: "var(--botz-surface)", padding: "14px", borderRadius: "12px", border: "1px solid var(--botz-border-soft)", cursor: "grab", position: "relative" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                    <span style={{ fontSize: "10px", background: "rgba(255,255,255,0.05)", padding: "2px 6px", borderRadius: "4px", color: "#94a3b8" }}>{lead.source || "Web"}</span>
-                    <MoreHorizontal size={14} color="#64748b" style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setActiveMenuLeadId(activeMenuLeadId === lead.id ? null : lead.id); }} />
+                    <span style={{ fontSize: "10px", background: "var(--botz-surface-3)", padding: "2px 6px", borderRadius: "4px", color: "var(--botz-muted)" }}>{lead.source || "Web"}</span>
+                    <MoreHorizontal size={14} color="var(--botz-muted-2)" style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setActiveMenuLeadId(activeMenuLeadId === lead.id ? null : lead.id); }} />
                     
                     {activeMenuLeadId === lead.id && (
-                      <div style={{ position: "absolute", top: "30px", right: "10px", background: "#0f172a", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)", zIndex: 100, padding: "6px", minWidth: "160px", boxShadow: "0 20px 40px rgba(0,0,0,0.45)" }}>
-                        <button onClick={() => openHistory(lead)} style={{ width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#fff", padding: "10px", borderRadius: "10px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+                      <div style={{ position: "absolute", top: "30px", right: "10px", background: "var(--botz-surface-2)", borderRadius: "12px", border: "1px solid var(--botz-border)", zIndex: 100, padding: "6px", minWidth: "160px", boxShadow: "var(--botz-shadow-2)" }}>
+                        <button onClick={() => openHistory(lead)} style={{ width: "100%", textAlign: "left", background: "transparent", border: "none", color: "var(--botz-text)", padding: "10px", borderRadius: "10px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
                           <History size={14} /> Ver historial
                         </button>
                         <button onClick={() => deleteLead(lead)} style={{ width: "100%", textAlign: "left", background: "transparent", border: "none", color: "#ef4444", padding: "10px", borderRadius: "10px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
-                          <Trash2 size={14} /> Eliminar lead
+                          <Trash2 size={14} /> {t.deleteLead}
                         </button>
                       </div>
                     )}
                   </div>
-                  <div style={{ fontWeight: "bold", color: "#fff", fontSize: "14px" }}>{lead.name}</div>
+                  <div style={{ fontWeight: "bold", color: "var(--botz-text)", fontSize: "14px" }}>{lead.name}</div>
                   <div style={{ color: "#34d399", fontSize: "12px", fontWeight: "bold", margin: "8px 0" }}>{formatMoney((lead as any).precio_real)}</div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--botz-border-soft)", paddingTop: "10px" }}>
                     <div style={{ display: "flex", gap: "8px" }}>
                       <button onClick={() => window.open(`tel:${(lead as any).phone}`)} style={{ background: "rgba(59,130,246,0.1)", border: "none", padding: "6px", borderRadius: "6px", color: "#3b82f6", cursor: "pointer" }}><Phone size={14}/></button>
                       <button onClick={() => window.open(`https://wa.me/${(lead as any).phone}`)} style={{ background: "rgba(34,197,94,0.1)", border: "none", padding: "6px", borderRadius: "6px", color: "#22c55e", cursor: "pointer" }}><MessageCircle size={14}/></button>
                     </div>
-                    <div style={{ fontSize: "10px", color: "#64748b", display: "flex", alignItems: "center", gap: "4px" }}><Calendar size={10} /> {new Date((lead as any).created_at).toLocaleDateString()}</div>
+                    <div style={{ fontSize: "10px", color: "var(--botz-muted-2)", display: "flex", alignItems: "center", gap: "4px" }}><Calendar size={10} /> {new Date((lead as any).created_at).toLocaleDateString()}</div>
                   </div>
                 </div>
               ))}
@@ -334,24 +445,24 @@ const fetchLeads = async (silent: boolean) => {
         );
       })}
 
-      <button onClick={() => setShowAddCol(true)} style={{ minWidth: "44px", height: "44px", borderRadius: "14px", background: "rgba(255,255,255,0.06)", border: "1px dashed rgba(255,255,255,0.18)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Plus size={18} color="#94a3b8" /></button>
+      <button onClick={() => setShowAddCol(true)} style={{ minWidth: "44px", height: "44px", borderRadius: "14px", background: "var(--botz-surface-3)", border: "1px dashed var(--botz-border-strong)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Plus size={18} color="var(--botz-muted)" /></button>
 
       {/* --- MODAL DE HISTORIAL --- */}
       {historyLead && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000 }}>
-          <div style={{ width: 500, maxHeight: "80vh", background: "#0b1220", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 24, padding: 24, display: "flex", flexDirection: "column" }}>
+          <div style={{ width: 500, maxHeight: "80vh", background: "var(--botz-surface-2)", border: "1px solid var(--botz-border)", borderRadius: 24, padding: 24, display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
               <div>
-                <h3 style={{ color: "#fff", fontSize: 18, fontWeight: "bold" }}>Historial de Lead</h3>
-                <p style={{ color: "#94a3b8", fontSize: 13 }}>{historyLead.name}</p>
+                <h3 style={{ color: "var(--botz-text)", fontSize: 18, fontWeight: "bold" }}>Historial de Lead</h3>
+                <p style={{ color: "var(--botz-muted)", fontSize: 13 }}>{historyLead.name}</p>
               </div>
-              <button onClick={() => setHistoryLead(null)} style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer" }}><X size={20} /></button>
+              <button onClick={() => setHistoryLead(null)} style={{ background: "transparent", border: "none", color: "var(--botz-muted)", cursor: "pointer" }}><X size={20} /></button>
             </div>
             <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
               {leadLogs.length > 0 ? leadLogs.map((log, i) => (
-                <div key={i} style={{ background: "rgba(255,255,255,0.03)", padding: 12, borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)" }}>
-                  <div style={{ fontSize: 13, color: "#fff", marginBottom: 4 }}>{log.text}</div>
-                  <div style={{ fontSize: 11, color: "#64748b", display: "flex", gap: 8 }}>
+                <div key={i} style={{ background: "var(--botz-surface-3)", padding: 12, borderRadius: 12, border: "1px solid var(--botz-border-soft)" }}>
+                  <div style={{ fontSize: 13, color: "var(--botz-text)", marginBottom: 4 }}>{log.text}</div>
+                  <div style={{ fontSize: 11, color: "var(--botz-muted-2)", display: "flex", gap: 8 }}>
                     <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Clock size={10}/> {new Date(log.created_at).toLocaleString()}</span>
                     <span>• {log.user_name}</span>
                   </div>
@@ -365,19 +476,19 @@ const fetchLeads = async (silent: boolean) => {
       {/* --- MODALES DE ETAPA --- */}
       {(modalEditCol || modalDeleteCol || showAddCol) && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000 }}>
-          <div style={{ width: 380, background: "#0b1220", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 24, padding: 24 }}>
-            <h3 style={{ color: "#fff", marginBottom: 16, fontSize: 18, fontWeight: "bold" }}>
-              {showAddCol ? "Nueva Etapa" : modalEditCol ? "Cambiar nombre" : "¿Eliminar etapa?"}
+          <div style={{ width: 380, background: "var(--botz-surface-2)", border: "1px solid var(--botz-border)", borderRadius: 24, padding: 24 }}>
+            <h3 style={{ color: "var(--botz-text)", marginBottom: 16, fontSize: 18, fontWeight: "bold" }}>
+              {showAddCol ? t.newStage : modalEditCol ? t.rename : t.deleteStageQuestion}
             </h3>
             {(showAddCol || modalEditCol) ? (
-              <input autoFocus value={showAddCol ? newColTitle : modalEditCol?.title} onChange={(e) => showAddCol ? setNewColTitle(e.target.value) : setModalEditCol({...modalEditCol!, title: e.target.value})} style={{ width: "100%", background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: 12, color: "#fff", outline: "none", marginBottom: 20 }} />
+              <input autoFocus value={showAddCol ? newColTitle : modalEditCol?.title} onChange={(e) => showAddCol ? setNewColTitle(e.target.value) : setModalEditCol({...modalEditCol!, title: e.target.value})} style={{ width: "100%", background: "var(--botz-surface)", border: "1px solid var(--botz-border)", borderRadius: 12, padding: 12, color: "var(--botz-text)", outline: "none", marginBottom: 20 }} />
             ) : (
-              <p style={{ color: "#94a3b8", fontSize: 14, marginBottom: 20 }}>¿Eliminar "{modalDeleteCol?.title}"? Esta acción no se puede deshacer.</p>
+              <p style={{ color: "var(--botz-muted)", fontSize: 14, marginBottom: 20 }}>{t.deleteStageConfirm(modalDeleteCol?.title)} {t.irreversible}</p>
             )}
             <div style={{ display: "flex", gap: 12 }}>
-              <button onClick={() => { setModalEditCol(null); setModalDeleteCol(null); setShowAddCol(false); }} style={{ flex: 1, padding: 12, borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "#fff", cursor: "pointer" }}>Cancelar</button>
+              <button onClick={() => { setModalEditCol(null); setModalDeleteCol(null); setShowAddCol(false); }} style={{ flex: 1, padding: 12, borderRadius: 12, border: "1px solid var(--botz-border)", background: "transparent", color: "var(--botz-text)", cursor: "pointer" }}>Cancelar</button>
               <button onClick={showAddCol ? addColumn : modalEditCol ? confirmRenameCol : confirmDeleteCol} style={{ flex: 1, padding: 12, borderRadius: 12, border: "none", background: modalDeleteCol ? "#ef4444" : "#3b82f6", color: "#fff", fontWeight: "bold", cursor: "pointer" }}>
-                {modalDeleteCol ? "Eliminar" : "Guardar"}
+                {modalDeleteCol ? t.delete : t.save}
               </button>
             </div>
           </div>

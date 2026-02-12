@@ -1,5 +1,7 @@
 "use client";
 
+import React, { useEffect, useState } from "react";
+
 interface CRMData {
   stage?: string;
   // CAMBIO: Ahora aceptamos cualquier string para evitar el conflicto de tipos
@@ -12,11 +14,65 @@ interface CRMViewProps {
   crm?: CRMData;
 }
 
+type AppLanguage = "es" | "en";
+
+const CRM_TEXT: Record<
+  AppLanguage,
+  {
+    crmStatus: string;
+    currentStage: string;
+    priority: string;
+    owner: string;
+    lastUpdate: string;
+    pending: string;
+    unassigned: string;
+  }
+> = {
+  es: {
+    crmStatus: "Estado CRM",
+    currentStage: "Etapa Actual",
+    priority: "Prioridad",
+    owner: "Responsable",
+    lastUpdate: "Última actualización",
+    pending: "Pendiente",
+    unassigned: "Sin asignar",
+  },
+  en: {
+    crmStatus: "CRM Status",
+    currentStage: "Current Stage",
+    priority: "Priority",
+    owner: "Owner",
+    lastUpdate: "Last update",
+    pending: "Pending",
+    unassigned: "Unassigned",
+  },
+};
+
 export default function CRMView({ crm }: CRMViewProps) {
+  const [language, setLanguage] = useState<AppLanguage>("es");
+  const t = CRM_TEXT[language];
+
+  useEffect(() => {
+    const saved = localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") {
+      setLanguage(saved);
+    }
+
+    const onLangChange = (event: Event) => {
+      const next = (event as CustomEvent<AppLanguage>).detail;
+      if (next === "es" || next === "en") {
+        setLanguage(next);
+      }
+    };
+
+    window.addEventListener("botz-language-change", onLangChange);
+    return () => window.removeEventListener("botz-language-change", onLangChange);
+  }, []);
+
   // 🛡️ BLINDAJES
-  const stage = crm?.stage ?? "Pendiente";
+  const stage = crm?.stage ?? t.pending;
   const priority = crm?.priority ?? "MEDIA";
-  const owner = crm?.owner ?? "Sin asignar";
+  const owner = crm?.owner ?? t.unassigned;
   const lastUpdate = crm?.lastUpdate ?? "--";
 
   // LÓGICA DE COLOR (Hacemos el match seguro)
@@ -40,7 +96,7 @@ export default function CRMView({ crm }: CRMViewProps) {
         marginTop: "24px",
       }}
     >
-      <h3 style={{ marginBottom: "16px" }}>Estado CRM</h3>
+      <h3 style={{ marginBottom: "16px" }}>{t.crmStatus}</h3>
 
       <div
         style={{
@@ -51,9 +107,7 @@ export default function CRMView({ crm }: CRMViewProps) {
       >
         {/* ETAPA */}
         <div>
-          <div style={{ fontSize: "12px", color: "#8b949e" }}>
-            Etapa Actual
-          </div>
+          <div style={{ fontSize: "12px", color: "#8b949e" }}>{t.currentStage}</div>
           <div
             style={{
               fontSize: "18px",
@@ -67,9 +121,7 @@ export default function CRMView({ crm }: CRMViewProps) {
 
         {/* PRIORIDAD */}
         <div>
-          <div style={{ fontSize: "12px", color: "#8b949e" }}>
-            Prioridad
-          </div>
+          <div style={{ fontSize: "12px", color: "#8b949e" }}>{t.priority}</div>
           <div
             style={{
               fontSize: "14px",
@@ -83,9 +135,7 @@ export default function CRMView({ crm }: CRMViewProps) {
 
         {/* RESPONSABLE */}
         <div>
-          <div style={{ fontSize: "12px", color: "#8b949e" }}>
-            Responsable
-          </div>
+          <div style={{ fontSize: "12px", color: "#8b949e" }}>{t.owner}</div>
           <div style={{ fontSize: "14px", color: "#fff" }}>
             {owner}
           </div>
@@ -93,9 +143,7 @@ export default function CRMView({ crm }: CRMViewProps) {
 
         {/* ÚLTIMA ACTUALIZACIÓN */}
         <div>
-          <div style={{ fontSize: "12px", color: "#8b949e" }}>
-            Última actualización
-          </div>
+          <div style={{ fontSize: "12px", color: "#8b949e" }}>{t.lastUpdate}</div>
           <div style={{ fontSize: "14px", color: "#fff" }}>
             {lastUpdate}
           </div>

@@ -1,7 +1,24 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient"; 
 import { Mail, Lock, LogIn, Loader2, AlertCircle } from "lucide-react";
+
+type AppLanguage = "es" | "en";
+
+const LOGIN_TEXT: Record<AppLanguage, { signingIn: string; signIn: string; newTeamQ: string; createAccount: string }> = {
+  es: {
+    signingIn: "Entrando...",
+    signIn: "Iniciar Sesión",
+    newTeamQ: "¿Eres nuevo en el equipo?",
+    createAccount: "Crear cuenta",
+  },
+  en: {
+    signingIn: "Signing in...",
+    signIn: "Sign In",
+    newTeamQ: "New to the team?",
+    createAccount: "Create account",
+  },
+};
 
 interface LoginFormProps {
   onSuccess: (userData?: { rol: string; nombre: string }) => void;
@@ -13,6 +30,25 @@ export default function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [language, setLanguage] = useState<AppLanguage>("es");
+  const t = LOGIN_TEXT[language];
+
+  useEffect(() => {
+    const saved = localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") {
+      setLanguage(saved);
+    }
+
+    const onLangChange = (event: Event) => {
+      const next = (event as CustomEvent<AppLanguage>).detail;
+      if (next === "es" || next === "en") {
+        setLanguage(next);
+      }
+    };
+
+    window.addEventListener("botz-language-change", onLangChange);
+    return () => window.removeEventListener("botz-language-change", onLangChange);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,17 +187,17 @@ export default function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps
           }}
         >
           {loading ? <Loader2 className="animate-spin" size={20} /> : <LogIn size={20} />}
-          {loading ? "Entrando..." : "Iniciar Sesión"}
+          {loading ? t.signingIn : t.signIn}
         </button>
       </form>
       
       <p style={{ marginTop: "20px", fontSize: "12px", color: "#64748b" }}>
-        ¿Eres nuevo en el equipo?{" "}
+        {t.newTeamQ}{" "}
         <span 
           onClick={onRegisterClick}
           style={{ color: "#60a5fa", cursor: "pointer", textDecoration: "underline" }}
         >
-          Crear cuenta
+          {t.createAccount}
         </span>
       </p>
 

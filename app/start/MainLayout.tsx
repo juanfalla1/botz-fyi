@@ -30,6 +30,7 @@ import {
   Inbox,
   Lock,
   Crown,
+  Languages,
   Check,
   Sparkles,
   ChevronRight,
@@ -39,6 +40,7 @@ import {
   RefreshCw,
   ArrowLeft,
   Home,
+  Bot,
 } from "lucide-react";
 import { supabase } from "../supabaseClient"; // Ajusta la ruta según tu proyecto
 import AuthModal from "./components/AuthModal";
@@ -53,6 +55,7 @@ const ALL_FEATURES: string[] = [
   "demo",
   "hipoteca",
   "channels",
+  "agents",
   "n8n-config",
   "crm",
   "sla",
@@ -76,6 +79,7 @@ const FEATURE_MIN_PLAN: Record<string, string> = {
   demo: "free",
   hipoteca: "Growth",
   channels: "Básico",
+  agents: "Básico",
   "n8n-config": "A la Medida",
   crm: "Growth",
   sla: "A la Medida",
@@ -88,10 +92,96 @@ const FEATURE_LABELS: Record<string, string> = {
   demo: "Operación en Vivo",
   hipoteca: "Motor Hipotecario",
   channels: "Gestión de Canales",
+  agents: "Agentes IA",
   crm: "CRM en Vivo",
   kanban: "Tablero Kanban",
   sla: "Alertas SLA",
   "n8n-config": "Dashboard Ejecutivo",
+};
+
+type AppLanguage = "es" | "en";
+
+type AppTheme = "dark" | "light";
+
+const UI_TEXT: Record<AppLanguage, Record<string, string>> = {
+  es: {
+    liveOps: "Operación en Vivo",
+    mortgageCalc: "Cálculo Hipotecario",
+    channels: "Canales",
+    agentsTab: "Agentes IA",
+    execDashboard: "Dashboard Ejecutivo",
+    crmLive: "CRM en Vivo",
+    slaAlerts: "Alertas SLA",
+    kanban: "Kanban",
+    signIn: "Iniciar Sesión",
+    loading: "Cargando...",
+    connectedAs: "Conectado como",
+    activeSince: "Activo desde",
+    refreshState: "Refrescar estado",
+    refreshing: "Actualizando...",
+    updatePlan: "Actualizar Plan",
+    viewPlan: "Ver mi Plan",
+    logout: "Cerrar Sesión",
+    language: "Idioma",
+    planFree: "Plan Gratuito",
+    freeShort: "Gratuito",
+    planLabel: "Plan",
+
+    // Hero / Landing
+    heroBadge: "AUTOMATIZACIÓN INTELIGENTE + HIPOTECARIO",
+    heroTitleLine1: "Convierte Más Leads en",
+    heroTitleLine2: "Hipotecas Firmadas",
+    heroSubtitle: "WhatsApp, Meta Ads, Instagram, Google y más. Automatiza tu atención al cliente, captura leads y calcula hipotecas con nuestra plataforma todo-en-uno.",
+    heroPrimaryCta: "Probar Demo",
+    heroSecondaryCta: "Adquiere tu mejor solución",
+    realtimeConnection: "Conexión en tiempo real",
+    statusActive: "ACTIVO",
+    statChannels: "Canales",
+    statAvailability: "Disponibilidad",
+    statSmartCalc: "Cálculo Inteligente",
+    plusMortgage: "+Hipoteca",
+    backToHome: "Volver al Inicio",
+    footerTagline: "Automatización Inteligente",
+  },
+  en: {
+    liveOps: "Live Operations",
+    mortgageCalc: "Mortgage Calculator",
+    channels: "Channels",
+    agentsTab: "AI Agents",
+    execDashboard: "Executive Dashboard",
+    crmLive: "Live CRM",
+    slaAlerts: "SLA Alerts",
+    kanban: "Kanban",
+    signIn: "Sign In",
+    loading: "Loading...",
+    connectedAs: "Connected as",
+    activeSince: "Active since",
+    refreshState: "Refresh status",
+    refreshing: "Refreshing...",
+    updatePlan: "Upgrade Plan",
+    viewPlan: "View my Plan",
+    logout: "Sign Out",
+    language: "Language",
+    planFree: "Free Plan",
+    freeShort: "Free",
+    planLabel: "Plan",
+
+    // Hero / Landing
+    heroBadge: "SMART AUTOMATION + MORTGAGE",
+    heroTitleLine1: "Turn More Leads Into",
+    heroTitleLine2: "Signed Mortgages",
+    heroSubtitle: "WhatsApp, Meta Ads, Instagram, Google and more. Automate customer support, capture leads, and run mortgage calculations with our all-in-one platform.",
+    heroPrimaryCta: "Try Demo",
+    heroSecondaryCta: "Get The Best Solution",
+    realtimeConnection: "Real-time connection",
+    statusActive: "ACTIVE",
+    statChannels: "Channels",
+    statAvailability: "Availability",
+    statSmartCalc: "Smart Calculation",
+    plusMortgage: "+Mortgage",
+    backToHome: "Back to Home",
+    footerTagline: "Smart Automation",
+  },
 };
 
 // Lista de estados del CRM
@@ -134,6 +224,7 @@ interface AuthContextType {
   userRole: 'admin' | 'asesor' | null;
   isAdmin: boolean;
   isAsesor: boolean;
+  isPlatformAdmin: boolean;
   teamMemberId: string | null;
   tenantId: string | null;
   // ✅ NUEVO: Sincronización global
@@ -154,6 +245,7 @@ const AuthContext = createContext<AuthContextType>({
   userRole: null,
   isAdmin: false,
   isAsesor: false,
+  isPlatformAdmin: false,
   teamMemberId: null,
   tenantId: null,
   // ✅ NUEVO: Sincronización global
@@ -180,6 +272,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userRole, setUserRole] = useState<'admin' | 'asesor' | null>(null);
   const [teamMemberId, setTeamMemberId] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   // ✅ NUEVO: Sincronización global
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
   const triggerDataRefresh = useCallback(() => {
@@ -201,6 +294,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUserPlan("free");
       setSubscription(null);
       setEnabledFeatures(PLAN_FEATURES["free"]);
+    }
+  }, []);
+
+  const applyPlatformAdminAccess = useCallback(() => {
+    setIsPlatformAdmin(true);
+    setUserRole('admin');
+    setTeamMemberId(null);
+    setTenantId(null);
+    setSubscription({
+      id: 'platform-admin',
+      plan: 'Enterprise',
+      status: 'active',
+      created_at: new Date().toISOString(),
+    });
+    setUserPlan('Enterprise');
+    setEnabledFeatures(ALL_FEATURES);
+  }, []);
+
+  const detectPlatformAdmin = useCallback(async (): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.rpc('is_platform_admin');
+      if (!error) return Boolean(data);
+
+      // Fallback: direct self-check (if RPC not available)
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth?.user?.id;
+      if (!uid) return false;
+      const { data: row, error: selErr } = await supabase
+        .from('platform_admins')
+        .select('auth_user_id')
+        .eq('auth_user_id', uid)
+        .maybeSingle();
+      if (selErr) return false;
+      return Boolean(row?.auth_user_id);
+    } catch {
+      return false;
     }
   }, []);
 
@@ -255,7 +384,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .from("team_members")
           .select("tenant_id, email, rol")
           .eq("auth_user_id", userId)
-          .eq("activo", true)
+          .or("activo.is.null,activo.eq.true")
           .maybeSingle();
 
         let foundTenantId = tmByAuth?.tenant_id || null;
@@ -268,7 +397,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .from("team_members")
               .select("tenant_id")
               .eq("email", authUser.email)
-              .eq("activo", true)
+              .or("activo.is.null,activo.eq.true")
               .maybeSingle();
             foundTenantId = tmByEmail?.tenant_id || null;
           }
@@ -314,7 +443,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .from('team_members')
         .select('id, nombre, email, rol, tenant_id')
         .eq('auth_user_id', authUserId)
-        .eq('activo', true)
+        .or('activo.is.null,activo.eq.true')
         .maybeSingle();
 
       teamMember = tmByAuth;
@@ -324,7 +453,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .from('team_members')
           .select('id, nombre, email, rol, tenant_id')
           .eq('email', email)
-          .eq('activo', true)
+          .or('activo.is.null,activo.eq.true')
           .maybeSingle();
         teamMember = tmByEmail;
       }
@@ -362,8 +491,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           console.log("👤 Usuario logueado:", session.user.email);
           setUser(session.user);
-          const tenantId = await detectUserRole(session.user.id, session.user.email || '');
-          await fetchUserSubscription(session.user.id, tenantId);
+          const isPlat = await detectPlatformAdmin();
+          if (isPlat) {
+            applyPlatformAdminAccess();
+          } else {
+            const tenantId = await detectUserRole(session.user.id, session.user.email || '');
+            await fetchUserSubscription(session.user.id, tenantId);
+          }
         } else {
           console.log("👤 No hay sesión activa");
           setUser(null);
@@ -372,6 +506,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUserRole(null);
           setTeamMemberId(null);
           setTenantId(null);
+          setIsPlatformAdmin(false);
         }
       } catch (error) {
         console.error("Error checking session:", error);
@@ -391,12 +526,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (event === "SIGNED_IN" && session?.user) {
         console.log("✅ Usuario inició sesión:", session.user.email);
         setUser(session.user);
-        const tenantId = await detectUserRole(session.user.id, session.user.email || '');
-        // Pequeño delay para asegurar que la DB se haya actualizado
-        setTimeout(async () => {
-          await fetchUserSubscription(session.user.id, tenantId);
+        const isPlat = await detectPlatformAdmin();
+        if (isPlat) {
+          applyPlatformAdminAccess();
           setLoading(false);
-        }, 500);
+        } else {
+          const tenantId = await detectUserRole(session.user.id, session.user.email || '');
+          // Pequeño delay para asegurar que la DB se haya actualizado
+          setTimeout(async () => {
+            await fetchUserSubscription(session.user.id, tenantId);
+            setLoading(false);
+          }, 500);
+        }
       } else if (event === "SIGNED_OUT") {
         console.log("👋 Usuario cerró sesión");
         setUser(null);
@@ -406,6 +547,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUserRole(null);
         setTeamMemberId(null);
         setTenantId(null);
+        setIsPlatformAdmin(false);
         setLoading(false);
       }
     });
@@ -492,11 +634,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUserPlan("free");
     setSubscription(null);
     setEnabledFeatures(PLAN_FEATURES["free"]);
+    setIsPlatformAdmin(false);
   };
 
   // ✅ Verificar si el usuario tiene acceso a una feature
   const hasFeatureAccess = useCallback(
     (featureId: string): boolean => {
+      if (isPlatformAdmin) return true;
       const hasAccess = enabledFeatures.includes(featureId);
       console.log(
         `🔐 Verificando acceso a "${featureId}":`,
@@ -506,7 +650,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
       return hasAccess;
     },
-    [enabledFeatures]
+    [enabledFeatures, isPlatformAdmin]
   );
 
   return (
@@ -524,6 +668,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userRole,
         isAdmin: userRole === 'admin',
         isAsesor: userRole === 'asesor',
+        isPlatformAdmin,
         teamMemberId,
         tenantId,
         // ✅ NUEVO: Sincronización global
@@ -557,12 +702,12 @@ interface MainLayoutProps {
 // ✅ ESTILOS
 // ============================================================================
 const glassStyle: React.CSSProperties = {
-  background: "rgba(10, 15, 30, 0.6)",
-  border: "1px solid rgba(255,255,255,0.1)",
+  background: "var(--botz-panel)",
+  border: "1px solid var(--botz-border)",
   borderRadius: "24px",
   padding: "30px",
   backdropFilter: "blur(12px)",
-  boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+  boxShadow: "var(--botz-shadow)",
 };
 
 // ============================================================================
@@ -840,15 +985,52 @@ const planFeatures = PLAN_FEATURES[normalizedPlan] || PLAN_FEATURES["free"] || [
 const UserProfileBadge = ({
   expanded = true,
   onOpenAuth,
+  language,
+  onLanguageChange,
 }: {
   expanded?: boolean;
   onOpenAuth?: () => void;
+  language: AppLanguage;
+  onLanguageChange: (language: AppLanguage) => void;
 }) => {
   const { user, userPlan, subscription, logout, loading, refreshSubscription } =
     useAuth();
   const router = useRouter();
   const [showMenu, setShowMenu] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const text = UI_TEXT[language];
+
+  useEffect(() => {
+    if (!showMenu) return;
+
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+
+      if (menuRef.current?.contains(target)) return;
+      if (triggerRef.current?.contains(target)) return;
+
+      setShowMenu(false);
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onPointerDown, true);
+    document.addEventListener("touchstart", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown, true);
+      document.removeEventListener("touchstart", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showMenu]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -860,7 +1042,7 @@ const UserProfileBadge = ({
     return (
       <div style={{ padding: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
         <Loader2 size={16} style={{ color: "#64748b", animation: "spin 1s linear infinite" }} />
-        {expanded && <span style={{ fontSize: "12px", color: "#64748b" }}>Cargando...</span>}
+        {expanded && <span style={{ fontSize: "12px", color: "#64748b" }}>{text.loading}</span>}
       </div>
     );
   }
@@ -887,8 +1069,8 @@ const UserProfileBadge = ({
           width: "100%",
         }}
       >
-        <User size={16} />
-        {expanded && "Iniciar Sesión"}
+          <User size={16} />
+          {expanded && text.signIn}
       </button>
     );
   }
@@ -906,7 +1088,8 @@ const UserProfileBadge = ({
   return (
     <div style={{ position: "relative", width: "100%" }}>
       <button
-        onClick={() => setShowMenu(!showMenu)}
+        ref={triggerRef}
+        onClick={() => setShowMenu((prev) => !prev)}
         style={{
           display: "flex",
           alignItems: "center",
@@ -966,7 +1149,7 @@ const UserProfileBadge = ({
               }}
             >
               <Crown size={10} />
-              {userPlan === "free" ? "Plan Gratuito" : `Plan ${userPlan}`}
+              {userPlan === "free" ? text.planFree : `${text.planLabel} ${userPlan}`}
             </div>
           </div>
         )}
@@ -976,6 +1159,7 @@ const UserProfileBadge = ({
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setShowMenu(false)} />
           <div
+            ref={menuRef}
             style={{
               position: "absolute",
               bottom: "100%",
@@ -988,8 +1172,31 @@ const UserProfileBadge = ({
               minWidth: "220px",
               zIndex: 50,
               boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+              overflow: "hidden",
             }}
           >
+            <button
+              type="button"
+              onClick={() => setShowMenu(false)}
+              style={{
+                position: "absolute",
+                top: "10px",
+                right: "10px",
+                width: "30px",
+                height: "30px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "10px",
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.06)",
+                cursor: "pointer",
+              }}
+              aria-label="Close menu"
+            >
+              <X size={16} color="#cbd5e1" />
+            </button>
+
             {/* Info del usuario */}
             <div
               style={{
@@ -999,7 +1206,7 @@ const UserProfileBadge = ({
               }}
             >
               <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
-                Conectado como
+                {text.connectedAs}
               </div>
               <div
                 style={{
@@ -1028,14 +1235,40 @@ const UserProfileBadge = ({
                 }}
               >
                 <Crown size={12} />
-                {userPlan === "free" ? "Plan Gratuito" : `Plan ${userPlan}`}
+                {userPlan === "free" ? text.planFree : `${text.planLabel} ${userPlan}`}
               </div>
 
               {subscription && (
                 <div style={{ fontSize: "10px", color: "#64748b", marginTop: "6px" }}>
-                  Activo desde: {new Date(subscription.created_at).toLocaleDateString()}
+                  {text.activeSince}: {new Date(subscription.created_at).toLocaleDateString()}
                 </div>
               )}
+            </div>
+
+            <div style={{ padding: "8px 12px", marginBottom: "4px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px", color: "#94a3b8", fontSize: "12px" }}>
+                <Languages size={14} /> {text.language}
+              </div>
+              <select
+                value={language}
+                onChange={(e) => {
+                  onLanguageChange(e.target.value as AppLanguage);
+                  setShowMenu(false);
+                }}
+                style={{
+                  width: "100%",
+                  background: "rgba(15,23,42,0.8)",
+                  color: "#e2e8f0",
+                  border: "1px solid rgba(148,163,184,0.3)",
+                  borderRadius: "8px",
+                  padding: "8px 10px",
+                  fontSize: "12px",
+                  outline: "none",
+                }}
+              >
+                <option value="es">Español</option>
+                <option value="en">English</option>
+              </select>
             </div>
 
             {/* Botón refrescar suscripción */}
@@ -1059,7 +1292,7 @@ const UserProfileBadge = ({
               }}
             >
               <RefreshCw size={16} style={{ animation: refreshing ? "spin 1s linear infinite" : "none" }} />
-              {refreshing ? "Actualizando..." : "Refrescar estado"}
+              {refreshing ? text.refreshing : text.refreshState}
             </button>
 
             {/* Botón ver/actualizar plan */}
@@ -1084,7 +1317,7 @@ const UserProfileBadge = ({
               }}
             >
               <Crown size={16} />
-              {userPlan === "free" ? "Actualizar Plan" : "Ver mi Plan"}
+              {userPlan === "free" ? text.updatePlan : text.viewPlan}
             </button>
 
             {/* Botón cerrar sesión */}
@@ -1109,7 +1342,7 @@ const UserProfileBadge = ({
               }}
             >
               <LogOut size={16} />
-              Cerrar Sesión
+              {text.logout}
             </button>
           </div>
         </>
@@ -1552,7 +1785,36 @@ export default function MainLayout({
   onOpenAuth, // ✅ ya existía en props, ahora lo usamos
 }: MainLayoutProps) {
   const router = useRouter();
-  const { user, userPlan, hasFeatureAccess, loading, enabledFeatures } = useAuth();
+  const { user, userPlan, hasFeatureAccess, loading, enabledFeatures, isAdmin, isPlatformAdmin } = useAuth();
+  const [language, setLanguage] = useState<AppLanguage>("es");
+  const [theme, setTheme] = useState<AppTheme>("dark");
+  const text = UI_TEXT[language];
+
+  useEffect(() => {
+    const savedLanguage = localStorage.getItem("botz-language");
+    if (savedLanguage === "es" || savedLanguage === "en") {
+      setLanguage(savedLanguage);
+    }
+
+    const savedTheme = localStorage.getItem("botz-theme");
+    if (savedTheme === "dark" || savedTheme === "light") {
+      setTheme(savedTheme);
+    }
+
+    const onThemeChange = (event: Event) => {
+      const next = (event as CustomEvent<AppTheme>).detail;
+      if (next === "dark" || next === "light") setTheme(next);
+    };
+
+    window.addEventListener("botz-theme-change", onThemeChange);
+    return () => window.removeEventListener("botz-theme-change", onThemeChange);
+  }, []);
+
+  const handleLanguageChange = (nextLanguage: AppLanguage) => {
+    setLanguage(nextLanguage);
+    localStorage.setItem("botz-language", nextLanguage);
+    window.dispatchEvent(new CustomEvent("botz-language-change", { detail: nextLanguage }));
+  };
 
   // ✅ NUEVO: estado del modal de auth (para abrir sin reload)
   const [authOpen, setAuthOpen] = useState(false);
@@ -1628,21 +1890,25 @@ export default function MainLayout({
 
   // Tabs de navegación
   const navTabs = [
-    { id: "demo", label: "Operación en Vivo", icon: <Play size={18} /> },
-    { id: "hipoteca", label: "Cálculo Hipotecario", icon: <Calculator size={18} /> },
-    { id: "channels", label: "Canales", icon: <Globe size={18} /> },
-    { id: "n8n-config", label: "Dashboard Ejecutivo", icon: <Settings size={18} /> },
-    { id: "crm", label: "CRM en Vivo", icon: <Users size={18} /> },
-    { id: "sla", label: "Alertas SLA", icon: <BarChart3 size={18} /> },
-    { id: "kanban", label: "Kanban", icon: <KanbanSquare size={18} /> },
+    { id: "demo", label: text.liveOps, icon: <Play size={18} /> },
+    { id: "hipoteca", label: text.mortgageCalc, icon: <Calculator size={18} /> },
+    { id: "channels", label: text.channels, icon: <Globe size={18} /> },
+    ...(isAdmin || isPlatformAdmin
+      ? [{ id: "agents", label: (text as any).agentsTab || (language === "en" ? "AI Agents" : "Agentes IA"), icon: <Bot size={18} /> }]
+      : []),
+    { id: "n8n-config", label: text.execDashboard, icon: <Settings size={18} /> },
+    { id: "crm", label: text.crmLive, icon: <Users size={18} /> },
+    { id: "sla", label: text.slaAlerts, icon: <BarChart3 size={18} /> },
+    { id: "kanban", label: text.kanban, icon: <KanbanSquare size={18} /> },
   ];
 
   return (
     <div
+      data-botz-theme={theme}
       style={{
-        backgroundColor: "#02040a",
+        backgroundColor: "var(--botz-bg)",
         minHeight: "100vh",
-        color: "#e6edf3",
+        color: "var(--botz-text)",
         fontFamily: "system-ui",
         position: "relative",
         overflowX: "hidden",
@@ -1652,11 +1918,51 @@ export default function MainLayout({
       <style
         dangerouslySetInnerHTML={{
           __html: `
+        /* Theme tokens (Start only) */
+        [data-botz-theme="dark"] {
+          --botz-bg: #02040a;
+          --botz-bg-elev: rgba(10, 15, 30, 0.95);
+          --botz-surface: #1e293b;
+          --botz-surface-2: #0f172a;
+          --botz-surface-3: rgba(255,255,255,0.04);
+          --botz-panel: rgba(10, 15, 30, 0.6);
+          --botz-border: rgba(255,255,255,0.1);
+          --botz-border-soft: rgba(255,255,255,0.08);
+          --botz-border-strong: #334155;
+          --botz-text: #e6edf3;
+          --botz-muted: #94a3b8;
+          --botz-muted-2: #64748b;
+          --botz-shadow: 0 20px 60px rgba(0,0,0,0.5);
+          --botz-shadow-2: 0 10px 25px rgba(0,0,0,0.45);
+          --botz-hero-grad: linear-gradient(135deg, #02040a 0%, #0a2540 100%);
+          --botz-hero-title-grad: linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%);
+        }
+        [data-botz-theme="light"] {
+          --botz-bg: #f4f7fb;
+          --botz-bg-elev: rgba(255, 255, 255, 0.86);
+          --botz-surface: #ffffff;
+          --botz-surface-2: #f8fafc;
+          --botz-surface-3: rgba(15,23,42,0.04);
+          --botz-panel: rgba(255, 255, 255, 0.78);
+          --botz-border: rgba(15,23,42,0.12);
+          --botz-border-soft: rgba(15,23,42,0.10);
+          --botz-border-strong: rgba(15,23,42,0.18);
+          --botz-text: #0f172a;
+          --botz-muted: #475569;
+          --botz-muted-2: #64748b;
+          --botz-shadow: 0 20px 60px rgba(15,23,42,0.16);
+          --botz-shadow-2: 0 10px 25px rgba(15,23,42,0.12);
+          --botz-hero-grad: radial-gradient(1200px 600px at 15% 10%, rgba(59,130,246,0.12) 0%, rgba(59,130,246,0) 55%),
+            radial-gradient(900px 500px at 75% 5%, rgba(139,92,246,0.10) 0%, rgba(139,92,246,0) 60%),
+            linear-gradient(180deg, #ffffff 0%, #eef2ff 100%);
+          --botz-hero-title-grad: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        }
+
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-        * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) rgba(255,255,255,0.02); }
+        ::-webkit-scrollbar-track { background: var(--botz-surface-3); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: var(--botz-border); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--botz-border-strong); }
+        * { scrollbar-width: thin; scrollbar-color: var(--botz-border) var(--botz-surface-3); }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `,
@@ -1678,37 +1984,47 @@ export default function MainLayout({
         requiredPlan={lockedFeatureRequiredPlan}
       />
 
+      {/* Dock (kept outside surface for fixed positioning) */}
+      <ActionsDock
+        showDock={showDock}
+        setShowDock={setShowDock}
+        user={user}
+        onOpenAuth={openAuth}
+      />
+
+      <div className="botz-theme-surface" style={{ minHeight: "100vh" }}>
+
       {/* Menú lateral */}
-      <div
-        onMouseEnter={handleSidebarMouseEnter}
-        onMouseLeave={handleSidebarMouseLeave}
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          height: "100vh",
-          width: isSidebarExpanded ? "240px" : "70px",
-          background: "rgba(10, 15, 30, 0.95)",
-          borderRight: "1px solid rgba(255,255,255,0.1)",
-          backdropFilter: "blur(20px)",
-          zIndex: 100,
-          transition: "width 0.3s ease",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
-        {/* Logo */}
         <div
+          onMouseEnter={handleSidebarMouseEnter}
+          onMouseLeave={handleSidebarMouseLeave}
           style={{
-            padding: "20px",
-            borderBottom: "1px solid rgba(255,255,255,0.1)",
+            position: "fixed",
+            top: 0,
+            left: 0,
+            height: "100vh",
+            width: isSidebarExpanded ? "240px" : "70px",
+            background: "var(--botz-bg-elev)",
+            borderRight: "1px solid var(--botz-border)",
+            backdropFilter: "blur(20px)",
+            zIndex: 100,
+            transition: "width 0.3s ease",
             display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            minHeight: "60px",
+            flexDirection: "column",
+            overflow: "hidden",
           }}
         >
+        {/* Logo */}
+          <div
+            style={{
+              padding: "20px",
+              borderBottom: "1px solid var(--botz-border)",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              minHeight: "60px",
+            }}
+          >
           <div
             style={{
               background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
@@ -1755,7 +2071,7 @@ export default function MainLayout({
           >
             <Crown size={14} />
             <span>
-              Plan: <strong>{userPlan === "free" ? "Gratuito" : userPlan}</strong>
+              {text.planLabel}: <strong>{userPlan === "free" ? text.freeShort : userPlan}</strong>
             </span>
           </div>
         )}
@@ -1880,20 +2196,17 @@ export default function MainLayout({
           </button>
 
           {/* Perfil de usuario */}
-          <UserProfileBadge expanded={isSidebarExpanded} onOpenAuth={openAuth} />
+          <UserProfileBadge
+            expanded={isSidebarExpanded}
+            onOpenAuth={openAuth}
+            language={language}
+            onLanguageChange={handleLanguageChange}
+          />
         </div>
       </div>
 
       {/* Contenedor principal */}
       <div style={{ marginLeft: isSidebarExpanded ? "240px" : "70px", transition: "margin-left 0.3s ease" }}>
-        {/* Dock flotante */}
-{/* Dock de Acciones */}
-<ActionsDock 
-  showDock={showDock}
-  setShowDock={setShowDock}
-  user={user}
-  onOpenAuth={openAuth}
-/>
         {/* ✅ BARRA SUPERIOR COMPACTA - Solo cuando NO estás en demo/home */}
         {!showHeroSection && (
           <div
@@ -1919,9 +2232,9 @@ export default function MainLayout({
                   gap: "8px",
                   padding: "10px 16px",
                   borderRadius: "10px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "rgba(255,255,255,0.05)",
-                  color: "#94a3b8",
+                  border: "1px solid var(--botz-border)",
+                  background: "var(--botz-surface-3)",
+                  color: "var(--botz-muted)",
                   fontSize: "13px",
                   cursor: "pointer",
                   fontWeight: "500",
@@ -1929,7 +2242,7 @@ export default function MainLayout({
                 }}
               >
                 <ArrowLeft size={16} />
-                Volver al Inicio
+                {text.backToHome}
               </button>
 
               <div
@@ -1965,7 +2278,7 @@ export default function MainLayout({
                   }}
                 >
                   <Crown size={14} />
-                  Plan {userPlan === "free" ? "Gratuito" : userPlan}
+                  {text.planLabel} {userPlan === "free" ? text.freeShort : userPlan}
                 </div>
               )}
             </div>
@@ -1974,7 +2287,7 @@ export default function MainLayout({
 
         {/* Hero Section - Solo mostrar cuando estás en Demo/Home */}
         {showHeroSection && (
-          <div style={{ background: "linear-gradient(135deg, #02040a 0%, #0a2540 100%)", padding: "80px 40px 40px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+          <div style={{ background: "var(--botz-hero-grad)", padding: "80px 40px 40px", borderBottom: "1px solid var(--botz-border)" }}>
             <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "60px", alignItems: "center" }}>
                 <div>
@@ -1983,14 +2296,14 @@ export default function MainLayout({
                       <BrainCircuit size={24} color="#fff" />
                     </div>
                     <span style={{ background: "rgba(102, 126, 234, 0.1)", color: "#667eea", padding: "6px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" }}>
-                      AUTOMATIZACIÓN INTELIGENTE + HIPOTECARIO
+                      {text.heroBadge}
                     </span>
                   </div>
-                  <h1 style={{ fontSize: "48px", fontWeight: "bold", margin: "0 0 20px 0", lineHeight: 1.2, background: "linear-gradient(135deg, #fff 0%, #a5b4fc 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                    Convierte Más Leads en <br /> Hipotecas Firmadas
+                  <h1 style={{ fontSize: "48px", fontWeight: "bold", margin: "0 0 20px 0", lineHeight: 1.2, background: "var(--botz-hero-title-grad)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                    {text.heroTitleLine1} <br /> {text.heroTitleLine2}
                   </h1>
-                  <p style={{ fontSize: "18px", color: "#8b949e", marginBottom: "30px", lineHeight: 1.6 }}>
-                    WhatsApp, Meta Ads, Instagram, Google y más. Automatiza tu atención al cliente, captura leads y calcula hipotecas con nuestra plataforma todo-en-uno.
+                  <p style={{ fontSize: "18px", color: "var(--botz-muted)", marginBottom: "30px", lineHeight: 1.6 }}>
+                    {text.heroSubtitle}
                   </p>
                   <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
                     <button
@@ -2009,14 +2322,14 @@ export default function MainLayout({
                         gap: "10px",
                       }}
                     >
-                      Probar Demo <Play size={18} />
+                      {text.heroPrimaryCta} <Play size={18} />
                     </button>
                     <button
                       onClick={() => router.push("/pricing")}
                       style={{
-                        background: "rgba(255,255,255,0.05)",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        color: "#fff",
+                        background: "var(--botz-surface)",
+                        border: "1px solid var(--botz-border)",
+                        color: "var(--botz-text)",
                         padding: "16px 32px",
                         borderRadius: "12px",
                         fontWeight: "bold",
@@ -2027,7 +2340,7 @@ export default function MainLayout({
                         gap: "10px",
                       }}
                     >
-                      <Calculator size={18} /> Adquiere tu mejor solucion 
+                      <Calculator size={18} /> {text.heroSecondaryCta}
                     </button>
                   </div>
                 </div>
@@ -2038,8 +2351,8 @@ export default function MainLayout({
                       <div
                         key={channel.id}
                         style={{
-                          background: "rgba(255,255,255,0.03)",
-                          border: `1px solid ${channel.active ? channel.color + "40" : "rgba(255,255,255,0.06)"}`,
+                          background: "var(--botz-surface)",
+                          border: `1px solid ${channel.active ? channel.color + "40" : "var(--botz-border)"}`,
                           borderRadius: "16px",
                           padding: "20px",
                           display: "flex",
@@ -2050,34 +2363,34 @@ export default function MainLayout({
                         }}
                       >
                         <div style={{ color: channel.color }}>{channel.icon}</div>
-                        <span style={{ fontSize: "12px", fontWeight: "bold", textAlign: "center" }}>{channel.name}</span>
+                        <span style={{ fontSize: "12px", fontWeight: "bold", textAlign: "center", color: "var(--botz-text)" }}>{channel.name}</span>
                       </div>
                     ))}
                   </div>
 
-                  <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "16px", padding: "20px", marginTop: "20px" }}>
+                  <div style={{ background: "var(--botz-surface-2)", border: "1px solid var(--botz-border)", borderRadius: "16px", padding: "20px", marginTop: "20px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                      <span style={{ fontSize: "14px", color: "#8b949e" }}>Conexión en tiempo real</span>
+                      <span style={{ fontSize: "14px", color: "var(--botz-muted)" }}>{text.realtimeConnection}</span>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                         <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#34d399", animation: "pulse 2s infinite" }} />
-                        <span style={{ fontSize: "12px", color: "#34d399", fontWeight: "bold" }}>ACTIVO</span>
+                        <span style={{ fontSize: "12px", color: "#34d399", fontWeight: "bold" }}>{text.statusActive}</span>
                       </div>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between" }}>
                       <div style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: "24px", fontWeight: "bold", color: "#fff" }}>9+</div>
-                        <div style={{ fontSize: "12px", color: "#8b949e" }}>Canales</div>
+                        <div style={{ fontSize: "24px", fontWeight: "bold", color: "var(--botz-text)" }}>9+</div>
+                        <div style={{ fontSize: "12px", color: "var(--botz-muted)" }}>{text.statChannels}</div>
                       </div>
                       <div style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: "24px", fontWeight: "bold", color: "#fff" }}>24/7</div>
-                        <div style={{ fontSize: "12px", color: "#8b949e" }}>Disponibilidad</div>
+                        <div style={{ fontSize: "24px", fontWeight: "bold", color: "var(--botz-text)" }}>24/7</div>
+                        <div style={{ fontSize: "12px", color: "var(--botz-muted)" }}>{text.statAvailability}</div>
                       </div>
                       <div style={{ textAlign: "center" }}>
-                        <div style={{ fontSize: "24px", fontWeight: "bold", color: "#fff" }}>
+                        <div style={{ fontSize: "24px", fontWeight: "bold", color: "var(--botz-text)" }}>
                           <Calculator size={20} style={{ display: "inline", marginRight: "8px" }} />
-                          +Hipoteca
+                          {text.plusMortgage}
                         </div>
-                        <div style={{ fontSize: "12px", color: "#8b949e" }}>Cálculo Inteligente</div>
+                        <div style={{ fontSize: "12px", color: "var(--botz-muted)" }}>{text.statSmartCalc}</div>
                       </div>
                     </div>
                   </div>
@@ -2103,9 +2416,11 @@ export default function MainLayout({
         </div>
 
         {/* Footer */}
-        <div style={{ background: "rgba(10, 15, 30, 0.95)", borderTop: "1px solid rgba(255,255,255,0.1)", padding: "40px", marginTop: "60px", color: "#8b949e", textAlign: "center", fontSize: "14px" }}>
-          © {new Date().getFullYear()} Botz · Automatización Inteligente
+        <div style={{ background: "var(--botz-bg-elev)", borderTop: "1px solid var(--botz-border)", padding: "40px", marginTop: "60px", color: "var(--botz-muted)", textAlign: "center", fontSize: "14px" }}>
+          © {new Date().getFullYear()} Botz · {text.footerTagline}
         </div>
+      </div>
+
       </div>
     </div>
   );

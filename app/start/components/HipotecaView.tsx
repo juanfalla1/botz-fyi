@@ -7,6 +7,7 @@ import {
   PieChart, Landmark, BrainCircuit, Printer,
   Globe, RefreshCw
 } from "lucide-react";
+import useBotzLanguage from "../hooks/useBotzLanguage";
 
 type HipotecaCalculo = {
   valorVivienda: number;
@@ -237,6 +238,191 @@ function isValidUUID(str: string): boolean {
 
 export default function HipotecaView({ calculo, leadId, mode = "manual" }: HipotecaViewProps) {
   const isLeadMode = mode === "lead" && leadId && leadId.trim() !== "";
+
+  const language = useBotzLanguage();
+  const copy = {
+    es: {
+      dtiMax: "DTI máx:",
+      downPayment: "Entrada:",
+      saveToCrm: "Guardar en CRM",
+      reset: "Reset",
+      houseValue: "Valor Vivienda",
+      savings: "Ahorros que aporta",
+      requestedMortgage: "Importe Hipoteca Solicitada",
+      monthlyIncome: "Ingresos Mensuales",
+      monthlyDebts: "Deudas Mensuales",
+      term: "Plazo",
+      years: "años",
+      annualRate: "Tasa Anual",
+      analysisRate: "Tasa para análisis:",
+      useAnnualRate: "Usar Tasa Anual",
+      useEuriborDiff: "Usar Euríbor + Dif",
+      bankingFeasibility: "Análisis de Viabilidad Bancaria",
+      leadModeAuto: "Modo Lead (Auto) - Sincronizado con tabla leads",
+      manualSimulationFor: "Simulación manual para",
+      exportSheet: "Exportar Ficha",
+      downloadCsv: "Descargar Excel (CSV)",
+      savePdfPrint: "Guardar PDF / Imprimir",
+      close: "Cerrar",
+      globalScore: "Scoring Global",
+      excellent: "Excelente",
+      eligible: "Cliente Apto",
+      regular: "Regular",
+      highRisk: "Riesgo Alto",
+      saveEval: "Guardar Evaluación y Recibir Recomendaciones",
+      saveEvalDesc: "Guarda tu evaluación para recibir análisis personalizado y recomendaciones de expertos en hipotecas.",
+      getPersonalScore: "Obtener mi Score de Lead Personalizado",
+
+      // Country-specific fields
+      housingType: "Tipo Vivienda",
+      housingTypeNoVis: "No VIS",
+      housingTypeVis: "VIS",
+      modality: "Modalidad",
+      modalityCreditPesos: "Crédito Pesos",
+      modalityLeasing: "Leasing",
+      modalityUvr: "UVR",
+      city: "Ciudad",
+      subsidy: "Subsidio",
+      jobTenure: "Antigüedad Laboral",
+      months: "meses",
+      creditScore: "Score Crediticio",
+      age: "Edad",
+      minimumExpenses: "Gastos Mínimos",
+      perMonth: "€/mes",
+      euribor12m: "Euríbor 12M",
+      spread: "Diferencial",
+
+      // Lead status bar
+      syncedRealtime: "● Datos sincronizados en tiempo real",
+      selectLeadAbove: "Selecciona un lead arriba",
+
+      // KPIs + sections
+      creditScoreKpi: "Score Crediticio",
+      creditScoreExcellent: "Excelente",
+      creditScoreVeryGood: "Muy bueno",
+      creditScoreGood: "Bueno",
+      creditScoreLow: "Bajo",
+      ageProfile: "Perfil Edad",
+      ageYears: "años",
+      ageOptimal: "Edad óptima",
+      ageAcceptable: "Aceptable",
+      ageHighRisk: "Riesgo alto",
+      ageLimited: "Limitado",
+      closeToApprove: "🎯 CERCA DE APROBAR - Acciones recomendadas",
+      legalRequirementsFailed: "⚠️ REQUISITOS LEGALES INCUMPLIDOS",
+      approvedTitle: "✅ ¡CLIENTE APROBADO! Oportunidades de venta",
+
+      dtiRatio: "Ratio Endeudamiento (DTI)",
+      maxRecommended: (n: number) => `Máximo rec. ${n}%`,
+      maxPurchaseCapacity: "Capacidad Compra Máx",
+      basedOnIncome: "Basado en ingresos",
+      cashToCloseTitle: "Fondos Reales Necesarios (Cash to Close)",
+      downPaymentLine: (pct: number) => `Entrada (${pct}%)`,
+      taxesAndFeesLine: (pct: number) => `Impuestos y Gastos (~${pct}%)`,
+      totalNeeded: "TOTAL NECESARIO",
+      marketScenarios: "Escenarios de Mercado",
+      fixed: "Fijo",
+      mixed: "Mixto",
+      variable: "Variable",
+      bankRadar: (country: string) => `Radar Bancario - ${country}`,
+      viabilityLabel: "Viabilidad",
+
+      coachTips: "BOTZ COACH TIPS",
+
+      considerLowerTermOrMoreDown: "• Considerar menor plazo o mayor entrada inicial",
+    },
+    en: {
+      dtiMax: "Max DTI:",
+      downPayment: "Down payment:",
+      saveToCrm: "Save to CRM",
+      reset: "Reset",
+      houseValue: "Home Price",
+      savings: "Savings",
+      requestedMortgage: "Requested Mortgage",
+      monthlyIncome: "Monthly Income",
+      monthlyDebts: "Monthly Debts",
+      term: "Term",
+      years: "years",
+      annualRate: "Annual Rate",
+      analysisRate: "Analysis rate:",
+      useAnnualRate: "Use Annual Rate",
+      useEuriborDiff: "Use Euribor + Spread",
+      bankingFeasibility: "Bank Eligibility Analysis",
+      leadModeAuto: "Lead Mode (Auto) - Synced with leads table",
+      manualSimulationFor: "Manual simulation for",
+      exportSheet: "Export Sheet",
+      downloadCsv: "Download Excel (CSV)",
+      savePdfPrint: "Save PDF / Print",
+      close: "Close",
+      globalScore: "Global Score",
+      excellent: "Excellent",
+      eligible: "Eligible",
+      regular: "Fair",
+      highRisk: "High Risk",
+      saveEval: "Save Evaluation & Get Recommendations",
+      saveEvalDesc: "Save your evaluation to receive personalized analysis and expert mortgage recommendations.",
+      getPersonalScore: "Get My Personalized Lead Score",
+
+      // Country-specific fields
+      housingType: "Housing Type",
+      housingTypeNoVis: "Non-VIS",
+      housingTypeVis: "VIS",
+      modality: "Modality",
+      modalityCreditPesos: "Credit (COP)",
+      modalityLeasing: "Leasing",
+      modalityUvr: "UVR",
+      city: "City",
+      subsidy: "Subsidy",
+      jobTenure: "Job Tenure",
+      months: "months",
+      creditScore: "Credit Score",
+      age: "Age",
+      minimumExpenses: "Minimum Expenses",
+      perMonth: "EUR/month",
+      euribor12m: "12M Euribor",
+      spread: "Spread",
+
+      // Lead status bar
+      syncedRealtime: "● Synced in real time",
+      selectLeadAbove: "Select a lead above",
+
+      // KPIs + sections
+      creditScoreKpi: "Credit Score",
+      creditScoreExcellent: "Excellent",
+      creditScoreVeryGood: "Very good",
+      creditScoreGood: "Good",
+      creditScoreLow: "Low",
+      ageProfile: "Age Profile",
+      ageYears: "years",
+      ageOptimal: "Optimal age",
+      ageAcceptable: "Acceptable",
+      ageHighRisk: "High risk",
+      ageLimited: "Limited",
+      closeToApprove: "🎯 CLOSE TO APPROVAL - Recommended actions",
+      legalRequirementsFailed: "⚠️ LEGAL REQUIREMENTS NOT MET",
+      approvedTitle: "✅ CUSTOMER APPROVED! Sales opportunities",
+
+      dtiRatio: "Debt-to-Income (DTI)",
+      maxRecommended: (n: number) => `Max rec. ${n}%`,
+      maxPurchaseCapacity: "Max Purchase Capacity",
+      basedOnIncome: "Based on income",
+      cashToCloseTitle: "Cash to Close (Funds Required)",
+      downPaymentLine: (pct: number) => `Down payment (${pct}%)`,
+      taxesAndFeesLine: (pct: number) => `Taxes & fees (~${pct}%)`,
+      totalNeeded: "TOTAL NEEDED",
+      marketScenarios: "Market Scenarios",
+      fixed: "Fixed",
+      mixed: "Mixed",
+      variable: "Variable",
+      bankRadar: (country: string) => `Bank Radar - ${country}`,
+      viabilityLabel: "Eligibility",
+
+      coachTips: "BOTZ COACH TIPS",
+
+      considerLowerTermOrMoreDown: "• Consider a shorter term or higher down payment",
+    },
+  } as const;
+  const t = copy[language];
   
   const [manualInputs, setManualInputs] = useState({
     valorVivienda: 0,
@@ -662,6 +848,23 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
     }
   }, [pais, score]);
 
+  const tr = (esText: string, enText: string) => (language === "en" ? enText : esText);
+
+  const translateBankNote = (note: string) => {
+    if (language !== "en") return note;
+    const map: Record<string, string> = {
+      "Acepta DTI 40%": "Accepts DTI 40%",
+      "Estricto con nómina": "Strict on payroll",
+      "Bueno para funcionarios": "Good for public employees",
+      "Flexible en LTV": "Flexible on LTV",
+      "Líder en hipotecas": "Mortgage leader",
+      "Buenos plazos": "Good terms",
+      "Tasas competitivas": "Competitive rates",
+      "Amplia cobertura": "Wide coverage",
+    };
+    return map[note] || note;
+  };
+
   const banks = paisConfig.bancos.map((bank, i) => {
     // ✅ Probabilidad base según scoring real del cliente
     let prob = getBankProb(score * 0.9 + (85 + i * 3) * 0.1); // 90% score + 10% base
@@ -704,32 +907,32 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
       // Lógica específica Colombia CONECTADA CON SCORING
       if (bank.name === "Bancolombia" && colombiaFields.tipoVivienda === "VIS") {
         prob = Math.min(99, prob + 15);
-        recommendation = "Excelente para vivienda VIS";
+        recommendation = tr("Excelente para vivienda VIS", "Great for VIS housing");
         rateAdjustment -= 0.5;
       }
       if (bank.name === "Davivienda" && colombiaFields.subsidio === "Sí") {
         prob = Math.min(99, prob + 20);
-        recommendation = "Mejor opción con subsidio";
+        recommendation = tr("Mejor opción con subsidio", "Best option with subsidy");
         rateAdjustment -= 0.8;
       }
       if (bank.name === "BBVA Colombia" && colombiaFields.modalidad === "Leasing Habitacional") {
         prob = Math.min(99, prob + 10);
-        recommendation = "Líder en leasing habitacional";
+        recommendation = tr("Líder en leasing habitacional", "Leader in housing leasing");
         rateAdjustment -= 0.3;
       }
       
       // Conexión directa con score crediticio Colombia
       if (colombiaFields.scoreCrediticioColombia >= 800) {
         prob = Math.min(99, prob + 25);
-        recommendation += " | Score excelente";
+        recommendation += tr(" | Score excelente", " | Excellent score");
         rateAdjustment -= 0.8;
       } else if (colombiaFields.scoreCrediticioColombia >= 700) {
         prob = Math.min(99, prob + 15);
-        recommendation += " | Score muy bueno";
+        recommendation += tr(" | Score muy bueno", " | Very good score");
         rateAdjustment -= 0.5;
       } else if (colombiaFields.scoreCrediticioColombia < 600) {
         prob = Math.max(10, prob - 30);
-        recommendation += " | Score bajo";
+        recommendation += tr(" | Score bajo", " | Low score");
         rateAdjustment += 1.0;
       }
 
@@ -738,7 +941,7 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
         prob = Math.min(99, prob + 10);
       } else if (colombiaFields.antiguedadLaboral < 6) {
         prob = Math.max(5, prob - 40); // Casi imposible
-        recommendation += " | Antigüedad insuficiente";
+        recommendation += tr(" | Antigüedad insuficiente", " | Insufficient tenure");
       }
     }
 
@@ -746,15 +949,15 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
       // Lógica específica España CONECTADA CON SCORING
       if (bank.name === "Santander" && calc.dti < 30) {
         prob = Math.min(99, prob + 12);
-        recommendation = "Acepta DTI hasta 40%";
+        recommendation = tr("Acepta DTI hasta 40%", "Accepts DTI up to 40%");
       }
       if (bank.name === "BBVA" && calc.ingresosMensuales > 3000) {
         prob = Math.min(99, prob + 8);
-        recommendation = "Bueno para ingresos altos";
+        recommendation = tr("Bueno para ingresos altos", "Good for high income");
       }
       if (tasaAnalisisMode === "euribor" && bank.name === "CaixaBank") {
         prob = Math.min(99, prob + 15);
-        recommendation = "Flexible con Euríbor";
+        recommendation = tr("Flexible con Euríbor", "Flexible with Euribor");
       }
       
       // Edad afecta probabilidades España
@@ -763,13 +966,14 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
           prob = Math.min(99, prob + 10);
         } else if (spainFields.edad > 65) {
           prob = Math.max(20, prob - 30);
-          recommendation += " | Edad avanzada";
+          recommendation += tr(" | Edad avanzada", " | Advanced age");
         }
       }
     }
 
     return {
       ...bank,
+      note: translateBankNote(bank.note),
       prob: Math.round(prob),
       recommendation,
       rateAdjustment: Math.round(rateAdjustment * 100) / 100,
@@ -1042,17 +1246,17 @@ const saveLeadScoreToCRM = async () => {
                 ))}
               </select>
               <span style={{ fontSize: "11px", color: "#64748b" }}>
-                DTI máx: {paisConfig.dtiMaximo}% | Entrada: {paisConfig.entradaMinima * 100}%
+                {t.dtiMax} {paisConfig.dtiMaximo}% | {t.downPayment} {paisConfig.entradaMinima * 100}%
               </span>
             </div>
             <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
               {leadId && (
                 <button onClick={saveManualToLead} style={saveButtonStyle}>
-                  Guardar en CRM
+                  {t.saveToCrm}
                 </button>
               )}
               <button onClick={resetManual} style={resetButtonStyle}>
-                <RefreshCw size={12} /> Reset
+                <RefreshCw size={12} /> {t.reset}
               </button>
             </div>
           </div>
@@ -1063,13 +1267,13 @@ const saveLeadScoreToCRM = async () => {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px" }}>
             <InputField
-              label="Valor Vivienda"
+              label={t.houseValue}
               value={manualInputs.valorVivienda}
               onChange={(v) => handleInputChange("valorVivienda", v)}
               prefix={paisConfig.simbolo}
             />
             <InputField
-              label="Ahorros que aporta"
+              label={t.savings}
               value={aportacionReal}
               onChange={(v) => {
                 const val = Number(v) || 0;
@@ -1081,31 +1285,31 @@ const saveLeadScoreToCRM = async () => {
               prefix={paisConfig.simbolo}
             />
             <InputField
-              label="Importe Hipoteca Solicitada"
+              label={t.requestedMortgage}
               value={cantidadAFinanciar}
               onChange={(v) => { setManualDirty(true); setCantidadAFinanciar(Number(v) || 0); }}
               prefix={paisConfig.simbolo}
             />
             <InputField
-              label="Ingresos Mensuales"
+              label={t.monthlyIncome}
               value={manualInputs.ingresosMensuales}
               onChange={(v) => handleInputChange("ingresosMensuales", v)}
               prefix={paisConfig.simbolo}
             />
             <InputField
-              label="Deudas Mensuales"
+              label={t.monthlyDebts}
               value={manualInputs.deudasExistentes}
               onChange={(v) => handleInputChange("deudasExistentes", v)}
               prefix={paisConfig.simbolo}
             />
             <InputField
-              label="Plazo"
+              label={t.term}
               value={manualInputs.plazo}
               onChange={(v) => handleInputChange("plazo", v)}
-              suffix="años"
+              suffix={t.years}
             />
             <InputField
-              label="Tasa Anual"
+              label={t.annualRate}
               value={manualInputs.tasa}
               onChange={(v) => handleInputChange("tasa", v)}
               suffix="%"
@@ -1113,15 +1317,15 @@ const saveLeadScoreToCRM = async () => {
             />
 
             {pais === "España" && (
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "-6px", marginBottom: "6px" }}>
-                <span style={{ fontSize: "11px", color: "#64748b" }}>Tasa para análisis:</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "-6px", marginBottom: "6px" }}>
+                <span style={{ fontSize: "11px", color: "#64748b" }}>{t.analysisRate}</span>
                 <select
                   value={tasaAnalisisMode}
                   onChange={(e) => setTasaAnalisisMode(e.target.value as any)}
                   style={{ ...selectStyle, padding: "6px 10px", fontSize: "12px" }}
                 >
-                  <option value="anual">Usar Tasa Anual</option>
-                  <option value="euribor">Usar Euríbor + Dif</option>
+                  <option value="anual">{t.useAnnualRate}</option>
+                  <option value="euribor">{t.useEuriborDiff}</option>
                 </select>
                 {tasaAnalisisMode === "euribor" && (
                   <span style={{ fontSize: "11px", color: "#64748b" }}>
@@ -1134,14 +1338,14 @@ const saveLeadScoreToCRM = async () => {
 
             {pais === "España" && (
               <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "-6px", marginBottom: "6px" }}>
-                <span style={{ fontSize: "11px", color: "#64748b" }}>Tasa para análisis:</span>
+                <span style={{ fontSize: "11px", color: "#64748b" }}>{t.analysisRate}</span>
                 <select
                   value={tasaAnalisisMode}
                   onChange={(e) => setTasaAnalisisMode(e.target.value as any)}
                   style={{ ...selectStyle, padding: "6px 10px", fontSize: "12px" }}
                 >
-                  <option value="anual">Usar Tasa Anual</option>
-                  <option value="euribor">Usar Euríbor + Dif</option>
+                  <option value="anual">{t.useAnnualRate}</option>
+                  <option value="euribor">{t.useEuriborDiff}</option>
                 </select>
                 {tasaAnalisisMode === "euribor" && (
                   <span style={{ fontSize: "11px", color: "#64748b" }}>
@@ -1155,36 +1359,36 @@ const saveLeadScoreToCRM = async () => {
             {pais === "Colombia" && (
               <>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Tipo Vivienda</label>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>{t.housingType}</label>
                   <div style={inputWrapperStyle}>
                     <select
                       value={colombiaFields.tipoVivienda}
                       onChange={(e) => setColombiaFields(prev => ({ ...prev, tipoVivienda: e.target.value as "VIS" | "No VIS" }))}
                       style={{ ...inputStyle, ...selectStyle, cursor: "pointer" }}
                     >
-                      <option value="No VIS">No VIS</option>
-                      <option value="VIS">VIS</option>
+                      <option value="No VIS">{t.housingTypeNoVis}</option>
+                      <option value="VIS">{t.housingTypeVis}</option>
                     </select>
                   </div>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Modalidad</label>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>{t.modality}</label>
                   <div style={inputWrapperStyle}>
                     <select
                       value={colombiaFields.modalidad}
                       onChange={(e) => setColombiaFields(prev => ({ ...prev, modalidad: e.target.value as any }))}
                       style={{ ...inputStyle, ...selectStyle, cursor: "pointer" }}
                     >
-                      <option value="Crédito Pesos">Crédito Pesos</option>
-                      <option value="Leasing Habitacional">Leasing</option>
-                      <option value="Crédito UVR">UVR</option>
+                      <option value="Crédito Pesos">{t.modalityCreditPesos}</option>
+                      <option value="Leasing Habitacional">{t.modalityLeasing}</option>
+                      <option value="Crédito UVR">{t.modalityUvr}</option>
                     </select>
                   </div>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Ciudad</label>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>{t.city}</label>
                   <div style={inputWrapperStyle}>
                     <select
                       value={colombiaFields.ciudadColombia}
@@ -1202,7 +1406,7 @@ const saveLeadScoreToCRM = async () => {
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Subsidio</label>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>{t.subsidy}</label>
                   <div style={inputWrapperStyle}>
                     <select
                       value={colombiaFields.subsidio}
@@ -1216,7 +1420,7 @@ const saveLeadScoreToCRM = async () => {
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Antigüedad Laboral</label>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>{t.jobTenure}</label>
                   <div style={inputWrapperStyle}>
                     <input
                       type="number"
@@ -1224,12 +1428,12 @@ const saveLeadScoreToCRM = async () => {
                       onChange={(e) => setColombiaFields(prev => ({ ...prev, antiguedadLaboral: Number(e.target.value) || 0 }))}
                       style={{ ...inputStyle, cursor: "pointer" }}
                     />
-                    <span style={inputAddonStyle}>meses</span>
+                    <span style={inputAddonStyle}>{t.months}</span>
                   </div>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Score Crediticio</label>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>{t.creditScore}</label>
                   <div style={inputWrapperStyle}>
                     <input
                       type="number"
@@ -1246,7 +1450,7 @@ const saveLeadScoreToCRM = async () => {
             {pais === "España" && (
               <>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Edad</label>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>{t.age}</label>
                   <div style={inputWrapperStyle}>
                     <input
                       type="number"
@@ -1254,12 +1458,12 @@ const saveLeadScoreToCRM = async () => {
                       onChange={(e) => setSpainFields(prev => ({ ...prev, edad: Number(e.target.value) || 0 }))}
                       style={{ ...inputStyle, cursor: "pointer" }}
                     />
-                    <span style={inputAddonStyle}>años</span>
+                    <span style={inputAddonStyle}>{t.ageYears}</span>
                   </div>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Gastos Mínimos</label>
+                  <label style={{ fontSize: "10px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>{t.minimumExpenses}</label>
                   <div style={inputWrapperStyle}>
                     <input
                       type="number"
@@ -1267,7 +1471,7 @@ const saveLeadScoreToCRM = async () => {
                       onChange={(e) => setSpainFields(prev => ({ ...prev, gastosMinimosVitales: Number(e.target.value) || 0 }))}
                       style={{ ...inputStyle, cursor: "pointer" }}
                     />
-                    <span style={inputAddonStyle}>€/mes</span>
+                    <span style={inputAddonStyle}>{t.perMonth}</span>
                   </div>
                 </div>
               </>
@@ -1276,14 +1480,14 @@ const saveLeadScoreToCRM = async () => {
             {pais === "España" && (
               <>
                 <InputField
-                  label="Euríbor 12M"
+                  label={t.euribor12m}
                   value={euribor12m}
                   onChange={(v) => setEuribor12m(Number(v) || 0)}
                   suffix="%"
                   step="0.01"
                 />
                 <InputField
-                  label="Diferencial"
+                  label={t.spread}
                   value={diferencial}
                   onChange={(v) => setDiferencial(Number(v) || 0)}
                   suffix="%"
@@ -1310,7 +1514,7 @@ const saveLeadScoreToCRM = async () => {
               <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#22c55e" }} />
             )}
             <span style={{ color: leadError ? "#ef4444" : "#22c55e", fontWeight: "bold", fontSize: "12px" }}>
-              {leadError ? "⚠️ " + leadError : leadId ? "● Datos sincronizados en tiempo real" : "Selecciona un lead arriba"}
+              {leadError ? "⚠️ " + leadError : leadId ? t.syncedRealtime : t.selectLeadAbove}
             </span>
           </div>
           {leadId && (
@@ -1323,50 +1527,50 @@ const saveLeadScoreToCRM = async () => {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h2 style={{ fontSize: "20px", fontWeight: "bold", color: "#fff", display: "flex", alignItems: "center", gap: "10px", margin: 0 }}>
+          <h2 style={{ fontSize: "20px", fontWeight: "bold", color: "var(--botz-text)", display: "flex", alignItems: "center", gap: "10px", margin: 0 }}>
             <Landmark size={24} color="#22d3ee" />
-            Análisis de Viabilidad Bancaria
+            {t.bankingFeasibility}
           </h2>
-          <p style={{ fontSize: "12px", color: "#64748b", margin: "4px 0 0 0" }}>
+          <p style={{ fontSize: "12px", color: "var(--botz-muted)", margin: "4px 0 0 0" }}>
             {mode === "lead" 
-              ? `Modo Lead (Auto) - Sincronizado con tabla leads` 
-              : `Simulación manual para ${pais} (${paisConfig.moneda})`
+              ? t.leadModeAuto
+              : `${t.manualSimulationFor} ${pais} (${paisConfig.moneda})`
             }
           </p>
         </div>
         <button style={exportButtonStyle} onClick={() => setExportOpen((v) => !v)}>
-          <Printer size={14} /> Exportar Ficha
+          <Printer size={14} /> {t.exportSheet}
         </button>
         {exportOpen && (
           <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-            <button style={secondaryButtonStyle} onClick={downloadCsv}>Descargar Excel (CSV)</button>
-            <button style={secondaryButtonStyle} onClick={printFicha}>Guardar PDF / Imprimir</button>
-            <button style={secondaryButtonStyle} onClick={() => setExportOpen(false)}>Cerrar</button>
+            <button style={secondaryButtonStyle} onClick={downloadCsv}>{t.downloadCsv}</button>
+            <button style={secondaryButtonStyle} onClick={printFicha}>{t.savePdfPrint}</button>
+            <button style={secondaryButtonStyle} onClick={() => setExportOpen(false)}>{t.close}</button>
           </div>
         )}
         {exportMsg && (
-          <div style={{ marginTop: "8px", fontSize: "12px", color: "#94a3b8" }}>{exportMsg}</div>
+          <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--botz-muted)" }}>{exportMsg}</div>
         )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
         <KpiCard 
-          title="Scoring Global" 
+          title={t.globalScore}
           value={`${score}/100`} 
           color={score >= 80 ? "#22c55e" : score >= 60 ? "#facc15" : score >= 40 ? "#f97316" : "#ef4444"} 
           icon={<TrendingUp size={18} />}
           subtext={
-            score >= 80 ? "Excelente" : 
-            score >= 60 ? "Cliente Apto" : 
-            score >= 40 ? "Regular" : 
-            "Riesgo Alto"
+            score >= 80 ? t.excellent :
+            score >= 60 ? t.eligible :
+            score >= 40 ? t.regular :
+            t.highRisk
           }
         />
 
         {/* ✅ Detalles de scoring por país */}
         {pais === "Colombia" && (
           <KpiCard 
-            title="Score Crediticio" 
+            title={t.creditScoreKpi}
             value={`${colombiaFields.scoreCrediticioColombia || 0}/1000`}
             color={
               colombiaFields.scoreCrediticioColombia >= 800 ? "#22c55e" :
@@ -1376,18 +1580,18 @@ const saveLeadScoreToCRM = async () => {
             } 
             icon={<BrainCircuit size={18} />}
             subtext={
-              colombiaFields.scoreCrediticioColombia >= 800 ? "Excelente" :
-              colombiaFields.scoreCrediticioColombia >= 700 ? "Muy bueno" :
-              colombiaFields.scoreCrediticioColombia >= 600 ? "Bueno" :
-              "Bajo"
+              colombiaFields.scoreCrediticioColombia >= 800 ? t.creditScoreExcellent :
+              colombiaFields.scoreCrediticioColombia >= 700 ? t.creditScoreVeryGood :
+              colombiaFields.scoreCrediticioColombia >= 600 ? t.creditScoreGood :
+              t.creditScoreLow
             }
           />
         )}
 
         {pais === "España" && (
           <KpiCard 
-            title="Perfil Edad" 
-            value={`${spainFields.edad || 0} años`}
+            title={t.ageProfile}
+            value={`${spainFields.edad || 0} ${t.ageYears}`}
             color={
               spainFields.edad >= 25 && spainFields.edad <= 45 ? "#22c55e" :
               spainFields.edad >= 20 && spainFields.edad <= 55 ? "#facc15" :
@@ -1396,10 +1600,10 @@ const saveLeadScoreToCRM = async () => {
             } 
             icon={<TrendingUp size={18} />}
             subtext={
-              spainFields.edad >= 25 && spainFields.edad <= 45 ? "Edad óptima" :
-              spainFields.edad >= 20 && spainFields.edad <= 55 ? "Aceptable" :
-              spainFields.edad > 65 ? "Riesgo alto" :
-              "Limitado"
+              spainFields.edad >= 25 && spainFields.edad <= 45 ? t.ageOptimal :
+              spainFields.edad >= 20 && spainFields.edad <= 55 ? t.ageAcceptable :
+              spainFields.edad > 65 ? t.ageHighRisk :
+              t.ageLimited
             }
           />
         )}
@@ -1415,7 +1619,7 @@ const saveLeadScoreToCRM = async () => {
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
               <CheckCircle size={16} color="#22c55e" />
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#22c55e" }}>✅ ¡CLIENTE APROBADO! Oportunidades de venta</span>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "#22c55e" }}>{t.approvedTitle}</span>
             </div>
             
             {pais === "Colombia" && (
@@ -1456,7 +1660,7 @@ const saveLeadScoreToCRM = async () => {
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
               <TrendingUp size={16} color="#facc15" />
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#facc15" }}>🎯 CERCA DE APROBAR - Acciones recomendadas</span>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "#facc15" }}>{t.closeToApprove}</span>
             </div>
             
             <div style={{ fontSize: "11px", color: "#ca8a04" }}>
@@ -1469,7 +1673,7 @@ const saveLeadScoreToCRM = async () => {
               {dti > paisConfig.dtiMaximo && (
                 <div>• Reducir deudas en {formatearMoneda(Math.round((dti - paisConfig.dtiMaximo) * calc.ingresosMensuales / 100), paisConfig)}</div>
               )}
-              <div>• Considerar menor plazo o mayor entrada inicial</div>
+              <div>{t.considerLowerTermOrMoreDown}</div>
             </div>
           </div>
         )}
@@ -1490,7 +1694,7 @@ const saveLeadScoreToCRM = async () => {
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
               <AlertTriangle size={16} color="#ef4444" />
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#ef4444" }}>⚠️ REQUISITOS LEGALES INCUMPLIDOS</span>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "#ef4444" }}>{t.legalRequirementsFailed}</span>
             </div>
             {pais === "Colombia" && colombiaFields.antiguedadLaboral < 6 && (
               <div style={{ fontSize: "11px", color: "#dc2626", marginBottom: "4px" }}>
@@ -1510,18 +1714,18 @@ const saveLeadScoreToCRM = async () => {
           </div>
         )}
         <KpiCard 
-          title="Ratio Endeudamiento (DTI)" 
+          title={t.dtiRatio}
           value={`${dti}%`} 
           color={dti < paisConfig.dtiMaximo ? "#22c55e" : dti < 45 ? "#facc15" : "#ef4444"} 
           icon={<PieChart size={18} />}
-          subtext={`Máximo rec. ${paisConfig.dtiMaximo}%`}
+          subtext={t.maxRecommended(paisConfig.dtiMaximo)}
         />
         <KpiCard 
-          title="Capacidad Compra Máx" 
+          title={t.maxPurchaseCapacity}
           value={formatearMoneda(Math.round(hipotecaMaximaTeorica / (1 - paisConfig.entradaMinima)), paisConfig)} 
           color="#22d3ee" 
           icon={<Wallet size={18} />}
-          subtext="Basado en ingresos"
+          subtext={t.basedOnIncome}
         />
       </div>
 
@@ -1531,21 +1735,21 @@ const saveLeadScoreToCRM = async () => {
           
           <div style={panelStyle}>
             <div style={panelHeaderStyle}>
-              <Wallet size={16} color="#c084fc" /> Fondos Reales Necesarios (Cash to Close)
+              <Wallet size={16} color="#c084fc" /> {t.cashToCloseTitle}
             </div>
             <div style={{ padding: "16px" }}>
               <div style={rowStyle}>
-                <span>Entrada ({paisConfig.entradaMinima * 100}%)</span>
-                <span style={{ color: "#fff" }}>{formatearMoneda(entradaRequerida, paisConfig)}</span>
+                <span>{t.downPaymentLine(paisConfig.entradaMinima * 100)}</span>
+                <span style={{ color: "var(--botz-text)" }}>{formatearMoneda(entradaRequerida, paisConfig)}</span>
               </div>
               <div style={rowStyle}>
-                <span>Impuestos y Gastos (~{paisConfig.impuestosGastos * 100}%)</span>
-                <span style={{ color: "#fff" }}>{formatearMoneda(gastosImpuestos, paisConfig)}</span>
+                <span>{t.taxesAndFeesLine(paisConfig.impuestosGastos * 100)}</span>
+                <span style={{ color: "var(--botz-text)" }}>{formatearMoneda(gastosImpuestos, paisConfig)}</span>
               </div>
-              <div style={{ height: "1px", background: "rgba(255,255,255,0.1)", margin: "12px 0" }}></div>
+              <div style={{ height: "1px", background: "var(--botz-border)", margin: "12px 0" }}></div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "16px", fontWeight: "bold" }}>
-                <span style={{ color: "#c084fc" }}>TOTAL NECESARIO</span>
-                <span style={{ color: "#fff" }}>{formatearMoneda(cashToClose, paisConfig)}</span>
+                <span style={{ color: "#c084fc" }}>{t.totalNeeded}</span>
+                <span style={{ color: "var(--botz-text)" }}>{formatearMoneda(cashToClose, paisConfig)}</span>
               </div>
               
               {cashToClose > 50000 && (
@@ -1561,23 +1765,23 @@ const saveLeadScoreToCRM = async () => {
 
           <div style={panelStyle}>
             <div style={panelHeaderStyle}>
-              <Building2 size={16} color="#60a5fa" /> Escenarios de Mercado
+              <Building2 size={16} color="#60a5fa" /> {t.marketScenarios}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1px", background: "rgba(255,255,255,0.1)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1px", background: "var(--botz-border)" }}>
               <ScenarioBox 
-                label={`Fijo (${tasaFijaEscenarios.toFixed(1)}%)`} 
+                label={`${t.fixed} (${tasaFijaEscenarios.toFixed(1)}%)`} 
                 val={formatearMoneda(Math.round(cuotaFijaEscenarios), paisConfig)} 
               />
               <ScenarioBox 
-                label={`Mixto (${tasaMixtoEscenarios.toFixed(1)}%)`} 
+                label={`${t.mixed} (${tasaMixtoEscenarios.toFixed(1)}%)`} 
                 val={formatearMoneda(Math.round(cuotaMixtoEscenarios), paisConfig)} 
                 highlight 
               />
               <ScenarioBox 
                 label={pais === "España"
-                  ? `Variable (Euríbor+Dif ${tasaVariableEscenarios.toFixed(2)}%)`
-                  : `Variable (${tasaVariableEscenarios.toFixed(1)}%)`
-                } 
+                  ? `${t.variable} (Euríbor+Dif ${tasaVariableEscenarios.toFixed(2)}%)`
+                  : `${t.variable} (${tasaVariableEscenarios.toFixed(1)}%)`
+                }
                 val={formatearMoneda(Math.round(cuotaVariableEscenarios), paisConfig)} 
               />
 </div>
@@ -1589,18 +1793,18 @@ const saveLeadScoreToCRM = async () => {
           
           <div style={panelStyle}>
             <div style={panelHeaderStyle}>
-              <Landmark size={16} color="#22d3ee" /> Radar Bancario - {pais}
+              <Landmark size={16} color="#22d3ee" /> {t.bankRadar(pais)}
             </div>
             <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "14px" }}>
               {banks.sort((a, b) => b.prob - a.prob).map((bank, index) => (
                 <div key={bank.name} style={{
-                  border: bank.prob > 70 ? "1px solid rgba(34, 197, 94, 0.3)" : "1px solid rgba(255,255,255,0.1)",
+                  border: bank.prob > 70 ? "1px solid rgba(34, 197, 94, 0.3)" : "1px solid var(--botz-border)",
                   borderRadius: "8px",
                   padding: "12px",
                   backgroundColor: bank.prob > 70 ? "rgba(34, 197, 94, 0.05)" : "transparent"
                 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
-                    <span style={{ fontWeight: "bold", color: "#fff" }}>
+                    <span style={{ fontWeight: "bold", color: "var(--botz-text)" }}>
                       {index === 0 && "🏆"} {bank.name}
                     </span>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -1614,11 +1818,11 @@ const saveLeadScoreToCRM = async () => {
                           {bank.rateAdjustment > 0 ? "+" : ""}{bank.rateAdjustment.toFixed(1)}%
                         </span>
                       )}
-                      <span style={{ color: bank.prob > 60 ? "#22c55e" : bank.prob > 40 ? "#facc15" : "#ef4444", fontWeight: "bold" }}>
-                        {bank.prob}% Viabilidad
-                      </span>
+                       <span style={{ color: bank.prob > 60 ? "#22c55e" : bank.prob > 40 ? "#facc15" : "#ef4444", fontWeight: "bold" }}>
+                        {bank.prob}% {t.viabilityLabel}
+                       </span>
                       {loadingTasas && (
-                        <span style={{ fontSize: "9px", color: "#94a3b8", animation: "pulse 1s infinite" }}>
+                        <span style={{ fontSize: "9px", color: "var(--botz-muted)", animation: "pulse 1s infinite" }}>
                           🔄
                         </span>
                       )}
@@ -1651,7 +1855,7 @@ const saveLeadScoreToCRM = async () => {
 
           <div style={coachPanelStyle}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px", color: "#c084fc", fontWeight: "bold", fontSize: "13px" }}>
-              <BrainCircuit size={16} /> BOTZ COACH TIPS
+              <BrainCircuit size={16} /> {t.coachTips}
             </div>
             <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "12px", color: "#e2e8f0", lineHeight: "1.6" }}>
               {ingresos === 0 ? (
@@ -1710,11 +1914,11 @@ const saveLeadScoreToCRM = async () => {
           {/* ✅ Formulario de Contacto para Lead Scoring */}
           <div style={panelStyle}>
             <div style={panelHeaderStyle}>
-              <TrendingUp size={16} color="#10b981" /> Guardar Evaluación y Recibir Recomendaciones
+              <TrendingUp size={16} color="#10b981" /> {t.saveEval}
             </div>
             <div style={{ padding: "16px" }}>
               <p style={{ fontSize: "12px", color: "#64748b", marginBottom: "16px" }}>
-                Guarda tu evaluación para recibir análisis personalizado y recomendaciones de expertos en hipotecas.
+                {t.saveEvalDesc}
               </p>
               
               {!showContactForm ? (
@@ -1737,7 +1941,7 @@ const saveLeadScoreToCRM = async () => {
                   }}
                 >
                   <BrainCircuit size={16} />
-                  Obtener mi Score de Lead Personalizado
+                  {t.getPersonalScore}
                 </button>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -2004,11 +2208,11 @@ const InputField = ({ label, value, onChange, prefix, suffix, step = "1" }: {
 
 const KpiCard = ({ title, value, color, icon, subtext }: any) => (
   <div style={kpiCardStyle}>
-    <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "#94a3b8", textTransform: "uppercase" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "var(--botz-muted)", textTransform: "uppercase" }}>
       {icon} {title}
     </div>
     <div style={{ fontSize: "20px", fontWeight: "bold", color }}>{value}</div>
-    <div style={{ fontSize: "10px", color: "#64748b" }}>{subtext}</div>
+    <div style={{ fontSize: "10px", color: "var(--botz-muted-2)" }}>{subtext}</div>
   </div>
 );
 
@@ -2017,14 +2221,14 @@ const ScenarioBox = ({ label, val, highlight }: any) => (
     background: highlight ? "rgba(34, 211, 238, 0.1)" : "transparent", 
     padding: "12px", textAlign: "center", display: "flex", flexDirection: "column"
   }}>
-    <span style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "4px" }}>{label}</span>
-    <span style={{ fontSize: "14px", fontWeight: "bold", color: highlight ? "#22d3ee" : "#fff" }}>{val}</span>
+    <span style={{ fontSize: "11px", color: "var(--botz-muted)", marginBottom: "4px" }}>{label}</span>
+    <span style={{ fontSize: "14px", fontWeight: "bold", color: highlight ? "#22d3ee" : "var(--botz-text)" }}>{val}</span>
   </div>
 );
 
 const inputPanelStyle: React.CSSProperties = {
-  background: "rgba(15, 23, 42, 0.6)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "var(--botz-panel)",
+  border: "1px solid var(--botz-border-soft)",
   borderRadius: "12px",
   padding: "16px",
 };
@@ -2032,9 +2236,9 @@ const inputPanelStyle: React.CSSProperties = {
 const selectStyle: React.CSSProperties = {
   padding: "6px 10px",
   borderRadius: "8px",
-  border: "1px solid rgba(255,255,255,0.3)",
-  background: "rgba(30, 41, 59, 0.9)",
-  color: "#fff",
+  border: "1px solid var(--botz-border-strong)",
+  background: "var(--botz-surface)",
+  color: "var(--botz-text)",
   fontSize: "12px",
   cursor: "pointer",
   outline: "none",
@@ -2068,9 +2272,9 @@ const saveButtonStyle: React.CSSProperties = {
 };
 
 const exportButtonStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.05)", 
-  border: "1px solid rgba(255,255,255,0.1)", 
-  color: "#fff", 
+  background: "var(--botz-surface-3)", 
+  border: "1px solid var(--botz-border)", 
+  color: "var(--botz-text)", 
   padding: "8px 12px", 
   borderRadius: "8px", 
   cursor: "pointer",
@@ -2082,9 +2286,9 @@ const exportButtonStyle: React.CSSProperties = {
 
 
 const secondaryButtonStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.12)",
-  color: "#e2e8f0",
+  background: "var(--botz-surface-3)",
+  border: "1px solid var(--botz-border)",
+  color: "var(--botz-text)",
   padding: "8px 10px",
   borderRadius: "8px",
   cursor: "pointer",
@@ -2094,16 +2298,16 @@ const secondaryButtonStyle: React.CSSProperties = {
 const inputWrapperStyle: React.CSSProperties = {
   display: "flex", 
   alignItems: "center", 
-  background: "rgba(0,0,0,0.3)", 
-  border: "1px solid rgba(255,255,255,0.1)",
+  background: "var(--botz-surface-3)", 
+  border: "1px solid var(--botz-border)",
   borderRadius: "8px",
   overflow: "hidden"
 };
 
 const inputAddonStyle: React.CSSProperties = {
   padding: "8px 10px",
-  background: "rgba(255,255,255,0.05)",
-  color: "#64748b",
+  background: "var(--botz-surface-3)",
+  color: "var(--botz-muted-2)",
   fontSize: "13px"
 };
 
@@ -2112,15 +2316,15 @@ const inputStyle: React.CSSProperties = {
   padding: "8px 10px",
   background: "transparent",
   border: "none",
-  color: "#fff",
+  color: "var(--botz-text)",
   fontSize: "13px",
   outline: "none",
   minWidth: 0,
 };
 
 const kpiCardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.03)", 
-  border: "1px solid rgba(255,255,255,0.05)", 
+  background: "var(--botz-surface)", 
+  border: "1px solid var(--botz-border-soft)", 
   borderRadius: "12px", 
   padding: "12px", 
   display: "flex", 
@@ -2129,19 +2333,19 @@ const kpiCardStyle: React.CSSProperties = {
 };
 
 const panelStyle: React.CSSProperties = {
-  background: "rgba(15, 23, 42, 0.6)", 
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "var(--botz-panel)", 
+  border: "1px solid var(--botz-border-soft)",
   borderRadius: "12px", 
   overflow: "hidden"
 };
 
 const panelHeaderStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.03)", 
+  background: "var(--botz-surface-3)", 
   padding: "10px 16px",
-  borderBottom: "1px solid rgba(255,255,255,0.05)",
+  borderBottom: "1px solid var(--botz-border-soft)",
   fontSize: "13px", 
   fontWeight: "bold", 
-  color: "#fff",
+  color: "var(--botz-text)",
   display: "flex", 
   alignItems: "center", 
   gap: "8px"
@@ -2151,7 +2355,7 @@ const rowStyle: React.CSSProperties = {
   display: "flex", 
   justifyContent: "space-between", 
   fontSize: "13px", 
-  color: "#94a3b8", 
+  color: "var(--botz-muted)", 
   marginBottom: "8px"
 };
 
@@ -2162,4 +2366,3 @@ const coachPanelStyle: React.CSSProperties = {
   padding: "16px",
   boxShadow: "0 0 20px rgba(139, 92, 246, 0.05)"
 };
-

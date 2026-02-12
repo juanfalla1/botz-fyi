@@ -19,6 +19,223 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+type AppLanguage = "es" | "en";
+
+const LEADS_TEXT: Record<
+  AppLanguage,
+  {
+    searchPlaceholder: string;
+    newLead: string;
+    export: string;
+    deleteLeadTitle: string;
+    createLeadTitle: string;
+    cancel: string;
+    save: string;
+    saving: string;
+    deleteTitle: string;
+    deleting: string;
+    delete: string;
+    noResponse: string;
+
+    rowsPerPage: string;
+    previous: string;
+    next: string;
+    noResultsForChannel: (channel: string) => string;
+    noLeadsForFilters: string;
+
+    fieldName: string;
+    fieldEmail: string;
+    fieldPhone: string;
+    exampleName: string;
+    exampleEmail: string;
+    examplePhone: string;
+    phoneRequiredError: string;
+    notLeadsTableError: string;
+    saveFailedPerms: string;
+
+    statusNew: string;
+    statusFollowUp: string;
+    statusConverted: string;
+    statusSigned: string;
+    statusNotConverted: string;
+    statusContacted: string;
+    statusSecondContact: string;
+    statusDocs: string;
+    statusNotInterested: string;
+
+    actionPlaceholder: string;
+    actionCallToday: string;
+    actionSendWhatsapp: string;
+    actionSendEmail: string;
+    actionScheduleMeeting: string;
+    actionDone: string;
+
+    ratingPending: string;
+    ratingHot: string;
+    ratingWarm: string;
+    ratingCold: string;
+
+    ratingLabel: string;
+    nextActionLabel: string;
+    botzSummaryTitle: string;
+
+    channelLabel: string;
+    allStatuses: string;
+    upload: string;
+    showing: (shown: number, total: number) => string;
+    clearFilters: string;
+    thBotzAnalysis: string;
+    thNameEmail: string;
+    thPhone: string;
+    thStatus: string;
+    thNextAction: string;
+    thRating: string;
+    thAdvisor: string;
+    viewBotzAnalysis: string;
+  }
+> = {
+  es: {
+    searchPlaceholder: "Buscar cliente...",
+    newLead: "Nuevo Lead",
+    export: "Exportar",
+    deleteLeadTitle: "Eliminar lead",
+    createLeadTitle: "Crear Lead",
+    cancel: "Cancelar",
+    save: "Guardar",
+    saving: "Guardando...",
+    deleteTitle: "Eliminar Lead",
+    deleting: "Eliminando...",
+    delete: "Eliminar",
+    noResponse: "Sin Respuesta",
+
+    rowsPerPage: "Filas por página:",
+    previous: "Anterior",
+    next: "Siguiente",
+    noResultsForChannel: (channel) => `No se encontraron leads del canal: ${channel}`,
+    noLeadsForFilters: "No hay leads con los filtros seleccionados.",
+
+    fieldName: "Nombre",
+    fieldEmail: "Email",
+    fieldPhone: "Teléfono",
+    exampleName: "Ej: Juan Pérez",
+    exampleEmail: "Ej: juan@email.com",
+    examplePhone: "Ej: +34 612 345 678",
+    phoneRequiredError: "El teléfono es obligatorio.",
+    notLeadsTableError: "Este registro no pertenece a la tabla leads. No se puede eliminar desde aquí.",
+    saveFailedPerms: "No se pudo guardar el cambio. Verifica permisos de edición para este lead.",
+
+    statusNew: "NUEVO",
+    statusFollowUp: "SEGUIMIENTO",
+    statusConverted: "CONVERTIDO",
+    statusSigned: "FIRMADO",
+    statusNotConverted: "NO CONVERTIDO",
+    statusContacted: "CONTACTADO",
+    statusSecondContact: "SEGUNDO CONTACTO",
+    statusDocs: "DOCUMENTACIÓN",
+    statusNotInterested: "NO INTERESADO",
+
+    actionPlaceholder: "-- Acción --",
+    actionCallToday: "Llamar hoy",
+    actionSendWhatsapp: "Enviar WhatsApp",
+    actionSendEmail: "Enviar Email",
+    actionScheduleMeeting: "Agendar Reunión",
+    actionDone: "Finalizado",
+
+    ratingPending: "Pendiente",
+    ratingHot: "Caliente",
+    ratingWarm: "Tibio",
+    ratingCold: "Frío",
+
+    ratingLabel: "Calificación",
+    nextActionLabel: "Próxima acción",
+    botzSummaryTitle: "Ver Resumen y Cálculo Botz",
+
+    channelLabel: "Canal:",
+    allStatuses: "⭐ Todos los Estados",
+    upload: "Cargar",
+    showing: (shown, total) => `Mostrando ${shown} de ${total} leads`,
+    clearFilters: "✕ Limpiar filtros",
+    thBotzAnalysis: "ANÁLISIS BOTZ",
+    thNameEmail: "NOMBRE / EMAIL",
+    thPhone: "TELÉFONO",
+    thStatus: "ESTADO",
+    thNextAction: "PRÓXIMA ACCIÓN",
+    thRating: "CALIFICACIÓN",
+    thAdvisor: "ASESOR",
+    viewBotzAnalysis: "Ver Análisis Botz",
+  },
+  en: {
+    searchPlaceholder: "Search customer...",
+    newLead: "New Lead",
+    export: "Export",
+    deleteLeadTitle: "Delete lead",
+    createLeadTitle: "Create Lead",
+    cancel: "Cancel",
+    save: "Save",
+    saving: "Saving...",
+    deleteTitle: "Delete Lead",
+    deleting: "Deleting...",
+    delete: "Delete",
+    noResponse: "No response",
+
+    rowsPerPage: "Rows per page:",
+    previous: "Previous",
+    next: "Next",
+    noResultsForChannel: (channel) => `No leads found for channel: ${channel}`,
+    noLeadsForFilters: "No leads match the selected filters.",
+
+    fieldName: "Name",
+    fieldEmail: "Email",
+    fieldPhone: "Phone",
+    exampleName: "e.g. John Doe",
+    exampleEmail: "e.g. john@email.com",
+    examplePhone: "e.g. +1 555 123 4567",
+    phoneRequiredError: "Phone is required.",
+    notLeadsTableError: "This record is not in the leads table. It cannot be deleted from here.",
+    saveFailedPerms: "Could not save changes. Verify edit permissions for this lead.",
+
+    statusNew: "NEW",
+    statusFollowUp: "FOLLOW-UP",
+    statusConverted: "CONVERTED",
+    statusSigned: "SIGNED",
+    statusNotConverted: "NOT CONVERTED",
+    statusContacted: "CONTACTED",
+    statusSecondContact: "SECOND CONTACT",
+    statusDocs: "DOCUMENTS",
+    statusNotInterested: "NOT INTERESTED",
+
+    actionPlaceholder: "-- Action --",
+    actionCallToday: "Call today",
+    actionSendWhatsapp: "Send WhatsApp",
+    actionSendEmail: "Send email",
+    actionScheduleMeeting: "Schedule meeting",
+    actionDone: "Done",
+
+    ratingPending: "Pending",
+    ratingHot: "Hot",
+    ratingWarm: "Warm",
+    ratingCold: "Cold",
+
+    ratingLabel: "Rating",
+    nextActionLabel: "Next action",
+    botzSummaryTitle: "View Botz Summary & Calculation",
+
+    channelLabel: "Channel:",
+    allStatuses: "⭐ All statuses",
+    upload: "Upload",
+    showing: (shown, total) => `Showing ${shown} of ${total} leads`,
+    clearFilters: "✕ Clear filters",
+    thBotzAnalysis: "BOTZ ANALYSIS",
+    thNameEmail: "NAME / EMAIL",
+    thPhone: "PHONE",
+    thStatus: "STATUS",
+    thNextAction: "NEXT ACTION",
+    thRating: "RATING",
+    thAdvisor: "ADVISOR",
+    viewBotzAnalysis: "View Botz Analysis",
+  },
+};
+
 // INTERFAZ DE DATOS
 export interface Lead {
   id: string;
@@ -67,6 +284,7 @@ export default function LeadsTable({
 }) {
 
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
+  const [language, setLanguage] = useState<AppLanguage>("es");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("TODOS");
   const [startDate, setStartDate] = useState("");
@@ -81,6 +299,24 @@ export default function LeadsTable({
 
 
   const safeLeads = leads || [];
+  const t = LEADS_TEXT[language];
+
+  useEffect(() => {
+    const saved = localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") {
+      setLanguage(saved);
+    }
+
+    const onLangChange = (event: Event) => {
+      const next = (event as CustomEvent<AppLanguage>).detail;
+      if (next === "es" || next === "en") {
+        setLanguage(next);
+      }
+    };
+
+    window.addEventListener("botz-language-change", onLangChange);
+    return () => window.removeEventListener("botz-language-change", onLangChange);
+  }, []);
 
   // =========================
   // ✅ SOLO CREAR LEAD (no editar ni eliminar)
@@ -144,9 +380,24 @@ export default function LeadsTable({
 
   const normalizeStatus = (status: string | null | undefined) => {
     if (!status) return "NUEVO";
-    const s = status.toUpperCase().trim();
-    if (s === "") return "NUEVO";
-    return s;
+    const raw = status.toUpperCase().trim();
+    if (raw === "") return "NUEVO";
+    const s = raw.replace(/\s+/g, "_");
+    const map: Record<string, string> = {
+      NEW: "NUEVO",
+      CONTACTED: "CONTACTADO",
+      CONVERTED: "CONVERTIDO",
+      SIGNED: "FIRMADO",
+      NOT_CONVERTED: "NO_CONVERTIDO",
+      NO_CONVERTIDO: "NO_CONVERTIDO",
+      NO_CONVERTIDO_: "NO_CONVERTIDO",
+      NO_CONVERTIDO__: "NO_CONVERTIDO",
+      NO_CONVERTIDO___: "NO_CONVERTIDO",
+      NO_INTERESADO: "NO_INTERESADO",
+      DOCUMENTACION: "DOCUMENTACION",
+      DOCUMENTACIÓN: "DOCUMENTACION",
+    };
+    return map[s] || s;
   };
 
   // ✅ IMPORTANTE: async para poder usar await
@@ -158,7 +409,7 @@ export default function LeadsTable({
       return;
     }
     if (!formPhone.trim()) {
-      setLeadModalError("El teléfono es obligatorio.");
+      setLeadModalError(t.phoneRequiredError);
       return;
     }
 
@@ -268,7 +519,7 @@ export default function LeadsTable({
   const handleDeleteLead = (lead: Lead) => {
     // Seguridad: si en algún punto mezclas tablas, solo borramos los de leads
     if (lead.sourceTable && lead.sourceTable !== "leads") {
-      alert("Este registro no pertenece a la tabla leads. No se puede eliminar desde aquí.");
+      alert(t.notLeadsTableError);
       return;
     }
 
@@ -430,7 +681,7 @@ export default function LeadsTable({
       console.error("Error saving:", error);
       setLeads((prev) => prev.map((l: any) => (l.id === id ? { ...l, [field]: previousValue } : l)));
       onLeadPatch?.(id, { [field]: previousValue } as any);
-      alert("No se pudo guardar el cambio. Verifica permisos de edición para este lead.");
+      alert(t.saveFailedPerms);
     } else {
       // ✅ NUEVO: Sincronizar con dashboard ejecutivo
       triggerDataRefresh();
@@ -503,9 +754,9 @@ export default function LeadsTable({
       case "CONVERTIDO":
       case "FIRMADO":
         return { bg: "rgba(16, 185, 129, 0.2)", text: "#34d399", border: "#10b981" };
-      case "NO INTERESADO":
+      case "NO_INTERESADO":
         return { bg: "rgba(100, 116, 139, 0.2)", text: "#94a3b8", border: "#64748b" };
-      case "NO CONVERTIDO":
+      case "NO_CONVERTIDO":
         return { bg: "rgba(239, 68, 68, 0.2)", text: "#f87171", border: "#ef4444" };
       default:
         return { bg: "rgba(255, 255, 255, 0.05)", text: "#fff", border: "transparent" };
@@ -589,7 +840,7 @@ export default function LeadsTable({
                   fontWeight: "bold",
                 }}
               >
-                <Zap size={14} fill="#22d3ee" /> Canal: {globalFilter}
+                <Zap size={14} fill="#22d3ee" /> {t.channelLabel} {globalFilter}
               </div>
             )}
 
@@ -597,7 +848,7 @@ export default function LeadsTable({
               <Search size={18} color="#94a3b8" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }} />
               <input
                 type="text"
-                placeholder="Buscar cliente..."
+                placeholder={t.searchPlaceholder}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
@@ -627,36 +878,36 @@ export default function LeadsTable({
               }}
             >
               <option value="TODOS" style={{ background: "#0f172a", color: "#fff" }}>
-                ⭐ Todos los Estados
+                {t.allStatuses}
               </option>
               <option value="NUEVO" style={{ background: "#0f172a", color: "#60a5fa" }}>
-                🔵 Nuevo
+                🔵 {t.statusNew}
               </option>
               <option value="SEGUIMIENTO" style={{ background: "#0f172a", color: "#fbbf24" }}>
-                🟡 Seguimiento
+                🟡 {t.statusFollowUp}
               </option>
               <option value="CONVERTIDO" style={{ background: "#0f172a", color: "#34d399" }}>
-                🟢 Convertido
+                🟢 {t.statusConverted}
               </option>
               <option value="FIRMADO" style={{ background: "#0f172a", color: "#34d399" }}>
-                🟢 Firmado
+                🟢 {t.statusSigned}
               </option>
-              <option value="NO CONVERTIDO" style={{ background: "#0f172a", color: "#f87171" }}>
-                🔴 No Convertido
+              <option value="NO_CONVERTIDO" style={{ background: "#0f172a", color: "#f87171" }}>
+                🔴 {t.statusNotConverted}
               </option>
-              <option value="NO INTERESADO" style={{ background: "#0f172a", color: "#f87171" }}>
-                🔴 No interesado
+              <option value="NO_INTERESADO" style={{ background: "#0f172a", color: "#f87171" }}>
+                🔴 {t.statusNotInterested}
               </option>
               <option value="CONTACTADO" style={{ background: "#0f172a", color: "#a78bfa" }}>
-  🟣 Contactado
-</option>
+  🟣 {t.statusContacted}
+ </option>
 
 <option value="SEGUNDO_CONTACTO" style={{ background: "#0f172a", color: "#f59e0b" }}>
-  🟠 Segundo Contacto
+  🟠 {t.statusSecondContact}
 </option>
 
-<option value="DOCUMENTACIÓN" style={{ background: "#0f172a", color: "#fde047" }}>
-  🟡 Documentación
+<option value="DOCUMENTACION" style={{ background: "#0f172a", color: "#fde047" }}>
+  🟡 {t.statusDocs}
 </option>
 
             </select>
@@ -722,7 +973,7 @@ export default function LeadsTable({
                 e.currentTarget.style.boxShadow = "0 2px 10px rgba(34, 211, 238, 0.1)";
               }}
             >
-              <Plus size={16} /> Nuevo Lead
+              <Plus size={16} /> {t.newLead}
             </button>
 
             <div style={{ position: "relative" }}>
@@ -742,7 +993,7 @@ export default function LeadsTable({
                   cursor: "pointer",
                 }}
               >
-                <Upload size={16} /> Cargar
+                <Upload size={16} /> {t.upload}
               </label>
             </div>
 
@@ -761,14 +1012,14 @@ export default function LeadsTable({
                 cursor: "pointer",
               }}
             >
-              <Download size={16} /> Exportar
+              <Download size={16} /> {t.export}
             </button>
           </div>
         </div>
 
         <div style={{ display: "flex", gap: "16px", marginBottom: "16px", fontSize: "12px", color: "#64748b", alignItems: "center" }}>
           <span>
-            Mostrando <strong style={{ color: "#22d3ee" }}>{paginatedLeads.length}</strong> de {filteredLeads.length} leads
+            {t.showing(paginatedLeads.length, filteredLeads.length)}
           </span>
           {(statusFilter !== "TODOS" || globalFilter) && (
             <button type="button"
@@ -783,7 +1034,7 @@ export default function LeadsTable({
                 cursor: "pointer",
               }}
             >
-              ✕ Limpiar filtros
+              {t.clearFilters}
             </button>
           )}
         </div>
@@ -792,13 +1043,13 @@ export default function LeadsTable({
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px", color: "#cbd5e1", tableLayout: "fixed", minWidth: "1240px" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", textAlign: "left" }}>
-                <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "240px" }}>ANÁLISIS BOTZ</th>
-                <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "220px" }}>NOMBRE / EMAIL</th>
-                <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "120px" }}>TELÉFONO</th>
-                <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>ESTADO</th>
-                <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>PRÓXIMA ACCIÓN</th>
-                <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>CALIFICACIÓN</th>
-                <th style={{ ...stickyRightTh, padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>ASESOR</th>
+                <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "240px" }}>{t.thBotzAnalysis}</th>
+                <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "220px" }}>{t.thNameEmail}</th>
+                <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "120px" }}>{t.thPhone}</th>
+                <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>{t.thStatus}</th>
+                <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>{t.thNextAction}</th>
+                <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>{t.thRating}</th>
+                <th style={{ ...stickyRightTh, padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>{t.thAdvisor}</th>
               </tr>
             </thead>
             <tbody>
@@ -819,7 +1070,7 @@ export default function LeadsTable({
                       <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "nowrap", overflow: "hidden" }} onClick={(e) => e.stopPropagation()}>
                         <button type="button"
                           onClick={() => setSelectedLead(lead)}
-                          title="Ver Resumen y Cálculo Botz"
+                          title={t.botzSummaryTitle}
                           style={{
                             background: "linear-gradient(90deg, #3b82f6, #8b5cf6)",
                             border: "none",
@@ -836,7 +1087,7 @@ export default function LeadsTable({
                             whiteSpace: "nowrap",
                           }}
                         >
-                          <Bot size={14} /> Ver Análisis Botz
+                          <Bot size={14} /> {t.viewBotzAnalysis}
                         </button>
 
                         <div style={{ width: "1px", height: "20px", background: "rgba(255,255,255,0.1)", margin: "0 2px" }} />
@@ -856,7 +1107,7 @@ export default function LeadsTable({
                         {/* ✅ BOTÓN ELIMINAR MÁS PEQUEÑO */}
                         <button type="button"
                           onClick={() => handleDeleteLead(lead)}
-                          title="Eliminar lead"
+                          title={t.deleteLeadTitle}
                           style={{ 
                             background: "rgba(239, 68, 68, 0.08)", 
                             border: "none", 
@@ -906,17 +1157,15 @@ export default function LeadsTable({
                           minWidth: "110px",
                         }}
                       >
-                        <option value="NUEVO" style={{ background: "#0f172a" }}>🔵 NUEVO</option>
-                        <option value="SEGUIMIENTO" style={{ background: "#0f172a" }}>🟡 SEGUIMIENTO</option>
-                        <option value="CONVERTIDO" style={{ background: "#0f172a" }}>🟢 CONVERTIDO</option>
-                        <option value="FIRMADO" style={{ background: "#0f172a" }}>🟢 FIRMADO</option>
-                        <option value="NO CONVERTIDO" style={{ background: "#0f172a" }}>🔴 NO CONVERTIDO</option>
-                        <option value="CONTACTADO" style={{ background: "#0f172a" }}>🟣 CONTACTADO</option>
-                        <option value="SEGUNDO_CONTACTO" style={{ background: "#0f172a" }}>🟠 SEGUNDO CONTACTO</option>
-                        <option value="DOCUMENTACIÓN" style={{ background: "#0f172a" }}>🟡 DOCUMENTACIÓN</option>
-                        <option value="NO_INTERESADO" style={{ background: "#0f172a" }}>
-  🟦 NO INTERESADO
-</option>
+                        <option value="NUEVO" style={{ background: "#0f172a" }}>🔵 {t.statusNew}</option>
+                        <option value="SEGUIMIENTO" style={{ background: "#0f172a" }}>🟡 {t.statusFollowUp}</option>
+                        <option value="CONVERTIDO" style={{ background: "#0f172a" }}>🟢 {t.statusConverted}</option>
+                        <option value="FIRMADO" style={{ background: "#0f172a" }}>🟢 {t.statusSigned}</option>
+                        <option value="NO_CONVERTIDO" style={{ background: "#0f172a" }}>🔴 {t.statusNotConverted}</option>
+                        <option value="CONTACTADO" style={{ background: "#0f172a" }}>🟣 {t.statusContacted}</option>
+                        <option value="SEGUNDO_CONTACTO" style={{ background: "#0f172a" }}>🟠 {t.statusSecondContact}</option>
+                        <option value="DOCUMENTACION" style={{ background: "#0f172a" }}>🟡 {t.statusDocs}</option>
+                        <option value="NO_INTERESADO" style={{ background: "#0f172a" }}>🟦 {t.statusNotInterested}</option>
 
 
                       </select>
@@ -938,12 +1187,12 @@ export default function LeadsTable({
                           minWidth: "110px",
                         }}
                       >
-                        <option value="" style={{ background: "#0f172a" }}>-- Acción --</option>
-                        <option value="Llamar hoy" style={{ background: "#0f172a" }}>📞 Llamar hoy</option>
-                        <option value="Enviar WhatsApp" style={{ background: "#0f172a" }}>💬 Enviar WhatsApp</option>
-                        <option value="Enviar Email" style={{ background: "#0f172a" }}>📧 Enviar Email</option>
-                        <option value="Agendar Reunión" style={{ background: "#0f172a" }}>📅 Agendar Reunión</option>
-                        <option value="Finalizado" style={{ background: "#0f172a" }}>✔️ Finalizado</option>
+                        <option value="" style={{ background: "#0f172a" }}>{t.actionPlaceholder}</option>
+                        <option value="Llamar hoy" style={{ background: "#0f172a" }}>📞 {t.actionCallToday}</option>
+                        <option value="Enviar WhatsApp" style={{ background: "#0f172a" }}>💬 {t.actionSendWhatsapp}</option>
+                        <option value="Enviar Email" style={{ background: "#0f172a" }}>📧 {t.actionSendEmail}</option>
+                        <option value="Agendar Reunión" style={{ background: "#0f172a" }}>📅 {t.actionScheduleMeeting}</option>
+                        <option value="Finalizado" style={{ background: "#0f172a" }}>✔️ {t.actionDone}</option>
                       </select>
                     </td>
 
@@ -965,11 +1214,11 @@ export default function LeadsTable({
                           minWidth: "110px",
                         }}
                       >
-                        <option value="" style={{ background: "#0f172a" }}>📝 Pendiente</option>
-                        <option value="Caliente" style={{ background: "#0f172a" }}>🔥 Caliente</option>
-                        <option value="Tibio" style={{ background: "#0f172a" }}>🧐 Tibio</option>
-                        <option value="Frio" style={{ background: "#0f172a" }}>❄️ Frío</option>
-                        <option value="Sin Respuesta" style={{ background: "#0f172a" }}>📵 Sin Respuesta</option>
+                        <option value="" style={{ background: "#0f172a" }}>📝 {t.ratingPending}</option>
+                        <option value="Caliente" style={{ background: "#0f172a" }}>🔥 {t.ratingHot}</option>
+                        <option value="Tibio" style={{ background: "#0f172a" }}>🧐 {t.ratingWarm}</option>
+                        <option value="Frio" style={{ background: "#0f172a" }}>❄️ {t.ratingCold}</option>
+                        <option value="Sin Respuesta" style={{ background: "#0f172a" }}>📵 {t.noResponse}</option>
                       </select>
                     </td>
 
@@ -1009,7 +1258,7 @@ export default function LeadsTable({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#94a3b8", fontSize: "12px" }}>
-              <span>Filas por página:</span>
+              <span>{t.rowsPerPage}</span>
               <select
                 value={pageSize}
                 onChange={(e) => setPageSize(parseInt(e.target.value, 10))}
@@ -1050,7 +1299,7 @@ export default function LeadsTable({
                   fontSize: "12px",
                 }}
               >
-                Anterior
+                {t.previous}
               </button>
 
               <button
@@ -1068,7 +1317,7 @@ export default function LeadsTable({
                   fontSize: "12px",
                 }}
               >
-                Siguiente
+                {t.next}
               </button>
             </div>
           </div>
@@ -1076,7 +1325,7 @@ export default function LeadsTable({
 
           {filteredLeads.length === 0 && (
             <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
-              {globalFilter ? `No se encontraron leads del canal: ${globalFilter}` : "No hay leads con los filtros seleccionados."}
+              {globalFilter ? t.noResultsForChannel(globalFilter) : t.noLeadsForFilters}
             </div>
           )}
         </div>
@@ -1137,7 +1386,7 @@ export default function LeadsTable({
                 >
                   <Plus size={18} color="#22d3ee" />
                 </div>
-                <span style={{ fontWeight: 700, color: "#f1f5f9", fontSize: 17 }}>Crear Lead</span>
+                <span style={{ fontWeight: 700, color: "#f1f5f9", fontSize: 17 }}>{t.createLeadTitle}</span>
               </div>
               <button
                 type="button"
@@ -1187,12 +1436,12 @@ export default function LeadsTable({
                 {/* Nombre */}
                 <div>
                   <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 6, display: "block" }}>
-                    Nombre *
+                    {t.fieldName} *
                   </label>
                   <input
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder="Ej: Juan Pérez"
+                    placeholder={t.exampleName}
                     style={{
                       width: "100%",
                       background: "rgba(30, 41, 59, 0.6)",
@@ -1213,12 +1462,12 @@ export default function LeadsTable({
                 {/* Email */}
                 <div>
                   <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 6, display: "block" }}>
-                    Email
+                    {t.fieldEmail}
                   </label>
                   <input
                     value={formEmail}
                     onChange={(e) => setFormEmail(e.target.value)}
-                    placeholder="Ej: juan@email.com"
+                    placeholder={t.exampleEmail}
                     style={{
                       width: "100%",
                       background: "rgba(30, 41, 59, 0.6)",
@@ -1238,12 +1487,12 @@ export default function LeadsTable({
                 {/* Teléfono */}
                 <div>
                   <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 6, display: "block" }}>
-                    Teléfono *
+                    {t.fieldPhone} *
                   </label>
                   <input
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
-                    placeholder="Ej: +34 612 345 678"
+                    placeholder={t.examplePhone}
                     style={{
                       width: "100%",
                       background: "rgba(30, 41, 59, 0.6)",
@@ -1282,22 +1531,22 @@ export default function LeadsTable({
                         boxSizing: "border-box",
                       }}
                     >
-                      <option value="NUEVO" style={{ background: "#0f172a" }}>🔵 NUEVO</option>
-                      <option value="SEGUIMIENTO" style={{ background: "#0f172a" }}>🟡 SEGUIMIENTO</option>
-                      <option value="CONVERTIDO" style={{ background: "#0f172a" }}>🟢 CONVERTIDO</option>
-                      <option value="FIRMADO" style={{ background: "#0f172a" }}>🟢 FIRMADO</option>
-                      <option value="NO CONVERTIDO" style={{ background: "#0f172a" }}>🔴 NO CONVERTIDO</option>
-                      <option value="CONTACTADO" style={{ background: "#0f172a" }}>🟣 CONTACTADO</option>
-                      <option value="SEGUNDO_CONTACTO" style={{ background: "#0f172a" }}>🟠 SEGUNDO CONTACTO</option>
-                      <option value="DOCUMENTACIÓN" style={{ background: "#0f172a" }}>🟡 DOCUMENTACIÓN</option>
+                      <option value="NUEVO" style={{ background: "#0f172a" }}>🔵 {t.statusNew}</option>
+                      <option value="SEGUIMIENTO" style={{ background: "#0f172a" }}>🟡 {t.statusFollowUp}</option>
+                      <option value="CONVERTIDO" style={{ background: "#0f172a" }}>🟢 {t.statusConverted}</option>
+                      <option value="FIRMADO" style={{ background: "#0f172a" }}>🟢 {t.statusSigned}</option>
+                      <option value="NO CONVERTIDO" style={{ background: "#0f172a" }}>🔴 {t.statusNotConverted}</option>
+                      <option value="CONTACTADO" style={{ background: "#0f172a" }}>🟣 {t.statusContacted}</option>
+                      <option value="SEGUNDO_CONTACTO" style={{ background: "#0f172a" }}>🟠 {t.statusSecondContact}</option>
+                      <option value="DOCUMENTACIÓN" style={{ background: "#0f172a" }}>🟡 {t.statusDocs}</option>
 
                     </select>
                   </div>
 
                   <div>
-                    <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 6, display: "block" }}>
-                      Calificación
-                    </label>
+                      <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 6, display: "block" }}>
+                        {t.ratingLabel}
+                      </label>
                     <select
                       value={formCalificacion}
                       onChange={(e) => setFormCalificacion(e.target.value)}
@@ -1314,11 +1563,11 @@ export default function LeadsTable({
                         boxSizing: "border-box",
                       }}
                     >
-                      <option value="" style={{ background: "#0f172a" }}>📝 Pendiente</option>
-                      <option value="Caliente" style={{ background: "#0f172a" }}>🔥 Caliente</option>
-                      <option value="Tibio" style={{ background: "#0f172a" }}>🧐 Tibio</option>
-                      <option value="Frio" style={{ background: "#0f172a" }}>❄️ Frío</option>
-                      <option value="Sin Respuesta" style={{ background: "#0f172a" }}>📵 Sin Respuesta</option>
+                      <option value="" style={{ background: "#0f172a" }}>📝 {t.ratingPending}</option>
+                      <option value="Caliente" style={{ background: "#0f172a" }}>🔥 {t.ratingHot}</option>
+                      <option value="Tibio" style={{ background: "#0f172a" }}>🧐 {t.ratingWarm}</option>
+                      <option value="Frio" style={{ background: "#0f172a" }}>❄️ {t.ratingCold}</option>
+                      <option value="Sin Respuesta" style={{ background: "#0f172a" }}>📵 {t.noResponse}</option>
                     </select>
                   </div>
                 </div>
@@ -1326,7 +1575,7 @@ export default function LeadsTable({
                 {/* Próxima acción */}
                 <div>
                   <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 6, display: "block" }}>
-                    Próxima acción
+                    {t.nextActionLabel}
                   </label>
                   <select
                     value={formNextAction}
@@ -1344,12 +1593,12 @@ export default function LeadsTable({
                       boxSizing: "border-box",
                     }}
                   >
-                    <option value="" style={{ background: "#0f172a" }}>-- Acción --</option>
-                    <option value="Llamar hoy" style={{ background: "#0f172a" }}>📞 Llamar hoy</option>
-                    <option value="Enviar WhatsApp" style={{ background: "#0f172a" }}>💬 Enviar WhatsApp</option>
-                    <option value="Enviar Email" style={{ background: "#0f172a" }}>📧 Enviar Email</option>
-                    <option value="Agendar Reunión" style={{ background: "#0f172a" }}>📅 Agendar Reunión</option>
-                    <option value="Finalizado" style={{ background: "#0f172a" }}>✔️ Finalizado</option>
+                    <option value="" style={{ background: "#0f172a" }}>{t.actionPlaceholder}</option>
+                    <option value="Llamar hoy" style={{ background: "#0f172a" }}>📞 {t.actionCallToday}</option>
+                    <option value="Enviar WhatsApp" style={{ background: "#0f172a" }}>💬 {t.actionSendWhatsapp}</option>
+                    <option value="Enviar Email" style={{ background: "#0f172a" }}>📧 {t.actionSendEmail}</option>
+                    <option value="Agendar Reunión" style={{ background: "#0f172a" }}>📅 {t.actionScheduleMeeting}</option>
+                    <option value="Finalizado" style={{ background: "#0f172a" }}>✔️ {t.actionDone}</option>
                   </select>
                 </div>
               </div>
@@ -1384,7 +1633,7 @@ export default function LeadsTable({
                 onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(148, 163, 184, 0.2)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(148, 163, 184, 0.1)")}
               >
-                Cancelar
+                {t.cancel}
               </button>
 
               <button
@@ -1412,7 +1661,7 @@ export default function LeadsTable({
                   e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
-                {leadModalLoading ? "Guardando..." : "Guardar"}
+                {leadModalLoading ? t.saving : t.save}
               </button>
             </div>
           </div>
@@ -1472,7 +1721,7 @@ export default function LeadsTable({
                 >
                   <Trash2 size={18} color="#f87171" />
                 </div>
-                <span style={{ fontWeight: 700, color: "#fecaca", fontSize: 17 }}>Eliminar Lead</span>
+                <span style={{ fontWeight: 700, color: "#fecaca", fontSize: 17 }}>{t.deleteTitle}</span>
               </div>
               <button
                 type="button"
@@ -1572,7 +1821,7 @@ export default function LeadsTable({
                 onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(148, 163, 184, 0.2)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(148, 163, 184, 0.1)")}
               >
-                Cancelar
+                {t.cancel}
               </button>
 
               <button
@@ -1600,7 +1849,7 @@ export default function LeadsTable({
                   e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
-                {deleteLoading ? "Eliminando..." : "Eliminar"}
+                {deleteLoading ? t.deleting : t.delete}
               </button>
             </div>
           </div>

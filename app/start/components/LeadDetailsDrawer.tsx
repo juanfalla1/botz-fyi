@@ -27,7 +27,318 @@ type HistoryEvent = {
   user_name: string;
 };
 
+type AppLanguage = "es" | "en";
+
+const DRAWER_TEXT: Record<
+  AppLanguage,
+  {
+    tabAnalysis: string;
+    tabClosing: string;
+    tabBot: string;
+    tabLog: string;
+    tabData: string;
+    save: string;
+    saving: string;
+    calculating: string;
+    runStudy: string;
+    closingTitle: string;
+    closingSubtitle: string;
+    aiSummary: string;
+    noChatHistory: string;
+    writeNote: string;
+    loading: string;
+    system: string;
+    createTask: string;
+    viable: string;
+    notViable: string;
+    generatePdf: string;
+    viewPdf: string;
+    whatsapp: string;
+    statusNew: string;
+    statusContacted: string;
+    statusDocs: string;
+    statusPreApproved: string;
+    statusSigned: string;
+    statusDropped: string;
+    noWorkSituation: string;
+
+    statusLabel: string;
+    statusViableLabel: string;
+    statusNotViableLabel: string;
+    statusPendingStudy: string;
+
+    operationType: string;
+    operationHabitual: string;
+    operationSecondResidence: string;
+    operationInvestment: string;
+    modality: string;
+    modalitySolo: string;
+    modalityCouple: string;
+    age: string;
+
+    netIncomeMonth: string;
+    propertyPrice: string;
+    downPaymentSavings: string;
+    otherMonthlyPayments: string;
+    interestRatePct: string;
+    termYears: string;
+
+    closingStatusLabel: string;
+    closingCommissionLabel: string;
+    closingBankLabel: string;
+    closingSourceLabel: string;
+    selectPlaceholder: string;
+    other: string;
+
+    pdfFinancialStructure: string;
+    pdfPriceLabel: string;
+    pdfDownPaymentLabel: string;
+    pdfMortgageLabel: string;
+    pdfIncomeLabel: string;
+    pdfNextSteps: string;
+    pdfNextStepsViable1: string;
+    pdfNextStepsViable2: string;
+    pdfNextStepsNotViable1: string;
+    pdfNextStepsNotViable2: string;
+    pdfDisclaimer: string;
+
+    pdfProfileData: string;
+    pdfClientLabel: string;
+    pdfPhoneLabel: string;
+    pdfApplicantLabel: string;
+    pdfOpTypeLabel: string;
+    pdfAgeLabel: string;
+    pdfApplicantSingle: string;
+    pdfApplicantCouple: string;
+    pdfOpTypePrimary: string;
+    pdfOpTypeSecond: string;
+    pdfOpTypeInvestment: string;
+    pdfYearsShort: string;
+
+    pdfEstimatedPayment: string;
+
+    originWeb: string;
+    sourceWeb: string;
+    sourceReferral: string;
+
+    waViable: (name: string, url: string) => string;
+    waNotViable: (name: string, url: string) => string;
+  }
+> = {
+  es: {
+    tabAnalysis: "Análisis",
+    tabClosing: "Cierre",
+    tabBot: "IA Bot",
+    tabLog: "Bitácora",
+    tabData: "Datos",
+    save: "Guardar",
+    saving: "Guardando...",
+    calculating: "Calculando...",
+    runStudy: "Correr Estudio",
+    closingTitle: "Datos de Cierre",
+    closingSubtitle: "Actualiza cuando el cliente avance.",
+    aiSummary: "Resumen IA:",
+    noChatHistory: "Sin historial de chat.",
+    writeNote: "Escribe una nota...",
+    loading: "Cargando...",
+    system: "Sistema",
+    createTask: "Crear Tarea",
+    viable: "VIABLE",
+    notViable: "NO VIABLE",
+    generatePdf: "Generar PDF",
+    viewPdf: "📄 Ver PDF",
+    whatsapp: "WhatsApp",
+    statusNew: "Nuevo",
+    statusContacted: "Contactado",
+    statusDocs: "Documentación",
+    statusPreApproved: "Pre-aprobado",
+    statusSigned: "Firmado",
+    statusDropped: "Caída",
+    noWorkSituation: "Sin situación laboral",
+
+    statusLabel: "Estado",
+    statusViableLabel: "✅ Viable",
+    statusNotViableLabel: "⚠️ No Viable",
+    statusPendingStudy: "Pendiente de Estudio",
+
+    operationType: "Tipo Operación",
+    operationHabitual: "Habitual",
+    operationSecondResidence: "2ª Residencia",
+    operationInvestment: "Inversión",
+    modality: "Modalidad",
+    modalitySolo: "Solo/a",
+    modalityCouple: "Con pareja",
+    age: "Edad",
+
+    netIncomeMonth: "Ingresos Netos (Mes)",
+    propertyPrice: "Precio Inmueble",
+    downPaymentSavings: "Aportación (Ahorros)",
+    otherMonthlyPayments: "Otras Cuotas (Mes)",
+    interestRatePct: "Tasa Interés (%)",
+    termYears: "Plazo (Años)",
+
+    closingStatusLabel: "Estado",
+    closingCommissionLabel: "Comisión (€)",
+    closingBankLabel: "Banco",
+    closingSourceLabel: "Fuente",
+    selectPlaceholder: "-- Seleccionar --",
+    other: "Otro",
+
+    pdfFinancialStructure: "ESTRUCTURA FINANCIERA",
+    pdfPriceLabel: "Precio:",
+    pdfDownPaymentLabel: "Aportación:",
+    pdfMortgageLabel: "Hipoteca:",
+    pdfIncomeLabel: "Ingresos:",
+    pdfNextSteps: "Próximos pasos",
+    pdfNextStepsViable1: "Un asesor revisará tu caso y te contactará para explorar",
+    pdfNextStepsViable2: "las mejores opciones de financiación disponibles.",
+    pdfNextStepsNotViable1: "Te recomendamos aumentar la aportación o reducir deudas.",
+    pdfNextStepsNotViable2: "Contáctanos para revisar alternativas.",
+    pdfDisclaimer: "DISCLAIMER: Estudio preliminar basado en datos facilitados. No representa pre-aprobación bancaria.",
+
+    pdfProfileData: "DATOS DEL PERFIL",
+    pdfClientLabel: "Cliente:",
+    pdfPhoneLabel: "Teléfono:",
+    pdfApplicantLabel: "Modalidad:",
+    pdfOpTypeLabel: "Tipo:",
+    pdfAgeLabel: "Edad:",
+    pdfApplicantSingle: "Solo",
+    pdfApplicantCouple: "Pareja",
+    pdfOpTypePrimary: "Vivienda habitual",
+    pdfOpTypeSecond: "2a Residencia",
+    pdfOpTypeInvestment: "Inversión",
+    pdfYearsShort: "años",
+
+    pdfEstimatedPayment: "CUOTA ESTIMADA",
+
+    originWeb: "WEB",
+    sourceWeb: "Web",
+    sourceReferral: "Referido",
+
+    waViable: (name, url) =>
+      `Hola ${name}! Hemos analizado tu hipoteca y tenemos buenas noticias: *tu operación es viable*.\n\nVe tu estudio aquí:\n${url}\n\n¿Quieres que un asesor te contacte?`,
+    waNotViable: (name, url) =>
+      `Hola ${name}, hemos analizado tu solicitud. Aunque presenta algunos retos, tenemos opciones.\n\nRevisa tu estudio:\n${url}\n\n¿Podemos agendar una llamada?`,
+  },
+  en: {
+    tabAnalysis: "Analysis",
+    tabClosing: "Closing",
+    tabBot: "AI Bot",
+    tabLog: "Log",
+    tabData: "Details",
+    save: "Save",
+    saving: "Saving...",
+    calculating: "Calculating...",
+    runStudy: "Run Study",
+    closingTitle: "Closing Data",
+    closingSubtitle: "Update as the customer progresses.",
+    aiSummary: "AI Summary:",
+    noChatHistory: "No chat history.",
+    writeNote: "Write a note...",
+    loading: "Loading...",
+    system: "System",
+    createTask: "Create Task",
+    viable: "VIABLE",
+    notViable: "NOT VIABLE",
+    generatePdf: "Generate PDF",
+    viewPdf: "📄 View PDF",
+    whatsapp: "WhatsApp",
+    statusNew: "New",
+    statusContacted: "Contacted",
+    statusDocs: "Documents",
+    statusPreApproved: "Pre-approved",
+    statusSigned: "Signed",
+    statusDropped: "Dropped",
+    noWorkSituation: "No work situation",
+
+    statusLabel: "Status",
+    statusViableLabel: "✅ Viable",
+    statusNotViableLabel: "⚠️ Not viable",
+    statusPendingStudy: "Pending study",
+
+    operationType: "Operation type",
+    operationHabitual: "Primary residence",
+    operationSecondResidence: "Second residence",
+    operationInvestment: "Investment",
+    modality: "Applicant",
+    modalitySolo: "Single",
+    modalityCouple: "With partner",
+    age: "Age",
+
+    netIncomeMonth: "Net income (month)",
+    propertyPrice: "Property price",
+    downPaymentSavings: "Down payment (savings)",
+    otherMonthlyPayments: "Other payments (month)",
+    interestRatePct: "Interest rate (%)",
+    termYears: "Term (years)",
+
+    closingStatusLabel: "Status",
+    closingCommissionLabel: "Commission (EUR)",
+    closingBankLabel: "Bank",
+    closingSourceLabel: "Source",
+    selectPlaceholder: "-- Select --",
+    other: "Other",
+
+    pdfFinancialStructure: "FINANCIAL STRUCTURE",
+    pdfPriceLabel: "Price:",
+    pdfDownPaymentLabel: "Down payment:",
+    pdfMortgageLabel: "Mortgage:",
+    pdfIncomeLabel: "Income:",
+    pdfNextSteps: "Next steps",
+    pdfNextStepsViable1: "An advisor will review your case and contact you to explore",
+    pdfNextStepsViable2: "the best financing options available.",
+    pdfNextStepsNotViable1: "We recommend increasing the down payment or reducing debts.",
+    pdfNextStepsNotViable2: "Contact us to review alternatives.",
+    pdfDisclaimer: "DISCLAIMER: Preliminary study based on provided data. This is not a bank pre-approval.",
+
+    pdfProfileData: "PROFILE DATA",
+    pdfClientLabel: "Client:",
+    pdfPhoneLabel: "Phone:",
+    pdfApplicantLabel: "Applicant:",
+    pdfOpTypeLabel: "Type:",
+    pdfAgeLabel: "Age:",
+    pdfApplicantSingle: "Single",
+    pdfApplicantCouple: "Couple",
+    pdfOpTypePrimary: "Primary residence",
+    pdfOpTypeSecond: "Second residence",
+    pdfOpTypeInvestment: "Investment",
+    pdfYearsShort: "years",
+
+    pdfEstimatedPayment: "EST. PAYMENT",
+
+    originWeb: "WEB",
+    sourceWeb: "Web",
+    sourceReferral: "Referral",
+
+    waViable: (name, url) =>
+      `Hi ${name}! We analyzed your mortgage and have good news: *your operation looks viable*.\n\nView your report here:\n${url}\n\nWould you like an advisor to contact you?`,
+    waNotViable: (name, url) =>
+      `Hi ${name}, we analyzed your request. Even though it has some challenges, we have options.\n\nReview your report:\n${url}\n\nCan we schedule a call?`,
+  },
+};
+
+function useUiLanguage(): AppLanguage {
+  const [language, setLanguage] = useState<AppLanguage>("es");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") setLanguage(saved);
+
+    const onLangChange = (event: Event) => {
+      const next = (event as CustomEvent<AppLanguage>).detail;
+      if (next === "es" || next === "en") setLanguage(next);
+    };
+
+    window.addEventListener("botz-language-change", onLangChange);
+    return () => window.removeEventListener("botz-language-change", onLangChange);
+  }, []);
+
+  return language;
+}
+
 export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetailsDrawerProps) {
+  const language = useUiLanguage();
+  const t = DRAWER_TEXT[language];
   const [activeTab, setActiveTab] = useState<"financial" | "chat" | "info" | "history" | "closing">("financial");
   const [mounted, setMounted] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -299,7 +610,7 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
     doc.setTextColor(100, 116, 139);
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
-    doc.text("DATOS DEL PERFIL", 20, 95);
+    doc.text(t.pdfProfileData, 20, 95);
     doc.setDrawColor(226, 232, 240);
     doc.line(20, 98, 95, 98);
     
@@ -307,11 +618,18 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
     doc.setFontSize(10);
     let y = 105;
     const datosCliente = [
-      ["Cliente:", lead.name],
-      ["Telefono:", lead.phone || "-"],
-      ["Modalidad:", modalidadCompra === "solo" ? "Solo" : "Pareja"],
-      ["Tipo:", tipoOperacion === "habitual" ? "Vivienda habitual" : tipoOperacion === "segunda" ? "2a Residencia" : "Inversion"],
-      ["Edad:", `${edad} anos`]
+      [t.pdfClientLabel, lead.name],
+      [t.pdfPhoneLabel, lead.phone || "-"],
+      [t.pdfApplicantLabel, modalidadCompra === "solo" ? t.pdfApplicantSingle : t.pdfApplicantCouple],
+      [
+        t.pdfOpTypeLabel,
+        tipoOperacion === "habitual"
+          ? t.pdfOpTypePrimary
+          : tipoOperacion === "segunda"
+            ? t.pdfOpTypeSecond
+            : t.pdfOpTypeInvestment,
+      ],
+      [t.pdfAgeLabel, `${edad} ${t.pdfYearsShort}`],
     ];
     datosCliente.forEach(([label, value]) => {
       doc.setFont("helvetica", "bold");
@@ -325,17 +643,17 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
     doc.setTextColor(100, 116, 139);
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
-    doc.text("ESTRUCTURA FINANCIERA", 115, 95);
+    doc.text(t.pdfFinancialStructure, 115, 95);
     doc.line(115, 98, 190, 98);
     
     doc.setTextColor(30, 41, 59);
     doc.setFontSize(10);
     y = 105;
     const datosFinancieros = [
-      ["Precio:", `${simResult.precioVivienda.toLocaleString()} EUR`],
-      ["Aportacion:", `${simResult.aportacion.toLocaleString()} EUR`],
-      ["Hipoteca:", `${simResult.financiacion.toLocaleString()} EUR`],
-      ["Ingresos:", `${simResult.ingresos.toLocaleString()} EUR/mes`]
+      [t.pdfPriceLabel, `${simResult.precioVivienda.toLocaleString()} EUR`],
+      [t.pdfDownPaymentLabel, `${simResult.aportacion.toLocaleString()} EUR`],
+      [t.pdfMortgageLabel, `${simResult.financiacion.toLocaleString()} EUR`],
+      [t.pdfIncomeLabel, `${simResult.ingresos.toLocaleString()} EUR/mes`]
     ];
     datosFinancieros.forEach(([label, value]) => {
       doc.setFont("helvetica", "bold");
@@ -354,7 +672,7 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
     // Cuota
     doc.setTextColor(100, 116, 139);
     doc.setFontSize(8);
-    doc.text("CUOTA ESTIMADA", 47, 152, { align: "center" });
+    doc.text(t.pdfEstimatedPayment, 47, 152, { align: "center" });
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
@@ -388,22 +706,22 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
-    doc.text("Proximos pasos", 25, 195);
+    doc.text(t.pdfNextSteps, 25, 195);
     doc.setTextColor(71, 85, 105);
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     if (isViable) {
-      doc.text("Un asesor revisara tu caso y te contactara para explorar", 25, 205);
-      doc.text("las mejores opciones de financiacion disponibles.", 25, 212);
+      doc.text(t.pdfNextStepsViable1, 25, 205);
+      doc.text(t.pdfNextStepsViable2, 25, 212);
     } else {
-      doc.text("Te recomendamos aumentar la aportacion o reducir deudas.", 25, 205);
-      doc.text("Contactanos para revisar alternativas.", 25, 212);
+      doc.text(t.pdfNextStepsNotViable1, 25, 205);
+      doc.text(t.pdfNextStepsNotViable2, 25, 212);
     }
 
     // Disclaimer
     doc.setTextColor(148, 163, 184);
     doc.setFontSize(6);
-    doc.text("DISCLAIMER: Estudio preliminar basado en datos facilitados. No representa pre-aprobacion bancaria.", 20, 240);
+    doc.text(t.pdfDisclaimer, 20, 240);
 
     // Guardar PDF
     const pdfBlob = doc.output('blob');
@@ -436,9 +754,10 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
   // 📱 WHATSAPP
   const sendWhatsApp = () => {
     if (!lead || !pdfUrl) return;
-    const mensaje = simResult.estado_operacion === "VIABLE"
-      ? `Hola ${lead.name}! Hemos analizado tu hipoteca y tenemos buenas noticias: *tu operacion es viable*.\n\nVe tu estudio aqui:\n${pdfUrl}\n\nQuieres que un asesor te contacte?`
-      : `Hola ${lead.name}, hemos analizado tu solicitud. Aunque presenta algunos retos, tenemos opciones.\n\nRevisa tu estudio:\n${pdfUrl}\n\nPodemos agendar una llamada?`;
+    const mensaje =
+      simResult.estado_operacion === "VIABLE"
+        ? t.waViable(lead.name, pdfUrl)
+        : t.waNotViable(lead.name, pdfUrl);
     
     const url = `https://wa.me/${lead.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(mensaje)}`;
     window.open(url, '_blank');
@@ -455,31 +774,31 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
   const drawerContent = (
     <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", zIndex: 99999 }}>
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", opacity: isOpen ? 1 : 0, transition: "opacity 0.3s", pointerEvents: isOpen ? "auto" : "none" }} />
-      <div style={{ position: "absolute", top: 0, right: 0, height: "100%", width: "520px", background: "#0f172a", borderLeft: "1px solid #334155", transform: isOpen ? "translateX(0)" : "translateX(100%)", transition: "transform 0.3s ease", display: "flex", flexDirection: "column", boxShadow: "-10px 0 30px rgba(0,0,0,0.5)" }}>
+      <div style={{ position: "absolute", top: 0, right: 0, height: "100%", width: "520px", background: "var(--botz-surface-2)", borderLeft: "1px solid var(--botz-border-strong)", transform: isOpen ? "translateX(0)" : "translateX(100%)", transition: "transform 0.3s ease", display: "flex", flexDirection: "column", boxShadow: "-10px 0 30px rgba(0,0,0,0.35)" }}>
         
         {/* HEADER */}
-        <div style={{ padding: "24px", borderBottom: "1px solid #1e293b", display: "flex", justifyContent: "space-between" }}>
+        <div style={{ padding: "24px", borderBottom: "1px solid var(--botz-border)", display: "flex", justifyContent: "space-between" }}>
            <div style={{display: "flex", gap: "15px", alignItems: "center"}}>
-             <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", color: "white" }}>{lead.name.charAt(0).toUpperCase()}</div>
-             <div>
-               <h2 style={{ color: "white", fontSize: "18px", fontWeight: "bold", margin: 0 }}>{lead.name}</h2>
-               <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "4px", background: "#1e293b", color: "#94a3b8", border: "1px solid #334155", marginTop: "4px", display: "inline-block" }}>{lead.origen || "WEB"}</span>
-             </div>
-           </div>
-           <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer" }}><X /></button>
-        </div>
+               <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", color: "white" }}>{lead.name.charAt(0).toUpperCase()}</div>
+              <div>
+                <h2 style={{ color: "var(--botz-text)", fontSize: "18px", fontWeight: "bold", margin: 0 }}>{lead.name}</h2>
+                <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "4px", background: "var(--botz-surface-3)", color: "var(--botz-muted)", border: "1px solid var(--botz-border-strong)", marginTop: "4px", display: "inline-block" }}>{lead.origen || t.originWeb}</span>
+              </div>
+            </div>
+            <button onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--botz-muted)", cursor: "pointer" }}><X /></button>
+         </div>
 
         {/* TABS */}
-        <div style={{ display: "flex", borderBottom: "1px solid #1e293b", padding: "0 10px", overflowX: "auto" }}>
-           <button onClick={() => setActiveTab("financial")} style={{ padding: "14px 12px", color: activeTab === "financial" ? "#34d399" : "#64748b", borderBottom: activeTab === "financial" ? "2px solid #34d399" : "2px solid transparent", fontWeight: "bold", cursor: "pointer", display: "flex", gap: "6px", fontSize: "12px", background: "none", borderTop: "none", borderLeft: "none", borderRight: "none",}}><Calculator size={14}/> Análisis</button>
-           <button onClick={() => setActiveTab("closing")} style={{ padding: "14px 12px", color: activeTab === "closing" ? "#22d3ee" : "#64748b", borderBottom: activeTab === "closing" ? "2px solid #22d3ee" : "2px solid transparent", fontWeight: "bold", cursor: "pointer", display: "flex", gap: "6px", fontSize: "12px", background: "none", borderTop: "none", borderLeft: "none", borderRight: "none",}}><DollarSign size={14}/> Cierre</button>
-           <button onClick={() => setActiveTab("chat")} style={{ padding: "14px 12px", color: activeTab === "chat" ? "#60a5fa" : "#64748b", borderBottom: activeTab === "chat" ? "2px solid #60a5fa" : "2px solid transparent", fontWeight: "bold", cursor: "pointer", display: "flex", gap: "6px", fontSize: "12px", background: "none", borderTop: "none", borderLeft: "none", borderRight: "none",}}><Bot size={14}/> IA Bot</button>
-           <button onClick={() => setActiveTab("history")} style={{ padding: "14px 12px", color: activeTab === "history" ? "#fbbf24" : "#64748b", borderBottom: activeTab === "history" ? "2px solid #fbbf24" : "2px solid transparent", fontWeight: "bold", cursor: "pointer", display: "flex", gap: "6px", fontSize: "12px", background: "none", borderTop: "none", borderLeft: "none", borderRight: "none",}}><Clock size={14}/> Bitácora</button>
-           <button onClick={() => setActiveTab("info")} style={{ padding: "14px 12px", color: activeTab === "info" ? "#c084fc" : "#64748b", borderBottom: activeTab === "info" ? "2px solid #c084fc" : "2px solid transparent", fontWeight: "bold", cursor: "pointer", display: "flex", gap: "6px", fontSize: "12px", background: "none", borderTop: "none", borderLeft: "none", borderRight: "none",}}><User size={14}/> Datos</button>
+        <div style={{ display: "flex", borderBottom: "1px solid var(--botz-border)", padding: "0 10px", overflowX: "auto" }}>
+           <button onClick={() => setActiveTab("financial")} style={{ padding: "14px 12px", color: activeTab === "financial" ? "#34d399" : "var(--botz-muted-2)", borderBottom: activeTab === "financial" ? "2px solid #34d399" : "2px solid transparent", fontWeight: "bold", cursor: "pointer", display: "flex", gap: "6px", fontSize: "12px", background: "none", borderTop: "none", borderLeft: "none", borderRight: "none",}}><Calculator size={14}/> {t.tabAnalysis}</button>
+           <button onClick={() => setActiveTab("closing")} style={{ padding: "14px 12px", color: activeTab === "closing" ? "#22d3ee" : "var(--botz-muted-2)", borderBottom: activeTab === "closing" ? "2px solid #22d3ee" : "2px solid transparent", fontWeight: "bold", cursor: "pointer", display: "flex", gap: "6px", fontSize: "12px", background: "none", borderTop: "none", borderLeft: "none", borderRight: "none",}}><DollarSign size={14}/> {t.tabClosing}</button>
+           <button onClick={() => setActiveTab("chat")} style={{ padding: "14px 12px", color: activeTab === "chat" ? "#60a5fa" : "var(--botz-muted-2)", borderBottom: activeTab === "chat" ? "2px solid #60a5fa" : "2px solid transparent", fontWeight: "bold", cursor: "pointer", display: "flex", gap: "6px", fontSize: "12px", background: "none", borderTop: "none", borderLeft: "none", borderRight: "none",}}><Bot size={14}/> {t.tabBot}</button>
+           <button onClick={() => setActiveTab("history")} style={{ padding: "14px 12px", color: activeTab === "history" ? "#fbbf24" : "var(--botz-muted-2)", borderBottom: activeTab === "history" ? "2px solid #fbbf24" : "2px solid transparent", fontWeight: "bold", cursor: "pointer", display: "flex", gap: "6px", fontSize: "12px", background: "none", borderTop: "none", borderLeft: "none", borderRight: "none",}}><Clock size={14}/> {t.tabLog}</button>
+           <button onClick={() => setActiveTab("info")} style={{ padding: "14px 12px", color: activeTab === "info" ? "#c084fc" : "var(--botz-muted-2)", borderBottom: activeTab === "info" ? "2px solid #c084fc" : "2px solid transparent", fontWeight: "bold", cursor: "pointer", display: "flex", gap: "6px", fontSize: "12px", background: "none", borderTop: "none", borderLeft: "none", borderRight: "none",}}><User size={14}/> {t.tabData}</button>
         </div>
 
         {/* CONTENIDO */}
-        <div style={{ flex: 1, padding: "20px", overflowY: "auto", background: "linear-gradient(180deg, #0f172a 0%, #020617 100%)" }}>
+        <div style={{ flex: 1, padding: "20px", overflowY: "auto", background: "linear-gradient(180deg, var(--botz-surface-2) 0%, var(--botz-bg) 100%)" }}>
            
            {activeTab === "financial" && (
              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -490,54 +809,54 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
                   border: `1px solid ${lead.estado_operacion === "VIABLE" ? "rgba(16, 185, 129, 0.3)" : lead.estado_operacion === "NO_VIABLE" ? "rgba(239, 68, 68, 0.3)" : "rgba(100, 116, 139, 0.3)"}`, 
                   borderRadius: "10px", padding: "14px" 
                 }}>
-                   <div style={{ display: "flex", alignItems: "center", gap: "8px", color: lead.estado_operacion === "VIABLE" ? "#34d399" : lead.estado_operacion === "NO_VIABLE" ? "#f87171" : "#94a3b8", fontWeight: "bold", fontSize: "11px", textTransform: "uppercase" }}><CheckCircle2 size={14} /> Estado</div>
-                   <div style={{ color: "white", fontSize: "18px", fontWeight: "bold", marginTop: "6px" }}>
-                      {lead.estado_operacion === "VIABLE" ? "✅ Viable" : lead.estado_operacion === "NO_VIABLE" ? "⚠️ No Viable" : "Pendiente de Estudio"}
+                   <div style={{ display: "flex", alignItems: "center", gap: "8px", color: lead.estado_operacion === "VIABLE" ? "#34d399" : lead.estado_operacion === "NO_VIABLE" ? "#f87171" : "#94a3b8", fontWeight: "bold", fontSize: "11px", textTransform: "uppercase" }}><CheckCircle2 size={14} /> {t.statusLabel}</div>
+                   <div style={{ color: "var(--botz-text)", fontSize: "18px", fontWeight: "bold", marginTop: "6px" }}>
+                      {lead.estado_operacion === "VIABLE" ? t.statusViableLabel : lead.estado_operacion === "NO_VIABLE" ? t.statusNotViableLabel : t.statusPendingStudy}
                    </div>
                 </div>
 
                 {/* TIPO, MODALIDAD, EDAD */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
-                   <div style={{ background: "#1e293b", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
-                      <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Home size={10}/> Tipo Operación</div>
-                      <select value={tipoOperacion} onChange={(e) => setTipoOperacion(e.target.value)} style={{ background: "transparent", border: "none", color: "white", fontWeight: "bold", fontSize: "11px", width: "100%", outline: "none", cursor: "pointer" }}>
-                        <option value="habitual" style={{background: "#1e293b"}}>Habitual</option>
-                        <option value="segunda" style={{background: "#1e293b"}}>2ª Residencia</option>
-                        <option value="inversion" style={{background: "#1e293b"}}>Inversión</option>
-                      </select>
-                   </div>
-                   <div style={{ background: "#1e293b", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
-                      <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Users size={10}/> Modalidad</div>
-                      <select value={modalidadCompra} onChange={(e) => setModalidadCompra(e.target.value)} style={{ background: "transparent", border: "none", color: "white", fontWeight: "bold", fontSize: "11px", width: "100%", outline: "none", cursor: "pointer" }}>
-                        <option value="solo" style={{background: "#1e293b"}}>Solo/a</option>
-                        <option value="pareja" style={{background: "#1e293b"}}>Con pareja</option>
-                      </select>
-                   </div>
-                   <div style={{ background: "#1e293b", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
-                      <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Calendar size={10}/> Edad</div>
-                      <input type="number" value={edad} onChange={(e) => setEdad(e.target.value)} style={{ background: "transparent", border: "none", color: "white", fontWeight: "bold", fontSize: "13px", width: "100%", outline: "none" }} />
-                   </div>
+                   <div style={{ background: "var(--botz-surface)", padding: "10px", borderRadius: "10px", border: "1px solid var(--botz-border-strong)" }}>
+                       <div style={{ color: "var(--botz-muted)", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Home size={10}/> {t.operationType}</div>
+                       <select value={tipoOperacion} onChange={(e) => setTipoOperacion(e.target.value)} style={{ background: "transparent", border: "none", color: "var(--botz-text)", fontWeight: "bold", fontSize: "11px", width: "100%", outline: "none", cursor: "pointer" }}>
+                        <option value="habitual" style={{background: "var(--botz-surface)"}}>{t.operationHabitual}</option>
+                        <option value="segunda" style={{background: "var(--botz-surface)"}}>{t.operationSecondResidence}</option>
+                        <option value="inversion" style={{background: "var(--botz-surface)"}}>{t.operationInvestment}</option>
+                       </select>
+                    </div>
+                   <div style={{ background: "var(--botz-surface)", padding: "10px", borderRadius: "10px", border: "1px solid var(--botz-border-strong)" }}>
+                       <div style={{ color: "var(--botz-muted)", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Users size={10}/> {t.modality}</div>
+                       <select value={modalidadCompra} onChange={(e) => setModalidadCompra(e.target.value)} style={{ background: "transparent", border: "none", color: "var(--botz-text)", fontWeight: "bold", fontSize: "11px", width: "100%", outline: "none", cursor: "pointer" }}>
+                        <option value="solo" style={{background: "var(--botz-surface)"}}>{t.modalitySolo}</option>
+                        <option value="pareja" style={{background: "var(--botz-surface)"}}>{t.modalityCouple}</option>
+                       </select>
+                    </div>
+                   <div style={{ background: "var(--botz-surface)", padding: "10px", borderRadius: "10px", border: "1px solid var(--botz-border-strong)" }}>
+                       <div style={{ color: "var(--botz-muted)", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Calendar size={10}/> {t.age}</div>
+                       <input type="number" value={edad} onChange={(e) => setEdad(e.target.value)} style={{ background: "transparent", border: "none", color: "var(--botz-text)", fontWeight: "bold", fontSize: "13px", width: "100%", outline: "none" }} />
+                    </div>
                 </div>
                 
                 {/* CAMPOS FINANCIEROS */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                    <div style={{ background: "#1e293b", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
-                      <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><DollarSign size={10}/> Ingresos Netos (Mes)</div>
+                      <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><DollarSign size={10}/> {t.netIncomeMonth}</div>
                       <input type="text" value={ingresos} onChange={(e) => setIngresos(e.target.value)} style={{ background: "transparent", border: "none", color: "white", fontWeight: "bold", fontSize: "14px", width: "100%", outline: "none" }} />
                       <div style={{ fontSize: "9px", color: "#64748b" }}>{formatCurrency(ingresos)}</div>
                    </div>
                    <div style={{ background: "#1e293b", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
-                      <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><TrendingUp size={10}/> Precio Inmueble</div>
+                      <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><TrendingUp size={10}/> {t.propertyPrice}</div>
                       <input type="text" value={presupuesto} onChange={(e) => setPresupuesto(e.target.value)} style={{ background: "transparent", border: "none", color: "white", fontWeight: "bold", fontSize: "14px", width: "100%", outline: "none" }} />
                       <div style={{ fontSize: "9px", color: "#64748b" }}>{formatCurrency(presupuesto)}</div>
                    </div>
                    <div style={{ background: "#1e293b", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
-                      <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Wallet size={10}/> Aportación (Ahorros)</div>
+                      <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Wallet size={10}/> {t.downPaymentSavings}</div>
                       <input type="text" value={ahorros} onChange={(e) => setAhorros(e.target.value)} style={{ background: "transparent", border: "none", color: "white", fontWeight: "bold", fontSize: "14px", width: "100%", outline: "none" }} />
                       <div style={{ fontSize: "9px", color: "#64748b" }}>{formatCurrency(ahorros)}</div>
                    </div>
                    <div style={{ background: "#1e293b", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
-                      <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><CreditCard size={10}/> Otras Cuotas (Mes)</div>
+                      <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><CreditCard size={10}/> {t.otherMonthlyPayments}</div>
                       <input type="text" value={deudas} onChange={(e) => setDeudas(e.target.value)} style={{ background: "transparent", border: "none", color: "white", fontWeight: "bold", fontSize: "14px", width: "100%", outline: "none" }} />
                       <div style={{ fontSize: "9px", color: "#64748b" }}>{formatCurrency(deudas)}</div>
                    </div>
@@ -546,11 +865,11 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
                 {/* TASA Y PLAZO */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                    <div style={{ background: "rgba(30, 41, 59, 0.5)", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
-                      <div style={{ color: "#94a3b8", fontSize: "10px", marginBottom: "4px" }}>Tasa Interés (%)</div>
+                      <div style={{ color: "#94a3b8", fontSize: "10px", marginBottom: "4px" }}>{t.interestRatePct}</div>
                       <input type="number" step="0.1" value={tasaInteres} onChange={(e) => setTasaInteres(e.target.value)} style={{ background: "transparent", border: "none", color: "#22d3ee", fontWeight: "bold", fontSize: "13px", width: "100%", outline: "none" }} />
                    </div>
                    <div style={{ background: "rgba(30, 41, 59, 0.5)", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
-                      <div style={{ color: "#94a3b8", fontSize: "10px", marginBottom: "4px" }}>Plazo (Años)</div>
+                      <div style={{ color: "#94a3b8", fontSize: "10px", marginBottom: "4px" }}>{t.termYears}</div>
                       <input type="number" value={plazoAnos} onChange={(e) => setPlazoAnos(e.target.value)} style={{ background: "transparent", border: "none", color: "#22d3ee", fontWeight: "bold", fontSize: "13px", width: "100%", outline: "none" }} />
                    </div>
                 </div>
@@ -559,11 +878,11 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
                 <div style={{ display: "flex", gap: "10px" }}>
                   <button onClick={handleSaveFinancialData} disabled={isSaving} style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "1px solid #334155", background: "#1e293b", color: "white", fontWeight: "bold", cursor: isSaving ? "wait" : "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px", fontSize: "12px" }}>
                      {isSaving ? <Loader2 size={14} className="animate-spin"/> : <Save size={14} />} 
-                     {saveMsg || "Guardar"}
+                     {saveMsg || t.save}
                   </button>
                   <button onClick={handleRunSimulation} disabled={isSimulating} style={{ flex: 2, padding: "12px", borderRadius: "10px", border: "none", background: isSimulating ? "#334155" : "#2563eb", color: "white", fontWeight: "bold", cursor: isSimulating ? "wait" : "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px", fontSize: "12px" }}>
                      {isSimulating ? <Loader2 size={14} className="animate-spin"/> : <Calculator size={14} />} 
-                     {isSimulating ? "Calculando..." : "Correr Estudio"}
+                     {isSimulating ? t.calculating : t.runStudy}
                   </button>
                 </div>
 
@@ -574,7 +893,7 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                           <h4 style={{ margin: 0, fontSize: "13px", color: simResult.estado_operacion === "VIABLE" ? "#34d399" : "#f87171", display: "flex", alignItems: "center", gap: "6px" }}>
                             {simResult.estado_operacion === "VIABLE" ? <CheckCircle size={16}/> : <AlertTriangle size={16}/>}
-                            {simResult.estado_operacion === "VIABLE" ? "VIABLE" : "NO VIABLE"}
+                             {simResult.estado_operacion === "VIABLE" ? t.viable : t.notViable}
                           </h4>
                         </div>
                         
@@ -597,18 +916,18 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
                         <div style={{ display: "flex", gap: "10px" }}>
                           <button onClick={generatePDF} disabled={generatingPdf} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "none", background: "#8b5cf6", color: "white", fontWeight: "bold", cursor: generatingPdf ? "wait" : "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px", fontSize: "12px" }}>
                              {generatingPdf ? <Loader2 size={14} className="animate-spin"/> : <FileDown size={14} />} 
-                             {generatingPdf ? "..." : "Generar PDF"}
+                             {generatingPdf ? "..." : t.generatePdf}
                           </button>
                           {pdfUrl && (
                             <button onClick={sendWhatsApp} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "none", background: "#22c55e", color: "white", fontWeight: "bold", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px", fontSize: "12px" }}>
-                               <Share2 size={14} /> WhatsApp
+                               <Share2 size={14} /> {t.whatsapp}
                             </button>
                           )}
                         </div>
 
                         {pdfUrl && (
                           <div style={{ marginTop: "10px", padding: "8px", background: "rgba(139, 92, 246, 0.1)", borderRadius: "6px", fontSize: "10px", color: "#c4b5fd" }}>
-                            <a href={pdfUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#c4b5fd" }}>📄 Ver PDF</a>
+                             <a href={pdfUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#c4b5fd" }}>{t.viewPdf}</a>
                           </div>
                         )}
                     </div>
@@ -620,46 +939,46 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
            {activeTab === "closing" && (
              <div style={{ display: "flex", flexDirection: "column", gap: "16px", color: "white" }}>
                 <div style={{ background: "rgba(34, 211, 238, 0.05)", border: "1px solid rgba(34, 211, 238, 0.2)", padding: "14px", borderRadius: "10px" }}>
-                   <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#22d3ee", margin: "0 0 8px 0", display: "flex", alignItems: "center", gap: "6px" }}><CheckCircle size={16} /> Datos de Cierre</h3>
-                   <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>Actualiza cuando el cliente avance.</p>
+                    <h3 style={{ fontSize: "14px", fontWeight: "bold", color: "#22d3ee", margin: "0 0 8px 0", display: "flex", alignItems: "center", gap: "6px" }}><CheckCircle size={16} /> {t.closingTitle}</h3>
+                    <p style={{ fontSize: "11px", color: "#94a3b8", margin: 0 }}>{t.closingSubtitle}</p>
                 </div>
 
                 <div style={{ display: "grid", gap: "12px" }}>
                    <div>
-                      <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px" }}>Estado</label>
+                      <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px" }}>{t.closingStatusLabel}</label>
                       <select value={closingStatus} onChange={(e) => setClosingStatus(e.target.value)} style={{ width: "100%", padding: "10px", background: "#1e293b", border: "1px solid #334155", borderRadius: "8px", color: "white", outline: "none", fontSize: "13px" }}>
-                         <option value="Nuevo">🔵 Nuevo</option>
-                         <option value="Contactado">🟡 Contactado</option>
-                         <option value="Documentación">🟠 Documentación</option>
-                         <option value="Pre-aprobado">🟣 Pre-aprobado</option>
-                         <option value="Firmado">🟢 Firmado</option>
-                         <option value="Caída">🔴 Caída</option>
-                      </select>
+                         <option value="Nuevo">🔵 {t.statusNew}</option>
+                         <option value="Contactado">🟡 {t.statusContacted}</option>
+                         <option value="Documentación">🟠 {t.statusDocs}</option>
+                         <option value="Pre-aprobado">🟣 {t.statusPreApproved}</option>
+                         <option value="Firmado">🟢 {t.statusSigned}</option>
+                         <option value="Caída">🔴 {t.statusDropped}</option>
+                       </select>
                    </div>
                    <div>
-                      <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px" }}>Comisión (€)</label>
+                      <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px" }}>{t.closingCommissionLabel}</label>
                       <input type="number" placeholder="0" value={closingCommission} onChange={(e) => setClosingCommission(e.target.value)} style={{ width: "100%", padding: "10px", background: "#1e293b", border: "1px solid #334155", borderRadius: "8px", color: "white", outline: "none", fontSize: "13px" }} />
                    </div>
                    <div>
-                      <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px" }}>Banco</label>
+                      <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px" }}>{t.closingBankLabel}</label>
                       <select value={closingBank} onChange={(e) => setClosingBank(e.target.value)} style={{ width: "100%", padding: "10px", background: "#1e293b", border: "1px solid #334155", borderRadius: "8px", color: "white", outline: "none", fontSize: "13px" }}>
-                         <option value="">-- Seleccionar --</option>
+                         <option value="">{t.selectPlaceholder}</option>
                          <option value="Santander">Santander</option>
                          <option value="BBVA">BBVA</option>
                          <option value="CaixaBank">CaixaBank</option>
                          <option value="Sabadell">Sabadell</option>
                          <option value="Bankinter">Bankinter</option>
                          <option value="ING">ING</option>
-                         <option value="Otro">Otro</option>
+                         <option value="Otro">{t.other}</option>
                       </select>
                    </div>
                    <div>
-                      <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px" }}>Fuente</label>
+                      <label style={{ display: "block", fontSize: "11px", color: "#cbd5e1", marginBottom: "4px" }}>{t.closingSourceLabel}</label>
                       <select value={closingSource} onChange={(e) => setClosingSource(e.target.value)} style={{ width: "100%", padding: "10px", background: "#1e293b", border: "1px solid #334155", borderRadius: "8px", color: "white", outline: "none", fontSize: "13px" }}>
-                         <option value="Web">🌐 Web</option>
+                         <option value="Web">🌐 {t.sourceWeb}</option>
                          <option value="Meta Ads">∞ Meta Ads</option>
                          <option value="WhatsApp">💬 WhatsApp</option>
-                         <option value="Referido">👥 Referido</option>
+                         <option value="Referido">👥 {t.sourceReferral}</option>
                          <option value="Google">🔍 Google</option>
                       </select>
                    </div>
@@ -667,7 +986,7 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
 
                 <button onClick={handleSaveClosing} disabled={savingClosing} style={{ background: "linear-gradient(90deg, #22d3ee, #0ea5e9)", border: "none", padding: "12px", borderRadius: "8px", color: "#0f172a", fontWeight: "bold", cursor: savingClosing ? "wait" : "pointer", display: "flex", justifyContent: "center", gap: "6px", fontSize: "13px" }}>
                    {savingClosing ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                   {savingClosing ? "Guardando..." : "Guardar"}
+                   {savingClosing ? t.saving : t.save}
                 </button>
 
                 {closingMsg && <div style={{ padding: "8px", borderRadius: "6px", background: "rgba(16, 185, 129, 0.1)", color: "#34d399", fontSize: "11px", textAlign: "center" }}>{closingMsg}</div>}
@@ -677,8 +996,8 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
            {/* TAB CHAT */}
            {activeTab === "chat" && (
              <div style={{ background: "#1e293b", padding: "14px", borderRadius: "10px", color: "#cbd5e1", fontSize: "13px", lineHeight: "1.6" }}>
-                <strong style={{ color: "#60a5fa", display: "block", marginBottom: "6px" }}>Resumen IA:</strong>
-                {lead.resumen_chat || "Sin historial de chat."}
+                 <strong style={{ color: "#60a5fa", display: "block", marginBottom: "6px" }}>{t.aiSummary}</strong>
+                 {lead.resumen_chat || t.noChatHistory}
              </div>
            )}
 
@@ -686,16 +1005,16 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
            {activeTab === "history" && (
              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                <div style={{ display: "flex", gap: "8px" }}>
-                 <input type="text" placeholder="Escribe una nota..." value={noteInput} onChange={(e) => setNoteInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddNote()} style={{ flex: 1, background: "#1e293b", border: "1px solid #334155", padding: "10px", borderRadius: "8px", color: "white", outline: "none", fontSize: "12px" }} />
+                  <input type="text" placeholder={t.writeNote} value={noteInput} onChange={(e) => setNoteInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddNote()} style={{ flex: 1, background: "#1e293b", border: "1px solid #334155", padding: "10px", borderRadius: "8px", color: "white", outline: "none", fontSize: "12px" }} />
                  <button onClick={handleAddNote} style={{ background: "#3b82f6", border: "none", padding: "0 12px", borderRadius: "8px", color: "white", cursor: "pointer" }}><Send size={16} /></button>
                </div>
                <div style={{ position: "relative", paddingLeft: "16px", borderLeft: "2px solid #334155", marginLeft: "8px" }}>
-                 {loadingHistory && <p style={{color:"#64748b", fontSize:"11px"}}>Cargando...</p>}
+                  {loadingHistory && <p style={{color:"#64748b", fontSize:"11px"}}>{t.loading}</p>}
                  {!loadingHistory && history.map((item) => (
                    <div key={item.id} style={{ marginBottom: "20px", position: "relative" }}>
                       <div style={{ position: "absolute", left: "-23px", top: "0", width: "10px", height: "10px", borderRadius: "50%", background: item.type === "note" ? "#3b82f6" : "#fbbf24", border: "2px solid #0f172a" }}></div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                         <span style={{ fontSize: "11px", fontWeight: "bold", color: item.type === "note" ? "#60a5fa" : "#cbd5e1" }}>{item.user_name || "Sistema"}</span>
+                          <span style={{ fontSize: "11px", fontWeight: "bold", color: item.type === "note" ? "#60a5fa" : "#cbd5e1" }}>{item.user_name || t.system}</span>
                          <span style={{ fontSize: "9px", color: "#64748b" }}>{new Date(item.created_at).toLocaleString()}</span>
                       </div>
                       <div style={{ background: item.type === "note" ? "rgba(59, 130, 246, 0.1)" : "#1e293b", padding: "10px", borderRadius: "6px", fontSize: "12px", color: "#cbd5e1" }}>{item.text}</div>
@@ -710,7 +1029,7 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
              <div style={{ display: "grid", gap: "10px" }}>
                 <div style={{ background: "#1e293b", padding: "10px", borderRadius: "8px", color: "#cbd5e1", fontSize: "13px", display: "flex", alignItems: "center", gap: "8px" }}><Phone size={14}/> {lead.phone}</div>
                 <div style={{ background: "#1e293b", padding: "10px", borderRadius: "8px", color: "#cbd5e1", fontSize: "13px", display: "flex", alignItems: "center", gap: "8px" }}><Mail size={14}/> {lead.email}</div>
-                <div style={{ background: "#1e293b", padding: "10px", borderRadius: "8px", color: "#cbd5e1", fontSize: "13px", display: "flex", alignItems: "center", gap: "8px" }}><User size={14}/> {lead.situacion_laboral || "Sin situación laboral"}</div>
+                <div style={{ background: "#1e293b", padding: "10px", borderRadius: "8px", color: "#cbd5e1", fontSize: "13px", display: "flex", alignItems: "center", gap: "8px" }}><User size={14}/> {lead.situacion_laboral || t.noWorkSituation}</div>
              </div>
            )}
         </div>

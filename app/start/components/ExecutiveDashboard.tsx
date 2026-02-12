@@ -10,6 +10,205 @@ import {
 import { supabase } from "./supabaseClient";
 import { useAuth } from "../MainLayout"; 
 
+type AppLanguage = "es" | "en";
+
+const EXEC_TEXT: Record<
+  AppLanguage,
+  {
+    general: string;
+    advisors: string;
+    mortgage: string;
+    alerts: string;
+    leadsMonth: string;
+    newLeads: (n: number) => string;
+    totalCrm: string;
+    fullDatabase: string;
+    closeRate: string;
+    commissions: string;
+    avgTime: string;
+    days: string;
+    avgPerAdvisor: string;
+    monthPipeline: string;
+    channelPerformance: string;
+    advisorsRanking: string;
+    advisor: string;
+    leads: string;
+    convRateShort: string;
+    sales: string;
+    pipeline: string;
+    commissionShort: string;
+    dtiMetrics: string;
+    dtiAverage: string;
+    dtiExcellent: string;
+    dtiModerate: string;
+    dtiHigh: string;
+    avgValue: string;
+    avgHomeValue: string;
+    approvalRate: string;
+    approvedOps: string;
+    topBanks: string;
+    alertsCenter: string;
+    caseSingular: string;
+    casePlural: string;
+    allGoodTitle: string;
+    noActiveAlerts: string;
+    alertNoContact24h: string;
+    alertHighScoreReady: string;
+    alertOverloadedAdvisors: string;
+    alertNegotiationStage: string;
+    filtering: string;
+    leadsThisMonthShort: string;
+    totalInCrmShort: string;
+    restrictedTitle: string;
+    restrictedMsg: string;
+
+    dashboardTitle: string;
+    monthLocale: string;
+    conversionLabel: string;
+    monthlyComparison: string;
+    thisMonthLabel: string;
+    previousMonthLabel: string;
+    variationLabel: string;
+
+    funnelNew: string;
+    funnelContacted: string;
+    funnelQualified: string;
+    funnelDocs: string;
+    funnelPreApproved: string;
+    funnelNegotiation: string;
+    funnelClosing: string;
+  }
+> = {
+  es: {
+    general: "General",
+    advisors: "Asesores",
+    mortgage: "Hipotecario",
+    alerts: "Alertas",
+    leadsMonth: "Leads del Mes",
+    newLeads: (n) => `${n} nuevos`,
+    totalCrm: "Total en CRM",
+    fullDatabase: "Base de datos completa",
+    closeRate: "Tasa de Cierre",
+    commissions: "Comisiones",
+    avgTime: "Tiempo Promedio",
+    days: "días",
+    avgPerAdvisor: "Promedio/Asesor",
+    monthPipeline: "Pipeline del Mes Seleccionado",
+    channelPerformance: "Rendimiento por Canal",
+    advisorsRanking: "Ranking de Asesores",
+    advisor: "Asesor",
+    leads: "Leads",
+    convRateShort: "Tasa Conv.",
+    sales: "Ventas",
+    pipeline: "Pipeline",
+    commissionShort: "Comisión",
+    dtiMetrics: "Métricas DTI",
+    dtiAverage: "DTI Promedio",
+    dtiExcellent: "✅ Excelente - Alta probabilidad de aprobación",
+    dtiModerate: "⚠️ Moderado - Revisión adicional requerida",
+    dtiHigh: "🔴 Alto - Riesgo de rechazo bancario",
+    avgValue: "Valor Promedio",
+    avgHomeValue: "Valor de vivienda promedio",
+    approvalRate: "Tasa de Aprobación",
+    approvedOps: "Operaciones aprobadas",
+    topBanks: "Top Bancos",
+    alertsCenter: "Centro de Alertas",
+    caseSingular: "caso",
+    casePlural: "casos",
+    allGoodTitle: "¡Todo bajo control!",
+    noActiveAlerts: "No hay alertas activas en este momento",
+    alertNoContact24h: "Leads sin contactar > 24h",
+    alertHighScoreReady: "Leads con Score > 80 listos para cerrar",
+    alertOverloadedAdvisors: "Asesores con >30 leads asignados",
+    alertNegotiationStage: "Leads en etapa de negociación",
+    filtering: "Filtrando",
+    leadsThisMonthShort: "leads este mes",
+    totalInCrmShort: "totales en CRM",
+    restrictedTitle: "Acceso Restringido",
+    restrictedMsg: "Solo los administradores pueden acceder al Dashboard Ejecutivo.",
+
+    dashboardTitle: "Dashboard Ejecutivo",
+    monthLocale: "es-ES",
+    conversionLabel: "Conversión",
+    monthlyComparison: "Comparativa Mensual",
+    thisMonthLabel: "Leads este mes",
+    previousMonthLabel: "Mes anterior",
+    variationLabel: "Variación",
+
+    funnelNew: "Nuevo",
+    funnelContacted: "Contactado",
+    funnelQualified: "Calificado",
+    funnelDocs: "Documentación",
+    funnelPreApproved: "Pre-aprobado",
+    funnelNegotiation: "Negociación",
+    funnelClosing: "Cierre",
+  },
+  en: {
+    general: "Overview",
+    advisors: "Advisors",
+    mortgage: "Mortgage",
+    alerts: "Alerts",
+    leadsMonth: "Leads This Month",
+    newLeads: (n) => `${n} new`,
+    totalCrm: "Total in CRM",
+    fullDatabase: "Full database",
+    closeRate: "Close Rate",
+    commissions: "Commissions",
+    avgTime: "Average Time",
+    days: "days",
+    avgPerAdvisor: "Avg / Advisor",
+    monthPipeline: "Selected Month Pipeline",
+    channelPerformance: "Channel Performance",
+    advisorsRanking: "Advisor Ranking",
+    advisor: "Advisor",
+    leads: "Leads",
+    convRateShort: "Conv. Rate",
+    sales: "Sales",
+    pipeline: "Pipeline",
+    commissionShort: "Commission",
+    dtiMetrics: "DTI Metrics",
+    dtiAverage: "Average DTI",
+    dtiExcellent: "Excellent - High approval likelihood",
+    dtiModerate: "Moderate - Additional review required",
+    dtiHigh: "High - Higher rejection risk",
+    avgValue: "Average Value",
+    avgHomeValue: "Average home value",
+    approvalRate: "Approval Rate",
+    approvedOps: "Approved operations",
+    topBanks: "Top Banks",
+    alertsCenter: "Alerts Center",
+    caseSingular: "case",
+    casePlural: "cases",
+    allGoodTitle: "All good!",
+    noActiveAlerts: "No active alerts right now",
+    alertNoContact24h: "Leads not contacted > 24h",
+    alertHighScoreReady: "Leads with score > 80 ready to close",
+    alertOverloadedAdvisors: "Advisors with >30 assigned leads",
+    alertNegotiationStage: "Leads in negotiation stage",
+    filtering: "Filtering",
+    leadsThisMonthShort: "leads this month",
+    totalInCrmShort: "total in CRM",
+    restrictedTitle: "Restricted Access",
+    restrictedMsg: "Only administrators can access the Executive Dashboard.",
+
+    dashboardTitle: "Executive Dashboard",
+    monthLocale: "en-US",
+    conversionLabel: "Conversion",
+    monthlyComparison: "Monthly Comparison",
+    thisMonthLabel: "Leads this month",
+    previousMonthLabel: "Previous month",
+    variationLabel: "Variation",
+
+    funnelNew: "New",
+    funnelContacted: "Contacted",
+    funnelQualified: "Qualified",
+    funnelDocs: "Documents",
+    funnelPreApproved: "Pre-approved",
+    funnelNegotiation: "Negotiation",
+    funnelClosing: "Closing",
+  },
+};
+
 // --- TIPOS ---
 interface Lead {
   id: string;
@@ -53,13 +252,13 @@ interface AsesorMetrics {
 
 // --- ESTILOS ---
 const glassStyle: React.CSSProperties = {
-  background: "rgba(10, 15, 30, 0.8)",
+  background: "var(--botz-panel)",
   border: "1px solid rgba(16, 178, 203, 0.2)",
   borderRadius: "24px",
   padding: "32px",
   backdropFilter: "blur(12px)",
-  boxShadow: "0 25px 50px rgba(0,0,0,0.5)",
-  color: "#fff",
+  boxShadow: "var(--botz-shadow)",
+  color: "var(--botz-text)",
   minHeight: "600px",
   fontFamily: "system-ui, sans-serif",
   position: "relative",
@@ -67,10 +266,10 @@ const glassStyle: React.CSSProperties = {
 };
 
 const cardStyle: React.CSSProperties = {
-  background: "rgba(13, 22, 45, 0.6)",
+  background: "var(--botz-surface-3)",
   padding: "20px",
   borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.05)",
+  border: "1px solid var(--botz-border-soft)",
   display: "flex",
   flexDirection: "column",
   gap: "8px",
@@ -92,16 +291,35 @@ const alertCardStyle = (type: 'danger' | 'warning' | 'success' | 'info'): React.
 
 // --- COMPONENTE PRINCIPAL ---
 export default function ExecutiveDashboard({ filter }: { filter?: string | null }) {
-  const { isAdmin, loading: authLoading, dataRefreshKey } = useAuth();
+  const { isAdmin, loading: authLoading, dataRefreshKey, tenantId: authTenantId, teamMemberId } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [metrics, setMetrics] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'general' | 'asesores' | 'hipotecario' | 'alertas'>('general');
+  const [language, setLanguage] = useState<AppLanguage>("es");
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   const [allLeads, setAllLeads] = useState<Lead[]>([]);
+  const t = EXEC_TEXT[language];
+
+  useEffect(() => {
+    const saved = localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") {
+      setLanguage(saved);
+    }
+
+    const onLangChange = (event: Event) => {
+      const next = (event as CustomEvent<AppLanguage>).detail;
+      if (next === "es" || next === "en") {
+        setLanguage(next);
+      }
+    };
+
+    window.addEventListener("botz-language-change", onLangChange);
+    return () => window.removeEventListener("botz-language-change", onLangChange);
+  }, []);
 
   const getLeadValue = (lead: Lead) => {
     return Number((lead as any).valor_vivienda ?? (lead as any).precio_real ?? 0) || 0;
@@ -131,11 +349,10 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
     try {
         setLoading(true);
         console.log('Fetching data for month:', selectedMonth);
-        
-        // Obtener tenant_id del usuario actual (igual que KanbanBoard)
+
+        // Resolver tenant_id: preferir AuthProvider (team_members), fallback a metadata
         const { data: { session } } = await supabase.auth.getSession();
-        const tenantId = session?.user?.user_metadata?.tenant_id || session?.user?.app_metadata?.tenant_id || null;
-        
+        const tenantId = authTenantId || session?.user?.user_metadata?.tenant_id || session?.user?.app_metadata?.tenant_id || null;
         console.log('Tenant ID:', tenantId);
         
         // Obtener leads con paginación y filtro por tenant
@@ -186,10 +403,16 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
             console.log('Después de eliminar duplicados:', allLeadsData.length);
         }
         
-        const { data: asesores, error: asesoresError } = await supabase
+        let asesoresQuery = supabase
             .from('team_members')
             .select('id, nombre, email')
             .eq('activo', true);
+
+        if (tenantId) {
+            asesoresQuery = asesoresQuery.eq('tenant_id', tenantId);
+        }
+
+        const { data: asesores, error: asesoresError } = await asesoresQuery;
 
         if (asesoresError) throw asesoresError;
 
@@ -234,12 +457,12 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
         // Calcular métricas por asesor (usa asesor_id con fallback a assigned_to)
         const asesoresMetrics: AsesorMetrics[] = asesores.map(asesor => {
             const asesorLeads = filteredLeads.filter(l => {
-            // Para admin, incluir todos los leads (incluyendo los sin asesor_id)
-            if (asesor.email === 'Administrador Principal' || asesor.email === 'juangfalla@gmail.com') {
-                return true;
-            }
-            return (l.asesor_id || l.assigned_to) === asesor.id;
-        });
+                // Para el admin logueado (principal), incluir todos los leads
+                if (isAdmin && teamMemberId && asesor.id === teamMemberId) {
+                    return true;
+                }
+                return (l.asesor_id || l.assigned_to) === asesor.id;
+            });
             const atendidos = asesorLeads.filter(l => {
                 const s = l.status?.toUpperCase() || '';
                 return s !== 'NUEVO' && s !== '';
@@ -339,13 +562,13 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
             },
             asesores: asesoresMetrics,
             funnel: [
-                { stage: "Nuevo", count: countByStatus('NUEVO') + countByStatus('Nuevo'), color: "#94a3b8", probabilidad: 100 },
-                { stage: "Contactado", count: countByStatus('CONTACTADO'), color: "#22d3ee", probabilidad: 65 },
-                { stage: "Calificado", count: countByStatus('CALIFICADO'), color: "#38bdf8", probabilidad: 45 },
-                { stage: "Documentación", count: countByStatus('DOCUMENTACIÓN'), color: "#818cf8", probabilidad: 30 },
-                { stage: "Pre-aprobado", count: countByStatus('PRE-APROBADO'), color: "#a78bfa", probabilidad: 20 },
-                { stage: "Negociación", count: countByStatus('NEGOCIACIÓN'), color: "#f472b6", probabilidad: 15 },
-                { stage: "Cierre", count: firmados.length, color: "#10b981", probabilidad: 10 },
+                { stageKey: "new", count: countByStatus('NUEVO') + countByStatus('Nuevo'), color: "#94a3b8", probabilidad: 100 },
+                { stageKey: "contacted", count: countByStatus('CONTACTADO'), color: "#22d3ee", probabilidad: 65 },
+                { stageKey: "qualified", count: countByStatus('CALIFICADO'), color: "#38bdf8", probabilidad: 45 },
+                { stageKey: "docs", count: countByStatus('DOCUMENTACIÓN'), color: "#818cf8", probabilidad: 30 },
+                { stageKey: "pre_approved", count: countByStatus('PRE-APROBADO'), color: "#a78bfa", probabilidad: 20 },
+                { stageKey: "negotiation", count: countByStatus('NEGOCIACIÓN'), color: "#f472b6", probabilidad: 15 },
+                { stageKey: "closing", count: firmados.length, color: "#10b981", probabilidad: 10 },
             ],
             canalStats,
             hipotecario: {
@@ -372,9 +595,10 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
 
   const calculateCanalStats = (leads: Lead[]) => {
     const canales: Record<string, { count: number; conversion: number; value: number }> = {};
+    const unknownChannel = language === "en" ? "Unknown" : "Desconocido";
     
     leads.forEach(l => {
-        const canal = l.source || 'Desconocido';
+        const canal = l.source || unknownChannel;
         if (!canales[canal]) {
             canales[canal] = { count: 0, conversion: 0, value: 0 };
         }
@@ -408,25 +632,25 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
         return horas > 24 && (status === 'NUEVO' || status === '');
     });
     if (sinContactar.length > 0) {
-        alertas.push({ type: 'danger', message: 'Leads sin contactar > 24h', count: sinContactar.length });
+        alertas.push({ type: 'danger', message: t.alertNoContact24h, count: sinContactar.length });
     }
     
     // Leads con alto score (oportunidad)
     const highScore = leads.filter(l => (l.score || 0) > 80 && !['FIRMADO', 'CONVERTIDO'].includes(l.status?.toUpperCase() || ''));
     if (highScore.length > 0) {
-        alertas.push({ type: 'success', message: 'Leads con Score > 80 listos para cerrar', count: highScore.length });
+        alertas.push({ type: 'success', message: t.alertHighScoreReady, count: highScore.length });
     }
     
     // Asesores con carga alta
     const sobrecargados = asesores.filter(a => a.leadsAsignados > 30);
     if (sobrecargados.length > 0) {
-        alertas.push({ type: 'warning', message: `Asesores con >30 leads asignados`, count: sobrecargados.length });
+        alertas.push({ type: 'warning', message: t.alertOverloadedAdvisors, count: sobrecargados.length });
     }
     
     // Oportunidades de cierre
     const enNegociacion = leads.filter(l => l.status?.toUpperCase() === 'NEGOCIACIÓN');
     if (enNegociacion.length > 0) {
-        alertas.push({ type: 'info', message: 'Leads en etapa de negociación', count: enNegociacion.length });
+        alertas.push({ type: 'info', message: t.alertNegotiationStage, count: enNegociacion.length });
     }
     
     return alertas;
@@ -435,7 +659,7 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
   const getTop = (leads: Lead[], field: keyof Lead, limit: number = 4) => {
     const counts: Record<string, number> = {};
     leads.forEach((l: any) => {
-        const val = l[field] || "Desconocido";
+        const val = l[field] || (language === "en" ? "Unknown" : "Desconocido");
         counts[val] = (counts[val] || 0) + 1;
     });
     return Object.entries(counts)
@@ -461,8 +685,8 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
           <div style={{ marginBottom: "25px", display: "inline-flex", padding: "20px", background: "rgba(239, 68, 68, 0.1)", borderRadius: "50%", border: "1px solid rgba(239, 68, 68, 0.3)" }}>
             <Lock size={40} color="#ef4444" />
           </div>
-          <h2 style={{ fontSize: "24px", fontWeight: "800", marginBottom: "10px", color: "#fff" }}>Acceso Restringido</h2>
-          <p style={{ color: "#94a3b8", marginBottom: "30px", fontSize: "14px" }}>Solo los administradores pueden acceder al Dashboard Ejecutivo.</p>
+          <h2 style={{ fontSize: "24px", fontWeight: "800", marginBottom: "10px", color: "#fff" }}>{t.restrictedTitle}</h2>
+          <p style={{ color: "#94a3b8", marginBottom: "30px", fontSize: "14px" }}>{t.restrictedMsg}</p>
         </div>
       </div>
     );
@@ -478,8 +702,8 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "16px" }}>
         <div>
            <h2 style={{ fontSize: "26px", fontWeight: "800", display: "flex", alignItems: "center", gap: "12px", margin: 0 }}>
-            <BarChart3 size={28} color="#22d3ee" /> Dashboard Ejecutivo
-          </h2>
+            <BarChart3 size={28} color="#22d3ee" /> {t.dashboardTitle}
+           </h2>
           <div style={{ display: "flex", alignItems: "center", gap: "16px", marginTop: "6px", flexWrap: "wrap" }}>
             {/* Selector de Mes */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -507,7 +731,7 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
                   const year = date.getFullYear();
                   const month = date.getMonth() + 1;
                   const value = `${year}-${String(month).padStart(2, '0')}`;
-                  const label = date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+                  const label = date.toLocaleDateString(t.monthLocale, { month: 'long', year: 'numeric' });
                   return <option key={value} value={value}>{label.charAt(0).toUpperCase() + label.slice(1)}</option>;
                 })}
               </select>
@@ -515,12 +739,12 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
             
             {filter ? (
               <span style={{color: "#22d3ee", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px"}}>
-                <Filter size={14}/> Filtrando: <span style={{textTransform:"uppercase"}}>{filter}</span>
+                <Filter size={14}/> {t.filtering}: <span style={{textTransform:"uppercase"}}>{filter}</span>
               </span>
             ) : (
               <span style={{ color: "#94a3b8", fontSize: "14px" }}>
-                <strong style={{ color: "#fff" }}>{metrics.general.totalLeads}</strong> leads este mes • 
-                <strong style={{ color: "#22d3ee" }}> {metrics.general.totalLeadsGlobal}</strong> totales en CRM
+                <strong style={{ color: "#fff" }}>{metrics.general.totalLeads}</strong> {t.leadsThisMonthShort} •
+                <strong style={{ color: "#22d3ee" }}> {metrics.general.totalLeadsGlobal}</strong> {t.totalInCrmShort}
               </span>
             )}
           </div>
@@ -529,11 +753,11 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
         {/* TABS */}
         <div style={{ display: "flex", gap: "8px", background: "rgba(255,255,255,0.05)", padding: "6px", borderRadius: "12px" }}>
           {[
-            { id: 'general', label: 'General', icon: PieChart },
-            { id: 'asesores', label: 'Asesores', icon: Users },
-            { id: 'hipotecario', label: 'Hipotecario', icon: Home },
-            { id: 'alertas', label: 'Alertas', icon: AlertCircle }
-          ].map(tab => (
+            { id: 'general', label: t.general, icon: PieChart },
+            { id: 'asesores', label: t.advisors, icon: Users },
+            { id: 'hipotecario', label: t.mortgage, icon: Home },
+            { id: 'alertas', label: t.alerts, icon: AlertCircle },
+          ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
@@ -559,53 +783,74 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
       </div>
 
       {/* CONTENIDO SEGÚN TAB */}
-      {activeTab === 'general' && <GeneralTab metrics={metrics} />}
-      {activeTab === 'asesores' && <AsesoresTab asesores={metrics.asesores} />}
-      {activeTab === 'hipotecario' && <HipotecarioTab data={metrics.hipotecario} />}
-      {activeTab === 'alertas' && <AlertasTab alertas={metrics.alertas} />}
+      {activeTab === 'general' && <GeneralTab metrics={metrics} t={t} />}
+      {activeTab === 'asesores' && <AsesoresTab asesores={metrics.asesores} t={t} />}
+      {activeTab === 'hipotecario' && <HipotecarioTab data={metrics.hipotecario} t={t} />}
+      {activeTab === 'alertas' && <AlertasTab alertas={metrics.alertas} t={t} />}
     </div>
   );
 }
 
 // --- SUB-COMPONENTES ---
 
-function GeneralTab({ metrics }: { metrics: any }) {
+function GeneralTab({ metrics, t }: { metrics: any; t: (typeof EXEC_TEXT)[AppLanguage] }) {
+  const stageLabel = (key: string) => {
+    switch (String(key || "").toLowerCase()) {
+      case "new":
+        return t.funnelNew;
+      case "contacted":
+        return t.funnelContacted;
+      case "qualified":
+        return t.funnelQualified;
+      case "docs":
+        return t.funnelDocs;
+      case "pre_approved":
+        return t.funnelPreApproved;
+      case "negotiation":
+        return t.funnelNegotiation;
+      case "closing":
+        return t.funnelClosing;
+      default:
+        return key;
+    }
+  };
+
   return (
     <>
       {/* KPIs PRINCIPALES */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" }}>
         <KpiCard 
           icon={<Users size={22} color="#22d3ee"/>} 
-          label="Leads del Mes" 
+          label={t.leadsMonth} 
           value={metrics.general.totalLeads}
-          sublabel={`${metrics.general.leadsNuevos} nuevos`}
+          sublabel={t.newLeads(metrics.general.leadsNuevos)}
         />
         <KpiCard 
           icon={<BarChart3 size={22} color="#3b82f6"/>} 
-          label="Total en CRM" 
+          label={t.totalCrm} 
           value={metrics.general.totalLeadsGlobal}
-          sublabel="Base de datos completa"
+          sublabel={t.fullDatabase}
           highlight
         />
         <KpiCard 
           icon={<Target size={22} color="#f472b6"/>} 
-          label="Tasa de Cierre" 
+          label={t.closeRate} 
           value={`${metrics.general.tasaCierre}%`}
           trend={metrics.general.variacionLeads}
         />
         <KpiCard 
           icon={<DollarSign size={22} color="#10b981"/>} 
-          label="Comisiones" 
+          label={t.commissions} 
           value={`$${metrics.general.comisionTotal.toLocaleString()}`}
         />
         <KpiCard 
           icon={<Clock size={22} color="#fbbf24"/>} 
-          label="Tiempo Promedio" 
-          value={`${metrics.general.tiempoPromedioCierre} días`}
+          label={t.avgTime} 
+          value={`${metrics.general.tiempoPromedioCierre} ${t.days}`}
         />
         <KpiCard 
           icon={<UserCheck size={22} color="#a78bfa"/>} 
-          label="Promedio/Asesor" 
+          label={t.avgPerAdvisor} 
           value={metrics.general.promedioPorAsesor}
         />
       </div>
@@ -614,7 +859,7 @@ function GeneralTab({ metrics }: { metrics: any }) {
         {/* FUNNEL DETALLADO */}
         <div style={cardStyle}>
           <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#94a3b8", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
-            <TrendingDown size={18} /> Pipeline del Mes Seleccionado
+            <TrendingDown size={18} /> {t.monthPipeline}
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {metrics.funnel.map((item: any, i: number) => {
@@ -626,9 +871,9 @@ function GeneralTab({ metrics }: { metrics: any }) {
                     : 100;
                 
                 return (
-                <div key={i} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div key={i} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <div style={{ display: "flex", alignItems: "center", fontSize: "14px" }}>
-                        <span style={{ width: "120px", color: "#cbd5e1", fontWeight: 500 }}>{item.stage}</span>
+                        <span style={{ width: "120px", color: "#cbd5e1", fontWeight: 500 }}>{stageLabel(item.stageKey || item.stage)}</span>
                         <div style={{ flexGrow: 1, background: "rgba(255,255,255,0.05)", height: "10px", borderRadius: "5px", margin: "0 12px", overflow: "hidden" }}>
                             <div style={{ width: `${percent}%`, background: item.color, height: "100%", borderRadius: "5px", transition: "width 0.5s ease" }}></div>
                         </div>
@@ -647,7 +892,7 @@ function GeneralTab({ metrics }: { metrics: any }) {
         {/* CANALES */}
         <div style={cardStyle}>
           <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#94a3b8", marginBottom: "15px", display: "flex", alignItems: "center", gap: "8px" }}>
-            <Zap size={18} /> Rendimiento por Canal
+            <Zap size={18} /> {t.channelPerformance}
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {metrics.canalStats.map((canal: any, i: number) => (
@@ -658,7 +903,7 @@ function GeneralTab({ metrics }: { metrics: any }) {
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
                         <span style={{ color: canal.conversionRate > 20 ? "#10b981" : "#94a3b8" }}>
-                            Conversión: {canal.conversionRate}%
+                            {t.conversionLabel}: {canal.conversionRate}%
                         </span>
                         {canal.value > 0 && (
                             <span style={{ color: "#22d3ee" }}>
@@ -675,22 +920,22 @@ function GeneralTab({ metrics }: { metrics: any }) {
       {/* COMPARATIVA MENSUAL */}
       <div style={{ ...cardStyle, marginTop: "24px" }}>
         <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#94a3b8", marginBottom: "15px" }}>
-            Comparativa Mensual
+            {t.monthlyComparison}
         </h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             <div style={{ textAlign: "center", padding: "20px", background: "rgba(255,255,255,0.03)", borderRadius: "12px" }}>
                 <div style={{ fontSize: "32px", fontWeight: "bold", color: "#fff" }}>{metrics.comparativa.esteMes}</div>
-                <div style={{ color: "#94a3b8", fontSize: "13px" }}>Leads este mes</div>
+                <div style={{ color: "#94a3b8", fontSize: "13px" }}>{t.thisMonthLabel}</div>
             </div>
             <div style={{ textAlign: "center", padding: "20px", background: "rgba(255,255,255,0.03)", borderRadius: "12px" }}>
                 <div style={{ fontSize: "32px", fontWeight: "bold", color: "#fff" }}>{metrics.comparativa.mesAnterior}</div>
-                <div style={{ color: "#94a3b8", fontSize: "13px" }}>Mes anterior</div>
+                <div style={{ color: "#94a3b8", fontSize: "13px" }}>{t.previousMonthLabel}</div>
             </div>
             <div style={{ textAlign: "center", padding: "20px", background: metrics.comparativa.crecimiento >= 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)", borderRadius: "12px", border: `1px solid ${metrics.comparativa.crecimiento >= 0 ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)"}` }}>
                 <div style={{ fontSize: "32px", fontWeight: "bold", color: metrics.comparativa.crecimiento >= 0 ? "#10b981" : "#ef4444" }}>
                     {metrics.comparativa.crecimiento > 0 ? '+' : ''}{metrics.comparativa.crecimiento}%
                 </div>
-                <div style={{ color: "#94a3b8", fontSize: "13px" }}>Variación</div>
+                <div style={{ color: "#94a3b8", fontSize: "13px" }}>{t.variationLabel}</div>
             </div>
         </div>
       </div>
@@ -698,11 +943,11 @@ function GeneralTab({ metrics }: { metrics: any }) {
   );
 }
 
-function AsesoresTab({ asesores }: { asesores: AsesorMetrics[] }) {
+function AsesoresTab({ asesores, t }: { asesores: AsesorMetrics[]; t: (typeof EXEC_TEXT)[AppLanguage] }) {
   return (
     <div style={cardStyle}>
       <h3 style={{ fontSize: "18px", fontWeight: "bold", color: "#fff", marginBottom: "20px", display: "flex", alignItems: "center", gap: "10px" }}>
-        <Award size={22} color="#fbbf24" /> Ranking de Asesores
+        <Award size={22} color="#fbbf24" /> {t.advisorsRanking}
       </h3>
       
       <div style={{ overflow: "auto" }}>
@@ -710,12 +955,12 @@ function AsesoresTab({ asesores }: { asesores: AsesorMetrics[] }) {
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
               <th style={{ textAlign: "left", padding: "12px", color: "#94a3b8", fontSize: "13px" }}>#</th>
-              <th style={{ textAlign: "left", padding: "12px", color: "#94a3b8", fontSize: "13px" }}>Asesor</th>
-              <th style={{ textAlign: "center", padding: "12px", color: "#94a3b8", fontSize: "13px" }}>Leads</th>
-              <th style={{ textAlign: "center", padding: "12px", color: "#94a3b8", fontSize: "13px" }}>Tasa Conv.</th>
-              <th style={{ textAlign: "center", padding: "12px", color: "#94a3b8", fontSize: "13px" }}>Ventas</th>
-              <th style={{ textAlign: "right", padding: "12px", color: "#94a3b8", fontSize: "13px" }}>Pipeline</th>
-              <th style={{ textAlign: "right", padding: "12px", color: "#94a3b8", fontSize: "13px" }}>Comisión</th>
+              <th style={{ textAlign: "left", padding: "12px", color: "#94a3b8", fontSize: "13px" }}>{t.advisor}</th>
+              <th style={{ textAlign: "center", padding: "12px", color: "#94a3b8", fontSize: "13px" }}>{t.leads}</th>
+              <th style={{ textAlign: "center", padding: "12px", color: "#94a3b8", fontSize: "13px" }}>{t.convRateShort}</th>
+              <th style={{ textAlign: "center", padding: "12px", color: "#94a3b8", fontSize: "13px" }}>{t.sales}</th>
+              <th style={{ textAlign: "right", padding: "12px", color: "#94a3b8", fontSize: "13px" }}>{t.pipeline}</th>
+              <th style={{ textAlign: "right", padding: "12px", color: "#94a3b8", fontSize: "13px" }}>{t.commissionShort}</th>
             </tr>
           </thead>
           <tbody>
@@ -758,53 +1003,51 @@ function AsesoresTab({ asesores }: { asesores: AsesorMetrics[] }) {
   );
 }
 
-function HipotecarioTab({ data }: { data: any }) {
+function HipotecarioTab({ data, t }: { data: any; t: (typeof EXEC_TEXT)[AppLanguage] }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px" }}>
       <div style={cardStyle}>
         <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#94a3b8", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
-          <Percent size={18} /> Métricas DTI
+          <Percent size={18} /> {t.dtiMetrics}
         </h3>
         <div style={{ textAlign: "center", padding: "30px" }}>
           <div style={{ fontSize: "48px", fontWeight: "bold", color: data.dtiPromedio < 35 ? "#10b981" : data.dtiPromedio < 45 ? "#fbbf24" : "#ef4444" }}>
             {data.dtiPromedio}%
           </div>
-          <div style={{ color: "#94a3b8", marginTop: "8px" }}>DTI Promedio</div>
+          <div style={{ color: "#94a3b8", marginTop: "8px" }}>{t.dtiAverage}</div>
           <div style={{ marginTop: "16px", padding: "12px", background: "rgba(255,255,255,0.05)", borderRadius: "8px", fontSize: "13px", color: "#cbd5e1" }}>
-            {data.dtiPromedio < 35 ? "✅ Excelente - Alta probabilidad de aprobación" :
-             data.dtiPromedio < 45 ? "⚠️ Moderado - Revisión adicional requerida" :
-             "🔴 Alto - Riesgo de rechazo bancario"}
+            {data.dtiPromedio < 35 ? t.dtiExcellent : data.dtiPromedio < 45 ? t.dtiModerate : t.dtiHigh}
           </div>
         </div>
       </div>
 
       <div style={cardStyle}>
         <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#94a3b8", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
-          <Home size={18} /> Valor Promedio
+          <Home size={18} /> {t.avgValue}
         </h3>
         <div style={{ textAlign: "center", padding: "30px" }}>
           <div style={{ fontSize: "36px", fontWeight: "bold", color: "#22d3ee" }}>
             ${data.valorPromedio.toLocaleString()}
           </div>
-          <div style={{ color: "#94a3b8", marginTop: "8px" }}>Valor de vivienda promedio</div>
+          <div style={{ color: "#94a3b8", marginTop: "8px" }}>{t.avgHomeValue}</div>
         </div>
       </div>
 
       <div style={cardStyle}>
         <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#94a3b8", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
-          <CheckCircle2 size={18} /> Tasa de Aprobación
+          <CheckCircle2 size={18} /> {t.approvalRate}
         </h3>
         <div style={{ textAlign: "center", padding: "30px" }}>
           <div style={{ fontSize: "48px", fontWeight: "bold", color: data.aprobacionRate >= 60 ? "#10b981" : data.aprobacionRate >= 40 ? "#fbbf24" : "#ef4444" }}>
             {data.aprobacionRate}%
           </div>
-          <div style={{ color: "#94a3b8", marginTop: "8px" }}>Operaciones aprobadas</div>
+          <div style={{ color: "#94a3b8", marginTop: "8px" }}>{t.approvedOps}</div>
         </div>
       </div>
 
       <div style={cardStyle}>
         <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#94a3b8", marginBottom: "15px" }}>
-          Top Bancos
+          {t.topBanks}
         </h3>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {data.bancos.map((banco: any, i: number) => (
@@ -819,11 +1062,11 @@ function HipotecarioTab({ data }: { data: any }) {
   );
 }
 
-function AlertasTab({ alertas }: { alertas: any[] }) {
+function AlertasTab({ alertas, t }: { alertas: any[]; t: (typeof EXEC_TEXT)[AppLanguage] }) {
   return (
     <div>
       <h3 style={{ fontSize: "18px", fontWeight: "bold", color: "#fff", marginBottom: "20px", display: "flex", alignItems: "center", gap: "10px" }}>
-        <AlertCircle size={22} color="#f43f5e" /> Centro de Alertas
+        <AlertCircle size={22} color="#f43f5e" /> {t.alertsCenter}
       </h3>
       
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: "16px" }}>
@@ -847,7 +1090,7 @@ function AlertasTab({ alertas }: { alertas: any[] }) {
               </div>
               {alerta.count && (
                 <div style={{ color: "#94a3b8", fontSize: "24px", fontWeight: "bold", marginTop: "4px" }}>
-                  {alerta.count} {alerta.count === 1 ? 'caso' : 'casos'}
+                  {alerta.count} {alerta.count === 1 ? t.caseSingular : t.casePlural}
                 </div>
               )}
             </div>
@@ -855,8 +1098,8 @@ function AlertasTab({ alertas }: { alertas: any[] }) {
         )) : (
           <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
             <CheckCircle2 size={48} color="#10b981" style={{ marginBottom: "16px" }} />
-            <div style={{ fontSize: "18px", color: "#10b981" }}>¡Todo bajo control!</div>
-            <div style={{ fontSize: "14px" }}>No hay alertas activas en este momento</div>
+            <div style={{ fontSize: "18px", color: "#10b981" }}>{t.allGoodTitle}</div>
+            <div style={{ fontSize: "14px" }}>{t.noActiveAlerts}</div>
           </div>
         )}
       </div>

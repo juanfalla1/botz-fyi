@@ -68,7 +68,7 @@ const cardStyle: React.CSSProperties = {
   animation: "fadeIn 0.5s ease-in-out"
 };
 
-const CustomTooltip = ({ active, payload }: any) => {
+const CustomTooltip = ({ active, payload, quantityLabel = "Cantidad" }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0];
     const name = data.name; 
@@ -76,13 +76,13 @@ const CustomTooltip = ({ active, payload }: any) => {
     const color = data.payload.fill || data.payload.color;
 
     return (
-      <div style={{ background: "#0f172a", border: "1px solid #334155", padding: "12px", borderRadius: "12px", boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)", minWidth: "140px" }}>
+      <div style={{ background: "var(--botz-surface-2)", border: "1px solid var(--botz-border-strong)", padding: "12px", borderRadius: "12px", boxShadow: "var(--botz-shadow-2)", minWidth: "140px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
           <div style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: color }}></div>
-          <p style={{ fontWeight: "bold", color: "#f8fafc", fontSize: "13px", margin: 0 }}>{name}</p>
+          <p style={{ fontWeight: "bold", color: "var(--botz-text)", fontSize: "13px", margin: 0 }}>{name}</p>
         </div>
-        <p style={{ color: "#94a3b8", fontSize: "12px", margin: 0, paddingLeft: "18px" }}>
-          Cantidad: <span style={{ fontWeight: "bold", color: "#fff", fontSize: "14px" }}>{value}</span>
+        <p style={{ color: "var(--botz-muted)", fontSize: "12px", margin: 0, paddingLeft: "18px" }}>
+          {quantityLabel}: <span style={{ fontWeight: "bold", color: "var(--botz-text)", fontSize: "14px" }}>{value}</span>
         </p>
       </div>
     );
@@ -91,6 +91,105 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#ef4444", "#06b6d4", "#84cc16"];
+
+type AppLanguage = "es" | "en";
+
+const CONTROL_TEXT: Record<AppLanguage, Record<string, string>> = {
+  es: {
+    controlCenter: "Centro de Control Botz",
+    channels: "Canales",
+    strategy: "Estrategia",
+    account: "Cuenta",
+    team: "Equipo",
+    leadSources: "Fuentes de Captacion",
+    accountTitle: "Cuenta y Suscripcion",
+    plan: "Plan",
+    nextInvoice: "Proxima factura",
+    tenant: "Tenant",
+    billingHidden: "Informacion de pago oculta",
+    adminOnly: "Solo admin",
+    cycle: "Ciclo",
+    accountId: "Identificador de la cuenta",
+    usageLimits: "Uso y limites del plan",
+    activeAdvisors: "Asesores activos",
+    monthLeads: "Leads este mes",
+    channelsConfigured: "Canales configurados",
+    advisorBillingNote: "Como asesor, no ves datos sensibles de facturacion. Solo el admin puede ver pago y renovacion.",
+    adminTip: "Recomendacion: revisa este panel al inicio de cada semana para anticipar limites y renovaciones.",
+    noAccountData: "No se pudo cargar la informacion de cuenta.",
+    back: "Volver",
+    saveConfig: "Guardar Configuracion",
+    saved: "Configuracion guardada.",
+    saveError: "Error al guardar.",
+    quantity: "Cantidad",
+    weekly: "Semanal (5d)",
+    monthly: "Mensual",
+    controlCenterBtn: "Centro de Control",
+    totalLeads: "Leads Totales",
+    fullDatabaseShort: "Base de datos completa",
+    leadsThisMonth: "Leads este Mes",
+    sinceDay1: "Desde el día 1",
+    conversionRate: "Tasa Conversión",
+    salesShort: "ventas",
+    activeChannels: "Canales Activos",
+    trafficSources: "Fuentes de tráfico",
+    flowLast: "Flujo: Últimos",
+    days5: "5 días",
+    days30: "30 días",
+
+    channelsTitle: "Canales",
+    statusesTitle: "Estados",
+    emptyShort: "Vacío",
+    notAvailable: "No disponible",
+  },
+  en: {
+    controlCenter: "Botz Control Center",
+    channels: "Channels",
+    strategy: "Strategy",
+    account: "Account",
+    team: "Team",
+    leadSources: "Lead Sources",
+    accountTitle: "Account & Subscription",
+    plan: "Plan",
+    nextInvoice: "Next invoice",
+    tenant: "Tenant",
+    billingHidden: "Billing info hidden",
+    adminOnly: "Admin only",
+    cycle: "Cycle",
+    accountId: "Account identifier",
+    usageLimits: "Plan usage and limits",
+    activeAdvisors: "Active advisors",
+    monthLeads: "Leads this month",
+    channelsConfigured: "Configured channels",
+    advisorBillingNote: "As an advisor, you cannot see sensitive billing data. Only admins can view payments and renewals.",
+    adminTip: "Tip: review this panel weekly to stay ahead of limits and renewals.",
+    noAccountData: "Could not load account information.",
+    back: "Back",
+    saveConfig: "Save Configuration",
+    saved: "Configuration saved.",
+    saveError: "Error while saving.",
+    quantity: "Count",
+    weekly: "Weekly (5d)",
+    monthly: "Monthly",
+    controlCenterBtn: "Control Center",
+    totalLeads: "Total Leads",
+    fullDatabaseShort: "Full database",
+    leadsThisMonth: "Leads This Month",
+    sinceDay1: "Since day 1",
+    conversionRate: "Conversion Rate",
+    salesShort: "sales",
+    activeChannels: "Active Channels",
+    trafficSources: "Traffic sources",
+    flowLast: "Flow: Last",
+    days5: "5 days",
+    days30: "30 days",
+
+    channelsTitle: "Channels",
+    statusesTitle: "Statuses",
+    emptyShort: "Empty",
+    notAvailable: "Not available",
+  },
+};
 
 // 👇 AQUÍ ESTÁ LA SOLUCIÓN AL ERROR ROJO 👇
 // Estamos definiendo que este componente ACEPTA "globalFilter"
@@ -106,6 +205,27 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
   const [showConfig, setShowConfig] = useState(false);
   const [activeConfigTab, setActiveConfigTab] = useState("canales");
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
+  const [language, setLanguage] = useState<AppLanguage>("es");
+  const t = CONTROL_TEXT[language];
+  const uiLocale = language === "en" ? "en-US" : "es-CO";
+  const shortDayLocale = language === "en" ? "en-US" : "es-ES";
+
+  useEffect(() => {
+    const saved = localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") {
+      setLanguage(saved);
+    }
+
+    const onLangChange = (event: Event) => {
+      const next = (event as CustomEvent<AppLanguage>).detail;
+      if (next === "es" || next === "en") {
+        setLanguage(next);
+      }
+    };
+
+    window.addEventListener("botz-language-change", onLangChange);
+    return () => window.removeEventListener("botz-language-change", onLangChange);
+  }, []);
 
   const [accountLoading, setAccountLoading] = useState(false);
   const [accountSummary, setAccountSummary] = useState<{
@@ -141,10 +261,10 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
       .replace(/[\u0300-\u036f]/g, "");
 
   const formatDate = (dateRaw?: string | null) => {
-    if (!dateRaw) return "No disponible";
+    if (!dateRaw) return t.notAvailable;
     const d = new Date(dateRaw);
-    if (Number.isNaN(d.getTime())) return "No disponible";
-    return d.toLocaleDateString("es-CO", { year: "numeric", month: "short", day: "numeric" });
+    if (Number.isNaN(d.getTime())) return t.notAvailable;
+    return d.toLocaleDateString(uiLocale, { year: "numeric", month: "short", day: "numeric" });
   };
 
   const getProgress = (used: number, limit: number | null) => {
@@ -373,7 +493,7 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
   const activityData = Array.from({ length: daysToShow }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (daysToShow - 1 - i)); 
-    const label = d.toLocaleDateString("es-ES", { weekday: 'short', day: 'numeric' });
+    const label = d.toLocaleDateString(shortDayLocale, { weekday: 'short', day: 'numeric' });
     const count = filteredLeads.filter(l => {
         const leadDate = new Date(l.created_at);
         return leadDate.getDate() === d.getDate() && leadDate.getMonth() === d.getMonth();
@@ -432,20 +552,20 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
       {/* HEADER INTEGRADO */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", gap: "8px", background: "rgba(30, 41, 59, 0.5)", padding: "4px", borderRadius: "12px", border: "1px solid rgba(71, 85, 105, 0.5)" }}>
-            <button onClick={() => setTimeFilter('week')} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", cursor: "pointer", border: "none", background: timeFilter === 'week' ? "#3b82f6" : "transparent", color: "white" }}>Semanal (5d)</button>
-            <button onClick={() => setTimeFilter('month')} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", cursor: "pointer", border: "none", background: timeFilter === 'month' ? "#3b82f6" : "transparent", color: "white" }}>Mensual</button>
+            <button onClick={() => setTimeFilter('week')} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", cursor: "pointer", border: "none", background: timeFilter === 'week' ? "#3b82f6" : "transparent", color: "white" }}>{t.weekly}</button>
+            <button onClick={() => setTimeFilter('month')} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", cursor: "pointer", border: "none", background: timeFilter === 'month' ? "#3b82f6" : "transparent", color: "white" }}>{t.monthly}</button>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button onClick={() => setShowConfig(true)} style={btnConfigStyle}><Settings size={14} /> Centro de Control</button>
+          <button onClick={() => setShowConfig(true)} style={btnConfigStyle}><Settings size={14} /> {t.controlCenterBtn}</button>
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
         {[
-          { label: "Leads Totales", val: totalLeads, icon: <Users color="#60a5fa" />, sub: "Base de datos completa" },
-          { label: "Leads este Mes", val: leadsMes, icon: <Calendar color="#facc15" />, sub: "Desde el día 1" },
-          { label: "Tasa Conversión", val: `${tasaConversion}%`, icon: <TrendingUp color="#10b981" />, sub: `${convertidos} ventas` },
-          { label: "Canales Activos", val: channelData.length, icon: <Activity color="#e879f9" />, sub: "Fuentes de tráfico" },
+          { label: t.totalLeads, val: totalLeads, icon: <Users color="#60a5fa" />, sub: t.fullDatabaseShort },
+          { label: t.leadsThisMonth, val: leadsMes, icon: <Calendar color="#facc15" />, sub: t.sinceDay1 },
+          { label: t.conversionRate, val: `${tasaConversion}%`, icon: <TrendingUp color="#10b981" />, sub: `${convertidos} ${t.salesShort}` },
+          { label: t.activeChannels, val: channelData.length, icon: <Activity color="#e879f9" />, sub: t.trafficSources },
         ].map((kpi, i) => (
           <div key={i} style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}><span style={{ color: "#94a3b8", fontSize: "14px" }}>{kpi.label}</span>{kpi.icon}</div>
@@ -458,37 +578,37 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
       {/* GRÁFICOS CON TÍTULOS */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: "20px" }}>
         <div style={{ ...cardStyle, minHeight: "300px" }}>
-          <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}><BarChart3 size={18} color="#60a5fa" /> Flujo: Últimos {timeFilter === 'week' ? "5 días" : "30 días"}</h3>
+          <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}><BarChart3 size={18} color="#60a5fa" /> {t.flowLast} {timeFilter === 'week' ? t.days5 : t.days30}</h3>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={activityData}>
               <defs><linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#60a5fa" stopOpacity={0.8}/><stop offset="95%" stopColor="#60a5fa" stopOpacity={0}/></linearGradient></defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
               <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<CustomTooltip quantityLabel={t.quantity} />} />
               <Area type="monotone" dataKey="leads" stroke="#60a5fa" fillOpacity={1} fill="url(#colorLeads)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
         <div style={{ ...cardStyle, minHeight: "300px" }}>
-          <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}><Globe size={18} color="#10b981" /> Canales</h3>
+          <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}><Globe size={18} color="#10b981" /> {t.channelsTitle}</h3>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={channelData.length > 0 ? channelData : [{name:'Vacío', value:1, color:'#334155'}]} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" nameKey="name">
+              <Pie data={channelData.length > 0 ? channelData : [{name: t.emptyShort, value: 1, color: '#334155'}]} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" nameKey="name">
                 {channelData.map((entry, index) => <Cell key={index} fill={entry.color} stroke="none" />)}
               </Pie>
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<CustomTooltip quantityLabel={t.quantity} />} />
             </PieChart>
           </ResponsiveContainer>
         </div>
 
          <div style={{ ...cardStyle, minHeight: "300px" }}>
-          <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}><PieIcon size={18} color="#facc15" /> Estados</h3>
+          <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}><PieIcon size={18} color="#facc15" /> {t.statusesTitle}</h3>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={statusData} layout="vertical">
               <XAxis type="number" hide />
               <YAxis dataKey="name" type="category" width={110} stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<CustomTooltip quantityLabel={t.quantity} />} />
               <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}>
                 {statusData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
               </Bar>
@@ -517,16 +637,16 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
             <button onClick={() => {setShowConfig(false); setSelectedChannel(null);}} style={closeButtonStyle}><X size={24} /></button>
             <div style={{ padding: activeConfigTab === "equipo" ? "24px" : "40px" }}>
               <h2 style={{ color: "#fff", fontSize: "24px", fontWeight: "800", marginBottom: "30px", display: "flex", alignItems: "center", gap: "12px" }}>
-                <Zap color="#10b2cb" fill="#10b2cb" size={24} /> Centro de Control Botz
+                <Zap color="#10b2cb" fill="#10b2cb" size={24} /> {t.controlCenter}
               </h2>
 
               <div style={{ display: "flex", gap: activeConfigTab === "equipo" ? "18px" : "30px", minHeight: "480px" }}>
                 <aside style={sidebarStyle}>
-                  <MenuButton label="Canales" id="canales" icon={<Globe size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
-                  <MenuButton label="Estrategia" id="strategy" icon={<Briefcase size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
-                  <MenuButton label="Cuenta" id="cuenta" icon={<Users size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
+                  <MenuButton label={t.channels} id="canales" icon={<Globe size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
+                  <MenuButton label={t.strategy} id="strategy" icon={<Briefcase size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
+                  <MenuButton label={t.account} id="cuenta" icon={<Users size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
                   {isAdmin && (
-                    <MenuButton label="Equipo" id="equipo" icon={<Users size={18} color="#22d3ee" />} active={activeConfigTab} onClick={setActiveConfigTab} />
+                    <MenuButton label={t.team} id="equipo" icon={<Users size={18} color="#22d3ee" />} active={activeConfigTab} onClick={setActiveConfigTab} />
                   )}
                 </aside>
 
@@ -534,22 +654,22 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
                   {activeConfigTab === "canales" && (
                     !selectedChannel ? (
                       <div style={{animation: "fadeIn 0.3s ease"}}>
-                        <h3 style={{ color: "#fff", marginBottom: "20px" }}>Fuentes de Captación</h3>
+                        <h3 style={{ color: "#fff", marginBottom: "20px" }}>{t.leadSources}</h3>
                         <ChannelRow label="WhatsApp Business" icon={<MessageCircle color="#25D366" />} onConfigure={() => setSelectedChannel("whatsapp")} />
                         <ChannelRow label="Meta Ads" icon={<Share2 color="#0081FB" />} onConfigure={() => setSelectedChannel("meta")} />
                         <ChannelRow label="Landing Pages" icon={<Layout color="#e879f9" />} onConfigure={() => setSelectedChannel("landings")} />
                       </div>
                     ) : (
-                      <PersistConfigForm channelId={selectedChannel} onBack={() => setSelectedChannel(null)} />
+                      <PersistConfigForm channelId={selectedChannel} onBack={() => setSelectedChannel(null)} language={language} />
                     )
                   )}
                   {activeConfigTab === "strategy" && (
-                    <PersistConfigForm channelId="mortgage_strategy" onBack={() => setActiveConfigTab("canales")} />
+                    <PersistConfigForm channelId="mortgage_strategy" onBack={() => setActiveConfigTab("canales")} language={language} />
                   )}
                   {activeConfigTab === "cuenta" && (
                     <div style={{ animation: "fadeIn 0.3s ease" }}>
                       <h3 style={{ color: "#fff", marginBottom: "18px", display: "flex", alignItems: "center", gap: "8px" }}>
-                        <CreditCard size={18} color="#22d3ee" /> Cuenta y Suscripción
+                        <CreditCard size={18} color="#22d3ee" /> {t.accountTitle}
                       </h3>
 
                       {accountLoading ? (
@@ -560,42 +680,42 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
                         <>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "12px", marginBottom: "14px" }}>
                             <AccountKpi
-                              title="Plan"
+                              title={t.plan}
                               value={String(accountSummary.plan || "free").toUpperCase()}
                               subtitle={`Estado: ${accountSummary.status}`}
                               icon={<ShieldCheck size={16} color="#22d3ee" />}
                             />
                             <AccountKpi
-                              title="Próxima Factura"
-                              value={isAdmin ? formatDate(accountSummary.nextInvoiceDate) : "Solo admin"}
-                              subtitle={isAdmin ? `Ciclo: ${accountSummary.billingCycle}` : "Información de pago oculta"}
+                              title={t.nextInvoice}
+                              value={isAdmin ? formatDate(accountSummary.nextInvoiceDate) : t.adminOnly}
+                              subtitle={isAdmin ? `${t.cycle}: ${accountSummary.billingCycle}` : t.billingHidden}
                               icon={<Clock3 size={16} color="#fbbf24" />}
                             />
                             <AccountKpi
-                              title="Tenant"
-                              value={accountSummary.tenantId ? `${accountSummary.tenantId.slice(0, 8)}...` : "No disponible"}
-                              subtitle="Identificador de la cuenta"
+                              title={t.tenant}
+                              value={accountSummary.tenantId ? `${accountSummary.tenantId.slice(0, 8)}...` : "N/A"}
+                              subtitle={t.accountId}
                               icon={<Users size={16} color="#10b981" />}
                             />
                           </div>
 
                           <div style={{ background: "rgba(15, 23, 42, 0.45)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "16px" }}>
-                            <div style={{ color: "#f8fafc", fontWeight: 700, marginBottom: "12px" }}>Uso y limites del plan</div>
+                            <div style={{ color: "#f8fafc", fontWeight: 700, marginBottom: "12px" }}>{t.usageLimits}</div>
 
                             <UsageRow
-                              label="Asesores activos"
+                              label={t.activeAdvisors}
                               used={accountSummary.teamUsed}
                               limit={accountSummary.teamLimit}
                               progress={getProgress(accountSummary.teamUsed, accountSummary.teamLimit)}
                             />
                             <UsageRow
-                              label="Leads este mes"
+                              label={t.monthLeads}
                               used={accountSummary.leadsMonthUsed}
                               limit={accountSummary.leadsMonthLimit}
                               progress={getProgress(accountSummary.leadsMonthUsed, accountSummary.leadsMonthLimit)}
                             />
                             <UsageRow
-                              label="Canales configurados"
+                              label={t.channelsConfigured}
                               used={accountSummary.channelsUsed}
                               limit={accountSummary.channelsLimit}
                               progress={getProgress(accountSummary.channelsUsed, accountSummary.channelsLimit)}
@@ -604,28 +724,28 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
                             {!isAdmin && (
                               <div style={{ marginTop: "12px", fontSize: "12px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "6px" }}>
                                 <AlertTriangle size={13} color="#fbbf24" />
-                                Como asesor, no ves datos sensibles de facturación. Solo el admin puede ver pago y renovación.
+                                {t.advisorBillingNote}
                               </div>
                             )}
 
                             {isAdmin && (
                               <div style={{ marginTop: "12px", fontSize: "12px", color: "#94a3b8", display: "flex", alignItems: "center", gap: "6px" }}>
                                 <CheckCircle2 size={13} color="#10b981" />
-                                Recomendación: revisa este panel al inicio de cada semana para anticipar límites y renovaciones.
+                                {t.adminTip}
                               </div>
                             )}
                           </div>
                         </>
                       ) : (
                         <div style={{ color: "#94a3b8", fontSize: "14px", padding: "20px" }}>
-                          No se pudo cargar la información de cuenta.
+                          {t.noAccountData}
                         </div>
                       )}
                     </div>
                   )}
                   {activeConfigTab === "equipo" && isAdmin && (
                     <div style={{ animation: "fadeIn 0.3s ease" }}>
-                      <TeamManagement />
+                      <TeamManagement language={language} />
                     </div>
                   )}
                 </main>
@@ -639,8 +759,9 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
 }
 
 // COMPONENTE DE FORMULARIO PERSISTENTE
-function PersistConfigForm({ channelId, onBack }: { channelId: string, onBack: () => void }) {
+function PersistConfigForm({ channelId, onBack, language }: { channelId: string, onBack: () => void, language: AppLanguage }) {
   const schema = CHANNEL_SCHEMAS[channelId];
+  const t = CONTROL_TEXT[language];
   const [formData, setFormData] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -671,16 +792,16 @@ function PersistConfigForm({ channelId, onBack }: { channelId: string, onBack: (
           user_id: session.user.id, channel: channelId, settings: formData, updated_at: new Date().toISOString()
       }, { onConflict: 'user_id, channel' });
       if (error) throw error;
-      alert("✅ Configuración guardada.");
+      alert(`✅ ${t.saved}`);
       onBack();
-    } catch (err) { alert("Error al guardar."); } finally { setSaving(false); }
+    } catch (err) { alert(t.saveError); } finally { setSaving(false); }
   };
 
   if (loading) return <div style={{ display: "flex", justifyContent: "center", padding: "50px" }}><Loader2 className="animate-spin" color="#10b2cb" /></div>;
 
   return (
     <div style={{animation: "fadeIn 0.3s ease"}}>
-      <button onClick={onBack} style={{background: "none", border: "none", color: "#10b2cb", cursor: "pointer", marginBottom: "20px", display: "flex", alignItems: "center", gap: "5px", fontSize: "14px", padding: 0}}><ChevronLeft size={16} /> Volver</button>
+      <button onClick={onBack} style={{background: "none", border: "none", color: "#10b2cb", cursor: "pointer", marginBottom: "20px", display: "flex", alignItems: "center", gap: "5px", fontSize: "14px", padding: 0}}><ChevronLeft size={16} /> {t.back}</button>
       <h3 style={{ color: "#fff", marginBottom: "24px", fontSize: "18px" }}>{schema.title}</h3>
       <div style={{display: "flex", flexDirection: "column", gap: "18px"}}>
         {schema.fields.map((f: any) => (
@@ -690,7 +811,7 @@ function PersistConfigForm({ channelId, onBack }: { channelId: string, onBack: (
           </div>
         ))}
         <button onClick={save} disabled={saving} style={{ marginTop: "10px", background: "#10b2cb", color: "#fff", border: "none", padding: "14px", borderRadius: "12px", fontWeight: "bold", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}>
-          {saving ? <Loader2 className="animate-spin" size={18} /> : <><Save size={18} /> Guardar Configuración</>}
+          {saving ? <Loader2 className="animate-spin" size={18} /> : <><Save size={18} /> {t.saveConfig}</>}
         </button>
       </div>
     </div>

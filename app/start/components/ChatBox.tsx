@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Bot, Sparkles, Zap } from "lucide-react";
 import { FaWhatsapp } from "react-icons/fa6";
+import useBotzLanguage from "../hooks/useBotzLanguage";
 
 export type ChatMsg = { 
   role: "bot" | "user"; 
@@ -17,6 +18,32 @@ interface ChatBoxProps {
 }
 
 export default function ChatBox({ chat, isTyping, onSend }: ChatBoxProps) {
+  const language = useBotzLanguage();
+  const copy = {
+    es: {
+      assistantName: "Botz Assistant",
+      onlineStatus: "En línea • Responde en segundos",
+      aiActive: "IA Activa",
+      waitingConnection: "Esperando conexión...",
+      emptyHint: "Completa el formulario para iniciar la conversación",
+      youLabel: "TÚ",
+      inputPlaceholder: "Escribe tu mensaje...",
+      timeLocale: "es-ES",
+    },
+    en: {
+      assistantName: "Botz Assistant",
+      onlineStatus: "Online • Replies in seconds",
+      aiActive: "AI Active",
+      waitingConnection: "Waiting for connection...",
+      emptyHint: "Fill out the form to start the conversation",
+      youLabel: "YOU",
+      inputPlaceholder: "Type your message...",
+      timeLocale: "en-US",
+    },
+  } as const;
+
+  const t = copy[language];
+
   const [input, setInput] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -56,7 +83,7 @@ export default function ChatBox({ chat, isTyping, onSend }: ChatBoxProps) {
 
   const formatTime = () => {
     const now = new Date();
-    return now.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+    return now.toLocaleTimeString(t.timeLocale, { hour: "2-digit", minute: "2-digit" });
   };
 
   return (
@@ -105,7 +132,7 @@ export default function ChatBox({ chat, isTyping, onSend }: ChatBoxProps) {
               alignItems: "center",
               gap: "8px"
             }}>
-              Botz Assistant
+              {t.assistantName}
               <Sparkles size={14} color="#25D366" />
             </div>
             <div style={{ 
@@ -122,7 +149,7 @@ export default function ChatBox({ chat, isTyping, onSend }: ChatBoxProps) {
                 background: "#25D366",
                 animation: "pulse 2s infinite"
               }} />
-              En línea • Responde en segundos
+              {t.onlineStatus}
             </div>
           </div>
         </div>
@@ -138,7 +165,7 @@ export default function ChatBox({ chat, isTyping, onSend }: ChatBoxProps) {
           gap: "6px"
         }}>
           <Zap size={12} color="#22d3ee" />
-          IA Activa
+          {t.aiActive}
         </div>
       </div>
 
@@ -177,10 +204,10 @@ export default function ChatBox({ chat, isTyping, onSend }: ChatBoxProps) {
             </div>
             <div>
               <div style={{ fontSize: "16px", fontWeight: "600", color: "#64748b", marginBottom: "4px" }}>
-                Esperando conexión...
+                {t.waitingConnection}
               </div>
               <div style={{ fontSize: "13px", color: "#475569" }}>
-                Completa el formulario para iniciar la conversación
+                {t.emptyHint}
               </div>
             </div>
           </div>
@@ -260,7 +287,7 @@ export default function ChatBox({ chat, isTyping, onSend }: ChatBoxProps) {
                   fontWeight: "700",
                   color: "#fff"
                 }}>
-                  TÚ
+                  {t.youLabel}
                 </div>
               )}
             </div>
@@ -365,7 +392,7 @@ export default function ChatBox({ chat, isTyping, onSend }: ChatBoxProps) {
             onChange={(e) => setInput(e.target.value)}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            placeholder="Escribe tu mensaje..."
+            placeholder={t.inputPlaceholder}
             style={{
               width: "100%",
               background: isFocused ? "rgba(34, 211, 238, 0.05)" : "rgba(255,255,255,0.05)",

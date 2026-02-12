@@ -30,12 +30,12 @@ const LoginSection: React.FC<LoginSectionProps> = ({ onLogin, onRegister, isLoad
     <div style={{
       maxWidth: "400px",
       margin: "0 auto",
-      background: "rgba(10, 15, 30, 0.8)",
-      border: "1px solid rgba(255,255,255,0.1)",
+      background: "var(--botz-panel)",
+      border: "1px solid var(--botz-border)",
       borderRadius: "24px",
       padding: "40px",
       backdropFilter: "blur(20px)",
-      boxShadow: "0 20px 40px rgba(0,0,0,0.4)"
+      boxShadow: "var(--botz-shadow)"
     }}>
       <div style={{ textAlign: "center", marginBottom: "30px" }}>
         <div style={{
@@ -53,7 +53,7 @@ const LoginSection: React.FC<LoginSectionProps> = ({ onLogin, onRegister, isLoad
         <h2 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "8px" }}>
           {isLoginMode ? "Acceso a Botz" : "Crear Cuenta"}
         </h2>
-        <p style={{ color: "#8b949e", fontSize: "14px" }}>
+        <p style={{ color: "var(--botz-muted)", fontSize: "14px" }}>
           {isLoginMode 
             ? "Ingresa con tu email y contraseña del plan" 
             : "Regístrate para acceder a la plataforma"}

@@ -1,0 +1,10 @@
+flowchart LR
+  U[Usuario\nAdmin/Asesor] -->|Web| FE[Next.js UI]
+  FE -->|Auth| SBAuth[Supabase Auth]
+  FE -->|CRUD| SBDB[(Supabase DB)]
+  FE -->|Metrics Queries| SBDB
+  FE -->|Payments| Stripe[Stripe]
+  FE -->|Messages| WA[WhatsApp Provider]
+  FE -->|Email| SMTP[SMTP Zoho/Resend]
+  FE -->|Automation Hooks| N8N[n8n Webhooks]
+  SBDB -->|Logs| SBDB

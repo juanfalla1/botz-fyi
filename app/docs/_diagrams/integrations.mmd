@@ -1,0 +1,12 @@
+sequenceDiagram
+  participant FE as Botz UI
+  participant API as Next API Routes
+  participant N8N as n8n
+  participant EXT as Provider
+
+  FE->>API: Trigger (lead/event)
+  API->>N8N: Webhook payload
+  N8N->>EXT: Action (message/email)
+  EXT-->>N8N: Result
+  N8N-->>API: Callback/Status
+  API-->>FE: Refresh/Log

@@ -1,0 +1,21 @@
+flowchart TD
+  A[Lead entra por campanas
+  Meta/Google/WhatsApp/Web] --> B[Agente Botz responde
+  captura datos clave]
+  B --> C[CRM: Lead creado
+  origen + responsable]
+  C --> D[Motor Hipotecario
+  calcula cuota/DTI/LTV/score]
+  D --> E{Viable?}
+  E -->|Si| F[Proxima accion
+  llamada/cita]
+  E -->|No| G[Recomendacion
+  ajustar entrada/deudas]
+  D --> H[Guardar en CRM
+  campos + timestamps]
+  D --> I[Generar reporte
+  PDF/CSV]
+  I --> J[Compartir
+  WhatsApp]
+  D --> K[Lead scoring
+  email automatico]

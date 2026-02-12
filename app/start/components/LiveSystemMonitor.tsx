@@ -5,6 +5,7 @@ import {
   CheckCircle2, BrainCircuit, Mail, Sparkles, Zap, Shield,
   ArrowUpRight, ArrowDownRight
 } from "lucide-react";
+import useBotzLanguage from "../hooks/useBotzLanguage";
 
 interface LiveSystemMonitorProps {
   formData: any;
@@ -41,6 +42,67 @@ const AnimatedNumber = ({ value, prefix = "", suffix = "" }: { value: number; pr
 };
 
 export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: LiveSystemMonitorProps) {
+  const language = useBotzLanguage();
+  const copy = {
+    es: {
+      liveMonitor: "MONITOR EN VIVO",
+      synced: "SINCRONIZADO",
+      database: "BASE DE DATOS",
+      live: "● LIVE",
+      customer: "CLIENTE",
+      interest: "INTERES",
+      mailServer: "SERVIDOR DE CORREO",
+      sent: "ENVIADO",
+      to: "Para:",
+      subject: "Asunto:",
+      subjectLine: "Bienvenido a tu proceso hipotecario 🏠",
+      mailBody: (name: string) =>
+        `"Hola ${name}, hemos recibido tu solicitud.\nBotz IA esta analizando tu perfil financiero..."`,
+      bankingRadar: "RADAR BANCARIO",
+      fundsRequired: "FONDOS REQUERIDOS",
+      downPayment: "Entrada (20%)",
+      fees: "Gastos (~10%)",
+      totalCash: "TOTAL CASH",
+      aiResult: "Resultado IA",
+      viableCustomer: "CLIENTE VIABLE",
+      highRisk: "RIESGO ALTO",
+      viableHint: "Perfil financiero solido. Se recomienda ofrecer seguro de vida vinculado para mejorar condiciones.",
+      riskHint: (dti: number) =>
+        `DTI elevado (${dti}%). Sugerencia: solicitar aval adicional o cancelar deudas existentes antes de continuar.`,
+      waiting: "Sistema en espera",
+      waitingHint: "Los datos apareceran cuando inicies el flujo",
+    },
+    en: {
+      liveMonitor: "LIVE MONITOR",
+      synced: "SYNCED",
+      database: "DATABASE",
+      live: "● LIVE",
+      customer: "CUSTOMER",
+      interest: "INTEREST",
+      mailServer: "MAIL SERVER",
+      sent: "SENT",
+      to: "To:",
+      subject: "Subject:",
+      subjectLine: "Welcome to your mortgage journey 🏠",
+      mailBody: (name: string) =>
+        `"Hi ${name}, we received your request.\nBotz AI is analyzing your financial profile..."`,
+      bankingRadar: "BANK RADAR",
+      fundsRequired: "FUNDS REQUIRED",
+      downPayment: "Down payment (20%)",
+      fees: "Fees (~10%)",
+      totalCash: "TOTAL CASH",
+      aiResult: "AI Result",
+      viableCustomer: "VIABLE CUSTOMER",
+      highRisk: "HIGH RISK",
+      viableHint: "Strong financial profile. Consider offering a bundled life insurance to improve terms.",
+      riskHint: (dti: number) =>
+        `High DTI (${dti}%). Suggestion: add a guarantor or pay down existing debts before proceeding.`,
+      waiting: "System standing by",
+      waitingHint: "Data will appear once you start the flow",
+    },
+  } as const;
+
+  const t = copy[language];
   
   const precio = calculoHipoteca.valorVivienda || 0;
   const ingresos = calculoHipoteca.ingresosMensuales || 0;
@@ -82,7 +144,7 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
           color: "#fff"
         }}>
           <Zap size={16} color="#22d3ee" />
-          MONITOR EN VIVO
+          {t.liveMonitor}
         </div>
         <div style={{
           background: "rgba(34, 211, 238, 0.1)",
@@ -103,7 +165,7 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
             background: "#22d3ee",
             animation: "pulse 2s infinite"
           }} />
-          SINCRONIZADO
+          {t.synced}
         </div>
       </div>
 
@@ -112,8 +174,8 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
         <div style={cardStyle}>
           <div style={headerStyle("#22d3ee")}>
             <Database size={14} /> 
-            <span>BASE DE DATOS</span>
-            <span style={liveBadgeStyle}>● LIVE</span>
+            <span>{t.database}</span>
+            <span style={liveBadgeStyle}>{t.live}</span>
           </div>
           
           <div style={{ 
@@ -122,14 +184,14 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
             gap: "12px",
             marginTop: "12px"
           }}>
-            <div style={statBoxStyle}>
-              <div style={{ fontSize: "10px", color: "#64748b", marginBottom: "4px" }}>CLIENTE</div>
+              <div style={statBoxStyle}>
+              <div style={{ fontSize: "10px", color: "#64748b", marginBottom: "4px" }}>{t.customer}</div>
               <div style={{ fontSize: "14px", fontWeight: "700", color: "#fff" }}>
                 {formData.name || "--"}
               </div>
             </div>
             <div style={statBoxStyle}>
-              <div style={{ fontSize: "10px", color: "#64748b", marginBottom: "4px" }}>INTERÉS</div>
+              <div style={{ fontSize: "10px", color: "#64748b", marginBottom: "4px" }}>{t.interest}</div>
               <div style={{ fontSize: "14px", fontWeight: "700", color: "#fff" }}>
                 {formData.interest?.split(" ")[0] || formData.country || "Global"}
               </div>
@@ -143,8 +205,8 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
         <div style={{ ...cardStyle, animation: "slideIn 0.5s ease", borderLeft: "3px solid #34d399" }}>
           <div style={headerStyle("#34d399")}>
             <Mail size={14} /> 
-            <span>SERVIDOR DE CORREO</span>
-            <span style={{ fontSize: "9px", opacity: 0.7, marginLeft: "auto" }}>ENVIADO</span>
+            <span>{t.mailServer}</span>
+            <span style={{ fontSize: "9px", opacity: 0.7, marginLeft: "auto" }}>{t.sent}</span>
           </div>
           
           <div style={{ 
@@ -154,7 +216,7 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
             marginTop: "10px" 
           }}>
             <div style={{ fontSize: "10px", color: "#8b949e", marginBottom: "4px" }}>
-              Para: <span style={{ color: "#e2e8f0" }}>{formData.email || "cliente@email.com"}</span>
+              {t.to} <span style={{ color: "#e2e8f0" }}>{formData.email || (language === "en" ? "customer@email.com" : "cliente@email.com")}</span>
             </div>
             <div style={{ 
               fontSize: "10px", 
@@ -163,7 +225,7 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
               borderBottom: "1px solid rgba(255,255,255,0.08)", 
               paddingBottom: "6px" 
             }}>
-              Asunto: <span style={{ color: "#fff" }}>Bienvenido a tu proceso hipotecario 🏠</span>
+              {t.subject} <span style={{ color: "#fff" }}>{t.subjectLine}</span>
             </div>
             <p style={{ 
               fontSize: "11px", 
@@ -172,8 +234,7 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
               margin: 0,
               fontStyle: "italic"
             }}>
-              "Hola {formData.name?.split(" ")[0] || "Cliente"}, hemos recibido tu solicitud. 
-              Botz IA está analizando tu perfil financiero..."
+              {t.mailBody(formData.name?.split(" ")[0] || (language === "en" ? "Customer" : "Cliente"))}
             </p>
           </div>
         </div>
@@ -184,7 +245,7 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
         <div style={{ ...cardStyle, borderLeft: "3px solid #facc15" }}>
           <div style={headerStyle("#facc15")}>
             <Landmark size={14} /> 
-            <span>RADAR BANCARIO</span>
+            <span>{t.bankingRadar}</span>
             <Sparkles size={12} color="#facc15" style={{ marginLeft: "auto" }} />
           </div>
           
@@ -201,18 +262,18 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
         <div style={cardStyle}>
           <div style={headerStyle("#c084fc")}>
             <Wallet size={14} /> 
-            <span>FONDOS REQUERIDOS</span>
+            <span>{t.fundsRequired}</span>
           </div>
           
           <div style={{ marginTop: "12px" }}>
             <div style={rowStyle}>
-              <span>Entrada (20%)</span>
+              <span>{t.downPayment}</span>
               <span style={{ color: "#fff", fontWeight: "600" }}>
                 $<AnimatedNumber value={Math.round(entrada)} />
               </span>
             </div>
             <div style={rowStyle}>
-              <span>Gastos (~10%)</span>
+              <span>{t.fees}</span>
               <span style={{ color: "#fff", fontWeight: "600" }}>
                 $<AnimatedNumber value={Math.round(gastos)} />
               </span>
@@ -224,7 +285,7 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
               fontSize: "15px", 
               fontWeight: "800" 
             }}>
-              <span style={{ color: "#c084fc" }}>TOTAL CASH</span>
+              <span style={{ color: "#c084fc" }}>{t.totalCash}</span>
               <span style={{ 
                 color: "#c084fc",
                 background: "rgba(192, 132, 252, 0.1)",
@@ -277,7 +338,7 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
                 letterSpacing: "0.5px",
                 marginBottom: "4px"
               }}>
-                Resultado IA
+                {t.aiResult}
               </div>
               <div style={{ 
                 fontSize: "18px", 
@@ -287,7 +348,7 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
                 alignItems: "center",
                 gap: "8px"
               }}>
-                {isViable ? "CLIENTE VIABLE" : "RIESGO ALTO"}
+                {isViable ? t.viableCustomer : t.highRisk}
                 {isViable 
                   ? <ArrowUpRight size={18} color="#22c55e" />
                   : <ArrowDownRight size={18} color="#ef4444" />
@@ -310,8 +371,8 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
             <BrainCircuit size={16} style={{ flexShrink: 0, marginTop: "2px" }} color={isViable ? "#22c55e" : "#ef4444"} />
             <span>
               {isViable 
-                ? "Perfil financiero sólido. Se recomienda ofrecer seguro de vida vinculado para mejorar condiciones."
-                : `DTI elevado (${dti}%). Sugerencia: solicitar aval adicional o cancelar deudas existentes antes de continuar.`
+                ? t.viableHint
+                : t.riskHint(dti)
               }
             </span>
           </div>
@@ -343,10 +404,10 @@ export default function LiveSystemMonitor({ formData, calculoHipoteca, step }: L
             <Shield size={28} style={{ opacity: 0.3 }} />
           </div>
           <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "4px" }}>
-            Sistema en espera
+            {t.waiting}
           </div>
           <div style={{ fontSize: "12px", color: "#64748b" }}>
-            Los datos aparecerán cuando inicies el flujo
+            {t.waitingHint}
           </div>
         </div>
       )}

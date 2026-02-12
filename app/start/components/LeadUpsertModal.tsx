@@ -15,11 +15,37 @@ type Props = {
   onSaved?: () => void; // para refrescar la tabla desde afuera
 };
 
+type AppLanguage = "es" | "en";
+
+const LEAD_MODAL_TEXT: Record<AppLanguage, { create: string; save: string }> = {
+  es: { create: "Crear", save: "Guardar" },
+  en: { create: "Create", save: "Save" },
+};
+
 export default function LeadUpsertModal({ isOpen, mode, lead, onClose, onSaved }: Props) {
   const { user, isAsesor, teamMemberId, tenantId: authTenantId, triggerDataRefresh } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [language, setLanguage] = useState<AppLanguage>("es");
+  const t = LEAD_MODAL_TEXT[language];
+
+  useEffect(() => {
+    const saved = localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") {
+      setLanguage(saved);
+    }
+
+    const onLangChange = (event: Event) => {
+      const next = (event as CustomEvent<AppLanguage>).detail;
+      if (next === "es" || next === "en") {
+        setLanguage(next);
+      }
+    };
+
+    window.addEventListener("botz-language-change", onLangChange);
+    return () => window.removeEventListener("botz-language-change", onLangChange);
+  }, []);
 
   // Campos mínimos (ajústalos si tu tabla tiene más)
   const [name, setName] = useState("");
@@ -351,7 +377,7 @@ export default function LeadUpsertModal({ isOpen, mode, lead, onClose, onSaved }
             }}
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            {mode === "create" ? "Crear" : "Guardar"}
+            {mode === "create" ? t.create : t.save}
           </button>
         </div>
       </div>

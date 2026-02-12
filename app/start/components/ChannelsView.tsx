@@ -42,6 +42,7 @@ import {
 import { supabase } from "./supabaseClient";
 import { WhatsAppConnectModal } from "./WhatsAppConnectModal";
 import WhatsAppMetaConnectModal from "./WhatsAppMetaConnectModal";
+import useBotzLanguage from "../hooks/useBotzLanguage";
 
 
 
@@ -118,7 +119,186 @@ export default function ChannelsView({
   onOpenMapping,
   onDisconnect,
 }: ChannelsViewProps) {
- console.log("CHANNELSVIEW_RENDER", new Date().toISOString());
+  console.log("CHANNELSVIEW_RENDER", new Date().toISOString());
+
+  const language = useBotzLanguage();
+  const copy = {
+    es: {
+      confirm: "Confirmar",
+      close: "Cerrar",
+      cancel: "Cancelar",
+      processing: "Procesando...",
+      areYouSure: "¿Estás seguro?",
+
+      connect: "Conectar",
+      disconnect: "Desconectar",
+      reconnect: "Re-conectar",
+      connectWhatsapp: "Conectar WhatsApp",
+
+      view: "Ver:",
+      connectedChannels: "Canales Conectados",
+      viewMessages: "Ver Mensajes",
+      viewEmails: "Ver Correos",
+      connectedSyncing: "Conectado y sincronizando",
+      disconnected: "Desconectado",
+
+      trafficSources: "FUENTES DE TRÁFICO",
+      loadingChannels: "Cargando canales...",
+      comingSoon: "Próximamente",
+      connecting: "Conectando...",
+      disconnecting: "Desconectando...",
+      connected: "Conectado",
+      leadsToday: "Leads hoy:",
+      leadsTodayUpper: "LEADS HOY",
+      lastEventUpper: "ULTIMO EVENTO",
+      availableConnectors: "CONECTORES DISPONIBLES",
+      viewInCrm: "Ver en CRM",
+      mapping: "Mapeo",
+      syncActive: "✅ Sincronización activa",
+      waitingConnection: "⏸️ Esperando conexión",
+      leadsAutoCreated: "Los leads se crearán automáticamente en tu CRM",
+      connectToStartShort: "Conecta para empezar a recibir información",
+      openingCrm: "Abriendo CRM...",
+      recentActivity: "Actividad Reciente",
+      recentActivityDesc: "Eventos y sincronización de todos tus canales",
+      refresh: "Actualizar",
+      activeNow: "Activo ahora",
+      reconnecting: "Reconectando...",
+    
+      statusLabel: "Estado",
+      statusConnectedDesc: "Recibiendo eventos y creando/actualizando leads.",
+      statusDisconnectedDesc: "Conecta para empezar a recibir y sincronizar información.",
+
+      botzCoreDesc1: "Centraliza conversaciones, completa datos y ejecuta el cálculo hipotecario.",
+      selectedSource: "Fuente seleccionada:",
+
+      whatsappConvosHint: "Viendo conversaciones de WhatsApp. Los mensajes se procesan automáticamente para crear leads.",
+      emailsHint: "Viendo correos electrónicos. Los adjuntos se guardan automáticamente en la documentación del lead.",
+
+      noEmailsYetTitle: "No hay correos aún",
+      noEmailsYetDesc: (channelName: string) => `Cuando recibas correos en ${channelName}, aparecerán aquí automáticamente.`,
+
+      ecosystemTitle: "Ecosistema Digital",
+      ecosystemDesc: "Conecta canales, correos y documentos para que Botz capture leads, complete datos y ejecute el cálculo hipotecario.",
+      connectionCenter: "Centro de Conexiones",
+
+      scanQrToContinue: "Escanea el código QR para continuar",
+      deviceConnectedSynced: "Dispositivo conectado y sincronizado",
+      connectionFailed: "Error en la conexión",
+
+      whatsappBusiness: "WhatsApp Business",
+      connectedBadge: "✓ Conectado",
+      connectWhatsappHint: "Conecta tu número de WhatsApp para automatizar respuestas",
+      activeSince: "Activo desde",
+      today: "hoy",
+
+      connectTypeChoice: "Elige el tipo de conexión:",
+      whatsappBusinessMeta: "WhatsApp Business (Meta)",
+      whatsappQrEvolution: "QR (Evolution)",
+      confirmDisconnectWhatsapp: "¿Desconectar WhatsApp?",
+      whatsappDisconnectedOk: "WhatsApp desconectado correctamente",
+      whatsappDisconnectError: "Error al desconectar WhatsApp",
+    },
+    en: {
+      confirm: "Confirm",
+      close: "Close",
+      cancel: "Cancel",
+      processing: "Processing...",
+      areYouSure: "Are you sure?",
+
+      connect: "Connect",
+      disconnect: "Disconnect",
+      reconnect: "Reconnect",
+      connectWhatsapp: "Connect WhatsApp",
+
+      view: "View:",
+      connectedChannels: "Connected Channels",
+      viewMessages: "View Messages",
+      viewEmails: "View Emails",
+      connectedSyncing: "Connected and syncing",
+      disconnected: "Disconnected",
+
+      trafficSources: "TRAFFIC SOURCES",
+      loadingChannels: "Loading channels...",
+      comingSoon: "Coming soon",
+      connecting: "Connecting...",
+      disconnecting: "Disconnecting...",
+      connected: "Connected",
+      leadsToday: "Leads today:",
+      leadsTodayUpper: "LEADS TODAY",
+      lastEventUpper: "LAST EVENT",
+      availableConnectors: "AVAILABLE CONNECTORS",
+      viewInCrm: "View in CRM",
+      mapping: "Mapping",
+      syncActive: "✅ Sync active",
+      waitingConnection: "⏸️ Waiting for connection",
+      leadsAutoCreated: "Leads will be created automatically in your CRM",
+      connectToStartShort: "Connect to start receiving information",
+      openingCrm: "Opening CRM...",
+      recentActivity: "Recent activity",
+      recentActivityDesc: "Events and sync across all your channels",
+      refresh: "Refresh",
+      activeNow: "Active now",
+      reconnecting: "Reconnecting...",
+    
+      statusLabel: "Status",
+      statusConnectedDesc: "Receiving events and creating/updating leads.",
+      statusDisconnectedDesc: "Connect to start receiving and syncing information.",
+
+      botzCoreDesc1: "Centralizes conversations, completes data, and runs mortgage calculations.",
+      selectedSource: "Selected source:",
+
+      whatsappConvosHint: "Viewing WhatsApp conversations. Messages are processed automatically to create leads.",
+      emailsHint: "Viewing emails. Attachments are saved automatically in the lead documentation.",
+
+      noEmailsYetTitle: "No emails yet",
+      noEmailsYetDesc: (channelName: string) => `When you receive emails in ${channelName}, they will appear here automatically.`,
+
+      ecosystemTitle: "Digital Ecosystem",
+      ecosystemDesc: "Connect channels, email, and documents so Botz can capture leads, complete data, and run mortgage calculations.",
+      connectionCenter: "Connection Center",
+
+      scanQrToContinue: "Scan the QR code to continue",
+      deviceConnectedSynced: "Device connected and synced",
+      connectionFailed: "Connection error",
+
+      whatsappBusiness: "WhatsApp Business",
+      connectedBadge: "✓ Connected",
+      connectWhatsappHint: "Connect your WhatsApp number to automate replies",
+      activeSince: "Active since",
+      today: "today",
+
+      connectTypeChoice: "Choose the connection type:",
+      whatsappBusinessMeta: "WhatsApp Business (Meta)",
+      whatsappQrEvolution: "QR (Evolution)",
+      confirmDisconnectWhatsapp: "Disconnect WhatsApp?",
+      whatsappDisconnectedOk: "WhatsApp disconnected successfully",
+      whatsappDisconnectError: "Error disconnecting WhatsApp",
+    },
+  } as const;
+
+  const t = copy[language];
+
+  const describeError = (err: any) => {
+    const message =
+      err?.message ||
+      err?.error_description ||
+      err?.details ||
+      err?.hint ||
+      err?.code ||
+      null;
+
+    if (message) return String(message);
+
+    try {
+      const s = JSON.stringify(err);
+      if (s && s !== "{}") return s;
+    } catch {
+      // ignore
+    }
+
+    return String(err || "Unknown error");
+  };
 
   // Estado para conexiones reales
   const [userIntegrations, setUserIntegrations] = useState<Integration[]>([]);
@@ -450,7 +630,7 @@ useEffect(() => {
         .limit(1);
 
       if (tableError) {
-        console.warn("Tabla integrations no accesible:", tableError);
+        console.warn("Tabla integrations no accesible:", describeError(tableError), tableError);
         setUserIntegrations([]);
         setLoading(false);
         return;
@@ -477,7 +657,10 @@ useEffect(() => {
 if (gmail?.id) await loadEmails(gmail.id);
 
     } catch (error) {
-      console.error("Error cargando integraciones:", error);
+      const msg = describeError(error);
+      console.error("Error cargando integraciones:", msg, error);
+      setConnectError(msg);
+      pushNotice("error", msg);
     } finally {
       setLoading(false);
     }
@@ -563,10 +746,10 @@ if (gmail?.id) await loadEmails(gmail.id);
     // ✅ En WhatsApp ofrecemos 2 formas: QR (Evolution) o Business API (Meta)
     setConfirmModal({
       open: true,
-      title: "Conectar WhatsApp",
-      description: "Elige el tipo de conexión:",
-      confirmText: "WhatsApp Business (Meta)",
-      cancelText: "QR (Evolution)",
+      title: t.connectWhatsapp,
+      description: t.connectTypeChoice,
+      confirmText: t.whatsappBusinessMeta,
+      cancelText: t.whatsappQrEvolution,
       onConfirm: () => {
         setConfirmModal({ open: false });
         setWaProvider("meta");
@@ -581,7 +764,7 @@ if (gmail?.id) await loadEmails(gmail.id);
   };
 
   const handleWhatsAppDisconnect = async () => {
-    if (!confirm('¿Desconectar WhatsApp?')) return;
+    if (!confirm(t.confirmDisconnectWhatsapp)) return;
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -598,13 +781,13 @@ if (gmail?.id) await loadEmails(gmail.id);
 
       if (response.ok) {
         await checkWhatsAppStatus();
-        setUiNotice({ type: "success", message: "WhatsApp desconectado correctamente" });
+        setUiNotice({ type: "success", message: t.whatsappDisconnectedOk });
       } else {
-        setUiNotice({ type: "error", message: "Error al desconectar WhatsApp" });
+        setUiNotice({ type: "error", message: t.whatsappDisconnectError });
       }
     } catch (error) {
       console.error('Error disconnecting WhatsApp:', error);
-      setUiNotice({ type: "error", message: "Error al desconectar WhatsApp" });
+      setUiNotice({ type: "error", message: t.whatsappDisconnectError });
     }
   };
 
@@ -670,8 +853,8 @@ if (gmail?.id) await loadEmails(gmail.id);
           },
         ];
 
-    // ✅ Aunque el padre pase channels, garantizamos que existan Gmail y WhatsApp Business
-    // (porque esta pantalla es el "Centro de Conexiones" y deben aparecer siempre)
+      // ✅ Aunque el padre pase channels, garantizamos que existan Gmail y WhatsApp Business
+      // (porque esta pantalla es el "Centro de Conexiones" y deben aparecer siempre)
     const ids = new Set((baseInput || []).map((c) => c.id));
     const base: ChannelItem[] = [...(baseInput || [])];
 
@@ -767,15 +950,15 @@ if (integration) {
     connected: isConnected,
     integrationId: integration.id,
     detail: detail,
-    lastEvent: isConnected ? "Conectado y sincronizando" : "Desconectado",
-    lastEventAt: integration.last_activity 
-      ? new Date(integration.last_activity).toLocaleTimeString('es-ES', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        day: '2-digit',
-        month: 'short'
-      })
-      : (isConnected ? "Activo ahora" : "."),
+    lastEvent: isConnected ? t.connectedSyncing : t.disconnected,
+    lastEventAt: integration.last_activity
+      ? new Date(integration.last_activity).toLocaleTimeString(language === "en" ? "en-US" : "es-ES", {
+          hour: "2-digit",
+          minute: "2-digit",
+          day: "2-digit",
+          month: "short",
+        })
+      : (isConnected ? t.activeNow : "."),
     emails: (channel.id === "gmail" && integration.id)
       ? (emailsByIntegration[integration.id] || [])
       : ([] as any),
@@ -787,7 +970,7 @@ return channelSafe;
 
 }); // ← Aquí cierra el .map()
     
-}, [channels, userIntegrations]);
+}, [channels, userIntegrations, emailsByIntegration, language]);
   const selected = useMemo(() => {
     return channelsBase.find((c) => c.id === selectedId) || channelsBase[0];
   }, [channelsBase, selectedId]);
@@ -855,7 +1038,7 @@ return channelSafe;
         type: "config",
       },
     ]
-  );
+  , []);
 
   // Función para conectar canales
   const handleConnect = async (connectorId: string, connectorName?: string) => {
@@ -948,24 +1131,45 @@ return channelSafe;
                          connectorId.includes('meta') ? 'meta' : connectorId;
 
       if (connector?.type === "qr") {
+        const qrInstructions =
+          language === "en"
+            ? [
+                "1. Open WhatsApp on your phone",
+                "2. Tap the three dots ••• (Android) or Settings (iOS)",
+                "3. Select 'Linked devices'",
+                "4. Tap 'Link a device'",
+                "5. Scan this QR code with your camera",
+              ]
+            : [
+                "1. Abre WhatsApp en tu teléfono",
+                "2. Toca los tres puntos ••• (Android) o Configuración (iOS)",
+                "3. Selecciona 'Dispositivos vinculados'",
+                "4. Pulsa 'Vincular un dispositivo'",
+                "5. Escanea este código QR con la cámara",
+              ];
+
+        const qrSteps =
+          language === "en"
+            ? [
+                { icon: <Smartphone size={18} />, text: "Open WhatsApp on your phone" },
+                { icon: <QrCode size={18} />, text: "Go to Linked devices" },
+                { icon: <CheckCircle2 size={18} />, text: "Scan the QR code" },
+                { icon: <Bot size={18} />, text: "Done! Botz will sync automatically" },
+              ]
+            : [
+                { icon: <Smartphone size={18} />, text: "Abre WhatsApp en tu móvil" },
+                { icon: <QrCode size={18} />, text: "Ve a Dispositivos vinculados" },
+                { icon: <CheckCircle2 size={18} />, text: "Escanea el código QR" },
+                { icon: <Bot size={18} />, text: "¡Listo! Botz sincronizará automáticamente" },
+              ];
+
         setQrModal({
           open: true,
           title: connectorName || "WhatsApp",
           connectorType: connectorId,
           qrDataUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=BOTZ_WHATSAPP_${Date.now()}_USER_${user.id}`,
-          instructions: [
-            "1. Abre WhatsApp en tu teléfono",
-            "2. Toca los tres puntos ••• (Android) o Configuración (iOS)",
-            "3. Selecciona 'Dispositivos vinculados'",
-            "4. Pulsa 'Vincular un dispositivo'",
-            "5. Escanea este código QR con la cámara"
-          ],
-          steps: [
-            { icon: <Smartphone size={18} />, text: "Abre WhatsApp en tu móvil" },
-            { icon: <QrCode size={18} />, text: "Ve a Dispositivos vinculados" },
-            { icon: <CheckCircle2 size={18} />, text: "Escanea el código QR" },
-            { icon: <Bot size={18} />, text: "¡Listo! Botz sincronizará automáticamente" },
-          ],
+          instructions: qrInstructions,
+          steps: qrSteps,
           status: 'scanning',
           connectionDetails: {
             userId: user.id,
@@ -1281,19 +1485,19 @@ if (
   }, [events, remoteEvents]);
 
   const inputCardStyle: React.CSSProperties = {
-    background: "rgba(10, 15, 30, 0.65)",
+    background: "var(--botz-panel)",
     borderRadius: "16px",
     padding: "16px",
-    border: "1px solid rgba(255,255,255,0.10)",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+    border: "1px solid var(--botz-border)",
+    boxShadow: "var(--botz-shadow-2)",
   };
 
   const miniBtn: React.CSSProperties = {
     padding: "10px 14px",
     borderRadius: "12px",
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#fff",
+    border: "1px solid var(--botz-border)",
+    background: "var(--botz-surface-3)",
+    color: "var(--botz-text)",
     fontWeight: 700,
     cursor: "pointer",
     display: "inline-flex",
@@ -1670,8 +1874,8 @@ if (gmailId) await loadEmails(gmailId);
             borderRadius: "16px"
           }}>
             <Mail size={48} style={{ marginBottom: "16px", opacity: 0.5 }} />
-            <div style={{ fontWeight: 600, marginBottom: "8px" }}>No hay correos aún</div>
-            <div>Cuando recibas correos en {selected.name}, aparecerán aquí automáticamente.</div>
+            <div style={{ fontWeight: 600, marginBottom: "8px" }}>{t.noEmailsYetTitle}</div>
+            <div>{t.noEmailsYetDesc(selected.name)}</div>
           </div>
         )}
       </div>
@@ -1769,7 +1973,7 @@ if (gmailId) await loadEmails(gmailId);
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
               <div style={{ color: "#e2e8f0", fontWeight: 800, fontSize: "18px" }}>
-                {confirmModal.title || "Confirmar"}
+                {confirmModal.title || t.confirm}
               </div>
               <button
                 onClick={() => confirmModal.onCancel?.()}
@@ -1782,12 +1986,12 @@ if (gmailId) await loadEmails(gmailId);
                   cursor: "pointer",
                 }}
               >
-                Cerrar
+                {t.close}
               </button>
             </div>
 
             <div style={{ color: "#94a3b8", fontSize: "13px", lineHeight: 1.6, marginBottom: "18px" }}>
-              {confirmModal.description || "¿Estás seguro?"}
+              {confirmModal.description || t.areYouSure}
             </div>
 
             <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
@@ -1802,7 +2006,7 @@ if (gmailId) await loadEmails(gmailId);
                   cursor: "pointer",
                 }}
               >
-                {confirmModal.cancelText || "Cancelar"}
+                {confirmModal.cancelText || t.cancel}
               </button>
               <button
                 onClick={async () => {
@@ -1818,7 +2022,7 @@ if (gmailId) await loadEmails(gmailId);
                   cursor: "pointer",
                 }}
               >
-                {confirmModal.confirmText || "Confirmar"}
+                {confirmModal.confirmText || t.confirm}
               </button>
             </div>
           </div>
@@ -1855,7 +2059,7 @@ if (gmailId) await loadEmails(gmailId);
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
               <div style={{ color: "#e2e8f0", fontWeight: 800, fontSize: "18px" }}>
-                {oauthModal.title || "Conectar"}
+                {oauthModal.title || t.connect}
               </div>
               <button
                 onClick={() => setOauthModal({ open: false })}
@@ -1868,11 +2072,11 @@ if (gmailId) await loadEmails(gmailId);
                   cursor: "pointer",
                 }}
               >
-                Cerrar
+                {t.close}
               </button>
             </div>
             <div style={{ color: "#94a3b8", fontSize: "13px", lineHeight: 1.6 }}>
-              {oauthModal.message || "Procesando..."}
+              {oauthModal.message || t.processing}
             </div>
 
             {oauthModal.step === "waiting" && (
@@ -2126,10 +2330,10 @@ if (gmailId) await loadEmails(gmailId);
                           qrModal.status === 'connected' ? "#22c55e" : "#ef4444", 
                           fontSize: "13px" }}>
                 {qrModal.status === 'scanning' 
-                  ? 'Escanea el código QR para continuar' 
+                  ? t.scanQrToContinue
                   : qrModal.status === 'connected'
-                  ? 'Dispositivo conectado y sincronizado'
-                  : 'Error en la conexión'}
+                  ? t.deviceConnectedSynced
+                  : t.connectionFailed}
               </div>
             </div>
           </div>
@@ -2160,10 +2364,10 @@ if (gmailId) await loadEmails(gmailId);
               gap: "10px",
             }}
           >
-            <Zap color="#fbbf24" /> Ecosistema Digital
+            <Zap color="#fbbf24" /> {t.ecosystemTitle}
           </h2>
           <p style={{ color: "#8b949e" }}>
-            Conecta canales, correos y documentos para que Botz capture leads, complete datos y ejecute el cálculo hipotecario.
+            {t.ecosystemDesc}
           </p>
         </div>
 
@@ -2177,7 +2381,7 @@ if (gmailId) await loadEmails(gmailId);
             border: "1px solid rgba(34, 197, 94, 0.2)",
           }}
         >
-          Centro de Conexiones
+          {t.connectionCenter}
         </div>
       </div>
 
@@ -2220,7 +2424,7 @@ if (gmailId) await loadEmails(gmailId);
                 alignItems: "center",
                 gap: "10px"
               }}>
-                WhatsApp Business
+                {t.whatsappBusiness}
                 {whatsappStatus?.connected && (
                   <span style={{
                     background: "rgba(34, 197, 94, 0.2)",
@@ -2231,14 +2435,14 @@ if (gmailId) await loadEmails(gmailId);
                     fontWeight: "700",
                     border: "1px solid rgba(34, 197, 94, 0.3)"
                   }}>
-                    ✓ Conectado
+                    {t.connectedBadge}
                   </span>
                 )}
               </h3>
               <p style={{ color: "#94a3b8", fontSize: "14px", margin: 0 }}>
                 {whatsappStatus?.connected 
-                  ? `${whatsappStatus.provider === 'meta' ? 'Meta Cloud API' : 'Evolution API'} • Activo desde ${whatsappStatus.connected_at ? new Date(whatsappStatus.connected_at).toLocaleDateString() : 'hoy'}`
-                  : "Conecta tu número de WhatsApp para automatizar respuestas"}
+                  ? `${whatsappStatus.provider === 'meta' ? 'Meta Cloud API' : 'Evolution API'} • ${t.activeSince} ${whatsappStatus.connected_at ? new Date(whatsappStatus.connected_at).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES') : t.today}`
+                  : t.connectWhatsappHint}
               </p>
             </div>
           </div>
@@ -2266,7 +2470,7 @@ if (gmailId) await loadEmails(gmailId);
                   onMouseLeave={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"}
                 >
                   <LogOut size={16} />
-                  Desconectar
+                  {t.disconnect}
                 </button>
               </>
             ) : (
@@ -2297,7 +2501,7 @@ if (gmailId) await loadEmails(gmailId);
                 }}
               >
                 <QrCode size={18} />
-                Conectar WhatsApp
+                {t.connectWhatsapp}
                 <ArrowRight size={18} />
               </button>
             )}
@@ -2326,7 +2530,7 @@ if (gmailId) await loadEmails(gmailId);
             fontWeight: 600,
             marginRight: "10px" 
           }}>
-            Ver:
+            {t.view}
           </span>
           
           <button
@@ -2353,7 +2557,7 @@ if (gmailId) await loadEmails(gmailId);
             }}
           >
             <Link2 size={18} />
-            Canales Conectados
+            {t.connectedChannels}
           </button>
           
           {selected.connected && selected.messages && (
@@ -2381,7 +2585,7 @@ if (gmailId) await loadEmails(gmailId);
               }}
             >
               <MessageSquare size={18} />
-              Ver Mensajes
+              {t.viewMessages}
               <span style={{
                 background: "rgba(37, 211, 102, 0.3)",
                 color: "#fff",
@@ -2421,7 +2625,7 @@ if (gmailId) await loadEmails(gmailId);
               }}
             >
               <Mail size={18} />
-              Ver Correos
+              {t.viewEmails}
               <span style={{
                 background: "rgba(234, 67, 53, 0.3)",
                 color: "#fff",
@@ -2456,7 +2660,7 @@ if (gmailId) await loadEmails(gmailId);
                 background: selected.connected ? "#22c55e" : "#f87171",
                 animation: selected.connected ? "pulse 2s infinite" : "none"
               }} />
-              {selected.connected ? "Conectado y sincronizando" : "Desconectado"}
+              {selected.connected ? t.connectedSyncing : t.disconnected}
             </div>
           </div>
         </div>
@@ -2481,12 +2685,12 @@ if (gmailId) await loadEmails(gmailId);
             {selectedTab === 'messages' ? (
               <>
                 <MessageSquare size={16} />
-                <span>Viendo conversaciones de WhatsApp. Los mensajes se procesan automáticamente para crear leads.</span>
+                <span>{t.whatsappConvosHint}</span>
               </>
             ) : (
               <>
                 <Mail size={16} />
-                <span>Viendo correos electrónicos. Los adjuntos se guardan automáticamente en la documentación del lead.</span>
+                <span>{t.emailsHint}</span>
               </>
             )}
           </div>
@@ -2510,7 +2714,7 @@ if (gmailId) await loadEmails(gmailId);
           {/* IZQUIERDA: FUENTES */}
           <div style={{ ...inputCardStyle }}>
             <div style={{ color: "#94a3b8", fontWeight: 800, letterSpacing: "0.12em", fontSize: "12px", textAlign: "center", marginBottom: "16px" }}>
-              FUENTES DE TRÁFICO
+              {t.trafficSources}
             </div>
 
             {loading ? (
@@ -2525,7 +2729,7 @@ if (gmailId) await loadEmails(gmailId);
                 gap: "16px"
               }}>
                 <Loader2 size={32} className="animate-spin" />
-                <span>Cargando canales...</span>
+                <span>{t.loadingChannels}</span>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -2568,7 +2772,7 @@ if (gmailId) await loadEmails(gmailId);
                         <div>
                           <div style={{ fontWeight: 800, fontSize: "15px" }}>{c.name}</div>
                           <div style={{ color: "#94a3b8", fontSize: "12px", marginTop: "2px" }}>
-                            {isDisabled ? "Próximamente" : `${c.lastEvent || "-"} • ${c.lastEventAt || "-"}`}
+                            {isDisabled ? t.comingSoon : `${c.lastEvent || "-"} • ${c.lastEventAt || "-"}`}
                           </div>
                         </div>
                       </div>
@@ -2591,14 +2795,14 @@ if (gmailId) await loadEmails(gmailId);
                                   c.connected ? "#22c55e" : "#f87171",
                           }}
                         >
-                          {isDisabled ? "Próximamente" :
-                           isBusy ? "Conectando..." : 
-                           isDisconnecting ? "Desconectando..." : 
-                           c.connected ? "Conectado" : "Desconectado"}
+                          {isDisabled ? t.comingSoon :
+                           isBusy ? t.connecting : 
+                           isDisconnecting ? t.disconnecting : 
+                           c.connected ? t.connected : t.disconnected}
                         </div>
                         {!isDisabled && (
                         <div style={{ color: "#cbd5e1", fontSize: "12px" }}>
-                          Leads hoy: <span style={{ color: "#fff", fontWeight: 800 }}>{c.leadsToday ?? 0}</span>
+                          {t.leadsToday} <span style={{ color: "#fff", fontWeight: 800 }}>{c.leadsToday ?? 0}</span>
                         </div>
                         )}
                       </div>
@@ -2646,9 +2850,9 @@ if (gmailId) await loadEmails(gmailId);
                 </div>
                 <h3 style={{ fontSize: "20px", fontWeight: "bold", color: "#fff", margin: 0 }}>Botz Core</h3>
                 <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.85)", marginTop: "10px", marginBottom: 0 }}>
-                  Centraliza conversaciones, completa datos y ejecuta el cálculo hipotecario.<br />
+                  {t.botzCoreDesc1}<br />
                   <span style={{ opacity: 0.95 }}>
-                    Fuente seleccionada: <strong>{selected?.name}</strong>
+                    {t.selectedSource} <strong>{selected?.name}</strong>
                   </span>
                 </p>
               </div>
@@ -2663,10 +2867,10 @@ if (gmailId) await loadEmails(gmailId);
                       {connectBusy === selected?.id ? <Loader2 size={18} className="animate-spin" /> : 
                        disconnectBusy === selected?.id ? <Loader2 size={18} className="animate-spin" /> : selected?.icon}
                     </span>
-                    {selected?.name} · Estado
+                    {selected?.name} · {t.statusLabel}
                   </div>
                   <div style={{ color: "#94a3b8", fontSize: "12px", marginTop: "6px" }}>
-                    {selected?.connected ? "Recibiendo eventos y creando/actualizando leads." : "Conecta para empezar a recibir y sincronizar información."}
+                    {selected?.connected ? t.statusConnectedDesc : t.statusDisconnectedDesc}
                   </div>
                 </div>
 
@@ -2686,12 +2890,12 @@ if (gmailId) await loadEmails(gmailId);
                         {disconnectBusy === selected?.id ? (
                           <>
                             <Loader2 size={16} className="animate-spin" />
-                            Desconectando...
+                            {t.disconnecting}
                           </>
                         ) : (
                           <>
                             <LogOut size={16} />
-                            Desconectar
+                            {t.disconnect}
                           </>
                         )}
                       </button>
@@ -2708,17 +2912,17 @@ if (gmailId) await loadEmails(gmailId);
                         {connectBusy === selected?.id ? (
                           <>
                             <Loader2 size={16} className="animate-spin" />
-                            Reconectando...
+                            {t.connecting}
                           </>
                         ) : (
                           <>
                             <RefreshCw size={16} />
-                            Re-conectar
+                            {t.reconnect}
                           </>
                         )}
                       </button>
-                      {selected.messages && (
-                        <button
+                       {selected.messages && (
+                         <button
                           onClick={() => { 
                             setSelectedTab('messages'); 
                             setShowMessages(true); 
@@ -2729,11 +2933,11 @@ if (gmailId) await loadEmails(gmailId);
                             background: "rgba(37, 211, 102, 0.15)",
                             border: "1px solid rgba(37, 211, 102, 0.3)",
                           }}
-                        >
-                          <MessageSquare size={16} />
-                          Ver Mensajes
-                        </button>
-                      )}
+                         >
+                           <MessageSquare size={16} />
+                           {t.viewMessages}
+                         </button>
+                       )}
                      {selected.id === "gmail" && selected.connected && (
                         <button
                           onClick={async () => { 
@@ -2749,7 +2953,7 @@ if (gmailId) await loadEmails(gmailId);
                           }}
                         >
                           <Mail size={16} />
-                          Ver Correos
+                          {t.viewEmails}
                         </button>
                       )}
                     </>
@@ -2772,12 +2976,12 @@ if (gmailId) await loadEmails(gmailId);
                         {connectBusy === selected?.id ? (
                           <>
                             <Loader2 size={16} className="animate-spin" />
-                            Conectando...
+                            {t.connecting}
                           </>
                         ) : (
                           <>
                             <Link2 size={16} />
-                            Conectar
+                            {t.connect}
                           </>
                         )}
                       </button>
@@ -2790,7 +2994,7 @@ if (gmailId) await loadEmails(gmailId);
                         }}
                       >
                         <FolderOpen size={16} />
-                        Mapeo
+                        {t.mapping}
                       </button>
                     </>
                   )}
@@ -2818,21 +3022,21 @@ if (gmailId) await loadEmails(gmailId);
                     fontSize: "13px", 
                     fontWeight: 600 
                   }}>
-                    {selected.connected ? "✅ Sincronización activa" : "⏸️ Esperando conexión"}
+                    {selected.connected ? t.syncActive : t.waitingConnection}
                   </div>
                   <div style={{ 
                     color: selected.connected ? "#bbf7d0" : "#cbd5e1", 
                     fontSize: "12px", 
                     marginTop: "4px" 
                   }}>
-                    {selected.connected 
-                      ? "Los leads se crearán automáticamente en tu CRM" 
-                      : "Conecta para empezar a recibir información"}
+                    {selected.connected
+                      ? t.leadsAutoCreated
+                      : t.connectToStartShort}
                   </div>
                 </div>
                 {selected.connected && (
                   <button
-                    onClick={() => pushNotice("info", "Abriendo CRM...")}
+                    onClick={() => pushNotice("info", t.openingCrm)}
                     style={{
                       padding: "8px 16px",
                       borderRadius: "10px",
@@ -2848,7 +3052,7 @@ if (gmailId) await loadEmails(gmailId);
                     }}
                   >
                     <ExternalLink size={14} />
-                    Ver en CRM
+                    {t.viewInCrm}
                   </button>
                 )}
               </div>
@@ -2866,7 +3070,7 @@ if (gmailId) await loadEmails(gmailId);
                   background: "rgba(255,255,255,0.04)",
                   border: "1px solid rgba(255,255,255,0.08)"
                 }}>
-                  <div style={{ color: "#94a3b8", fontSize: "11px", fontWeight: 600 }}>LEADS HOY</div>
+                  <div style={{ color: "#94a3b8", fontSize: "11px", fontWeight: 600 }}>{t.leadsTodayUpper}</div>
                   <div style={{ color: "#fff", fontSize: "20px", fontWeight: 800, marginTop: "4px" }}>
                     {selected.leadsToday || 0}
                   </div>
@@ -2877,7 +3081,7 @@ if (gmailId) await loadEmails(gmailId);
                   background: "rgba(255,255,255,0.04)",
                   border: "1px solid rgba(255,255,255,0.08)"
                 }}>
-                  <div style={{ color: "#94a3b8", fontSize: "11px", fontWeight: 600 }}>ÚLTIMO EVENTO</div>
+                  <div style={{ color: "#94a3b8", fontSize: "11px", fontWeight: 600 }}>{t.lastEventUpper}</div>
                   <div style={{ color: "#fff", fontSize: "12px", fontWeight: 600, marginTop: "4px" }}>
                     {selected.lastEvent || "-"}
                   </div>
@@ -2891,7 +3095,7 @@ if (gmailId) await loadEmails(gmailId);
             {/* Conectores disponibles */}
             <div style={{ ...inputCardStyle }}>
               <div style={{ color: "#94a3b8", fontWeight: 800, letterSpacing: "0.12em", fontSize: "12px", textAlign: "center", marginBottom: "16px" }}>
-                CONECTORES DISPONIBLES
+                {t.availableConnectors}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {connectors
@@ -2982,7 +3186,7 @@ if (gmailId) await loadEmails(gmailId);
                               textTransform: "uppercase",
                               letterSpacing: "0.5px",
                             }}>
-                              Próximamente
+                              {t.comingSoon}
                             </span>
                           )}
                         </div>
@@ -3017,10 +3221,10 @@ if (gmailId) await loadEmails(gmailId);
             <div>
               <div style={{ color: "#fff", fontWeight: 900, fontSize: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
                 <Calendar size={18} />
-                Actividad Reciente
+                {t.recentActivity}
               </div>
               <div style={{ color: "#94a3b8", fontSize: "12px" }}>
-                Eventos y sincronización de todos tus canales
+                {t.recentActivityDesc}
               </div>
             </div>
             <div style={{ display: "flex", gap: "10px" }}>
@@ -3033,7 +3237,7 @@ if (gmailId) await loadEmails(gmailId);
                 }}
               >
                 <RefreshCw size={16} />
-                Actualizar
+                {t.refresh}
               </button>
             </div>
           </div>

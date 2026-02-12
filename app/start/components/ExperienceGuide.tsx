@@ -7,11 +7,22 @@ import {
   Sparkles, Zap, ArrowRight, Pause, RotateCcw
 } from "lucide-react";
 import { FaWhatsapp } from "react-icons/fa6";
+import useBotzLanguage from "../hooks/useBotzLanguage";
+
+type FlowStep = {
+  key: string;
+  title: string;
+  icon: React.ReactElement<any>;
+  color: string;
+  headline: string;
+  desc: string;
+  detail: string;
+};
 
 // ============================================================================
 // 🎯 CONFIGURACIÓN DEL FLUJO - STORYTELLING ÉPICO
 // ============================================================================
-const FLOW = [
+const FLOW_ES: FlowStep[] = [
   { 
     key: "form", 
     title: "Captura", 
@@ -131,6 +142,126 @@ const FLOW = [
   }
 ];
 
+const FLOW_EN: FlowStep[] = [
+  {
+    key: "form",
+    title: "Capture",
+    icon: <ClipboardList size={20} />,
+    color: "#22d3ee",
+    headline: "📥 Lead Captured",
+    desc: "A new potential customer just submitted your form",
+    detail: "Botz automatically detects the lead source and classifies it",
+  },
+  {
+    key: "registro",
+    title: "CRM",
+    icon: <Database size={20} />,
+    color: "#60a5fa",
+    headline: "⚡ Syncing to CRM",
+    desc: "Creating the customer record in real time",
+    detail: "History, notes, and scoring update automatically",
+  },
+  {
+    key: "perfilado",
+    title: "AI",
+    icon: <Cpu size={20} />,
+    color: "#c084fc",
+    headline: "🤖 AI Analyzing Profile",
+    desc: "Detecting intent: investor or first home?",
+    detail: "Machine learning classifies the profile in milliseconds",
+  },
+  {
+    key: "correo",
+    title: "Email",
+    icon: <Mail size={20} />,
+    color: "#34d399",
+    headline: "📧 Welcome Email",
+    desc: "Sending an automatic personalized email",
+    detail: "The customer receives instant confirmation",
+  },
+  {
+    key: "whatsapp",
+    title: "WhatsApp",
+    icon: <FaWhatsapp size={20} />,
+    color: "#25D366",
+    headline: "🟢 Botz Activated",
+    desc: "Starting a proactive WhatsApp conversation",
+    detail: "The AI assistant contacts the customer in seconds",
+  },
+  {
+    key: "calculo",
+    title: "Calculation",
+    icon: <Calculator size={20} />,
+    color: "#f59e0b",
+    headline: "🧮 Mortgage Simulation",
+    desc: "Calculating payment and affordability",
+    detail: "Financial engine processing 15+ variables",
+  },
+  {
+    key: "viabilidad",
+    title: "Eligibility",
+    icon: <CheckCircle2 size={20} />,
+    color: "#10b981",
+    headline: "🏦 Bank Analysis",
+    desc: "Checking risk policies (DTI/LTV)",
+    detail: "Comparing criteria across 12 lenders",
+  },
+  {
+    key: "calificacion",
+    title: "Score",
+    icon: <TrendingUp size={20} />,
+    color: "#ef4444",
+    headline: "📊 Lead Scoring",
+    desc: "Assigning a quality score (0-100)",
+    detail: "Predictive conversion algorithm activated",
+  },
+  {
+    key: "decision",
+    title: "Decision",
+    icon: <Shield size={20} />,
+    color: "#8b5cf6",
+    headline: "✅ Automatic Decision",
+    desc: "Is this a viable lead to contact?",
+    detail: "Smart filtering saves 80% of the time",
+  },
+  {
+    key: "seguimiento",
+    title: "Nurturing",
+    icon: <Share2 size={20} />,
+    color: "#ec4899",
+    headline: "🎯 Sequence Activated",
+    desc: "Scheduling automated follow-ups",
+    detail: "Emails, WhatsApp, and calls on autopilot",
+  },
+  {
+    key: "agenda",
+    title: "Meeting",
+    icon: <CalendarDays size={20} />,
+    color: "#14b8a6",
+    headline: "📅 Booking a Call",
+    desc: "Checking broker availability",
+    detail: "Sync with Google Calendar / Outlook",
+  },
+  {
+    key: "propuesta",
+    title: "Proposal",
+    icon: <FileText size={20} />,
+    color: "#3b82f6",
+    headline: "📄 Document Generated",
+    desc: "Creating a personalized proposal",
+    detail: "Professional PDF ready to send",
+  },
+  {
+    key: "confirmacion",
+    title: "Success",
+    icon: <Handshake size={20} />,
+    color: "#22c55e",
+    headline: "🎉 Process Completed",
+    desc: "Qualified lead, ready to close",
+    detail: "All in under 30 seconds",
+  },
+];
+
 const STEP_DURATIONS = [800, 2500, 2000, 1500, 1200, 3000, 2500, 2000, 1500, 1500, 1500, 1500, 0];
 
 interface ExperienceGuideProps {
@@ -142,6 +273,36 @@ interface ExperienceGuideProps {
 }
 
 export default function ExperienceGuide({ step, formData, chatLength, calculoHipoteca, onReset }: ExperienceGuideProps) {
+  const language = useBotzLanguage();
+  const copy = {
+    es: {
+      liveAutomation: "AUTOMATIZACIÓN EN VIVO",
+      title: "Mira cómo Botz trabaja",
+      watchDemo: "Ver Demo",
+      pause: "Pausar",
+      progress: "Progreso",
+      processing: "PROCESANDO",
+      ready: "LISTO",
+      hide: "Ocultar",
+      view: "Ver",
+      steps: "pasos",
+    },
+    en: {
+      liveAutomation: "LIVE AUTOMATION",
+      title: "Watch Botz at work",
+      watchDemo: "Watch Demo",
+      pause: "Pause",
+      progress: "Progress",
+      processing: "PROCESSING",
+      ready: "READY",
+      hide: "Hide",
+      view: "View",
+      steps: "steps",
+    },
+  } as const;
+  const t = copy[language];
+  const FLOW = language === "en" ? FLOW_EN : FLOW_ES;
+
   const safeCalculo = calculoHipoteca || {};
   const [visualStep, setVisualStep] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
@@ -267,10 +428,10 @@ export default function ExperienceGuide({ step, formData, chatLength, calculoHip
                 textTransform: "uppercase",
                 marginBottom: "2px"
               }}>
-                AUTOMATIZACIÓN EN VIVO
+                {t.liveAutomation}
               </div>
               <h2 style={{ fontSize: "22px", fontWeight: "800", margin: 0, color: "#fff" }}>
-                Mira cómo Botz trabaja
+                {t.title}
               </h2>
             </div>
           </div>
@@ -294,7 +455,7 @@ export default function ExperienceGuide({ step, formData, chatLength, calculoHip
                   boxShadow: `0 4px 20px ${currentStepData.color}50`
                 }}
               >
-                <Play size={14} fill="currentColor" /> Ver Demo
+                <Play size={14} fill="currentColor" /> {t.watchDemo}
               </button>
             ) : (
               <button
@@ -313,7 +474,7 @@ export default function ExperienceGuide({ step, formData, chatLength, calculoHip
                   gap: "6px"
                 }}
               >
-                <Pause size={14} /> Pausar
+                <Pause size={14} /> {t.pause}
               </button>
             )}
             
@@ -341,7 +502,7 @@ export default function ExperienceGuide({ step, formData, chatLength, calculoHip
         {/* BARRA DE PROGRESO */}
         <div style={{ marginBottom: "12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-            <span style={{ fontSize: "11px", color: "#64748b" }}>Progreso</span>
+            <span style={{ fontSize: "11px", color: "#64748b" }}>{t.progress}</span>
             <span style={{ fontSize: "12px", fontWeight: "700", color: currentStepData.color }}>
               {visualStep + 1} / {FLOW.length}
             </span>
@@ -388,7 +549,7 @@ export default function ExperienceGuide({ step, formData, chatLength, calculoHip
             {isAnimating ? (
               <Loader2 size={28} className="spin-smooth" />
             ) : (
-              React.cloneElement(currentStepData.icon as React.ReactElement, { size: 28 })
+              React.cloneElement(currentStepData.icon as React.ReactElement<any>, { size: 28 })
             )}
           </div>
 
@@ -430,7 +591,7 @@ export default function ExperienceGuide({ step, formData, chatLength, calculoHip
               background: isAnimating ? "#ef4444" : "#22c55e",
               animation: isAnimating ? "blink 1s infinite" : "none"
             }} />
-            {isAnimating ? "PROCESANDO" : "LISTO"}
+            {isAnimating ? t.processing : t.ready}
           </div>
         </div>
       </div>
@@ -453,7 +614,7 @@ export default function ExperienceGuide({ step, formData, chatLength, calculoHip
           }}
         >
           <Target size={12} />
-          {showFullTimeline ? "Ocultar" : "Ver"} pasos
+          {showFullTimeline ? t.hide : t.view} {t.steps}
           <ArrowRight size={12} style={{ transform: showFullTimeline ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.3s" }} />
         </button>
 
@@ -489,7 +650,7 @@ export default function ExperienceGuide({ step, formData, chatLength, calculoHip
                   transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
                   boxShadow: isActive ? `0 0 16px ${stepData.color}50` : "none"
                 }}>
-                  {isCompleted ? <Check size={12} strokeWidth={3} /> : isActive && isAnimating ? <Loader2 size={12} className="spin-smooth" /> : React.cloneElement(stepData.icon as React.ReactElement, { size: 12 })}
+                  {isCompleted ? <Check size={12} strokeWidth={3} /> : isActive && isAnimating ? <Loader2 size={12} className="spin-smooth" /> : React.cloneElement(stepData.icon as React.ReactElement<any>, { size: 12 })}
                 </div>
                 {showFullTimeline && (
                   <span style={{ fontSize: "8px", fontWeight: isActive ? "700" : "500", color: isActive ? "#fff" : "#64748b", marginTop: "4px", textAlign: "center" }}>

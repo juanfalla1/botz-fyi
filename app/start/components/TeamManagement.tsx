@@ -43,8 +43,76 @@ interface TeamMember {
   leads_count?: number;
 }
 
-export default function TeamManagement() {
+type AppLanguage = 'es' | 'en';
+
+const UI_TEXT: Record<AppLanguage, Record<string, string>> = {
+  es: {
+    restricted: 'Acceso Restringido',
+    onlyAdmins: 'Solo los administradores pueden gestionar el equipo',
+    teamTitle: 'Gestion de Equipo',
+    teamSubtitle: 'Administra los asesores de tu equipo',
+    addAdvisor: 'Agregar Asesor',
+    advisor: 'Asesor',
+    contact: 'Contacto',
+    role: 'Rol',
+    leads: 'Leads',
+    actions: 'Acciones',
+    admin: 'Administrador',
+    noAdvisors: 'No hay asesores en tu equipo',
+    noAdvisorsHelp: 'Haz clic en "Agregar Asesor" para comenzar',
+    editAdvisor: 'Editar Asesor',
+    newAdvisor: 'Nuevo Asesor',
+    fullName: 'Nombre completo',
+    phone: 'Telefono',
+    password: 'Contrasena',
+    emptyPasswordHint: 'Dejar vacio para generar automaticamente',
+    passwordAutoHint: 'Si no especificas contrasena, se generara una automaticamente',
+    advisorRole: 'Asesor (solo ve sus leads)',
+    adminRole: 'Administrador (ve todo)',
+    cancel: 'Cancelar',
+    saveChanges: 'Guardar Cambios',
+    createAdvisor: 'Crear Asesor',
+    activateAccess: 'Activar cuenta de acceso',
+    gotIt: 'Entendido',
+    copyCredentials: 'Copiar Credenciales',
+    activateAccount: 'Activar Cuenta',
+  },
+  en: {
+    restricted: 'Restricted Access',
+    onlyAdmins: 'Only administrators can manage the team',
+    teamTitle: 'Team Management',
+    teamSubtitle: 'Manage your advisors',
+    addAdvisor: 'Add Advisor',
+    advisor: 'Advisor',
+    contact: 'Contact',
+    role: 'Role',
+    leads: 'Leads',
+    actions: 'Actions',
+    admin: 'Administrator',
+    noAdvisors: 'No advisors in your team',
+    noAdvisorsHelp: 'Click "Add Advisor" to start',
+    editAdvisor: 'Edit Advisor',
+    newAdvisor: 'New Advisor',
+    fullName: 'Full Name',
+    phone: 'Phone',
+    password: 'Password',
+    emptyPasswordHint: 'Leave empty to auto-generate',
+    passwordAutoHint: 'If you do not set a password, one will be generated automatically',
+    advisorRole: 'Advisor (only sees assigned leads)',
+    adminRole: 'Administrator (can see all)',
+    cancel: 'Cancel',
+    saveChanges: 'Save Changes',
+    createAdvisor: 'Create Advisor',
+    activateAccess: 'Activate access account',
+    gotIt: 'Got it',
+    copyCredentials: 'Copy Credentials',
+    activateAccount: 'Activate Account',
+  },
+};
+
+export default function TeamManagement({ language = 'es' }: { language?: AppLanguage }) {
   const { user, isAdmin, loading: authLoading } = useAuth();
+  const t = UI_TEXT[language] || UI_TEXT.es;
   const [asesores, setAsesores] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -325,8 +393,8 @@ export default function TeamManagement() {
         color: '#94a3b8'
       }}>
         <Shield size={48} style={{ marginBottom: '16px', opacity: 0.5 }} />
-        <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>Acceso Restringido</h3>
-        <p>Solo los administradores pueden gestionar el equipo</p>
+        <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>{t.restricted}</h3>
+        <p>{t.onlyAdmins}</p>
       </div>
     );
   }
@@ -351,10 +419,10 @@ export default function TeamManagement() {
             gap: '10px',
             margin: 0
           }}>
-            <Users color="#22d3ee" /> Gestión de Equipo
+            <Users color="#22d3ee" /> {t.teamTitle}
           </h2>
           <p style={{ color: '#94a3b8', marginTop: '4px' }}>
-            Administra los asesores de tu equipo
+            {t.teamSubtitle}
           </p>
         </div>
         
@@ -375,7 +443,7 @@ export default function TeamManagement() {
             whiteSpace: 'nowrap'
           }}
         >
-          <Plus size={18} /> Agregar Asesor
+          <Plus size={18} /> {t.addAdvisor}
         </button>
       </div>
 
@@ -443,11 +511,11 @@ export default function TeamManagement() {
           <table style={{ width: '100%', minWidth: 0, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                <th style={{ width: '26%', padding: '16px', textAlign: 'left', color: '#94a3b8', fontSize: '13px' }}>Asesor</th>
-                <th style={{ width: '30%', padding: '16px', textAlign: 'left', color: '#94a3b8', fontSize: '13px' }}>Contacto</th>
-                <th style={{ width: '14%', padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>Rol</th>
-                <th style={{ width: '10%', padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>Leads</th>
-                <th style={{ width: '20%', padding: '16px', textAlign: 'right', color: '#94a3b8', fontSize: '13px' }}>Acciones</th>
+                <th style={{ width: '26%', padding: '16px', textAlign: 'left', color: '#94a3b8', fontSize: '13px' }}>{t.advisor}</th>
+                <th style={{ width: '30%', padding: '16px', textAlign: 'left', color: '#94a3b8', fontSize: '13px' }}>{t.contact}</th>
+                <th style={{ width: '14%', padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>{t.role}</th>
+                <th style={{ width: '10%', padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>{t.leads}</th>
+                <th style={{ width: '20%', padding: '16px', textAlign: 'right', color: '#94a3b8', fontSize: '13px' }}>{t.actions}</th>
               </tr>
             </thead>
             <tbody>
@@ -471,7 +539,7 @@ export default function TeamManagement() {
                       <div>
                         <div style={{ color: '#fff', fontWeight: 500 }}>{asesor.nombre}</div>
                         <div style={{ fontSize: '12px', color: '#64748b' }}>
-                          {asesor.rol === 'admin' ? 'Administrador' : 'Asesor'}
+                          {asesor.rol === 'admin' ? t.admin : t.advisor}
                         </div>
                       </div>
                     </div>
@@ -549,7 +617,7 @@ export default function TeamManagement() {
                            cursor: 'pointer',
                            color: '#22d3ee'
                          }}
-                         title="Activar cuenta de acceso"
+                          title={t.activateAccess}
                        >
                          <UserPlus size={16} />
                        </button>
@@ -576,8 +644,8 @@ export default function TeamManagement() {
           {asesores.length === 0 && (
             <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
               <Users size={48} style={{ marginBottom: '16px', opacity: 0.3 }} />
-              <p>No hay asesores en tu equipo</p>
-              <p style={{ fontSize: '14px', marginTop: '8px' }}>Haz clic en "Agregar Asesor" para comenzar</p>
+              <p>{t.noAdvisors}</p>
+              <p style={{ fontSize: '14px', marginTop: '8px' }}>{t.noAdvisorsHelp}</p>
             </div>
           )}
         </div>
@@ -628,7 +696,7 @@ export default function TeamManagement() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h3 style={{ fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
                 {editingAsesor ? <Edit2 color="#22d3ee" /> : <Plus color="#22d3ee" />}
-                {editingAsesor ? 'Editar Asesor' : 'Nuevo Asesor'}
+                {editingAsesor ? t.editAdvisor : t.newAdvisor}
               </h3>
               <button
                 onClick={() => {
@@ -664,7 +732,7 @@ export default function TeamManagement() {
             <form onSubmit={editingAsesor ? handleUpdate : handleCreate}>
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', color: '#94a3b8', marginBottom: '6px', fontSize: '14px' }}>
-                  Nombre completo *
+                  {t.fullName} *
                 </label>
                 <input
                   type="text"
@@ -710,7 +778,7 @@ export default function TeamManagement() {
               
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', color: '#94a3b8', marginBottom: '6px', fontSize: '14px' }}>
-                  Teléfono
+                  {t.phone}
                 </label>
                 <input
                   type="tel"
@@ -732,13 +800,13 @@ export default function TeamManagement() {
               
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', color: '#94a3b8', marginBottom: '6px', fontSize: '14px' }}>
-                  Contraseña
+                  {t.password}
                 </label>
                 <input
                   type="text"
                   value={usarPasswordManual ? formData.password : ''}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Dejar vacío para generar automáticamente"
+                   placeholder={t.emptyPasswordHint}
                   onFocus={() => setUsarPasswordManual(true)}
                   style={{
                     width: '100%',
@@ -752,7 +820,7 @@ export default function TeamManagement() {
                   }}
                 />
                 <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-                  💡 Si no especificas contraseña, se generará una automáticamente
+                  💡 {t.passwordAutoHint}
                 </div>
               </div>
               
@@ -774,8 +842,8 @@ export default function TeamManagement() {
                     boxSizing: 'border-box'
                   }}
                 >
-                  <option value="asesor">Asesor (solo ve sus leads)</option>
-                  <option value="admin">Administrador (ve todo)</option>
+                  <option value="asesor">{t.advisorRole}</option>
+                  <option value="admin">{t.adminRole}</option>
                 </select>
               </div>
               
@@ -798,7 +866,7 @@ export default function TeamManagement() {
                     minWidth: '140px'
                   }}
                 >
-                  Cancelar
+                  {t.cancel}
                 </button>
                 <button
                   type="submit"
@@ -813,7 +881,7 @@ export default function TeamManagement() {
                     minWidth: '140px'
                   }}
                 >
-                  {editingAsesor ? 'Guardar Cambios' : 'Crear Asesor'}
+                  {editingAsesor ? t.saveChanges : t.createAdvisor}
                 </button>
               </div>
             </form>
@@ -981,7 +1049,7 @@ export default function TeamManagement() {
                   fontSize: '14px'
                 }}
               >
-                <Copy size={16} /> Copiar Credenciales
+                <Copy size={16} /> {t.copyCredentials}
               </button>
               <button
                 onClick={() => setNewAsesorCredentials(null)}
@@ -997,7 +1065,7 @@ export default function TeamManagement() {
                   fontSize: '14px'
                 }}
               >
-                Entendido
+                {t.gotIt}
               </button>
             </div>
           </div>
@@ -1118,7 +1186,7 @@ export default function TeamManagement() {
                   fontSize: '14px'
                 }}
               >
-                Cancelar
+                {t.cancel}
               </button>
               <button
                 onClick={async () => {
@@ -1192,7 +1260,7 @@ export default function TeamManagement() {
                 }}
               >
                 {loadingActivation ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
-                Activar Cuenta
+                {t.activateAccount}
               </button>
             </div>
           </div>
