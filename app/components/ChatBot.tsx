@@ -7,12 +7,15 @@ const ChatBot = () => {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<{ role: "user" | "bot"; content: string }[]>([]);
 
+  const whatsappUrl = "https://wa.me/573154829949";
+
   // Mensaje automático al iniciar
   useEffect(() => {
     setMessages([
       {
         role: "bot",
-        content: "¡Hola! 👋 Soy tu asistente IA. ¿En qué puedo ayudarte hoy?",
+        content:
+          "Hola, soy el asistente de Botz. Puedo ayudarte con automatizacion, CRM/Leads y calculo hipotecario. Si quieres hablar con un humano, usa el boton de WhatsApp verde.",
       },
     ]);
   }, []);
@@ -69,7 +72,10 @@ const ChatBot = () => {
             position: "fixed",
             bottom: "90px",
             right: "24px",
-            width: "320px",
+            width: "420px",
+            maxWidth: "calc(100vw - 32px)",
+            height: "560px",
+            maxHeight: "calc(100vh - 140px)",
             backgroundColor: "#0a1427",
             border: "1px solid #00b4d8",
             borderRadius: "12px",
@@ -92,7 +98,26 @@ const ChatBot = () => {
               alignItems: "center",
             }}
           >
-            <span>🤖 Chat IA</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span>🤖 Chat IA</span>
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 800,
+                  color: "#0a1427",
+                  background: "rgba(255,255,255,0.45)",
+                  padding: "4px 8px",
+                  borderRadius: "999px",
+                  textDecoration: "none",
+                }}
+                title="Hablar por WhatsApp"
+              >
+                WhatsApp
+              </a>
+            </div>
             <button
               onClick={() => setIsOpen(false)}
               style={{
@@ -111,7 +136,7 @@ const ChatBot = () => {
           <div
             style={{
               padding: "12px",
-              maxHeight: "250px",
+              flex: 1,
               overflowY: "auto",
               display: "flex",
               flexDirection: "column",
@@ -128,11 +153,26 @@ const ChatBot = () => {
                   color: msg.role === "user" ? "white" : "#00b4d8",
                   padding: "8px 12px",
                   borderRadius: "8px",
+                  maxWidth: "92%",
+                  whiteSpace: "pre-wrap",
                 }}
               >
                 {msg.content}
               </div>
             ))}
+
+            {/* CTA persistente */}
+            <div
+              style={{
+                marginTop: "8px",
+                fontSize: "12px",
+                color: "#94a3b8",
+                borderTop: "1px dashed rgba(0, 180, 216, 0.35)",
+                paddingTop: "10px",
+              }}
+            >
+              Para hablar con un humano mas rapido: <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#22c55e", fontWeight: 800, textDecoration: "none" }}>abre WhatsApp</a>
+            </div>
           </div>
 
           {/* Footer con input, botón enviar y WhatsApp */}
@@ -143,23 +183,30 @@ const ChatBot = () => {
               backgroundColor: "#040917",
               padding: "8px",
               gap: "6px",
+              alignItems: "stretch",
             }}
           >
-            <input
-              type="text"
-              placeholder="Escribe algo..."
+            <textarea
+              rows={2}
+              placeholder="Pregunta sobre Botz..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
               style={{
                 flex: 1,
                 padding: "8px",
                 backgroundColor: "#0a1427",
                 color: "white",
                 border: "1px solid #00b4d8",
-                borderRight: "none",
-                borderRadius: "6px 0 0 6px",
+                borderRadius: "8px",
                 outline: "none",
+                resize: "none",
+                lineHeight: 1.3,
               }}
             />
             <button
@@ -167,11 +214,12 @@ const ChatBot = () => {
               style={{
                 backgroundColor: "#00b4d8",
                 color: "#0a1427",
-                padding: "8px 16px",
+                padding: "8px 14px",
                 fontWeight: "bold",
                 border: "none",
-                borderRadius: "0 6px 6px 0",
+                borderRadius: "8px",
                 cursor: "pointer",
+                minWidth: "56px",
               }}
             >
               ➤
@@ -179,7 +227,7 @@ const ChatBot = () => {
 
             {/* Botón WhatsApp con SVG */}
             <a
-              href="https://wa.me/573154829949"
+              href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -192,6 +240,7 @@ const ChatBot = () => {
                 borderRadius: "6px",
                 cursor: "pointer",
               }}
+              title="Hablar por WhatsApp"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
