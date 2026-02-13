@@ -14,6 +14,10 @@ type HipotecaCalculo = {
   ingresosMensuales: number;
   cuotaEstimada: number;
   dti: number;
+  ltv?: number;
+  costeTotal?: number;
+  financiacionNecesaria?: number;
+  requiereAsesor?: boolean;
   score: number;
   aprobado: boolean;
   cuotaCofidis?: number;
@@ -438,6 +442,7 @@ export default function HipotecaView({ calculo, leadId, mode = "manual" }: Hipot
   const [cantidadAFinanciar, setCantidadAFinanciar] = useState<number>(
     calculo?.valorVivienda ? calculo.valorVivienda * 0.8 : 160000
   );
+  const [requestedMortgageDirty, setRequestedMortgageDirty] = useState<boolean>(false);
   const [leadIncomplete, setLeadIncomplete] = useState<boolean>(false);
   const [manualDirty, setManualDirty] = useState<boolean>(false);
 
@@ -479,7 +484,10 @@ useEffect(() => {
   const v = Number(manualInputs.valorVivienda) || 0;
   const a = Number(aportacionReal) || 0;
 
-  setCantidadAFinanciar(Math.max(0, v - a));
+  // Only auto-fill requested mortgage if user hasn't typed it.
+  if (!requestedMortgageDirty) {
+    setCantidadAFinanciar(Math.max(0, v - a));
+  }
 }, [effectiveManual, manualInputs.valorVivienda, aportacionReal]);
 
 
@@ -524,18 +532,21 @@ useEffect(() => {
     let cancelled = false;
     setLeadError(null);
 
-    const buildCalculoFromLead = (lead: any): HipotecaCalculo => ({
-      valorVivienda: Number(lead?.precio_real) || 0,
-      ingresosMensuales: Number(lead?.ingresos_netos) || 0,
-      cuotaEstimada: Number(lead?.cuota_estimada) || 0,
-      dti: Number(lead?.dti) || 0,
-      score: Number(lead?.score) || 0,
-      aprobado: Boolean(lead?.aprobado),
-      cuotaCofidis: Number(lead?.cuota_cofidis) || undefined,
-      deudasExistentes: Number(lead?.deudas_existentes) || 0,
-      plazo: Number(lead?.plazo) || 25,
-      tasa: Number(lead?.tasa) || 3.5,
-    });
+      const buildCalculoFromLead = (lead: any): HipotecaCalculo => ({
+        valorVivienda: Number(lead?.precio_real) || 0,
+        ingresosMensuales: Number(lead?.ingresos_netos) || 0,
+        cuotaEstimada: Number(lead?.cuota_estimada) || 0,
+        dti: Number(lead?.dti) || 0,
+        ltv: (lead?.ltv !== null && lead?.ltv !== undefined) ? Number(lead?.ltv) : undefined,
+        score: Number(lead?.score) || 0,
+        aprobado: Boolean(lead?.aprobado),
+        cuotaCofidis: Number(lead?.cuota_cofidis) || undefined,
+        deudasExistentes: Number(lead?.deudas_existentes) || 0,
+        // Lead schema uses plazo_anos + tasa_interes
+        plazo: Number((lead as any)?.plazo_anos ?? lead?.plazo) || 25,
+        tasa: Number((lead as any)?.tasa_interes ?? lead?.tasa) || 3.5,
+        edad: Number(lead?.edad) || undefined,
+      });
 
     const fetchLead = async () => {
       try {
@@ -619,6 +630,12 @@ useEffect(() => {
         setLeadIncomplete(false);
         setLeadError(null);
         setLiveCalculo(buildCalculoFromLead(data));
+
+        // Keep Spain age in sync so "Perfil edad" matches the lead.
+        const leadEdad = Number((data as any)?.edad) || 0;
+        if (leadEdad > 0) {
+          setSpainFields((prev) => ({ ...prev, edad: leadEdad }));
+        }
       } catch (e: any) {
         if (!cancelled) {
           setLeadError("Error de conexión");
@@ -672,6 +689,77 @@ useEffect(() => {
     }
     
     const { valorVivienda, ingresosMensuales, deudasExistentes, plazo, tasa } = manualInputs;
+
+    // --- Spain engine (aligned with operational spec) ---
+    if (pais === "España") {
+      const precio = Number(valorVivienda) || 0;
+      const ing = Number(ingresosMensuales) || 0;
+      const otras = Number(deudasExistentes) || 0;
+
+      // 1) coste_total = precio + gastos+impuestos (fallback usando paisConfig.impuestosGastos)
+      const taxesAndFees = precio * (paisConfig.impuestosGastos || 0);
+      const costeTotal = precio + taxesAndFees;
+
+      // 2) financiacion_necesaria = coste_total - aportacion
+      const aport = Number(aportacionReal) || 0;
+      const financiacionNecesaria = Math.max(0, costeTotal - aport);
+
+      // 3) principal: usa hipoteca solicitada si existe, si no financiacion necesaria
+      const requested = effectiveManual ? (Number(cantidadAFinanciar) || 0) : 0;
+      const principal = requested > 0 ? requested : financiacionNecesaria;
+
+      // 4) tasa: si no hay, default 2.60%
+      const tinDefault = 2.6;
+      const tasaAnual = (effectiveManual && tasaAnalisisMode === "euribor")
+        ? ((euribor12m || 0) + (diferencial || 0))
+        : (Number(tasa) || 0);
+      const tasaParaAnalisis = tasaAnual > 0 ? tasaAnual : tinDefault;
+
+      // 5) plazo: max 30 y edad+plazo <= 75
+      const edad = Number(spainFields.edad) || 0;
+      const maxPorEdad = edad > 0 ? Math.max(0, 75 - edad) : 30;
+      const plazoAnios = Math.min(30, Number(plazo) || 0, maxPorEdad || 30);
+
+      const cuotaEstimada = pmt(principal, tasaParaAnalisis / 100, plazoAnios);
+      const gastosMensuales = cuotaEstimada + otras;
+      const dtiPct = ing > 0 ? (gastosMensuales / ing) * 100 : 0;
+
+      // LTV siempre contra precio (no contra costeTotal)
+      const ltvPct = precio > 0 ? (financiacionNecesaria / precio) * 100 : 0;
+
+      // Regla LTV por edad (derivacion)
+      let requiereAsesor = false;
+      if (edad > 0 && edad < 35) {
+        if (ltvPct > 95) requiereAsesor = true;
+      } else {
+        if (ltvPct > 90) requiereAsesor = true;
+      }
+
+      // Score se mantiene con tu heuristica actual (valor agregado adicional)
+      const score = calcularScore(dtiPct, ing, otras, pais, colombiaFields, spainFields);
+      const scoreMinimo = 50;
+
+      // Aprobacion: hard DTI 40% + validacion legal (edad+plazo) + score
+      const aprobadoLegal = (edad <= 0) ? true : (edad + plazoAnios) <= 75;
+      const aprobado = dtiPct > 0 && dtiPct <= 40 && score >= scoreMinimo && aprobadoLegal;
+
+      return {
+        valorVivienda: precio,
+        ingresosMensuales: ing,
+        cuotaEstimada: Math.round(cuotaEstimada),
+        dti: Math.round(dtiPct * 10) / 10,
+        ltv: Math.round(ltvPct * 10) / 10,
+        costeTotal: Math.round(costeTotal),
+        financiacionNecesaria: Math.round(financiacionNecesaria),
+        requiereAsesor,
+        score,
+        aprobado,
+        deudasExistentes: otras,
+        plazo: plazoAnios,
+        tasa: tasaParaAnalisis,
+        edad,
+      };
+    }
     
     // Colombia-specific adjustments
     let adjustedTasa = tasa;
@@ -989,6 +1077,7 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
 
   const resetManual = useCallback(() => {
     setManualDirty(false);
+    setRequestedMortgageDirty(false);
     setManualInputs({ valorVivienda: 0, ingresosMensuales: 0, deudasExistentes: 0, plazo: 25, tasa: 3.5 });
     setAportacionReal(40000);
     setCantidadAFinanciar(160000);
@@ -1045,13 +1134,16 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
       put(["precio_real", "valor_vivienda", "property_value"], num(manualInputs.valorVivienda, 0));
       put(["ingresos_netos", "ingresos_mensuales", "income"], num(manualInputs.ingresosMensuales, 0));
       put(["otras_cuotas", "deudas_mensuales", "existing_debts", "deudas_existentes"], num(manualInputs.deudasExistentes, 0));
-      put(["plazo", "plazo_anios", "plazo_years", "term_years"], num(manualInputs.plazo, 25));
+      put(["plazo_anos", "plazo", "plazo_anios", "plazo_years", "term_years"], num(calc.plazo ?? manualInputs.plazo, 25));
       // ✅ Usa la tasa efectiva del análisis (ya incluye Euríbor+Dif si el broker lo seleccionó)
-      put(["tasa_anual", "tasa", "interest_rate", "annual_rate"], num((calc.tasa ?? manualInputs.tasa), 0));
+      put(["tasa_interes", "tasa_anual", "tasa", "interest_rate", "annual_rate", "tin"], num((calc.tasa ?? manualInputs.tasa), 0));
 
       // ✅ Resultados que guardas para CRM (si existen las columnas)
       put(["cuota_estimada", "cuota_mensual", "monthly_payment"], num(calc.cuotaEstimada, 0));
       put(["dti"], num(calc.dti, 0));
+      if ((calc as any).ltv !== undefined && (calc as any).ltv !== null) {
+        put(["ltv"], num((calc as any).ltv, 0));
+      }
       put(["score"], num(calc.score, 0));
 
       // ✅ Campos manuales (si existen en tu tabla)
@@ -1202,7 +1294,7 @@ const saveLeadScoreToCRM = async () => {
           plazo_anios: calc.plazo,
           tasa_interes: calc.tasa,
           dti: calc.dti,
-          ltv: ((calc.valorVivienda - aportacionReal) / calc.valorVivienda) * 100,
+          ltv: (calc as any).ltv ?? (((calc.valorVivienda - aportacionReal) / calc.valorVivienda) * 100),
           cuota_mensual: calc.cuotaEstimada,
           score_bancario: calc.score,
           ingresos_anuales: calc.ingresosMensuales * 12,
@@ -1279,15 +1371,21 @@ const saveLeadScoreToCRM = async () => {
                 const val = Number(v) || 0;
                 setManualDirty(true);
                 setAportacionReal(val);
-                // Si pone más ahorros, pedimos menos hipoteca automáticamente
-                setCantidadAFinanciar(Math.max(0, (manualInputs.valorVivienda || 0) - val));
+                // Si pone más ahorros, sugerimos menos hipoteca SOLO si no han tocado el importe
+                if (!requestedMortgageDirty) {
+                  setCantidadAFinanciar(Math.max(0, (manualInputs.valorVivienda || 0) - val));
+                }
               }}
               prefix={paisConfig.simbolo}
             />
             <InputField
               label={t.requestedMortgage}
               value={cantidadAFinanciar}
-              onChange={(v) => { setManualDirty(true); setCantidadAFinanciar(Number(v) || 0); }}
+              onChange={(v) => {
+                setManualDirty(true);
+                setRequestedMortgageDirty(true);
+                setCantidadAFinanciar(Number(v) || 0);
+              }}
               prefix={paisConfig.simbolo}
             />
             <InputField
@@ -1683,7 +1781,7 @@ const saveLeadScoreToCRM = async () => {
           colombiaFields.antiguedadLaboral < 6 || 
           colombiaFields.scoreCrediticioColombia < 600
         )) || (pais === "España" && (
-          (spainFields.edad + manualInputs.plazo) > 75
+          (spainFields.edad + (calc.plazo || manualInputs.plazo)) > 75
         ))) && (
           <div style={{
             backgroundColor: "rgba(239, 68, 68, 0.1)",
@@ -1706,9 +1804,9 @@ const saveLeadScoreToCRM = async () => {
                 • Score crediticio mínimo: 600 puntos (tienes: {colombiaFields.scoreCrediticioColombia})
               </div>
             )}
-            {pais === "España" && (spainFields.edad + manualInputs.plazo) > 75 && (
+            {pais === "España" && (spainFields.edad + (calc.plazo || manualInputs.plazo)) > 75 && (
               <div style={{ fontSize: "11px", color: "#dc2626", marginBottom: "4px" }}>
-                • Edad + plazo no puede exceder 75 años ({spainFields.edad} + {manualInputs.plazo} = {spainFields.edad + manualInputs.plazo} años)
+                • Edad + plazo no puede exceder 75 años ({spainFields.edad} + {(calc.plazo || manualInputs.plazo)} = {spainFields.edad + (calc.plazo || manualInputs.plazo)} años)
               </div>
             )}
           </div>
@@ -1878,7 +1976,7 @@ const saveLeadScoreToCRM = async () => {
                   {pais === "España" && (
                     <>
                       <li style={{ marginBottom: "6px" }}>🇪🇸 <strong>Requisitos España no cumplidos:</strong></li>
-                      {(spainFields.edad + manualInputs.plazo) > 75 && <li style={{ marginLeft: "20px", color: "#facc15" }}>📅 Reducir plazo a {75 - spainFields.edad} años máximo</li>}
+                      {(spainFields.edad + (calc.plazo || manualInputs.plazo)) > 75 && <li style={{ marginLeft: "20px", color: "#facc15" }}>📅 Reducir plazo a {75 - spainFields.edad} años máximo</li>}
                       <li style={{ marginBottom: "6px", color: "#22d3ee" }}>📋 <strong>Próximos pasos:</strong></li>
                       <li style={{ marginLeft: "20px" }}>• Revisar CIRBE para deudas ocultas</li>
                       <li style={{ marginLeft: "20px" }}>• Considerar avalista o segundo titular</li>

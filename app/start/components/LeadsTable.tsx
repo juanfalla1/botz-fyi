@@ -1056,7 +1056,26 @@ export default function LeadsTable({
               {paginatedLeads.map((lead) => {
                 const cleanStatus = normalizeStatus(lead.status);
                 const statusStyles = getStatusColor(cleanStatus);
-                const calificacionStyles = getCalificacionColor(lead.calificacion);
+
+                const isViable =
+                  String((lead as any)?.estado_operacion || "")
+                    .trim()
+                    .toUpperCase() === "VIABLE";
+
+                // UI-only defaults: if lead is viable, show it as hot + call today
+                const effectiveNextAction = (lead.next_action || "").trim()
+                  ? (lead.next_action as any)
+                  : isViable
+                    ? "Llamar hoy"
+                    : "";
+
+                const effectiveCalificacion = (lead.calificacion || "").trim()
+                  ? (lead.calificacion as any)
+                  : isViable
+                    ? "Caliente"
+                    : "";
+
+                const calificacionStyles = getCalificacionColor(effectiveCalificacion);
 
                 return (
                   <tr
@@ -1173,7 +1192,7 @@ export default function LeadsTable({
 
                     <td style={{ ...stickyRightTd, padding: "12px 10px" }} onClick={(e) => e.stopPropagation()}>
                       <select
-                        value={lead.next_action || ""}
+                        value={effectiveNextAction}
                         onChange={(e) => handleUpdate(lead.id, "next_action", e.target.value)}
                         style={{
                           background: "transparent",
@@ -1198,7 +1217,7 @@ export default function LeadsTable({
 
                     <td style={{ ...stickyRightTd, padding: "12px 10px" }} onClick={(e) => e.stopPropagation()}>
                       <select
-                        value={lead.calificacion || ""}
+                        value={effectiveCalificacion}
                         onChange={(e) => handleUpdate(lead.id, "calificacion", e.target.value)}
                         style={{
                           background: calificacionStyles.bg,

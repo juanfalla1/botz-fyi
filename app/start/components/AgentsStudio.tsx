@@ -95,18 +95,22 @@ const DEFAULT_PROMPT_EN =
 export default function AgentsStudio() {
   const language = useBotzLanguage();
   const t = COPY[language];
-  const { user, tenantId, isAdmin, isPlatformAdmin } = useAuth();
+  const { user, tenantId, subscription, isAdmin, isPlatformAdmin } = useAuth();
 
   const [selectedTenantId, setSelectedTenantId] = useState<string>("");
   const [tenantOptions, setTenantOptions] = useState<string[]>([]);
+
+  const [resolvedTenantId, setResolvedTenantId] = useState<string>("");
 
   const [agents, setAgents] = useState<BotAgent[]>([]);
   const [tokens, setTokens] = useState<WebhookToken[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [editingAgent, setEditingAgent] = useState<BotAgent | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   const [draftName, setDraftName] = useState("");
   const [draftChannel, setDraftChannel] = useState<AgentChannel>("whatsapp");
@@ -120,7 +124,12 @@ export default function AgentsStudio() {
 
   const canManage = Boolean(user) && (isAdmin || isPlatformAdmin);
 
-  const effectiveTenantId = tenantId || (isPlatformAdmin ? selectedTenantId : "") || null;
+  const effectiveTenantId =
+    tenantId ||
+    resolvedTenantId ||
+    (subscription as any)?.tenant_id ||
+    (isPlatformAdmin ? selectedTenantId : "") ||
+    null;
   const canCreate = canManage && Boolean(effectiveTenantId);
 
   const connectionBaseUrl = useMemo(() => {
@@ -132,7 +141,14 @@ export default function AgentsStudio() {
     if (!canManage) return;
     setLoading(true);
     setError(null);
+    setNotice(null);
     try {
+      if (!isPlatformAdmin && !effectiveTenantId) {
+        setAgents([]);
+        setTokens([]);
+        return;
+      }
+
       const agentsQuery = supabase
         .from("bot_agents")
         .select("id, tenant_id, name, channel, language, system_prompt, is_active, updated_at")
@@ -148,10 +164,10 @@ export default function AgentsStudio() {
       const [{ data: aData, error: aErr }, { data: tData, error: tErr }] = await Promise.all([
         isPlatformAdmin
           ? (selectedTenantId ? agentsQuery.eq("tenant_id", selectedTenantId as any) : agentsQuery)
-          : agentsQuery.eq("tenant_id", tenantId as any),
+          : agentsQuery.eq("tenant_id", effectiveTenantId as any),
         isPlatformAdmin
           ? (selectedTenantId ? tokensQuery.eq("tenant_id", selectedTenantId as any) : tokensQuery)
-          : tokensQuery.eq("tenant_id", tenantId as any),
+          : tokensQuery.eq("tenant_id", effectiveTenantId as any),
       ]);
 
       if (aErr) throw aErr;
@@ -168,7 +184,42 @@ export default function AgentsStudio() {
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, isAdmin, isPlatformAdmin, selectedTenantId]);
+  }, [tenantId, resolvedTenantId, (subscription as any)?.tenant_id, isAdmin, isPlatformAdmin, selectedTenantId]);
+
+  useEffect(() => {
+    const run = async () => {
+      if (!user) return;
+      if (isPlatformAdmin) return;
+      if (tenantId) return;
+      if (resolvedTenantId) return;
+
+      // Prefer subscription.tenant_id if present.
+      const subTid = (subscription as any)?.tenant_id;
+      if (subTid) {
+        setResolvedTenantId(String(subTid));
+        return;
+      }
+
+      // Fallback: query subscriptions by user_id.
+      try {
+        const { data: sub, error: subErr } = await supabase
+          .from("subscriptions")
+          .select("tenant_id")
+          .eq("user_id", user.id)
+          .in("status", ["active", "trialing"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (subErr) return;
+
+        const tid = (sub as any)?.tenant_id;
+        if (tid) setResolvedTenantId(String(tid));
+      } catch {
+        // ignore
+      }
+    };
+    run();
+  }, [user, tenantId, resolvedTenantId, subscription, isPlatformAdmin]);
 
   useEffect(() => {
     const run = async () => {
@@ -203,20 +254,22 @@ export default function AgentsStudio() {
         const list = Array.from(tenantIds).sort();
         setTenantOptions(list);
 
-        // Auto-select first tenant to reduce friction (can be changed)
-        if (!tenantId && !selectedTenantId && list.length > 0) {
-          setSelectedTenantId(list[0]);
+        // Auto-select for platform admin when possible
+        if (!tenantId && list.length > 0) {
+          if (!selectedTenantId || !list.includes(selectedTenantId)) {
+            setSelectedTenantId(list[0]);
+          }
         }
       } catch {
         // ignore
       }
     };
     run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlatformAdmin]);
+  }, [isPlatformAdmin, tenantId, selectedTenantId]);
 
   const openCreateAgent = () => {
     setEditingAgent(null);
+    setModalError(null);
     setDraftName("");
     setDraftChannel("whatsapp");
     setDraftLang("es");
@@ -227,6 +280,7 @@ export default function AgentsStudio() {
 
   const openEditAgent = (agent: BotAgent) => {
     setEditingAgent(agent);
+    setModalError(null);
     setDraftName(agent.name);
     setDraftChannel(agent.channel);
     setDraftLang(agent.language);
@@ -236,13 +290,27 @@ export default function AgentsStudio() {
   };
 
   const saveAgent = async () => {
+    console.log("[AgentsStudio] saveAgent", {
+      isPlatformAdmin,
+      tenantId,
+      selectedTenantId,
+      effectiveTenantId,
+      draftName: draftName.trim(),
+      draftChannel,
+      draftLang,
+    });
     if (!canCreate) {
-      setError(t.needTenant);
+      const msg = isPlatformAdmin
+        ? (language === "en" ? "Select a tenant first." : "Selecciona un tenant primero.")
+        : t.needTenant;
+      setError(msg);
+      setModalError(msg);
       return;
     }
     if (!draftName.trim()) return;
     setLoading(true);
     setError(null);
+    setModalError(null);
     try {
       const payload = {
         tenant_id: effectiveTenantId,
@@ -261,13 +329,21 @@ export default function AgentsStudio() {
           .eq("id", editingAgent.id);
         if (updErr) throw updErr;
       } else {
-        const { error: insErr } = await supabase.from("bot_agents").insert(payload);
+        const { data: inserted, error: insErr } = await supabase
+          .from("bot_agents")
+          .insert(payload)
+          .select("id")
+          .single();
         if (insErr) throw insErr;
+        console.log("[AgentsStudio] inserted agent", inserted);
       }
       setShowAgentModal(false);
       await fetchData();
     } catch (e: any) {
-      setError(e?.message || String(e));
+      const msg = e?.message || String(e);
+      setError(msg);
+      setModalError(msg);
+      console.error("[AgentsStudio] saveAgent failed", e);
     } finally {
       setLoading(false);
     }
@@ -297,7 +373,17 @@ export default function AgentsStudio() {
     if (!newTokenAgentId) return;
     setLoading(true);
     setError(null);
+    setNotice(null);
     try {
+      console.log("[AgentsStudio] createToken", {
+        isPlatformAdmin,
+        tenantId,
+        selectedTenantId,
+        effectiveTenantId,
+        newTokenAgentId,
+        label: newTokenLabel.trim() || null,
+      });
+
       const { error: insErr } = await supabase.from("bot_webhook_tokens").insert({
         tenant_id: effectiveTenantId,
         agent_id: newTokenAgentId,
@@ -305,6 +391,24 @@ export default function AgentsStudio() {
         created_by: user?.id || null,
       });
       if (insErr) throw insErr;
+
+      // Best-effort: fetch the row we just created so the UI updates immediately.
+      const { data: latestToken, error: selErr } = await supabase
+        .from("bot_webhook_tokens")
+        .select("id, tenant_id, agent_id, token, label, is_active, created_at")
+        .eq("tenant_id", effectiveTenantId as any)
+        .eq("agent_id", newTokenAgentId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!selErr && latestToken) {
+        setTokens((prev) => {
+          const exists = prev.some((p) => p.id === (latestToken as any).id);
+          return exists ? prev : ([latestToken as any, ...prev] as any);
+        });
+        setNotice(language === "en" ? "Connection created." : "Conexion creada.");
+      }
+
       setNewTokenLabel("");
       await fetchData();
     } catch (e: any) {
@@ -415,7 +519,13 @@ export default function AgentsStudio() {
         </div>
       )}
 
-      {!tenantId && (
+      {notice && (
+        <div style={{ marginTop: "14px", padding: "10px 12px", borderRadius: "12px", border: "1px solid rgba(34, 197, 94, 0.25)", background: "rgba(34, 197, 94, 0.08)", color: "#22c55e", fontSize: "12px" }}>
+          {notice}
+        </div>
+      )}
+
+      {!effectiveTenantId && (
         <div style={{ marginTop: "14px", padding: "10px 12px", borderRadius: "12px", border: "1px solid rgba(245, 158, 11, 0.25)", background: "rgba(245, 158, 11, 0.08)", color: "#f59e0b", fontSize: "12px" }}>
           {isPlatformAdmin
             ? (language === "en" ? "Select a tenant to create agents." : "Selecciona un tenant para crear agentes.")
@@ -660,6 +770,21 @@ export default function AgentsStudio() {
             </div>
 
             <div style={{ padding: "18px" }}>
+              {modalError && (
+                <div style={{
+                  marginBottom: "12px",
+                  padding: "10px 12px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(239, 68, 68, 0.25)",
+                  background: "rgba(239, 68, 68, 0.08)",
+                  color: "#ef4444",
+                  fontSize: "12px",
+                  lineHeight: 1.35,
+                }}>
+                  {modalError}
+                </div>
+              )}
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
                 <div>
                   <div style={{ fontSize: "12px", color: "var(--botz-muted)", marginBottom: "6px" }}>{t.name}</div>
@@ -780,6 +905,12 @@ export default function AgentsStudio() {
                   {t.save}
                 </button>
               </div>
+
+              {!effectiveTenantId && (
+                <div style={{ marginTop: "12px", fontSize: "11px", color: "var(--botz-muted)" }}>
+                  {language === "en" ? "Tenant is required to save." : "Se requiere tenant para guardar."}
+                </div>
+              )}
             </div>
           </div>
         </div>

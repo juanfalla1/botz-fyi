@@ -1920,6 +1920,7 @@ export default function MainLayout({
           __html: `
         /* Theme tokens (Start only) */
         [data-botz-theme="dark"] {
+          color-scheme: dark;
           --botz-bg: #02040a;
           --botz-bg-elev: rgba(10, 15, 30, 0.95);
           --botz-surface: #1e293b;
@@ -1938,6 +1939,7 @@ export default function MainLayout({
           --botz-hero-title-grad: linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%);
         }
         [data-botz-theme="light"] {
+          color-scheme: light;
           --botz-bg: #f4f7fb;
           --botz-bg-elev: rgba(255, 255, 255, 0.86);
           --botz-surface: #ffffff;

@@ -354,12 +354,14 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
   // --- ESTADOS FINANCIEROS COMPLETOS ---
   const [tipoOperacion, setTipoOperacion] = useState("habitual");
   const [modalidadCompra, setModalidadCompra] = useState("solo");
+  const [hipotecaSolicitada, setHipotecaSolicitada] = useState("");
   const [edad, setEdad] = useState("35");
   const [ingresos, setIngresos] = useState("0");
   const [presupuesto, setPresupuesto] = useState("0");
   const [ahorros, setAhorros] = useState("0");
   const [deudas, setDeudas] = useState("0");
-  const [tasaInteres, setTasaInteres] = useState("3.5");
+  // Default aligned with mortgage ops spec (Spain): 2.60% if unknown
+  const [tasaInteres, setTasaInteres] = useState("2.6");
   const [plazoAnos, setPlazoAnos] = useState("30");
 
   // --- ESTADOS DE CIERRE ---
@@ -375,22 +377,166 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
+  type MiniOption = { value: string; label: string };
+  const MiniSelect = ({
+    value,
+    onChange,
+    options,
+    ariaLabel,
+  }: {
+    value: string;
+    onChange: (next: string) => void;
+    options: MiniOption[];
+    ariaLabel: string;
+  }) => {
+    const [open, setOpen] = useState(false);
+    const wrapRef = React.useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+      if (!open) return;
+
+      const onDown = (e: MouseEvent) => {
+        const el = wrapRef.current;
+        if (!el) return;
+        if (!el.contains(e.target as any)) setOpen(false);
+      };
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === "Escape") setOpen(false);
+      };
+
+      document.addEventListener("mousedown", onDown);
+      document.addEventListener("keydown", onKey);
+      return () => {
+        document.removeEventListener("mousedown", onDown);
+        document.removeEventListener("keydown", onKey);
+      };
+    }, [open]);
+
+    const current = options.find((o) => o.value === value);
+
+    return (
+      <div ref={wrapRef} style={{ position: "relative" }}>
+        <button
+          type="button"
+          aria-label={ariaLabel}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          style={{
+            width: "100%",
+            background: "transparent",
+            border: "none",
+            color: "var(--botz-text)",
+            fontWeight: "bold",
+            fontSize: "11px",
+            outline: "none",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "8px",
+            padding: 0,
+          }}
+        >
+          <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {current?.label || "-"}
+          </span>
+          <ChevronDown size={14} style={{ opacity: 0.9, flexShrink: 0 }} />
+        </button>
+
+        {open && (
+          <div
+            role="listbox"
+            aria-label={ariaLabel}
+            style={{
+              position: "absolute",
+              top: "calc(100% + 8px)",
+              left: 0,
+              right: 0,
+              background: "var(--botz-surface)",
+              border: "1px solid var(--botz-border-strong)",
+              borderRadius: "10px",
+              boxShadow: "var(--botz-shadow-2)",
+              overflow: "hidden",
+              zIndex: 99999,
+            }}
+          >
+            {options.map((opt) => {
+              const selected = opt.value === value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  onClick={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 12px",
+                    background: selected ? "rgba(59, 130, 246, 0.14)" : "transparent",
+                    color: "var(--botz-text)",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    fontWeight: selected ? 700 : 500,
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget.style.background = selected
+                      ? "rgba(59, 130, 246, 0.18)"
+                      : "rgba(255,255,255,0.06)");
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget.style.background = selected
+                      ? "rgba(59, 130, 246, 0.14)"
+                      : "transparent");
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (lead && isOpen) {
       fetchHistory();
+
+      const normalizeOperationType = (raw: any): "habitual" | "segunda" | "inversion" => {
+        const v = String(raw ?? "")
+          .trim()
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "");
+        if (!v) return "habitual";
+        if (v === "1" || v.includes("habitual") || v.includes("primary")) return "habitual";
+        if (v === "2" || v.includes("segunda") || v.includes("2a") || v.includes("second")) return "segunda";
+        if (v === "3" || v.includes("inversion") || v.includes("investment")) return "inversion";
+        return "habitual";
+      };
+
       // @ts-ignore
-      setTipoOperacion(lead.tipo_operacion || "habitual");
+      setTipoOperacion(normalizeOperationType((lead as any).tipo_operacion));
       // @ts-ignore
       setModalidadCompra(lead.modalidad_compra || "solo");
       setEdad(lead.edad ? String(lead.edad) : "35");
       setIngresos(lead.ingresos_netos ? String(lead.ingresos_netos) : "0");
       setPresupuesto(lead.precio_real ? String(lead.precio_real) : "0");
       setAhorros(lead.aportacion_real ? String(lead.aportacion_real) : "0");
+      // Requested financing is stored in DB as cantidad_a_financiar
+      setHipotecaSolicitada((lead as any).cantidad_a_financiar ? String((lead as any).cantidad_a_financiar) : "");
       setDeudas(lead.otras_cuotas ? String(lead.otras_cuotas) : "0");
       // @ts-ignore
-      setTasaInteres(lead.tasa_interes ? String(lead.tasa_interes) : "3.5");
+      setTasaInteres(lead.tasa_interes ? String(lead.tasa_interes) : "2.6");
       // @ts-ignore
       setPlazoAnos(lead.plazo_anos ? String(lead.plazo_anos) : "30");
       
@@ -405,6 +551,7 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
       setShowDocuments(false);
       setSimResult(null); 
       setPdfUrl(null);
+      setHipotecaSolicitada((lead as any).cantidad_a_financiar ? String((lead as any).cantidad_a_financiar) : "");
       setClosingMsg("");
       setSaveMsg("");
     }
@@ -442,6 +589,9 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
         ingresos_netos: parseFloat(ingresos) || 0,
         precio_real: parseFloat(presupuesto) || 0,
         aportacion_real: parseFloat(ahorros) || 0,
+        cantidad_a_financiar: hipotecaSolicitada
+          ? parseFloat(String(hipotecaSolicitada).replace(/[^0-9.]/g, "")) || null
+          : null,
         otras_cuotas: parseFloat(deudas) || 0,
         tasa_interes: parseFloat(tasaInteres) || 3.5,
         plazo_anos: parseInt(plazoAnos) || 30,
@@ -495,9 +645,20 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
       
       const tasa = Number(tasaInteres) / 100 / 12; 
       const n = Number(plazoAnos) * 12;
-      
-      const montoFinanciar = P - A;
-      const ltv = P > 0 ? (montoFinanciar / P) * 100 : 0;
+
+      const requested = Number(String(hipotecaSolicitada || "").replace(/\D/g, "")) || 0;
+      // If explicit requested financing exists, use it so CRM matches WhatsApp/PDF.
+      const montoFinanciar = requested > 0 ? requested : (P - A);
+
+      // LTV(Sol): requested financing / purchase price
+      const ltvSol = P > 0 ? (montoFinanciar / P) * 100 : 0;
+
+      // LTV(Op): financing needed to cover full operation (price + taxes/fees) - savings, always vs purchase price.
+      // In n8n you use explicit taxes/fees if present; here we align with the fallback rule (Spain ~10%).
+      const taxesFeesRate = 0.10;
+      const costeTotal = P + (P * taxesFeesRate);
+      const financiacionNecesaria = Math.max(0, costeTotal - A);
+      const ltvOp = P > 0 ? (financiacionNecesaria / P) * 100 : 0;
 
       let cuota = 0;
       if (montoFinanciar > 0 && tasa > 0 && n > 0) {
@@ -506,13 +667,20 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
 
       const totalDeudas = cuota + D;
       const dti = I > 0 ? (totalDeudas / I) : 0;
+
+      const edadNum = Number(String(edad).replace(/\D/g, "")) || 0;
+      const ltvThreshold = edadNum > 0 && edadNum < 35 ? 95 : 90;
+      const requiereRevision = ltvOp > ltvThreshold;
       
       return { 
           cuota: Math.round(cuota), 
           dti: dti,
           dtiPercent: Math.round(dti * 100),
-          ltv: Math.round(ltv),
-          viable: dti <= 0.40 && ltv <= 80,
+          ltv: Math.round(ltvSol),
+          ltvSol: Math.round(ltvSol),
+          ltvOp: Math.round(ltvOp),
+          requiereRevision,
+          viable: dti <= 0.40 && ltvSol <= 80,
           financiacion: montoFinanciar,
           precioVivienda: P,
           aportacion: A,
@@ -534,6 +702,9 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
         dti: resultado.dti,
         dtiPercent: resultado.dtiPercent,
         ltv: resultado.ltv,
+        ltvSol: resultado.ltvSol,
+        ltvOp: resultado.ltvOp,
+        requiereRevision: resultado.requiereRevision,
         financiacion: resultado.financiacion,
         precioVivienda: resultado.precioVivienda,
         aportacion: resultado.aportacion,
@@ -548,6 +719,7 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
       ingresos_netos: resultado.ingresos,
       precio_real: resultado.precioVivienda,
       aportacion_real: resultado.aportacion,
+      cantidad_a_financiar: resultado.financiacion,
       otras_cuotas: parseFloat(deudas) || 0,
       tasa_interes: parseFloat(tasaInteres),
       plazo_anos: parseInt(plazoAnos),
@@ -817,20 +989,30 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
 
                 {/* TIPO, MODALIDAD, EDAD */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
-                   <div style={{ background: "var(--botz-surface)", padding: "10px", borderRadius: "10px", border: "1px solid var(--botz-border-strong)" }}>
-                       <div style={{ color: "var(--botz-muted)", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Home size={10}/> {t.operationType}</div>
-                       <select value={tipoOperacion} onChange={(e) => setTipoOperacion(e.target.value)} style={{ background: "transparent", border: "none", color: "var(--botz-text)", fontWeight: "bold", fontSize: "11px", width: "100%", outline: "none", cursor: "pointer" }}>
-                        <option value="habitual" style={{background: "var(--botz-surface)"}}>{t.operationHabitual}</option>
-                        <option value="segunda" style={{background: "var(--botz-surface)"}}>{t.operationSecondResidence}</option>
-                        <option value="inversion" style={{background: "var(--botz-surface)"}}>{t.operationInvestment}</option>
-                       </select>
+                    <div style={{ background: "var(--botz-surface)", padding: "10px", borderRadius: "10px", border: "1px solid var(--botz-border-strong)" }}>
+                        <div style={{ color: "var(--botz-muted)", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Home size={10}/> {t.operationType}</div>
+                        <MiniSelect
+                          ariaLabel={t.operationType}
+                          value={tipoOperacion}
+                          onChange={setTipoOperacion}
+                          options={[
+                            { value: "habitual", label: t.operationHabitual },
+                            { value: "segunda", label: t.operationSecondResidence },
+                            { value: "inversion", label: t.operationInvestment },
+                          ]}
+                        />
                     </div>
-                   <div style={{ background: "var(--botz-surface)", padding: "10px", borderRadius: "10px", border: "1px solid var(--botz-border-strong)" }}>
-                       <div style={{ color: "var(--botz-muted)", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Users size={10}/> {t.modality}</div>
-                       <select value={modalidadCompra} onChange={(e) => setModalidadCompra(e.target.value)} style={{ background: "transparent", border: "none", color: "var(--botz-text)", fontWeight: "bold", fontSize: "11px", width: "100%", outline: "none", cursor: "pointer" }}>
-                        <option value="solo" style={{background: "var(--botz-surface)"}}>{t.modalitySolo}</option>
-                        <option value="pareja" style={{background: "var(--botz-surface)"}}>{t.modalityCouple}</option>
-                       </select>
+                    <div style={{ background: "var(--botz-surface)", padding: "10px", borderRadius: "10px", border: "1px solid var(--botz-border-strong)" }}>
+                        <div style={{ color: "var(--botz-muted)", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Users size={10}/> {t.modality}</div>
+                        <MiniSelect
+                          ariaLabel={t.modality}
+                          value={modalidadCompra}
+                          onChange={setModalidadCompra}
+                          options={[
+                            { value: "solo", label: t.modalitySolo },
+                            { value: "pareja", label: t.modalityCouple },
+                          ]}
+                        />
                     </div>
                    <div style={{ background: "var(--botz-surface)", padding: "10px", borderRadius: "10px", border: "1px solid var(--botz-border-strong)" }}>
                        <div style={{ color: "var(--botz-muted)", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Calendar size={10}/> {t.age}</div>
@@ -839,7 +1021,7 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
                 </div>
                 
                 {/* CAMPOS FINANCIEROS */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                    <div style={{ background: "#1e293b", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
                       <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><DollarSign size={10}/> {t.netIncomeMonth}</div>
                       <input type="text" value={ingresos} onChange={(e) => setIngresos(e.target.value)} style={{ background: "transparent", border: "none", color: "white", fontWeight: "bold", fontSize: "14px", width: "100%", outline: "none" }} />
@@ -850,11 +1032,25 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
                       <input type="text" value={presupuesto} onChange={(e) => setPresupuesto(e.target.value)} style={{ background: "transparent", border: "none", color: "white", fontWeight: "bold", fontSize: "14px", width: "100%", outline: "none" }} />
                       <div style={{ fontSize: "9px", color: "#64748b" }}>{formatCurrency(presupuesto)}</div>
                    </div>
-                   <div style={{ background: "#1e293b", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
-                      <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Wallet size={10}/> {t.downPaymentSavings}</div>
-                      <input type="text" value={ahorros} onChange={(e) => setAhorros(e.target.value)} style={{ background: "transparent", border: "none", color: "white", fontWeight: "bold", fontSize: "14px", width: "100%", outline: "none" }} />
-                      <div style={{ fontSize: "9px", color: "#64748b" }}>{formatCurrency(ahorros)}</div>
-                   </div>
+                    <div style={{ background: "#1e293b", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
+                       <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><Wallet size={10}/> {t.downPaymentSavings}</div>
+                       <input type="text" value={ahorros} onChange={(e) => setAhorros(e.target.value)} style={{ background: "transparent", border: "none", color: "white", fontWeight: "bold", fontSize: "14px", width: "100%", outline: "none" }} />
+                       <div style={{ fontSize: "9px", color: "#64748b" }}>{formatCurrency(ahorros)}</div>
+                    </div>
+
+                    <div style={{ background: "#1e293b", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
+                      <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}>
+                        <Building size={10}/> {language === "en" ? "Requested mortgage" : "Hipoteca solicitada"}
+                      </div>
+                      <input
+                        type="text"
+                        value={hipotecaSolicitada}
+                        onChange={(e) => setHipotecaSolicitada(e.target.value)}
+                        placeholder={language === "en" ? "e.g. 120000" : "ej: 120000"}
+                        style={{ background: "transparent", border: "none", color: "white", fontWeight: "bold", fontSize: "14px", width: "100%", outline: "none" }}
+                      />
+                      <div style={{ fontSize: "9px", color: "#64748b" }}>{formatCurrency(hipotecaSolicitada)}</div>
+                    </div>
                    <div style={{ background: "#1e293b", padding: "10px", borderRadius: "10px", border: "1px solid #334155" }}>
                       <div style={{ color: "#94a3b8", fontSize: "10px", display: "flex", gap: "4px", marginBottom: "4px" }}><CreditCard size={10}/> {t.otherMonthlyPayments}</div>
                       <input type="text" value={deudas} onChange={(e) => setDeudas(e.target.value)} style={{ background: "transparent", border: "none", color: "white", fontWeight: "bold", fontSize: "14px", width: "100%", outline: "none" }} />
@@ -888,12 +1084,30 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
 
                 {/* RESULTADOS */}
                 {simResult && (
-                    <div style={{ background: simResult.estado_operacion === "VIABLE" ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)", border: `1px solid ${simResult.estado_operacion === "VIABLE" ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)"}`, borderRadius: "10px", padding: "14px" }}>
+                    <div style={{
+                      background:
+                        simResult.estado_operacion === "VIABLE"
+                          ? (simResult.requiereRevision ? "rgba(245, 158, 11, 0.10)" : "rgba(16, 185, 129, 0.1)")
+                          : "rgba(239, 68, 68, 0.1)",
+                      border: `1px solid ${
+                        simResult.estado_operacion === "VIABLE"
+                          ? (simResult.requiereRevision ? "rgba(245, 158, 11, 0.30)" : "rgba(16, 185, 129, 0.3)")
+                          : "rgba(239, 68, 68, 0.3)"
+                      }`,
+                      borderRadius: "10px",
+                      padding: "14px",
+                    }}>
                         
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                           <h4 style={{ margin: 0, fontSize: "13px", color: simResult.estado_operacion === "VIABLE" ? "#34d399" : "#f87171", display: "flex", alignItems: "center", gap: "6px" }}>
-                            {simResult.estado_operacion === "VIABLE" ? <CheckCircle size={16}/> : <AlertTriangle size={16}/>}
-                             {simResult.estado_operacion === "VIABLE" ? t.viable : t.notViable}
+                            {simResult.estado_operacion === "VIABLE"
+                              ? (simResult.requiereRevision ? <AlertTriangle size={16}/> : <CheckCircle size={16}/> )
+                              : <AlertTriangle size={16}/>}
+                             {simResult.estado_operacion === "VIABLE"
+                               ? (simResult.requiereRevision
+                                 ? (language === "en" ? "REQUIRES REVIEW" : "REQUIERE REVISIÓN")
+                                 : t.viable)
+                               : t.notViable}
                           </h4>
                         </div>
                         
@@ -911,6 +1125,14 @@ export default function LeadDetailsDrawer({ lead, isOpen, onClose }: LeadDetails
                                 <span style={{ fontSize: "16px", fontWeight: "bold", color: simResult.ltv <= 80 ? "#34d399" : "#f87171" }}>{simResult.ltv}%</span>
                             </div>
                         </div>
+
+                        {simResult.requiereRevision && (
+                          <div style={{ marginTop: "10px", fontSize: "11px", color: "#fbbf24" }}>
+                            {language === "en"
+                              ? `Operation LTV ~${simResult.ltvOp}% exceeds standard threshold.`
+                              : `LTV de operacion ~${simResult.ltvOp}% supera el umbral estandar.`}
+                          </div>
+                        )}
 
                         {/* PDF Y WHATSAPP */}
                         <div style={{ display: "flex", gap: "10px" }}>
