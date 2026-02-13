@@ -588,13 +588,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
 
-    const t = window.setInterval(maybeRefresh, 1500);
-
     return () => {
       alive = false;
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
-      window.clearInterval(t);
     };
   }, [user?.id, fetchUserSubscription]);
 

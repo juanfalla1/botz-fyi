@@ -361,40 +361,31 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
   }, [showConfig, activeConfigTab, tenantId, subscription?.id, userPlan, isAsesor, leads.length]);
 
 
-  // ✅ FIX: traer TODOS los registros con paginación
-  // Soporta filtro por user_id (admin) o sin filtro (para buscar por tenant/todos)
-  const fetchAllFromTable = async (table: string, filterField?: string, filterValue?: string) => {
-    const pageSize = 500;
-    let from = 0;
-    let all: any[] = [];
+  // Rendimiento: no traemos toda la BD. Solo ventana reciente (semana/mes).
+  const fetchRecentFromTable = async (
+    table: string,
+    days: number,
+    filterField?: string,
+    filterValue?: string,
+    extraTenantFilter?: string | null,
+    limit: number = 2000
+  ) => {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
 
-    while (true) {
-      const to = from + pageSize - 1;
+    let query = supabase
+      .from(table)
+      .select("*")
+      .order("created_at", { ascending: false })
+      .gte("created_at", since.toISOString())
+      .limit(limit);
 
-      let query = supabase
-        .from(table)
-        .select("*")
-        .order("created_at", { ascending: false })
-        .range(from, to);
+    if (filterField && filterValue) query = query.eq(filterField, filterValue);
+    if (extraTenantFilter) query = query.eq("tenant_id", extraTenantFilter);
 
-      if (filterField && filterValue) {
-        query = query.eq(filterField, filterValue);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      if (!data || data.length === 0) break;
-
-      all = all.concat(data);
-
-      // si la página trae menos que el tamaño, ya no hay más
-      if (data.length < pageSize) break;
-
-      from += pageSize;
-    }
-
-    return all;
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
   };
 
   const fetchData = async () => {
@@ -404,22 +395,45 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
       setSession(session);
 
       if (session) {
+        const days = timeFilter === 'week' ? 5 : 30;
+
         let finalLeadsData: any[] = [];
 
+        // Siempre filtrar por tenant si está disponible (evita mezclar y reduce carga)
+        const scopedTenant = tenantId || null;
+
         if (isAsesor && teamMemberId) {
-          // ✅ ASESOR: Solo traer leads asignados a este asesor
-          console.log("👤 [CRM] Asesor detectado, buscando leads por asesor_id:", teamMemberId);
-          finalLeadsData = await fetchAllFromTable("leads", "asesor_id", teamMemberId);
-          console.log("📊 [CRM] Leads del asesor:", finalLeadsData.length);
+          finalLeadsData = await fetchRecentFromTable(
+            "leads",
+            days,
+            "asesor_id",
+            teamMemberId,
+            scopedTenant
+          );
         } else {
-          // ✅ ADMIN: Traer TODOS los leads (sin filtro de user_id)
-          // Algunos leads entran por webhook/API y no tienen user_id del admin
-          console.log("👑 [CRM] Admin detectado, trayendo TODOS los leads");
-          finalLeadsData = await fetchAllFromTable("leads");
-          console.log("📊 [CRM] Total leads:", finalLeadsData.length);
+          finalLeadsData = await fetchRecentFromTable(
+            "leads",
+            days,
+            undefined,
+            undefined,
+            scopedTenant
+          );
         }
-        
-        const trackerData = await fetchAllFromTable("demo_tracker_botz", "user_id", session.user.id);
+
+        // tracker (demo) también se limita por ventana
+        let trackerData: any[] = [];
+        try {
+          trackerData = await fetchRecentFromTable(
+            "demo_tracker_botz",
+            days,
+            "user_id",
+            session.user.id,
+            null,
+            2000
+          );
+        } catch {
+          trackerData = [];
+        }
 
         const normalize = (arr: any[], source: string) => arr.map((l) => {
             let rawOrigin = l.origen || l.source || l.channel;
@@ -452,7 +466,7 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [timeFilter, isAsesor, teamMemberId, tenantId]);
 
   // Lógica de filtrado unificada (Fecha + Filtro Global del Dock + Rol)
   const filteredLeads = leads.filter(l => {

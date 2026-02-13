@@ -2,21 +2,40 @@
 
 import React, { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation"; 
+import dynamic from "next/dynamic";
 import MainLayout, { useAuth } from "./MainLayout";
 import DemoForm from "./components/DemoForm";
 import DemoProgress from "./components/DemoProgress";
 import ChatBox, { ChatMsg } from "./components/ChatBox"; 
-import ChannelsView from "./components/ChannelsView";
-import HipotecaView from "./components/HipotecaView";
-import CRMFullView from "./components/CRMFullView";
-import MetricsFullView from "./components/MetricsFullView"; 
-import ExecutiveDashboard from "./components/ExecutiveDashboard"; 
-import ExperienceGuide from "./components/ExperienceGuide"; 
-import LiveSystemMonitor from "./components/LiveSystemMonitor"; 
-import IntegrationsSection from "./components/IntegrationsSection"; 
-import KanbanBoard from "./components/KanbanBoard";
-import SLAControlCenter from "./components/SLAControlCenter";
-import AgentsStudio from "./components/AgentsStudio";
+
+function TabLoading() {
+  return (
+    <div
+      style={{
+        padding: 18,
+        color: "#94a3b8",
+        fontSize: 13,
+        borderRadius: 12,
+        border: "1px solid rgba(148,163,184,0.18)",
+        background: "rgba(15, 23, 42, 0.45)",
+      }}
+    >
+      Cargando...
+    </div>
+  );
+}
+
+const ChannelsView = dynamic(() => import("./components/ChannelsView"), { ssr: false, loading: TabLoading });
+const HipotecaView = dynamic(() => import("./components/HipotecaView"), { ssr: false, loading: TabLoading });
+const CRMFullView = dynamic(() => import("./components/CRMFullView"), { ssr: false, loading: TabLoading });
+const MetricsFullView = dynamic(() => import("./components/MetricsFullView"), { ssr: false, loading: TabLoading });
+const ExecutiveDashboard = dynamic(() => import("./components/ExecutiveDashboard"), { ssr: false, loading: TabLoading });
+const ExperienceGuide = dynamic(() => import("./components/ExperienceGuide"), { ssr: false, loading: TabLoading });
+const LiveSystemMonitor = dynamic(() => import("./components/LiveSystemMonitor"), { ssr: false, loading: TabLoading });
+const IntegrationsSection = dynamic(() => import("./components/IntegrationsSection"), { ssr: false, loading: TabLoading });
+const KanbanBoard = dynamic(() => import("./components/KanbanBoard"), { ssr: false, loading: TabLoading });
+const SLAControlCenter = dynamic(() => import("./components/SLAControlCenter"), { ssr: false, loading: TabLoading });
+const AgentsStudio = dynamic(() => import("./components/AgentsStudio"), { ssr: false, loading: TabLoading });
 import useBotzLanguage from "./hooks/useBotzLanguage";
 import { supabase } from "./components/supabaseClient";
 import AuthModal from "./components/AuthModal";
