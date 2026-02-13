@@ -614,12 +614,19 @@ export default function LeadsTable({
     verticalAlign: "middle",
   };
 
+  const advisorStickyWidth = 220;
+
+  // When using sticky columns, the background must be (almost) opaque or
+  // underlying text will bleed through during horizontal scroll / layout shifts.
+  // Keep it consistent across the whole table to avoid a visible "patch".
+  const stickyTableBg = "rgba(10, 15, 28, 0.96)";
+
   const advisorStickyTh: React.CSSProperties = {
     ...wideColTh,
     position: "sticky",
     right: 0,
     zIndex: 5,
-    background: "transparent",
+    background: stickyTableBg,
     borderLeft: "none",
     boxShadow: "none",
   };
@@ -628,7 +635,27 @@ export default function LeadsTable({
     position: "sticky",
     right: 0,
     zIndex: 4,
-    background: "transparent",
+    background: stickyTableBg,
+    borderLeft: "none",
+    boxShadow: "none",
+  };
+
+  const ratingStickyTh: React.CSSProperties = {
+    ...wideColTh,
+    position: "sticky",
+    right: advisorStickyWidth,
+    zIndex: 4,
+    background: stickyTableBg,
+    borderLeft: "none",
+    boxShadow: "none",
+  };
+
+  const ratingStickyTd: React.CSSProperties = {
+    ...wideColTd,
+    position: "sticky",
+    right: advisorStickyWidth,
+    zIndex: 3,
+    background: stickyTableBg,
     borderLeft: "none",
     boxShadow: "none",
   };
@@ -1059,7 +1086,19 @@ export default function LeadsTable({
         </div>
 
         <div style={{ overflowX: "auto", overflowY: "visible", maxWidth: "100%", paddingBottom: "150px", position: "relative" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px", color: "#cbd5e1", tableLayout: "fixed", minWidth: "1240px" }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: "14px",
+              color: "#cbd5e1",
+              tableLayout: "fixed",
+              minWidth: "1240px",
+              background: stickyTableBg,
+              borderRadius: "14px",
+              overflow: "hidden",
+            }}
+          >
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", textAlign: "left" }}>
                 <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "240px" }}>{t.thBotzAnalysis}</th>
@@ -1067,7 +1106,7 @@ export default function LeadsTable({
                 <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "120px" }}>{t.thPhone}</th>
                 <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>{t.thStatus}</th>
                 <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>{t.thNextAction}</th>
-                <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>{t.thRating}</th>
+                <th style={{ ...ratingStickyTh, padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>{t.thRating}</th>
                 <th style={{ ...advisorStickyTh, padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "220px" }}>{t.thAdvisor}</th>
               </tr>
             </thead>
@@ -1234,7 +1273,7 @@ export default function LeadsTable({
                       </select>
                     </td>
 
-                    <td style={{ ...wideColTd, padding: "12px 10px" }} onClick={(e) => e.stopPropagation()}>
+                    <td style={{ ...ratingStickyTd, padding: "12px 10px" }} onClick={(e) => e.stopPropagation()}>
                       <select
                         value={effectiveCalificacion}
                         onChange={(e) => handleUpdate(lead.id, "calificacion", e.target.value)}

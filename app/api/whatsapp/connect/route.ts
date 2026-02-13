@@ -16,9 +16,7 @@ function isCreate401(msg?: string) {
   return !!msg && msg.includes("/instance/create") && msg.includes('"status":401');
 }
 
-// ✅ NUEVO: Evolution a veces devuelve 400 por FK, pero la instancia igual queda creada.
-// El error típico trae "Setting_instanceId_fkey" o "Foreign key constraint violated".
-function isCreate400SettingFk(msg?: string) {
+function isCreate400ForeignKey(msg?: string) {
   if (!msg) return false;
   const has400 = msg.includes("/instance/create") && msg.includes('"status":400');
   const hasFk =
@@ -39,7 +37,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "tenant_id is required" }, { status: 400 });
     }
 
-    const provider = "evolution"; // o "meta"
+    // ✅ Provider dinámico (por defecto: evolution QR)
+    // Envía { provider: "meta" } para iniciar OAuth de Meta (WhatsApp Business API)
+    const providerFromBody = String(
+      body?.provider ?? body?.mode ?? body?.connection_type ?? ""
+    )
+      .toLowerCase()
+      .trim();
+
+    const provider = providerFromBody === "meta" ? "meta" : "evolution";
 
     if (provider === "evolution") {
       const tenantInstance = `tenant_${tenant_id}`;
@@ -55,68 +61,43 @@ export async function POST(req: NextRequest) {
           provider: "evolution",
           connection_type: "already_connected",
           instance_id: tenantInstance,
-          status: "connected",
         });
       }
 
-      // 2) Intentar crear instancia tenant_<id>
+      // 2) Si existe y está pending/connecting, intentamos QR
       try {
-        await evolutionService.createInstance(tenant_id);
-      } catch (err: any) {
-        const msg = err?.message || "";
+        const qr = await evolutionService.getQRCode(tenantInstance);
 
-        if (isCreate401(msg)) {
-          // ✅ no puedes crear → usa instancia existente
-          instanceToUse = defaultInstance;
-        } else if (isCreate400SettingFk(msg)) {
-          // ✅ FIX: no rompas el flujo; espera un poco y continúa.
-          console.warn("Evolution createInstance 400 FK (continuando):", msg);
-          await sleep(1200);
-          // mantenemos instanceToUse = tenantInstance
-        } else {
-          throw err;
-        }
-      }
 
-      // 3) Status real de la instancia elegida
-      const s2 = await evolutionService.getStatus(instanceToUse);
-
-      // ✅ si está connected, NO pidas QR
-      if (s2 === "connected") {
-        await supabase
-          .from("whatsapp_connections")
-          .upsert(
-            {
-              tenant_id,
-              provider: "evolution",
-              instance_name: instanceToUse,
-              status: "connected",
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "tenant_id" }
-          );
+        await supabase.from("whatsapp_connections").upsert(
+          {
+            tenant_id,
+            provider: "evolution",
+            instance_name: tenantInstance,
+            status: "pending",
+            qr_code: qr,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "tenant_id" }
+        );
 
         return NextResponse.json({
           success: true,
           provider: "evolution",
-          connection_type: "already_connected",
-          instance_id: instanceToUse,
-          status: "connected",
+          connection_type: "qr",
+          instance_id: tenantInstance,
+          qr_code: qr,
         });
+      } catch (e: any) {
+        // si falló por instancia no existente, seguimos
       }
 
-      // 4) Si NO está conectado, pedir QR
-      const qrCode = await evolutionService.getQRCode(instanceToUse);
-      if (!qrCode) {
-        return NextResponse.json(
-          { error: "No QR available. Instance may already be connected or server did not return QR." },
-          { status: 500 }
-        );
-      }
+      // 3) Crear instancia tenant
+      try {
+        const createRes = await evolutionService.createInstance(instanceToUse);
 
-      const { error } = await supabase
-        .from("whatsapp_connections")
-        .upsert(
+        // Guardar registro "pending"
+        await supabase.from("whatsapp_connections").upsert(
           {
             tenant_id,
             provider: "evolution",
@@ -127,20 +108,88 @@ export async function POST(req: NextRequest) {
           { onConflict: "tenant_id" }
         );
 
-      if (error) throw error;
+        // extraer qr (depende de tu evolutionService)
+        const qr = createRes?.qr_code || createRes?.qr || createRes?.qrcode || null;
 
-      return NextResponse.json({
-        success: true,
-        provider: "evolution",
-        connection_type: "qr",
-        qr_code: qrCode,
-        instance_id: instanceToUse,
-      });
+        if (qr) {
+          await supabase.from("whatsapp_connections").update(
+            {
+              qr_code: qr,
+              updated_at: new Date().toISOString(),
+            }
+          ).eq("tenant_id", tenant_id);
+        }
+
+        return NextResponse.json({
+          success: true,
+          provider: "evolution",
+          connection_type: "qr",
+          instance_id: instanceToUse,
+          qr_code: qr,
+        });
+      } catch (err: any) {
+        const msg = err?.message || String(err);
+
+        // ✅ Si error 401 en create, usamos defaultInstance (no tocamos tu lógica)
+        if (isCreate401(msg) || isCreate400ForeignKey(msg)) {
+          instanceToUse = defaultInstance;
+
+          // Espera breve por si Evolution está creando settings
+          await sleep(800);
+
+          const createRes = await evolutionService.createInstance(instanceToUse);
+
+          await supabase.from("whatsapp_connections").upsert(
+            {
+              tenant_id,
+              provider: "evolution",
+              instance_name: instanceToUse,
+              status: "pending",
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "tenant_id" }
+          );
+
+          const qr = createRes?.qr_code || createRes?.qr || createRes?.qrcode || null;
+
+          if (qr) {
+            await supabase.from("whatsapp_connections").update(
+              {
+                qr_code: qr,
+                updated_at: new Date().toISOString(),
+              }
+            ).eq("tenant_id", tenant_id);
+          }
+
+          return NextResponse.json({
+            success: true,
+            provider: "evolution",
+            connection_type: "qr",
+            instance_id: instanceToUse,
+            qr_code: qr,
+          });
+        }
+
+        throw err;
+      }
     }
 
-    // ✅ Meta (OAuth) (si lo vuelves a activar)
+    // ✅ Meta (WhatsApp Business API) - OAuth
     if (provider === "meta") {
       const authUrl = metaService.getAuthUrl(tenant_id);
+
+      // (opcional) registrar que inició conexión meta
+      await supabase.from("whatsapp_connections").upsert(
+        {
+          tenant_id,
+          provider: "meta",
+          instance_name: `meta_${tenant_id}`,
+          status: "pending",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "tenant_id" }
+      );
+
       return NextResponse.json({
         success: true,
         provider: "meta",
@@ -152,6 +201,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
   } catch (error: any) {
     console.error("Error in /api/whatsapp/connect:", error);
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Internal server error" },
+      { status: 500 }
+    );
   }
 }
