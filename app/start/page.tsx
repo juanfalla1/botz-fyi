@@ -189,6 +189,41 @@ export default function BotzLandingExperience() {
     }
   }, [user, authLoading]);
 
+  // ✅ Evitar que queden datos visibles al cerrar sesión
+  useEffect(() => {
+    if (authLoading) return;
+    if (user) return;
+
+    // Reset UI state when session ends
+    setActiveTab("demo");
+    setHipotecaMode("manual");
+    setHipotecaLeadId("");
+    setLeadsOptions([]);
+    setLoadingLeads(false);
+    setGlobalFilter(null);
+    setChat([]);
+    setDraft("");
+    setMailbox([]);
+    setUnreadCount(0);
+    setAgenda([]);
+    setPending(null);
+    setCrm({ stage: "Lead nuevo", owner: "Botz", leadScore: 0, priority: "BAJA" });
+    setCalculoHipoteca({
+      cuotaEstimada: 0,
+      financiacion: 0,
+      dti: 0,
+      ltv: 0,
+      prestamoAprobable: 0,
+      plazo: 20,
+      tasa: 4.5,
+      aprobado: false,
+      score: 0,
+      ingresosMensuales: 0,
+      valorVivienda: 0,
+      deudasExistentes: 0,
+    });
+  }, [user, authLoading]);
+
   useEffect(() => { window.scrollTo(0, 0); }, []);
 
   const fetchLeads = async () => {
@@ -444,7 +479,35 @@ export default function BotzLandingExperience() {
       />
       <ChatBot />
 
-      {activeTab === "demo" && (
+      {!user && !authLoading ? (
+        <div style={{
+          height: "calc(100vh - 120px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "24px",
+          color: "#94a3b8",
+          textAlign: "center",
+        }}>
+          <div style={{
+            maxWidth: "520px",
+            width: "100%",
+            padding: "18px 16px",
+            borderRadius: "14px",
+            border: "1px solid rgba(255,255,255,0.10)",
+            background: "rgba(255,255,255,0.03)",
+          }}>
+            <div style={{ fontSize: "15px", fontWeight: 800, color: "#e2e8f0" }}>
+              {language === "en" ? "Sign in to continue" : "Inicia sesión para continuar"}
+            </div>
+            <div style={{ marginTop: "8px", fontSize: "12px", lineHeight: 1.4 }}>
+              {language === "en"
+                ? "Your session ended. For security, the dashboard is hidden until you sign in again."
+                : "Tu sesión se cerró. Por seguridad, el panel se oculta hasta que vuelvas a iniciar sesión."}
+            </div>
+          </div>
+        </div>
+      ) : activeTab === "demo" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%", paddingBottom: "20px", overflowX: "hidden", overflowY: "auto" }}>
           
           <div style={{ flexShrink: 0 }}>
