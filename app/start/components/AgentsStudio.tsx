@@ -299,7 +299,8 @@ export default function AgentsStudio() {
       draftChannel,
       draftLang,
     });
-    if (!canCreate) {
+    // For edit, we can rely on the existing row tenant_id.
+    if (!editingAgent && !canCreate) {
       const msg = isPlatformAdmin
         ? (language === "en" ? "Select a tenant first." : "Selecciona un tenant primero.")
         : t.needTenant;
@@ -312,23 +313,38 @@ export default function AgentsStudio() {
     setError(null);
     setModalError(null);
     try {
-      const payload = {
-        tenant_id: effectiveTenantId,
-        name: draftName.trim(),
-        channel: draftChannel,
-        language: draftLang,
-        system_prompt: draftPrompt.trim() || (draftLang === "en" ? DEFAULT_PROMPT_EN : DEFAULT_PROMPT_ES),
-        is_active: draftActive,
-        created_by: user?.id || null,
-      };
+      const system_prompt =
+        draftPrompt.trim() || (draftLang === "en" ? DEFAULT_PROMPT_EN : DEFAULT_PROMPT_ES);
 
       if (editingAgent) {
-        const { error: updErr } = await supabase
+        // Do not update tenant_id/created_by on edit to avoid RLS/consistency issues.
+        const payload = {
+          name: draftName.trim(),
+          channel: draftChannel,
+          language: draftLang,
+          system_prompt,
+          is_active: draftActive,
+          updated_at: new Date().toISOString(),
+        };
+
+        const { data: updated, error: updErr } = await supabase
           .from("bot_agents")
           .update(payload)
-          .eq("id", editingAgent.id);
+          .eq("id", editingAgent.id)
+          .select("id")
+          .maybeSingle();
         if (updErr) throw updErr;
+        if (!updated?.id) throw new Error("No se pudo guardar el agente.");
       } else {
+        const payload = {
+          tenant_id: effectiveTenantId,
+          name: draftName.trim(),
+          channel: draftChannel,
+          language: draftLang,
+          system_prompt,
+          is_active: draftActive,
+          created_by: user?.id || null,
+        };
         const { data: inserted, error: insErr } = await supabase
           .from("bot_agents")
           .insert(payload)
