@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "./supabaseClient";
 
 interface WhatsAppConnectModalProps {
   isOpen: boolean;
@@ -9,15 +9,6 @@ interface WhatsAppConnectModalProps {
   tenantId?: string | null;
   onConnected: () => void;
 }
-
-// ✅ Supabase client (browser)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
-
-const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : null;
 
 export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
   isOpen,
@@ -51,8 +42,6 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
 
   // ✅ Resuelve tenant_id desde subscriptions por user_id (solo si no viene por prop)
   const resolveTenantFromSubscriptions = async (): Promise<string> => {
-    if (!supabase) return "";
-
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
     if (!userId) return "";
