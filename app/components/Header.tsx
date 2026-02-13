@@ -1,13 +1,17 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 // Importamos Sparkles para el toque estelar visual
 import { Sparkles, Settings } from "lucide-react";
 
 const Header = () => {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+
+  const inQualibotz = Boolean(pathname && pathname.startsWith("/start"));
 
   // Detectar si estamos en un dispositivo móvil
   useEffect(() => {
@@ -37,6 +41,12 @@ const Header = () => {
     setOpen(false);
     setOpenDropdown(null);
   };
+
+  // Close menu on route change (prevents stuck overlay)
+  useEffect(() => {
+    closeMenu();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   const handleDropdownClick = (e: React.MouseEvent, name: string) => {
     e.preventDefault();
@@ -69,21 +79,45 @@ const Header = () => {
               </h1>
             </Link>
 
-            <button
-              className={`hamburger ${open ? "active" : ""}`}
-              aria-label="Abrir menú"
-              aria-expanded={open}
-              onClick={() => setOpen(!open)}
-            >
-              <span />
-              <span />
-              <span />
-            </button>
+            {!inQualibotz && (
+              <button
+                className={`hamburger ${open ? "active" : ""}`}
+                aria-label="Abrir menú"
+                aria-expanded={open}
+                onClick={() => setOpen(!open)}
+              >
+                <span />
+                <span />
+                <span />
+              </button>
+            )}
+
+            {inQualibotz && (
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <Link
+                  href="/"
+                  onClick={closeMenu}
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 800,
+                    color: "#cbd5e1",
+                    textDecoration: "none",
+                    padding: "8px 10px",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.04)",
+                  }}
+                >
+                  Volver al sitio
+                </Link>
+              </div>
+            )}
           </div>
 
-          {open && <div className="overlay" onClick={closeMenu} />}
+          {!inQualibotz && open && <div className="overlay" onClick={closeMenu} />}
 
-          <div className={`nav-container ${open ? "is-open" : ""}`}>
+          {!inQualibotz && (
+            <div className={`nav-container ${open ? "is-open" : ""}`}>
             <nav id="main-nav">
 
               {/* NUESTRA PROPUESTA */}
@@ -216,7 +250,8 @@ const Header = () => {
                 <Sparkles size={14} style={{marginRight: '6px'}} /> Qualibotz
               </Link>
             </nav>
-          </div>
+            </div>
+          )}
         </div>
       </header>
 

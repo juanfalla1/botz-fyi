@@ -90,7 +90,7 @@ export default function FlujoEcommerce() {
   const angleStep = (2 * Math.PI) / steps.length;
 
   return (
-    <section style={{ margin: "70px 0 70px 0", padding: "0 1rem" }}>
+    <section style={{ margin: "54px 0 54px 0", padding: "0 1rem" }}>
       <h2
         className="section-title"
         style={{
@@ -220,6 +220,31 @@ export default function FlujoEcommerce() {
             </div>
           );
         })}
+      </div>
+
+      {/* Carrusel "robots en vivo" (diferente al flujo anterior) */}
+      <div className="ecom-live" aria-label="Robots en vivo">
+        <div className="ecom-live-head">
+          <div className="ecom-live-kicker">Robots en vivo</div>
+          <div className="ecom-live-sub">Un ejemplo visual de como los agentes coordinan cada etapa.</div>
+        </div>
+
+        <div className="ecom-live-track" aria-hidden="true">
+          <svg className="ecom-live-svg" viewBox="0 0 1120 140" preserveAspectRatio="none">
+            <path className="ecom-live-path" d="M40 75 C 240 15, 380 15, 520 75 S 820 135, 940 75 S 1080 15, 1120 75" />
+          </svg>
+
+          <div className="ecom-live-bot bot-a" />
+          <div className="ecom-live-bot bot-b" />
+          <div className="ecom-live-bot bot-c" />
+        </div>
+
+        <div className="ecom-live-labels" aria-hidden="true">
+          <span>Entrada</span>
+          <span>Compra</span>
+          <span>IA</span>
+          <span>Confirmacion</span>
+        </div>
       </div>
 
       {selected !== null && (

@@ -24,7 +24,7 @@ export default function Home() {
   return (
     <>
       <Header />
-      <main style={{ minHeight: '100vh', paddingTop: 100 }}>
+      <main className="landing-root" style={{ minHeight: '100vh', paddingTop: 92 }}>
         <Hero />
         <Funcionalidades />
         <Beneficios />

@@ -180,14 +180,14 @@ export default function BotzLandingExperience() {
   const lastUserMsgAtRef = useRef<number>(0);
   const playTimeoutRef = useRef<any>(null);
 
-  // ✅ Solo mostrar modal de auth si NO hay usuario Y ya terminó de cargar
+  // ✅ Mostrar modal de auth solo cuando NO estas en Demo
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authLoading && !user && activeTab !== "demo") {
       setOpenAuth(true);
     } else if (user) {
       setOpenAuth(false);
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, activeTab]);
 
   // ✅ Evitar que queden datos visibles al cerrar sesión
   useEffect(() => {
@@ -479,35 +479,7 @@ export default function BotzLandingExperience() {
       />
       <ChatBot />
 
-      {!user && !authLoading ? (
-        <div style={{
-          height: "calc(100vh - 120px)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "24px",
-          color: "#94a3b8",
-          textAlign: "center",
-        }}>
-          <div style={{
-            maxWidth: "520px",
-            width: "100%",
-            padding: "18px 16px",
-            borderRadius: "14px",
-            border: "1px solid rgba(255,255,255,0.10)",
-            background: "rgba(255,255,255,0.03)",
-          }}>
-            <div style={{ fontSize: "15px", fontWeight: 800, color: "#e2e8f0" }}>
-              {language === "en" ? "Sign in to continue" : "Inicia sesión para continuar"}
-            </div>
-            <div style={{ marginTop: "8px", fontSize: "12px", lineHeight: 1.4 }}>
-              {language === "en"
-                ? "Your session ended. For security, the dashboard is hidden until you sign in again."
-                : "Tu sesión se cerró. Por seguridad, el panel se oculta hasta que vuelvas a iniciar sesión."}
-            </div>
-          </div>
-        </div>
-      ) : activeTab === "demo" && (
+      {activeTab === "demo" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%", paddingBottom: "20px", overflowX: "hidden", overflowY: "auto" }}>
           
           <div style={{ flexShrink: 0 }}>
@@ -553,12 +525,12 @@ export default function BotzLandingExperience() {
         </div>
       )}
 
-      {activeTab === "kanban" && <KanbanBoard globalFilter={globalFilter ?? undefined} />} 
+      {user && activeTab === "kanban" && <KanbanBoard globalFilter={globalFilter ?? undefined} />} 
       
-      {activeTab === "sla" && <SLAControlCenter />}
+      {user && activeTab === "sla" && <SLAControlCenter />}
       
-      {activeTab === "n8n-config" && isAdmin && <ExecutiveDashboard filter={globalFilter ?? undefined} />}
-      {activeTab === "n8n-config" && isAsesor && (
+      {user && activeTab === "n8n-config" && isAdmin && <ExecutiveDashboard filter={globalFilter ?? undefined} />}
+      {user && activeTab === "n8n-config" && isAsesor && (
         <div style={{
           display: "flex",
           alignItems: "center", 
@@ -574,9 +546,40 @@ export default function BotzLandingExperience() {
         </div>
       )}
 
-      {activeTab === "agents" && (isAdmin || isPlatformAdmin ? <AgentsStudio /> : null)}
+      {/* Tabs restringidos: si no hay usuario, ocultar contenido */}
+      {!user && !authLoading && activeTab !== "demo" && (
+        <div style={{
+          height: "calc(100vh - 120px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "24px",
+          color: "#94a3b8",
+          textAlign: "center",
+        }}>
+          <div style={{
+            maxWidth: "520px",
+            width: "100%",
+            padding: "18px 16px",
+            borderRadius: "14px",
+            border: "1px solid rgba(255,255,255,0.10)",
+            background: "rgba(255,255,255,0.03)",
+          }}>
+            <div style={{ fontSize: "15px", fontWeight: 800, color: "#e2e8f0" }}>
+              {language === "en" ? "Sign in to continue" : "Inicia sesión para continuar"}
+            </div>
+            <div style={{ marginTop: "8px", fontSize: "12px", lineHeight: 1.4 }}>
+              {language === "en"
+                ? "This section requires an account. The live demo remains available."
+                : "Esta sección requiere cuenta. La demo en vivo sigue disponible."}
+            </div>
+          </div>
+        </div>
+      )}
 
-      {activeTab === "hipoteca" && (
+      {user && activeTab === "agents" && (isAdmin || isPlatformAdmin ? <AgentsStudio /> : null)}
+
+      {user && activeTab === "hipoteca" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%", overflowY: "auto" }}>
           {/* Barra de control */}
           <div
@@ -726,11 +729,11 @@ export default function BotzLandingExperience() {
         </div>
       )}
 
-      {activeTab === "channels" && <ChannelsView channels={CHANNELS} />}
+      {user && activeTab === "channels" && <ChannelsView channels={CHANNELS} />}
       
-      {activeTab === "crm" && <CRMFullView globalFilter={globalFilter ?? undefined} />} 
+      {user && activeTab === "crm" && <CRMFullView globalFilter={globalFilter ?? undefined} />} 
       
-      {activeTab === "metrics" && <MetricsFullView metrics={metrics as any} />} 
+      {user && activeTab === "metrics" && <MetricsFullView metrics={metrics as any} />} 
 
     </MainLayout>
   );

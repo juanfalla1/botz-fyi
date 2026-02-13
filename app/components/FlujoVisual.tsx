@@ -48,14 +48,14 @@ const getResponsiveLayout = (width: number) => {
   } else {
     return {
       positions: [
-        { x: 180, y: 100 },
-        { x: 180, y: 280 },
-        { x: 440, y: 190 },
-        { x: 700, y: 100 },
-        { x: 700, y: 280 }
+        { x: width * 0.20, y: 120 },
+        { x: width * 0.20, y: 320 },
+        { x: width * 0.50, y: 220 },
+        { x: width * 0.80, y: 120 },
+        { x: width * 0.80, y: 320 }
       ],
-      nodeSize: { width: 180, height: 180 },
-      containerHeight: 420,
+      nodeSize: { width: 190, height: 190 },
+      containerHeight: 520,
       showConnections: true
     };
   }
@@ -68,6 +68,8 @@ export default function FlujoVisual() {
   const [containerWidth, setContainerWidth] = useState(880);
   const [layout, setLayout] = useState(() => getResponsiveLayout(880));
 
+  const canvasRef = React.useRef<HTMLDivElement | null>(null);
+
   // ✅ Flag de montaje
   const [mounted, setMounted] = useState(false);
 
@@ -78,12 +80,14 @@ export default function FlujoVisual() {
   // ✅ Listener para redimensionamiento
   useEffect(() => {
     const handleResize = () => {
-      const container = document.getElementById("flujo-cognitivo-visual");
-      if (container) {
-        const width = Math.min(container.offsetWidth - 40, 880);
-        setContainerWidth(width);
-        setLayout(getResponsiveLayout(width));
-      }
+      const el = canvasRef.current;
+      if (!el) return;
+
+      // Measure the actual canvas width so SVG and nodes align 1:1
+      const measured = Math.round(el.getBoundingClientRect().width);
+      const width = Math.max(320, Math.min(measured, 1120));
+      setContainerWidth(width);
+      setLayout(getResponsiveLayout(width));
     };
 
     handleResize(); // Ejecutar inmediatamente en el cliente
@@ -92,7 +96,7 @@ export default function FlujoVisual() {
   }, []);
 
   return (
-    <section id="flujo-cognitivo-visual" style={{ marginBottom: 60 }}>
+    <section id="flujo-cognitivo-visual" style={{ marginBottom: 10 }}>
       <h2
         className="section-title"
         style={{
@@ -121,9 +125,10 @@ export default function FlujoVisual() {
         analiza en su núcleo cognitivo y ejecuta acciones automatizadas.
       </p>
       <div
+        ref={canvasRef}
         style={{
           position: "relative",
-          width: "min(880px, 98vw)",
+          width: "min(1120px, 98vw)",
           margin: "0 auto",
           height: layout.containerHeight,
           minHeight: layout.containerHeight
@@ -136,7 +141,7 @@ export default function FlujoVisual() {
             height="100%"
             style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 1 }}
             viewBox={`0 0 ${containerWidth} ${layout.containerHeight}`}
-            preserveAspectRatio="xMidYMid meet"
+            preserveAspectRatio="none"
           >
             {connections.map(([from, to], idx) => (
               <line
@@ -201,6 +206,129 @@ export default function FlujoVisual() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Extra contexto (compacto) */}
+      <div className="flujo-extra" aria-label="Resumen del flujo">
+        <div className="flujo-extra-card">
+          <div className="flujo-extra-title">Entradas</div>
+          <div className="flujo-extra-list">
+            <div>WhatsApp, formularios y anuncios</div>
+            <div>Datos del lead y contexto</div>
+            <div>Historial y fuentes conectadas</div>
+          </div>
+        </div>
+
+        <div className="flujo-extra-card">
+          <div className="flujo-extra-title">Salidas</div>
+          <div className="flujo-extra-list">
+            <div>Lead limpio en el CRM</div>
+            <div>Acciones: seguimiento, tareas y mensajes</div>
+            <div>Resultados: scoring, viabilidad y PDF</div>
+          </div>
+        </div>
+
+        <div className="flujo-extra-cta">
+          <div className="flujo-extra-cta-title">Quieres este flujo en tu negocio?</div>
+          <div className="flujo-extra-cta-actions">
+            <a className="flujo-extra-btn secondary" href="https://wa.me/573154829949" target="_blank" rel="noopener noreferrer">
+              Hablar por WhatsApp
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Visual tech strip */}
+      <div className="flujo-robots" aria-hidden="true">
+        <svg
+          className="flujo-robots-svg"
+          viewBox="0 0 1120 170"
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <defs>
+            <linearGradient id="botzGlow" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="#00baff" stopOpacity="0.15" />
+              <stop offset="0.5" stopColor="#2af7ff" stopOpacity="0.18" />
+              <stop offset="1" stopColor="#00ffea" stopOpacity="0.12" />
+            </linearGradient>
+            <linearGradient id="wire" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="#2af7ff" stopOpacity="0.95" />
+              <stop offset="1" stopColor="#00baff" stopOpacity="0.85" />
+            </linearGradient>
+            <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="6" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          {/* background */}
+          <rect x="0" y="0" width="1120" height="170" rx="18" fill="url(#botzGlow)" />
+
+          {/* wires */}
+          <path className="wire" d="M160 85 C 260 30, 360 30, 460 85" />
+          <path className="wire" d="M460 85 C 560 140, 660 140, 760 85" />
+          <path className="wire" d="M760 85 C 860 30, 960 30, 1060 85" />
+
+          {/* nodes */}
+          <g className="botnode" transform="translate(160 85)">
+            <circle r="40" fill="#0b1220" stroke="#6e78ff" strokeWidth="3" filter="url(#softGlow)" />
+            <g transform="translate(-16 -12)" fill="none" stroke="#c7d2fe" strokeWidth="2" strokeLinecap="round">
+              <rect x="0" y="4" width="32" height="24" rx="6" />
+              <circle cx="10" cy="16" r="2.5" fill="#c7d2fe" stroke="none" />
+              <circle cx="22" cy="16" r="2.5" fill="#c7d2fe" stroke="none" />
+              <path d="M12 23 H20" />
+              <path d="M16 0 V4" />
+              <circle cx="16" cy="0" r="2" fill="#2af7ff" stroke="none" />
+            </g>
+          </g>
+
+          <g className="botnode" transform="translate(460 85)">
+            <circle r="46" fill="#0b1220" stroke="#ffffff" strokeWidth="3" filter="url(#softGlow)" />
+            <g transform="translate(-19 -14)" fill="none" stroke="#e2e8f0" strokeWidth="2" strokeLinecap="round">
+              <rect x="0" y="6" width="38" height="28" rx="8" />
+              <circle cx="13" cy="20" r="2.8" fill="#2af7ff" stroke="none" />
+              <circle cx="25" cy="20" r="2.8" fill="#2af7ff" stroke="none" />
+              <path d="M14 28 H24" />
+              <path d="M19 0 V6" />
+              <circle cx="19" cy="0" r="2" fill="#ff6ec7" stroke="none" />
+            </g>
+          </g>
+
+          <g className="botnode" transform="translate(760 85)">
+            <circle r="40" fill="#0b1220" stroke="#00ffea" strokeWidth="3" filter="url(#softGlow)" />
+            <g transform="translate(-16 -12)" fill="none" stroke="#a7f3d0" strokeWidth="2" strokeLinecap="round">
+              <rect x="0" y="4" width="32" height="24" rx="6" />
+              <circle cx="10" cy="16" r="2.5" fill="#a7f3d0" stroke="none" />
+              <circle cx="22" cy="16" r="2.5" fill="#a7f3d0" stroke="none" />
+              <path d="M12 23 H20" />
+              <path d="M16 0 V4" />
+              <circle cx="16" cy="0" r="2" fill="#2af7ff" stroke="none" />
+            </g>
+          </g>
+
+          <g className="botnode" transform="translate(1060 85)">
+            <circle r="36" fill="#0b1220" stroke="#ffb86c" strokeWidth="3" filter="url(#softGlow)" />
+            <g transform="translate(-14 -11)" fill="none" stroke="#fde68a" strokeWidth="2" strokeLinecap="round">
+              <rect x="0" y="4" width="28" height="22" rx="6" />
+              <circle cx="9" cy="15" r="2.2" fill="#fde68a" stroke="none" />
+              <circle cx="19" cy="15" r="2.2" fill="#fde68a" stroke="none" />
+              <path d="M10.5 21 H17.5" />
+              <path d="M14 0 V4" />
+              <circle cx="14" cy="0" r="1.8" fill="#2af7ff" stroke="none" />
+            </g>
+          </g>
+
+          {/* labels */}
+          <g fill="#94a3b8" fontSize="11" fontFamily="system-ui, -apple-system, Segoe UI, sans-serif" textAnchor="middle">
+            <text x="160" y="155">Captura</text>
+            <text x="460" y="155">Razonamiento</text>
+            <text x="760" y="155">Accion</text>
+            <text x="1060" y="155">Salida</text>
+          </g>
+        </svg>
       </div>
 
       {/* Modal */}

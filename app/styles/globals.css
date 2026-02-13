@@ -315,20 +315,21 @@ nav a:hover::after {
 
 /* =========================
    SECCIONES Y CONTENT
-=========================== */
-section {
-  padding: 6em 2em;
+ =========================== */
+.landing-root section {
+  padding: clamp(3rem, 5.5vw, 4.25rem) 1.25rem;
   position: relative;
   color: var(--light);
+  scroll-margin-top: 110px;
 }
-.section-title {
+.landing-root .section-title {
   text-align: center;
-  font-size: 2.5em;
-  margin-bottom: 1.5em;
+  font-size: clamp(1.7rem, 2.6vw, 2.4rem);
+  margin-bottom: 1.1em;
   color: var(--primary);
   position: relative;
 }
-.section-title::after {
+.landing-root .section-title::after {
   content: '';
   display: block;
   width: 80px;
@@ -337,26 +338,26 @@ section {
   margin: 15px auto;
   border-radius: 2px;
 }
-.overlay {
+.landing-root .overlay {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
   background-color: rgba(0,0,0,0.7);
   z-index: 1;
   border-radius: 12px;
 }
-.content {
+.landing-root .content {
   position: relative;
   z-index: 2;
-  max-width: 800px;
+  max-width: 1040px;
   margin: auto;
   border-radius: 12px;
-  padding: 3em;
+  padding: 2.25em;
   background: rgba(10, 15, 28, 0.7);
   backdrop-filter: blur(10px);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   transition: transform 0.3s ease;
 }
-.content:hover {
+.landing-root .content:hover {
   transform: translateY(-5px);
 }
 h3 {
@@ -387,29 +388,30 @@ ul li {
 }
 
 /* Cards y Feature Cards */
-.feature-cards {
+.landing-root .feature-cards {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 2em;
-  margin-top: 3em;
+  gap: 1.25em;
+  margin-top: 1.75em;
 }
-.feature-card {
+.landing-root .feature-card {
   background: rgba(10, 15, 28, 0.8);
   border-radius: 12px;
-  padding: 2em;
-  width: 280px;
+  padding: 1.5em;
+  width: 320px;
+  max-width: 100%;
   transition: all 0.3s ease;
   border: 1px solid rgba(0, 186, 255, 0.1);
   position: relative;
   overflow: hidden;
 }
-.feature-card:hover {
+.landing-root .feature-card:hover {
   transform: translateY(-10px);
   box-shadow: 0 15px 30px rgba(0, 186, 255, 0.2);
   border-color: rgba(0, 186, 255, 0.3);
 }
-.feature-icon {
+.landing-root .feature-icon {
   font-size: 2.5em;
   color: var(--primary);
   margin-bottom: 0.5em;
@@ -418,21 +420,21 @@ ul li {
 /* =========================
    SECCIONES CON FONDO DIFERENCIADO
 =========================== */
-#funcionalidades {
+.landing-root #funcionalidades {
   background: url('https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1950&q=80') center/cover no-repeat fixed;
   background-attachment: fixed;
   position: relative;
   overflow: hidden;
 }
-#beneficios {
+.landing-root #beneficios {
   background: url('https://images.unsplash.com/photo-1508385082359-f4d5569a8b3a?auto=format&fit=crop&w=1950&q=80') center/cover no-repeat fixed;
   background-attachment: fixed;
   position: relative;
   overflow: hidden;
 }
-#vision {
+.landing-root #vision {
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  padding: 6em 2em;
+  padding: clamp(3rem, 5.5vw, 4.25rem) 1.25rem;
   position: relative;
 }
 #vision::before {

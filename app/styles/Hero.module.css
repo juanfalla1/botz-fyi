@@ -1,10 +1,10 @@
 .hero {
-  padding: 12em 2em 4em;
+  padding: clamp(7.5rem, 14vh, 9.5rem) 2em 4.5em;
   text-align: center;
   background: linear-gradient(145deg, #0a0f1c, #001f3f);
   position: relative;
   overflow: hidden;
-  min-height: 80vh;
+  min-height: 72vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -26,20 +26,27 @@
 .heroContent {
   position: relative;
   z-index: 2;
-  max-width: 800px;
+  max-width: 920px;
 }
 
 .heroTitle {
-  font-size: 2.8rem;
+  font-size: clamp(2.1rem, 3.6vw, 3.0rem);
   color: #00baff;
   margin-bottom: 0.5em;
   font-weight: bold;
 }
 
 .heroSubtitle {
-  font-size: 1.3rem;
+  font-size: clamp(1.05rem, 1.4vw, 1.3rem);
   color: #f1f1f1;
   margin-bottom: 1.5em;
+}
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 8.5rem 1.25rem 3.75rem;
+    min-height: 64vh;
+  }
 }
 
 .heroButton {
