@@ -602,16 +602,35 @@ export default function LeadsTable({
 
 
 
-  const stickyRightTh: React.CSSProperties = {
+  const wideColTh: React.CSSProperties = {
     minWidth: 220,
     padding: "12px 14px",
     textAlign: "left",
     whiteSpace: "nowrap",
   };
-  const stickyRightTd: React.CSSProperties = {
+  const wideColTd: React.CSSProperties = {
     minWidth: 220,
     padding: "12px 14px",
     verticalAlign: "middle",
+  };
+
+  const advisorStickyTh: React.CSSProperties = {
+    ...wideColTh,
+    position: "sticky",
+    right: 0,
+    zIndex: 5,
+    background: "transparent",
+    borderLeft: "none",
+    boxShadow: "none",
+  };
+  const advisorStickyTd: React.CSSProperties = {
+    ...wideColTd,
+    position: "sticky",
+    right: 0,
+    zIndex: 4,
+    background: "transparent",
+    borderLeft: "none",
+    boxShadow: "none",
   };
 
   const filteredLeads = safeLeads.filter((lead) => {
@@ -1049,7 +1068,7 @@ export default function LeadsTable({
                 <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>{t.thStatus}</th>
                 <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>{t.thNextAction}</th>
                 <th style={{ padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>{t.thRating}</th>
-                <th style={{ ...stickyRightTh, padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "140px" }}>{t.thAdvisor}</th>
+                <th style={{ ...advisorStickyTh, padding: "12px 10px", color: "#94a3b8", whiteSpace: "nowrap", width: "220px" }}>{t.thAdvisor}</th>
               </tr>
             </thead>
             <tbody>
@@ -1158,7 +1177,7 @@ export default function LeadsTable({
 
                     <td style={{ padding: "12px 10px", fontFamily: "monospace", whiteSpace: "nowrap" }}>{lead.phone}</td>
 
-                    <td style={{ ...stickyRightTd, padding: "12px 10px" }} onClick={(e) => e.stopPropagation()}>
+                    <td style={{ ...wideColTd, padding: "12px 10px" }} onClick={(e) => e.stopPropagation()}>
                       <select
                         value={cleanStatus}
                         onChange={(e) => handleUpdate(lead.id, "status", e.target.value)}
@@ -1190,7 +1209,7 @@ export default function LeadsTable({
                       </select>
                     </td>
 
-                    <td style={{ ...stickyRightTd, padding: "12px 10px" }} onClick={(e) => e.stopPropagation()}>
+                    <td style={{ ...wideColTd, padding: "12px 10px" }} onClick={(e) => e.stopPropagation()}>
                       <select
                         value={effectiveNextAction}
                         onChange={(e) => handleUpdate(lead.id, "next_action", e.target.value)}
@@ -1215,7 +1234,7 @@ export default function LeadsTable({
                       </select>
                     </td>
 
-                    <td style={{ ...stickyRightTd, padding: "12px 10px" }} onClick={(e) => e.stopPropagation()}>
+                    <td style={{ ...wideColTd, padding: "12px 10px" }} onClick={(e) => e.stopPropagation()}>
                       <select
                         value={effectiveCalificacion}
                         onChange={(e) => handleUpdate(lead.id, "calificacion", e.target.value)}
@@ -1241,7 +1260,7 @@ export default function LeadsTable({
                       </select>
                     </td>
 
-                    <td style={{ ...stickyRightTd, padding: "12px 10px" }} onClick={(e) => e.stopPropagation()}>
+                    <td style={{ ...advisorStickyTd, padding: "12px 10px" }} onClick={(e) => e.stopPropagation()}>
                       <AsignarAsesor
                         leadId={lead.id}
                         currentAsesorId={lead.asesor_id}

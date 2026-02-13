@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "./supabaseClient";
 import { User, ChevronDown, Check, Loader2, X, UserPlus } from "lucide-react";
 
@@ -61,6 +62,11 @@ export default function AsignarAsesor({
   const [loadingAsesores, setLoadingAsesores] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedAsesor, setSelectedAsesor] = useState<Asesor | null>(null);
+
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [menuPos, setMenuPos] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
+
+  const canPortal = typeof document !== "undefined";
 
   // Cargar lista de asesores
   useEffect(() => {
@@ -170,6 +176,59 @@ export default function AsignarAsesor({
   const displayName = selectedAsesor?.nombre || currentAsesorNombre || t.unassigned;
   const isAssigned = selectedAsesor || currentAsesorId;
 
+  const computeMenuPos = () => {
+    const el = triggerRef.current;
+    if (!el || typeof window === "undefined") return;
+
+    const rect = el.getBoundingClientRect();
+    const padding = 12;
+    const width = Math.max(220, Math.round(rect.width));
+
+    let left = rect.left;
+    if (left + width > window.innerWidth - padding) left = Math.max(padding, window.innerWidth - padding - width);
+
+    // Always open DOWN (as before). If there isn't space, we keep it down and
+    // reduce the internal scroll height.
+    const top = rect.bottom + 6;
+    const availableBelow = Math.max(160, window.innerHeight - padding - top);
+    const maxHeight = Math.min(320, availableBelow);
+
+    setMenuPos({ left, top, width, maxHeight });
+  };
+
+  useEffect(() => {
+    if (!isOpen) {
+      setMenuPos(null);
+      return;
+    }
+
+    // Position after render.
+    const raf = window.requestAnimationFrame(() => computeMenuPos());
+
+    let ticking = false;
+    const schedule = () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(() => {
+        ticking = false;
+        computeMenuPos();
+      });
+    };
+    const onResize = () => schedule();
+    const onScroll = () => schedule();
+
+    window.addEventListener("resize", onResize);
+    // Reposition on scroll so it stays attached.
+    window.addEventListener("scroll", onScroll, true);
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
   const sizeStyles = {
     sm: { padding: "6px 10px", fontSize: "11px", iconSize: 12 },
     md: { padding: "10px 14px", fontSize: "13px", iconSize: 16 },
@@ -226,6 +285,7 @@ export default function AsignarAsesor({
     <div style={{ position: "relative" }}>
       {/* Trigger */}
       <button
+        ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
         disabled={loadingAsesores}
         style={{
@@ -258,125 +318,126 @@ export default function AsignarAsesor({
       </button>
 
       {/* Dropdown */}
-      {isOpen && (
-        <>
-          {/* Overlay para cerrar */}
-          <div
-            onClick={() => setIsOpen(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 50,
-            }}
-          />
+      {isOpen && canPortal && menuPos &&
+        createPortal(
+          <>
+            {/* Overlay para cerrar */}
+            <div
+              onClick={() => setIsOpen(false)}
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 10000,
+              }}
+            />
 
-          {/* Menu */}
-          <div
-            style={{
-              position: "absolute",
-              top: "calc(100% + 4px)",
-              left: 0,
-              right: 0,
-              background: "#1f1f23",
-              border: "1px solid rgba(255,255,255,0.15)",
-              borderRadius: "12px",
-              boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
-              zIndex: 51,
-              overflow: "hidden",
-              animation: "dropIn 0.2s ease",
-            }}
-          >
-            {/* Header */}
+            {/* Menu */}
             <div
               style={{
-                padding: "12px 14px",
-                borderBottom: "1px solid rgba(255,255,255,0.1)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
+                position: "fixed",
+                left: menuPos.left,
+                top: menuPos.top,
+                width: menuPos.width,
+                background: "#1f1f23",
+                border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: "12px",
+                boxShadow: "0 10px 40px rgba(0,0,0,0.6)",
+                zIndex: 10001,
+                overflow: "hidden",
+                animation: "dropIn 0.2s ease",
               }}
             >
-              <span
+              {/* Header */}
+              <div
                 style={{
-                  fontSize: "12px",
-                  color: "#71717a",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
+                  padding: "12px 14px",
+                  borderBottom: "1px solid rgba(255,255,255,0.1)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
                 }}
               >
-                Asignar a
-              </span>
-              <button
-                onClick={() => setIsOpen(false)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#52525b",
-                  cursor: "pointer",
-                  padding: "2px",
-                }}
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            {/* Lista de asesores */}
-            <div style={{ maxHeight: "200px", overflowY: "auto" }}>
-              {asesores.length === 0 ? (
-                <div
+                <span
                   style={{
-                    padding: "20px",
-                    textAlign: "center",
-                    color: "#52525b",
-                    fontSize: "13px",
+                    fontSize: "12px",
+                    color: "#71717a",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
                   }}
                 >
-                  No hay asesores registrados
-                </div>
-              ) : (
-                asesores.map((asesor) => (
-                  <button
-                    key={asesor.id}
-                    onClick={() => handleAssign(asesor)}
-                    disabled={loading}
+                  Asignar a
+                </span>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#52525b",
+                    cursor: "pointer",
+                    padding: "2px",
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Lista de asesores */}
+              <div style={{ maxHeight: Math.max(200, (menuPos.maxHeight || 260) - 92), overflowY: "auto" }}>
+                {asesores.length === 0 ? (
+                  <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      width: "100%",
-                      padding: "12px 14px",
-                      background:
-                        selectedAsesor?.id === asesor.id
-                          ? "rgba(34, 197, 94, 0.1)"
-                          : "transparent",
-                      border: "none",
-                      borderBottom: "1px solid rgba(255,255,255,0.05)",
-                      color: "#e4e4e7",
+                      padding: "20px",
+                      textAlign: "center",
+                      color: "#52525b",
                       fontSize: "13px",
-                      cursor: loading ? "not-allowed" : "pointer",
-                      textAlign: "left",
-                      transition: "background 0.15s",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedAsesor?.id !== asesor.id) {
-                        e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedAsesor?.id !== asesor.id) {
-                        e.currentTarget.style.background = "transparent";
-                      }
                     }}
                   >
-                    <div>
-                      <div style={{ fontWeight: 500 }}>{asesor.nombre}</div>
-                      <div style={{ fontSize: "11px", color: "#52525b" }}>{asesor.email}</div>
-                    </div>
-                    {selectedAsesor?.id === asesor.id && <Check size={16} color="#22c55e" />}
-                  </button>
-                ))
-              )}
-            </div>
+                    No hay asesores registrados
+                  </div>
+                ) : (
+                  asesores.map((asesor) => (
+                    <button
+                      key={asesor.id}
+                      onClick={() => handleAssign(asesor)}
+                      disabled={loading}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        width: "100%",
+                        padding: "12px 14px",
+                        background:
+                          selectedAsesor?.id === asesor.id
+                            ? "rgba(34, 197, 94, 0.1)"
+                            : "transparent",
+                        border: "none",
+                        borderBottom: "1px solid rgba(255,255,255,0.05)",
+                        color: "#e4e4e7",
+                        fontSize: "13px",
+                        cursor: loading ? "not-allowed" : "pointer",
+                        textAlign: "left",
+                        transition: "background 0.15s",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedAsesor?.id !== asesor.id) {
+                          e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedAsesor?.id !== asesor.id) {
+                          e.currentTarget.style.background = "transparent";
+                        }
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 500 }}>{asesor.nombre}</div>
+                        <div style={{ fontSize: "11px", color: "#52525b" }}>{asesor.email}</div>
+                      </div>
+                      {selectedAsesor?.id === asesor.id && <Check size={16} color="#22c55e" />}
+                    </button>
+                  ))
+                )}
+              </div>
 
             {/* Opción de quitar asignación */}
             {isAssigned && (
@@ -403,9 +464,10 @@ export default function AsignarAsesor({
                 Quitar asignación
               </button>
             )}
-          </div>
-        </>
-      )}
+            </div>
+          </>,
+          document.body
+        )}
 
       <style>{`
         @keyframes dropIn {
