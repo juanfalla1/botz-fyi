@@ -7,6 +7,8 @@ import { Building2, Search, RefreshCw, ShieldCheck, UserPlus, Users } from "luci
 
 type AppLanguage = "es" | "en";
 
+type Panel = "tenants" | "users";
+
 type TenantRow = {
   id: string;
   empresa: string | null;
@@ -39,6 +41,7 @@ const TEXT: Record<
     search: string;
     refresh: string;
     tenants: string;
+    users: string;
     selectTenant: string;
     tenant: string;
     company: string;
@@ -54,6 +57,10 @@ const TEXT: Record<
     done: string;
     error: string;
     platformOnly: string;
+    pickTenant: string;
+    role: string;
+    makeAdmin: string;
+    makeAdvisor: string;
   }
 > = {
   es: {
@@ -62,6 +69,7 @@ const TEXT: Record<
     search: "Buscar por empresa o email...",
     refresh: "Refrescar",
     tenants: "Clientes",
+    users: "Usuarios",
     selectTenant: "Selecciona un cliente para ver detalle.",
     tenant: "Tenant",
     company: "Empresa",
@@ -77,6 +85,10 @@ const TEXT: Record<
     done: "Listo",
     error: "Error",
     platformOnly: "Esta seccion es solo para Platform Admin.",
+    pickTenant: "Selecciona un tenant",
+    role: "Rol",
+    makeAdmin: "Hacer admin",
+    makeAdvisor: "Hacer asesor",
   },
   en: {
     title: "Clients (Platform Admin)",
@@ -84,6 +96,7 @@ const TEXT: Record<
     search: "Search by company or email...",
     refresh: "Refresh",
     tenants: "Clients",
+    users: "Users",
     selectTenant: "Select a tenant to see details.",
     tenant: "Tenant",
     company: "Company",
@@ -99,6 +112,10 @@ const TEXT: Record<
     done: "Done",
     error: "Error",
     platformOnly: "This section is for Platform Admin only.",
+    pickTenant: "Select a tenant",
+    role: "Role",
+    makeAdmin: "Make admin",
+    makeAdvisor: "Make advisor",
   },
 };
 
@@ -115,6 +132,8 @@ export default function PlatformTenantsView() {
   const [language, setLanguage] = useState<AppLanguage>("es");
   const t = TEXT[language];
 
+  const [panel, setPanel] = useState<Panel>("tenants");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -128,6 +147,18 @@ export default function PlatformTenantsView() {
 
   const [team, setTeam] = useState<TeamMemberRow[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
+
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [userPage, setUserPage] = useState(1);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const selectedUser = useMemo(
+    () => users.find((u) => String(u.id) === String(selectedUserId)) || null,
+    [users, selectedUserId]
+  );
+
+  const [userRole, setUserRole] = useState<"admin" | "asesor">("admin");
+  const [selectedTenantForUser, setSelectedTenantForUser] = useState<string | null>(null);
 
   const [adminEmail, setAdminEmail] = useState("");
   const [assigning, setAssigning] = useState(false);
@@ -173,6 +204,28 @@ export default function PlatformTenantsView() {
     }
   };
 
+  const loadUsers = async (page = 1) => {
+    try {
+      setError(null);
+      setAssignOk(null);
+      setUsersLoading(true);
+      const url = new URL("/api/platform/users", window.location.origin);
+      if (q.trim()) url.searchParams.set("q", q.trim());
+      url.searchParams.set("page", String(page));
+      url.searchParams.set("perPage", "200");
+      const res = await fetchWithAuth(url.toString());
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+      setUsers(j?.users || []);
+      setUserPage(page);
+    } catch (e: any) {
+      setUsers([]);
+      setError(e?.message || String(e));
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
   const loadTeam = async (tenantId: string) => {
     try {
       setTeamLoading(true);
@@ -192,6 +245,7 @@ export default function PlatformTenantsView() {
   useEffect(() => {
     if (!isPlatformAdmin) return;
     loadTenants();
+    loadUsers(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlatformAdmin]);
 
@@ -204,6 +258,13 @@ export default function PlatformTenantsView() {
     loadTeam(selectedTenantId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTenantId]);
+
+  useEffect(() => {
+    if (!selectedUserId) {
+      setSelectedTenantForUser(null);
+      setUserRole("admin");
+    }
+  }, [selectedUserId]);
 
   const assignAdmin = async () => {
     if (!selectedTenantId) return;
@@ -226,6 +287,36 @@ export default function PlatformTenantsView() {
       setAssignOk(t.done);
       await loadTenants();
       await loadTeam(selectedTenantId);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const assignUserRoleToTenant = async () => {
+    if (!selectedTenantForUser || !selectedUser?.email) return;
+    try {
+      setError(null);
+      setAssignOk(null);
+      setAssigning(true);
+
+      const res = await fetchWithAuth("/api/platform/team-members/assign-role", {
+        method: "POST",
+        body: JSON.stringify({
+          tenantId: selectedTenantForUser,
+          email: String(selectedUser.email).toLowerCase(),
+          role: userRole,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+
+      setAssignOk(t.done);
+      await loadTenants();
+      if (selectedTenantForUser === selectedTenantId) {
+        await loadTeam(selectedTenantId);
+      }
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -298,6 +389,43 @@ export default function PlatformTenantsView() {
         </div>
 
         <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => setPanel("tenants")}
+            style={{
+              flex: 1,
+              padding: "10px 12px",
+              borderRadius: 14,
+              border: panel === "tenants" ? "1px solid rgba(34,211,238,0.35)" : "1px solid rgba(255,255,255,0.10)",
+              background: panel === "tenants" ? "rgba(34,211,238,0.12)" : "rgba(255,255,255,0.03)",
+              color: panel === "tenants" ? "#22d3ee" : "#cbd5e1",
+              cursor: "pointer",
+              fontWeight: 950,
+              fontSize: 12,
+            }}
+          >
+            {t.tenants}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPanel("users")}
+            style={{
+              flex: 1,
+              padding: "10px 12px",
+              borderRadius: 14,
+              border: panel === "users" ? "1px solid rgba(34,211,238,0.35)" : "1px solid rgba(255,255,255,0.10)",
+              background: panel === "users" ? "rgba(34,211,238,0.12)" : "rgba(255,255,255,0.03)",
+              color: panel === "users" ? "#22d3ee" : "#cbd5e1",
+              cursor: "pointer",
+              fontWeight: 950,
+              fontSize: 12,
+            }}
+          >
+            {t.users}
+          </button>
+        </div>
+
+        <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
           <div style={{ position: "relative", flex: 1 }}>
             <Search size={14} color="#64748b" style={{ position: "absolute", left: 10, top: 10 }} />
             <input
@@ -318,8 +446,8 @@ export default function PlatformTenantsView() {
           </div>
           <button
             type="button"
-            onClick={loadTenants}
-            disabled={loading}
+            onClick={() => (panel === "tenants" ? loadTenants() : loadUsers(1))}
+            disabled={loading || usersLoading}
             style={{
               padding: "8px 12px",
               borderRadius: 12,
@@ -335,43 +463,118 @@ export default function PlatformTenantsView() {
           </button>
         </div>
 
-        <div style={{ marginTop: 10, color: "#64748b", fontSize: 12 }}>
-          {loading ? "..." : `${filtered.length}`}
-        </div>
-
-        <div style={{ marginTop: 10, overflow: "auto", paddingRight: 6 }}>
-          {filtered.map((row) => {
-            const active = String(row.id) === String(selectedTenantId);
-            return (
+        {panel === "tenants" ? (
+          <>
+            <div style={{ marginTop: 10, color: "#64748b", fontSize: 12 }}>{loading ? "..." : `${filtered.length}`}</div>
+            <div style={{ marginTop: 10, overflow: "auto", paddingRight: 6 }}>
+              {filtered.map((row) => {
+                const active = String(row.id) === String(selectedTenantId);
+                return (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => setSelectedTenantId(row.id)}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "10px 12px",
+                      borderRadius: 14,
+                      border: active ? "1px solid rgba(34,211,238,0.40)" : "1px solid rgba(255,255,255,0.08)",
+                      background: active ? "rgba(34,211,238,0.10)" : "rgba(255,255,255,0.03)",
+                      color: "#e2e8f0",
+                      cursor: "pointer",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div style={{ fontWeight: 900, fontSize: 13 }}>{row.empresa || "(sin empresa)"}</div>
+                    <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <span>{row.email || "-"}</span>
+                      <span style={{ opacity: 0.7 }}>•</span>
+                      <span>{row.status || "-"}</span>
+                      <span style={{ opacity: 0.7 }}>•</span>
+                      <span>{fmtDate(row.created_at, language)}</span>
+                    </div>
+                    <div style={{ color: "#64748b", fontSize: 11, marginTop: 6 }}>{row.id}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ marginTop: 10, color: "#64748b", fontSize: 12 }}>{usersLoading ? "..." : `${users.length}`}</div>
+            <div style={{ marginTop: 10, overflow: "auto", paddingRight: 6 }}>
+              {users.map((u) => {
+                const active = String(u.id) === String(selectedUserId);
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => setSelectedUserId(u.id)}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "10px 12px",
+                      borderRadius: 14,
+                      border: active ? "1px solid rgba(34,211,238,0.40)" : "1px solid rgba(255,255,255,0.08)",
+                      background: active ? "rgba(34,211,238,0.10)" : "rgba(255,255,255,0.03)",
+                      color: "#e2e8f0",
+                      cursor: "pointer",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div style={{ fontWeight: 900, fontSize: 13 }}>{u.email || "(sin email)"}</div>
+                    <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <span>{fmtDate(u.created_at, language)}</span>
+                      <span style={{ opacity: 0.7 }}>•</span>
+                      <span>{u.id}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
               <button
-                key={row.id}
                 type="button"
-                onClick={() => setSelectedTenantId(row.id)}
+                onClick={() => loadUsers(Math.max(1, userPage - 1))}
+                disabled={usersLoading || userPage <= 1}
                 style={{
-                  width: "100%",
-                  textAlign: "left",
+                  flex: 1,
                   padding: "10px 12px",
                   borderRadius: 14,
-                  border: active ? "1px solid rgba(34,211,238,0.40)" : "1px solid rgba(255,255,255,0.08)",
-                  background: active ? "rgba(34,211,238,0.10)" : "rgba(255,255,255,0.03)",
-                  color: "#e2e8f0",
-                  cursor: "pointer",
-                  marginBottom: 8,
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  background: "rgba(255,255,255,0.03)",
+                  color: "#cbd5e1",
+                  cursor: usersLoading || userPage <= 1 ? "not-allowed" : "pointer",
+                  fontWeight: 900,
+                  fontSize: 12,
+                  opacity: usersLoading || userPage <= 1 ? 0.6 : 1,
                 }}
               >
-                <div style={{ fontWeight: 900, fontSize: 13 }}>{row.empresa || "(sin empresa)"}</div>
-                <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <span>{row.email || "-"}</span>
-                  <span style={{ opacity: 0.7 }}>•</span>
-                  <span>{row.status || "-"}</span>
-                  <span style={{ opacity: 0.7 }}>•</span>
-                  <span>{fmtDate(row.created_at, language)}</span>
-                </div>
-                <div style={{ color: "#64748b", fontSize: 11, marginTop: 6 }}>{row.id}</div>
+                Prev
               </button>
-            );
-          })}
-        </div>
+              <button
+                type="button"
+                onClick={() => loadUsers(userPage + 1)}
+                disabled={usersLoading}
+                style={{
+                  flex: 1,
+                  padding: "10px 12px",
+                  borderRadius: 14,
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  background: "rgba(255,255,255,0.03)",
+                  color: "#cbd5e1",
+                  cursor: usersLoading ? "not-allowed" : "pointer",
+                  fontWeight: 900,
+                  fontSize: 12,
+                  opacity: usersLoading ? 0.6 : 1,
+                }}
+              >
+                Next
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       <div
@@ -384,7 +587,160 @@ export default function PlatformTenantsView() {
           minHeight: 520,
         }}
       >
-        {!selectedTenant ? (
+        {panel === "users" ? (
+          !selectedUser ? (
+            <div style={{ color: "#94a3b8", fontSize: 13 }}>{language === "en" ? "Select a user" : "Selecciona un usuario"}</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <ShieldCheck size={18} color="#fbbf24" />
+                    <div style={{ fontWeight: 950, color: "#e2e8f0" }}>{selectedUser.email}</div>
+                  </div>
+                  <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 6 }}>{selectedUser.id}</div>
+                </div>
+              </div>
+
+              {error && (
+                <div
+                  style={{
+                    borderRadius: 14,
+                    border: "1px solid rgba(239,68,68,0.25)",
+                    background: "rgba(239,68,68,0.08)",
+                    color: "#fecaca",
+                    padding: "10px 12px",
+                    fontSize: 12,
+                  }}
+                >
+                  {t.error}: {error}
+                </div>
+              )}
+              {assignOk && (
+                <div
+                  style={{
+                    borderRadius: 14,
+                    border: "1px solid rgba(34,197,94,0.22)",
+                    background: "rgba(34,197,94,0.10)",
+                    color: "#bbf7d0",
+                    padding: "10px 12px",
+                    fontSize: 12,
+                  }}
+                >
+                  {assignOk}
+                </div>
+              )}
+
+              <div style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(0,0,0,0.18)", padding: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 180px", gap: 10 }}>
+                  <div>
+                    <div style={{ color: "#64748b", fontSize: 11 }}>{t.pickTenant}</div>
+                    <select
+                      value={selectedTenantForUser || ""}
+                      onChange={(e) => setSelectedTenantForUser(e.target.value || null)}
+                      style={{
+                        width: "100%",
+                        marginTop: 6,
+                        padding: "10px 12px",
+                        borderRadius: 12,
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        background: "rgba(0,0,0,0.25)",
+                        color: "#e2e8f0",
+                        fontSize: 12,
+                        outline: "none",
+                      }}
+                    >
+                      <option value="">{t.pickTenant}</option>
+                      {tenants.map((tn) => (
+                        <option key={tn.id} value={tn.id}>
+                          {tn.empresa || tn.id}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{ color: "#64748b", fontSize: 11 }}>{t.role}</div>
+                    <select
+                      value={userRole}
+                      onChange={(e) => setUserRole(e.target.value === "admin" ? "admin" : "asesor")}
+                      style={{
+                        width: "100%",
+                        marginTop: 6,
+                        padding: "10px 12px",
+                        borderRadius: 12,
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        background: "rgba(0,0,0,0.25)",
+                        color: "#e2e8f0",
+                        fontSize: 12,
+                        outline: "none",
+                      }}
+                    >
+                      <option value="admin">admin</option>
+                      <option value="asesor">asesor</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserRole("admin");
+                      assignUserRoleToTenant();
+                    }}
+                    disabled={assigning || !selectedTenantForUser}
+                    style={{
+                      flex: 1,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      padding: "10px 14px",
+                      borderRadius: 12,
+                      border: "1px solid rgba(34,211,238,0.35)",
+                      background: "rgba(34,211,238,0.14)",
+                      color: "#22d3ee",
+                      cursor: assigning || !selectedTenantForUser ? "not-allowed" : "pointer",
+                      fontSize: 12,
+                      fontWeight: 950,
+                      opacity: assigning || !selectedTenantForUser ? 0.6 : 1,
+                    }}
+                  >
+                    <ShieldCheck size={16} />
+                    {t.makeAdmin}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserRole("asesor");
+                      assignUserRoleToTenant();
+                    }}
+                    disabled={assigning || !selectedTenantForUser}
+                    style={{
+                      flex: 1,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      padding: "10px 14px",
+                      borderRadius: 12,
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: "rgba(255,255,255,0.05)",
+                      color: "#cbd5e1",
+                      cursor: assigning || !selectedTenantForUser ? "not-allowed" : "pointer",
+                      fontSize: 12,
+                      fontWeight: 950,
+                      opacity: assigning || !selectedTenantForUser ? 0.6 : 1,
+                    }}
+                  >
+                    <ShieldCheck size={16} />
+                    {t.makeAdvisor}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        ) : !selectedTenant ? (
           <div style={{ color: "#94a3b8", fontSize: 13 }}>{t.selectTenant}</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
