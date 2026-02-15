@@ -162,6 +162,35 @@ export default function BotzLandingExperience() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    // Support deep-links and deprecated routes: /start?tab=crm
+    const tabParamRaw = (searchParams.get("tab") || "").trim().toLowerCase();
+    if (!tabParamRaw) return;
+
+    const allowed: Tab[] = [
+      "demo",
+      "channels",
+      "agents",
+      "tenants",
+      "crm",
+      "metrics",
+      "kanban",
+      "hipoteca",
+      "n8n-config",
+      "sla",
+    ];
+
+    if (allowed.includes(tabParamRaw as Tab)) {
+      setActiveTab(tabParamRaw as Tab);
+      return;
+    }
+
+    // Friendly aliases
+    if (tabParamRaw === "dashboard" || tabParamRaw === "exec" || tabParamRaw === "executive") {
+      setActiveTab("n8n-config");
+    }
+  }, [searchParams]);
+
   
   const [leadsOptions, setLeadsOptions] = useState<LeadOption[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(false);

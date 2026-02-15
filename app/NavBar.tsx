@@ -27,7 +27,7 @@ const NavBar = () => {
           </div>
 
           {/* ✅ Nueva pestaña para gestión de leads */}
-          <a href="/dashboard">Gestión Leads en Línea</a>
+          <a href="/start?tab=crm">Gestión Leads en Línea</a>
         </nav>
       </div>
     </header>
