@@ -163,6 +163,13 @@ export default function BotzLandingExperience() {
   }, [searchParams]);
 
   useEffect(() => {
+    // Allow MainLayout and other components to open auth modal.
+    const onOpen = () => setOpenAuth(true);
+    window.addEventListener("botz-open-auth", onOpen as any);
+    return () => window.removeEventListener("botz-open-auth", onOpen as any);
+  }, []);
+
+  useEffect(() => {
     // Support deep-links and deprecated routes: /start?tab=crm
     const tabParamRaw = (searchParams.get("tab") || "").trim().toLowerCase();
     if (!tabParamRaw) return;

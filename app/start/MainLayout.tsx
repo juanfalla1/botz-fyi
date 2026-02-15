@@ -44,7 +44,7 @@ import {
   Building2,
  } from "lucide-react";
 import { supabase } from "../supabaseClient"; // Ajusta la ruta según tu proyecto
-import AuthModal from "./components/AuthModal";
+// AuthModal is rendered once in start/page.tsx.
 import ActionsDock from "./components/ActionsDock"; // Ajusta la ruta según tu estructura
 
 // ============================================================================
@@ -2056,11 +2056,15 @@ export default function MainLayout({
     window.dispatchEvent(new CustomEvent("botz-language-change", { detail: nextLanguage }));
   };
 
-  // ✅ NUEVO: estado del modal de auth (para abrir sin reload)
-  const [authOpen, setAuthOpen] = useState(false);
   const openAuth = () => {
-    setAuthOpen(true);
-    onOpenAuth?.(); // por si alguien quiere enganchar algo externo
+    try {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("botz-open-auth"));
+      }
+    } catch {
+      // ignore
+    }
+    onOpenAuth?.();
   };
 
   // ✅ NUEVO: Solo mostrar Hero cuando estamos en "demo" (home)
@@ -2212,13 +2216,6 @@ export default function MainLayout({
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `,
         }}
-      />
-
-      {/* ✅ Modal Login (sin recarga) */}
-      <AuthModal
-        open={authOpen}
-        onClose={() => setAuthOpen(false)}
-        onLoggedIn={() => setAuthOpen(false)}
       />
 
       {/* Modal de funcionalidades bloqueadas */}
