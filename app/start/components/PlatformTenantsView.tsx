@@ -63,6 +63,9 @@ const TEXT: Record<
     role: string;
     makeAdmin: string;
     makeAdvisor: string;
+    setPassword: string;
+    newPassword: string;
+    updatePassword: string;
   }
 > = {
   es: {
@@ -91,6 +94,9 @@ const TEXT: Record<
     role: "Rol",
     makeAdmin: "Hacer admin",
     makeAdvisor: "Hacer asesor",
+    setPassword: "Contrasena",
+    newPassword: "Nueva contrasena (min 8)",
+    updatePassword: "Actualizar contrasena",
   },
   en: {
     title: "Clients (Platform Admin)",
@@ -118,6 +124,9 @@ const TEXT: Record<
     role: "Role",
     makeAdmin: "Make admin",
     makeAdvisor: "Make advisor",
+    setPassword: "Password",
+    newPassword: "New password (min 8)",
+    updatePassword: "Update password",
   },
 };
 
@@ -161,6 +170,8 @@ export default function PlatformTenantsView() {
 
   const [userRole, setUserRole] = useState<"admin" | "asesor">("admin");
   const [selectedTenantForUser, setSelectedTenantForUser] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [updatingPassword, setUpdatingPassword] = useState(false);
 
   const [adminEmail, setAdminEmail] = useState("");
   const [assigning, setAssigning] = useState(false);
@@ -265,8 +276,45 @@ export default function PlatformTenantsView() {
     if (!selectedUserId) {
       setSelectedTenantForUser(null);
       setUserRole("admin");
+      setNewPassword("");
     }
   }, [selectedUserId]);
+
+  const generatePassword = () => {
+    const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let out = "";
+    for (let i = 0; i < 12; i++) out += chars[Math.floor(Math.random() * chars.length)];
+    setNewPassword(out);
+  };
+
+  const updateUserPassword = async () => {
+    if (!selectedUser?.id) return;
+    const pwd = newPassword;
+    if (!pwd || pwd.length < 8) {
+      setError(language === "en" ? "Password must be at least 8 characters" : "La contrasena debe tener minimo 8 caracteres");
+      return;
+    }
+
+    try {
+      setError(null);
+      setAssignOk(null);
+      setUpdatingPassword(true);
+
+      const res = await fetchWithAuth("/api/platform/users/set-password", {
+        method: "POST",
+        body: JSON.stringify({ userId: selectedUser.id, password: pwd }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+
+      setAssignOk(t.done);
+      setNewPassword("");
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
 
   const assignAdmin = async () => {
     if (!selectedTenantId) return;
@@ -750,6 +798,79 @@ export default function PlatformTenantsView() {
                     <ShieldCheck size={16} />
                     {t.makeAdvisor}
                   </button>
+                </div>
+              </div>
+
+              <div style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,0.10)", background: "rgba(0,0,0,0.18)", padding: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <ShieldCheck size={18} color="#a5b4fc" />
+                    <div style={{ fontWeight: 950, color: "#e2e8f0" }}>{t.setPassword}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={generatePassword}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: 12,
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      background: "rgba(255,255,255,0.05)",
+                      color: "#cbd5e1",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontWeight: 900,
+                    }}
+                  >
+                    {language === "en" ? "Generate" : "Generar"}
+                  </button>
+                </div>
+
+                <div style={{ display: "flex", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
+                  <input
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder={t.newPassword}
+                    type="text"
+                    autoComplete="new-password"
+                    style={{
+                      flex: 1,
+                      minWidth: 260,
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: "rgba(0,0,0,0.25)",
+                      color: "#e2e8f0",
+                      fontSize: 12,
+                      outline: "none",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={updateUserPassword}
+                    disabled={updatingPassword || !newPassword}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "10px 14px",
+                      borderRadius: 12,
+                      border: "1px solid rgba(34,211,238,0.35)",
+                      background: "rgba(34,211,238,0.14)",
+                      color: "#22d3ee",
+                      cursor: updatingPassword ? "wait" : "pointer",
+                      fontSize: 12,
+                      fontWeight: 950,
+                      opacity: updatingPassword || !newPassword ? 0.6 : 1,
+                    }}
+                  >
+                    <ShieldCheck size={16} />
+                    {updatingPassword ? (language === "en" ? "Updating..." : "Actualizando...") : t.updatePassword}
+                  </button>
+                </div>
+                <div style={{ marginTop: 10, color: "#64748b", fontSize: 11 }}>
+                  {language === "en"
+                    ? "This updates the user's password without sending emails."
+                    : "Esto cambia la contrasena sin enviar correos."}
                 </div>
               </div>
             </div>
