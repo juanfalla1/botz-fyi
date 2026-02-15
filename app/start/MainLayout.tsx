@@ -675,12 +675,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id, fetchUserSubscription]);
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    // Optimista: limpiamos estado local primero para que la UI responda instantaneamente.
     setUser(null);
     setUserPlan("free");
     setSubscription(null);
     setEnabledFeatures(PLAN_FEATURES["free"]);
+    setUserRole(null);
+    setTeamMemberId(null);
+    setTenantId(null);
     setIsPlatformAdmin(false);
+
+    try {
+      // "local" evita depender de red para que el usuario "salga" al instante.
+      await (supabase.auth as any).signOut({ scope: "local" });
+    } catch {
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // ignore
+      }
+    }
   };
 
   // ✅ Verificar si el usuario tiene acceso a una feature
@@ -1368,9 +1382,17 @@ const UserProfileBadge = ({
 
             {/* Botón cerrar sesión */}
             <button
-              onClick={() => {
+              onClick={async () => {
                 setShowMenu(false);
-                logout();
+                await logout();
+
+                // Forzar reset completo de estado/UI (evita tener que recargar manualmente).
+                if (typeof window !== "undefined") {
+                  window.location.assign("/start");
+                } else {
+                  router.replace("/start");
+                  router.refresh();
+                }
               }}
               style={{
                 display: "flex",

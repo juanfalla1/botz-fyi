@@ -111,7 +111,7 @@ const UI_TEXT: Record<AppLanguage, Record<string, string>> = {
 };
 
 export default function TeamManagement({ language = 'es' }: { language?: AppLanguage }) {
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { user, isAdmin, loading: authLoading, tenantId } = useAuth();
   const t = UI_TEXT[language] || UI_TEXT.es;
   const [asesores, setAsesores] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -186,8 +186,8 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
         .select('*')
         .eq('activo', true);
       
-      if (user?.tenant_id) {
-        query = query.eq('tenant_id', user.tenant_id);
+      if (tenantId) {
+        query = query.eq('tenant_id', tenantId);
       }
       
       const { data, error } = await query.order('nombre');
@@ -197,10 +197,12 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
       // Obtener conteo de leads por asesor
       const asesoresWithCount = await Promise.all(
         (data || []).map(async (asesor) => {
-          const { count } = await supabase
+          const base = supabase
             .from('leads')
             .select('*', { count: 'exact', head: true })
             .eq('asesor_id', asesor.id);
+
+          const { count } = tenantId ? await base.eq('tenant_id', tenantId) : await base;
           
           return {
             ...asesor,
@@ -212,7 +214,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
       setAsesores(asesoresWithCount);
     } catch (err) {
       console.error('Error fetching asesores:', err);
-      setError('Error al cargar el equipo');
+      setError(`Error al cargar el equipo${(err as any)?.message ? `: ${(err as any).message}` : ''}`);
     } finally {
       setLoading(false);
     }
@@ -224,7 +226,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
     setSuccess('');
     
     try {
-      const adminTenantId = user?.tenant_id || null;
+      const adminTenantId = tenantId || null;
       if (!adminTenantId) {
         throw new Error('No se pudo resolver tenant_id del administrador.');
       }
@@ -248,7 +250,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
         nombre: formData.nombre,
         email: formData.email,
         rol: formData.rol,
-        tenant_id_del_admin: user?.tenant_id,
+        tenant_id_del_admin: adminTenantId,
         email_admin: user?.email
       });
       
