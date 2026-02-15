@@ -95,7 +95,7 @@ const LEADS_TEXT: Record<
   }
 > = {
   es: {
-    searchPlaceholder: "Buscar cliente...",
+    searchPlaceholder: "Buscar cliente o asesor...",
     newLead: "Nuevo Lead",
     export: "Exportar",
     deleteLeadTitle: "Eliminar lead",
@@ -165,7 +165,7 @@ const LEADS_TEXT: Record<
     viewBotzAnalysis: "Ver Análisis Botz",
   },
   en: {
-    searchPlaceholder: "Search customer...",
+    searchPlaceholder: "Search customer or advisor...",
     newLead: "New Lead",
     export: "Export",
     deleteLeadTitle: "Delete lead",
@@ -664,7 +664,10 @@ export default function LeadsTable({
     const s = searchTerm.toLowerCase();
     const matchesSearch =
       (lead.name && lead.name.toLowerCase().includes(s)) ||
-      (lead.email && lead.email.toLowerCase().includes(s));
+      (lead.email && lead.email.toLowerCase().includes(s)) ||
+      ((lead as any).phone && String((lead as any).phone).toLowerCase().includes(s)) ||
+      (lead.asesor_nombre && lead.asesor_nombre.toLowerCase().includes(s)) ||
+      ((lead as any).asesor && String((lead as any).asesor).toLowerCase().includes(s));
 
     const leadStatus = normalizeStatus(lead.status);
     const filterValue = statusFilter.toUpperCase().trim();

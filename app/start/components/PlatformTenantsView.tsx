@@ -21,6 +21,8 @@ type TenantRow = {
   created_at: string;
   auth_user_id: string | null;
   tenant_id?: string | null;
+  leads_count?: number | null;
+  members_count?: number | null;
 };
 
 type TeamMemberRow = {
@@ -486,14 +488,18 @@ export default function PlatformTenantsView() {
                       marginBottom: 8,
                     }}
                   >
-                    <div style={{ fontWeight: 900, fontSize: 13 }}>{row.empresa || "(sin empresa)"}</div>
-                    <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <span>{row.email || "-"}</span>
-                      <span style={{ opacity: 0.7 }}>•</span>
-                      <span>{row.status || "-"}</span>
-                      <span style={{ opacity: 0.7 }}>•</span>
-                      <span>{fmtDate(row.created_at, language)}</span>
-                    </div>
+                <div style={{ fontWeight: 900, fontSize: 13 }}>{row.empresa || "(sin empresa)"}</div>
+                <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <span>{row.email || "-"}</span>
+                  <span style={{ opacity: 0.7 }}>•</span>
+                  <span>{row.status || "-"}</span>
+                  <span style={{ opacity: 0.7 }}>•</span>
+                  <span>{Number(row.leads_count || 0)} leads</span>
+                  <span style={{ opacity: 0.7 }}>•</span>
+                  <span>{Number(row.members_count || 0)} usuarios</span>
+                  <span style={{ opacity: 0.7 }}>•</span>
+                  <span>{fmtDate(row.created_at, language)}</span>
+                </div>
                     <div style={{ color: "#64748b", fontSize: 11, marginTop: 6 }}>{row.id}</div>
                   </button>
                 );
@@ -644,16 +650,19 @@ export default function PlatformTenantsView() {
                         padding: "10px 12px",
                         borderRadius: 12,
                         border: "1px solid rgba(255,255,255,0.12)",
-                        background: "rgba(0,0,0,0.25)",
+                        background: "rgba(0,0,0,0.35)",
                         color: "#e2e8f0",
+                        colorScheme: "dark",
                         fontSize: 12,
                         outline: "none",
                       }}
                     >
-                      <option value="">{t.pickTenant}</option>
+                      <option value="" style={{ background: "#0b1220", color: "#e2e8f0" }}>
+                        {t.pickTenant}
+                      </option>
                       {tenants.map((tn) => (
-                        <option key={tn.id} value={tn.id}>
-                          {(tn.empresa || "(sin empresa)") + " · " + String(tn.id).slice(0, 8)}
+                        <option key={tn.id} value={tn.id} style={{ background: "#0b1220", color: "#e2e8f0" }}>
+                          {`${tn.empresa || "(sin empresa)"} · ${tn.status || "-"} · ${tn.email || "-"} · ${Number(tn.leads_count || 0)} leads · ${Number(tn.members_count || 0)} usuarios`}
                         </option>
                       ))}
                     </select>
@@ -669,14 +678,19 @@ export default function PlatformTenantsView() {
                         padding: "10px 12px",
                         borderRadius: 12,
                         border: "1px solid rgba(255,255,255,0.12)",
-                        background: "rgba(0,0,0,0.25)",
+                        background: "rgba(0,0,0,0.35)",
                         color: "#e2e8f0",
+                        colorScheme: "dark",
                         fontSize: 12,
                         outline: "none",
                       }}
                     >
-                      <option value="admin">admin</option>
-                      <option value="asesor">asesor</option>
+                      <option value="admin" style={{ background: "#0b1220", color: "#e2e8f0" }}>
+                        admin
+                      </option>
+                      <option value="asesor" style={{ background: "#0b1220", color: "#e2e8f0" }}>
+                        asesor
+                      </option>
                     </select>
                   </div>
                 </div>
@@ -897,6 +911,9 @@ export default function PlatformTenantsView() {
         dangerouslySetInnerHTML={{
           __html: `
           @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+          /* Improve native select readability on dark UI */
+          select { color-scheme: dark; }
         `,
         }}
       />

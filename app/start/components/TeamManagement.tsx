@@ -39,6 +39,7 @@ interface TeamMember {
   telefono?: string;
   rol: 'admin' | 'asesor';
   activo: boolean;
+  permissions?: Record<string, boolean> | null;
   created_at: string;
   leads_count?: number;
 }
@@ -76,6 +77,11 @@ const UI_TEXT: Record<AppLanguage, Record<string, string>> = {
     gotIt: 'Entendido',
     copyCredentials: 'Copiar Credenciales',
     activateAccount: 'Activar Cuenta',
+
+    permissionsTitle: 'Permisos',
+    permViewAllLeads: 'Ver todos los leads (tenant)',
+    permFullTools: 'Desbloquear herramientas',
+    permManageTeam: 'Gestionar equipo (asesores)',
   },
   en: {
     restricted: 'Restricted Access',
@@ -107,11 +113,16 @@ const UI_TEXT: Record<AppLanguage, Record<string, string>> = {
     gotIt: 'Got it',
     copyCredentials: 'Copy Credentials',
     activateAccount: 'Activate Account',
+
+    permissionsTitle: 'Permissions',
+    permViewAllLeads: 'View all leads (tenant)',
+    permFullTools: 'Unlock tools',
+    permManageTeam: 'Manage team (advisors)',
   },
 };
 
 export default function TeamManagement({ language = 'es' }: { language?: AppLanguage }) {
-  const { user, isAdmin, loading: authLoading, tenantId } = useAuth();
+  const { user, isAdmin, isPlatformAdmin, hasPermission, loading: authLoading, tenantId } = useAuth();
   const t = UI_TEXT[language] || UI_TEXT.es;
   const [asesores, setAsesores] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,16 +144,19 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
     email: '',
     telefono: '',
     rol: 'asesor' as 'admin' | 'asesor',
-    password: ''
+    password: '',
+    permViewAllLeads: false,
+    permFullTools: false,
+    permManageTeam: false,
   });
 
   useEffect(() => {
-    if (!authLoading && isAdmin) {
+    if (!authLoading && (isAdmin || isPlatformAdmin || hasPermission('manage_team'))) {
       fetchAsesores();
-    } else if (!authLoading && !isAdmin) {
+    } else if (!authLoading && !(isAdmin || isPlatformAdmin || hasPermission('manage_team'))) {
       setLoading(false);
     }
-  }, [isAdmin, authLoading]);
+  }, [isAdmin, isPlatformAdmin, authLoading, hasPermission]);
 
   // ✅ BLOQUEO DE SCROLL estable para modales
   useEffect(() => {
@@ -296,6 +310,23 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
         tenant_id: adminTenantId,
       };
 
+      if (!isPlatformAdmin && formData.rol === 'admin') {
+        throw new Error('Solo Platform Admin puede asignar rol de administrador.');
+      }
+
+      const computedPermissions: Record<string, boolean> = {
+        view_all_leads: Boolean(formData.permViewAllLeads),
+        full_access: Boolean(formData.permFullTools),
+        manage_team: Boolean(formData.permManageTeam),
+        // full tools expands to specific feature permissions
+        manage_agents: Boolean(formData.permFullTools),
+        manage_channels: Boolean(formData.permFullTools),
+        view_exec_dashboard: Boolean(formData.permFullTools),
+        view_sla: Boolean(formData.permFullTools),
+      };
+
+      insertData.permissions = computedPermissions;
+
       if (authUserId) {
         insertData.auth_user_id = authUserId;
       }
@@ -306,6 +337,29 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
         .from('team_members')
         .insert([insertData])
         .select();
+
+      if (error && String(error.message || '').toLowerCase().includes('permissions')) {
+        // Backward compatible: if DB doesn't have permissions column yet, retry without.
+        const retry = { ...insertData };
+        delete (retry as any).permissions;
+        const { data: retryData, error: retryError } = await supabase
+          .from('team_members')
+          .insert([retry])
+          .select();
+
+        if (retryError) {
+          console.error('Supabase error:', retryError);
+          throw new Error(retryError.message || retryError.code || 'Error de Supabase');
+        }
+
+        console.log('Asesor created (retry):', retryData);
+        setNewAsesorCredentials({ email: formData.email, password: tempPassword, nombre: formData.nombre });
+        setSuccess('✅ Asesor creado (sin permisos extra; falta migración de DB).');
+        setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false });
+        setShowAddModal(false);
+        fetchAsesores();
+        return;
+      }
       
       if (error) {
         console.error('Supabase error:', error);
@@ -322,7 +376,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
       });
       
       setSuccess('✅ Asesor creado correctamente');
-      setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '' });
+      setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false });
       setShowAddModal(false);
       fetchAsesores();
       
@@ -344,19 +398,50 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
     try {
       const { error } = await supabase
         .from('team_members')
-        .update({
+        .update((() => {
+          if (!isPlatformAdmin && formData.rol === 'admin') {
+            throw new Error('Solo Platform Admin puede asignar rol de administrador.');
+          }
+
+          const payload: any = {
+            nombre: formData.nombre,
+            email: formData.email,
+            telefono: formData.telefono || null,
+            rol: formData.rol,
+            permissions: {
+              view_all_leads: Boolean(formData.permViewAllLeads),
+              full_access: Boolean(formData.permFullTools),
+              manage_team: Boolean(formData.permManageTeam),
+              manage_agents: Boolean(formData.permFullTools),
+              manage_channels: Boolean(formData.permFullTools),
+              view_exec_dashboard: Boolean(formData.permFullTools),
+              view_sla: Boolean(formData.permFullTools),
+            },
+          };
+
+          return payload;
+        })())
+        .eq('id', editingAsesor.id);
+
+      if (error && String(error.message || '').toLowerCase().includes('permissions')) {
+        const retryPayload: any = {
           nombre: formData.nombre,
           email: formData.email,
           telefono: formData.telefono || null,
-          rol: formData.rol
-        })
-        .eq('id', editingAsesor.id);
-      
-      if (error) throw error;
+          rol: formData.rol,
+        };
+        const retry = await supabase
+          .from('team_members')
+          .update(retryPayload)
+          .eq('id', editingAsesor.id);
+        if (retry.error) throw retry.error;
+      } else if (error) {
+        throw error;
+      }
       
       setSuccess('Asesor actualizado correctamente');
       setEditingAsesor(null);
-      setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '' });
+      setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false });
       fetchAsesores();
       
     } catch (err: any) {
@@ -390,16 +475,20 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
 
   const startEdit = (asesor: TeamMember) => {
     setEditingAsesor(asesor);
+    const perms = (asesor.permissions && typeof asesor.permissions === 'object') ? asesor.permissions : {};
     setFormData({
       nombre: asesor.nombre,
       email: asesor.email,
       telefono: asesor.telefono || '',
       rol: asesor.rol,
-      password: ''
+      password: '',
+      permViewAllLeads: Boolean((perms as any).view_all_leads),
+      permFullTools: Boolean((perms as any).full_access),
+      permManageTeam: Boolean((perms as any).manage_team),
     });
   };
 
-  if (!isAdmin) {
+  if (!(isAdmin || isPlatformAdmin || hasPermission('manage_team'))) {
     return (
       <div style={{
         padding: '40px',
@@ -716,7 +805,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
                 onClick={() => {
                   setShowAddModal(false);
                   setEditingAsesor(null);
-                  setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '' });
+                  setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false });
                   setError('');
                 }}
                 style={{
@@ -857,8 +946,47 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
                   }}
                 >
                   <option value="asesor">{t.advisorRole}</option>
-                  <option value="admin">{t.adminRole}</option>
+                  {isPlatformAdmin && <option value="admin">{t.adminRole}</option>}
                 </select>
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', marginBottom: '10px', fontSize: '14px' }}>
+                  {t.permissionsTitle}
+                </label>
+
+                <div style={{ display: 'grid', gap: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#e2e8f0', fontSize: '13px' }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.permViewAllLeads}
+                      onChange={(e) => setFormData({ ...formData, permViewAllLeads: e.target.checked })}
+                    />
+                    {t.permViewAllLeads}
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#e2e8f0', fontSize: '13px' }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.permFullTools}
+                      onChange={(e) => setFormData({ ...formData, permFullTools: e.target.checked })}
+                    />
+                    {t.permFullTools}
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#e2e8f0', fontSize: '13px' }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.permManageTeam}
+                      onChange={(e) => setFormData({ ...formData, permManageTeam: e.target.checked })}
+                    />
+                    {t.permManageTeam}
+                  </label>
+                </div>
+
+                <div style={{ marginTop: '10px', fontSize: '12px', color: '#64748b' }}>
+                  Nota: "Desbloquear herramientas" habilita secciones como Agentes IA / Dashboard Ejecutivo sin convertirlo en admin.
+                </div>
               </div>
               
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
@@ -867,7 +995,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
                   onClick={() => {
                     setShowAddModal(false);
                     setEditingAsesor(null);
-                    setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '' });
+                    setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false });
                     setError('');
                   }}
                   style={{

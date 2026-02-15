@@ -140,7 +140,7 @@ export default function BotzLandingExperience() {
   const t = copy[language];
   
   // ✅ Usar el contexto de autenticación
-  const { user, loading: authLoading, isAdmin, isAsesor, isPlatformAdmin } = useAuth();
+  const { user, loading: authLoading, isAdmin, isAsesor, isPlatformAdmin, hasPermission } = useAuth();
   
   const [activeTab, setActiveTab] = useState<Tab>("demo");
   const [hipotecaMode, setHipotecaMode] = useState<"manual" | "lead">("manual");
@@ -589,7 +589,9 @@ export default function BotzLandingExperience() {
       
       {user && activeTab === "sla" && <SLAControlCenter />}
       
-      {user && activeTab === "n8n-config" && isAdmin && <ExecutiveDashboard filter={globalFilter ?? undefined} />}
+      {user && activeTab === "n8n-config" && (isAdmin || isPlatformAdmin || hasPermission("view_exec_dashboard")) && (
+        <ExecutiveDashboard filter={globalFilter ?? undefined} />
+      )}
       {user && activeTab === "n8n-config" && isAsesor && (
         <div style={{
           display: "flex",
@@ -639,7 +641,7 @@ export default function BotzLandingExperience() {
 
       {user && activeTab === "tenants" && (isPlatformAdmin ? <PlatformTenantsView /> : null)}
 
-      {user && activeTab === "agents" && (isAdmin || isPlatformAdmin ? <AgentsStudio /> : null)}
+      {user && activeTab === "agents" && (isAdmin || isPlatformAdmin || hasPermission("manage_agents") ? <AgentsStudio /> : null)}
 
       {user && activeTab === "hipoteca" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%", overflowY: "auto" }}>

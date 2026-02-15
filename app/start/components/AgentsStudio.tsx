@@ -95,7 +95,7 @@ const DEFAULT_PROMPT_EN =
 export default function AgentsStudio() {
   const language = useBotzLanguage();
   const t = COPY[language];
-  const { user, tenantId, subscription, isAdmin, isPlatformAdmin } = useAuth();
+  const { user, tenantId, subscription, isAdmin, isPlatformAdmin, hasPermission } = useAuth();
 
   const [selectedTenantId, setSelectedTenantId] = useState<string>("");
   const [tenantOptions, setTenantOptions] = useState<string[]>([]);
@@ -122,7 +122,7 @@ export default function AgentsStudio() {
   const [newTokenLabel, setNewTokenLabel] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
 
-  const canManage = Boolean(user) && (isAdmin || isPlatformAdmin);
+  const canManage = Boolean(user) && (isAdmin || isPlatformAdmin || hasPermission("manage_agents"));
 
   const effectiveTenantId =
     tenantId ||

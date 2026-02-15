@@ -97,7 +97,59 @@ export async function GET(req: Request) {
     const { data, error } = await query;
     if (error) throw error;
 
-    return NextResponse.json({ ok: true, tenants: data || [] });
+    const tenants = (data || []) as any[];
+
+    // Add lightweight counts to help disambiguate duplicated tenants.
+    const tenantIds = tenants.map((t) => t.id).filter(Boolean);
+
+    const mapLimit = async <T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> => {
+      const results: R[] = [];
+      let i = 0;
+      const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }).map(async () => {
+        while (i < items.length) {
+          const idx = i++;
+          results[idx] = await fn(items[idx]);
+        }
+      });
+      await Promise.all(workers);
+      return results;
+    };
+
+    const counts = await mapLimit(
+      tenantIds,
+      10,
+      async (tenantId: string) => {
+        const [leadsRes, teamRes] = await Promise.all([
+          svc
+            .from("leads")
+            .select("id", { count: "exact", head: true })
+            .eq("tenant_id", tenantId),
+          svc
+            .from("team_members")
+            .select("id", { count: "exact", head: true })
+            .eq("tenant_id", tenantId)
+            .or("activo.is.null,activo.eq.true"),
+        ]);
+
+        return {
+          tenantId,
+          leads_count: leadsRes.count || 0,
+          members_count: teamRes.count || 0,
+        };
+      }
+    );
+
+    const countMap = new Map(counts.map((c) => [c.tenantId, c]));
+    const enriched = tenants.map((t) => {
+      const c = countMap.get(t.id);
+      return {
+        ...t,
+        leads_count: c?.leads_count ?? 0,
+        members_count: c?.members_count ?? 0,
+      };
+    });
+
+    return NextResponse.json({ ok: true, tenants: enriched });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || String(e) }, { status: 500 });
   }

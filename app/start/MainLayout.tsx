@@ -228,6 +228,12 @@ interface AuthContextType {
   isPlatformAdmin: boolean;
   teamMemberId: string | null;
   tenantId: string | null;
+  // ✅ Platform Admin: selector de tenant (filtro de vista)
+  platformTenantId: string | null;
+  setPlatformTenantId: (tenantId: string | null) => void;
+  // ✅ Permisos finos por usuario (team_members.permissions)
+  permissions: Record<string, boolean>;
+  hasPermission: (perm: string) => boolean;
   // ✅ NUEVO: Sincronización global
   triggerDataRefresh: () => void;
   dataRefreshKey: number;
@@ -249,6 +255,10 @@ const AuthContext = createContext<AuthContextType>({
   isPlatformAdmin: false,
   teamMemberId: null,
   tenantId: null,
+  platformTenantId: null,
+  setPlatformTenantId: () => {},
+  permissions: {},
+  hasPermission: () => false,
   // ✅ NUEVO: Sincronización global
   triggerDataRefresh: () => {},
   dataRefreshKey: 0,
@@ -272,8 +282,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ✅ NUEVO: Estados para sistema de roles
   const [userRole, setUserRole] = useState<'admin' | 'asesor' | null>(null);
   const [teamMemberId, setTeamMemberId] = useState<string | null>(null);
-  const [tenantId, setTenantId] = useState<string | null>(null);
+  const [tenantIdState, setTenantIdState] = useState<string | null>(null);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [platformTenantId, setPlatformTenantIdState] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   // ✅ NUEVO: Sincronización global
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
   const triggerDataRefresh = useCallback(() => {
@@ -302,7 +314,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsPlatformAdmin(true);
     setUserRole('admin');
     setTeamMemberId(null);
-    setTenantId(null);
+    setTenantIdState(null);
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem('botz-platform-tenant');
+      setPlatformTenantIdState(saved || null);
+    }
     setSubscription({
       id: 'platform-admin',
       plan: 'Enterprise',
@@ -311,6 +327,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     setUserPlan('Enterprise');
     setEnabledFeatures(ALL_FEATURES);
+    setPermissions({
+      platform_admin: true,
+      view_all_leads: true,
+      manage_team: true,
+      manage_agents: true,
+      manage_channels: true,
+      view_exec_dashboard: true,
+      view_sla: true,
+    });
   }, []);
 
   const detectPlatformAdmin = useCallback(async (): Promise<boolean> => {
@@ -453,22 +478,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Buscar primero por auth_user_id, luego por email
       let teamMember: any = null;
 
-      const { data: tmByAuth } = await supabase
-        .from('team_members')
-        .select('id, nombre, email, rol, tenant_id, auth_user_id')
-        .eq('auth_user_id', authUserId)
-        .or('activo.is.null,activo.eq.true')
-        .maybeSingle();
+      // Intentar leer permissions si existe; fallback si la columna no existe.
+      const trySelect = async (selectCols: string) => {
+        const { data, error } = await supabase
+          .from('team_members')
+          .select(selectCols)
+          .eq('auth_user_id', authUserId)
+          .or('activo.is.null,activo.eq.true')
+          .maybeSingle();
+        if (error) return { data: null as any, error };
+        return { data, error: null as any };
+      };
+
+      let tmByAuth: any = null;
+      {
+        const res = await trySelect('id, nombre, email, rol, tenant_id, auth_user_id, permissions');
+        if (!res.error) tmByAuth = res.data;
+        else {
+          const res2 = await trySelect('id, nombre, email, rol, tenant_id, auth_user_id');
+          tmByAuth = res2.data;
+        }
+      }
 
       teamMember = tmByAuth;
 
       if (!teamMember) {
-        const { data: tmByEmail } = await supabase
-          .from('team_members')
-          .select('id, nombre, email, rol, tenant_id, auth_user_id')
-          .eq('email', email)
-          .or('activo.is.null,activo.eq.true')
-          .maybeSingle();
+        const trySelectByEmail = async (selectCols: string) => {
+          const { data, error } = await supabase
+            .from('team_members')
+            .select(selectCols)
+            .eq('email', email)
+            .or('activo.is.null,activo.eq.true')
+            .maybeSingle();
+          if (error) return { data: null as any, error };
+          return { data, error: null as any };
+        };
+
+        let tmByEmail: any = null;
+        {
+          const res = await trySelectByEmail('id, nombre, email, rol, tenant_id, auth_user_id, permissions');
+          if (!res.error) tmByEmail = res.data;
+          else {
+            const res2 = await trySelectByEmail('id, nombre, email, rol, tenant_id, auth_user_id');
+            tmByEmail = res2.data;
+          }
+        }
 
         // Autocuracion: si existe por email pero aun no esta vinculado, lo vinculamos.
         if (tmByEmail?.id && !tmByEmail?.auth_user_id) {
@@ -489,7 +543,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (teamMember) {
         setUserRole(teamMember.rol === 'asesor' ? 'asesor' : 'admin');
         setTeamMemberId(teamMember.id);
-        setTenantId(teamMember.tenant_id || null);
+        setTenantIdState(teamMember.tenant_id || null);
+        setPermissions((teamMember as any)?.permissions && typeof (teamMember as any).permissions === 'object'
+          ? (teamMember as any).permissions
+          : {});
         console.log("👥 [ROL] Usuario:", teamMember.email, "| Rol:", teamMember.rol, "| tenant_id:", teamMember.tenant_id);
         return teamMember.tenant_id || null;
       } else {
@@ -497,6 +554,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Queda como asesor sin asignacion (sin acceso a datos) hasta activacion.
         setUserRole('asesor');
         setTeamMemberId(null);
+        setPermissions({});
         // No borramos tenantId: puede venir desde user_metadata/app_metadata.
         console.warn("⚠️ [ROL] Usuario no encontrado en team_members; acceso limitado hasta activación");
         return null;
@@ -506,6 +564,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // ✅ Seguridad: ante error, NO elevamos privilegios.
       setUserRole('asesor');
       setTeamMemberId(null);
+      setPermissions({});
       // No borramos tenantId: puede venir desde user_metadata/app_metadata.
       return null;
     }
@@ -529,7 +588,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             session.user.app_metadata?.tenant_id ||
             null;
           if (metaTenantId) {
-            setTenantId(metaTenantId);
+            setTenantIdState(metaTenantId);
           }
 
           const isPlat = await detectPlatformAdmin();
@@ -546,7 +605,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setEnabledFeatures(PLAN_FEATURES["free"]);
           setUserRole(null);
           setTeamMemberId(null);
-          setTenantId(null);
+          setTenantIdState(null);
+          setPlatformTenantIdState(null);
           setIsPlatformAdmin(false);
         }
       } catch (error) {
@@ -572,9 +632,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
            session.user.user_metadata?.tenant_id ||
            session.user.app_metadata?.tenant_id ||
            null;
-         if (metaTenantId) {
-           setTenantId(metaTenantId);
-         }
+          if (metaTenantId) {
+            setTenantIdState(metaTenantId);
+          }
 
          const isPlat = await detectPlatformAdmin();
          if (isPlat) {
@@ -596,7 +656,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setEnabledFeatures(PLAN_FEATURES["free"]);
         setUserRole(null);
         setTeamMemberId(null);
-        setTenantId(null);
+        setTenantIdState(null);
+        setPlatformTenantIdState(null);
         setIsPlatformAdmin(false);
         setLoading(false);
       }
@@ -683,8 +744,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setEnabledFeatures(PLAN_FEATURES["free"]);
     setUserRole(null);
     setTeamMemberId(null);
-    setTenantId(null);
+    setTenantIdState(null);
+    setPlatformTenantIdState(null);
     setIsPlatformAdmin(false);
+    setPermissions({});
 
     try {
       // "local" evita depender de red para que el usuario "salga" al instante.
@@ -714,6 +777,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [enabledFeatures, isPlatformAdmin]
   );
 
+  const setPlatformTenantId = useCallback(
+    (nextTenantId: string | null) => {
+      const next = nextTenantId || null;
+      setPlatformTenantIdState(next);
+      if (typeof window !== "undefined") {
+        if (next) window.localStorage.setItem("botz-platform-tenant", next);
+        else window.localStorage.removeItem("botz-platform-tenant");
+      }
+      triggerDataRefresh();
+    },
+    [triggerDataRefresh]
+  );
+
+  const effectiveTenantId = isPlatformAdmin ? platformTenantId : tenantIdState;
+
+  const hasPermission = useCallback(
+    (perm: string) => {
+      if (!perm) return false;
+      if (isPlatformAdmin) return true;
+      return Boolean(permissions?.[perm]);
+    },
+    [permissions, isPlatformAdmin]
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -731,7 +818,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAsesor: userRole === 'asesor',
         isPlatformAdmin,
         teamMemberId,
-        tenantId,
+        tenantId: effectiveTenantId,
+        platformTenantId,
+        setPlatformTenantId,
+        permissions,
+        hasPermission,
         // ✅ NUEVO: Sincronización global
         triggerDataRefresh,
         dataRefreshKey,
@@ -1054,11 +1145,22 @@ const UserProfileBadge = ({
   language: AppLanguage;
   onLanguageChange: (language: AppLanguage) => void;
 }) => {
-  const { user, userPlan, subscription, logout, loading, refreshSubscription } =
-    useAuth();
+  const {
+    user,
+    userPlan,
+    subscription,
+    logout,
+    loading,
+    refreshSubscription,
+    isPlatformAdmin,
+    platformTenantId,
+    setPlatformTenantId,
+  } = useAuth();
   const router = useRouter();
   const [showMenu, setShowMenu] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [platformTenantsLoading, setPlatformTenantsLoading] = useState(false);
+  const [platformTenants, setPlatformTenants] = useState<any[]>([]);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const text = UI_TEXT[language];
@@ -1092,6 +1194,37 @@ const UserProfileBadge = ({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [showMenu]);
+
+  useEffect(() => {
+    if (!showMenu) return;
+    if (!isPlatformAdmin) return;
+
+    let alive = true;
+
+    const load = async () => {
+      try {
+        setPlatformTenantsLoading(true);
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+
+        const res = await fetch("/api/platform/tenants", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const j = await res.json();
+        if (!alive) return;
+        if (!res.ok) return;
+        setPlatformTenants(j?.tenants || []);
+      } finally {
+        if (alive) setPlatformTenantsLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      alive = false;
+    };
+  }, [showMenu, isPlatformAdmin]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -1320,6 +1453,7 @@ const UserProfileBadge = ({
                   width: "100%",
                   background: "rgba(15,23,42,0.8)",
                   color: "#e2e8f0",
+                  colorScheme: "dark",
                   border: "1px solid rgba(148,163,184,0.3)",
                   borderRadius: "8px",
                   padding: "8px 10px",
@@ -1331,6 +1465,43 @@ const UserProfileBadge = ({
                 <option value="en">English</option>
               </select>
             </div>
+
+            {isPlatformAdmin && (
+              <div style={{ padding: "8px 12px", marginBottom: "4px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px", color: "#94a3b8", fontSize: "12px" }}>
+                  <Building2 size={14} /> {language === "en" ? "Tenant" : "Tenant"}
+                </div>
+                <select
+                  value={platformTenantId || ""}
+                  onChange={(e) => {
+                    setPlatformTenantId(e.target.value || null);
+                    setShowMenu(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    background: "rgba(15,23,42,0.8)",
+                    color: "#e2e8f0",
+                    colorScheme: "dark",
+                    border: "1px solid rgba(148,163,184,0.3)",
+                    borderRadius: "8px",
+                    padding: "8px 10px",
+                    fontSize: "12px",
+                    outline: "none",
+                  }}
+                >
+                  <option value="" style={{ background: "#0b1220", color: "#e2e8f0" }}>
+                    {platformTenantsLoading
+                      ? (language === "en" ? "Loading..." : "Cargando...")
+                      : (language === "en" ? "All tenants" : "Todos los tenants")}
+                  </option>
+                  {(platformTenants || []).map((t: any) => (
+                    <option key={t.id} value={t.id} style={{ background: "#0b1220", color: "#e2e8f0" }}>
+                      {`${t.empresa || "(sin empresa)"} · ${String(t.id).slice(0, 8)}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Botón refrescar suscripción */}
             <button
@@ -1854,7 +2025,7 @@ export default function MainLayout({
   onOpenAuth, // ✅ ya existía en props, ahora lo usamos
 }: MainLayoutProps) {
   const router = useRouter();
-  const { user, userPlan, hasFeatureAccess, loading, enabledFeatures, isAdmin, isPlatformAdmin } = useAuth();
+  const { user, userPlan, hasFeatureAccess, loading, enabledFeatures, isAdmin, isPlatformAdmin, hasPermission } = useAuth();
   const [language, setLanguage] = useState<AppLanguage>("es");
   const [theme, setTheme] = useState<AppTheme>("dark");
   const text = UI_TEXT[language];
@@ -1965,7 +2136,7 @@ export default function MainLayout({
     ...(isPlatformAdmin
       ? [{ id: "tenants", label: language === "en" ? "Clients" : "Clientes", icon: <Building2 size={18} /> }]
       : []),
-    ...(isAdmin || isPlatformAdmin
+    ...(isAdmin || isPlatformAdmin || hasPermission("manage_agents")
       ? [{ id: "agents", label: (text as any).agentsTab || (language === "en" ? "AI Agents" : "Agentes IA"), icon: <Bot size={18} /> }]
       : []),
     { id: "n8n-config", label: text.execDashboard, icon: <Settings size={18} /> },

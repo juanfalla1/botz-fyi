@@ -200,11 +200,12 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
   // - tableLeads: base completa (tabla)
   const [metricRows, setMetricRows] = useState<Lead[]>([]);
   const [tableLeads, setTableLeads] = useState<Lead[]>([]);
+  const [leadCounts, setLeadCounts] = useState<{ total: number; month: number; converted: number } | null>(null);
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<'week' | 'month'>('month');
   const [authView, setAuthView] = useState<"login" | "register">("login");
-  const { isAdmin, isAsesor, isPlatformAdmin, user, tenantId, teamMemberId, userPlan, subscription } = useAuth(); // Hook para detectar rol y obtener datos
+  const { isAdmin, isAsesor, isPlatformAdmin, hasPermission, user, tenantId, teamMemberId, userPlan, subscription } = useAuth(); // Hook para detectar rol y obtener datos
    
   // ESTADOS PARA EL MODAL
   const [showConfig, setShowConfig] = useState(false);
@@ -417,21 +418,77 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
       "ultimo_mensaje_bot",
     ].join(",");
 
-    let q = supabase
-      .from("leads")
-      .select(selectCols)
-      .order("created_at", { ascending: false })
-      .limit(5000);
+    const pageSize = 1000;
+    const maxPages = 20;
+    let out: any[] = [];
 
-    if (effectiveTenantId) q = q.eq("tenant_id", effectiveTenantId);
+    for (let page = 0; page < maxPages; page++) {
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
 
-    if (isAsesor && teamMemberId) {
-      q = q.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
+      let q: any = supabase
+        .from("leads")
+        .select(selectCols)
+        .order("created_at", { ascending: false })
+        .range(from, to);
+
+      if (effectiveTenantId) q = q.eq("tenant_id", effectiveTenantId);
+      if (isAsesor && teamMemberId) {
+        q = q.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
+      }
+
+      const { data, error } = await q;
+      if (error) throw error;
+
+      const rows = (data || []) as any[];
+      out = out.concat(rows);
+
+      if (rows.length < pageSize) break;
     }
 
-    const { data, error } = await q;
-    if (error) throw error;
-    return (data || []) as any[];
+    return out;
+  };
+
+  const fetchLeadCounts = async (effectiveTenantId: string | null) => {
+    // Si platform admin aun no selecciona tenant, evitamos contar todo el universo.
+    if (!effectiveTenantId) return null;
+
+    const statuses = [
+      "convertido",
+      "CONVERTIDO",
+      "cerrado",
+      "CERRADO",
+      "vendido",
+      "VENDIDO",
+      "firmado",
+      "FIRMADO",
+    ];
+
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+    const base = () => {
+      let q: any = supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", effectiveTenantId);
+
+      if (isAsesor && teamMemberId) {
+        q = q.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
+      }
+      return q;
+    };
+
+    const [totalRes, monthRes, convRes] = await Promise.all([
+      base(),
+      base().gte("created_at", monthStart.toISOString()),
+      base().in("status", statuses),
+    ]);
+
+    return {
+      total: totalRes.count || 0,
+      month: monthRes.count || 0,
+      converted: convRes.count || 0,
+    };
   };
 
   const fetchData = async () => {
@@ -493,6 +550,14 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
           recentLeadsPromise,
           trackerPromise,
         ]);
+
+        try {
+          const counts = await fetchLeadCounts(effectiveTenantId);
+          setLeadCounts(counts);
+        } catch (e) {
+          console.warn("No se pudieron cargar conteos de leads:", e);
+          setLeadCounts(null);
+        }
 
         const normalize = (arr: any[], source: string) => arr.map((l) => {
             let rawOrigin = l.origen || l.source || l.channel;
@@ -573,10 +638,9 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
     return matchesDate && matchesGlobal;
   });
 
-  const totalLeads = tableLeads.length;
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const leadsMes = tableLeads.filter(l => l.created_at && new Date(l.created_at) >= monthStart).length;
-  const convertidos = tableLeads.filter(l => ["convertido", "cerrado", "vendido", "firmado"].includes((l.status || "").toLowerCase())).length;
+  const totalLeads = leadCounts?.total ?? tableLeads.length;
+  const leadsMes = leadCounts?.month ?? tableLeads.filter(l => l.created_at && new Date(l.created_at) >= new Date(new Date().getFullYear(), new Date().getMonth(), 1)).length;
+  const convertidos = leadCounts?.converted ?? tableLeads.filter(l => ["convertido", "cerrado", "vendido", "firmado"].includes((l.status || "").toLowerCase())).length;
   const tasaConversion = totalLeads > 0 ? ((convertidos / totalLeads) * 100).toFixed(1) : "0";
 
   const daysToShow = timeFilter === 'week' ? 5 : 30;
@@ -738,7 +802,7 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
                   {isPlatformAdmin && (
                     <MenuButton label={language === "en" ? "Clients" : "Clientes"} id="clientes" icon={<Building2 size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
                   )}
-                  {isAdmin && (
+                  {(isAdmin || hasPermission('manage_team')) && (
                     <MenuButton label={t.team} id="equipo" icon={<Users size={18} color="#22d3ee" />} active={activeConfigTab} onClick={setActiveConfigTab} />
                   )}
                 </aside>
@@ -843,7 +907,7 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
                       )}
                     </div>
                   )}
-                  {activeConfigTab === "equipo" && isAdmin && (
+                  {activeConfigTab === "equipo" && (isAdmin || hasPermission('manage_team')) && (
                     <div style={{ animation: "fadeIn 0.3s ease" }}>
                       <TeamManagement language={language} />
                     </div>
