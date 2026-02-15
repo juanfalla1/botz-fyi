@@ -194,7 +194,17 @@ const CONTROL_TEXT: Record<AppLanguage, Record<string, string>> = {
 
 // 👇 AQUÍ ESTÁ LA SOLUCIÓN AL ERROR ROJO 👇
 // Estamos definiendo que este componente ACEPTA "globalFilter"
-export default function CRMFullView({ globalFilter }: { globalFilter?: string | null }) {
+export default function CRMFullView({
+  globalFilter,
+  openControlCenter = false,
+  initialControlTab = "canales",
+  onControlCenterClose,
+}: {
+  globalFilter?: string | null;
+  openControlCenter?: boolean;
+  initialControlTab?: "canales" | "strategy" | "cuenta" | "equipo" | "clientes";
+  onControlCenterClose?: () => void;
+}) {
   // Separar data para evitar confusiones y mejorar rendimiento:
   // - metricRows: ventana reciente (graficos)
   // - tableLeads: base completa (tabla)
@@ -232,6 +242,15 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
     window.addEventListener("botz-language-change", onLangChange);
     return () => window.removeEventListener("botz-language-change", onLangChange);
   }, []);
+
+  // Si este componente se usa como "tab" dedicado al Centro de Control,
+  // abrimos el modal automaticamente.
+  useEffect(() => {
+    if (!openControlCenter) return;
+    setSelectedChannel(null);
+    setActiveConfigTab(initialControlTab || "canales");
+    setShowConfig(true);
+  }, [openControlCenter, initialControlTab]);
 
   const [accountLoading, setAccountLoading] = useState(false);
   const [accountSummary, setAccountSummary] = useState<{
@@ -704,13 +723,10 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
     <div style={{ display: "flex", flexDirection: "column", gap: "30px", width: "100%" }}>
       
       {/* HEADER INTEGRADO */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "center" }}>
         <div style={{ display: "flex", gap: "8px", background: "rgba(30, 41, 59, 0.5)", padding: "4px", borderRadius: "12px", border: "1px solid rgba(71, 85, 105, 0.5)" }}>
             <button onClick={() => setTimeFilter('week')} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", cursor: "pointer", border: "none", background: timeFilter === 'week' ? "#3b82f6" : "transparent", color: "white" }}>{t.weekly}</button>
             <button onClick={() => setTimeFilter('month')} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", cursor: "pointer", border: "none", background: timeFilter === 'month' ? "#3b82f6" : "transparent", color: "white" }}>{t.monthly}</button>
-        </div>
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button onClick={() => setShowConfig(true)} style={btnConfigStyle}><Settings size={14} /> {t.controlCenterBtn}</button>
         </div>
       </div>
 
@@ -788,7 +804,16 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
       {showConfig && (
         <div style={overlayStyle}>
           <div style={modalContainerStyle}>
-            <button onClick={() => {setShowConfig(false); setSelectedChannel(null);}} style={closeButtonStyle}><X size={24} /></button>
+            <button
+              onClick={() => {
+                setShowConfig(false);
+                setSelectedChannel(null);
+                if (openControlCenter && onControlCenterClose) onControlCenterClose();
+              }}
+              style={closeButtonStyle}
+            >
+              <X size={24} />
+            </button>
             <div style={{ padding: (activeConfigTab === "equipo" || activeConfigTab === "clientes") ? "24px" : "40px" }}>
               <h2 style={{ color: "#fff", fontSize: "24px", fontWeight: "800", marginBottom: "30px", display: "flex", alignItems: "center", gap: "12px" }}>
                 <Zap color="#10b2cb" fill="#10b2cb" size={24} /> {t.controlCenter}

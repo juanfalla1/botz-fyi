@@ -82,6 +82,7 @@ const UI_TEXT: Record<AppLanguage, Record<string, string>> = {
     permViewAllLeads: 'Ver todos los leads (tenant)',
     permFullTools: 'Desbloquear herramientas',
     permManageTeam: 'Gestionar equipo (asesores)',
+    permExecDashboard: 'Dashboard Ejecutivo',
   },
   en: {
     restricted: 'Restricted Access',
@@ -118,6 +119,7 @@ const UI_TEXT: Record<AppLanguage, Record<string, string>> = {
     permViewAllLeads: 'View all leads (tenant)',
     permFullTools: 'Unlock tools',
     permManageTeam: 'Manage team (advisors)',
+    permExecDashboard: 'Executive dashboard',
   },
 };
 
@@ -148,6 +150,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
     permViewAllLeads: false,
     permFullTools: false,
     permManageTeam: false,
+    permExecDashboard: false,
   });
 
   useEffect(() => {
@@ -321,7 +324,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
         // full tools expands to specific feature permissions
         manage_agents: Boolean(formData.permFullTools),
         manage_channels: Boolean(formData.permFullTools),
-        view_exec_dashboard: Boolean(formData.permFullTools),
+        view_exec_dashboard: Boolean(formData.permExecDashboard),
         view_sla: Boolean(formData.permFullTools),
       };
 
@@ -355,7 +358,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
         console.log('Asesor created (retry):', retryData);
         setNewAsesorCredentials({ email: formData.email, password: tempPassword, nombre: formData.nombre });
         setSuccess('✅ Asesor creado (sin permisos extra; falta migración de DB).');
-        setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false });
+        setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false, permExecDashboard: false });
         setShowAddModal(false);
         fetchAsesores();
         return;
@@ -376,7 +379,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
       });
       
       setSuccess('✅ Asesor creado correctamente');
-      setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false });
+      setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false, permExecDashboard: false });
       setShowAddModal(false);
       fetchAsesores();
       
@@ -403,21 +406,21 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
             throw new Error('Solo Platform Admin puede asignar rol de administrador.');
           }
 
-          const payload: any = {
-            nombre: formData.nombre,
-            email: formData.email,
-            telefono: formData.telefono || null,
-            rol: formData.rol,
-            permissions: {
-              view_all_leads: Boolean(formData.permViewAllLeads),
-              full_access: Boolean(formData.permFullTools),
-              manage_team: Boolean(formData.permManageTeam),
-              manage_agents: Boolean(formData.permFullTools),
-              manage_channels: Boolean(formData.permFullTools),
-              view_exec_dashboard: Boolean(formData.permFullTools),
-              view_sla: Boolean(formData.permFullTools),
-            },
-          };
+           const payload: any = {
+             nombre: formData.nombre,
+             email: formData.email,
+             telefono: formData.telefono || null,
+             rol: formData.rol,
+             permissions: {
+               view_all_leads: Boolean(formData.permViewAllLeads),
+               full_access: Boolean(formData.permFullTools),
+               manage_team: Boolean(formData.permManageTeam),
+               manage_agents: Boolean(formData.permFullTools),
+               manage_channels: Boolean(formData.permFullTools),
+               view_exec_dashboard: Boolean(formData.permExecDashboard),
+               view_sla: Boolean(formData.permFullTools),
+             },
+           };
 
           return payload;
         })())
@@ -441,7 +444,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
       
       setSuccess('Asesor actualizado correctamente');
       setEditingAsesor(null);
-      setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false });
+      setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false, permExecDashboard: false });
       fetchAsesores();
       
     } catch (err: any) {
@@ -485,6 +488,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
       permViewAllLeads: Boolean((perms as any).view_all_leads),
       permFullTools: Boolean((perms as any).full_access),
       permManageTeam: Boolean((perms as any).manage_team),
+      permExecDashboard: Boolean((perms as any).view_exec_dashboard),
     });
   };
 
@@ -805,7 +809,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
                 onClick={() => {
                   setShowAddModal(false);
                   setEditingAsesor(null);
-                  setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false });
+                  setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false, permExecDashboard: false });
                   setError('');
                 }}
                 style={{
@@ -977,6 +981,15 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
                   <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#e2e8f0', fontSize: '13px' }}>
                     <input
                       type="checkbox"
+                      checked={formData.permExecDashboard}
+                      onChange={(e) => setFormData({ ...formData, permExecDashboard: e.target.checked })}
+                    />
+                    {t.permExecDashboard}
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#e2e8f0', fontSize: '13px' }}>
+                    <input
+                      type="checkbox"
                       checked={formData.permManageTeam}
                       onChange={(e) => setFormData({ ...formData, permManageTeam: e.target.checked })}
                     />
@@ -995,7 +1008,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
                   onClick={() => {
                     setShowAddModal(false);
                     setEditingAsesor(null);
-                    setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false });
+                    setFormData({ nombre: '', email: '', telefono: '', rol: 'asesor', password: '', permViewAllLeads: false, permFullTools: false, permManageTeam: false, permExecDashboard: false });
                     setError('');
                   }}
                   style={{

@@ -51,7 +51,7 @@ import {
 } from "react-icons/fa6";
 import { RefreshCw, Users, ShieldCheck } from "lucide-react"; 
 
-type Tab = "demo" | "channels" | "agents" | "tenants" | "crm" | "metrics" | "kanban" | "hipoteca" | "n8n-config" | "sla";
+type Tab = "demo" | "channels" | "agents" | "tenants" | "crm" | "control-center" | "metrics" | "kanban" | "hipoteca" | "n8n-config" | "sla";
 
 type LeadOption = {
   id: string;
@@ -599,7 +599,7 @@ export default function BotzLandingExperience() {
       {user && activeTab === "n8n-config" && (isAdmin || isPlatformAdmin || hasPermission("view_exec_dashboard")) && (
         <ExecutiveDashboard filter={globalFilter ?? undefined} />
       )}
-      {user && activeTab === "n8n-config" && isAsesor && (
+      {user && activeTab === "n8n-config" && isAsesor && !(isAdmin || isPlatformAdmin || hasPermission("view_exec_dashboard")) && (
         <div style={{
           display: "flex",
           alignItems: "center", 
@@ -610,7 +610,7 @@ export default function BotzLandingExperience() {
           <div style={{ textAlign: "center" }}>
             <ShieldCheck size={48} style={{ marginBottom: "16px", opacity: 0.5 }} />
             <h3 style={{ fontSize: "18px", marginBottom: "8px" }}>Acceso Restringido</h3>
-            <p>Esta función solo está disponible para administradores</p>
+            <p>Esta función requiere permisos de Dashboard Ejecutivo</p>
           </div>
         </div>
       )}
@@ -802,7 +802,16 @@ export default function BotzLandingExperience() {
 
       {user && activeTab === "channels" && <ChannelsView channels={CHANNELS} />}
       
-      {user && activeTab === "crm" && <CRMFullView globalFilter={globalFilter ?? undefined} />} 
+      {user && activeTab === "crm" && <CRMFullView globalFilter={globalFilter ?? undefined} />}
+
+      {user && activeTab === "control-center" && (
+        <CRMFullView
+          globalFilter={globalFilter ?? undefined}
+          openControlCenter
+          initialControlTab="canales"
+          onControlCenterClose={() => setActiveTab("crm")}
+        />
+      )}
       
       {user && activeTab === "metrics" && <MetricsFullView metrics={metrics as any} />} 
 

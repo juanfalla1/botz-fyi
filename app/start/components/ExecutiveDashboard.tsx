@@ -125,7 +125,7 @@ const EXEC_TEXT: Record<
     leadsThisMonthShort: "leads este mes",
     totalInCrmShort: "totales en CRM",
     restrictedTitle: "Acceso Restringido",
-    restrictedMsg: "Solo los administradores pueden acceder al Dashboard Ejecutivo.",
+    restrictedMsg: "Solo administradores o usuarios autorizados pueden acceder al Dashboard Ejecutivo.",
 
     dashboardTitle: "Dashboard Ejecutivo",
     monthLocale: "es-ES",
@@ -189,7 +189,7 @@ const EXEC_TEXT: Record<
     leadsThisMonthShort: "leads this month",
     totalInCrmShort: "total in CRM",
     restrictedTitle: "Restricted Access",
-    restrictedMsg: "Only administrators can access the Executive Dashboard.",
+    restrictedMsg: "Only administrators or authorized users can access the Executive Dashboard.",
 
     dashboardTitle: "Executive Dashboard",
     monthLocale: "en-US",
@@ -291,7 +291,15 @@ const alertCardStyle = (type: 'danger' | 'warning' | 'success' | 'info'): React.
 
 // --- COMPONENTE PRINCIPAL ---
 export default function ExecutiveDashboard({ filter }: { filter?: string | null }) {
-  const { isAdmin, loading: authLoading, dataRefreshKey, tenantId: authTenantId, teamMemberId } = useAuth();
+  const {
+    isAdmin,
+    isPlatformAdmin,
+    hasPermission,
+    loading: authLoading,
+    dataRefreshKey,
+    tenantId: authTenantId,
+    teamMemberId,
+  } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [metrics, setMetrics] = useState<any>(null);
@@ -303,6 +311,9 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
   });
   const [allLeads, setAllLeads] = useState<Lead[]>([]);
   const t = EXEC_TEXT[language];
+
+  const canViewExecDashboard = isAdmin || isPlatformAdmin || hasPermission("view_exec_dashboard");
+  const canViewAllLeads = isAdmin || isPlatformAdmin || hasPermission("view_all_leads");
 
   useEffect(() => {
     const saved = localStorage.getItem("botz-language");
@@ -332,28 +343,41 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
   };
 
   useEffect(() => {
-    console.log('useEffect triggered:', { isAdmin, selectedMonth, filter });
-    if (isAdmin && !authLoading) {
+    console.log('useEffect triggered:', { canViewExecDashboard, selectedMonth, filter });
+    if (canViewExecDashboard && !authLoading) {
       fetchRealData();
     }
-  }, [filter, isAdmin, authLoading, selectedMonth]);
+  }, [filter, canViewExecDashboard, authLoading, selectedMonth]);
 
   useEffect(() => {
-    if (isAdmin && !authLoading) {
+    if (canViewExecDashboard && !authLoading) {
       console.log('🔄 Actualización global detectada, recargando dashboard...', dataRefreshKey);
       fetchRealData();
     }
-  }, [dataRefreshKey, isAdmin, authLoading]);
+  }, [dataRefreshKey, canViewExecDashboard, authLoading]);
 
   const fetchRealData = async () => {
     try {
         setLoading(true);
+        setError("");
         console.log('Fetching data for month:', selectedMonth);
 
         // Resolver tenant_id: preferir AuthProvider (team_members), fallback a metadata
         const { data: { session } } = await supabase.auth.getSession();
         const tenantId = authTenantId || session?.user?.user_metadata?.tenant_id || session?.user?.app_metadata?.tenant_id || null;
         console.log('Tenant ID:', tenantId);
+
+        // Platform admin: require explicit tenant selection to avoid cross-tenant leakage.
+        if (isPlatformAdmin && !tenantId) {
+          setError(language === "en" ? "Select a tenant to view the Executive Dashboard." : "Selecciona un cliente (tenant) para ver el Dashboard Ejecutivo.");
+          return;
+        }
+
+        // If user can't view all leads, ensure we have a team member id to scope results.
+        if (!canViewAllLeads && !teamMemberId) {
+          setError(language === "en" ? "Your account is not linked to a team member yet." : "Tu cuenta aun no esta vinculada a un miembro del equipo.");
+          return;
+        }
         
         // Obtener leads con paginación y filtro por tenant
         let allLeadsData: Lead[] = [];
@@ -370,6 +394,11 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
             // Filtrar por tenant_id si existe (como hace KanbanBoard)
             if (tenantId) {
                 query = query.eq('tenant_id', tenantId);
+            }
+
+            // Asesor / restricted access: only assigned leads (extra safety even if RLS is misconfigured)
+            if (!canViewAllLeads && teamMemberId) {
+              query = query.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
             }
             
             const { data: leadsPage, error: leadsError } = await query;
@@ -404,12 +433,15 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
         }
         
         let asesoresQuery = supabase
-            .from('team_members')
-            .select('id, nombre, email')
-            .eq('activo', true);
+          .from('team_members')
+          .select('id, nombre, email')
+          .eq('activo', true);
 
-        if (tenantId) {
-            asesoresQuery = asesoresQuery.eq('tenant_id', tenantId);
+        if (tenantId) asesoresQuery = asesoresQuery.eq('tenant_id', tenantId);
+
+        // If user can't view tenant-wide leads, only show their own row.
+        if (!canViewAllLeads && teamMemberId) {
+          asesoresQuery = asesoresQuery.eq('id', teamMemberId);
         }
 
         const { data: asesores, error: asesoresError } = await asesoresQuery;
@@ -455,12 +487,8 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
         const total = filteredLeads.length;
         
         // Calcular métricas por asesor (usa asesor_id con fallback a assigned_to)
-        const asesoresMetrics: AsesorMetrics[] = asesores.map(asesor => {
+        const asesoresMetrics: AsesorMetrics[] = asesoresData.map(asesor => {
             const asesorLeads = filteredLeads.filter(l => {
-                // Para el admin logueado (principal), incluir todos los leads
-                if (isAdmin && teamMemberId && asesor.id === teamMemberId) {
-                    return true;
-                }
                 return (l.asesor_id || l.assigned_to) === asesor.id;
             });
             const atendidos = asesorLeads.filter(l => {
@@ -558,9 +586,9 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
                 tasaCierre: total ? Math.round((firmados.length / total) * 100) : 0,
                 comisionTotal,
                 tiempoPromedioCierre: 12,
-                promedioPorAsesor: Math.round(total / (asesores.length || 1))
-            },
-            asesores: asesoresMetrics,
+                 promedioPorAsesor: Math.round(total / (asesoresData.length || 1))
+             },
+             asesores: asesoresMetrics,
             funnel: [
                 { stageKey: "new", count: countByStatus('NUEVO') + countByStatus('Nuevo'), color: "#94a3b8", probabilidad: 100 },
                 { stageKey: "contacted", count: countByStatus('CONTACTADO'), color: "#22d3ee", probabilidad: 65 },
@@ -588,6 +616,7 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
         
     } catch (err) {
         console.error("Error Supabase:", err);
+        setError((err as any)?.message || (language === "en" ? "Failed to load dashboard." : "No se pudo cargar el dashboard."));
     } finally {
         setLoading(false);
     }
@@ -678,7 +707,7 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
   }
 
   // --- VISTA DE ACCESO RESTRINGIDO ---
-  if (!isAdmin) {
+  if (!canViewExecDashboard) {
     return (
       <div style={{ ...glassStyle, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ width: "100%", maxWidth: "380px", textAlign: "center" }}>
@@ -687,6 +716,20 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
           </div>
           <h2 style={{ fontSize: "24px", fontWeight: "800", marginBottom: "10px", color: "#fff" }}>{t.restrictedTitle}</h2>
           <p style={{ color: "#94a3b8", marginBottom: "30px", fontSize: "14px" }}>{t.restrictedMsg}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ ...glassStyle, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: "100%", maxWidth: "520px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+            <AlertTriangle size={18} color="#f59e0b" />
+            <div style={{ fontWeight: 800, color: "#fff" }}>{language === "en" ? "Executive Dashboard" : "Dashboard Ejecutivo"}</div>
+          </div>
+          <div style={{ color: "#94a3b8", fontSize: "14px", lineHeight: 1.5 }}>{error}</div>
         </div>
       </div>
     );

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 // Importamos Sparkles para el toque estelar visual
-import { Sparkles, Settings } from "lucide-react";
+import { Sparkles, Settings, Languages } from "lucide-react";
 
 const Header = () => {
   const pathname = usePathname();
@@ -11,7 +11,34 @@ const Header = () => {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
 
+  type BotzLanguage = "es" | "en";
+  const [botzLanguage, setBotzLanguage] = useState<BotzLanguage>("es");
+
   const inQualibotz = Boolean(pathname && pathname.startsWith("/start"));
+
+  useEffect(() => {
+    if (!inQualibotz) return;
+    try {
+      const saved = window.localStorage.getItem("botz-language");
+      if (saved === "es" || saved === "en") setBotzLanguage(saved);
+    } catch {}
+
+    const onLangChange = (event: Event) => {
+      const next = (event as CustomEvent<BotzLanguage>).detail;
+      if (next === "es" || next === "en") setBotzLanguage(next);
+    };
+
+    window.addEventListener("botz-language-change", onLangChange);
+    return () => window.removeEventListener("botz-language-change", onLangChange);
+  }, [inQualibotz]);
+
+  const applyBotzLanguage = (next: BotzLanguage) => {
+    setBotzLanguage(next);
+    try {
+      window.localStorage.setItem("botz-language", next);
+      window.dispatchEvent(new CustomEvent("botz-language-change", { detail: next }));
+    } catch {}
+  };
 
   // Detectar si estamos en un dispositivo móvil
   useEffect(() => {
@@ -94,6 +121,43 @@ const Header = () => {
 
             {inQualibotz && (
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                {/* Idioma (visible) */}
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 10px",
+                    borderRadius: "12px",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.04)",
+                    color: "#cbd5e1",
+                  }}
+                >
+                  <Languages size={14} />
+                  <select
+                    value={botzLanguage}
+                    onChange={(e) => applyBotzLanguage(e.target.value as BotzLanguage)}
+                    aria-label={botzLanguage === "en" ? "Language" : "Idioma"}
+                    style={{
+                      background: "#0b1220",
+                      border: "none",
+                      outline: "none",
+                      color: "#e2e8f0",
+                      fontSize: "12px",
+                      fontWeight: 900,
+                      letterSpacing: "0.02em",
+                      cursor: "pointer",
+                      padding: "4px 8px",
+                      borderRadius: "8px",
+                      colorScheme: "dark",
+                    }}
+                  >
+                    <option value="es" style={{ background: "#0b1220", color: "#e2e8f0" }}>ES</option>
+                    <option value="en" style={{ background: "#0b1220", color: "#e2e8f0" }}>EN</option>
+                  </select>
+                </div>
+
                 <Link
                   href="/"
                   onClick={closeMenu}

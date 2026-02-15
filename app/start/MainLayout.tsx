@@ -765,9 +765,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasFeatureAccess = useCallback(
     (featureId: string): boolean => {
       if (isPlatformAdmin) return true;
-      const hasAccess = enabledFeatures.includes(featureId);
+      const resolvedId = featureId === "control-center" ? "crm" : featureId;
+      const hasAccess = enabledFeatures.includes(resolvedId);
       console.log(
-        `🔐 Verificando acceso a "${featureId}":`,
+        `🔐 Verificando acceso a "${resolvedId}":`,
         hasAccess,
         "| Features:",
         enabledFeatures
@@ -1439,32 +1440,7 @@ const UserProfileBadge = ({
               )}
             </div>
 
-            <div style={{ padding: "8px 12px", marginBottom: "4px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px", color: "#94a3b8", fontSize: "12px" }}>
-                <Languages size={14} /> {text.language}
-              </div>
-              <select
-                value={language}
-                onChange={(e) => {
-                  onLanguageChange(e.target.value as AppLanguage);
-                  setShowMenu(false);
-                }}
-                style={{
-                  width: "100%",
-                  background: "rgba(15,23,42,0.8)",
-                  color: "#e2e8f0",
-                  colorScheme: "dark",
-                  border: "1px solid rgba(148,163,184,0.3)",
-                  borderRadius: "8px",
-                  padding: "8px 10px",
-                  fontSize: "12px",
-                  outline: "none",
-                }}
-              >
-                <option value="es">Español</option>
-                <option value="en">English</option>
-              </select>
-            </div>
+            {/* Selector de idioma se movio al header (visible) */}
 
             {isPlatformAdmin && (
               <div style={{ padding: "8px 12px", marginBottom: "4px" }}>
@@ -2046,8 +2022,17 @@ export default function MainLayout({
       if (next === "dark" || next === "light") setTheme(next);
     };
 
+    const onLanguageChange = (event: Event) => {
+      const next = (event as CustomEvent<AppLanguage>).detail;
+      if (next === "es" || next === "en") setLanguage(next);
+    };
+
     window.addEventListener("botz-theme-change", onThemeChange);
-    return () => window.removeEventListener("botz-theme-change", onThemeChange);
+    window.addEventListener("botz-language-change", onLanguageChange);
+    return () => {
+      window.removeEventListener("botz-theme-change", onThemeChange);
+      window.removeEventListener("botz-language-change", onLanguageChange);
+    };
   }, []);
 
   const handleLanguageChange = (nextLanguage: AppLanguage) => {
@@ -2106,13 +2091,15 @@ export default function MainLayout({
   const handleTabClick = (tabId: string, tabLabel: string) => {
     console.log(`🖱️ Click en tab: ${tabId} | Plan: ${userPlan} | Features habilitadas:`, enabledFeatures);
 
-    if (hasFeatureAccess(tabId)) {
+    const accessId = tabId === "control-center" ? "crm" : tabId;
+
+    if (hasFeatureAccess(accessId)) {
       console.log(`✅ Acceso permitido a: ${tabId}`);
       setActiveTab(tabId);
     } else {
-      console.log(`🚫 Acceso denegado a: ${tabId} - Requiere: ${FEATURE_MIN_PLAN[tabId]}`);
+      console.log(`🚫 Acceso denegado a: ${tabId} - Requiere: ${FEATURE_MIN_PLAN[accessId]}`);
       setLockedFeatureName(tabLabel);
-      setLockedFeatureRequiredPlan(FEATURE_MIN_PLAN[tabId] || "Growth");
+      setLockedFeatureRequiredPlan(FEATURE_MIN_PLAN[accessId] || "Growth");
       setLockedModalOpen(true);
     }
   };
@@ -2137,6 +2124,7 @@ export default function MainLayout({
     { id: "demo", label: text.liveOps, icon: <Play size={18} /> },
     { id: "hipoteca", label: text.mortgageCalc, icon: <Calculator size={18} /> },
     { id: "channels", label: text.channels, icon: <Globe size={18} /> },
+    { id: "control-center", label: language === "en" ? "Control Center" : "Centro de Control", icon: <Zap size={18} /> },
     ...(isPlatformAdmin
       ? [{ id: "tenants", label: language === "en" ? "Clients" : "Clientes", icon: <Building2 size={18} /> }]
       : []),
