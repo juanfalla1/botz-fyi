@@ -41,7 +41,8 @@ import {
   ArrowLeft,
   Home,
   Bot,
-} from "lucide-react";
+  Building2,
+ } from "lucide-react";
 import { supabase } from "../supabaseClient"; // Ajusta la ruta según tu proyecto
 import AuthModal from "./components/AuthModal";
 import ActionsDock from "./components/ActionsDock"; // Ajusta la ruta según tu estructura
@@ -1961,6 +1962,9 @@ export default function MainLayout({
     { id: "demo", label: text.liveOps, icon: <Play size={18} /> },
     { id: "hipoteca", label: text.mortgageCalc, icon: <Calculator size={18} /> },
     { id: "channels", label: text.channels, icon: <Globe size={18} /> },
+    ...(isPlatformAdmin
+      ? [{ id: "tenants", label: language === "en" ? "Clients" : "Clientes", icon: <Building2 size={18} /> }]
+      : []),
     ...(isAdmin || isPlatformAdmin
       ? [{ id: "agents", label: (text as any).agentsTab || (language === "en" ? "AI Agents" : "Agentes IA"), icon: <Bot size={18} /> }]
       : []),

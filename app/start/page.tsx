@@ -36,6 +36,7 @@ const IntegrationsSection = dynamic(() => import("./components/IntegrationsSecti
 const KanbanBoard = dynamic(() => import("./components/KanbanBoard"), { ssr: false, loading: TabLoading });
 const SLAControlCenter = dynamic(() => import("./components/SLAControlCenter"), { ssr: false, loading: TabLoading });
 const AgentsStudio = dynamic(() => import("./components/AgentsStudio"), { ssr: false, loading: TabLoading });
+const PlatformTenantsView = dynamic(() => import("./components/PlatformTenantsView"), { ssr: false, loading: TabLoading });
 import useBotzLanguage from "./hooks/useBotzLanguage";
 import { supabase } from "./components/supabaseClient";
 import AuthModal from "./components/AuthModal";
@@ -50,7 +51,7 @@ import {
 } from "react-icons/fa6";
 import { RefreshCw, Users, ShieldCheck } from "lucide-react"; 
 
-type Tab = "demo" | "channels" | "agents" | "crm" | "metrics" | "kanban" | "hipoteca" | "n8n-config" | "sla";
+type Tab = "demo" | "channels" | "agents" | "tenants" | "crm" | "metrics" | "kanban" | "hipoteca" | "n8n-config" | "sla";
 
 type LeadOption = {
   id: string;
@@ -606,6 +607,8 @@ export default function BotzLandingExperience() {
           </div>
         </div>
       )}
+
+      {user && activeTab === "tenants" && (isPlatformAdmin ? <PlatformTenantsView /> : null)}
 
       {user && activeTab === "agents" && (isAdmin || isPlatformAdmin ? <AgentsStudio /> : null)}
 
