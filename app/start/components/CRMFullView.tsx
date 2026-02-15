@@ -4,7 +4,7 @@ import { supabase } from "./supabaseClient";
 import { 
   Users, Calendar, Activity, TrendingUp, BarChart3, Globe, PieChart as PieIcon,
   Loader2, Settings, X, Zap, MessageCircle, Share2, 
-  ChevronLeft, Layout, Save, Briefcase, CreditCard, Clock3, ShieldCheck, AlertTriangle, CheckCircle2
+  ChevronLeft, Layout, Save, Briefcase, CreditCard, Clock3, ShieldCheck, AlertTriangle, CheckCircle2, Building2
 } from "lucide-react";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -14,6 +14,7 @@ import LeadsTable, { Lead } from "./LeadsTable";
 import LoginForm from "./LoginForm";
 import RegistroAsesor from "./RegistroAsesor";
 import TeamManagement from "./TeamManagement";
+import PlatformTenantsView from "./PlatformTenantsView";
 import { useAuth } from "../MainLayout";
 
 // ================= 1. ESQUEMAS DE CONFIGURACIÓN =================
@@ -203,7 +204,7 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<'week' | 'month'>('month');
   const [authView, setAuthView] = useState<"login" | "register">("login");
-  const { isAdmin, isAsesor, user, tenantId, teamMemberId, userPlan, subscription } = useAuth(); // Hook para detectar rol y obtener datos
+  const { isAdmin, isAsesor, isPlatformAdmin, user, tenantId, teamMemberId, userPlan, subscription } = useAuth(); // Hook para detectar rol y obtener datos
    
   // ESTADOS PARA EL MODAL
   const [showConfig, setShowConfig] = useState(false);
@@ -724,16 +725,19 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
         <div style={overlayStyle}>
           <div style={modalContainerStyle}>
             <button onClick={() => {setShowConfig(false); setSelectedChannel(null);}} style={closeButtonStyle}><X size={24} /></button>
-            <div style={{ padding: activeConfigTab === "equipo" ? "24px" : "40px" }}>
+            <div style={{ padding: (activeConfigTab === "equipo" || activeConfigTab === "clientes") ? "24px" : "40px" }}>
               <h2 style={{ color: "#fff", fontSize: "24px", fontWeight: "800", marginBottom: "30px", display: "flex", alignItems: "center", gap: "12px" }}>
                 <Zap color="#10b2cb" fill="#10b2cb" size={24} /> {t.controlCenter}
               </h2>
 
-              <div style={{ display: "flex", gap: activeConfigTab === "equipo" ? "18px" : "30px", minHeight: "480px" }}>
+              <div style={{ display: "flex", gap: (activeConfigTab === "equipo" || activeConfigTab === "clientes") ? "18px" : "30px", minHeight: "480px" }}>
                 <aside style={sidebarStyle}>
                   <MenuButton label={t.channels} id="canales" icon={<Globe size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
                   <MenuButton label={t.strategy} id="strategy" icon={<Briefcase size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
                   <MenuButton label={t.account} id="cuenta" icon={<Users size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
+                  {isPlatformAdmin && (
+                    <MenuButton label={language === "en" ? "Clients" : "Clientes"} id="clientes" icon={<Building2 size={18} />} active={activeConfigTab} onClick={setActiveConfigTab} />
+                  )}
                   {isAdmin && (
                     <MenuButton label={t.team} id="equipo" icon={<Users size={18} color="#22d3ee" />} active={activeConfigTab} onClick={setActiveConfigTab} />
                   )}
@@ -755,6 +759,13 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
                   {activeConfigTab === "strategy" && (
                     <PersistConfigForm channelId="mortgage_strategy" onBack={() => setActiveConfigTab("canales")} language={language} />
                   )}
+
+                  {activeConfigTab === "clientes" && isPlatformAdmin && (
+                    <div style={{ animation: "fadeIn 0.3s ease" }}>
+                      <PlatformTenantsView />
+                    </div>
+                  )}
+
                   {activeConfigTab === "cuenta" && (
                     <div style={{ animation: "fadeIn 0.3s ease" }}>
                       <h3 style={{ color: "#fff", marginBottom: "18px", display: "flex", alignItems: "center", gap: "8px" }}>
