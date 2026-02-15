@@ -653,7 +653,7 @@ export default function PlatformTenantsView() {
                       <option value="">{t.pickTenant}</option>
                       {tenants.map((tn) => (
                         <option key={tn.id} value={tn.id}>
-                          {tn.empresa || tn.id}
+                          {(tn.empresa || "(sin empresa)") + " · " + String(tn.id).slice(0, 8)}
                         </option>
                       ))}
                     </select>

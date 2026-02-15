@@ -52,6 +52,23 @@ async function assertPlatformAdmin(req: Request) {
   return { ok: true, error: null as string | null, userId: user.id, svc };
 }
 
+async function findAuthUserByEmail(svc: any, email: string) {
+  // supabase-js versions differ; avoid getUserByEmail.
+  const target = String(email || "").trim().toLowerCase();
+  if (!target) return null;
+
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await svc.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) throw error;
+    const users = data?.users || [];
+    const match = users.find((u: any) => String(u?.email || "").toLowerCase() === target);
+    if (match) return match;
+    if (users.length < 200) break;
+  }
+
+  return null;
+}
+
 export async function POST(req: Request) {
   try {
     const guard = await assertPlatformAdmin(req);
@@ -65,9 +82,7 @@ export async function POST(req: Request) {
     if (!tenantId) return NextResponse.json({ ok: false, error: "Missing tenantId" }, { status: 400 });
     if (!email) return NextResponse.json({ ok: false, error: "Missing email" }, { status: 400 });
 
-    const { data: userRes, error: userErr } = await svc.auth.admin.getUserByEmail(email);
-    if (userErr) throw userErr;
-    const targetUser = userRes?.user || null;
+    const targetUser = await findAuthUserByEmail(svc, email);
     if (!targetUser?.id) {
       return NextResponse.json({ ok: false, error: "User not found in Auth" }, { status: 404 });
     }
