@@ -194,7 +194,11 @@ const CONTROL_TEXT: Record<AppLanguage, Record<string, string>> = {
 // 👇 AQUÍ ESTÁ LA SOLUCIÓN AL ERROR ROJO 👇
 // Estamos definiendo que este componente ACEPTA "globalFilter"
 export default function CRMFullView({ globalFilter }: { globalFilter?: string | null }) {
-  const [leads, setLeads] = useState<Lead[]>([]);
+  // Separar data para evitar confusiones y mejorar rendimiento:
+  // - metricRows: ventana reciente (graficos)
+  // - tableLeads: base completa (tabla)
+  const [metricRows, setMetricRows] = useState<Lead[]>([]);
+  const [tableLeads, setTableLeads] = useState<Lead[]>([]);
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<'week' | 'month'>('month');
@@ -309,7 +313,7 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
         teamUsed = teamRes.count || 0;
         leadsMonthUsed = leadsMonthRes.count || 0;
       } else {
-        const myLeads = leads.filter((l: any) => {
+        const myLeads = tableLeads.filter((l: any) => {
           const created = l?.created_at ? new Date(l.created_at) : null;
           return !!created && created >= monthStart;
         });
@@ -358,10 +362,10 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
   useEffect(() => {
     if (!showConfig || activeConfigTab !== "cuenta") return;
     loadAccountSummary();
-  }, [showConfig, activeConfigTab, tenantId, subscription?.id, userPlan, isAsesor, leads.length]);
+  }, [showConfig, activeConfigTab, tenantId, subscription?.id, userPlan, isAsesor, tableLeads.length]);
 
 
-  // Rendimiento: no traemos toda la BD. Solo ventana reciente (semana/mes).
+  // Rendimiento: para graficos usamos ventana reciente (semana/mes).
   const fetchRecentFromTable = async (
     table: string,
     days: number,
@@ -388,6 +392,47 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
     return data || [];
   };
 
+  // Tabla: base completa (pero solo columnas necesarias) para no "perder" leads antiguos.
+  const fetchAllLeadsForTable = async (effectiveTenantId: string | null) => {
+    // Columnas usadas por LeadsTable (mantener payload liviano)
+    const selectCols = [
+      "id",
+      "created_at",
+      "name",
+      "email",
+      "phone",
+      "status",
+      "next_action",
+      "calificacion",
+      "origen",
+      "source",
+      "asesor_id",
+      "assigned_to",
+      "asesor_nombre",
+      "estado_operacion",
+      "tenant_id",
+      "user_id",
+      "resumen_chat",
+      "ultimo_mensaje_bot",
+    ].join(",");
+
+    let q = supabase
+      .from("leads")
+      .select(selectCols)
+      .order("created_at", { ascending: false })
+      .limit(5000);
+
+    if (effectiveTenantId) q = q.eq("tenant_id", effectiveTenantId);
+
+    if (isAsesor && teamMemberId) {
+      q = q.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
+    }
+
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data || []) as any[];
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -397,43 +442,56 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
       if (session) {
         const days = timeFilter === 'week' ? 5 : 30;
 
-        let finalLeadsData: any[] = [];
+        const effectiveTenantId =
+          tenantId ||
+          session.user?.user_metadata?.tenant_id ||
+          session.user?.app_metadata?.tenant_id ||
+          null;
 
-        // Siempre filtrar por tenant si está disponible (evita mezclar y reduce carga)
-        const scopedTenant = tenantId || null;
+        // Consultas en paralelo: tabla completa + ventana reciente + tracker
+        const since = new Date();
+        since.setDate(since.getDate() - days);
 
-        if (isAsesor && teamMemberId) {
-          finalLeadsData = await fetchRecentFromTable(
-            "leads",
-            days,
-            "asesor_id",
-            teamMemberId,
-            scopedTenant
-          );
-        } else {
-          finalLeadsData = await fetchRecentFromTable(
-            "leads",
-            days,
-            undefined,
-            undefined,
-            scopedTenant
-          );
-        }
+        const allLeadsPromise = fetchAllLeadsForTable(effectiveTenantId).catch((e) => {
+          console.error("Error fetching full leads table:", e);
+          return [] as any[];
+        });
 
-        // tracker (demo) también se limita por ventana
-        let trackerData: any[] = [];
-        try {
-          trackerData = await fetchRecentFromTable(
-            "demo_tracker_botz",
-            days,
-            "user_id",
-            session.user.id,
-            null,
-            2000
-          );
-        } catch {
-          trackerData = [];
-        }
+        const recentLeadsPromise = (async () => {
+          let recentQuery = supabase
+            .from("leads")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .gte("created_at", since.toISOString())
+            .limit(2000);
+
+          if (effectiveTenantId) recentQuery = recentQuery.eq("tenant_id", effectiveTenantId);
+          if (isAsesor && teamMemberId) {
+            recentQuery = recentQuery.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
+          }
+
+          const { data, error } = await recentQuery;
+          if (error) throw error;
+          return (data || []) as any[];
+        })().catch((e) => {
+          console.error("Error fetching recent leads:", e);
+          return [] as any[];
+        });
+
+        const trackerPromise = fetchRecentFromTable(
+          "demo_tracker_botz",
+          days,
+          "user_id",
+          session.user.id,
+          null,
+          2000
+        ).catch(() => [] as any[]);
+
+        const [allLeadsData, recentLeadsData, trackerData] = await Promise.all([
+          allLeadsPromise,
+          recentLeadsPromise,
+          trackerPromise,
+        ]);
 
         const normalize = (arr: any[], source: string) => arr.map((l) => {
             let rawOrigin = l.origen || l.source || l.channel;
@@ -450,12 +508,28 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
             };
         });
 
-        const allData = [
-          ...normalize(finalLeadsData || [], "leads"),
-          ...normalize(trackerData || [], "demo_tracker_botz")
+        // Tabla solo con leads (no tracker)
+        const normalizedTableLeads = (allLeadsData || []).map((l) => ({
+          ...l,
+          sourceTable: "leads",
+          status: (String(l.status || "nuevo").toLowerCase() === "nuevo" ? "Nuevo" : (l.status || "Nuevo")),
+          created_at: l.created_at || new Date().toISOString(),
+          origen: String((l.origen || l.source || "")).trim(),
+        }));
+
+        setTableLeads(
+          normalizedTableLeads.sort((a: any, b: any) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime())
+        );
+
+        // Graficos con ventana (leads + tracker)
+        const metricData = [
+          ...normalize(recentLeadsData || [], "leads"),
+          ...normalize(trackerData || [], "demo_tracker_botz"),
         ];
 
-        setLeads(allData.sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime()));
+        setMetricRows(
+          metricData.sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime())
+        );
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -469,10 +543,11 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
   }, [timeFilter, isAsesor, teamMemberId, tenantId]);
 
   // Lógica de filtrado unificada (Fecha + Filtro Global del Dock + Rol)
-  const filteredLeads = leads.filter(l => {
+  const filteredLeads = metricRows.filter(l => {
     // 0. Filtro por rol - ASESORES solo ven sus leads asignados
     if (isAsesor && teamMemberId) {
-      if (l.asesor_id !== teamMemberId) {
+      const ok = l.asesor_id === teamMemberId || (l as any).assigned_to === teamMemberId;
+      if (!ok) {
         return false;
       }
     }
@@ -497,10 +572,10 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
     return matchesDate && matchesGlobal;
   });
 
-  const totalLeads = leads.length; 
+  const totalLeads = tableLeads.length;
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const leadsMes = leads.filter(l => l.created_at && new Date(l.created_at) >= monthStart).length;
-  const convertidos = leads.filter(l => ["convertido", "cerrado", "vendido"].includes((l.status || "").toLowerCase())).length;
+  const leadsMes = tableLeads.filter(l => l.created_at && new Date(l.created_at) >= monthStart).length;
+  const convertidos = tableLeads.filter(l => ["convertido", "cerrado", "vendido", "firmado"].includes((l.status || "").toLowerCase())).length;
   const tasaConversion = totalLeads > 0 ? ((convertidos / totalLeads) * 100).toFixed(1) : "0";
 
   const daysToShow = timeFilter === 'week' ? 5 : 30;
@@ -631,17 +706,17 @@ export default function CRMFullView({ globalFilter }: { globalFilter?: string | 
         </div>
       </div>
 
-      {/* ✅ SE PASA EL FILTRO A LA TABLA */}
-    <LeadsTable
-  initialLeads={leads}
-  session={session}
-  globalFilter={globalFilter}
-  onLeadPatch={(id, patch) => {
-    setLeads((prev: any[]) =>
-      prev.map((l: any) => (String(l.id) === String(id) ? { ...l, ...patch } : l))
-    );
-  }}
-/>
+      {/* ✅ Tabla: base completa (no solo 30 dias) */}
+      <LeadsTable
+        initialLeads={tableLeads}
+        session={session}
+        globalFilter={globalFilter}
+        onLeadPatch={(id, patch) => {
+          setTableLeads((prev: any[]) =>
+            prev.map((l: any) => (String(l.id) === String(id) ? { ...l, ...patch } : l))
+          );
+        }}
+      />
 
 
       {/* ✅ MODAL CONFIGURACIÓN CON PERSISTENCIA */}
