@@ -11,10 +11,17 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 function baseUrl() {
+  const vercelEnv = String(process.env.VERCEL_ENV || "").toLowerCase();
+  const canonicalProd = "https://www.botz.fyi";
+
   const url =
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
+    (vercelEnv === "production"
+      ? canonicalProd
+      : process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "") ||
     "http://localhost:3000";
   return url.replace(/\/$/, "");
 }

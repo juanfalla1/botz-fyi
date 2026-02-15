@@ -224,6 +224,11 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
     setSuccess('');
     
     try {
+      const adminTenantId = user?.tenant_id || null;
+      if (!adminTenantId) {
+        throw new Error('No se pudo resolver tenant_id del administrador.');
+      }
+
       // Verificar que el email no exista ya
       const { data: existing } = await supabase
         .from('team_members')
@@ -257,7 +262,8 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
             data: {
               nombre: formData.nombre,
               rol: formData.rol,
-              is_team_member: true
+              is_team_member: true,
+              tenant_id: adminTenantId,
             }
           }
         });
@@ -283,8 +289,12 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
         telefono: formData.telefono || null,
         rol: formData.rol,
         activo: true,
-        tenant_id: user?.tenant_id || '0811c118-5a2f-40cb-907e-8979e0984096' // ← AUTOMÁTICO: siempre asignar el tenant_id del admin o el tenant por defecto
+        tenant_id: adminTenantId,
       };
+
+      if (authUserId) {
+        insertData.auth_user_id = authUserId;
+      }
       
       console.log('✅ Insertando asesor con tenant_id:', insertData.tenant_id, 'auth_user_id:', authUserId);
       

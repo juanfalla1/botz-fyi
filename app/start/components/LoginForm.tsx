@@ -62,14 +62,40 @@ export default function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps
       });
 
       if (error) throw error;
-      
-      if (data.session) {
+       
+       if (data.session) {
         // Obtener perfil del usuario (rol y nombre)
-        const { data: profileData } = await supabase
+        let profileData: any = null;
+
+        const { data: byAuth } = await supabase
           .from("team_members")
-          .select("id, nombre, rol, activo")
+          .select("id, nombre, rol, activo, auth_user_id")
           .eq("auth_user_id", data.session.user.id)
-          .single();
+          .maybeSingle();
+
+        profileData = byAuth;
+
+        if (!profileData && data.session.user.email) {
+          const { data: byEmail } = await supabase
+            .from("team_members")
+            .select("id, nombre, rol, activo, auth_user_id")
+            .eq("email", data.session.user.email)
+            .maybeSingle();
+
+          if (byEmail?.id && !byEmail?.auth_user_id) {
+            try {
+              await supabase
+                .from("team_members")
+                .update({ auth_user_id: data.session.user.id })
+                .eq("id", byEmail.id)
+                .is("auth_user_id", null);
+            } catch {
+              // ignore
+            }
+          }
+
+          profileData = byEmail;
+        }
 
         if (profileData && !profileData.activo) {
           await supabase.auth.signOut();
@@ -78,7 +104,7 @@ export default function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps
 
         // Pasar datos al callback (o valores por defecto si no tiene perfil)
         onSuccess({
-          rol: profileData?.rol || "admin",
+          rol: profileData?.rol || "asesor",
           nombre: profileData?.nombre || email.split("@")[0]
         });
       }

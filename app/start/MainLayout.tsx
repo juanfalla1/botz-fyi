@@ -395,10 +395,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (authUser?.email) {
             const { data: tmByEmail } = await supabase
               .from("team_members")
-              .select("tenant_id")
+              .select("id, tenant_id, auth_user_id")
               .eq("email", authUser.email)
               .or("activo.is.null,activo.eq.true")
               .maybeSingle();
+
+            if (tmByEmail?.id && !tmByEmail?.auth_user_id) {
+              try {
+                await supabase
+                  .from("team_members")
+                  .update({ auth_user_id: userId })
+                  .eq("id", tmByEmail.id)
+                  .is("auth_user_id", null);
+              } catch (e) {
+                console.warn("⚠️ [SUB] No se pudo vincular auth_user_id al team_member:", e);
+              }
+            }
+
             foundTenantId = tmByEmail?.tenant_id || null;
           }
         }
@@ -441,7 +454,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const { data: tmByAuth } = await supabase
         .from('team_members')
-        .select('id, nombre, email, rol, tenant_id')
+        .select('id, nombre, email, rol, tenant_id, auth_user_id')
         .eq('auth_user_id', authUserId)
         .or('activo.is.null,activo.eq.true')
         .maybeSingle();
@@ -451,10 +464,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!teamMember) {
         const { data: tmByEmail } = await supabase
           .from('team_members')
-          .select('id, nombre, email, rol, tenant_id')
+          .select('id, nombre, email, rol, tenant_id, auth_user_id')
           .eq('email', email)
           .or('activo.is.null,activo.eq.true')
           .maybeSingle();
+
+        // Autocuracion: si existe por email pero aun no esta vinculado, lo vinculamos.
+        if (tmByEmail?.id && !tmByEmail?.auth_user_id) {
+          try {
+            await supabase
+              .from('team_members')
+              .update({ auth_user_id: authUserId })
+              .eq('id', tmByEmail.id)
+              .is('auth_user_id', null);
+          } catch (e) {
+            console.warn('⚠️ [ROL] No se pudo vincular auth_user_id al team_member:', e);
+          }
+        }
+
         teamMember = tmByEmail;
       }
 
@@ -465,17 +492,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("👥 [ROL] Usuario:", teamMember.email, "| Rol:", teamMember.rol, "| tenant_id:", teamMember.tenant_id);
         return teamMember.tenant_id || null;
       } else {
-        setUserRole('admin');
+        // ✅ Seguridad: si no existe en team_members, NO es admin.
+        // Queda como asesor sin asignacion (sin acceso a datos) hasta activacion.
+        setUserRole('asesor');
         setTeamMemberId(null);
-        setTenantId(null);
-        console.log("👤 [ROL] Usuario es admin (no está en team_members)");
+        // No borramos tenantId: puede venir desde user_metadata/app_metadata.
+        console.warn("⚠️ [ROL] Usuario no encontrado en team_members; acceso limitado hasta activación");
         return null;
       }
     } catch (error) {
       console.error("❌ [ROL] Error detecting user role:", error);
-      setUserRole('admin');
+      // ✅ Seguridad: ante error, NO elevamos privilegios.
+      setUserRole('asesor');
       setTeamMemberId(null);
-      setTenantId(null);
+      // No borramos tenantId: puede venir desde user_metadata/app_metadata.
       return null;
     }
   };
@@ -491,6 +521,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           console.log("👤 Usuario logueado:", session.user.email);
           setUser(session.user);
+
+          // ✅ Tenant desde metadata (registro/stripe/pricing)
+          const metaTenantId =
+            session.user.user_metadata?.tenant_id ||
+            session.user.app_metadata?.tenant_id ||
+            null;
+          if (metaTenantId) {
+            setTenantId(metaTenantId);
+          }
+
           const isPlat = await detectPlatformAdmin();
           if (isPlat) {
             applyPlatformAdminAccess();
@@ -523,14 +563,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("🔔 Auth event:", event);
 
-      if (event === "SIGNED_IN" && session?.user) {
-        console.log("✅ Usuario inició sesión:", session.user.email);
-        setUser(session.user);
-        const isPlat = await detectPlatformAdmin();
-        if (isPlat) {
-          applyPlatformAdminAccess();
-          setLoading(false);
-        } else {
+       if (event === "SIGNED_IN" && session?.user) {
+         console.log("✅ Usuario inició sesión:", session.user.email);
+         setUser(session.user);
+
+         const metaTenantId =
+           session.user.user_metadata?.tenant_id ||
+           session.user.app_metadata?.tenant_id ||
+           null;
+         if (metaTenantId) {
+           setTenantId(metaTenantId);
+         }
+
+         const isPlat = await detectPlatformAdmin();
+         if (isPlat) {
+           applyPlatformAdminAccess();
+           setLoading(false);
+         } else {
           const tenantId = await detectUserRole(session.user.id, session.user.email || '');
           // Pequeño delay para asegurar que la DB se haya actualizado
           setTimeout(async () => {

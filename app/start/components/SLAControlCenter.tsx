@@ -332,7 +332,7 @@ const SLA_CONFIG: Record<string, { sla: number; prioridad: "alta" | "media" | "b
 // COMPONENTE PRINCIPAL
 // ============================================
 export default function SLAControlCenter() {
-  const { isAsesor, teamMemberId, tenantId, loading: authLoading, dataRefreshKey } = useAuth();
+  const { isAdmin, isAsesor, teamMemberId, tenantId, loading: authLoading, dataRefreshKey } = useAuth();
   const [alerts, setAlerts] = useState<SLAAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [language, setLanguage] = useState<AppLanguage>(getUiLanguage());
@@ -387,11 +387,6 @@ export default function SLAControlCenter() {
       if (authLoading) {
         return;
       }
-
-      if (isAsesor && !teamMemberId) {
-        setAlerts([]);
-        return;
-      }
       
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -400,14 +395,31 @@ export default function SLAControlCenter() {
         return;
       }
 
+      const resolvedTenantId =
+        tenantId ||
+        session.user?.user_metadata?.tenant_id ||
+        session.user?.app_metadata?.tenant_id ||
+        null;
+
+      // ✅ Seguridad: si no hay tenant o rol válido, no mostramos nada.
+      if (!resolvedTenantId) {
+        setAlerts([]);
+        return;
+      }
+
+      if (!isAdmin && !teamMemberId) {
+        // Usuario sin rol/miembro asignado (registro nuevo): no puede ver SLA de nadie.
+        setAlerts([]);
+        return;
+      }
+
       // Cargar leads por tenant y rol
       let query = supabase.from("leads").select("*");
 
-      if (tenantId) {
-        query = query.eq("tenant_id", tenantId);
-      }
+      query = query.eq("tenant_id", resolvedTenantId);
 
-      if (isAsesor && teamMemberId) {
+      if (!isAdmin && teamMemberId) {
+        // Asesor o usuario no-admin: solo sus leads.
         query = query.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
       }
 
@@ -530,11 +542,11 @@ export default function SLAControlCenter() {
     if (authLoading) return;
 
     fetchLeads(true); // Primera carga: mostrar loading completo
-    
+
     // Actualizar cada 2 minutos (sin loading completo)
     const interval = setInterval(() => fetchLeads(false), 120000);
     return () => clearInterval(interval);
-  }, [authLoading, isAsesor, teamMemberId, tenantId]);
+  }, [authLoading, isAdmin, isAsesor, teamMemberId, tenantId]);
 
   useEffect(() => {
     if (!authLoading) {

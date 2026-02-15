@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; 
+import { useRouter, useSearchParams } from "next/navigation"; 
 import dynamic from "next/dynamic";
 import MainLayout, { useAuth } from "./MainLayout";
 import DemoForm from "./components/DemoForm";
@@ -39,7 +39,7 @@ const AgentsStudio = dynamic(() => import("./components/AgentsStudio"), { ssr: f
 import useBotzLanguage from "./hooks/useBotzLanguage";
 import { supabase } from "./components/supabaseClient";
 import AuthModal from "./components/AuthModal";
-import ChatBot from "@/components/ChatBot";
+import ChatBot from "../components/ChatBot";
 
 
 
@@ -106,6 +106,7 @@ function timeAgo(dateString: string, language: "es" | "en"): string {
 
 export default function BotzLandingExperience() {
   const router = useRouter(); 
+  const searchParams = useSearchParams();
   const language = useBotzLanguage();
   const copy = {
     es: {
@@ -149,6 +150,16 @@ export default function BotzLandingExperience() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showDock, setShowDock] = useState(false);
   const [openAuth, setOpenAuth] = useState(false);
+
+  useEffect(() => {
+    // If redirected from deprecated /login, force opening auth.
+    const authParam = searchParams.get("auth");
+    if (authParam === "1") {
+      setOpenAuth(true);
+      // Move away from demo so the auth gate is consistent.
+      setActiveTab("crm");
+    }
+  }, [searchParams]);
 
   
   const [leadsOptions, setLeadsOptions] = useState<LeadOption[]>([]);
