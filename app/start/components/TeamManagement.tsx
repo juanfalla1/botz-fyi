@@ -184,7 +184,7 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
       let query = supabase
         .from('team_members')
         .select('*')
-        .eq('activo', true);
+        .or('activo.is.null,activo.eq.true');
       
       if (tenantId) {
         query = query.eq('tenant_id', tenantId);
@@ -197,12 +197,14 @@ export default function TeamManagement({ language = 'es' }: { language?: AppLang
       // Obtener conteo de leads por asesor
       const asesoresWithCount = await Promise.all(
         (data || []).map(async (asesor) => {
-          const base = supabase
+          let base: any = supabase
             .from('leads')
-            .select('*', { count: 'exact', head: true })
-            .eq('asesor_id', asesor.id);
+            .select('id', { count: 'exact', head: true })
+            .or(`asesor_id.eq.${asesor.id},assigned_to.eq.${asesor.id}`);
 
-          const { count } = tenantId ? await base.eq('tenant_id', tenantId) : await base;
+          if (tenantId) base = base.eq('tenant_id', tenantId);
+
+          const { count } = await base;
           
           return {
             ...asesor,
