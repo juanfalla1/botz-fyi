@@ -70,33 +70,43 @@ export async function POST(req: NextRequest) {
       }
 
       // 2) Si existe y está pending/connecting, intentamos QR
+      let existingQR: string | null = null;
+      let instanceExists = false;
+      
       try {
         console.log("[WhatsApp Connect] Intentando obtener QR para instancia:", tenantInstance);
-        const qr = await evolutionService.getQRCode(tenantInstance);
-        console.log("[WhatsApp Connect] QR obtenido:", qr ? "Sí (presente)" : "No (null/undefined)");
+        existingQR = await evolutionService.getQRCode(tenantInstance);
+        instanceExists = true;
+        console.log("[WhatsApp Connect] QR obtenido:", existingQR ? "Sí (presente)" : "No (null/undefined)");
 
-        await supabase.from("whatsapp_connections").upsert(
-          {
-            tenant_id,
+        // Si tenemos QR válido, retornarlo
+        if (existingQR) {
+          await supabase.from("whatsapp_connections").upsert(
+            {
+              tenant_id,
+              provider: "evolution",
+              instance_name: tenantInstance,
+              status: "pending",
+              qr_code: existingQR,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "tenant_id" }
+          );
+
+          return NextResponse.json({
+            success: true,
             provider: "evolution",
-            instance_name: tenantInstance,
-            status: "pending",
-            qr_code: qr,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "tenant_id" }
-        );
-
-        return NextResponse.json({
-          success: true,
-          provider: "evolution",
-          connection_type: "qr",
-          instance_id: tenantInstance,
-          qr_code: qr,
-        });
+            connection_type: "qr",
+            instance_id: tenantInstance,
+            qr_code: existingQR,
+          });
+        }
+        
+        // Si la instancia existe pero no tiene QR, continuamos para recrear/reconectar
+        console.log("[WhatsApp Connect] Instancia existe pero sin QR, intentando recrear...");
       } catch (e: any) {
         console.log("[WhatsApp Connect] Error obteniendo QR (posiblemente instancia no existe):", e?.message);
-        // si falló por instancia no existente, seguimos
+        // si falló por instancia no existente, seguimos a crear
       }
 
       // 3) Crear instancia tenant
@@ -118,8 +128,19 @@ export async function POST(req: NextRequest) {
         );
 
         // extraer qr (depende de tu evolutionService)
-        const qr = createRes?.qr_code || createRes?.qr || createRes?.qrcode || null;
+        let qr = createRes?.qr_code || createRes?.qr || createRes?.qrcode || null;
         console.log("[WhatsApp Connect] QR extraído de createInstance:", qr ? "Sí" : "No");
+
+        // Si createInstance no devolvió QR, intentar obtenerlo directamente
+        if (!qr) {
+          console.log("[WhatsApp Connect] Intentando obtener QR después de crear instancia...");
+          try {
+            qr = await evolutionService.getQRCode(instanceToUse);
+            console.log("[WhatsApp Connect] QR obtenido post-creación:", qr ? "Sí" : "No");
+          } catch (qrErr) {
+            console.log("[WhatsApp Connect] No se pudo obtener QR inmediatamente:", (qrErr as any)?.message);
+          }
+        }
 
         if (qr) {
           await supabase.from("whatsapp_connections").update(

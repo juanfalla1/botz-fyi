@@ -9,6 +9,7 @@ import React, {
   useCallback,
 } from "react";
 import { useRouter } from "next/navigation";
+import TextRotator from "../components/TextRotator";
 import {
   BrainCircuit,
   Play,
@@ -2529,8 +2530,28 @@ export default function MainLayout({
                       {text.heroBadge}
                     </span>
                   </div>
-                  <h1 style={{ fontSize: "48px", fontWeight: "bold", margin: "0 0 20px 0", lineHeight: 1.2, background: "var(--botz-hero-title-grad)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                    {text.heroTitleLine1} <br /> {text.heroTitleLine2}
+                  <h1 style={{ fontSize: "48px", fontWeight: "bold", margin: "0 0 20px 0", lineHeight: 1.2, color: "#fff" }}>
+                    <div style={{ marginBottom: "8px" }}>
+                      {language === "en" ? "More Leads" : "Más Leads"}
+                    </div>
+                    <TextRotator
+                      words={[
+                        "en Hipotecas Firmadas",
+                        "con tu CRM Inteligente",
+                        "con Cálculo Hipotecario",
+                        "vía WhatsApp Automatizado",
+                        "en Ventas Cerradas",
+                        "desde tu Sitio Web",
+                        "vía Meta Ads",
+                        "con Automatización 24/7"
+                      ]}
+                      prefix=""
+                      suffix=""
+                      highlightColor="#a3e635"
+                      typingSpeed={70}
+                      deletingSpeed={35}
+                      pauseDuration={2000}
+                    />
                   </h1>
                   <p style={{ fontSize: "18px", color: "var(--botz-muted)", marginBottom: "30px", lineHeight: 1.6 }}>
                     {text.heroSubtitle}

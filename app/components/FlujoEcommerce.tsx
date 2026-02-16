@@ -45,23 +45,26 @@ const getEcommerceLayout = (width: number) => {
     };
   } else if (width <= 900) {
     const centerX = width * 0.5;
-    const centerY = 200;
-    const radius = Math.min(120, width * 0.25);
+    const centerY = 220;
+    const radius = Math.min(150, width * 0.22);
     return {
       centerX,
       centerY,
       radius,
       containerWidth: width,
-      containerHeight: 400,
+      containerHeight: 440,
       showConnections: true,
       isMobile: false
     };
   } else {
+    const centerX = 400;
+    const centerY = 280;
+    const radius = 220;
     return {
-      centerX: 330,
-      centerY: 280,
-      radius: 190,
-      containerWidth: 660,
+      centerX,
+      centerY,
+      radius,
+      containerWidth: 800,
       containerHeight: 560,
       showConnections: true,
       isMobile: false
@@ -71,7 +74,7 @@ const getEcommerceLayout = (width: number) => {
 
 export default function FlujoEcommerce() {
   const [selected, setSelected] = useState<number | null>(null);
-  const [layout, setLayout] = useState(() => getEcommerceLayout(660));
+  const [layout, setLayout] = useState(() => getEcommerceLayout(800));
 
   useEffect(() => {
     const handleResize = () => {
@@ -94,8 +97,8 @@ export default function FlujoEcommerce() {
       <h2
         className="section-title"
         style={{
-          color: "#00fff2",
-          fontSize: "clamp(1.5em, 4vw, 2.5em)"
+          color: "#22d3ee",
+          fontSize: "clamp(1.8em, 4vw, 2.8em)"
         }}
       >
         boty, E-commerce con IA
@@ -103,8 +106,8 @@ export default function FlujoEcommerce() {
       <p
         style={{
           textAlign: "center",
-          color: "#ccc",
-          fontSize: "clamp(1em, 2.5vw, 1.18em)",
+          color: "#e2e8f0",
+          fontSize: "clamp(1.2em, 2.5vw, 1.4em)",
           marginBottom: 35,
           maxWidth: "min(700px, 95vw)",
           margin: "0 auto 35px"
@@ -116,7 +119,8 @@ export default function FlujoEcommerce() {
         className="flujo-e-container"
         style={{
           position: "relative",
-          width: "min(660px, 98vw)",
+          width: "100%",
+          maxWidth: "800px",
           height: layout.containerHeight,
           margin: layout.isMobile ? "0" : "0 auto"
         }}
@@ -163,15 +167,15 @@ export default function FlujoEcommerce() {
             };
           } else {
             const x =
-              layout.centerX! + layout.radius! * Math.cos(i * angleStep - Math.PI / 2) - 70;
+              layout.centerX! + layout.radius! * Math.cos(i * angleStep - Math.PI / 2) - 80;
             const y =
-              layout.centerY! + layout.radius! * Math.sin(i * angleStep - Math.PI / 2) - 70;
+              layout.centerY! + layout.radius! * Math.sin(i * angleStep - Math.PI / 2) - 80;
             nodeStyle = {
               left: x,
               top: y,
               position: "absolute",
-              width: 140,
-              height: 140
+              width: 160,
+              height: 160
             };
           }
 
@@ -184,7 +188,7 @@ export default function FlujoEcommerce() {
             >
               <div
                 style={{
-                  fontSize: layout.isMobile ? "2em" : "2.1em",
+                  fontSize: layout.isMobile ? "2em" : "2.5em",
                   marginBottom: layout.isMobile ? 0 : 6,
                   flexShrink: 0,
                   width: layout.isMobile ? "60px" : "auto",

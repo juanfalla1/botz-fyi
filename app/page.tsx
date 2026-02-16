@@ -19,6 +19,7 @@ import HotLeadFlowDemo from '@/components/HotLeadFlowDemo';
 
 
 import CasoExitoHook from '@/components/CasoExitoHook';
+import Agentes from '@/components/Agentes';
 
 export default function Home() {
   return (
@@ -26,6 +27,7 @@ export default function Home() {
       <Header />
       <main className="landing-root" style={{ minHeight: '100vh', paddingTop: 92 }}>
         <Hero />
+        <Agentes />
         <Funcionalidades />
         <Beneficios />
         <Vision />

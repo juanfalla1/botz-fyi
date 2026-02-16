@@ -345,14 +345,33 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
           <div style={styles.qrContainer}>
             <h3 style={styles.title}>Conecta tu WhatsApp</h3>
             <p style={styles.subtitle}>Escanea este código QR</p>
+            
+            {/* DEBUG: Mostrar datos crudos */}
+            <div style={{fontSize: '10px', color: '#666', marginBottom: '10px', wordBreak: 'break-all'}}>
+              DEBUG: qr_code type: {typeof connectionData?.qr_code} | 
+              has qr: {connectionData?.qr_code ? 'YES' : 'NO'} |
+              qrSrc: {qrSrc ? 'VALID' : 'NULL'}
+            </div>
 
             <div style={styles.qrBox}>
               {qrSrc ? (
                 <img src={qrSrc} alt="QR Code" style={styles.qrImage} />
               ) : (
-                <div style={styles.qrLoading}>Generando QR...</div>
+                <div style={styles.qrLoading}>
+                  Generando QR...<br/>
+                  <small>Si persiste, haz clic en Reintentar</small>
+                </div>
               )}
             </div>
+            
+            {!qrSrc && (
+              <button 
+                style={{...styles.retryButton, marginTop: '10px'}} 
+                onClick={() => initConnection()}
+              >
+                Reintentar conexión
+              </button>
+            )}
 
             <div style={styles.instructions}>
               <h4>Pasos:</h4>

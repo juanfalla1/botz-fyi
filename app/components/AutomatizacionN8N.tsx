@@ -57,28 +57,41 @@ const getN8nLayout = (width: number) => {
     };
   } else if (width <= 900) {
     // Tablet: horizontal compacto
-    const nodeSpacing = (width - 160) / (steps.length - 1);
+    const containerWidth = Math.min(width, 800);
+    const nodeWidth = 160;
+    const totalNodesWidth = steps.length * nodeWidth;
+    const availableSpace = containerWidth - totalNodesWidth;
+    const spacing = availableSpace / (steps.length - 1);
+    const startX = (containerWidth - totalNodesWidth - (spacing * (steps.length - 1))) / 2;
+    
     return {
-      containerWidth: width,
+      containerWidth: containerWidth,
       containerHeight: 200,
       showConnections: true,
       isMobile: false,
-      nodePositions: steps.map((_, i) => ({ x: 80 + i * nodeSpacing, y: 80 }))
+      nodePositions: steps.map((_, i) => ({ 
+        x: startX + i * (nodeWidth + spacing), 
+        y: 80 
+      }))
     };
   } else {
     // Escritorio: fila horizontal con conexiones SVG
+    const containerWidth = Math.min(width, 1200);
+    const nodeWidth = 180;
+    const totalNodesWidth = steps.length * nodeWidth;
+    const availableSpace = containerWidth - totalNodesWidth;
+    const spacing = availableSpace / (steps.length - 1);
+    const startX = (containerWidth - totalNodesWidth - (spacing * (steps.length - 1))) / 2;
+    
     return {
-      containerWidth: 1000,
-      containerHeight: 200,
+      containerWidth: containerWidth,
+      containerHeight: 220,
       showConnections: true,
       isMobile: false,
-      nodePositions: [
-        { x: 80, y: 80 },
-        { x: 260, y: 80 },
-        { x: 440, y: 80 },
-        { x: 620, y: 80 },
-        { x: 800, y: 80 }
-      ]
+      nodePositions: steps.map((_, i) => ({ 
+        x: startX + i * (nodeWidth + spacing), 
+        y: 90 
+      }))
     };
   }
 };
@@ -102,11 +115,11 @@ export default function AutomatizacionN8N() {
   }, []);
 
   return (
-    <section style={{ margin: "60px 0 80px 0", position: "relative", padding: "0 1rem" }}>
-      <h2 className="section-title" style={{ color: "#10b2cb", fontSize: "clamp(1.5em, 4vw, 2.5em)" }}>
+    <section style={{ margin: "60px 0 80px", position: "relative", padding: "0 40px", width: "100%", maxWidth: "1400px" }}>
+      <h2 className="section-title" style={{ color: "#22d3ee", fontSize: "clamp(1.8em, 4vw, 2.8em)", textAlign: "center" }}>
       botzflow, Automatización de Flujos de Procesos
       </h2>
-      <p style={{ textAlign: "center", color: "#ccc", fontSize: "clamp(1em, 2.5vw, 1.12em)", marginBottom: 28, maxWidth: "min(320px, 60vw)", margin: "0 auto 28px" }}>
+      <p style={{ textAlign: "center", color: "#e2e8f0", fontSize: "clamp(1.2em, 2.5vw, 1.4em)", marginBottom: 40, maxWidth: "800px", margin: "0 auto 40px" }}>
         Un flujo inteligente para transformar tu operación: <b>botzflow orquesta tu proceso de extremo a extremo.</b>
       </p>
 
@@ -115,9 +128,13 @@ export default function AutomatizacionN8N() {
       <div
         className="n8n-flowchart-canvas"
         style={{
-          width: "min(1000px, 98vw)",
+          width: "100%",
+          maxWidth: "1200px",
           height: layout.containerHeight,
-          margin: layout.isMobile ? "0 0 12px 0" : "0 auto 12px auto"
+          margin: layout.isMobile ? "0 0 12px 0" : "0 auto 12px auto",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center"
         }}
       >
         {/* SVG conexiones */}
@@ -191,8 +208,8 @@ export default function AutomatizacionN8N() {
       </div>
 
       {/* === Ventajas === */}
-      <div style={{ margin: "70px auto 0", maxWidth: 950 }}>
-        <h3 style={{ color: "#10b2cb", marginBottom: 24, fontWeight: 600, textAlign: "center", fontSize: "1.28em" }}>
+      <div style={{ margin: "70px auto 0", maxWidth: "1400px", width: "100%", padding: "0 20px" }}>
+        <h3 style={{ color: "#22d3ee", marginBottom: 24, fontWeight: 600, textAlign: "center", fontSize: "1.5em" }}>
           Ventajas Clave de Automatizar con botzflow
         </h3>
         <div className="n8n-ventajas-grid">

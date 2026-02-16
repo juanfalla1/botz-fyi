@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import styles from "../styles/Hero.module.css";
 import DemoModal from "./DemoModal";
+import TextRotator from "./TextRotator";
 
 const Hero = () => {
   const [showModal, setShowModal] = useState(false);
@@ -23,8 +24,26 @@ const Hero = () => {
       </div>
 
       <div className={styles.heroContent}>
-        <h2 className={styles.heroTitle}>
-          Automatización inteligente de procesos con IA
+        <h2 className={styles.heroTitle} style={{ fontSize: "48px", fontWeight: "bold", lineHeight: 1.2, color: "#fff", marginBottom: "20px" }}>
+          <div style={{ marginBottom: "8px" }}>
+            <TextRotator
+              words={[
+                "Agentes IA",
+                "Automatización",
+                "Procesos Inteligentes",
+                "Flujos de Trabajo",
+                "Integraciones",
+                "Chatbots"
+              ]}
+              prefix=""
+              suffix=""
+              highlightColor="#22d3ee"
+              typingSpeed={50}
+              deletingSpeed={25}
+              pauseDuration={1500}
+            />
+          </div>
+          <div>que transforman tu negocio</div>
         </h2>
 
         <p className={styles.heroSubtitle}>

@@ -13,7 +13,8 @@
 /* === Lienzo del flowchart n8n === */
 .n8n-flowchart-canvas {
   position: relative;
-  width: 1000px;
+  width: 100%;
+  max-width: 1400px;
   height: 200px;
   margin: 0 auto 12px auto;
   z-index: 2;
@@ -21,17 +22,17 @@
 
 /* === Nodo n8n === */
 .n8n-flowchart-node {
-  width: 120px;
-  min-height: 120px;
-  background: #232a3b;
-  border: 2.5px solid #454e63;
-  box-shadow: 0 4px 18px #0c102580;
+  width: 200px;
+  min-height: 200px;
+  background: #121b2b;
+  border: 3px solid #22d3ee;
+  box-shadow: 0 4px 25px rgba(34, 211, 238, 0.2);
   border-radius: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 12px 7px 9px 7px;
+  padding: 20px 12px 14px 12px;
   font-family: inherit;
   cursor: pointer;
   z-index: 4;
@@ -39,35 +40,35 @@
   user-select: none;
 }
 .n8n-flowchart-node:hover {
-  box-shadow: 0 0 28px #23fff3cc;
-  background: #243041;
-  border-color: #00fff2;
+  box-shadow: 0 0 40px rgba(163, 230, 53, 0.4);
+  background: #1a2336;
+  border-color: #a3e635;
 }
 .n8n-flowchart-node-icon {
-  font-size: 2.4em;
+  font-size: 3em;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 52px; height: 52px;
+  width: 72px; height: 72px;
   border-radius: 50%;
-  background: #242e3c;
-  box-shadow: 0 2px 9px #00fff225;
-  color: #8dd3e8;
-  margin-bottom: 6px;
+  background: rgba(34, 211, 238, 0.15);
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
+  color: #22d3ee;
+  margin-bottom: 12px;
 }
 .n8n-flowchart-node-label {
   font-weight: 700;
-  font-size: 1.09em;
-  color: #1ed3b0;
-  line-height: 1.1;
-  margin-bottom: 1px;
+  font-size: 1.3em;
+  color: #22d3ee;
+  line-height: 1.2;
+  marginBottom: 6px;
   text-align: center;
 }
 .n8n-flowchart-node-desc {
-  font-size: 0.97em;
-  color: #e4e8ee;
+  font-size: 1.1em;
+  color: #e2e8f0;
   font-weight: 400;
-  line-height: 1.09;
+  line-height: 1.2;
   text-align: center;
   margin-bottom: 1px;
 }
@@ -82,10 +83,10 @@
   pointer-events: none;
 }
 .n8n-flowchart-connector {
-  stroke: #23fff3;
+  stroke: #22d3ee;
   stroke-width: 3.7;
   fill: none;
-  filter: drop-shadow(0 0 8px #00fff233);
+  filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.5));
   opacity: 0.97;
   stroke-dasharray: 12 7;
   animation: n8n-pulse 1.7s linear infinite;
@@ -95,27 +96,40 @@
 }
 
 /* ✅ Responsive mejorado para flowchart n8n */
+@media (max-width: 1200px) {
+  .n8n-flowchart-node { 
+    width: 170px; 
+    min-height: 170px; 
+    padding: 14px 10px; 
+  }
+  .n8n-flowchart-node-icon { 
+    font-size: 2.6em; 
+    width: 60px; 
+    height: 60px; 
+  }
+}
+
 @media (max-width: 1080px) {
   .n8n-flowchart-canvas { 
-    width: min(96vw, 1000px) !important; 
+    width: 100% !important; 
     min-width: 340px; 
   }
   .n8n-flowchart-svg { 
     width: 100% !important; 
   }
   .n8n-flowchart-node { 
-    width: 100px; 
-    min-height: 100px; 
-    padding: 8px 4px; 
-    font-size: 0.85em; 
+    width: 120px; 
+    min-height: 120px; 
+    padding: 10px 6px; 
+    font-size: 0.9em; 
   }
   .n8n-flowchart-node-icon { 
-    font-size: 1.8em; 
-    width: 40px; 
-    height: 40px; 
+    font-size: 2.2em; 
+    width: 48px; 
+    height: 48px; 
   }
   .n8n-flowchart-node-label { 
-    font-size: 0.95em; 
+    font-size: 1.05em; 
   }
 }
 
@@ -213,43 +227,69 @@
 /* === Ventajas grid y cards === */
 .n8n-ventajas-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 28px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 40px;
   margin: 0 auto;
   margin-bottom: 15px;
+  width: 100%;
+  justify-content: space-between;
 }
 .n8n-ventaja-card {
-  background: #151d2a;
-  border: 2px solid #10b2cb44;
-  box-shadow: 0 0 22px #10b2cb33;
-  border-radius: 18px;
-  padding: 1.6em 1.2em 1.3em;
+  background: #121b2b;
+  border: 2px solid rgba(34, 211, 238, 0.3);
+  box-shadow: 0 0 25px rgba(34, 211, 238, 0.15);
+  border-radius: 20px;
+  padding: 2.5em 2em 2em;
   display: flex;
   flex-direction: column;
   align-items: center;
   transition: box-shadow 0.25s, border 0.22s;
+  min-height: 200px;
 }
 .n8n-ventaja-card:hover {
-  box-shadow: 0 0 35px #00fff288;
-  border-color: #10b2cb;
+  box-shadow: 0 0 40px rgba(163, 230, 53, 0.3);
+  border-color: #a3e635;
 }
 .n8n-ventaja-icon {
-  font-size: 2.05em;
-  margin-bottom: 0.3em;
-  color: #00fff2;
-  filter: drop-shadow(0 0 8px #10b2cb55);
+  font-size: 3em;
+  margin-bottom: 0.5em;
+  color: #22d3ee;
+  filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.5));
 }
 .n8n-ventaja-title {
   font-weight: 700;
-  font-size: 1.09em;
-  color: #10b2cb;
+  font-size: 1.3em;
+  color: #22d3ee;
   text-align: center;
-  margin-bottom: 0.2em;
+  margin-bottom: 0.4em;
 }
 .n8n-ventaja-desc {
-  color: #e8f5fe;
+  color: #e2e8f0;
   text-align: center;
-  font-size: 1em;
+  font-size: 1.15em;
+  line-height: 1.4;
+}
+
+@media (max-width: 1200px) {
+  .n8n-ventajas-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 50px;
+    justify-content: space-between;
+  }
+  .n8n-ventaja-card {
+    min-height: 220px;
+    padding: 2.5em 2em 2em;
+  }
+}
+
+@media (max-width: 768px) {
+  .n8n-ventajas-grid {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  .n8n-ventaja-card {
+    min-height: 200px;
+  }
 }
 
 /* === Modal explicativo === */

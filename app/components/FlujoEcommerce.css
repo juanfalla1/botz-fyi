@@ -1,9 +1,10 @@
 .flujo-e-container {
   position: relative;
-  width: 660px;
-  height: 520px;
+  width: 100%;
+  max-width: 900px;
+  height: 600px;
   margin: 0 auto;
-  min-height: 420px;
+  min-height: 500px;
 }
 
 .flujo-e-svg {
