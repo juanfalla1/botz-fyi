@@ -40,12 +40,13 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
     return tid || "";
   };
 
-  // ✅ Resuelve tenant_id desde subscriptions por user_id (solo si no viene por prop)
-  const resolveTenantFromSubscriptions = async (): Promise<string> => {
+  // ✅ Resuelve tenant_id desde subscriptions O team_members por user_id
+  const resolveTenantId = async (): Promise<string> => {
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id;
     if (!userId) return "";
 
+    // Primero buscar en subscriptions (dueños/admin)
     const { data: sub } = await supabase
       .from("subscriptions")
       .select("tenant_id")
@@ -53,8 +54,20 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
       .limit(1)
       .maybeSingle();
 
-    const tid = normalizeTenantId(sub?.tenant_id);
-    return tid || "";
+    if (sub?.tenant_id) {
+      return normalizeTenantId(sub.tenant_id) || "";
+    }
+
+    // Si no está en subscriptions, buscar en team_members (asesores)
+    const { data: teamMember } = await supabase
+      .from("team_members")
+      .select("tenant_id")
+      .eq("auth_user_id", userId)
+      .eq("activo", true)
+      .limit(1)
+      .maybeSingle();
+
+    return normalizeTenantId(teamMember?.tenant_id) || "";
   };
 
   useEffect(() => {
@@ -62,10 +75,10 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
       (async () => {
         setError(null);
 
-        // ✅ Si no viene tenantId por prop, lo buscamos en subscriptions
+        // ✅ Si no viene tenantId por prop, lo buscamos en subscriptions o team_members
         let tid = normalizeTenantId(tenantId);
         if (!tid) {
-          tid = await resolveTenantFromSubscriptions();
+          tid = await resolveTenantId();
           if (tid) setResolvedTenantId(tid);
         } else {
           // si viene por props, lo guardamos también
