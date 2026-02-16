@@ -71,8 +71,9 @@ export async function POST(req: NextRequest) {
 
       // 2) Si existe y está pending/connecting, intentamos QR
       try {
+        console.log("[WhatsApp Connect] Intentando obtener QR para instancia:", tenantInstance);
         const qr = await evolutionService.getQRCode(tenantInstance);
-
+        console.log("[WhatsApp Connect] QR obtenido:", qr ? "Sí (presente)" : "No (null/undefined)");
 
         await supabase.from("whatsapp_connections").upsert(
           {
@@ -94,12 +95,15 @@ export async function POST(req: NextRequest) {
           qr_code: qr,
         });
       } catch (e: any) {
+        console.log("[WhatsApp Connect] Error obteniendo QR (posiblemente instancia no existe):", e?.message);
         // si falló por instancia no existente, seguimos
       }
 
       // 3) Crear instancia tenant
       try {
+        console.log("[WhatsApp Connect] Creando instancia:", instanceToUse);
         const createRes = await evolutionService.createInstance(instanceToUse);
+        console.log("[WhatsApp Connect] Instancia creada, respuesta:", Object.keys(createRes || {}));
 
         // Guardar registro "pending"
         await supabase.from("whatsapp_connections").upsert(
@@ -115,6 +119,7 @@ export async function POST(req: NextRequest) {
 
         // extraer qr (depende de tu evolutionService)
         const qr = createRes?.qr_code || createRes?.qr || createRes?.qrcode || null;
+        console.log("[WhatsApp Connect] QR extraído de createInstance:", qr ? "Sí" : "No");
 
         if (qr) {
           await supabase.from("whatsapp_connections").update(

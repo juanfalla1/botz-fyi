@@ -181,8 +181,22 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
       const accessToken = session?.access_token || null;
       if (!accessToken) throw new Error("Sesion expirada");
 
-      const tid = normalizeTenantId(tidFromCall || getTenantId());
-      if (!tid) throw new Error("tenantId is required");
+      // Asegurar que tenemos el tenant del prop o del estado resuelto
+      let tid = normalizeTenantId(tidFromCall);
+      if (!tid) {
+        // Si no viene por parámetro, usar el que ya resolvimos en useEffect
+        tid = normalizeTenantId(resolvedTenantId || tenantId);
+      }
+      
+      if (!tid) {
+        // Último intento: resolver ahora
+        tid = await resolveTenantId();
+        if (tid) setResolvedTenantId(tid);
+      }
+      
+      if (!tid) throw new Error("tenantId is required - No se pudo obtener el ID del tenant");
+
+      console.log("Conectando WhatsApp para tenant:", tid);
 
       const response = await fetch("/api/whatsapp/connect", {
         method: "POST",
@@ -194,9 +208,13 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
       });
 
       const data = await response.json().catch(() => null);
+      
+      console.log("WhatsApp connect response:", data);
+      console.log("QR Code presente:", !!data?.qr_code);
 
       if (!response.ok) {
-        throw new Error(data?.error || "Error al iniciar conexión");
+        console.error("Error response:", response.status, data);
+        throw new Error(data?.error || `Error ${response.status} al iniciar conexión`);
       }
 
       setConnectionData(data);
