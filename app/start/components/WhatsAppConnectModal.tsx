@@ -26,6 +26,9 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
   // ✅ para poder limpiar intervalos/timeouts al cerrar
   const pollingRef = useRef<number | null>(null);
   const timeoutRef = useRef<number | null>(null);
+  
+  // ✅ Prevenir llamadas duplicadas a initConnection
+  const isConnectingRef = useRef(false);
 
   // ✅ Normaliza tenantId: si viene "tenant_<uuid>" → lo deja en "<uuid>"
   const normalizeTenantId = (tid: any) => {
@@ -90,7 +93,11 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
           return;
         }
 
-        initConnection(tid);
+        // Solo iniciar conexión automáticamente si NO hay datos previos
+        // Esto evita conflictos cuando el usuario hace clic en "Reintentar"
+        if (!connectionData && !isConnectingRef.current) {
+          initConnection(tid);
+        }
       })();
     } else {
       stopPolling();
@@ -168,6 +175,13 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
 
   // ✅ Ahora recibe tid opcional (si no, usa getTenantId())
   const initConnection = async (tidFromCall?: string) => {
+    // Prevenir llamadas duplicadas
+    if (isConnectingRef.current) {
+      console.log("[WhatsApp] Conexión ya en progreso, ignorando llamada duplicada");
+      return;
+    }
+    
+    isConnectingRef.current = true;
     stopPolling();
     setLoading(true);
     setError(null);
@@ -230,8 +244,10 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
         window.location.href = data.auth_url;
       }
     } catch (err: any) {
+      console.error("[WhatsApp] Error en initConnection:", err);
       setError(err.message || "Error al iniciar conexión");
     } finally {
+      isConnectingRef.current = false;
       setLoading(false);
     }
   };
