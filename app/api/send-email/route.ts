@@ -5,15 +5,28 @@ import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { randomUUID } from "crypto";
 import { createClient } from "@supabase/supabase-js";
+import { getClientIp, rateLimit } from "../_utils/rateLimit";
 
 export async function POST(req: Request) {
   console.log("📧 Endpoint /api/send-email llamado");
   
   try {
+    const ip = getClientIp(req);
+    const rl = await rateLimit({ key: `send-email:${ip}`, limit: 20, windowMs: 10 * 60 * 1000 });
+    if (!rl.ok) {
+      return NextResponse.json({ success: false, error: "RATE_LIMITED" }, { status: 429 });
+    }
+
     const data = await req.json();
-    console.log("📦 Datos recibidos:", JSON.stringify(data, null, 2));
+    // Avoid logging full payload (PII)
+    console.log("📦 Tipo:", data?.type || "demo", "| Email:", data?.email || data?.to || "-");
 
     const requestType = data?.type || "demo";
+
+    const allowedTypes = new Set(["sales_quote", "welcome", "lead_scoring", "demo"]);
+    if (!allowedTypes.has(String(requestType))) {
+      return NextResponse.json({ success: false, error: "INVALID_TYPE" }, { status: 400 });
+    }
 
     // ✅ CASO 1: Cotización "A la Medida"
     if (requestType === "sales_quote") {

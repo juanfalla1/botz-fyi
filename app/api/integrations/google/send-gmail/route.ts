@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { assertTenantAccess, getRequestUser } from "../../../_utils/guards";
 
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
@@ -17,6 +18,11 @@ export async function POST(req: Request) {
     const subject = String(body?.subject || "").trim();
     const email_body = String(body?.body || "").trim();
 
+    const { user, error: userErr } = await getRequestUser(req);
+    if (!user) {
+      return NextResponse.json({ ok: false, error: userErr || "Unauthorized" }, { status: 401 });
+    }
+
     // Validar campos obligatorios
     if (!isUuid(user_id) || !isUuid(integration_id)) {
       return NextResponse.json(
@@ -30,6 +36,15 @@ export async function POST(req: Request) {
         { ok: false, error: "INVALID_INPUT", details: "tenant_id debe ser UUID válido o null" },
         { status: 400 }
       );
+    }
+
+    // Enforce tenant access / allow platform admin with explicit tenant_id
+    const guard = await assertTenantAccess({ req, requestedTenantId: tenant_id });
+    if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status });
+
+    // Only platform admins can send on behalf of another user
+    if (user_id !== user.id && !guard.isPlatformAdmin) {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
 
     if (!to || !subject || !email_body) {
@@ -83,6 +98,11 @@ export async function POST(req: Request) {
         { ok: false, error: "NO_INTEGRATION_FOUND" },
         { status: 404 }
       );
+    }
+
+    // Non-platform users can only operate within their tenant
+    if (!guard.isPlatformAdmin && String(integ.tenant_id || "") !== String(guard.tenantId || "")) {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
 
     if (integ.status !== "connected") {

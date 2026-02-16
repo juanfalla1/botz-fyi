@@ -1,16 +1,12 @@
 // app/api/whatsapp/connect/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { evolutionService } from "../../../../lib/services/evolution.service";
 import { metaService } from "../../../../lib/services/meta.service";
+import { assertTenantAccess } from "../../_utils/guards";
+import { getServiceSupabase } from "../../_utils/supabase";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { persistSession: false },
-});
+const supabase = getServiceSupabase();
 
 function isCreate401(msg?: string) {
   return !!msg && msg.includes("/instance/create") && msg.includes('"status":401');
@@ -30,11 +26,20 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function POST(req: NextRequest) {
   try {
+    if (!supabase) {
+      return NextResponse.json({ error: "Missing SUPABASE env (URL or SERVICE_ROLE)" }, { status: 500 });
+    }
+
     const body = await req.json();
-    const { tenant_id } = body;
+    const tenant_id = String(body?.tenant_id || body?.tenantId || "").trim();
 
     if (!tenant_id) {
       return NextResponse.json({ error: "tenant_id is required" }, { status: 400 });
+    }
+
+    const guard = await assertTenantAccess({ req, requestedTenantId: tenant_id });
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.error }, { status: guard.status });
     }
 
     // ✅ Provider dinámico (por defecto: evolution QR)

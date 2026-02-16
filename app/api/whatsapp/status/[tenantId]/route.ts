@@ -1,16 +1,12 @@
 // app/api/whatsapp/status/[tenantId]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { evolutionService } from '../../../../../lib/services/evolution.service';
 import { metaService } from '../../../../../lib/services/meta.service';
+import { assertTenantAccess } from '../../../_utils/guards';
+import { getServiceSupabase } from '../../../_utils/supabase';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { persistSession: false }
-});
+const supabase = getServiceSupabase();
 
 export async function GET(
   req: NextRequest,
@@ -18,6 +14,15 @@ export async function GET(
 ) {
   try {
     const { tenantId } = await params;
+
+    if (!supabase) {
+      return NextResponse.json({ error: 'Missing SUPABASE env (URL or SERVICE_ROLE)' }, { status: 500 });
+    }
+
+    const guard = await assertTenantAccess({ req, requestedTenantId: tenantId });
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.error }, { status: guard.status });
+    }
 
     if (!tenantId) {
       return NextResponse.json(

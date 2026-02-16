@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { assertTenantAccess } from "../../../_utils/guards";
+import { getServiceSupabase } from "../../../_utils/supabase";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
-  auth: { persistSession: false },
-});
+const supabaseAdmin = getServiceSupabase();
 
 export async function POST(req: NextRequest) {
   try {
+    if (!supabaseAdmin) {
+      return NextResponse.json({ error: "Missing SUPABASE env (URL or SERVICE_ROLE)" }, { status: 500 });
+    }
+
     const body = await req.json().catch(() => ({}));
 
     const tenantId = String(body.tenantId || body.tenant_id || "").trim();
     if (!tenantId) {
       return NextResponse.json({ error: "tenantId is required" }, { status: 400 });
+    }
+
+    const guard = await assertTenantAccess({ req, requestedTenantId: tenantId });
+    if (!guard.ok) {
+      return NextResponse.json({ error: guard.error }, { status: guard.status });
     }
 
     const meta_phone_number_id = String(body.meta_phone_number_id || "").trim();

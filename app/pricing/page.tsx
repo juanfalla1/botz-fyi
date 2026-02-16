@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { Check, X, Zap, Building2, Crown, ArrowRight, X as CloseIcon, ShieldCheck, Lock, CreditCard, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaGoogle } from "react-icons/fa6"; 
-import { supabase } from "../supabaseClient"; 
+import { supabase } from "../supabaseClient";
+import { isValidEmail, suggestEmailFix } from "../utils/email";
 
 const STRIPE_LINK_BASIC =
   "https://buy.stripe.com/test_3cI4gs9E9e9S4RVgNEfrW01";
@@ -110,7 +111,10 @@ export default function PricingPage() {
   // Campos formulario Registro
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [confirmEmail, setConfirmEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registerEmailSuggestion, setRegisterEmailSuggestion] = useState<string | null>(null);
 
   // Campos formulario Pago
   const [cardName, setCardName] = useState("");
@@ -262,26 +266,62 @@ export default function PricingPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegisterLoading(true);
+    setRegisterError(null);
+
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const normalizedConfirm = String(confirmEmail || "").trim().toLowerCase();
+    if (!name.trim()) {
+      setRegisterError("El nombre es requerido");
+      setRegisterLoading(false);
+      return;
+    }
+    if (!isValidEmail(normalizedEmail)) {
+      setRegisterError("Correo inválido");
+      setRegisterLoading(false);
+      return;
+    }
+    if (!normalizedConfirm) {
+      setRegisterError("Confirma tu correo");
+      setRegisterLoading(false);
+      return;
+    }
+    if (normalizedEmail !== normalizedConfirm) {
+      setRegisterError("Los correos no coinciden");
+      setRegisterLoading(false);
+      return;
+    }
 
     // Generar tenant_id único
     const tenantId = crypto.randomUUID();
 
-    const { error } = await supabase.auth.signUp({
+    const { data: signUpData, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: name, plan_intento: selectedPlan, tenant_id: tenantId } }
     });
 
     if (error) {
-      alert("Error: " + error.message);
+      setRegisterError("Error: " + error.message);
       setRegisterLoading(false);
     } else {
+      // Si la confirmación de email está activada, Supabase no devuelve sesión
+      if (!signUpData?.session) {
+        setRegisterError("Cuenta creada. Revisa tu correo para confirmar y luego inicia sesión para continuar con el pago.");
+        setRegisterLoading(false);
+        return;
+      }
+
       setRegisterLoading(false);
       try {
         // ✅ Intentar iniciar sesión para obtener userId y pagar con Stripe
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) {
-          alert("Cuenta creada. Inicia sesión para continuar con el pago.");
+          const msg = signInError.message || "";
+          if (/confirm|confirmed/i.test(msg)) {
+            setRegisterError("Revisa tu correo para confirmar tu cuenta y luego inicia sesión para continuar con el pago.");
+          } else {
+            setRegisterError("Cuenta creada. Inicia sesión para continuar con el pago.");
+          }
           setShowModal(false);
           return;
         }
@@ -636,8 +676,71 @@ if (subError) {
 
                     <form onSubmit={handleRegister} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                         <input type="text" placeholder="Nombre Completo" value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
-                        <input type="email" placeholder="Correo Electrónico" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
+                        <input
+                          type="email"
+                          placeholder="Correo Electrónico"
+                          value={email}
+                          onChange={e => {
+                            const v = e.target.value;
+                            setEmail(v);
+                            const s = suggestEmailFix(v);
+                            setRegisterEmailSuggestion(s?.suggested || null);
+                          }}
+                          style={inputStyle}
+                        />
+
+                        {registerEmailSuggestion && (
+                          <div
+                            style={{
+                              background: "rgba(34, 211, 238, 0.08)",
+                              border: "1px solid rgba(34, 211, 238, 0.18)",
+                              borderRadius: "12px",
+                              padding: "10px 12px",
+                              fontSize: "12px",
+                              color: "#cbd5e1",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: "10px",
+                            }}
+                          >
+                            <span>
+                              Parece que quisiste decir: <strong style={{ color: "#22d3ee" }}>{registerEmailSuggestion}</strong>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEmail(registerEmailSuggestion);
+                                setConfirmEmail(registerEmailSuggestion);
+                                setRegisterEmailSuggestion(null);
+                              }}
+                              style={{
+                                border: "1px solid rgba(34, 211, 238, 0.25)",
+                                background: "rgba(34, 211, 238, 0.12)",
+                                color: "#22d3ee",
+                                borderRadius: "10px",
+                                padding: "6px 10px",
+                                fontSize: "12px",
+                                fontWeight: 800,
+                                cursor: "pointer",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Usar
+                            </button>
+                          </div>
+                        )}
+
+                        <input type="email" placeholder="Confirmar correo" value={confirmEmail} onChange={e => setConfirmEmail(e.target.value)} style={inputStyle} />
+
                         <input type="password" placeholder="Crear Contraseña" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
+
+                        {registerError && (
+                          <div style={{ background: "rgba(239, 68, 68, 0.10)", border: "1px solid rgba(239, 68, 68, 0.20)", padding: "10px 12px", borderRadius: "12px", fontSize: "12px", color: "#fecaca" }}>
+                            {registerError}
+                          </div>
+                        )}
+
                         <button type="submit" disabled={registerLoading} style={{ marginTop: "8px", width: "100%", padding: "16px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #22d3ee 0%, #3b82f6 100%)", color: "#fff", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>{registerLoading ? "Cargando..." : "Continuar a Stripe →"}</button>
                     </form>
                 </div>

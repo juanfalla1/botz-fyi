@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { assertTenantAccess, getRequestUser } from "../../../_utils/guards";
 
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
@@ -15,6 +16,11 @@ export async function POST(req: Request) {
     const user_id = String(body?.user_id || "").trim();
     const integration_id = String(body?.integration_id || "").trim();
 
+    const { user, error: userErr } = await getRequestUser(req);
+    if (!user) {
+      return NextResponse.json({ ok: false, error: userErr || "Unauthorized" }, { status: 401 });
+    }
+
     // ✅ CAMBIO: Solo validar user_id e integration_id como obligatorios
     if (!isUuid(user_id) || !isUuid(integration_id)) {
       return NextResponse.json(
@@ -29,6 +35,13 @@ export async function POST(req: Request) {
         { ok: false, error: "INVALID_INPUT", details: "tenant_id debe ser UUID válido o null" },
         { status: 400 }
       );
+    }
+
+    const guard = await assertTenantAccess({ req, requestedTenantId: tenant_id });
+    if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status });
+
+    if (user_id !== user.id && !guard.isPlatformAdmin) {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
 
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -75,6 +88,10 @@ export async function POST(req: Request) {
         { ok: false, error: "NO_INTEGRATION_FOUND" },
         { status: 404 }
       );
+    }
+
+    if (!guard.isPlatformAdmin && String(integ.tenant_id || "") !== String(guard.tenantId || "")) {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
 
     if (integ.status !== "connected") {

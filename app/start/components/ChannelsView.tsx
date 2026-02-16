@@ -377,11 +377,13 @@ const [waProvider, setWaProvider] = useState<"evolution" | "meta">("evolution");
       setEmailsError(null);
 
       const { data: { user } } = await supabase.auth.getUser();
-const userId = user?.id;
-const tenantId =
-  (user?.user_metadata as any)?.tenant_id ||
-  (user?.app_metadata as any)?.tenant_id ||
-  null;
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token || null;
+ const userId = user?.id;
+ const tenantId =
+   (user?.user_metadata as any)?.tenant_id ||
+   (user?.app_metadata as any)?.tenant_id ||
+   null;
 
 if (!userId) {
   setEmailsError("No hay usuario en sesión");
@@ -399,16 +401,19 @@ if (!tenantId) {
       
      let syncData: any = null;
 
-try {
-  const syncRes = await fetch("/api/integrations/google/sync-gmail", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      tenant_id: tenantId,
-      user_id: userId,
-      integration_id: integrationId,
-    }),
-  });
+ try {
+   const syncRes = await fetch("/api/integrations/google/sync-gmail", {
+     method: "POST",
+     headers: {
+       "Content-Type": "application/json",
+       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+     },
+     body: JSON.stringify({
+       tenant_id: tenantId,
+       user_id: userId,
+       integration_id: integrationId,
+     }),
+   });
 
   const txt = await syncRes.text();
   try { syncData = txt ? JSON.parse(txt) : {}; } catch { syncData = { raw: txt }; }
@@ -481,15 +486,24 @@ try {
       setSendingReply(true);
 
       const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token || null;
       const userId = user?.id;
       const tenantId =
         (user?.user_metadata as any)?.tenant_id ||
         (user?.app_metadata as any)?.tenant_id ||
         null;
 
+      if (!accessToken) {
+        throw new Error("Sesion expirada");
+      }
+
       const response = await fetch("/api/integrations/google/send-gmail", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           tenant_id: tenantId,
           user_id: userId,
@@ -596,8 +610,16 @@ useEffect(() => {
       const currentEmail = pickEmail(gmail);
       if (currentEmail) return;
 
-      const resp = await fetch("/api/integrations/gmail/profile", {
-        credentials: "include",
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token || null;
+      if (!accessToken) return;
+
+      const profileUrl = tenantId
+        ? `/api/integrations/gmail/profile?tenant_id=${encodeURIComponent(tenantId)}`
+        : "/api/integrations/gmail/profile";
+
+      const resp = await fetch(profileUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
       const j = await resp.json();
       const email = j?.gmail_profile?.emailAddress || j?.emailAddress || null;
@@ -729,12 +751,18 @@ if (gmail?.id) await loadEmails(gmail.id);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token || null;
+      if (!accessToken) return;
+
       const tid = (user?.user_metadata as any)?.tenant_id || (user?.app_metadata as any)?.tenant_id;
       if (!tid) return;
 
       setTenantId(tid);
 
-      const response = await fetch(`/api/whatsapp/status/${tid}`);
+      const response = await fetch(`/api/whatsapp/status/${tid}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       const status = await response.json();
       setWhatsappStatus(status);
     } catch (error) {
@@ -770,12 +798,19 @@ if (gmail?.id) await loadEmails(gmail.id);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token || null;
+      if (!accessToken) return;
+
       const tenantId = (user?.user_metadata as any)?.tenant_id || (user?.app_metadata as any)?.tenant_id;
       if (!tenantId) return;
 
       const response = await fetch('/api/whatsapp/disconnect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ tenant_id: tenantId })
       });
 
@@ -935,7 +970,7 @@ if (integration) {
   const isConnected = integration.status === 'connected';
   
   // Para Lead Scoring, mostrar estado diferente
-  let detail = undefined;
+  let detail: string | undefined = undefined;
   if (channel.id === "lead_scoring") {
     const hasEmailConfig = integration.credentials?.smtp_user && integration.config?.company_name;
     detail = hasEmailConfig ? 
@@ -1060,16 +1095,32 @@ return channelSafe;
       }
 // --- GOOGLE/GMAIL: siempre abrir popup, NO salir de la página ---
       if (connectorId === 'google' || connectorId === 'gmail' || connectorId.includes('google') || connectorId.includes('gmail')) {
-        const userId = user.id;
-        const tid = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id || user.id;
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token || null;
+        if (!accessToken) {
+          pushNotice("error", "Tu sesión expiró. Vuelve a iniciar sesión.");
+          setConnectBusy(null);
+          return;
+        }
 
-        const authStart =
-          `/api/integrations/google/start` +
-          `?tenant_id=${encodeURIComponent(tid)}` +
-          `&user_id=${encodeURIComponent(userId)}`;
+        const initRes = await fetch("/api/integrations/google/init", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ tenant_id: tenantId || null }),
+        });
+
+        const initJson = await initRes.json().catch(() => ({}));
+        if (!initRes.ok || !initJson?.auth_url) {
+          pushNotice("error", initJson?.error || "No se pudo iniciar OAuth de Google");
+          setConnectBusy(null);
+          return;
+        }
 
         // Abrir popup en vez de salir de la página
-        const popup = window.open(authStart, "botz-oauth", "width=520,height=720");
+        const popup = window.open(initJson.auth_url, "botz-oauth", "width=520,height=720");
 
         // Vigilar cuando el popup cierre para refrescar integraciones
         const pollTimer = window.setInterval(() => {
@@ -1253,27 +1304,38 @@ return channelSafe;
         });
 
         try {
-// ✅ Gmail/Google: redirigir directo al endpoint real (NO usar oauth/start genérico)
+// ✅ Gmail/Google: iniciar OAuth de forma segura via /api/integrations/google/init
 if (
   connectorId === "gmail" ||
   connectorId.includes("gmail") ||
   connectorId.includes("google")
 ) {
-  const userId = user?.id;
-  const tenantId = user?.user_metadata?.tenant_id || user?.id; 
+  const { data: { session } } = await supabase.auth.getSession();
+  const accessToken = session?.access_token || null;
 
-  if (!tenantId || !userId) {
-     pushNotice("error", "Falta el ID de usuario o de organización.");
-     setConnectBusy(null);
-     return;
+  if (!accessToken) {
+    pushNotice("error", "Tu sesión expiró. Vuelve a iniciar sesión.");
+    setConnectBusy(null);
+    return;
   }
 
-  const authStart =
-    `/api/integrations/google/start` +
-    `?tenant_id=${encodeURIComponent(tenantId)}` +
-    `&user_id=${encodeURIComponent(userId)}`;
+  const initRes = await fetch("/api/integrations/google/init", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ tenant_id: tenantId || null }),
+  });
 
-  window.open(authStart, "botz-oauth", "width=520,height=720,noopener,noreferrer");
+  const initJson = await initRes.json().catch(() => ({}));
+  if (!initRes.ok || !initJson?.auth_url) {
+    pushNotice("error", initJson?.error || "No se pudo iniciar OAuth de Google");
+    setConnectBusy(null);
+    return;
+  }
+
+  window.open(initJson.auth_url, "botz-oauth", "width=520,height=720,noopener,noreferrer");
   setConnectBusy(null);
   return;
 }

@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { supabase } from "./supabaseClient"; 
 import { Mail, Lock, User, Phone, UserPlus, Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { isValidEmail, suggestEmailFix } from "../../utils/email";
 
 interface RegistroAsesorProps {
   onSuccess?: () => void;
@@ -12,6 +13,7 @@ export default function RegistroAsesor({ onSuccess, onLoginClick }: RegistroAses
   const [formData, setFormData] = useState({
     nombre: "",
     email: "",
+    confirmEmail: "",
     telefono: "",
     password: "",
     confirmPassword: "",
@@ -19,6 +21,7 @@ export default function RegistroAsesor({ onSuccess, onLoginClick }: RegistroAses
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -26,6 +29,11 @@ export default function RegistroAsesor({ onSuccess, onLoginClick }: RegistroAses
       [e.target.name]: e.target.value
     }));
     setError(null);
+
+    if (e.target.name === "email") {
+      const s = suggestEmailFix(e.target.value);
+      setEmailSuggestion(s?.suggested || null);
+    }
   };
 
   const validateForm = () => {
@@ -37,8 +45,16 @@ export default function RegistroAsesor({ onSuccess, onLoginClick }: RegistroAses
       setError("El email es requerido");
       return false;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    if (!isValidEmail(formData.email)) {
       setError("Email inválido");
+      return false;
+    }
+    if (!formData.confirmEmail.trim()) {
+      setError("Confirma tu email");
+      return false;
+    }
+    if (formData.email.trim().toLowerCase() !== formData.confirmEmail.trim().toLowerCase()) {
+      setError("Los correos no coinciden");
       return false;
     }
     if (formData.password.length < 6) {
@@ -227,6 +243,62 @@ export default function RegistroAsesor({ onSuccess, onLoginClick }: RegistroAses
             name="email"
             placeholder="correo@empresa.com"
             value={formData.email}
+            onChange={handleChange}
+            required
+            style={inputStyle}
+          />
+        </div>
+
+        {emailSuggestion && (
+          <div
+            style={{
+              marginTop: "-6px",
+              background: "rgba(34, 211, 238, 0.08)",
+              border: "1px solid rgba(34, 211, 238, 0.18)",
+              borderRadius: "12px",
+              padding: "10px 12px",
+              fontSize: "12px",
+              color: "#cbd5e1",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "10px",
+            }}
+          >
+            <span>
+              Parece que quisiste decir: <strong style={{ color: "#22d3ee" }}>{emailSuggestion}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setFormData((prev) => ({ ...prev, email: emailSuggestion, confirmEmail: emailSuggestion }));
+                setEmailSuggestion(null);
+              }}
+              style={{
+                border: "1px solid rgba(34, 211, 238, 0.25)",
+                background: "rgba(34, 211, 238, 0.12)",
+                color: "#22d3ee",
+                borderRadius: "10px",
+                padding: "6px 10px",
+                fontSize: "12px",
+                fontWeight: 800,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Usar
+            </button>
+          </div>
+        )}
+
+        {/* Confirmar Email */}
+        <div style={{ position: "relative", width: "100%" }}>
+          <Mail size={18} color="#94a3b8" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+          <input
+            type="email"
+            name="confirmEmail"
+            placeholder="Confirmar correo"
+            value={formData.confirmEmail}
             onChange={handleChange}
             required
             style={inputStyle}

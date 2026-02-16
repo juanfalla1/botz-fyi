@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { assertTenantAccess } from "../_utils/guards";
+import { getServiceSupabase } from "../_utils/supabase";
 
 type IntegrationRow = {
   id: string;
@@ -37,16 +38,21 @@ function mapToConnectorId(row: IntegrationRow) {
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const tenantId = url.searchParams.get("tenant_id");
 
-    if (!tenantId || tenantId === "null" || tenantId === "undefined") {
-      return NextResponse.json({ ok: false, error: "MISSING_TENANT_ID" }, { status: 400 });
+    const requestedTenantIdRaw = url.searchParams.get("tenant_id");
+    const requestedTenantId = requestedTenantIdRaw && requestedTenantIdRaw !== "null" && requestedTenantIdRaw !== "undefined"
+      ? requestedTenantIdRaw
+      : null;
+
+    const guard = await assertTenantAccess({ req, requestedTenantId });
+    if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status });
+
+    const tenantId = guard.tenantId;
+
+    const supabase = getServiceSupabase();
+    if (!supabase) {
+      return NextResponse.json({ ok: false, error: "Missing SUPABASE env (URL or SERVICE_ROLE)" }, { status: 500 });
     }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
 
     const { data, error } = await supabase
       .from("integrations")

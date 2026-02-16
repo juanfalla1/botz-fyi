@@ -1,37 +1,32 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
-// Genera state simple (string)
-function makeState() {
-  return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
+// Legacy redirect endpoint.
+// Security: it only works if /api/integrations/google/init already set the cookies.
 
 export async function GET(req: Request) {
   try {
-    const url = new URL(req.url);
+    const cookieStore = await cookies();
 
-    const tenantId = url.searchParams.get("tenant_id");
-    const userId = url.searchParams.get("user_id");
+    const state = cookieStore.get("botz_google_oauth_state")?.value || null;
+    const tenantId = cookieStore.get("botz_google_oauth_tenant")?.value || null;
+    const userId = cookieStore.get("botz_google_oauth_user")?.value || null;
 
-    if (!tenantId || !userId) {
+    if (!state || !tenantId || !userId) {
       return NextResponse.json(
-        { ok: false, error: "Missing tenant_id or user_id" },
-        { status: 400 }
+        { ok: false, error: "MISSING_OAUTH_CONTEXT", details: "Use /api/integrations/google/init first" },
+        { status: 403 }
       );
     }
 
+    const url = new URL(req.url);
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const redirectUri = `${url.origin}/api/integrations/google/callback`;
 
     if (!clientId) {
-      return NextResponse.json(
-        { ok: false, error: "Missing GOOGLE_CLIENT_ID" },
-        { status: 500 }
-      );
+      return NextResponse.json({ ok: false, error: "Missing GOOGLE_CLIENT_ID" }, { status: 500 });
     }
 
-    const state = makeState();
-
-    // Scope completo de Gmail (leer, enviar, modificar, todo)
     const scope = [
       "openid",
       "https://www.googleapis.com/auth/userinfo.email",
@@ -45,36 +40,12 @@ export async function GET(req: Request) {
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("response_type", "code");
     authUrl.searchParams.set("scope", scope);
-    authUrl.searchParams.set("access_type", "offline"); // para refresh_token (si Google lo entrega)
-    authUrl.searchParams.set("prompt", "consent"); // fuerza refresh_token en muchos casos
+    authUrl.searchParams.set("access_type", "offline");
+    authUrl.searchParams.set("prompt", "consent");
     authUrl.searchParams.set("state", state);
 
-    // IMPORTANTE: setear cookies ANTES del redirect
-    const res = NextResponse.redirect(authUrl.toString());
-
-    res.cookies.set("botz_google_oauth_state", state, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-    });
-
-    res.cookies.set("botz_google_oauth_tenant", tenantId, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-    });
-
-    res.cookies.set("botz_google_oauth_user", userId, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-    });
-
-    return res;
+    return NextResponse.redirect(authUrl.toString());
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: "SERVER_ERROR", details: String(e?.message || e) },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: "SERVER_ERROR", details: String(e?.message || e) }, { status: 500 });
   }
 }

@@ -13,6 +13,7 @@ const Header = () => {
 
   type BotzLanguage = "es" | "en";
   const [botzLanguage, setBotzLanguage] = useState<BotzLanguage>("es");
+  const [showLangMenu, setShowLangMenu] = useState(false);
 
   const inQualibotz = Boolean(pathname && pathname.startsWith("/start"));
 
@@ -31,6 +32,31 @@ const Header = () => {
     window.addEventListener("botz-language-change", onLangChange);
     return () => window.removeEventListener("botz-language-change", onLangChange);
   }, [inQualibotz]);
+
+  // Close language menu on outside click / escape
+  useEffect(() => {
+    if (!showLangMenu) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowLangMenu(false);
+    };
+
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest("[data-botz-lang-switcher]")) return;
+      setShowLangMenu(false);
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("mousedown", onPointerDown, true);
+    document.addEventListener("touchstart", onPointerDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("mousedown", onPointerDown, true);
+      document.removeEventListener("touchstart", onPointerDown, true);
+    };
+  }, [showLangMenu]);
 
   const applyBotzLanguage = (next: BotzLanguage) => {
     setBotzLanguage(next);
@@ -122,40 +148,109 @@ const Header = () => {
             {inQualibotz && (
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 {/* Idioma (visible) */}
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "8px 10px",
-                    borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(255,255,255,0.04)",
-                    color: "#cbd5e1",
-                  }}
-                >
-                  <Languages size={14} />
-                  <select
-                    value={botzLanguage}
-                    onChange={(e) => applyBotzLanguage(e.target.value as BotzLanguage)}
+                <div data-botz-lang-switcher style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowLangMenu((v) => !v)}
                     aria-label={botzLanguage === "en" ? "Language" : "Idioma"}
+                    aria-haspopup="menu"
+                    aria-expanded={showLangMenu}
                     style={{
-                      background: "#0b1220",
-                      border: "none",
-                      outline: "none",
-                      color: "#e2e8f0",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "8px 10px",
+                      borderRadius: "12px",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: "rgba(255,255,255,0.04)",
+                      color: "#cbd5e1",
+                      cursor: "pointer",
                       fontSize: "12px",
                       fontWeight: 900,
                       letterSpacing: "0.02em",
-                      cursor: "pointer",
-                      padding: "4px 8px",
-                      borderRadius: "8px",
-                      colorScheme: "dark",
                     }}
                   >
-                    <option value="es" style={{ background: "#0b1220", color: "#e2e8f0" }}>ES</option>
-                    <option value="en" style={{ background: "#0b1220", color: "#e2e8f0" }}>EN</option>
-                  </select>
+                    <Languages size={14} />
+                    <span style={{ color: "#e2e8f0" }}>{botzLanguage === "en" ? "EN" : "ES"}</span>
+                    <span style={{ opacity: 0.8, fontWeight: 900 }}>
+                      {showLangMenu ? "▴" : "▾"}
+                    </span>
+                  </button>
+
+                  {showLangMenu && (
+                    <div
+                      role="menu"
+                      style={{
+                        position: "absolute",
+                        right: 0,
+                        top: "calc(100% + 8px)",
+                        minWidth: "140px",
+                        background: "#0b1220",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: "12px",
+                        boxShadow: "0 18px 50px rgba(0,0,0,0.55)",
+                        padding: "6px",
+                        zIndex: 50,
+                      }}
+                    >
+                      <button
+                        role="menuitem"
+                        type="button"
+                        onClick={() => {
+                          applyBotzLanguage("es");
+                          setShowLangMenu(false);
+                        }}
+                        style={{
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "10px",
+                          padding: "10px 10px",
+                          borderRadius: "10px",
+                          border: "1px solid rgba(255,255,255,0.06)",
+                          background: botzLanguage === "es" ? "rgba(34, 211, 238, 0.10)" : "transparent",
+                          color: "#e2e8f0",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: 800,
+                          textAlign: "left",
+                        }}
+                      >
+                        <span>Español</span>
+                        <span style={{ color: botzLanguage === "es" ? "#22d3ee" : "#64748b" }}>ES</span>
+                      </button>
+
+                      <button
+                        role="menuitem"
+                        type="button"
+                        onClick={() => {
+                          applyBotzLanguage("en");
+                          setShowLangMenu(false);
+                        }}
+                        style={{
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "10px",
+                          padding: "10px 10px",
+                          borderRadius: "10px",
+                          border: "1px solid rgba(255,255,255,0.06)",
+                          background: botzLanguage === "en" ? "rgba(34, 211, 238, 0.10)" : "transparent",
+                          color: "#e2e8f0",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: 800,
+                          textAlign: "left",
+                          marginTop: "6px",
+                        }}
+                      >
+                        <span>English</span>
+                        <span style={{ color: botzLanguage === "en" ? "#22d3ee" : "#64748b" }}>EN</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <Link

@@ -164,12 +164,19 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
         throw new Error("Supabase env missing (NEXT_PUBLIC_SUPABASE_URL/ANON_KEY)");
       }
 
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token || null;
+      if (!accessToken) throw new Error("Sesion expirada");
+
       const tid = normalizeTenantId(tidFromCall || getTenantId());
       if (!tid) throw new Error("tenantId is required");
 
       const response = await fetch("/api/whatsapp/connect", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ tenantId: tid, tenant_id: tid }),
       });
 
@@ -212,12 +219,19 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
     pollingRef.current = window.setInterval(async () => {
       try {
         // ✅ Tu proyecto ya tiene /api/whatsapp/status/[tenantId]
-        let response = await fetch(`/api/whatsapp/status/${safeTenantId}`);
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token || null;
+        if (!accessToken) return;
+
+        let response = await fetch(`/api/whatsapp/status/${safeTenantId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
         let status: any = await response.json().catch(() => ({}));
 
         if (response.status === 404) {
           response = await fetch(
-            `/api/whatsapp/status?tenantId=${safeTenantId}&tenant_id=${safeTenantId}`
+            `/api/whatsapp/status?tenantId=${safeTenantId}&tenant_id=${safeTenantId}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
           );
           status = await response.json().catch(() => ({}));
         }

@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { getClientIp, rateLimit } from "../_utils/rateLimit";
 
 export async function POST(req: NextRequest) {
-  const { nombre, empresa, telefono, interes } = await req.json();
+  const ip = getClientIp(req);
+  const rl = await rateLimit({ key: `contact:${ip}`, limit: 10, windowMs: 10 * 60 * 1000 });
+  if (!rl.ok) return NextResponse.json({ ok: false, error: "RATE_LIMITED" }, { status: 429 });
+
+  const { nombre, empresa, telefono, interes } = await req.json().catch(() => ({}));
+
+  if (!nombre || String(nombre).trim().length < 2) {
+    return NextResponse.json({ ok: false, error: "INVALID_INPUT" }, { status: 400 });
+  }
 
   const transporter = nodemailer.createTransport({
     host: process.env.ZOHO_HOST,
