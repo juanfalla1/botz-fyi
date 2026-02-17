@@ -41,6 +41,7 @@ export default function AuthModal({
       setMsg("✅ Sesión iniciada");
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("botz-auth-refresh"));
+        setTimeout(() => window.dispatchEvent(new Event("botz-auth-refresh")), 1500);
       }
       onLoggedIn?.();
       close();
