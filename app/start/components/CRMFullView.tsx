@@ -800,6 +800,8 @@ export default function CRMFullView({
   }, [openControlCenter, authLoading, timeFilter, isAsesor, teamMemberId, tenantId, user?.id, isPlatformAdmin, userRole]);
 
   // Tabla completa en segundo plano (no depende del filtro semanal/mensual)
+  const tableLoadedOnce = useRef(false);
+  
   useEffect(() => {
     if (openControlCenter) return;
     if (!user) return;
@@ -815,25 +817,37 @@ export default function CRMFullView({
     if (!effectiveTenantId) return;
 
     let cancelled = false;
+    const isFirstLoad = !tableLoadedOnce.current;
 
     const run = async () => {
-      setLoadingTable(true);
-      setTableError(null);
-      setTableLeads([]);
+      if (isFirstLoad) {
+        setLoadingTable(true);
+        setTableError(null);
+        setTableLeads([]);
+      }
 
       try {
+        const allLeads: any[] = [];
         await fetchAllLeadsForTable(effectiveTenantId, {
           shouldCancel: () => cancelled,
           onPage: (rows, page) => {
             if (cancelled) return;
             const normalized = (rows || []).map((l) => normalizeLeadRow(l, "leads"));
-            setTableLeads((prev: any[]) => (page === 0 ? normalized : prev.concat(normalized)));
+            if (isFirstLoad) {
+              setTableLeads((prev: any[]) => (page === 0 ? normalized : prev.concat(normalized)));
+            } else {
+              allLeads.push(...normalized);
+            }
           },
         });
+        if (!cancelled && !isFirstLoad) {
+          setTableLeads(allLeads);
+        }
+        if (!cancelled) tableLoadedOnce.current = true;
       } catch (e) {
         if (!cancelled) setTableError(describeError(e));
       } finally {
-        if (!cancelled) setLoadingTable(false);
+        if (!cancelled && isFirstLoad) setLoadingTable(false);
       }
     };
 
