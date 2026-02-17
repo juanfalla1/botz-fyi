@@ -344,10 +344,15 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
 
   useEffect(() => {
     if (canViewExecDashboard && !authLoading) {
+      // Esperar a tener tenantId antes de hacer fetch
+      if (!authTenantId) {
+        console.log('[Dashboard] ⏳ Esperando tenantId...');
+        return;
+      }
       fetchRealData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, canViewExecDashboard, authLoading, selectedMonth, dataRefreshKey]);
+  }, [filter, canViewExecDashboard, authLoading, selectedMonth, dataRefreshKey, authTenantId]);
 
   const fetchRealData = async () => {
     try {

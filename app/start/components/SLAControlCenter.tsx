@@ -540,6 +540,11 @@ export default function SLAControlCenter() {
 
   useEffect(() => {
     if (authLoading) return;
+    // Esperar a tener tenantId antes de hacer fetch
+    if (!tenantId) {
+      console.log('[SLA] ⏳ Esperando tenantId...');
+      return;
+    }
 
     fetchLeads(true); // Primera carga: mostrar loading completo
 

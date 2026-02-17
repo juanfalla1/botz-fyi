@@ -625,6 +625,11 @@ export default function CRMFullView({
   };
 
   useEffect(() => {
+    // Esperar a tener tenantId o ser asesor identificado antes de hacer fetch
+    if (!tenantId && !isAsesor) {
+      console.log('[CRMFullView] ⏳ Esperando tenantId...');
+      return; // No hacer fetch sin tenant
+    }
     fetchData();
   }, [timeFilter, isAsesor, teamMemberId, tenantId]);
 
