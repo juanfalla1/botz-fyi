@@ -38,27 +38,16 @@ export default function AuthModal({
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
-      setMsg("✅ Sesión iniciada");
+      setMsg("✅ Sesión iniciada. Cargando...");
       
-      // Esperar a que la sesión esté completamente establecida
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Obtener sesión confirmada
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (sessionData?.session) {
-        console.log("✅ Sesión confirmada:", sessionData.session.user.email);
-      }
-      
-      // Disparar evento para refrescar estado global
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event("botz-auth-refresh"));
-      }
-      
-      onLoggedIn?.();
-      close();
+      // Cerrar modal y recargar página para asegurar estado correcto
+      setTimeout(() => {
+        onLoggedIn?.();
+        close();
+        window.location.reload();
+      }, 800);
     } catch (e: any) {
       setErr(e?.message || "Error iniciando sesión");
-    } finally {
       setLoading(false);
     }
   }
