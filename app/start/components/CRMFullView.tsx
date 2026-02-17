@@ -737,15 +737,13 @@ export default function CRMFullView({
               .select("id,created_at,name,email,phone,status,origen,source,asesor_id,assigned_to,asesor_nombre,tenant_id")
               .eq("tenant_id", effectiveTenantId)
               .eq("asesor_id", teamMemberId)
-              .order("created_at", { ascending: false })
-              .limit(50),
+              .order("created_at", { ascending: false }),
             supabase
               .from("leads")
               .select("id,created_at,name,email,phone,status,origen,source,asesor_id,assigned_to,asesor_nombre,tenant_id")
               .eq("tenant_id", effectiveTenantId)
               .eq("assigned_to", teamMemberId)
-              .order("created_at", { ascending: false })
-              .limit(50),
+              .order("created_at", { ascending: false }),
           ]);
 
           console.log("[CRM] 🔍 Query 1 (asesor_id):", res1.data?.length || 0, "error:", res1.error?.message || "none");
@@ -768,8 +766,7 @@ export default function CRMFullView({
             .from("leads")
             .select("id,created_at,name,email,phone,status,origen,source,asesor_id,assigned_to,asesor_nombre,tenant_id")
             .eq("tenant_id", effectiveTenantId)
-            .order("created_at", { ascending: false })
-            .limit(50);
+            .order("created_at", { ascending: false });
           
           leadsData = res.data;
           leadsError = res.error;
