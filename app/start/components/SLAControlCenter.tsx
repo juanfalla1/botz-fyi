@@ -494,11 +494,19 @@ export default function SLAControlCenter() {
 
     // Determinar tipo de alerta
     let tipo: "critica" | "por_vencer" | "observacion";
-    if (tiempoRestante < 0 || tiempoRestante < 10) {
+    const porcentajeRestante = (tiempoRestante / config.sla) * 100;
+    
+    if (tiempoRestante <= 0) {
+      // SLA vencido
       tipo = "critica";
-    } else if (tiempoRestante <= 120) {
+    } else if (porcentajeRestante <= 20) {
+      // Menos del 20% del tiempo restante
+      tipo = "critica";
+    } else if (porcentajeRestante <= 50) {
+      // Entre 20% y 50% del tiempo restante
       tipo = "por_vencer";
     } else {
+      // Más del 50% del tiempo restante
       tipo = "observacion";
     }
 
