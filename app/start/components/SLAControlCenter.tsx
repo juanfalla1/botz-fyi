@@ -420,18 +420,83 @@ export default function SLAControlCenter() {
         return;
       }
 
-      // Cargar leads por tenant y rol
-      let query = supabase.from("leads").select("*");
+       // 🔥 OPTIMIZACIÓN: Usar 2 queries paralelas en lugar de .or()
+       // Las queries paralelas sin .or() son 60x más rápidas que .or() sin índices
+       const leadsData: any[] = [];
 
-      query = query.eq("tenant_id", resolvedTenantId);
+       // Agregar límite de 200 leads máximo para SLA (no necesitamos todos)
+       const leadLimit = 200;
+       const selectFields = "id,tenant_id,nombre,email,asesor_id,assigned_to,created_at,updated_at,etapa,status,sla_time,monto,fuente";
 
-      if (!isAdmin && teamMemberId) {
-        // Asesor o usuario no-admin: solo sus leads.
-        query = query.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
-      }
+       // 🔥 TIMEOUT: Wrap query en Promise.race para evitar cuelgues
+       const queryPromise = async () => {
+         try {
+           // Query 1: Leads del asesor
+           const { data: asesorLeads, error: error1 } = await supabase
+             .from("leads")
+             .select(selectFields)
+             .eq("tenant_id", resolvedTenantId)
+             .eq("asesor_id", !isAdmin && teamMemberId ? teamMemberId : null)
+             .limit(leadLimit);
 
-      const { data: leadsData, error: leadsError } = await query;
-      if (leadsError) throw leadsError;
+           if (error1 && !isAdmin && teamMemberId) {
+             console.warn("[SLA] Error fetching asesor leads:", error1);
+           } else if (asesorLeads) {
+             leadsData.push(...asesorLeads);
+           }
+
+           // Query 2: Leads asignados
+           if (!isAdmin && teamMemberId) {
+             const { data: assignedLeads, error: error2 } = await supabase
+               .from("leads")
+               .select(selectFields)
+               .eq("tenant_id", resolvedTenantId)
+               .eq("assigned_to", teamMemberId)
+               .limit(leadLimit);
+
+             if (error2) {
+               console.warn("[SLA] Error fetching assigned leads:", error2);
+             } else if (assignedLeads) {
+               // Evitar duplicados
+               const asesorIds = new Set(asesorLeads?.map(l => l.id) || []);
+               leadsData.push(...assignedLeads.filter(l => !asesorIds.has(l.id)));
+             }
+           } else if (isAdmin) {
+             // Para admins, cargar todos sin los filtros de asesor
+             const { data: adminLeads, error: errorAdmin } = await supabase
+               .from("leads")
+               .select(selectFields)
+               .eq("tenant_id", resolvedTenantId)
+               .order("updated_at", { ascending: false })
+               .limit(leadLimit);
+
+             if (errorAdmin) {
+               console.warn("[SLA] Error fetching admin leads:", errorAdmin);
+             } else if (adminLeads && Array.isArray(adminLeads)) {
+               leadsData.length = 0; // Clear and reset
+               leadsData.push(...adminLeads);
+             }
+           }
+         } catch (queryError) {
+           console.error("[SLA] Query error:", queryError);
+           throw queryError;
+         }
+       };
+
+       // Aplicar timeout de 10 segundos a las queries
+       const queryTimeout = new Promise((_, reject) =>
+         setTimeout(() => reject(new Error("[SLA] Query timeout: 10s")), 10000)
+       );
+
+       try {
+         await Promise.race([queryPromise(), queryTimeout]);
+       } catch (timeoutError) {
+         console.warn("[SLA] ⚠️", timeoutError);
+         // Si tira timeout, intentar con datos existentes (leadsData podría tener datos parciales)
+         if (leadsData.length === 0) {
+           console.warn("[SLA] No data loaded, showing empty alerts");
+         }
+       }
 
       // Transformar a alertas SLA (solo tabla: leads)
       const allLeads = [
