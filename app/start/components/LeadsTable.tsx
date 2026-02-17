@@ -276,7 +276,7 @@ export default function LeadsTable({
   onLeadPatch,
 }: {
   initialLeads: Lead[];
-  session: any;
+  session?: any;
   globalFilter?: string | null;
  onLeadPatch?: ((..._args: any[]) => void) | undefined;
 
@@ -300,6 +300,39 @@ export default function LeadsTable({
 
   const safeLeads = leads || [];
   const t = LEADS_TEXT[language];
+
+  const hydrateLeadChatSummary = async (lead: Lead) => {
+    try {
+      if (!lead?.id) return;
+      // Si ya tenemos el resumen, no volver a pedirlo
+      if ((lead as any).resumen_chat) return;
+
+      const { data, error } = await supabase
+        .from("leads")
+        .select("resumen_chat")
+        .eq("id", lead.id)
+        .maybeSingle();
+
+      if (error) return;
+      const resumen_chat = (data as any)?.resumen_chat || null;
+
+      setLeads((prev) => prev.map((l) => (l.id === lead.id ? ({ ...l, resumen_chat } as any) : l)));
+      setSelectedLead((prev) => (prev && prev.id === lead.id ? ({ ...prev, resumen_chat } as any) : prev));
+      onLeadPatch?.(lead.id, { resumen_chat } as any);
+    } catch {
+      // ignore
+    }
+  };
+
+  const openLead = (lead: Lead) => {
+    setSelectedLead(lead);
+    hydrateLeadChatSummary(lead);
+  };
+
+  useEffect(() => {
+    // Mantener la tabla sincronizada con la data que llega por props (paginada/en background)
+    setLeads(initialLeads || []);
+  }, [initialLeads]);
 
   useEffect(() => {
     const saved = localStorage.getItem("botz-language");
@@ -1141,7 +1174,7 @@ export default function LeadsTable({
                 return (
                   <tr
                     key={lead.id}
-                    onClick={() => setSelectedLead(lead)}
+                    onClick={() => openLead(lead)}
                     style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", cursor: "pointer" }}
                     onMouseEnter={(e) => ((e.currentTarget.style.background = "rgba(255,255,255,0.02)"))}
                     onMouseLeave={(e) => ((e.currentTarget.style.background = "transparent"))}
@@ -1149,7 +1182,7 @@ export default function LeadsTable({
                     <td style={{ padding: "12px 10px", whiteSpace: "nowrap", width: "240px", maxWidth: "240px", overflow: "hidden" }}>
                       <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "nowrap", overflow: "hidden" }} onClick={(e) => e.stopPropagation()}>
                         <button type="button"
-                          onClick={() => setSelectedLead(lead)}
+                          onClick={() => openLead(lead)}
                           title={t.botzSummaryTitle}
                           style={{
                             background: "linear-gradient(90deg, #3b82f6, #8b5cf6)",

@@ -1,4 +1,5 @@
 import "./styles/globals.css";
+import ClientProvider from "./start/client-provider";
 import CookieBanner from "./components/CookieBanner";
 import Header from "./components/Header";
 import type { Metadata } from "next";
@@ -150,7 +151,7 @@ export default function RootLayout({
 
   return (
     <html lang="es">
-      <head>
+        <head>
         {/* Organization */}
         <script
           type="application/ld+json"
@@ -180,7 +181,9 @@ export default function RootLayout({
         />
 
         <Header />
-        {children}
+        <ClientProvider>
+          {children}
+        </ClientProvider>
         <CookieBanner />
       </body>
     </html>

@@ -674,6 +674,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     checkSession();
 
+    const onForceRefresh = () => {
+      if (alive) checkSession();
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("botz-auth-refresh", onForceRefresh as any);
+    }
+
     // ✅ Escuchar cambios de autenticación
     const {
       data: { subscription: authSubscription },
@@ -700,21 +707,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
            if (isPlat) {
              applyPlatformAdminAccess();
              setLoading(false);
-           } else {
-             const tenantId = await detectUserRole(session.user.id, session.user.email || '');
-             if (!alive) return;
-             // Pequeño delay para asegurar que la DB se haya actualizado
-             delayTimer = setTimeout(async () => {
-               try {
-                 if (!alive) return;
-                 await fetchUserSubscription(session.user.id, tenantId);
-               } catch (e) {
-                 console.error("Error en fetchUserSubscription:", e);
-               } finally {
-                 if (alive) setLoading(false);
-               }
-             }, 500);
-           }
+            } else {
+              const tenantId = await detectUserRole(session.user.id, session.user.email || '');
+              if (!alive) return;
+
+              try {
+                await fetchUserSubscription(session.user.id, tenantId);
+              } catch (e) {
+                console.error("Error en fetchUserSubscription:", e);
+              } finally {
+                if (alive) setLoading(false);
+              }
+
+              // Reintento corto por si RLS/metadata tardan en propagarse
+              if (delayTimer) clearTimeout(delayTimer);
+              delayTimer = setTimeout(async () => {
+                try {
+                  if (!alive) return;
+                  await fetchUserSubscription(session.user.id, tenantId);
+                } catch (e) {
+                  console.error("Error en fetchUserSubscription (retry):", e);
+                }
+              }, 1500);
+            }
          } catch (e) {
            console.error("Error en auth handler:", e);
            if (alive) setLoading(false);
@@ -739,6 +754,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authSubscription.unsubscribe();
       if (safetyTimer) clearTimeout(safetyTimer);
       if (delayTimer) clearTimeout(delayTimer);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("botz-auth-refresh", onForceRefresh as any);
+      }
     };
   }, [fetchUserSubscription]);
 

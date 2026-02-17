@@ -39,6 +39,9 @@ export default function AuthModal({
       if (error) throw error;
 
       setMsg("✅ Sesión iniciada");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("botz-auth-refresh"));
+      }
       onLoggedIn?.();
       close();
     } catch (e: any) {

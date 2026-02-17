@@ -919,21 +919,49 @@ const cuotaVariableEscenarios = pmt(principalEscenarios, tasaVariableEscenarios 
   const [loadingTasas, setLoadingTasas] = useState(false);
 
   useEffect(() => {
-    if (pais === "Colombia" && score > 40) {
-      setLoadingTasas(true);
-      getTasasBancolombia()
-        .then(data => {
-          if (validateTasasResponse(data)) {
-            setTasasReales(data);
-          } else {
-            setTasasReales(getTasasFallback('bancolombia'));
-          }
-        })
-        .catch(() => {
-          setTasasReales(getTasasFallback('bancolombia'));
-        })
-        .finally(() => setLoadingTasas(false));
+    if (pais !== "Colombia" || score <= 40) return;
+
+    const cacheKey = "botz-hipoteca-tasas-colombia";
+    const cacheTtlMs = 60 * 60 * 1000; // 1h
+
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(cacheKey) : null;
+      if (raw) {
+        const cached = JSON.parse(raw);
+        if (cached?.at && Date.now() - Number(cached.at) < cacheTtlMs && Array.isArray(cached.data)) {
+          setTasasReales(cached.data);
+          return;
+        }
+      }
+    } catch {
+      // ignore
     }
+
+    setLoadingTasas(true);
+    getTasasBancolombia()
+      .then(data => {
+        const resolved = validateTasasResponse(data) ? data : getTasasFallback('bancolombia');
+        setTasasReales(resolved);
+        try {
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), data: resolved }));
+          }
+        } catch {
+          // ignore
+        }
+      })
+      .catch(() => {
+        const fallback = getTasasFallback('bancolombia');
+        setTasasReales(fallback);
+        try {
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), data: fallback }));
+          }
+        } catch {
+          // ignore
+        }
+      })
+      .finally(() => setLoadingTasas(false));
   }, [pais, score]);
 
   const tr = (esText: string, enText: string) => (language === "en" ? enText : esText);

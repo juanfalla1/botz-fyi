@@ -26,6 +26,7 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
   // ✅ para poder limpiar intervalos/timeouts al cerrar
   const pollingRef = useRef<number | null>(null);
   const timeoutRef = useRef<number | null>(null);
+  const isOpenRef = useRef(false);
   
   // ✅ Prevenir llamadas duplicadas a initConnection
   const isConnectingRef = useRef(false);
@@ -74,6 +75,7 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
   };
 
   useEffect(() => {
+    isOpenRef.current = isOpen;
     if (isOpen) {
       (async () => {
         setError(null);
@@ -101,6 +103,7 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
       })();
     } else {
       stopPolling();
+      isConnectingRef.current = false;
       setConnectionData(null);
       setError(null);
       setLoading(false);
@@ -231,6 +234,7 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
         throw new Error(data?.error || `Error ${response.status} al iniciar conexión`);
       }
 
+      if (!isOpenRef.current) return;
       setConnectionData(data);
 
       if (data?.connection_type === "already_connected") {
@@ -239,20 +243,21 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({
       }
 
       if (data.connection_type === "qr") {
-        startPolling(tid);
+        if (isOpenRef.current) startPolling(tid);
       } else if (data.connection_type === "oauth") {
         window.location.href = data.auth_url;
       }
     } catch (err: any) {
       console.error("[WhatsApp] Error en initConnection:", err);
-      setError(err.message || "Error al iniciar conexión");
+      if (isOpenRef.current) setError(err.message || "Error al iniciar conexión");
     } finally {
       isConnectingRef.current = false;
-      setLoading(false);
+      if (isOpenRef.current) setLoading(false);
     }
   };
 
   const startPolling = (tidFromCall?: string) => {
+    if (!isOpenRef.current) return;
     const tid = normalizeTenantId(tidFromCall || getTenantId());
     if (!tid) {
       setError("tenantId is required");

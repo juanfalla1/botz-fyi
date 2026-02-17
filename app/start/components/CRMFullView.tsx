@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import { 
   Users, Calendar, Activity, TrendingUp, BarChart3, Globe, PieChart as PieIcon,
@@ -11,8 +11,6 @@ import {
   PieChart, Pie, Cell, AreaChart, Area 
 } from "recharts";
 import LeadsTable, { Lead } from "./LeadsTable";
-import LoginForm from "./LoginForm";
-import RegistroAsesor from "./RegistroAsesor";
 import TeamManagement from "./TeamManagement";
 import PlatformTenantsView from "./PlatformTenantsView";
 import { useAuth } from "../MainLayout";
@@ -123,7 +121,7 @@ const CONTROL_TEXT: Record<AppLanguage, Record<string, string>> = {
     saved: "Configuracion guardada.",
     saveError: "Error al guardar.",
     quantity: "Cantidad",
-    weekly: "Semanal (5d)",
+    weekly: "Semanal (7d)",
     monthly: "Mensual",
     controlCenterBtn: "Centro de Control",
     totalLeads: "Leads Totales",
@@ -170,7 +168,7 @@ const CONTROL_TEXT: Record<AppLanguage, Record<string, string>> = {
     saved: "Configuration saved.",
     saveError: "Error while saving.",
     quantity: "Count",
-    weekly: "Weekly (5d)",
+    weekly: "Weekly (7d)",
     monthly: "Monthly",
     controlCenterBtn: "Control Center",
     totalLeads: "Total Leads",
@@ -211,15 +209,17 @@ export default function CRMFullView({
   const [metricRows, setMetricRows] = useState<Lead[]>([]);
   const [tableLeads, setTableLeads] = useState<Lead[]>([]);
   const [leadCounts, setLeadCounts] = useState<{ total: number; month: number; converted: number } | null>(null);
-  const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [loadingTable, setLoadingTable] = useState(false);
+  const [tableError, setTableError] = useState<string | null>(null);
+  const tableTenantRef = useRef<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<'week' | 'month'>('month');
-  const [authView, setAuthView] = useState<"login" | "register">("login");
-  const { isAdmin, isAsesor, isPlatformAdmin, hasPermission, user, tenantId, teamMemberId, userPlan, subscription } = useAuth(); // Hook para detectar rol y obtener datos
-   
+  const { isAdmin, isAsesor, isPlatformAdmin, userRole, hasPermission, user, tenantId, teamMemberId, userPlan, subscription, loading: authLoading } = useAuth(); // Hook para detectar rol y obtener datos
+ 
   // ESTADOS PARA EL MODAL
-  const [showConfig, setShowConfig] = useState(false);
-  const [activeConfigTab, setActiveConfigTab] = useState("canales");
+  const [showConfig, setShowConfig] = useState(!!openControlCenter);
+  const [activeConfigTab, setActiveConfigTab] = useState(initialControlTab || "canales");
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [language, setLanguage] = useState<AppLanguage>("es");
   const t = CONTROL_TEXT[language];
@@ -300,13 +300,12 @@ export default function CRMFullView({
   const loadAccountSummary = async () => {
     try {
       setAccountLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!user) return;
 
       const resolvedTenantId =
         tenantId ||
-        session.user?.user_metadata?.tenant_id ||
-        session.user?.app_metadata?.tenant_id ||
+        user?.user_metadata?.tenant_id ||
+        user?.app_metadata?.tenant_id ||
         null;
 
       const monthStart = new Date();
@@ -345,7 +344,7 @@ export default function CRMFullView({
       const { data: channelsData } = await supabase
         .from("user_configs")
         .select("channel")
-        .eq("user_id", session.user.id);
+        .eq("user_id", user?.id);
 
       channelsUsed = new Set((channelsData || []).map((c: any) => c.channel)).size;
 
@@ -415,7 +414,13 @@ export default function CRMFullView({
   };
 
   // Tabla: base completa (pero solo columnas necesarias) para no "perder" leads antiguos.
-  const fetchAllLeadsForTable = async (effectiveTenantId: string | null) => {
+  const fetchAllLeadsForTable = async (
+    effectiveTenantId: string | null,
+    opts?: {
+      onPage?: (rows: any[], page: number) => void;
+      shouldCancel?: () => boolean;
+    }
+  ) => {
     // Columnas usadas por LeadsTable (mantener payload liviano)
     const selectCols = [
       "id",
@@ -434,15 +439,14 @@ export default function CRMFullView({
       "estado_operacion",
       "tenant_id",
       "user_id",
-      "resumen_chat",
-      "ultimo_mensaje_bot",
     ].join(",");
 
-    const pageSize = 1000;
-    const maxPages = 20;
+    const pageSize = 500;
+    const maxPages = 50;
     let out: any[] = [];
 
     for (let page = 0; page < maxPages; page++) {
+      if (opts?.shouldCancel?.()) break;
       const from = page * pageSize;
       const to = from + pageSize - 1;
 
@@ -461,6 +465,8 @@ export default function CRMFullView({
       if (error) throw error;
 
       const rows = (data || []) as any[];
+      if (opts?.shouldCancel?.()) break;
+      opts?.onPage?.(rows, page);
       out = out.concat(rows);
 
       if (rows.length < pageSize) break;
@@ -489,7 +495,7 @@ export default function CRMFullView({
     const base = () => {
       let q: any = supabase
         .from("leads")
-        .select("id", { count: "exact", head: true })
+        .select("id", { count: "planned", head: true })
         .eq("tenant_id", effectiveTenantId);
 
       if (isAsesor && teamMemberId) {
@@ -511,142 +517,332 @@ export default function CRMFullView({
     };
   };
 
-  const fetchData = async () => {
-    // Safety timeout: force loading=false after 15s if anything hangs
-    const safetyTimer = setTimeout(() => {
-      console.warn('[CRMFullView] ⚠️ Safety timeout: forcing loading=false after 15s');
-      setLoading(false);
-    }, 15000);
+  const normalizeLeadRow = (l: any, sourceTable: string) => {
+    const rawOrigin = l?.origen || l?.source || l?.channel || "";
+    return {
+      ...l,
+      sourceTable,
+      status: (String(l.status || "nuevo").toLowerCase() === "nuevo" ? "Nuevo" : (l.status || "Nuevo")),
+      created_at: l.created_at || new Date().toISOString(),
+      origen: String(rawOrigin).trim(),
+    };
+  };
+
+  const describeError = (err: any) => {
+    const message =
+      err?.message ||
+      err?.error_description ||
+      err?.details ||
+      err?.hint ||
+      err?.code ||
+      null;
+
+    if (message) return String(message);
 
     try {
-      setLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
+      const s = JSON.stringify(err);
+      if (s && s !== "{}") return s;
+    } catch {
+      // ignore
+    }
 
-      if (session) {
-        const days = timeFilter === 'week' ? 5 : 30;
+    return String(err || "Unknown error");
+  };
 
-        const effectiveTenantId =
-          tenantId ||
-          session.user?.user_metadata?.tenant_id ||
-          session.user?.app_metadata?.tenant_id ||
-          null;
-
-        // Consultas en paralelo: tabla completa + ventana reciente + tracker
-        const since = new Date();
-        since.setDate(since.getDate() - days);
-
-        const allLeadsPromise = fetchAllLeadsForTable(effectiveTenantId).catch((e) => {
-          console.error("Error fetching full leads table:", e);
-          return [] as any[];
-        });
-
-        const recentLeadsPromise = (async () => {
-          let recentQuery = supabase
-            .from("leads")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .gte("created_at", since.toISOString())
-            .limit(2000);
-
-          if (effectiveTenantId) recentQuery = recentQuery.eq("tenant_id", effectiveTenantId);
-          if (isAsesor && teamMemberId) {
-            recentQuery = recentQuery.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
-          }
-
-          const { data, error } = await recentQuery;
-          if (error) throw error;
-          return (data || []) as any[];
-        })().catch((e) => {
-          console.error("Error fetching recent leads:", e);
-          return [] as any[];
-        });
-
-        const trackerPromise = fetchRecentFromTable(
-          "demo_tracker_botz",
-          days,
-          "user_id",
-          session.user.id,
-          null,
-          2000
-        ).catch(() => [] as any[]);
-
-        const [allLeadsData, recentLeadsData, trackerData] = await Promise.all([
-          allLeadsPromise,
-          recentLeadsPromise,
-          trackerPromise,
-        ]);
-
-        try {
-          const counts = await fetchLeadCounts(effectiveTenantId);
-          setLeadCounts(counts);
-        } catch (e) {
-          console.warn("No se pudieron cargar conteos de leads:", e);
-          setLeadCounts(null);
-        }
-
-        const normalize = (arr: any[], source: string) => arr.map((l) => {
-            let rawOrigin = l.origen || l.source || l.channel;
-            if (!rawOrigin || (typeof rawOrigin === 'string' && rawOrigin.trim() === "")) {
-                rawOrigin = "";
-            }
-            return {
-                ...l,
-                sourceTable: source,
-                // Cambia la línea 156 por esta:
-                status: (String(l.status || "nuevo").toLowerCase() === "nuevo" ? "Nuevo" : (l.status || "Nuevo")),
-                created_at: l.created_at || new Date().toISOString(),
-                origen: String(rawOrigin).trim()
-            };
-        });
-
-        // Tabla solo con leads (no tracker)
-        const normalizedTableLeads = (allLeadsData || []).map((l) => ({
-          ...l,
-          sourceTable: "leads",
-          status: (String(l.status || "nuevo").toLowerCase() === "nuevo" ? "Nuevo" : (l.status || "Nuevo")),
-          created_at: l.created_at || new Date().toISOString(),
-          origen: String((l.origen || l.source || "")).trim(),
-        }));
-
-        setTableLeads(
-          normalizedTableLeads.sort((a: any, b: any) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime())
-        );
-
-        // Graficos con ventana (leads + tracker)
-        const metricData = [
-          ...normalize(recentLeadsData || [], "leads"),
-          ...normalize(trackerData || [], "demo_tracker_botz"),
-        ];
-
-        setMetricRows(
-          metricData.sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime())
-        );
-      }
-    } catch (error) {
-      console.error("Error fetching data:", error);
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+    let t: any;
+    const timeout = new Promise<T>((_resolve, reject) => {
+      t = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
+    });
+    try {
+      return await Promise.race([promise, timeout]);
     } finally {
-      clearTimeout(safetyTimer);
-      setLoading(false);
+      clearTimeout(t);
     }
   };
 
-  useEffect(() => {
-    // Hacer fetch inmediatamente, pero tenantId puede ser null inicialmente
-    // El fetchData internamente manejará la falta de tenantId
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeFilter, isAsesor, teamMemberId, tenantId]);
+  const readCache = (key: string) => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(key) : null;
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+      return parsed as any;
+    } catch {
+      return null;
+    }
+  };
 
-  // Safety timeout: si loading no se resuelve en 10s, forzar false
+  const writeCache = (key: string, value: any) => {
+    try {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // ignore
+    }
+  };
+
+  // Cargar solo lo necesario para que la pestaña abra rapido:
+  // - Metricas + conteos: rapido (bloquea lo minimo)
+  // - Tabla completa: en segundo plano (no bloquea el panel)
   useEffect(() => {
-    if (!loading) return;
-    const timer = setTimeout(() => {
-      console.warn('[CRMFullView] ⚠️ Safety timeout: forcing loading=false after 10s');
-      setLoading(false);
-    }, 10000);
-    return () => clearTimeout(timer);
-  }, [loading]);
+    if (openControlCenter) return; // Control Center como tab: no cargar CRM
+    if (authLoading) return;
+    if (!user) return;
+    // Evita "flicker" en refresh: espera a que el rol este resuelto
+    if (!isPlatformAdmin && !userRole) return;
+
+    let cancelled = false;
+    const run = async () => {
+      setLoadingMetrics(true);
+      setMetricsError(null);
+      try {
+        const days = timeFilter === "week" ? 7 : 30;
+
+        const effectiveTenantId =
+          tenantId ||
+          user?.user_metadata?.tenant_id ||
+          user?.app_metadata?.tenant_id ||
+          null;
+
+        if (!effectiveTenantId && isPlatformAdmin) {
+          setLeadCounts(null);
+          setMetricRows([]);
+          setTableLeads([]);
+          setMetricsError("Selecciona un cliente/tenant en Centro de Control");
+          return;
+        }
+
+        // Para usuarios normales, esperamos a tener tenantId para evitar consultas sin index (lentas)
+        if (!effectiveTenantId) {
+          return;
+        }
+
+        const cacheKey = `botz-crm-recent:${effectiveTenantId}:${isAsesor && teamMemberId ? teamMemberId : "all"}`;
+        const cached = readCache(cacheKey);
+        const cacheTtlMs = 10 * 60 * 1000;
+        const cacheFresh = cached?.at && Date.now() - Number(cached.at) < cacheTtlMs;
+        if (cacheFresh) {
+          if (Array.isArray(cached.tableLeads) && tableLeads.length === 0) {
+            setTableLeads(cached.tableLeads);
+          }
+          if (Array.isArray(cached.metricRows) && metricRows.length === 0) {
+            setMetricRows(cached.metricRows);
+          }
+          if (cached.leadCounts && !leadCounts) {
+            setLeadCounts(cached.leadCounts);
+          }
+        }
+
+        // Si el cache esta fresco, evita reconsultar y evita timeouts
+        if (cacheFresh && (tableLeads.length > 0 || metricRows.length > 0)) {
+          setMetricsError(null);
+          return;
+        }
+
+        const since = new Date();
+        since.setDate(since.getDate() - days);
+
+        const recentSelect = [
+          "id",
+          "created_at",
+          "name",
+          "email",
+          "phone",
+          "status",
+          "next_action",
+          "calificacion",
+          "origen",
+          "source",
+          "asesor_id",
+          "assigned_to",
+          "asesor_nombre",
+          "estado_operacion",
+          "tenant_id",
+          "user_id",
+        ].join(",");
+
+        const recentSelectFallback = [
+          "id",
+          "created_at",
+          "name",
+          "email",
+          "phone",
+          "status",
+          "origen",
+          "source",
+          "asesor_id",
+          "assigned_to",
+          "asesor_nombre",
+          "tenant_id",
+        ].join(",");
+
+        const fetchRecent = async (opts: { limit: number; order: boolean; window: boolean; select: string }) => {
+          const build = (extra: { field?: "asesor_id" | "assigned_to" } = {}) => {
+            let q: any = supabase
+              .from("leads")
+              .select(opts.select)
+              .limit(opts.limit);
+
+            q = q.eq("tenant_id", effectiveTenantId);
+            if (opts.window) q = q.gte("created_at", since.toISOString());
+            if (opts.order) q = q.order("created_at", { ascending: false });
+            if (extra.field && teamMemberId) q = q.eq(extra.field, teamMemberId);
+            return q;
+          };
+
+          if (isAsesor && teamMemberId) {
+            // Evitar OR (suele romper indices). Hacemos 2 queries paralelas y unimos.
+            const [r1, r2] = await Promise.all([build({ field: "asesor_id" }), build({ field: "assigned_to" })]);
+            if (r1.error) throw r1.error;
+            if (r2.error) throw r2.error;
+            const a = (r1.data || []) as any[];
+            const b = (r2.data || []) as any[];
+            const byId = new Map<string, any>();
+            for (const row of a.concat(b)) byId.set(String(row?.id), row);
+            return Array.from(byId.values());
+          }
+
+          const { data, error } = await build();
+          if (error) throw error;
+          return (data || []) as any[];
+        };
+
+        let recentLeadsData: any[] = [];
+        try {
+          recentLeadsData = await withTimeout(
+            // No filtrar por fecha en DB (puede ser lento sin indices); filtramos en cliente para semanal/mensual
+            fetchRecent({ limit: 250, order: true, window: false, select: recentSelect }),
+            20_000,
+            "recent leads"
+          );
+        } catch (e) {
+          const msg = describeError(e);
+          console.warn("[CRM] recent leads slow/fail:", msg);
+
+          // Fallback rapido: quitar ORDER/ventana + select mas liviano para evitar sorts/scans pesados
+          try {
+            recentLeadsData = await withTimeout(
+              fetchRecent({ limit: 80, order: false, window: false, select: recentSelectFallback }),
+              10_000,
+              "recent leads fallback"
+            );
+            if (!cancelled) setMetricsError(null);
+          } catch (e2) {
+            const msg2 = describeError(e2);
+            console.warn("[CRM] recent leads fallback slow/fail:", msg2);
+            if (!cancelled && tableLeads.length === 0 && metricRows.length === 0) {
+              setMetricsError((prev) => prev || msg2);
+            }
+            recentLeadsData = [];
+          }
+        }
+
+        const trackerPromise = withTimeout(
+          fetchRecentFromTable(
+            "demo_tracker_botz",
+            days,
+            "user_id",
+            user?.id,
+            null,
+            2000
+          ),
+          12_000,
+          "tracker"
+        ).catch(() => [] as any[]);
+
+        const countsPromise = effectiveTenantId
+          ? withTimeout(fetchLeadCounts(effectiveTenantId), 8_000, "lead counts").catch((e) => {
+              console.warn("No se pudieron cargar conteos de leads:", describeError(e));
+              return null;
+            })
+          : Promise.resolve(null);
+
+        const [trackerData, counts] = await Promise.all([trackerPromise, countsPromise]);
+
+        if (cancelled) return;
+        if (counts) setLeadCounts(counts);
+
+        // Tabla (sin base completa): usar la ventana reciente para que cargue rapido
+        const normalizedTable = (recentLeadsData || []).map((l) => normalizeLeadRow(l, "leads")) as any[];
+        // Ordenar en cliente por si venimos del fallback (sin ORDER)
+        normalizedTable.sort((a: any, b: any) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime());
+        setTableLeads(normalizedTable as any);
+
+        const metricData = [
+          ...(recentLeadsData || []).map((l) => normalizeLeadRow(l, "leads")),
+          ...(trackerData || []).map((l) => normalizeLeadRow(l, "demo_tracker_botz")),
+        ];
+
+        setMetricRows(
+          metricData.sort((a: any, b: any) =>
+            new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime()
+          )
+        );
+
+        writeCache(cacheKey, {
+          at: Date.now(),
+          tableLeads: normalizedTable,
+          metricRows: metricData,
+          leadCounts: counts,
+        });
+      } finally {
+        if (!cancelled) setLoadingMetrics(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [openControlCenter, authLoading, timeFilter, isAsesor, teamMemberId, tenantId, user?.id, isPlatformAdmin, userRole]);
+
+  // Tabla completa en segundo plano (no depende del filtro semanal/mensual)
+  useEffect(() => {
+    if (openControlCenter) return;
+    if (authLoading) return;
+    if (!user) return;
+    if (!isPlatformAdmin && !userRole) return;
+
+    let cancelled = false;
+    const run = async () => {
+      const effectiveTenantId =
+        tenantId ||
+        user?.user_metadata?.tenant_id ||
+        user?.app_metadata?.tenant_id ||
+        null;
+
+      if (!effectiveTenantId && isPlatformAdmin) return;
+      if (!effectiveTenantId) return;
+
+      if (tableTenantRef.current === effectiveTenantId && tableLeads.length > 0) return;
+      tableTenantRef.current = effectiveTenantId;
+
+      setLoadingTable(true);
+      setTableError(null);
+      setTableLeads([]);
+
+      try {
+        await fetchAllLeadsForTable(effectiveTenantId, {
+          shouldCancel: () => cancelled,
+          onPage: (rows, page) => {
+            if (cancelled) return;
+            const normalized = (rows || []).map((l) => normalizeLeadRow(l, "leads"));
+            setTableLeads((prev: any[]) => (page === 0 ? normalized : prev.concat(normalized)));
+          },
+        });
+      } catch (e) {
+        if (!cancelled) setTableError(describeError(e));
+      } finally {
+        if (!cancelled) setLoadingTable(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [openControlCenter, authLoading, user?.id, tenantId, isPlatformAdmin, userRole, isAsesor, teamMemberId]);
 
   // Lógica de filtrado unificada (Fecha + Filtro Global del Dock + Rol)
   const filteredLeads = metricRows.filter(l => {
@@ -662,7 +858,7 @@ export default function CRMFullView({
     if (!l.created_at) return false;
     const date = new Date(l.created_at);
     const now = new Date();
-    const daysToSubtract = timeFilter === 'week' ? 5 : 30; 
+    const daysToSubtract = timeFilter === 'week' ? 7 : 30; 
     const limitDate = new Date();
     limitDate.setDate(now.getDate() - daysToSubtract);
     
@@ -678,12 +874,21 @@ export default function CRMFullView({
     return matchesDate && matchesGlobal;
   });
 
-  const totalLeads = leadCounts?.total ?? tableLeads.length;
-  const leadsMes = leadCounts?.month ?? tableLeads.filter(l => l.created_at && new Date(l.created_at) >= new Date(new Date().getFullYear(), new Date().getMonth(), 1)).length;
-  const convertidos = leadCounts?.converted ?? tableLeads.filter(l => ["convertido", "cerrado", "vendido", "firmado"].includes((l.status || "").toLowerCase())).length;
+  const tableMonth = tableLeads.filter(l => l.created_at && new Date(l.created_at) >= new Date(new Date().getFullYear(), new Date().getMonth(), 1)).length;
+  const tableConverted = tableLeads.filter(l => ["convertido", "cerrado", "vendido", "firmado"].includes((l.status || "").toLowerCase())).length;
+
+  const totalLeads = leadCounts?.total && leadCounts.total >= tableLeads.length
+    ? leadCounts.total
+    : tableLeads.length;
+  const leadsMes = leadCounts?.month && leadCounts.month >= tableMonth
+    ? leadCounts.month
+    : tableMonth;
+  const convertidos = leadCounts?.converted && leadCounts.converted >= tableConverted
+    ? leadCounts.converted
+    : tableConverted;
   const tasaConversion = totalLeads > 0 ? ((convertidos / totalLeads) * 100).toFixed(1) : "0";
 
-  const daysToShow = timeFilter === 'week' ? 5 : 30;
+  const daysToShow = timeFilter === 'week' ? 7 : 30;
   const activityData = Array.from({ length: daysToShow }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (daysToShow - 1 - i)); 
@@ -715,59 +920,40 @@ export default function CRMFullView({
     name, value, color: COLORS[(i + 2) % COLORS.length]
   }));
 
-  if (loading) return <div style={{ display: "flex", justifyContent: "center", padding: "100px" }}><Loader2 className="animate-spin" size={32} color="#10b2cb" /></div>;
-  
-  // ✅ CAMBIO 3: Render de login/registro
-  if (!session) {
-    if (authView === "login") {
-      return (
-        <div style={{ minHeight: "80vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <LoginForm 
-            onSuccess={fetchData} 
-            onRegisterClick={() => setAuthView("register")}
-          />
-        </div>
-      );
-    } else {
-      return (
-        <div style={{ minHeight: "80vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <RegistroAsesor
-            onSuccess={() => setAuthView("login")}
-            onLoginClick={() => setAuthView("login")}
-          />
-        </div>
-      );
-    }
-  }
+  const rolePending = !openControlCenter && !isPlatformAdmin && !userRole;
+
+  // No bloquear la pestaña con un loader de pantalla completa
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "30px", width: "100%" }}>
-      
-      {/* HEADER INTEGRADO */}
-      <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "center" }}>
-        <div style={{ display: "flex", gap: "8px", background: "rgba(30, 41, 59, 0.5)", padding: "4px", borderRadius: "12px", border: "1px solid rgba(71, 85, 105, 0.5)" }}>
-            <button onClick={() => setTimeFilter('week')} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", cursor: "pointer", border: "none", background: timeFilter === 'week' ? "#3b82f6" : "transparent", color: "white" }}>{t.weekly}</button>
-            <button onClick={() => setTimeFilter('month')} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", cursor: "pointer", border: "none", background: timeFilter === 'month' ? "#3b82f6" : "transparent", color: "white" }}>{t.monthly}</button>
-        </div>
-      </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
-        {[
-          { label: t.totalLeads, val: totalLeads, icon: <Users color="#60a5fa" />, sub: t.fullDatabaseShort },
-          { label: t.leadsThisMonth, val: leadsMes, icon: <Calendar color="#facc15" />, sub: t.sinceDay1 },
-          { label: t.conversionRate, val: `${tasaConversion}%`, icon: <TrendingUp color="#10b981" />, sub: `${convertidos} ${t.salesShort}` },
-          { label: t.activeChannels, val: channelData.length, icon: <Activity color="#e879f9" />, sub: t.trafficSources },
-        ].map((kpi, i) => (
-          <div key={i} style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}><span style={{ color: "#94a3b8", fontSize: "14px" }}>{kpi.label}</span>{kpi.icon}</div>
-            <div style={{ fontSize: "28px", fontWeight: "bold", color: "#fff" }}>{kpi.val}</div>
-            <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>{kpi.sub}</div>
+      {!openControlCenter && (
+        <>
+          {/* HEADER INTEGRADO */}
+          <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: "8px", background: "rgba(30, 41, 59, 0.5)", padding: "4px", borderRadius: "12px", border: "1px solid rgba(71, 85, 105, 0.5)" }}>
+              <button onClick={() => setTimeFilter('week')} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", cursor: "pointer", border: "none", background: timeFilter === 'week' ? "#3b82f6" : "transparent", color: "white" }}>{t.weekly}</button>
+              <button onClick={() => setTimeFilter('month')} style={{ padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", cursor: "pointer", border: "none", background: timeFilter === 'month' ? "#3b82f6" : "transparent", color: "white" }}>{t.monthly}</button>
+            </div>
           </div>
-        ))}
-      </div>
 
-      {/* GRÁFICOS CON TÍTULOS */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: "20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
+            {[
+              { label: t.totalLeads, val: totalLeads, icon: <Users color="#60a5fa" />, sub: t.fullDatabaseShort },
+              { label: t.leadsThisMonth, val: leadsMes, icon: <Calendar color="#facc15" />, sub: t.sinceDay1 },
+              { label: t.conversionRate, val: `${tasaConversion}%`, icon: <TrendingUp color="#10b981" />, sub: `${convertidos} ${t.salesShort}` },
+              { label: t.activeChannels, val: channelData.length, icon: <Activity color="#e879f9" />, sub: t.trafficSources },
+            ].map((kpi, i) => (
+              <div key={i} style={cardStyle}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}><span style={{ color: "#94a3b8", fontSize: "14px" }}>{kpi.label}</span>{kpi.icon}</div>
+                <div style={{ fontSize: "28px", fontWeight: "bold", color: "#fff" }}>{kpi.val}</div>
+                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>{kpi.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* GRÁFICOS CON TÍTULOS */}
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: "20px" }}>
         <div style={{ ...cardStyle, minHeight: "300px" }}>
           <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}><BarChart3 size={18} color="#60a5fa" /> {t.flowLast} {timeFilter === 'week' ? t.days5 : t.days30}</h3>
           <ResponsiveContainer width="100%" height="100%">
@@ -806,19 +992,48 @@ export default function CRMFullView({
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
+          </div>
 
-      {/* ✅ Tabla: base completa (no solo 30 dias) */}
-      <LeadsTable
-        initialLeads={tableLeads}
-        session={session}
-        globalFilter={globalFilter}
-        onLeadPatch={(id, patch) => {
-          setTableLeads((prev: any[]) =>
-            prev.map((l: any) => (String(l.id) === String(id) ? { ...l, ...patch } : l))
-          );
-        }}
-      />
+          {/* ✅ Tabla: base completa (no solo 30 dias) */}
+          {rolePending && tableLeads.length === 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#94a3b8", fontSize: 13 }}>
+              <Loader2 className="animate-spin" size={16} color="#10b2cb" />
+              Cargando permisos...
+            </div>
+          )}
+
+          {loadingTable && tableLeads.length === 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#94a3b8", fontSize: 13 }}>
+              <Loader2 className="animate-spin" size={16} color="#10b2cb" />
+              Cargando base completa de leads...
+            </div>
+          )}
+
+          {tableError && tableLeads.length === 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#fbbf24", fontSize: 13 }}>
+              <AlertTriangle size={16} color="#fbbf24" />
+              No se pudo cargar la tabla completa: {tableError}
+            </div>
+          )}
+
+          {metricsError && tableLeads.length === 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#fbbf24", fontSize: 13 }}>
+              <AlertTriangle size={16} color="#fbbf24" />
+              No se pudo cargar el CRM: {metricsError}
+            </div>
+          )}
+
+          <LeadsTable
+            initialLeads={tableLeads}
+            globalFilter={globalFilter}
+            onLeadPatch={(id, patch) => {
+              setTableLeads((prev: any[]) =>
+                prev.map((l: any) => (String(l.id) === String(id) ? { ...l, ...patch } : l))
+              );
+            }}
+          />
+        </>
+      )}
 
 
       {/* ✅ MODAL CONFIGURACIÓN CON PERSISTENCIA */}
@@ -975,14 +1190,14 @@ function PersistConfigForm({ channelId, onBack, language }: { channelId: string,
   const [formData, setFormData] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     const load = async () => {
+      if (!user?.id) return;
       try {
         setLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-        const { data } = await supabase.from("user_configs").select("settings").eq("user_id", session.user.id).eq("channel", channelId).maybeSingle();
+        const { data } = await supabase.from("user_configs").select("settings").eq("user_id", user.id).eq("channel", channelId).maybeSingle();
         if (data?.settings) setFormData(data.settings);
         else {
           const initialData = schema.fields.reduce((acc: any, f: any) => { if (f.defaultValue) acc[f.id] = f.defaultValue; return acc; }, {});
@@ -991,15 +1206,14 @@ function PersistConfigForm({ channelId, onBack, language }: { channelId: string,
       } finally { setLoading(false); }
     };
     load();
-  }, [channelId]);
+  }, [channelId, user?.id]);
 
   const save = async () => {
+    if (!user?.id) return;
     try {
       setSaving(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
       const { error } = await supabase.from("user_configs").upsert({
-          user_id: session.user.id, channel: channelId, settings: formData, updated_at: new Date().toISOString()
+          user_id: user.id, channel: channelId, settings: formData, updated_at: new Date().toISOString()
       }, { onConflict: 'user_id, channel' });
       if (error) throw error;
       alert(`✅ ${t.saved}`);

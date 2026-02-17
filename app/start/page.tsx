@@ -592,30 +592,35 @@ export default function BotzLandingExperience() {
         </div>
       )}
 
-      {user && activeTab === "kanban" && <KanbanBoard globalFilter={globalFilter ?? undefined} />} 
+      <div style={{ display: activeTab === "kanban" ? "block" : "none" }}>
+        <KanbanBoard globalFilter={globalFilter ?? undefined} />
+      </div>
       
-      {user && activeTab === "sla" && <SLAControlCenter />}
+      <div style={{ display: activeTab === "sla" ? "block" : "none" }}>
+        <SLAControlCenter />
+      </div>
       
-      {user && activeTab === "n8n-config" && (isAdmin || isPlatformAdmin || hasPermission("view_exec_dashboard")) && (
-        <ExecutiveDashboard filter={globalFilter ?? undefined} />
-      )}
-      {user && activeTab === "n8n-config" && isAsesor && !(isAdmin || isPlatformAdmin || hasPermission("view_exec_dashboard")) && (
-        <div style={{
-          display: "flex",
-          alignItems: "center", 
-          justifyContent: "center",
-          height: "400px",
-          color: "#94a3b8"
-        }}>
-          <div style={{ textAlign: "center" }}>
-            <ShieldCheck size={48} style={{ marginBottom: "16px", opacity: 0.5 }} />
-            <h3 style={{ fontSize: "18px", marginBottom: "8px" }}>Acceso Restringido</h3>
-            <p>Esta función requiere permisos de Dashboard Ejecutivo</p>
+      <div style={{ display: activeTab === "n8n-config" ? "block" : "none" }}>
+        {(isAdmin || isPlatformAdmin || hasPermission("view_exec_dashboard")) ? (
+          <ExecutiveDashboard filter={globalFilter ?? undefined} />
+        ) : isAsesor ? (
+          <div style={{
+            display: "flex",
+            alignItems: "center", 
+            justifyContent: "center",
+            height: "400px",
+            color: "#94a3b8"
+          }}>
+            <div style={{ textAlign: "center" }}>
+              <ShieldCheck size={48} style={{ marginBottom: "16px", opacity: 0.5 }} />
+              <h3 style={{ fontSize: "18px", marginBottom: "8px" }}>Acceso Restringido</h3>
+              <p>Esta función requiere permisos de Dashboard Ejecutivo</p>
+            </div>
           </div>
-        </div>
-      )}
+        ) : null}
+      </div>
 
-      {/* Tabs restringidos: si no hay usuario, ocultar contenido */}
+      {/* Tabs restringidos: si no hay usuario, mostrar cargando en lugar de login */}
       {!user && !authLoading && activeTab !== "demo" && (
         <div style={{
           height: "calc(100vh - 120px)",
@@ -635,185 +640,197 @@ export default function BotzLandingExperience() {
             background: "rgba(255,255,255,0.03)",
           }}>
             <div style={{ fontSize: "15px", fontWeight: 800, color: "#e2e8f0" }}>
-              {language === "en" ? "Sign in to continue" : "Inicia sesión para continuar"}
+              {language === "en" ? "Loading..." : "Cargando..."}
             </div>
             <div style={{ marginTop: "8px", fontSize: "12px", lineHeight: 1.4 }}>
               {language === "en"
-                ? "This section requires an account. The live demo remains available."
-                : "Esta sección requiere cuenta. La demo en vivo sigue disponible."}
+                ? "Please wait while we verify your session."
+                : "Por favor espera mientras verificamos tu sesión."}
             </div>
           </div>
         </div>
       )}
 
-      {user && activeTab === "tenants" && (isPlatformAdmin ? <PlatformTenantsView /> : null)}
+      <div style={{ display: activeTab === "tenants" ? "block" : "none" }}>
+        {isPlatformAdmin ? <PlatformTenantsView /> : null}
+      </div>
 
-      {user && activeTab === "agents" && (isAdmin || isPlatformAdmin || hasPermission("manage_agents") ? <AgentsStudio /> : null)}
+      <div style={{ display: activeTab === "agents" ? "block" : "none" }}>
+        {isAdmin || isPlatformAdmin || hasPermission("manage_agents") ? <AgentsStudio /> : null}
+      </div>
 
-      {user && activeTab === "hipoteca" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", height: "100%", overflowY: "auto" }}>
-          {/* Barra de control */}
-          <div
-            style={{
-              flexShrink: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "12px",
-              padding: "12px 16px",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.10)",
-              background: "rgba(255,255,255,0.04)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-              <span style={{ fontSize: "12px", color: "#8b949e" }}>{t.mode}</span>
+      <div style={{ display: activeTab === "hipoteca" ? "flex" : "none", flexDirection: "column", gap: "12px", height: "100%", overflowY: "auto" }}>
+        {/* Barra de control */}
+        <div
+          style={{
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            padding: "12px 16px",
+            borderRadius: "12px",
+            border: "1px solid rgba(255,255,255,0.10)",
+            background: "rgba(255,255,255,0.04)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "12px", color: "#8b949e" }}>{t.mode}</span>
 
-              <button
-                onClick={() => setHipotecaMode("manual")}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: hipotecaMode === "manual" ? "rgba(34, 211, 238, 0.14)" : "rgba(255,255,255,0.04)",
-                  color: hipotecaMode === "manual" ? "#22d3ee" : "#cbd5e1",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                {t.manual}
-              </button>
+            <button
+              onClick={() => setHipotecaMode("manual")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "10px",
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: hipotecaMode === "manual" ? "rgba(34, 211, 238, 0.14)" : "rgba(255,255,255,0.04)",
+                color: hipotecaMode === "manual" ? "#22d3ee" : "#cbd5e1",
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              {t.manual}
+            </button>
 
-              <button
-                onClick={() => setHipotecaMode("lead")}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: hipotecaMode === "lead" ? "rgba(34, 211, 238, 0.14)" : "rgba(255,255,255,0.04)",
-                  color: hipotecaMode === "lead" ? "#22d3ee" : "#cbd5e1",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                {t.leadAuto}
-              </button>
+            <button
+              onClick={() => setHipotecaMode("lead")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "10px",
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: hipotecaMode === "lead" ? "rgba(34, 211, 238, 0.14)" : "rgba(255,255,255,0.04)",
+                color: hipotecaMode === "lead" ? "#22d3ee" : "#cbd5e1",
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              {t.leadAuto}
+            </button>
 
-              {hipotecaMode === "lead" && (
-                <>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "8px" }}>
-                    <Users size={16} color="#64748b" />
-                    <select
-                      value={hipotecaLeadId}
-                      onChange={(e) => setHipotecaLeadId(e.target.value)}
-                      style={{
-                        minWidth: "280px",
-                        maxWidth: "400px",
-                        padding: "8px 12px",
-                        borderRadius: "10px",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        background: "rgba(0,0,0,0.3)",
-                        color: "#fff",
-                        fontSize: "12px",
-                        cursor: "pointer",
-                        outline: "none",
-                      }}
-                    >
-                      <option value="">{t.selectLead}</option>
-                      {leadsOptions.map((lead) => (
-                        <option key={lead.id} value={lead.id}>
-                         {lead.name || t.unnamed}
-                         {lead.phone ? ` - ${lead.phone}` : ""}
-                        {lead.created_at ? ` - ${timeAgo(lead.created_at, language)}` : ""}
+            {hipotecaMode === "lead" && (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "8px" }}>
+                  <Users size={16} color="#64748b" />
+                  <select
+                    value={hipotecaLeadId}
+                    onChange={(e) => setHipotecaLeadId(e.target.value)}
+                    style={{
+                      minWidth: "280px",
+                      maxWidth: "400px",
+                      padding: "8px 12px",
+                      borderRadius: "10px",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      background: "rgba(0,0,0,0.3)",
+                      color: "#fff",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      outline: "none",
+                    }}
+                  >
+                    <option value="">{t.selectLead}</option>
+                    {leadsOptions.map((lead) => (
+                      <option key={lead.id} value={lead.id}>
+                       {lead.name || t.unnamed}
+                       {lead.phone ? ` - ${lead.phone}` : ""}
+                      {lead.created_at ? ` - ${timeAgo(lead.created_at, language)}` : ""}
 
-                        </option>
-                      ))}
-                    </select>
-                    
-                    <button
-                      onClick={fetchLeads}
-                      disabled={loadingLeads}
-                      style={{
-                        padding: "8px",
-                        borderRadius: "8px",
-                        border: "1px solid rgba(255,255,255,0.12)",
-                        background: "rgba(255,255,255,0.05)",
-                        color: "#94a3b8",
-                        cursor: loadingLeads ? "not-allowed" : "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                      title={t.refreshLeads}
-                    >
-                      <RefreshCw size={14} className={loadingLeads ? "animate-spin" : ""} />
-                    </button>
-                  </div>
-
-                  {selectedLead && (
-                    <div style={{
-                      marginLeft: "8px",
-                      padding: "4px 10px",
-                      background: "rgba(34, 197, 94, 0.1)",
-                      border: "1px solid rgba(34, 197, 94, 0.3)",
-                      borderRadius: "6px",
-                      fontSize: "11px",
-                      color: "#22c55e",
+                      </option>
+                    ))}
+                  </select>
+                  
+                  <button
+                    onClick={fetchLeads}
+                    disabled={loadingLeads}
+                    style={{
+                      padding: "8px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: "rgba(255,255,255,0.05)",
+                      color: "#94a3b8",
+                      cursor: loadingLeads ? "not-allowed" : "pointer",
                       display: "flex",
                       alignItems: "center",
-                      gap: "6px"
-                    }}>
-                      <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#22c55e" }} />
-                      {t.connected}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+                      justifyContent: "center",
+                    }}
+                    title={t.refreshLeads}
+                  >
+                    <RefreshCw size={14} className={loadingLeads ? "animate-spin" : ""} />
+                  </button>
+                </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              {hipotecaMode === "manual" ? (
-                <span style={{ fontSize: "11px", color: "#94a3b8" }}>
-                  {t.manualHint}
-                </span>
-              ) : (
-                <span style={{ fontSize: "11px", color: "#94a3b8" }}>
-                  {leadsOptions.length > 0 
-                    ? t.leadsAvailable(leadsOptions.length)
-                    : loadingLeads ? t.loading : t.noLeads
-                  }
-                </span>
-              )}
-            </div>
+                {selectedLead && (
+                  <div style={{
+                    marginLeft: "8px",
+                    padding: "4px 10px",
+                    background: "rgba(34, 197, 94, 0.1)",
+                    border: "1px solid rgba(34, 197, 94, 0.3)",
+                    borderRadius: "6px",
+                    fontSize: "11px",
+                    color: "#22c55e",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}>
+                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#22c55e" }} />
+                    {t.connected}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {/* Vista de Hipoteca */}
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <HipotecaView
-              leadId={hipotecaMode === "lead" ? (hipotecaLeadId || undefined) : undefined}
-              calculo={calculoHipoteca}
-              mode={hipotecaMode}
-            />
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            {hipotecaMode === "manual" ? (
+              <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+                {t.manualHint}
+              </span>
+            ) : (
+              <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+                {leadsOptions.length > 0 
+                  ? t.leadsAvailable(leadsOptions.length)
+                  : loadingLeads ? t.loading : t.noLeads
+                }
+              </span>
+            )}
           </div>
         </div>
-      )}
 
-      {user && activeTab === "channels" && <ChannelsView channels={CHANNELS} />}
+        {/* Vista de Hipoteca */}
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <HipotecaView
+            leadId={hipotecaMode === "lead" ? (hipotecaLeadId || undefined) : undefined}
+            calculo={calculoHipoteca}
+            mode={hipotecaMode}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: activeTab === "channels" ? "block" : "none" }}>
+        <ChannelsView channels={CHANNELS} />
+      </div>
       
-      {user && activeTab === "crm" && <CRMFullView globalFilter={globalFilter ?? undefined} />}
+      {user && activeTab === "crm" && (
+        <CRMFullView 
+          key={`crm-${user.id}`}
+          globalFilter={globalFilter ?? undefined} 
+        />
+      )}
 
       {user && activeTab === "control-center" && (
         <CRMFullView
+          key={`control-${user.id}`}
           globalFilter={globalFilter ?? undefined}
           openControlCenter
           initialControlTab="canales"
           onControlCenterClose={() => setActiveTab("demo")}
         />
       )}
-      
-      {user && activeTab === "metrics" && <MetricsFullView metrics={metrics as any} />} 
+       
+      <div style={{ display: activeTab === "metrics" ? "block" : "none" }}>
+        <MetricsFullView metrics={metrics as any} />
+      </div>
 
     </MainLayout>
   );
