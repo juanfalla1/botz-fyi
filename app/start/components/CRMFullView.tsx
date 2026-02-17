@@ -383,7 +383,8 @@ export default function CRMFullView({
   useEffect(() => {
     if (!showConfig || activeConfigTab !== "cuenta") return;
     loadAccountSummary();
-  }, [showConfig, activeConfigTab, tenantId, subscription?.id, userPlan, isAsesor, tableLeads.length]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showConfig, activeConfigTab, tenantId, subscription?.id, userPlan, isAsesor]);
 
 
   // Rendimiento: para graficos usamos ventana reciente (semana/mes).

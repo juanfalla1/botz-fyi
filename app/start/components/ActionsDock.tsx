@@ -280,7 +280,7 @@ export default function ActionsDock({
     };
 
     poll();
-    const timer = setInterval(poll, 7000);
+    const timer = setInterval(poll, 60000);
     return () => {
       alive = false;
       clearInterval(timer);
@@ -600,7 +600,7 @@ export default function ActionsDock({
       };
       if (open) {
         run();
-        timer = setInterval(run, 5000);
+        timer = setInterval(run, 30000);
       }
       return () => timer && clearInterval(timer);
       // eslint-disable-next-line react-hooks/exhaustive-deps

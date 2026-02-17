@@ -208,7 +208,13 @@ export default function LeadUpsertModal({ isOpen, mode, lead, onClose, onSaved }
       }
     } catch (e: any) {
       console.error(e);
-      setMsg("❌ Error guardando (revisa consola)");
+      const errMsg = e?.message || e?.details || "";
+      if (errMsg.includes("duplicate") || errMsg.includes("unique") || errMsg.includes("already exists") || errMsg.includes("23505")) {
+        // Error de duplicado en BD - permitir continuar, no bloquear
+        setMsg("⚠️ Ya existe un lead con estos datos. Se creará igualmente si reintenta.");
+      } else {
+        setMsg("❌ Error guardando: " + (errMsg || "revisa consola"));
+      }
     } finally {
       setSaving(false);
     }

@@ -343,18 +343,11 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
   };
 
   useEffect(() => {
-    console.log('useEffect triggered:', { canViewExecDashboard, selectedMonth, filter });
     if (canViewExecDashboard && !authLoading) {
       fetchRealData();
     }
-  }, [filter, canViewExecDashboard, authLoading, selectedMonth]);
-
-  useEffect(() => {
-    if (canViewExecDashboard && !authLoading) {
-      console.log('🔄 Actualización global detectada, recargando dashboard...', dataRefreshKey);
-      fetchRealData();
-    }
-  }, [dataRefreshKey, canViewExecDashboard, authLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, canViewExecDashboard, authLoading, selectedMonth, dataRefreshKey]);
 
   const fetchRealData = async () => {
     try {

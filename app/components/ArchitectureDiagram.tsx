@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import "./ArchitectureDiagram.css"; // Ajusta la ruta si lo pones en otro lado
+import "./ArchitectureDiagram.css";
 
 const agents = [
   {
@@ -49,15 +49,7 @@ export default function ArchitectureDiagram() {
       <p className="section-subtitle" style={{ textAlign: "center", fontSize: "1.3em", maxWidth: "800px", margin: "0 auto 40px", color: "#ccc" }}>
         Cada agente actúa como un bot especializado, trabajando en equipo para optimizar tu proceso de negocio.
       </p>
-      <div style={{ position: "relative", width: "100%", maxWidth: "1400px", marginTop: "2em" }}>
-        {/* Líneas conectoras */}
-        <svg style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 0 }}>
-          <line x1="10%" y1="50%" x2="28%" y2="50%" stroke="#22d3ee" strokeWidth="3" strokeDasharray="8 4" />
-          <line x1="38%" y1="50%" x2="56%" y2="50%" stroke="#22d3ee" strokeWidth="3" strokeDasharray="8 4" />
-          <line x1="66%" y1="50%" x2="84%" y2="50%" stroke="#22d3ee" strokeWidth="3" strokeDasharray="8 4" />
-          <line x1="94%" y1="50%" x2="100%" y2="50%" stroke="#22d3ee" strokeWidth="3" strokeDasharray="8 4" />
-        </svg>
-        <div className="agentes-grid" style={{ width: "100%", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
+      <div className="agentes-grid" style={{ width: "100%", position: "relative", zIndex: 1 }}>
         {agents.map((a, idx) => (
           <div
             key={a.title}
@@ -72,7 +64,6 @@ export default function ArchitectureDiagram() {
             <div className="agente-subtitle">{a.subtitle}</div>
           </div>
         ))}
-        </div>
       </div>
 
       {selected !== null && (
@@ -82,7 +73,7 @@ export default function ArchitectureDiagram() {
             <div className="agente-icon" style={{ fontSize: "2.6em" }}>
               {agents[selected].icon}
             </div>
-            <h3 style={{ margin: "12px 0 2px", color: "var(--primary)" }}>{agents[selected].title}</h3>
+            <h3 style={{ margin: "12px 0 2px", color: "#22d3ee" }}>{agents[selected].title}</h3>
             <div style={{ color: "#0aa6b8", fontSize: "1.1em", marginBottom: 12 }}>
               {agents[selected].subtitle}
             </div>

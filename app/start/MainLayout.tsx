@@ -723,6 +723,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           event: "*",
           schema: "public",
           table: "subscriptions",
+          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
           console.log("🔔 Cambio detectado en subscriptions:", payload);

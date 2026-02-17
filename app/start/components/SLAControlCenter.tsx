@@ -543,8 +543,8 @@ export default function SLAControlCenter() {
 
     fetchLeads(true); // Primera carga: mostrar loading completo
 
-    // Actualizar cada 2 minutos (sin loading completo)
-    const interval = setInterval(() => fetchLeads(false), 120000);
+    // Actualizar cada 5 minutos (sin loading completo)
+    const interval = setInterval(() => fetchLeads(false), 300000);
     return () => clearInterval(interval);
   }, [authLoading, isAdmin, isAsesor, teamMemberId, tenantId]);
 

@@ -125,29 +125,7 @@ export default function FlujoEcommerce() {
           margin: layout.isMobile ? "0" : "0 auto"
         }}
       >
-        {layout.showConnections && !layout.isMobile && (
-          <svg
-            width="100%"
-            height="100%"
-            className="flujo-e-svg"
-            viewBox={`0 0 ${layout.containerWidth} ${layout.containerHeight}`}
-            preserveAspectRatio="xMidYMid meet"
-          >
-            {steps.map((_, i) => {
-              const x1 = layout.centerX! + layout.radius! * Math.cos(i * angleStep - Math.PI / 2);
-              const y1 = layout.centerY! + layout.radius! * Math.sin(i * angleStep - Math.PI / 2);
-              const x2 =
-                layout.centerX! +
-                layout.radius! * Math.cos(((i + 1) % steps.length) * angleStep - Math.PI / 2);
-              const y2 =
-                layout.centerY! +
-                layout.radius! * Math.sin(((i + 1) % steps.length) * angleStep - Math.PI / 2);
-              return (
-                <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} className="flujo-e-line" />
-              );
-            })}
-          </svg>
-        )}
+        {/* Círculos sin líneas conectoras */}
 
         {steps.map((step, i) => {
           let nodeStyle: React.CSSProperties;
