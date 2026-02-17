@@ -594,13 +594,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const checkSession = async () => {
       console.log("🔍 [Auth] checkSession iniciando...");
       try {
-        // Timeout de 3 segundos para getSession
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('getSession timeout')), 3000)
-        );
+        let { data: { session } } = await supabase.auth.getSession();
         
-        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+        // Fallback: intentar recuperar de localStorage si Supabase no tiene sesión
+        if (!session && typeof window !== 'undefined') {
+          console.log("🔍 [Auth] No hay sesión en Supabase, intentando localStorage...");
+          try {
+            const supabaseData = window.localStorage.getItem('supabase.auth.token');
+            if (supabaseData) {
+              const parsed = JSON.parse(supabaseData);
+              if (parsed?.access_token && parsed?.expires_at && parsed.expires_at * 1000 > Date.now()) {
+                console.log("🔍 [Auth] Token válido encontrado en localStorage, refrescando...");
+                const { data: refreshData } = await supabase.auth.refreshSession();
+                if (refreshData?.session) {
+                  session = refreshData.session;
+                  console.log("🔍 [Auth] Sesión refrescada desde localStorage");
+                }
+              }
+            }
+          } catch (e) {
+            console.log("🔍 [Auth] No se pudo recuperar de localStorage:", e);
+          }
+        }
         
         console.log("🔍 [Auth] getSession completado:", session ? "sesión encontrada" : "sin sesión");
 
@@ -650,20 +665,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsPlatformAdmin(false);
         }
       } catch (error: any) {
-        if (error?.message === 'getSession timeout') {
-          console.error("❌ [Auth] getSession timeout después de 3s - asumiendo sin sesión");
-          // Asumimos sin sesión y permitimos continuar
-          setUser(null);
-          setUserPlan("free");
-          setEnabledFeatures(PLAN_FEATURES["free"]);
-          setUserRole(null);
-          setTeamMemberId(null);
-          setTenantIdState(null);
-          setPlatformTenantIdState(null);
-          setIsPlatformAdmin(false);
-        } else {
-          console.error("❌ [Auth] Error en checkSession:", error?.message || error);
-        }
+        console.error("❌ [Auth] Error en checkSession:", error?.message || error);
       } finally {
         console.log("🔍 [Auth] checkSession finally, alive:", alive);
         if (alive) setLoading(false);
