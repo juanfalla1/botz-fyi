@@ -577,23 +577,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let safetyTimer: ReturnType<typeof setTimeout> | null = null;
     let delayTimer: ReturnType<typeof setTimeout> | null = null;
 
-    // Safety timeout: si loading no se resuelve en 8s, forzar false
+    // Safety timeout: si loading no se resuelve en 5s, forzar false
     safetyTimer = setTimeout(() => {
       if (alive) {
-        console.warn("⚠️ Safety timeout: forzando loading=false después de 8s");
+        console.warn("⚠️ Safety timeout: forzando loading=false después de 5s");
         setLoading(false);
       }
-    }, 8000);
+    }, 5000);
 
     const checkSession = async () => {
+      console.log("🔍 [Auth] checkSession iniciando...");
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
+        
+        console.log("🔍 [Auth] getSession completado:", session ? "sesión encontrada" : "sin sesión");
 
-        if (!alive) return;
+        if (!alive) {
+          console.log("🔍 [Auth] Componente desmontado, abortando");
+          return;
+        }
 
         if (session?.user) {
+          console.log("👤 [Auth] Usuario logueado:", session.user.email);
           console.log("👤 Usuario logueado:", session.user.email);
           setUser(session.user);
 
@@ -606,14 +613,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setTenantIdState(metaTenantId);
           }
 
+          console.log("🔍 [Auth] Detectando plataforma admin...");
           const isPlat = await detectPlatformAdmin();
+          console.log("🔍 [Auth] detectPlatformAdmin:", isPlat ? "es admin" : "no es admin");
           if (!alive) return;
           if (isPlat) {
             applyPlatformAdminAccess();
           } else {
+            console.log("🔍 [Auth] Detectando rol de usuario...");
             const tenantId = await detectUserRole(session.user.id, session.user.email || '');
+            console.log("🔍 [Auth] Rol detectado, tenantId:", tenantId);
             if (!alive) return;
+            console.log("🔍 [Auth] Fetching suscripción...");
             await fetchUserSubscription(session.user.id, tenantId);
+            console.log("🔍 [Auth] Suscripción cargada");
           }
         } else {
           console.log("👤 No hay sesión activa");
@@ -626,9 +639,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setPlatformTenantIdState(null);
           setIsPlatformAdmin(false);
         }
-      } catch (error) {
-        console.error("Error checking session:", error);
+      } catch (error: any) {
+        console.error("❌ [Auth] Error en checkSession:", error?.message || error);
       } finally {
+        console.log("🔍 [Auth] checkSession finally, alive:", alive);
         if (alive) setLoading(false);
       }
     };
