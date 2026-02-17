@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "./supabaseClient";
 import { 
   Users, Calendar, Activity, TrendingUp, BarChart3, Globe, PieChart as PieIcon,
@@ -214,7 +214,6 @@ export default function CRMFullView({
   const [loadingTable, setLoadingTable] = useState(false);
   const [tableError, setTableError] = useState<string | null>(null);
   const tableTenantRef = useRef<string | null>(null);
-  const lastRefreshKeyRef = useRef<number>(0);
   const [timeFilter, setTimeFilter] = useState<'week' | 'month'>('month');
   const { isAdmin, isAsesor, isPlatformAdmin, userRole, hasPermission, user, tenantId, teamMemberId, userPlan, subscription, loading: authLoading, dataRefreshKey } = useAuth();
  
@@ -816,9 +815,7 @@ export default function CRMFullView({
       if (!effectiveTenantId && isPlatformAdmin) return;
       if (!effectiveTenantId) return;
 
-      const needsRefresh = lastRefreshKeyRef.current !== dataRefreshKey;
-      if (tableTenantRef.current === effectiveTenantId && tableLeads.length > 0 && !needsRefresh) return;
-      lastRefreshKeyRef.current = dataRefreshKey;
+      if (tableTenantRef.current === effectiveTenantId && tableLeads.length > 0) return;
       tableTenantRef.current = effectiveTenantId;
 
       setLoadingTable(true);
@@ -845,7 +842,37 @@ export default function CRMFullView({
     return () => {
       cancelled = true;
     };
-  }, [openControlCenter, authLoading, user?.id, tenantId, isPlatformAdmin, userRole, isAsesor, teamMemberId, dataRefreshKey]);
+  }, [openControlCenter, authLoading, user?.id, tenantId, isPlatformAdmin, userRole, isAsesor, teamMemberId]);
+
+  const refreshTable = useCallback(async () => {
+    if (!user) return;
+    const effectiveTenantId =
+      tenantId ||
+      user?.user_metadata?.tenant_id ||
+      user?.app_metadata?.tenant_id ||
+      null;
+    if (!effectiveTenantId) return;
+
+    setTableLeads([]);
+    setLoadingTable(true);
+    try {
+      await fetchAllLeadsForTable(effectiveTenantId, {
+        shouldCancel: () => false,
+        onPage: (rows, page) => {
+          const normalized = (rows || []).map((l) => normalizeLeadRow(l, "leads"));
+          setTableLeads((prev: any[]) => (page === 0 ? normalized : prev.concat(normalized)));
+        },
+      });
+    } finally {
+      setLoadingTable(false);
+    }
+  }, [user, tenantId]);
+
+  useEffect(() => {
+    if (dataRefreshKey > 0) {
+      refreshTable();
+    }
+  }, [dataRefreshKey, refreshTable]);
 
   // Lógica de filtrado unificada (Fecha + Filtro Global del Dock + Rol)
   const filteredLeads = metricRows.filter(l => {
