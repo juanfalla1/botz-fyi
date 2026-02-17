@@ -461,8 +461,8 @@ export default function CRMFullView({
       "user_id",
     ].join(",");
 
-    const pageSize = 100; // 🔥 REDUCIR de 500 a 100
-    const maxPages = 20;  // 🔥 REDUCIR de 50 a 20
+    const pageSize = 500;
+    const maxPages = 50;
     let out: any[] = [];
 
     for (let page = 0; page < maxPages; page++) {
@@ -767,36 +767,35 @@ export default function CRMFullView({
           return (data || []) as any[];
         };
 
-         let recentLeadsData: any[] = [];
-         try {
-           recentLeadsData = await withTimeout(
-             // 🔥 REDUCIR DRÁSTICAMENTE: Máximo 50 leads para aliviar carga de Supabase
-             fetchRecent({ limit: 50, order: true, window: false, select: recentSelect }),
-             15_000, // Reducir timeout a 15s
-             "recent leads"
-           );
-         } catch (e) {
-           const msg = describeError(e);
-           console.warn("[CRM] recent leads slow/fail:", msg);
+        let recentLeadsData: any[] = [];
+        try {
+          recentLeadsData = await withTimeout(
+            // No filtrar por fecha en DB (puede ser lento sin indices); filtramos en cliente para semanal/mensual
+            fetchRecent({ limit: 250, order: true, window: false, select: recentSelect }),
+            20_000,
+            "recent leads"
+          );
+        } catch (e) {
+          const msg = describeError(e);
+          console.warn("[CRM] recent leads slow/fail:", msg);
 
-           // Fallback rápido: datos mínimos
-           try {
-             recentLeadsData = await withTimeout(
-               fetchRecent({ limit: 20, order: false, window: false, select: recentSelectFallback }),
-               8_000, // Reducir a 8s
-               "recent leads fallback"
-             );
-             if (!cancelled) setMetricsError(null);
-           } catch (e2) {
-             const msg2 = describeError(e2);
-             console.warn("[CRM] recent leads fallback slow/fail:", msg2);
-             if (!cancelled && tableLeads.length === 0 && metricRows.length === 0) {
-               setMetricsError((prev) => prev || msg2);
-             }
-             // 🔥 IMPORTANTE: Retornar array vacío, no crashear
-             recentLeadsData = [];
-           }
-         }
+          // Fallback rapido: quitar ORDER/ventana + select mas liviano para evitar sorts/scans pesados
+          try {
+            recentLeadsData = await withTimeout(
+              fetchRecent({ limit: 80, order: false, window: false, select: recentSelectFallback }),
+              10_000,
+              "recent leads fallback"
+            );
+            if (!cancelled) setMetricsError(null);
+          } catch (e2) {
+            const msg2 = describeError(e2);
+            console.warn("[CRM] recent leads fallback slow/fail:", msg2);
+            if (!cancelled && tableLeads.length === 0 && metricRows.length === 0) {
+              setMetricsError((prev) => prev || msg2);
+            }
+            recentLeadsData = [];
+          }
+        }
 
         const trackerPromise = withTimeout(
           fetchRecentFromTable(
@@ -891,7 +890,6 @@ export default function CRMFullView({
         const allLeads: any[] = [];
         
         // ⚠️ MEJORADO: Agregar timeout a toda la carga de tabla
-        // 🔥 REDUCIR timeout de 30s a 20s (Supabase está saturado)
         await withTimeout(
           fetchAllLeadsForTable(effectiveTenantId, {
             shouldCancel: () => cancelled,
@@ -902,7 +900,7 @@ export default function CRMFullView({
               allLeads.push(...normalized);
             },
           }),
-          20_000, // 🔥 REDUCIR de 30s a 20s
+          30_000, // 30 segundos max
           "fetchAllLeadsForTable"
         );
 
