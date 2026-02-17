@@ -809,7 +809,7 @@ export default function BotzLandingExperience() {
           globalFilter={globalFilter ?? undefined}
           openControlCenter
           initialControlTab="canales"
-          onControlCenterClose={() => setActiveTab("crm")}
+          onControlCenterClose={() => setActiveTab("demo")}
         />
       )}
       
