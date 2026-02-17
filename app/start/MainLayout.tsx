@@ -594,9 +594,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const checkSession = async () => {
       console.log("🔍 [Auth] checkSession iniciando...");
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        // Timeout de 3 segundos para getSession
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('getSession timeout')), 3000)
+        );
+        
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any;
         
         console.log("🔍 [Auth] getSession completado:", session ? "sesión encontrada" : "sin sesión");
 
@@ -646,7 +650,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsPlatformAdmin(false);
         }
       } catch (error: any) {
-        console.error("❌ [Auth] Error en checkSession:", error?.message || error);
+        if (error?.message === 'getSession timeout') {
+          console.error("❌ [Auth] getSession timeout después de 3s - asumiendo sin sesión");
+          // Asumimos sin sesión y permitimos continuar
+          setUser(null);
+          setUserPlan("free");
+          setEnabledFeatures(PLAN_FEATURES["free"]);
+          setUserRole(null);
+          setTeamMemberId(null);
+          setTenantIdState(null);
+          setPlatformTenantIdState(null);
+          setIsPlatformAdmin(false);
+        } else {
+          console.error("❌ [Auth] Error en checkSession:", error?.message || error);
+        }
       } finally {
         console.log("🔍 [Auth] checkSession finally, alive:", alive);
         if (alive) setLoading(false);
