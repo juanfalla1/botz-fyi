@@ -35,14 +35,25 @@ export default function AuthModal({
     setMsg(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
       setMsg("✅ Sesión iniciada");
+      
+      // Esperar a que la sesión esté completamente establecida
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Obtener sesión confirmada
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session) {
+        console.log("✅ Sesión confirmada:", sessionData.session.user.email);
+      }
+      
+      // Disparar evento para refrescar estado global
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("botz-auth-refresh"));
-        setTimeout(() => window.dispatchEvent(new Event("botz-auth-refresh")), 1500);
       }
+      
       onLoggedIn?.();
       close();
     } catch (e: any) {
