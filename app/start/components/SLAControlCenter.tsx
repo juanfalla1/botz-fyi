@@ -381,10 +381,17 @@ export default function SLAControlCenter() {
   // CARGAR LEADS DESDE SUPABASE
   // ============================================
   const fetchLeads = async (showFullLoading = false) => {
+    // Safety timeout: force loading=false after 15s if anything hangs
+    const safetyTimer = setTimeout(() => {
+      console.warn('[SLA] ⚠️ Safety timeout: forcing loading=false after 15s');
+      setLoading(false);
+    }, 15000);
+
     try {
       if (showFullLoading) setLoading(true);
 
       if (authLoading) {
+        clearTimeout(safetyTimer);
         return;
       }
       
@@ -440,6 +447,7 @@ export default function SLAControlCenter() {
     } catch (error) {
       console.error("Error fetching leads:", error);
     } finally {
+      clearTimeout(safetyTimer);
       setLoading(false);
     }
   };
@@ -540,12 +548,8 @@ export default function SLAControlCenter() {
 
   useEffect(() => {
     if (authLoading) return;
-    // Esperar a tener tenantId antes de hacer fetch
-    if (!tenantId) {
-      console.log('[SLA] ⏳ Esperando tenantId...');
-      return;
-    }
 
+    // Hacer fetch incluso sin tenantId (el fetch internamente manejará esto)
     fetchLeads(true); // Primera carga: mostrar loading completo
 
     // Actualizar cada 5 minutos (sin loading completo)

@@ -512,6 +512,12 @@ export default function CRMFullView({
   };
 
   const fetchData = async () => {
+    // Safety timeout: force loading=false after 15s if anything hangs
+    const safetyTimer = setTimeout(() => {
+      console.warn('[CRMFullView] ⚠️ Safety timeout: forcing loading=false after 15s');
+      setLoading(false);
+    }, 15000);
+
     try {
       setLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
@@ -620,17 +626,16 @@ export default function CRMFullView({
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
+      clearTimeout(safetyTimer);
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // Esperar a tener tenantId o ser asesor identificado antes de hacer fetch
-    if (!tenantId && !isAsesor) {
-      console.log('[CRMFullView] ⏳ Esperando tenantId...');
-      return; // No hacer fetch sin tenant
-    }
+    // Hacer fetch inmediatamente, pero tenantId puede ser null inicialmente
+    // El fetchData internamente manejará la falta de tenantId
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeFilter, isAsesor, teamMemberId, tenantId]);
 
   // Lógica de filtrado unificada (Fecha + Filtro Global del Dock + Rol)
