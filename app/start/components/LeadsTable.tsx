@@ -364,6 +364,8 @@ export default function LeadsTable({
   const [formStatus, setFormStatus] = useState<string>("NUEVO");
   const [formNextAction, setFormNextAction] = useState<string>("");
   const [formCalificacion, setFormCalificacion] = useState<string>("");
+  const [advisorTenants, setAdvisorTenants] = useState<Array<{ id: string; name?: string }>>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState<string>("");
 
   // ✅ NUEVO: Acceso a sincronización global
   const { triggerDataRefresh, isAsesor, teamMemberId, tenantId: authTenantId, user } = useAuth();
@@ -411,6 +413,58 @@ export default function LeadsTable({
     session?.user?.app_metadata?.tenant_id ||
     null;
 
+  useEffect(() => {
+    if (!leadModalOpen || !isAsesor) return;
+
+    let cancelled = false;
+    const run = async () => {
+      const authUserId = session?.user?.id || user?.id || null;
+      const authEmail = session?.user?.email || user?.email || null;
+      if (!authUserId && !authEmail) return;
+
+      let ids: string[] = [];
+
+      if (authUserId) {
+        const { data } = await supabase
+          .from("team_members")
+          .select("tenant_id")
+          .eq("auth_user_id", authUserId)
+          .or("activo.is.null,activo.eq.true");
+        ids = (data || []).map((r: any) => String(r?.tenant_id || "")).filter(Boolean);
+      }
+
+      if (ids.length === 0 && authEmail) {
+        const { data } = await supabase
+          .from("team_members")
+          .select("tenant_id")
+          .eq("email", authEmail)
+          .or("activo.is.null,activo.eq.true");
+        ids = (data || []).map((r: any) => String(r?.tenant_id || "")).filter(Boolean);
+      }
+
+      const uniqueIds = Array.from(new Set(ids));
+      const rows = uniqueIds.map((id) => ({ id }));
+
+      if (cancelled) return;
+      setAdvisorTenants(rows);
+
+      const preferred = String(authTenantId || safeTenantId || "");
+      const hasSelected = selectedTenantId && rows.some((r) => String(r.id) === String(selectedTenantId));
+      if (hasSelected) return;
+
+      if (preferred && rows.some((r) => String(r.id) === preferred)) {
+        setSelectedTenantId(preferred);
+      } else if (rows.length > 0) {
+        setSelectedTenantId(String(rows[0].id));
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [leadModalOpen, isAsesor, session?.user?.id, session?.user?.email, user?.id, user?.email, authTenantId, safeTenantId, selectedTenantId]);
+
   const normalizeStatus = (status: string | null | undefined) => {
     if (!status) return "NUEVO";
     const raw = status.toUpperCase().trim();
@@ -433,6 +487,18 @@ export default function LeadsTable({
     return map[s] || s;
   };
 
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+    let t: any;
+    const timeout = new Promise<T>((_resolve, reject) => {
+      t = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      clearTimeout(t);
+    }
+  };
+
   // ✅ IMPORTANTE: async para poder usar await
   const handleSaveLead = async () => {
     setLeadModalError(null);
@@ -449,14 +515,14 @@ export default function LeadsTable({
     setLeadModalLoading(true);
 
     try {
-      let resolvedTenantId = safeTenantId || authTenantId || null;
+      let resolvedTenantId = selectedTenantId || safeTenantId || authTenantId || null;
       let resolvedTeamMemberId = teamMemberId || null;
 
-      if (isAsesor && (!resolvedTenantId || !resolvedTeamMemberId)) {
+      if (isAsesor) {
         const authUserId = session?.user?.id || user?.id || null;
         const authEmail = session?.user?.email || user?.email || null;
 
-        if (authUserId) {
+        if (authUserId && (!resolvedTenantId || !resolvedTeamMemberId)) {
           const { data: tmByAuth } = await supabase
             .from("team_members")
             .select("id, tenant_id")
@@ -465,8 +531,22 @@ export default function LeadsTable({
             .maybeSingle();
 
           if (tmByAuth) {
-            resolvedTeamMemberId = tmByAuth.id || resolvedTeamMemberId;
-            resolvedTenantId = tmByAuth.tenant_id || resolvedTenantId;
+            if (!resolvedTeamMemberId) resolvedTeamMemberId = tmByAuth.id || resolvedTeamMemberId;
+            if (!resolvedTenantId) resolvedTenantId = tmByAuth.tenant_id || resolvedTenantId;
+          }
+        }
+
+        if (authUserId && resolvedTenantId && !resolvedTeamMemberId) {
+          const { data: tmByAuthTenant } = await supabase
+            .from("team_members")
+            .select("id, tenant_id")
+            .eq("auth_user_id", authUserId)
+            .eq("tenant_id", resolvedTenantId)
+            .eq("activo", true)
+            .maybeSingle();
+
+          if (tmByAuthTenant) {
+            resolvedTeamMemberId = tmByAuthTenant.id || resolvedTeamMemberId;
           }
         }
 
@@ -479,8 +559,22 @@ export default function LeadsTable({
             .maybeSingle();
 
           if (tmByEmail) {
-            resolvedTeamMemberId = tmByEmail.id || resolvedTeamMemberId;
-            resolvedTenantId = tmByEmail.tenant_id || resolvedTenantId;
+            if (!resolvedTeamMemberId) resolvedTeamMemberId = tmByEmail.id || resolvedTeamMemberId;
+            if (!resolvedTenantId) resolvedTenantId = tmByEmail.tenant_id || resolvedTenantId;
+          }
+        }
+
+        if (authEmail && resolvedTenantId && !resolvedTeamMemberId) {
+          const { data: tmByEmailTenant } = await supabase
+            .from("team_members")
+            .select("id, tenant_id")
+            .eq("email", authEmail)
+            .eq("tenant_id", resolvedTenantId)
+            .eq("activo", true)
+            .maybeSingle();
+
+          if (tmByEmailTenant) {
+            resolvedTeamMemberId = tmByEmailTenant.id || resolvedTeamMemberId;
           }
         }
       }
@@ -503,42 +597,50 @@ export default function LeadsTable({
         origen: "manual",
       };
 
-      if (session?.user?.id) payload.user_id = session.user.id;
-      payload.tenant_id = resolvedTenantId;
+      const { data: { session: apiSession } } = await supabase.auth.getSession();
+      const accessToken = apiSession?.access_token || null;
+      if (!accessToken) throw new Error("Sesion expirada. Vuelve a iniciar sesión.");
 
-      if (isAsesor && resolvedTeamMemberId) {
-        payload.asesor_id = resolvedTeamMemberId;
-        payload.assigned_to = resolvedTeamMemberId;
-      }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-      const { data, error } = await supabase
-        .from("leads")
-        .insert([payload])
-        .select("*")
-        .single();
-
-      if (error) throw error;
-
-      if (data) {
-        setLeads((prev) => [data as Lead, ...prev]);
-
-        // Log opcional (si la tabla existe)
-        try {
-          await supabase.from("lead_logs").insert([
-            {
-              lead_id: (data as any).id,
-              type: "system",
-              text: "Lead creado manualmente desde CRM",
-              user_name: "Sistema",
-            },
-          ]);
-        } catch (e) {
-          console.warn("lead_logs insert skipped:", e);
+      let response: Response;
+      try {
+        response = await fetch("/api/leads/create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            tenantId: resolvedTenantId,
+            advisorId: isAsesor ? (resolvedTeamMemberId || null) : null,
+            lead: payload,
+          }),
+          signal: controller.signal,
+        });
+      } catch (err: any) {
+        if (err?.name === "AbortError") {
+          throw new Error("guardar lead timeout after 12000ms");
         }
-
-        triggerDataRefresh();
+        throw err;
+      } finally {
+        clearTimeout(timeoutId);
       }
 
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.ok === false) {
+        const msg = result?.error || `Error guardando el lead (HTTP ${response.status})`;
+        setLeadModalError(msg);
+        return;
+      }
+
+      if (result?.assignedToOther) {
+        setLeadModalError("Este lead ya existe y esta asignado a otro asesor.");
+        return;
+      }
+
+      triggerDataRefresh();
       closeLeadModal();
     } catch (e: any) {
       console.error(e);
@@ -1621,6 +1723,36 @@ export default function LeadsTable({
                     onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(71, 85, 105, 0.5)")}
                   />
                 </div>
+
+                {/* Empresa (solo si el asesor tiene mas de un tenant) */}
+                {isAsesor && advisorTenants.length > 1 && (
+                  <div>
+                    <label style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, marginBottom: 6, display: "block" }}>
+                      Empresa
+                    </label>
+                    <select
+                      value={selectedTenantId}
+                      onChange={(e) => setSelectedTenantId(e.target.value)}
+                      style={{
+                        width: "100%",
+                        background: "rgba(30, 41, 59, 0.6)",
+                        border: "1px solid rgba(71, 85, 105, 0.5)",
+                        padding: "12px 14px",
+                        borderRadius: 12,
+                        color: "#fff",
+                        outline: "none",
+                        fontSize: 14,
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      {advisorTenants.map((tn) => (
+                        <option key={tn.id} value={tn.id} style={{ background: "#0f172a" }}>
+                          {tn.name || `Tenant ${String(tn.id).slice(0, 8)}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Estado y Calificación en fila */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
