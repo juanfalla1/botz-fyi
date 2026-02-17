@@ -5,6 +5,7 @@ import { supabase } from "./supabaseClient";
 import LeadDetailsDrawer from "./LeadDetailsDrawer";
 import AsignarAsesor from "./Asignarasesor";
 import { useAuth } from "../MainLayout";
+import { OptimizedSearch } from "./OptimizedSearch";
 import {
   Search,
   Download,
@@ -1038,21 +1039,16 @@ export default function LeadsTable({
             )}
 
             <div style={{ position: "relative", flex: 1, minWidth: "180px" }}>
-              <Search size={18} color="#94a3b8" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }} />
-              <input
-                type="text"
-                placeholder={t.searchPlaceholder}
+              <OptimizedSearch
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{
-                  width: "100%",
-                  background: "rgba(30, 41, 59, 0.5)",
-                  border: "1px solid rgba(71, 85, 105, 0.5)",
-                  padding: "10px 10px 10px 40px",
-                  borderRadius: "12px",
-                  color: "#fff",
-                  outline: "none",
+                onChange={(e) => setSearchTerm(e)}
+                onDebouncedChange={(debouncedValue) => {
+                  // Si es necesario, hacer algo especial con la búsqueda debouncificada
+                  console.log("Búsqueda optimizada:", debouncedValue);
                 }}
+                placeholder={t.searchPlaceholder}
+                debounceDelay={300}
+                showClear={true}
               />
             </div>
 

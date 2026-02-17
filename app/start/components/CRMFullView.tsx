@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "./supabaseClient";
+import { useRealtimeLeads } from "../hooks/useRealtimeLeads";
 import { 
   Users, Calendar, Activity, TrendingUp, BarChart3, Globe, PieChart as PieIcon,
   Loader2, Settings, X, Zap, MessageCircle, Share2, 
@@ -227,6 +228,13 @@ export default function CRMFullView({
   const tableTenantRef = useRef<string | null>(null);
 
   const { isAdmin, isAsesor, isPlatformAdmin, userRole, hasPermission, user, tenantId, teamMemberId, userPlan, subscription, loading: authLoading, dataRefreshKey } = useAuth();
+
+  // ✨ Real-time subscription para actualizaciones automáticas
+  const effectiveTenantId = tenantId || user?.user_metadata?.tenant_id || user?.app_metadata?.tenant_id || null;
+  const { isSubscribed: realtimeSubscribed, error: realtimeError } = useRealtimeLeads({
+    tenantId: effectiveTenantId || '',
+    debounceMs: 500,
+  });
 
   // ESTADOS PARA EL MODAL
   const [showConfig, setShowConfig] = useState(!!openControlCenter);
