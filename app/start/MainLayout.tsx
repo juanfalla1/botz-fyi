@@ -272,12 +272,18 @@ export const useAuth = () => useContext(AuthContext);
 // ============================================================================
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  console.log("🚀 [Auth] AuthProvider montando...");
   const [user, setUser] = useState<any | null>(null);
   const [userPlan, setUserPlan] = useState<string>("free");
   const [subscription, setSubscription] = useState<SubscriptionData | null>(
     null
   );
   const [loading, setLoading] = useState(true);
+  
+  // Log cuando loading cambia
+  useEffect(() => {
+    console.log("🔄 [Auth] loading cambió a:", loading);
+  }, [loading]);
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>(["demo"]);
   
   // ✅ NUEVO: Estados para sistema de roles
