@@ -461,8 +461,8 @@ export default function CRMFullView({
       "user_id",
     ].join(",");
 
-    const pageSize = 500;
-    const maxPages = 50;
+    const pageSize = 50;  // 🔥 Reducido de 500 a 50 items por página
+    const maxPages = 2;   // 🔥 Reducido de 50 a 2 páginas (100 items máximo total)
     let out: any[] = [];
 
     for (let page = 0; page < maxPages; page++) {
@@ -478,7 +478,40 @@ export default function CRMFullView({
 
       if (effectiveTenantId) q = q.eq("tenant_id", effectiveTenantId);
       if (isAsesor && teamMemberId) {
-        q = q.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
+        // 🔥 CRÍTICO: Usar 2 queries paralelas en lugar de .or() que es muy lento
+        const [r1, r2] = await Promise.all([
+          supabase
+            .from("leads")
+            .select(selectCols)
+            .order("created_at", { ascending: false })
+            .eq("tenant_id", effectiveTenantId)
+            .eq("asesor_id", teamMemberId)
+            .range(from, to),
+          supabase
+            .from("leads")
+            .select(selectCols)
+            .order("created_at", { ascending: false })
+            .eq("tenant_id", effectiveTenantId)
+            .eq("assigned_to", teamMemberId)
+            .range(from, to),
+        ]);
+        
+        if (r1.error) throw r1.error;
+        if (r2.error) throw r2.error;
+        
+        // Combinar resultados sin duplicados
+        const byId = new Map<string, any>();
+        const d1 = (r1.data as any[]) || [];
+        const d2 = (r2.data as any[]) || [];
+        for (const row of d1.concat(d2)) {
+          byId.set(String(row?.id), row);
+        }
+        const rows = Array.from(byId.values()).slice(from, to + 1);
+        if (opts?.shouldCancel?.()) break;
+        opts?.onPage?.(rows, page);
+        out = out.concat(rows);
+        if (rows.length < pageSize) break;
+        continue;
       }
 
       const { data, error } = await q;
@@ -728,35 +761,40 @@ export default function CRMFullView({
           return (data || []) as any[];
         };
 
-        let recentLeadsData: any[] = [];
-        try {
-          recentLeadsData = await withTimeout(
-            // No filtrar por fecha en DB (puede ser lento sin indices); filtramos en cliente para semanal/mensual
-            fetchRecent({ limit: 250, order: true, window: false, select: recentSelect }),
-            20_000,
-            "recent leads"
-          );
-        } catch (e) {
-          const msg = describeError(e);
-          console.warn("[CRM] recent leads slow/fail:", msg);
-
-          // Fallback rapido: quitar ORDER/ventana + select mas liviano para evitar sorts/scans pesados
-          try {
-            recentLeadsData = await withTimeout(
-              fetchRecent({ limit: 80, order: false, window: false, select: recentSelectFallback }),
-              10_000,
-              "recent leads fallback"
-            );
-            if (!cancelled) setMetricsError(null);
-          } catch (e2) {
-            const msg2 = describeError(e2);
-            console.warn("[CRM] recent leads fallback slow/fail:", msg2);
-            if (!cancelled && tableLeads.length === 0 && metricRows.length === 0) {
-              setMetricsError((prev) => prev || msg2);
-            }
-            recentLeadsData = [];
-          }
-        }
+         let recentLeadsData: any[] = [];
+         
+         // 🔥 ESTRATEGIA RADICAL: Cargar SOLO los últimos 20 leads sin ORDER (ultra rápido)
+         try {
+           recentLeadsData = await withTimeout(
+             // Límite MUY pequeño (20) sin ORDER para ser lo más rápido posible
+             fetchRecent({ limit: 20, order: false, window: false, select: recentSelectFallback }),
+             5_000,
+             "recent leads minimal"
+           );
+           console.log("[CRM] Cargados 20 leads mínimos en cliente");
+         } catch (e) {
+           const msg = describeError(e);
+           console.warn("[CRM] recent leads minimal fail:", msg);
+           
+           // Fallback aún más agresivo: solo 10 leads, sin nada
+           try {
+             recentLeadsData = await withTimeout(
+               fetchRecent({ limit: 10, order: false, window: false, select: "id,nombre,email,created_at" }),
+               3_000,
+               "recent leads ultra-minimal"
+             );
+             console.log("[CRM] Cargados 10 leads ultra-mínimos como fallback");
+           } catch (e2) {
+             const msg2 = describeError(e2);
+             console.warn("[CRM] recent leads ultra-minimal fail:", msg2);
+             if (!cancelled && tableLeads.length === 0 && metricRows.length === 0) {
+               setMetricsError((prev) => prev || msg2);
+             }
+             // Si todo falla, devolver array vacío pero NO romper la UI
+             recentLeadsData = [];
+             console.log("[CRM] ⚠️ No se pudo cargar leads, continuando con tabla vacía");
+           }
+         }
 
         const trackerPromise = withTimeout(
           fetchRecentFromTable(
