@@ -1469,13 +1469,14 @@ const UserProfileBadge = ({
             style={{
               position: "absolute",
               bottom: "100%",
-              left: 0,
-              marginBottom: "8px",
+              right: 0,
+              marginBottom: "12px",
               background: "#1e293b",
               border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: "12px",
-              padding: "8px",
-              minWidth: "220px",
+              borderRadius: "16px",
+              padding: "16px",
+              minWidth: "280px",
+              maxWidth: "320px",
               zIndex: 50,
               boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
               overflow: "hidden",
@@ -1486,40 +1487,44 @@ const UserProfileBadge = ({
               onClick={() => setShowMenu(false)}
               style={{
                 position: "absolute",
-                top: "10px",
-                right: "10px",
-                width: "30px",
-                height: "30px",
+                top: "12px",
+                right: "12px",
+                width: "28px",
+                height: "28px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                borderRadius: "10px",
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.06)",
+                borderRadius: "8px",
+                border: "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.08)",
                 cursor: "pointer",
+                transition: "all 0.2s",
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
               aria-label="Close menu"
             >
-              <X size={16} color="#cbd5e1" />
+              <X size={14} color="#cbd5e1" />
             </button>
 
             {/* Info del usuario */}
             <div
               style={{
-                padding: "12px",
-                borderBottom: "1px solid rgba(255,255,255,0.05)",
-                marginBottom: "8px",
+                paddingBottom: "12px",
+                marginBottom: "12px",
+                borderBottom: "1px solid rgba(255,255,255,0.08)",
               }}
             >
-              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
+              <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                 {text.connectedAs}
               </div>
               <div
                 style={{
-                  fontSize: "13px",
+                  fontSize: "14px",
                   color: "#fff",
-                  fontWeight: "500",
-                  marginBottom: "8px",
+                  fontWeight: "600",
+                  marginBottom: "10px",
+                  wordBreak: "break-all",
                 }}
               >
                 {user.email}
@@ -1599,18 +1604,22 @@ const UserProfileBadge = ({
                 alignItems: "center",
                 gap: "10px",
                 width: "100%",
-                padding: "10px 12px",
-                borderRadius: "8px",
-                border: "none",
-                background: "transparent",
+                padding: "12px",
+                marginBottom: "6px",
+                borderRadius: "10px",
+                border: "1px solid rgba(255,255,255,0.05)",
+                background: "rgba(255,255,255,0.02)",
                 color: "#94a3b8",
                 fontSize: "13px",
                 cursor: refreshing ? "wait" : "pointer",
                 textAlign: "left",
-                opacity: refreshing ? 0.5 : 1,
+                opacity: refreshing ? 0.6 : 1,
+                transition: "all 0.2s",
               }}
+              onMouseEnter={(e) => !refreshing && (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
             >
-              <RefreshCw size={16} style={{ animation: refreshing ? "spin 1s linear infinite" : "none" }} />
+              <RefreshCw size={16} style={{ flexShrink: 0, animation: refreshing ? "spin 1s linear infinite" : "none" }} />
               {refreshing ? text.refreshing : text.refreshState}
             </button>
 
@@ -1625,17 +1634,21 @@ const UserProfileBadge = ({
                 alignItems: "center",
                 gap: "10px",
                 width: "100%",
-                padding: "10px 12px",
-                borderRadius: "8px",
-                border: "none",
-                background: "transparent",
+                padding: "12px",
+                marginBottom: "6px",
+                borderRadius: "10px",
+                border: "1px solid rgba(34, 211, 238, 0.2)",
+                background: "rgba(34, 211, 238, 0.05)",
                 color: "#22d3ee",
                 fontSize: "13px",
                 cursor: "pointer",
                 textAlign: "left",
+                transition: "all 0.2s",
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(34, 211, 238, 0.1)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(34, 211, 238, 0.05)")}
             >
-              <Crown size={16} />
+              <Crown size={16} style={{ flexShrink: 0 }} />
               {userPlan === "free" ? text.updatePlan : text.viewPlan}
             </button>
 
@@ -1658,17 +1671,20 @@ const UserProfileBadge = ({
                 alignItems: "center",
                 gap: "10px",
                 width: "100%",
-                padding: "10px 12px",
-                borderRadius: "8px",
-                border: "none",
-                background: "transparent",
+                padding: "12px",
+                borderRadius: "10px",
+                border: "1px solid rgba(239, 68, 68, 0.2)",
+                background: "rgba(239, 68, 68, 0.05)",
                 color: "#ef4444",
                 fontSize: "13px",
                 cursor: "pointer",
                 textAlign: "left",
+                transition: "all 0.2s",
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(239, 68, 68, 0.05)")}
             >
-              <LogOut size={16} />
+              <LogOut size={16} style={{ flexShrink: 0 }} />
               {text.logout}
             </button>
           </div>
