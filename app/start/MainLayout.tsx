@@ -573,11 +573,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ✅ Verificar sesión al montar
   useEffect(() => {
+    let alive = true;
+    let safetyTimer: ReturnType<typeof setTimeout> | null = null;
+    let delayTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Safety timeout: si loading no se resuelve en 8s, forzar false
+    safetyTimer = setTimeout(() => {
+      if (alive) {
+        console.warn("⚠️ Safety timeout: forzando loading=false después de 8s");
+        setLoading(false);
+      }
+    }, 8000);
+
     const checkSession = async () => {
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
+
+        if (!alive) return;
 
         if (session?.user) {
           console.log("👤 Usuario logueado:", session.user.email);
@@ -593,10 +607,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
 
           const isPlat = await detectPlatformAdmin();
+          if (!alive) return;
           if (isPlat) {
             applyPlatformAdminAccess();
           } else {
             const tenantId = await detectUserRole(session.user.id, session.user.email || '');
+            if (!alive) return;
             await fetchUserSubscription(session.user.id, tenantId);
           }
         } else {
@@ -613,7 +629,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error("Error checking session:", error);
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     };
 
@@ -625,8 +641,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("🔔 Auth event:", event);
 
-       if (event === "SIGNED_IN" && session?.user) {
-         console.log("✅ Usuario inició sesión:", session.user.email);
+      // Manejar INITIAL_SESSION igual que SIGNED_IN
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") && session?.user) {
+         if (!alive) return;
+         console.log("✅ Auth event con sesión:", event, session.user.email);
          setUser(session.user);
 
          const metaTenantId =
@@ -637,18 +655,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setTenantIdState(metaTenantId);
           }
 
-         const isPlat = await detectPlatformAdmin();
-         if (isPlat) {
-           applyPlatformAdminAccess();
-           setLoading(false);
-         } else {
-          const tenantId = await detectUserRole(session.user.id, session.user.email || '');
-          // Pequeño delay para asegurar que la DB se haya actualizado
-          setTimeout(async () => {
-            await fetchUserSubscription(session.user.id, tenantId);
-            setLoading(false);
-          }, 500);
-        }
+         try {
+           const isPlat = await detectPlatformAdmin();
+           if (!alive) return;
+           if (isPlat) {
+             applyPlatformAdminAccess();
+             setLoading(false);
+           } else {
+             const tenantId = await detectUserRole(session.user.id, session.user.email || '');
+             if (!alive) return;
+             // Pequeño delay para asegurar que la DB se haya actualizado
+             delayTimer = setTimeout(async () => {
+               try {
+                 if (!alive) return;
+                 await fetchUserSubscription(session.user.id, tenantId);
+               } catch (e) {
+                 console.error("Error en fetchUserSubscription:", e);
+               } finally {
+                 if (alive) setLoading(false);
+               }
+             }, 500);
+           }
+         } catch (e) {
+           console.error("Error en auth handler:", e);
+           if (alive) setLoading(false);
+         }
       } else if (event === "SIGNED_OUT") {
         console.log("👋 Usuario cerró sesión");
         setUser(null);
@@ -664,7 +695,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => authSubscription.unsubscribe();
+    return () => {
+      alive = false;
+      authSubscription.unsubscribe();
+      if (safetyTimer) clearTimeout(safetyTimer);
+      if (delayTimer) clearTimeout(delayTimer);
+    };
   }, [fetchUserSubscription]);
 
   // ✅ Fallback: si vienes de /pricing o no está activo Realtime, forzamos refresco de suscripción
