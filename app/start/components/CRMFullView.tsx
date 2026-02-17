@@ -638,6 +638,16 @@ export default function CRMFullView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeFilter, isAsesor, teamMemberId, tenantId]);
 
+  // Safety timeout: si loading no se resuelve en 10s, forzar false
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => {
+      console.warn('[CRMFullView] ⚠️ Safety timeout: forcing loading=false after 10s');
+      setLoading(false);
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
   // Lógica de filtrado unificada (Fecha + Filtro Global del Dock + Rol)
   const filteredLeads = metricRows.filter(l => {
     // 0. Filtro por rol - ASESORES solo ven sus leads asignados

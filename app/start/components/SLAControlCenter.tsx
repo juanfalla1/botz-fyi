@@ -563,6 +563,16 @@ export default function SLAControlCenter() {
     }
   }, [dataRefreshKey, authLoading]);
 
+  // Safety timeout: si loading no se resuelve en 10s, forzar false
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => {
+      console.warn('[SLA] ⚠️ Safety timeout: forcing loading=false after 10s');
+      setLoading(false);
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
   // Filtrar alertas
   const filteredAlerts = alerts.filter(alert => {
     if (filters.canal && filters.canal !== "all" && alert.canal !== filters.canal) return false;
