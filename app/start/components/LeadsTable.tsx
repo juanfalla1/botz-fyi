@@ -368,7 +368,7 @@ export default function LeadsTable({
   const [selectedTenantId, setSelectedTenantId] = useState<string>("");
 
   // ✅ NUEVO: Acceso a sincronización global
-  const { triggerDataRefresh, isAsesor, teamMemberId, tenantId: authTenantId, user } = useAuth();
+  const { triggerDataRefresh, isAsesor, teamMemberId, tenantId: authTenantId, user, accessToken } = useAuth();
 
   // =========================
   // ✅ Confirmación bonita para eliminar
@@ -597,9 +597,7 @@ export default function LeadsTable({
         origen: "manual",
       };
 
-      const { data: { session: apiSession } } = await supabase.auth.getSession();
-      const accessToken = apiSession?.access_token || null;
-      if (!accessToken) throw new Error("Sesion expirada. Vuelve a iniciar sesión.");
+      if (!accessToken) throw new Error("Sesion expirada. Vuelve a iniciar sesion.");
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000);
@@ -629,6 +627,7 @@ export default function LeadsTable({
       }
 
       const result = await response.json().catch(() => ({}));
+
       if (!response.ok || result?.ok === false) {
         const msg = result?.error || `Error guardando el lead (HTTP ${response.status})`;
         setLeadModalError(msg);

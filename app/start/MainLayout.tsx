@@ -215,6 +215,7 @@ interface SubscriptionData {
 
 interface AuthContextType {
   user: any | null;
+  accessToken: string | null;
   userPlan: string;
   subscription: SubscriptionData | null;
   loading: boolean;
@@ -242,6 +243,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  accessToken: null,
   userPlan: "free",
   subscription: null,
   loading: true,
@@ -274,6 +276,7 @@ export const useAuth = () => useContext(AuthContext);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   console.log("🚀 [Auth] AuthProvider montando...");
   const [user, setUser] = useState<any | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [userPlan, setUserPlan] = useState<string>("free");
   const [subscription, setSubscription] = useState<SubscriptionData | null>(
     null
@@ -619,6 +622,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         console.log("🔍 [Auth] getSession completado:", session ? "sesión encontrada" : "sin sesión");
 
+        if (session?.access_token) {
+          setAccessToken(session.access_token);
+        }
+
         if (!alive) {
           console.log("🔍 [Auth] Componente desmontado, abortando");
           return;
@@ -656,6 +663,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           console.log("👤 No hay sesión activa");
           setUser(null);
+          setAccessToken(null);
           setUserPlan("free");
           setEnabledFeatures(PLAN_FEATURES["free"]);
           setUserRole(null);
@@ -737,6 +745,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (event === "SIGNED_OUT") {
         console.log("👋 Usuario cerró sesión");
         setUser(null);
+        setAccessToken(null);
         setUserPlan("free");
         setSubscription(null);
         setEnabledFeatures(PLAN_FEATURES["free"]);
@@ -832,8 +841,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id, fetchUserSubscription]);
 
   const logout = async () => {
-    // Optimista: limpiamos estado local primero para que la UI responda instantaneamente.
     setUser(null);
+    setAccessToken(null);
     setUserPlan("free");
     setSubscription(null);
     setEnabledFeatures(PLAN_FEATURES["free"]);
@@ -901,6 +910,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        accessToken,
         userPlan,
         subscription,
         loading,
