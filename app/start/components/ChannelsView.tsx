@@ -755,7 +755,32 @@ if (gmail?.id) await loadEmails(gmail.id);
       const accessToken = session?.access_token || null;
       if (!accessToken) return;
 
-      const tid = (user?.user_metadata as any)?.tenant_id || (user?.app_metadata as any)?.tenant_id;
+      // Buscar tenant_id en metadata primero
+      let tid = (user?.user_metadata as any)?.tenant_id || (user?.app_metadata as any)?.tenant_id || "";
+
+      // Si no está en metadata, buscar en subscriptions
+      if (!tid) {
+        const { data: sub } = await supabase
+          .from("subscriptions")
+          .select("tenant_id")
+          .eq("user_id", user.id)
+          .limit(1)
+          .maybeSingle();
+        if (sub?.tenant_id) tid = sub.tenant_id;
+      }
+
+      // Si tampoco, buscar en team_members (asesores)
+      if (!tid) {
+        const { data: tm } = await supabase
+          .from("team_members")
+          .select("tenant_id")
+          .eq("auth_user_id", user.id)
+          .eq("activo", true)
+          .limit(1)
+          .maybeSingle();
+        if (tm?.tenant_id) tid = tm.tenant_id;
+      }
+
       if (!tid) return;
 
       setTenantId(tid);
