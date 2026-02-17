@@ -499,14 +499,16 @@ export default function SLAControlCenter() {
     if (tiempoRestante <= 0) {
       // SLA vencido
       tipo = "critica";
-    } else if (porcentajeRestante <= 20) {
-      // Menos del 20% del tiempo restante
+    } else if (porcentajeRestante <= 25) {
+      // Menos del 25% del tiempo restante - URGENTE
       tipo = "critica";
-    } else if (porcentajeRestante <= 50) {
-      // Entre 20% y 50% del tiempo restante
-      tipo = "por_vencer";
     } else {
-      // Más del 50% del tiempo restante
+      // Cualquier lead con tiempo restante debe ser atendido
+      tipo = "por_vencer";
+    }
+    
+    // Solo "observacion" para leads en etapas finales (aprobado, cerrado, etc.)
+    if (status === "aprobado" || status === "cerrado" || status === "perdido") {
       tipo = "observacion";
     }
 

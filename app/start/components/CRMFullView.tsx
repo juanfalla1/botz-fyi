@@ -19,6 +19,11 @@ let globalLeadsCache: any[] = [];
 let globalLeadsCacheKey = 0;
 let globalTenantIdCache: string | null = null;
 
+export function invalidateLeadsCache() {
+  globalLeadsCache = [];
+  globalLeadsCacheKey = 0;
+}
+
 // ================= 1. ESQUEMAS DE CONFIGURACIÓN =================
 const CHANNEL_SCHEMAS: Record<string, any> = {
   whatsapp: {
