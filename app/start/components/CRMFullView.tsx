@@ -477,8 +477,47 @@ export default function CRMFullView({
         .range(from, to);
 
       if (effectiveTenantId) q = q.eq("tenant_id", effectiveTenantId);
+      
+      // ⚠️ MEJORADO: Si es asesor, hacer 2 queries paralelas en lugar de usar .or()
+      // El .or() es muy lento sin índices apropiados
       if (isAsesor && teamMemberId) {
-        q = q.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
+        try {
+          const [r1, r2] = await Promise.all([
+            supabase
+              .from("leads")
+              .select(selectCols)
+              .order("created_at", { ascending: false })
+              .range(from, to)
+              .eq("tenant_id", effectiveTenantId)
+              .eq("asesor_id", teamMemberId),
+            supabase
+              .from("leads")
+              .select(selectCols)
+              .order("created_at", { ascending: false })
+              .range(from, to)
+              .eq("tenant_id", effectiveTenantId)
+              .eq("assigned_to", teamMemberId),
+          ]);
+
+          if (r1.error) throw r1.error;
+          if (r2.error) throw r2.error;
+
+          // Deduplicar por ID
+          const byId = new Map<string, any>();
+          (r1.data || []).forEach((row: any) => byId.set(row.id, row));
+          (r2.data || []).forEach((row: any) => byId.set(row.id, row));
+          const rows = Array.from(byId.values());
+
+          if (opts?.shouldCancel?.()) break;
+          opts?.onPage?.(rows, page);
+          out = out.concat(rows);
+
+          if (rows.length < pageSize) break;
+          continue;
+        } catch (e) {
+          console.warn("[CRM] Fallback to simple query for asesor:", e);
+          // Fallback a query sin asesor filter
+        }
       }
 
       const { data, error } = await q;
@@ -849,22 +888,38 @@ export default function CRMFullView({
 
       try {
         const allLeads: any[] = [];
-        await fetchAllLeadsForTable(effectiveTenantId, {
-          shouldCancel: () => cancelled,
-          onPage: (rows, page) => {
-            if (cancelled) return;
-            const normalized = (rows || []).map((l) => normalizeLeadRow(l, "leads"));
-            setTableLeads((prev: any[]) => (page === 0 ? normalized : prev.concat(normalized)));
-            allLeads.push(...normalized);
-          },
-        });
+        
+        // ⚠️ MEJORADO: Agregar timeout a toda la carga de tabla
+        await withTimeout(
+          fetchAllLeadsForTable(effectiveTenantId, {
+            shouldCancel: () => cancelled,
+            onPage: (rows, page) => {
+              if (cancelled) return;
+              const normalized = (rows || []).map((l) => normalizeLeadRow(l, "leads"));
+              setTableLeads((prev: any[]) => (page === 0 ? normalized : prev.concat(normalized)));
+              allLeads.push(...normalized);
+            },
+          }),
+          30_000, // 30 segundos max
+          "fetchAllLeadsForTable"
+        );
+
         if (!cancelled) {
           globalLeadsCache = allLeads;
           globalLeadsCacheKey = dataRefreshKey;
           globalTenantIdCache = effectiveTenantId;
         }
       } catch (e) {
-        if (!cancelled) setTableError(describeError(e));
+        const msg = describeError(e);
+        console.warn("[CRM] Table load error:", msg);
+        if (!cancelled) {
+          setTableError(msg);
+          // Fallback: mostrar al menos lo que está en cache
+          if (globalLeadsCache.length > 0) {
+            setTableLeads(globalLeadsCache);
+            setTableError(null); // No mostrar error si al menos hay cache
+          }
+        }
       } finally {
         if (!cancelled) setLoadingTable(false);
       }
