@@ -5,6 +5,8 @@
  * - Debouncing de búsquedas
  * - Caching de datos
  * - Sincronización automática
+ * 
+ * ⚠️ IMPORTANTE: Estos hooks NO deben bloquear la carga inicial del CRM
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -25,6 +27,8 @@ interface SubscriptionState {
 
 /**
  * Hook para suscribirse a cambios en tiempo real de leads
+ * ⚠️ CRÍTICO: Solo se activa si tenantId es válido (no vacío)
+ * No bloquea la carga del CRM
  */
 export function useRealtimeLeads(options: RealtimeLeadsOptions) {
   const { tenantId, onDataChange, debounceMs = 500 } = options;
@@ -47,14 +51,23 @@ export function useRealtimeLeads(options: RealtimeLeadsOptions) {
   }, []);
 
   useEffect(() => {
-    if (!tenantId) return;
+    // ⚠️ CRÍTICO: No iniciar suscripción sin tenantId válido
+    if (!tenantId || tenantId.trim() === '') {
+      setSubscription({
+        isSubscribed: false,
+        channel: null,
+        error: null,
+      });
+      return;
+    }
 
     let mounted = true;
+    let channel: RealtimeChannel | null = null;
 
-    const setupSubscription = async () => {
+    const setupSubscription = () => {
       try {
         // Crear canal para cambios de leads de este tenant
-        const channel = supabase
+        channel = supabase
           .channel(`realtime:leads:${tenantId}`)
           .on(
             'postgres_changes',
@@ -103,6 +116,7 @@ export function useRealtimeLeads(options: RealtimeLeadsOptions) {
           )
           .subscribe((status) => {
             if (mounted) {
+              console.log(`[Real-time] Subscription status for tenant ${tenantId}: ${status}`);
               setSubscription((prev) => ({
                 ...prev,
                 isSubscribed: status === 'SUBSCRIBED',
@@ -114,11 +128,8 @@ export function useRealtimeLeads(options: RealtimeLeadsOptions) {
         if (mounted) {
           setSubscription((prev) => ({ ...prev, channel }));
         }
-
-        return () => {
-          channel.unsubscribe();
-        };
       } catch (error) {
+        console.error('[Real-time] Error setting up subscription:', error);
         if (mounted) {
           setSubscription((prev) => ({
             ...prev,
@@ -128,11 +139,19 @@ export function useRealtimeLeads(options: RealtimeLeadsOptions) {
       }
     };
 
-    const unsubscribe = setupSubscription();
+    // Ejecutar setup (no bloqueante)
+    setupSubscription();
 
+    // Cleanup function
     return () => {
       mounted = false;
-      unsubscribe?.then((fn) => fn?.());
+      if (channel) {
+        try {
+          channel.unsubscribe();
+        } catch (e) {
+          console.error('[Real-time] Error unsubscribing:', e);
+        }
+      }
     };
   }, [tenantId]);
 
@@ -144,10 +163,8 @@ export function useRealtimeLeads(options: RealtimeLeadsOptions) {
 
     debounceTimerRef.current = setTimeout(() => {
       if (onDataChange && changeQueueRef.current.size > 0) {
-        // En una implementación real, aquí se recargarían los datos
-        // Por ahora solo notificamos
         console.log(
-          'Cambios detectados:',
+          '[Real-time] Cambios detectados:',
           Array.from(changeQueueRef.current).length
         );
         changeQueueRef.current.clear();
@@ -259,7 +276,7 @@ export function usePagination<T>(
 ) {
   const [currentPage, setCurrentPage] = useState(0);
 
-  const totalPages = Math.ceil(items.length / pageSize);
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const startIdx = currentPage * pageSize;
   const endIdx = startIdx + pageSize;
   const currentItems = items.slice(startIdx, endIdx);
