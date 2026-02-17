@@ -74,6 +74,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
   Growth: ALL_FEATURES,
   "A la Medida": ALL_FEATURES,
   Enterprise: ALL_FEATURES,
+  Administrator: ALL_FEATURES,
 };
 
 // Mapeo de features a planes mínimos requeridos (para mostrar en modal)
@@ -1651,6 +1652,36 @@ const UserProfileBadge = ({
               <Crown size={16} style={{ flexShrink: 0 }} />
               {userPlan === "free" ? text.updatePlan : text.viewPlan}
             </button>
+
+            {/* Botón Admin Dashboard (solo para platform admins) */}
+            {isPlatformAdmin && (
+              <button
+                onClick={() => {
+                  setShowMenu(false);
+                  router.push("/admin/invites");
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(168, 85, 247, 0.2)",
+                  background: "rgba(168, 85, 247, 0.05)",
+                  color: "#a855f7",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(168, 85, 247, 0.1)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(168, 85, 247, 0.05)")}
+              >
+                <Settings size={16} style={{ flexShrink: 0 }} />
+                Admin Dashboard
+              </button>
+            )}
 
             {/* Botón cerrar sesión */}
             <button

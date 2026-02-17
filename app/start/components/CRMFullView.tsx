@@ -684,15 +684,15 @@ export default function CRMFullView({
     let cancelled = false;
     let safetyTimer: ReturnType<typeof setTimeout> | null = null;
 
-    // Safety timeout: solo ocultar loading, NUNCA borrar datos existentes
-    safetyTimer = setTimeout(() => {
-      if (!cancelled) {
-        console.warn('[CRM] ⚠️ Safety timeout: ocultando loading después de 30s');
-        setLoadingMetrics(false);
-        setLoadingTable(false);
-        // ❌ NUNCA borrar tableLeads aquí - eso era el bug
-      }
-    }, 30000);
+     // Safety timeout: solo ocultar loading, NUNCA borrar datos existentes
+     safetyTimer = setTimeout(() => {
+       if (!cancelled) {
+         console.warn('[CRM] ⚠️ Safety timeout: ocultando loading después de 10s');
+         setLoadingMetrics(false);
+         setLoadingTable(false);
+         // ❌ NUNCA borrar tableLeads aquí - eso era el bug
+       }
+    }, 10000);
 
     const run = async () => {
       console.log("[CRM] ▶️ run() iniciado");
