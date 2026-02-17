@@ -620,26 +620,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         let { data: { session } } = await supabase.auth.getSession();
         
-        // Fallback: intentar recuperar de localStorage si Supabase no tiene sesión
-        if (!session && typeof window !== 'undefined') {
-          console.log("🔍 [Auth] No hay sesión en Supabase, intentando localStorage...");
-          try {
-            const supabaseData = window.localStorage.getItem('supabase.auth.token');
-            if (supabaseData) {
-              const parsed = JSON.parse(supabaseData);
-              if (parsed?.access_token && parsed?.expires_at && parsed.expires_at * 1000 > Date.now()) {
-                console.log("🔍 [Auth] Token válido encontrado en localStorage, refrescando...");
-                const { data: refreshData } = await supabase.auth.refreshSession();
-                if (refreshData?.session) {
-                  session = refreshData.session;
-                  console.log("🔍 [Auth] Sesión refrescada desde localStorage");
-                }
-              }
-            }
-          } catch (e) {
-            console.log("🔍 [Auth] No se pudo recuperar de localStorage:", e);
-          }
-        }
+        // ✅ SEGURIDAD: NO hay fallback de localStorage
+        // Si Supabase no tiene sesión, el usuario debe hacer login nuevamente
+        // Esto previene que dispositivos compartidos mantengan sesiones activas
         
         console.log("🔍 [Auth] getSession completado:", session ? "sesión encontrada" : "sin sesión");
 

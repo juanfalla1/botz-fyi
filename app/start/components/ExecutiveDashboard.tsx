@@ -350,13 +350,13 @@ export default function ExecutiveDashboard({ filter }: { filter?: string | null 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, canViewExecDashboard, authLoading, selectedMonth, dataRefreshKey]);
 
-  // Safety timeout: si loading no se resuelve en 10s, forzar false
+  // Safety timeout: si loading no se resuelve en 30s, forzar false
   useEffect(() => {
     if (!loading) return;
     const timer = setTimeout(() => {
-      console.warn('[ExecutiveDashboard] ⚠️ Safety timeout: forcing loading=false after 10s');
+      console.warn('[ExecutiveDashboard] ⚠️ Safety timeout: forcing loading=false after 30s');
       setLoading(false);
-    }, 10000);
+    }, 30000);
     return () => clearTimeout(timer);
   }, [loading]);
 

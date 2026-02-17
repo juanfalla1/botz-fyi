@@ -366,8 +366,20 @@ export default function SLAControlCenter() {
       }
     };
 
+    const onLeadCreated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const newLead = customEvent.detail;
+      console.log("[SLA] 🔔 Evento botz-lead-created recibido:", newLead);
+      // Cuando se crea un lead, refrescar los leads del SLA
+      fetchLeads(false);
+    };
+
     window.addEventListener("botz-language-change", onLangChange);
-    return () => window.removeEventListener("botz-language-change", onLangChange);
+    window.addEventListener("botz-lead-created", onLeadCreated);
+    return () => {
+      window.removeEventListener("botz-language-change", onLangChange);
+      window.removeEventListener("botz-lead-created", onLeadCreated);
+    };
   }, []);
 
   // Re-transform alerts when language changes
@@ -380,15 +392,17 @@ export default function SLAControlCenter() {
   // ============================================
   // CARGAR LEADS DESDE SUPABASE
   // ============================================
-  const fetchLeads = async (showFullLoading = false) => {
-    // Safety timeout: force loading=false after 15s if anything hangs
-    const safetyTimer = setTimeout(() => {
-      console.warn('[SLA] ⚠️ Safety timeout: forcing loading=false after 15s');
-      setLoading(false);
-    }, 15000);
+   const fetchLeads = async (showFullLoading = false) => {
+     console.log("[SLA] 📂 fetchLeads iniciado, showFullLoading:", showFullLoading);
+     
+     // Safety timeout: force loading=false after 30s if anything hangs
+     const safetyTimer = setTimeout(() => {
+       console.warn('[SLA] ⚠️ Safety timeout: forcing loading=false after 30s');
+       setLoading(false);
+     }, 30000);
 
-    try {
-      if (showFullLoading) setLoading(true);
+     try {
+       if (showFullLoading) setLoading(true);
 
       if (authLoading) {
         clearTimeout(safetyTimer);
@@ -421,29 +435,49 @@ export default function SLAControlCenter() {
       }
 
       // Cargar leads por tenant y rol
-      let query = supabase.from("leads").select("*");
-
-      query = query.eq("tenant_id", resolvedTenantId);
+      let leadsData: any[] | null = null;
+      let leadsError: any = null;
 
       if (!isAdmin && teamMemberId) {
-        // Asesor o usuario no-admin: solo sus leads.
-        query = query.or(`asesor_id.eq.${teamMemberId},assigned_to.eq.${teamMemberId}`);
+        // ✅ ASESOR: Dos queries separadas en vez de .or() que se cuelga
+        console.log("[SLA] 🔍 Filtrando por asesor (2 queries):", teamMemberId);
+        const [res1, res2] = await Promise.all([
+          supabase.from("leads").select("*").eq("tenant_id", resolvedTenantId).eq("asesor_id", teamMemberId),
+          supabase.from("leads").select("*").eq("tenant_id", resolvedTenantId).eq("assigned_to", teamMemberId),
+        ]);
+        leadsError = res1.error || res2.error;
+        const combined = [...(res1.data || []), ...(res2.data || [])];
+        const seen = new Set<string>();
+        leadsData = combined.filter((l: any) => {
+          if (seen.has(l.id)) return false;
+          seen.add(l.id);
+          return true;
+        });
+      } else {
+        // ADMIN: query simple
+        const res = await supabase.from("leads").select("*").eq("tenant_id", resolvedTenantId);
+        leadsData = res.data;
+        leadsError = res.error;
       }
 
-      const { data: leadsData, error: leadsError } = await query;
-      if (leadsError) throw leadsError;
+       if (leadsError) throw leadsError;
 
-      // Transformar a alertas SLA (solo tabla: leads)
-      const allLeads = [
-        ...(leadsData || []).map(l => ({ ...l, sourceTable: "leads" }))
-      ];
+       console.log("[SLA] ✅ Leads cargados:", leadsData?.length || 0);
 
-      const slaAlerts = allLeads.map(lead => transformToSLAAlert(lead)).filter(Boolean) as SLAAlert[];
-      
-      // Ordenar por urgencia (tiempo restante ascendente)
-      slaAlerts.sort((a, b) => a.tiempoRestante - b.tiempoRestante);
-      
-      setAlerts(slaAlerts);
+       // Transformar a alertas SLA (solo tabla: leads)
+       const allLeads = [
+         ...(leadsData || []).map(l => ({ ...l, sourceTable: "leads" }))
+       ];
+
+       const slaAlerts = allLeads.map(lead => transformToSLAAlert(lead)).filter(Boolean) as SLAAlert[];
+       
+       console.log("[SLA] ✅ Alertas SLA procesadas:", slaAlerts.length);
+       
+       // Ordenar por urgencia (tiempo restante ascendente)
+       slaAlerts.sort((a, b) => a.tiempoRestante - b.tiempoRestante);
+       
+       setAlerts(slaAlerts);
+       console.log("[SLA] ✅ Alertas establecidas:", slaAlerts.length);
     } catch (error) {
       console.error("Error fetching leads:", error);
     } finally {
@@ -573,13 +607,63 @@ export default function SLAControlCenter() {
     }
   }, [dataRefreshKey, authLoading]);
 
-  // Safety timeout: si loading no se resuelve en 10s, forzar false
+  // ✨ Real-time subscription para SLA
+  // ✅ Escucha cambios en la tabla leads y refresca automáticamente
+  useEffect(() => {
+    if (!tenantId || authLoading) return;
+
+    console.log("[SLA] 📡 Suscribiéndose a cambios en tiempo real para tenant:", tenantId);
+
+    const subscription = supabase
+      .channel(`public:leads:tenant_id=eq.${tenantId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leads' }, (payload) => {
+        console.log("[SLA] 🔔 Nuevo lead insertado (realtime):", payload);
+        // Para INSERTs, agregar directo sin esperar fetch
+        if (payload.new) {
+          const newLead = payload.new as any;
+          // Solo agregar si pertenece a este tenant y (somos admin o es nuestro lead)
+          if (newLead.tenant_id === tenantId && (isAdmin || isAsesor && (newLead.asesor_id === teamMemberId || newLead.assigned_to === teamMemberId))) {
+            const slaAlert = transformToSLAAlert(newLead);
+            if (slaAlert) {
+              console.log("[SLA] ✅ Agregando alerta de nuevo lead:", slaAlert);
+              setAlerts((prev) => {
+                const updated = [slaAlert, ...prev];
+                updated.sort((a, b) => a.tiempoRestante - b.tiempoRestante);
+                return updated;
+              });
+            }
+          }
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads' }, (payload) => {
+        console.log("[SLA] 🔔 Lead actualizado (realtime):", payload);
+        // Para UPDATEs, refrescar
+        fetchLeads(false);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'leads' }, (payload) => {
+        console.log("[SLA] 🔔 Lead eliminado (realtime):", payload);
+        // Para DELETEs, remover de alertas
+        if (payload.old?.id) {
+          setAlerts((prev) => prev.filter((alert) => alert.leadId !== payload.old.id));
+        }
+      })
+      .subscribe((status) => {
+        console.log("[SLA] 📡 Realtime subscription status:", status);
+      });
+
+    return () => {
+      console.log("[SLA] 📡 Desuscribiendo de cambios en tiempo real");
+      supabase.removeChannel(subscription);
+    };
+  }, [tenantId, authLoading, isAdmin, isAsesor, teamMemberId]);
+
+  // Safety timeout: si loading no se resuelve en 30s, forzar false
   useEffect(() => {
     if (!loading) return;
     const timer = setTimeout(() => {
-      console.warn('[SLA] ⚠️ Safety timeout: forcing loading=false after 10s');
+      console.warn('[SLA] ⚠️ Safety timeout: forcing loading=false after 30s');
       setLoading(false);
-    }, 10000);
+    }, 30000);
     return () => clearTimeout(timer);
   }, [loading]);
 

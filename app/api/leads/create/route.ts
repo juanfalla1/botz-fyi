@@ -61,30 +61,38 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "No autorizado para ese tenant" }, { status: 403 });
     }
 
-    const payload: any = {
-      name: String(lead?.name || "").trim(),
-      email: String(lead?.email || "").trim() || null,
-      phone: String(lead?.phone || "").trim(),
-      status: String(lead?.status || "NUEVO").trim() || "NUEVO",
-      next_action: String(lead?.next_action || "").trim(),
-      calificacion: String(lead?.calificacion || "").trim(),
-      origen: String(lead?.origen || "manual").trim() || "manual",
-      tenant_id: tenantId,
-      user_id: userRes.user.id,
-    };
+     // ✅ RESOLUCIÓN DE ADVISOR ID
+     let finalAdvisorId = advisorId || null;
+     
+     // Si no hay advisorId explícito, intentar obtenerlo del usuario actual
+     if (!finalAdvisorId) {
+       const { data: tmByAuth } = await supabase
+         .from("team_members")
+         .select("id")
+         .eq("auth_user_id", userRes.user.id)
+         .eq("tenant_id", tenantId)
+         .eq("activo", true)
+         .maybeSingle();
+       
+       if (tmByAuth?.id) {
+         finalAdvisorId = tmByAuth.id;
+       }
+     }
 
-    if (advisorId) {
-      const { data: tm } = await supabase
-        .from("team_members")
-        .select("id, tenant_id")
-        .eq("id", advisorId)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (tm?.id) {
-        payload.asesor_id = advisorId;
-        payload.assigned_to = advisorId;
-      }
-    }
+     const payload: any = {
+       name: String(lead?.name || "").trim(),
+       email: String(lead?.email || "").trim() || null,
+       phone: String(lead?.phone || "").trim(),
+       status: String(lead?.status || "NUEVO").trim() || "NUEVO",
+       next_action: String(lead?.next_action || "").trim(),
+       calificacion: String(lead?.calificacion || "").trim(),
+       origen: String(lead?.origen || "manual").trim() || "manual",
+       tenant_id: tenantId,
+       user_id: userRes.user.id,
+       // ✅ IMPORTANTE: Asignar siempre al advisor (actual o creador)
+       asesor_id: finalAdvisorId || null,
+       assigned_to: finalAdvisorId || null,
+     };
 
     const insertPromise = supabase.from("leads").insert([payload]).select("*").single();
     const insertRes: any = await withTimeout(

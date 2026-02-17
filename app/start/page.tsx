@@ -140,7 +140,7 @@ export default function BotzLandingExperience() {
   const t = copy[language];
   
   // ✅ Usar el contexto de autenticación
-  const { user, loading: authLoading, isAdmin, isAsesor, isPlatformAdmin, hasPermission } = useAuth();
+  const { user, loading: authLoading, isAdmin, isAsesor, isPlatformAdmin, hasPermission, tenantId, teamMemberId } = useAuth();
   
   const [activeTab, setActiveTab] = useState<Tab>("demo");
   const [hipotecaMode, setHipotecaMode] = useState<"manual" | "lead">("manual");
@@ -296,11 +296,55 @@ export default function BotzLandingExperience() {
   const fetchLeads = async () => {
     setLoadingLeads(true);
     try {
-      const { data, error } = await supabase
-        .from("leads")
-        .select("id, name, phone, created_at")
-        .order("created_at", { ascending: false })
-        .limit(50);
+      // ✅ Filtrar por tenant y asesor
+      const effectiveTenantId = tenantId || user?.user_metadata?.tenant_id || user?.app_metadata?.tenant_id || null;
+      
+      if (!effectiveTenantId) {
+        setLeadsOptions([]);
+        setLoadingLeads(false);
+        return;
+      }
+
+      let data: any[] | null = null;
+      let error: any = null;
+
+      if (isAsesor && teamMemberId) {
+        // ✅ ASESOR: solo sus leads (2 queries paralelas)
+        const [res1, res2] = await Promise.all([
+          supabase
+            .from("leads")
+            .select("id, name, phone, created_at")
+            .eq("tenant_id", effectiveTenantId)
+            .eq("asesor_id", teamMemberId)
+            .order("created_at", { ascending: false })
+            .limit(50),
+          supabase
+            .from("leads")
+            .select("id, name, phone, created_at")
+            .eq("tenant_id", effectiveTenantId)
+            .eq("assigned_to", teamMemberId)
+            .order("created_at", { ascending: false })
+            .limit(50),
+        ]);
+        error = res1.error || res2.error;
+        const combined = [...(res1.data || []), ...(res2.data || [])];
+        const seen = new Set<string>();
+        data = combined.filter((l: any) => {
+          if (seen.has(l.id)) return false;
+          seen.add(l.id);
+          return true;
+        });
+      } else {
+        // ADMIN: todos los leads del tenant
+        const res = await supabase
+          .from("leads")
+          .select("id, name, phone, created_at")
+          .eq("tenant_id", effectiveTenantId)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        data = res.data;
+        error = res.error;
+      }
 
       if (error) {
         console.warn("Leads no disponibles:", error?.message || "Error de conexión");
@@ -811,11 +855,13 @@ export default function BotzLandingExperience() {
         <ChannelsView channels={CHANNELS} />
       </div>
       
-      {user && activeTab === "crm" && (
-        <CRMFullView 
-          key={`crm-${user.id}`}
-          globalFilter={globalFilter ?? undefined} 
-        />
+      {user && (
+        <div style={{ display: activeTab === "crm" ? "block" : "none" }}>
+          <CRMFullView 
+            key={`crm-${user.id}`}
+            globalFilter={globalFilter ?? undefined} 
+          />
+        </div>
       )}
 
       {user && activeTab === "control-center" && (

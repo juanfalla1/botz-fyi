@@ -275,13 +275,15 @@ export default function LeadsTable({
   session,
   globalFilter,
   onLeadPatch,
+  onLeadDelete,
+  onLeadCreate,
 }: {
   initialLeads: Lead[];
   session?: any;
   globalFilter?: string | null;
- onLeadPatch?: ((..._args: any[]) => void) | undefined;
-
-
+  onLeadPatch?: ((..._args: any[]) => void) | undefined;
+  onLeadDelete?: ((id: string) => void) | undefined;
+  onLeadCreate?: ((lead: Lead) => void) | undefined;
 }) {
 
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
@@ -358,6 +360,7 @@ export default function LeadsTable({
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [leadModalLoading, setLeadModalLoading] = useState(false);
   const [leadModalError, setLeadModalError] = useState<string | null>(null);
+  const [syncingData, setSyncingData] = useState(false);
 
   const [formName, setFormName] = useState<string>("");
   const [formEmail, setFormEmail] = useState<string>("");
@@ -644,11 +647,39 @@ export default function LeadsTable({
 
       if (result?.lead) {
         const newLead = result.lead as Lead;
-        setLeads((prev) => [newLead, ...prev]);
+        console.log("✅ [LeadsTable] Lead creado exitosamente:", newLead);
+        
+        // ✅ Mostrar barra de sincronización
+        setSyncingData(true);
+        closeLeadModal();
+        
+        // ✅ SOLO agregar el nuevo lead al inicio, SIN hacer fetch de todo
+        const leadWithSource: Lead = {
+          ...newLead,
+          sourceTable: "leads"
+        };
+        
+        console.log("✅ [LeadsTable] Agregando lead al estado local...");
+        setLeads((prev) => [leadWithSource, ...prev]);
+        
+        // ✅ Notificar al padre (CRMFullView) para que lo agregue también
+        console.log("✅ [LeadsTable] Notificando al padre (CRMFullView)...");
+        onLeadCreate?.(leadWithSource);
+        
+        // ✅ Disparar evento global para que SLA y otros componentes se actualicen
+        console.log("🔔 [LeadsTable] Disparando evento botz-lead-created...");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("botz-lead-created", { detail: leadWithSource }));
+        }
+        
+        // ✅ Ocultar barra después de 1.5 segundos
+        setTimeout(() => {
+          console.log("✅ [LeadsTable] Sincronización completada");
+          setSyncingData(false);
+        }, 1500);
+      } else {
+        closeLeadModal();
       }
-
-      triggerDataRefresh();
-      closeLeadModal();
     } catch (e: any) {
       console.error(e);
       setLeadModalError(e?.message || "Error guardando el lead.");
@@ -731,6 +762,11 @@ export default function LeadsTable({
 
       // Actualizar estado local
       setLeads((prev) => prev.filter((l) => l.id !== deleteTarget.id));
+      
+      // Notificar al padre para actualizar su estado
+      if (onLeadDelete) {
+        onLeadDelete(deleteTarget.id);
+      }
       
       // Refrescar datos globales
       triggerDataRefresh();
@@ -2105,6 +2141,39 @@ export default function LeadsTable({
           </div>
         </div>
       )}
+
+      {/* ✅ BARRA DE SINCRONIZACIÓN - COMPACTA */}
+      {syncingData && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "3px",
+            zIndex: 50000,
+            background: "transparent",
+          }}
+        >
+          <div
+            style={{
+              height: "100%",
+              background: "linear-gradient(90deg, #22d3ee, #3b82f6, #22d3ee)",
+              animation: "slideProgress 1.5s ease-in-out forwards",
+              boxShadow: "0 2px 10px rgba(34, 211, 238, 0.5)",
+            }}
+          />
+        </div>
+      )}
+
+      {/* Estilos de animación */}
+      <style>{`
+        @keyframes slideProgress {
+          0% { width: 0%; }
+          50% { width: 100%; }
+          100% { width: 100%; }
+        }
+      `}</style>
     </>
   );
 }

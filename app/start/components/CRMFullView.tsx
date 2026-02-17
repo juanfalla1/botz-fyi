@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import { 
   Users, Calendar, Activity, TrendingUp, BarChart3, Globe, PieChart as PieIcon,
@@ -226,16 +226,31 @@ export default function CRMFullView({
   const [timeFilter, setTimeFilter] = useState<'week' | 'month'>('month');
   const tableTenantRef = useRef<string | null>(null);
 
-  const { isAdmin, isAsesor, isPlatformAdmin, userRole, hasPermission, user, tenantId, teamMemberId, userPlan, subscription, loading: authLoading, dataRefreshKey } = useAuth();
+  const { isAdmin, isAsesor, isPlatformAdmin, userRole, hasPermission, user, tenantId, teamMemberId, userPlan, subscription, loading: authLoading, dataRefreshKey, triggerDataRefresh } = useAuth();
 
   // ✨ Real-time subscription para actualizaciones automáticas
-  // ⚠️ DESACTIVADO TEMPORALMENTE: Causaba timeout en carga del CRM
-  // Será activado en versión optimizada futura
-  // const effectiveTenantId = tenantId || user?.user_metadata?.tenant_id || user?.app_metadata?.tenant_id || null;
-  // const { isSubscribed: realtimeSubscribed, error: realtimeError } = useRealtimeLeads({
-  //   tenantId: effectiveTenantId || '',
-  //   debounceMs: 500,
-  // });
+  // ✅ ACTIVADO: Escucha cambios en tiempo real en la tabla leads
+  useEffect(() => {
+    if (!tenantId || !triggerDataRefresh) return;
+    
+    console.log("[CRM] 📡 Suscribiéndose a cambios en tiempo real para tenant:", tenantId);
+    
+    const subscription = supabase
+      .channel(`public:leads:tenant_id=eq.${tenantId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, (payload) => {
+        console.log("[CRM] 🔔 Cambio detectado en leads:", payload);
+        // Cuando hay cambios, disparar el refresh
+        triggerDataRefresh();
+      })
+      .subscribe((status) => {
+        console.log("[CRM] 📡 Realtime subscription status:", status);
+      });
+    
+    return () => {
+      console.log("[CRM] 📡 Desuscribiendo de cambios en tiempo real");
+      supabase.removeChannel(subscription);
+    };
+  }, [tenantId, triggerDataRefresh]);
 
   // ESTADOS PARA EL MODAL
   const [showConfig, setShowConfig] = useState(!!openControlCenter);
@@ -259,8 +274,18 @@ export default function CRMFullView({
       }
     };
 
+    const onLeadsRefresh = () => {
+      console.log("[CRM] Recibido evento botz-leads-refresh, limpiando cache...");
+      globalLeadsCache = [];
+      globalLeadsCacheKey = 0;
+    };
+
     window.addEventListener("botz-language-change", onLangChange);
-    return () => window.removeEventListener("botz-language-change", onLangChange);
+    window.addEventListener("botz-leads-refresh", onLeadsRefresh);
+    return () => {
+      window.removeEventListener("botz-language-change", onLangChange);
+      window.removeEventListener("botz-leads-refresh", onLeadsRefresh);
+    };
   }, []);
 
   // Si este componente se usa como "tab" dedicado al Centro de Control,
@@ -639,278 +664,163 @@ export default function CRMFullView({
   // - Metricas + conteos: rapido (bloquea lo minimo)
   // - Tabla completa: en segundo plano (no bloquea el panel)
   useEffect(() => {
-    if (openControlCenter) return; // Control Center como tab: no cargar CRM
-    if (authLoading) return;
-    if (!user) return;
-    // Evita "flicker" en refresh: espera a que el rol este resuelto
-    if (!isPlatformAdmin && !userRole) return;
+    console.log("[CRM] useEffect triggered:", { openControlCenter, authLoading, user: !!user, isPlatformAdmin, userRole, dataRefreshKey, tenantId });
+    
+    if (openControlCenter) {
+      console.log("[CRM] Saltando: openControlCenter");
+      return;
+    }
+    
+    // ✅ NO esperar a authLoading - si tenemos tenantId, cargar datos
+    if (!tenantId && authLoading) {
+      console.log("[CRM] Saltando: authLoading y sin tenantId");
+      return;
+    }
+    if (!tenantId && !user) {
+      console.log("[CRM] Saltando: no user y no tenantId");
+      return;
+    }
 
     let cancelled = false;
+    let safetyTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Safety timeout: solo ocultar loading, NUNCA borrar datos existentes
+    safetyTimer = setTimeout(() => {
+      if (!cancelled) {
+        console.warn('[CRM] ⚠️ Safety timeout: ocultando loading después de 30s');
+        setLoadingMetrics(false);
+        setLoadingTable(false);
+        // ❌ NUNCA borrar tableLeads aquí - eso era el bug
+      }
+    }, 30000);
+
     const run = async () => {
+      console.log("[CRM] ▶️ run() iniciado");
       setLoadingMetrics(true);
+      setLoadingTable(true);
       setMetricsError(null);
       try {
-        const days = timeFilter === "week" ? 7 : 30;
-
         const effectiveTenantId =
           tenantId ||
           user?.user_metadata?.tenant_id ||
           user?.app_metadata?.tenant_id ||
           null;
 
+        console.log("[CRM] effectiveTenantId:", effectiveTenantId, "isPlatformAdmin:", isPlatformAdmin, "isAsesor:", isAsesor, "teamMemberId:", teamMemberId);
+
         if (!effectiveTenantId && isPlatformAdmin) {
-          setLeadCounts(null);
-          setMetricRows([]);
-          setTableLeads([]);
-          setMetricsError("Selecciona un cliente/tenant en Centro de Control");
+          console.log("[CRM] Platform admin sin tenant - saliendo");
+          setLoadingMetrics(false);
+          setLoadingTable(false);
           return;
         }
 
-        // Para usuarios normales, esperamos a tener tenantId para evitar consultas sin index (lentas)
         if (!effectiveTenantId) {
+          console.log("[CRM] ❌ Sin tenantId - saliendo");
+          setLoadingMetrics(false);
+          setLoadingTable(false);
           return;
         }
 
-        const cacheKey = `botz-crm-recent:${effectiveTenantId}:${isAsesor && teamMemberId ? teamMemberId : "all"}:${dataRefreshKey}`;
-        const cached = readCache(cacheKey);
-        const cacheTtlMs = 10 * 60 * 1000;
-        const cacheFresh = cached?.at && Date.now() - Number(cached.at) < cacheTtlMs;
-        if (cacheFresh) {
-          if (Array.isArray(cached.tableLeads) && tableLeads.length === 0) {
-            setTableLeads(cached.tableLeads);
-          }
-          if (Array.isArray(cached.metricRows) && metricRows.length === 0) {
-            setMetricRows(cached.metricRows);
-          }
-          if (cached.leadCounts && !leadCounts) {
-            setLeadCounts(cached.leadCounts);
-          }
-        }
+        console.log("[CRM] 🔍 Haciendo query a Supabase para tenant:", effectiveTenantId);
 
-        // Si el cache esta fresco, evita reconsultar y evita timeouts
-        if (cacheFresh && (tableLeads.length > 0 || metricRows.length > 0)) {
-          setMetricsError(null);
-          return;
-        }
+        let leadsData: any[] | null = null;
+        let leadsError: any = null;
 
-        const since = new Date();
-        since.setDate(since.getDate() - days);
-
-        const recentSelect = [
-          "id",
-          "created_at",
-          "name",
-          "email",
-          "phone",
-          "status",
-          "next_action",
-          "calificacion",
-          "origen",
-          "source",
-          "asesor_id",
-          "assigned_to",
-          "asesor_nombre",
-          "estado_operacion",
-          "tenant_id",
-          "user_id",
-        ].join(",");
-
-        const recentSelectFallback = [
-          "id",
-          "created_at",
-          "name",
-          "email",
-          "phone",
-          "status",
-          "origen",
-          "source",
-          "asesor_id",
-          "assigned_to",
-          "asesor_nombre",
-          "tenant_id",
-        ].join(",");
-
-        const fetchRecent = async (opts: { limit: number; order: boolean; window: boolean; select: string }) => {
-          const build = (extra: { field?: "asesor_id" | "assigned_to" } = {}) => {
-            let q: any = supabase
+        if (isAsesor && teamMemberId) {
+          // ✅ ASESOR: Dos queries separadas en vez de .or() que se cuelga
+          console.log("[CRM] 🔍 Filtrando por asesor (2 queries):", teamMemberId);
+          
+          const [res1, res2] = await Promise.all([
+            supabase
               .from("leads")
-              .select(opts.select)
-              .limit(opts.limit);
+              .select("id,created_at,name,email,phone,status,origen,source,asesor_id,assigned_to,asesor_nombre,tenant_id")
+              .eq("tenant_id", effectiveTenantId)
+              .eq("asesor_id", teamMemberId)
+              .order("created_at", { ascending: false })
+              .limit(50),
+            supabase
+              .from("leads")
+              .select("id,created_at,name,email,phone,status,origen,source,asesor_id,assigned_to,asesor_nombre,tenant_id")
+              .eq("tenant_id", effectiveTenantId)
+              .eq("assigned_to", teamMemberId)
+              .order("created_at", { ascending: false })
+              .limit(50),
+          ]);
 
-            q = q.eq("tenant_id", effectiveTenantId);
-            if (opts.window) q = q.gte("created_at", since.toISOString());
-            if (opts.order) q = q.order("created_at", { ascending: false });
-            if (extra.field && teamMemberId) q = q.eq(extra.field, teamMemberId);
-            return q;
-          };
+          console.log("[CRM] 🔍 Query 1 (asesor_id):", res1.data?.length || 0, "error:", res1.error?.message || "none");
+          console.log("[CRM] 🔍 Query 2 (assigned_to):", res2.data?.length || 0, "error:", res2.error?.message || "none");
 
-          if (isAsesor && teamMemberId) {
-            // Evitar OR (suele romper indices). Hacemos 2 queries paralelas y unimos.
-            const [r1, r2] = await Promise.all([build({ field: "asesor_id" }), build({ field: "assigned_to" })]);
-            if (r1.error) throw r1.error;
-            if (r2.error) throw r2.error;
-            const a = (r1.data || []) as any[];
-            const b = (r2.data || []) as any[];
-            const byId = new Map<string, any>();
-            for (const row of a.concat(b)) byId.set(String(row?.id), row);
-            return Array.from(byId.values());
-          }
+          leadsError = res1.error || res2.error;
+          
+          // Combinar y deduplicar por id
+          const combined = [...(res1.data || []), ...(res2.data || [])];
+          const seen = new Set<string>();
+          leadsData = combined.filter((l: any) => {
+            if (seen.has(l.id)) return false;
+            seen.add(l.id);
+            return true;
+          });
+        } else {
+          // ADMIN: query simple
+          console.log("[CRM] 🔍 Query admin (sin filtro asesor)");
+          const res = await supabase
+            .from("leads")
+            .select("id,created_at,name,email,phone,status,origen,source,asesor_id,assigned_to,asesor_nombre,tenant_id")
+            .eq("tenant_id", effectiveTenantId)
+            .order("created_at", { ascending: false })
+            .limit(50);
+          
+          leadsData = res.data;
+          leadsError = res.error;
+        }
 
-          const { data, error } = await build();
-          if (error) throw error;
-          return (data || []) as any[];
-        };
+        if (leadsError) {
+          console.error("[CRM] ❌ Error en consulta:", leadsError);
+          throw leadsError;
+        }
 
-         let recentLeadsData: any[] = [];
-         
-         // 🔥 ESTRATEGIA RADICAL: Cargar SOLO los últimos 20 leads sin ORDER (ultra rápido)
-         try {
-           recentLeadsData = await withTimeout(
-             // Límite MUY pequeño (20) sin ORDER para ser lo más rápido posible
-             fetchRecent({ limit: 20, order: false, window: false, select: recentSelectFallback }),
-             5_000,
-             "recent leads minimal"
-           );
-           console.log("[CRM] Cargados 20 leads mínimos en cliente");
-         } catch (e) {
-           const msg = describeError(e);
-           console.warn("[CRM] recent leads minimal fail:", msg);
-           
-           // Fallback aún más agresivo: solo 10 leads, sin nada
-           try {
-             recentLeadsData = await withTimeout(
-               fetchRecent({ limit: 10, order: false, window: false, select: "id,nombre,email,created_at" }),
-               3_000,
-               "recent leads ultra-minimal"
-             );
-             console.log("[CRM] Cargados 10 leads ultra-mínimos como fallback");
-           } catch (e2) {
-             const msg2 = describeError(e2);
-             console.warn("[CRM] recent leads ultra-minimal fail:", msg2);
-             if (!cancelled && tableLeads.length === 0 && metricRows.length === 0) {
-               setMetricsError((prev) => prev || msg2);
-             }
-             // Si todo falla, devolver array vacío pero NO romper la UI
-             recentLeadsData = [];
-             console.log("[CRM] ⚠️ No se pudo cargar leads, continuando con tabla vacía");
-           }
-         }
+        console.log("[CRM] ✅ Leads recibidos:", leadsData?.length || 0);
 
-        const trackerPromise = withTimeout(
-          fetchRecentFromTable(
-            "demo_tracker_botz",
-            days,
-            "user_id",
-            user?.id,
-            null,
-            2000
-          ),
-          12_000,
-          "tracker"
-        ).catch(() => [] as any[]);
-
-        const countsPromise = effectiveTenantId
-          ? withTimeout(fetchLeadCounts(effectiveTenantId), 8_000, "lead counts").catch((e) => {
-              console.warn("No se pudieron cargar conteos de leads:", describeError(e));
-              return null;
-            })
-          : Promise.resolve(null);
-
-        const [trackerData, counts] = await Promise.all([trackerPromise, countsPromise]);
-
-        if (cancelled) return;
-        if (counts) setLeadCounts(counts);
-
-        // Tabla (sin base completa): usar la ventana reciente para que cargue rapido
-        const normalizedTable = (recentLeadsData || []).map((l) => normalizeLeadRow(l, "leads")) as any[];
-        // Ordenar en cliente por si venimos del fallback (sin ORDER)
-        normalizedTable.sort((a: any, b: any) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime());
-        setTableLeads(normalizedTable as any);
-
-        const metricData = [
-          ...(recentLeadsData || []).map((l) => normalizeLeadRow(l, "leads")),
-          ...(trackerData || []).map((l) => normalizeLeadRow(l, "demo_tracker_botz")),
-        ];
-
-        setMetricRows(
-          metricData.sort((a: any, b: any) =>
-            new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime()
-          )
+        const normalizedLeads = (leadsData || []).map((l: any) => normalizeLeadRow(l, "leads"));
+        
+        normalizedLeads.sort((a: any, b: any) => 
+          new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
         );
 
-        writeCache(cacheKey, {
-          at: Date.now(),
-          tableLeads: normalizedTable,
-          metricRows: metricData,
-          leadCounts: counts,
-        });
+        setTableLeads(normalizedLeads as any);
+        setMetricRows(normalizedLeads as any);
+
+        // Conteos simples
+        const total = normalizedLeads.length;
+        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        const month = normalizedLeads.filter((l: any) => l.created_at && new Date(l.created_at) >= monthStart).length;
+        const converted = normalizedLeads.filter((l: any) => 
+          ["convertido", "cerrado", "vendido", "firmado"].includes((l.status || "").toLowerCase())
+        ).length;
+
+        setLeadCounts({ total, month, converted });
+
+      } catch (e) {
+        console.error("[CRM] Error cargando datos:", e);
+        // ❌ NUNCA borrar datos existentes si hay error
+        // Solo mostrar error si no hay datos previos
+        setTableError(String((e as any)?.message || "Error cargando datos"));
       } finally {
-        if (!cancelled) setLoadingMetrics(false);
+        if (safetyTimer) clearTimeout(safetyTimer);
+        if (!cancelled) {
+          setLoadingMetrics(false);
+          setLoadingTable(false);
+        }
       }
     };
 
     run();
     return () => {
       cancelled = true;
+      if (safetyTimer) clearTimeout(safetyTimer);
     };
-  }, [openControlCenter, authLoading, timeFilter, isAsesor, teamMemberId, tenantId, user?.id, isPlatformAdmin, userRole, dataRefreshKey]);
-
-  // Tabla completa en segundo plano (no depende del filtro semanal/mensual)
-  useEffect(() => {
-    if (openControlCenter) return;
-    if (!user) return;
-    if (!isPlatformAdmin && !userRole) return;
-
-    const effectiveTenantId =
-      tenantId ||
-      user?.user_metadata?.tenant_id ||
-      user?.app_metadata?.tenant_id ||
-      null;
-
-    if (!effectiveTenantId && isPlatformAdmin) return;
-    if (!effectiveTenantId) return;
-
-    const tenantChanged = globalTenantIdCache !== effectiveTenantId;
-    const needsRefresh = globalLeadsCacheKey !== dataRefreshKey || tenantChanged;
-    
-    if (!needsRefresh && globalLeadsCache.length > 0) {
-      setTableLeads(globalLeadsCache);
-      return;
-    }
-
-    let cancelled = false;
-
-    const run = async () => {
-      setLoadingTable(true);
-      setTableError(null);
-      if (tenantChanged) setTableLeads([]);
-
-      try {
-        const allLeads: any[] = [];
-        await fetchAllLeadsForTable(effectiveTenantId, {
-          shouldCancel: () => cancelled,
-          onPage: (rows, page) => {
-            if (cancelled) return;
-            const normalized = (rows || []).map((l) => normalizeLeadRow(l, "leads"));
-            setTableLeads((prev: any[]) => (page === 0 ? normalized : prev.concat(normalized)));
-            allLeads.push(...normalized);
-          },
-        });
-        if (!cancelled) {
-          globalLeadsCache = allLeads;
-          globalLeadsCacheKey = dataRefreshKey;
-          globalTenantIdCache = effectiveTenantId;
-        }
-      } catch (e) {
-        if (!cancelled) setTableError(describeError(e));
-      } finally {
-        if (!cancelled) setLoadingTable(false);
-      }
-    };
-
-    run();
-    return () => { cancelled = true; };
-  }, [openControlCenter, user, tenantId, isPlatformAdmin, userRole, dataRefreshKey]);
+  }, [openControlCenter, authLoading, timeFilter, isAsesor, teamMemberId, tenantId, user, isPlatformAdmin, userRole, dataRefreshKey]);
 
   // Lógica de filtrado unificada (Fecha + Filtro Global del Dock + Rol)
   const filteredLeads = metricRows.filter(l => {
@@ -1091,15 +1001,44 @@ export default function CRMFullView({
             </div>
           )}
 
-          <LeadsTable
-            initialLeads={tableLeads}
-            globalFilter={globalFilter}
-            onLeadPatch={(id, patch) => {
-              setTableLeads((prev: any[]) =>
-                prev.map((l: any) => (String(l.id) === String(id) ? { ...l, ...patch } : l))
-              );
-            }}
-          />
+           <LeadsTable
+             initialLeads={tableLeads}
+             globalFilter={globalFilter}
+             onLeadCreate={(newLead: Lead) => {
+               // ✅ Agregar el nuevo lead al estado del CRM también
+               console.log("[CRM] ✅ Nuevo lead recibido, agregando a estado local:", newLead);
+               
+               // Asegurar sourceTable
+               const leadWithSource: Lead = {
+                 ...newLead,
+                 sourceTable: newLead.sourceTable || "leads"
+               };
+               
+               // Agregar a tableLeads (NO reemplazar, AGREGAR)
+               setTableLeads((prev: Lead[]) => {
+                 const updated = [leadWithSource, ...prev];
+                 console.log("[CRM] ✅ tableLeads actualizado. Total leads:", updated.length);
+                 return updated;
+               });
+               
+               // Agregar a metricRows también
+               setMetricRows((prev: Lead[]) => {
+                 const updated = [leadWithSource, ...prev];
+                 console.log("[CRM] ✅ metricRows actualizado. Total leads:", updated.length);
+                 return updated;
+               });
+             }}
+             onLeadPatch={(id, patch) => {
+               setTableLeads((prev: any[]) =>
+                 prev.map((l: any) => (String(l.id) === String(id) ? { ...l, ...patch } : l))
+               );
+             }}
+             onLeadDelete={(id) => {
+               console.log("[CRM] Eliminando lead del estado local:", id);
+               setTableLeads((prev: any[]) => prev.filter((l: any) => String(l.id) !== String(id)));
+               setMetricRows((prev: any[]) => prev.filter((l: any) => String(l.id) !== String(id)));
+             }}
+           />
         </>
       )}
 
