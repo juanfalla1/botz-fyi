@@ -214,8 +214,9 @@ export default function CRMFullView({
   const [loadingTable, setLoadingTable] = useState(false);
   const [tableError, setTableError] = useState<string | null>(null);
   const tableTenantRef = useRef<string | null>(null);
+  const lastRefreshKeyRef = useRef<number>(0);
   const [timeFilter, setTimeFilter] = useState<'week' | 'month'>('month');
-  const { isAdmin, isAsesor, isPlatformAdmin, userRole, hasPermission, user, tenantId, teamMemberId, userPlan, subscription, loading: authLoading } = useAuth(); // Hook para detectar rol y obtener datos
+  const { isAdmin, isAsesor, isPlatformAdmin, userRole, hasPermission, user, tenantId, teamMemberId, userPlan, subscription, loading: authLoading, dataRefreshKey } = useAuth();
  
   // ESTADOS PARA EL MODAL
   const [showConfig, setShowConfig] = useState(!!openControlCenter);
@@ -815,7 +816,9 @@ export default function CRMFullView({
       if (!effectiveTenantId && isPlatformAdmin) return;
       if (!effectiveTenantId) return;
 
-      if (tableTenantRef.current === effectiveTenantId && tableLeads.length > 0) return;
+      const needsRefresh = lastRefreshKeyRef.current !== dataRefreshKey;
+      if (tableTenantRef.current === effectiveTenantId && tableLeads.length > 0 && !needsRefresh) return;
+      lastRefreshKeyRef.current = dataRefreshKey;
       tableTenantRef.current = effectiveTenantId;
 
       setLoadingTable(true);
@@ -842,7 +845,7 @@ export default function CRMFullView({
     return () => {
       cancelled = true;
     };
-  }, [openControlCenter, authLoading, user?.id, tenantId, isPlatformAdmin, userRole, isAsesor, teamMemberId]);
+  }, [openControlCenter, authLoading, user?.id, tenantId, isPlatformAdmin, userRole, isAsesor, teamMemberId, dataRefreshKey]);
 
   // Lógica de filtrado unificada (Fecha + Filtro Global del Dock + Rol)
   const filteredLeads = metricRows.filter(l => {
