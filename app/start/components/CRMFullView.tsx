@@ -213,10 +213,12 @@ export default function CRMFullView({
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [loadingTable, setLoadingTable] = useState(false);
   const [tableError, setTableError] = useState<string | null>(null);
-  const tableTenantRef = useRef<string | null>(null);
+  const tableLoadedRef = useRef(false);
   const [timeFilter, setTimeFilter] = useState<'week' | 'month'>('month');
+  const tableTenantRef = useRef<string | null>(null);
+
   const { isAdmin, isAsesor, isPlatformAdmin, userRole, hasPermission, user, tenantId, teamMemberId, userPlan, subscription, loading: authLoading, dataRefreshKey } = useAuth();
- 
+
   // ESTADOS PARA EL MODAL
   const [showConfig, setShowConfig] = useState(!!openControlCenter);
   const [activeConfigTab, setActiveConfigTab] = useState(initialControlTab || "canales");
@@ -800,24 +802,21 @@ export default function CRMFullView({
   // Tabla completa en segundo plano (no depende del filtro semanal/mensual)
   useEffect(() => {
     if (openControlCenter) return;
-    if (authLoading) return;
     if (!user) return;
     if (!isPlatformAdmin && !userRole) return;
 
+    const effectiveTenantId =
+      tenantId ||
+      user?.user_metadata?.tenant_id ||
+      user?.app_metadata?.tenant_id ||
+      null;
+
+    if (!effectiveTenantId && isPlatformAdmin) return;
+    if (!effectiveTenantId) return;
+
     let cancelled = false;
+
     const run = async () => {
-      const effectiveTenantId =
-        tenantId ||
-        user?.user_metadata?.tenant_id ||
-        user?.app_metadata?.tenant_id ||
-        null;
-
-      if (!effectiveTenantId && isPlatformAdmin) return;
-      if (!effectiveTenantId) return;
-
-      if (tableTenantRef.current === effectiveTenantId && tableLeads.length > 0) return;
-      tableTenantRef.current = effectiveTenantId;
-
       setLoadingTable(true);
       setTableError(null);
       setTableLeads([]);
@@ -839,40 +838,8 @@ export default function CRMFullView({
     };
 
     run();
-    return () => {
-      cancelled = true;
-    };
-  }, [openControlCenter, authLoading, user?.id, tenantId, isPlatformAdmin, userRole, isAsesor, teamMemberId]);
-
-  const refreshTable = useCallback(async () => {
-    if (!user) return;
-    const effectiveTenantId =
-      tenantId ||
-      user?.user_metadata?.tenant_id ||
-      user?.app_metadata?.tenant_id ||
-      null;
-    if (!effectiveTenantId) return;
-
-    setTableLeads([]);
-    setLoadingTable(true);
-    try {
-      await fetchAllLeadsForTable(effectiveTenantId, {
-        shouldCancel: () => false,
-        onPage: (rows, page) => {
-          const normalized = (rows || []).map((l) => normalizeLeadRow(l, "leads"));
-          setTableLeads((prev: any[]) => (page === 0 ? normalized : prev.concat(normalized)));
-        },
-      });
-    } finally {
-      setLoadingTable(false);
-    }
-  }, [user, tenantId]);
-
-  useEffect(() => {
-    if (dataRefreshKey > 0) {
-      refreshTable();
-    }
-  }, [dataRefreshKey, refreshTable]);
+    return () => { cancelled = true; };
+  }, [openControlCenter, user, tenantId, isPlatformAdmin, userRole, dataRefreshKey]);
 
   // Lógica de filtrado unificada (Fecha + Filtro Global del Dock + Rol)
   const filteredLeads = metricRows.filter(l => {
