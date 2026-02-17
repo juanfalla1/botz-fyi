@@ -15,6 +15,10 @@ import TeamManagement from "./TeamManagement";
 import PlatformTenantsView from "./PlatformTenantsView";
 import { useAuth } from "../MainLayout";
 
+let globalLeadsCache: any[] = [];
+let globalLeadsCacheKey = 0;
+let globalTenantIdCache: string | null = null;
+
 // ================= 1. ESQUEMAS DE CONFIGURACIÓN =================
 const CHANNEL_SCHEMAS: Record<string, any> = {
   whatsapp: {
@@ -800,8 +804,6 @@ export default function CRMFullView({
   }, [openControlCenter, authLoading, timeFilter, isAsesor, teamMemberId, tenantId, user?.id, isPlatformAdmin, userRole]);
 
   // Tabla completa en segundo plano (no depende del filtro semanal/mensual)
-  const tableLoadedOnce = useRef(false);
-  
   useEffect(() => {
     if (openControlCenter) return;
     if (!user) return;
@@ -816,15 +818,20 @@ export default function CRMFullView({
     if (!effectiveTenantId && isPlatformAdmin) return;
     if (!effectiveTenantId) return;
 
+    const tenantChanged = globalTenantIdCache !== effectiveTenantId;
+    const needsRefresh = globalLeadsCacheKey !== dataRefreshKey || tenantChanged;
+    
+    if (!needsRefresh && globalLeadsCache.length > 0) {
+      setTableLeads(globalLeadsCache);
+      return;
+    }
+
     let cancelled = false;
-    const isFirstLoad = !tableLoadedOnce.current;
 
     const run = async () => {
-      if (isFirstLoad) {
-        setLoadingTable(true);
-        setTableError(null);
-        setTableLeads([]);
-      }
+      setLoadingTable(true);
+      setTableError(null);
+      if (tenantChanged) setTableLeads([]);
 
       try {
         const allLeads: any[] = [];
@@ -833,21 +840,19 @@ export default function CRMFullView({
           onPage: (rows, page) => {
             if (cancelled) return;
             const normalized = (rows || []).map((l) => normalizeLeadRow(l, "leads"));
-            if (isFirstLoad) {
-              setTableLeads((prev: any[]) => (page === 0 ? normalized : prev.concat(normalized)));
-            } else {
-              allLeads.push(...normalized);
-            }
+            setTableLeads((prev: any[]) => (page === 0 ? normalized : prev.concat(normalized)));
+            allLeads.push(...normalized);
           },
         });
-        if (!cancelled && !isFirstLoad) {
-          setTableLeads(allLeads);
+        if (!cancelled) {
+          globalLeadsCache = allLeads;
+          globalLeadsCacheKey = dataRefreshKey;
+          globalTenantIdCache = effectiveTenantId;
         }
-        if (!cancelled) tableLoadedOnce.current = true;
       } catch (e) {
         if (!cancelled) setTableError(describeError(e));
       } finally {
-        if (!cancelled && isFirstLoad) setLoadingTable(false);
+        if (!cancelled) setLoadingTable(false);
       }
     };
 
