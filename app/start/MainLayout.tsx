@@ -239,6 +239,8 @@ interface AuthContextType {
   // ✅ NUEVO: Sincronización global
   triggerDataRefresh: () => void;
   dataRefreshKey: number;
+  // ✅ NUEVO: Force re-render cuando subscription carga
+  subscriptionUpdateKey: number;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -265,6 +267,8 @@ const AuthContext = createContext<AuthContextType>({
   // ✅ NUEVO: Sincronización global
   triggerDataRefresh: () => {},
   dataRefreshKey: 0,
+  // ✅ NUEVO: Force re-render cuando subscription carga
+  subscriptionUpdateKey: 0,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -298,8 +302,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   // ✅ NUEVO: Sincronización global
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
+  const [subscriptionUpdateKey, setSubscriptionUpdateKey] = useState(0);
   const triggerDataRefresh = useCallback(() => {
-    setDataRefreshKey((prev) => prev + 1);
+    console.log("🔄 [MainLayout] triggerDataRefresh ejecutado");
+    setDataRefreshKey((prev) => {
+      const newKey = prev + 1;
+      console.log("🔄 [MainLayout] dataRefreshKey actualizado:", prev, "->", newKey);
+      return newKey;
+    });
+    // Disparar evento global para que CRMFullView limpie su cache
+    if (typeof window !== "undefined") {
+      console.log("🔄 [MainLayout] Disparando evento botz-leads-refresh");
+      window.dispatchEvent(new CustomEvent("botz-leads-refresh"));
+    }
   }, []);
 
   // ✅ Función para aplicar suscripción encontrada al estado
@@ -318,6 +333,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSubscription(null);
       setEnabledFeatures(PLAN_FEATURES["free"]);
     }
+    // ✅ CRÍTICO: Forzar re-render para que la UI se actualice con el plan
+    setSubscriptionUpdateKey((prev) => {
+      const newKey = prev + 1;
+      console.log("🔄 [SUB] subscriptionUpdateKey actualizado:", prev, "->", newKey);
+      return newKey;
+    });
   }, []);
 
   const applyPlatformAdminAccess = useCallback(() => {
@@ -586,13 +607,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let safetyTimer: ReturnType<typeof setTimeout> | null = null;
     let delayTimer: ReturnType<typeof setTimeout> | null = null;
 
-    // Safety timeout: si loading no se resuelve en 5s, forzar false
+    // Safety timeout: si loading no se resuelve en 15s, forzar false
     safetyTimer = setTimeout(() => {
       if (alive) {
-        console.warn("⚠️ Safety timeout: forzando loading=false después de 5s");
+        console.warn("⚠️ Safety timeout: forzando loading=false después de 15s");
         setLoading(false);
       }
-    }, 5000);
+    }, 15000);
 
     const checkSession = async () => {
       console.log("🔍 [Auth] checkSession iniciando...");
@@ -932,6 +953,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // ✅ NUEVO: Sincronización global
         triggerDataRefresh,
         dataRefreshKey,
+        // ✅ NUEVO: Force re-render cuando subscription carga
+        subscriptionUpdateKey,
       }}
     >
       {children}
@@ -2106,10 +2129,15 @@ export default function MainLayout({
   onOpenAuth, // ✅ ya existía en props, ahora lo usamos
 }: MainLayoutProps) {
   const router = useRouter();
-  const { user, userPlan, hasFeatureAccess, loading, enabledFeatures, isAdmin, isPlatformAdmin, hasPermission } = useAuth();
+  const { user, userPlan, hasFeatureAccess, loading, enabledFeatures, isAdmin, isPlatformAdmin, hasPermission, subscriptionUpdateKey } = useAuth();
   const [language, setLanguage] = useState<AppLanguage>("es");
   const [theme, setTheme] = useState<AppTheme>("dark");
   const text = UI_TEXT[language];
+  
+  // ✅ Log cuando subscription actualiza para debug
+  useEffect(() => {
+    console.log("🔄 [MainLayout] subscriptionUpdateKey cambió:", subscriptionUpdateKey);
+  }, [subscriptionUpdateKey]);
 
   useEffect(() => {
     const savedLanguage = localStorage.getItem("botz-language");
