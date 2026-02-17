@@ -629,7 +629,7 @@ export default function CRMFullView({
           return;
         }
 
-        const cacheKey = `botz-crm-recent:${effectiveTenantId}:${isAsesor && teamMemberId ? teamMemberId : "all"}`;
+        const cacheKey = `botz-crm-recent:${effectiveTenantId}:${isAsesor && teamMemberId ? teamMemberId : "all"}:${dataRefreshKey}`;
         const cached = readCache(cacheKey);
         const cacheTtlMs = 10 * 60 * 1000;
         const cacheFresh = cached?.at && Date.now() - Number(cached.at) < cacheTtlMs;
@@ -806,7 +806,7 @@ export default function CRMFullView({
     return () => {
       cancelled = true;
     };
-  }, [openControlCenter, authLoading, timeFilter, isAsesor, teamMemberId, tenantId, user?.id, isPlatformAdmin, userRole]);
+  }, [openControlCenter, authLoading, timeFilter, isAsesor, teamMemberId, tenantId, user?.id, isPlatformAdmin, userRole, dataRefreshKey]);
 
   // Tabla completa en segundo plano (no depende del filtro semanal/mensual)
   useEffect(() => {

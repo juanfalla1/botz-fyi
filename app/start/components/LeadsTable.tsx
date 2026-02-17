@@ -369,6 +369,8 @@ export default function LeadsTable({
 
   // ✅ NUEVO: Acceso a sincronización global
   const { triggerDataRefresh, isAsesor, teamMemberId, tenantId: authTenantId, user, accessToken } = useAuth();
+  
+  console.log("[LeadsTable] triggerDataRefresh exists:", typeof triggerDataRefresh);
 
   // =========================
   // ✅ Confirmación bonita para eliminar
@@ -639,6 +641,11 @@ export default function LeadsTable({
         return;
       }
 
+      if (result?.lead) {
+        const newLead = result.lead as Lead;
+        setLeads((prev) => [newLead, ...prev]);
+      }
+
       triggerDataRefresh();
       closeLeadModal();
     } catch (e: any) {
@@ -723,6 +730,9 @@ export default function LeadsTable({
 
       // Actualizar estado local
       setLeads((prev) => prev.filter((l) => l.id !== deleteTarget.id));
+      
+      // Refrescar datos globales
+      triggerDataRefresh();
 
       closeDeleteModal();
     } catch (e: any) {
