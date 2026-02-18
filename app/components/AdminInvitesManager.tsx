@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/app/supabaseClient";
 import { 
   Mail, Plus, Trash2, Edit2, CheckCircle, Clock, XCircle, 
-  AlertCircle, Loader2, Shield, Copy, Check, User, Lock
+  AlertCircle, Loader2, Shield, User, Lock, X
 } from "lucide-react";
 
 interface AdminInvite {
@@ -18,25 +18,6 @@ interface AdminInvite {
   notes?: string;
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  developer: "👨‍💻 Developer",
-  support: "🎧 Support",
-  guest: "👤 Guest",
-};
-
-const ACCESS_LEVEL_LABELS: Record<string, string> = {
-  full: "Acceso Completo",
-  readonly: "Solo Lectura",
-  limited: "Acceso Limitado",
-};
-
-const STATUS_LABELS: Record<string, { label: string; color: string; bgColor: string }> = {
-  pending: { label: "Pendiente", color: "text-yellow-500", bgColor: "bg-yellow-500/10" },
-  accepted: { label: "Aceptado", color: "text-green-500", bgColor: "bg-green-500/10" },
-  rejected: { label: "Rechazado", color: "text-red-500", bgColor: "bg-red-500/10" },
-  revoked: { label: "Revocado", color: "text-red-600", bgColor: "bg-red-500/10" },
-};
-
 export default function AdminInvitesManager() {
   const [invites, setInvites] = useState<AdminInvite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +25,6 @@ export default function AdminInvitesManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     email: "",
     role: "developer",
@@ -56,7 +36,6 @@ export default function AdminInvitesManager() {
     fetchInvites();
   }, []);
 
-  // Auto-dismiss messages
   useEffect(() => {
     if (success) {
       const timer = setTimeout(() => setSuccess(null), 3000);
@@ -175,71 +154,65 @@ export default function AdminInvitesManager() {
     setShowForm(true);
   };
 
-  const copyToClipboard = async (text: string, id: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div className="flex items-center justify-center min-h-screen" style={{ background: "linear-gradient(135deg, #0c1929 0%, #0f2444 50%, #001a33 100%)" }}>
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-          <p className="text-slate-300">Cargando invitaciones...</p>
+          <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+          <p className="text-blue-200">Cargando invitaciones...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div style={{ background: "linear-gradient(135deg, #0c1929 0%, #0f2444 50%, #001a33 100%)", minHeight: "100vh", padding: "40px 20px" }}>
+      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Shield className="w-8 h-8 text-blue-500" />
-            <h1 className="text-3xl font-bold text-white">Control de Acceso</h1>
+        <div style={{ marginBottom: "40px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
+            <Shield style={{ width: "32px", height: "32px", color: "#00d4ff" }} />
+            <h1 style={{ fontSize: "32px", fontWeight: "bold", color: "white", margin: 0 }}>Control de Acceso</h1>
           </div>
-          <p className="text-slate-400">Gestiona invitaciones para developers, support y guests</p>
+          <p style={{ color: "#b0d4ff", fontSize: "16px", margin: 0 }}>Gestiona invitaciones para developers, support y guests</p>
         </div>
 
         {/* Messages */}
         {error && (
-          <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-            <p className="text-red-300">{error}</p>
+          <div style={{ marginBottom: "24px", padding: "16px", borderRadius: "8px", background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)", display: "flex", alignItems: "center", gap: "12px" }}>
+            <AlertCircle style={{ width: "20px", height: "20px", color: "#ef4444", flexShrink: 0 }} />
+            <p style={{ color: "#fca5a5", margin: 0 }}>{error}</p>
           </div>
         )}
 
         {success && (
-          <div className="mb-6 p-4 rounded-lg bg-green-500/10 border border-green-500/30 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
-            <p className="text-green-300">{success}</p>
+          <div style={{ marginBottom: "24px", padding: "16px", borderRadius: "8px", background: "rgba(34, 197, 94, 0.1)", border: "1px solid rgba(34, 197, 94, 0.3)", display: "flex", alignItems: "center", gap: "12px" }}>
+            <CheckCircle style={{ width: "20px", height: "20px", color: "#22c55e", flexShrink: 0 }} />
+            <p style={{ color: "#86efac", margin: 0 }}>{success}</p>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-          {/* Stats */}
-          <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700/50">
-            <p className="text-slate-400 text-sm mb-1">Total Invitaciones</p>
-            <p className="text-2xl font-bold text-white">{invites.length}</p>
+        {/* Stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "32px" }}>
+          <div style={{ padding: "20px", borderRadius: "12px", background: "rgba(0, 150, 255, 0.05)", border: "1px solid rgba(0, 150, 255, 0.2)" }}>
+            <p style={{ color: "#7dd3fc", fontSize: "14px", margin: "0 0 8px 0" }}>Total Invitaciones</p>
+            <p style={{ fontSize: "28px", fontWeight: "bold", color: "white", margin: 0 }}>{invites.length}</p>
           </div>
-          <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700/50">
-            <p className="text-slate-400 text-sm mb-1">Pendientes</p>
-            <p className="text-2xl font-bold text-yellow-500">
+          <div style={{ padding: "20px", borderRadius: "12px", background: "rgba(234, 179, 8, 0.05)", border: "1px solid rgba(234, 179, 8, 0.2)" }}>
+            <p style={{ color: "#fde047", fontSize: "14px", margin: "0 0 8px 0" }}>Pendientes</p>
+            <p style={{ fontSize: "28px", fontWeight: "bold", color: "#facc15", margin: 0 }}>
               {invites.filter(i => i.status === "pending").length}
             </p>
           </div>
-          <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700/50">
-            <p className="text-slate-400 text-sm mb-1">Aceptadas</p>
-            <p className="text-2xl font-bold text-green-500">
+          <div style={{ padding: "20px", borderRadius: "12px", background: "rgba(34, 197, 94, 0.05)", border: "1px solid rgba(34, 197, 94, 0.2)" }}>
+            <p style={{ color: "#86efac", fontSize: "14px", margin: "0 0 8px 0" }}>Aceptadas</p>
+            <p style={{ fontSize: "28px", fontWeight: "bold", color: "#22c55e", margin: 0 }}>
               {invites.filter(i => i.status === "accepted").length}
             </p>
           </div>
-          <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700/50">
-            <p className="text-slate-400 text-sm mb-1">Developers</p>
-            <p className="text-2xl font-bold text-blue-500">
+          <div style={{ padding: "20px", borderRadius: "12px", background: "rgba(59, 130, 246, 0.05)", border: "1px solid rgba(59, 130, 246, 0.2)" }}>
+            <p style={{ color: "#93c5fd", fontSize: "14px", margin: "0 0 8px 0" }}>Developers</p>
+            <p style={{ fontSize: "28px", fontWeight: "bold", color: "#3b82f6", margin: 0 }}>
               {invites.filter(i => i.role === "developer").length}
             </p>
           </div>
@@ -247,14 +220,25 @@ export default function AdminInvitesManager() {
 
         {/* Form */}
         {showForm && (
-          <div className="mb-8 p-6 rounded-lg bg-slate-800/50 border border-slate-700/50 backdrop-blur">
-            <h2 className="text-xl font-semibold text-white mb-4">
-              {editingId ? "Editar Invitación" : "Nueva Invitación"}
-            </h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div style={{ marginBottom: "32px", padding: "24px", borderRadius: "12px", background: "rgba(0, 150, 255, 0.08)", border: "1px solid rgba(0, 150, 255, 0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h2 style={{ fontSize: "20px", fontWeight: "600", color: "white", margin: 0 }}>
+                {editingId ? "Editar Invitación" : "Nueva Invitación"}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingId(null);
+                }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+              >
+                <X style={{ width: "24px", height: "24px", color: "#7dd3fc" }} />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "16px" }}>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "#7dd3fc", marginBottom: "8px" }}>
                     Email *
                   </label>
                   <input
@@ -262,24 +246,40 @@ export default function AdminInvitesManager() {
                     required
                     disabled={!!editingId}
                     value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                    className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600/50 text-white rounded-lg focus:border-blue-500 outline-none transition disabled:opacity-50"
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      background: "rgba(15, 23, 42, 0.5)",
+                      border: "1px solid rgba(0, 150, 255, 0.3)",
+                      color: "white",
+                      fontSize: "14px",
+                      boxSizing: "border-box",
+                      opacity: editingId ? 0.6 : 1,
+                      cursor: editingId ? "not-allowed" : "text"
+                    }}
                     placeholder="developer@example.com"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "#7dd3fc", marginBottom: "8px" }}>
                     Rol *
                   </label>
                   <select
                     value={formData.role}
-                    onChange={(e) =>
-                      setFormData({ ...formData, role: e.target.value })
-                    }
-                    className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600/50 text-white rounded-lg focus:border-blue-500 outline-none transition"
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      background: "rgba(15, 23, 42, 0.5)",
+                      border: "1px solid rgba(0, 150, 255, 0.3)",
+                      color: "white",
+                      fontSize: "14px",
+                      boxSizing: "border-box"
+                    }}
                   >
                     <option value="developer">👨‍💻 Developer</option>
                     <option value="support">🎧 Support</option>
@@ -288,15 +288,22 @@ export default function AdminInvitesManager() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "#7dd3fc", marginBottom: "8px" }}>
                     Nivel de Acceso *
                   </label>
                   <select
                     value={formData.access_level}
-                    onChange={(e) =>
-                      setFormData({ ...formData, access_level: e.target.value })
-                    }
-                    className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600/50 text-white rounded-lg focus:border-blue-500 outline-none transition"
+                    onChange={(e) => setFormData({ ...formData, access_level: e.target.value })}
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      background: "rgba(15, 23, 42, 0.5)",
+                      border: "1px solid rgba(0, 150, 255, 0.3)",
+                      color: "white",
+                      fontSize: "14px",
+                      boxSizing: "border-box"
+                    }}
                   >
                     <option value="full">🔓 Acceso Completo</option>
                     <option value="readonly">👁️ Solo Lectura</option>
@@ -304,26 +311,44 @@ export default function AdminInvitesManager() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "#7dd3fc", marginBottom: "8px" }}>
                     Notas (Opcional)
                   </label>
                   <input
                     type="text"
                     value={formData.notes}
-                    onChange={(e) =>
-                      setFormData({ ...formData, notes: e.target.value })
-                    }
-                    className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600/50 text-white rounded-lg focus:border-blue-500 outline-none transition"
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      background: "rgba(15, 23, 42, 0.5)",
+                      border: "1px solid rgba(0, 150, 255, 0.3)",
+                      color: "white",
+                      fontSize: "14px",
+                      boxSizing: "border-box"
+                    }}
                     placeholder="Ej: Acceso temporal para testing"
                   />
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div style={{ display: "flex", gap: "12px" }}>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium"
+                  style={{
+                    padding: "10px 24px",
+                    background: "linear-gradient(135deg, #0096ff 0%, #0077cc 100%)",
+                    border: "none",
+                    color: "white",
+                    borderRadius: "8px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    fontSize: "14px"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = "0.9"}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
                 >
                   {editingId ? "Actualizar" : "Crear Invitación"}
                 </button>
@@ -332,14 +357,19 @@ export default function AdminInvitesManager() {
                   onClick={() => {
                     setShowForm(false);
                     setEditingId(null);
-                    setFormData({
-                      email: "",
-                      role: "developer",
-                      access_level: "full",
-                      notes: "",
-                    });
                   }}
-                  className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition font-medium"
+                  style={{
+                    padding: "10px 24px",
+                    background: "rgba(255, 255, 255, 0.1)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    color: "#7dd3fc",
+                    borderRadius: "8px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    fontSize: "14px"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.15)"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"}
                 >
                   Cancelar
                 </button>
@@ -352,84 +382,140 @@ export default function AdminInvitesManager() {
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="mb-8 flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition font-medium shadow-lg"
+            style={{
+              marginBottom: "32px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "12px 24px",
+              background: "linear-gradient(135deg, #0096ff 0%, #0077cc 100%)",
+              border: "none",
+              color: "white",
+              borderRadius: "8px",
+              fontWeight: "600",
+              cursor: "pointer",
+              fontSize: "14px"
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = "0.9"}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
           >
-            <Plus className="w-5 h-5" />
+            <Plus style={{ width: "18px", height: "18px" }} />
             Nueva Invitación
           </button>
         )}
 
         {/* Invites Table */}
-        <div className="rounded-lg bg-slate-800/50 border border-slate-700/50 overflow-hidden">
+        <div style={{ borderRadius: "12px", background: "rgba(0, 150, 255, 0.05)", border: "1px solid rgba(0, 150, 255, 0.2)", overflow: "hidden" }}>
           {invites.length === 0 ? (
-            <div className="p-12 text-center">
-              <Mail className="w-12 h-12 text-slate-500 mx-auto mb-3" />
-              <p className="text-slate-400">No hay invitaciones. Crea una nueva.</p>
+            <div style={{ padding: "48px 24px", textAlign: "center" }}>
+              <Mail style={{ width: "48px", height: "48px", color: "rgba(0, 150, 255, 0.4)", margin: "0 auto 12px" }} />
+              <p style={{ color: "#7dd3fc", fontSize: "16px" }}>No hay invitaciones. Crea una nueva.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", fontSize: "14px", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr className="border-b border-slate-700/50 bg-slate-700/30">
-                    <th className="px-6 py-3 text-left font-semibold text-slate-300">Email</th>
-                    <th className="px-6 py-3 text-left font-semibold text-slate-300">Rol</th>
-                    <th className="px-6 py-3 text-left font-semibold text-slate-300">Acceso</th>
-                    <th className="px-6 py-3 text-left font-semibold text-slate-300">Estado</th>
-                    <th className="px-6 py-3 text-left font-semibold text-slate-300">Creado</th>
-                    <th className="px-6 py-3 text-right font-semibold text-slate-300">Acciones</th>
+                  <tr style={{ borderBottom: "1px solid rgba(0, 150, 255, 0.2)", background: "rgba(0, 150, 255, 0.08)" }}>
+                    <th style={{ padding: "16px", textAlign: "left", fontWeight: "600", color: "#7dd3fc" }}>Email</th>
+                    <th style={{ padding: "16px", textAlign: "left", fontWeight: "600", color: "#7dd3fc" }}>Rol</th>
+                    <th style={{ padding: "16px", textAlign: "left", fontWeight: "600", color: "#7dd3fc" }}>Acceso</th>
+                    <th style={{ padding: "16px", textAlign: "left", fontWeight: "600", color: "#7dd3fc" }}>Estado</th>
+                    <th style={{ padding: "16px", textAlign: "left", fontWeight: "600", color: "#7dd3fc" }}>Creado</th>
+                    <th style={{ padding: "16px", textAlign: "right", fontWeight: "600", color: "#7dd3fc" }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {invites.map((invite) => (
+                  {invites.map((invite, index) => (
                     <tr
                       key={invite.id}
-                      className="border-b border-slate-700/30 hover:bg-slate-700/20 transition"
+                      style={{
+                        borderBottom: "1px solid rgba(0, 150, 255, 0.1)",
+                        background: index % 2 === 0 ? "transparent" : "rgba(0, 150, 255, 0.03)"
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0, 150, 255, 0.08)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = index % 2 === 0 ? "transparent" : "rgba(0, 150, 255, 0.03)"}
                     >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 text-white">
-                          <User className="w-4 h-4 text-blue-400" />
-                          {invite.email}
-                        </div>
+                      <td style={{ padding: "16px", color: "white", display: "flex", alignItems: "center", gap: "8px" }}>
+                        <User style={{ width: "16px", height: "16px", color: "#0096ff", flexShrink: 0 }} />
+                        {invite.email}
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="text-slate-300">{ROLE_LABELS[invite.role]}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-slate-700/50 text-xs text-slate-300">
-                          <Lock className="w-3 h-3" />
-                          {ACCESS_LEVEL_LABELS[invite.access_level]}
+                      <td style={{ padding: "16px", color: "#b0d4ff" }}>{invite.role}</td>
+                      <td style={{ padding: "16px" }}>
+                        <span style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "4px 12px",
+                          borderRadius: "6px",
+                          background: "rgba(0, 150, 255, 0.15)",
+                          border: "1px solid rgba(0, 150, 255, 0.3)",
+                          color: "#7dd3fc",
+                          fontSize: "12px",
+                          fontWeight: "500"
+                        }}>
+                          <Lock style={{ width: "12px", height: "12px" }} />
+                          {invite.access_level === "full" ? "Completo" : invite.access_level}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${STATUS_LABELS[invite.status].bgColor} ${STATUS_LABELS[invite.status].color}`}>
-                          {invite.status === "pending" && <Clock className="w-3 h-3" />}
-                          {invite.status === "accepted" && <CheckCircle className="w-3 h-3" />}
-                          {invite.status === "rejected" && <XCircle className="w-3 h-3" />}
-                          {STATUS_LABELS[invite.status].label}
+                      <td style={{ padding: "16px" }}>
+                        <span style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "4px 12px",
+                          borderRadius: "6px",
+                          background: invite.status === "pending" ? "rgba(234, 179, 8, 0.15)" : invite.status === "accepted" ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                          border: invite.status === "pending" ? "1px solid rgba(234, 179, 8, 0.3)" : invite.status === "accepted" ? "1px solid rgba(34, 197, 94, 0.3)" : "1px solid rgba(239, 68, 68, 0.3)",
+                          color: invite.status === "pending" ? "#fde047" : invite.status === "accepted" ? "#86efac" : "#fca5a5",
+                          fontSize: "12px",
+                          fontWeight: "500"
+                        }}>
+                          {invite.status === "pending" && <Clock style={{ width: "12px", height: "12px" }} />}
+                          {invite.status === "accepted" && <CheckCircle style={{ width: "12px", height: "12px" }} />}
+                          {invite.status === "rejected" && <XCircle style={{ width: "12px", height: "12px" }} />}
+                          {invite.status === "pending" ? "Pendiente" : invite.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-slate-400 text-xs">
+                      <td style={{ padding: "16px", color: "#8fd4ff", fontSize: "12px" }}>
                         {new Date(invite.created_at).toLocaleDateString("es-ES", {
                           year: "numeric",
                           month: "short",
                           day: "numeric",
                         })}
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-1">
+                      <td style={{ padding: "16px", textAlign: "right" }}>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
                           <button
                             onClick={() => handleEdit(invite)}
-                            className="p-2 hover:bg-slate-700/50 text-slate-300 hover:text-blue-400 rounded transition"
+                            style={{
+                              padding: "8px",
+                              background: "none",
+                              border: "none",
+                              color: "#7dd3fc",
+                              cursor: "pointer",
+                              borderRadius: "6px"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0, 150, 255, 0.2)"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "none"}
                             title="Editar"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 style={{ width: "16px", height: "16px" }} />
                           </button>
                           <button
                             onClick={() => handleDelete(invite.id, invite.email)}
-                            className="p-2 hover:bg-slate-700/50 text-slate-300 hover:text-red-400 rounded transition"
+                            style={{
+                              padding: "8px",
+                              background: "none",
+                              border: "none",
+                              color: "#7dd3fc",
+                              cursor: "pointer",
+                              borderRadius: "6px"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.color = "#ef4444"}
+                            onMouseLeave={(e) => e.currentTarget.style.color = "#7dd3fc"}
                             title="Eliminar"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 style={{ width: "16px", height: "16px" }} />
                           </button>
                         </div>
                       </td>
@@ -442,8 +528,11 @@ export default function AdminInvitesManager() {
         </div>
 
         {/* Footer Info */}
-        <div className="mt-8 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-300 text-sm">
-          <p><strong>ℹ️ Nota:</strong> Solo los Platform Admins pueden crear y gestionar invitaciones. Los usuarios invitados recibirán un email de confirmación.</p>
+        <div style={{ marginTop: "24px", padding: "16px", borderRadius: "8px", background: "rgba(0, 150, 255, 0.08)", border: "1px solid rgba(0, 150, 255, 0.2)", display: "flex", alignItems: "flex-start", gap: "12px" }}>
+          <Mail style={{ width: "18px", height: "18px", color: "#0096ff", marginTop: "2px", flexShrink: 0 }} />
+          <p style={{ color: "#7dd3fc", fontSize: "13px", margin: 0 }}>
+            <strong>ℹ️ Nota:</strong> Solo los Platform Admins pueden crear y gestionar invitaciones. Los usuarios invitados recibirán un email de confirmación.
+          </p>
         </div>
       </div>
     </div>
