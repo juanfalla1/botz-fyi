@@ -13,7 +13,7 @@ interface InviteData {
   status: string;
 }
 
-export default function AcceptInvitePage({ params }: { params: { token: string } }) {
+export default function AcceptInvitePage({ params }: { params: { inviteId: string } }) {
   const router = useRouter();
   const [invite, setInvite] = useState<InviteData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,36 +27,36 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
   useEffect(() => {
-    verifyInviteToken();
-  }, [params.token]);
+    verifyInvite();
+  }, [params.inviteId]);
 
-  const verifyInviteToken = async () => {
+  const verifyInvite = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Check if token exists and is valid
-      const { data: tokenData, error: tokenError } = await supabase
-        .from("invite_tokens")
-        .select("*, admin_invites(*)")
-        .eq("token", params.token)
+      // Query the admin_invites table directly by invite ID
+      const { data: inviteData, error: inviteError } = await supabase
+        .from("admin_invites")
+        .select("*")
+        .eq("id", params.inviteId)
         .single();
 
-      if (tokenError || !tokenData) {
-        throw new Error("Token de invitación inválido o expirado");
+      if (inviteError || !inviteData) {
+        throw new Error("Invitación no encontrada");
       }
 
-      // Check if already used
-      if (tokenData.used) {
+      // Check if already accepted
+      if (inviteData.status === "accepted") {
         throw new Error("Esta invitación ya ha sido aceptada");
       }
 
       // Check if expired
-      if (new Date(tokenData.expires_at) < new Date()) {
+      if (inviteData.expires_at && new Date(inviteData.expires_at) < new Date()) {
         throw new Error("Esta invitación ha expirado");
       }
 
-      setInvite(tokenData.admin_invites);
+      setInvite(inviteData);
       setStep("setup");
     } catch (err) {
       console.error("Error verifying invite:", err);
@@ -125,19 +125,6 @@ export default function AcceptInvitePage({ params }: { params: { token: string }
 
       if (!authData.user) {
         throw new Error("Error al crear la cuenta");
-      }
-
-      // Mark token as used
-      const { error: updateError } = await supabase
-        .from("invite_tokens")
-        .update({
-          used: true,
-          used_at: new Date().toISOString(),
-        })
-        .eq("token", params.token);
-
-      if (updateError) {
-        console.warn("Error marking token as used:", updateError);
       }
 
       // Update invite status to accepted

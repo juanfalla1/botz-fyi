@@ -1,7 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { sendInviteEmail } from "@/app/api/_utils/mailer";
-import crypto from "crypto";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -74,42 +73,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get or create invite token
-    let tokenData = null;
-    const { data: existingToken } = await supabase
-      .from("invite_tokens")
-      .select("*")
-      .eq("invite_id", inviteId)
-      .eq("used", false)
-      .single();
-
-    if (existingToken && new Date(existingToken.expires_at) > new Date()) {
-      // Use existing valid token
-      tokenData = existingToken;
-     } else {
-       // Create new token
-       const newToken = crypto.randomBytes(32).toString("hex");
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-      const { data: newTokenData, error: tokenError } = await supabase
-        .from("invite_tokens")
-        .insert({
-          invite_id: inviteId,
-          token: newToken,
-          email: invite.email,
-          expires_at: expiresAt.toISOString(),
-        })
-        .select()
-        .single();
-
-      if (tokenError) throw tokenError;
-      tokenData = newTokenData;
-    }
-
-    // Send email
+    // Send email with inviteId directly
     const emailSent = await sendInviteEmail(
       invite.email,
-      tokenData.token,
+      inviteId,
       invite.role,
       invite.access_level
     );

@@ -33,11 +33,11 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
 
 export async function sendInviteEmail(
   email: string,
-  inviteToken: string,
+  inviteId: string,
   role: string,
   accessLevel: string
 ): Promise<boolean> {
-  const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/accept-invite/${inviteToken}`;
+  const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/accept-invite/${inviteId}`;
 
   const html = `
     <!DOCTYPE html>
