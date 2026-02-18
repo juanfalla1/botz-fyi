@@ -30,10 +30,12 @@ export default function AcceptInvitePage({ params }: { params: { inviteId: strin
     verifyInvite();
   }, [params.inviteId]);
 
-  const verifyInvite = async () => {
+   const verifyInvite = async () => {
     try {
       setLoading(true);
       setError(null);
+
+      console.log("🔍 DEBUG: Searching for inviteId:", params.inviteId);
 
       // Query the admin_invites table directly by invite ID
       const { data: inviteData, error: inviteError } = await supabase
@@ -42,7 +44,10 @@ export default function AcceptInvitePage({ params }: { params: { inviteId: strin
         .eq("id", params.inviteId)
         .single();
 
+      console.log("🔍 DEBUG: Supabase response:", { inviteData, inviteError });
+
       if (inviteError || !inviteData) {
+        console.error("🔴 DEBUG: Invite not found. Error:", inviteError);
         throw new Error("Invitación no encontrada");
       }
 
