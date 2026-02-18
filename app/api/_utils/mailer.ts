@@ -95,7 +95,13 @@ export async function sendInviteEmail(
               <p style="color: #666; margin-bottom: 20px; font-size: 15px;">
                 Haz clic en el botón de abajo para aceptar la invitación y crear tu contraseña:
               </p>
-              <a href="${inviteLink}" class="button">✨ Aceptar Invitación y Crear Contraseña</a>
+              <table style="margin: 0 auto;">
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0096ff 0%, #0077cc 100%); border-radius: 8px; padding: 14px 40px;">
+                    <a href="${inviteLink}" style="color: white; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">✨ Aceptar Invitación</a>
+                  </td>
+                </tr>
+              </table>
             </div>
 
             <div class="security-note">
