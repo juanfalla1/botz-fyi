@@ -93,6 +93,9 @@ export async function sendInviteEmail(
 
             <div style="text-align: center; margin: 40px 0;">
               <a href="${inviteLink}" style="background: #0096ff; color: white; text-decoration: none; display: inline-block; padding: 14px 35px; border-radius: 6px; font-size: 16px; font-weight: 700; mso-padding-alt: 14px 35px; mso-border-alt: solid white 0;">✨ ACEPTAR INVITACIÓN AQUÍ ✨</a>
+              <p style="color: #999; font-size: 11px; margin-top: 12px; word-break: break-all;">
+                URL: ${inviteLink}
+              </p>
             </div>
 
             <div class="security-note">
