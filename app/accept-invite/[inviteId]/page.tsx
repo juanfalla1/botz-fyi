@@ -40,31 +40,19 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
       setLoading(true);
       setError(null);
 
-      console.log("🔍 DEBUG: Searching for inviteId:", id);
+      console.log("🔍 DEBUG: Validating inviteId:", id);
 
-      // Query the admin_invites table directly by invite ID
-      const { data: inviteData, error: inviteError } = await supabase
-        .from("admin_invites")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      console.log("🔍 DEBUG: Supabase response:", { inviteData, inviteError });
-
-      if (inviteError || !inviteData) {
-        console.error("🔴 DEBUG: Invite not found. Error:", inviteError);
-        throw new Error("Invitación no encontrada");
+      // Use API endpoint to validate invite (bypasses RLS)
+      const res = await fetch(`/api/platform/admin-invites/validate?inviteId=${encodeURIComponent(id)}`);
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Invitación no encontrada");
       }
 
-      // Check if already accepted
-      if (inviteData.status === "accepted") {
-        throw new Error("Esta invitación ya ha sido aceptada");
-      }
-
-      // Check if expired
-      if (inviteData.expires_at && new Date(inviteData.expires_at) < new Date()) {
-        throw new Error("Esta invitación ha expirado");
-      }
+      const { invite: inviteData } = await res.json();
+      
+      console.log("🔍 DEBUG: Invite validated:", inviteData);
 
       setInvite(inviteData);
       setStep("setup");
