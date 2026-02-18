@@ -103,11 +103,15 @@ export async function sendInviteEmail(
             </div>
 
             <p style="color: #666; font-size: 13px; line-height: 1.6; margin: 20px 0;">
-              Si el botón no funciona, copia y pega este enlace en tu navegador:
+              Si el botón no funciona, haz clic en este enlace:
             </p>
-            <div class="link-fallback">
-              ${inviteLink}
-            </div>
+            <p class="link-fallback">
+              <a href="${inviteLink}" style="color: #0096ff; text-decoration: underline;">Aceptar invitación aquí</a>
+            </p>
+            <p style="color: #999; font-size: 12px; line-height: 1.5; margin-top: 12px; word-break: break-all;">
+              O copia y pega esta URL en tu navegador:<br>
+              <code style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; display: block; margin-top: 8px;">${inviteLink}</code>
+            </p>
           </div>
 
           <div class="footer">
