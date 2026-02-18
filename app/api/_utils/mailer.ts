@@ -92,13 +92,7 @@ export async function sendInviteEmail(
             </div>
 
             <div style="text-align: center; margin: 40px 0;">
-              <table role="presentation" style="margin: 0 auto; border-collapse: collapse;">
-                <tr>
-                  <td style="border-radius: 8px; background: linear-gradient(135deg, #0096ff 0%, #0077cc 100%); padding: 16px 40px;">
-                    <a href="${inviteLink}" style="display: inline-block; color: white; text-decoration: none; font-size: 16px; font-weight: 700; letter-spacing: 0.5px;">✨ ACEPTAR INVITACIÓN AQUÍ ✨</a>
-                  </td>
-                </tr>
-              </table>
+              <a href="${inviteLink}" style="background: #0096ff; color: white; text-decoration: none; display: inline-block; padding: 14px 35px; border-radius: 6px; font-size: 16px; font-weight: 700; mso-padding-alt: 14px 35px; mso-border-alt: solid white 0;">✨ ACEPTAR INVITACIÓN AQUÍ ✨</a>
             </div>
 
             <div class="security-note">
