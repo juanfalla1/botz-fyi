@@ -527,63 +527,75 @@ export default function AdminInvitesManager() {
                         })}
                       </td>
                       <td style={{ padding: "16px", textAlign: "right" }}>
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-                          <button
-                            onClick={() => handleEdit(invite)}
-                            style={{
-                              padding: "8px",
-                              background: "none",
-                              border: "none",
-                              color: "#7dd3fc",
-                              cursor: "pointer",
-                              borderRadius: "6px"
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0, 150, 255, 0.2)"}
-                            onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                            title="Editar"
-                          >
-                            <Edit2 style={{ width: "16px", height: "16px" }} />
-                          </button>
-                          <button
-                            onClick={() => handleResendEmail(invite.id, invite.email)}
-                            disabled={sendingEmailId === invite.id}
-                            style={{
-                              padding: "8px",
-                              background: "none",
-                              border: "none",
-                              color: sendingEmailId === invite.id ? "#666" : "#7dd3fc",
-                              cursor: sendingEmailId === invite.id ? "not-allowed" : "pointer",
-                              borderRadius: "6px",
-                              opacity: sendingEmailId === invite.id ? 0.5 : 1
-                            }}
-                            onMouseEnter={(e) => sendingEmailId !== invite.id && (e.currentTarget.style.background = "rgba(34, 197, 94, 0.2)")}
-                            onMouseLeave={(e) => e.currentTarget.style.background = "none"}
-                            title="Reenviar email"
-                          >
-                            {sendingEmailId === invite.id ? (
-                              <Loader2 style={{ width: "16px", height: "16px", animation: "spin 1s linear infinite" }} />
-                            ) : (
-                              <Mail style={{ width: "16px", height: "16px", color: "#22c55e" }} />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteClick(invite.id, invite.email)}
-                            style={{
-                              padding: "8px",
-                              background: "none",
-                              border: "none",
-                              color: "#7dd3fc",
-                              cursor: "pointer",
-                              borderRadius: "6px"
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.color = "#ef4444"}
-                            onMouseLeave={(e) => e.currentTarget.style.color = "#7dd3fc"}
-                            title="Eliminar"
-                          >
-                            <Trash2 style={{ width: "16px", height: "16px" }} />
-                          </button>
-                        </div>
-                      </td>
+                         <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", alignItems: "center" }}>
+                           {/* Si está pendiente, mostrar botón prominente de reenvío */}
+                           {invite.status === "pending" && (
+                             <button
+                               onClick={() => handleResendEmail(invite.id, invite.email)}
+                               disabled={sendingEmailId === invite.id}
+                               style={{
+                                 padding: "6px 12px",
+                                 background: sendingEmailId === invite.id ? "rgba(34, 197, 94, 0.5)" : "rgba(34, 197, 94, 0.2)",
+                                 border: "1px solid rgba(34, 197, 94, 0.4)",
+                                 color: "#22c55e",
+                                 cursor: sendingEmailId === invite.id ? "not-allowed" : "pointer",
+                                 borderRadius: "6px",
+                                 fontSize: "12px",
+                                 fontWeight: "600",
+                                 display: "flex",
+                                 alignItems: "center",
+                                 gap: "4px",
+                                 opacity: sendingEmailId === invite.id ? 0.7 : 1,
+                                 transition: "all 0.2s"
+                               }}
+                               onMouseEnter={(e) => sendingEmailId !== invite.id && (e.currentTarget.style.background = "rgba(34, 197, 94, 0.3)")}
+                               onMouseLeave={(e) => sendingEmailId !== invite.id && (e.currentTarget.style.background = "rgba(34, 197, 94, 0.2)")}
+                               title="Reenviar email"
+                             >
+                               {sendingEmailId === invite.id ? (
+                                 <Loader2 style={{ width: "14px", height: "14px", animation: "spin 1s linear infinite" }} />
+                               ) : (
+                                 <Mail style={{ width: "14px", height: "14px" }} />
+                               )}
+                               {sendingEmailId === invite.id ? "Enviando..." : "Reenviar"}
+                             </button>
+                           )}
+                           
+                           {/* Botones de acción pequeños */}
+                           <button
+                             onClick={() => handleEdit(invite)}
+                             style={{
+                               padding: "8px",
+                               background: "none",
+                               border: "none",
+                               color: "#7dd3fc",
+                               cursor: "pointer",
+                               borderRadius: "6px"
+                             }}
+                             onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0, 150, 255, 0.2)"}
+                             onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+                             title="Editar"
+                           >
+                             <Edit2 style={{ width: "16px", height: "16px" }} />
+                           </button>
+                           <button
+                             onClick={() => handleDeleteClick(invite.id, invite.email)}
+                             style={{
+                               padding: "8px",
+                               background: "none",
+                               border: "none",
+                               color: "#7dd3fc",
+                               cursor: "pointer",
+                               borderRadius: "6px"
+                             }}
+                             onMouseEnter={(e) => e.currentTarget.style.color = "#ef4444"}
+                             onMouseLeave={(e) => e.currentTarget.style.color = "#7dd3fc"}
+                             title="Eliminar"
+                           >
+                             <Trash2 style={{ width: "16px", height: "16px" }} />
+                           </button>
+                         </div>
+                       </td>
                     </tr>
                   ))}
                 </tbody>
