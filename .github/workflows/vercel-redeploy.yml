@@ -1,0 +1,15 @@
+name: Redeploy to Vercel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Redeploy to Vercel
+        run: |
+          curl -X POST "https://api.vercel.com/v13/deployments?teamId=${{ secrets.VERCEL_TEAM_ID }}" \
+            -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"projectId":"${{ secrets.VERCEL_PROJECT_ID }}","git":{"ref":"main"}}'
