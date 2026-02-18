@@ -25,6 +25,7 @@ export default function AdminInvitesManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ show: boolean; id: string; email: string }>({ show: false, id: "", email: "" });
   const [formData, setFormData] = useState({
     email: "",
@@ -151,6 +152,38 @@ export default function AdminInvitesManager() {
 
   const cancelDelete = () => {
     setShowDeleteConfirm({ show: false, id: "", email: "" });
+  };
+
+  const handleResendEmail = async (inviteId: string, email: string) => {
+    try {
+      setSendingEmailId(inviteId);
+      setError(null);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No authenticated session");
+
+      const response = await fetch("/api/platform/admin-invites/resend-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ inviteId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to resend email");
+      }
+
+      setSuccess(`Email reenviado a ${email}`);
+    } catch (err) {
+      console.error("Error resending email:", err);
+      setError(err instanceof Error ? err.message : "Error al reenviar email");
+    } finally {
+      setSendingEmailId(null);
+    }
   };
 
   const handleEdit = (invite: AdminInvite) => {
@@ -512,6 +545,28 @@ export default function AdminInvitesManager() {
                             <Edit2 style={{ width: "16px", height: "16px" }} />
                           </button>
                           <button
+                            onClick={() => handleResendEmail(invite.id, invite.email)}
+                            disabled={sendingEmailId === invite.id}
+                            style={{
+                              padding: "8px",
+                              background: "none",
+                              border: "none",
+                              color: sendingEmailId === invite.id ? "#666" : "#7dd3fc",
+                              cursor: sendingEmailId === invite.id ? "not-allowed" : "pointer",
+                              borderRadius: "6px",
+                              opacity: sendingEmailId === invite.id ? 0.5 : 1
+                            }}
+                            onMouseEnter={(e) => sendingEmailId !== invite.id && (e.currentTarget.style.background = "rgba(34, 197, 94, 0.2)")}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+                            title="Reenviar email"
+                          >
+                            {sendingEmailId === invite.id ? (
+                              <Loader2 style={{ width: "16px", height: "16px", animation: "spin 1s linear infinite" }} />
+                            ) : (
+                              <Mail style={{ width: "16px", height: "16px", color: "#22c55e" }} />
+                            )}
+                          </button>
+                          <button
                             onClick={() => handleDeleteClick(invite.id, invite.email)}
                             style={{
                               padding: "8px",
@@ -636,6 +691,13 @@ export default function AdminInvitesManager() {
             </div>
           </div>
         )}
+
+        <style>{`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     </div>
   );
