@@ -91,11 +91,16 @@ export async function sendInviteEmail(
               <p><strong>⏰ Válido por:</strong> 7 días</p>
             </div>
 
+            <!--[if mso]>
+            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${inviteLink}" style="height:50px;v-text-anchor:middle;width:300px;" arcsize="8%" stroke="f" fillcolor="#0096ff">
+              <w:anchorlock/>
+              <center style="color:#ffffff;font-family:Arial, sans-serif;font-size:16px;font-weight:bold;">✨ ACEPTAR INVITACIÓN AQUÍ ✨</center>
+            </v:roundrect>
+            <![endif]-->
             <div style="text-align: center; margin: 40px 0;">
-              <a href="${inviteLink}" style="background: #0096ff; color: white; text-decoration: none; display: inline-block; padding: 14px 35px; border-radius: 6px; font-size: 16px; font-weight: 700; mso-padding-alt: 14px 35px; mso-border-alt: solid white 0;">✨ ACEPTAR INVITACIÓN AQUÍ ✨</a>
-              <p style="color: #999; font-size: 11px; margin-top: 12px; word-break: break-all;">
-                URL: ${inviteLink}
-              </p>
+              <!--[if !mso]><!-->
+              <a href="${inviteLink}" style="background-color:#0096ff;color:#ffffff;display:inline-block;padding:15px 40px;text-align:center;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;font-family:Arial,sans-serif;">✨ ACEPTAR INVITACIÓN AQUÍ ✨</a>
+              <!--<![endif]-->
             </div>
 
             <div class="security-note">
