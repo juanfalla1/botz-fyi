@@ -353,11 +353,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setSubscription({
       id: 'platform-admin',
-      plan: 'Enterprise',
+      plan: 'Administrator',
       status: 'active',
       created_at: new Date().toISOString(),
     });
-    setUserPlan('Enterprise');
+    setUserPlan('Administrator');
     setEnabledFeatures(ALL_FEATURES);
     setPermissions({
       platform_admin: true,
@@ -1245,6 +1245,16 @@ const planFeatures = PLAN_FEATURES[normalizedPlan] || PLAN_FEATURES["free"] || [
 };
 
 // ============================================================================
+// ✅ HELPER PARA FORMATEAR NOMBRE DEL PLAN
+// ============================================================================
+const getPlanDisplayName = (plan: string): string => {
+  if (plan === "Administrator" || plan === "Enterprise") {
+    return "Administrator";
+  }
+  return plan;
+};
+
+// ============================================================================
 // ✅ COMPONENTE DE PERFIL DE USUARIO CON INFO DE PLAN
 // ============================================================================
 const UserProfileBadge = ({
@@ -1388,6 +1398,7 @@ const UserProfileBadge = ({
     Growth: "#22d3ee",
     "A la Medida": "#c084fc",
     Enterprise: "#c084fc",
+    Administrator: "#c084fc",
   };
 
   const planColor = planColors[userPlan] || "#64748b";
@@ -1456,7 +1467,7 @@ const UserProfileBadge = ({
               }}
             >
               <Crown size={10} />
-              {userPlan === "free" ? text.planFree : `${text.planLabel} ${userPlan}`}
+              {userPlan === "free" ? text.planFree : `${text.planLabel} ${getPlanDisplayName(userPlan)}`}
             </div>
           </div>
         )}
@@ -1547,7 +1558,7 @@ const UserProfileBadge = ({
                 }}
               >
                 <Crown size={12} />
-                {userPlan === "free" ? text.planFree : `${text.planLabel} ${userPlan}`}
+              {userPlan === "free" ? text.planFree : `${text.planLabel} ${getPlanDisplayName(userPlan)}`}
               </div>
 
               {subscription && (
@@ -2464,7 +2475,7 @@ export default function MainLayout({
           >
             <Crown size={14} />
             <span>
-              {text.planLabel}: <strong>{userPlan === "free" ? text.freeShort : userPlan}</strong>
+              {text.planLabel}: <strong>{userPlan === "free" ? text.freeShort : getPlanDisplayName(userPlan)}</strong>
             </span>
           </div>
         )}
@@ -2671,7 +2682,7 @@ export default function MainLayout({
                   }}
                 >
                   <Crown size={14} />
-                  {text.planLabel} {userPlan === "free" ? text.freeShort : userPlan}
+                  {text.planLabel} {userPlan === "free" ? text.freeShort : getPlanDisplayName(userPlan)}
                 </div>
               )}
             </div>
