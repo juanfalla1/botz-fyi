@@ -9,7 +9,7 @@ jobs:
     steps:
       - name: Redeploy to Vercel
         run: |
-          curl -X POST "https://api.vercel.com/v13/deployments?teamId=${{ secrets.VERCEL_TEAM_ID }}" \
+          curl -X POST "https://api.vercel.com/v13/deployments" \
             -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d '{"projectId":"${{ secrets.VERCEL_PROJECT_ID }}","git":{"ref":"main"}}'
+            -d '{"projectId":"${{ secrets.VERCEL_PROJECT_ID }}","teamId":"${{ secrets.VERCEL_TEAM_ID }}","git":{"ref":"main"}}'
