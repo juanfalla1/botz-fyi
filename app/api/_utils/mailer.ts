@@ -91,13 +91,14 @@ export async function sendInviteEmail(
               <p><strong>⏰ Válido por:</strong> 7 días</p>
             </div>
 
-            <div class="cta-section" style="text-align: center; margin: 30px 0;">
-              <p style="color: #666; margin-bottom: 20px; font-size: 15px;">
-                <strong>Haz clic en el enlace de abajo para aceptar la invitación y crear tu contraseña:</strong>
-              </p>
-              <p style="margin: 20px 0;">
-                <a href="${inviteLink}" style="color: #0096ff; font-size: 16px; font-weight: 600; text-decoration: underline;">✨ ACEPTAR INVITACIÓN AQUÍ ✨</a>
-              </p>
+            <div style="text-align: center; margin: 40px 0;">
+              <table role="presentation" style="margin: 0 auto; border-collapse: collapse;">
+                <tr>
+                  <td style="border-radius: 8px; background: linear-gradient(135deg, #0096ff 0%, #0077cc 100%); padding: 16px 40px;">
+                    <a href="${inviteLink}" style="display: inline-block; color: white; text-decoration: none; font-size: 16px; font-weight: 700; letter-spacing: 0.5px;">✨ ACEPTAR INVITACIÓN AQUÍ ✨</a>
+                  </td>
+                </tr>
+              </table>
             </div>
 
             <div class="security-note">
