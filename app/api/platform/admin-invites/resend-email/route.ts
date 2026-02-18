@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { sendInviteEmail } from "@/app/api/_utils/mailer";
+import crypto from "crypto";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -85,10 +86,9 @@ export async function POST(req: NextRequest) {
     if (existingToken && new Date(existingToken.expires_at) > new Date()) {
       // Use existing valid token
       tokenData = existingToken;
-    } else {
-      // Create new token
-      const crypto = require("crypto");
-      const newToken = crypto.randomBytes(32).toString("hex");
+     } else {
+       // Create new token
+       const newToken = crypto.randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
       const { data: newTokenData, error: tokenError } = await supabase
