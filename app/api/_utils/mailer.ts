@@ -91,13 +91,13 @@ export async function sendInviteEmail(
               <p><strong>⏰ Válido por:</strong> 7 días</p>
             </div>
 
-            <!--[if mso]>
-            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${inviteLink}" style="height:50px;v-text-anchor:middle;width:300px;" arcsize="8%" stroke="f" fillcolor="#0096ff">
-              <w:anchorlock/>
-              <center style="color:#ffffff;font-family:Arial, sans-serif;font-size:16px;font-weight:bold;">✨ ACEPTAR INVITACIÓN AQUÍ ✨</center>
-            </v:roundrect>
-            <![endif]-->
             <div style="text-align: center; margin: 40px 0;">
+              <!--[if mso]>
+              <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" style="height:50px;v-text-anchor:middle;width:300px;background:#0096ff;" arcsize="10%" stroke="f" fillcolor="#0096ff">
+                <w:anchorlock/>
+                <a href="${inviteLink}" style="display:block;color:#ffffff;text-decoration:none;text-align:center;font-weight:bold;font-size:16px;font-family:Arial, sans-serif;padding:15px 0;">✨ ACEPTAR INVITACIÓN AQUÍ ✨</a>
+              </v:roundrect>
+              <![endif]-->
               <!--[if !mso]><!-->
               <a href="${inviteLink}" style="background-color:#0096ff;color:#ffffff;display:inline-block;padding:15px 40px;text-align:center;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;font-family:Arial,sans-serif;">✨ ACEPTAR INVITACIÓN AQUÍ ✨</a>
               <!--<![endif]-->
