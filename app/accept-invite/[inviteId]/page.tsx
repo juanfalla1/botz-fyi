@@ -13,7 +13,7 @@ interface InviteData {
   status: string;
 }
 
-export default function AcceptInvitePage({ params }: { params: { inviteId: string } }) {
+export default function AcceptInvitePage({ params }: { params: Promise<{ inviteId: string }> }) {
   const router = useRouter();
   const [invite, setInvite] = useState<InviteData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,23 +25,28 @@ export default function AcceptInvitePage({ params }: { params: { inviteId: strin
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [inviteId, setInviteId] = useState<string | null>(null);
 
   useEffect(() => {
-    verifyInvite();
-  }, [params.inviteId]);
+    (async () => {
+      const resolvedParams = await params;
+      setInviteId(resolvedParams.inviteId);
+      verifyInvite(resolvedParams.inviteId);
+    })();
+  }, [params]);
 
-   const verifyInvite = async () => {
+  const verifyInvite = async (id: string) => {
     try {
       setLoading(true);
       setError(null);
 
-      console.log("🔍 DEBUG: Searching for inviteId:", params.inviteId);
+      console.log("🔍 DEBUG: Searching for inviteId:", id);
 
       // Query the admin_invites table directly by invite ID
       const { data: inviteData, error: inviteError } = await supabase
         .from("admin_invites")
         .select("*")
-        .eq("id", params.inviteId)
+        .eq("id", id)
         .single();
 
       console.log("🔍 DEBUG: Supabase response:", { inviteData, inviteError });
