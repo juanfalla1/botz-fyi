@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { sendInviteEmail } from "@/app/api/_utils/mailer";
+import crypto from "crypto";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,6 +17,11 @@ async function isPlatformAdmin(authUserId: string) {
     .single();
 
   return !error && !!data;
+}
+
+// Generar token único para la invitación
+function generateInviteToken(): string {
+  return crypto.randomBytes(32).toString("hex");
 }
 
 // GET - Listar todas las invitaciones
@@ -111,7 +118,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
+    // Create invite record
+    const { data: inviteData, error: insertError } = await supabase
       .from("admin_invites")
       .insert({
         email,
@@ -124,20 +132,57 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
 
-    if (error) {
-      if (error.code === "23505") {
+    if (insertError) {
+      if (insertError.code === "23505") {
         return NextResponse.json(
-          { error: "This email already has an invitation" },
+          { error: "Este email ya tiene una invitación" },
           { status: 400 }
         );
       }
       return NextResponse.json(
-        { error: error.message },
+        { error: insertError.message },
         { status: 500 }
       );
     }
 
-    return NextResponse.json(data, { status: 201 });
+    // Generate and store invitation token
+    const inviteToken = generateInviteToken();
+    const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    const { error: tokenError } = await supabase
+      .from("invite_tokens")
+      .insert({
+        invite_id: inviteData.id,
+        token: inviteToken,
+        email,
+        expires_at: tokenExpiresAt.toISOString(),
+      });
+
+    if (tokenError) {
+      console.error("Error creating token:", tokenError);
+      return NextResponse.json(
+        { error: "Error creating invitation token" },
+        { status: 500 }
+      );
+    }
+
+    // Send invitation email
+    const emailSent = await sendInviteEmail(email, inviteToken, role, access_level);
+
+    if (!emailSent) {
+      console.warn(`Email not sent to ${email}, but invitation was created`);
+    }
+
+    return NextResponse.json(
+      {
+        ...inviteData,
+        emailSent,
+        message: emailSent 
+          ? "Invitación creada y email enviado correctamente"
+          : "Invitación creada pero hubo problema enviando el email",
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Error creating invite:", error);
     return NextResponse.json(
