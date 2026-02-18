@@ -1,15 +1,33 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 
 interface AgentCardProps {
   name: string;
   avatar: React.ReactNode;
   color: string;
   capabilities: string[];
+  templateId?: string;
+  agentType?: 'voice' | 'text' | 'flow';
 }
 
-const AgentCard = ({ name, avatar, color, capabilities }: AgentCardProps) => {
+const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }: AgentCardProps) => {
+  const router = useRouter();
+
+  const handleClick = () => {
+    if (templateId) {
+      // Pre-configured template
+      router.push(`/start/agents/create?template=${templateId}`);
+    } else if (agentType) {
+      // Custom agent with type
+      router.push(`/start/agents/create?type=${agentType}`);
+    } else {
+      // Default - go to agent studio
+      router.push('/start/agents');
+    }
+  };
+
   return (
     <div
       style={{
@@ -26,6 +44,7 @@ const AgentCard = ({ name, avatar, color, capabilities }: AgentCardProps) => {
         minHeight: "460px",
         border: "2px solid rgba(34, 211, 238, 0.3)",
       }}
+      onClick={handleClick}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-8px)";
         e.currentTarget.style.borderColor = "#a3e635";
@@ -148,6 +167,8 @@ const Agentes = () => {
         "Agenda citas",
         "Actualiza el CRM",
       ],
+      templateId: "julia",
+      agentType: "text" as const,
     },
     {
       name: "Calificador de Leads de IA",
@@ -159,6 +180,8 @@ const Agentes = () => {
         "Puntúa y enruta",
         "Actualiza el CRM",
       ],
+      templateId: "lia",
+      agentType: "voice" as const,
     },
     {
       name: "Seguimiento de Ventas de IA",
@@ -170,6 +193,8 @@ const Agentes = () => {
         "Reactiva leads",
         "Actualiza el CRM",
       ],
+      templateId: "alex",
+      agentType: "text" as const,
     },
     {
       name: "Soporte al Cliente de IA",
@@ -181,6 +206,7 @@ const Agentes = () => {
         "Soluciona incidencias",
         "Conecta con humanos",
       ],
+      agentType: "text" as const,
     },
   ];
 
@@ -195,6 +221,7 @@ const Agentes = () => {
         "Envía encuestas",
         "Rastrea progreso",
       ],
+      agentType: "text" as const,
     },
     {
       name: "Evaluador de Candidatos de IA (HR)",
@@ -206,6 +233,7 @@ const Agentes = () => {
         "Identifica talento calificado",
         "Actualiza el ATS",
       ],
+      agentType: "voice" as const,
     },
     {
       name: "Especialista de Cobranza de IA",
@@ -217,6 +245,7 @@ const Agentes = () => {
         "Envía recordatorios",
         "Actualiza el CRM",
       ],
+      agentType: "voice" as const,
     },
     {
       name: "Crea el Tuyo",
@@ -228,6 +257,7 @@ const Agentes = () => {
         "Describe lo que necesitas",
         "Botz lo construye",
       ],
+      // No template - goes to main studio
     },
   ];
 
