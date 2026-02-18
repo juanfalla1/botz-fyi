@@ -397,6 +397,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log("🔍 [SUB] Buscando suscripción | auth_user_id:", userId, "| tenant_id:", tenantId || "N/A");
 
+      // ✅ CACHE: Intentar leer de localStorage primero
+      const cacheKey = `botz-sub-${userId}`;
+      const cachedSub = typeof window !== "undefined" ? localStorage.getItem(cacheKey) : null;
+      if (cachedSub) {
+        try {
+          const parsed = JSON.parse(cachedSub);
+          console.log("✅ [SUB] Cache HIT - plan:", parsed.plan);
+          applySubscription(parsed);
+          // Refrescar en background sin bloquear UI
+          setTimeout(async () => {
+            const { data: freshData } = await supabase
+              .from("subscriptions")
+              .select("*")
+              .eq("user_id", userId)
+              .in("status", ["active", "trialing"])
+              .order("created_at", { ascending: false })
+              .limit(1);
+            if (freshData?.[0] && freshData[0].plan !== parsed.plan) {
+              console.log("🔄 [SUB] Plan actualizado en background:", freshData[0].plan);
+              applySubscription(freshData[0]);
+              localStorage.setItem(cacheKey, JSON.stringify(freshData[0]));
+            }
+          }, 100);
+          return;
+        } catch (e) {
+          console.warn("⚠️ [SUB] Cache corrupto, ignorando:", e);
+        }
+      }
+
       // ── PASO 1: Buscar suscripción directamente por user_id (funciona para admin) ──
       const { data: directData, error: directError } = await supabase
         .from("subscriptions")
@@ -412,6 +441,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       let activeSub = directData?.[0] ?? null;
       console.log("🔍 [SUB] Paso 1 (por user_id):", activeSub ? `ENCONTRADA - plan: ${activeSub.plan}` : "NO encontrada");
+
+      // ✅ CACHE: Guardar en localStorage
+      if (activeSub && typeof window !== "undefined") {
+        localStorage.setItem(cacheKey, JSON.stringify(activeSub));
+      }
 
       // ── PASO 2: Si no encontró por user_id Y tenemos tenant_id, buscar por tenant ──
       if (!activeSub && tenantId) {
