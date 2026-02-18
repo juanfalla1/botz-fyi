@@ -45,60 +45,75 @@ export async function sendInviteEmail(
       <head>
         <meta charset="UTF-8">
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: #f5f5f5; }
-          .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-          .header { background: linear-gradient(135deg, #0c1929 0%, #0f2444 50%, #001a33 100%); padding: 40px 20px; text-align: center; }
-          .header h1 { color: #00d4ff; margin: 0; font-size: 24px; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: linear-gradient(135deg, #0c1929 0%, #0f2444 50%, #001a33 100%); margin: 0; padding: 20px; }
+          .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+          .header { background: linear-gradient(135deg, #0c1929 0%, #0f2444 50%, #001a33 100%); padding: 50px 20px 40px; text-align: center; position: relative; }
+          .robot-icon { font-size: 60px; margin-bottom: 15px; animation: float 3s ease-in-out infinite; display: inline-block; }
+          @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+          .header h1 { color: #00d4ff; margin: 0; font-size: 28px; font-weight: 700; }
           .header p { color: #b0d4ff; margin: 8px 0 0 0; font-size: 14px; }
-          .content { padding: 40px 20px; }
-          .content h2 { color: #0c1929; margin-top: 0; }
-          .content p { color: #666; line-height: 1.6; }
-          .details { background: rgba(0, 150, 255, 0.05); border-left: 4px solid #0096ff; padding: 16px; margin: 20px 0; border-radius: 4px; }
-          .details p { margin: 8px 0; color: #333; font-size: 14px; }
-          .details strong { color: #0c1929; }
-          .button { display: inline-block; padding: 12px 32px; background: linear-gradient(135deg, #0096ff 0%, #0077cc 100%); color: white; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
-          .button:hover { opacity: 0.9; }
-          .footer { background: #f9f9f9; padding: 20px; text-align: center; color: #999; font-size: 12px; border-top: 1px solid #eee; }
+          .content { padding: 40px; }
+          .content h2 { color: #0c1929; margin: 0 0 16px 0; font-size: 20px; font-weight: 600; }
+          .greeting { color: #444; font-size: 16px; line-height: 1.6; margin-bottom: 24px; }
+          .details-box { background: linear-gradient(135deg, rgba(0, 150, 255, 0.05) 0%, rgba(0, 150, 255, 0.02) 100%); border-left: 4px solid #0096ff; padding: 20px; margin: 24px 0; border-radius: 8px; }
+          .details-box p { margin: 10px 0; color: #333; font-size: 14px; }
+          .details-box strong { color: #0c1929; font-weight: 600; }
+          .cta-section { text-align: center; margin: 32px 0; }
+          .button { display: inline-block; padding: 14px 40px; background: linear-gradient(135deg, #0096ff 0%, #0077cc 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; border: none; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 15px rgba(0, 150, 255, 0.3); }
+          .button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 150, 255, 0.4); }
+          .security-note { background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.2); padding: 16px; border-radius: 8px; margin: 24px 0; }
+          .security-note p { margin: 0; color: #666; font-size: 13px; line-height: 1.5; }
+          .link-fallback { color: #999; font-size: 12px; margin-top: 20px; word-break: break-all; }
+          .footer { background: #f5f7fa; padding: 24px 20px; text-align: center; color: #999; font-size: 12px; border-top: 1px solid #eee; }
+          .footer p { margin: 4px 0; }
           .footer a { color: #0096ff; text-decoration: none; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>🔐 Invitación a Botz Platform</h1>
-            <p>Control de Acceso - Administración</p>
+            <div class="robot-icon">🤖</div>
+            <h1>¡Bienvenido a Botz!</h1>
+            <p>Tu acceso a la plataforma está listo</p>
           </div>
           
           <div class="content">
-            <h2>¡Hola!</h2>
-            <p>Has sido invitado a acceder a la plataforma Botz como <strong>${role}</strong>.</p>
-            
-            <div class="details">
-              <p><strong>Email:</strong> ${email}</p>
-              <p><strong>Rol:</strong> ${role}</p>
-              <p><strong>Nivel de Acceso:</strong> ${accessLevel}</p>
-              <p><strong>Válido por:</strong> 7 días</p>
-            </div>
-
-            <p>Haz clic en el botón de abajo para aceptar la invitación y crear tu contraseña:</p>
-            
-            <div style="text-align: center;">
-              <a href="${inviteLink}" class="button">Aceptar Invitación</a>
-            </div>
-
-            <p style="color: #999; font-size: 12px; margin-top: 30px;">
-              Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
-              <code style="background: #f5f5f5; padding: 8px 12px; border-radius: 4px; word-break: break-all;">${inviteLink}</code>
+            <h2>¡Hola ${email.split('@')[0]}!</h2>
+            <p class="greeting">
+              Ha sido invitado a acceder a <strong>Botz Platform</strong> como <strong>${role}</strong>. 
+              Estamos emocionados de tenerte en el equipo. 🚀
             </p>
 
-            <p style="color: #999; font-size: 12px;">
-              Este enlace expirará en 7 días. Si no aceptas la invitación en ese tiempo, deberás solicitar una nueva.
+            <div class="details-box">
+              <p><strong>📧 Email:</strong> ${email}</p>
+              <p><strong>👤 Rol:</strong> ${role.charAt(0).toUpperCase() + role.slice(1)}</p>
+              <p><strong>🔓 Nivel de Acceso:</strong> ${accessLevel === "full" ? "Acceso Completo" : accessLevel === "readonly" ? "Solo Lectura" : "Acceso Limitado"}</p>
+              <p><strong>⏰ Válido por:</strong> 7 días</p>
+            </div>
+
+            <div class="cta-section">
+              <p style="color: #666; margin-bottom: 20px; font-size: 15px;">
+                Haz clic en el botón de abajo para aceptar la invitación y crear tu contraseña:
+              </p>
+              <a href="${inviteLink}" class="button">✨ Aceptar Invitación y Crear Contraseña</a>
+            </div>
+
+            <div class="security-note">
+              <p>🔒 <strong>Nota de Seguridad:</strong> Este es un enlace personalizado y único para ti. No lo compartas con nadie. Expirará en 7 días por tu seguridad.</p>
+            </div>
+
+            <p style="color: #666; font-size: 13px; line-height: 1.6; margin: 20px 0;">
+              Si el botón no funciona, copia y pega este enlace en tu navegador:
             </p>
+            <div class="link-fallback">
+              ${inviteLink}
+            </div>
           </div>
 
           <div class="footer">
-            <p>© ${new Date().getFullYear()} Botz · Automatización Inteligente + Hipotecario</p>
-            <p><a href="https://botz.fyi">Visita nuestra web</a></p>
+            <p>© ${new Date().getFullYear()} Botz - Automatización Inteligente + Hipotecario</p>
+            <p><a href="https://botz.fyi">Visita nuestro sitio web</a> | <a href="https://botz.fyi">Centro de ayuda</a></p>
+            <p style="margin-top: 12px; color: #bbb;">¿Preguntas? Contacta a nuestro equipo de soporte</p>
           </div>
         </div>
       </body>
