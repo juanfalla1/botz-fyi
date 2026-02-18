@@ -95,10 +95,16 @@ export async function sendInviteEmail(
               <p style="color: #666; margin-bottom: 20px; font-size: 15px;">
                 Haz clic en el botón de abajo para aceptar la invitación y crear tu contraseña:
               </p>
-              <table style="margin: 0 auto;">
+              <!--[if mso]>
+              <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${inviteLink}" style="height:50px;v-text-anchor:middle;width:320px;" arcsize="8%" stroke="f" fillcolor="#0096ff">
+                <w:anchorlock/>
+                <center style="color:#ffffff;font-family:sans-serif;font-size:16px;font-weight:600;">✨ Aceptar Invitación</center>
+              </v:roundrect>
+              <![endif]-->
+              <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate; mso-padding-alt:10px 20px; background:#0096ff; border-radius:8px; width:fit-content; margin:0 auto;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0096ff 0%, #0077cc 100%); border-radius: 8px; padding: 14px 40px;">
-                    <a href="${inviteLink}" style="color: white; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">✨ Aceptar Invitación</a>
+                  <td style="border-collapse:collapse; border-radius:8px; cursor:pointer; font-family:sans-serif; font-size:16px; font-weight:600; line-height:50px; mso-padding-alt:10px 20px; text-align:center;">
+                    <a href="${inviteLink}" target="_blank" style="background:#0096ff; color:#ffffff; display:inline-block; text-decoration:none; border-radius:8px; mso-padding-alt:10px 20px; padding:10px 20px;">✨ Aceptar Invitación</a>
                   </td>
                 </tr>
               </table>
