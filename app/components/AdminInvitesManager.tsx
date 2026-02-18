@@ -25,6 +25,7 @@ export default function AdminInvitesManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ show: boolean; id: string; email: string }>({ show: false, id: "", email: "" });
   const [formData, setFormData] = useState({
     email: "",
     role: "developer",
@@ -124,8 +125,13 @@ export default function AdminInvitesManager() {
     }
   };
 
-  const handleDelete = async (id: string, email: string) => {
-    if (!confirm(`¿Estás seguro de que quieres eliminar la invitación para ${email}?`)) return;
+  const handleDeleteClick = (id: string, email: string) => {
+    setShowDeleteConfirm({ show: true, id, email });
+  };
+
+  const confirmDelete = async () => {
+    const { id } = showDeleteConfirm;
+    setShowDeleteConfirm({ show: false, id: "", email: "" });
 
     try {
       setError(null);
@@ -141,6 +147,10 @@ export default function AdminInvitesManager() {
       console.error("Error deleting invite:", error);
       setError("Error al eliminar la invitación");
     }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteConfirm({ show: false, id: "", email: "" });
   };
 
   const handleEdit = (invite: AdminInvite) => {
@@ -502,7 +512,7 @@ export default function AdminInvitesManager() {
                             <Edit2 style={{ width: "16px", height: "16px" }} />
                           </button>
                           <button
-                            onClick={() => handleDelete(invite.id, invite.email)}
+                            onClick={() => handleDeleteClick(invite.id, invite.email)}
                             style={{
                               padding: "8px",
                               background: "none",
@@ -534,6 +544,98 @@ export default function AdminInvitesManager() {
             <strong>ℹ️ Nota:</strong> Solo los Platform Admins pueden crear y gestionar invitaciones. Los usuarios invitados recibirán un email de confirmación.
           </p>
         </div>
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm.show && (
+          <div style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px"
+          }}>
+            <div style={{
+              background: "linear-gradient(135deg, #0c1929 0%, #0f2444 50%, #001a33 100%)",
+              border: "1px solid rgba(0, 150, 255, 0.3)",
+              borderRadius: "12px",
+              padding: "32px",
+              maxWidth: "400px",
+              width: "100%",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)"
+            }}>
+              <div style={{ marginBottom: "24px", textAlign: "center" }}>
+                <div style={{
+                  width: "48px",
+                  height: "48px",
+                  background: "rgba(239, 68, 68, 0.1)",
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 16px"
+                }}>
+                  <Trash2 style={{ width: "24px", height: "24px", color: "#ef4444" }} />
+                </div>
+                <h3 style={{ fontSize: "18px", fontWeight: "600", color: "white", margin: "0 0 8px 0" }}>
+                  Eliminar Invitación
+                </h3>
+                <p style={{ color: "#7dd3fc", fontSize: "14px", margin: 0 }}>
+                  ¿Estás seguro de que quieres eliminar la invitación para <strong>{showDeleteConfirm.email}</strong>?
+                </p>
+              </div>
+
+              <p style={{ color: "#8fd4ff", fontSize: "12px", marginBottom: "24px", marginTop: "16px", borderTop: "1px solid rgba(0, 150, 255, 0.2)", paddingTop: "16px" }}>
+                Esta acción no se puede deshacer.
+              </p>
+
+              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                <button
+                  onClick={cancelDelete}
+                  style={{
+                    padding: "10px 20px",
+                    background: "rgba(255, 255, 255, 0.1)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    color: "#7dd3fc",
+                    borderRadius: "8px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.15)"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  style={{
+                    padding: "10px 20px",
+                    background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                    border: "none",
+                    color: "white",
+                    borderRadius: "8px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = "0.9"}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
