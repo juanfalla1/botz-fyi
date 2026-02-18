@@ -1,0 +1,158 @@
+================================================================================
+BOTZ PERMISSION SYSTEM - FLOW DIAGRAMS
+================================================================================
+
+FLOW 1: NEW USER SIGNUP (Tenant Admin Path)
+──────────────────────────────────────────
+
+Browser                       App                    Database
+  │                            │                        │
+  ├─ Enter email ──────────────>│                        │
+  │                            │                        │
+  │                     Request OTP  ─────────────────> │
+  │                            │                 Create otp_sessions
+  │                            │                        │
+  │ <───── Receive OTP email ──│ <──────────────────────│
+  │                            │                        │
+  │  Enter OTP ───────────────>│                        │
+  │                            │                        │
+  │                     Verify OTP  ──────────────────> │
+  │                            │                Update otp_sessions
+  │                            │                (is_verified=true)
+  │                            │ <──────────────────────│
+  │                            │                        │
+  │  Create password ─────────>│                        │
+  │                            │                        │
+  │                   auth.signUp()  ─────────────────> │
+  │                            │                 Create auth.users
+  │                            │                        │
+  │ <───── Success ────────────│ <──────────────────────│
+  │                            │                        │
+  │  Redirect to dashboard ──> │ (Auto-detected as admin)
+  │                            │ ├─ Query team_members
+  │                            │ │  (no record found)
+  │                            │ ├─ Default role: "admin"
+  │                            │ └─ Load subscription
+  │                            │    └─ Determine features
+
+Result: User is Tenant Admin with subscription plan
+        Features enabled based on plan
+
+
+FLOW 2: PLATFORM ADMIN INVITING ANOTHER ADMIN
+───────────────────────────────────────────────
+
+Platform Admin              App                     Database
+      │                      │                         │
+      ├─ Go to Admin Panel ──>│                         │
+      │                       │                         │
+      │  Create Invite ──────>│ (POST /admin-invites)   │
+      │  ├─ Email             │                         │
+      │  ├─ Role              │                         │
+      │  └─ Access Level      │   Check isPlatformAdmin │
+      │                       │ ─────────────────────> │
+      │                       │ (verify auth_user in    │
+      │                       │  platform_admins table)
+      │                       │ <─────────────────────│
+      │                       │                   OK
+      │                       │                         │
+      │                       │  Create admin_invites ─>│
+      │                       │  record                 │
+      │                       │                         │
+      │ <─ "Invite sent" ─────│ <─────────────────────│
+      │                       │                         │
+      │           Send Email (with invite link)        │
+      │           /accept-invite/{inviteId}            │
+      └───────────────────────────────────────────────>│
+
+
+FLOW 3: ACCEPTING AN INVITE
+──────────────────────────────
+
+Recipient                   App                      Database
+    │                        │                           │
+    │  Click invite link ──> │ /accept-invite/[id]       │
+    │                        │                           │
+    │                        │  Query admin_invites ────>│
+    │                        │  (get by inviteId)        │
+    │                        │ <─────────────────────────│
+    │                        │  Verify:
+    │                        │  ├─ status = 'pending'    │
+    │                        │  ├─ expires_at > now()    │
+    │                        │  └─ not already accepted  │
+    │                        │                           │
+    │ <─ Show setup form ────│ (password entry)          │
+    │                        │                           │
+    │  Enter password ──────>│                           │
+    │                        │                           │
+    │                        │  auth.signUp() ──────────>│
+    │                        │  (create user with        │
+    │                        │   role & access_level     │
+    │                        │   in metadata)            │
+    │                        │                           │
+    │                        │ Update admin_invites ────>│
+    │                        │ (status='accepted')       │
+    │                        │ <─────────────────────────│
+    │                        │                           │
+    │ <─ Success message ────│                           │
+    │                        │                           │
+    │  Redirect to /start ──>│ (Load platform admin view)
+
+
+FLOW 4: FEATURE ACCESS CHECK (Frontend)
+────────────────────────────────────────
+
+User Opens App          UI                      MainLayout Context
+      │                  │                            │
+      ├─ App mounts ────> │                            │
+      │                   │                            │
+      │                   │  Check auth session ──────>│
+      │                   │  ├─ getSession()           │
+      │                   │  └─ getUser()              │
+      │                   │                            │
+      │                   │  Detect platform admin ───>│ (RPC or query)
+      │                   │                  isPlatformAdmin()
+      │                   │                            │
+      │                   │  Load subscription ───────>│
+      │                   │                  applySubscription()
+      │                   │                            │
+      │                   │  Map plan to features ────>│
+      │                   │  PLAN_FEATURES[plan]       │
+      │                   │  └─ setEnabledFeatures()   │
+      │                   │ <──────────────────────────│
+      │                   │                            │
+      │ <─ Render tabs ───│ Map each tab               │
+      │ with lock icons   │ ├─ Check hasFeatureAccess()
+      │                   │ │  if (isPlatformAdmin) ✓
+      │                   │ │  else check enabledFeatures
+      │                   │ │                            │
+      │                   │ ├─ Locked? Add lock icon    │
+      │                   │ ├─ Opacity: 0.6 if locked   │
+      │                   │ └─ Disable click handler    │
+      │                   │                            │
+      │ Click locked tab ─>│                            │
+      │ (e.g., "Hipoteca")│  !hasFeatureAccess("hipot")│
+      │                   │  ├─ true (locked)          │
+      │                   │  └─ setLockedModalOpen()   │
+      │                   │                            │
+      │ <─ Show modal ────│ Modal content:             │
+      │ "Upgrade Plan"    │ ├─ Feature: "Motor Hip."   │
+      │                   │ ├─ Required: "Growth Plan" │
+      │                   │ └─ CTA: "View Plans"       │
+
+
+FLOW 5: LEADS VISIBILITY (Role-Based)
+──────────────────────────────────────
+
+Asesor (Employee)        UI                      Database
+      │                   │                          │
+      │ Fetch leads ─────> │                          │
+      │                    │  useLeadsFilter() ──────>│
+      │                    │  ├─ Is asesor? yes       │
+      │                    │  ├─ Filter by:           │
+      │                    │  │  ├─ tenant_id         │
+      │                    │  │  └─ assigned_to       │
+      │                    │  │     (= team_member_id)│
+      │                    │  │                        │
+      │                    │  SELECT * FROM leads     │
+      │                    │

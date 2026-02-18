@@ -137,6 +137,19 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
         throw new Error("Error al crear la cuenta");
       }
 
+      // Add user to platform_admins so they have system access
+      const { error: adminError } = await supabase
+        .from("platform_admins")
+        .insert({
+          auth_user_id: authData.user.id,
+        })
+        .select()
+        .single();
+
+      if (adminError) {
+        console.warn("Error adding to platform_admins:", adminError);
+      }
+
       // Update invite status to accepted
       const { error: inviteError } = await supabase
         .from("admin_invites")

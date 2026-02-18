@@ -1,0 +1,256 @@
+================================================================================
+BOTZ PERMISSION SYSTEM - QUICK REFERENCE
+================================================================================
+
+HIERARCHY:
+┌─ Platform Admin (Botz staff)
+│  ├─ Can see all tenants/clients
+│  ├─ Can manage all features
+│  └─ Can invite other platform admins
+│
+├─ Tenant Admin (Customer owner)
+│  ├─ Owns one tenant/company
+│  ├─ Features controlled by plan
+│  ├─ Can see all tenant leads
+│  └─ Can create/manage team members
+│
+└─ Team Member / Asesor (Employee)
+   ├─ Belongs to one tenant
+   ├─ Limited by tenant plan
+   └─ Can only see assigned leads
+
+================================================================================
+DATABASE TABLES
+================================================================================
+
+1. platform_admins
+   ├─ id (UUID PK)
+   ├─ auth_user_id (FK → auth.users)
+   └─ created_at
+
+2. team_members
+   ├─ id (UUID PK)
+   ├─ auth_user_id (FK → auth.users)
+   ├─ tenant_id (FK → tenants)
+   ├─ email
+   ├─ nombre
+   ├─ rol (enum: 'admin' | 'asesor')
+   ├─ activo (boolean - soft delete)
+   └─ created_at
+
+3. admin_invites (Platform Admin Invitations Only)
+   ├─ id (UUID PK)
+   ├─ email (UNIQUE)
+   ├─ role (enum: 'developer' | 'guest' | 'support')
+   ├─ status (enum: 'pending' | 'accepted' | 'rejected' | 'revoked')
+   ├─ access_level (enum: 'full' | 'readonly' | 'limited')
+   ├─ created_by (FK → auth.users)
+   ├─ created_at
+   ├─ expires_at
+   └─ notes
+
+4. invite_tokens
+   ├─ id (UUID PK)
+   ├─ invite_id (FK → admin_invites)
+   ├─ token (UNIQUE - 7-day expiry)
+   ├─ email
+   ├─ created_at
+   ├─ expires_at
+   ├─ used_at
+   ├─ used (boolean)
+   └─ metadata (JSONB)
+
+================================================================================
+FEATURE GATING: PLAN-BASED
+================================================================================
+
+Free Plan:  "demo" only
+Paid Plans: ALL features enabled
+
+Feature List:
+  ✓ demo              "Operación en Vivo" (Live Operations)
+  ✓ hipoteca          "Motor Hipotecario" (Mortgage Calculator)
+  ✓ channels          "Gestión de Canales" (WhatsApp, etc.)
+  ✓ agents            "Agentes IA" (AI Agents)
+  ✓ crm               "CRM en Vivo" (Live CRM)
+  ✓ kanban            "Tablero Kanban" (Kanban Board)
+  ✓ sla               "Alertas SLA" (SLA Alerts)
+  ✓ n8n-config        "Dashboard Ejecutivo" (Executive Dashboard)
+
+How It Works:
+  1. User subscribes → gets plan name (e.g., "Growth")
+  2. Plan mapped to feature list via PLAN_FEATURES constant
+  3. enabledFeatures state updated
+  4. Each tab checks: hasFeatureAccess(featureId)
+  5. If locked: show lock icon, disable click, show upsell modal
+
+Code Location: app/start/MainLayout.tsx:56-90, 908-922
+
+================================================================================
+SIGN-UP FLOW
+================================================================================
+
+NORMAL USER SIGNUP (Tenant Admin Path):
+1. User creates auth account (email/password or OTP)
+2. No automatic team_member record created
+3. System treats as tenant admin (default)
+4. Assigned subscription plan (free or paid)
+5. Features enabled based on plan
+6. Can now create/manage team members
+
+KEY FLOW:
+  Email → OTP Code → Verify Code → Create Password → Login → Dashboard
+                                                              ↓
+                                                    Plan assigned
+                                                    Features unlocked
+
+OTP Code Location: app/api/auth/request-otp/route.ts + verify-otp/route.ts
+
+================================================================================
+INVITATION SYSTEM (PLATFORM ADMIN ONLY)
+================================================================================
+
+STEP 1: CREATE INVITE
+  ├─ Who: Platform Admin only (checked via isPlatformAdmin())
+  ├─ What: Create admin_invites record
+  ├─ Fields:
+  │  ├─ email (target)
+  │  ├─ role ('developer' | 'guest' | 'support')
+  │  ├─ access_level ('full' | 'readonly' | 'limited')
+  │  ├─ expires_at (7 days default)
+  │  └─ notes
+  └─ Action: Send invite email with link
+
+  Location: app/api/platform/admin-invites/route.ts (POST)
+
+STEP 2: RECEIVE & VERIFY INVITE
+  ├─ Email includes:
+  │  ├─ Personalized invite link: /accept-invite/{inviteId}
+  │  ├─ Email address
+  │  ├─ Role (developer, guest, support)
+  │  ├─ Access Level (full, readonly, limited)
+  │  └─ Validity: 7 days
+  └─ Link expires in 7 days
+
+  Location: app/api/_utils/mailer.ts:34-126
+
+STEP 3: ACCEPT INVITE
+  ├─ User clicks invite link
+  ├─ System verifies:
+  │  ├─ Invite exists
+  │  ├─ Status is 'pending'
+  │  └─ Not expired
+  ├─ Show password setup form
+  └─ User enters password
+
+  Location: app/accept-invite/[inviteId]/page.tsx (lines 38-78)
+
+STEP 4: CREATE ACCOUNT
+  ├─ Create auth.users record (email + password)
+  ├─ Store in user_metadata:
+  │  ├─ role
+  │  └─ access_level
+  ├─ Update admin_invites: status = 'accepted'
+  └─ Show success page with account details
+
+  Location: app/accept-invite/[inviteId]/page.tsx (lines 111-157)
+
+WHAT GETS CREATED:
+  ✓ auth.users (Supabase Auth user)
+  ✓ user_metadata (role, access_level)
+  ✓ admin_invites.status = 'accepted'
+  ✗ team_members (NOT for platform admins)
+
+================================================================================
+ROLE DETECTION (Frontend)
+================================================================================
+
+TWO CONTEXTS:
+
+1. AuthRoleContext (Tenant-level roles)
+   Location: app/start/components/AuthRoleContext.tsx
+   
+   Detects:
+   ├─ Is user an 'admin' (tenant owner)?
+   │  └─ If NO team_member record → admin by default
+   └─ Is user an 'asesor' (employee)?
+      └─ If YES team_member record with rol='asesor' → asesor
+   
+   Provides:
+   ├─ useAuthRole() hook
+   ├─ useLeadsFilter() hook (filters by role)
+   └─ Tenant-specific permissions
+
+2. MainLayout AuthProvider (Platform-level)
+   Location: app/start/MainLayout.tsx:281-981
+   
+   Detects:
+   ├─ Is user a platform admin?
+   │  └─ Query platform_admins table
+   └─ What's their subscription plan?
+      └─ Determine enabledFeatures
+   
+   Provides:
+   ├─ isPlatformAdmin status
+   ├─ userPlan
+   ├─ enabledFeatures
+   ├─ hasFeatureAccess() method
+   └─ Global auth context
+
+================================================================================
+PERMISSION CHECKS IN API
+================================================================================
+
+Guards Utility: app/api/_utils/guards.ts
+
+1. getRequestUser(req)
+   └─ Extract JWT from Authorization header
+   └─ Validate with Supabase Auth
+
+2. isPlatformAdmin(authUserId)
+   └─ Query platform_admins table
+   └─ Return: { ok, isAdmin, error }
+
+3. getTeamMemberByAuthUserId(authUserId)
+   └─ Query team_members table
+   └─ Return: { ok, row with tenant_id/rol, error }
+
+4. assertTenantAccess(req, requestedTenantId)
+   ├─ Check if platform admin (cross-tenant access)
+   └─ Else check if team member in that tenant
+   └─ Return: { ok, tenantId, isPlatformAdmin }
+
+Example Usage:
+  const guard = await assertTenantAccess({
+    req,
+    requestedTenantId: params.tenantId
+  });
+  if (!guard.ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+================================================================================
+LEADS ACCESS CONTROL
+================================================================================
+
+Hook: app/start/components/AuthRoleContext.tsx:222-273
+
+Query Building:
+  ├─ All users: filter by tenant_id
+  └─ Asesores only: AND filter by assigned_to (team_member_id)
+
+Visibility Rules:
+  ├─ Tenant Admin: sees all tenant leads
+  └─ Asesor: sees only own assigned leads (assigned_to = team_member_id)
+
+Platform Admin: sees ALL (via allowPlatformAdminCrossTenant)
+
+Code:
+  const getLeadsQuery = () => {
+    let query = supabase.from('leads').select('*');
+    if (user?.tenant_id) query = query.eq('tenant_id', user.tenant_id);
+    if (user?.role === 'asesor' && user?.team_member_id) {
+      query = query.eq('assigned_to', user.team_member_id);
+    }
+    return query;
+  };
+
+======================
