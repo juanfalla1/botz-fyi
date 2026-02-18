@@ -28,11 +28,26 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
   const [inviteId, setInviteId] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     (async () => {
-      const resolvedParams = await params;
-      setInviteId(resolvedParams.inviteId);
-      verifyInvite(resolvedParams.inviteId);
+      try {
+        const resolvedParams = await params;
+        if (!isMounted) return;
+        
+        const id = resolvedParams.inviteId;
+        setInviteId(id);
+        await verifyInvite(id);
+      } catch (err) {
+        if (isMounted) {
+          console.error("Error in useEffect:", err);
+        }
+      }
     })();
+
+    return () => {
+      isMounted = false;
+    };
   }, [params]);
 
   const verifyInvite = async (id: string) => {
