@@ -19,4 +19,7 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
         run: |
-          vercel deploy --prod --token=$VERCEL_TOKEN --project-id=$VERCEL_PROJECT_ID --team-id=$VERCEL_TEAM_ID
+          curl -X POST "https://api.vercel.com/v13/deployments" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"botz-fyi\",\"projectId\":\"$VERCEL_PROJECT_ID\",\"teamId\":\"$VERCEL_TEAM_ID\",\"gitSource\":{\"type\":\"github\",\"org\":\"juanfalla1\",\"repo\":\"botz-fyi\",\"ref\":\"main\"}}"
