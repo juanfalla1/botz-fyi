@@ -740,36 +740,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
            setUser(session.user);
 
            // ✅ Verificar si trial user ha expirado
-           if (session.user.user_metadata?.is_trial && session.user.user_metadata?.trial_end) {
-             const trialEndDate = new Date(session.user.user_metadata.trial_end);
-             const now = new Date();
-             if (now > trialEndDate) {
-               console.log("❌ [Auth] Trial user expirado, redirigiendo a /demo-access-expired");
-               if (typeof window !== "undefined") {
-                 window.location.href = "/demo-access-expired";
-               }
-               return;
-             }
-           }
+            if (session.user.user_metadata?.is_trial && session.user.user_metadata?.trial_end) {
+              const trialEndDate = new Date(session.user.user_metadata.trial_end);
+              const now = new Date();
+              if (now > trialEndDate) {
+                console.log("❌ [Auth] Trial user expirado, redirigiendo a /demo-access-expired");
+                if (typeof window !== "undefined") {
+                  window.location.href = "/demo-access-expired";
+                }
+                return;
+              }
+            }
 
-           // ✅ Tenant desde metadata (registro/stripe/pricing)
-           const metaTenantId =
-             session.user.user_metadata?.tenant_id ||
-             session.user.app_metadata?.tenant_id ||
-             null;
-           console.log("🔑 [Auth] metaTenantId:", metaTenantId);
-           if (metaTenantId) {
-             setTenantIdState(metaTenantId);
-           }
+            // ✅ IMPORTANTE: Si es TRIAL USER, aplicar trial access y NO pasar por detección de admin/tenant
+            if (session.user.user_metadata?.is_trial) {
+              console.log("✅ [Auth] Es un TRIAL USER - Habilitar TODAS las features");
+              setUserRole('admin');
+              setTenantIdState(session.user.user_metadata?.tenant_id || null);
+              
+              // Aplicar subscription de trial
+              const trialSub = {
+                id: `trial_${session.user.id}`,
+                user_id: session.user.id,
+                plan: "Básico",
+                status: "trialing",
+                trial_start: session.user.user_metadata?.trial_start || new Date().toISOString(),
+                trial_end: session.user.user_metadata?.trial_end || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+              };
+              applySubscription(trialSub);
+              setLoading(false);
+              return; // ✅ IMPORTANTE: Salir aquí para no ejecutar el resto de la lógica
+            }
 
-           console.log("🔍 [Auth] Detectando plataforma admin...");
-           const isPlat = await detectPlatformAdmin();
-           console.log("🔍 [Auth] detectPlatformAdmin:", isPlat ? "es admin" : "no es admin");
-           if (!alive) return;
-           
-           if (isPlat) {
-             console.log("✅ [Auth] Es Platform Admin - Aplicando acceso total");
-             applyPlatformAdminAccess();
+            // ✅ Tenant desde metadata (registro/stripe/pricing)
+            const metaTenantId =
+              session.user.user_metadata?.tenant_id ||
+              session.user.app_metadata?.tenant_id ||
+              null;
+            console.log("🔑 [Auth] metaTenantId:", metaTenantId);
+            if (metaTenantId) {
+              setTenantIdState(metaTenantId);
+            }
+
+            console.log("🔍 [Auth] Detectando plataforma admin...");
+            const isPlat = await detectPlatformAdmin();
+            console.log("🔍 [Auth] detectPlatformAdmin:", isPlat ? "es admin" : "no es admin");
+            if (!alive) return;
+            
+            if (isPlat) {
+              console.log("✅ [Auth] Es Platform Admin - Aplicando acceso total");
+              applyPlatformAdminAccess();
            } else {
              // ✅ ESTRATEGIA FINAL: Buscar en team_members por email (es la fuente de verdad)
              console.log("🔍 [Auth] Buscando en team_members por email:", session.user.email);
