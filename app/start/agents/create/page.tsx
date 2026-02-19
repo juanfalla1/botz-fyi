@@ -408,9 +408,9 @@ export default function CreateAgentPage() {
   const fl = (extra?: React.CSSProperties): React.CSSProperties => ({ display: "flex", ...extra });
   const input = (extra?: React.CSSProperties): React.CSSProperties => ({
     width: "100%", boxSizing: "border-box" as const,
-    padding: "13px 16px",
+    padding: "18px 20px",
     backgroundColor: C.dark, border: `1px solid ${C.border}`,
-    borderRadius: 10, color: C.white, fontSize: 15, outline: "none",
+    borderRadius: 10, color: C.white, fontSize: 16, outline: "none",
     ...extra,
   });
 
@@ -544,7 +544,7 @@ export default function CreateAgentPage() {
          <div style={{ display: "flex", flexDirection: isTextTestStep ? "column" : "row", gap: isMobile ? 28 : 72 }}>
 
            {/* LEFT – description */}
-           <div style={{ minWidth: isTextTestStep ? "100%" : "320px" }}>
+            <div style={{ flex: isTextTestStep ? "1 1 100%" : "0 0 35%", minWidth: 0 }}>
              {isTextTestStep ? (
                <>
                  <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 12px", lineHeight: 1.2 }}>
@@ -571,7 +571,7 @@ export default function CreateAgentPage() {
                </>
              ) : (
               <>
-                <h2 style={{ fontSize: isMobile ? 18 : 18, fontWeight: 800, margin: "0 0 18px", lineHeight: 1.2, whiteSpace: "pre-line" }}>
+                <h2 style={{ fontSize: isMobile ? 26 : 28, fontWeight: 800, margin: "0 0 18px", lineHeight: 1.2, whiteSpace: "pre-line" }}>
                    {left.title}
                  </h2>
                 <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, margin: 0 }}>
@@ -603,7 +603,7 @@ export default function CreateAgentPage() {
             {step === 1 && (
               <>
                 <div>
-                  <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                  <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                     Nombre de la empresa: <span style={{ color: C.red }}>*</span>
                     <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                   </label>
@@ -616,7 +616,7 @@ export default function CreateAgentPage() {
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                  <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                     URL del sitio web
                   </label>
                   <div style={fl({ gap: 10 })}>
@@ -648,7 +648,7 @@ export default function CreateAgentPage() {
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                  <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                     Descripción de la empresa: <span style={{ color: C.red }}>*</span>
                     <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                   </label>
@@ -669,7 +669,7 @@ export default function CreateAgentPage() {
                 {kind === "notetaker" ? (
                   <>
                     <div>
-                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                      <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                         Nombre del notetaker: <span style={{ color: C.red }}>*</span>
                       </label>
                       <input
@@ -681,7 +681,7 @@ export default function CreateAgentPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                      <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                         Objetivo: <span style={{ color: C.red }}>*</span>
                       </label>
                       <input
@@ -693,7 +693,7 @@ export default function CreateAgentPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                      <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                         Fuente: <span style={{ color: C.red }}>*</span>
                       </label>
                       <select
@@ -725,7 +725,7 @@ export default function CreateAgentPage() {
                 ) : (form.type === "flow") ? (
                   <>
                     <div>
-                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                      <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                         Nombre del flujo: <span style={{ color: C.red }}>*</span>
                       </label>
                       <input
@@ -737,7 +737,7 @@ export default function CreateAgentPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                      <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                         Objetivo del flujo: <span style={{ color: C.red }}>*</span>
                       </label>
                       <input
@@ -749,7 +749,7 @@ export default function CreateAgentPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                      <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                         Notas / descripcion
                       </label>
                       <textarea
@@ -764,7 +764,7 @@ export default function CreateAgentPage() {
                 ) : (
                   <>
                     <div>
-                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                      <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                         Idioma: <span style={{ color: C.red }}>*</span>
                         <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                       </label>
@@ -781,7 +781,7 @@ export default function CreateAgentPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                      <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                         Nombre de identidad: <span style={{ color: C.red }}>*</span>
                         <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                       </label>
@@ -794,7 +794,7 @@ export default function CreateAgentPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                      <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                         Propósito: <span style={{ color: C.red }}>*</span>
                         <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                       </label>
@@ -811,7 +811,7 @@ export default function CreateAgentPage() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                      <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                         Instrucciones importantes
                         <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                       </label>
