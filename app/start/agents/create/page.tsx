@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/app/supabaseClient";
-import AuthModal from "@/app/start/components/AuthModal";
+import AuthModal from "@/app/start/agents/components/AgentsAuthModal";
 import { authedFetch, AuthRequiredError } from "@/app/start/_utils/authedFetch";
 import VoiceTestPanel from "@/app/start/agents/components/VoiceTestPanel";
 
@@ -439,11 +439,10 @@ export default function CreateAgentPage() {
           setOpenAuth(false);
           router.push("/");
         }}
-        onLoggedIn={() => {
-          setOpenAuth(false);
-        }}
-        redirectTo={typeof window !== "undefined" ? `${window.location.origin}/start/agents/create` : undefined}
-      />
+         onLoggedIn={() => {
+           setOpenAuth(false);
+         }}
+       />
 
       {/* ── top bar ── */}
       <div style={{ height: 60, borderBottom: `1px solid ${C.border}`, ...fl({ alignItems: "center", justifyContent: "space-between", padding: "0 36px" }), backgroundColor: C.dark, position: "sticky", top: 0, zIndex: 20 }}>

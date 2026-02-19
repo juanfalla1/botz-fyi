@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/app/supabaseClient";
-import AuthModal from "@/app/start/components/AuthModal";
+import AuthModal from "@/app/start/agents/components/AgentsAuthModal";
 import { authedFetch, AuthRequiredError } from "@/app/start/_utils/authedFetch";
 
 type AgentType = "voice" | "text" | "flow";
@@ -293,12 +293,11 @@ export default function AgentDetailPage() {
           setOpenAuth(false);
           router.push("/");
         }}
-        onLoggedIn={() => {
-          setOpenAuth(false);
-          fetchAgent();
-        }}
-        redirectTo={typeof window !== "undefined" ? `${window.location.origin}/start/agents/${agentId}` : undefined}
-      />
+         onLoggedIn={() => {
+           setOpenAuth(false);
+           fetchAgent();
+         }}
+       />
       {/* sidebar */}
       <aside style={{ ...col(), width: 260, minWidth: 260, backgroundColor: C.sidebar, borderRight: `1px solid ${C.border}`, position: "fixed", top: 0, left: 0, bottom: 0 }}>
         <div style={{ ...flex({ alignItems: "center", gap: 10 }), padding: "20px 16px 10px" }}>

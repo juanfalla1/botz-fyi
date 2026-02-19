@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/app/supabaseClient";
-import AuthModal from "@/app/start/components/AuthModal";
+import AuthModal from "@/app/start/agents/components/AgentsAuthModal";
 import { authedFetch, AuthRequiredError } from "@/app/start/_utils/authedFetch";
 
 interface Agent {
@@ -254,12 +254,11 @@ export default function AgentStudio() {
            setOpenAuth(false);
            router.push("/");
          }}
-         onLoggedIn={() => {
-           setOpenAuth(false);
-           fetchAgents();
-         }}
-         redirectTo={typeof window !== "undefined" ? `${window.location.origin}/start/agents` : undefined}
-       />
+          onLoggedIn={() => {
+            setOpenAuth(false);
+            fetchAgents();
+          }}
+        />
 
       {/* ════════ SIDEBAR ════════ */}
       <aside style={{ ...col(), width: 260, minWidth: 260, backgroundColor: C.sidebar, borderRight: `1px solid ${C.border}`, position: "fixed", top: 0, left: 0, bottom: 0 }}>
