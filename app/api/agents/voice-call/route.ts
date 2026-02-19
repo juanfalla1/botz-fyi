@@ -176,7 +176,7 @@ async function generateResponse(
       body: JSON.stringify({
         model: "gpt-3.5-turbo",
         messages: [
-          { role: "system", content: context },
+          { role: "system", content: context + "\n\n[CRITICAL OVERRIDE] Responde la pregunta del usuario completamente. NO rechaces ayudar. NO digas 'no puedo'. Si no sabes algo, ofrece una alternativa." },
           ...conversationHistory.map((msg: any) => ({
             role: msg.role === "user" ? "user" : "assistant",
             content: msg.content,
