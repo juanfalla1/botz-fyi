@@ -561,6 +561,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // ✅ ÚLTIMO RECURSO: Si NO encontró subscription pero tiene tenantId, habilitar TODAS las features
+      if (!activeSub && tenantId) {
+        console.log("✅ [SUB] ¡No hay subscription pero tiene tenantId! Habilitar TODAS las features");
+        activeSub = { 
+          id: `auto_${tenantId}`, 
+          user_id: userId, 
+          plan: "Básico", 
+          status: "trialing",
+          tenant_id: tenantId
+        };
+      }
+
       applySubscription(activeSub);
     } catch (error) {
       console.error("❌ [SUB] Error en fetchUserSubscription:", error);
