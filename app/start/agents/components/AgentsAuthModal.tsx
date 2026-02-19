@@ -33,13 +33,37 @@ export default function AgentsAuthModal({
     setErr(null);
     setMsg(null);
     try {
-      const next = typeof window !== "undefined" ? `${window.location.origin}/start/agents` : undefined;
-      const { error } = await supabase.auth.signInWithOAuth({
+      const redirectUrl = typeof window !== "undefined" ? `${window.location.origin}/start/agents` : undefined;
+      console.log("🔑 [AgentsAuth] Iniciando OAuth con Google, redirectTo:", redirectUrl);
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: next ? { redirectTo: next } : undefined,
+        options: { 
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        },
       });
-      if (error) throw error;
+      
+      console.log("🔑 [AgentsAuth] OAuth response:", { data, error });
+      
+      if (error) {
+        console.error("🔑 [AgentsAuth] OAuth error:", error);
+        throw error;
+      }
+      
+      // Si no hay error pero tampoco hay data.url, algo salió mal
+      if (!data?.url) {
+        throw new Error("No se pudo iniciar el flujo de OAuth");
+      }
+      
+      // El flujo de OAuth redirige automáticamente, no necesitamos hacer nada más
+      console.log("🔑 [AgentsAuth] OAuth iniciado correctamente, redirigiendo a:", data.url);
+      
     } catch (e: any) {
+      console.error("🔑 [AgentsAuth] Error completo:", e);
       setErr(e?.message || "Error iniciando con Google");
       setLoading(false);
     }
