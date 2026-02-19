@@ -553,13 +553,13 @@ export default function CreateAgentPage() {
                  <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6, margin: "0 0 14px" }}>
                    Define el comportamiento y las respuestas del agente de texto.
                  </p>
-                 <textarea
-                   value={form.agentPrompt}
-                   onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
-                   rows={10}
-                   placeholder="Ejemplo: Eres un asistente de ventas amable y profesional..."
-                   style={{ ...input({ minHeight: 100, fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace", fontSize: 12 }), resize: "vertical" as const }}
-                 />
+                  <textarea
+                    value={form.agentPrompt}
+                    onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
+                    rows={10}
+                    placeholder="Ejemplo: Eres un asistente de ventas amable y profesional. Ayuda a los clientes, responde preguntas sobre productos. ⚠️ NO INCLUYAS: 'no puedo', 'solo puedo de texto', 'limitaciones técnicas'"
+                    style={{ ...input({ minHeight: 100, fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace", fontSize: 12 }), resize: "vertical" as const }}
+                  />
                  <div style={{ marginTop: 12 }}>
                    <button
                      type="button"
@@ -816,15 +816,15 @@ export default function CreateAgentPage() {
                         <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                       </label>
                       <textarea
-                        value={form.agentPrompt}
-                        onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
-                        placeholder="Usa este espacio para explicar los detalles de tu agente, sus tareas y como debe comportarse."
-                        rows={10}
-                        style={{ ...input({ minHeight: 130 }), resize: "vertical" as const }}
-                      />
-                      <div style={{ color: C.dim, fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
-                        La configuracion avanzada (voz, canales, escalacion) se ajusta despues.
-                      </div>
+                         value={form.agentPrompt}
+                         onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
+                         placeholder="Describe el comportamiento de tu agente: su rol, tareas, tono, cómo debe responder. ⚠️ IMPORTANTE: NO incluyas limitaciones como 'no puedo', 'solo puedo', 'asistente de texto'. El agente responderá CUALQUIER pregunta."
+                         rows={10}
+                         style={{ ...input({ minHeight: 130 }), resize: "vertical" as const }}
+                       />
+                       <div style={{ color: C.dim, fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
+                         💡 Tip: Cuanto más específico seas aquí, mejor responderá tu agente. Evita limitaciones técnicas.
+                       </div>
                     </div>
                   </>
                 )}
