@@ -1023,10 +1023,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     [enabledFeatures, isPlatformAdmin, user]
   );
-      return hasAccess;
-    },
-    [enabledFeatures, isPlatformAdmin]
-  );
 
   const setPlatformTenantId = useCallback(
     (nextTenantId: string | null) => {
