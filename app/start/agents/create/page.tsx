@@ -6,6 +6,8 @@ import { supabase } from "@/app/supabaseClient";
 import AuthModal from "@/app/start/agents/components/AgentsAuthModal";
 import { authedFetch, AuthRequiredError } from "@/app/start/_utils/authedFetch";
 import VoiceTestPanel from "@/app/start/agents/components/VoiceTestPanel";
+import ChatTestPanel from "@/app/start/agents/components/ChatTestPanel";
+import AgentMetrics from "@/app/start/agents/components/AgentMetrics";
 
 
 const C = {
@@ -912,16 +914,25 @@ export default function CreateAgentPage() {
               </>
             ) : (
               step === 3 && (
-                <VoiceTestPanel
-                  agentName={form.agentName}
-                  agentRole={form.agentRole}
-                  agentPrompt={form.agentPrompt}
-                  companyContext={form.companyDesc}
-                  voiceSettings={{
-                    model: form.voice,
-                    voice: form.voice,
-                  }}
-                />
+                form.type === "voice" ? (
+                  <VoiceTestPanel
+                    agentName={form.agentName}
+                    agentRole={form.agentRole}
+                    agentPrompt={form.agentPrompt}
+                    companyContext={form.companyDesc}
+                    voiceSettings={{
+                      model: form.voice,
+                      voice: form.voice,
+                    }}
+                  />
+                ) : (
+                  <ChatTestPanel
+                    agentName={form.agentName}
+                    agentRole={form.agentRole}
+                    agentPrompt={form.agentPrompt}
+                    companyContext={form.companyDesc}
+                  />
+                )
               )
             )}
 
