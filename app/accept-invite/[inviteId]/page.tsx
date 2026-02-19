@@ -145,8 +145,16 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
       trialEndDate.setDate(trialEndDate.getDate() + 2);
       const trialEndIso = trialEndDate.toISOString();
 
-      // ✅ NUEVO: Generar tenant_id único para el usuario demo
-      const demoTenantId = `demo_${authData.user.id.substring(0, 8)}_${Date.now()}`;
+      // ✅ NUEVO: Generar UUID válido para tenant_id demo
+      // Usar crypto.getRandomValues para generar UUID v4
+      const demoTenantId = (() => {
+        const arr = new Uint8Array(16);
+        crypto.getRandomValues(arr);
+        arr[6] = (arr[6] & 0x0f) | 0x40; // version 4
+        arr[8] = (arr[8] & 0x3f) | 0x80; // variant 1
+        const hex = Array.from(arr).map(x => x.toString(16).padStart(2, '0')).join('');
+        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+      })();
 
       // ✅ NUEVO: Crear team_member con el tenant_id demo
       // Intentar primero buscar si ya existe
