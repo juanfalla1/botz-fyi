@@ -524,6 +524,19 @@ export default function AgentDetailPage() {
                 onDelete={(conversationId) => {
                   console.log("Deleting conversation:", conversationId);
                 }}
+                onOpenContext={() => {
+                  setTab("overview");
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                onOpenSettings={() => {
+                  setTab("settings");
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                onOpenBrain={() => {
+                  setTab("settings");
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                  // Podría scrollear al cerebro específicamente si existe
+                }}
               />
             </div>
           )}

@@ -18,6 +18,9 @@ interface HistoryPanelProps {
   agentId: string;
   onEdit?: (conversation: Conversation) => void;
   onDelete?: (conversationId: string) => void;
+  onOpenSettings?: () => void;
+  onOpenContext?: () => void;
+  onOpenBrain?: () => void;
 }
 
 const C = {
@@ -34,7 +37,14 @@ const C = {
   red: "#ef4444",
 };
 
-export default function HistoryPanel({ agentId, onEdit, onDelete }: HistoryPanelProps) {
+export default function HistoryPanel({ 
+  agentId, 
+  onEdit, 
+  onDelete,
+  onOpenSettings,
+  onOpenContext,
+  onOpenBrain 
+}: HistoryPanelProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,8 +61,29 @@ export default function HistoryPanel({ agentId, onEdit, onDelete }: HistoryPanel
     setLoading(true);
     setError(null);
     try {
-      // Simulamos las conversaciones que vendrían de una BD
-      // En producción, esto vendría de un endpoint como /api/agents/{id}/conversations
+      // Intentar obtener de la API
+      try {
+        const response = await fetch(`/api/agents/conversations/${agentId}`);
+        if (response.ok) {
+          const json = await response.json();
+          const apiConversations = json.data || [];
+          
+          // Filtrar por búsqueda
+          const filtered = apiConversations.filter(
+            (c: Conversation) =>
+              c.contact_name?.toLowerCase().includes(search.toLowerCase()) ||
+              c.contact_email?.toLowerCase().includes(search.toLowerCase())
+          );
+          
+          setConversations(filtered);
+          setLoading(false);
+          return;
+        }
+      } catch (apiErr) {
+        console.log("API no disponible, usando datos de ejemplo");
+      }
+
+      // Fallback: Usar conversaciones de ejemplo
       const mockConversations: Conversation[] = [
         {
           id: "conv-1",
@@ -97,9 +128,9 @@ export default function HistoryPanel({ agentId, onEdit, onDelete }: HistoryPanel
       );
 
       setConversations(filtered);
+      setLoading(false);
     } catch (err: any) {
       setError(err?.message || "Error cargando historial");
-    } finally {
       setLoading(false);
     }
   };
@@ -107,11 +138,19 @@ export default function HistoryPanel({ agentId, onEdit, onDelete }: HistoryPanel
   const handleDelete = async (conversationId: string) => {
     if (confirm("¿Estás seguro de que quieres eliminar esta conversación?")) {
       try {
-        // DELETE /api/agents/{agentId}/conversations/{conversationId}
+        const response = await fetch(`/api/agents/conversations/${agentId}/${conversationId}`, {
+          method: "DELETE",
+        });
+
+        if (!response.ok) {
+          const json = await response.json();
+          throw new Error(json?.error || "Error eliminando conversación");
+        }
+
         setConversations(conversations.filter((c) => c.id !== conversationId));
         if (onDelete) onDelete(conversationId);
-      } catch (err) {
-        setError("Error eliminando conversación");
+      } catch (err: any) {
+        setError(err?.message || "Error eliminando conversación");
       }
     }
   };
@@ -389,23 +428,56 @@ export default function HistoryPanel({ agentId, onEdit, onDelete }: HistoryPanel
                           display: "flex",
                           gap: 10,
                           backgroundColor: C.dark,
+                          flexWrap: "wrap",
                         }}
                       >
                         <button
-                          onClick={() => {
-                            if (onEdit) onEdit(conv);
-                          }}
+                          onClick={() => onOpenContext?.()}
+                          title="Editar contexto del agente"
                           style={{
-                            flex: 1,
-                            padding: "10px 14px",
+                            flex: "1 1 auto",
+                            minWidth: 120,
+                            padding: "10px 12px",
+                            borderRadius: 8,
+                            border: `1px solid ${C.blue}`,
+                            backgroundColor: "transparent",
+                            color: C.blue,
+                            fontWeight: 700,
+                            fontSize: 12,
+                            cursor: "pointer",
+                            transition: "all 0.2s",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.target as HTMLElement).style.backgroundColor = `${C.blue}22`;
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.target as HTMLElement).style.backgroundColor = "transparent";
+                          }}
+                        >
+                          📝 Contexto
+                        </button>
+
+                        <button
+                          onClick={() => onOpenSettings?.()}
+                          title="Editar configuración del agente"
+                          style={{
+                            flex: "1 1 auto",
+                            minWidth: 120,
+                            padding: "10px 12px",
                             borderRadius: 8,
                             border: `1px solid ${C.lime}`,
                             backgroundColor: "transparent",
                             color: C.lime,
                             fontWeight: 700,
-                            fontSize: 13,
+                            fontSize: 12,
                             cursor: "pointer",
                             transition: "all 0.2s",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
                           }}
                           onMouseEnter={(e) => {
                             (e.target as HTMLElement).style.backgroundColor = `${C.lime}22`;
@@ -414,22 +486,56 @@ export default function HistoryPanel({ agentId, onEdit, onDelete }: HistoryPanel
                             (e.target as HTMLElement).style.backgroundColor = "transparent";
                           }}
                         >
-                          ✏️ Editar
+                          ⚙️ Configuración
+                        </button>
+
+                        <button
+                          onClick={() => onOpenBrain?.()}
+                          title="Editar cerebro (brain) del agente"
+                          style={{
+                            flex: "1 1 auto",
+                            minWidth: 120,
+                            padding: "10px 12px",
+                            borderRadius: 8,
+                            border: `1px solid #8b5cf6`,
+                            backgroundColor: "transparent",
+                            color: "#a78bfa",
+                            fontWeight: 700,
+                            fontSize: 12,
+                            cursor: "pointer",
+                            transition: "all 0.2s",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.target as HTMLElement).style.backgroundColor = "rgba(139,92,246,0.15)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.target as HTMLElement).style.backgroundColor = "transparent";
+                          }}
+                        >
+                          🧠 Cerebro
                         </button>
 
                         <button
                           onClick={() => handleDelete(conv.id)}
+                          title="Eliminar esta conversación"
                           style={{
-                            flex: 1,
-                            padding: "10px 14px",
+                            flex: "1 1 auto",
+                            minWidth: 120,
+                            padding: "10px 12px",
                             borderRadius: 8,
                             border: `1px solid ${C.red}`,
                             backgroundColor: "transparent",
                             color: C.red,
                             fontWeight: 700,
-                            fontSize: 13,
+                            fontSize: 12,
                             cursor: "pointer",
                             transition: "all 0.2s",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
                           }}
                           onMouseEnter={(e) => {
                             (e.target as HTMLElement).style.backgroundColor = "rgba(239,68,68,0.15)";
