@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/app/supabaseClient";
 import AuthModal from "@/app/start/agents/components/AgentsAuthModal";
+import HistoryPanel from "@/app/start/agents/components/HistoryPanel";
 import { authedFetch, AuthRequiredError } from "@/app/start/_utils/authedFetch";
 
 type AgentType = "voice" | "text" | "flow";
@@ -71,7 +72,9 @@ export default function AgentDetailPage() {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"overview" | "conversations" | "settings">("overview");
+  const [tab, setTab] = useState<"overview" | "conversations" | "settings" | "history">("overview");
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedConversation, setSelectedConversation] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -392,10 +395,11 @@ export default function AgentDetailPage() {
         <div style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: C.bg }}>
           <div style={{ ...flex({ alignItems: "center", gap: 4 }), padding: "0 18px" }}>
             {([
-              { id: "overview", label: "Resumen" },
-              { id: "conversations", label: "Conversaciones" },
-              { id: "settings", label: "Configuracion" },
-            ] as const).map(t => (
+               { id: "overview", label: "Resumen" },
+               { id: "conversations", label: "Conversaciones" },
+               { id: "history", label: "Historial" },
+               { id: "settings", label: "Configuracion" },
+             ] as const).map(t => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
@@ -506,6 +510,21 @@ export default function AgentDetailPage() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {tab === "history" && (
+            <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20, minHeight: "600px" }}>
+              <HistoryPanel
+                agentId={agentId}
+                onEdit={(conversation) => {
+                  setSelectedConversation(conversation);
+                  setShowEditModal(true);
+                }}
+                onDelete={(conversationId) => {
+                  console.log("Deleting conversation:", conversationId);
+                }}
+              />
             </div>
           )}
 
