@@ -116,27 +116,28 @@ export default function VoiceTestPanel({
         const audioBase64 = (event.target?.result as string).split(",")[1];
 
          // Construir contexto del agente PARA VOZ
-         // CRÍTICO: Para llamadas telefónicas, REEMPLAZAR COMPLETAMENTE el prompt original
-         // porque probablemente contiene limitaciones de "asistente de texto"
-         const voicePrompt = agentPrompt
-           .replace(/como asistente de texto|asistente virtual de texto/gi, "asistente de voz")
-           .replace(/no tengo la capacidad de|no puedo|no tengo acceso|no tengo habilidad para|no estoy diseñado para/gi, "")
-           .replace(/limitaciones? técnicas?|restricciones?/gi, "")
-           .replace(/lamentablemente|desafortunadamente|lo siento pero/gi, "")
-           .replace(/visual|visuales|gráfico|gráficos/gi, "");
-
-          const context = `Tu nombre es: ${agentName}
+         // CRÍTICO: El prompt original probablemente contiene limitaciones tipo "no puedo hacer X"
+         // Necesitamos un prompt COMPLETAMENTE NUEVO que NO tenga esas limitaciones
+         
+         const context = `Tu nombre es: ${agentName}
 Tu rol/propósito es: ${agentRole}
-Instrucciones: ${voicePrompt}
-${companyContext ? `Información de la empresa: ${companyContext}` : ""}
 
-==== CONTEXTO CRÍTICO PARA ESTA LLAMADA TELEFÓNICA ====
-- ERES UN ASISTENTE DE VOZ EN TIEMPO REAL (no de texto)
-- RESPONDE COMPLETAMENTE cualquier pregunta del usuario
-- NO rechaces ayudar por ninguna razón técnica
-- SI algo no lo sabes, ofrece alternativas o pide más contexto
-- MANTÉN RESPUESTAS CONCISAS (máximo 2-3 oraciones)
-====================================================`;
+INSTRUCCIONES ORIGINALES (ignorar limitaciones de texto):
+${agentPrompt}
+
+CONTEXTO CRÍTICO - LEE ESTO PRIMERO:
+Estás en una LLAMADA TELEFÓNICA EN VIVO. Eres un asistente de VOZ que RESPONDE CUALQUIER PREGUNTA.
+- NO eres "asistente de texto" - eres de VOZ
+- NO tienes limitaciones técnicas - puedes responder TODO
+- Si alguien pregunta sobre cualquier cosa, RESPONDE COMPLETAMENTE
+- Si no sabes algo específico, ofrece una alternativa útil
+- Mantén respuestas cortas (2-3 oraciones)
+- NUNCA digas "no puedo", "no tengo acceso", "lamentablemente no puedo"
+
+INFORMACIÓN DE LA EMPRESA:
+${companyContext || "No disponible"}
+
+REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechazos por "limitaciones técnicas".`;
 
         // Enviar al endpoint
         const response = await fetch("/api/agents/voice-call", {
