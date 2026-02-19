@@ -233,23 +233,14 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
         trial_end: trialEndIso,
       });
 
-      // ✅ Esperar un poco para que se propague la sesión
-      await new Promise(resolve => setTimeout(resolve, 1000));
+       // ✅ Esperar un poco para que se propague la sesión
+       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Add user to platform_admins so they have system access
-      const { error: adminError } = await supabase
-        .from("platform_admins")
-        .insert({
-          auth_user_id: authData.user.id,
-        })
-        .select()
-        .single();
+       // ❌ REMOVIDO: No agregar a platform_admins - los usuarios invitados NO son admins de plataforma
+       // Solo son miembros de equipo dentro de su tenant.
+       // Los platform admins se configuran manualmente y solo para usuarios supremos.
 
-      if (adminError) {
-        console.warn("Error adding to platform_admins:", adminError);
-      }
-
-      // Update invite status to accepted
+       // Update invite status to accepted
       const { error: inviteError } = await supabase
         .from("admin_invites")
         .update({ status: "accepted" })
