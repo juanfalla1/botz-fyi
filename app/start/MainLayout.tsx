@@ -720,21 +720,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        if (session?.user) {
-          console.log("👤 [Auth] Usuario logueado:", session.user.email);
-          console.log("📋 [Auth] user_metadata:", JSON.stringify(session.user.user_metadata, null, 2));
-          console.log("📋 [Auth] app_metadata:", JSON.stringify(session.user.app_metadata, null, 2));
-          setUser(session.user);
+         if (session?.user) {
+           console.log("👤 [Auth] Usuario logueado:", session.user.email);
+           console.log("📋 [Auth] user_metadata:", JSON.stringify(session.user.user_metadata, null, 2));
+           console.log("📋 [Auth] app_metadata:", JSON.stringify(session.user.app_metadata, null, 2));
+           setUser(session.user);
 
-          // ✅ Tenant desde metadata (registro/stripe/pricing)
-          const metaTenantId =
-            session.user.user_metadata?.tenant_id ||
-            session.user.app_metadata?.tenant_id ||
-            null;
-          console.log("🔑 [Auth] metaTenantId:", metaTenantId);
-          if (metaTenantId) {
-            setTenantIdState(metaTenantId);
-          }
+           // ✅ Verificar si trial user ha expirado
+           if (session.user.user_metadata?.is_trial && session.user.user_metadata?.trial_end) {
+             const trialEndDate = new Date(session.user.user_metadata.trial_end);
+             const now = new Date();
+             if (now > trialEndDate) {
+               console.log("❌ [Auth] Trial user expirado, redirigiendo a /demo-access-expired");
+               if (typeof window !== "undefined") {
+                 window.location.href = "/demo-access-expired";
+               }
+               return;
+             }
+           }
+
+           // ✅ Tenant desde metadata (registro/stripe/pricing)
+           const metaTenantId =
+             session.user.user_metadata?.tenant_id ||
+             session.user.app_metadata?.tenant_id ||
+             null;
+           console.log("🔑 [Auth] metaTenantId:", metaTenantId);
+           if (metaTenantId) {
+             setTenantIdState(metaTenantId);
+           }
 
           console.log("🔍 [Auth] Detectando plataforma admin...");
           const isPlat = await detectPlatformAdmin();
@@ -827,24 +840,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setTenantIdState(metaTenantId);
           }
 
-          try {
-            // ✅ VERIFICAR SI ES TRIAL USER PRIMERO
-            if (session.user.user_metadata?.is_trial) {
-              console.log("✅ [Auth Event] Es un TRIAL USER - Habilitar TODAS las features");
-              setUserRole('admin');
-              setTenantIdState(session.user.user_metadata?.tenant_id || null);
-              
-              // Aplicar subscription de trial
-              const trialSub = {
-                id: `trial_${session.user.id}`,
-                user_id: session.user.id,
-                plan: "Básico",
-                status: "trialing",
-                trial_start: session.user.user_metadata?.trial_start || new Date().toISOString(),
-                trial_end: session.user.user_metadata?.trial_end || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-              };
-              applySubscription(trialSub);
-              setLoading(false);
+           try {
+             // ✅ VERIFICAR SI ES TRIAL USER PRIMERO
+             if (session.user.user_metadata?.is_trial) {
+               // ✅ Verificar si trial ha expirado
+               if (session.user.user_metadata?.trial_end) {
+                 const trialEndDate = new Date(session.user.user_metadata.trial_end);
+                 const now = new Date();
+                 if (now > trialEndDate) {
+                   console.log("❌ [Auth Event] Trial user expirado, redirigiendo a /demo-access-expired");
+                   if (typeof window !== "undefined") {
+                     window.location.href = "/demo-access-expired";
+                   }
+                   return;
+                 }
+               }
+
+               console.log("✅ [Auth Event] Es un TRIAL USER - Habilitar TODAS las features");
+               setUserRole('admin');
+               setTenantIdState(session.user.user_metadata?.tenant_id || null);
+               
+               // Aplicar subscription de trial
+               const trialSub = {
+                 id: `trial_${session.user.id}`,
+                 user_id: session.user.id,
+                 plan: "Básico",
+                 status: "trialing",
+                 trial_start: session.user.user_metadata?.trial_start || new Date().toISOString(),
+                 trial_end: session.user.user_metadata?.trial_end || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+               };
+               applySubscription(trialSub);
+               setLoading(false);
             } else {
               const isPlat = await detectPlatformAdmin();
               if (!alive) return;

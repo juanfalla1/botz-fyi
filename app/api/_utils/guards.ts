@@ -55,6 +55,40 @@ export async function getTeamMemberByAuthUserId(authUserId: string) {
   return { ok: true, error: null as string | null, row: data };
 }
 
+export async function validateDemoTrialAccess(req: Request): Promise<{ ok: boolean; expired: boolean; error: string | null }> {
+  const { user, error } = await getRequestUser(req);
+  if (!user) return { ok: false, expired: false, error: error || "Unauthorized" };
+
+  const anon = getAnonSupabase();
+  if (!anon) return { ok: false, expired: false, error: "Missing SUPABASE env" };
+
+  // Get user metadata to check trial status
+  const { data, error: getUserError } = await anon.auth.getUser();
+  if (getUserError || !data?.user?.user_metadata) {
+    return { ok: false, expired: false, error: getUserError?.message || "Could not get user metadata" };
+  }
+
+  const metadata = data.user.user_metadata as any;
+  const isTrial = metadata?.is_trial === true;
+  const trialEnd = metadata?.trial_end;
+
+  // If not a trial user, allow access
+  if (!isTrial || !trialEnd) {
+    return { ok: true, expired: false, error: null };
+  }
+
+  // Check if trial has expired
+  const now = new Date();
+  const expirationDate = new Date(trialEnd);
+  const hasExpired = now > expirationDate;
+
+  if (hasExpired) {
+    return { ok: false, expired: true, error: "Trial period has expired" };
+  }
+
+  return { ok: true, expired: false, error: null };
+}
+
 export async function assertTenantAccess(params: {
   req: Request;
   requestedTenantId?: string | null;
