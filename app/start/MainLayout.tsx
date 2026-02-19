@@ -398,6 +398,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log("🔍 [SUB] Buscando suscripción | auth_user_id:", userId, "| tenant_id:", tenantId || "N/A");
 
+      // ✅ NUEVO: Detectar si es un trial user desde auth.user_metadata
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser?.user_metadata?.is_trial) {
+        console.log("✅ [SUB] Usuario es TRIAL - Habilitar TODAS las features");
+        const trialSub = {
+          id: `trial_${userId}`,
+          user_id: userId,
+          plan: "Básico",
+          status: "trialing",
+          trial_start: authUser.user_metadata.trial_start || new Date().toISOString(),
+          trial_end: authUser.user_metadata.trial_end || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+        };
+        applySubscription(trialSub);
+        return;
+      }
+
       // ✅ CACHE: Intentar leer de localStorage primero
       const cacheKey = `botz-sub-${userId}`;
       const cachedSub = typeof window !== "undefined" ? localStorage.getItem(cacheKey) : null;
