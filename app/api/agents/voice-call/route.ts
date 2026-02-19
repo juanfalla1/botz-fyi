@@ -163,8 +163,12 @@ async function generateResponse(
 
   if (!openaiKey) {
     // Fallback: respuesta mock
+    console.warn("[VOICE] No OPENAI_API_KEY found, using mock response");
     return generateMockResponse(userMessage);
   }
+
+  console.log("[VOICE] Context length:", context?.length || 0);
+  console.log("[VOICE] User message:", userMessage);
 
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -189,13 +193,17 @@ async function generateResponse(
     });
 
     if (!response.ok) {
+      const errorData = await response.json();
+      console.error("[VOICE] LLM API error:", errorData);
       throw new Error("LLM API error");
     }
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.content || "No pude procesar tu solicitud.";
+    const agentResponse = data.choices?.[0]?.message?.content || "No pude procesar tu solicitud.";
+    console.log("[VOICE] Agent response:", agentResponse.substring(0, 100));
+    return agentResponse;
   } catch (e) {
-    console.error("LLM error:", e);
+    console.error("[VOICE] LLM error:", e);
     return generateMockResponse(userMessage);
   }
 }
