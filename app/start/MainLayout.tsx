@@ -722,7 +722,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (session?.user) {
           console.log("👤 [Auth] Usuario logueado:", session.user.email);
-          console.log("👤 Usuario logueado:", session.user.email);
+          console.log("📋 [Auth] user_metadata:", JSON.stringify(session.user.user_metadata, null, 2));
+          console.log("📋 [Auth] app_metadata:", JSON.stringify(session.user.app_metadata, null, 2));
           setUser(session.user);
 
           // ✅ Tenant desde metadata (registro/stripe/pricing)
@@ -730,6 +731,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             session.user.user_metadata?.tenant_id ||
             session.user.app_metadata?.tenant_id ||
             null;
+          console.log("🔑 [Auth] metaTenantId:", metaTenantId);
           if (metaTenantId) {
             setTenantIdState(metaTenantId);
           }
@@ -743,11 +745,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             // ✅ ESTRATEGIA FINAL: Buscar en team_members por email (es la fuente de verdad)
             console.log("🔍 [Auth] Buscando en team_members por email:", session.user.email);
-            const { data: tm } = await supabase
+            const { data: tm, error: tmError } = await supabase
               .from("team_members")
               .select("id, tenant_id, rol")
               .eq("email", session.user.email || '')
               .maybeSingle();
+
+            console.log("📊 [Auth] Resultado de team_members:", { found: !!tm, tm, error: tmError });
 
             if (tm && tm.tenant_id) {
               console.log("✅ [Auth] ¡Encontrado en team_members! tenant_id:", tm.tenant_id);
@@ -755,15 +759,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setTeamMemberId(tm.id);
               setTenantIdState(tm.tenant_id);
               const sub = { id: `tm_${tm.tenant_id}`, user_id: session.user.id, plan: "Básico", status: "trialing" };
+              console.log("📦 [Auth] Aplicando subscription:", sub);
               applySubscription(sub);
             } else if (metaTenantId) {
-              console.log("✅ [Auth] Usando metaTenantId como fallback");
+              console.log("✅ [Auth] Usando metaTenantId como fallback:", metaTenantId);
               setUserRole('admin');
               const sub = { id: `meta_${metaTenantId}`, user_id: session.user.id, plan: "Básico", status: "trialing" };
+              console.log("📦 [Auth] Aplicando subscription desde metadata:", sub);
               applySubscription(sub);
             } else {
               // Fallback final: detectar rol normal
-              console.log("🔍 [Auth] Detectando rol normal (fallback)...");
+              console.log("🔍 [Auth] Detectando rol normal (fallback, sin tenant_id)...");
               const tenantId = await detectUserRole(session.user.id, session.user.email || '');
               console.log("🔍 [Auth] Rol detectado, tenantId:", tenantId);
               if (!alive) return;
