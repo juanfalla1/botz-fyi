@@ -715,37 +715,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (isPlat) {
             applyPlatformAdminAccess();
           } else {
-            // ✅ VERIFICAR SI ES TRIAL USER PRIMERO
-           console.log("🔍 [Auth] Metadata del usuario:", {
-             is_trial: session.user.user_metadata?.is_trial,
-             trial_end: session.user.user_metadata?.trial_end,
-             tenant_id: session.user.user_metadata?.tenant_id,
-           });
+            // ✅ ESTRATEGIA ROBUSTA: Leer team_member para detectar trial (más confiable que metadata)
+           console.log("🔍 [Auth] Buscando team_member para detectar trial...");
+           const { data: teamMemberData } = await supabase
+             .from("team_members")
+             .select("id, tenant_id, rol")
+             .eq("email", session.user.email || '')
+             .maybeSingle();
 
-           if (session.user.user_metadata?.is_trial) {
-             console.log("✅ [Auth] Es un TRIAL USER - Habilitar TODAS las features");
-             setUserRole('admin');
-             setTenantIdState(session.user.user_metadata?.tenant_id || null);
+           if (teamMemberData) {
+             console.log("✅ [Auth] Team member encontrado:", teamMemberData);
+             setUserRole(teamMemberData.rol === 'asesor' ? 'asesor' : 'admin');
+             setTeamMemberId(teamMemberData.id);
+             setTenantIdState(teamMemberData.tenant_id || null);
              
-             // Aplicar subscription de trial
-             const trialSub = {
-               id: `trial_${session.user.id}`,
-               user_id: session.user.id,
-               plan: "Básico",
-               status: "trialing",
-               trial_start: session.user.user_metadata?.trial_start || new Date().toISOString(),
-               trial_end: session.user.user_metadata?.trial_end || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-             };
-             console.log("📦 [Auth] Aplicando trial subscription:", trialSub);
-             applySubscription(trialSub);
+             // ✅ Si tiene tenant_id (incluso si es demo), habilitar TODAS las features
+             if (teamMemberData.tenant_id) {
+               console.log("✅ [Auth] Tenant encontrado - Habilitar TODAS las features");
+               const tenantSub = {
+                 id: `tenant_${teamMemberData.tenant_id}`,
+                 user_id: session.user.id,
+                 plan: "Básico",
+                 status: "trialing",
+                 trial_start: new Date().toISOString(),
+                 trial_end: session.user.user_metadata?.trial_end || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+               };
+               console.log("📦 [Auth] Aplicando subscription:", tenantSub);
+               applySubscription(tenantSub);
+             } else {
+               console.log("🔍 [Auth] Sin tenant_id, buscando subscription...");
+               await fetchUserSubscription(session.user.id, teamMemberData.tenant_id);
+             }
            } else {
-             console.log("🔍 [Auth] Detectando rol de usuario...");
-             const tenantId = await detectUserRole(session.user.id, session.user.email || '');
-             console.log("🔍 [Auth] Rol detectado, tenantId:", tenantId);
-             if (!alive) return;
-             console.log("🔍 [Auth] Fetching suscripción...");
-             await fetchUserSubscription(session.user.id, tenantId);
-             console.log("🔍 [Auth] Suscripción cargada");
+             // ✅ ESTRATEGIA ROBUSTA: Leer team_member para detectar trial
+             console.log("🔍 [Auth] Buscando team_member para detectar trial...");
+             const { data: teamMemberData } = await supabase
+               .from("team_members")
+               .select("id, tenant_id, rol")
+               .eq("email", session.user.email || '')
+               .maybeSingle();
+
+             if (teamMemberData && teamMemberData.tenant_id) {
+               console.log("✅ [Auth] Team member con tenant encontrado - Habilitar TODAS las features");
+               setUserRole(teamMemberData.rol === 'asesor' ? 'asesor' : 'admin');
+               setTeamMemberId(teamMemberData.id);
+               setTenantIdState(teamMemberData.tenant_id || null);
+               
+               // Aplicar subscription con todas las features
+               const tenantSub = {
+                 id: `tenant_${teamMemberData.tenant_id}`,
+                 user_id: session.user.id,
+                 plan: "Básico",
+                 status: "trialing",
+                 trial_start: new Date().toISOString(),
+                 trial_end: session.user.user_metadata?.trial_end || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+               };
+               applySubscription(tenantSub);
+             } else {
+               console.log("🔍 [Auth] Detectando rol de usuario normal...");
+               const tenantId = await detectUserRole(session.user.id, session.user.email || '');
+               console.log("🔍 [Auth] Rol detectado, tenantId:", tenantId);
+               if (!alive) return;
+               console.log("🔍 [Auth] Fetching suscripción...");
+               await fetchUserSubscription(session.user.id, tenantId);
+               console.log("🔍 [Auth] Suscripción cargada");
+             }
            }
           }
         } else {
