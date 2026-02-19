@@ -715,13 +715,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (isPlat) {
             applyPlatformAdminAccess();
           } else {
-            console.log("🔍 [Auth] Detectando rol de usuario...");
-            const tenantId = await detectUserRole(session.user.id, session.user.email || '');
-            console.log("🔍 [Auth] Rol detectado, tenantId:", tenantId);
-            if (!alive) return;
-            console.log("🔍 [Auth] Fetching suscripción...");
-            await fetchUserSubscription(session.user.id, tenantId);
-            console.log("🔍 [Auth] Suscripción cargada");
+            // ✅ VERIFICAR SI ES TRIAL USER PRIMERO
+           console.log("🔍 [Auth] Metadata del usuario:", {
+             is_trial: session.user.user_metadata?.is_trial,
+             trial_end: session.user.user_metadata?.trial_end,
+             tenant_id: session.user.user_metadata?.tenant_id,
+           });
+
+           if (session.user.user_metadata?.is_trial) {
+             console.log("✅ [Auth] Es un TRIAL USER - Habilitar TODAS las features");
+             setUserRole('admin');
+             setTenantIdState(session.user.user_metadata?.tenant_id || null);
+             
+             // Aplicar subscription de trial
+             const trialSub = {
+               id: `trial_${session.user.id}`,
+               user_id: session.user.id,
+               plan: "Básico",
+               status: "trialing",
+               trial_start: session.user.user_metadata?.trial_start || new Date().toISOString(),
+               trial_end: session.user.user_metadata?.trial_end || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+             };
+             console.log("📦 [Auth] Aplicando trial subscription:", trialSub);
+             applySubscription(trialSub);
+           } else {
+             console.log("🔍 [Auth] Detectando rol de usuario...");
+             const tenantId = await detectUserRole(session.user.id, session.user.email || '');
+             console.log("🔍 [Auth] Rol detectado, tenantId:", tenantId);
+             if (!alive) return;
+             console.log("🔍 [Auth] Fetching suscripción...");
+             await fetchUserSubscription(session.user.id, tenantId);
+             console.log("🔍 [Auth] Suscripción cargada");
+           }
           }
         } else {
           console.log("👤 No hay sesión activa");
@@ -772,39 +797,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setTenantIdState(metaTenantId);
           }
 
-         try {
-           const isPlat = await detectPlatformAdmin();
-           if (!alive) return;
-           if (isPlat) {
-             applyPlatformAdminAccess();
-             setLoading(false);
+          try {
+            // ✅ VERIFICAR SI ES TRIAL USER PRIMERO
+            if (session.user.user_metadata?.is_trial) {
+              console.log("✅ [Auth Event] Es un TRIAL USER - Habilitar TODAS las features");
+              setUserRole('admin');
+              setTenantIdState(session.user.user_metadata?.tenant_id || null);
+              
+              // Aplicar subscription de trial
+              const trialSub = {
+                id: `trial_${session.user.id}`,
+                user_id: session.user.id,
+                plan: "Básico",
+                status: "trialing",
+                trial_start: session.user.user_metadata?.trial_start || new Date().toISOString(),
+                trial_end: session.user.user_metadata?.trial_end || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+              };
+              applySubscription(trialSub);
+              setLoading(false);
             } else {
-              const tenantId = await detectUserRole(session.user.id, session.user.email || '');
+              const isPlat = await detectPlatformAdmin();
               if (!alive) return;
+              if (isPlat) {
+                applyPlatformAdminAccess();
+                setLoading(false);
+               } else {
+                 const tenantId = await detectUserRole(session.user.id, session.user.email || '');
+                 if (!alive) return;
 
-              try {
-                await fetchUserSubscription(session.user.id, tenantId);
-              } catch (e) {
-                console.error("Error en fetchUserSubscription:", e);
-              } finally {
-                if (alive) setLoading(false);
-              }
+                  try {
+                    await fetchUserSubscription(session.user.id, tenantId);
+                  } catch (e) {
+                    console.error("Error en fetchUserSubscription:", e);
+                  } finally {
+                    if (alive) setLoading(false);
+                  }
 
-              // Reintento corto por si RLS/metadata tardan en propagarse
-              if (delayTimer) clearTimeout(delayTimer);
-              delayTimer = setTimeout(async () => {
-                try {
-                  if (!alive) return;
-                  await fetchUserSubscription(session.user.id, tenantId);
-                } catch (e) {
-                  console.error("Error en fetchUserSubscription (retry):", e);
+                  // Reintento corto por si RLS/metadata tardan en propagarse
+                  if (delayTimer) clearTimeout(delayTimer);
+                  delayTimer = setTimeout(async () => {
+                    try {
+                      if (!alive) return;
+                      await fetchUserSubscription(session.user.id, tenantId);
+                    } catch (e) {
+                      console.error("Error en fetchUserSubscription (retry):", e);
+                    }
+                  }, 1500);
                 }
-              }, 1500);
             }
-         } catch (e) {
-           console.error("Error en auth handler:", e);
-           if (alive) setLoading(false);
-         }
+          } catch (e) {
+            console.error("Error en auth handler:", e);
+            if (alive) setLoading(false);
+          }
       } else if (event === "SIGNED_OUT") {
         console.log("👋 Usuario cerró sesión");
         setUser(null);
