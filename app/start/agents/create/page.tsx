@@ -565,7 +565,16 @@ export default function CreateAgentPage() {
             {isTextTestStep ? (
               <>
                 <div style={{ backgroundColor: C.dark, borderRadius: 14, border: `1px solid ${C.border}`, padding: 24, minHeight: 400 }}>
-                  <VoiceTestPanel templateId="julia" />
+                  <VoiceTestPanel
+                    agentName={form.agentName || "Agente"}
+                    agentRole={form.agentRole}
+                    agentPrompt={form.agentPrompt}
+                    companyContext={form.companyDesc}
+                    voiceSettings={{
+                      model: form.voice,
+                      voice: form.voice,
+                    }}
+                  />
                 </div>
 
                 <div style={{ backgroundColor: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, color: C.white, marginBottom: 14, lineHeight: 1.6 }}>
@@ -891,24 +900,16 @@ export default function CreateAgentPage() {
               </>
             ) : (
               step === 3 && (
-                <div style={{ backgroundColor: C.dark, borderRadius: 14, border: `1px solid ${C.border}`, padding: isMobile ? 22 : 32, textAlign: "center" }}>
-                  <div style={{ fontSize: 56, marginBottom: 16 }}>🤖</div>
-                  <h3 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 10px" }}>
-                    {form.agentName || "Tu agente"} está listo para probar
-                  </h3>
-                  <p style={{ color: C.muted, fontSize: 15, margin: "0 0 26px" }}>
-                    Envía un mensaje para probar cómo responde tu agente
-                  </p>
-                  <div style={{ ...fl({ gap: 10 }), marginBottom: 12 }}>
-                    <input placeholder="Escribe un mensaje…" style={input()} />
-                    <button style={{ padding: "0 24px", borderRadius: 10, backgroundColor: C.blue, border: "none", color: "#fff", fontWeight: 900, cursor: "pointer", whiteSpace: "nowrap", fontSize: 14 }}>
-                      Enviar
-                    </button>
-                  </div>
-                  <p style={{ color: C.dim, fontSize: 12, margin: 0 }}>
-                    Integración con OpenAI se configurará después del despliegue
-                  </p>
-                </div>
+                <VoiceTestPanel
+                  agentName={form.agentName}
+                  agentRole={form.agentRole}
+                  agentPrompt={form.agentPrompt}
+                  companyContext={form.companyDesc}
+                  voiceSettings={{
+                    model: form.voice,
+                    voice: form.voice,
+                  }}
+                />
               )
             )}
 
