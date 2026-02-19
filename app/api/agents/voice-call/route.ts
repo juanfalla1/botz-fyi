@@ -184,7 +184,7 @@ async function generateResponse(
           { role: "user", content: userMessage },
         ],
         temperature: 0.7,
-        max_tokens: 300, // Más corto para voz
+        max_tokens: 120, // Muy corto para voz - máximo 2-3 oraciones
       }),
     });
 
