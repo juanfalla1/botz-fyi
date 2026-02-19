@@ -40,7 +40,7 @@ const TEMPLATES: FlowTemplate[] = [
     description: plantillaParaLlamar.description,
     category: "AI",
     badges: ["📗", "📞"],
-    createdBy: "Dapta",
+    createdBy: "Botz",
     nodes: plantillaParaLlamar.nodes,
     edges: plantillaParaLlamar.edges,
   },
@@ -50,7 +50,7 @@ const TEMPLATES: FlowTemplate[] = [
     description: "Test",
     category: "AI",
     badges: ["🧩", "📞"],
-    createdBy: "Dapta",
+    createdBy: "Botz",
     nodes: [
       { id: "start", label: "Start", sub: "WEBHOOK", x: 520, y: 160, accent: "lime" },
       { id: "ai", label: "AI", sub: "LLM", x: 520, y: 320 },
@@ -67,7 +67,7 @@ const TEMPLATES: FlowTemplate[] = [
     description: "Usa Google Sheets como fuente para llamadas.",
     category: "AI",
     badges: ["📗", "📞"],
-    createdBy: "Dapta",
+    createdBy: "Botz",
     nodes: [
       { id: "start", label: "Start", sub: "SCHEDULED TASK", x: 520, y: 120, accent: "lime" },
       { id: "rows", label: "Get Rows", sub: "GOOGLE_SHEETS", x: 520, y: 250 },
@@ -86,7 +86,7 @@ const TEMPLATES: FlowTemplate[] = [
     description: "From intelligent content generation to business process automation.",
     category: "AI",
     badges: ["🤖", "🗒️"],
-    createdBy: "Dapta",
+    createdBy: "Botz",
     nodes: [
       { id: "start", label: "Start", sub: "WEBHOOK", x: 520, y: 160, accent: "lime" },
       { id: "ai", label: "Generate", sub: "OPENAI", x: 520, y: 320, accent: "blue" },
@@ -103,7 +103,7 @@ const TEMPLATES: FlowTemplate[] = [
     description: "Improving customer service and automating repetitive tasks.",
     category: "Others",
     badges: ["🟢", "🤖"],
-    createdBy: "Dapta",
+    createdBy: "Botz",
     nodes: [
       { id: "start", label: "Start", sub: "WHATSAPP", x: 520, y: 160, accent: "lime" },
       { id: "ai", label: "Reply", sub: "OPENAI", x: 520, y: 320, accent: "blue" },
