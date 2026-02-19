@@ -371,26 +371,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const detectPlatformAdmin = useCallback(async (): Promise<boolean> => {
-    try {
-      const { data, error } = await supabase.rpc('is_platform_admin');
-      if (!error) return Boolean(data);
+   const detectPlatformAdmin = useCallback(async (): Promise<boolean> => {
+     try {
+       console.log("🔑 [detectPlatformAdmin] Intentando RPC...");
+       const { data, error } = await supabase.rpc('is_platform_admin');
+       console.log("🔑 [detectPlatformAdmin] RPC resultado:", { data, error });
+       if (!error) return Boolean(data);
 
-      // Fallback: direct self-check (if RPC not available)
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth?.user?.id;
-      if (!uid) return false;
-      const { data: row, error: selErr } = await supabase
-        .from('platform_admins')
-        .select('auth_user_id')
-        .eq('auth_user_id', uid)
-        .maybeSingle();
-      if (selErr) return false;
-      return Boolean(row?.auth_user_id);
-    } catch {
-      return false;
-    }
-  }, []);
+       // Fallback: direct self-check (if RPC not available)
+       console.log("🔑 [detectPlatformAdmin] RPC falló, intentando directo...");
+       const { data: auth } = await supabase.auth.getUser();
+       const uid = auth?.user?.id;
+       console.log("🔑 [detectPlatformAdmin] Auth user id:", uid);
+       if (!uid) return false;
+       
+       const { data: row, error: selErr } = await supabase
+         .from('platform_admins')
+         .select('auth_user_id')
+         .eq('auth_user_id', uid)
+         .maybeSingle();
+       
+       console.log("🔑 [detectPlatformAdmin] Query resultado:", { row, selErr });
+       if (selErr) {
+         console.warn("🔑 [detectPlatformAdmin] Error en query:", selErr);
+         return false;
+       }
+       const isAdmin = Boolean(row?.auth_user_id);
+       console.log("🔑 [detectPlatformAdmin] Es admin?:", isAdmin);
+       return isAdmin;
+     } catch (err) {
+       console.error("🔑 [detectPlatformAdmin] Error:", err);
+       return false;
+     }
+   }, []);
 
   // ✅ Función para obtener la suscripción activa del usuario
   // Recibe userId (auth) y opcionalmente tenantId (de team_members, sin RLS)
@@ -749,48 +762,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
              setTenantIdState(metaTenantId);
            }
 
-          console.log("🔍 [Auth] Detectando plataforma admin...");
-          const isPlat = await detectPlatformAdmin();
-          console.log("🔍 [Auth] detectPlatformAdmin:", isPlat ? "es admin" : "no es admin");
-          if (!alive) return;
-          if (isPlat) {
-            applyPlatformAdminAccess();
-          } else {
-            // ✅ ESTRATEGIA FINAL: Buscar en team_members por email (es la fuente de verdad)
-            console.log("🔍 [Auth] Buscando en team_members por email:", session.user.email);
-            const { data: tm, error: tmError } = await supabase
-              .from("team_members")
-              .select("id, tenant_id, rol")
-              .eq("email", session.user.email || '')
-              .maybeSingle();
+           console.log("🔍 [Auth] Detectando plataforma admin...");
+           const isPlat = await detectPlatformAdmin();
+           console.log("🔍 [Auth] detectPlatformAdmin:", isPlat ? "es admin" : "no es admin");
+           if (!alive) return;
+           
+           if (isPlat) {
+             console.log("✅ [Auth] Es Platform Admin - Aplicando acceso total");
+             applyPlatformAdminAccess();
+           } else {
+             // ✅ ESTRATEGIA FINAL: Buscar en team_members por email (es la fuente de verdad)
+             console.log("🔍 [Auth] Buscando en team_members por email:", session.user.email);
+             const { data: tm, error: tmError } = await supabase
+               .from("team_members")
+               .select("id, tenant_id, rol")
+               .eq("email", session.user.email || '')
+               .maybeSingle();
 
-            console.log("📊 [Auth] Resultado de team_members:", { found: !!tm, tm, error: tmError });
+             console.log("📊 [Auth] Resultado de team_members:", { found: !!tm, tm, error: tmError });
 
-            if (tm && tm.tenant_id) {
-              console.log("✅ [Auth] ¡Encontrado en team_members! tenant_id:", tm.tenant_id);
-              setUserRole('admin');
-              setTeamMemberId(tm.id);
-              setTenantIdState(tm.tenant_id);
-              const sub = { id: `tm_${tm.tenant_id}`, user_id: session.user.id, plan: "Básico", status: "trialing" };
-              console.log("📦 [Auth] Aplicando subscription:", sub);
-              applySubscription(sub);
-            } else if (metaTenantId) {
-              console.log("✅ [Auth] Usando metaTenantId como fallback:", metaTenantId);
-              setUserRole('admin');
-              const sub = { id: `meta_${metaTenantId}`, user_id: session.user.id, plan: "Básico", status: "trialing" };
-              console.log("📦 [Auth] Aplicando subscription desde metadata:", sub);
-              applySubscription(sub);
-            } else {
-              // Fallback final: detectar rol normal
-              console.log("🔍 [Auth] Detectando rol normal (fallback, sin tenant_id)...");
-              const tenantId = await detectUserRole(session.user.id, session.user.email || '');
-              console.log("🔍 [Auth] Rol detectado, tenantId:", tenantId);
-              if (!alive) return;
-              console.log("🔍 [Auth] Fetching suscripción...");
-              await fetchUserSubscription(session.user.id, tenantId);
-              console.log("🔍 [Auth] Suscripción cargada");
-            }
-          }
+             if (tm && tm.tenant_id) {
+               console.log("✅ [Auth] ¡Encontrado en team_members! tenant_id:", tm.tenant_id);
+               
+               // ⚠️ VERIFICACIÓN ADICIONAL: Chequear si TAMBIÉN es platform admin
+               // (podría estar en ambos por error o por que es admin supremo)
+               const isAlsoPlatAdmin = await detectPlatformAdmin();
+               console.log("🔍 [Auth] ¿También es platform admin?:", isAlsoPlatAdmin);
+               
+               if (isAlsoPlatAdmin) {
+                 console.log("✅ [Auth] ¡ES PLATFORM ADMIN! - Aplicando acceso de admin total");
+                 applyPlatformAdminAccess();
+               } else {
+                 setUserRole('admin');
+                 setTeamMemberId(tm.id);
+                 setTenantIdState(tm.tenant_id);
+                 const sub = { id: `tm_${tm.tenant_id}`, user_id: session.user.id, plan: "Básico", status: "trialing" };
+                 console.log("📦 [Auth] Aplicando subscription:", sub);
+                 applySubscription(sub);
+               }
+             } else if (metaTenantId) {
+               console.log("✅ [Auth] Usando metaTenantId como fallback:", metaTenantId);
+               setUserRole('admin');
+               const sub = { id: `meta_${metaTenantId}`, user_id: session.user.id, plan: "Básico", status: "trialing" };
+               console.log("📦 [Auth] Aplicando subscription desde metadata:", sub);
+               applySubscription(sub);
+             } else {
+               // Fallback final: detectar rol normal
+               console.log("🔍 [Auth] Detectando rol normal (fallback, sin tenant_id)...");
+               const tenantId = await detectUserRole(session.user.id, session.user.email || '');
+               console.log("🔍 [Auth] Rol detectado, tenantId:", tenantId);
+               if (!alive) return;
+               console.log("🔍 [Auth] Fetching suscripción...");
+               await fetchUserSubscription(session.user.id, tenantId);
+               console.log("🔍 [Auth] Suscripción cargada");
+             }
+           }
         } else {
           console.log("👤 No hay sesión activa");
           setUser(null);
