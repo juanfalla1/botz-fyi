@@ -218,6 +218,7 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
           tenant_id: demoTenantId,
           role: invite.role,
           is_trial: true,
+          trial_start: new Date().toISOString(),
           trial_end: trialEndIso,
         },
       });
@@ -226,7 +227,14 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
         console.warn("Error updating user metadata:", updateError);
       }
 
-      console.log("✅ Auth metadata actualizado con tenant_id:", demoTenantId);
+      console.log("✅ Auth metadata actualizado:", {
+        tenant_id: demoTenantId,
+        is_trial: true,
+        trial_end: trialEndIso,
+      });
+
+      // ✅ Esperar un poco para que se propague la sesión
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Add user to platform_admins so they have system access
       const { error: adminError } = await supabase

@@ -400,6 +400,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // ✅ NUEVO: Detectar si es un trial user desde auth.user_metadata
       const { data: { user: authUser } } = await supabase.auth.getUser();
+      console.log("🔍 [SUB] Auth metadata:", {
+        is_trial: authUser?.user_metadata?.is_trial,
+        trial_end: authUser?.user_metadata?.trial_end,
+        tenant_id: authUser?.user_metadata?.tenant_id,
+      });
+      
       if (authUser?.user_metadata?.is_trial) {
         console.log("✅ [SUB] Usuario es TRIAL - Habilitar TODAS las features");
         const trialSub = {
@@ -410,6 +416,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           trial_start: authUser.user_metadata.trial_start || new Date().toISOString(),
           trial_end: authUser.user_metadata.trial_end || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
         };
+        console.log("📦 [SUB] Trial subscription object:", trialSub);
         applySubscription(trialSub);
         return;
       }
