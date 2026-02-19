@@ -342,25 +342,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-   const applyPlatformAdminAccess = useCallback(async () => {
+   const applyPlatformAdminAccess = useCallback(() => {
      console.log("✅ [Admin] Aplicando acceso de Platform Admin");
      
-     // ✅ IMPORTANTE: Limpiar el flag is_trial para admins
+     // ✅ IMPORTANTE: Limpiar el flag is_trial para admins (en background, sin bloquear)
      // (en caso de que lo tengan por alguna razón)
-     try {
-       const { error: updateError } = await supabase.auth.updateUser({
-         data: {
-           is_trial: false,
-         },
-       });
-       if (updateError) {
-         console.warn("⚠️ [Admin] Error limpiando is_trial:", updateError);
+     supabase.auth.updateUser({
+       data: {
+         is_trial: false,
+       },
+     }).then(({ error }) => {
+       if (error) {
+         console.warn("⚠️ [Admin] Error limpiando is_trial:", error);
        } else {
          console.log("✅ [Admin] Limpiado is_trial flag");
        }
-     } catch (e) {
+     }).catch(e => {
        console.warn("⚠️ [Admin] Error en cleanup:", e);
-     }
+     });
      
      setIsPlatformAdmin(true);
      setUserRole('admin');
