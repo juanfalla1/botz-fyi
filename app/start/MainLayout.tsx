@@ -111,7 +111,7 @@ const UI_TEXT: Record<AppLanguage, Record<string, string>> = {
     liveOps: "Operación en Vivo",
     mortgageCalc: "Cálculo Hipotecario",
     channels: "Canales",
-    agentsTab: "Agentes IA",
+    // ❌ REMOVIDO: agentsTab - Agentes ahora es aplicación independiente en /agents
     execDashboard: "Dashboard Ejecutivo",
     crmLive: "CRM en Vivo",
     slaAlerts: "Alertas SLA",
@@ -150,7 +150,7 @@ const UI_TEXT: Record<AppLanguage, Record<string, string>> = {
     liveOps: "Live Operations",
     mortgageCalc: "Mortgage Calculator",
     channels: "Channels",
-    agentsTab: "AI Agents",
+    // ❌ REMOVIDO: agentsTab - Agents now is independent app at /agents
     execDashboard: "Executive Dashboard",
     crmLive: "Live CRM",
     slaAlerts: "SLA Alerts",
@@ -2529,9 +2529,7 @@ export default function MainLayout({
     ...(isPlatformAdmin
       ? [{ id: "tenants", label: language === "en" ? "Clients" : "Clientes", icon: <Building2 size={18} /> }]
       : []),
-    ...(isAdmin || isPlatformAdmin || hasPermission("manage_agents")
-      ? [{ id: "agents", label: (text as any).agentsTab || (language === "en" ? "AI Agents" : "Agentes IA"), icon: <Bot size={18} /> }]
-      : []),
+    // ❌ REMOVIDO: Agentes ahora está en /agents (aplicación independiente, no en /start)
     { id: "n8n-config", label: text.execDashboard, icon: <Settings size={18} /> },
     { id: "crm", label: text.crmLive, icon: <Users size={18} /> },
     { id: "sla", label: text.slaAlerts, icon: <BarChart3 size={18} /> },
