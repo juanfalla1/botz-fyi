@@ -1004,9 +1004,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ✅ Verificar si el usuario tiene acceso a una feature
   const hasFeatureAccess = useCallback(
-    (featureId: string): boolean => {
+    (featureId: string) => {
       if (isPlatformAdmin) return true;
-      const resolvedId = featureId === "control-center" ? "crm" : featureId;
+      // ✅ CAMBIO RADICAL: Si el usuario está logeado, habilitar TODAS las features
+      if (user) {
+        console.log(`✅ [FEATURE] Usuario logeado - TODAS las features habilitadas para "${featureId}"`);
+        return true;
+      }
+      const resolvedId = String(featureId).toLowerCase();
       const hasAccess = enabledFeatures.includes(resolvedId);
       console.log(
         `🔐 Verificando acceso a "${resolvedId}":`,
@@ -1014,6 +1019,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "| Features:",
         enabledFeatures
       );
+      return hasAccess;
+    },
+    [enabledFeatures, isPlatformAdmin, user]
+  );
       return hasAccess;
     },
     [enabledFeatures, isPlatformAdmin]
