@@ -47,7 +47,6 @@ import {
 import { supabase } from "../supabaseClient"; // Ajusta la ruta según tu proyecto
 // AuthModal is rendered once in start/page.tsx.
 import ActionsDock from "./components/ActionsDock"; // Ajusta la ruta según tu estructura
-import DemoTrialBanner from "../components/DemoTrialBanner"; // ✅ NUEVO: Banner de demo trial
 
 // ============================================================================
 // ✅ TIPOS Y CONFIGURACIÓN DE PLANES
@@ -343,31 +342,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const applyPlatformAdminAccess = useCallback(() => {
-    setIsPlatformAdmin(true);
-    setUserRole('admin');
-    setTeamMemberId(null);
-    setTenantIdState(null);
-    if (typeof window !== 'undefined') {
-      const saved = window.localStorage.getItem('botz-platform-tenant');
-      setPlatformTenantIdState(saved || null);
-    }
-    setSubscription({
-      id: 'platform-admin',
-      plan: 'Administrator',
-      status: 'active',
-      created_at: new Date().toISOString(),
-    });
-    setUserPlan('Administrator');
-    setEnabledFeatures(ALL_FEATURES);
-    setPermissions({
-      platform_admin: true,
-      view_all_leads: true,
-      manage_team: true,
-      manage_agents: true,
-      manage_channels: true,
-      view_exec_dashboard: true,
-      view_sla: true,
+   const applyPlatformAdminAccess = useCallback(() => {
+     console.log("✅ [Admin] Aplicando acceso de Platform Admin");
+     setIsPlatformAdmin(true);
+     setUserRole('admin');
+     setTeamMemberId(null);
+     setTenantIdState(null);
+     if (typeof window !== 'undefined') {
+       const saved = window.localStorage.getItem('botz-platform-tenant');
+       setPlatformTenantIdState(saved || null);
+     }
+     setSubscription({
+       id: 'platform-admin',
+       plan: 'Administrator',
+       status: 'active',
+       created_at: new Date().toISOString(),
+     });
+     setUserPlan('Administrator');
+     setEnabledFeatures(ALL_FEATURES);
+     setPermissions({
+       platform_admin: true,
+       view_all_leads: true,
+       manage_team: true,
+       manage_agents: true,
+       manage_channels: true,
+       view_exec_dashboard: true,
+       view_sla: true,
     });
   }, []);
 
@@ -425,28 +425,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // ✅ NUEVO: Detectar si es un trial user desde auth.user_metadata
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      console.log("🔍 [SUB] Auth metadata:", {
-        is_trial: authUser?.user_metadata?.is_trial,
-        trial_end: authUser?.user_metadata?.trial_end,
-        tenant_id: authUser?.user_metadata?.tenant_id,
-      });
-      
-      if (authUser?.user_metadata?.is_trial) {
-        console.log("✅ [SUB] Usuario es TRIAL - Habilitar TODAS las features");
-        const trialSub = {
-          id: `trial_${userId}`,
-          user_id: userId,
-          plan: "Básico",
-          status: "trialing",
-          trial_start: authUser.user_metadata.trial_start || new Date().toISOString(),
-          trial_end: authUser.user_metadata.trial_end || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-        };
-        console.log("📦 [SUB] Trial subscription object:", trialSub);
-        applySubscription(trialSub);
-        return;
-      }
+       // ✅ NUEVO: Detectar si es un trial user desde auth.user_metadata
+       // PERO: Excluir platform admins (ellos NO son trial)
+       const { data: { user: authUser } } = await supabase.auth.getUser();
+       console.log("🔍 [SUB] Auth metadata:", {
+         is_trial: authUser?.user_metadata?.is_trial,
+         trial_end: authUser?.user_metadata?.trial_end,
+         tenant_id: authUser?.user_metadata?.tenant_id,
+       });
+       
+       // ✅ IMPORTANTE: Chequear si es platform admin ANTES de aplicar trial
+       const isPlatAdmin = await detectPlatformAdmin();
+       console.log("🔍 [SUB] ¿Es platform admin?:", isPlatAdmin);
+       
+       if (authUser?.user_metadata?.is_trial && !isPlatAdmin) {
+         console.log("✅ [SUB] Usuario es TRIAL - Habilitar TODAS las features");
+         const trialSub = {
+           id: `trial_${userId}`,
+           user_id: userId,
+           plan: "Básico",
+           status: "trialing",
+           trial_start: authUser.user_metadata.trial_start || new Date().toISOString(),
+           trial_end: authUser.user_metadata.trial_end || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+         };
+         console.log("📦 [SUB] Trial subscription object:", trialSub);
+         applySubscription(trialSub);
+         return;
+       }
+       
+       if (isPlatAdmin) {
+         console.log("✅ [SUB] Es Platform Admin - No procesar como trial");
+         return;
+       }
 
       // ✅ CACHE: Intentar leer de localStorage primero
       const cacheKey = `botz-sub-${userId}`;
@@ -1150,13 +1160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         subscriptionUpdateKey,
       }}
     >
-      {/* ✅ NUEVO: Banner de demo trial si el usuario está en trial */}
-      {user && user.user_metadata?.is_trial && user.user_metadata?.trial_end && (
-        <DemoTrialBanner 
-          trialEndDate={user.user_metadata.trial_end}
-          onClose={() => console.log("Banner cerrado")}
-        />
-      )}
+      {/* ❌ REMOVIDO: Banner de demo trial - se veía muy feo y causaba confusión */}
       {children}
     </AuthContext.Provider>
   );
