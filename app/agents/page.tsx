@@ -327,7 +327,7 @@ export default function AgentStudio() {
                 return (
                   <button
                     key={p.key}
-                    onClick={() => router.push("/start/agents/plans")}
+                    onClick={() => router.push("/agents/plans")}
                     style={{
                       flex: "0 0 auto",
                       borderRadius: 12,
@@ -363,7 +363,7 @@ export default function AgentStudio() {
             )}
 
             <button
-              onClick={() => router.push("/start/agents/plans")}
+              onClick={() => router.push("/agents/plans")}
               style={{ width: "100%", marginTop: 12, padding: "10px 0", borderRadius: 12, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 900, fontSize: 13, cursor: "pointer" }}
             >
               Cambiar plan
@@ -394,7 +394,7 @@ export default function AgentStudio() {
                </div>
                <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
                  <button
-                   onClick={() => router.push("/start/agents/plans")}
+                   onClick={() => router.push("/agents/plans")}
                    style={{ flex: 1, padding: "12px 14px", borderRadius: 12, border: "none", backgroundColor: C.lime, color: "#111", fontWeight: 900, cursor: "pointer" }}
                  >
                    Ver planes
@@ -433,14 +433,14 @@ export default function AgentStudio() {
                 key={card.id}
                 onClick={() => {
                   if (card.id === "notetaker") {
-                    router.push("/start/agents/create?type=voice&kind=notetaker");
+                    router.push("/agents/create?type=voice&kind=notetaker");
                     return;
                   }
                   if (card.id === "flow") {
                     router.push("/start/flows/templates");
                     return;
                   }
-                  router.push(`/start/agents/create?type=${card.id}`);
+                  router.push(`/agents/create?type=${card.id}`);
                 }}
                 style={{ ...col(), backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: "24px 22px 18px", cursor: "pointer", textAlign: "left", minHeight: 200, transition: "background .15s" }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = C.hover; }}
@@ -458,7 +458,7 @@ export default function AgentStudio() {
             {templates.map(t => (
               <button
                 key={t.id}
-                onClick={() => router.push(`/start/agents/create?template=${t.id}`)}
+                onClick={() => router.push(`/agents/create?template=${t.id}`)}
                 style={{ ...flex({ alignItems: "center", gap: 14 }), backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, cursor: "pointer", textAlign: "left" }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = C.hover; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = C.card;  }}
@@ -513,7 +513,7 @@ export default function AgentStudio() {
               return (
                 <button
                   key={agent.id}
-                  onClick={() => router.push(agent.type === "flow" ? `/start/flows/${agent.id}` : `/start/agents/${agent.id}`)}
+                  onClick={() => router.push(agent.type === "flow" ? `/start/flows/${agent.id}` : `/agents/${agent.id}`)}
                   style={{ width: "100%", display: "grid", gridTemplateColumns: "1fr 140px 200px", padding: "13px 16px", borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none", backgroundColor: "transparent", cursor: "pointer", textAlign: "left" }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = C.hover; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}

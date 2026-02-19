@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/app/supabaseClient";
 import AuthModal from "@/app/start/components/AuthModal";
 import { authedFetch, AuthRequiredError } from "@/app/start/_utils/authedFetch";
-import VoiceTestPanel from "@/app/start/agents/components/VoiceTestPanel";
+import VoiceTestPanel from "@/app/agents/components/VoiceTestPanel";
 
 
 const C = {
@@ -240,7 +240,7 @@ export default function CreateAgentPage() {
     q.set("type", t);
     if (k === "notetaker") q.set("kind", "notetaker");
     if (next.template) q.set("template", next.template);
-    router.replace(`/start/agents/create?${q.toString()}`);
+    router.replace(`/agents/create?${q.toString()}`);
   };
 
   const genCompanyContext = async () => {
@@ -354,7 +354,7 @@ export default function CreateAgentPage() {
 
       const json = await res.json();
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo crear");
-      router.push(`/start/agents/${json.data.id}`);
+      router.push(`/agents/${json.data.id}`);
     } catch (err) {
       if (err instanceof AuthRequiredError) setOpenAuth(true);
       console.error(err);
@@ -442,13 +442,13 @@ export default function CreateAgentPage() {
         onLoggedIn={() => {
           setOpenAuth(false);
         }}
-        redirectTo={typeof window !== "undefined" ? `${window.location.origin}/start/agents/create` : undefined}
+        redirectTo={typeof window !== "undefined" ? `${window.location.origin}/agents/create` : undefined}
       />
 
       {/* ── top bar ── */}
       <div style={{ height: 60, borderBottom: `1px solid ${C.border}`, ...fl({ alignItems: "center", justifyContent: "space-between", padding: "0 36px" }), backgroundColor: C.dark, position: "sticky", top: 0, zIndex: 20 }}>
         <button
-          onClick={() => router.push("/start/agents")}
+          onClick={() => router.push("/agents")}
           style={{ ...fl({ alignItems: "center", gap: 8 }), background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 14 }}
         >
           ‹ Volver
@@ -457,7 +457,7 @@ export default function CreateAgentPage() {
           {pageTitle}
         </span>
         <button
-          onClick={() => router.push("/start/agents")}
+          onClick={() => router.push("/agents")}
           style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 20 }}
         >
           ✕

@@ -1,0 +1,200 @@
+import { NextResponse } from "next/server";
+import { getAnonSupabaseWithToken, getServiceSupabase } from "@/app/api/_utils/supabase";
+import { getRequestUser } from "@/app/api/_utils/auth";
+import { SYSTEM_TENANT_ID } from "@/app/api/_utils/system";
+import OpenAI from "openai";
+
+const TEMPLATES: Record<string, { system_prompt: string; voice: "nova" | "onyx" | "shimmer" }> = {
+  lia: {
+    system_prompt: "Eres Lia, una representante de ventas profesional y amable. Tu objetivo es calificar leads entrantes con preguntas claras sobre presupuesto, tiempo y necesidad. Si el lead califica, propon una siguiente accion (agendar llamada o cita).",
+    voice: "nova",
+  },
+  alex: {
+    system_prompt: "Eres Alex, un vendedor directo y respetuoso. Tu objetivo es iniciar una conversacion breve, validar interes y calificar una oportunidad. Si hay interes, agenda una siguiente accion.",
+    voice: "onyx",
+  },
+  julia: {
+    system_prompt: "Eres Julia, una recepcionista virtual. Respondes preguntas frecuentes, recoges datos de contacto y agendas citas. Si el usuario necesita un humano, ofreces una escalacion.",
+    voice: "shimmer",
+  },
+};
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+export async function POST(req: Request) {
+  const guard = await getRequestUser(req);
+  if (!guard.ok) {
+    return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
+  }
+
+  const anonSupa = getAnonSupabaseWithToken(guard.token);
+  const serviceSupa = getServiceSupabase();
+  if (!anonSupa || !serviceSupa) {
+    return NextResponse.json({ ok: false, error: "Missing SUPABASE env" }, { status: 500 });
+  }
+
+  try {
+    // 1. Gate: Check entitlement (trial + credits)
+    const { data: ent, error: entErr } = await serviceSupa
+      .from("agent_entitlements")
+      .select("*")
+      .eq("user_id", guard.user.id)
+      .maybeSingle();
+
+    if (entErr) {
+      return NextResponse.json({ ok: false, error: entErr.message }, { status: 400 });
+    }
+
+    let entitlement = ent;
+    if (!entitlement) {
+      const payload = {
+        user_id: guard.user.id,
+        plan_key: "pro",
+        status: "trial",
+        credits_limit: 100000,
+        credits_used: 0,
+        trial_start: nowIso(),
+        trial_end: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+      const { data: inserted, error: insErr } = await serviceSupa
+        .from("agent_entitlements")
+        .insert(payload)
+        .select("*")
+        .single();
+      if (insErr) {
+        return NextResponse.json({ ok: false, error: insErr.message }, { status: 400 });
+      }
+      entitlement = inserted;
+    }
+
+    const status = String(entitlement.status || "trial");
+    if (status === "blocked") {
+      return NextResponse.json({ ok: false, code: "blocked", error: "Cuenta bloqueada" }, { status: 403 });
+    }
+
+    const trialEnd = entitlement.trial_end ? new Date(entitlement.trial_end) : null;
+    if (status === "trial" && trialEnd && Date.now() > trialEnd.getTime()) {
+      return NextResponse.json({ ok: false, code: "trial_expired", error: "Trial terminado" }, { status: 403 });
+    }
+
+    // 2. Parse request
+    const formData = await req.formData();
+    const templateId = String(formData.get("template_id") || "");
+    const messagesJson = String(formData.get("messages") || "[]");
+    const audioFile = formData.get("audio") as File | null;
+
+    if (!templateId || !TEMPLATES[templateId]) {
+      return NextResponse.json({ ok: false, error: "Invalid template_id" }, { status: 400 });
+    }
+
+    const template = TEMPLATES[templateId];
+    let messages: any[] = [];
+    try {
+      messages = JSON.parse(messagesJson);
+      if (!Array.isArray(messages)) messages = [];
+    } catch {
+      messages = [];
+    }
+
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    let userText = "";
+
+    // 3. STT (if audio provided)
+    let sttTokens = 0;
+    if (audioFile) {
+      const buffer = Buffer.from(await audioFile.arrayBuffer());
+      const transcription = await openai.audio.transcriptions.create({
+        file: await new File([buffer], audioFile.name, { type: "audio/webm" }) as any,
+        model: "whisper-1",
+        language: "es",
+      } as any);
+      userText = transcription.text || "";
+      sttTokens = estimateTokens(userText);
+    } else {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg?.content) {
+        userText = lastMsg.content;
+      }
+    }
+
+    if (!userText) {
+      return NextResponse.json({ ok: false, error: "No user text provided" }, { status: 400 });
+    }
+
+    // 4. LLM
+    const llmMessages = [
+      ...messages.filter((m: any) => m.role && m.content),
+      { role: "user", content: userText },
+    ];
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      system: template.system_prompt,
+      messages: llmMessages as any,
+      temperature: 0.7,
+      max_tokens: 300,
+    });
+
+    const assistantText = completion.choices[0]?.message?.content || "";
+    const llmTokens = completion.usage?.total_tokens || estimateTokens(assistantText);
+
+    // 5. TTS
+    const ttsTokens = estimateTokens(assistantText);
+    const speech = await openai.audio.speech.create({
+      model: "tts-1",
+      voice: template.voice,
+      input: assistantText,
+    });
+
+    const audioBuffer = Buffer.from(await speech.arrayBuffer());
+    const audioBase64 = audioBuffer.toString("base64");
+
+    // 6. Calculate credits
+    const creditDelta = llmTokens + sttTokens + ttsTokens;
+    const prevUsed = Number(entitlement.credits_used || 0) || 0;
+    const entLimit = Number(entitlement.credits_limit || 0) || 0;
+
+    if (entLimit > 0 && prevUsed + creditDelta > entLimit) {
+      return NextResponse.json({ ok: false, code: "credits_exhausted", error: "Creditos agotados" }, { status: 402 });
+    }
+
+    // 7. Update entitlement (service role)
+    const { error: updateErr } = await serviceSupa
+      .from("agent_entitlements")
+      .update({ credits_used: prevUsed + creditDelta })
+      .eq("user_id", guard.user.id);
+
+    if (updateErr) {
+      console.warn("Could not update entitlement:", updateErr.message);
+    }
+
+    const updatedEnt = { ...entitlement, credits_used: prevUsed + creditDelta };
+
+    return NextResponse.json({
+      ok: true,
+      user_text: userText,
+      assistant_text: assistantText,
+      assistant_audio_base64: audioBase64,
+      mime: "audio/mpeg",
+      tokens_llm: llmTokens,
+      tokens_stt_est: sttTokens,
+      tokens_tts_est: ttsTokens,
+      credit_delta: creditDelta,
+      credits_used: prevUsed + creditDelta,
+      credits_limit: entLimit,
+      trial_end: updatedEnt.trial_end,
+    });
+  } catch (e: any) {
+    console.error("Preview error:", e);
+    return NextResponse.json({ ok: false, error: e?.message || "Unknown error" }, { status: 500 });
+  }
+}

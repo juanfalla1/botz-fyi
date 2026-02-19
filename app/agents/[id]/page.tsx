@@ -271,7 +271,7 @@ export default function AgentDetailPage() {
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 44, marginBottom: 10 }}>🤖</div>
           <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Agente no encontrado</div>
-          <button onClick={() => router.push("/start/agents")} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontWeight: 800 }}>
+          <button onClick={() => router.push("/agents")} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontWeight: 800 }}>
             Volver a Agentes
           </button>
         </div>
@@ -297,7 +297,7 @@ export default function AgentDetailPage() {
           setOpenAuth(false);
           fetchAgent();
         }}
-        redirectTo={typeof window !== "undefined" ? `${window.location.origin}/start/agents/${agentId}` : undefined}
+        redirectTo={typeof window !== "undefined" ? `${window.location.origin}/agents/${agentId}` : undefined}
       />
       {/* sidebar */}
       <aside style={{ ...col(), width: 260, minWidth: 260, backgroundColor: C.sidebar, borderRight: `1px solid ${C.border}`, position: "fixed", top: 0, left: 0, bottom: 0 }}>
@@ -310,7 +310,7 @@ export default function AgentDetailPage() {
 
         <nav style={{ padding: "0 12px", flex: 1 }}>
           <button
-            onClick={() => router.push("/start/agents")}
+            onClick={() => router.push("/agents")}
             style={{ width: "100%", ...flex({ alignItems: "center", gap: 10 }), padding: "10px 12px", borderRadius: 8, background: "none", border: "none", color: C.muted, cursor: "pointer", textAlign: "left" }}
           >
             <span>←</span>

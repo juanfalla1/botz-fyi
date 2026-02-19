@@ -51,7 +51,7 @@ export default function AgentPlansPage() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: C.bg, color: C.white, fontFamily: "Inter,-apple-system,sans-serif" }}>
       <div style={{ height: 56, backgroundColor: C.dark, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 18px", gap: 12 }}>
-        <button onClick={() => router.push("/start/agents")} style={{ background: "none", border: "none", color: C.lime, cursor: "pointer", fontWeight: 900 }}>
+        <button onClick={() => router.push("/agents")} style={{ background: "none", border: "none", color: C.lime, cursor: "pointer", fontWeight: 900 }}>
           ← Volver
         </button>
         <div style={{ fontWeight: 900, fontSize: 16 }}>Planes (Agentes IA)</div>
@@ -85,7 +85,7 @@ export default function AgentPlansPage() {
                 <div style={{ marginTop: 14, color: C.muted, lineHeight: 1.6 }}>{p.desc}</div>
 
                 <button
-                  onClick={() => router.push("/start/agents")}
+                  onClick={() => router.push("/agents")}
                   style={{ marginTop: 18, width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${p.accent}`, backgroundColor: "transparent", color: p.accent, fontWeight: 900, cursor: "pointer" }}
                 >
                   Seleccionar
