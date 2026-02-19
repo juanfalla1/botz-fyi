@@ -398,6 +398,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log("🔍 [SUB] Buscando suscripción | auth_user_id:", userId, "| tenant_id:", tenantId || "N/A");
 
+      // ✅ SI TIENE TENANT_ID, HABILITAR TODAS LAS FEATURES AUTOMÁTICAMENTE
+      if (tenantId) {
+        console.log("✅ [SUB] ¡Tiene tenantId! Habilitar TODAS las features automáticamente");
+        const autoSub = {
+          id: `auto_${userId}`,
+          user_id: userId,
+          tenant_id: tenantId,
+          plan: "Básico",
+          status: "trialing",
+        };
+        applySubscription(autoSub);
+        return;
+      }
+
       // ✅ NUEVO: Detectar si es un trial user desde auth.user_metadata
       const { data: { user: authUser } } = await supabase.auth.getUser();
       console.log("🔍 [SUB] Auth metadata:", {
