@@ -116,21 +116,27 @@ export default function VoiceTestPanel({
         const audioBase64 = (event.target?.result as string).split(",")[1];
 
          // Construir contexto del agente PARA VOZ
-         // NOTA: Para llamadas telefónicas, usamos una versión adaptada que NO tiene limitaciones de texto
-         const voicePrompt = `${agentPrompt}
-
-CONTEXTO DE LLAMADA TELEFÓNICA:
-- Eres un asistente de voz en tiempo real (NO de texto)
-- Responde cualquier pregunta del usuario completamente
-- NO digas "como asistente de texto" - eso NO aplica aquí
-- NO rechaces ayudar por limitaciones visuales o técnicas
-- Si preguntan sobre algo que no está en el contexto, ofrece una alternativa útil
-- Mantén respuestas cortas: máximo 2-3 oraciones`;
+         // CRÍTICO: Para llamadas telefónicas, REEMPLAZAR COMPLETAMENTE el prompt original
+         // porque probablemente contiene limitaciones de "asistente de texto"
+         const voicePrompt = agentPrompt
+           .replace(/como asistente de texto|asistente virtual de texto/gi, "asistente de voz")
+           .replace(/no tengo la capacidad de|no puedo|no tengo acceso|no tengo habilidad para|no estoy diseñado para/gi, "")
+           .replace(/limitaciones? técnicas?|restricciones?/gi, "")
+           .replace(/lamentablemente|desafortunadamente|lo siento pero/gi, "")
+           .replace(/visual|visuales|gráfico|gráficos/gi, "");
 
           const context = `Tu nombre es: ${agentName}
 Tu rol/propósito es: ${agentRole}
-${voicePrompt}
-${companyContext ? `Información de la empresa: ${companyContext}` : ""}`;
+Instrucciones: ${voicePrompt}
+${companyContext ? `Información de la empresa: ${companyContext}` : ""}
+
+==== CONTEXTO CRÍTICO PARA ESTA LLAMADA TELEFÓNICA ====
+- ERES UN ASISTENTE DE VOZ EN TIEMPO REAL (no de texto)
+- RESPONDE COMPLETAMENTE cualquier pregunta del usuario
+- NO rechaces ayudar por ninguna razón técnica
+- SI algo no lo sabes, ofrece alternativas o pide más contexto
+- MANTÉN RESPUESTAS CONCISAS (máximo 2-3 oraciones)
+====================================================`;
 
         // Enviar al endpoint
         const response = await fetch("/api/agents/voice-call", {
