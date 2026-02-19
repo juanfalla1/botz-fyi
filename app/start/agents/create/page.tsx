@@ -408,9 +408,9 @@ export default function CreateAgentPage() {
   const fl = (extra?: React.CSSProperties): React.CSSProperties => ({ display: "flex", ...extra });
   const input = (extra?: React.CSSProperties): React.CSSProperties => ({
     width: "100%", boxSizing: "border-box" as const,
-    padding: "18px 20px",
+    padding: "20px 24px",
     backgroundColor: C.dark, border: `1px solid ${C.border}`,
-    borderRadius: 10, color: C.white, fontSize: 16, outline: "none",
+    borderRadius: 10, color: C.white, fontSize: 17, outline: "none", lineHeight: 1.5,
     ...extra,
   });
 
@@ -550,7 +550,7 @@ export default function CreateAgentPage() {
                  <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 12px", lineHeight: 1.2 }}>
                    📝 Instrucciones del Agente
                  </h2>
-                 <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.6, margin: "0 0 14px" }}>
+                 <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6, margin: "0 0 14px" }}>
                    Define el comportamiento y las respuestas del agente de texto.
                  </p>
                  <textarea
@@ -558,12 +558,12 @@ export default function CreateAgentPage() {
                    onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
                    rows={10}
                    placeholder="Ejemplo: Eres un asistente de ventas amable y profesional..."
-                   style={{ ...input({ minHeight: 180, fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace", fontSize: 12 }), resize: "vertical" as const }}
+                   style={{ ...input({ minHeight: 240, fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace", fontSize: 12 }), resize: "vertical" as const }}
                  />
                  <div style={{ marginTop: 12 }}>
                    <button
                      type="button"
-                     style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                     style={{ padding: "14px 20px", borderRadius: 8, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 700, fontSize: 14, cursor: "pointer" }}
                    >
                      ✦ Generar con IA
                    </button>
@@ -582,7 +582,7 @@ export default function CreateAgentPage() {
           </div>
 
           {/* RIGHT – form */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 28, minWidth: 0 }}>
 
             {isTextTestStep ? (
                <>
@@ -657,7 +657,7 @@ export default function CreateAgentPage() {
                     onChange={e => setForm(f => ({ ...f, companyDesc: e.target.value }))}
                     placeholder="Describe tu empresa aquí"
                     rows={10}
-                    style={{ ...input({ minHeight: 260 }), resize: "vertical" as const }}
+                    style={{ ...input({ minHeight: 340 }), resize: "vertical" as const }}
                   />
                 </div>
               </>
@@ -708,15 +708,15 @@ export default function CreateAgentPage() {
                     </div>
 
                     <div style={{ ...fl({ gap: 10, flexWrap: "wrap" }), padding: 12, border: `1px solid ${C.border}`, borderRadius: 10, backgroundColor: C.dark }}>
-                      <label style={{ ...fl({ alignItems: "center", gap: 8 }), color: C.muted, fontSize: 13, cursor: "pointer" }}>
+                      <label style={{ ...fl({ alignItems: "center", gap: 8 }), color: C.muted, fontSize: 14, cursor: "pointer" }}>
                         <input type="checkbox" checked={form.notetakerSummary} onChange={e => setForm(f => ({ ...f, notetakerSummary: e.target.checked }))} />
                         Resumen
                       </label>
-                      <label style={{ ...fl({ alignItems: "center", gap: 8 }), color: C.muted, fontSize: 13, cursor: "pointer" }}>
+                      <label style={{ ...fl({ alignItems: "center", gap: 8 }), color: C.muted, fontSize: 14, cursor: "pointer" }}>
                         <input type="checkbox" checked={form.notetakerActionItems} onChange={e => setForm(f => ({ ...f, notetakerActionItems: e.target.checked }))} />
                         Acciones
                       </label>
-                      <label style={{ ...fl({ alignItems: "center", gap: 8 }), color: C.muted, fontSize: 13, cursor: "pointer" }}>
+                      <label style={{ ...fl({ alignItems: "center", gap: 8 }), color: C.muted, fontSize: 14, cursor: "pointer" }}>
                         <input type="checkbox" checked={form.notetakerSendEmail} onChange={e => setForm(f => ({ ...f, notetakerSendEmail: e.target.checked }))} />
                         Enviar por email
                       </label>
@@ -757,7 +757,7 @@ export default function CreateAgentPage() {
                         onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
                         placeholder="Describe que hara el flujo..."
                         rows={10}
-                        style={{ ...input({ minHeight: 260 }), resize: "vertical" as const }}
+                        style={{ ...input({ minHeight: 340 }), resize: "vertical" as const }}
                       />
                     </div>
                   </>
@@ -820,7 +820,7 @@ export default function CreateAgentPage() {
                         onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
                         placeholder="Usa este espacio para explicar los detalles de tu agente, sus tareas y como debe comportarse."
                         rows={10}
-                        style={{ ...input({ minHeight: 260 }), resize: "vertical" as const }}
+                        style={{ ...input({ minHeight: 340 }), resize: "vertical" as const }}
                       />
                       <div style={{ color: C.dim, fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
                         La configuracion avanzada (voz, canales, escalacion) se ajusta despues.
@@ -859,7 +859,7 @@ export default function CreateAgentPage() {
                     </div>
 
                     <div style={{ marginTop: 10 }}>
-                      <div style={{ color: C.muted, fontSize: 13, fontWeight: 800, marginBottom: 8 }}>Sitio web</div>
+                      <div style={{ color: C.muted, fontSize: 14, fontWeight: 800, marginBottom: 8 }}>Sitio web</div>
                       <div style={fl({ gap: 12 })}>
                         <input
                           value={form.brainWebsiteUrl}
