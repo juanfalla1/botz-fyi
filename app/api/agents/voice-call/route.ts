@@ -108,8 +108,13 @@ async function speechToText(audioBase64: string): Promise<string> {
       throw new Error("Whisper API error");
     }
 
-    const data = await response.json();
-    return data.text || "";
+     const data = await response.json();
+     let text = data.text || "";
+     // Ensure proper UTF-8 encoding
+     if (text) {
+       text = Buffer.from(text, 'latin1').toString('utf8');
+     }
+     return text;
   } catch (e) {
     console.error("Whisper error:", e);
     throw e;
@@ -188,7 +193,7 @@ async function generateResponse(
           { role: "user", content: userMessage },
         ],
         temperature: 0.7,
-        max_tokens: 120, // Muy corto para voz - máximo 2-3 oraciones
+        max_tokens: 200, // Para voz - máximo 3-4 oraciones
       }),
     });
 
