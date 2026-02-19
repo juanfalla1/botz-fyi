@@ -91,8 +91,23 @@ export default function AgentDetailPage() {
     fetchAgent();
   }, [agentId]);
 
+  // ✅ IMPORTANTE: Agentes requiere login independiente
   useEffect(() => {
     let mounted = true;
+    
+    // Verificar si ya estamos en "modo Agentes"
+    const isAgentsMode = typeof window !== "undefined" ? localStorage.getItem("botz-agents-mode") === "true" : false;
+    
+    if (!isAgentsMode) {
+      // Primera vez en Agentes - forzar login independiente
+      console.log("🔄 [Agentes Detail] Primera visita - requiere login independiente");
+      if (!mounted) return;
+      setUser(null);
+      setAuthLoading(false);
+      setOpenAuth(true);
+      return;
+    }
+    
     (async () => {
       const { data } = await supabase.auth.getSession();
       const u = data?.session?.user || null;
@@ -106,6 +121,9 @@ export default function AgentDetailPage() {
       const u = session?.user || null;
       setUser(u);
       setOpenAuth(!u);
+      if (u && typeof window !== "undefined") {
+        localStorage.setItem("botz-agents-mode", "true");
+      }
     });
 
     return () => {

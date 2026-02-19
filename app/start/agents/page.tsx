@@ -42,8 +42,24 @@ export default function AgentStudio() {
   const [trialEnd, setTrialEnd] = useState<string | null>(null);
   const [entCreditsUsed, setEntCreditsUsed] = useState<number | null>(null);
 
+  // ✅ IMPORTANTE: Agentes requiere login independiente
+  // Limpiar cualquier sesión existente de Botz Platform al cargar
   useEffect(() => {
     let mounted = true;
+    
+    // Verificar si ya estamos en "modo Agentes" (para evitar bucles)
+    const isAgentsMode = typeof window !== "undefined" ? localStorage.getItem("botz-agents-mode") === "true" : false;
+    
+    if (!isAgentsMode) {
+      // Primera vez en Agentes - forzar login independiente
+      console.log("🔄 [Agentes] Primera visita - requiere login independiente");
+      if (!mounted) return;
+      setUser(null);
+      setAuthLoading(false);
+      setOpenAuth(true); // Siempre mostrar modal en primera visita
+      return;
+    }
+    
     (async () => {
       const { data } = await supabase.auth.getSession();
       const sessionUser = data?.session?.user || null;
@@ -62,6 +78,10 @@ export default function AgentStudio() {
       setUser(u);
       setOpenAuth(!u);
       if (u) {
+        // ✅ Marcar que estamos en modo Agentes
+        if (typeof window !== "undefined") {
+          localStorage.setItem("botz-agents-mode", "true");
+        }
         fetchAgents();
         fetchEntitlement();
       }
