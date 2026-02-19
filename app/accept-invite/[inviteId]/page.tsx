@@ -156,19 +156,35 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
         return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
       })();
 
-      // ✅ NUEVO: Crear team_member con el tenant_id demo
-      // Intentar primero buscar si ya existe
+      // ✅ NUEVO: Actualizar o crear team_member con el tenant_id demo
+      // Estrategia: buscar por email, si existe actualizar, si no crear
       const { data: existingMember } = await supabase
         .from("team_members")
-        .select("id, tenant_id")
+        .select("id, tenant_id, email")
         .eq("email", invite.email)
         .maybeSingle();
 
-      let teamMember = existingMember;
+      let teamMember = null;
       let teamError = null;
 
-      // Si NO existe, crear uno nuevo
-      if (!existingMember) {
+      if (existingMember) {
+        // Si ya existe, actualizar solo tenant_id y rol (sin auth_user_id para evitar FK issues)
+        const { data: updatedMember, error: updateError } = await supabase
+          .from("team_members")
+          .update({
+            tenant_id: demoTenantId,
+            rol: "admin",
+            activo: true,
+          })
+          .eq("id", existingMember.id)
+          .select()
+          .single();
+
+        teamMember = updatedMember;
+        teamError = updateError;
+        console.log("✅ Team member actualizado:", existingMember.id, "con tenant_id:", demoTenantId);
+      } else {
+        // Si no existe, crear uno nuevo (sin auth_user_id inicialmente)
         const { data: newMember, error: insertError } = await supabase
           .from("team_members")
           .insert({
@@ -177,7 +193,6 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
             nombre: invite.email.split("@")[0],
             rol: "admin",
             activo: true,
-            auth_user_id: authData.user.id,
             permissions: { all: true },
           })
           .select()
@@ -185,30 +200,17 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
 
         teamMember = newMember;
         teamError = insertError;
-      } else {
-        // Si ya existe, actualizar su tenant_id y auth_user_id
-        const { data: updatedMember, error: updateError } = await supabase
-          .from("team_members")
-          .update({
-            tenant_id: demoTenantId,
-            auth_user_id: authData.user.id,
-            rol: "admin",
-            activo: true,
-          })
-          .eq("email", invite.email)
-          .select()
-          .single();
-
-        teamMember = updatedMember;
-        teamError = updateError;
+        console.log("✅ Team member creado:", newMember?.id, "con tenant_id:", demoTenantId);
       }
 
       if (teamError) {
         console.error("❌ Error con team_member:", teamError);
-        throw new Error(`No se pudo crear el team member: ${teamError.message}`);
+        throw new Error(`No se pudo actualizar team member: ${JSON.stringify(teamError)}`);
       }
 
-      console.log("✅ Team member listo:", teamMember?.id, "con tenant_id:", demoTenantId);
+      if (!teamMember) {
+        throw new Error("No se pudo obtener el team member después de la operación");
+      }
 
       // ✅ NUEVO: Guardar tenant_id en auth metadata (CRÍTICO para que el usuario pueda entrar)
       const { error: updateError } = await supabase.auth.updateUser({
