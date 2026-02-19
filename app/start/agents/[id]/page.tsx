@@ -72,7 +72,7 @@ export default function AgentDetailPage() {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"overview" | "conversations" | "settings" | "history">("overview");
+  const [tab, setTab] = useState<"overview" | "contexto" | "configuracion" | "cerebro" | "publicar" | "integraciones" | "conversaciones" | "historial">("overview");
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -396,9 +396,13 @@ export default function AgentDetailPage() {
           <div style={{ ...flex({ alignItems: "center", gap: 4 }), padding: "0 18px" }}>
             {([
                { id: "overview", label: "Resumen" },
-               { id: "conversations", label: "Conversaciones" },
-               { id: "history", label: "Historial" },
-               { id: "settings", label: "Configuracion" },
+               { id: "contexto", label: "Contexto" },
+               { id: "configuracion", label: "Configuración" },
+               { id: "cerebro", label: "Cerebro" },
+               { id: "publicar", label: "Publicar" },
+               { id: "integraciones", label: "Integraciones" },
+               { id: "conversaciones", label: "Conversaciones" },
+               { id: "historial", label: "Historial" },
              ] as const).map(t => (
               <button
                 key={t.id}
@@ -458,7 +462,7 @@ export default function AgentDetailPage() {
             </>
           )}
 
-          {tab === "conversations" && (
+          {tab === "conversaciones" && (
             <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden" }}>
               <div style={{ padding: 16, borderBottom: `1px solid ${C.border}`, ...flex({ alignItems: "center", justifyContent: "space-between", gap: 12 }) }}>
                 <div style={{ fontWeight: 900 }}>Conversaciones</div>
@@ -513,7 +517,7 @@ export default function AgentDetailPage() {
             </div>
           )}
 
-          {tab === "history" && (
+          {tab === "historial" && (
             <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20, minHeight: "600px" }}>
               <HistoryPanel
                 agentId={agentId}
@@ -529,21 +533,49 @@ export default function AgentDetailPage() {
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
                 onOpenSettings={() => {
-                  setTab("settings");
+                  setTab("configuracion");
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
                 onOpenBrain={() => {
-                  setTab("settings");
+                  setTab("cerebro");
                   window.scrollTo({ top: 0, behavior: "smooth" });
-                  // Podría scrollear al cerebro específicamente si existe
                 }}
               />
             </div>
           )}
 
-          {tab === "settings" && (
+          {tab === "contexto" && (
+            <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 20 }}>Contexto de la Empresa</h2>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>Nombre de la Empresa</label>
+                  <div style={{ backgroundColor: C.dark, padding: 12, borderRadius: 8, border: `1px solid ${C.border}`, color: C.white }}>
+                    {cfg?.company_name || "-"}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>URL de la Empresa</label>
+                  <div style={{ backgroundColor: C.dark, padding: 12, borderRadius: 8, border: `1px solid ${C.border}`, color: C.white }}>
+                    {cfg?.company_url || "-"}
+                  </div>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>Descripción</label>
+                  <div style={{ backgroundColor: C.dark, padding: 12, borderRadius: 8, border: `1px solid ${C.border}`, color: C.muted, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                    {cfg?.company_desc || "-"}
+                  </div>
+                </div>
+              </div>
+              <button style={{ marginTop: 20, padding: "12px 20px", borderRadius: 8, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 700, cursor: "pointer" }}>
+                ✏️ Editar Contexto
+              </button>
+            </div>
+          )}
+
+          {tab === "configuracion" && (
             <>
-              {agent.type === "voice" && agentKind !== "notetaker" ? (
+               {agent.type === "voice" && agentKind !== "notetaker" ? (
                 <div style={{ ...col(), gap: 14 }}>
                   <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }) }}>
                     <div style={{ fontWeight: 900, fontSize: 18 }}>Configuración</div>
@@ -727,9 +759,61 @@ export default function AgentDetailPage() {
                 </div>
               )}
             </>
+           )}
+
+          {tab === "cerebro" && (
+            <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 20 }}>Cerebro / Knowledge Base</h2>
+              <div style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, textAlign: "center", color: C.muted }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>🧠</div>
+                <p>Base de conocimientos del agente</p>
+                <p style={{ fontSize: 13, marginTop: 8 }}>URLs web y documentos cargados</p>
+                <button style={{ marginTop: 16, padding: "10px 16px", borderRadius: 8, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 700, cursor: "pointer" }}>
+                  ➕ Agregar Documentos
+                </button>
+              </div>
+            </div>
           )}
-        </div>
-      </main>
-    </div>
-  );
-}
+
+          {tab === "publicar" && (
+            <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 20 }}>Publicar Agente</h2>
+              <div style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20 }}>
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+                    <input type="checkbox" checked={agent.status === "active"} style={{ width: 20, height: 20 }} />
+                    <span style={{ fontWeight: 700, color: C.white }}>Hacer Público</span>
+                  </label>
+                  <p style={{ color: C.muted, fontSize: 13, marginTop: 8, marginLeft: 32 }}>Versión compatible e integrable</p>
+                </div>
+                <div style={{ marginTop: 16, padding: "12px 16px", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: C.muted }}>
+                  &lt;script src="https://widget.botz.ai/agent.js"&gt;&lt;/script&gt;
+                </div>
+                <button style={{ marginTop: 16, padding: "12px 20px", borderRadius: 8, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 700, cursor: "pointer" }}>
+                  📋 Copiar Código
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tab === "integraciones" && (
+            <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 20 }}>Integraciones</h2>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+                {["Twilio", "WhatsApp", "Slack", "Zapier", "Make", "Discord"].map(integration => (
+                  <div key={integration} style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, textAlign: "center" }}>
+                    <div style={{ fontSize: 32, marginBottom: 8 }}>🔗</div>
+                    <div style={{ fontWeight: 700, marginBottom: 8 }}>{integration}</div>
+                    <button style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                      Conectar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+         </div>
+       </main>
+     </div>
+   );
+ }
