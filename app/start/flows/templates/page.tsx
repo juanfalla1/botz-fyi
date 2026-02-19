@@ -261,9 +261,9 @@ export default function FlowTemplatesPage() {
           </aside>
 
           {/* main */}
-          <div style={{ flex: 1, minWidth: 0, padding: 22, overflow: "hidden" }}>
-            <div style={{ fontSize: 34, fontWeight: 900, marginBottom: 6 }}>All Templates</div>
-            <div style={{ color: C.muted, fontSize: 16, marginBottom: 18 }}>Save time, stand out, and drive result.</div>
+          <div style={{ flex: 1, minWidth: 0, padding: 22, overflow: "auto" }}>
+            <div style={{ fontSize: 34, fontWeight: 900, marginBottom: 6 }}>Todas las Plantillas</div>
+            <div style={{ color: C.muted, fontSize: 16, marginBottom: 18 }}>Ahorra tiempo, destácate y obtén resultados.</div>
 
             <div style={{ ...flex({ alignItems: "center", gap: 12 }), marginBottom: 16 }}>
               <div style={{ flex: 1, position: "relative" }}>
