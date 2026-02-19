@@ -72,19 +72,39 @@ export default function AgentStudio() {
       } else if (sessionUser && !isAgentsMode) {
         // 🚫 Sesión de Botz Platform - FORZAR LOGOUT
         console.log("🚫 [Agentes] Sesión de Botz Platform detectada - Forzando logout");
-        await supabase.auth.signOut();
-        
-        // Limpiar todo excepto lo necesario
-        if (typeof window !== "undefined") {
-          const keysToRemove = Object.keys(localStorage).filter(k => 
-            k.startsWith('sb-') || k.includes('supabase') || k === 'botz-platform-session'
-          );
-          keysToRemove.forEach(k => localStorage.removeItem(k));
+        try {
+          const { error } = await supabase.auth.signOut();
+          if (error) {
+            console.error("🚫 [Agentes] Error en signOut:", error);
+          } else {
+            console.log("✅ [Agentes] Logout exitoso");
+          }
+        } catch (e) {
+          console.error("🚫 [Agentes] Excepción en signOut:", e);
         }
         
-        setUser(null);
-        setAuthLoading(false);
-        setOpenAuth(true);
+        // Limpiar TODO el localStorage relacionado con auth
+        if (typeof window !== "undefined") {
+          console.log("🧹 [Agentes] Limpiando localStorage...");
+          const keysBefore = Object.keys(localStorage);
+          console.log("🧹 [Agentes] Keys antes:", keysBefore);
+          
+          // Remover todas las keys de Supabase
+          keysBefore.forEach(k => {
+            if (k.startsWith('sb-') || k.includes('supabase') || k.includes('botz')) {
+              localStorage.removeItem(k);
+              console.log("🧹 [Agentes] Removida key:", k);
+            }
+          });
+          
+          const keysAfter = Object.keys(localStorage);
+          console.log("🧹 [Agentes] Keys después:", keysAfter);
+        }
+        
+        // Forzar recarga para limpiar estado
+        console.log("🔄 [Agentes] Forzando recarga de página...");
+        window.location.reload();
+        return;
       } else {
         // No hay sesión
         console.log("🔄 [Agentes] No hay sesión - Mostrando login");

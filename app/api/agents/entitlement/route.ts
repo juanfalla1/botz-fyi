@@ -12,8 +12,13 @@ function planToCredits(planKey: string) {
 }
 
 export async function GET(req: Request) {
+  console.log("🔍 [API entitlement] Request recibida");
+  
   const guard = await getRequestUser(req);
+  console.log("🔍 [API entitlement] Guard result:", guard);
+  
   if (!guard.ok) {
+    console.error("🔍 [API entitlement] Auth failed:", guard.error);
     return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
   }
 
