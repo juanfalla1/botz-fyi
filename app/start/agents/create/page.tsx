@@ -541,7 +541,7 @@ export default function CreateAgentPage() {
 
       {/* ── content ── */}
        <div style={{ flex: 1, padding: isMobile ? "36px 20px" : "56px", maxWidth: 1180, margin: "0 auto", width: "100%" }}>
-         <div style={{ display: "flex", flexDirection: isTextTestStep ? "column" : "row", gap: isMobile ? 28 : 72 }}>
+          <div style={{ display: "flex", flexDirection: isTextTestStep ? "column" : "row", gap: isMobile ? 28 : 40 }}>
 
            {/* LEFT – description */}
             <div style={{ flex: isTextTestStep ? "1 1 100%" : "0 0 35%", minWidth: 0 }}>
