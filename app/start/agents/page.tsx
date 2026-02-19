@@ -43,42 +43,52 @@ export default function AgentStudio() {
   const [entCreditsUsed, setEntCreditsUsed] = useState<number | null>(null);
 
   // ✅ IMPORTANTE: Agentes requiere login independiente
-  // Limpiar cualquier sesión existente de Botz Platform al cargar
+  // Verificar sesión al cargar
   useEffect(() => {
     let mounted = true;
-    
-    // Verificar si ya estamos en "modo Agentes" (para evitar bucles)
-    const isAgentsMode = typeof window !== "undefined" ? localStorage.getItem("botz-agents-mode") === "true" : false;
-    
-    if (!isAgentsMode) {
-      // Primera vez en Agentes - forzar login independiente
-      console.log("🔄 [Agentes] Primera visita - requiere login independiente");
-      if (!mounted) return;
-      setUser(null);
-      setAuthLoading(false);
-      setOpenAuth(true); // Siempre mostrar modal en primera visita
-      return;
-    }
     
     (async () => {
       const { data } = await supabase.auth.getSession();
       const sessionUser = data?.session?.user || null;
+      console.log("🔑 [Agentes] Sesión detectada:", sessionUser?.email || "No hay sesión");
+      
       if (!mounted) return;
-      setUser(sessionUser);
-      setAuthLoading(false);
-      setOpenAuth(!sessionUser);
+      
       if (sessionUser) {
+        // Hay sesión activa (posiblemente de OAuth redirect)
+        console.log("✅ [Agentes] Sesión activa encontrada, marcando modo Agentes");
+        if (typeof window !== "undefined") {
+          localStorage.setItem("botz-agents-mode", "true");
+        }
+        setUser(sessionUser);
+        setAuthLoading(false);
+        setOpenAuth(false);
         fetchAgents();
         fetchEntitlement();
+      } else {
+        // No hay sesión - verificar si es primera visita
+        const isAgentsMode = typeof window !== "undefined" ? localStorage.getItem("botz-agents-mode") === "true" : false;
+        
+        if (!isAgentsMode) {
+          console.log("🔄 [Agentes] Primera visita sin sesión - mostrar login");
+          setUser(null);
+          setAuthLoading(false);
+          setOpenAuth(true);
+        } else {
+          console.log("🔄 [Agentes] Modo Agentes activo pero sin sesión - mostrar login");
+          setUser(null);
+          setAuthLoading(false);
+          setOpenAuth(true);
+        }
       }
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       const u = session?.user || null;
+      console.log("🔑 [Agentes] Auth state change:", u?.email || "No user");
       setUser(u);
       setOpenAuth(!u);
       if (u) {
-        // ✅ Marcar que estamos en modo Agentes
         if (typeof window !== "undefined") {
           localStorage.setItem("botz-agents-mode", "true");
         }
