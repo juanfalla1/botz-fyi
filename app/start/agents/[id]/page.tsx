@@ -92,37 +92,50 @@ export default function AgentDetailPage() {
   }, [agentId]);
 
   // ✅ IMPORTANTE: Agentes requiere login independiente
+  // ✅ IMPORTANTE: Agentes requiere login COMPLETAMENTE independiente
   useEffect(() => {
     let mounted = true;
     
-    // Verificar si ya estamos en "modo Agentes"
-    const isAgentsMode = typeof window !== "undefined" ? localStorage.getItem("botz-agents-mode") === "true" : false;
-    
-    if (!isAgentsMode) {
-      // Primera vez en Agentes - forzar login independiente
-      console.log("🔄 [Agentes Detail] Primera visita - requiere login independiente");
-      if (!mounted) return;
-      setUser(null);
-      setAuthLoading(false);
-      setOpenAuth(true);
-      return;
-    }
-    
-    (async () => {
+    const initDetail = async () => {
       const { data } = await supabase.auth.getSession();
       const u = data?.session?.user || null;
+      const isAgentsMode = typeof window !== "undefined" ? localStorage.getItem("botz-agents-mode") === "true" : false;
+      
+      console.log("🔑 [Agentes Detail] Init:", { user: u?.email, isAgentsMode });
+      
       if (!mounted) return;
-      setUser(u);
-      setAuthLoading(false);
-      setOpenAuth(!u);
-    })();
+      
+      if (u && isAgentsMode) {
+        // ✅ Sesión de Agentes válida
+        setUser(u);
+        setAuthLoading(false);
+        setOpenAuth(false);
+      } else if (u && !isAgentsMode) {
+        // 🚫 Sesión de Botz Platform - forzar logout
+        console.log("🚫 [Agentes Detail] Logout de Botz Platform");
+        await supabase.auth.signOut();
+        setUser(null);
+        setAuthLoading(false);
+        setOpenAuth(true);
+      } else {
+        // No hay sesión
+        setUser(null);
+        setAuthLoading(false);
+        setOpenAuth(true);
+      }
+    };
+    
+    initDetail();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user || null;
-      setUser(u);
-      setOpenAuth(!u);
-      if (u && typeof window !== "undefined") {
+      if (event === "SIGNED_IN" && u) {
         localStorage.setItem("botz-agents-mode", "true");
+        setUser(u);
+        setOpenAuth(false);
+      } else if (event === "SIGNED_OUT") {
+        setUser(null);
+        setOpenAuth(true);
       }
     });
 

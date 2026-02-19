@@ -42,58 +42,77 @@ export default function AgentStudio() {
   const [trialEnd, setTrialEnd] = useState<string | null>(null);
   const [entCreditsUsed, setEntCreditsUsed] = useState<number | null>(null);
 
-  // ✅ IMPORTANTE: Agentes requiere login independiente
-  // Verificar sesión al cargar
+  // ✅ IMPORTANTE: Agentes requiere login COMPLETAMENTE independiente
+  // Solo comparte sesión si es específicamente de Agentes
   useEffect(() => {
     let mounted = true;
     
-    (async () => {
+    const initAgents = async () => {
+      // Verificar si ya hay sesión activa
       const { data } = await supabase.auth.getSession();
       const sessionUser = data?.session?.user || null;
-      console.log("🔑 [Agentes] Sesión detectada:", sessionUser?.email || "No hay sesión");
+      const isAgentsMode = typeof window !== "undefined" ? localStorage.getItem("botz-agents-mode") === "true" : false;
+      
+      console.log("🔑 [Agentes] Init check:", { 
+        user: sessionUser?.email || "No session", 
+        isAgentsMode,
+        userMetadata: sessionUser?.user_metadata 
+      });
       
       if (!mounted) return;
       
-      if (sessionUser) {
-        // Hay sesión activa (posiblemente de OAuth redirect)
-        console.log("✅ [Agentes] Sesión activa encontrada, marcando modo Agentes");
-        if (typeof window !== "undefined") {
-          localStorage.setItem("botz-agents-mode", "true");
-        }
+      if (sessionUser && isAgentsMode) {
+        // ✅ Sesión de Agentes existente - usarla directamente
+        console.log("✅ [Agentes] Sesión de Agentes existente - Ingresando directamente");
         setUser(sessionUser);
         setAuthLoading(false);
         setOpenAuth(false);
         fetchAgents();
         fetchEntitlement();
-      } else {
-        // No hay sesión - verificar si es primera visita
-        const isAgentsMode = typeof window !== "undefined" ? localStorage.getItem("botz-agents-mode") === "true" : false;
+      } else if (sessionUser && !isAgentsMode) {
+        // 🚫 Sesión de Botz Platform - FORZAR LOGOUT
+        console.log("🚫 [Agentes] Sesión de Botz Platform detectada - Forzando logout");
+        await supabase.auth.signOut();
         
-        if (!isAgentsMode) {
-          console.log("🔄 [Agentes] Primera visita sin sesión - mostrar login");
-          setUser(null);
-          setAuthLoading(false);
-          setOpenAuth(true);
-        } else {
-          console.log("🔄 [Agentes] Modo Agentes activo pero sin sesión - mostrar login");
-          setUser(null);
-          setAuthLoading(false);
-          setOpenAuth(true);
+        // Limpiar todo excepto lo necesario
+        if (typeof window !== "undefined") {
+          const keysToRemove = Object.keys(localStorage).filter(k => 
+            k.startsWith('sb-') || k.includes('supabase') || k === 'botz-platform-session'
+          );
+          keysToRemove.forEach(k => localStorage.removeItem(k));
         }
+        
+        setUser(null);
+        setAuthLoading(false);
+        setOpenAuth(true);
+      } else {
+        // No hay sesión
+        console.log("🔄 [Agentes] No hay sesión - Mostrando login");
+        setUser(null);
+        setAuthLoading(false);
+        setOpenAuth(true);
       }
-    })();
+    };
+    
+    initAgents();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user || null;
-      console.log("🔑 [Agentes] Auth state change:", u?.email || "No user");
-      setUser(u);
-      setOpenAuth(!u);
-      if (u) {
+      console.log("🔑 [Agentes] Auth event:", event, "User:", u?.email || "No user");
+      
+      if (event === "SIGNED_IN" && u) {
+        // Marcar como modo Agentes al hacer login exitoso
         if (typeof window !== "undefined") {
           localStorage.setItem("botz-agents-mode", "true");
+          console.log("✅ [Agentes] Login exitoso - Marcado como modo Agentes");
         }
+        setUser(u);
+        setOpenAuth(false);
         fetchAgents();
         fetchEntitlement();
+      } else if (event === "SIGNED_OUT") {
+        setUser(null);
+        setOpenAuth(true);
       }
     });
 
