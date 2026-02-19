@@ -7,6 +7,7 @@ interface ChatTestPanelProps {
   agentRole: string;
   agentPrompt: string;
   companyContext: string;
+  brainFiles?: { name: string; content: string; type: string }[];
 }
 
 const C = {
@@ -28,10 +29,12 @@ export default function ChatTestPanel({
   agentRole,
   agentPrompt,
   companyContext,
+  brainFiles = [],
 }: ChatTestPanelProps) {
   const [messages, setMessages] = useState<{ role: "user" | "agent"; content: string }[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom
@@ -46,20 +49,47 @@ export default function ChatTestPanel({
     setInput("");
     setMessages(prev => [...prev, { role: "user", content: userMessage }]);
     setIsTyping(true);
+    setError(null);
 
-    // Simulated agent response (placeholder for API)
-    setTimeout(() => {
-      const responses = [
-        `¡Hola! Soy ${agentName}. ${agentRole}. ¿En qué puedo ayudarte hoy?`,
-        "Entiendo. Déjame buscar esa información para ti.",
-        "Claro, puedo ayudarte con eso. ¿Tienes alguna preferencia específica?",
-        "Perfecto, he registrado tu solicitud. ¿Algo más en lo que pueda asistirte?",
-      ];
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+    try {
+      // Construir el contexto del agente
+      const context = `
+Tu nombre es: ${agentName}
+Tu rol/propósito es: ${agentRole}
+Instrucciones: ${agentPrompt}
+${companyContext ? `Información de la empresa: ${companyContext}` : ""}
+${brainFiles.length > 0 ? `\nDocumentación relevante disponible: ${brainFiles.map(f => f.name).join(", ")}` : ""}
+`;
+
+      // Realizar la llamada a la API
+      const res = await fetch("/api/agents/chat-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMessage,
+          context,
+          conversationHistory: messages,
+          brainFiles: brainFiles.map(f => ({ name: f.name, content: f.content })),
+        }),
+      });
+
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json?.error || "No se pudo obtener respuesta");
+      }
+
+      const json = await res.json();
+      const agentResponse = json?.response || "No pude procesar tu solicitud.";
       
-      setMessages(prev => [...prev, { role: "agent", content: randomResponse }]);
+      setMessages(prev => [...prev, { role: "agent", content: agentResponse }]);
+    } catch (err: any) {
+      console.error("Error en chat:", err);
+      setError(err?.message || "Error al conectar con el agente");
+      const errorMsg = "Disculpa, tengo problemas técnicos. Intenta de nuevo en unos momentos.";
+      setMessages(prev => [...prev, { role: "agent", content: errorMsg }]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -107,6 +137,19 @@ export default function ChatTestPanel({
           </div>
         </div>
       </div>
+
+      {/* Error message */}
+      {error && (
+        <div style={{
+          padding: "12px 16px",
+          backgroundColor: "rgba(239,68,68,0.15)",
+          color: "#f87171",
+          fontSize: 13,
+          borderBottom: `1px solid rgba(239,68,68,0.3)`,
+        }}>
+          ⚠️ {error}
+        </div>
+      )}
 
       {/* Messages */}
       <div style={{ 

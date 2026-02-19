@@ -8,6 +8,7 @@ import { authedFetch, AuthRequiredError } from "@/app/start/_utils/authedFetch";
 import VoiceTestPanel from "@/app/start/agents/components/VoiceTestPanel";
 import ChatTestPanel from "@/app/start/agents/components/ChatTestPanel";
 import AgentMetrics from "@/app/start/agents/components/AgentMetrics";
+import FileUploadPanel from "@/app/start/agents/components/FileUploadPanel";
 
 
 const C = {
@@ -155,6 +156,7 @@ export default function CreateAgentPage() {
     brainTab: "web" as "web" | "files",
     brainWebsiteUrl: "",
     brainLastRun: "",
+    brainFiles: [] as { name: string; content: string; type: string }[],
 
     // flow
     flowTrigger: "webhook" as "webhook" | "schedule" | "event",
@@ -360,6 +362,11 @@ export default function CreateAgentPage() {
           configuration.brain = {
             website_url: form.brainWebsiteUrl,
             last_run: form.brainLastRun,
+            files: form.brainFiles.map(f => ({
+              name: f.name,
+              size: f.content.length,
+              type: f.type,
+            })),
           };
         }
         if (agentType === "voice") {
@@ -907,10 +914,22 @@ export default function CreateAgentPage() {
                     </div>
                   </>
                 ) : (
-                  <div style={{ marginTop: 14, border: `1px dashed ${C.border}`, borderRadius: 14, padding: 22, color: C.muted }}>
-                    Subida de archivos (proximo). Por ahora puedes continuar.
-                  </div>
-                )}
+                   <FileUploadPanel
+                     onFilesAdded={(files) => {
+                       setForm(f => ({
+                         ...f,
+                         brainFiles: [...f.brainFiles, ...files]
+                       }));
+                     }}
+                     existingFiles={form.brainFiles}
+                     onFileRemoved={(idx) => {
+                       setForm(f => ({
+                         ...f,
+                         brainFiles: f.brainFiles.filter((_, i) => i !== idx)
+                       }));
+                     }}
+                   />
+                 )}
               </>
             ) : (
               step === 3 && (
@@ -926,13 +945,14 @@ export default function CreateAgentPage() {
                     }}
                   />
                 ) : (
-                  <ChatTestPanel
-                    agentName={form.agentName}
-                    agentRole={form.agentRole}
-                    agentPrompt={form.agentPrompt}
-                    companyContext={form.companyDesc}
-                  />
-                )
+                   <ChatTestPanel
+                     agentName={form.agentName}
+                     agentRole={form.agentRole}
+                     agentPrompt={form.agentPrompt}
+                     companyContext={form.companyDesc}
+                     brainFiles={form.brainFiles}
+                   />
+                 )
               )
             )}
 
