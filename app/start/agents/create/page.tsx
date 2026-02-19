@@ -515,24 +515,24 @@ export default function CreateAgentPage() {
                   {/* left line */}
                   {idx > 0 && <div style={{ flex: 1, height: 2, backgroundColor: done || active ? C.blue : C.border }} />}
                   {/* circle */}
-                  <div style={{
-                    width: 38, height: 38, borderRadius: "50%",
-                    backgroundColor: active ? C.blue : done ? `${C.blue}44` : "transparent",
-                    border: `2px solid ${active || done ? C.blue : C.border}`,
-                    ...fl({ alignItems: "center", justifyContent: "center" }),
-                    flexShrink: 0,
-                  }}>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: active || done ? C.white : C.dim }}>{s.id}</span>
-                  </div>
+                   <div style={{
+                     width: 50, height: 50, borderRadius: "50%",
+                     backgroundColor: active ? C.blue : done ? `${C.blue}44` : "transparent",
+                     border: `2px solid ${active || done ? C.blue : C.border}`,
+                     ...fl({ alignItems: "center", justifyContent: "center" }),
+                     flexShrink: 0,
+                   }}>
+                     <span style={{ fontSize: 18, fontWeight: 800, color: active || done ? C.white : C.dim }}>{s.id}</span>
+                   </div>
                   {/* right line */}
                   {idx < steps.length - 1 && <div style={{ flex: 1, height: 2, backgroundColor: done ? C.blue : C.border }} />}
                 </div>
-                {/* label */}
-                <div style={{ marginTop: 8, marginBottom: 12, textAlign: "center" }}>
-                  <span style={{ fontSize: 13, fontWeight: active ? 700 : 400, color: active ? C.blue : C.muted }}>
-                    {s.label}{s.required && <span style={{ color: C.red }}>*</span>}
-                  </span>
-                </div>
+                 {/* label */}
+                 <div style={{ marginTop: 8, marginBottom: 12, textAlign: "center" }}>
+                   <span style={{ fontSize: 15, fontWeight: active ? 700 : 400, color: active ? C.blue : C.muted }}>
+                     {s.label}{s.required && <span style={{ color: C.red }}>*</span>}
+                   </span>
+                 </div>
               </div>
             );
           })}
@@ -571,9 +571,9 @@ export default function CreateAgentPage() {
                </>
              ) : (
               <>
-                <h2 style={{ fontSize: isMobile ? 26 : 30, fontWeight: 800, margin: "0 0 18px", lineHeight: 1.2, whiteSpace: "pre-line" }}>
-                  {left.title}
-                </h2>
+                <h2 style={{ fontSize: isMobile ? 18 : 18, fontWeight: 800, margin: "0 0 18px", lineHeight: 1.2, whiteSpace: "pre-line" }}>
+                   {left.title}
+                 </h2>
                 <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, margin: 0 }}>
                   {left.body}
                 </p>

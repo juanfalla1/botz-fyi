@@ -115,12 +115,13 @@ export default function VoiceTestPanel({
       reader.onload = async (event) => {
         const audioBase64 = (event.target?.result as string).split(",")[1];
 
-        // Construir contexto del agente
-        const context = `Tu nombre es: ${agentName}
+         // Construir contexto del agente
+         const context = `Tu nombre es: ${agentName}
 Tu rol/propósito es: ${agentRole}
 Instrucciones: ${agentPrompt}
 ${companyContext ? `Información de la empresa: ${companyContext}` : ""}
 
+CONTEXTO: Estás en una llamada telefónica en vivo. Puedes responder cualquier pregunta del usuario como si fuera un chat, pero en formato de voz. No rechaces ayudar por limitaciones técnicas.
 Responde de forma concisa en una llamada telefónica. Máximo 1-2 oraciones.`;
 
         // Enviar al endpoint
