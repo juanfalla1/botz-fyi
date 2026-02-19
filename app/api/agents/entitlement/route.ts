@@ -35,7 +35,8 @@ export async function GET(req: Request) {
       .maybeSingle();
 
     if (selErr) {
-      return NextResponse.json({ ok: false, error: selErr.message }, { status: 400 });
+      console.error("[API entitlement] Error reading agent_entitlements:", selErr);
+      return NextResponse.json({ ok: false, error: selErr.message || "read entitlement error" }, { status: 500 });
     }
 
     // Compute current credits used from existing agents/flows as a source of truth.
@@ -46,24 +47,30 @@ export async function GET(req: Request) {
       .eq("created_by", guard.user.id);
 
     if (agentsErr) {
-      return NextResponse.json({ ok: false, error: agentsErr.message }, { status: 400 });
+      console.error("[API entitlement] Error reading ai_agents:", agentsErr);
+      return NextResponse.json({ ok: false, error: agentsErr.message || "agents read error" }, { status: 500 });
     }
 
     const creditsUsedTotal = (agents || []).reduce((sum: number, a: any) => sum + (Number(a?.credits_used || 0) || 0), 0);
 
     if (!existing) {
       const trialStart = new Date();
-      const trialEnd = new Date(trialStart.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+      // 2 days trial
+      const trialEndIso = new Date(trialStart.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString();
       const plan_key = "pro";
+      
+      // NOTA: Eliminamos tenant_id porque la tabla no tiene esa columna
       const payload = {
         user_id: guard.user.id,
         plan_key,
-        status: "trial",
+        status: "trialing",
         credits_limit: planToCredits(plan_key),
         credits_used: creditsUsedTotal,
         trial_start: trialStart.toISOString(),
-        trial_end: trialEnd.toISOString(),
+        trial_end: trialEndIso,
       };
+
+      console.log("📝 [API entitlement] Creando nuevo entitlement:", payload);
 
       const { data: inserted, error: insErr } = await supabase
         .from("agent_entitlements")
@@ -72,9 +79,11 @@ export async function GET(req: Request) {
         .single();
 
       if (insErr) {
-        return NextResponse.json({ ok: false, error: insErr.message }, { status: 400 });
+        console.error("❌ [API entitlement] Error al crear auto entitlement:", insErr);
+        return NextResponse.json({ ok: false, error: insErr.message || "auto entitlements error" }, { status: 500 });
       }
 
+      console.log("✅ [API entitlement] Entitlement creado exitosamente");
       return NextResponse.json({ ok: true, data: inserted, credits_used_total: creditsUsedTotal });
     }
 
