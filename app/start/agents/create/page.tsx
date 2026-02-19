@@ -540,35 +540,36 @@ export default function CreateAgentPage() {
       </div>
 
       {/* ── content ── */}
-      <div style={{ flex: 1, padding: isMobile ? "36px 20px" : "56px", maxWidth: 1180, margin: "0 auto", width: "100%" }}>
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : (isTextTestStep ? "1fr 1fr" : "320px 1fr"), gap: isMobile ? 28 : 72 }}>
+       <div style={{ flex: 1, padding: isMobile ? "36px 20px" : "56px", maxWidth: 1180, margin: "0 auto", width: "100%" }}>
+         <div style={{ display: "flex", flexDirection: isTextTestStep ? "column" : "row", gap: isMobile ? 28 : 72 }}>
 
-          {/* LEFT – description */}
-          <div>
-            {isTextTestStep ? (
-              <>
-                <h2 style={{ fontSize: isMobile ? 26 : 30, fontWeight: 800, margin: "0 0 14px", lineHeight: 1.2 }}>
-                  Instrucciones
-                </h2>
-                <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, margin: "0 0 16px" }}>
-                  Ingresa las instrucciones específicas para tu agente o selecciona y edita una de las plantillas predefinidas.
-                </p>
-                <textarea
-                  value={form.agentPrompt}
-                  onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
-                  rows={16}
-                  style={{ ...input({ minHeight: isMobile ? 260 : 420, fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace" }), resize: "vertical" as const }}
-                />
-                <div style={{ marginTop: 14 }}>
-                  <button
-                    type="button"
-                    style={{ padding: "12px 16px", borderRadius: 10, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 900, cursor: "pointer" }}
-                  >
-                    ✦ Generar con IA
-                  </button>
-                </div>
-              </>
-            ) : (
+           {/* LEFT – description */}
+           <div style={{ minWidth: isTextTestStep ? "100%" : "320px" }}>
+             {isTextTestStep ? (
+               <>
+                 <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 12px", lineHeight: 1.2 }}>
+                   📝 Instrucciones del Agente
+                 </h2>
+                 <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.6, margin: "0 0 14px" }}>
+                   Define el comportamiento y las respuestas del agente de texto.
+                 </p>
+                 <textarea
+                   value={form.agentPrompt}
+                   onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
+                   rows={10}
+                   placeholder="Ejemplo: Eres un asistente de ventas amable y profesional..."
+                   style={{ ...input({ minHeight: 180, fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace", fontSize: 12 }), resize: "vertical" as const }}
+                 />
+                 <div style={{ marginTop: 12 }}>
+                   <button
+                     type="button"
+                     style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                   >
+                     ✦ Generar con IA
+                   </button>
+                 </div>
+               </>
+             ) : (
               <>
                 <h2 style={{ fontSize: isMobile ? 26 : 30, fontWeight: 800, margin: "0 0 18px", lineHeight: 1.2, whiteSpace: "pre-line" }}>
                   {left.title}
@@ -584,45 +585,16 @@ export default function CreateAgentPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
 
             {isTextTestStep ? (
-              <>
-                <div style={{ backgroundColor: C.dark, borderRadius: 14, border: `1px solid ${C.border}`, padding: 24, minHeight: 400 }}>
-                  <VoiceTestPanel
-                    agentName={form.agentName || "Agente"}
-                    agentRole={form.agentRole}
-                    agentPrompt={form.agentPrompt}
-                    companyContext={form.companyDesc}
-                    voiceSettings={{
-                      model: form.voice,
-                      voice: form.voice,
-                    }}
-                  />
-                </div>
-
-                <div style={{ backgroundColor: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, color: C.white, marginBottom: 14, lineHeight: 1.6 }}>
-                  ¡Estoy listo para ayudarte! Escribe tu primer mensaje abajo para comenzar a explorar lo que puedo resolver.
-                </div>
-
-                <div style={{ display: "grid", gap: 10, marginBottom: 14 }}>
-                  {[
-                    "What services do you offer?",
-                    "How can I contact support?",
-                  ].map(q => (
-                    <button
-                      key={q}
-                      type="button"
-                      style={{ textAlign: "left", padding: "14px 16px", borderRadius: 14, border: `1px solid ${C.border}`, backgroundColor: "rgba(255,255,255,0.04)", color: C.white, cursor: "pointer", fontWeight: 700 }}
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-
-                <div style={{ ...fl({ gap: 10 }) }}>
-                  <input placeholder="Escribe un mensaje…" style={input({ flex: 1 })} />
-                  <button style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: C.blue, border: "none", color: "#fff", fontWeight: 900, cursor: "pointer" }}>
-                    ▶
-                  </button>
-                </div>
+               <>
+                 <div style={{ backgroundColor: C.dark, borderRadius: 14, border: `1px solid ${C.border}`, padding: 20, minHeight: 500, flex: 1, display: "flex", flexDirection: "column" }}>
+                   <ChatTestPanel
+                     agentName={form.agentName || "Agente"}
+                     agentRole={form.agentRole}
+                     agentPrompt={form.agentPrompt}
+                     companyContext={form.companyDesc}
+                     brainFiles={form.brainFiles}
+                   />
+                 </div>
               </>
             ) : (
               <>
