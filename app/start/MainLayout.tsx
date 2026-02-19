@@ -47,6 +47,7 @@ import {
 import { supabase } from "../supabaseClient"; // Ajusta la ruta según tu proyecto
 // AuthModal is rendered once in start/page.tsx.
 import ActionsDock from "./components/ActionsDock"; // Ajusta la ruta según tu estructura
+import DemoTrialBanner from "../components/DemoTrialBanner"; // ✅ NUEVO: Banner de demo trial
 
 // ============================================================================
 // ✅ TIPOS Y CONFIGURACIÓN DE PLANES
@@ -975,6 +976,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         subscriptionUpdateKey,
       }}
     >
+      {/* ✅ NUEVO: Banner de demo trial si el usuario está en trial */}
+      {user && user.user_metadata?.is_trial && user.user_metadata?.trial_end && (
+        <DemoTrialBanner 
+          trialEndDate={user.user_metadata.trial_end}
+          onClose={() => console.log("Banner cerrado")}
+        />
+      )}
       {children}
     </AuthContext.Provider>
   );
