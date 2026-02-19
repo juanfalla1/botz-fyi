@@ -2,7 +2,18 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const { audio, context, conversationHistory, agentConfig } = await req.json();
+    const { audio, context, conversationHistory, agentConfig, generateAudioOnly, textToSpeak } = await req.json();
+
+    // Caso especial: solo generar audio para un texto específico (ej: saludo inicial)
+    if (generateAudioOnly && textToSpeak) {
+      try {
+        const audioUrl = await textToSpeech(textToSpeak, agentConfig?.voice || "nova");
+        return NextResponse.json({ ok: true, audioUrl });
+      } catch (err) {
+        console.error("TTS error:", err);
+        return NextResponse.json({ ok: true, audioUrl: null });
+      }
+    }
 
     if (!audio) {
       return NextResponse.json({ ok: false, error: "Missing audio data" }, { status: 400 });

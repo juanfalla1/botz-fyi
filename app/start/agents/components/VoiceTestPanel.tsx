@@ -192,14 +192,51 @@ Responde de forma concisa en una llamada telefónica. Máximo 1-2 oraciones.`;
       stream.getTracks().forEach(track => track.stop());
 
       setIsCallActive(true);
+      
+      const greetingText = `Hola ${variables.contact_name}, soy ${agentName}. ¿Cómo puedo ayudarte hoy?`;
+      
       setTranscript([
         {
           speaker: "agent",
-          text: `Hola ${variables.contact_name}, soy ${agentName}. ¿Cómo puedo ayudarte hoy?`,
+          text: greetingText,
         },
       ]);
 
       conversationHistoryRef.current = [];
+
+      // Generar y reproducir saludo con TTS
+      try {
+        const response = await fetch("/api/agents/voice-call", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            audio: null, // No hay audio del usuario para el saludo inicial
+            context: `Tu nombre es: ${agentName}`,
+            conversationHistory: [],
+            agentConfig: {
+              voice: voiceSettings?.voice || "nova",
+              model: voiceSettings?.model || "gpt-3.5-turbo",
+            },
+            generateAudioOnly: true, // Flag para generar solo audio sin procesar entrada
+            textToSpeak: greetingText,
+          }),
+        });
+
+        if (response.ok) {
+          const json = await response.json();
+          const audioUrl = json.audioUrl;
+
+          if (audioUrl && audioRef.current) {
+            audioRef.current.src = audioUrl;
+            await audioRef.current.play().catch(e => {
+              console.error("Error playing greeting audio:", e);
+            });
+          }
+        }
+      } catch (ttsErr) {
+        console.error("TTS error for greeting:", ttsErr);
+        // No es crítico si falla el TTS inicial
+      }
     } catch (err: any) {
       setError("No se pudo acceder al micrófono. Verifica los permisos.");
       console.error("Microphone error:", err);
@@ -221,62 +258,50 @@ Responde de forma concisa en una llamada telefónica. Máximo 1-2 oraciones.`;
   };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, height: "100%" }}>
-      {/* Left Panel - Instructions */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, height: "100%" }}>
+      {/* Top Panel - Instructions (Horizontal) */}
       <div
         style={{
           backgroundColor: C.dark,
           borderRadius: 14,
           border: `1px solid ${C.border}`,
-          padding: 24,
+          padding: 16,
           display: "flex",
           flexDirection: "column",
+          maxHeight: 140,
           overflow: "hidden",
         }}
       >
-        <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 12, color: C.white }}>
-          Instrucciones
+        <div style={{ fontWeight: 900, fontSize: 14, marginBottom: 8, color: C.white }}>
+          📋 Instrucciones del Agente
         </div>
         <div
           style={{
             flex: 1,
             overflow: "auto",
-            fontSize: 14,
-            lineHeight: 1.6,
+            fontSize: 12,
+            lineHeight: 1.5,
             color: C.muted,
             fontFamily: "monospace",
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
           }}
         >
-          {`# Rol
-Eres **${agentName}**, un agente de voz de Botz.
-
-# Propósito
-${agentRole || "Asistente virtual"}
-
-# Instrucciones
-${agentPrompt || "Ayuda al cliente de forma clara y profesional"}
-
-# Empresa
-${companyContext || "Botz - Soluciones de IA"}
-
-# Directrices
-- Responde de forma concisa (1-2 oraciones)
-- Sé amable y profesional
-- Ayuda al cliente con sus preguntas`}
+          {`Nombre: ${agentName} | Rol: ${agentRole || "Asistente"} | Empresa: ${companyContext?.substring(0, 50) || "Botz"}`}
+          {agentPrompt && `\n\nInstrucciones: ${agentPrompt}`}
         </div>
       </div>
 
-      {/* Right Panel - Call Interface */}
+      {/* Call Interface Panel */}
       <div
         style={{
           backgroundColor: C.dark,
           borderRadius: 14,
           border: `1px solid ${C.border}`,
-          padding: 24,
+          padding: 20,
           display: "flex",
           flexDirection: "column",
+          flex: 1,
         }}
       >
         <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 16, color: C.white }}>
