@@ -1,0 +1,255 @@
+================================================================================
+COMPARACIÓN VISUAL: FLUJO NORMAL vs FLUJO DEMO/TRIAL
+================================================================================
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    FLUJO 1: info@botz.fyi (FUNCIONA)                       ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+PASO 1: Login
+─────────────────────────────────────────────────────────────────────────────
+  Usuario abre /start
+  ↓
+  Entra con email: info@botz.fyi
+  ↓
+  supabase.auth.signInWithPassword({ email, password })
+  ↓
+  ✅ Sesión creada en Supabase Auth
+
+PASO 2: Detectar Rol (MainLayout.tsx línea 540-637)
+─────────────────────────────────────────────────────────────────────────────
+  MainLayout.detectUserRole(auth_user_id, 'info@botz.fyi')
+  ↓
+  Consulta STEP 1: SELECT * FROM team_members
+                   WHERE auth_user_id = 'AUTH_ID'
+  ↓
+  ✅ ENCUENTRA: {
+       id: 'tm_123',
+       email: 'info@botz.fyi',
+       tenant_id: '550e8400-...',  ← TENANT ASIGNADO
+       rol: 'admin',
+       auth_user_id: 'AUTH_ID',
+       activo: true
+     }
+  ↓
+  Guarda en estado:
+    userRole = 'admin'
+    tenantId = '550e8400-...'
+
+PASO 3: Cargar Suscripción (MainLayout.tsx línea 396-531)
+─────────────────────────────────────────────────────────────────────────────
+  MainLayout.fetchUserSubscription(auth_user_id, '550e8400-...')
+  ↓
+  PASO 1: Buscar por user_id
+    SELECT * FROM subscriptions
+    WHERE user_id = 'AUTH_ID'
+    AND status IN ('active', 'trialing')
+  ↓
+  ❌ No encuentra (user_id puede ser NULL)
+  ↓
+  PASO 2: Buscar por tenant_id
+    SELECT * FROM subscriptions
+    WHERE tenant_id = '550e8400-...'
+    AND status IN ('active', 'trialing')
+  ↓
+  ✅ ENCUENTRA: {
+       id: 'sub_456',
+       tenant_id: '550e8400-...',
+       plan: 'Growth',
+       status: 'active'
+     }
+  ↓
+  Llama: applySubscription(subscription)
+
+PASO 4: Aplicar Suscripción (MainLayout.tsx línea 322-343)
+─────────────────────────────────────────────────────────────────────────────
+  applySubscription({ plan: 'Growth', status: 'active' })
+  ↓
+  setUserPlan('Growth')
+  ↓
+  const planFeatures = PLAN_FEATURES['Growth']
+  ↓
+  ✅ planFeatures = [
+       'demo',
+       'hipoteca',
+       'channels',
+       'agents',
+       'n8n-config',
+       'crm',
+       'sla',
+       'kanban'
+     ]
+  ↓
+  setEnabledFeatures(planFeatures)
+  ↓
+  ✅ TODAS LAS FEATURES HABILITADAS
+
+PASO 5: Llamar APIs (guards.ts línea 58-91)
+─────────────────────────────────────────────────────────────────────────────
+  usuario hace fetch('/api/crm/leads', {
+    headers: { 'Authorization': 'Bearer ' + accessToken }
+  })
+  ↓
+  API endpoint llama: assertTenantAccess({ req, requestedTenantId: null })
+  ↓
+  Guard: getRequestUser(req) → { id: 'AUTH_ID', email: 'info@botz.fyi' }
+  ↓
+  Guard: isPlatformAdmin('AUTH_ID') → false (no es platform admin)
+  ↓
+  Guard: getTeamMemberByAuthUserId('AUTH_ID')
+    SELECT * FROM team_members
+    WHERE auth_user_id = 'AUTH_ID'
+    AND activo = true
+  ↓
+  ✅ ENCUENTRA: { tenant_id: '550e8400-...' }
+  ↓
+  Guard retorna: { ok: true, status: 200, tenantId: '550e8400-...' }
+  ↓
+  ✅ API PERMITE ACCESO
+  ↓
+  API filtra datos: SELECT * FROM leads
+                    WHERE tenant_id = '550e8400-...'
+  ↓
+  ✅ DATOS CARGADOS CORRECTAMENTE
+
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║           FLUJO 2: Usuario Demo/Trial (ROTO - NO FUNCIONA)                 ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+PASO 1: Aceptar Invitación (/accept-invite/[inviteId]/page.tsx línea 114-172)
+─────────────────────────────────────────────────────────────────────────────
+  usuario@email.com recibe invitación
+  ↓
+  Abre link: /accept-invite/abc123
+  ↓
+  API valida: GET /api/platform/admin-invites/validate?inviteId=abc123
+  ↓
+  ✅ Invitación válida, muestra form de contraseña
+  ↓
+  Usuario ingresa contraseña y hace submit
+  ↓
+  Ejecuta: supabase.auth.signUp({
+    email: 'usuario@email.com',
+    password: '...',
+    options: {
+      data: {
+        role: 'admin',
+        access_level: 'full',
+        // ❌ NO GUARDA: tenant_id
+        // ❌ NO GUARDA: nombre empresa
+      }
+    }
+  })
+  ↓
+  ✅ Usuario creado en auth.users
+  ↓
+  ✅ Agrega a platform_admins (línea 144-154)
+  ↓
+  ✅ Marca invitación como aceptada
+  ↓
+  ❌ PERO NO CREA:
+     - Entrada en tenants
+     - Entrada en team_members
+     - Entrada en subscriptions
+
+PASO 2: Detectar Rol (MainLayout.tsx línea 540-637)
+─────────────────────────────────────────────────────────────────────────────
+  MainLayout.detectUserRole(auth_user_id, 'usuario@email.com')
+  ↓
+  Consulta STEP 1: SELECT * FROM team_members
+                   WHERE auth_user_id = 'AUTH_ID'
+  ↓
+  ❌ NO ENCUENTRA (usuario demo no está en team_members)
+  ↓
+  Fallback STEP 2: Buscar por email
+    SELECT * FROM team_members
+    WHERE email = 'usuario@email.com'
+  ↓
+  ❌ NO ENCUENTRA
+  ↓
+  setUserRole('asesor')  ← Default role
+  setTenantId(null)      ← ❌ PROBLEMA
+  ↓
+  usuario queda: role='asesor', tenantId=null
+
+PASO 3: Cargar Suscripción (MainLayout.tsx línea 396-531)
+─────────────────────────────────────────────────────────────────────────────
+  MainLayout.fetchUserSubscription(auth_user_id, null)
+  ↓
+  PASO 1: Buscar por user_id
+    SELECT * FROM subscriptions
+    WHERE user_id = 'AUTH_ID'
+  ↓
+  ❌ No encuentra
+  ↓
+  PASO 2: Buscar por tenant_id (FALLA: tenantId=null)
+    ❌ Salta porque tenantId es null
+  ↓
+  PASO 3: Buscar en team_members
+    SELECT * FROM team_members
+    WHERE auth_user_id = 'AUTH_ID'
+  ↓
+  ❌ No encuentra
+  ↓
+  Ejecuta: applySubscription(null)
+
+PASO 4: Aplicar Suscripción (MainLayout.tsx línea 322-343)
+─────────────────────────────────────────────────────────────────────────────
+  applySubscription(null)
+  ↓
+  setUserPlan('free')
+  ↓
+  const planFeatures = PLAN_FEATURES['free']
+  ↓
+  ❌ planFeatures = ['demo']  ← SOLO DEMO
+  ↓
+  setEnabledFeatures(['demo'])
+  ↓
+  ❌ TODAS LAS DEMÁS FEATURES BLOQUEADAS
+
+PASO 5: Llamar APIs (guards.ts línea 58-91)
+─────────────────────────────────────────────────────────────────────────────
+  usuario hace fetch('/api/crm/leads', {
+    headers: { 'Authorization': 'Bearer ' + accessToken }
+  })
+  ↓
+  API endpoint llama: assertTenantAccess({ req })
+  ↓
+  Guard: getRequestUser(req) → { id: 'AUTH_ID', ... }
+  ↓
+  Guard: isPlatformAdmin('AUTH_ID') → ✅ true
+    (porque fue agregado a platform_admins en PASO 1)
+  ↓
+  Guard: Pero requestedTenantId = null (no enviado)
+  ↓
+  Guard comprueba:
+    if (pa.isAdmin) {
+      if (!requestedTenantId) {
+        return { ok: false, error: "Missing tenantId" };  ❌
+      }
+    }
+  ↓
+  ❌ API BLOQUEA ACCESO: 400 Bad Request
+  ↓
+  Usuario no puede cargar datos
+
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                        DIFERENCIAS CLAVE                                    ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ ASPECTO              │ info@botz.fyi          │ usuario@demo              │
+├──────────────────────────────────────────────────────────────────────────┤
+│ ORIGEN              │ Creado manualmente      │ Invitación                │
+│ Flujo               │ Directo login           │ Invitación + signup       │
+├──────────────────────────────────────────────────────────────────────────┤
+│ team_members        │ ✅ EXISTE               │ ❌ NO EXISTE              │
+│ tenant_id           │ ✅ ASIGNADO             │ ❌ NULL                   │
+│ subscriptions       │ ✅ EXISTE               │ ❌ NO EXISTE              │
+│ platform_admin      │ ❌ No                   │ ✅ Sí                     │
+├──────────────────────────────────────────────────────────────────────────┤
+│ enabledFeatures     │ ALL_FEATURES            │ ['demo']                  │
+│ API Access          │ ✅ PERMITE              │ ❌ BLOQUEA                │
+│ Datos cargados      │ ✅ SÍ                   │ ❌ NO               

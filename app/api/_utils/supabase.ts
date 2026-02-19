@@ -11,6 +11,20 @@ export function getAnonSupabase() {
   });
 }
 
+export function getAnonSupabaseWithToken(accessToken: string) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  const token = String(accessToken || "").trim();
+  if (!token) return null;
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
 export function getServiceSupabase() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {

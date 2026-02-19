@@ -7,12 +7,14 @@ export default function AuthModal({
   open,
   onClose,
   onLoggedIn,
+  redirectTo,
 }: {
   open: boolean;
   onClose: () => void;
   onLoggedIn?: () => void;
+  redirectTo?: string;
 }) {
-  const [mode, setMode] = useState<"login" | "reset">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "reset">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,6 +29,24 @@ export default function AuthModal({
     setMode("login");
     onClose();
   };
+
+  async function handleGoogle() {
+    setLoading(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      const next = redirectTo || (typeof window !== "undefined" ? `${window.location.origin}/start/agents` : undefined);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: next ? { redirectTo: next } : undefined,
+      });
+      if (error) throw error;
+      // OAuth redirects away; no further action here.
+    } catch (e: any) {
+      setErr(e?.message || "Error iniciando con Google");
+      setLoading(false);
+    }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -48,6 +68,33 @@ export default function AuthModal({
       }, 800);
     } catch (e: any) {
       setErr(e?.message || "Error iniciando sesión");
+      setLoading(false);
+    }
+  }
+
+  async function handleSignup(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+
+      if (!data?.session) {
+        setMsg("Cuenta creada. Revisa tu correo para confirmar y luego inicia sesión.");
+        setLoading(false);
+        return;
+      }
+
+      setMsg("✅ Cuenta creada. Entrando...");
+      setTimeout(() => {
+        onLoggedIn?.();
+        close();
+        window.location.reload();
+      }, 600);
+    } catch (e: any) {
+      setErr(e?.message || "Error creando cuenta");
       setLoading(false);
     }
   }
@@ -203,8 +250,18 @@ export default function AuthModal({
 
         <div style={{ height: 14 }} />
 
-        {mode === "login" ? (
-          <form onSubmit={handleLogin} style={{ display: "grid", gap: 12 }}>
+        {mode === "login" || mode === "signup" ? (
+          <form onSubmit={mode === "login" ? handleLogin : handleSignup} style={{ display: "grid", gap: 12 }}>
+            <button type="button" disabled={loading} style={{ ...btnGhost, fontWeight: 900 }} onClick={handleGoogle}>
+              {loading ? "Conectando..." : "Continuar con Google"}
+            </button>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "6px 0 2px" }}>
+              <div style={{ height: 1, flex: 1, background: "rgba(148,163,184,0.18)" }} />
+              <div style={{ color: "rgba(226,232,240,0.65)", fontSize: 12, fontWeight: 800 }}>o</div>
+              <div style={{ height: 1, flex: 1, background: "rgba(148,163,184,0.18)" }} />
+            </div>
+
             <div>
               <div style={labelStyle}>Correo</div>
               <input
@@ -262,21 +319,38 @@ export default function AuthModal({
             )}
 
             <button type="submit" disabled={loading} style={{ ...btnPrimary, opacity: loading ? 0.75 : 1 }}>
-              {loading ? "Ingresando..." : "Ingresar"}
+              {mode === "login" ? (loading ? "Ingresando..." : "Ingresar") : (loading ? "Creando..." : "Crear cuenta")}
             </button>
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              {mode === "login" ? (
+                <button
+                  type="button"
+                  style={smallLink}
+                  onClick={() => {
+                    setMode("reset");
+                    setErr(null);
+                    setMsg(null);
+                  }}
+                  disabled={loading}
+                >
+                  Olvidé mi contraseña
+                </button>
+              ) : (
+                <div />
+              )}
+
               <button
                 type="button"
                 style={smallLink}
                 onClick={() => {
-                  setMode("reset");
+                  setMode(mode === "login" ? "signup" : "login");
                   setErr(null);
                   setMsg(null);
                 }}
                 disabled={loading}
               >
-                Olvidé mi contraseña
+                {mode === "login" ? "Crear cuenta" : "Ya tengo cuenta"}
               </button>
             </div>
           </form>

@@ -1,0 +1,273 @@
+================================================================================
+ÍNDICE: INVESTIGACIÓN COMPLETA DE PROBLEMAS DE AUTENTICACIÓN
+Generado: Feb 18, 2026
+================================================================================
+
+🎯 PUNTO DE PARTIDA
+════════════════════════════════════════════════════════════════════════════════
+
+Comienza aquí si quieres entender rápidamente:
+📄 RESUMEN_INVESTIGACION_FINAL.md
+
+Contiene:
+  ✅ Resumen ejecutivo (5 min de lectura)
+  ✅ Los 3 problemas identificados
+  ✅ Soluciones rápidas
+  ✅ Plan de acción
+  ✅ Checklist de implementación
+
+
+📚 DOCUMENTOS DETALLADOS
+════════════════════════════════════════════════════════════════════════════════
+
+Para investigación técnica profunda:
+
+1. INVESTIGACION_PROBLEMAS_AUTENTICACION.md
+   ├─ Problema 1: Google OAuth Roto
+   │  ├─ Análisis línea por línea
+   │  ├─ Configuración necesaria
+   │  ├─ Variables de entorno
+   │  └─ Debugging steps
+   │
+   ├─ Problema 2: Flujo Demo/Trial
+   │  ├─ Código actual incompleto
+   │  ├─ Dónde falla
+   │  ├─ Cómo detectar rol
+   │  ├─ Carga de features
+   │  └─ Guardias de API
+   │
+   └─ Problema 3: Email info@botz.fyi
+      ├─ Por qué funciona
+      └─ Comparación con demo
+
+2. COMPARACION_FLUJOS_AUTH.txt
+   ├─ Flujo Normal (info@botz.fyi)
+   │  ├─ Login
+   │  ├─ Detectar rol
+   │  ├─ Cargar suscripción
+   │  ├─ Aplicar features
+   │  └─ Llamar APIs
+   │
+   ├─ Flujo Demo/Trial (ROTO)
+   │  ├─ Aceptar invitación
+   │  ├─ Crear usuario
+   │  ├─ Detectar rol (FALLA)
+   │  ├─ Cargar suscripción (FALLA)
+   │  ├─ Aplicar features (FALLA)
+   │  └─ Llamar APIs (BLOQUEADO)
+   │
+   └─ Solución Código a Código
+
+3. ARCHIVOS_CRITICOS_ENCONTRADOS.txt
+   ├─ Problema 1: Google OAuth
+   │  ├─ AuthModal.tsx
+   │  ├─ pricing/page.tsx
+   │  ├─ supabaseClient.ts
+   │  └─ Variables de entorno
+   │
+   ├─ Problema 2: Demo/Trial
+   │  ├─ accept-invite/[inviteId]/page.tsx
+   │  ├─ MainLayout.tsx
+   │  ├─ guards.ts
+   │  ├─ Stripe checkout
+   │  └─ Tablas de BD
+   │
+   └─ Problema 3: info@botz.fyi
+      └─ Por qué funciona
+
+4. RUTAS_ABSOLUTAS_ARCHIVOS.txt
+   ├─ Rutas completas de cada archivo
+   ├─ Líneas exactas del problema
+   ├─ Configuración externa
+   ├─ Tablas de BD
+   ├─ Variables de entorno
+   └─ Próximos pasos
+
+
+🔍 BUSCAR POR PROBLEMA
+════════════════════════════════════════════════════════════════════════════════
+
+❌ PROBLEMA 1: Google OAuth no funciona
+   ↓
+   LEER: RESUMEN_INVESTIGACION_FINAL.md (Problema 1)
+   LUEGO: INVESTIGACION_PROBLEMAS_AUTENTICACION.md (Sección 1)
+   RUTA: RUTAS_ABSOLUTAS_ARCHIVOS.txt (Google OAuth)
+   ACCIÓN: Configurar Google en Supabase Dashboard
+
+❌ PROBLEMA 2: Demo users sin features
+   ↓
+   LEER: RESUMEN_INVESTIGACION_FINAL.md (Problema 2)
+   VER: COMPARACION_FLUJOS_AUTH.txt (Flujo Demo/Trial)
+   DETALLES: INVESTIGACION_PROBLEMAS_AUTENTICACION.md (Sección 2)
+   CÓDIGO: COMPARACION_FLUJOS_AUTH.txt (Solución)
+   ACCIÓN: Modificar accept-invite/[inviteId]/page.tsx
+
+❌ PROBLEMA 3: info@botz.fyi funciona
+   ↓
+   NOTAS: INVESTIGACION_PROBLEMAS_AUTENTICACION.md (Sección 3)
+   COMPARAR: COMPARACION_FLUJOS_AUTH.txt
+   CONCLUSIÓN: Es el flujo CORRECTO, el demo es el incorrecto
+
+
+📋 POR TIPO DE USUARIO
+════════════════════════════════════════════════════════════════════════════════
+
+👨‍💻 Developer que quiere entender:
+   1. RESUMEN_INVESTIGACION_FINAL.md
+   2. COMPARACION_FLUJOS_AUTH.txt
+   3. INVESTIGACION_PROBLEMAS_AUTENTICACION.md
+
+🔧 Developer que quiere arreglarlo:
+   1. COMPARACION_FLUJOS_AUTH.txt (ver código de solución)
+   2. RUTAS_ABSOLUTAS_ARCHIVOS.txt (saber dónde ir)
+   3. Modificar archivos según instrucciones
+
+🔐 Security Review:
+   1. INVESTIGACION_PROBLEMAS_AUTENTICACION.md (Sección Guards)
+   2. ARCHIVOS_CRITICOS_ENCONTRADOS.txt (API security)
+   3. RUTAS_ABSOLUTAS_ARCHIVOS.txt (Tabla de DB)
+
+📊 Project Manager:
+   1. RESUMEN_INVESTIGACION_FINAL.md (Overview)
+   2. Plan de Acción (Por Prioridad)
+   3. Checklist de Implementación
+
+
+🎯 PROBLEMAS EN ORDEN DE SEVERIDAD
+════════════════════════════════════════════════════════════════════════════════
+
+🔴 CRÍTICA 1: Google OAuth Roto
+   Impacto: Usuarios NO PUEDEN ENTRAR con Google
+   Archivo: Supabase Dashboard
+   Acción: Habilitar Google Provider
+   Tiempo: < 5 minutos
+   Doc: RESUMEN_INVESTIGACION_FINAL.md (Problema 1)
+
+🔴 CRÍTICA 2: Demo/Trial Sin Features
+   Impacto: Usuarios NO TIENEN ACCESO a funcionalidades
+   Archivo: accept-invite/[inviteId]/page.tsx
+   Acción: Agregar tenant_id, team_member, subscription
+   Tiempo: 1-2 horas
+   Doc: COMPARACION_FLUJOS_AUTH.txt (Solución)
+
+🟡 INFO: info@botz.fyi Funciona
+   Impacto: Confirma que el sistema funciona EN GENERAL
+   Archivo: N/A (no es problema)
+   Acción: Usar como referencia para demo fix
+   Tiempo: N/A
+   Doc: INVESTIGACION_PROBLEMAS_AUTENTICACION.md (Sección 3)
+
+
+📂 ESTRUCTURA DE ARCHIVOS
+════════════════════════════════════════════════════════════════════════════════
+
+Codebase Botz:
+  C:\Users\USUARIO\botz-fyi\
+  ├─ app/
+  │  ├─ start/
+  │  │  ├─ components/
+  │  │  │  ├─ AuthModal.tsx (❌ Problema 1)
+  │  │  │  └─ ...
+  │  │  ├─ MainLayout.tsx (❌ Problema 2, depende de fix)
+  │  │  ├─ page.tsx (Punto de entrada)
+  │  │  └─ ...
+  │  ├─ accept-invite/
+  │  │  └─ [inviteId]/
+  │  │     └─ page.tsx (❌ CRÍTICA - Falta code)
+  │  ├─ pricing/
+  │  │  └─ page.tsx (❌ Problema 1)
+  │  ├─ api/
+  │  │  ├─ _utils/
+  │  │  │  └─ guards.ts (❌ Problema 2, depende de fix)
+  │  │  ├─ stripe/
+  │  │  │  └─ create-checkout-session/route.ts (❌ Requiere tenant_id)
+  │  │  └─ ...
+  │  └─ ...
+  ├─ supabaseClient.ts (✅ OK)
+  ├─ .env.local (✅ OK)
+  └─ Documentos de investigación:
+     ├─ RESUMEN_INVESTIGACION_FINAL.md (LEER PRIMERO)
+     ├─ INVESTIGACION_PROBLEMAS_AUTENTICACION.md (DETALLES)
+     ├─ COMPARACION_FLUJOS_AUTH.txt (SOLUCIÓN)
+     ├─ ARCHIVOS_CRITICOS_ENCONTRADOS.txt (REFERENCIA)
+     └─ RUTAS_ABSOLUTAS_ARCHIVOS.txt (ÍNDICE)
+
+
+✅ VERIFICACIÓN
+════════════════════════════════════════════════════════════════════════════════
+
+Después de implementar cambios, verifica:
+
+Google OAuth:
+  □ Abrir http://localhost:3000/pricing
+  □ Click "Continuar con Google"
+  □ Redirige a Google
+  □ Vuelve logueado a /start
+
+Demo/Trial:
+  □ Crear invitación demo
+  □ Usuario acepta y crea contraseña
+  □ user_metadata.tenant_id existe
+  □ team_members contiene al usuario
+  □ subscriptions contiene al usuario
+  □ enabledFeatures = ALL_FEATURES
+  □ Usuario puede ver /crm, /hipoteca, etc
+  □ Usuario puede cargar datos
+
+API Access:
+  □ User puede llamar /api/crm/leads
+  □ Guard retorna OK
+  □ Datos se filtran por tenant_id
+
+
+📞 REFERENCIAS RÁPIDAS
+════════════════════════════════════════════════════════════════════════════════
+
+Supabase Project:
+  URL: https://app.supabase.com/project/chyzxaspglbwnenagtjv
+  Action: Auth > Providers > Google > Enable + Add Credentials
+
+Google Cloud:
+  URL: https://console.cloud.google.com/
+  Client ID: 417058045568-hheokiaia74qgr7lvfcgugpbenq8kq3t.apps.googleusercontent.com
+
+Stripe:
+  URL: https://dashboard.stripe.com/test/
+
+Variables de entorno:
+  Ver: C:\Users\USUARIO\botz-fyi\.env.local
+  Ver: RUTAS_ABSOLUTAS_ARCHIVOS.txt (Sección de env vars)
+
+
+📖 GUÍA DE LECTURA RECOMENDADA
+════════════════════════════════════════════════════════════════════════════════
+
+Opción 1: Quick Fix (30 minutos)
+  1. RESUMEN_INVESTIGACION_FINAL.md - Leer Problema 1
+  2. Ir a Supabase Dashboard
+  3. Habilitar Google OAuth
+  4. Test en /pricing
+
+Opción 2: Full Understanding (2 horas)
+  1. RESUMEN_INVESTIGACION_FINAL.md - Completo
+  2. COMPARACION_FLUJOS_AUTH.txt - Completo
+  3. INVESTIGACION_PROBLEMAS_AUTENTICACION.md - Completo
+  4. Implementar cambios
+  5. Test
+
+Opción 3: Deep Dive (4+ horas)
+  1. INVESTIGACION_PROBLEMAS_AUTENTICACION.md - Detalles
+  2. ARCHIVOS_CRITICOS_ENCONTRADOS.txt - Cada archivo
+  3. RUTAS_ABSOLUTAS_ARCHIVOS.txt - Referencias
+  4. Leer código fuente en repositorio
+  5. Revisar BD tables
+  6. Implementar y test
+
+
+🔗 CONEXIONES ENTRE DOCUMENTOS
+════════════════════════════════════════════════════════════════════════════════
+
+RESUMEN_INVESTIGACION_FINAL.md
+  ↓ Para más detalles →
+  INVESTIGACION_PROBLEMAS_AUTENTICACION.md
+  COMPARACION_FLUJOS_AU

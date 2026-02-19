@@ -3,626 +3,1090 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/app/supabaseClient";
-import {
-  ChevronLeft,
-  Check,
-  Mic,
-  MessageSquare,
-  Workflow,
-  Sparkles,
-  Globe,
-  Volume2,
-  Brain,
-  Phone,
-  MessageCircle,
-  Settings,
-  Save,
-  Play,
-  ArrowRight,
-  ArrowLeft,
-  X,
-  Info
-} from "lucide-react";
+import AuthModal from "@/app/start/components/AuthModal";
+import { authedFetch, AuthRequiredError } from "@/app/start/_utils/authedFetch";
+import VoiceTestPanel from "@/app/start/agents/components/VoiceTestPanel";
 
-const steps = [
-  { id: 1, name: 'Tipo', description: 'Selecciona el tipo' },
-  { id: 2, name: 'Personalidad', description: 'Configura el comportamiento' },
-  { id: 3, name: 'Conocimiento', description: 'Añade conocimientos' },
-  { id: 4, name: 'Integraciones', description: 'Conecta canales' },
-  { id: 5, name: 'Revisar', description: 'Verifica y activa' },
-];
 
-const agentTypes = [
-  {
-    id: 'voice',
-    name: 'Agente de Voz',
-    description: 'Realiza y recibe llamadas telefónicas con conversaciones naturales',
-    icon: '📞',
-    features: ['Llamadas entrantes/salientes', 'Voz natural', 'Transcripción', 'Grabación'],
-    color: 'red',
-    popular: true
-  },
-  {
-    id: 'text',
-    name: 'Agente de Texto',
-    description: 'Responde mensajes en WhatsApp, web y otras plataformas',
-    icon: '💬',
-    features: ['WhatsApp', 'Web chat', 'Respuestas instantáneas', 'Multilingüe'],
-    color: 'blue'
-  },
-  {
-    id: 'flow',
-    name: 'Flujo Automatizado',
-    description: 'Crea automatizaciones visuales con lógica condicional',
-    icon: '⚡',
-    features: ['Editor visual', 'Condiciones', 'Integraciones', 'Triggers'],
-    color: 'purple'
+const C = {
+  bg:      "#1a1d26",
+  dark:    "#111318",
+  card:    "#22262d",
+  hover:   "#2a2e36",
+  border:  "rgba(255,255,255,0.08)",
+  blue:    "#0096ff",
+  lime:    "#a3e635",
+  white:   "#ffffff",
+  muted:   "#9ca3af",
+  dim:     "#6b7280",
+  red:     "#ef4444",
+};
+
+type AgentType = "voice" | "text" | "flow";
+type AgentKind = "agent" | "notetaker";
+
+const asType = (v: string | null): AgentType | null => {
+  if (v === "voice" || v === "text" || v === "flow") return v;
+  return null;
+};
+
+const asKind = (v: string | null): AgentKind => (v === "notetaker" ? "notetaker" : "agent");
+
+const getSteps = (type: AgentType, kind: AgentKind) => {
+  if (kind === "notetaker") {
+    return [
+      { id: 1, label: "Contexto de la empresa", required: true },
+      { id: 2, label: "Configurar notetaker", required: true },
+      { id: 3, label: "Prueba", required: false },
+    ];
   }
+  if (type === "flow") {
+    return [
+      { id: 1, label: "Contexto de la empresa", required: true },
+      { id: 2, label: "Contexto del flujo", required: true },
+      { id: 3, label: "Prueba", required: false },
+    ];
+  }
+  if (type === "text") {
+    return [
+      { id: 1, label: "Contexto de la empresa", required: true },
+      { id: 2, label: "Contexto del agente", required: true },
+      { id: 3, label: "Entrena tu agente", required: false },
+      { id: 4, label: "Prueba tu agente", required: false },
+    ];
+  }
+  return [
+    { id: 1, label: "Contexto de la empresa", required: true },
+    { id: 2, label: "Contexto del agente", required: true },
+    { id: 3, label: "Prueba tu agente", required: false },
+  ];
+};
+
+const titleFor = (type: AgentType, kind: AgentKind) => {
+  if (kind === "notetaker") return "Notetaker";
+  if (type === "voice") return "Agente de Voz";
+  if (type === "text") return "Agente de Texto";
+  return "Flujo";
+};
+
+const TEMPLATE_PRESETS: Record<string, { type: AgentType; kind?: AgentKind; agentName?: string; agentRole?: string; agentPrompt?: string }> = {
+  lia: {
+    type: "voice",
+    agentName: "Lia",
+    agentRole: "Calificadora de Leads",
+    agentPrompt: "Eres Lia, una representante de ventas profesional y amable. Tu objetivo es calificar leads entrantes con preguntas claras sobre presupuesto, tiempo y necesidad. Si el lead califica, propon una siguiente accion (agendar llamada o cita).",
+  },
+  alex: {
+    type: "voice",
+    agentName: "Alex",
+    agentRole: "Prospeccion en frio",
+    agentPrompt: "Eres Alex, un vendedor directo y respetuoso. Tu objetivo es iniciar una conversacion breve, validar interes y calificar una oportunidad. Si hay interes, agenda una siguiente accion.",
+  },
+  julia: {
+    type: "text",
+    agentName: "Julia",
+    agentRole: "Asistente recepcionista",
+    agentPrompt: "Eres Julia, una recepcionista virtual. Respondes preguntas frecuentes, recoges datos de contacto y agendas citas. Si el usuario necesita un humano, ofreces una escalacion.",
+  },
+  "flow-lead-intake": {
+    type: "flow",
+    agentName: "Lead Intake",
+    agentRole: "Captura y enruta leads",
+    agentPrompt: "Flujo para capturar un lead, validar datos y enrutar a ventas.",
+  },
+};
+
+const LANGUAGE_OPTIONS = [
+  { value: "es-ES", label: "Español - España" },
+  { value: "es-MX", label: "Español - LatAm" },
+  { value: "en-US", label: "English - US" },
 ];
 
-const personalities = [
-  { id: 'professional', name: 'Profesional', description: 'Formal, directo, eficiente', emoji: '👔' },
-  { id: 'friendly', name: 'Amigable', description: 'Cálido, cercano, conversacional', emoji: '🤝' },
-  { id: 'enthusiastic', name: 'Entusiasta', description: 'Energético, motivador, positivo', emoji: '⚡' },
-  { id: 'calm', name: 'Tranquilo', description: 'Sereno, paciente, empático', emoji: '🧘' },
-];
-
-const voices = [
-  { id: 'alloy', name: 'Alloy', gender: 'neutral', preview: 'Voz versátil' },
-  { id: 'echo', name: 'Echo', gender: 'male', preview: 'Masculina cálida' },
-  { id: 'fable', name: 'Fable', gender: 'neutral', preview: 'Expresiva' },
-  { id: 'onyx', name: 'Onyx', gender: 'male', preview: 'Profesional' },
-  { id: 'nova', name: 'Nova', gender: 'female', preview: 'Amigable' },
-  { id: 'shimmer', name: 'Shimmer', gender: 'female', preview: 'Clara' },
+const PURPOSE_OPTIONS = [
+  { value: "agente_ventas_ecommerce", label: "Agente De Ventas De Ecommerce" },
+  { value: "asistente_personalizado", label: "Asistente Personalizado" },
+  { value: "servicio_cliente", label: "Servicio al cliente" },
+  { value: "recepcionista", label: "Recepcionista" },
+  { value: "cualificacion_leads", label: "Calificacion de leads" },
 ];
 
 export default function CreateAgentPage() {
-  const router = useRouter();
+  const router       = useRouter();
   const searchParams = useSearchParams();
-  const typeParam = searchParams.get('type');
-  const templateParam = searchParams.get('template');
-  
-  const [currentStep, setCurrentStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [agentData, setAgentData] = useState({
-    name: '',
-    type: typeParam || 'voice',
-    description: '',
-    personality: 'professional',
-    voice: 'alloy',
-    language: 'es',
-    systemPrompt: '',
-    knowledge: [] as string[],
+  const typeParam    = asType(searchParams.get("type"));
+  const kindParam    = asKind(searchParams.get("kind"));
+  const tplParam     = searchParams.get("template");
+
+  const [step, setStep] = useState(1);
+  const [saving, setSaving] = useState(false);
+  const [kind, setKind] = useState<AgentKind>(kindParam);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [contextLoading, setContextLoading] = useState(false);
+  const [contextError, setContextError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [authUser, setAuthUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [openAuth, setOpenAuth] = useState(false);
+
+  const [form, setForm] = useState({
+    companyName:  "",
+    companyUrl:   "",
+    companyDesc:  "",
+    agentName:    "",
+    agentRole:    "",
+    agentPrompt:  "",
+    voice:        "nova",
+    language:     "es-ES",
+    type:         typeParam || "voice",
     integrations: [] as string[],
+
+    // voice (agents)
+    callDirection: "inbound" as "inbound" | "outbound" | "both",
+    greeting: "",
+    transferNumber: "",
+
+    // text
+    channelWhatsapp: true,
+    channelWeb: true,
+    escalationEmail: "",
+    tone: "professional" as "professional" | "friendly" | "direct",
+    brainTab: "web" as "web" | "files",
+    brainWebsiteUrl: "",
+    brainLastRun: "",
+
+    // flow
+    flowTrigger: "webhook" as "webhook" | "schedule" | "event",
+    flowTemplate: "",
+
+    // notetaker
+    notetakerSource: "call" as "call" | "meeting" | "upload",
+    notetakerSummary: true,
+    notetakerActionItems: true,
+    notetakerSendEmail: false,
   });
 
+  const steps = getSteps(form.type as AgentType, kind);
+
   useEffect(() => {
-    if (templateParam) loadTemplate(templateParam);
-  }, [templateParam]);
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      const u = data?.session?.user || null;
+      if (!mounted) return;
+      setAuthUser(u);
+      setAuthLoading(false);
+      setOpenAuth(!u);
+    })();
 
-  const loadTemplate = (templateId: string) => {
-    const templates: Record<string, any> = {
-      'lia': {
-        name: 'Lía - Calificadora de Leads',
-        type: 'voice',
-        description: 'Califica leads entrantes con conversaciones naturales',
-        personality: 'professional',
-        voice: 'nova',
-        systemPrompt: 'Eres Lía, una representante de ventas profesional y amigable. Tu objetivo es calificar leads entrantes mediante preguntas estratégicas sobre su presupuesto, timeline y necesidades específicas.',
-      },
-      'alex': {
-        name: 'Alex - Prospección',
-        type: 'voice',
-        description: 'Realiza llamadas de prospección en frío',
-        personality: 'enthusiastic',
-        voice: 'echo',
-        systemPrompt: 'Eres Alex, un vendedor energético y persuasivo. Realizas prospección telefónica identificando oportunidades de negocio de manera respetuosa pero persistente.',
-      },
-      'julia': {
-        name: 'Julia - Asistente Virtual',
-        type: 'text',
-        description: 'Atiende consultas y agenda citas automáticamente',
-        personality: 'friendly',
-        systemPrompt: 'Eres Julia, una asistente virtual amable y servicial. Ayudas a los clientes con sus consultas, proporcionas información y agendas citas de manera eficiente.',
-      }
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const u = session?.user || null;
+      setAuthUser(u);
+      setOpenAuth(!u);
+    });
+
+    return () => {
+      mounted = false;
+      sub?.subscription?.unsubscribe();
     };
-    
-    const template = templates[templateId];
-    if (template) setAgentData(prev => ({ ...prev, ...template }));
+  }, []);
+
+  useEffect(() => {
+    const update = () => setIsMobile(window.innerWidth < 820);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  // keep kind/type in sync with query
+  useEffect(() => {
+    if (typeParam) setForm(f => ({ ...f, type: typeParam }));
+  }, [typeParam]);
+
+  useEffect(() => {
+    setKind(kindParam);
+  }, [kindParam]);
+
+  useEffect(() => {
+    if (step > steps.length) setStep(steps.length);
+  }, [step, steps.length]);
+
+  useEffect(() => {
+    if (form.type !== "text") return;
+    if (form.brainWebsiteUrl) return;
+    if (!form.companyUrl) return;
+    setForm(f => (f.brainWebsiteUrl ? f : { ...f, brainWebsiteUrl: f.companyUrl }));
+  }, [form.type, form.companyUrl, form.brainWebsiteUrl]);
+
+  /* load template defaults */
+  useEffect(() => {
+    if (!tplParam) return;
+    const preset = TEMPLATE_PRESETS[tplParam];
+    if (!preset) return;
+    setForm(f => ({
+      ...f,
+      type: preset.type,
+      agentName: preset.agentName ?? f.agentName,
+      agentRole: preset.agentRole ?? f.agentRole,
+      agentPrompt: preset.agentPrompt ?? f.agentPrompt,
+      flowTemplate: preset.type === "flow" ? tplParam : f.flowTemplate,
+    }));
+    if (preset.kind) setKind(preset.kind);
+  }, [tplParam]);
+
+  const updateQuery = (next: { type?: AgentType; kind?: AgentKind; template?: string | null }) => {
+    const t = next.type ?? (form.type as AgentType);
+    const k = next.kind ?? kind;
+    const q = new URLSearchParams();
+    q.set("type", t);
+    if (k === "notetaker") q.set("kind", "notetaker");
+    if (next.template) q.set("template", next.template);
+    router.replace(`/start/agents/create?${q.toString()}`);
   };
 
-  const handleNext = () => {
-    if (currentStep < steps.length) setCurrentStep(currentStep + 1);
-  };
-
-  const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    } else {
-      router.push('/start/agents');
+  const genCompanyContext = async () => {
+    const url = form.companyUrl.trim();
+    if (!url) {
+      alert("Agrega una URL del sitio web");
+      return;
     }
-  };
-
-  const handleCreate = async () => {
-    setLoading(true);
+    setContextLoading(true);
+    setContextError(null);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user');
-
-      const { data, error } = await supabase
-        .from('ai_agents')
-        .insert({
-          name: agentData.name,
-          type: agentData.type,
-          description: agentData.description,
-          configuration: {
-            personality: agentData.personality,
-            language: agentData.language,
-            system_prompt: agentData.systemPrompt,
-          },
-          voice_settings: agentData.type === 'voice' ? { voice_id: agentData.voice } : null,
-          created_by: user.id,
-          status: 'draft',
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      router.push(`/start/agents/${data.id}`);
-    } catch (error) {
-      console.error('Error:', error);
-      alert('Error al crear el agente');
+      const res = await fetch("/api/agents/company-context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "No se pudo generar contexto");
+      const suggestion = String(json?.suggested_company_desc || "").trim();
+      if (suggestion) {
+        setForm(f => ({
+          ...f,
+          companyDesc: f.companyDesc.trim()
+            ? `${f.companyDesc.trim()}\n\n${suggestion}`
+            : suggestion,
+        }));
+      }
+    } catch (e: any) {
+      setContextError(e?.message || "No se pudo generar contexto");
     } finally {
-      setLoading(false);
+      setContextLoading(false);
     }
   };
 
-  const getStepIcon = (stepId: number) => {
-    if (currentStep > stepId) return <Check className="w-4 h-4" />;
-    if (currentStep === stepId) return <span className="text-sm font-bold">{stepId}</span>;
-    return <span className="text-sm text-gray-500">{stepId}</span>;
+  const startBrainTraining = async () => {
+    // UI-only for now; stores a timestamp so user sees progress.
+    if (!form.brainWebsiteUrl.trim()) {
+      alert("Agrega una URL del sitio web");
+      return;
+    }
+    setForm(f => ({ ...f, brainLastRun: new Date().toISOString() }));
   };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const agentType: AgentType = (kind === "notetaker") ? "voice" : (form.type as AgentType);
+
+      const configuration: any = {
+        agent_kind: kind,
+        company_name: form.companyName,
+        company_url: form.companyUrl,
+        company_desc: form.companyDesc,
+        language: form.language,
+        identity_name: form.agentName,
+        purpose: form.agentRole,
+      };
+
+      if (agentType === "flow") {
+        configuration.flow = {
+          trigger_type: form.flowTrigger,
+          template: form.flowTemplate,
+          goal: form.agentRole,
+          notes: form.agentPrompt,
+        };
+      } else if (kind === "notetaker") {
+        configuration.notetaker = {
+          source: form.notetakerSource,
+          outputs: {
+            summary: form.notetakerSummary,
+            action_items: form.notetakerActionItems,
+          },
+          send_email: form.notetakerSendEmail,
+        };
+      } else {
+        configuration.important_instructions = form.agentPrompt;
+        configuration.system_prompt = form.agentPrompt;
+        configuration.tone = form.tone;
+        configuration.channels = {
+          whatsapp: !!form.channelWhatsapp,
+          web: !!form.channelWeb,
+        };
+        if (agentType === "text") {
+          configuration.escalation_email = form.escalationEmail;
+          configuration.brain = {
+            website_url: form.brainWebsiteUrl,
+            last_run: form.brainLastRun,
+          };
+        }
+        if (agentType === "voice") {
+          configuration.voice = {
+            call_direction: form.callDirection,
+            greeting: form.greeting,
+            transfer_number: form.transferNumber,
+          };
+        }
+      }
+
+      const res = await authedFetch("/api/agents/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.agentName || form.companyName || "Nuevo agente",
+          type: agentType,
+          description: form.agentRole,
+          configuration,
+          voice_settings: agentType === "voice" ? { voice_id: form.voice } : null,
+          status: "draft",
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo crear");
+      router.push(`/start/agents/${json.data.id}`);
+    } catch (err) {
+      if (err instanceof AuthRequiredError) setOpenAuth(true);
+      console.error(err);
+      const msg = (err as any)?.message || "Error al crear el agente";
+      alert(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ── inline style helpers ── */
+  const fl = (extra?: React.CSSProperties): React.CSSProperties => ({ display: "flex", ...extra });
+  const input = (extra?: React.CSSProperties): React.CSSProperties => ({
+    width: "100%", boxSizing: "border-box" as const,
+    padding: "13px 16px",
+    backgroundColor: C.dark, border: `1px solid ${C.border}`,
+    borderRadius: 10, color: C.white, fontSize: 15, outline: "none",
+    ...extra,
+  });
+
+  /* ── left-panel text per step ── */
+  const leftContent: Record<number, { title: string; body: string }> = {
+    1: {
+      title: "¡Hola!\nCuéntanos sobre tu empresa",
+      body: "Enseña a tu agente todo lo relacionado con tu empresa. Esta sección puede ser reutilizada en otros agentes.",
+    },
+    2: kind === "notetaker"
+      ? {
+          title: "Configura tu notetaker",
+          body: "Define la fuente y el formato de salida para resumir, extraer acuerdos y acciones.",
+        }
+      : (form.type === "flow"
+          ? {
+              title: "Contexto del flujo",
+              body: "Define el objetivo y una base. Luego podrás editar nodos e integraciones.",
+            }
+          : {
+              title: "¡Hola!\nEstás a punto de crear tu agente.",
+              body: "Elige el idioma, asigna un nombre y define el propósito. Estos pasos dan forma a la identidad y al objetivo desde el inicio.",
+            }),
+    3: (form.type === "text" && kind !== "notetaker")
+      ? {
+          title: "Construye tu cerebro",
+          body: "Mejora el conocimiento de tu agente importando información de un sitio web o archivos. Puedes omitir este paso si no necesitas formación.",
+        }
+      : {
+          title: "Prueba tu agente",
+          body: "Prueba antes de activarlo para asegurarte de que responde como esperas.",
+        },
+    4: {
+      title: "Instrucciones",
+      body: "Ingresa las instrucciones específicas para tu agente o selecciona y edita una de las plantillas predefinidas.",
+    },
+  };
+
+  const left = leftContent[step];
+
+  const pageTitle = titleFor((form.type as AgentType), kind);
+
+  const isTextTestStep = (form.type === "text" && kind !== "notetaker" && step === 4);
+
+  const step1Ok = !!form.companyName.trim() && !!form.companyDesc.trim();
+  const step2Ok = (() => {
+    if (kind === "notetaker") {
+      const outputsOk = !!form.notetakerSummary || !!form.notetakerActionItems;
+      return !!form.agentName.trim() && !!form.agentRole.trim() && outputsOk;
+    }
+    if (form.type === "flow") {
+      return !!form.agentName.trim() && !!form.agentRole.trim();
+    }
+    return !!form.agentName.trim() && !!form.agentRole.trim() && !!form.agentPrompt.trim();
+  })();
+  const canContinue = step === 1 ? step1Ok : step === 2 ? step2Ok : true;
 
   return (
-    <div className="min-h-screen bg-[#0f1117]">
-      {/* Header */}
-      <header className="border-b border-white/5 bg-[#0f1117] sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={handleBack}
-              className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5" />
-              <span className="font-medium">Volver</span>
-            </button>
-            
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#0096ff] rounded-xl flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-bold text-white">Crear Agente</span>
-            </div>
-            
-            <div className="w-20" />
-          </div>
-        </div>
-      </header>
+    /* ── full-screen overlay (dark page, no sidebar here) ── */
+    <div style={{ minHeight: "100vh", backgroundColor: C.bg, display: "flex", flexDirection: "column", fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
 
-      {/* Stepper */}
-      <div className="border-b border-white/5 bg-[#0f1117]/50">
-        <div className="max-w-4xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            {steps.map((step, index) => (
-              <div key={step.id} className="flex items-center flex-1">
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                      currentStep >= step.id
-                        ? 'bg-[#0096ff] text-white'
-                        : 'bg-[#1a1d26] text-gray-500 border border-white/10'
-                    }`}
-                  >
-                    {getStepIcon(step.id)}
+      <AuthModal
+        open={openAuth}
+        onClose={() => {
+          setOpenAuth(false);
+          router.push("/");
+        }}
+        onLoggedIn={() => {
+          setOpenAuth(false);
+        }}
+        redirectTo={typeof window !== "undefined" ? `${window.location.origin}/start/agents/create` : undefined}
+      />
+
+      {/* ── top bar ── */}
+      <div style={{ height: 60, borderBottom: `1px solid ${C.border}`, ...fl({ alignItems: "center", justifyContent: "space-between", padding: "0 36px" }), backgroundColor: C.dark, position: "sticky", top: 0, zIndex: 20 }}>
+        <button
+          onClick={() => router.push("/start/agents")}
+          style={{ ...fl({ alignItems: "center", gap: 8 }), background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 14 }}
+        >
+          ‹ Volver
+        </button>
+        <span style={{ fontWeight: 700, fontSize: 16, color: C.white }}>
+          {pageTitle}
+        </span>
+        <button
+          onClick={() => router.push("/start/agents")}
+          style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 20 }}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* ── stepper ── */}
+      <div style={{ borderBottom: `1px solid ${C.border}`, padding: "26px 56px 6px", backgroundColor: C.dark }}>
+        <div style={{ ...fl({ alignItems: "flex-start", gap: 0 }), maxWidth: 1120, margin: "0 auto" }}>
+          {steps.map((s, idx) => {
+            const active = s.id === step;
+            const done   = s.id < step;
+            return (
+              <div key={s.id} style={{ flex: 1, ...fl({ flexDirection: "column", alignItems: "center" }) }}>
+                {/* connector + circle row */}
+                <div style={{ ...fl({ alignItems: "center" }), width: "100%" }}>
+                  {/* left line */}
+                  {idx > 0 && <div style={{ flex: 1, height: 2, backgroundColor: done || active ? C.blue : C.border }} />}
+                  {/* circle */}
+                  <div style={{
+                    width: 38, height: 38, borderRadius: "50%",
+                    backgroundColor: active ? C.blue : done ? `${C.blue}44` : "transparent",
+                    border: `2px solid ${active || done ? C.blue : C.border}`,
+                    ...fl({ alignItems: "center", justifyContent: "center" }),
+                    flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: active || done ? C.white : C.dim }}>{s.id}</span>
                   </div>
-                  <span className={`mt-2 text-xs font-medium ${
-                    currentStep >= step.id ? 'text-white' : 'text-gray-500'
-                  }`}>
-                    {step.name}
+                  {/* right line */}
+                  {idx < steps.length - 1 && <div style={{ flex: 1, height: 2, backgroundColor: done ? C.blue : C.border }} />}
+                </div>
+                {/* label */}
+                <div style={{ marginTop: 8, marginBottom: 12, textAlign: "center" }}>
+                  <span style={{ fontSize: 13, fontWeight: active ? 700 : 400, color: active ? C.blue : C.muted }}>
+                    {s.label}{s.required && <span style={{ color: C.red }}>*</span>}
                   </span>
                 </div>
-                
-                {index < steps.length - 1 && (
-                  <div className={`flex-1 h-0.5 mx-4 ${
-                    currentStep > step.id ? 'bg-[#0096ff]' : 'bg-white/10'
-                  }`} />
-                )}
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-6 py-8">
-        <div className="bg-[#1a1d26] border border-white/5 rounded-2xl p-8">
-          {currentStep === 1 && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-2xl font-bold text-white mb-2">
-                  ¿Qué tipo de agente quieres crear?
-                </h3>
-                <p className="text-gray-400">
-                  Selecciona el tipo que mejor se adapte a tus necesidades
+      {/* ── content ── */}
+      <div style={{ flex: 1, padding: isMobile ? "36px 20px" : "56px", maxWidth: 1180, margin: "0 auto", width: "100%" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : (isTextTestStep ? "1fr 1fr" : "320px 1fr"), gap: isMobile ? 28 : 72 }}>
+
+          {/* LEFT – description */}
+          <div>
+            {isTextTestStep ? (
+              <>
+                <h2 style={{ fontSize: isMobile ? 26 : 30, fontWeight: 800, margin: "0 0 14px", lineHeight: 1.2 }}>
+                  Instrucciones
+                </h2>
+                <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, margin: "0 0 16px" }}>
+                  Ingresa las instrucciones específicas para tu agente o selecciona y edita una de las plantillas predefinidas.
                 </p>
-              </div>
-              
-              <div className="space-y-3">
-                {agentTypes.map((type) => (
+                <textarea
+                  value={form.agentPrompt}
+                  onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
+                  rows={16}
+                  style={{ ...input({ minHeight: isMobile ? 260 : 420, fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace" }), resize: "vertical" as const }}
+                />
+                <div style={{ marginTop: 14 }}>
                   <button
-                    key={type.id}
-                    onClick={() => setAgentData({ ...agentData, type: type.id })}
-                    className={`w-full p-5 rounded-xl border-2 text-left transition-all relative overflow-hidden ${
-                      agentData.type === type.id
-                        ? 'border-[#0096ff] bg-[#0096ff]/5'
-                        : 'border-white/10 bg-[#0f1117] hover:border-white/20'
-                    }`}
+                    type="button"
+                    style={{ padding: "12px 16px", borderRadius: 10, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 900, cursor: "pointer" }}
                   >
-                    <div className="flex items-start gap-4">
-                      <div className="text-4xl">{type.icon}</div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
-                          <h4 className="text-lg font-semibold text-white">{type.name}</h4>
-                          {type.popular && (
-                            <span className="bg-[#a3e635] text-[#0f1117] text-xs px-2 py-0.5 rounded-full font-semibold">
-                              Popular
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-gray-400 text-sm mb-3">{type.description}</p>
-                        <div className="flex flex-wrap gap-2">
-                          {type.features.map((feature, idx) => (
-                            <span key={idx} className="text-xs bg-white/5 text-gray-300 px-2.5 py-1 rounded-md">
-                              {feature}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                        agentData.type === type.id
-                          ? 'border-[#0096ff] bg-[#0096ff]'
-                          : 'border-gray-600'
-                      }`}>
-                        {agentData.type === type.id && <Check className="w-4 h-4 text-white" />}
-                      </div>
-                    </div>
+                    ✦ Generar con IA
                   </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {currentStep === 2 && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-2xl font-bold text-white mb-2">
-                  Configura la personalidad
-                </h3>
-                <p className="text-gray-400">
-                  Define cómo se comportará y comunicará tu agente
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 style={{ fontSize: isMobile ? 26 : 30, fontWeight: 800, margin: "0 0 18px", lineHeight: 1.2, whiteSpace: "pre-line" }}>
+                  {left.title}
+                </h2>
+                <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, margin: 0 }}>
+                  {left.body}
                 </p>
-              </div>
+              </>
+            )}
+          </div>
 
-              <div className="space-y-4">
+          {/* RIGHT – form */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
+
+            {isTextTestStep ? (
+              <>
+                <div style={{ backgroundColor: C.dark, borderRadius: 14, border: `1px solid ${C.border}`, padding: 24, minHeight: 400 }}>
+                  <VoiceTestPanel templateId="julia" />
+                </div>
+
+                <div style={{ backgroundColor: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, color: C.white, marginBottom: 14, lineHeight: 1.6 }}>
+                  ¡Estoy listo para ayudarte! Escribe tu primer mensaje abajo para comenzar a explorar lo que puedo resolver.
+                </div>
+
+                <div style={{ display: "grid", gap: 10, marginBottom: 14 }}>
+                  {[
+                    "What services do you offer?",
+                    "How can I contact support?",
+                  ].map(q => (
+                    <button
+                      key={q}
+                      type="button"
+                      style={{ textAlign: "left", padding: "14px 16px", borderRadius: 14, border: `1px solid ${C.border}`, backgroundColor: "rgba(255,255,255,0.04)", color: C.white, cursor: "pointer", fontWeight: 700 }}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ ...fl({ gap: 10 }) }}>
+                  <input placeholder="Escribe un mensaje…" style={input({ flex: 1 })} />
+                  <button style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: C.blue, border: "none", color: "#fff", fontWeight: 900, cursor: "pointer" }}>
+                    ▶
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+
+            {/* ── STEP 1: Company context ── */}
+            {step === 1 && (
+              <>
                 <div>
-                  <label className="block text-sm font-medium text-white mb-2">
-                    Nombre del agente <span className="text-red-400">*</span>
+                  <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                    Nombre de la empresa: <span style={{ color: C.red }}>*</span>
+                    <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                   </label>
                   <input
-                    type="text"
-                    value={agentData.name}
-                    onChange={(e) => setAgentData({ ...agentData, name: e.target.value })}
-                    placeholder="Ej: Lía - Calificadora de Leads"
-                    className="w-full px-4 py-3 bg-[#0f1117] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-[#0096ff] focus:outline-none transition-colors"
+                    value={form.companyName}
+                    onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))}
+                    placeholder="Escribe el nombre oficial de la empresa"
+                    style={input()}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white mb-2">
-                    Descripción
+                  <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                    URL del sitio web
                   </label>
-                  <textarea
-                    value={agentData.description}
-                    onChange={(e) => setAgentData({ ...agentData, description: e.target.value })}
-                    placeholder="Describe qué hace este agente..."
-                    rows={3}
-                    className="w-full px-4 py-3 bg-[#0f1117] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-[#0096ff] focus:outline-none resize-none transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-white mb-3">
-                    Personalidad
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {personalities.map((personality) => (
-                      <button
-                        key={personality.id}
-                        onClick={() => setAgentData({ ...agentData, personality: personality.id })}
-                        className={`p-4 rounded-xl border text-left transition-all ${
-                          agentData.personality === personality.id
-                            ? 'border-[#0096ff] bg-[#0096ff]/5'
-                            : 'border-white/10 bg-[#0f1117] hover:border-white/20'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-2xl">{personality.emoji}</span>
-                          <span className="font-semibold text-white">{personality.name}</span>
-                        </div>
-                        <p className="text-sm text-gray-400">{personality.description}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {agentData.type === 'voice' && (
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-3 flex items-center gap-2">
-                      <Volume2 className="w-4 h-4" />
-                      Voz
-                    </label>
-                    <div className="grid grid-cols-3 gap-3">
-                      {voices.map((voice) => (
-                        <button
-                          key={voice.id}
-                          onClick={() => setAgentData({ ...agentData, voice: voice.id })}
-                          className={`p-3 rounded-xl border text-left transition-all ${
-                            agentData.voice === voice.id
-                              ? 'border-[#0096ff] bg-[#0096ff]/5'
-                              : 'border-white/10 bg-[#0f1117] hover:border-white/20'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-medium text-white text-sm">{voice.name}</span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded ${
-                              voice.gender === 'male' ? 'bg-blue-500/20 text-blue-400' :
-                              voice.gender === 'female' ? 'bg-pink-500/20 text-pink-400' :
-                              'bg-gray-500/20 text-gray-400'
-                            }`}>
-                              {voice.gender === 'neutral' ? 'N' : voice.gender === 'male' ? 'M' : 'F'}
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-500">{voice.preview}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-2xl font-bold text-white mb-2">
-                  Conocimiento y comportamiento
-                </h3>
-                <p className="text-gray-400">
-                  Define las instrucciones y conocimientos de tu agente
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-white mb-2 flex items-center gap-2">
-                    <Brain className="w-4 h-4 text-[#0096ff]" />
-                    Instrucciones del sistema (System Prompt)
-                  </label>
-                  <p className="text-xs text-gray-500 mb-3">
-                    Estas instrucciones definen el comportamiento base. Sé específico sobre su rol, objetivos y restricciones.
-                  </p>
-                  <textarea
-                    value={agentData.systemPrompt}
-                    onChange={(e) => setAgentData({ ...agentData, systemPrompt: e.target.value })}
-                    placeholder={`Ejemplo:
-Eres un asistente virtual especializado en atención al cliente para una empresa inmobiliaria.
-
-Tu objetivo es:
-- Responder preguntas sobre propiedades disponibles
-- Agendar citas para visitas
-- Calificar leads según su presupuesto
-
-Siempre sé amable, profesional y trata de ayudar al cliente.`}
-                    rows={12}
-                    className="w-full px-4 py-3 bg-[#0f1117] border border-white/10 rounded-xl text-white placeholder-gray-600 focus:border-[#0096ff] focus:outline-none resize-none font-mono text-sm"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <button className="p-6 rounded-xl border border-dashed border-white/20 bg-[#0f1117] hover:bg-[#13161f] transition-all text-center">
-                    <div className="text-3xl mb-3">📄</div>
-                    <p className="text-sm font-medium text-white mb-1">Subir documentos</p>
-                    <p className="text-xs text-gray-500">PDF, Word, TXT</p>
-                  </button>
-                  
-                  <button className="p-6 rounded-xl border border-dashed border-white/20 bg-[#0f1117] hover:bg-[#13161f] transition-all text-center">
-                    <div className="text-3xl mb-3">🌐</div>
-                    <p className="text-sm font-medium text-white mb-1">Importar desde web</p>
-                    <p className="text-xs text-gray-500">Scrapear sitio web</p>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {currentStep === 4 && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-2xl font-bold text-white mb-2">
-                  Integraciones y canales
-                </h3>
-                <p className="text-gray-400">
-                  Selecciona dónde estará disponible tu agente
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { id: 'whatsapp', name: 'WhatsApp Business', icon: '💬', description: 'Responde mensajes de WhatsApp' },
-                  { id: 'phone', name: 'Teléfono', icon: '📞', description: 'Número telefónico dedicado' },
-                  { id: 'web', name: 'Web Chat', icon: '🌐', description: 'Widget para tu sitio web' },
-                  { id: 'api', name: 'API', icon: '⚡', description: 'Integración programática' },
-                ].map((integration) => (
-                  <button
-                    key={integration.id}
-                    onClick={() => {
-                      const newIntegrations = agentData.integrations.includes(integration.id)
-                        ? agentData.integrations.filter(i => i !== integration.id)
-                        : [...agentData.integrations, integration.id];
-                      setAgentData({ ...agentData, integrations: newIntegrations });
+                  <div style={fl({ gap: 10 })}>
+                    <input
+                      value={form.companyUrl}
+                      onChange={e => setForm(f => ({ ...f, companyUrl: e.target.value }))}
+                      placeholder="https://example.com"
+                      style={input({ flex: 1 })}
+                    />
+                    <button style={{
+                      ...fl({ alignItems: "center", gap: 6 }),
+                      padding: "0 18px", borderRadius: 10,
+                      backgroundColor: "transparent",
+                      border: `1px solid ${C.lime}`,
+                      color: C.lime, fontWeight: 800, fontSize: 14, cursor: "pointer",
+                      whiteSpace: "nowrap",
                     }}
-                    className={`p-4 rounded-xl border text-left transition-all ${
-                      agentData.integrations.includes(integration.id)
-                        ? 'border-[#0096ff] bg-[#0096ff]/5'
-                        : 'border-white/10 bg-[#0f1117] hover:border-white/20'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <span className="text-2xl">{integration.icon}</span>
-                      <div className={`w-5 h-5 rounded border flex items-center justify-center ${
-                        agentData.integrations.includes(integration.id)
-                          ? 'border-[#0096ff] bg-[#0096ff]'
-                          : 'border-gray-600'
-                      }`}>
-                        {agentData.integrations.includes(integration.id) && <Check className="w-3.5 h-3.5 text-white" />}
-                      </div>
-                    </div>
-                    <h5 className="font-medium text-white mb-1">{integration.name}</h5>
-                    <p className="text-xs text-gray-400">{integration.description}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {currentStep === 5 && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-2xl font-bold text-white mb-2">
-                  Revisar y activar
-                </h3>
-                <p className="text-gray-400">
-                  Verifica la configuración antes de activar tu agente
-                </p>
-              </div>
-
-              <div className="bg-[#0f1117] border border-white/10 rounded-xl p-6 space-y-5">
-                <div className="flex items-center gap-4 pb-5 border-b border-white/10">
-                  <div className="w-16 h-16 bg-gradient-to-br from-[#0096ff] to-[#0077cc] rounded-2xl flex items-center justify-center text-2xl">
-                    {agentData.type === 'voice' ? '📞' : agentData.type === 'text' ? '💬' : '⚡'}
+                    onClick={genCompanyContext}
+                    disabled={contextLoading}
+                    >
+                      {contextLoading ? "Generando..." : "Generar contexto"}
+                    </button>
                   </div>
-                  <div>
-                    <h4 className="text-lg font-semibold text-white">{agentData.name || 'Sin nombre'}</h4>
-                    <p className="text-sm text-gray-400">{agentData.description || 'Sin descripción'}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-xs text-gray-500 uppercase tracking-wider">Tipo</span>
-                    <p className="text-white capitalize mt-1">{agentData.type}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-500 uppercase tracking-wider">Personalidad</span>
-                    <p className="text-white capitalize mt-1">{agentData.personality}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-500 uppercase tracking-wider">Idioma</span>
-                    <p className="text-white uppercase mt-1">{agentData.language}</p>
-                  </div>
-                  {agentData.type === 'voice' && (
-                    <div>
-                      <span className="text-xs text-gray-500 uppercase tracking-wider">Voz</span>
-                      <p className="text-white capitalize mt-1">{agentData.voice}</p>
+                  {contextError && (
+                    <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 8, backgroundColor: "rgba(239,68,68,.12)", border: `1px solid rgba(239,68,68,.25)`, color: "#fecaca", fontSize: 13 }}>
+                      {contextError}
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <span className="text-xs text-gray-500 uppercase tracking-wider">Integraciones</span>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {agentData.integrations.length > 0 ? (
-                      agentData.integrations.map(i => (
-                        <span key={i} className="bg-white/5 text-gray-300 px-3 py-1 rounded-full text-sm capitalize">
-                          {i}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-gray-500 text-sm">Ninguna integración seleccionada</span>
-                    )}
-                  </div>
+                  <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                    Descripción de la empresa: <span style={{ color: C.red }}>*</span>
+                    <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
+                  </label>
+                  <textarea
+                    value={form.companyDesc}
+                    onChange={e => setForm(f => ({ ...f, companyDesc: e.target.value }))}
+                    placeholder="Describe tu empresa aquí"
+                    rows={10}
+                    style={{ ...input({ minHeight: 260 }), resize: "vertical" as const }}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* ── STEP 2: Agent context ── */}
+            {step === 2 && (
+              <>
+                {kind === "notetaker" ? (
+                  <>
+                    <div>
+                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                        Nombre del notetaker: <span style={{ color: C.red }}>*</span>
+                      </label>
+                      <input
+                        value={form.agentName}
+                        onChange={e => setForm(f => ({ ...f, agentName: e.target.value }))}
+                        placeholder="Ej: Notetaker de Ventas"
+                        style={input()}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                        Objetivo: <span style={{ color: C.red }}>*</span>
+                      </label>
+                      <input
+                        value={form.agentRole}
+                        onChange={e => setForm(f => ({ ...f, agentRole: e.target.value }))}
+                        placeholder="Ej: Resumir y extraer acciones"
+                        style={input()}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                        Fuente: <span style={{ color: C.red }}>*</span>
+                      </label>
+                      <select
+                        value={form.notetakerSource}
+                        onChange={e => setForm(f => ({ ...f, notetakerSource: e.target.value as any }))}
+                        style={input({ appearance: "none" as const })}
+                      >
+                        <option value="call">Llamada</option>
+                        <option value="meeting">Reunion</option>
+                        <option value="upload">Subida de audio</option>
+                      </select>
+                    </div>
+
+                    <div style={{ ...fl({ gap: 10, flexWrap: "wrap" }), padding: 12, border: `1px solid ${C.border}`, borderRadius: 10, backgroundColor: C.dark }}>
+                      <label style={{ ...fl({ alignItems: "center", gap: 8 }), color: C.muted, fontSize: 13, cursor: "pointer" }}>
+                        <input type="checkbox" checked={form.notetakerSummary} onChange={e => setForm(f => ({ ...f, notetakerSummary: e.target.checked }))} />
+                        Resumen
+                      </label>
+                      <label style={{ ...fl({ alignItems: "center", gap: 8 }), color: C.muted, fontSize: 13, cursor: "pointer" }}>
+                        <input type="checkbox" checked={form.notetakerActionItems} onChange={e => setForm(f => ({ ...f, notetakerActionItems: e.target.checked }))} />
+                        Acciones
+                      </label>
+                      <label style={{ ...fl({ alignItems: "center", gap: 8 }), color: C.muted, fontSize: 13, cursor: "pointer" }}>
+                        <input type="checkbox" checked={form.notetakerSendEmail} onChange={e => setForm(f => ({ ...f, notetakerSendEmail: e.target.checked }))} />
+                        Enviar por email
+                      </label>
+                    </div>
+                  </>
+                ) : (form.type === "flow") ? (
+                  <>
+                    <div>
+                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                        Nombre del flujo: <span style={{ color: C.red }}>*</span>
+                      </label>
+                      <input
+                        value={form.agentName}
+                        onChange={e => setForm(f => ({ ...f, agentName: e.target.value }))}
+                        placeholder="Ej: plantilla_para_llamar"
+                        style={input()}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                        Objetivo del flujo: <span style={{ color: C.red }}>*</span>
+                      </label>
+                      <input
+                        value={form.agentRole}
+                        onChange={e => setForm(f => ({ ...f, agentRole: e.target.value }))}
+                        placeholder="Ej: Llamar leads y registrar resultados"
+                        style={input()}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                        Notas / descripcion
+                      </label>
+                      <textarea
+                        value={form.agentPrompt}
+                        onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
+                        placeholder="Describe que hara el flujo..."
+                        rows={10}
+                        style={{ ...input({ minHeight: 260 }), resize: "vertical" as const }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                        Idioma: <span style={{ color: C.red }}>*</span>
+                        <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
+                      </label>
+                      <select
+                        value={form.language}
+                        onChange={e => setForm(f => ({ ...f, language: e.target.value }))}
+                        style={input({ appearance: "none" as const })}
+                      >
+                        <option value="">Seleccionar</option>
+                        {LANGUAGE_OPTIONS.map(o => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                        Nombre de identidad: <span style={{ color: C.red }}>*</span>
+                        <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
+                      </label>
+                      <input
+                        value={form.agentName}
+                        onChange={e => setForm(f => ({ ...f, agentName: e.target.value }))}
+                        placeholder="Escribe el nombre de tu agente"
+                        style={input()}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                        Propósito: <span style={{ color: C.red }}>*</span>
+                        <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
+                      </label>
+                      <select
+                        value={form.agentRole}
+                        onChange={e => setForm(f => ({ ...f, agentRole: e.target.value }))}
+                        style={input({ appearance: "none" as const })}
+                      >
+                        <option value="">Seleccionar</option>
+                        {PURPOSE_OPTIONS.map(o => (
+                          <option key={o.value} value={o.label}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 15, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                        Instrucciones importantes
+                        <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
+                      </label>
+                      <textarea
+                        value={form.agentPrompt}
+                        onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
+                        placeholder="Usa este espacio para explicar los detalles de tu agente, sus tareas y como debe comportarse."
+                        rows={10}
+                        style={{ ...input({ minHeight: 260 }), resize: "vertical" as const }}
+                      />
+                      <div style={{ color: C.dim, fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
+                        La configuracion avanzada (voz, canales, escalacion) se ajusta despues.
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ── STEP 3: Train (text) / Test (others) ── */}
+            {step === 3 && form.type === "text" && kind !== "notetaker" ? (
+              <>
+                <div style={{ ...fl({ gap: 12 }), borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, brainTab: "web" }))}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: form.brainTab === "web" ? C.lime : C.muted, fontWeight: 900, padding: "8px 0", borderBottom: `2px solid ${form.brainTab === "web" ? C.lime : "transparent"}` }}
+                  >
+                    🌐 Sitio web
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, brainTab: "files" }))}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: form.brainTab === "files" ? C.lime : C.muted, fontWeight: 900, padding: "8px 0", borderBottom: `2px solid ${form.brainTab === "files" ? C.lime : "transparent"}` }}
+                  >
+                    📄 Archivos
+                  </button>
                 </div>
 
-                <div>
-                  <span className="text-xs text-gray-500 uppercase tracking-wider">Instrucciones</span>
-                  <div className="mt-2 p-4 bg-white/5 rounded-lg">
-                    <p className="text-sm text-gray-300 line-clamp-4 font-mono">
-                      {agentData.systemPrompt || 'Sin instrucciones personalizadas'}
-                    </p>
-                  </div>
-                </div>
-              </div>
+                {form.brainTab === "web" ? (
+                  <>
+                    <div style={{ fontWeight: 900, fontSize: 16, marginTop: 6 }}>Extracción web</div>
+                    <div style={{ color: C.muted, fontSize: 14, lineHeight: 1.6 }}>
+                      Importa un sitio web a la base de conocimientos de tu agente. Esto recorrerá los enlaces a partir de la URL.
+                    </div>
 
-              <div className="flex items-center gap-4">
-                <button className="flex-1 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
-                  <Play className="w-5 h-5" />
-                  Probar agente
-                </button>
-              </div>
-            </div>
-          )}
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ color: C.muted, fontSize: 13, fontWeight: 800, marginBottom: 8 }}>Sitio web</div>
+                      <div style={fl({ gap: 12 })}>
+                        <input
+                          value={form.brainWebsiteUrl}
+                          onChange={e => setForm(f => ({ ...f, brainWebsiteUrl: e.target.value }))}
+                          placeholder="https://www.tusitio.com/"
+                          style={input({ flex: 1 })}
+                        />
+                        <button
+                          type="button"
+                          onClick={startBrainTraining}
+                          style={{ padding: "0 22px", borderRadius: 12, backgroundColor: "transparent", border: `1px solid ${C.lime}`, color: C.lime, fontWeight: 900, cursor: "pointer", whiteSpace: "nowrap" }}
+                        >
+                          Comenzar
+                        </button>
+                      </div>
+                      <div style={{ color: C.dim, fontSize: 12, marginTop: 10 }}>
+                        Esto rastreará todos los enlaces que comiencen con la URL (sin incluir archivos del sitio web).
+                      </div>
+                      {form.brainLastRun && (
+                        <div style={{ color: C.dim, fontSize: 12, marginTop: 10 }}>
+                          Ultima ejecucion: {new Date(form.brainLastRun).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ marginTop: 14, border: `1px dashed ${C.border}`, borderRadius: 14, padding: 22, color: C.muted }}>
+                    Subida de archivos (proximo). Por ahora puedes continuar.
+                  </div>
+                )}
+              </>
+            ) : (
+              step === 3 && (
+                <div style={{ backgroundColor: C.dark, borderRadius: 14, border: `1px solid ${C.border}`, padding: isMobile ? 22 : 32, textAlign: "center" }}>
+                  <div style={{ fontSize: 56, marginBottom: 16 }}>🤖</div>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 10px" }}>
+                    {form.agentName || "Tu agente"} está listo para probar
+                  </h3>
+                  <p style={{ color: C.muted, fontSize: 15, margin: "0 0 26px" }}>
+                    Envía un mensaje para probar cómo responde tu agente
+                  </p>
+                  <div style={{ ...fl({ gap: 10 }), marginBottom: 12 }}>
+                    <input placeholder="Escribe un mensaje…" style={input()} />
+                    <button style={{ padding: "0 24px", borderRadius: 10, backgroundColor: C.blue, border: "none", color: "#fff", fontWeight: 900, cursor: "pointer", whiteSpace: "nowrap", fontSize: 14 }}>
+                      Enviar
+                    </button>
+                  </div>
+                  <p style={{ color: C.dim, fontSize: 12, margin: 0 }}>
+                    Integración con OpenAI se configurará después del despliegue
+                  </p>
+                </div>
+              )
+            )}
+
+              </>
+            )}
+          </div>
         </div>
+      </div>
 
-        {/* Navigation */}
-        <div className="flex items-center justify-between mt-8 max-w-4xl mx-auto">
-          <button
-            onClick={handleBack}
-            className="px-6 py-3 text-gray-400 hover:text-white font-medium transition-colors flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Anterior
-          </button>
-          
-          {currentStep < steps.length ? (
+      {/* ── footer ── */}
+      <div style={{ borderTop: `1px solid ${C.border}`, padding: isMobile ? "14px 20px" : "18px 56px", ...fl({ alignItems: "center", justifyContent: "space-between" }), backgroundColor: C.dark }}>
+        <button
+          onClick={() => setPickerOpen(true)}
+          style={{ padding: "12px 26px", borderRadius: 10, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 800, fontSize: 15, cursor: "pointer" }}
+        >
+          Escoger plantilla
+        </button>
+
+        <div style={fl({ gap: 12 })}>
+          {step > 1 && (
             <button
-              onClick={handleNext}
-              className="px-8 py-3 bg-[#0096ff] hover:bg-[#0077cc] text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+              onClick={() => setStep(s => s - 1)}
+              style={{ padding: "12px 26px", borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: "transparent", color: C.muted, fontWeight: 800, fontSize: 15, cursor: "pointer" }}
             >
-              Siguiente
-              <ArrowRight className="w-4 h-4" />
+              Atrás
+            </button>
+          )}
+
+          {form.type === "text" && kind !== "notetaker" && step === 3 && (
+            <button
+              type="button"
+              onClick={() => setStep(4)}
+              style={{ padding: "12px 10px", borderRadius: 10, border: "none", backgroundColor: "transparent", color: C.lime, fontWeight: 900, fontSize: 15, cursor: "pointer" }}
+            >
+              Saltar
+            </button>
+          )}
+
+          {step < steps.length ? (
+            <button
+              onClick={() => {
+                if (!canContinue) {
+                  alert("Completa los campos requeridos para continuar");
+                  return;
+                }
+                setStep(s => Math.min(s + 1, steps.length));
+              }}
+              disabled={!canContinue}
+              style={{
+                padding: "12px 34px",
+                borderRadius: 10,
+                border: "none",
+                backgroundColor: !canContinue ? "rgba(163,230,53,.35)" : C.lime,
+                color: "#111",
+                fontWeight: 700,
+                fontSize: 15,
+                cursor: !canContinue ? "not-allowed" : "pointer",
+              }}
+            >
+              {(form.type === "text" && kind !== "notetaker" && step === 3) ? "Siguiente" : "Guardar y continuar"}
             </button>
           ) : (
             <button
-              onClick={handleCreate}
-              disabled={loading}
-              className="px-8 py-3 bg-[#a3e635] hover:bg-[#b5f54a] text-[#0f1117] rounded-xl font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
+              onClick={handleSave}
+              disabled={saving}
+              style={{ padding: "12px 34px", borderRadius: 10, border: "none", backgroundColor: saving ? C.dim : C.lime, color: "#111", fontWeight: 800, fontSize: 15, cursor: saving ? "not-allowed" : "pointer" }}
             >
-              {loading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-[#0f1117]/30 border-t-[#0f1117] rounded-full animate-spin" />
-                  Creando...
-                </>
-              ) : (
-                <>
-                  <Save className="w-5 h-5" />
-                  Crear Agente
-                </>
-              )}
+              {saving ? "Creando…" : "Crear Agente"}
             </button>
           )}
         </div>
-      </main>
+      </div>
+
+      {/* ── template picker overlay ── */}
+      {pickerOpen && (
+        <div
+          onClick={() => setPickerOpen(false)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,.55)", zIndex: 50, padding: 24, overflowY: "auto" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 1160, margin: isMobile ? "18px auto" : "44px auto", backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: isMobile ? 18 : 26 }}
+          >
+            <div style={{ ...fl({ alignItems: "center", justifyContent: "space-between" }), marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800 }}>Plantillas</div>
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>Empieza desde cero o elige un caso de uso.</div>
+              </div>
+              <button onClick={() => setPickerOpen(false)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 20 }}>
+                x
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 18 }}>
+              <div>
+                <div style={{ color: C.dim, fontSize: 12, marginBottom: 8 }}>Crear desde cero</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+                  {([
+                    { id: "voice", label: "Agente de voz" },
+                    { id: "text", label: "Agente de texto" },
+                    { id: "flow", label: "Flujo" },
+                    { id: "notetaker", label: "Notetaker" },
+                  ] as const).map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        if (t.id === "flow") {
+                          router.push("/start/flows/templates");
+                          setPickerOpen(false);
+                          return;
+                        }
+                        if (t.id === "notetaker") {
+                          setKind("notetaker");
+                          setForm(f => ({ ...f, type: "voice" }));
+                          updateQuery({ type: "voice", kind: "notetaker", template: null });
+                        } else {
+                          setKind("agent");
+                          setForm(f => ({ ...f, type: t.id }));
+                          updateQuery({ type: t.id, kind: "agent", template: null });
+                        }
+                        setStep(1);
+                        setPickerOpen(false);
+                      }}
+                      style={{
+                        padding: "12px 14px",
+                        borderRadius: 12,
+                        textAlign: "left",
+                        cursor: "pointer",
+                        border: `1px solid ${C.border}`,
+                        backgroundColor: C.dark,
+                        color: C.white,
+                        fontWeight: 700,
+                        fontSize: 14,
+                      }}
+                    >
+                      {t.label}
+                      <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginTop: 4 }}>
+                        Configuracion guiada en 3 pasos
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ color: C.dim, fontSize: 12, marginBottom: 8 }}>Casos de uso</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+                  {([
+                    { id: "lia", title: "Lia", subtitle: "Calificacion de leads", type: "voice" as AgentType },
+                    { id: "alex", title: "Alex", subtitle: "Prospeccion en frio", type: "voice" as AgentType },
+                    { id: "julia", title: "Julia", subtitle: "Recepcionista", type: "text" as AgentType },
+                    { id: "flow-lead-intake", title: "Lead intake", subtitle: "Flujo base", type: "flow" as AgentType },
+                  ]).map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        if (t.type === "flow") {
+                          router.push("/start/flows/templates");
+                          setPickerOpen(false);
+                          return;
+                        }
+                        const preset = TEMPLATE_PRESETS[t.id];
+                        setKind(preset?.kind || "agent");
+                        setForm(f => ({
+                          ...f,
+                          type: preset?.type || t.type,
+                          agentName: preset?.agentName || f.agentName,
+                          agentRole: preset?.agentRole || f.agentRole,
+                          agentPrompt: preset?.agentPrompt || f.agentPrompt,
+                          flowTemplate: (preset?.type === "flow") ? t.id : f.flowTemplate,
+                        }));
+                        updateQuery({ type: preset?.type || t.type, kind: preset?.kind || "agent", template: t.id });
+                        setStep(1);
+                        setPickerOpen(false);
+                      }}
+                      style={{
+                        padding: "12px 14px",
+                        borderRadius: 12,
+                        textAlign: "left",
+                        cursor: "pointer",
+                        border: `1px solid ${C.border}`,
+                        backgroundColor: C.dark,
+                        color: C.white,
+                      }}
+                    >
+                      <div style={{ fontWeight: 800, fontSize: 14 }}>{t.title}</div>
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{t.subtitle}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

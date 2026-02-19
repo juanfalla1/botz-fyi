@@ -140,6 +140,88 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
         throw new Error("Error al crear la cuenta");
       }
 
+      // ✅ NUEVO: Crear tenant demo con trial de 2 días
+      const trialEndDate = new Date();
+      trialEndDate.setDate(trialEndDate.getDate() + 2);
+      
+      const { data: newTenant, error: tenantError } = await supabase
+        .from("tenants")
+        .insert({
+          empresa: invite.email.split("@")[0],
+          email: invite.email,
+          status: "trial",
+          trial_start: new Date().toISOString(),
+          trial_end: trialEndDate.toISOString(),
+          auth_user_id: authData.user.id,
+        })
+        .select()
+        .single();
+
+      if (tenantError) {
+        console.warn("Error creating tenant:", tenantError);
+        throw new Error("No se pudo crear el tenant de prueba");
+      }
+
+      console.log("✅ Tenant creado:", newTenant.id);
+
+      // ✅ NUEVO: Crear team_member con rol 'admin' en el tenant demo
+      const { data: teamMember, error: teamError } = await supabase
+        .from("team_members")
+        .insert({
+          tenant_id: newTenant.id,
+          email: invite.email,
+          nombre: invite.email.split("@")[0],
+          rol: "admin",
+          activo: true,
+          auth_user_id: authData.user.id,
+          permissions: { all: true },
+        })
+        .select()
+        .single();
+
+      if (teamError) {
+        console.warn("Error creating team_member:", teamError);
+        throw new Error("No se pudo crear el team member");
+      }
+
+      console.log("✅ Team member creado:", teamMember?.id);
+
+      // ✅ NUEVO: Crear subscription con status 'trialing'
+      const { data: subscription, error: subError } = await supabase
+        .from("subscriptions")
+        .insert({
+          user_id: authData.user.id,
+          tenant_id: newTenant.id,
+          plan: "Básico",
+          status: "trialing",
+          trial_start: newTenant.trial_start,
+          trial_end: newTenant.trial_end,
+        })
+        .select()
+        .single();
+
+      if (subError) {
+        console.warn("Error creating subscription:", subError);
+      }
+
+      console.log("✅ Subscription creada:", subscription?.id);
+
+      // ✅ NUEVO: Guardar tenant_id en auth metadata (CRÍTICO para que el usuario pueda entrar)
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: {
+          tenant_id: newTenant.id,
+          role: invite.role,
+          is_trial: true,
+          trial_end: trialEndDate.toISOString(),
+        },
+      });
+
+      if (updateError) {
+        console.warn("Error updating user metadata:", updateError);
+      }
+
+      console.log("✅ Auth metadata actualizado con tenant_id");
+
       // Add user to platform_admins so they have system access
       const { error: adminError } = await supabase
         .from("platform_admins")

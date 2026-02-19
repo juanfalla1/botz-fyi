@@ -1,0 +1,219 @@
+====================================================================
+ANÁLISIS: Por Qué los Demo Trial Users NO Tienen Funcionalidades
+====================================================================
+
+RESUMEN EJECUTIVO
+=================
+Cuando un usuario de demo trial acepta una invitación y crea 
+contraseña, NO se habilitan las funcionalidades porque:
+
+1. No se crea un tenant_id para el usuario demo
+2. No se crea un team_member con el tenant_id correcto
+3. AuthRoleContext no puede detectar el tenant_id del usuario
+4. MainLayout no puede cargar la suscripción sin un tenant_id válido
+5. El usuario queda sin acceso a datos
+
+
+PROBLEMA 1: /accept-invite/[inviteId]/page.tsx
+================================================
+Líneas 114-172: handleSetupPassword
+
+CÓDIGO ACTUAL:
+- Crea usuario con supabase.auth.signUp() ✅
+- Lo añade a platform_admins ✅
+- Actualiza admin_invites status ✅
+
+LO QUE FALTA:
+- ❌ NO crea un tenant para el usuario
+- ❌ NO crea un team_member con tenant_id
+- ❌ NO crea entrada en subscriptions table
+- ❌ NO almacena tenant_id en auth metadata
+
+CONSECUENCIA:
+El usuario no tiene:
+- tenant_id asignado
+- team_member record
+- subscription record
+- Acceso a datos (porque no hay tenant para filtrar)
+
+
+PROBLEMA 2: AuthRoleContext.tsx (líneas 40-180)
+================================================
+Intenta detectar tenant_id así:
+
+PASO 1 (línea 66):
+  let tenantId = authUser.user_metadata?.tenant_id || 
+                 authUser.app_metadata?.tenant_id || null;
+  
+  ❌ FALLA para demo users (no se guardó tenant_id en metadata)
+
+PASO 2 (líneas 69-83):
+  Busca en team_members por email
+  ❌ FALLA porque no existe team_member para demo users
+
+PASO 3 (líneas 89-95):
+  Busca team_member con tenant_id = null
+  ❌ FALLA porque tenantId es null
+
+RESULTADO:
+tenantId = null → No puede filtrar datos por tenant
+
+
+PROBLEMA 3: MainLayout.tsx (líneas 396-531)
+===========================================
+fetchUserSubscription intenta encontrar suscripción en 3 pasos:
+
+PASO 1: Busca por user_id
+  ❌ No hay entrada en subscriptions para demo user
+
+PASO 2: Busca por tenant_id
+  ❌ tenantId es null (del Problema 2)
+
+PASO 3: Busca team_member para obtener tenant_id
+  ❌ No existe team_member (del Problema 1)
+
+RESULTADO:
+activeSub = null
+  → applySubscription(null)
+  → setEnabledFeatures(["demo"])
+  → SOLO DEMO ESTÁ HABILITADO
+
+
+PROBLEMA 4: Validación de Trial Expirado
+=========================================
+En guards.ts: assertTenantAccess()
+  ❌ NO valida si el trial ha expirado
+  ❌ Usuario podría tener acceso indefinido
+
+En MainLayout.tsx:
+  ❌ NO valida trial_end en subscriptions
+  ❌ NO bloquea acceso cuando trial expira
+
+
+FLUJO ACTUAL (ROTO)
+==================
+
+Usuario acepta invitación
+         ↓
+Crea usuario de auth ✅
+Añade a platform_admins ✅
+         ↓
+PERO NO:
+- Crea tenant
+- Crea team_member con tenant_id
+- Crea subscription
+- Guarda tenant_id en metadata
+         ↓
+Usuario navega a /start
+         ↓
+AuthRoleContext busca tenant_id
+  - No encuentra en metadata ❌
+  - No encuentra en team_members ❌
+  - tenantId = null
+         ↓
+MainLayout busca suscripción
+  - Intenta 3 pasos, todos fallan ❌
+  - activeSub = null
+         ↓
+applySubscription(null)
+  - enabledFeatures = ["demo"]
+  - plan = "free"
+         ↓
+RESULTADO: Usuario BLOQUEADO de todas las features
+
+
+SOLUCIÓN RECOMENDADA
+====================
+
+En /accept-invite/[inviteId]/page.tsx, después de crear el usuario:
+
+1. CREAR TENANT:
+   Insert en "tenants" table:
+   - empresa: invite.email.split("@")[0]
+   - status: "trial"
+   - trial_start: now
+   - trial_end: now + 30 días
+   - auth_user_id: authData.user.id
+
+2. CREAR TEAM_MEMBER:
+   Insert en "team_members" table:
+   - tenant_id: newTenant.id
+   - email: invite.email
+   - auth_user_id: authData.user.id
+   - rol: "admin"
+   - activo: true
+   - permissions: (todas habilitadas)
+
+3. CREAR SUBSCRIPTION:
+   Insert en "subscriptions" table:
+   - user_id: authData.user.id
+   - tenant_id: newTenant.id
+   - plan: "Básico" o "Growth"
+   - status: "trialing"
+   - trial_start: newTenant.trial_start
+   - trial_end: newTenant.trial_end
+
+4. GUARDAR EN AUTH METADATA:
+   supabase.auth.updateUser({
+     data: {
+       tenant_id: newTenant.id,
+       role: invite.role,
+       access_level: invite.access_level,
+     }
+   })
+
+RESULTADO:
+✅ Se crea tenant para el usuario
+✅ Se crea team_member con tenant_id
+✅ Se crea subscription con estado "trialing"
+✅ AuthRoleContext encuentra tenant_id
+✅ MainLayout encuentra suscripción
+✅ enabledFeatures se puebla correctamente
+✅ Usuario tiene acceso a todas las funcionalidades
+
+
+VALIDACIÓN DE TRIAL EXPIRADO
+============================
+
+Agregar en guards.ts:
+- Cuando se accede a API, validar trial_end
+- Si trial_end < now(), retornar 403 "Trial expirado"
+
+Agregar en MainLayout.tsx:
+- Antes de habilitar features, validar trial_end
+- Si expirado, setEnabledFeatures(["demo"])
+
+
+ARCHIVOS CLAVE A MODIFICAR
+==========================
+
+1. /accept-invite/[inviteId]/page.tsx
+   - handleSetupPassword() líneas 114-172
+   - Agregar creación de tenant, team_member, subscription
+
+2. app/api/_utils/guards.ts
+   - assertTenantAccess() líneas 58-91
+   - Agregar validación de trial_end
+
+3. app/start/MainLayout.tsx
+   - fetchUserSubscription() líneas 396-531
+   - Agregar validación de trial_end en applySubscription
+
+
+RESUMEN
+=======
+El sistema está diseñado para:
+- Usuarios regulares: team_member → tenant_id → subscription → features
+
+Pero el flujo de demo trial crea:
+- Usuario de auth
+- Entra en platform_admins
+- ❌ FALTA: tenant, team_member, subscription
+
+Eso causa que AuthRoleContext no encuentre tenant_id,
+MainLayout no encuentre subscription,
+y enabledFeatures = ["demo"] solamente.
+
+SOLUCIÓN: Completar el flujo de demo trial para crear
+todos los registros necesarios.
+

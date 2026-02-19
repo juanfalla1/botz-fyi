@@ -1,0 +1,252 @@
+================================================================================
+RESPUESTAS A VERIFICACION DE ESTRUCTURA BD - BOTZ PLATFORM
+Fecha: 2026-02-18
+================================================================================
+
+PREGUNTA 1: Estructura de tabla TENANTS - Campos disponibles
+================================================================================
+
+ESTADO: ⚠️  FALTANTE - Referenciada pero NO CREADA
+
+UBICACION RECOMENDADA:
+  supabase/migrations/000_create_tenants_table.sql
+
+CAMPOS ESPERADOS (INFERIDOS):
+  - id (UUID) PRIMARY KEY DEFAULT gen_random_uuid()
+  - tenant_id (TEXT) NOT NULL UNIQUE
+  - empresa (TEXT) NOT NULL
+  - email (TEXT) NOT NULL
+  - telefono (TEXT)
+  - plan (TEXT) - 'free'|'growth'|'pro'|'scale'|'prime'
+  - status (TEXT) - 'active'|'paused'|'cancelled'|'trial'
+  - trial_start (TIMESTAMP WITH TIME ZONE)
+  - trial_end (TIMESTAMP WITH TIME ZONE)
+  - source (TEXT) - 'signup', 'import', etc
+  - auth_user_id (UUID) REFERENCES auth.users(id)
+  - created_at (TIMESTAMP WITH TIME ZONE) DEFAULT NOW()
+  - updated_at (TIMESTAMP WITH TIME ZONE) DEFAULT NOW()
+
+INDICES RECOMENDADOS:
+  - idx_tenants_tenant_id
+  - idx_tenants_email
+  - idx_tenants_status
+  - idx_tenants_auth_user_id
+
+REFERENCIAS EN CODIGO:
+  - supabase/migrations/011_create_ai_agents_system.sql:7
+    CREATE TABLE ai_agents (tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE)
+  
+  - supabase/migrations/020240211_add_tenant_id_to_team_members.sql:25
+    ALTER TABLE team_members ADD CONSTRAINT team_members_tenant_id_fkey
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+
+CRITICA: Esta tabla es fundamental para multi-tenancy. SU AUSENCIA CAUSARA ERRORES
+DE FK CONSTRAINTS EN PRODUCCION cuando se ejecuten las migraciones.
+
+
+PREGUNTA 2: Estructura de tabla ADMIN_INVITES - Campos actuales
+================================================================================
+
+ESTADO: ✅ IMPLEMENTADO
+
+UBICACION: supabase/migrations/009_create_admin_invites_table.sql
+
+DEFINICION SQL:
+  CREATE TABLE IF NOT EXISTS admin_invites (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'developer',
+    status TEXT NOT NULL DEFAULT 'pending',
+    access_level TEXT NOT NULL DEFAULT 'full',
+    created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    expires_at TIMESTAMP WITH TIME ZONE,
+    notes TEXT,
+    UNIQUE(email)
+  );
+
+CAMPOS DISPONIBLES:
+  
+  id (UUID)
+    └─ Clave primaria, generado automáticamente
+  
+  email (TEXT) NOT NULL UNIQUE
+    └─ Email del usuario a invitar
+    └─ UNIQUE constraint: una invitación por email
+  
+  role (TEXT) DEFAULT 'developer'
+    └─ Rol asignado: 'developer'|'guest'|'support'
+    └─ Define qué tipo de acceso tiene el usuario
+  
+  status (TEXT) DEFAULT 'pending'
+    └─ Estado de la invitación
+    └─ Valores: 'pending'|'accepted'|'rejected'|'revoked'
+  
+  access_level (TEXT) DEFAULT 'full'
+    └─ Nivel de acceso permitido
+    └─ Valores: 'full'|'readonly'|'limited'
+  
+  created_by (UUID) NOT NULL FK
+    └─ Quién creó la invitación (Platform Admin)
+    └─ Referencia a auth.users(id)
+  
+  created_at (TIMESTAMP WITH TIME ZONE)
+    └─ Cuándo se creó la invitación
+    └─ DEFAULT NOW()
+  
+  expires_at (TIMESTAMP WITH TIME ZONE) NULLABLE
+    └─ Cuándo expira la invitación (7 días por defecto)
+    └─ Si NULL no expira (pero por defecto es NOW() + 7 days)
+  
+  notes (TEXT)
+    └─ Notas opcionales del admin creador
+
+INDICES:
+  - idx_admin_invites_email
+  - idx_admin_invites_status
+  - idx_admin_invites_created_by
+
+RLS POLICIES:
+  - "Platform admins can view all invites" FOR SELECT
+  - "Platform admins can create invites" FOR INSERT
+  - "Platform admins can update invites" FOR UPDATE
+  - "Platform admins can delete invites" FOR DELETE
+  └─ Todas requieren: EXISTS (SELECT 1 FROM platform_admins WHERE auth_user_id = auth.uid())
+
+USO EN API:
+  POST /api/platform/admin-invites
+    - Solo Platform Admin puede crear
+    - Automáticamente calcula expires_at = NOW() + 7 days
+    - Envía email con link: /accept-invite/{inviteId}
+  
+  GET /api/platform/admin-invites/validate?inviteId={id}
+    - Valida que invite exista
+    - Valida que status = 'pending'
+    - Valida que no esté expirado
+  
+  PATCH /api/platform/admin-invites
+    - Platform Admin puede cambiar status, access_level, role, notes
+  
+  DELETE /api/platform/admin-invites?id={id}
+    - Platform Admin puede eliminar (revocar)
+
+
+PREGUNTA 3: Mecanismos de expiración o timestamps en otras tablas
+================================================================================
+
+A) ADMIN_INVITES - 7 DIAS
+   ─────────────────────────
+   Campo: expires_at (TIMESTAMP WITH TIME ZONE)
+   
+   Cálculo:
+     expires_at = NOW() + INTERVAL '7 days'
+     (en JS: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
+   
+   Validación:
+     Ubicación: app/api/platform/admin-invites/validate/route.ts
+     Lógica:
+       if (new Date(invite.expires_at) < new Date()) {
+         return { error: "Invitation expired" };
+       }
+   
+   Acción:
+     - Usuario NO puede aceptar invitación expirada
+     - Status sigue siendo 'pending' (no se marca como expirado)
+   
+   Limpieza:
+     ⚠️  NO IMPLEMENTADA
+     - Invites expiradas permanecen en BD indefinidamente
+     - Falta: scheduler/cron job para DELETE WHERE expires_at < NOW()
+
+
+B) INVITE_TOKENS - 7 DIAS
+   ─────────────────────────
+   Tabla: invite_tokens
+   Campos:
+     - expires_at (TIMESTAMP WITH TIME ZONE) - 7 días
+     - used (BOOLEAN DEFAULT FALSE)
+     - used_at (TIMESTAMP WITH TIME ZONE) - cuándo fue usado
+   
+   Validación:
+     - Checar expires_at < NOW() → rechazar
+     - Checar used = TRUE → rechazar
+   
+   Uso:
+     - Auditoría: permite tracking de múltiples tokens por invitación
+     - Reenvíos: se crea nuevo token cada vez que se reenvia
+   
+   Características:
+     - Permite saber cuándo y si fue usado
+     - Permite múltiples intentos antes de expiración
+
+
+C) AGENT_ENTITLEMENTS - 3 DIAS (TRIAL)
+   ──────────────────────────────────────
+   Tabla: agent_entitlements
+   Campos:
+     - trial_start (TIMESTAMP WITH TIME ZONE)
+     - trial_end (TIMESTAMP WITH TIME ZONE)
+     - status (TEXT) - 'trial'|'active'|'blocked'
+     - credits_limit (INTEGER)
+     - credits_used (INTEGER)
+   
+   Cálculo:
+     const TRIAL_DAYS = 3;
+     trial_start = new Date();
+     trial_end = new Date(trial_start.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+   
+   Estado del Trial:
+     'trial' → Usuario en período de prueba
+     'active' → Usuario pagó, tiene acceso completo
+     'blocked' → Trial expiró, debe suscribirse
+   
+   Validación:
+     Ubicación: app/api/agents/entitlement/route.ts GET
+     Lógica:
+       if (String(status) === 'trial' && new Date() > new Date(trial_end)) {
+         // Usuario debe suscribirse, créditos bloqueados
+         status = 'blocked';
+       }
+   
+   Plan Mapeo:
+     pro → 100,000 créditos
+     scale → 500,000 créditos
+     prime → 1,500,000 créditos
+   
+   Acción Post-Expiración:
+     - Si trial expirado y status='trial' → marcar como 'blocked'
+     - Usuario ve modal: "Prueba gratuita expirada"
+     - Debe hacer upgrade a plan pagado
+
+
+D) TEAM_MEMBERS - SOFT DELETE
+   ───────────────────────────
+   Campo: activo (BOOLEAN DEFAULT true)
+   
+   Operación:
+     UPDATE team_members SET activo = false WHERE id = ?;
+   
+   Queries:
+     SELECT * FROM team_members WHERE activo = true;
+     SELECT * FROM team_members WHERE activo = true OR activo IS NULL;
+   
+   Acción:
+     - Usuario deja de tener acceso a funcionalidades
+     - Registro se mantiene en BD para auditoría
+     - No es eliminación física
+   
+   Limpieza:
+     ⚠️  MANUAL - no hay cron job
+     - Admin puede desactivar usuarios cuando sea
+     - Registros antiguos se acumulan en BD
+
+
+E) INVITE_TOKENS - TIMESTAMPS
+   ──────────────────────────
+   Campos:
+     - created_at (TIMESTAMP) - cuándo se creó el token
+     - expires_at (TIMESTAMP) - cuándo expira (7 días)
+     - used_at (TIMESTAMP) - cuándo fue usado (NULL si no usado)
+   
+   Permite tracking:
+     ✓ Sabe

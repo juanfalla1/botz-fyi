@@ -16,16 +16,8 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
   const router = useRouter();
 
   const handleClick = () => {
-    if (templateId) {
-      // Pre-configured template
-      router.push(`/start/agents/create?template=${templateId}`);
-    } else if (agentType) {
-      // Custom agent with type
-      router.push(`/start/agents/create?type=${agentType}`);
-    } else {
-      // Default - go to agent studio
-      router.push('/start/agents');
-    }
+    // Always send users to the Agent Studio dashboard (not the config wizard).
+    router.push("/start/agents");
   };
 
   return (
@@ -139,6 +131,11 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
           fontSize: "14px",
           cursor: "pointer",
           transition: "all 0.3s ease",
+        }}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleClick();
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = color;

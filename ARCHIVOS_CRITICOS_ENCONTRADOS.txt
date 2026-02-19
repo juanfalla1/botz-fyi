@@ -1,0 +1,218 @@
+================================================================================
+ARCHIVOS CRÍTICOS ENCONTRADOS EN LA INVESTIGACIÓN
+================================================================================
+
+PROBLEMA 1: GOOGLE OAUTH ROTO (AUTENTICACIÓN DE USUARIO)
+================================================================================
+
+1. ARCHIVOS DE AUTENTICACIÓN OAUTH:
+   
+   📄 app/start/components/AuthModal.tsx (LÍNEAS 33-49)
+      - Función: handleGoogle()
+      - Problema: signInWithOAuth({ provider: "google" })
+      - Requiere: Supabase OAuth Provider configurado
+      - Status: Código está correcto, falta config en Supabase
+   
+   📄 app/pricing/page.tsx (LÍNEAS 330-342)
+      - Función: handleGoogleLogin()
+      - Problema: Mismo que AuthModal
+      - Requiere: Supabase OAuth Provider configurado
+      - Status: Código está correcto
+   
+   📄 supabaseClient.ts (LÍNEAS 1-21)
+      - Configuración: Cliente Supabase
+      - URL: https://chyzxaspglbwnenagtjv.supabase.co
+      - ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      - Status: ✅ Configurado correctamente en .env.local
+
+2. VARIABLES DE ENTORNO NECESARIAS (.env.local):
+   
+   LÍNEA 1: NEXT_PUBLIC_SUPABASE_URL="https://chyzxaspglbwnenagtjv.supabase.co"
+   LÍNEA 2: NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+   
+   ⚠️ FALTA CONFIGURAR EN SUPABASE DASHBOARD:
+      - Ir a: https://app.supabase.com/project/chyzxaspglbwnenagtjv
+      - Sección: Authentication > Providers > Google
+      - Agregar:
+        * Client ID: 417058045568-hheokiaia74qgr7lvfcgugpbenq8kq3t.apps.googleusercontent.com
+        * Client Secret: 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
+
+3. GOOGLE CREDENTIALS (PARA INTEGRACIONES, NO OAUTH AUTH):
+   
+   📄 .env.local (LÍNEAS 15-17)
+      GOOGLE_CLIENT_ID="417058045568-hheokiaia74qgr7lvfcgugpbenq8kq3t.apps.googleusercontent.com"
+      GOOGLE_CLIENT_SECRET="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"
+      GOOGLE_REDIRECT_URI="http://localhost:3000/api/integrations/google/callback"
+      Status: ✅ Presente
+   
+   📄 app/api/integrations/google/init/route.ts (LÍNEAS 19-44)
+      - Función: Iniciar OAuth para conexión de Gmail
+      - Estado: ✅ Correcto
+      - No es problema de auth de usuario
+   
+   📄 app/api/integrations/google/callback/route.ts (LÍNEAS 31-195)
+      - Función: Recibir callback de Google OAuth
+      - Estado: ✅ Correcto
+      - No es problema de auth de usuario
+
+================================================================================
+
+PROBLEMA 2: FLUJO DEMO/TRIAL NO CARGA DATOS
+================================================================================
+
+1. ARCHIVO PRINCIPAL - ACEPTACIÓN DE INVITACIÓN:
+   
+   📄 app/accept-invite/[inviteId]/page.tsx (410 LÍNEAS)
+      
+      LÍNEAS 8-14: Interfaz InviteData
+         interface InviteData {
+           id: string;
+           email: string;
+           role: string;
+           access_level: string;
+           status: string;
+         }
+      
+      LÍNEAS 16-81: Componente main, función verifyInvite()
+         - Valida invitación via API
+         - Endpoint: /api/platform/admin-invites/validate?inviteId=...
+      
+      ❌ PROBLEMA CRÍTICO - LÍNEAS 114-172: Función handleSetupPassword()
+         
+         const { data: authData, error: authError } = await supabase.auth.signUp({
+           email: invite.email,
+           password,
+           options: {
+             data: {
+               role: invite.role,
+               access_level: invite.access_level,
+               // ❌ NO GUARDA: tenant_id
+               // ❌ NO GUARDA: empresa/nombre
+             },
+           },
+         });
+         
+         ❌ FALTA: No crea entrada en tabla "tenants"
+         ❌ FALTA: No crea entrada en tabla "team_members" con tenant_id
+         ❌ FALTA: No crea entrada en tabla "subscriptions"
+         
+         ✅ SÍ HACE: Agrega a platform_admins (líneas 144-154)
+         ✅ SÍ HACE: Actualiza admin_invites.status (líneas 157-164)
+
+2. ARCHIVO DE AUTENTICACIÓN Y SUSCRIPCIÓN - MAIN LAYOUT:
+   
+   📄 app/start/MainLayout.tsx (1771+ LÍNEAS)
+      
+      CONTEXTO: AuthProvider + AuthContext
+      
+      LÍNEAS 68-78: PLAN_FEATURES
+         const PLAN_FEATURES: Record<string, string[]> = {
+           free: ["demo"],  // ❌ Solo "demo"
+           "Básico": ALL_FEATURES,
+           Growth: ALL_FEATURES,
+           // ...
+         };
+      
+      LÍNEAS 322-343: applySubscription()
+         const applySubscription = useCallback((activeSub: any | null) => {
+           if (activeSub) {
+             setSubscription(activeSub);
+             const tenantPlan = activeSub.plan || "free";
+             setUserPlan(tenantPlan);
+             const planFeatures = PLAN_FEATURES[tenantPlan] || PLAN_FEATURES["free"];
+             setEnabledFeatures(planFeatures);  // ❌ Si activeSub=null, solo "demo"
+           } else {
+             setUserPlan("free");
+             setSubscription(null);
+             setEnabledFeatures(PLAN_FEATURES["free"]);  // ❌ Solo ["demo"]
+           }
+         }, []);
+      
+      ❌ PROBLEMA: Si no hay suscripción, usuario queda bloqueado
+      
+      LÍNEAS 396-531: fetchUserSubscription()
+         async (userId: string, tenantId?: string | null) => {
+           // PASO 1: Buscar por user_id (usuarios admin)
+           // PASO 2: Si no, buscar por tenant_id
+           // PASO 3: Si no, buscar en team_members
+           
+           applySubscription(activeSub);  // ❌ Si activeSub=null, falla
+         }
+      
+      ❌ PROBLEMA: Para demo users:
+         - PASO 1: No hay entrada subscriptions con user_id
+         - PASO 2: Faltan tenant_id
+         - PASO 3: No hay team_member
+         - Resultado: activeSub = null → Solo "demo" features
+      
+      LÍNEAS 540-637: detectUserRole()
+         async (authUserId: string, email: string) => {
+           // Busca en team_members por auth_user_id O email
+           // Si no encuentra: rol = "asesor" sin datos
+         }
+      
+      ❌ PROBLEMA: No hay team_member para demo users
+
+3. API DE VALIDACIÓN DE INVITACIONES:
+   
+   📄 app/api/platform/admin-invites/validate/route.ts (60 LÍNEAS)
+      - Función: Validar invitación
+      - Endpoint: GET /api/platform/admin-invites/validate?inviteId=...
+      - Status: ✅ Correcto
+      - Solo valida, no crea datos
+
+4. GUARDIAS DE ACCESO A API:
+   
+   📄 app/api/_utils/guards.ts (92 LÍNEAS)
+      
+      LÍNEA 58-91: assertTenantAccess()
+         export async function assertTenantAccess(params: {
+           req: Request;
+           requestedTenantId?: string | null;
+           allowPlatformAdminCrossTenant?: boolean;
+         })
+      
+      ❌ PROBLEMA CRÍTICO (LÍNEAS 71-88):
+         
+         if (pa.isAdmin) {  // ← Demo user ES platform_admin
+           if (!requestedTenantId) {
+             return { ok: false, error: "Missing tenantId" };  // ❌ BLOQUEA
+           }
+           return { ok: true, tenantId: requestedTenantId };
+         }
+         
+         // Si NO es admin:
+         const tm = await getTeamMemberByAuthUserId(user.id);
+         if (!tm.row?.tenant_id) {
+           return { ok: false, status: 403, error: "Forbidden" };  // ❌ BLOQUEA
+         }
+      
+      ✅ SOLUCIÓN: Demo user ES platform_admin, pero:
+         - Necesita requestedTenantId en cada API call
+         - O debería tener un team_member con tenant_id asignado
+
+5. STRIPE CHECKOUT:
+   
+   📄 app/api/stripe/create-checkout-session/route.ts (125 LÍNEAS)
+      
+      LÍNEAS 59-124: POST handler
+         - Requiere: userId, tenantId, plan
+         - ✅ Valida que exista tenantId (línea 72-74)
+         - ✅ Crea metadata con tenantId
+      
+      ❌ PROBLEMA: Demo users sin tenantId no pueden hacer checkout
+         if (!tenantId) {
+           return { ok: false, error: "NO_TENANT_ID" };
+         }
+
+================================================================================
+
+PROBLEMA 3: EMAIL info@botz.fyi FUNCIONA BIEN
+================================================================================
+
+1. POR QUÉ FUNCIONA:
+   
+   ✅ Existe entrada en team_members:
+      - email = 'info@botz.fyi'
+      - tenant_id = [VÁLIDO]
+      - auth_user_id = [VINCULADO 

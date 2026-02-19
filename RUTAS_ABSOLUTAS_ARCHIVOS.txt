@@ -1,0 +1,248 @@
+================================================================================
+RUTAS ABSOLUTAS: TODOS LOS ARCHIVOS INVESTIGADOS
+================================================================================
+
+PROBLEMA 1: GOOGLE OAUTH
+================================================================================
+
+📄 AUTENTICACIÓN OAUTH - Supabase Client
+   C:\Users\USUARIO\botz-fyi\supabaseClient.ts
+   Líneas: 1-21
+   Estado: ✅ Configurado correctamente
+
+📄 AUTENTICACIÓN MODAL - AuthModal Component
+   C:\Users\USUARIO\botz-fyi\app\start\components\AuthModal.tsx
+   Líneas: 33-49 (función handleGoogle)
+   Estado: ✅ Código correcto
+   Dependencia: Requiere Google OAuth en Supabase Dashboard
+
+📄 PÁGINA DE PRECIOS - Google Login
+   C:\Users\USUARIO\botz-fyi\app\pricing\page.tsx
+   Líneas: 330-342 (función handleGoogleLogin)
+   Estado: ✅ Código correcto
+   Dependencia: Requiere Google OAuth en Supabase Dashboard
+
+📄 VARIABLES DE ENTORNO
+   C:\Users\USUARIO\botz-fyi\.env.local
+   Líneas: 1-2, 15-17
+   Contenido:
+     - NEXT_PUBLIC_SUPABASE_URL
+     - NEXT_PUBLIC_SUPABASE_ANON_KEY
+     - GOOGLE_CLIENT_ID
+     - GOOGLE_CLIENT_SECRET
+   Estado: ✅ Presente
+
+⚠️  CONFIGURACIÓN EXTERNA (No en archivos):
+   - Supabase Dashboard: https://app.supabase.com/project/chyzxaspglbwnenagtjv
+     - Authentication > Providers > Google
+     - Status: ❌ DEBE ESTAR HABILITADO CON CREDENCIALES
+
+
+PROBLEMA 2: FLUJO DEMO/TRIAL
+================================================================================
+
+❌ ARCHIVO CRÍTICO - ACEPTACIÓN DE INVITACIÓN
+   C:\Users\USUARIO\botz-fyi\app\accept-invite\[inviteId]\page.tsx
+   Líneas: 114-172 (función handleSetupPassword)
+   Problema: No crea tenant_id, team_member, ni subscription
+   Acción Requerida: MODIFICAR CÓDIGO
+   Código a agregar: Ver COMPARACION_FLUJOS_AUTH.txt
+
+✅ ARCHIVO SECUNDARIO - VALIDACIÓN DE INVITACIÓN
+   C:\Users\USUARIO\botz-fyi\app\api\platform\admin-invites\validate\route.ts
+   Líneas: 9-59
+   Estado: Correcto, solo valida
+
+❌ ARCHIVO CRÍTICO - CARGA DE FEATURES
+   C:\Users\USUARIO\botz-fyi\app\start\MainLayout.tsx
+   Líneas: 68-78 (PLAN_FEATURES)
+   Líneas: 322-343 (applySubscription)
+   Líneas: 396-531 (fetchUserSubscription)
+   Líneas: 540-637 (detectUserRole)
+   Problema: Depende de que usuario tenga tenant_id y subscription
+   Dependencia: Fix del archivo anterior
+
+❌ ARCHIVO CRÍTICO - API GUARDS
+   C:\Users\USUARIO\botz-fyi\app\api\_utils\guards.ts
+   Líneas: 58-91 (función assertTenantAccess)
+   Problema: Bloquea sin tenantId para platform_admins
+   Dependencia: Fix del archivo anterior
+
+✅ ARCHIVO SECUNDARIO - CHECKOUT STRIPE
+   C:\Users\USUARIO\botz-fyi\app\api\stripe\create-checkout-session\route.ts
+   Líneas: 59-124
+   Estado: Correcto, requiere tenantId
+
+
+PROBLEMA 3: EMAIL info@botz.fyi FUNCIONA
+================================================================================
+
+✅ NO HAY PROBLEMA - ESTE ES EL FLUJO CORRECTO
+   
+   El flujo normal funciona porque:
+   - Usuario tiene entrada en team_members con tenant_id
+   - Usuario tiene entrada en subscriptions
+   - MainLayout puede detectar ambos valores
+   - API Guards validan correctamente
+   
+   Archivos:
+   - C:\Users\USUARIO\botz-fyi\app\start\MainLayout.tsx (líneas 540-637)
+   - C:\Users\USUARIO\botz-fyi\app\api\_utils\guards.ts (líneas 41-56)
+
+
+ARCHIVOS COMPLEMENTARIOS
+================================================================================
+
+📄 OTP REQUEST (Email/Auth alternativo)
+   C:\Users\USUARIO\botz-fyi\app\api\auth\request-otp\route.ts
+   Estado: ✅ Funciona, no es problema
+   Función: Verificación 2FA vía OTP
+
+📄 OTP VERIFY
+   C:\Users\USUARIO\botz-fyi\app\api\auth\verify-otp\route.ts
+   Estado: ✅ Funciona, no es problema
+   Función: Validar códigos OTP
+
+📄 LOGIN PAGE (Deprecated)
+   C:\Users\USUARIO\botz-fyi\app\login\page.tsx
+   Estado: ✅ Redirige a /start
+   Nota: Página deprecated, mantiene compatibilidad
+
+📄 PAGE PRINCIPAL
+   C:\Users\USUARIO\botz-fyi\app\start\page.tsx
+   Líneas: 108+
+   Estado: ✅ Usa MainLayout
+   Función: Punto de entrada a la app
+
+
+GOOGLE INTEGRATIONS (No son de autenticación)
+================================================================================
+
+📄 GOOGLE OAUTH INIT
+   C:\Users\USUARIO\botz-fyi\app\api\integrations\google\init\route.ts
+   Líneas: 8-68
+   Función: Iniciar OAuth para conexión de Gmail (no auth)
+   Estado: ✅ Correcto
+
+📄 GOOGLE OAUTH CALLBACK
+   C:\Users\USUARIO\botz-fyi\app\api\integrations\google\callback\route.ts
+   Líneas: 31-195
+   Función: Recibir callback de Google para Gmail (no auth)
+   Estado: ✅ Correcto
+
+📄 GOOGLE SYNC GMAIL
+   C:\Users\USUARIO\botz-fyi\app\api\integrations\google\sync-gmail\route.ts
+   Función: Sincronizar emails desde Gmail
+   Estado: ✅ Correcto
+
+📄 GOOGLE SEND GMAIL
+   C:\Users\USUARIO\botz-fyi\app\api\integrations\google\send-gmail\route.ts
+   Función: Enviar emails desde Gmail
+   Estado: ✅ Correcto
+
+
+TABLAS DE BASE DE DATOS AFECTADAS
+================================================================================
+
+📊 TABLA: auth.users (Supabase)
+   - user_id (auth_user_id)
+   - email
+   - user_metadata (contiene tenant_id para OAuth)
+   - app_metadata (provider: 'google', etc)
+
+📊 TABLA: public.tenants
+   - id (UUID)
+   - name
+   - owner_id
+   Nota: Para demo users, DEBE CREARSE ENTRADA
+
+📊 TABLA: public.team_members
+   - id
+   - auth_user_id
+   - email
+   - tenant_id ← CRÍTICO
+   - rol
+   - activo
+   - permissions
+   Nota: Para demo users, DEBE CREARSE ENTRADA
+
+📊 TABLA: public.subscriptions
+   - id
+   - tenant_id ← CRÍTICO para búsqueda
+   - user_id
+   - plan
+   - status
+   - trial_start
+   - trial_end
+   Nota: Para demo users, DEBE CREARSE ENTRADA
+
+📊 TABLA: public.platform_admins
+   - auth_user_id
+   Nota: Demo users SÍ se agregan aquí (correcto)
+
+📊 TABLA: public.admin_invites
+   - id
+   - email
+   - role
+   - access_level
+   - status
+   - expires_at
+   Nota: Existe y funciona correctamente
+
+
+VARIABLES DE ENTORNO CONFIGURADAS
+================================================================================
+
+✅ SUPABASE (en .env.local línea 1-5):
+   NEXT_PUBLIC_SUPABASE_URL=https://chyzxaspglbwnenagtjv.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+   SUPABASE_URL=https://chyzxaspglbwnenagtjv.supabase.co
+   SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+   SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+✅ GOOGLE (en .env.local línea 15-17):
+   GOOGLE_CLIENT_ID=417058045568-hheokiaia74qgr7lvfcgugpbenq8kq3t.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=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
+   GOOGLE_REDIRECT_URI=http://localhost:3000/api/integrations/google/callback
+
+✅ STRIPE (en .env.local línea 7-13):
+   STRIPE_SECRET_KEY=sk_test_51SvQ7X2a7HFRxbhSJzmb16laRY0UgrBbK8XIcuvUULAABofVbkCxyG7s22aKBdHLcFCNP8uNdVhl9gGVbxvEO5Ze007i8zkJre
+   STRIPE_WEBHOOK_SECRET=whsec_UAri2lFygPmAHy78HEvKq9W0mb9TyTfO
+   STRIPE_PRICE_BASIC_MONTHLY=price_1SvQCC2a7HFRxbhS1TZEjL2C
+   STRIPE_PRICE_BASIC_YEARLY=price_1Sxs472a7HFRxbhSKFqJhrzP
+   STRIPE_PRICE_GROWTH_MONTHLY=price_1SvQDT2a7HFRxbhSfmd1ZCgN
+   STRIPE_PRICE_GROWTH_YEARLY=price_1SznZM2a7HFRxbhScUKTYzYP
+
+✅ EMAIL (en .env.local línea 25-30):
+   ZOHO_HOST=smtp.zohocloud.ca
+   ZOHO_PORT=465
+   ZOHO_USER=info@botz.fyi
+   ZOHO_APP_PASSWORD=NB1QGuGssK6E
+   MAIL_TO=info@botz.fyi
+   MAIL_FROM=info@botz.fyi
+
+❌ FALTA EN SUPABASE DASHBOARD (No en archivos):
+   - Google OAuth Provider habilitado
+   - Credenciales de Google agregadas
+
+
+DOCUMENTOS GENERADOS EN ESTA INVESTIGACIÓN
+================================================================================
+
+📄 RESUMEN_INVESTIGACION_FINAL.md
+   C:\Users\USUARIO\botz-fyi\RESUMEN_INVESTIGACION_FINAL.md
+   - Overview ejecutivo
+   - Problemas identificados
+   - Soluciones rápidas
+   - Checklist
+
+📄 INVESTIGACION_PROBLEMAS_AUTENTICACION.md
+   C:\Users\USUARIO\botz-fyi\INVESTIGACION_PROBLEMAS_AUTENTICACION.md
+   - Análisis técnico detallado
+   - Código línea por línea
+   - Explicación de cada problema
+   - Debugging steps
+
+📄 ARCHIVOS_CRITICOS_ENCONTRADOS.txt
+   C:\Users\USUARIO\botz-fyi\ARCHIVOS_CRITICOS_ENCONTRADOS.txt
+   - Mapeo de archivos por probl
