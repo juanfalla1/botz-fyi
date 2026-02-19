@@ -81,15 +81,10 @@ async function speechToText(audioBase64: string): Promise<string> {
     return "Mensaje de prueba";
   }
 
-  try {
-    // Convertir base64 a blob
-    const binaryString = Buffer.from(audioBase64, "base64").toString("binary");
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-
-    const audioBlob = new Blob([bytes], { type: "audio/webm" });
+   try {
+     // Convertir base64 a buffer de forma segura
+     const buffer = Buffer.from(audioBase64, "base64");
+     const audioBlob = new Blob([buffer], { type: "audio/webm" });
 
     const formData = new FormData();
     formData.append("file", audioBlob, "audio.webm");
@@ -110,10 +105,16 @@ async function speechToText(audioBase64: string): Promise<string> {
 
      const data = await response.json();
      let text = data.text || "";
-     // Ensure proper UTF-8 encoding
+     // Fix encoding issues - normalize the string
      if (text) {
-       text = Buffer.from(text, 'latin1').toString('utf8');
+       // Try multiple encoding fixes
+       try {
+         text = Buffer.from(text, 'utf8').toString('utf8');
+       } catch (e) {
+         console.warn("[VOICE] Encoding issue, attempting recovery");
+       }
      }
+     console.log("[VOICE] STT text after encoding fix:", text);
      return text;
   } catch (e) {
     console.error("Whisper error:", e);
