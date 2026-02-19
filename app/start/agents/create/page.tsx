@@ -541,7 +541,7 @@ export default function CreateAgentPage() {
 
       {/* ── content ── */}
        <div style={{ flex: 1, padding: isMobile ? "24px 20px" : "36px 40px", maxWidth: 1180, margin: "0 auto", width: "100%" }}>
-          <div style={{ display: "flex", flexDirection: isTextTestStep ? "column" : "row", gap: isMobile ? 28 : 72 }}>
+          <div style={{ display: "flex", flexDirection: isTextTestStep ? "column" : "row", gap: isMobile ? 20 : 48 }}>
 
            {/* LEFT – description */}
             <div style={{ flex: isTextTestStep ? "1 1 100%" : "0 0 320px", minWidth: 0 }}>
@@ -558,7 +558,7 @@ export default function CreateAgentPage() {
                    onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
                    rows={10}
                    placeholder="Ejemplo: Eres un asistente de ventas amable y profesional..."
-                   style={{ ...input({ minHeight: 140, fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace", fontSize: 12 }), resize: "vertical" as const }}
+                   style={{ ...input({ minHeight: 100, fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace", fontSize: 12 }), resize: "vertical" as const }}
                  />
                  <div style={{ marginTop: 12 }}>
                    <button
@@ -571,7 +571,7 @@ export default function CreateAgentPage() {
                </>
              ) : (
               <>
-                <h2 style={{ fontSize: isMobile ? 26 : 28, fontWeight: 800, margin: "0 0 18px", lineHeight: 1.2, whiteSpace: "pre-line" }}>
+                <h2 style={{ fontSize: isMobile ? 26 : 28, fontWeight: 800, margin: "0 0 12px", lineHeight: 1.2, whiteSpace: "pre-line" }}>
                    {left.title}
                  </h2>
                 <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, margin: 0 }}>
@@ -657,7 +657,7 @@ export default function CreateAgentPage() {
                     onChange={e => setForm(f => ({ ...f, companyDesc: e.target.value }))}
                     placeholder="Describe tu empresa aquí"
                     rows={10}
-                    style={{ ...input({ minHeight: 200 }), resize: "vertical" as const }}
+                    style={{ ...input({ minHeight: 130 }), resize: "vertical" as const }}
                   />
                 </div>
               </>
@@ -757,7 +757,7 @@ export default function CreateAgentPage() {
                         onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
                         placeholder="Describe que hara el flujo..."
                         rows={10}
-                        style={{ ...input({ minHeight: 200 }), resize: "vertical" as const }}
+                        style={{ ...input({ minHeight: 130 }), resize: "vertical" as const }}
                       />
                     </div>
                   </>
@@ -820,7 +820,7 @@ export default function CreateAgentPage() {
                         onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
                         placeholder="Usa este espacio para explicar los detalles de tu agente, sus tareas y como debe comportarse."
                         rows={10}
-                        style={{ ...input({ minHeight: 200 }), resize: "vertical" as const }}
+                        style={{ ...input({ minHeight: 130 }), resize: "vertical" as const }}
                       />
                       <div style={{ color: C.dim, fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
                         La configuracion avanzada (voz, canales, escalacion) se ajusta despues.
