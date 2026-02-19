@@ -1,0 +1,204 @@
+import { NextResponse } from "next/server";
+
+export async function POST(req: Request) {
+  try {
+    const { audio, context, conversationHistory, agentConfig } = await req.json();
+
+    if (!audio) {
+      return NextResponse.json({ ok: false, error: "Missing audio data" }, { status: 400 });
+    }
+
+    // 1. Convertir audio a texto (STT)
+    let userMessage = "";
+    try {
+      userMessage = await speechToText(audio);
+    } catch (e) {
+      console.error("STT error:", e);
+      return NextResponse.json({ 
+        ok: false, 
+        error: "No se pudo procesar el audio" 
+      }, { status: 500 });
+    }
+
+    if (!userMessage.trim()) {
+      return NextResponse.json({ 
+        ok: true, 
+        userMessage: "", 
+        agentResponse: "No escuché nada. Intenta de nuevo.",
+        audioUrl: null 
+      });
+    }
+
+    // 2. Procesar mensaje con LLM
+    const agentResponse = await generateResponse(
+      userMessage,
+      context,
+      conversationHistory,
+      agentConfig
+    );
+
+    // 3. Convertir respuesta a audio (TTS)
+    let audioUrl = null;
+    try {
+      audioUrl = await textToSpeech(agentResponse, agentConfig?.voice || "nova");
+    } catch (e) {
+      console.error("TTS error:", e);
+      // TTS error no es crítico, retornamos la respuesta texto
+    }
+
+    return NextResponse.json({ 
+      ok: true, 
+      userMessage,
+      agentResponse,
+      audioUrl: audioUrl || null
+    });
+  } catch (e: any) {
+    console.error("Voice call error:", e);
+    return NextResponse.json({ 
+      ok: false, 
+      error: e?.message || "Unknown error" 
+    }, { status: 500 });
+  }
+}
+
+// Speech-to-Text usando OpenAI Whisper
+async function speechToText(audioBase64: string): Promise<string> {
+  const openaiKey = process.env.OPENAI_API_KEY;
+  
+  if (!openaiKey) {
+    // Fallback: simular STT
+    return "Mensaje de prueba";
+  }
+
+  try {
+    // Convertir base64 a blob
+    const binaryString = Buffer.from(audioBase64, "base64").toString("binary");
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    const audioBlob = new Blob([bytes], { type: "audio/webm" });
+
+    const formData = new FormData();
+    formData.append("file", audioBlob, "audio.webm");
+    formData.append("model", "whisper-1");
+    formData.append("language", "es");
+
+    const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openaiKey}`,
+      },
+      body: formData as any,
+    });
+
+    if (!response.ok) {
+      throw new Error("Whisper API error");
+    }
+
+    const data = await response.json();
+    return data.text || "";
+  } catch (e) {
+    console.error("Whisper error:", e);
+    throw e;
+  }
+}
+
+// Text-to-Speech usando OpenAI TTS
+async function textToSpeech(text: string, voice: string = "nova"): Promise<string | null> {
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  if (!openaiKey) {
+    return null;
+  }
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openaiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "tts-1",
+        input: text.substring(0, 4096), // OpenAI TTS limit
+        voice: voice || "nova",
+        response_format: "mp3",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("TTS API error");
+    }
+
+    const audioBuffer = await response.arrayBuffer();
+    const audioBase64 = Buffer.from(audioBuffer).toString("base64");
+    return `data:audio/mp3;base64,${audioBase64}`;
+  } catch (e) {
+    console.error("TTS error:", e);
+    throw e;
+  }
+}
+
+// Generar respuesta con LLM
+async function generateResponse(
+  userMessage: string,
+  context: string,
+  conversationHistory: any[] = [],
+  agentConfig: any = {}
+): Promise<string> {
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  if (!openaiKey) {
+    // Fallback: respuesta mock
+    return generateMockResponse(userMessage);
+  }
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openaiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-3.5-turbo",
+        messages: [
+          { role: "system", content: context },
+          ...conversationHistory.map((msg: any) => ({
+            role: msg.role === "user" ? "user" : "assistant",
+            content: msg.content,
+          })),
+          { role: "user", content: userMessage },
+        ],
+        temperature: 0.7,
+        max_tokens: 300, // Más corto para voz
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("LLM API error");
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || "No pude procesar tu solicitud.";
+  } catch (e) {
+    console.error("LLM error:", e);
+    return generateMockResponse(userMessage);
+  }
+}
+
+// Generar respuestas mock
+function generateMockResponse(message: string): string {
+  if (message.toLowerCase().includes("hola")) {
+    return "Hola, gracias por llamar. ¿En qué puedo ayudarte?";
+  }
+  if (message.toLowerCase().includes("precio")) {
+    return "El precio depende del plan que necesites. ¿Cuál es tu presupuesto?";
+  }
+  if (message.toLowerCase().includes("gracias")) {
+    return "De nada, estoy aquí para ayudarte.";
+  }
+  return `Entendí tu pregunta sobre ${message.substring(0, 20)}. Cuéntame más.`;
+}

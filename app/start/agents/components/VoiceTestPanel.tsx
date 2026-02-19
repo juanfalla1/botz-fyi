@@ -24,6 +24,7 @@ const C = {
   white: "#ffffff",
   muted: "#9ca3af",
   dim: "#6b7280",
+  red: "#ef4444",
   purple: "#8b5cf6",
 };
 
@@ -35,353 +36,499 @@ export default function VoiceTestPanel({
   voiceSettings,
 }: VoiceTestPanelProps) {
   const [isCallActive, setIsCallActive] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<{ speaker: "agent" | "user"; text: string }[]>([]);
   const [variables, setVariables] = useState({
     contact_name: "Juan Carlos",
     contact_email: "",
   });
-  const [currentInstruction, setCurrentInstruction] = useState<string>("");
-  
-  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom of transcript
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const conversationHistoryRef = useRef<{ role: "user" | "agent"; content: string }[]>([]);
+
+  // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [transcript]);
 
-  // Generate instructions from agent config
-  useEffect(() => {
-    const instructions = `# Identidad
-- Eres **${agentName}**, un agente de voz automatizado de Botz.
-- Tu rol es: ${agentRole || "Asistente virtual"}
-- ${agentPrompt?.split(".").slice(0, 2).join(".")}
+  const startRecording = async () => {
+    try {
+      setError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
 
-# Contexto de la Empresa
-${companyContext?.split(".").slice(0, 3).join(".") || "Empresa Botz - Soluciones de automatización con IA"}
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
 
-# Objetivos
-- Objetivo Primario: Ayudar al cliente de forma clara y eficiente.
-- Tono: Profesional, amigable y orientado a resultados.`;
-    
-    setCurrentInstruction(instructions);
-  }, [agentName, agentRole, agentPrompt, companyContext]);
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        await processAudio(audioBlob);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+
+      // Auto-stop after 10 seconds
+      setTimeout(() => {
+        if (mediaRecorderRef.current && isRecording) {
+          stopRecording();
+        }
+      }, 10000);
+    } catch (err: any) {
+      setError("No se pudo acceder al micrófono. Verifica los permisos.");
+      console.error("Microphone error:", err);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+
+      // Detener el stream
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    }
+  };
+
+  const processAudio = async (audioBlob: Blob) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Convertir blob a base64
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const audioBase64 = (event.target?.result as string).split(",")[1];
+
+        // Construir contexto del agente
+        const context = `Tu nombre es: ${agentName}
+Tu rol/propósito es: ${agentRole}
+Instrucciones: ${agentPrompt}
+${companyContext ? `Información de la empresa: ${companyContext}` : ""}
+
+Responde de forma concisa en una llamada telefónica. Máximo 1-2 oraciones.`;
+
+        // Enviar al endpoint
+        const response = await fetch("/api/agents/voice-call", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            audio: audioBase64,
+            context,
+            conversationHistory: conversationHistoryRef.current,
+            agentConfig: {
+              voice: voiceSettings?.voice || "nova",
+              model: voiceSettings?.model || "gpt-3.5-turbo",
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          const json = await response.json();
+          throw new Error(json?.error || "Error procesando la llamada");
+        }
+
+        const json = await response.json();
+        const userMessage = json.userMessage;
+        const agentResponse = json.agentResponse;
+        const audioUrl = json.audioUrl;
+
+        // Actualizar transcripción
+        const newTranscript = [
+          ...transcript,
+          { speaker: "user" as const, text: userMessage || "(silencio)" },
+          { speaker: "agent" as const, text: agentResponse },
+        ];
+        setTranscript(newTranscript);
+
+        // Actualizar historial
+        conversationHistoryRef.current = [
+          ...conversationHistoryRef.current,
+          { role: "user", content: userMessage },
+          { role: "agent", content: agentResponse },
+        ];
+
+        // Reproducir respuesta de audio si está disponible
+        if (audioUrl && audioRef.current) {
+          audioRef.current.src = audioUrl;
+          await audioRef.current.play().catch(e => {
+            console.error("Error playing audio:", e);
+          });
+        }
+      };
+      reader.readAsDataURL(audioBlob);
+    } catch (err: any) {
+      setError(err?.message || "Error procesando la llamada");
+      console.error("Audio processing error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleStartCall = async () => {
     setIsLoading(true);
-    
-    // Simulate connection delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    setIsLoading(false);
-    setIsCallActive(true);
-    
-    // Add initial agent greeting
-    setTranscript([{
-      speaker: "agent",
-      text: `Hola ${variables.contact_name}, soy ${agentName} de Botz. ¿Puedes oírme bien?`,
-    }]);
+    setError(null);
+
+    try {
+      // Solicitar acceso al micrófono
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Detener el stream inmediatamente (solo para verificar permisos)
+      stream.getTracks().forEach(track => track.stop());
+
+      setIsCallActive(true);
+      setTranscript([
+        {
+          speaker: "agent",
+          text: `Hola ${variables.contact_name}, soy ${agentName}. ¿Cómo puedo ayudarte hoy?`,
+        },
+      ]);
+
+      conversationHistoryRef.current = [];
+    } catch (err: any) {
+      setError("No se pudo acceder al micrófono. Verifica los permisos.");
+      console.error("Microphone error:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEndCall = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
     setIsCallActive(false);
     setTranscript([]);
+    conversationHistoryRef.current = [];
   };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, height: "calc(100vh - 200px)" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, height: "100%" }}>
       {/* Left Panel - Instructions */}
-      <div style={{ 
-        backgroundColor: C.dark, 
-        borderRadius: 14, 
-        border: `1px solid ${C.border}`,
-        padding: 24,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}>
-        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: C.white }}>
+      <div
+        style={{
+          backgroundColor: C.dark,
+          borderRadius: 14,
+          border: `1px solid ${C.border}`,
+          padding: 24,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 12, color: C.white }}>
           Instrucciones
-        </h3>
-        
-        <div 
-          ref={scrollRef}
-          style={{ 
-            flex: 1, 
+        </div>
+        <div
+          style={{
+            flex: 1,
             overflow: "auto",
-            fontFamily: "monospace",
             fontSize: 14,
             lineHeight: 1.6,
             color: C.muted,
+            fontFamily: "monospace",
             whiteSpace: "pre-wrap",
-            padding: 16,
-            backgroundColor: "rgba(0,0,0,0.3)",
-            borderRadius: 8,
+            wordBreak: "break-word",
           }}
         >
-          <div style={{ color: C.purple, marginBottom: 8 }}># Identidad</div>
-          <div style={{ marginBottom: 16 }}>
-            - Eres <strong style={{ color: C.white }}>**{agentName}**</strong>, un agente de voz automatizado de Botz.
-            <br />
-            - Tu rol es: {agentRole || "Asistente virtual"}
-            <br />
-            - {agentPrompt?.split(".").slice(0, 2).join(".")}
-          </div>
-          
-          <div style={{ color: C.purple, marginBottom: 8 }}># Objetivos</div>
-          <div style={{ marginBottom: 16 }}>
-            - Objetivo Primario: Ayudar al cliente de forma clara y eficiente.
-            <br />
-            - Tono: Profesional, amigable y orientado a resultados.
-          </div>
-          
-          <div style={{ color: C.purple, marginBottom: 8 }}># Contexto de la Empresa</div>
-          <div>
-            {companyContext || "Empresa Botz - Soluciones de automatización con IA"}
-          </div>
-        </div>
-        
-        <div style={{ marginTop: 16, display: "flex", gap: 12 }}>
-          <button
-            style={{
-              padding: "10px 20px",
-              borderRadius: 8,
-              border: `1px solid ${C.lime}`,
-              backgroundColor: "transparent",
-              color: C.lime,
-              fontWeight: 600,
-              fontSize: 14,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <span>✨</span> Generar con IA
-          </button>
-          
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: C.dim, fontSize: 14 }}>GPT 4.1</span>
-            <span style={{ color: C.dim }}>▼</span>
-          </div>
+          {`# Rol
+Eres **${agentName}**, un agente de voz de Botz.
+
+# Propósito
+${agentRole || "Asistente virtual"}
+
+# Instrucciones
+${agentPrompt || "Ayuda al cliente de forma clara y profesional"}
+
+# Empresa
+${companyContext || "Botz - Soluciones de IA"}
+
+# Directrices
+- Responde de forma concisa (1-2 oraciones)
+- Sé amable y profesional
+- Ayuda al cliente con sus preguntas`}
         </div>
       </div>
 
-      {/* Right Panel - Web Call Test */}
-      <div style={{ 
-        backgroundColor: C.dark, 
-        borderRadius: 14, 
-        border: `1px solid ${C.border}`,
-        padding: 24,
-        display: "flex",
-        flexDirection: "column",
-      }}>
+      {/* Right Panel - Call Interface */}
+      <div
+        style={{
+          backgroundColor: C.dark,
+          borderRadius: 14,
+          border: `1px solid ${C.border}`,
+          padding: 24,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 16, color: C.white }}>
+          {isCallActive ? "Transcripción de la llamada" : "Haz una llamada de prueba"}
+        </div>
+
         {!isCallActive ? (
           <>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: C.white }}>
-              Haz una llamada de prueba
-            </h3>
-            
-            <p style={{ color: C.muted, fontSize: 14, marginBottom: 24 }}>
-              Interactúa con tu agente directamente desde el navegador. Es completamente gratis.
-            </p>
-
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ 
-                fontSize: 12, 
-                fontWeight: 700, 
-                color: C.white, 
-                marginBottom: 12,
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-              }}>
-                Variables de entrada:
+            {/* Variables */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: C.muted, marginBottom: 10 }}>
+                VARIABLES DE ENTRADA:
               </div>
-              <p style={{ color: C.dim, fontSize: 13, marginBottom: 16 }}>
-                Configura estas variables para simular una conversación real.
-              </p>
-              
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 4 }}>
+                    contact_name
+                  </label>
                   <input
-                    value="contact_name"
-                    disabled
-                    style={{
-                      flex: 1,
-                      padding: "10px 14px",
-                      borderRadius: 8,
-                      border: `1px solid ${C.border}`,
-                      backgroundColor: "rgba(0,0,0,0.3)",
-                      color: C.muted,
-                      fontSize: 14,
-                    }}
-                  />
-                  <input
+                    type="text"
                     value={variables.contact_name}
                     onChange={(e) => setVariables({ ...variables, contact_name: e.target.value })}
-                    placeholder="Nombre del contacto"
                     style={{
-                      flex: 1,
-                      padding: "10px 14px",
-                      borderRadius: 8,
+                      width: "100%",
+                      padding: "10px 12px",
+                      backgroundColor: C.card,
                       border: `1px solid ${C.border}`,
-                      backgroundColor: "rgba(0,0,0,0.3)",
+                      borderRadius: 8,
                       color: C.white,
-                      fontSize: 14,
+                      fontSize: 13,
+                      outline: "none",
                     }}
                   />
                 </div>
-                
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <div>
+                  <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 4 }}>
+                    contact_email
+                  </label>
                   <input
-                    value="contact_email"
-                    disabled
-                    style={{
-                      flex: 1,
-                      padding: "10px 14px",
-                      borderRadius: 8,
-                      border: `1px solid ${C.border}`,
-                      backgroundColor: "rgba(0,0,0,0.3)",
-                      color: C.muted,
-                      fontSize: 14,
-                    }}
-                  />
-                  <input
+                    type="email"
                     value={variables.contact_email}
                     onChange={(e) => setVariables({ ...variables, contact_email: e.target.value })}
-                    placeholder="email@ejemplo.com"
                     style={{
-                      flex: 1,
-                      padding: "10px 14px",
-                      borderRadius: 8,
+                      width: "100%",
+                      padding: "10px 12px",
+                      backgroundColor: C.card,
                       border: `1px solid ${C.border}`,
-                      backgroundColor: "rgba(0,0,0,0.3)",
+                      borderRadius: 8,
                       color: C.white,
-                      fontSize: 14,
+                      fontSize: 13,
+                      outline: "none",
                     }}
                   />
                 </div>
               </div>
             </div>
 
+            {/* Error message */}
+            {error && (
+              <div
+                style={{
+                  padding: "10px 12px",
+                  backgroundColor: "rgba(239,68,68,0.15)",
+                  color: "#f87171",
+                  fontSize: 12,
+                  borderRadius: 8,
+                  marginBottom: 16,
+                }}
+              >
+                ⚠️ {error}
+              </div>
+            )}
+
+            {/* Start Call Button */}
             <button
               onClick={handleStartCall}
               disabled={isLoading}
               style={{
-                padding: "14px 28px",
-                borderRadius: 10,
-                border: `1px solid ${C.lime}`,
-                backgroundColor: "transparent",
-                color: C.lime,
-                fontWeight: 700,
+                padding: "14px 20px",
+                borderRadius: 12,
+                border: "none",
+                backgroundColor: isLoading ? C.dim : C.lime,
+                color: "#111",
+                fontWeight: 900,
                 fontSize: 15,
                 cursor: isLoading ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 10,
-                marginTop: "auto",
-                opacity: isLoading ? 0.7 : 1,
+                transition: "all 0.2s",
               }}
             >
-              {isLoading ? (
-                <>
-                  <span style={{ animation: "spin 1s linear infinite" }}>⟳</span>
-                  Conectando...
-                </>
-              ) : (
-                <>
-                  <span>📞</span>
-                  Iniciar llamada web
-                </>
-              )}
+              {isLoading ? "Conectando..." : "📞 Iniciar llamada web"}
             </button>
           </>
         ) : (
           <>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: C.white }}>
-              Transcripción de la llamada
-            </h3>
-            
-            <p style={{ color: C.muted, fontSize: 14, marginBottom: 24 }}>
-              Sigue la conversación con el agente en tiempo real.
-            </p>
-
-            <div 
-              style={{ 
+            {/* Transcript */}
+            <div
+              ref={scrollRef}
+              style={{
                 flex: 1,
-                backgroundColor: "rgba(0,0,0,0.3)",
-                borderRadius: 12,
-                padding: 16,
                 overflow: "auto",
                 marginBottom: 16,
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+                paddingRight: 8,
               }}
             >
-              {transcript.map((entry, idx) => (
-                <div 
-                  key={idx} 
-                  style={{ 
-                    marginBottom: 16,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: entry.speaker === "agent" ? "flex-start" : "flex-end",
-                  }}
-                >
-                  <div 
+              {transcript.length === 0 ? (
+                <div style={{ textAlign: "center", color: C.muted, paddingTop: 40 }}>
+                  <div style={{ fontSize: 32, marginBottom: 10 }}>📞</div>
+                  <div>Esperando...</div>
+                </div>
+              ) : (
+                transcript.map((item, idx) => (
+                  <div
+                    key={idx}
                     style={{
-                      backgroundColor: entry.speaker === "agent" ? "rgba(139,92,246,0.2)" : "rgba(0,150,255,0.2)",
+                      backgroundColor: item.speaker === "agent" ? "rgba(139,92,246,0.2)" : C.blue,
                       padding: "12px 16px",
-                      borderRadius: 12,
-                      maxWidth: "80%",
+                      borderRadius: 10,
+                      borderBottomRightRadius: item.speaker === "user" ? 4 : 10,
+                      borderBottomLeftRadius: item.speaker === "agent" ? 4 : 10,
                     }}
                   >
-                    <div style={{ 
-                      fontSize: 12, 
-                      fontWeight: 600, 
-                      color: entry.speaker === "agent" ? C.purple : C.blue,
-                      marginBottom: 4,
-                      textTransform: "capitalize",
-                    }}>
-                      {entry.speaker}
+                    <div style={{ fontSize: 11, fontWeight: 600, color: item.speaker === "agent" ? C.purple : "rgba(255,255,255,0.8)", marginBottom: 4 }}>
+                      {item.speaker === "agent" ? agentName : "Tú"}
                     </div>
-                    <div style={{ color: C.white, fontSize: 14, lineHeight: 1.5 }}>
-                      {entry.text}
+                    <div style={{ color: C.white, fontSize: 13, lineHeight: 1.5 }}>
+                      {item.text}
                     </div>
                   </div>
+                ))
+              )}
+
+              {isLoading && (
+                <div style={{ textAlign: "center", color: C.muted }}>
+                  <div style={{ fontSize: 11 }}>Procesando...</div>
                 </div>
-              ))}
+              )}
             </div>
 
-            <button
-              onClick={handleEndCall}
-              style={{
-                padding: "14px 28px",
-                borderRadius: 10,
-                border: `1px solid ${C.lime}`,
-                backgroundColor: C.lime,
-                color: C.dark,
-                fontWeight: 700,
-                fontSize: 15,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 10,
-              }}
-            >
-              <span>📞</span>
-              Finalizar llamada
-            </button>
+            {/* Recording Indicator & Controls */}
+            <div style={{ marginBottom: 16 }}>
+              {isRecording && (
+                <div style={{ textAlign: "center", marginBottom: 10 }}>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      backgroundColor: "#ef4444",
+                      animation: "pulse 1s infinite",
+                      marginRight: 8,
+                    }}
+                  />
+                  <span style={{ color: C.red, fontSize: 12, fontWeight: 600 }}>
+                    Grabando...
+                  </span>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10 }}>
+                {!isRecording ? (
+                  <button
+                    onClick={startRecording}
+                    disabled={isLoading}
+                    style={{
+                      flex: 1,
+                      padding: "12px 16px",
+                      borderRadius: 10,
+                      border: "none",
+                      backgroundColor: isLoading ? C.dim : C.lime,
+                      color: "#111",
+                      fontWeight: 900,
+                      fontSize: 13,
+                      cursor: isLoading ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    🎤 Hablar
+                  </button>
+                ) : (
+                  <button
+                    onClick={stopRecording}
+                    style={{
+                      flex: 1,
+                      padding: "12px 16px",
+                      borderRadius: 10,
+                      border: "none",
+                      backgroundColor: C.red,
+                      color: "#fff",
+                      fontWeight: 900,
+                      fontSize: 13,
+                      cursor: "pointer",
+                    }}
+                  >
+                    ⏹️ Detener
+                  </button>
+                )}
+
+                <button
+                  onClick={handleEndCall}
+                  style={{
+                    flex: 1,
+                    padding: "12px 16px",
+                    borderRadius: 10,
+                    border: `1px solid ${C.border}`,
+                    backgroundColor: "transparent",
+                    color: C.muted,
+                    fontWeight: 900,
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                >
+                  Finalizar llamada
+                </button>
+              </div>
+            </div>
+
+            {/* Error message */}
+            {error && (
+              <div
+                style={{
+                  padding: "10px 12px",
+                  backgroundColor: "rgba(239,68,68,0.15)",
+                  color: "#f87171",
+                  fontSize: 12,
+                  borderRadius: 8,
+                }}
+              >
+                ⚠️ {error}
+              </div>
+            )}
           </>
         )}
+
+        {/* Audio element for playback */}
+        <audio
+          ref={audioRef}
+          style={{ display: "none" }}
+          controls
+        />
       </div>
 
       <style jsx>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
         }
       `}</style>
     </div>
