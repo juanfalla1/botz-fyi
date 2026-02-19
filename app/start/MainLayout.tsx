@@ -729,15 +729,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (isPlat) {
             applyPlatformAdminAccess();
           } else {
-            // ✅ PRIORIDAD 1: SI TIENE metaTenantId, USARLO DIRECTAMENTE
-            if (metaTenantId) {
-              console.log("✅ [Auth] ¡Tiene metaTenantId! Habilitar TODAS las features");
+            // ✅ ESTRATEGIA FINAL: Buscar en team_members por email (es la fuente de verdad)
+            console.log("🔍 [Auth] Buscando en team_members por email:", session.user.email);
+            const { data: tm } = await supabase
+              .from("team_members")
+              .select("id, tenant_id, rol")
+              .eq("email", session.user.email || '')
+              .maybeSingle();
+
+            if (tm && tm.tenant_id) {
+              console.log("✅ [Auth] ¡Encontrado en team_members! tenant_id:", tm.tenant_id);
+              setUserRole('admin');
+              setTeamMemberId(tm.id);
+              setTenantIdState(tm.tenant_id);
+              const sub = { id: `tm_${tm.tenant_id}`, user_id: session.user.id, plan: "Básico", status: "trialing" };
+              applySubscription(sub);
+            } else if (metaTenantId) {
+              console.log("✅ [Auth] Usando metaTenantId como fallback");
               setUserRole('admin');
               const sub = { id: `meta_${metaTenantId}`, user_id: session.user.id, plan: "Básico", status: "trialing" };
               applySubscription(sub);
             } else {
-              // PRIORIDAD 2: Detectar rol normal
-              console.log("🔍 [Auth] Sin metaTenantId, detectando rol...");
+              // Fallback final: detectar rol normal
+              console.log("🔍 [Auth] Detectando rol normal (fallback)...");
               const tenantId = await detectUserRole(session.user.id, session.user.email || '');
               console.log("🔍 [Auth] Rol detectado, tenantId:", tenantId);
               if (!alive) return;
