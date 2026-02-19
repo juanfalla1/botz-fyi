@@ -426,7 +426,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
        // ✅ NUEVO: Detectar si es un trial user desde auth.user_metadata
-       // PERO: Excluir platform admins (ellos NO son trial)
        const { data: { user: authUser } } = await supabase.auth.getUser();
        console.log("🔍 [SUB] Auth metadata:", {
          is_trial: authUser?.user_metadata?.is_trial,
@@ -434,11 +433,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
          tenant_id: authUser?.user_metadata?.tenant_id,
        });
        
-       // ✅ IMPORTANTE: Chequear si es platform admin ANTES de aplicar trial
-       const isPlatAdmin = await detectPlatformAdmin();
-       console.log("🔍 [SUB] ¿Es platform admin?:", isPlatAdmin);
-       
-       if (authUser?.user_metadata?.is_trial && !isPlatAdmin) {
+       if (authUser?.user_metadata?.is_trial) {
          console.log("✅ [SUB] Usuario es TRIAL - Habilitar TODAS las features");
          const trialSub = {
            id: `trial_${userId}`,
@@ -450,11 +445,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
          };
          console.log("📦 [SUB] Trial subscription object:", trialSub);
          applySubscription(trialSub);
-         return;
-       }
-       
-       if (isPlatAdmin) {
-         console.log("✅ [SUB] Es Platform Admin - No procesar como trial");
          return;
        }
 
