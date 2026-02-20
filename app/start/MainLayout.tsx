@@ -274,6 +274,16 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
+const START_LOGIN_MODE_KEY = "botz-start-mode";
+
+function hasStartLoginMode() {
+  try {
+    return typeof window !== "undefined" && window.localStorage.getItem(START_LOGIN_MODE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
 // ============================================================================
 // ✅ PROVIDER DE AUTENTICACIÓN CON SUSCRIPCIÓN
 // ============================================================================
@@ -734,6 +744,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("🔍 [Auth] checkSession iniciando...");
       try {
         let { data: { session } } = await supabase.auth.getSession();
+
+        if (session?.user && !hasStartLoginMode()) {
+          console.log("🔒 [Auth] Sesion sin modo start; cerrando sesion local para mantener login separado");
+          try {
+            await (supabase.auth as any).signOut({ scope: "local" });
+          } catch {
+            try {
+              await supabase.auth.signOut();
+            } catch {
+              // ignore
+            }
+          }
+          session = null as any;
+        }
         
         // ✅ SEGURIDAD: NO hay fallback de localStorage
         // Si Supabase no tiene sesión, el usuario debe hacer login nuevamente
@@ -891,6 +915,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Manejar INITIAL_SESSION igual que SIGNED_IN
       if ((event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") && session?.user) {
+         if (!hasStartLoginMode()) {
+           console.log("🔒 [Auth event] Sesion no autorizada para /start; cerrando local");
+           try {
+             await (supabase.auth as any).signOut({ scope: "local" });
+           } catch {
+             try {
+               await supabase.auth.signOut();
+             } catch {
+               // ignore
+             }
+           }
+           setUser(null);
+           setAccessToken(null);
+           setUserPlan("free");
+           setSubscription(null);
+           setEnabledFeatures(PLAN_FEATURES["free"]);
+           setUserRole(null);
+           setTeamMemberId(null);
+           setTenantIdState(null);
+           setPlatformTenantIdState(null);
+           setIsPlatformAdmin(false);
+           setPermissions({});
+           setLoading(false);
+           return;
+         }
+
          if (!alive) return;
          console.log("✅ Auth event con sesión:", event, session.user.email);
          setUser(session.user);
@@ -1080,6 +1130,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setPermissions({});
 
     try {
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(START_LOGIN_MODE_KEY);
+      }
       // "local" evita depender de red para que el usuario "salga" al instante.
       await (supabase.auth as any).signOut({ scope: "local" });
     } catch {

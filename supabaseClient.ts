@@ -17,4 +17,13 @@ if (!supabaseUrl) {
   console.warn("⚠️ Build Warning: Usando credenciales placeholder.");
 }
 
-export const supabase = createClient(urlToUse, keyToUse);
+// ✅ Cliente principal (Start / CRM / Channels) con storageKey SEPARADO
+//    para que NO se pise con la app de Agents.
+export const supabase = createClient(urlToUse, keyToUse, {
+  auth: {
+    storageKey: "sb-botz-start-auth", // ✅ distinto al de agents (sb-botz-agents-auth)
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});

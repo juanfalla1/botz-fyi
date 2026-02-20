@@ -1,28 +1,39 @@
 "use client";
 
-import { AuthProvider } from "./MainLayout";
+import React from "react";
+import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 
-/**
- * ============================================================================
- * ✅ LAYOUT PARA /app/start
- * ============================================================================
- * 
- * Este archivo envuelve toda la página /start con el AuthProvider para
- * que el sistema de suscripciones funcione correctamente.
- * 
- * IMPORTANTE:
- * - Para /start/agents/*, se aplica PRIMERO /start/agents/layout.tsx
- *   que usa AgentsLayoutProvider (más específico)
- * - Luego se aplica este layout con AuthProvider
- * - Resultado: El módulo de Agentes tiene su propio proveedor sin 
- *   la interferencia del timeout de 15s
- * 
- * ============================================================================
- */
+// IMPORTANT: do not import MainLayout/AuthProvider at module scope.
+// That module initializes the main Supabase client (with detectSessionInUrl),
+// and if it loads on /start/agents OAuth callbacks it can accidentally persist
+// the session into the main app storage.
+const AuthProvider = dynamic(() => import("./MainLayout").then((m) => m.AuthProvider), {
+  ssr: false,
+});
+
 export default function StartLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <AuthProvider>{children}</AuthProvider>;
+  const pathname = usePathname();
+  const isAgentsOrFlows =
+    pathname?.startsWith("/start/agents") || pathname?.startsWith("/start/flows");
+  const isAgentsCreate = pathname?.startsWith("/start/agents/create");
+  const isAgentsNotetaker = pathname?.startsWith("/start/agents/notetaker");
+
+  const scaledContent = isAgentsOrFlows && !isAgentsCreate && !isAgentsNotetaker ? (
+    <div style={{ zoom: 1.1 }}>{children}</div>
+  ) : (
+    <>{children}</>
+  );
+
+  // ✅ EXCEPCIÓN: /start/agents usa su propio login/sesión y NO debe pasar por el AuthProvider de hipotecas
+  if (pathname?.startsWith("/start/agents")) {
+    return <>{scaledContent}</>;
+  }
+
+  // ✅ Todo lo demás (hipoteca, CRM, etc.) queda igual
+  return <AuthProvider>{scaledContent}</AuthProvider>;
 }

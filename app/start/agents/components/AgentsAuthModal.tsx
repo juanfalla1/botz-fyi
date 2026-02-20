@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { supabase } from "@/app/supabaseClient";
+import { supabaseAgents } from "../supabaseAgentsClient";
 
 export default function AgentsAuthModal({
   open,
@@ -36,7 +36,7 @@ export default function AgentsAuthModal({
       const redirectUrl = typeof window !== "undefined" ? `${window.location.origin}/start/agents` : undefined;
       console.log("🔑 [AgentsAuth] Iniciando OAuth con Google, redirectTo:", redirectUrl);
       
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabaseAgents.auth.signInWithOAuth({
         provider: "google",
         options: { 
           redirectTo: redirectUrl,
@@ -76,7 +76,7 @@ export default function AgentsAuthModal({
     setMsg(null);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabaseAgents.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
       setMsg("✅ Sesión iniciada. Cargando...");
@@ -98,7 +98,7 @@ export default function AgentsAuthModal({
     setErr(null);
     setMsg(null);
     try {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabaseAgents.auth.signUp({ email, password });
       if (error) throw error;
 
       if (!data?.session) {
@@ -129,7 +129,7 @@ export default function AgentsAuthModal({
       const redirectTo =
         typeof window !== "undefined" ? `${window.location.origin}/auth/reset` : undefined;
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      const { error } = await supabaseAgents.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) throw error;
 
       setMsg("📩 Te enviamos un correo para restablecer tu contraseña.");

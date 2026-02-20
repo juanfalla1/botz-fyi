@@ -35,15 +35,36 @@ export default function VoiceTestPanel({
   companyContext,
   voiceSettings,
 }: VoiceTestPanelProps) {
+  const GPT_MODELS = ["gpt-4o", "gpt-4.1", "gpt-4.1-mini"] as const;
   const [isCallActive, setIsCallActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>(
+    voiceSettings?.model && GPT_MODELS.includes(voiceSettings.model as any)
+      ? String(voiceSettings.model)
+      : "gpt-4.1"
+  );
   const [transcript, setTranscript] = useState<{ speaker: "agent" | "user"; text: string }[]>([]);
   const [variables, setVariables] = useState({
     contact_name: "Juan Carlos",
     contact_email: "",
   });
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    height: 44,
+    padding: "10px 12px",
+    boxSizing: "border-box",
+    backgroundColor: C.card,
+    border: `1px solid ${C.border}`,
+    borderRadius: 8,
+    color: C.white,
+    fontSize: 13,
+    outline: "none",
+    WebkitTextFillColor: C.white,
+    WebkitBoxShadow: `0 0 0 1000px ${C.card} inset`,
+  };
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -149,7 +170,7 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
             conversationHistory: conversationHistoryRef.current,
             agentConfig: {
               voice: voiceSettings?.voice || "nova",
-              model: voiceSettings?.model || "gpt-3.5-turbo",
+              model: selectedModel,
             },
           }),
         });
@@ -231,7 +252,7 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
             conversationHistory: [],
             agentConfig: {
               voice: voiceSettings?.voice || "nova",
-              model: voiceSettings?.model || "gpt-3.5-turbo",
+              model: selectedModel,
             },
             generateAudioOnly: true, // Flag para generar solo audio sin procesar entrada
             textToSpeak: greetingText,
@@ -328,6 +349,23 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
           <>
             {/* Variables */}
             <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 4 }}>
+                  gpt_model
+                </label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  style={{ ...inputStyle, appearance: "none", cursor: "pointer" }}
+                >
+                  {GPT_MODELS.map((m) => (
+                    <option key={m} value={m}>
+                      {m.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div style={{ fontSize: 13, fontWeight: 800, color: C.muted, marginBottom: 10 }}>
                 VARIABLES DE ENTRADA:
               </div>
@@ -340,16 +378,8 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
                     type="text"
                     value={variables.contact_name}
                     onChange={(e) => setVariables({ ...variables, contact_name: e.target.value })}
-                    style={{
-                      width: "100%",
-                      padding: "10px 12px",
-                      backgroundColor: C.card,
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 8,
-                      color: C.white,
-                      fontSize: 13,
-                      outline: "none",
-                    }}
+                    style={inputStyle}
+                    autoComplete="off"
                   />
                 </div>
                 <div>
@@ -360,16 +390,8 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
                     type="email"
                     value={variables.contact_email}
                     onChange={(e) => setVariables({ ...variables, contact_email: e.target.value })}
-                    style={{
-                      width: "100%",
-                      padding: "10px 12px",
-                      backgroundColor: C.card,
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 8,
-                      color: C.white,
-                      fontSize: 13,
-                      outline: "none",
-                    }}
+                    style={inputStyle}
+                    autoComplete="off"
                   />
                 </div>
               </div>

@@ -3,9 +3,8 @@
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { plantillaParaLlamar } from "@/app/start/flows/data/plantilla";
-import { supabase } from "@/app/supabaseClient";
-import AuthModal from "@/app/start/components/AuthModal";
-import { authedFetch, AuthRequiredError } from "@/app/start/_utils/authedFetch";
+import { supabaseAgents } from "@/app/start/agents/supabaseAgentsClient";
+import { authedFetch, AuthRequiredError } from "@/app/start/agents/authedFetchAgents";
 
 const C = {
   bg: "#1a1d26",
@@ -21,6 +20,8 @@ const C = {
 };
 
 type Cat = "All Templates" | "Recent" | "Popular" | "AI" | "CRMs" | "Others" | "CMS";
+
+const VISIBLE_CATEGORIES: Cat[] = ["All Templates", "AI", "Others"];
 
 type FlowTemplate = {
   id: string;
@@ -121,19 +122,18 @@ export default function FlowTemplatesPage() {
   const [cat, setCat] = useState<Cat>("All Templates");
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState<string | null>(null);
-  const [openAuth, setOpenAuth] = useState(false);
 
   React.useEffect(() => {
     let mounted = true;
     (async () => {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await supabaseAgents.auth.getSession();
       const u = data?.session?.user || null;
       if (!mounted) return;
-      setOpenAuth(!u);
+      if (!u) router.replace("/start/agents");
     })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setOpenAuth(!session?.user);
+    const { data: sub } = supabaseAgents.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) router.replace("/start/agents");
     });
 
     return () => {
@@ -196,7 +196,10 @@ export default function FlowTemplatesPage() {
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo crear");
       router.push(`/start/flows/${json.data.id}`);
     } catch (e) {
-      if (e instanceof AuthRequiredError) setOpenAuth(true);
+      if (e instanceof AuthRequiredError) {
+        router.replace("/start/agents");
+        return;
+      }
       console.error(e);
       const msg = (e as any)?.message || "No se pudo crear el flujo";
       alert(`No se pudo crear el flujo: ${msg}`);
@@ -206,19 +209,29 @@ export default function FlowTemplatesPage() {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,.55)", zIndex: 30, overflow: "hidden" }}>
-      <AuthModal
-        open={openAuth}
-        onClose={() => {
-          setOpenAuth(false);
-          router.push("/");
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(0,0,0,.55)",
+        zIndex: 120,
+        overflow: "auto",
+        padding: "72px 18px 18px",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          minHeight: "calc(100vh - 90px)",
+          backgroundColor: C.bg,
+          border: `1px solid ${C.border}`,
+          borderRadius: 18,
+          overflow: "hidden",
+          fontFamily: "Inter,-apple-system,sans-serif",
+          color: C.white,
         }}
-        onLoggedIn={() => {
-          setOpenAuth(false);
-        }}
-        redirectTo={typeof window !== "undefined" ? `${window.location.origin}/start/flows/templates` : undefined}
-      />
-      <div style={{ position: "absolute", inset: 18, backgroundColor: C.bg, border: `1px solid ${C.border}`, borderRadius: 18, overflow: "hidden", fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
+      >
         <button
           onClick={() => router.push("/start/agents")}
           style={{ position: "absolute", top: 14, right: 18, background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 22, zIndex: 5 }}
@@ -229,17 +242,11 @@ export default function FlowTemplatesPage() {
 
         <div style={{ ...flex(), height: "100%" }}>
           {/* left categories */}
-          <aside style={{ width: 230, backgroundColor: C.sidebar, borderRight: `1px solid ${C.border}`, padding: 18 }}>
-            <div style={{ fontWeight: 900, fontSize: 14, marginBottom: 14, color: C.white }}>All Templates</div>
-            {([
-              "All Templates",
-              "Recent",
-              "Popular",
-              "AI",
-              "CRMs",
-              "Others",
-              "CMS",
-            ] as Cat[]).map(c => (
+            <aside style={{ width: 230, backgroundColor: C.sidebar, borderRight: `1px solid ${C.border}`, padding: 18 }}>
+              <div style={{ fontWeight: 900, fontSize: 14, marginBottom: 14, color: C.white }}>All Templates</div>
+            {VISIBLE_CATEGORIES.map(c => {
+              const count = c === "All Templates" ? TEMPLATES.length : TEMPLATES.filter(t => t.category === c).length;
+              return (
               <button
                 key={c}
                 onClick={() => setCat(c)}
@@ -255,9 +262,10 @@ export default function FlowTemplatesPage() {
                   fontWeight: cat === c ? 900 : 700,
                 }}
               >
-                {c}
+                {c} <span style={{ color: C.dim, fontWeight: 800 }}>({count})</span>
               </button>
-            ))}
+              );
+            })}
           </aside>
 
           {/* main */}
@@ -300,7 +308,7 @@ export default function FlowTemplatesPage() {
             </button>
 
             <div style={{ color: C.muted, fontWeight: 900, margin: "12px 0 12px" }}>
-              {cat === "All Templates" ? "AI" : cat} ({list.length})
+              {cat} ({list.length})
             </div>
 
             <div style={{ height: "calc(100% - 220px)", overflow: "auto", paddingRight: 6 }}>

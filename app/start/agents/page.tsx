@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/app/supabaseClient";
+import { useRouter, useSearchParams } from "next/navigation";
+import { supabaseAgents } from "./supabaseAgentsClient";
 import AuthModal from "@/app/start/agents/components/AgentsAuthModal";
-import { authedFetch, AuthRequiredError } from "@/app/start/_utils/authedFetch";
+import { authedFetch, AuthRequiredError } from "./authedFetchAgents";
 
 interface Agent {
   id: string;
@@ -32,6 +32,7 @@ const C = {
 
 export default function AgentStudio() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [user,   setUser]   = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -49,74 +50,33 @@ export default function AgentStudio() {
     
     const initAgents = async () => {
       // Verificar si ya hay sesión activa
-      const { data } = await supabase.auth.getSession();
+      const { data } = await supabaseAgents.auth.getSession();
       const sessionUser = data?.session?.user || null;
-      const isAgentsMode = typeof window !== "undefined" ? localStorage.getItem("botz-agents-mode") === "true" : false;
       
       console.log("🔑 [Agentes] Init check:", { 
         user: sessionUser?.email || "No session", 
-        isAgentsMode,
         userMetadata: sessionUser?.user_metadata 
       });
       
       if (!mounted) return;
       
-      if (sessionUser && isAgentsMode) {
-        // ✅ Sesión de Agentes existente - usarla directamente
-        console.log("✅ [Agentes] Sesión de Agentes existente - Ingresando directamente");
+      if (sessionUser) {
         setUser(sessionUser);
         setAuthLoading(false);
         setOpenAuth(false);
         fetchAgents();
         fetchEntitlement();
-      } else if (sessionUser && !isAgentsMode) {
-        // 🚫 Sesión de Botz Platform - FORZAR LOGOUT
-        console.log("🚫 [Agentes] Sesión de Botz Platform detectada - Forzando logout");
-        try {
-          const { error } = await supabase.auth.signOut();
-          if (error) {
-            console.error("🚫 [Agentes] Error en signOut:", error);
-          } else {
-            console.log("✅ [Agentes] Logout exitoso");
-          }
-        } catch (e) {
-          console.error("🚫 [Agentes] Excepción en signOut:", e);
-        }
-        
-        // Limpiar TODO el localStorage relacionado con auth
-        if (typeof window !== "undefined") {
-          console.log("🧹 [Agentes] Limpiando localStorage...");
-          const keysBefore = Object.keys(localStorage);
-          console.log("🧹 [Agentes] Keys antes:", keysBefore);
-          
-          // Remover todas las keys de Supabase
-          keysBefore.forEach(k => {
-            if (k.startsWith('sb-') || k.includes('supabase') || k.includes('botz')) {
-              localStorage.removeItem(k);
-              console.log("🧹 [Agentes] Removida key:", k);
-            }
-          });
-          
-          const keysAfter = Object.keys(localStorage);
-          console.log("🧹 [Agentes] Keys después:", keysAfter);
-        }
-        
-        // Forzar recarga para limpiar estado
-        console.log("🔄 [Agentes] Forzando recarga de página...");
-        window.location.reload();
         return;
-      } else {
-        // No hay sesión
-        console.log("🔄 [Agentes] No hay sesión - Mostrando login");
-        setUser(null);
-        setAuthLoading(false);
-        setOpenAuth(true);
       }
+
+      setUser(null);
+      setAuthLoading(false);
+      setOpenAuth(true);
     };
     
     initAgents();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabaseAgents.auth.onAuthStateChange((event, session) => {
       const u = session?.user || null;
       console.log("🔑 [Agentes] Auth event:", event, "User:", u?.email || "No user");
       
@@ -138,7 +98,7 @@ export default function AgentStudio() {
 
     return () => {
       mounted = false;
-      sub?.subscription?.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, []);
 
@@ -147,15 +107,11 @@ export default function AgentStudio() {
     let alive = true;
     const sync = async () => {
       try {
-        const { data } = await supabase.auth.getSession();
+        const { data } = await supabaseAgents.auth.getSession();
         const u = data?.session?.user || null;
         if (!alive) return;
 
-        setUser((prev: any) => {
-          const prevId = prev?.id || null;
-          const nextId = u?.id || null;
-          return prevId === nextId ? prev : u;
-        });
+        setUser(u);
         setOpenAuth(!u);
       } catch {
         // ignore
@@ -204,6 +160,73 @@ export default function AgentStudio() {
     }
   };
 
+  const updateAgent = async (id: string, patch: Record<string, any>) => {
+    const res = await authedFetch("/api/agents/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, patch }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo actualizar");
+  };
+
+  const openAgent = (agent: Agent) => {
+    router.push(agent.type === "flow" ? `/start/flows/${agent.id}` : `/start/agents/${agent.id}`);
+  };
+
+  const togglePublic = async (agent: Agent) => {
+    try {
+      const next = agent.status === "active" ? "draft" : "active";
+      await updateAgent(agent.id, { status: next });
+      await fetchAgents();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const duplicateAgent = async (agent: Agent) => {
+    try {
+      const res = await authedFetch("/api/agents/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${agent.name} (copia)`,
+          type: agent.type,
+          description: agent.description,
+          configuration: (agent as any).configuration || {},
+          status: "draft",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo duplicar");
+      await fetchAgents();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const deleteAgent = async (agent: Agent) => {
+    try {
+      await updateAgent(agent.id, { status: "archived" });
+      await fetchAgents();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const renameAgent = async (agent: Agent) => {
+    const nextName = window.prompt("Nuevo nombre del agente", agent.name || "");
+    if (!nextName) return;
+    const name = nextName.trim();
+    if (!name || name === agent.name) return;
+    try {
+      await updateAgent(agent.id, { name });
+      await fetchAgents();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Resilience: refresh session + data on focus.
   useEffect(() => {
     if (!user?.id) return;
@@ -212,7 +235,7 @@ export default function AgentStudio() {
     const refresh = async () => {
       if (!alive) return;
       try {
-        await supabase.auth.refreshSession();
+        await supabaseAgents.auth.refreshSession();
       } catch {
         // ignore
       }
@@ -248,9 +271,16 @@ export default function AgentStudio() {
     { id: "julia", name: "Julia", cat: "Asistente Recepcionista",          emoji: "💬" },
   ];
 
-  const filtered = agents.filter(a =>
+  const listType = (searchParams.get("type") || "").toLowerCase();
+
+  const filtered = agents
+    .filter(a => String((a as any).status || "").toLowerCase() !== "archived")
+    .filter(a => (listType === "voice" || listType === "text" || listType === "flow") ? a.type === listType : true)
+    .filter(a =>
     a.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const listTitle = listType === "voice" ? "Agentes de Voz" : listType === "text" ? "Agentes de Texto" : listType === "flow" ? "Flujos" : "Actividad reciente";
 
   const creditsUsedFromAgents = useMemo(() => {
     return (agents || []).reduce((sum, a) => sum + (Number(a.credits_used || 0) || 0), 0);
@@ -343,7 +373,6 @@ export default function AgentStudio() {
 
         {/* Workspace */}
         <div style={{ padding: "0 12px 14px" }}>
-          <div style={{ fontSize: 11, color: C.dim, marginBottom: 6 }}>Workspace</div>
           <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), padding: "10px 12px", borderRadius: 12, backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}` }}>
             <div style={flex({ alignItems: "center", gap: 10 })}>
               <div style={{ width: 26, height: 26, borderRadius: 10, backgroundColor: `${C.blue}22`, display: "flex", alignItems: "center", justifyContent: "center", color: C.blue, fontWeight: 900, fontSize: 12 }}>
@@ -422,7 +451,14 @@ export default function AgentStudio() {
               <span style={{ fontSize: 12, fontWeight: 900, color: C.white }}>{fmt(creditsUsedTotal)} / {fmt(planInfo.credits)}</span>
             </div>
             <div style={{ height: 8, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 999, overflow: "hidden", border: `1px solid ${C.border}` }}>
-              <div style={{ width: `${Math.min(100, (creditsUsedTotal / Math.max(1, planInfo.credits)) * 100)}%`, height: "100%", background: `linear-gradient(90deg, ${C.lime}, ${C.blue})` }} />
+              <div
+                style={{
+                  width: `${Math.min(100, (creditsUsedTotal / Math.max(1, planInfo.credits)) * 100)}%`,
+                  minWidth: creditsUsedTotal > 0 ? 2 : 0,
+                  height: "100%",
+                  background: "linear-gradient(90deg, #0ea5e9, #2563eb)",
+                }}
+              />
             </div>
 
             {trialInfo.label && (
@@ -470,7 +506,7 @@ export default function AgentStudio() {
                  </button>
                  <button
                    onClick={async () => {
-                     try { await supabase.auth.signOut(); } catch {}
+                     try { await supabaseAgents.auth.signOut(); } catch {}
                      router.push("/");
                    }}
                    style={{ flex: 1, padding: "12px 14px", borderRadius: 12, border: `1px solid ${C.border}`, backgroundColor: "transparent", color: C.white, fontWeight: 900, cursor: "pointer" }}
@@ -482,13 +518,8 @@ export default function AgentStudio() {
            </div>
          )}
 
-        {/* top bar */}
-        <div style={{ height: 56, borderBottom: `1px solid ${C.border}`, ...flex({ alignItems: "center", justifyContent: "flex-end" }), padding: "0 36px", backgroundColor: C.bg, position: "sticky", top: 0, zIndex: 10 }}>
-          <button onClick={fetchAgents} style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 18 }}>⟳</button>
-        </div>
-
         {/* body */}
-         <div style={{ padding: "44px 40px", overflowY: "auto" }}>
+          <div style={{ padding: "44px 40px", overflowY: "auto" }}>
 
           <h1 style={{ fontSize: 30, fontWeight: 800, margin: "0 0 6px" }}>
             Hola {user?.email?.split("@")[0] || (authLoading ? "..." : "Usuario")}
@@ -502,7 +533,7 @@ export default function AgentStudio() {
                 key={card.id}
                 onClick={() => {
                   if (card.id === "notetaker") {
-                    router.push("/start/agents/create?type=voice&kind=notetaker");
+                    router.push("/start/agents/notetaker");
                     return;
                   }
                   if (card.id === "flow") {
@@ -545,7 +576,7 @@ export default function AgentStudio() {
 
           {/* activity header */}
           <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), marginBottom: 12 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Actividad reciente</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{listTitle}</h3>
             <button onClick={fetchAgents} style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, cursor: "pointer", fontSize: 15 }}>⟳</button>
           </div>
 
@@ -561,12 +592,12 @@ export default function AgentStudio() {
           </div>
 
           {/* table */}
-          <div style={{ backgroundColor: C.card, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          <div style={{ backgroundColor: "#272d37", borderRadius: 12, border: "1px solid rgba(255,255,255,0.14)", overflow: "hidden" }}>
 
             {/* head */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 200px", padding: "10px 16px", borderBottom: `1px solid ${C.border}` }}>
-              {["Nombre","Tipo","Última actividad"].map(col => (
-                <span key={col} style={{ color: C.dim, fontSize: 13, fontWeight: 600 }}>{col} ↕</span>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(320px,1fr) 120px 170px 260px", padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.14)" }}>
+              {["Nombre","Tipo","Última actividad","Acciones"].map(col => (
+                <span key={col} style={{ color: "#cbd5e1", fontSize: 13, fontWeight: 700 }}>{col} ↕</span>
               ))}
             </div>
 
@@ -580,11 +611,11 @@ export default function AgentStudio() {
             ) : filtered.map((agent, i) => {
               const tc = typeColor(agent.type);
               return (
-                <button
+                <div
                   key={agent.id}
-                  onClick={() => router.push(agent.type === "flow" ? `/start/flows/${agent.id}` : `/start/agents/${agent.id}`)}
-                  style={{ width: "100%", display: "grid", gridTemplateColumns: "1fr 140px 200px", padding: "13px 16px", borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none", backgroundColor: "transparent", cursor: "pointer", textAlign: "left" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = C.hover; }}
+                  onClick={() => openAgent(agent)}
+                  style={{ width: "100%", display: "grid", gridTemplateColumns: "minmax(320px,1fr) 120px 170px 260px", padding: "13px 16px", borderBottom: i < filtered.length - 1 ? "1px solid rgba(255,255,255,0.14)" : "none", backgroundColor: "transparent", cursor: "pointer", textAlign: "left", alignItems: "center" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = "#313846"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
                 >
                   <div style={flex({ alignItems: "center", gap: 12 })}>
@@ -598,10 +629,24 @@ export default function AgentStudio() {
                       {agent.type}
                     </span>
                   </div>
-                  <span style={{ color: C.muted, fontSize: 13 }}>
+                  <span style={{ color: "#d1d5db", fontSize: 13 }}>
                     {new Date(agent.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}
                   </span>
-                </button>
+
+                  <div style={flex({ alignItems: "center", gap: 8, justifyContent: "flex-start", minWidth: 0 })} onClick={(e) => e.stopPropagation()}>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#cbd5e1", fontSize: 12, marginRight: 4, whiteSpace: "nowrap" }}>
+                      Público
+                      <input
+                        type="checkbox"
+                        checked={agent.status === "active"}
+                        onChange={() => togglePublic(agent)}
+                      />
+                    </label>
+                    <button onClick={() => renameAgent(agent)} style={{ width: 36, height: 36, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e5e7eb", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} title="Renombrar">✎</button>
+                    <button onClick={() => duplicateAgent(agent)} style={{ width: 36, height: 36, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e5e7eb", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} title="Duplicar">⎘</button>
+                    <button onClick={() => deleteAgent(agent)} style={{ width: 36, height: 36, border: "1px solid rgba(248,113,113,0.55)", background: "transparent", color: "#f87171", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 900, flexShrink: 0 }} title="Eliminar">🗑</button>
+                  </div>
+                </div>
               );
             })}
 

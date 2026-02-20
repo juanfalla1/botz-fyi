@@ -1,37 +1,62 @@
 "use client";
 
-import React, { createContext, useContext, ReactNode } from "react";
+import React from "react";
+import { supabaseAgents } from "./supabaseAgentsClient";
 
 /**
- * ============================================================================
- * 🔒 AGENTS LAYOUT PROVIDER
- * ============================================================================
- * 
- * Provider MINIMALISTA para el módulo independiente de Agentes.
- * NO incluye lógica de MainLayout que interfiera con la autenticación.
- * 
- * Propósito: Permitir que el módulo de Agentes tenga su propio contexto
- * sin los timeouts ni overhead de la plataforma principal de Botz.
- * 
- * ============================================================================
+ * Provider del layout de /start/agents
+ * (solo envuelve children; si luego necesitas context, lo metemos aquí)
  */
-
-interface AgentsContextType {
-  dummy?: string;
+export function AgentsLayoutProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return <>{children}</>;
 }
 
-const AgentsContext = createContext<AgentsContextType>({});
-
-export function AgentsLayoutProvider({ children }: { children: ReactNode }) {
-  // Este provider es essentially un "pass-through"
-  // Solo existe para estructura/consistencia
-  return (
-    <AgentsContext.Provider value={{}}>
-      {children}
-    </AgentsContext.Provider>
-  );
+/**
+ * Auth helpers SOLO para el módulo de Agents (supabaseAgents)
+ * Esto NO toca el login principal si tu supabaseAgentsClient usa storageKey distinto.
+ */
+export class AuthRequiredError extends Error {
+  code = "AUTH_REQUIRED" as const;
+  constructor(message = "Unauthorized") {
+    super(message);
+    this.name = "AuthRequiredError";
+  }
 }
 
-export function useAgentsContext() {
-  return useContext(AgentsContext);
+async function getTokenOnce() {
+  const { data } = await supabaseAgents.auth.getSession();
+  return data?.session?.access_token || "";
+}
+
+export async function getAccessTokenFresh() {
+  let token = await getTokenOnce();
+  if (token) return token;
+
+  try {
+    await supabaseAgents.auth.refreshSession();
+  } catch {
+    // ignore
+  }
+
+  token = await getTokenOnce();
+  return token;
+}
+
+export async function authedFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit
+) {
+  const token = await getAccessTokenFresh();
+  if (!token) throw new AuthRequiredError();
+
+  const headers = new Headers(init?.headers || {});
+  headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(input, { ...init, headers });
+  if (res.status === 401) throw new AuthRequiredError();
+  return res;
 }

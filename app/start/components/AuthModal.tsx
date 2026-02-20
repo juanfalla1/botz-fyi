@@ -3,6 +3,18 @@
 import React, { useState } from "react";
 import { supabase } from "../../supabaseClient"; // ✅ app/start/components -> app/supabaseClient
 
+const START_LOGIN_MODE_KEY = "botz-start-mode";
+
+function markStartLoginMode() {
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(START_LOGIN_MODE_KEY, "true");
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export default function AuthModal({
   open,
   onClose,
@@ -35,11 +47,13 @@ export default function AuthModal({
     setErr(null);
     setMsg(null);
     try {
-      const next = redirectTo || (typeof window !== "undefined" ? `${window.location.origin}/start/agents` : undefined);
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: next ? { redirectTo: next } : undefined,
-      });
+      const next = `${window.location.origin}${redirectTo || "/start"}`;
+      markStartLoginMode();
+
+ const { error } = await supabase.auth.signInWithOAuth({
+   provider: "google",
+   options: { redirectTo: next },
+ });
       if (error) throw error;
       // OAuth redirects away; no further action here.
     } catch (e: any) {
@@ -57,6 +71,7 @@ export default function AuthModal({
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      markStartLoginMode();
 
       setMsg("✅ Sesión iniciada. Cargando...");
       
@@ -86,6 +101,8 @@ export default function AuthModal({
         setLoading(false);
         return;
       }
+
+      markStartLoginMode();
 
       setMsg("✅ Cuenta creada. Entrando...");
       setTimeout(() => {

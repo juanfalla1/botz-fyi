@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { supabase } from "@/app/supabaseClient";
+import { supabaseAgents } from "../supabaseAgentsClient";
 import AuthModal from "@/app/start/agents/components/AgentsAuthModal";
-import { authedFetch, AuthRequiredError } from "@/app/start/_utils/authedFetch";
+import { authedFetch, AuthRequiredError } from "../authedFetchAgents";
 import VoiceTestPanel from "@/app/start/agents/components/VoiceTestPanel";
 import ChatTestPanel from "@/app/start/agents/components/ChatTestPanel";
 import AgentMetrics from "@/app/start/agents/components/AgentMetrics";
@@ -130,6 +130,7 @@ export default function CreateAgentPage() {
   const [authUser, setAuthUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [openAuth, setOpenAuth] = useState(false);
+  const [confirmExitOpen, setConfirmExitOpen] = useState(false);
 
   const [form, setForm] = useState({
     companyName:  "",
@@ -176,40 +177,21 @@ export default function CreateAgentPage() {
     let mounted = true;
     
     const initCreate = async () => {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await supabaseAgents.auth.getSession();
       const u = data?.session?.user || null;
-      const isAgentsMode = typeof window !== "undefined" ? localStorage.getItem("botz-agents-mode") === "true" : false;
-      
-      console.log("🔑 [Agentes Create] Init:", { user: u?.email, isAgentsMode });
-      
+
       if (!mounted) return;
-      
-      if (u && isAgentsMode) {
-        // ✅ Sesión de Agentes válida
-        setAuthUser(u);
-        setAuthLoading(false);
-        setOpenAuth(false);
-      } else if (u && !isAgentsMode) {
-        // 🚫 Sesión de Botz Platform - forzar logout
-        console.log("🚫 [Agentes Create] Logout de Botz Platform");
-        await supabase.auth.signOut();
-        setAuthUser(null);
-        setAuthLoading(false);
-        setOpenAuth(true);
-      } else {
-        // No hay sesión
-        setAuthUser(null);
-        setAuthLoading(false);
-        setOpenAuth(true);
-      }
+
+      setAuthUser(u);
+      setAuthLoading(false);
+      setOpenAuth(!u);
     };
     
     initCreate();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: sub } = supabaseAgents.auth.onAuthStateChange((event, session) => {
       const u = session?.user || null;
       if (event === "SIGNED_IN" && u) {
-        localStorage.setItem("botz-agents-mode", "true");
         setAuthUser(u);
         setOpenAuth(false);
       } else if (event === "SIGNED_OUT") {
@@ -468,6 +450,15 @@ export default function CreateAgentPage() {
   })();
   const canContinue = step === 1 ? step1Ok : step === 2 ? step2Ok : true;
 
+  const goToAgentsList = () => {
+    const t = form.type === "voice" || form.type === "text" || form.type === "flow" ? form.type : "voice";
+    router.push(`/start/agents?type=${t}`);
+  };
+
+  const askExit = () => {
+    setConfirmExitOpen(true);
+  };
+
   return (
     /* ── full-screen overlay (dark page, no sidebar here) ── */
     <div style={{ minHeight: "100vh", backgroundColor: C.bg, display: "flex", flexDirection: "column", fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
@@ -486,7 +477,7 @@ export default function CreateAgentPage() {
       {/* ── top bar ── */}
       <div style={{ height: 60, borderBottom: `1px solid ${C.border}`, ...fl({ alignItems: "center", justifyContent: "space-between", padding: "0 36px" }), backgroundColor: C.dark, position: "sticky", top: 0, zIndex: 20 }}>
         <button
-          onClick={() => router.push("/start/agents")}
+          onClick={askExit}
           style={{ ...fl({ alignItems: "center", gap: 8 }), background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 14 }}
         >
           ‹ Volver
@@ -495,12 +486,44 @@ export default function CreateAgentPage() {
           {pageTitle}
         </span>
         <button
-          onClick={() => router.push("/start/agents")}
+          onClick={askExit}
           style={{ background: "none", border: "none", color: C.dim, cursor: "pointer", fontSize: 20 }}
         >
           ✕
         </button>
       </div>
+
+      {confirmExitOpen && (
+        <div
+          onClick={() => setConfirmExitOpen(false)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(3,8,20,0.72)", backdropFilter: "blur(4px)", zIndex: 80, display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 560, background: "linear-gradient(180deg, rgba(14,24,40,0.98) 0%, rgba(7,12,22,0.98) 100%)", border: "1px solid rgba(34,211,238,0.18)", borderRadius: 16, padding: 22, boxShadow: "0 24px 90px rgba(0,0,0,0.58)" }}
+          >
+            <div style={{ fontSize: 24, marginBottom: 8 }}>⚠️</div>
+            <div style={{ fontSize: 32, fontWeight: 900, marginBottom: 8 }}>¿Seguro que deseas salir?</div>
+            <div style={{ color: C.muted, fontSize: 20, lineHeight: 1.45 }}>
+              Si sales ahora, perderás toda la configuración que has hecho hasta el momento.
+            </div>
+            <div style={{ marginTop: 22, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                onClick={goToAgentsList}
+                style={{ border: "1px solid rgba(163,230,53,0.55)", background: "transparent", color: C.lime, fontWeight: 900, cursor: "pointer", fontSize: 20, borderRadius: 12, padding: "10px 14px" }}
+              >
+                Salir de todos modos
+              </button>
+              <button
+                onClick={() => setConfirmExitOpen(false)}
+                style={{ border: "none", backgroundColor: C.lime, color: "#111", fontWeight: 900, borderRadius: 12, cursor: "pointer", fontSize: 22, padding: "10px 18px" }}
+              >
+                Seguir editando
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── stepper ── */}
       <div style={{ borderBottom: `1px solid ${C.border}`, padding: "26px 56px 6px", backgroundColor: C.dark }}>
@@ -540,11 +563,18 @@ export default function CreateAgentPage() {
       </div>
 
       {/* ── content ── */}
-       <div style={{ flex: 1, padding: isMobile ? "24px 20px" : "36px 40px", maxWidth: 1180, margin: "0 auto", width: "100%" }}>
-          <div style={{ display: "flex", flexDirection: isTextTestStep ? "column" : "row", gap: isMobile ? 20 : 48 }}>
+       <div style={{ flex: 1, padding: isMobile ? "24px 20px" : "36px 32px", maxWidth: isMobile ? "100%" : 1400, margin: "0 auto", width: "100%" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: isTextTestStep ? "column" : "row",
+              gap: isMobile ? 20 : 34,
+              alignItems: isTextTestStep ? "stretch" : "flex-start",
+            }}
+          >
 
            {/* LEFT – description */}
-            <div style={{ flex: isTextTestStep ? "1 1 100%" : "0 0 320px", minWidth: 0 }}>
+            <div style={{ flex: isTextTestStep ? "1 1 100%" : "0 0 360px", minWidth: 0, maxWidth: isTextTestStep ? "100%" : 420 }}>
              {isTextTestStep ? (
                <>
                  <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 12px", lineHeight: 1.2 }}>
@@ -582,7 +612,7 @@ export default function CreateAgentPage() {
           </div>
 
           {/* RIGHT – form */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0, flex: "1 1 760px" }}>
 
             {isTextTestStep ? (
                <>

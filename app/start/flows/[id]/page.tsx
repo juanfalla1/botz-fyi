@@ -2,9 +2,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/app/supabaseClient";
-import AuthModal from "@/app/start/components/AuthModal";
-import { authedFetch as authedFetchUtil, AuthRequiredError } from "@/app/start/_utils/authedFetch";
+import { supabaseAgents } from "@/app/start/agents/supabaseAgentsClient";
+import { authedFetch as authedFetchUtil, AuthRequiredError } from "@/app/start/agents/authedFetchAgents";
 import {
   ReactFlow,
   Background,
@@ -165,7 +164,6 @@ export default function FlowEditorPage() {
   const [agent, setAgent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [openAuth, setOpenAuth] = useState(false);
   const [running, setRunning] = useState<"test" | "run" | null>(null);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("actions");
   const [actionsOpen, setActionsOpen] = useState(false);
@@ -184,14 +182,14 @@ export default function FlowEditorPage() {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await supabaseAgents.auth.getSession();
       const u = data?.session?.user || null;
       if (!mounted) return;
-      setOpenAuth(!u);
+      if (!u) router.replace("/start/agents");
     })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setOpenAuth(!session?.user);
+    const { data: sub } = supabaseAgents.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) router.replace("/start/agents");
     });
 
     return () => {
@@ -204,10 +202,12 @@ export default function FlowEditorPage() {
     try {
       return await authedFetchUtil(input, init);
     } catch (e) {
-      if (e instanceof AuthRequiredError) setOpenAuth(true);
+      if (e instanceof AuthRequiredError) {
+        router.replace("/start/agents");
+      }
       throw e;
     }
-  }, []);
+  }, [router]);
 
   /* ── load ── */
   useEffect(() => {
@@ -480,18 +480,6 @@ export default function FlowEditorPage() {
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", backgroundColor: C.bg, fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
-
-      <AuthModal
-        open={openAuth}
-        onClose={() => {
-          setOpenAuth(false);
-          router.push("/");
-        }}
-        onLoggedIn={() => {
-          setOpenAuth(false);
-        }}
-        redirectTo={typeof window !== "undefined" ? `${window.location.origin}/start/flows/${id}` : undefined}
-      />
       {/* ── top bar ── */}
       <div style={{ height: 52, borderBottom: `1px solid ${C.border}`, backgroundColor: C.dark, display: "flex", alignItems: "center", padding: "0 18px", gap: 14, flexShrink: 0 }}>
         <button onClick={() => router.push("/start/agents")} style={{ background: "none", border: "none", color: C.lime, cursor: "pointer", fontWeight: 900, fontSize: 14 }}>
