@@ -27,28 +27,14 @@ function looksLikePdf(buffer: Buffer) {
 }
 
 async function extractPdfText(buffer: Buffer) {
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  if (!(globalThis as any).pdfjsWorker?.WorkerMessageHandler) {
-    const workerPath = "pdfjs-dist/legacy/build/pdf.worker.mjs";
-    const worker = await import(workerPath);
-    (globalThis as any).pdfjsWorker = { WorkerMessageHandler: worker.WorkerMessageHandler };
+  const mod = await import("pdf-parse");
+  const parser = new (mod as any).PDFParse({ data: buffer });
+  try {
+    const parsed = await parser.getText();
+    return String(parsed?.text || "").trim();
+  } finally {
+    try { await parser.destroy(); } catch {}
   }
-
-  const task = pdfjs.getDocument({ data: new Uint8Array(buffer) });
-  const doc = await task.promise;
-  const chunks: string[] = [];
-
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const text = await page.getTextContent();
-    const pageText = (text.items || [])
-      .map((item: any) => String(item?.str || ""))
-      .join(" ")
-      .trim();
-    if (pageText) chunks.push(pageText);
-  }
-
-  return chunks.join("\n\n").trim();
 }
 
 async function extractPdfTextWithOcr(buffer: Buffer) {
@@ -57,62 +43,31 @@ async function extractPdfTextWithOcr(buffer: Buffer) {
     throw new Error("OCR automatico no disponible (falta OPENAI_API_KEY)");
   }
 
-  const [{ createRequire }, pdfjs, OpenAI] = await Promise.all([
-    import("module"),
-    import("pdfjs-dist/legacy/build/pdf.mjs"),
-    import("openai"),
-  ]);
-  const req = createRequire(import.meta.url);
+  const OpenAI = await import("openai");
   const openai = new OpenAI.default({ apiKey });
+  const base64 = buffer.toString("base64");
+  const response = await (openai as any).responses.create({
+    model: "gpt-4.1-mini",
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: "Extrae el texto del PDF en espanol. Devuelve solo texto plano, sin markdown.",
+          },
+          {
+            type: "input_file",
+            filename: "documento.pdf",
+            file_data: `data:application/pdf;base64,${base64}`,
+          },
+        ],
+      },
+    ],
+  });
 
-  if (!(globalThis as any).pdfjsWorker?.WorkerMessageHandler) {
-    const workerPath = "pdfjs-dist/legacy/build/pdf.worker.mjs";
-    const worker = await import(workerPath);
-    (globalThis as any).pdfjsWorker = { WorkerMessageHandler: worker.WorkerMessageHandler };
-  }
-
-  const { createCanvas } = req("@napi-rs/canvas");
-
-  const task = pdfjs.getDocument({ data: new Uint8Array(buffer) });
-  const doc = await task.promise;
-  const maxPages = Math.min(doc.numPages, 4);
-  const out: string[] = [];
-
-  for (let i = 1; i <= maxPages; i++) {
-    const page = await doc.getPage(i);
-    const viewport = page.getViewport({ scale: 1.8 });
-    const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
-    const ctx = canvas.getContext("2d");
-    await page.render({ canvas: canvas as any, canvasContext: ctx as any, viewport } as any).promise;
-    const image64 = canvas.toBuffer("image/png").toString("base64");
-    const result = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0,
-      max_tokens: 1800,
-      messages: [
-        {
-          role: "system",
-          content: "Extrae todo el texto legible de la imagen. Devuelve solo texto plano, sin markdown ni comentarios.",
-        },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Transcribe fielmente todo el texto visible de esta pagina." },
-            { type: "image_url", image_url: { url: `data:image/png;base64,${image64}` } },
-          ],
-        },
-      ] as any,
-    });
-    const pageText = String(result.choices?.[0]?.message?.content || "").trim();
-    if (pageText) out.push(pageText);
-  }
-
-  const joined = out.join("\n\n").trim();
-  if (!joined) return "";
-  if (doc.numPages > maxPages) {
-    return `${joined}\n\n[OCR parcial: se procesaron ${maxPages} de ${doc.numPages} paginas]`;
-  }
-  return joined;
+  const text = String((response as any)?.output_text || "").trim();
+  return text;
 }
 
 export async function POST(req: Request) {
