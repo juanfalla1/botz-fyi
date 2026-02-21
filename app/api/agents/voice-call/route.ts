@@ -1,13 +1,39 @@
 import { NextResponse } from "next/server";
+import { getRequestUser } from "@/app/api/_utils/auth";
+import { getAnonSupabaseWithToken } from "@/app/api/_utils/supabase";
+import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
 
 export async function POST(req: Request) {
   try {
+    const guard = await getRequestUser(req);
+    if (!guard.ok) {
+      return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
+    }
+
+    const supabase = getAnonSupabaseWithToken(guard.token);
+    if (!supabase) {
+      return NextResponse.json({ ok: false, error: "Missing SUPABASE env (URL or ANON)" }, { status: 500 });
+    }
+
+    const access = await checkEntitlementAccess(supabase as any, guard.user.id);
+    if (!access.ok) {
+      return NextResponse.json({ ok: false, code: access.code, error: access.error }, { status: access.statusCode });
+    }
+
     const { audio, context, conversationHistory, agentConfig, generateAudioOnly, textToSpeak } = await req.json();
 
     // Caso especial: solo generar audio para un texto específico (ej: saludo inicial)
     if (generateAudioOnly && textToSpeak) {
       try {
         const audioUrl = await textToSpeech(textToSpeak, agentConfig?.voice || "nova");
+        const burn = await consumeEntitlementCredits(supabase as any, guard.user.id, 1);
+        if (!burn.ok) {
+          return NextResponse.json({ ok: false, code: burn.code, error: burn.error }, { status: burn.statusCode });
+        }
+        await logUsageEvent(supabase as any, guard.user.id, 1, {
+          endpoint: "/api/agents/voice-call",
+          action: "voice_tts_greeting",
+        });
         return NextResponse.json({ ok: true, audioUrl });
       } catch (err) {
         console.error("TTS error:", err);
@@ -56,6 +82,16 @@ export async function POST(req: Request) {
       console.error("TTS error:", e);
       // TTS error no es crítico, retornamos la respuesta texto
     }
+
+    const burn = await consumeEntitlementCredits(supabase as any, guard.user.id, 3);
+    if (!burn.ok) {
+      return NextResponse.json({ ok: false, code: burn.code, error: burn.error }, { status: burn.statusCode });
+    }
+    await logUsageEvent(supabase as any, guard.user.id, 3, {
+      endpoint: "/api/agents/voice-call",
+      action: "voice_turn",
+      metadata: { has_audio_response: Boolean(audioUrl) },
+    });
 
     return NextResponse.json({ 
       ok: true, 

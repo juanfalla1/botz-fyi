@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { authedFetch } from "@/app/start/agents/authedFetchAgents";
 
 interface ChatTestPanelProps {
   agentName: string;
@@ -36,6 +37,7 @@ export default function ChatTestPanel({
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const indexedFiles = (brainFiles || []).filter((f) => String(f?.content || "").trim().length > 0);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -58,18 +60,18 @@ Tu nombre es: ${agentName}
 Tu rol/propósito es: ${agentRole}
 Instrucciones: ${agentPrompt}
 ${companyContext ? `Información de la empresa: ${companyContext}` : ""}
-${brainFiles.length > 0 ? `\nDocumentación relevante disponible: ${brainFiles.map(f => f.name).join(", ")}` : ""}
+${indexedFiles.length > 0 ? `\nDocumentación relevante disponible: ${indexedFiles.map(f => f.name).join(", ")}` : ""}
 `;
 
       // Realizar la llamada a la API
-      const res = await fetch("/api/agents/chat-test", {
+      const res = await authedFetch("/api/agents/chat-test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMessage,
           context,
           conversationHistory: messages,
-          brainFiles: brainFiles.map(f => ({ name: f.name, content: f.content })),
+          brainFiles: indexedFiles.map(f => ({ name: f.name, content: f.content })),
         }),
       });
 
@@ -104,6 +106,8 @@ ${brainFiles.length > 0 ? `\nDocumentación relevante disponible: ${brainFiles.m
       display: "flex", 
       flexDirection: "column", 
       height: "100%",
+      flex: 1,
+      minHeight: 560,
       backgroundColor: C.dark,
       borderRadius: 14,
       border: `1px solid ${C.border}`,
@@ -148,6 +152,18 @@ ${brainFiles.length > 0 ? `\nDocumentación relevante disponible: ${brainFiles.m
           borderBottom: `1px solid rgba(239,68,68,0.3)`,
         }}>
           ⚠️ {error}
+        </div>
+      )}
+
+      {brainFiles.length > 0 && indexedFiles.length === 0 && (
+        <div style={{
+          padding: "10px 16px",
+          backgroundColor: "rgba(245,158,11,0.15)",
+          color: "#fbbf24",
+          fontSize: 12,
+          borderBottom: `1px solid rgba(245,158,11,0.35)`,
+        }}>
+          Los archivos cargados aun no tienen contenido indexado. Vuelve a subirlos en la pestaña Archivos.
         </div>
       )}
 

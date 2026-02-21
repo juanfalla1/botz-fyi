@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { getRequestUser } from "@/app/api/_utils/auth";
+import { AGENTS_PRODUCT_KEY } from "@/app/api/_utils/entitlement";
 
 const TRIAL_DAYS = 3;
 
 function planToCredits(planKey: string) {
   if (planKey === "prime") return 1500000;
   if (planKey === "scale") return 500000;
-  return 100000;
+  return 2000;
 }
 
 function nowIso() {
@@ -30,6 +31,7 @@ export async function GET(req: Request) {
       .from("agent_entitlements")
       .select("*")
       .eq("user_id", guard.user.id)
+      .eq("product_key", AGENTS_PRODUCT_KEY)
       .maybeSingle();
 
     if (selErr) {
@@ -42,6 +44,7 @@ export async function GET(req: Request) {
       const plan_key = "pro";
       const payload = {
         user_id: guard.user.id,
+        product_key: AGENTS_PRODUCT_KEY,
         plan_key,
         status: "trial",
         credits_limit: planToCredits(plan_key),
@@ -72,6 +75,7 @@ export async function GET(req: Request) {
         .from("agent_entitlements")
         .update({ trial_start: trialStart.toISOString(), trial_end: trialEnd.toISOString() })
         .eq("user_id", guard.user.id)
+        .eq("product_key", AGENTS_PRODUCT_KEY)
         .select("*")
         .single();
       if (!updErr && updated) next = updated;

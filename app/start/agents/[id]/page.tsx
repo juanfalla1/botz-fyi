@@ -97,6 +97,8 @@ export default function AgentDetailPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [contextLoading, setContextLoading] = useState(false);
+  const [contextError, setContextError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [ctxForm, setCtxForm] = useState({
     companyName: "",
@@ -578,6 +580,40 @@ export default function AgentDetailPage() {
     }
   };
 
+  const genCompanyContext = async () => {
+    const url = String(ctxForm.companyUrl || "").trim();
+    if (!url) {
+      setContextError("Agrega una URL de la empresa");
+      return;
+    }
+    setContextLoading(true);
+    setContextError(null);
+    try {
+      const res = await fetch("/api/agents/company-context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "No se pudo traer contexto");
+
+      const suggestion = String(json?.suggested_company_desc || "").trim();
+      if (!suggestion) {
+        setContextError("No se encontro contenido util en esa URL");
+        return;
+      }
+
+      setCtxForm((s) => ({
+        ...s,
+        companyDesc: s.companyDesc.trim() ? `${s.companyDesc.trim()}\n\n${suggestion}` : suggestion,
+      }));
+    } catch (e: any) {
+      setContextError(e?.message || "No se pudo traer contexto");
+    } finally {
+      setContextLoading(false);
+    }
+  };
+
   const improvePromptWithAI = async () => {
     setImprovingPrompt(true);
     try {
@@ -926,7 +962,7 @@ export default function AgentDetailPage() {
           )}
 
           {tab === "prueba" && agent.type === "text" && (
-            <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, minHeight: 620 }}>
+            <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, minHeight: 620, display: "flex" }}>
               <ChatTestPanel
                 agentName={edit.name || agent.name}
                 agentRole={edit.role || agent.description}
@@ -968,14 +1004,30 @@ export default function AgentDetailPage() {
             <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
               <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), marginBottom: 20 }}>
                 <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>Contexto de la Empresa</h2>
-                <button
-                  onClick={saveSettings}
-                  disabled={saving}
-                  style={{ padding: "10px 16px", borderRadius: 10, border: "none", backgroundColor: saving ? C.dim : C.lime, color: "#111", fontWeight: 900, cursor: saving ? "not-allowed" : "pointer" }}
-                >
-                  {saving ? "Guardando..." : "Guardar contexto"}
-                </button>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <button
+                    type="button"
+                    onClick={genCompanyContext}
+                    disabled={contextLoading}
+                    style={{ padding: "10px 16px", borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: "transparent", color: C.white, fontWeight: 800, cursor: contextLoading ? "not-allowed" : "pointer" }}
+                  >
+                    {contextLoading ? "Trayendo..." : "Traer desde URL"}
+                  </button>
+                  <button
+                    onClick={saveSettings}
+                    disabled={saving}
+                    style={{ padding: "10px 16px", borderRadius: 10, border: "none", backgroundColor: saving ? C.dim : C.lime, color: "#111", fontWeight: 900, cursor: saving ? "not-allowed" : "pointer" }}
+                  >
+                    {saving ? "Guardando..." : "Guardar contexto"}
+                  </button>
+                </div>
               </div>
+
+              {contextError && (
+                <div style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 10, border: `1px solid rgba(239,68,68,0.35)`, backgroundColor: "rgba(239,68,68,0.12)", color: "#fca5a5", fontSize: 12 }}>
+                  {contextError}
+                </div>
+              )}
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 22 }}>
                 <div>

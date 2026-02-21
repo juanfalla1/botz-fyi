@@ -1,34 +1,107 @@
 import { NextResponse } from "next/server";
+import { getRequestUser } from "@/app/api/_utils/auth";
+import { getAnonSupabaseWithToken } from "@/app/api/_utils/supabase";
+import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
+
+function normalizeBrainFiles(raw: any): { name: string; content: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((f) => ({
+      name: String(f?.name || "Documento").trim() || "Documento",
+      content: String(f?.content || "").trim(),
+    }))
+    .filter((f) => f.content.length > 0);
+}
+
+function buildDocumentContext(message: string, files: { name: string; content: string }[]) {
+  if (!files.length) return "";
+
+  const terms = Array.from(new Set(
+    String(message || "")
+      .toLowerCase()
+      .split(/[^a-z0-9áéíóúñü]+/i)
+      .map((t) => t.trim())
+      .filter((t) => t.length >= 4)
+  )).slice(0, 8);
+
+  const ranked = files
+    .map((f) => {
+      const lc = f.content.toLowerCase();
+      const score = terms.reduce((acc, t) => (lc.includes(t) ? acc + 1 : acc), 0);
+      return { ...f, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const selected = ranked.filter((f) => f.score > 0).slice(0, 3);
+  const fallback = selected.length ? selected : ranked.slice(0, 2);
+
+  const blocks = fallback.map((f) => {
+    const lc = f.content.toLowerCase();
+    const firstHit = terms.map((t) => lc.indexOf(t)).find((i) => i >= 0) ?? -1;
+    const start = firstHit >= 0 ? Math.max(0, firstHit - 900) : 0;
+    const end = Math.min(f.content.length, start + 2200);
+    const excerpt = f.content.slice(start, end).trim();
+    return `\n--- ${f.name} ---\n${excerpt}`;
+  });
+
+  return `\n\nDocumentos indexados (extractos relevantes):\n${blocks.join("\n")}`;
+}
 
 export async function POST(req: Request) {
   try {
+    const guard = await getRequestUser(req);
+    if (!guard.ok) {
+      return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
+    }
+
+    const supabase = getAnonSupabaseWithToken(guard.token);
+    if (!supabase) {
+      return NextResponse.json({ ok: false, error: "Missing SUPABASE env (URL or ANON)" }, { status: 500 });
+    }
+
+    const access = await checkEntitlementAccess(supabase as any, guard.user.id);
+    if (!access.ok) {
+      return NextResponse.json({ ok: false, code: access.code, error: access.error }, { status: access.statusCode });
+    }
+
     const { message, context, conversationHistory, brainFiles } = await req.json();
 
     if (!message || !context) {
       return NextResponse.json({ ok: false, error: "Missing message or context" }, { status: 400 });
     }
 
+    const indexedFiles = normalizeBrainFiles(brainFiles);
+
     // Construir el prompt del sistema
     const systemPrompt = `${context}
 
 Tu tarea es responder como el agente descrito arriba. Sé conciso, útil y profesional.
-Responde en el mismo idioma del usuario.`;
+Responde en el mismo idioma del usuario.
+Si hay documentos indexados, usalos como fuente principal para responder con precision.
+Si la informacion no aparece en los documentos ni en el contexto, dilo claramente sin inventar.`;
 
-    // Construir el contexto de documentos si existen
-    let documentContext = "";
-    if (brainFiles && brainFiles.length > 0) {
-      documentContext = "\n\nDocumentos disponibles:\n";
-      brainFiles.forEach((file: any) => {
-        documentContext += `\n--- ${file.name} ---\n${file.content}\n`;
-      });
-    }
+    const documentContext = buildDocumentContext(message, indexedFiles);
 
     // Construir el mensaje a enviar a la IA
     const fullPrompt = systemPrompt + documentContext;
 
-    // Para testing, usamos un LLM local o OpenAI si está disponible
-    // Por ahora retornamos una respuesta inteligente generada localmente
-    const response = await generateResponse(message, fullPrompt, conversationHistory);
+    const generated = await generateResponse(message, fullPrompt, conversationHistory);
+    const response = generated.text;
+    const creditDelta = Math.max(1, Number(generated.tokens || 0));
+
+    const burn = await consumeEntitlementCredits(supabase as any, guard.user.id, creditDelta);
+    if (!burn.ok) {
+      return NextResponse.json({ ok: false, code: burn.code, error: burn.error }, { status: burn.statusCode });
+    }
+    await logUsageEvent(supabase as any, guard.user.id, creditDelta, {
+      endpoint: "/api/agents/chat-test",
+      action: "chat_turn",
+      metadata: {
+        message_length: String(message || "").length,
+        llm_tokens: creditDelta,
+        used_openai: generated.usedOpenAI,
+      },
+    });
 
     return NextResponse.json({ ok: true, response });
   } catch (e: any) {
@@ -55,7 +128,7 @@ async function generateResponse(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-3.5-turbo",
+           model: "gpt-4o-mini",
           messages: [
             { role: "system", content: systemPrompt },
             ...conversationHistory.map((msg: any) => ({
@@ -64,7 +137,7 @@ async function generateResponse(
             })),
             { role: "user", content: message },
           ],
-          temperature: 0.7,
+          temperature: 0.2,
           max_tokens: 500,
         }),
       });
@@ -74,14 +147,17 @@ async function generateResponse(
       }
 
       const data = await response.json();
-      return data.choices?.[0]?.message?.content || "No pude procesar tu solicitud.";
+      const text = data.choices?.[0]?.message?.content || "No pude procesar tu solicitud.";
+      const tokens = Number(data?.usage?.total_tokens || 0);
+      return { text, tokens, usedOpenAI: true };
     } catch (e) {
       console.error("OpenAI error, falling back to mock response:", e);
     }
   }
 
-  // Fallback: generar respuesta mock inteligente
-  return generateMockResponse(message, systemPrompt);
+  const text = generateMockResponse(message, systemPrompt);
+  const tokens = Math.ceil((String(message || "").length + String(text || "").length) / 4);
+  return { text, tokens, usedOpenAI: false };
 }
 
 // Generar respuestas mock cuando no hay IA disponible

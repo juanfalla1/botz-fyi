@@ -31,7 +31,7 @@ export default function AgentMetrics({
   avgDuration = "00m 00s",
   successRate = 0,
   creditsUsed = 0,
-  creditsTotal = 100000,
+  creditsTotal = 2000,
 }: AgentMetricsProps) {
   const creditsPercentage = Math.min((creditsUsed / creditsTotal) * 100, 100);
 

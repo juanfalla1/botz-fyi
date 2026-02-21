@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAnonSupabaseWithToken, getServiceSupabase } from "@/app/api/_utils/supabase";
 import { getRequestUser } from "@/app/api/_utils/auth";
 import { SYSTEM_TENANT_ID } from "@/app/api/_utils/system";
+import { AGENTS_PRODUCT_KEY, logUsageEvent } from "@/app/api/_utils/entitlement";
 import OpenAI from "openai";
 
 const TEMPLATES: Record<string, { system_prompt: string; voice: "nova" | "onyx" | "shimmer" }> = {
@@ -48,6 +49,7 @@ export async function POST(req: Request) {
       .from("agent_entitlements")
       .select("*")
       .eq("user_id", guard.user.id)
+      .eq("product_key", AGENTS_PRODUCT_KEY)
       .maybeSingle();
 
     if (entErr) {
@@ -58,9 +60,10 @@ export async function POST(req: Request) {
     if (!entitlement) {
       const payload = {
         user_id: guard.user.id,
+        product_key: AGENTS_PRODUCT_KEY,
         plan_key: "pro",
         status: "trial",
-        credits_limit: 100000,
+        credits_limit: 2000,
         credits_used: 0,
         trial_start: nowIso(),
         trial_end: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
@@ -132,13 +135,13 @@ export async function POST(req: Request) {
 
     // 4. LLM
     const llmMessages = [
+      { role: "system", content: template.system_prompt },
       ...messages.filter((m: any) => m.role && m.content),
       { role: "user", content: userText },
     ];
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      system: template.system_prompt,
       messages: llmMessages as any,
       temperature: 0.7,
       max_tokens: 300,
@@ -171,11 +174,18 @@ export async function POST(req: Request) {
     const { error: updateErr } = await serviceSupa
       .from("agent_entitlements")
       .update({ credits_used: prevUsed + creditDelta })
-      .eq("user_id", guard.user.id);
+      .eq("user_id", guard.user.id)
+      .eq("product_key", AGENTS_PRODUCT_KEY);
 
     if (updateErr) {
       console.warn("Could not update entitlement:", updateErr.message);
     }
+
+    await logUsageEvent(serviceSupa as any, guard.user.id, creditDelta, {
+      endpoint: "/start/agents/preview",
+      action: "template_preview_call",
+      metadata: { template_id: templateId, llm_tokens: llmTokens, stt_tokens: sttTokens, tts_tokens: ttsTokens },
+    });
 
     const updatedEnt = { ...entitlement, credits_used: prevUsed + creditDelta };
 

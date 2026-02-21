@@ -3,9 +3,10 @@ import { getAnonSupabaseWithToken, getServiceSupabase } from "@/app/api/_utils/s
 import { getRequestUser } from "@/app/api/_utils/auth";
 import { SYSTEM_TENANT_ID } from "@/app/api/_utils/system";
 import { executeFlow } from "@/app/api/flows/_utils/executor";
+import { AGENTS_PRODUCT_KEY, logUsageEvent } from "@/app/api/_utils/entitlement";
 
 const PLAN_CREDITS: Record<string, number> = {
-  pro: 100000,
+  pro: 2000,
   scale: 500000,
   prime: 1500000,
 };
@@ -62,6 +63,7 @@ export async function POST(req: Request) {
       .from("agent_entitlements")
       .select("*")
       .eq("user_id", guard.user.id)
+      .eq("product_key", AGENTS_PRODUCT_KEY)
       .maybeSingle();
 
     if (entErr) {
@@ -72,6 +74,7 @@ export async function POST(req: Request) {
     if (!entitlement) {
       const payload = {
         user_id: guard.user.id,
+        product_key: AGENTS_PRODUCT_KEY,
         plan_key: "pro",
         status: "trial",
         credits_limit: PLAN_CREDITS.pro,
@@ -96,7 +99,7 @@ export async function POST(req: Request) {
     }
 
     const trialEnd = entitlement.trial_end ? new Date(entitlement.trial_end) : null;
-    if (status === "trial" && trialEnd && Date.now() > trialEnd.getTime()) {
+    if ((status === "trial" || status === "trialing") && trialEnd && Date.now() > trialEnd.getTime()) {
       return NextResponse.json({ ok: false, code: "trial_expired", error: "Trial terminado" }, { status: 403 });
     }
 
@@ -138,10 +141,17 @@ export async function POST(req: Request) {
     const { error: entUpdErr } = await serviceSupa
       .from("agent_entitlements")
       .update({ credits_used: prevEntUsed + creditDelta })
-      .eq("user_id", guard.user.id);
+      .eq("user_id", guard.user.id)
+      .eq("product_key", AGENTS_PRODUCT_KEY);
     if (entUpdErr) {
       console.warn("agent_entitlements update failed:", entUpdErr.message);
     }
+
+    await logUsageEvent(serviceSupa as any, guard.user.id, creditDelta, {
+      endpoint: "/start/api/flows/run",
+      action: "flow_execute",
+      metadata: { mode, steps: stepCount, flow_id: id },
+    });
 
     return NextResponse.json({ ok: true, execution, data: updated });
   } catch (e: any) {

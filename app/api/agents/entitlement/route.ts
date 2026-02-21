@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { getAnonSupabaseWithToken } from "@/app/api/_utils/supabase";
 import { getRequestUser } from "@/app/api/_utils/auth";
 import { SYSTEM_TENANT_ID } from "@/app/api/_utils/system";
+import { AGENTS_PRODUCT_KEY } from "@/app/api/_utils/entitlement";
 
 const TRIAL_DAYS = 3;
 
 function planToCredits(planKey: string) {
   if (planKey === "prime") return 1500000;
   if (planKey === "scale") return 500000;
-  return 100000;
+  return 2000;
 }
 
 export async function GET(req: Request) {
@@ -32,6 +33,7 @@ export async function GET(req: Request) {
       .from("agent_entitlements")
       .select("*")
       .eq("user_id", guard.user.id)
+      .eq("product_key", AGENTS_PRODUCT_KEY)
       .maybeSingle();
 
     if (selErr) {
@@ -55,15 +57,16 @@ export async function GET(req: Request) {
 
     if (!existing) {
       const trialStart = new Date();
-      // 2 days trial
-      const trialEndIso = new Date(trialStart.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString();
+      // 3 days trial
+      const trialEndIso = new Date(trialStart.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString();
       const plan_key = "pro";
       
       // NOTA: Eliminamos tenant_id porque la tabla no tiene esa columna
       const payload = {
         user_id: guard.user.id,
+        product_key: AGENTS_PRODUCT_KEY,
         plan_key,
-        status: "trialing",
+        status: "trial",
         credits_limit: planToCredits(plan_key),
         credits_used: creditsUsedTotal,
         trial_start: trialStart.toISOString(),
@@ -87,13 +90,18 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: true, data: inserted, credits_used_total: creditsUsedTotal });
     }
 
-    // Keep credits_used in sync if legacy data exists.
+    // Keep credits_used in sync without lowering server-side usage.
+    // IMPORTANT: chat/voice/flow can consume entitlement credits directly,
+    // so entitlement may be higher than ai_agents sum.
     let next = existing as any;
-    if ((Number(next.credits_used || 0) || 0) !== creditsUsedTotal) {
+    const currentEntUsed = Number(next.credits_used || 0) || 0;
+    const desiredEntUsed = Math.max(currentEntUsed, creditsUsedTotal);
+    if (currentEntUsed !== desiredEntUsed) {
       const { data: updated, error: updErr } = await supabase
         .from("agent_entitlements")
-        .update({ credits_used: creditsUsedTotal })
+        .update({ credits_used: desiredEntUsed })
         .eq("user_id", guard.user.id)
+        .eq("product_key", AGENTS_PRODUCT_KEY)
         .select("*")
         .single();
       if (!updErr && updated) next = updated;
@@ -107,12 +115,14 @@ export async function GET(req: Request) {
         .from("agent_entitlements")
         .update({ trial_start: trialStart.toISOString(), trial_end: trialEnd.toISOString() })
         .eq("user_id", guard.user.id)
+        .eq("product_key", AGENTS_PRODUCT_KEY)
         .select("*")
         .single();
       if (!updErr && updated) next = updated;
     }
 
-    return NextResponse.json({ ok: true, data: next, credits_used_total: creditsUsedTotal });
+    const mergedCreditsUsed = Number(next?.credits_used || 0) || creditsUsedTotal;
+    return NextResponse.json({ ok: true, data: next, credits_used_total: mergedCreditsUsed });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Unknown error" }, { status: 500 });
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { authedFetch } from "@/app/start/agents/authedFetchAgents";
 
 interface VoiceTestPanelProps {
   agentName: string;
@@ -161,7 +162,7 @@ ${companyContext || "No disponible"}
 REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechazos por "limitaciones técnicas".`;
 
         // Enviar al endpoint
-        const response = await fetch("/api/agents/voice-call", {
+        const response = await authedFetch("/api/agents/voice-call", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -243,7 +244,7 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
 
       // Generar y reproducir saludo con TTS
       try {
-        const response = await fetch("/api/agents/voice-call", {
+        const response = await authedFetch("/api/agents/voice-call", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

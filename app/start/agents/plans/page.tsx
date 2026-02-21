@@ -20,7 +20,7 @@ const PLANS = [
     key: "pro",
     name: "Pro",
     price: "US$99.00",
-    credits: "100,000 Creditos",
+    credits: "2,000 Creditos",
     desc: "Ideal para equipos que utilizan IA de forma regular, con soporte asincrono",
     accent: C.lime,
     badge: "",

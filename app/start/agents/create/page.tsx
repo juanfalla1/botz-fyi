@@ -346,7 +346,7 @@ export default function CreateAgentPage() {
             last_run: form.brainLastRun,
             files: form.brainFiles.map(f => ({
               name: f.name,
-              size: f.content.length,
+              content: f.content,
               type: f.type,
             })),
           };
