@@ -24,8 +24,8 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
     <div
       style={{
         background: "linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%)",
-        borderRadius: "24px",
-        padding: "32px 24px",
+        borderRadius: "20px",
+        padding: "clamp(20px, 3vw, 32px) clamp(16px, 2.6vw, 24px)",
         transition: "all 0.3s ease",
         cursor: "pointer",
         position: "relative",
@@ -33,7 +33,7 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        minHeight: "460px",
+        minHeight: "430px",
         border: "2px solid rgba(34, 211, 238, 0.3)",
       }}
       onClick={handleClick}
@@ -65,8 +65,8 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
       {/* Avatar grande del robot */}
       <div
         style={{
-          width: "140px",
-          height: "140px",
+          width: "clamp(102px, 18vw, 140px)",
+          height: "clamp(102px, 18vw, 140px)",
           borderRadius: "50%",
           background: `linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(34, 211, 238, 0.05))`,
           display: "flex",
@@ -74,7 +74,7 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
           justifyContent: "center",
           marginBottom: "28px",
           border: `2px solid ${color}40`,
-          fontSize: "64px",
+          fontSize: "clamp(42px, 7vw, 64px)",
           boxShadow: `0 0 40px ${color}20`,
         }}
       >
@@ -91,7 +91,7 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
               alignItems: "flex-start",
               gap: "10px",
               marginBottom: "14px",
-              fontSize: "1em",
+              fontSize: "clamp(14px, 1.7vw, 16px)",
               color: "#e2e8f0",
               lineHeight: 1.4,
             }}
@@ -259,12 +259,12 @@ const Agentes = () => {
   ];
 
   return (
-    <section style={{ padding: "100px 40px", background: "#02040a" }}>
+    <section style={{ padding: "clamp(42px, 8vw, 100px) clamp(12px, 4vw, 40px)", background: "#02040a" }}>
       <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: "60px" }}>
           <h2
             style={{
-              fontSize: "2.8em",
+              fontSize: "clamp(1.9rem, 5vw, 2.8rem)",
               fontWeight: "bold",
               color: "#fff",
               marginBottom: "16px",
@@ -278,7 +278,7 @@ const Agentes = () => {
           
           <p
             style={{
-              fontSize: "1.3em",
+              fontSize: "clamp(1rem, 2.5vw, 1.3rem)",
               color: "#e2e8f0",
               maxWidth: "700px",
               margin: "0 auto",
@@ -293,7 +293,7 @@ const Agentes = () => {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
             gap: "24px",
             marginBottom: "24px",
           }}
@@ -307,7 +307,7 @@ const Agentes = () => {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
             gap: "24px",
           }}
         >
