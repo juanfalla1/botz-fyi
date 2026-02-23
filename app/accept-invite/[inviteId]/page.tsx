@@ -136,6 +136,8 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
         throw new Error(authError.message);
       }
 
+      const signUpUserId = authData?.user?.id || null;
+
       // Intentar obtener sesión; fallback con login inmediato
       let accessToken = authData?.session?.access_token || null;
       if (!accessToken) {
@@ -149,7 +151,7 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
           "Content-Type": "application/json",
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        body: JSON.stringify({ inviteId: invite.id, email: invite.email }),
+        body: JSON.stringify({ inviteId: invite.id, email: invite.email, authUserId: signUpUserId }),
       });
 
       const acceptJson = await acceptRes.json();
