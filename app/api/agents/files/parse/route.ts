@@ -96,12 +96,19 @@ export async function POST(req: Request) {
     if (isTxt || isMd) {
       content = buffer.toString("utf8");
     } else if (isPdf) {
-      content = await extractPdfText(buffer);
+      let parseErr = "";
+      try {
+        content = await extractPdfText(buffer);
+      } catch (e: any) {
+        parseErr = String(e?.message || "PDF parse fallido");
+      }
+
       if (!content) {
         try {
           content = await extractPdfTextWithOcr(buffer);
         } catch (e: any) {
-          ocrErr = String(e?.message || "OCR fallido");
+          const ocrMsg = String(e?.message || "OCR fallido");
+          ocrErr = parseErr ? `${parseErr}. ${ocrMsg}` : ocrMsg;
         }
       }
     } else if (isDocx) {
