@@ -276,6 +276,13 @@ export const useAuth = () => useContext(AuthContext);
 
 const START_LOGIN_MODE_KEY = "botz-start-mode";
 
+function isSuperAdminEmail(email?: string | null) {
+  const e = String(email || "").trim().toLowerCase();
+  if (!e) return false;
+  if (e === "info@botz.fyi" || e === "botz.info@botz.fyi") return true;
+  return e.endsWith("@botz.fyi");
+}
+
 function hasStartLoginMode() {
   try {
     return typeof window !== "undefined" && window.localStorage.getItem(START_LOGIN_MODE_KEY) === "true";
@@ -330,6 +337,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ✅ Función para aplicar suscripción encontrada al estado
   const applySubscription = useCallback((activeSub: any | null) => {
+    const email = String(user?.email || "").toLowerCase();
+    const isSuperAdmin = isPlatformAdmin || isSuperAdminEmail(email);
+    if (isSuperAdmin) {
+      console.log("🔒 [SUB] Super admin detectado, forzando plan Administrator");
+      setIsPlatformAdmin(true);
+      setUserRole("admin");
+      setSubscription({
+        id: "platform-admin",
+        plan: "Administrator",
+        status: "active",
+        created_at: new Date().toISOString(),
+      } as any);
+      setUserPlan("Administrator");
+      setEnabledFeatures(ALL_FEATURES);
+      setSubscriptionUpdateKey((prev) => prev + 1);
+      return;
+    }
+
     if (activeSub) {
       console.log("✅ [SUB] Plan final:", activeSub.plan, "| Status:", activeSub.status);
       setSubscription(activeSub);
@@ -350,7 +375,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("🔄 [SUB] subscriptionUpdateKey actualizado:", prev, "->", newKey);
       return newKey;
     });
-  }, []);
+  }, [isPlatformAdmin, user?.email]);
 
    const applyPlatformAdminAccess = useCallback(() => {
      console.log("✅ [Admin] Aplicando acceso de Platform Admin");
@@ -400,17 +425,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
    const detectPlatformAdmin = useCallback(async (): Promise<boolean> => {
      try {
-       console.log("🔑 [detectPlatformAdmin] Intentando RPC...");
-       const { data, error } = await supabase.rpc('is_platform_admin');
-       console.log("🔑 [detectPlatformAdmin] RPC resultado:", { data, error });
-       if (!error) return Boolean(data);
-
-       // Fallback: direct self-check (if RPC not available)
-       console.log("🔑 [detectPlatformAdmin] RPC falló, intentando directo...");
        const { data: auth } = await supabase.auth.getUser();
        const uid = auth?.user?.id;
-       console.log("🔑 [detectPlatformAdmin] Auth user id:", uid);
-       if (!uid) return false;
+       const email = String(auth?.user?.email || "").toLowerCase();
+
+       const envAllow = String(process.env.NEXT_PUBLIC_PLATFORM_ADMIN_EMAILS || "")
+         .split(",")
+         .map((s) => s.trim().toLowerCase())
+         .filter(Boolean);
+       const hardAllow = ["info@botz.fyi", "botz.info@botz.fyi"];
+       const allow = new Set([...envAllow, ...hardAllow]);
+       if ((email && allow.has(email)) || isSuperAdminEmail(email)) {
+         console.log("🔑 [detectPlatformAdmin] Allowlist por email:", email);
+         return true;
+       }
+
+       console.log("🔑 [detectPlatformAdmin] Intentando RPC...");
+        const { data, error } = await supabase.rpc('is_platform_admin');
+        console.log("🔑 [detectPlatformAdmin] RPC resultado:", { data, error });
+        if (!error && Boolean(data)) return true;
+
+        // Fallback: direct self-check (if RPC not available)
+        console.log("🔑 [detectPlatformAdmin] RPC falló, intentando directo...");
+        console.log("🔑 [detectPlatformAdmin] Auth user id:", uid);
+        if (!uid) return false;
        
        const { data: row, error: selErr } = await supabase
          .from('platform_admins')
@@ -437,6 +475,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUserSubscription = useCallback(async (userId: string, tenantId?: string | null) => {
     try {
       console.log("🔍 [SUB] Buscando suscripción | auth_user_id:", userId, "| tenant_id:", tenantId || "N/A");
+
+      // Si ya está marcado como platform admin, nunca degradar plan.
+      if (isPlatformAdmin) {
+        console.log("🔒 [SUB] Usuario ya es platform admin, mantener Administrator");
+        applyPlatformAdminAccess();
+        return;
+      }
+
+      // Revalidación defensiva para evitar downgrade por estados intermedios.
+      const stillPlatformAdmin = await detectPlatformAdmin();
+      if (stillPlatformAdmin) {
+        console.log("🔒 [SUB] Detectado platform admin durante fetch, mantener Administrator");
+        applyPlatformAdminAccess();
+        return;
+      }
 
       // ✅ SI TIENE TENANT_ID, HABILITAR TODAS LAS FEATURES AUTOMÁTICAMENTE
       if (tenantId) {
@@ -618,7 +671,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error("❌ [SUB] Error en fetchUserSubscription:", error);
       applySubscription(null);
     }
-  }, [applySubscription]);
+  }, [applySubscription, applyPlatformAdminAccess, detectPlatformAdmin, isPlatformAdmin]);
 
   // ✅ Función pública para refrescar la suscripción
   const refreshSubscription = useCallback(async () => {

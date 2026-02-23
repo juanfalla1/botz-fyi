@@ -69,6 +69,8 @@ export default function AuthModal({
     setMsg(null);
 
     try {
+      // Marcar antes del login para evitar race condition con onAuthStateChange
+      markStartLoginMode();
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       markStartLoginMode();
@@ -93,6 +95,8 @@ export default function AuthModal({
     setErr(null);
     setMsg(null);
     try {
+      // Marcar antes del signup para evitar cierre inmediato por guard de /start
+      markStartLoginMode();
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
 
