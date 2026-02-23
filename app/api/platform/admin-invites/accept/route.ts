@@ -21,12 +21,10 @@ function makeUuidV4() {
 export async function POST(req: NextRequest) {
   try {
     const auth = await getRequestUser(req);
-    if (!auth.user) {
-      return NextResponse.json({ ok: false, error: auth.error || "Unauthorized" }, { status: 401 });
-    }
 
     const body = await req.json();
     const inviteId = String(body?.inviteId || "").trim();
+    const providedEmail = String(body?.email || "").trim().toLowerCase();
     if (!inviteId) {
       return NextResponse.json({ ok: false, error: "inviteId is required" }, { status: 400 });
     }
@@ -49,11 +47,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Invitation expired" }, { status: 400 });
     }
 
-    const authEmail = String(auth.user.email || "").toLowerCase();
+    const authEmail = String(auth.user?.email || "").toLowerCase();
     const inviteEmail = String(invite.email || "").toLowerCase();
-    if (!authEmail || authEmail !== inviteEmail) {
+
+    // Permitir dos vías:
+    // 1) autenticado: email de sesión debe coincidir
+    // 2) sin sesión (signup sin token): email enviado debe coincidir
+    const emailMatches = (authEmail && authEmail === inviteEmail) || (providedEmail && providedEmail === inviteEmail);
+    if (!emailMatches) {
       return NextResponse.json({ ok: false, error: "Invite email mismatch" }, { status: 403 });
     }
+
+    const authUserId = auth.user?.id || null;
 
     const trialEndDate = new Date();
     trialEndDate.setDate(trialEndDate.getDate() + 2);
@@ -74,7 +79,7 @@ export async function POST(req: NextRequest) {
           tenant_id: tenantId,
           rol: "admin",
           activo: true,
-          auth_user_id: auth.user.id,
+          ...(authUserId ? { auth_user_id: authUserId } : {}),
         })
         .eq("id", existingMember.id);
       if (error) {
@@ -89,7 +94,7 @@ export async function POST(req: NextRequest) {
           nombre: invite.email.split("@")[0],
           rol: "admin",
           activo: true,
-          auth_user_id: auth.user.id,
+          ...(authUserId ? { auth_user_id: authUserId } : {}),
           permissions: { all: true },
         });
       if (error) {
@@ -97,18 +102,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { error: metadataError } = await supabase.auth.admin.updateUserById(auth.user.id, {
-      user_metadata: {
-        tenant_id: tenantId,
-        role: invite.role,
-        is_trial: true,
-        trial_start: new Date().toISOString(),
-        trial_end: trialEndIso,
-      },
-    });
+    if (authUserId) {
+      const { error: metadataError } = await supabase.auth.admin.updateUserById(authUserId, {
+        user_metadata: {
+          tenant_id: tenantId,
+          role: invite.role,
+          is_trial: true,
+          trial_start: new Date().toISOString(),
+          trial_end: trialEndIso,
+        },
+      });
 
-    if (metadataError) {
-      return NextResponse.json({ ok: false, error: metadataError.message }, { status: 400 });
+      if (metadataError) {
+        return NextResponse.json({ ok: false, error: metadataError.message }, { status: 400 });
+      }
     }
 
     const { error: inviteUpdateError } = await supabase
@@ -120,7 +127,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: inviteUpdateError.message }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true, tenant_id: tenantId });
+    return NextResponse.json({ ok: true, tenant_id: tenantId, needs_login: !authUserId });
   } catch (error: any) {
     return NextResponse.json({ ok: false, error: error?.message || "Internal server error" }, { status: 500 });
   }

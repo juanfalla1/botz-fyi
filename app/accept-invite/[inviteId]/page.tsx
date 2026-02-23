@@ -120,7 +120,7 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
       setSubmitting(true);
       setPasswordError(null);
 
-      // Create user with password
+      // Crear usuario (puede no devolver sesión si el proyecto exige confirmación de email)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: invite.email,
         password,
@@ -132,26 +132,24 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
         },
       });
 
-      if (authError) {
+      if (authError && !/already registered/i.test(String(authError.message || ""))) {
         throw new Error(authError.message);
       }
 
-      if (!authData.user) {
-        throw new Error("Error al crear la cuenta");
-      }
-
-      const accessToken = authData?.session?.access_token || (await supabase.auth.getSession()).data.session?.access_token;
+      // Intentar obtener sesión; fallback con login inmediato
+      let accessToken = authData?.session?.access_token || null;
       if (!accessToken) {
-        throw new Error("No se pudo obtener sesión para completar la invitación");
+        const loginRes = await supabase.auth.signInWithPassword({ email: invite.email, password });
+        if (!loginRes.error) accessToken = loginRes.data.session?.access_token || null;
       }
 
       const acceptRes = await fetch("/api/platform/admin-invites/accept", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        body: JSON.stringify({ inviteId: invite.id }),
+        body: JSON.stringify({ inviteId: invite.id, email: invite.email }),
       });
 
       const acceptJson = await acceptRes.json();
