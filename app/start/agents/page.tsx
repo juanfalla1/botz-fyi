@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseAgents } from "./supabaseAgentsClient";
 import AuthModal from "@/app/start/agents/components/AgentsAuthModal";
@@ -139,6 +139,16 @@ export default function AgentStudio() {
       alive = false;
       clearInterval(timer);
     };
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => {
+      if (typeof window === "undefined") return;
+      setCompactSidebarMenu(window.innerHeight < 860);
+    };
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   const fetchEntitlement = async () => {
@@ -399,59 +409,483 @@ export default function AgentStudio() {
   ];
   type Template = typeof templates[number];
   const [playingTemplateId, setPlayingTemplateId] = useState<string | null>(null);
-  const [exampleTemplate, setExampleTemplate] = useState<Template | null>(null);
-  const [exampleLineIdx, setExampleLineIdx] = useState(0);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState<1 | 2>(1);
+  const [wizardTemplate, setWizardTemplate] = useState<Template | null>(null);
+  const [simStatus, setSimStatus] = useState<"idle" | "connecting" | "live" | "ended">("idle");
+  const [simLines, setSimLines] = useState<{ who: string; text: string }[]>([]);
+  const [simHistory, setSimHistory] = useState<{ role: "assistant" | "user"; content: string }[]>([]);
+  const [simInput, setSimInput] = useState("");
+  const [simBusy, setSimBusy] = useState(false);
+  const [simError, setSimError] = useState<string | null>(null);
+  const [simTurns, setSimTurns] = useState(0);
+  const [simRecording, setSimRecording] = useState(false);
+  const [micDevices, setMicDevices] = useState<{ id: string; label: string }[]>([]);
+  const [selectedMicId, setSelectedMicId] = useState("");
+  const [micLoading, setMicLoading] = useState(false);
+  const [homeRoutesOpen, setHomeRoutesOpen] = useState(true);
+  const [compactSidebarMenu, setCompactSidebarMenu] = useState(false);
+  const simTimersRef = useRef<number[]>([]);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaChunksRef = useRef<Blob[]>([]);
+  const [simUserName, setSimUserName] = useState("Cliente");
+
+  const guessUserName = () => {
+    const raw = String(user?.email || "").split("@")[0] || "Cliente";
+    const clean = raw.replace(/[._-]+/g, " ").trim();
+    return clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : "Cliente";
+  };
 
   const stopPreviewVoice = () => {
     try {
       window.speechSynthesis.cancel();
     } catch {}
+    try {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+      }
+    } catch {}
     setPlayingTemplateId(null);
   };
 
-  const playPreviewVoice = (t: typeof templates[number]) => {
+  const speakNativeFallback = (t: Template, text: string, onEnd?: () => void, onStart?: () => void) => {
     try {
       const synth = window.speechSynthesis;
-      synth.cancel();
-      const utter = new SpeechSynthesisUtterance(t.demo);
+      const utter = new SpeechSynthesisUtterance(text);
       utter.lang = "es-ES";
-      utter.rate = 1;
-      utter.pitch = t.gender === "f" ? 1.15 : 0.9;
-
+      utter.rate = 0.98;
+      utter.pitch = t.gender === "f" ? 1.12 : 0.92;
       const voices = synth.getVoices();
       const esVoices = voices.filter(v => v.lang.toLowerCase().startsWith("es"));
-      const femaleHint = /(female|mujer|paulina|monica|maria|helena|sofia)/i;
-      const maleHint = /(male|hombre|jorge|diego|carlos|enrique|pablo)/i;
+      const femaleHint = /(female|mujer|paulina|monica|maria|helena|sofia|sabina|laura)/i;
+      const maleHint = /(male|hombre|jorge|diego|carlos|enrique|pablo|raul|alejandro)/i;
       const voice = t.gender === "f"
         ? esVoices.find(v => femaleHint.test(v.name)) || esVoices[0]
         : esVoices.find(v => maleHint.test(v.name)) || esVoices[0];
       if (voice) utter.voice = voice;
-
-      utter.onend = () => setPlayingTemplateId(null);
-      utter.onerror = () => setPlayingTemplateId(null);
-      setPlayingTemplateId(t.id);
+      utter.onstart = () => onStart?.();
+      utter.onend = () => onEnd?.();
+      utter.onerror = () => onEnd?.();
       synth.speak(utter);
     } catch {
-      setPlayingTemplateId(null);
+      onEnd?.();
     }
+  };
+
+  const playTemplateAudio = async (t: Template, text: string, onEnd?: () => void, onStart?: () => void) => {
+    try {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+      }
+      const res = await authedFetch("/api/agents/template-tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId: t.id, text }),
+      });
+      if (!res.ok) throw new Error("tts_failed");
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      previewAudioRef.current = audio;
+      audio.onplay = () => onStart?.();
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        if (previewAudioRef.current === audio) previewAudioRef.current = null;
+        onEnd?.();
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        if (previewAudioRef.current === audio) previewAudioRef.current = null;
+        onEnd?.();
+      };
+      await audio.play();
+      onStart?.();
+      return;
+    } catch {
+      speakNativeFallback(t, text, onEnd, onStart);
+    }
+  };
+
+  const decodeBase64Audio = (input?: string | null) => {
+    const raw = String(input || "").trim();
+    if (!raw) return false;
+    const normalized = raw.startsWith("data:")
+      ? raw.slice(raw.indexOf(",") + 1)
+      : raw;
+    const safe = normalized.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = safe + "=".repeat((4 - (safe.length % 4)) % 4);
+    return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+  };
+
+  const playBase64Audio = async (base64?: string | null, mime?: string | null, onEnd?: () => void, onStart?: () => void) => {
+    const bytes = decodeBase64Audio(base64);
+    if (!bytes) return false;
+    try {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+      }
+      const blob = new Blob([bytes], { type: String(mime || "audio/mpeg") });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      previewAudioRef.current = audio;
+      audio.onplay = () => onStart?.();
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        if (previewAudioRef.current === audio) previewAudioRef.current = null;
+        onEnd?.();
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        if (previewAudioRef.current === audio) previewAudioRef.current = null;
+        onEnd?.();
+      };
+      await audio.play();
+      onStart?.();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const playPreviewVoice = (t: typeof templates[number]) => {
+    setPlayingTemplateId(t.id);
+    void playTemplateAudio(t, t.demo, () => setPlayingTemplateId(null));
+  };
+
+  const speakAsTemplate = (t: Template, text: string) => {
+    void playTemplateAudio(t, text);
   };
 
   useEffect(() => {
     return () => {
       try { window.speechSynthesis.cancel(); } catch {}
+      try {
+        if (previewAudioRef.current) {
+          previewAudioRef.current.pause();
+          previewAudioRef.current = null;
+        }
+      } catch {}
+      try { mediaRecorderRef.current?.stop(); } catch {}
+      try { mediaStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
     };
   }, []);
 
+  const clearSimTimers = () => {
+    for (const t of simTimersRef.current) window.clearTimeout(t);
+    simTimersRef.current = [];
+    try { window.speechSynthesis.cancel(); } catch {}
+    try {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+      }
+    } catch {}
+  };
+
+  const closeWizard = () => {
+    clearSimTimers();
+    try { mediaRecorderRef.current?.stop(); } catch {}
+    try { mediaStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
+    mediaRecorderRef.current = null;
+    mediaStreamRef.current = null;
+    mediaChunksRef.current = [];
+    setWizardOpen(false);
+    setWizardStep(1);
+    setSimStatus("idle");
+    setSimLines([]);
+    setSimHistory([]);
+    setSimInput("");
+    setSimBusy(false);
+    setSimError(null);
+    setSimTurns(0);
+    setSimRecording(false);
+  };
+
+  const openWizard = (initial?: Template) => {
+    clearSimTimers();
+    setWizardOpen(true);
+    setWizardStep(1);
+    setWizardTemplate(initial || null);
+    setSimUserName(guessUserName());
+    setSimStatus("idle");
+    setSimLines([]);
+    setSimHistory([]);
+    setSimInput("");
+    setSimBusy(false);
+    setSimError(null);
+    setSimTurns(0);
+    setSimRecording(false);
+  };
+
+  const introForTemplate = (tpl: Template, userName: string) => {
+    const name = String(userName || "Cliente").trim() || "Cliente";
+    if (tpl.id === "lia") return `Hola ${name}, soy Lía, calificador de leads de Botz. Te haré 3 preguntas para validar encaje comercial.`;
+    if (tpl.id === "alex") return `Hola ${name}, te habla Bruno de Botz para llamadas en frio. Te haré 3 preguntas para detectar oportunidad y agenda.`;
+    return `Hola ${name}, soy Sofía, recepcionista virtual. Te haré 3 preguntas para dirigirte al area correcta.`;
+  };
+
+  const sendPreviewTurn = async (tpl: Template, history: { role: "assistant" | "user"; content: string }[], payload: { text?: string; audio?: Blob }) => {
+    const form = new FormData();
+    form.set("template_id", tpl.id);
+    form.set("fast_mode", "1");
+    const msgs = payload.text
+      ? [...history, { role: "user", content: payload.text }]
+      : history;
+    form.set("messages", JSON.stringify(msgs));
+    if (payload.audio) {
+      form.set("audio", new File([payload.audio], "respuesta.webm", { type: payload.audio.type || "audio/webm" }));
+    }
+    const res = await authedFetch("/start/agents/preview", {
+      method: "POST",
+      body: form,
+    });
+    const json = await res.json();
+    if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo procesar la conversacion");
+    return json;
+  };
+
+  const startSimulation = (tpl: Template) => {
+    clearSimTimers();
+    setWizardTemplate(tpl);
+    setWizardStep(2);
+    setSimStatus("connecting");
+    setSimLines([]);
+    setSimHistory([]);
+    setSimTurns(0);
+    setSimInput("");
+    setSimError(null);
+
+    const connectTimer = window.setTimeout(() => {
+      const intro = introForTemplate(tpl, simUserName);
+      let revealed = false;
+      const revealIntro = () => {
+        if (revealed) return;
+        revealed = true;
+        setSimStatus("live");
+        setSimLines([{ who: "Botz", text: intro }]);
+        setSimHistory([{ role: "assistant", content: intro }]);
+      };
+      revealIntro();
+      speakNativeFallback(tpl, intro);
+    }, 140);
+    simTimersRef.current.push(connectTimer);
+  };
+
+  const finishRealCall = () => {
+    clearSimTimers();
+    setSimStatus("ended");
+    setSimRecording(false);
+  };
+
+  const askWithText = async () => {
+    if (!wizardTemplate) return;
+    const text = String(simInput || "").trim();
+    if (!text || simBusy || simStatus !== "live") return;
+    if (simTurns >= 3) {
+      finishRealCall();
+      return;
+    }
+
+    const historyBase = [...simHistory, { role: "user" as const, content: text }];
+    setSimBusy(true);
+    setSimError(null);
+    setSimInput("");
+    setSimLines((prev) => [...prev, { who: "Cliente", text }]);
+    setSimHistory(historyBase);
+
+    try {
+      const out = await sendPreviewTurn(wizardTemplate, simHistory, { text });
+      const botText = String(out?.assistant_text || "").trim();
+      if (botText) {
+        let appended = false;
+        const appendBotLine = () => {
+          if (appended) return;
+          appended = true;
+          setSimLines((prev) => [...prev, { who: "Botz", text: botText }]);
+          setSimHistory((prev) => [...prev, { role: "assistant", content: botText }]);
+        };
+        const played = await playBase64Audio(out?.assistant_audio_base64, out?.mime, undefined, appendBotLine);
+        if (!played) {
+          appendBotLine();
+          speakNativeFallback(wizardTemplate, botText);
+        } else {
+          appendBotLine();
+        }
+      }
+      setSimTurns((n) => {
+        const next = n + 1;
+        if (next >= 3) {
+          const closing = "Gracias, ya tengo lo necesario para continuar con el siguiente paso.";
+          setSimLines((prev) => [...prev, { who: "Botz", text: closing }]);
+          setSimHistory((prev) => [...prev, { role: "assistant", content: closing }]);
+          speakAsTemplate(wizardTemplate, closing);
+          setSimStatus("ended");
+        }
+        return next;
+      });
+    } catch (e: any) {
+      setSimError(String(e?.message || "Error en la simulacion"));
+    } finally {
+      setSimBusy(false);
+    }
+  };
+
+  const toggleRecording = async () => {
+    if (!wizardTemplate || simStatus !== "live" || simBusy) return;
+    if (simTurns >= 3) {
+      finishRealCall();
+      return;
+    }
+
+    if (simRecording && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setSimRecording(false);
+      return;
+    }
+
+    try {
+      const audioConstraints: MediaTrackConstraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+        sampleRate: 16000,
+      };
+      if (selectedMicId) {
+        (audioConstraints as any).deviceId = { exact: selectedMicId };
+      }
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+      } catch {
+        const fallback: any = { ...audioConstraints };
+        delete fallback.deviceId;
+        stream = await navigator.mediaDevices.getUserMedia({ audio: fallback });
+      }
+      mediaStreamRef.current = stream;
+      mediaChunksRef.current = [];
+      const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((m) => {
+        try { return MediaRecorder.isTypeSupported(m); } catch { return false; }
+      }) || "audio/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) mediaChunksRef.current.push(ev.data);
+      };
+      recorder.onstop = async () => {
+        try {
+          const blob = new Blob(mediaChunksRef.current, { type: "audio/webm" });
+          if (!blob.size || !wizardTemplate) return;
+          setSimBusy(true);
+          setSimError(null);
+          const out = await sendPreviewTurn(wizardTemplate, simHistory, { audio: blob });
+          const userText = String(out?.user_text || "").trim();
+          const botText = String(out?.assistant_text || "").trim();
+          const suspiciousMicCapture = /(subt[ií]tulos realizados|amara\.org|open subtitles|caption)/i.test(userText);
+          if (suspiciousMicCapture) {
+            setSimError("Se detecto audio externo/subtitulos en lugar de tu voz. Cambia el microfono de entrada del sistema y prueba de nuevo.");
+            return;
+          }
+          if (userText) {
+            setSimLines((prev) => [...prev, { who: "Cliente", text: userText }]);
+            setSimHistory((prev) => [...prev, { role: "user", content: userText }]);
+          }
+          if (botText) {
+            let appended = false;
+            const appendBotLine = () => {
+              if (appended) return;
+              appended = true;
+              setSimLines((prev) => [...prev, { who: "Botz", text: botText }]);
+              setSimHistory((prev) => [...prev, { role: "assistant", content: botText }]);
+            };
+            const played = await playBase64Audio(out?.assistant_audio_base64, out?.mime, undefined, appendBotLine);
+            if (!played) {
+              appendBotLine();
+              speakNativeFallback(wizardTemplate, botText);
+            } else {
+              appendBotLine();
+            }
+          }
+          setSimTurns((n) => {
+            const next = n + 1;
+            if (next >= 3) setSimStatus("ended");
+            return next;
+          });
+        } catch (e: any) {
+          setSimError(String(e?.message || "No se pudo procesar tu audio"));
+        } finally {
+          setSimBusy(false);
+          try { mediaStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
+          mediaStreamRef.current = null;
+          mediaRecorderRef.current = null;
+          mediaChunksRef.current = [];
+        }
+      };
+      recorder.start();
+      setSimRecording(true);
+    } catch {
+      setSimError("No se pudo acceder al microfono");
+    }
+  };
+
+  const loadAudioInputs = async () => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) return;
+    setMicLoading(true);
+    try {
+      let devices = await navigator.mediaDevices.enumerateDevices();
+      let inputs = devices.filter((d) => d.kind === "audioinput");
+
+      if (!inputs.length) {
+        try {
+          const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+          s.getTracks().forEach((t) => t.stop());
+          devices = await navigator.mediaDevices.enumerateDevices();
+          inputs = devices.filter((d) => d.kind === "audioinput");
+        } catch {
+          // ignore
+        }
+      }
+
+      const next = inputs.map((d, i) => ({ id: d.deviceId, label: d.label || `Microfono ${i + 1}` }));
+      setMicDevices(next);
+      setSelectedMicId((prev) => (next.some((m) => m.id === prev) ? prev : (next[0]?.id || "")));
+    } finally {
+      setMicLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (!exampleTemplate) return;
-    setExampleLineIdx(0);
-    const timer = window.setInterval(() => {
-      setExampleLineIdx((i) => ((i + 1) % Math.max(1, exampleTemplate.convo.length)));
-    }, 1900);
-    return () => window.clearInterval(timer);
-  }, [exampleTemplate]);
+    if (!wizardOpen || wizardStep !== 2) return;
+    void loadAudioInputs();
+
+    const mm: any = navigator.mediaDevices;
+    const onChange = () => { void loadAudioInputs(); };
+    if (mm?.addEventListener) mm.addEventListener("devicechange", onChange);
+    return () => {
+      if (mm?.removeEventListener) mm.removeEventListener("devicechange", onChange);
+    };
+  }, [wizardOpen, wizardStep]);
 
   const listType = (searchParams.get("type") || "").toLowerCase();
+
+  const startRoutes = [
+    { label: "Inicio general", href: "/start/agents", hint: "Panel principal de Agents" },
+    { label: "Agentes IA", href: "/start/agents", hint: "Listado de agentes" },
+    { label: "Numeros telefonicos", href: "/start/agents/numbers", hint: "Lineas para voz real" },
+    { label: "Canales", href: "/start/agents/channels", hint: "WhatsApp, webchat y voz" },
+    { label: "Crear agente voz", href: "/start/agents/create?type=voice", hint: "Asistente telefonico" },
+    { label: "Crear agente texto", href: "/start/agents/create?type=text", hint: "Chat y WhatsApp" },
+    { label: "Notetaker", href: "/start/agents/notetaker", hint: "Notas de llamadas" },
+    { label: "Flow templates", href: "/start/flows/templates", hint: "Automatizaciones" },
+    { label: "Planes y creditos", href: "/start/agents/plans", hint: "Facturacion Agents" },
+  ];
 
   const filtered = agents
     .filter(a => String((a as any).status || "").toLowerCase() !== "archived")
@@ -570,7 +1004,7 @@ export default function AgentStudio() {
         />
 
       {/* ════════ SIDEBAR ════════ */}
-      <aside style={{ ...col(), width: 260, minWidth: 260, backgroundColor: C.sidebar, borderRight: `1px solid ${C.border}`, position: "fixed", top: 0, left: 0, bottom: 0 }}>
+      <aside style={{ ...col(), width: 260, minWidth: 260, backgroundColor: C.sidebar, borderRight: `1px solid ${C.border}`, position: "fixed", top: 0, left: 0, bottom: 0, overflow: "hidden" }}>
 
         {/* Logo */}
         <div style={{ ...flex({ alignItems: "center", gap: 10 }), padding: "20px 16px 10px" }}>
@@ -598,14 +1032,31 @@ export default function AgentStudio() {
         </div>
 
         {/* Nav */}
-        <nav style={{ padding: "0 12px", flex: 1 }}>
+        <nav className="botz-sidebar-scroll" style={{ padding: "0 12px", flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", paddingBottom: 10 }}>
           <button
-            onClick={() => router.push("/start")}
+            onClick={() => setHomeRoutesOpen((v) => !v)}
             style={{ ...flex({ alignItems: "center", gap: 10 }), padding: "10px 12px", borderRadius: 12, marginBottom: 6, cursor: "pointer", width: "100%", backgroundColor: "transparent", border: "none", textAlign: "left" }}
           >
             <span style={{ width: 22, textAlign: "center" }}>🏠</span>
             <span style={{ color: C.muted, fontSize: 14, fontWeight: 800 }}>Inicio</span>
+            <span style={{ marginLeft: "auto", color: C.dim, fontSize: 12, fontWeight: 900 }}>{homeRoutesOpen ? "▾" : "▸"}</span>
           </button>
+
+          {homeRoutesOpen && (
+            <div style={{ marginBottom: 8, padding: compactSidebarMenu ? "6px" : "8px 8px 10px 10px", borderRadius: 12, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: compactSidebarMenu ? 4 : 6 }}>
+              {startRoutes.map((r) => (
+                <button
+                  key={`${r.label}-${r.href}`}
+                  onClick={() => router.push(r.href)}
+                  style={{ width: "100%", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", borderRadius: 10, padding: compactSidebarMenu ? "6px 8px" : "8px 10px", color: C.white, display: "flex", flexDirection: "column", gap: 1 }}
+                >
+                  <span style={{ fontSize: compactSidebarMenu ? 12 : 13, fontWeight: 800, lineHeight: 1.2 }}>{r.label}</span>
+                  <span style={{ color: C.dim, fontSize: compactSidebarMenu ? 10 : 11, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           <div style={{ ...flex({ alignItems: "center", gap: 10 }), padding: "10px 12px", borderRadius: 12, backgroundColor: `${C.lime}14`, cursor: "default", border: `1px solid ${C.border}` }}>
             <span style={{ width: 22, textAlign: "center" }}>🤖</span>
             <span style={{ color: C.white, fontSize: 14, fontWeight: 900 }}>Agentes</span>
@@ -702,13 +1153,24 @@ export default function AgentStudio() {
         </div>
 
         {/* User */}
-        <div style={{ ...flex({ alignItems: "center", gap: 10 }), padding: "12px 16px", borderTop: `1px solid ${C.border}` }}>
-          <div style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: C.blue, ...flex({ alignItems: "center", justifyContent: "center" }), color: "#fff", fontWeight: 600, fontSize: 13, flexShrink: 0 }}>
-            {user?.email?.charAt(0).toUpperCase() || "U"}
+        <div style={{ padding: "12px 16px", borderTop: `1px solid ${C.border}` }}>
+          <div style={{ ...flex({ alignItems: "center", gap: 10 }), marginBottom: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: C.blue, ...flex({ alignItems: "center", justifyContent: "center" }), color: "#fff", fontWeight: 600, fontSize: 13, flexShrink: 0 }}>
+              {user?.email?.charAt(0).toUpperCase() || "U"}
+            </div>
+            <span style={{ color: C.muted, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {user?.email || "usuario@email.com"}
+            </span>
           </div>
-          <span style={{ color: C.muted, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {user?.email || "usuario@email.com"}
-          </span>
+          <button
+            onClick={async () => {
+              try { await supabaseAgents.auth.signOut(); } catch {}
+              router.push("/");
+            }}
+            style={{ width: "100%", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "8px 10px", cursor: "pointer", fontSize: 12, fontWeight: 800 }}
+          >
+            Cerrar sesion
+          </button>
         </div>
       </aside>
 
@@ -783,11 +1245,9 @@ export default function AgentStudio() {
             {templates.map(t => (
               <div
                 key={t.id}
-                onClick={() => router.push(`/start/agents/create?template=${t.id}`)}
-                style={{ ...flex({ alignItems: "center", gap: 16 }), background: "linear-gradient(180deg, rgba(27,33,46,0.98), rgba(21,27,39,0.98))", border: "1px solid rgba(89,108,141,0.34)", borderRadius: 16, padding: "18px 20px", cursor: "pointer", textAlign: "left", minHeight: 92 }}
+                style={{ ...flex({ alignItems: "center", gap: 16 }), background: "linear-gradient(180deg, rgba(27,33,46,0.98), rgba(21,27,39,0.98))", border: "1px solid rgba(89,108,141,0.34)", borderRadius: 16, padding: "18px 20px", cursor: "default", textAlign: "left", minHeight: 92 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(180deg, rgba(32,40,56,0.98), rgba(24,31,46,0.98))"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(180deg, rgba(27,33,46,0.98), rgba(21,27,39,0.98))"; }}
-                role="button"
               >
                 <div style={{ width: 70, height: 70, borderRadius: "50%", background: "radial-gradient(circle at 30% 30%, rgba(0,150,255,0.26), rgba(163,230,53,0.20))", border: "1px solid rgba(89,108,141,0.42)", ...flex({ alignItems: "center", justifyContent: "center" }), fontSize: 32, flexShrink: 0 }}>
                   {t.emoji}
@@ -811,7 +1271,7 @@ export default function AgentStudio() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setExampleTemplate(t);
+                      openWizard(t);
                     }}
                     style={{ borderRadius: 10, border: "none", background: `${C.lime}cc`, color: "#111", padding: "8px 10px", cursor: "pointer", fontSize: 12, fontWeight: 900 }}
                   >
@@ -1040,76 +1500,163 @@ export default function AgentStudio() {
         </div>
       </main>
 
-      {exampleTemplate && (
-        <div
-          onClick={() => setExampleTemplate(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(2,6,23,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: 680, borderRadius: 16, border: `1px solid ${C.border}`, background: "linear-gradient(180deg, rgba(26,29,38,0.98), rgba(17,19,24,0.98))", padding: 18 }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+      {wizardOpen && (
+        <div onClick={closeWizard} style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(2,6,23,0.74)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 980, maxHeight: "92vh", overflowY: "auto", borderRadius: 18, border: `1px solid ${C.border}`, background: "linear-gradient(180deg, rgba(26,29,38,0.98), rgba(17,19,24,0.98))", padding: 18 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
               <div>
-                <div style={{ fontWeight: 900, fontSize: 18 }}>Ejemplo de llamada: {exampleTemplate.name}</div>
-                <div style={{ color: C.muted, fontSize: 13, marginTop: 2 }}>{exampleTemplate.cat}</div>
+                <div style={{ fontWeight: 900, fontSize: 34, lineHeight: 1.08 }}>Crea tu agente ahora</div>
+                <div style={{ color: C.muted, fontSize: 18, marginTop: 8 }}>Selecciona una plantilla y prueba una conversacion guiada.</div>
               </div>
-              <button onClick={() => setExampleTemplate(null)} style={{ border: "none", background: "transparent", color: C.muted, fontSize: 20, cursor: "pointer" }}>x</button>
+              <button onClick={closeWizard} style={{ border: "none", background: "transparent", color: C.muted, fontSize: 28, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
 
-            <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: C.card, padding: 14 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-                <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, background: exampleTemplate.convo[exampleLineIdx]?.who === "Botz" ? "rgba(0,150,255,0.16)" : "rgba(255,255,255,0.04)", transition: "all .2s ease" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(0,150,255,0.22)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🤖</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: wizardStep > 1 ? C.lime : "#a78bfa", color: "#111", fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{wizardStep > 1 ? "✓" : "1"}</div>
+              <div style={{ height: 2, width: 120, background: wizardStep > 1 ? C.lime : "rgba(255,255,255,0.2)" }} />
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: wizardStep > 1 ? "#a78bfa" : "rgba(255,255,255,0.12)", color: wizardStep > 1 ? "#111" : C.dim, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>2</div>
+              <div style={{ marginLeft: 6, color: C.white, fontWeight: 900, fontSize: 20 }}>{wizardStep === 1 ? "Selecciona el agente" : "Prueba tu agente"}</div>
+            </div>
+
+            {wizardStep === 1 && (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <label style={{ color: C.muted, fontSize: 13, minWidth: 90 }}>Tu nombre</label>
+                  <input
+                    value={simUserName}
+                    onChange={(e) => setSimUserName(e.target.value)}
+                    placeholder="Como te llamas"
+                    style={{ width: 260, padding: "8px 10px", borderRadius: 10, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.55)", color: C.white, fontSize: 13, outline: "none" }}
+                  />
+                </div>
+                <div style={{ color: C.white, fontWeight: 900, fontSize: 20, marginBottom: 12 }}>Escoge una plantilla</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 12 }}>
+                  {templates.map((t) => {
+                    const active = wizardTemplate?.id === t.id;
+                    return (
+                      <button key={t.id} onClick={() => setWizardTemplate(t)} style={{ borderRadius: 14, border: `2px solid ${active ? C.lime : "rgba(89,108,141,0.45)"}`, background: active ? "rgba(163,230,53,0.09)" : "rgba(15,23,42,0.56)", padding: "14px 12px", color: C.white, cursor: "pointer", textAlign: "center" }}>
+                        <div style={{ width: 82, height: 82, margin: "0 auto 10px", borderRadius: "50%", background: "radial-gradient(circle at 30% 30%, rgba(0,150,255,0.24), rgba(163,230,53,0.16))", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38 }}>{t.emoji}</div>
+                        <div style={{ fontWeight: 900, fontSize: 26 }}>{t.name}</div>
+                        <div style={{ color: C.muted, fontSize: 14, marginTop: 6, lineHeight: 1.35 }}>{t.cat}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
+                  <button onClick={closeWizard} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 800 }}>Cancelar</button>
+                  <button disabled={!wizardTemplate} onClick={() => wizardTemplate && startSimulation(wizardTemplate)} style={{ borderRadius: 10, border: "none", background: wizardTemplate ? `${C.lime}cc` : "#4b5563", color: "#111", padding: "10px 14px", cursor: wizardTemplate ? "pointer" : "not-allowed", fontWeight: 900 }}>Continuar</button>
+                </div>
+              </>
+            )}
+
+            {wizardStep === 2 && wizardTemplate && (
+              <>
+                <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: C.card, padding: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
                     <div>
-                      <div style={{ fontWeight: 900, fontSize: 13 }}>Botz</div>
-                      <div style={{ color: C.muted, fontSize: 12 }}>Agente</div>
+                      <div style={{ fontWeight: 900, fontSize: 22 }}>Transcripcion de la llamada</div>
+                      <div style={{ color: C.muted, fontSize: 15, marginTop: 4 }}>
+                        {wizardTemplate.name} - {wizardTemplate.cat} - {simTurns}/3 preguntas completadas.
+                      </div>
                     </div>
-                    {exampleTemplate.convo[exampleLineIdx]?.who === "Botz" && <div style={{ marginLeft: "auto", color: C.blue, fontSize: 12, fontWeight: 900 }}>Hablando...</div>}
+                    <div style={{ borderRadius: 999, padding: "6px 10px", border: `1px solid ${C.border}`, background: simStatus === "connecting" ? "rgba(245,158,11,0.15)" : simStatus === "live" ? "rgba(16,185,129,0.15)" : "rgba(148,163,184,0.12)", color: simStatus === "connecting" ? "#fbbf24" : simStatus === "live" ? "#34d399" : C.muted, fontSize: 12, fontWeight: 900 }}>
+                      {simStatus === "connecting" ? "Conectando..." : simStatus === "live" ? "En llamada" : simStatus === "ended" ? "Finalizada" : "Listo"}
+                    </div>
+                  </div>
+
+                  {simBusy && (
+                    <div style={{ marginBottom: 10, color: "#93c5fd", fontSize: 12, fontWeight: 800 }}>
+                      Procesando respuesta...
+                    </div>
+                  )}
+
+                  <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: "rgba(15,23,42,0.6)", padding: 12, minHeight: 210, maxHeight: 340, overflowY: "auto" }}>
+                    {simLines.length === 0 ? (
+                      <div style={{ color: C.dim, fontSize: 14 }}>{simStatus === "connecting" ? "Iniciando simulacion..." : "Presiona continuar para iniciar."}</div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {simLines.map((line, idx) => (
+                          <div key={`${idx}-${line.who}`} style={{ borderRadius: 10, padding: "10px 12px", background: line.who === "Botz" ? "rgba(0,150,255,0.16)" : "rgba(163,230,53,0.16)", fontSize: 14, lineHeight: 1.45 }}>
+                            <div style={{ fontSize: 12, fontWeight: 900, color: line.who === "Botz" ? "#93c5fd" : "#bef264", marginBottom: 4 }}>{line.who}</div>
+                            {line.text}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {simError && (
+                    <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 8, border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.12)", color: "#fca5a5", fontSize: 12 }}>
+                      {simError}
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ color: C.muted, fontSize: 12, minWidth: 72 }}>Microfono</label>
+                    <select
+                      value={selectedMicId}
+                      onChange={(e) => setSelectedMicId(e.target.value)}
+                      style={{ minWidth: 240, borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.62)", color: C.white, padding: "8px 10px", fontSize: 12 }}
+                    >
+                      {micDevices.length === 0 && <option value="">Sin dispositivos</option>}
+                      {micDevices.map((m) => (
+                        <option key={m.id} value={m.id}>{m.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => void loadAudioInputs()}
+                      disabled={micLoading}
+                      style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "8px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}
+                    >
+                      {micLoading ? "Buscando..." : "Actualizar"}
+                    </button>
+                  </div>
+
+                  <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                    <input
+                      value={simInput}
+                      onChange={(e) => setSimInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void askWithText();
+                        }
+                      }}
+                      disabled={simBusy || simStatus !== "live" || simTurns >= 3}
+                      placeholder={simStatus !== "live" ? "Espera a que conecte..." : "Responde aqui (o usa microfono)"}
+                      style={{ flex: 1, borderRadius: 10, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.62)", color: C.white, padding: "10px 12px", fontSize: 14, outline: "none" }}
+                    />
+                    <button
+                      onClick={() => void askWithText()}
+                      disabled={simBusy || simStatus !== "live" || simTurns >= 3 || !simInput.trim()}
+                      style={{ borderRadius: 10, border: "none", background: simBusy || simStatus !== "live" || simTurns >= 3 || !simInput.trim() ? "#4b5563" : `${C.lime}cc`, color: "#111", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}
+                    >
+                      Enviar
+                    </button>
+                    <button
+                      onClick={() => void toggleRecording()}
+                      disabled={simBusy || simStatus !== "live" || simTurns >= 3}
+                      style={{ borderRadius: 10, border: `1px solid ${simRecording ? "rgba(239,68,68,0.65)" : C.border}`, background: simRecording ? "rgba(239,68,68,0.16)" : "rgba(15,23,42,0.5)", color: simRecording ? "#fca5a5" : C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}
+                    >
+                      {simRecording ? "Detener mic" : "Hablar"}
+                    </button>
+                  </div>
+                  <div style={{ marginTop: 8, color: C.dim, fontSize: 12 }}>
+                    Consejo: usa un microfono fisico (no "Stereo Mix") para evitar capturar audio externo.
                   </div>
                 </div>
 
-                <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, background: exampleTemplate.convo[exampleLineIdx]?.who !== "Botz" ? "rgba(163,230,53,0.14)" : "rgba(255,255,255,0.04)", transition: "all .2s ease" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,0.14)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🙂</div>
-                    <div>
-                      <div style={{ fontWeight: 900, fontSize: 13 }}>Cliente</div>
-                      <div style={{ color: C.muted, fontSize: 12 }}>Humano</div>
-                    </div>
-                    {exampleTemplate.convo[exampleLineIdx]?.who !== "Botz" && <div style={{ marginLeft: "auto", color: C.lime, fontSize: 12, fontWeight: 900 }}>Hablando...</div>}
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 14 }}>
+                  <button onClick={() => { clearSimTimers(); setWizardStep(1); setSimStatus("idle"); setSimLines([]); setSimHistory([]); setSimTurns(0); setSimInput(""); setSimError(null); setSimRecording(false); }} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 800 }}>Volver</button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => wizardTemplate && startSimulation(wizardTemplate)} style={{ borderRadius: 10, border: "1px solid rgba(56,189,248,0.35)", background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 800 }}>Repetir</button>
+                    <button onClick={() => finishRealCall()} style={{ borderRadius: 10, border: "none", background: "rgba(239,68,68,0.9)", color: "#fff", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}>Finalizar llamada</button>
+                    <button onClick={() => { router.push(`/start/agents/create?template=${wizardTemplate.id}`); closeWizard(); }} style={{ borderRadius: 10, border: "none", background: `${C.lime}cc`, color: "#111", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}>Usar plantilla</button>
                   </div>
                 </div>
-              </div>
-
-              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: "rgba(15,23,42,0.6)", padding: 12, minHeight: 92 }}>
-                <div style={{ color: C.dim, fontSize: 11, fontWeight: 900, marginBottom: 6 }}>TRANSCRIPCION EN VIVO</div>
-                <div style={{ fontSize: 15, lineHeight: 1.45 }}>
-                  {exampleTemplate.convo[exampleLineIdx]?.text}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-              <button
-                onClick={() => {
-                  if (playingTemplateId === exampleTemplate.id) stopPreviewVoice();
-                  else playPreviewVoice(exampleTemplate);
-                }}
-                style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 800 }}
-              >
-                {playingTemplateId === exampleTemplate.id ? "Detener audio" : "Escuchar llamada"}
-              </button>
-              <button
-                onClick={() => {
-                  router.push(`/start/agents/create?template=${exampleTemplate.id}`);
-                  setExampleTemplate(null);
-                }}
-                style={{ borderRadius: 10, border: "none", background: `${C.lime}cc`, color: "#111", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}
-              >
-                Usar plantilla
-              </button>
-            </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1164,6 +1711,27 @@ export default function AgentStudio() {
           </div>
         </div>
       )}
+
+      <style jsx global>{`
+        .botz-sidebar-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #0096ff33 transparent;
+        }
+        .botz-sidebar-scroll::-webkit-scrollbar {
+          width: 8px;
+        }
+        .botz-sidebar-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .botz-sidebar-scroll::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, #0096ff99, #0096ff55);
+          border-radius: 999px;
+          border: 1px solid rgba(0, 150, 255, 0.2);
+        }
+        .botz-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(180deg, #0096ffcc, #0096ff88);
+        }
+      `}</style>
 
     </div>
   );

@@ -7,15 +7,15 @@ import OpenAI from "openai";
 
 const TEMPLATES: Record<string, { system_prompt: string; voice: "nova" | "onyx" | "shimmer" }> = {
   lia: {
-    system_prompt: "Eres Lia, una representante de ventas profesional y amable. Tu objetivo es calificar leads entrantes con preguntas claras sobre presupuesto, tiempo y necesidad. Si el lead califica, propon una siguiente accion (agendar llamada o cita).",
+    system_prompt: "Eres Lia, calificadora de leads entrantes. Haz una conversacion corta de 3 preguntas: presupuesto, plazo, necesidad. Formula una sola pregunta por turno, en espanol, sin listas ni markdown.",
     voice: "nova",
   },
   alex: {
-    system_prompt: "Eres Alex, un vendedor directo y respetuoso. Tu objetivo es iniciar una conversacion breve, validar interes y calificar una oportunidad. Si hay interes, agenda una siguiente accion.",
+    system_prompt: "Eres Bruno, agente de llamadas en frio salientes. Tu meta es detectar interes real en 3 preguntas cortas y cerrar con propuesta de siguiente paso. Habla directo, claro y sin texto largo.",
     voice: "onyx",
   },
   julia: {
-    system_prompt: "Eres Julia, una recepcionista virtual. Respondes preguntas frecuentes, recoges datos de contacto y agendas citas. Si el usuario necesita un humano, ofreces una escalacion.",
+    system_prompt: "Eres Sofia, recepcionista virtual. Identifica tipo de consulta, prioridad y datos de contacto en maximo 3 preguntas. Responde breve, natural y sin markdown.",
     voice: "shimmer",
   },
 };
@@ -94,6 +94,7 @@ export async function POST(req: Request) {
     const templateId = String(formData.get("template_id") || "");
     const messagesJson = String(formData.get("messages") || "[]");
     const audioFile = formData.get("audio") as File | null;
+    const fastMode = String(formData.get("fast_mode") || "0") === "1";
 
     if (!templateId || !TEMPLATES[templateId]) {
       return NextResponse.json({ ok: false, error: "Invalid template_id" }, { status: 400 });
@@ -119,6 +120,8 @@ export async function POST(req: Request) {
         file: await new File([buffer], audioFile.name, { type: "audio/webm" }) as any,
         model: "whisper-1",
         language: "es",
+        prompt: "Transcribe solamente la voz del usuario que responde al agente. Ignora musica, subtitulos, locuciones de video y ruido de fondo.",
+        temperature: 0,
       } as any);
       userText = transcription.text || "";
       sttTokens = estimateTokens(userText);
@@ -143,23 +146,25 @@ export async function POST(req: Request) {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: llmMessages as any,
-      temperature: 0.7,
-      max_tokens: 300,
+      temperature: fastMode ? 0.2 : 0.7,
+      max_tokens: fastMode ? 140 : 300,
     });
 
     const assistantText = completion.choices[0]?.message?.content || "";
     const llmTokens = completion.usage?.total_tokens || estimateTokens(assistantText);
 
     // 5. TTS
-    const ttsTokens = estimateTokens(assistantText);
-    const speech = await openai.audio.speech.create({
-      model: "tts-1",
-      voice: template.voice,
-      input: assistantText,
-    });
-
-    const audioBuffer = Buffer.from(await speech.arrayBuffer());
-    const audioBase64 = audioBuffer.toString("base64");
+    const ttsTokens = fastMode ? 0 : estimateTokens(assistantText);
+    let audioBase64 = "";
+    if (!fastMode) {
+      const speech = await openai.audio.speech.create({
+        model: "tts-1",
+        voice: template.voice,
+        input: assistantText,
+      });
+      const audioBuffer = Buffer.from(await speech.arrayBuffer());
+      audioBase64 = audioBuffer.toString("base64");
+    }
 
     // 6. Calculate credits
     const creditDelta = llmTokens + sttTokens + ttsTokens;
@@ -194,7 +199,7 @@ export async function POST(req: Request) {
       user_text: userText,
       assistant_text: assistantText,
       assistant_audio_base64: audioBase64,
-      mime: "audio/mpeg",
+      mime: audioBase64 ? "audio/mpeg" : null,
       tokens_llm: llmTokens,
       tokens_stt_est: sttTokens,
       tokens_tts_est: ttsTokens,

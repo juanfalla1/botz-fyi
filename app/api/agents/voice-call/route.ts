@@ -20,12 +20,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, code: access.code, error: access.error }, { status: access.statusCode });
     }
 
-    const { audio, context, conversationHistory, agentConfig, generateAudioOnly, textToSpeak } = await req.json();
+    const { audio, context, conversationHistory, agentConfig, generateAudioOnly, textToSpeak, fast_mode } = await req.json();
+    const fastMode = Boolean(fast_mode);
 
     // Caso especial: solo generar audio para un texto específico (ej: saludo inicial)
     if (generateAudioOnly && textToSpeak) {
       try {
-        const audioUrl = await textToSpeech(textToSpeak, agentConfig?.voice || "nova");
+        const audioUrl = await textToSpeech(textToSpeak, agentConfig?.voice || "shimmer");
         const burn = await consumeEntitlementCredits(supabase as any, guard.user.id, 1);
         if (!burn.ok) {
           return NextResponse.json({ ok: false, code: burn.code, error: burn.error }, { status: burn.statusCode });
@@ -71,26 +72,30 @@ export async function POST(req: Request) {
       userMessage,
       context,
       conversationHistory,
-      agentConfig
+      agentConfig,
+      { fastMode }
     );
 
     // 3. Convertir respuesta a audio (TTS)
     let audioUrl = null;
-    try {
-      audioUrl = await textToSpeech(agentResponse, agentConfig?.voice || "nova");
-    } catch (e) {
-      console.error("TTS error:", e);
-      // TTS error no es crítico, retornamos la respuesta texto
+    if (!fastMode) {
+      try {
+        audioUrl = await textToSpeech(agentResponse, agentConfig?.voice || "shimmer");
+      } catch (e) {
+        console.error("TTS error:", e);
+        // TTS error no es crítico, retornamos la respuesta texto
+      }
     }
 
-    const burn = await consumeEntitlementCredits(supabase as any, guard.user.id, 3);
+    const creditsDelta = fastMode ? 2 : 3;
+    const burn = await consumeEntitlementCredits(supabase as any, guard.user.id, creditsDelta);
     if (!burn.ok) {
       return NextResponse.json({ ok: false, code: burn.code, error: burn.error }, { status: burn.statusCode });
     }
-    await logUsageEvent(supabase as any, guard.user.id, 3, {
+    await logUsageEvent(supabase as any, guard.user.id, creditsDelta, {
       endpoint: "/api/agents/voice-call",
       action: "voice_turn",
-      metadata: { has_audio_response: Boolean(audioUrl) },
+      metadata: { has_audio_response: Boolean(audioUrl), fast_mode: fastMode },
     });
 
     return NextResponse.json({ 
@@ -122,24 +127,32 @@ async function speechToText(audioBase64: string): Promise<string> {
      const buffer = Buffer.from(audioBase64, "base64");
      const audioBlob = new Blob([buffer], { type: "audio/webm" });
 
-    const formData = new FormData();
-    formData.append("file", audioBlob, "audio.webm");
-    formData.append("model", "whisper-1");
-    formData.append("language", "es");
+    const callTranscription = async (model: string) => {
+      const formData = new FormData();
+      formData.append("file", audioBlob, "audio.webm");
+      formData.append("model", model);
+      formData.append("language", "es");
+      formData.append("temperature", "0");
+      formData.append("prompt", "Transcribe solo la voz del cliente. Ignora musica, subtitulos y ruido.");
 
-    const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openaiKey}`,
-      },
-      body: formData as any,
-    });
+      const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openaiKey}`,
+        },
+        body: formData as any,
+      });
+      if (!response.ok) throw new Error(`${model} transcription error`);
+      return response.json();
+    };
 
-    if (!response.ok) {
-      throw new Error("Whisper API error");
+    let data: any;
+    try {
+      data = await callTranscription("gpt-4o-mini-transcribe");
+    } catch {
+      data = await callTranscription("whisper-1");
     }
 
-     const data = await response.json();
      let text = data.text || "";
      // Fix encoding issues - normalize the string
      if (text) {
@@ -159,7 +172,7 @@ async function speechToText(audioBase64: string): Promise<string> {
 }
 
 // Text-to-Speech usando OpenAI TTS
-async function textToSpeech(text: string, voice: string = "nova"): Promise<string | null> {
+async function textToSpeech(text: string, voice: string = "shimmer"): Promise<string | null> {
   const openaiKey = process.env.OPENAI_API_KEY;
 
   if (!openaiKey) {
@@ -176,7 +189,7 @@ async function textToSpeech(text: string, voice: string = "nova"): Promise<strin
       body: JSON.stringify({
         model: "tts-1",
         input: text.substring(0, 4096), // OpenAI TTS limit
-        voice: voice || "nova",
+        voice: voice || "shimmer",
         response_format: "mp3",
       }),
     });
@@ -199,7 +212,8 @@ async function generateResponse(
   userMessage: string,
   context: string,
   conversationHistory: any[] = [],
-  agentConfig: any = {}
+  agentConfig: any = {},
+  opts: { fastMode?: boolean } = {}
 ): Promise<string> {
   const openaiKey = process.env.OPENAI_API_KEY;
 
@@ -220,7 +234,7 @@ async function generateResponse(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-3.5-turbo",
+        model: String(agentConfig?.model || "gpt-4o-mini"),
         messages: [
           { role: "system", content: context + "\n\n[CRITICAL OVERRIDE] Responde la pregunta del usuario completamente. NO rechaces ayudar. NO digas 'no puedo'. Si no sabes algo, ofrece una alternativa." },
           ...conversationHistory.map((msg: any) => ({
@@ -229,8 +243,8 @@ async function generateResponse(
           })),
           { role: "user", content: userMessage },
         ],
-        temperature: 0.7,
-        max_tokens: 200, // Para voz - máximo 3-4 oraciones
+        temperature: opts.fastMode ? 0.35 : 0.7,
+        max_tokens: opts.fastMode ? 90 : 180,
       }),
     });
 
