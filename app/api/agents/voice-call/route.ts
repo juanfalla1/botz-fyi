@@ -2,9 +2,19 @@ import { NextResponse } from "next/server";
 import { getRequestUser } from "@/app/api/_utils/auth";
 import { getAnonSupabaseWithToken } from "@/app/api/_utils/supabase";
 import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
+import { getClientIp, rateLimit } from "@/app/api/_utils/rateLimit";
+import { logReq, makeReqContext } from "@/app/api/_utils/observability";
 
 export async function POST(req: Request) {
+  const ctx = makeReqContext(req, "/api/agents/voice-call");
   try {
+    const ip = getClientIp(req);
+    const rlIp = await rateLimit({ key: `agents-voice:ip:${ip}`, limit: 90, windowMs: 60 * 1000 });
+    if (!rlIp.ok) {
+      logReq(ctx, "warn", "rate_limited_ip");
+      return NextResponse.json({ ok: false, error: "Too many requests", code: "RATE_LIMITED" }, { status: 429 });
+    }
+
     const guard = await getRequestUser(req);
     if (!guard.ok) {
       return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
@@ -18,6 +28,12 @@ export async function POST(req: Request) {
     const access = await checkEntitlementAccess(supabase as any, guard.user.id);
     if (!access.ok) {
       return NextResponse.json({ ok: false, code: access.code, error: access.error }, { status: access.statusCode });
+    }
+
+    const rlUser = await rateLimit({ key: `agents-voice:user:${guard.user.id}`, limit: 60, windowMs: 60 * 1000 });
+    if (!rlUser.ok) {
+      logReq(ctx, "warn", "rate_limited_user", { user_id: guard.user.id });
+      return NextResponse.json({ ok: false, error: "Too many requests", code: "RATE_LIMITED" }, { status: 429 });
     }
 
     const { audio, context, conversationHistory, agentConfig, generateAudioOnly, textToSpeak, fast_mode } = await req.json();
@@ -35,6 +51,7 @@ export async function POST(req: Request) {
           endpoint: "/api/agents/voice-call",
           action: "voice_tts_greeting",
         });
+        logReq(ctx, "info", "ok_greeting", { user_id: guard.user.id });
         return NextResponse.json({ ok: true, audioUrl });
       } catch (err) {
         console.error("TTS error:", err);
@@ -98,6 +115,8 @@ export async function POST(req: Request) {
       metadata: { has_audio_response: Boolean(audioUrl), fast_mode: fastMode },
     });
 
+    logReq(ctx, "info", "ok", { user_id: guard.user.id, fast_mode: fastMode, credits: creditsDelta });
+
     return NextResponse.json({ 
       ok: true, 
       userMessage,
@@ -105,7 +124,7 @@ export async function POST(req: Request) {
       audioUrl: audioUrl || null
     });
   } catch (e: any) {
-    console.error("Voice call error:", e);
+    logReq(ctx, "error", "exception", { error: e?.message || "Unknown error" });
     return NextResponse.json({ 
       ok: false, 
       error: e?.message || "Unknown error" 

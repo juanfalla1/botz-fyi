@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getRequestUser } from "@/app/api/_utils/guards";
+import { getClientIp, rateLimit } from "@/app/api/_utils/rateLimit";
+import { logReq, makeReqContext } from "@/app/api/_utils/observability";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,7 +21,15 @@ function makeUuidV4() {
 }
 
 export async function POST(req: NextRequest) {
+  const ctx = makeReqContext(req, "/api/platform/admin-invites/accept");
   try {
+    const ip = getClientIp(req);
+    const rl = await rateLimit({ key: `invite-accept:${ip}`, limit: 40, windowMs: 10 * 60 * 1000 });
+    if (!rl.ok) {
+      logReq(ctx, "warn", "rate_limited");
+      return NextResponse.json({ ok: false, error: "Too many requests", code: "RATE_LIMITED" }, { status: 429 });
+    }
+
     const auth = await getRequestUser(req);
 
     const body = await req.json();
@@ -37,14 +47,17 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (inviteError || !invite) {
+      logReq(ctx, "warn", "invite_not_found", { invite_id: inviteId });
       return NextResponse.json({ ok: false, error: "Invitation not found" }, { status: 404 });
     }
 
     if (String(invite.status || "").toLowerCase() === "accepted") {
+      logReq(ctx, "warn", "invite_already_accepted", { invite_id: inviteId });
       return NextResponse.json({ ok: false, error: "Invitation already accepted" }, { status: 400 });
     }
 
     if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+      logReq(ctx, "warn", "invite_expired", { invite_id: inviteId });
       return NextResponse.json({ ok: false, error: "Invitation expired" }, { status: 400 });
     }
 
@@ -67,6 +80,7 @@ export async function POST(req: NextRequest) {
     // 2) sin sesión (signup sin token): email enviado debe coincidir
     const emailMatches = (authEmail && authEmail === inviteEmail) || (providedEmail && providedEmail === inviteEmail);
     if (!emailMatches) {
+      logReq(ctx, "warn", "invite_email_mismatch", { invite_id: inviteId, provided_email: providedEmail || null });
       return NextResponse.json({ ok: false, error: "Invite email mismatch" }, { status: 403 });
     }
 
@@ -138,8 +152,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: inviteUpdateError.message }, { status: 400 });
     }
 
+    logReq(ctx, "info", "ok", { invite_id: inviteId, auth_user_id: resolvedAuthUserId || null });
     return NextResponse.json({ ok: true, tenant_id: tenantId, needs_login: !resolvedAuthUserId });
   } catch (error: any) {
+    logReq(ctx, "error", "exception", { error: error?.message || "Internal server error" });
     return NextResponse.json({ ok: false, error: error?.message || "Internal server error" }, { status: 500 });
   }
 }

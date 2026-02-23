@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getRequestUser } from "@/app/api/_utils/auth";
 import { getAnonSupabaseWithToken } from "@/app/api/_utils/supabase";
 import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
+import { getClientIp, rateLimit } from "@/app/api/_utils/rateLimit";
+import { logReq, makeReqContext } from "@/app/api/_utils/observability";
 
 function normalizeBrainFiles(raw: any): { name: string; content: string }[] {
   if (!Array.isArray(raw)) return [];
@@ -48,7 +50,15 @@ function buildDocumentContext(message: string, files: { name: string; content: s
 }
 
 export async function POST(req: Request) {
+  const ctx = makeReqContext(req, "/api/agents/chat-test");
   try {
+    const ip = getClientIp(req);
+    const rlIp = await rateLimit({ key: `agents-chat:ip:${ip}`, limit: 180, windowMs: 60 * 1000 });
+    if (!rlIp.ok) {
+      logReq(ctx, "warn", "rate_limited_ip");
+      return NextResponse.json({ ok: false, error: "Too many requests", code: "RATE_LIMITED" }, { status: 429 });
+    }
+
     const guard = await getRequestUser(req);
     if (!guard.ok) {
       return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
@@ -62,6 +72,12 @@ export async function POST(req: Request) {
     const access = await checkEntitlementAccess(supabase as any, guard.user.id);
     if (!access.ok) {
       return NextResponse.json({ ok: false, code: access.code, error: access.error }, { status: access.statusCode });
+    }
+
+    const rlUser = await rateLimit({ key: `agents-chat:user:${guard.user.id}`, limit: 120, windowMs: 60 * 1000 });
+    if (!rlUser.ok) {
+      logReq(ctx, "warn", "rate_limited_user", { user_id: guard.user.id });
+      return NextResponse.json({ ok: false, error: "Too many requests", code: "RATE_LIMITED" }, { status: 429 });
     }
 
     const { message, context, conversationHistory, brainFiles } = await req.json();
@@ -103,9 +119,10 @@ Si la informacion no aparece en los documentos ni en el contexto, dilo clarament
       },
     });
 
+    logReq(ctx, "info", "ok", { user_id: guard.user.id, credits: creditDelta, used_openai: generated.usedOpenAI });
     return NextResponse.json({ ok: true, response });
   } catch (e: any) {
-    console.error("Chat test error:", e);
+    logReq(ctx, "error", "exception", { error: e?.message || "Unknown error" });
     return NextResponse.json({ ok: false, error: e?.message || "Unknown error" }, { status: 500 });
   }
 }

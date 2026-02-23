@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
+import { getClientIp, rateLimit } from "@/app/api/_utils/rateLimit";
+import { logReq, makeReqContext } from "@/app/api/_utils/observability";
 
 const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
   let t: any;
@@ -14,7 +16,15 @@ const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): 
 };
 
 export async function POST(req: Request) {
+  const ctx = makeReqContext(req, "/api/leads/create");
   try {
+    const ip = getClientIp(req);
+    const rlIp = await rateLimit({ key: `leads-create:ip:${ip}`, limit: 180, windowMs: 60 * 1000 });
+    if (!rlIp.ok) {
+      logReq(ctx, "warn", "rate_limited_ip");
+      return NextResponse.json({ ok: false, error: "Too many requests", code: "RATE_LIMITED" }, { status: 429 });
+    }
+
     const supabase = getServiceSupabase();
     if (!supabase) {
       return NextResponse.json({ ok: false, error: "Supabase service not configured" }, { status: 500 });
@@ -31,6 +41,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
+    const rlUser = await rateLimit({ key: `leads-create:user:${userRes.user.id}`, limit: 90, windowMs: 60 * 1000 });
+    if (!rlUser.ok) {
+      logReq(ctx, "warn", "rate_limited_user", { user_id: userRes.user.id });
+      return NextResponse.json({ ok: false, error: "Too many requests", code: "RATE_LIMITED" }, { status: 429 });
+    }
+
     const body = await req.json().catch(() => null);
     const tenantId = String(body?.tenantId || "").trim();
     const advisorId = body?.advisorId ? String(body.advisorId) : null;
@@ -41,13 +57,15 @@ export async function POST(req: Request) {
     }
 
     // Validar que el usuario puede escribir en ese tenant
-    const [{ data: tmRows }, { data: subRows }] = await Promise.all([
-      supabase
-        .from("team_members")
-        .select("tenant_id")
-        .eq("auth_user_id", userRes.user.id)
-        .eq("tenant_id", tenantId)
-        .or("activo.is.null,activo.eq.true"),
+    const teamByAuthPromise = supabase
+      .from("team_members")
+      .select("tenant_id")
+      .eq("auth_user_id", userRes.user.id)
+      .eq("tenant_id", tenantId)
+      .or("activo.is.null,activo.eq.true");
+
+    const [{ data: tmRowsAuth }, { data: subRows }] = await Promise.all([
+      teamByAuthPromise,
       supabase
         .from("subscriptions")
         .select("tenant_id")
@@ -56,8 +74,24 @@ export async function POST(req: Request) {
         .in("status", ["active", "trialing"]),
     ]);
 
+    let tmRows = tmRowsAuth || [];
+    if (!tmRows?.length) {
+      try {
+        const { data: tmRowsUser } = await supabase
+          .from("team_members")
+          .select("tenant_id")
+          .eq("user_id", userRes.user.id)
+          .eq("tenant_id", tenantId)
+          .or("activo.is.null,activo.eq.true");
+        tmRows = tmRowsUser || tmRows;
+      } catch {
+        // compat: instalaciones sin columna user_id
+      }
+    }
+
     const allowed = (tmRows && tmRows.length > 0) || (subRows && subRows.length > 0);
     if (!allowed) {
+      logReq(ctx, "warn", "tenant_forbidden", { user_id: userRes.user.id, tenant_id: tenantId });
       return NextResponse.json({ ok: false, error: "No autorizado para ese tenant" }, { status: 403 });
     }
 
@@ -65,7 +99,7 @@ export async function POST(req: Request) {
      let finalAdvisorId = advisorId || null;
      
      // Si no hay advisorId explícito, intentar obtenerlo del usuario actual
-     if (!finalAdvisorId) {
+      if (!finalAdvisorId) {
        const { data: tmByAuth } = await supabase
          .from("team_members")
          .select("id")
@@ -76,6 +110,19 @@ export async function POST(req: Request) {
        
        if (tmByAuth?.id) {
          finalAdvisorId = tmByAuth.id;
+       } else {
+         try {
+           const { data: tmByUser } = await supabase
+             .from("team_members")
+             .select("id")
+             .eq("user_id", userRes.user.id)
+             .eq("tenant_id", tenantId)
+             .eq("activo", true)
+             .maybeSingle();
+           if (tmByUser?.id) finalAdvisorId = tmByUser.id;
+         } catch {
+           // compat: instalaciones sin columna user_id
+         }
        }
      }
 
@@ -171,8 +218,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: insertRes.error?.message || "Error insert" }, { status: 400 });
     }
 
+    logReq(ctx, "info", "ok", { user_id: userRes.user.id, tenant_id: tenantId, has_advisor: Boolean(finalAdvisorId) });
     return NextResponse.json({ ok: true, lead: insertRes?.data || null });
   } catch (error: any) {
+    logReq(ctx, "error", "exception", { error: error?.message || "Error" });
     return NextResponse.json({ ok: false, error: error?.message || "Error" }, { status: 500 });
   }
 }

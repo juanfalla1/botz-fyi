@@ -539,6 +539,21 @@ export default function LeadsTable({
           if (tmByAuth) {
             if (!resolvedTeamMemberId) resolvedTeamMemberId = tmByAuth.id || resolvedTeamMemberId;
             if (!resolvedTenantId) resolvedTenantId = tmByAuth.tenant_id || resolvedTenantId;
+          } else {
+            try {
+              const { data: tmByUser } = await supabase
+                .from("team_members")
+                .select("id, tenant_id")
+                .eq("user_id", authUserId)
+                .eq("activo", true)
+                .maybeSingle();
+              if (tmByUser) {
+                if (!resolvedTeamMemberId) resolvedTeamMemberId = tmByUser.id || resolvedTeamMemberId;
+                if (!resolvedTenantId) resolvedTenantId = tmByUser.tenant_id || resolvedTenantId;
+              }
+            } catch {
+              // compat: instalaciones sin columna user_id
+            }
           }
         }
 
@@ -553,6 +568,19 @@ export default function LeadsTable({
 
           if (tmByAuthTenant) {
             resolvedTeamMemberId = tmByAuthTenant.id || resolvedTeamMemberId;
+          } else {
+            try {
+              const { data: tmByUserTenant } = await supabase
+                .from("team_members")
+                .select("id, tenant_id")
+                .eq("user_id", authUserId)
+                .eq("tenant_id", resolvedTenantId)
+                .eq("activo", true)
+                .maybeSingle();
+              if (tmByUserTenant) resolvedTeamMemberId = tmByUserTenant.id || resolvedTeamMemberId;
+            } catch {
+              // compat: instalaciones sin columna user_id
+            }
           }
         }
 
