@@ -875,16 +875,30 @@ export default function CRMFullView({
     return { day: label, leads: count };
   });
 
+  const normalizeChannel = (lead: any) => {
+    const raw = String(lead?.origen || lead?.source || lead?.channel || "").trim().toLowerCase();
+    if (!raw) return "Web";
+    if (raw.includes("whatsapp")) return "WhatsApp";
+    if (raw.includes("meta") || raw.includes("facebook")) return "Meta";
+    if (raw.includes("instagram")) return "Instagram";
+    if (raw.includes("google")) return "Google";
+    if (raw.includes("refer")) return "Referido";
+    if (raw.includes("manual") || raw.includes("web")) return "Web";
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  };
+
   const channelMap: Record<string, number> = {};
   filteredLeads.forEach(l => {
-    let origin = l.origen || "Web";
-    let key = origin.charAt(0).toUpperCase() + origin.slice(1);
+    const key = normalizeChannel(l);
     channelMap[key] = (channelMap[key] || 0) + 1;
   });
   
   const channelData = Object.entries(channelMap).map(([name, value], i) => ({
     name, value, color: COLORS[i % COLORS.length]
   }));
+  const channelChartData = channelData.length > 0
+    ? channelData
+    : [{ name: t.emptyShort, value: 1, color: '#334155' }];
 
   const statusMap: Record<string, number> = {};
   filteredLeads.forEach(l => { 
@@ -946,12 +960,24 @@ export default function CRMFullView({
           <h3 style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}><Globe size={18} color="#10b981" /> {t.channelsTitle}</h3>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={channelData.length > 0 ? channelData : [{name: t.emptyShort, value: 1, color: '#334155'}]} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" nameKey="name">
-                {channelData.map((entry, index) => <Cell key={index} fill={entry.color} stroke="none" />)}
+              <Pie data={channelChartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" nameKey="name">
+                {channelChartData.map((entry, index) => <Cell key={index} fill={entry.color} stroke="none" />)}
               </Pie>
               <Tooltip content={<CustomTooltip quantityLabel={t.quantity} />} />
             </PieChart>
           </ResponsiveContainer>
+          <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+            {channelData.slice(0, 4).map((entry, i) => (
+              <div key={`${entry.name}-${i}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12 }}>
+                <span style={{ color: "#cbd5e1", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 999, background: entry.color, display: "inline-block" }} />
+                  {entry.name}
+                </span>
+                <span style={{ color: "#fff", fontWeight: 700 }}>{entry.value}</span>
+              </div>
+            ))}
+            {channelData.length === 0 && <div style={{ color: "#64748b", fontSize: 12 }}>{t.notAvailable}</div>}
+          </div>
         </div>
 
          <div style={{ ...cardStyle, minHeight: "300px" }}>
