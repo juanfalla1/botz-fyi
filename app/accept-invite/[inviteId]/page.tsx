@@ -140,115 +140,26 @@ export default function AcceptInvitePage({ params }: { params: Promise<{ inviteI
         throw new Error("Error al crear la cuenta");
       }
 
-      // ✅ NUEVO: Calcular fecha de expiración (2 días)
-      const trialEndDate = new Date();
-      trialEndDate.setDate(trialEndDate.getDate() + 2);
-      const trialEndIso = trialEndDate.toISOString();
-
-      // ✅ NUEVO: Generar UUID válido para tenant_id demo
-      // Usar crypto.getRandomValues para generar UUID v4
-      const demoTenantId = (() => {
-        const arr = new Uint8Array(16);
-        crypto.getRandomValues(arr);
-        arr[6] = (arr[6] & 0x0f) | 0x40; // version 4
-        arr[8] = (arr[8] & 0x3f) | 0x80; // variant 1
-        const hex = Array.from(arr).map(x => x.toString(16).padStart(2, '0')).join('');
-        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-      })();
-
-      // ✅ NUEVO: Actualizar o crear team_member con el tenant_id demo
-      // Estrategia: buscar por email, si existe actualizar, si no crear
-      const { data: existingMember } = await supabase
-        .from("team_members")
-        .select("id, tenant_id, email")
-        .eq("email", invite.email)
-        .maybeSingle();
-
-      let teamMember = null;
-      let teamError = null;
-
-      if (existingMember) {
-        // Si ya existe, actualizar solo tenant_id y rol (sin auth_user_id para evitar FK issues)
-        const { data: updatedMember, error: updateError } = await supabase
-          .from("team_members")
-          .update({
-            tenant_id: demoTenantId,
-            rol: "admin",
-            activo: true,
-          })
-          .eq("id", existingMember.id)
-          .select()
-          .single();
-
-        teamMember = updatedMember;
-        teamError = updateError;
-        console.log("✅ Team member actualizado:", existingMember.id, "con tenant_id:", demoTenantId);
-      } else {
-        // Si no existe, crear uno nuevo (sin auth_user_id inicialmente)
-        const { data: newMember, error: insertError } = await supabase
-          .from("team_members")
-          .insert({
-            tenant_id: demoTenantId,
-            email: invite.email,
-            nombre: invite.email.split("@")[0],
-            rol: "admin",
-            activo: true,
-            permissions: { all: true },
-          })
-          .select()
-          .single();
-
-        teamMember = newMember;
-        teamError = insertError;
-        console.log("✅ Team member creado:", newMember?.id, "con tenant_id:", demoTenantId);
+      const accessToken = authData?.session?.access_token || (await supabase.auth.getSession()).data.session?.access_token;
+      if (!accessToken) {
+        throw new Error("No se pudo obtener sesión para completar la invitación");
       }
 
-      if (teamError) {
-        console.error("❌ Error con team_member:", teamError);
-        throw new Error(`No se pudo actualizar team member: ${JSON.stringify(teamError)}`);
-      }
-
-      if (!teamMember) {
-        throw new Error("No se pudo obtener el team member después de la operación");
-      }
-
-      // ✅ NUEVO: Guardar tenant_id en auth metadata (CRÍTICO para que el usuario pueda entrar)
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: {
-          tenant_id: demoTenantId,
-          role: invite.role,
-          is_trial: true,
-          trial_start: new Date().toISOString(),
-          trial_end: trialEndIso,
+      const acceptRes = await fetch("/api/platform/admin-invites/accept", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
         },
+        body: JSON.stringify({ inviteId: invite.id }),
       });
 
-      if (updateError) {
-        console.warn("Error updating user metadata:", updateError);
+      const acceptJson = await acceptRes.json();
+      if (!acceptRes.ok || !acceptJson?.ok) {
+        throw new Error(acceptJson?.error || "No se pudo completar la invitación");
       }
 
-      console.log("✅ Auth metadata actualizado:", {
-        tenant_id: demoTenantId,
-        is_trial: true,
-        trial_end: trialEndIso,
-      });
-
-       // ✅ Esperar un poco para que se propague la sesión
-       await new Promise(resolve => setTimeout(resolve, 1000));
-
-       // ❌ REMOVIDO: No agregar a platform_admins - los usuarios invitados NO son admins de plataforma
-       // Solo son miembros de equipo dentro de su tenant.
-       // Los platform admins se configuran manualmente y solo para usuarios supremos.
-
-       // Update invite status to accepted
-      const { error: inviteError } = await supabase
-        .from("admin_invites")
-        .update({ status: "accepted" })
-        .eq("id", invite.id);
-
-      if (inviteError) {
-        console.warn("Error updating invite status:", inviteError);
-      }
+      await new Promise((resolve) => setTimeout(resolve, 400));
 
       setStep("success");
     } catch (err) {
