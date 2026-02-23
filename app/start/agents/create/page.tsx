@@ -139,7 +139,7 @@ export default function CreateAgentPage() {
     agentName:    "",
     agentRole:    "",
     agentPrompt:  "",
-    voice:        "nova",
+    voice:        "marin",
     language:     "es-ES",
     type:         typeParam || "voice",
     integrations: [] as string[],
@@ -1061,11 +1061,6 @@ export default function CreateAgentPage() {
                     <button
                       key={t.id}
                       onClick={() => {
-                        if (t.id === "flow") {
-                          router.push("/start/flows/templates");
-                          setPickerOpen(false);
-                          return;
-                        }
                         if (t.id === "notetaker") {
                           setKind("notetaker");
                           setForm(f => ({ ...f, type: "voice" }));
@@ -1111,11 +1106,6 @@ export default function CreateAgentPage() {
                     <button
                       key={t.id}
                       onClick={() => {
-                        if (t.type === "flow") {
-                          router.push("/start/flows/templates");
-                          setPickerOpen(false);
-                          return;
-                        }
                         const preset = TEMPLATE_PRESETS[t.id];
                         setKind(preset?.kind || "agent");
                         setForm(f => ({

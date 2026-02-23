@@ -473,7 +473,7 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
           fast_mode: true,
           conversationHistory: conversationHistoryRef.current.slice(-6),
           agentConfig: {
-            voice: voiceSettings?.voice || "shimmer",
+            voice: voiceSettings?.voice || "marin",
             model: selectedModel,
           },
         }),

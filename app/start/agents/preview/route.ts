@@ -5,18 +5,18 @@ import { SYSTEM_TENANT_ID } from "@/app/api/_utils/system";
 import { AGENTS_PRODUCT_KEY, logUsageEvent } from "@/app/api/_utils/entitlement";
 import OpenAI from "openai";
 
-const TEMPLATES: Record<string, { system_prompt: string; voice: "nova" | "onyx" | "shimmer" }> = {
+const TEMPLATES: Record<string, { system_prompt: string; voice: "marin" | "cedar" | "coral" }> = {
   lia: {
     system_prompt: "Eres Lia, calificadora de leads entrantes. Haz una conversacion corta de 3 preguntas: presupuesto, plazo, necesidad. Formula una sola pregunta por turno, en espanol, sin listas ni markdown.",
-    voice: "nova",
+    voice: "marin",
   },
   alex: {
     system_prompt: "Eres Bruno, agente de llamadas en frio salientes. Tu meta es detectar interes real en 3 preguntas cortas y cerrar con propuesta de siguiente paso. Habla directo, claro y sin texto largo.",
-    voice: "onyx",
+    voice: "cedar",
   },
   julia: {
     system_prompt: "Eres Sofia, recepcionista virtual. Identifica tipo de consulta, prioridad y datos de contacto en maximo 3 preguntas. Responde breve, natural y sin markdown.",
-    voice: "shimmer",
+    voice: "coral",
   },
 };
 
@@ -158,9 +158,10 @@ export async function POST(req: Request) {
     let audioBase64 = "";
     if (!fastMode) {
       const speech = await openai.audio.speech.create({
-        model: "tts-1",
+        model: "gpt-4o-mini-tts",
         voice: template.voice,
         input: assistantText,
+        instructions: "Voz humana, calida y muy clara. Espanol natural con pronunciacion precisa.",
       });
       const audioBuffer = Buffer.from(await speech.arrayBuffer());
       audioBase64 = audioBuffer.toString("base64");

@@ -426,6 +426,7 @@ export default function AgentStudio() {
   const [homeRoutesOpen, setHomeRoutesOpen] = useState(true);
   const [compactSidebarMenu, setCompactSidebarMenu] = useState(false);
   const simTimersRef = useRef<number[]>([]);
+  const simSessionRef = useRef(0);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -456,12 +457,13 @@ export default function AgentStudio() {
       const synth = window.speechSynthesis;
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = "es-ES";
-      utter.rate = 0.98;
-      utter.pitch = t.gender === "f" ? 1.12 : 0.92;
+      utter.rate = 0.94;
+      utter.pitch = t.gender === "f" ? 1.0 : 0.95;
+      utter.volume = 1;
       const voices = synth.getVoices();
       const esVoices = voices.filter(v => v.lang.toLowerCase().startsWith("es"));
-      const femaleHint = /(female|mujer|paulina|monica|maria|helena|sofia|sabina|laura)/i;
-      const maleHint = /(male|hombre|jorge|diego|carlos|enrique|pablo|raul|alejandro)/i;
+      const femaleHint = /(natural|neural|online|female|mujer|paulina|monica|maria|helena|sofia|sabina|laura)/i;
+      const maleHint = /(natural|neural|online|male|hombre|jorge|diego|carlos|enrique|pablo|raul|alejandro)/i;
       const voice = t.gender === "f"
         ? esVoices.find(v => femaleHint.test(v.name)) || esVoices[0]
         : esVoices.find(v => maleHint.test(v.name)) || esVoices[0];
@@ -589,6 +591,7 @@ export default function AgentStudio() {
   };
 
   const closeWizard = () => {
+    simSessionRef.current += 1;
     clearSimTimers();
     try { mediaRecorderRef.current?.stop(); } catch {}
     try { mediaStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
@@ -633,7 +636,7 @@ export default function AgentStudio() {
   const sendPreviewTurn = async (tpl: Template, history: { role: "assistant" | "user"; content: string }[], payload: { text?: string; audio?: Blob }) => {
     const form = new FormData();
     form.set("template_id", tpl.id);
-    form.set("fast_mode", "1");
+    form.set("fast_mode", "0");
     const msgs = payload.text
       ? [...history, { role: "user", content: payload.text }]
       : history;
@@ -651,6 +654,8 @@ export default function AgentStudio() {
   };
 
   const startSimulation = (tpl: Template) => {
+    const sessionId = simSessionRef.current + 1;
+    simSessionRef.current = sessionId;
     clearSimTimers();
     setWizardTemplate(tpl);
     setWizardStep(2);
@@ -662,6 +667,7 @@ export default function AgentStudio() {
     setSimError(null);
 
     const connectTimer = window.setTimeout(() => {
+      if (sessionId !== simSessionRef.current) return;
       const intro = introForTemplate(tpl, simUserName);
       let revealed = false;
       const revealIntro = () => {
@@ -671,14 +677,22 @@ export default function AgentStudio() {
         setSimLines([{ who: "Botz", text: intro }]);
         setSimHistory([{ role: "assistant", content: intro }]);
       };
-      revealIntro();
-      speakNativeFallback(tpl, intro);
+      void playTemplateAudio(tpl, intro, undefined, revealIntro).finally(() => {
+        if (!revealed) revealIntro();
+      });
     }, 140);
     simTimersRef.current.push(connectTimer);
   };
 
   const finishRealCall = () => {
+    simSessionRef.current += 1;
     clearSimTimers();
+    try { mediaRecorderRef.current?.stop(); } catch {}
+    try { mediaStreamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
+    mediaRecorderRef.current = null;
+    mediaStreamRef.current = null;
+    mediaChunksRef.current = [];
+    setSimBusy(false);
     setSimStatus("ended");
     setSimRecording(false);
   };
@@ -692,6 +706,7 @@ export default function AgentStudio() {
       return;
     }
 
+    const sessionId = simSessionRef.current;
     const historyBase = [...simHistory, { role: "user" as const, content: text }];
     setSimBusy(true);
     setSimError(null);
@@ -701,6 +716,7 @@ export default function AgentStudio() {
 
     try {
       const out = await sendPreviewTurn(wizardTemplate, simHistory, { text });
+      if (sessionId !== simSessionRef.current) return;
       const botText = String(out?.assistant_text || "").trim();
       if (botText) {
         let appended = false;
@@ -743,6 +759,7 @@ export default function AgentStudio() {
       return;
     }
 
+    const sessionId = simSessionRef.current;
     if (simRecording && mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       setSimRecording(false);
@@ -786,6 +803,7 @@ export default function AgentStudio() {
           setSimBusy(true);
           setSimError(null);
           const out = await sendPreviewTurn(wizardTemplate, simHistory, { audio: blob });
+          if (sessionId !== simSessionRef.current) return;
           const userText = String(out?.user_text || "").trim();
           const botText = String(out?.assistant_text || "").trim();
           const suspiciousMicCapture = /(subt[ií]tulos realizados|amara\.org|open subtitles|caption)/i.test(userText);
@@ -1652,7 +1670,7 @@ export default function AgentStudio() {
                   <div style={{ display: "flex", gap: 8 }}>
                     <button onClick={() => wizardTemplate && startSimulation(wizardTemplate)} style={{ borderRadius: 10, border: "1px solid rgba(56,189,248,0.35)", background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 800 }}>Repetir</button>
                     <button onClick={() => finishRealCall()} style={{ borderRadius: 10, border: "none", background: "rgba(239,68,68,0.9)", color: "#fff", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}>Finalizar llamada</button>
-                    <button onClick={() => { router.push(`/start/agents/create?template=${wizardTemplate.id}`); closeWizard(); }} style={{ borderRadius: 10, border: "none", background: `${C.lime}cc`, color: "#111", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}>Usar plantilla</button>
+                    <button onClick={() => { const type = wizardTemplate.id === "julia" ? "text" : "voice"; router.push(`/start/agents/create?type=${type}&kind=agent&template=${wizardTemplate.id}`); closeWizard(); }} style={{ borderRadius: 10, border: "none", background: `${C.lime}cc`, color: "#111", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}>Usar plantilla</button>
                   </div>
                 </div>
               </>

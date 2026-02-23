@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     // Caso especial: solo generar audio para un texto específico (ej: saludo inicial)
     if (generateAudioOnly && textToSpeak) {
       try {
-        const audioUrl = await textToSpeech(textToSpeak, agentConfig?.voice || "shimmer");
+        const audioUrl = await textToSpeech(textToSpeak, agentConfig?.voice || "marin");
         const burn = await consumeEntitlementCredits(supabase as any, guard.user.id, 1);
         if (!burn.ok) {
           return NextResponse.json({ ok: false, code: burn.code, error: burn.error }, { status: burn.statusCode });
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
     let audioUrl = null;
     if (!fastMode) {
       try {
-        audioUrl = await textToSpeech(agentResponse, agentConfig?.voice || "shimmer");
+        audioUrl = await textToSpeech(agentResponse, agentConfig?.voice || "marin");
       } catch (e) {
         console.error("TTS error:", e);
         // TTS error no es crítico, retornamos la respuesta texto
@@ -172,7 +172,7 @@ async function speechToText(audioBase64: string): Promise<string> {
 }
 
 // Text-to-Speech usando OpenAI TTS
-async function textToSpeech(text: string, voice: string = "shimmer"): Promise<string | null> {
+async function textToSpeech(text: string, voice: string = "marin"): Promise<string | null> {
   const openaiKey = process.env.OPENAI_API_KEY;
 
   if (!openaiKey) {
@@ -187,9 +187,10 @@ async function textToSpeech(text: string, voice: string = "shimmer"): Promise<st
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "tts-1",
+        model: "gpt-4o-mini-tts",
         input: text.substring(0, 4096), // OpenAI TTS limit
-        voice: voice || "shimmer",
+        voice: voice || "marin",
+        instructions: "Voz humana, clara y cercana. Pronunciacion nitida en espanol latino neutro, ritmo natural.",
         response_format: "mp3",
       }),
     });

@@ -7,10 +7,10 @@ import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TEMPLATE_VOICE: Record<string, "nova" | "onyx" | "shimmer"> = {
-  lia: "nova",
-  alex: "onyx",
-  julia: "shimmer",
+const TEMPLATE_VOICE: Record<string, "marin" | "cedar" | "coral"> = {
+  lia: "marin",
+  alex: "cedar",
+  julia: "coral",
 };
 
 function estimateTokens(text: string) {
@@ -46,12 +46,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, code: access.code, error: access.error }, { status: access.statusCode });
     }
 
-    const voice = TEMPLATE_VOICE[templateId] || "nova";
+    const voice = TEMPLATE_VOICE[templateId] || "marin";
     const openai = new OpenAI({ apiKey });
     const speech = await openai.audio.speech.create({
-      model: "tts-1-hd",
+      model: "gpt-4o-mini-tts",
       voice,
       input: text,
+      instructions: "Sonido humano y natural. Habla claro, con diccion precisa y tono conversacional en espanol.",
     });
 
     const audioBuffer = Buffer.from(await speech.arrayBuffer());

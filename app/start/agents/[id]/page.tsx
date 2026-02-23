@@ -227,7 +227,7 @@ export default function AgentDetailPage() {
     name: "",
     role: "",
     prompt: "",
-    voice: "nova",
+    voice: "marin",
     voiceModel: "Elevenlabs Turbo V2.5",
     voiceSpeed: 1.0,
     voiceTemperature: 1.0,
@@ -325,7 +325,7 @@ export default function AgentDetailPage() {
         name: data?.name || "",
         role: data?.description || "",
         prompt: normalizedPrompt,
-        voice: data?.voice_settings?.voice_id || "nova",
+        voice: data?.voice_settings?.voice_id || "marin",
         voiceModel: String(vs.voice_model || vs.model || "Elevenlabs Turbo V2.5"),
         voiceSpeed: Number(vs.voice_speed ?? vs.speed ?? 1.0),
         voiceTemperature: Number(vs.voice_temperature ?? vs.temperature ?? 1.0),
@@ -1200,7 +1200,7 @@ export default function AgentDetailPage() {
                           <summary style={{ cursor: "pointer", fontWeight: 900, marginBottom: 12 }}>🔊 Configuración de voz</summary>
                           <div style={{ display: "grid", gap: 10 }}>
                             <select value={edit.voice} onChange={e => setEdit(s => ({ ...s, voice: e.target.value }))} style={input({ appearance: "none" as const })}>
-                              {(["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const).map(v => (
+                              {(["marin", "cedar", "coral", "alloy", "ash", "ballad", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse"] as const).map(v => (
                                 <option key={v} value={v}>{v}</option>
                               ))}
                             </select>
