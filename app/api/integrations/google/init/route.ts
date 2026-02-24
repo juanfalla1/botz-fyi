@@ -30,6 +30,7 @@ export async function POST(req: Request) {
       "openid",
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/calendar.readonly",
       "https://mail.google.com/",
       "https://www.googleapis.com/auth/drive.readonly",
     ].join(" ");

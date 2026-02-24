@@ -31,6 +31,18 @@ type Meeting = {
   participants_count: number;
   status: "scheduled" | "recorded" | "cancelled";
   source: "manual" | "google_calendar";
+  metadata?: {
+    contact?: { name?: string | null; email?: string | null; phone?: string | null };
+    crm?: {
+      state?: string;
+      summary?: string;
+      intent?: string;
+      priority?: string;
+      next_action?: string;
+      suggested_status?: string;
+      score?: number;
+    };
+  } | null;
 };
 
 type Folder = {
@@ -56,6 +68,20 @@ type NTState = {
 
 const EMPTY: NTState = { prompt: "", calendars: [], folders: [], meetings: [] };
 
+function isNoiseMeeting(m: Meeting) {
+  const host = String(m.host || "").toLowerCase();
+  const calendarId = String((m as any)?.metadata?.calendar_id || "").toLowerCase();
+  return host.includes("holiday@group.v.calendar.google.com") || calendarId.includes("holiday@group.v.calendar.google.com");
+}
+
+function isCommercialCalendar(c: Calendar) {
+  const id = String(c.calendar_id || "").toLowerCase();
+  const email = String(c.calendar_email || "").toLowerCase();
+  if (id.includes("@group.calendar.google.com")) return false;
+  if (email.includes("@group.calendar.google.com")) return false;
+  return true;
+}
+
 export default function NotetakerPage() {
   const router = useRouter();
   const [tab, setTab] = useState<TabId>("panel");
@@ -63,11 +89,21 @@ export default function NotetakerPage() {
   const [saving, setSaving] = useState(false);
   const [state, setState] = useState<NTState>(EMPTY);
   const [meetingUrl, setMeetingUrl] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [search, setSearch] = useState("");
   const [savedPrompt, setSavedPrompt] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [messageTone, setMessageTone] = useState<"error" | "info">("error");
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [folderName, setFolderName] = useState("");
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+
+  const showMessage = (message: string, tone: "error" | "info" = "error") => {
+    setMessageTone(tone);
+    setErrorMsg(message);
+  };
 
   const loadState = async () => {
     try {
@@ -87,7 +123,7 @@ export default function NotetakerPage() {
         return;
       }
       console.error(e);
-      setErrorMsg((e as any)?.message || "No se pudo cargar el Copiloto IA");
+      showMessage((e as any)?.message || "No se pudo cargar el Copiloto IA", "error");
     }
   };
 
@@ -131,28 +167,51 @@ export default function NotetakerPage() {
         folders: Array.isArray(data.folders) ? data.folders : [],
         meetings: Array.isArray(data.meetings) ? data.meetings : [],
       });
+
+      if (op === "sync_google") {
+        const report = json?.sync_report || null;
+        const errors = Array.isArray(report?.errors) ? report.errors : [];
+        const fetched = Number(report?.eventsFetched || 0);
+        const inserted = Number(report?.eventsInserted || 0);
+
+        if (errors.length > 0) {
+          const first = String(errors[0] || "");
+          if (first.includes(":403")) {
+            showMessage("Google Calendar sin permiso (403). Desvincula Google, revoca acceso en Google y vuelve a conectar.", "error");
+          } else {
+            showMessage(`Error de sincronización: ${first}`, "error");
+          }
+        } else if (fetched === 0) {
+          showMessage("Conexión OK, pero Google no devolvió eventos en el rango actual.", "info");
+        } else {
+          showMessage(`Sincronización completa: ${inserted || fetched} evento(s) procesado(s).`, "info");
+        }
+      }
     } catch (e) {
       console.error(e);
-      setErrorMsg((e as any)?.message || "No se pudo guardar");
+      showMessage((e as any)?.message || "No se pudo guardar", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  const calendarsConnected = state.calendars.filter((c) => c.status === "connected").length;
-  const recorded = state.meetings.filter((m) => m.status === "recorded").length;
+  const commercialMeetings = useMemo(() => state.meetings.filter((m) => !isNoiseMeeting(m)), [state.meetings]);
+  const visibleCalendars = useMemo(() => state.calendars.filter((c) => isCommercialCalendar(c)), [state.calendars]);
+
+  const calendarsConnected = visibleCalendars.filter((c) => c.status === "connected").length;
+  const recorded = commercialMeetings.filter((m) => m.status === "recorded").length;
 
   const metrics = useMemo(() => {
-    const total = state.meetings.reduce((a, m) => a + Number(m.duration_minutes || 0), 0);
-    const upcoming = state.meetings.filter((m) => m.status === "scheduled").reduce((a, m) => a + Number(m.duration_minutes || 0), 0);
-    const avg = state.meetings.length ? Math.round(total / state.meetings.length) : 0;
-    return { total, upcoming, avg, month: state.meetings.length };
-  }, [state.meetings]);
+    const total = commercialMeetings.reduce((a, m) => a + Number(m.duration_minutes || 0), 0);
+    const upcoming = commercialMeetings.filter((m) => m.status === "scheduled").reduce((a, m) => a + Number(m.duration_minutes || 0), 0);
+    const avg = commercialMeetings.length ? Math.round(total / commercialMeetings.length) : 0;
+    return { total, upcoming, avg, month: commercialMeetings.length };
+  }, [commercialMeetings]);
 
   const filteredMeetings = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return state.meetings;
-    return state.meetings.filter((m) => {
+    if (!q) return commercialMeetings;
+    return commercialMeetings.filter((m) => {
       return (
         String(m.title || "").toLowerCase().includes(q) ||
         String(m.meeting_url || "").toLowerCase().includes(q) ||
@@ -160,14 +219,14 @@ export default function NotetakerPage() {
         String(m.status || "").toLowerCase().includes(q)
       );
     });
-  }, [search, state.meetings]);
+  }, [search, commercialMeetings]);
 
   const connectGoogleCalendar = async () => {
     try {
       const initRes = await authedFetch("/api/integrations/google/init", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_id: "0811c118-5a2f-40cb-907e-8979e0984096" }),
+        body: JSON.stringify({}),
       });
       const initJson = await initRes.json();
       if (!initRes.ok || !initJson?.ok || !initJson?.auth_url) {
@@ -176,20 +235,38 @@ export default function NotetakerPage() {
 
       const popup = window.open(initJson.auth_url, "botz-google-oauth", "width=560,height=740");
       if (!popup) {
-        setErrorMsg("No se pudo abrir la ventana de Google. Revisa el bloqueador de popups.");
+        showMessage("No se pudo abrir la ventana de Google. Revisa el bloqueador de popups.", "error");
         return;
       }
 
-      const timer = window.setInterval(async () => {
-        if (popup.closed) {
-          window.clearInterval(timer);
-          await postOp("sync_google");
-        }
-      }, 800);
+      const handleOauthMessage = async (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+        if (!event.data || event.data.type !== "BOTZ_GOOGLE_OAUTH_DONE") return;
+        window.removeEventListener("message", handleOauthMessage);
+        await postOp("sync_google");
+      };
+
+      window.addEventListener("message", handleOauthMessage);
+
+      window.setTimeout(async () => {
+        await postOp("sync_google");
+      }, 5000);
+
+      window.setTimeout(() => {
+        window.removeEventListener("message", handleOauthMessage);
+      }, 120000);
     } catch (e) {
       console.error(e);
-      setErrorMsg((e as any)?.message || "No se pudo conectar Google Calendar");
+      showMessage((e as any)?.message || "No se pudo conectar Google Calendar", "error");
     }
+  };
+
+  const openCalendarModal = () => {
+    setShowCalendarModal(true);
+  };
+
+  const disconnectGoogleCalendar = async () => {
+    await postOp("disconnect_google");
   };
 
   const createFolder = async () => {
@@ -199,7 +276,7 @@ export default function NotetakerPage() {
 
   const confirmCreateFolder = async () => {
     if (!folderName.trim()) {
-      setErrorMsg("Escribe un nombre para la carpeta");
+      showMessage("Escribe un nombre para el playbook", "error");
       return;
     }
     await postOp("create_folder", { name: folderName.trim() });
@@ -209,8 +286,16 @@ export default function NotetakerPage() {
 
   const createMeeting = async () => {
     if (!meetingUrl.trim()) return;
-    await postOp("create_meeting", { meeting_url: meetingUrl.trim() });
+    await postOp("create_meeting", {
+      meeting_url: meetingUrl.trim(),
+      contact_name: contactName.trim(),
+      contact_email: contactEmail.trim(),
+      contact_phone: contactPhone.trim(),
+    });
     setMeetingUrl("");
+    setContactName("");
+    setContactEmail("");
+    setContactPhone("");
   };
 
   const savePrompt = async () => {
@@ -265,7 +350,7 @@ export default function NotetakerPage() {
             <div style={{ background: "linear-gradient(135deg, rgba(29,161,255,0.16), rgba(163,230,53,0.12))", border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
               <div style={{ fontWeight: 900, fontSize: 22 }}>Copiloto Comercial IA</div>
               <div style={{ color: C.muted, fontSize: 14, marginTop: 6, maxWidth: 760 }}>
-                Convierte cada llamada o reunion en acciones de CRM: resumen, prioridad, siguiente paso y seguimiento.
+                Convierte cada llamada o reunion en acciones comerciales: resumen, prioridad, siguiente paso y seguimiento. Todo se gestiona en esta misma sección.
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
                 <button onClick={() => setTab("reuniones")} style={{ borderRadius: 10, border: "none", background: `${C.blue}cc`, color: "#07101c", fontWeight: 900, padding: "10px 12px", cursor: "pointer" }}>+ Nueva interacción</button>
@@ -274,34 +359,64 @@ export default function NotetakerPage() {
               </div>
             </div>
 
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
+              <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 8 }}>¿Como baja al pipeline?</div>
+              <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.5 }}>
+                1) Ve a <b style={{ color: C.white }}>Interacciones</b>.<br />
+                2) Crea o sincroniza una interacción.<br />
+                3) En la fila usa <b style={{ color: C.white }}>Analizar IA</b> y luego <b style={{ color: C.white }}>Guardar seguimiento</b>.<br />
+                4) El copiloto deja prioridad, estado y siguiente accion dentro de esta bandeja.
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <button onClick={() => setTab("reuniones")} style={{ borderRadius: 10, border: "none", background: `${C.blue}cc`, color: "#07101c", fontWeight: 900, padding: "10px 12px", cursor: "pointer" }}>
+                  Ir a Interacciones
+                </button>
+              </div>
+            </div>
+
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, display: "flex", alignItems: "center", gap: 18 }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>📅 {calendarsConnected} Fuente conectada</div>
               <div style={{ fontWeight: 800, fontSize: 14 }}>🤖 {recorded} Interacción analizada</div>
-              <button onClick={connectGoogleCalendar} disabled={saving} style={{ marginLeft: "auto", borderRadius: 12, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "11px 18px", cursor: saving ? "not-allowed" : "pointer" }}>
-                + Conectar Google Calendar
+              {calendarsConnected > 0 && (
+                <button onClick={disconnectGoogleCalendar} disabled={saving} style={{ marginLeft: "auto", borderRadius: 12, border: `1px solid ${C.red}88`, background: "transparent", color: C.red, fontWeight: 900, padding: "11px 14px", cursor: saving ? "not-allowed" : "pointer" }}>
+                  Desvincular Google
+                </button>
+              )}
+              <button onClick={openCalendarModal} disabled={saving} style={{ marginLeft: calendarsConnected > 0 ? 0 : "auto", borderRadius: 12, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "11px 18px", cursor: saving ? "not-allowed" : "pointer" }}>
+                {calendarsConnected > 0 ? "Reconectar Google" : "+ Conectar Google Calendar"}
               </button>
             </div>
 
             <div style={{ marginTop: 14, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, minHeight: 360, padding: 16, display: "flex", flexDirection: "column" }}>
               <div style={{ fontWeight: 900, fontSize: 34, marginBottom: 10 }}>Fuentes de Conversación</div>
-              {state.calendars.length === 0 ? (
+              {visibleCalendars.length === 0 ? (
                 <div style={{ margin: "auto", textAlign: "center" }}>
                   <div style={{ fontSize: 42, color: C.muted }}>☒</div>
                   <div style={{ fontWeight: 900, fontSize: 44, lineHeight: 1.15, marginTop: 8 }}>No hay fuentes conectadas</div>
-                  <div style={{ color: C.muted, fontSize: 16, marginTop: 10 }}>Conecta tu calendario para que el copiloto detecte reuniones y genere acciones de CRM automaticamente</div>
-                  <button onClick={connectGoogleCalendar} disabled={saving} style={{ marginTop: 16, borderRadius: 12, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "12px 20px", cursor: saving ? "not-allowed" : "pointer" }}>
+                  <div style={{ color: C.muted, fontSize: 16, marginTop: 10 }}>Conecta tu calendario para que el copiloto detecte reuniones y genere acciones comerciales automaticamente</div>
+                  <button onClick={openCalendarModal} disabled={saving} style={{ marginTop: 16, borderRadius: 12, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "12px 20px", cursor: saving ? "not-allowed" : "pointer" }}>
                     + Conectar Google Calendar
                   </button>
                 </div>
               ) : (
                 <div style={{ display: "grid", gap: 10 }}>
-                  {state.calendars.map((cal) => (
+                  {visibleCalendars.map((cal) => (
                     <div key={cal.id} style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: "10px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div>
                         <div style={{ fontWeight: 800 }}>{cal.calendar_name || "Google Calendar"}</div>
                         <div style={{ color: C.muted, fontSize: 12 }}>{cal.calendar_email || cal.calendar_id}</div>
+                        <div style={{ color: C.dim, fontSize: 11 }}>ID: {cal.calendar_id}</div>
                       </div>
-                      <span style={{ color: C.blue, fontSize: 12, fontWeight: 900 }}>Activo</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ color: C.blue, fontSize: 12, fontWeight: 900 }}>Activo</span>
+                        <button
+                          onClick={disconnectGoogleCalendar}
+                          disabled={saving}
+                          style={{ border: `1px solid ${C.red}88`, background: "transparent", color: C.red, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}
+                        >
+                          Desvincular
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -330,18 +445,18 @@ export default function NotetakerPage() {
           <aside style={{ background: C.panel, padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontWeight: 900, fontSize: 16 }}>Bandeja de seguimiento</div>
-              <div style={{ background: C.lime, color: "#111", borderRadius: 8, padding: "4px 8px", fontWeight: 900, fontSize: 12 }}>{state.meetings.length}</div>
+              <div style={{ background: C.lime, color: "#111", borderRadius: 8, padding: "4px 8px", fontWeight: 900, fontSize: 12 }}>{commercialMeetings.length}</div>
             </div>
             <div style={{ borderTop: `1px solid ${C.border}`, margin: "0 -16px", marginBottom: 24 }} />
-            {state.meetings.length === 0 ? (
+            {commercialMeetings.length === 0 ? (
                 <div style={{ marginTop: 80, textAlign: "center" }}>
                   <div style={{ color: C.muted, fontSize: 30 }}>☑</div>
                   <div style={{ fontWeight: 900, fontSize: 40, lineHeight: 1.2, marginTop: 8 }}>No hay seguimientos activos</div>
-                  <div style={{ color: C.muted, fontSize: 16, marginTop: 10, lineHeight: 1.5 }}>Aqui apareceran interacciones y acciones sugeridas para mover oportunidades en CRM</div>
+                  <div style={{ color: C.muted, fontSize: 16, marginTop: 10, lineHeight: 1.5 }}>Aqui apareceran interacciones y acciones sugeridas para mover oportunidades en tu pipeline comercial</div>
                 </div>
               ) : (
               <div style={{ display: "grid", gap: 8 }}>
-                {state.meetings.slice(0, 8).map((m) => (
+                {commercialMeetings.slice(0, 8).map((m) => (
                     <div key={m.id} style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12 }}>
                       <div style={{ fontWeight: 800, fontSize: 13 }}>{m.title || "Reunión"}</div>
                       <div style={{ color: C.muted, fontSize: 12, marginTop: 3 }}>{m.starts_at ? new Date(m.starts_at).toLocaleString() : "Sin fecha"}</div>
@@ -356,6 +471,9 @@ export default function NotetakerPage() {
 
       {tab === "reuniones" && (
         <div style={{ padding: 16 }}>
+            <div style={{ marginBottom: 10, padding: "10px 12px", borderRadius: 10, border: `1px solid rgba(29,161,255,0.35)`, background: "rgba(29,161,255,0.12)", color: "#cfe8ff", fontSize: 12 }}>
+            En cada interacción: primero <b>Analizar IA</b> y despues <b>Guardar seguimiento</b>. No necesitas usar otra pantalla.
+            </div>
             <div style={{ background: `${C.blue}1a`, border: `1px solid rgba(29,161,255,0.35)`, borderRadius: 10, padding: 14, display: "flex", gap: 12, alignItems: "center" }}>
             <div style={{ fontWeight: 800 }}>🤖 Registrar interacción y activar copiloto:</div>
             <input value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)} placeholder="URL de Google Meet, Zoom o Teams" style={{ marginLeft: "auto", width: 420, maxWidth: "40vw", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "9px 12px" }} />
@@ -364,7 +482,19 @@ export default function NotetakerPage() {
 
           <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center" }}>
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar" style={{ width: 420, background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
-            <button onClick={() => setSearch("")} style={{ border: "none", background: "transparent", color: C.white, cursor: "pointer" }}>⟳ Actualizar</button>
+            <button
+              onClick={() => postOp("sync_google")}
+              disabled={saving}
+              style={{ border: "none", background: "transparent", color: C.white, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}
+            >
+              ⟳ {saving ? "Sincronizando..." : "Actualizar"}
+            </button>
+          </div>
+
+          <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="Nombre del contacto" style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
+            <input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="Email (opcional)" style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
+            <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="Teléfono (opcional)" style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
           </div>
 
           <div style={{ marginTop: 8, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: "9px 6px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 180px", fontWeight: 900 }}>
@@ -375,24 +505,44 @@ export default function NotetakerPage() {
             <div style={{ paddingTop: 10 }}>No se encontraron interacciones.</div>
           ) : (
             filteredMeetings.map((m) => (
-              <div key={m.id} style={{ padding: "10px 6px", borderBottom: `1px solid ${C.border}`, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 180px", alignItems: "center", columnGap: 8 }}>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.title || m.meeting_url || "Reunión"}</span>
-                <span>{m.starts_at ? new Date(m.starts_at).toLocaleDateString() : "-"}</span>
-                <span>{m.duration_minutes || 0}m</span>
-                <span>{m.host || "-"}</span>
-                <span>{m.participants_count || 0}</span>
-                <span style={{ color: m.status === "scheduled" ? C.blue : m.status === "recorded" ? C.lime : C.red, fontWeight: 900 }}>
-                  {m.status === "scheduled" ? "programada" : m.status === "recorded" ? "grabada" : "cancelada"}
-                </span>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => postOp("toggle_meeting", { meeting_id: m.id })} disabled={saving} style={{ border: `1px solid ${C.border}`, background: "transparent", color: C.white, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}>
-                    {m.status === "scheduled" ? "Marcar grabada" : "Marcar próxima"}
-                  </button>
-                  <button onClick={() => postOp("delete_meeting", { meeting_id: m.id })} disabled={saving} style={{ border: `1px solid ${C.red}88`, background: "transparent", color: C.red, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}>
-                    Eliminar
-                  </button>
+              <React.Fragment key={m.id}>
+                <div style={{ padding: "10px 6px", borderBottom: `1px solid ${C.border}`, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 240px", alignItems: "center", columnGap: 8 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.title || m.meeting_url || "Reunión"}</span>
+                  <span>{m.starts_at ? new Date(m.starts_at).toLocaleDateString() : "-"}</span>
+                  <span>{m.duration_minutes || 0}m</span>
+                  <span>{m.host || "-"}</span>
+                  <span>{m.participants_count || 0}</span>
+                  <span style={{ color: m.status === "scheduled" ? C.blue : m.status === "recorded" ? C.lime : C.red, fontWeight: 900 }}>
+                    {m.status === "scheduled" ? "programada" : m.status === "recorded" ? "grabada" : "cancelada"}
+                  </span>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <button onClick={() => postOp("analyze_meeting", { meeting_id: m.id })} disabled={saving} style={{ border: `1px solid ${C.blue}88`, background: "transparent", color: C.blue, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}>
+                      Analizar IA
+                    </button>
+                    <button onClick={() => postOp("save_pipeline", { meeting_id: m.id })} disabled={saving} style={{ border: `1px solid ${C.lime}88`, background: "transparent", color: C.lime, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}>
+                      Guardar seguimiento
+                    </button>
+                    <button onClick={() => postOp("toggle_meeting", { meeting_id: m.id })} disabled={saving} style={{ border: `1px solid ${C.border}`, background: "transparent", color: C.white, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}>
+                      {m.status === "scheduled" ? "Marcar grabada" : "Marcar próxima"}
+                    </button>
+                    <button onClick={() => postOp("delete_meeting", { meeting_id: m.id })} disabled={saving} style={{ border: `1px solid ${C.red}88`, background: "transparent", color: C.red, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}>
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
-              </div>
+                {(m.metadata?.crm?.summary || m.metadata?.crm?.next_action) && (
+                  <div style={{ marginTop: 4, marginBottom: 8, marginLeft: 6, padding: "8px 10px", borderRadius: 8, background: "rgba(15,23,42,0.5)", border: `1px solid ${C.border}` }}>
+                    {m.metadata?.crm?.summary && <div style={{ fontSize: 12, color: C.white }}>🧠 {m.metadata.crm.summary}</div>}
+                    <div style={{ display: "flex", gap: 14, marginTop: 5, fontSize: 11, color: C.muted, flexWrap: "wrap" }}>
+                      <span>Intención: <b style={{ color: C.white }}>{m.metadata?.crm?.intent || "-"}</b></span>
+                      <span>Prioridad: <b style={{ color: C.white }}>{m.metadata?.crm?.priority || "-"}</b></span>
+                      <span>Estado sugerido: <b style={{ color: C.white }}>{m.metadata?.crm?.suggested_status || "-"}</b></span>
+                      <span>Seguimiento: <b style={{ color: C.white }}>{m.metadata?.crm?.state === "applied" ? "guardado" : "pendiente"}</b></span>
+                    </div>
+                    {m.metadata?.crm?.next_action && <div style={{ marginTop: 4, fontSize: 12, color: "#93c5fd" }}>➡ Siguiente acción: {m.metadata.crm.next_action}</div>}
+                  </div>
+                )}
+              </React.Fragment>
             ))
           )}
         </div>
@@ -418,7 +568,16 @@ export default function NotetakerPage() {
             <div style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12 }}>
               {state.folders.map((f) => (
                 <div key={f.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
-                  <div style={{ fontWeight: 900, fontSize: 17 }}>{f.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                    <div style={{ fontWeight: 900, fontSize: 17, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</div>
+                    <button
+                      onClick={() => postOp("delete_folder", { folder_id: f.id })}
+                      disabled={saving}
+                      style={{ border: `1px solid ${C.red}88`, background: "transparent", color: C.red, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -446,7 +605,7 @@ export default function NotetakerPage() {
               style={{ marginTop: 10, width: "100%", maxWidth: 980, minHeight: 300, resize: "vertical", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, color: C.white, padding: 16, fontSize: 14, lineHeight: 1.5 }}
             />
             <p style={{ color: C.muted, fontSize: 14, marginTop: 8, maxWidth: 980 }}>
-              Describe tu proceso comercial, criterios de calificacion y reglas de siguiente paso para que el copiloto actualice CRM con consistencia.
+              Describe tu proceso comercial, criterios de calificacion y reglas de siguiente paso para que el copiloto mantenga seguimiento consistente.
             </p>
             <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12 }}>
               <button onClick={savePrompt} disabled={saving} style={{ borderRadius: 10, border: "none", background: `${C.blue}cc`, color: "#07101c", fontWeight: 900, padding: "12px 24px", cursor: saving ? "not-allowed" : "pointer" }}>
@@ -459,11 +618,36 @@ export default function NotetakerPage() {
       )}
 
       {errorMsg && (
-        <div style={{ position: "fixed", left: 16, bottom: 16, zIndex: 40, background: "rgba(239,68,68,0.14)", border: `1px solid ${C.red}88`, color: "#fecaca", borderRadius: 12, padding: "10px 12px", maxWidth: 440 }}>
+        <div
+          style={{
+            position: "fixed",
+            left: 16,
+            bottom: 16,
+            zIndex: 40,
+            background: messageTone === "error" ? "rgba(239,68,68,0.14)" : "rgba(29,161,255,0.16)",
+            border: messageTone === "error" ? `1px solid ${C.red}88` : `1px solid ${C.blue}88`,
+            color: messageTone === "error" ? "#fecaca" : "#cfe8ff",
+            borderRadius: 12,
+            padding: "10px 12px",
+            maxWidth: 520,
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontWeight: 900 }}>Error:</span>
+            <span style={{ fontWeight: 900 }}>{messageTone === "error" ? "Error:" : "Info:"}</span>
             <span style={{ fontSize: 13 }}>{errorMsg}</span>
-            <button onClick={() => setErrorMsg("")} style={{ marginLeft: "auto", border: "none", background: "transparent", color: "#fecaca", cursor: "pointer", fontWeight: 900 }}>×</button>
+            <button
+              onClick={() => setErrorMsg("")}
+              style={{
+                marginLeft: "auto",
+                border: "none",
+                background: "transparent",
+                color: messageTone === "error" ? "#fecaca" : "#cfe8ff",
+                cursor: "pointer",
+                fontWeight: 900,
+              }}
+            >
+              ×
+            </button>
           </div>
         </div>
       )}
@@ -471,21 +655,69 @@ export default function NotetakerPage() {
       {showFolderModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(3,7,18,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div style={{ width: "100%", maxWidth: 460, borderRadius: 14, border: `1px solid ${C.border}`, background: C.card, padding: 16 }}>
-            <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 8 }}>Nueva carpeta</div>
-            <div style={{ color: C.muted, fontSize: 13, marginBottom: 12 }}>Escribe el nombre de la carpeta para organizar reuniones.</div>
+            <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 8 }}>Nuevo playbook</div>
+            <div style={{ color: C.muted, fontSize: 13, marginBottom: 12 }}>Escribe el nombre del playbook para organizar seguimientos.</div>
             <input
               autoFocus
               value={folderName}
               onChange={(e) => setFolderName(e.target.value)}
               placeholder="Ej. Clientes Q1"
-              style={{ width: "100%", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 10, color: C.white, padding: "10px 12px" }}
+              style={{ width: "100%", boxSizing: "border-box", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 10, color: C.white, padding: "10px 12px" }}
             />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
               <button onClick={() => setShowFolderModal(false)} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer" }}>
                 Cancelar
               </button>
               <button onClick={confirmCreateFolder} disabled={saving} style={{ borderRadius: 10, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "10px 14px", cursor: saving ? "not-allowed" : "pointer" }}>
-                {saving ? "Guardando..." : "Crear carpeta"}
+                {saving ? "Guardando..." : "Crear playbook"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCalendarModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 55, background: "rgba(3,7,18,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ width: "100%", maxWidth: 520, borderRadius: 14, border: `1px solid ${C.border}`, background: C.card, overflow: "hidden" }}>
+            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontWeight: 900, fontSize: 20 }}>Conectar Calendario</div>
+              <button onClick={() => setShowCalendarModal(false)} style={{ border: `1px solid ${C.border}`, background: "transparent", color: C.white, borderRadius: 10, width: 30, height: 30, cursor: "pointer" }}>×</button>
+            </div>
+
+            <div style={{ padding: 16, color: C.muted, fontSize: 14, lineHeight: 1.4 }}>
+              Conecta tu calendario para sincronizar reuniones automaticamente en Interacciones.
+            </div>
+
+            <div style={{ padding: "0 16px 16px 16px", display: "grid", gap: 10 }}>
+              <div style={{ border: `1px solid ${C.lime}88`, borderRadius: 12, background: "rgba(163,230,53,0.08)", padding: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontWeight: 900 }}>Google Calendar</div>
+                  <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Conexion recomendada</div>
+                </div>
+                <span style={{ color: C.lime, fontWeight: 900 }}>Seleccionado</span>
+              </div>
+
+              <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: C.dark, padding: 12, display: "flex", alignItems: "center", justifyContent: "space-between", opacity: 0.75 }}>
+                <div>
+                  <div style={{ fontWeight: 900 }}>Microsoft Outlook</div>
+                  <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Proximamente</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ borderTop: `1px solid ${C.border}`, padding: 16, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button onClick={() => setShowCalendarModal(false)} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer" }}>
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  setShowCalendarModal(false);
+                  await connectGoogleCalendar();
+                }}
+                disabled={saving}
+                style={{ borderRadius: 10, border: "none", background: C.lime, color: "#111", fontWeight: 900, padding: "10px 14px", cursor: saving ? "not-allowed" : "pointer" }}
+              >
+                {saving ? "Conectando..." : "Conectar Calendario"}
               </button>
             </div>
           </div>

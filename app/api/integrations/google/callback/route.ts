@@ -173,7 +173,12 @@ export async function GET(req: Request) {
             <p style="color:#94a3b8">Esta ventana se cerrará automáticamente...</p>
           </div>
           <script>
-            setTimeout(function() { window.close(); }, 1500);
+            try {
+              if (window.opener) {
+                window.opener.postMessage({ type: "BOTZ_GOOGLE_OAUTH_DONE" }, window.location.origin);
+              }
+            } catch (e) {}
+            setTimeout(function() { window.close(); }, 800);
           </script>
         </body>
       </html>
