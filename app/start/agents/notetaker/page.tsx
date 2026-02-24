@@ -31,6 +31,7 @@ type Meeting = {
   participants_count: number;
   status: "scheduled" | "recorded" | "cancelled";
   source: "manual" | "google_calendar";
+  folder_id?: string | null;
   metadata?: {
     contact?: { name?: string | null; email?: string | null; phone?: string | null };
     crm?: {
@@ -49,6 +50,11 @@ type Folder = {
   id: string;
   name: string;
   color: string;
+  description?: string | null;
+  icon?: string | null;
+  is_favorite?: boolean;
+  notes?: string | null;
+  created_at?: string;
 };
 
 type Calendar = {
@@ -82,6 +88,23 @@ function isCommercialCalendar(c: Calendar) {
   return true;
 }
 
+const PLAYBOOK_COLORS = ["#6366f1", "#f43f5e", "#f59e0b", "#10b981", "#06b6d4", "#8b5cf6", "#ec4899", "#3b82f6", "#14b8a6", "#f97316", "#84cc16", "#64748b"];
+const PLAYBOOK_ICONS = ["folder", "star", "briefcase", "user", "users", "calendar", "flag", "bookmark", "tag", "alert"] as const;
+
+function iconForPlaybook(icon?: string | null) {
+  const v = String(icon || "folder");
+  if (v === "star") return "☆";
+  if (v === "briefcase") return "◼";
+  if (v === "user") return "◉";
+  if (v === "users") return "◍";
+  if (v === "calendar") return "▦";
+  if (v === "flag") return "⚑";
+  if (v === "bookmark") return "▮";
+  if (v === "tag") return "◈";
+  if (v === "alert") return "!";
+  return "▣";
+}
+
 export default function NotetakerPage() {
   const router = useRouter();
   const [tab, setTab] = useState<TabId>("panel");
@@ -98,6 +121,13 @@ export default function NotetakerPage() {
   const [messageTone, setMessageTone] = useState<"error" | "info">("error");
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [folderName, setFolderName] = useState("");
+  const [folderDescription, setFolderDescription] = useState("");
+  const [folderColor, setFolderColor] = useState("#06b6d4");
+  const [folderIcon, setFolderIcon] = useState<string>("folder");
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [folderDetailTab, setFolderDetailTab] = useState<"meetings" | "ai">("meetings");
+  const [folderNotesDraft, setFolderNotesDraft] = useState("");
   const [showCalendarModal, setShowCalendarModal] = useState(false);
 
   const showMessage = (message: string, tone: "error" | "info" = "error") => {
@@ -189,7 +219,12 @@ export default function NotetakerPage() {
       }
     } catch (e) {
       console.error(e);
-      showMessage((e as any)?.message || "No se pudo guardar", "error");
+      const msg = String((e as any)?.message || "No se pudo guardar");
+      if ((msg.includes("column") || msg.includes("schema cache")) && msg.includes("notetaker_folders")) {
+        showMessage("Falta migración de Playbooks. Ejecuta supabase db push para habilitar notas, iconos y favoritos.", "error");
+      } else {
+        showMessage(msg, "error");
+      }
     } finally {
       setSaving(false);
     }
@@ -197,6 +232,21 @@ export default function NotetakerPage() {
 
   const commercialMeetings = useMemo(() => state.meetings.filter((m) => !isNoiseMeeting(m)), [state.meetings]);
   const visibleCalendars = useMemo(() => state.calendars.filter((c) => isCommercialCalendar(c)), [state.calendars]);
+  const selectedFolder = useMemo(() => state.folders.find((f) => f.id === selectedFolderId) || null, [state.folders, selectedFolderId]);
+
+  useEffect(() => {
+    if (!selectedFolderId) return;
+    const exists = state.folders.some((f) => f.id === selectedFolderId);
+    if (!exists) setSelectedFolderId(null);
+  }, [state.folders, selectedFolderId]);
+
+  useEffect(() => {
+    if (!selectedFolder) {
+      setFolderNotesDraft("");
+      return;
+    }
+    setFolderNotesDraft(String(selectedFolder.notes || ""));
+  }, [selectedFolder]);
 
   const calendarsConnected = visibleCalendars.filter((c) => c.status === "connected").length;
   const recorded = commercialMeetings.filter((m) => m.status === "recorded").length;
@@ -220,6 +270,25 @@ export default function NotetakerPage() {
       );
     });
   }, [search, commercialMeetings]);
+
+  const folderMeetingCount = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of commercialMeetings) {
+      const key = String(m.folder_id || "").trim();
+      if (!key) continue;
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return map;
+  }, [commercialMeetings]);
+
+  const sortedFolders = useMemo(() => {
+    return [...state.folders].sort((a, b) => {
+      const fa = Boolean(a.is_favorite) ? 1 : 0;
+      const fb = Boolean(b.is_favorite) ? 1 : 0;
+      if (fa !== fb) return fb - fa;
+      return String(a.name || "").localeCompare(String(b.name || ""), "es");
+    });
+  }, [state.folders]);
 
   const connectGoogleCalendar = async () => {
     try {
@@ -270,7 +339,20 @@ export default function NotetakerPage() {
   };
 
   const createFolder = async () => {
+    setEditingFolderId(null);
     setFolderName("");
+    setFolderDescription("");
+    setFolderColor("#06b6d4");
+    setFolderIcon("folder");
+    setShowFolderModal(true);
+  };
+
+  const editFolder = (folder: Folder) => {
+    setEditingFolderId(folder.id);
+    setFolderName(folder.name || "");
+    setFolderDescription(String(folder.description || ""));
+    setFolderColor(String(folder.color || "#06b6d4"));
+    setFolderIcon(String(folder.icon || "folder"));
     setShowFolderModal(true);
   };
 
@@ -279,9 +361,43 @@ export default function NotetakerPage() {
       showMessage("Escribe un nombre para el playbook", "error");
       return;
     }
-    await postOp("create_folder", { name: folderName.trim() });
+    if (editingFolderId) {
+      await postOp("update_folder", {
+        folder_id: editingFolderId,
+        name: folderName.trim(),
+        description: folderDescription.trim(),
+        color: folderColor,
+        icon: folderIcon,
+      });
+    } else {
+      await postOp("create_folder", {
+        name: folderName.trim(),
+        description: folderDescription.trim(),
+        color: folderColor,
+        icon: folderIcon,
+      });
+    }
+    setEditingFolderId(null);
     setShowFolderModal(false);
     setFolderName("");
+    setFolderDescription("");
+    setFolderColor("#06b6d4");
+    setFolderIcon("folder");
+    showMessage("Playbook guardado correctamente.", "info");
+  };
+
+  const toggleFavoriteFolder = async (folder: Folder) => {
+    await postOp("update_folder", { folder_id: folder.id, is_favorite: !Boolean(folder.is_favorite) });
+  };
+
+  const saveFolderNotes = async () => {
+    if (!selectedFolder) return;
+    await postOp("update_folder", { folder_id: selectedFolder.id, notes: folderNotesDraft });
+    showMessage("Notas guardadas.", "info");
+  };
+
+  const assignMeetingToFolder = async (meetingId: string, folderId: string | null) => {
+    await postOp("set_meeting_folder", { meeting_id: meetingId, folder_id: folderId });
   };
 
   const createMeeting = async () => {
@@ -528,6 +644,17 @@ export default function NotetakerPage() {
                     <button onClick={() => postOp("delete_meeting", { meeting_id: m.id })} disabled={saving} style={{ border: `1px solid ${C.red}88`, background: "transparent", color: C.red, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}>
                       Eliminar
                     </button>
+                    <select
+                      value={String(m.folder_id || "")}
+                      onChange={(e) => assignMeetingToFolder(m.id, e.target.value || null)}
+                      disabled={saving}
+                      style={{ minWidth: 150, background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "6px 8px", fontSize: 12 }}
+                    >
+                      <option value="">Sin playbook</option>
+                      {state.folders.map((f) => (
+                        <option key={f.id} value={f.id}>{f.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 {(m.metadata?.crm?.summary || m.metadata?.crm?.next_action) && (
@@ -552,34 +679,121 @@ export default function NotetakerPage() {
         <div>
           <div style={{ borderBottom: `1px solid ${C.border}`, padding: "18px 24px", display: "flex", alignItems: "center" }}>
             <div style={{ fontWeight: 900, fontSize: 20 }}>Playbooks comerciales</div>
-            <button onClick={createFolder} disabled={saving} style={{ marginLeft: "auto", borderRadius: 10, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "11px 24px", cursor: saving ? "not-allowed" : "pointer" }}>+ Nuevo playbook</button>
+            {selectedFolder ? (
+              <button onClick={() => setSelectedFolderId(null)} style={{ marginLeft: "auto", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 800, padding: "10px 14px", cursor: "pointer" }}>
+                ← Volver a Playbooks
+              </button>
+            ) : (
+              <button onClick={createFolder} disabled={saving} style={{ marginLeft: "auto", borderRadius: 10, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "11px 24px", cursor: saving ? "not-allowed" : "pointer" }}>+ Nuevo playbook</button>
+            )}
           </div>
 
-          {state.folders.length === 0 ? (
-            <div style={{ minHeight: "calc(100vh - 150px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 44, color: C.muted }}>⌧</div>
-                <div style={{ fontSize: 44, fontWeight: 900, marginTop: 14 }}>Aún no hay playbooks</div>
-                <div style={{ marginTop: 10, color: C.muted, fontSize: 18 }}>Crea tu primer playbook para estandarizar el seguimiento comercial</div>
-                <button onClick={createFolder} disabled={saving} style={{ marginTop: 20, borderRadius: 12, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "14px 24px", cursor: saving ? "not-allowed" : "pointer" }}>+ Crear playbook</button>
+          {!selectedFolder ? (
+            sortedFolders.length === 0 ? (
+              <div style={{ minHeight: "calc(100vh - 150px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 44, color: C.muted }}>⌧</div>
+                  <div style={{ fontSize: 44, fontWeight: 900, marginTop: 14 }}>Aún no hay playbooks</div>
+                  <div style={{ marginTop: 10, color: C.muted, fontSize: 18 }}>Crea tu primer playbook para estandarizar el seguimiento comercial</div>
+                  <button onClick={createFolder} disabled={saving} style={{ marginTop: 20, borderRadius: 12, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "14px 24px", cursor: saving ? "not-allowed" : "pointer" }}>+ Crear playbook</button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12 }}>
+                {sortedFolders.map((f) => (
+                  <div key={f.id} onClick={() => setSelectedFolderId(f.id)} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, cursor: "pointer" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 10, background: String(f.color || "#06b6d4"), display: "flex", alignItems: "center", justifyContent: "center", color: "#111", fontWeight: 900 }}>
+                        {iconForPlaybook(f.icon)}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 900, fontSize: 17, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</div>
+                        <div style={{ color: C.muted, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.description || "Sin descripción"}</div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <button onClick={(e) => { e.stopPropagation(); toggleFavoriteFolder(f); }} disabled={saving} style={{ border: "none", background: "transparent", color: f.is_favorite ? C.lime : C.muted, cursor: "pointer", fontSize: 16 }}>★</button>
+                        <button onClick={(e) => { e.stopPropagation(); editFolder(f); }} disabled={saving} style={{ border: "none", background: "transparent", color: C.white, cursor: "pointer", fontSize: 14 }}>✎</button>
+                        <button onClick={(e) => { e.stopPropagation(); postOp("delete_folder", { folder_id: f.id }); }} disabled={saving} style={{ border: "none", background: "transparent", color: C.red, cursor: "pointer", fontSize: 14 }}>🗑</button>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}`, color: C.muted, fontSize: 12 }}>
+                      {folderMeetingCount.get(f.id) || 0} interacciones
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           ) : (
-            <div style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12 }}>
-              {state.folders.map((f) => (
-                <div key={f.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                    <div style={{ fontWeight: 900, fontSize: 17, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</div>
-                    <button
-                      onClick={() => postOp("delete_folder", { folder_id: f.id })}
-                      disabled={saving}
-                      style={{ border: `1px solid ${C.red}88`, background: "transparent", color: C.red, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}
-                    >
-                      Eliminar
-                    </button>
+            <div style={{ padding: 24, display: "grid", gridTemplateColumns: "360px minmax(0,1fr)", gap: 14 }}>
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: String(selectedFolder.color || "#06b6d4"), display: "flex", alignItems: "center", justifyContent: "center", color: "#111", fontWeight: 900 }}>{iconForPlaybook(selectedFolder.icon)}</div>
+                  <div>
+                    <div style={{ fontWeight: 900, fontSize: 18 }}>{selectedFolder.name}</div>
+                    <div style={{ color: C.muted, fontSize: 12 }}>{folderMeetingCount.get(selectedFolder.id) || 0} interacciones</div>
                   </div>
                 </div>
-              ))}
+                <div style={{ color: C.muted, fontSize: 12, marginBottom: 8 }}>Notas</div>
+                <textarea value={folderNotesDraft} onChange={(e) => setFolderNotesDraft(e.target.value)} placeholder="Notas del playbook..." style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box", minHeight: 180, resize: "vertical", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 10, color: C.white, padding: "10px 12px" }} />
+                <button onClick={saveFolderNotes} disabled={saving} style={{ marginTop: 10, borderRadius: 10, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "10px 14px", cursor: saving ? "not-allowed" : "pointer" }}>
+                  Guardar notas
+                </button>
+              </div>
+
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ display: "flex", gap: 8, padding: 12, borderBottom: `1px solid ${C.border}` }}>
+                  <button onClick={() => setFolderDetailTab("meetings")} style={{ borderRadius: 10, border: "none", background: folderDetailTab === "meetings" ? `${C.lime}33` : "transparent", color: folderDetailTab === "meetings" ? C.lime : C.muted, fontWeight: 900, padding: "8px 12px", cursor: "pointer" }}>
+                    Meetings ({folderMeetingCount.get(selectedFolder.id) || 0})
+                  </button>
+                  <button onClick={() => setFolderDetailTab("ai")} style={{ borderRadius: 10, border: "none", background: folderDetailTab === "ai" ? `${C.lime}33` : "transparent", color: folderDetailTab === "ai" ? C.lime : C.muted, fontWeight: 900, padding: "8px 12px", cursor: "pointer" }}>
+                    AI Chat
+                  </button>
+                </div>
+
+                {folderDetailTab === "meetings" ? (
+                  <div style={{ padding: 12, display: "grid", gap: 10 }}>
+                    {commercialMeetings.filter((m) => String(m.folder_id || "") === selectedFolder.id).length === 0 ? (
+                      <div style={{ color: C.muted, padding: "16px 6px" }}>No hay interacciones en este playbook.</div>
+                    ) : (
+                      commercialMeetings
+                        .filter((m) => String(m.folder_id || "") === selectedFolder.id)
+                        .map((m) => (
+                          <div key={m.id} style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                            <div>
+                              <div style={{ fontWeight: 800, fontSize: 13 }}>{m.title || "Interacción"}</div>
+                              <div style={{ color: C.muted, fontSize: 12 }}>{m.starts_at ? new Date(m.starts_at).toLocaleString() : "Sin fecha"}</div>
+                            </div>
+                            <button onClick={() => assignMeetingToFolder(m.id, null)} style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "6px 8px", cursor: "pointer", fontSize: 12 }}>
+                              Quitar
+                            </button>
+                          </div>
+                        ))
+                    )}
+
+                    <div style={{ marginTop: 6, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+                      <div style={{ color: C.muted, fontSize: 12, marginBottom: 8 }}>Agregar interacciones a este playbook</div>
+                      <div style={{ display: "grid", gap: 8 }}>
+                        {commercialMeetings
+                          .filter((m) => String(m.folder_id || "") !== selectedFolder.id)
+                          .slice(0, 8)
+                          .map((m) => (
+                            <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 10px" }}>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.title || "Interacción"}</div>
+                                <div style={{ color: C.muted, fontSize: 12 }}>{m.starts_at ? new Date(m.starts_at).toLocaleDateString() : "Sin fecha"}</div>
+                              </div>
+                              <button onClick={() => assignMeetingToFolder(m.id, selectedFolder.id)} style={{ borderRadius: 8, border: "none", background: `${C.blue}cc`, color: "#07101c", fontWeight: 900, padding: "6px 10px", cursor: "pointer", fontSize: 12 }}>
+                                Agregar
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: 16, color: C.muted }}>AI Chat del playbook (próximamente).</div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -654,9 +868,9 @@ export default function NotetakerPage() {
 
       {showFolderModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(3,7,18,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <div style={{ width: "100%", maxWidth: 460, borderRadius: 14, border: `1px solid ${C.border}`, background: C.card, padding: 16 }}>
-            <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 8 }}>Nuevo playbook</div>
-            <div style={{ color: C.muted, fontSize: 13, marginBottom: 12 }}>Escribe el nombre del playbook para organizar seguimientos.</div>
+          <div style={{ width: "100%", maxWidth: 620, borderRadius: 14, border: `1px solid ${C.border}`, background: C.card, padding: 16 }}>
+            <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 8 }}>{editingFolderId ? "Editar playbook" : "Nuevo playbook"}</div>
+            <div style={{ color: C.muted, fontSize: 13, marginBottom: 12 }}>Define nombre, descripción, color e ícono para organizar seguimientos.</div>
             <input
               autoFocus
               value={folderName}
@@ -664,12 +878,42 @@ export default function NotetakerPage() {
               placeholder="Ej. Clientes Q1"
               style={{ width: "100%", boxSizing: "border-box", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 10, color: C.white, padding: "10px 12px" }}
             />
+            <textarea
+              value={folderDescription}
+              onChange={(e) => setFolderDescription(e.target.value)}
+              placeholder="Descripción (opcional)"
+              style={{ marginTop: 10, width: "100%", minHeight: 76, boxSizing: "border-box", resize: "vertical", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 10, color: C.white, padding: "10px 12px" }}
+            />
+
+            <div style={{ marginTop: 10, color: C.muted, fontSize: 12, fontWeight: 800 }}>Color</div>
+            <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {PLAYBOOK_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setFolderColor(c)}
+                  style={{ width: 28, height: 28, borderRadius: 8, border: folderColor === c ? `2px solid ${C.white}` : `1px solid ${C.border}`, background: c, cursor: "pointer" }}
+                />
+              ))}
+            </div>
+
+            <div style={{ marginTop: 10, color: C.muted, fontSize: 12, fontWeight: 800 }}>Ícono</div>
+            <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {PLAYBOOK_ICONS.map((ico) => (
+                <button
+                  key={ico}
+                  onClick={() => setFolderIcon(ico)}
+                  style={{ width: 34, height: 34, borderRadius: 8, border: folderIcon === ico ? `2px solid ${C.lime}` : `1px solid ${C.border}`, background: C.dark, color: folderIcon === ico ? C.lime : C.white, cursor: "pointer", fontWeight: 900 }}
+                >
+                  {iconForPlaybook(ico)}
+                </button>
+              ))}
+            </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
               <button onClick={() => setShowFolderModal(false)} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer" }}>
                 Cancelar
               </button>
               <button onClick={confirmCreateFolder} disabled={saving} style={{ borderRadius: 10, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "10px 14px", cursor: saving ? "not-allowed" : "pointer" }}>
-                {saving ? "Guardando..." : "Crear playbook"}
+                {saving ? "Guardando..." : editingFolderId ? "Guardar cambios" : "Crear playbook"}
               </button>
             </div>
           </div>

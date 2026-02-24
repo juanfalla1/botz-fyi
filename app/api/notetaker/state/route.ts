@@ -210,7 +210,7 @@ async function fetchState(supabase: any, userId: string): Promise<NotetakerState
       .order("created_at", { ascending: false }),
     supabase
       .from("notetaker_folders")
-      .select("id,name,color,created_at")
+      .select("id,name,color,description,icon,is_favorite,notes,created_at")
       .eq("profile_id", profile.id)
       .order("created_at", { ascending: false }),
     supabase
@@ -661,6 +661,9 @@ export async function POST(req: Request) {
         if (!name) {
           return NextResponse.json({ ok: false, error: "Falta el nombre del playbook" }, { status: 400 });
         }
+        const description = String(body?.description || "").trim();
+        const color = String(body?.color || "#a3e635").trim() || "#a3e635";
+        const icon = String(body?.icon || "folder").trim() || "folder";
         const { error } = await supabase
           .from("notetaker_folders")
           .insert({
@@ -668,8 +671,39 @@ export async function POST(req: Request) {
             tenant_id: SYSTEM_TENANT_ID,
             created_by: guard.user.id,
             name,
-            color: "#a3e635",
+            description: description || null,
+            color,
+            icon,
+            is_favorite: false,
+            notes: "",
           });
+        if (error) throw new Error(error.message);
+      } else if (op === "update_folder") {
+        const id = String(body?.folder_id || "").trim();
+        if (!id) return NextResponse.json({ ok: false, error: "Falta folder_id" }, { status: 400 });
+
+        const patch: any = {};
+        if (body?.name !== undefined) {
+          const name = String(body?.name || "").trim();
+          if (!name) return NextResponse.json({ ok: false, error: "El nombre no puede estar vacío" }, { status: 400 });
+          patch.name = name;
+        }
+        if (body?.description !== undefined) patch.description = String(body?.description || "").trim() || null;
+        if (body?.color !== undefined) patch.color = String(body?.color || "#a3e635").trim() || "#a3e635";
+        if (body?.icon !== undefined) patch.icon = String(body?.icon || "folder").trim() || "folder";
+        if (body?.is_favorite !== undefined) patch.is_favorite = Boolean(body?.is_favorite);
+        if (body?.notes !== undefined) patch.notes = String(body?.notes || "");
+
+        if (Object.keys(patch).length === 0) {
+          return NextResponse.json({ ok: false, error: "No hay cambios para guardar" }, { status: 400 });
+        }
+
+        const { error } = await supabase
+          .from("notetaker_folders")
+          .update(patch)
+          .eq("id", id)
+          .eq("profile_id", profileId)
+          .eq("created_by", guard.user.id);
         if (error) throw new Error(error.message);
       } else if (op === "delete_folder") {
         const id = String(body?.folder_id || "").trim();
@@ -680,6 +714,31 @@ export async function POST(req: Request) {
           .from("notetaker_folders")
           .delete()
           .eq("id", id)
+          .eq("profile_id", profileId)
+          .eq("created_by", guard.user.id);
+        if (error) throw new Error(error.message);
+      } else if (op === "set_meeting_folder") {
+        const meetingId = String(body?.meeting_id || "").trim();
+        const folderIdRaw = body?.folder_id;
+        const folderId = folderIdRaw ? String(folderIdRaw).trim() : null;
+        if (!meetingId) return NextResponse.json({ ok: false, error: "Falta meeting_id" }, { status: 400 });
+
+        if (folderId) {
+          const { data: folder, error: folErr } = await supabase
+            .from("notetaker_folders")
+            .select("id")
+            .eq("id", folderId)
+            .eq("profile_id", profileId)
+            .eq("created_by", guard.user.id)
+            .maybeSingle();
+          if (folErr) throw new Error(folErr.message);
+          if (!folder) return NextResponse.json({ ok: false, error: "Playbook no encontrado" }, { status: 404 });
+        }
+
+        const { error } = await supabase
+          .from("notetaker_meetings")
+          .update({ folder_id: folderId })
+          .eq("id", meetingId)
           .eq("profile_id", profileId)
           .eq("created_by", guard.user.id);
         if (error) throw new Error(error.message);
@@ -865,16 +924,49 @@ export async function POST(req: Request) {
       if (!name) {
         return NextResponse.json({ ok: false, error: "Falta el nombre del playbook" }, { status: 400 });
       }
+      const description = String(body?.description || "").trim();
+      const color = String(body?.color || "#a3e635").trim() || "#a3e635";
+      const icon = String(body?.icon || "folder").trim() || "folder";
       const exists = next.folders.some((f: any) => String(f?.name || "").toLowerCase() === name.toLowerCase());
       if (!exists) {
-        next.folders = [{ id: makeId("folder"), name, color: "#a3e635" }, ...next.folders];
+        next.folders = [{ id: makeId("folder"), name, description, color, icon, is_favorite: false, notes: "" }, ...next.folders];
       }
+    } else if (op === "update_folder") {
+      const id = String(body?.folder_id || "").trim();
+      if (!id) return NextResponse.json({ ok: false, error: "Falta folder_id" }, { status: 400 });
+      next.folders = next.folders.map((f: any) => {
+        if (String(f?.id) !== id) return f;
+        const updated = { ...f };
+        if (body?.name !== undefined) {
+          const name = String(body?.name || "").trim();
+          if (name) updated.name = name;
+        }
+        if (body?.description !== undefined) updated.description = String(body?.description || "").trim();
+        if (body?.color !== undefined) updated.color = String(body?.color || "#a3e635").trim() || "#a3e635";
+        if (body?.icon !== undefined) updated.icon = String(body?.icon || "folder").trim() || "folder";
+        if (body?.is_favorite !== undefined) updated.is_favorite = Boolean(body?.is_favorite);
+        if (body?.notes !== undefined) updated.notes = String(body?.notes || "");
+        return updated;
+      });
     } else if (op === "delete_folder") {
       const id = String(body?.folder_id || "").trim();
       if (!id) {
         return NextResponse.json({ ok: false, error: "Falta folder_id" }, { status: 400 });
       }
       next.folders = next.folders.filter((f: any) => String(f?.id) !== id);
+      next.meetings = next.meetings.map((m: any) => {
+        if (String(m?.folder_id || "") !== id) return m;
+        return { ...m, folder_id: null };
+      });
+    } else if (op === "set_meeting_folder") {
+      const meetingId = String(body?.meeting_id || "").trim();
+      const folderIdRaw = body?.folder_id;
+      const folderId = folderIdRaw ? String(folderIdRaw).trim() : null;
+      if (!meetingId) return NextResponse.json({ ok: false, error: "Falta meeting_id" }, { status: 400 });
+      next.meetings = next.meetings.map((m: any) => {
+        if (String(m?.id) !== meetingId) return m;
+        return { ...m, folder_id: folderId };
+      });
     } else if (op === "create_meeting") {
       const meetingUrl = String(body?.meeting_url || "").trim();
       if (!meetingUrl) {
