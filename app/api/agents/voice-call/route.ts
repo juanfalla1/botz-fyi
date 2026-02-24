@@ -263,8 +263,8 @@ async function generateResponse(
           })),
           { role: "user", content: userMessage },
         ],
-        temperature: opts.fastMode ? 0.35 : 0.7,
-        max_tokens: opts.fastMode ? 90 : 180,
+        temperature: opts.fastMode ? 0.2 : 0.7,
+        max_tokens: opts.fastMode ? 70 : 180,
       }),
     });
 

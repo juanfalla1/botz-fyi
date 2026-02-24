@@ -268,6 +268,14 @@ export default function CreateAgentPage() {
     setContextLoading(true);
     setContextError(null);
     try {
+      const inputHost = (() => {
+        try {
+          return new URL(url).hostname.replace(/^www\./i, "").toLowerCase();
+        } catch {
+          return "";
+        }
+      })();
+
       const res = await fetch("/api/agents/company-context", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -275,13 +283,34 @@ export default function CreateAgentPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "No se pudo generar contexto");
+      const fetchedUrl = String(json?.url || "").trim();
+      const fetchedHost = (() => {
+        try {
+          return new URL(fetchedUrl).hostname.replace(/^www\./i, "").toLowerCase();
+        } catch {
+          return "";
+        }
+      })();
+
+      if (inputHost && fetchedHost) {
+        const sameDomain = fetchedHost === inputHost || fetchedHost.endsWith(`.${inputHost}`) || inputHost.endsWith(`.${fetchedHost}`);
+        if (!sameDomain) {
+          throw new Error(`La URL respondió con otro dominio (${fetchedHost}). Verifica la URL de tu empresa.`);
+        }
+      }
+
       const suggestion = String(json?.suggested_company_desc || "").trim();
       if (suggestion) {
+        const blockStart = "--- Contexto autogenerado (BOTZ) ---";
+        const blockEnd = "--- Fin contexto autogenerado ---";
         setForm(f => ({
           ...f,
-          companyDesc: f.companyDesc.trim()
-            ? `${f.companyDesc.trim()}\n\n${suggestion}`
-            : suggestion,
+          companyDesc: (() => {
+            const current = String(f.companyDesc || "").trim();
+            const normalized = current.replace(/--- Contexto autogenerado \(BOTZ\) ---[\s\S]*?--- Fin contexto autogenerado ---/g, "").trim();
+            const generated = `${blockStart}\nFuente: ${fetchedUrl || url}\n${suggestion}\n${blockEnd}`;
+            return normalized ? `${normalized}\n\n${generated}` : generated;
+          })(),
         }));
       }
     } catch (e: any) {

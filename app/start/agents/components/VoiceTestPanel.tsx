@@ -84,6 +84,7 @@ export default function VoiceTestPanel({
   const vadAnimationRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const hasSpokenRef = useRef(false);
+  const spokenAtRef = useRef<number>(0);
   const preferredVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const sessionVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const liveRateRef = useRef<number>(1.05);
@@ -319,6 +320,7 @@ export default function VoiceTestPanel({
       vadAnimationRef.current = null;
     }
     hasSpokenRef.current = false;
+    spokenAtRef.current = 0;
     try {
       audioContextRef.current?.close();
     } catch {
@@ -345,7 +347,7 @@ export default function VoiceTestPanel({
   const startRecording = async () => {
     try {
       setError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = streamRef.current || await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
       const mediaRecorder = new MediaRecorder(stream);
@@ -388,10 +390,11 @@ export default function VoiceTestPanel({
               sum += v * v;
             }
             const rms = Math.sqrt(sum / data.length);
-            const isSpeech = rms > 0.02;
+            const isSpeech = rms > 0.018;
 
             if (isSpeech) {
               hasSpokenRef.current = true;
+              if (!spokenAtRef.current) spokenAtRef.current = Date.now();
               if (silenceStopTimerRef.current) {
                 window.clearTimeout(silenceStopTimerRef.current);
                 silenceStopTimerRef.current = null;
@@ -399,8 +402,10 @@ export default function VoiceTestPanel({
             } else if (hasSpokenRef.current && !silenceStopTimerRef.current) {
               silenceStopTimerRef.current = window.setTimeout(() => {
                 silenceStopTimerRef.current = null;
-                stopRecording();
-              }, 850);
+                if (Date.now() - (spokenAtRef.current || Date.now()) >= 280) {
+                  stopRecording();
+                }
+              }, 460);
             }
 
             vadAnimationRef.current = window.requestAnimationFrame(tick);
@@ -414,7 +419,7 @@ export default function VoiceTestPanel({
       // Límite duro de grabación
       recordingMaxTimerRef.current = window.setTimeout(() => {
         stopRecording();
-      }, 5200);
+      }, 4200);
     } catch (err: any) {
       setError("No se pudo acceder al micrófono. Verifica los permisos.");
       console.error("Microphone error:", err);
@@ -426,11 +431,6 @@ export default function VoiceTestPanel({
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-
-      // Detener el stream
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
     }
   };
 
@@ -520,9 +520,7 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
       sessionVoiceRef.current = picked;
       // Solicitar acceso al micrófono
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      // Detener el stream inmediatamente (solo para verificar permisos)
-      stream.getTracks().forEach(track => track.stop());
+      streamRef.current = stream;
 
       setIsCallActive(true);
       
