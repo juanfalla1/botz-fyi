@@ -363,7 +363,7 @@ export default function AgentStudio() {
     { id: "voice",     title: "Crear Agente de Voz"  },
     { id: "text",      title: "Crear Agente de Texto" },
     { id: "flow",      title: "Crear Flujo"           },
-    { id: "notetaker", title: "Configurar Notetaker"  },
+    { id: "notetaker", title: "Configurar Copiloto IA"  },
   ];
 
   const templates = [
@@ -431,6 +431,8 @@ export default function AgentStudio() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaChunksRef = useRef<Blob[]>([]);
+  const previewReqAbortRef = useRef<AbortController | null>(null);
+  const simVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const [simUserName, setSimUserName] = useState("Cliente");
 
   const guessUserName = () => {
@@ -452,6 +454,31 @@ export default function AgentStudio() {
     setPlayingTemplateId(null);
   };
 
+  const isAssistantTalking = () => {
+    const audioTalking = Boolean(previewAudioRef.current && !previewAudioRef.current.paused);
+    const ttsTalking = Boolean(typeof window !== "undefined" && window.speechSynthesis?.speaking);
+    return audioTalking || ttsTalking;
+  };
+
+  const abortPendingPreview = () => {
+    try { previewReqAbortRef.current?.abort(); } catch {}
+    previewReqAbortRef.current = null;
+  };
+
+  const handleInterruption = () => {
+    stopPreviewVoice();
+    setSimBusy(false);
+    const polite = "Claro, te escucho. Adelante.";
+    setSimLines((prev) => {
+      if (prev.length && prev[prev.length - 1]?.text === polite) return prev;
+      return [...prev, { who: "Botz", text: polite }];
+    });
+    setSimHistory((prev) => {
+      if (prev.length && prev[prev.length - 1]?.content === polite) return prev;
+      return [...prev, { role: "assistant", content: polite }];
+    });
+  };
+
   const speakNativeFallback = (t: Template, text: string, onEnd?: () => void, onStart?: () => void) => {
     try {
       const synth = window.speechSynthesis;
@@ -464,9 +491,9 @@ export default function AgentStudio() {
       const esVoices = voices.filter(v => v.lang.toLowerCase().startsWith("es"));
       const femaleHint = /(natural|neural|online|female|mujer|paulina|monica|maria|helena|sofia|sabina|laura)/i;
       const maleHint = /(natural|neural|online|male|hombre|jorge|diego|carlos|enrique|pablo|raul|alejandro)/i;
-      const voice = t.gender === "f"
+      const voice = simVoiceRef.current || (t.gender === "f"
         ? esVoices.find(v => femaleHint.test(v.name)) || esVoices[0]
-        : esVoices.find(v => maleHint.test(v.name)) || esVoices[0];
+        : esVoices.find(v => maleHint.test(v.name)) || esVoices[0]);
       if (voice) utter.voice = voice;
       utter.onstart = () => onStart?.();
       utter.onend = () => onEnd?.();
@@ -588,6 +615,7 @@ export default function AgentStudio() {
         previewAudioRef.current = null;
       }
     } catch {}
+    abortPendingPreview();
   };
 
   const closeWizard = () => {
@@ -628,15 +656,17 @@ export default function AgentStudio() {
 
   const introForTemplate = (tpl: Template, userName: string) => {
     const name = String(userName || "Cliente").trim() || "Cliente";
-    if (tpl.id === "lia") return `Hola ${name}, soy Lía, calificador de leads de Botz. Te haré 3 preguntas para validar encaje comercial.`;
-    if (tpl.id === "alex") return `Hola ${name}, te habla Bruno de Botz para llamadas en frio. Te haré 3 preguntas para detectar oportunidad y agenda.`;
-    return `Hola ${name}, soy Sofía, recepcionista virtual. Te haré 3 preguntas para dirigirte al area correcta.`;
+    if (tpl.id === "lia") return `Hola ${name}, bienvenido a Botz. Soy Lía, asesora de calificacion comercial. ¿En que te puedo ayudar hoy?`;
+    if (tpl.id === "alex") return `Hola ${name}, te habla Bruno de Botz. Soy asesor comercial y puedo ayudarte a evaluar la mejor solucion para tu empresa. ¿Que necesitas resolver hoy?`;
+    return `Hola ${name}, bienvenido a Botz. Soy Sofía, recepcionista virtual. Te ayudo a resolver tu consulta y dirigirte al area correcta. ¿Como puedo ayudarte?`;
   };
 
-  const sendPreviewTurn = async (tpl: Template, history: { role: "assistant" | "user"; content: string }[], payload: { text?: string; audio?: Blob }) => {
+  const sendPreviewTurn = async (tpl: Template, history: { role: "assistant" | "user"; content: string }[], payload: { text?: string; audio?: Blob; interrupted?: boolean }) => {
     const form = new FormData();
     form.set("template_id", tpl.id);
+    // Modo calidad de voz: retorna audio del backend (mas natural y consistente)
     form.set("fast_mode", "0");
+    if (payload.interrupted) form.set("interrupted", "1");
     const msgs = payload.text
       ? [...history, { role: "user", content: payload.text }]
       : history;
@@ -644,13 +674,20 @@ export default function AgentStudio() {
     if (payload.audio) {
       form.set("audio", new File([payload.audio], "respuesta.webm", { type: payload.audio.type || "audio/webm" }));
     }
-    const res = await authedFetch("/start/agents/preview", {
-      method: "POST",
-      body: form,
-    });
-    const json = await res.json();
-    if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo procesar la conversacion");
-    return json;
+    const controller = new AbortController();
+    previewReqAbortRef.current = controller;
+    try {
+      const res = await authedFetch("/start/agents/preview", {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo procesar la conversacion");
+      return json;
+    } finally {
+      if (previewReqAbortRef.current === controller) previewReqAbortRef.current = null;
+    }
   };
 
   const startSimulation = (tpl: Template) => {
@@ -665,9 +702,16 @@ export default function AgentStudio() {
     setSimTurns(0);
     setSimInput("");
     setSimError(null);
+    simVoiceRef.current = null;
 
     const connectTimer = window.setTimeout(() => {
       if (sessionId !== simSessionRef.current) return;
+      const voices = window.speechSynthesis.getVoices().filter(v => v.lang.toLowerCase().startsWith("es"));
+      const femaleHint = /(natural|neural|online|female|mujer|paulina|monica|maria|helena|sofia|sabina|laura)/i;
+      const maleHint = /(natural|neural|online|male|hombre|jorge|diego|carlos|enrique|pablo|raul|alejandro)/i;
+      simVoiceRef.current = tpl.gender === "f"
+        ? voices.find(v => femaleHint.test(v.name)) || voices[0] || null
+        : voices.find(v => maleHint.test(v.name)) || voices[0] || null;
       const intro = introForTemplate(tpl, simUserName);
       let revealed = false;
       const revealIntro = () => {
@@ -692,6 +736,7 @@ export default function AgentStudio() {
     mediaRecorderRef.current = null;
     mediaStreamRef.current = null;
     mediaChunksRef.current = [];
+    simVoiceRef.current = null;
     setSimBusy(false);
     setSimStatus("ended");
     setSimRecording(false);
@@ -701,12 +746,13 @@ export default function AgentStudio() {
     if (!wizardTemplate) return;
     const text = String(simInput || "").trim();
     if (!text || simBusy || simStatus !== "live") return;
-    if (simTurns >= 3) {
-      finishRealCall();
-      return;
-    }
 
     const sessionId = simSessionRef.current;
+    const interrupted = isAssistantTalking();
+    if (interrupted) {
+      abortPendingPreview();
+      handleInterruption();
+    }
     const historyBase = [...simHistory, { role: "user" as const, content: text }];
     setSimBusy(true);
     setSimError(null);
@@ -715,7 +761,7 @@ export default function AgentStudio() {
     setSimHistory(historyBase);
 
     try {
-      const out = await sendPreviewTurn(wizardTemplate, simHistory, { text });
+      const out = await sendPreviewTurn(wizardTemplate, simHistory, { text, interrupted });
       if (sessionId !== simSessionRef.current) return;
       const botText = String(out?.assistant_text || "").trim();
       if (botText) {
@@ -729,23 +775,16 @@ export default function AgentStudio() {
         const played = await playBase64Audio(out?.assistant_audio_base64, out?.mime, undefined, appendBotLine);
         if (!played) {
           appendBotLine();
-          speakNativeFallback(wizardTemplate, botText);
+          void playTemplateAudio(wizardTemplate, botText).catch(() => {
+            speakNativeFallback(wizardTemplate, botText);
+          });
         } else {
           appendBotLine();
         }
       }
-      setSimTurns((n) => {
-        const next = n + 1;
-        if (next >= 3) {
-          const closing = "Gracias, ya tengo lo necesario para continuar con el siguiente paso.";
-          setSimLines((prev) => [...prev, { who: "Botz", text: closing }]);
-          setSimHistory((prev) => [...prev, { role: "assistant", content: closing }]);
-          speakAsTemplate(wizardTemplate, closing);
-          setSimStatus("ended");
-        }
-        return next;
-      });
+      setSimTurns((n) => n + 1);
     } catch (e: any) {
+      if (String(e?.name || "") === "AbortError" || /aborted/i.test(String(e?.message || ""))) return;
       setSimError(String(e?.message || "Error en la simulacion"));
     } finally {
       setSimBusy(false);
@@ -753,13 +792,14 @@ export default function AgentStudio() {
   };
 
   const toggleRecording = async () => {
-    if (!wizardTemplate || simStatus !== "live" || simBusy) return;
-    if (simTurns >= 3) {
-      finishRealCall();
-      return;
-    }
+    if (!wizardTemplate || simStatus !== "live") return;
 
     const sessionId = simSessionRef.current;
+    const interrupted = isAssistantTalking() || simBusy;
+    if (interrupted) {
+      abortPendingPreview();
+      handleInterruption();
+    }
     if (simRecording && mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       setSimRecording(false);
@@ -802,7 +842,7 @@ export default function AgentStudio() {
           if (!blob.size || !wizardTemplate) return;
           setSimBusy(true);
           setSimError(null);
-          const out = await sendPreviewTurn(wizardTemplate, simHistory, { audio: blob });
+          const out = await sendPreviewTurn(wizardTemplate, simHistory, { audio: blob, interrupted });
           if (sessionId !== simSessionRef.current) return;
           const userText = String(out?.user_text || "").trim();
           const botText = String(out?.assistant_text || "").trim();
@@ -826,17 +866,16 @@ export default function AgentStudio() {
             const played = await playBase64Audio(out?.assistant_audio_base64, out?.mime, undefined, appendBotLine);
             if (!played) {
               appendBotLine();
-              speakNativeFallback(wizardTemplate, botText);
+              void playTemplateAudio(wizardTemplate, botText).catch(() => {
+                speakNativeFallback(wizardTemplate, botText);
+              });
             } else {
               appendBotLine();
             }
           }
-          setSimTurns((n) => {
-            const next = n + 1;
-            if (next >= 3) setSimStatus("ended");
-            return next;
-          });
+          setSimTurns((n) => n + 1);
         } catch (e: any) {
+          if (String(e?.name || "") === "AbortError" || /aborted/i.test(String(e?.message || ""))) return;
           setSimError(String(e?.message || "No se pudo procesar tu audio"));
         } finally {
           setSimBusy(false);
@@ -900,7 +939,7 @@ export default function AgentStudio() {
     { label: "Canales", href: "/start/agents/channels", hint: "WhatsApp, webchat y voz" },
     { label: "Crear agente voz", href: "/start/agents/create?type=voice", hint: "Asistente telefonico" },
     { label: "Crear agente texto", href: "/start/agents/create?type=text", hint: "Chat y WhatsApp" },
-    { label: "Notetaker", href: "/start/agents/notetaker", hint: "Notas de llamadas" },
+    { label: "Copiloto IA", href: "/start/agents/notetaker", hint: "Notas, seguimiento y acciones" },
     { label: "Flow templates", href: "/start/flows/templates", hint: "Automatizaciones" },
     { label: "Planes y creditos", href: "/start/agents/plans", hint: "Facturacion Agents" },
   ];
@@ -1574,7 +1613,7 @@ export default function AgentStudio() {
                     <div>
                       <div style={{ fontWeight: 900, fontSize: 22 }}>Transcripcion de la llamada</div>
                       <div style={{ color: C.muted, fontSize: 15, marginTop: 4 }}>
-                        {wizardTemplate.name} - {wizardTemplate.cat} - {simTurns}/3 preguntas completadas.
+                        {wizardTemplate.name} - {wizardTemplate.cat} - Conversacion activa.
                       </div>
                     </div>
                     <div style={{ borderRadius: 999, padding: "6px 10px", border: `1px solid ${C.border}`, background: simStatus === "connecting" ? "rgba(245,158,11,0.15)" : simStatus === "live" ? "rgba(16,185,129,0.15)" : "rgba(148,163,184,0.12)", color: simStatus === "connecting" ? "#fbbf24" : simStatus === "live" ? "#34d399" : C.muted, fontSize: 12, fontWeight: 900 }}>
@@ -1641,20 +1680,20 @@ export default function AgentStudio() {
                           void askWithText();
                         }
                       }}
-                      disabled={simBusy || simStatus !== "live" || simTurns >= 3}
-                      placeholder={simStatus !== "live" ? "Espera a que conecte..." : "Responde aqui (o usa microfono)"}
+                      disabled={simStatus !== "live"}
+                      placeholder={simStatus !== "live" ? "Espera a que conecte..." : simBusy ? "Procesando... (puedes interrumpir con microfono)" : "Responde aqui (o usa microfono)"}
                       style={{ flex: 1, borderRadius: 10, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.62)", color: C.white, padding: "10px 12px", fontSize: 14, outline: "none" }}
                     />
                     <button
                       onClick={() => void askWithText()}
-                      disabled={simBusy || simStatus !== "live" || simTurns >= 3 || !simInput.trim()}
-                      style={{ borderRadius: 10, border: "none", background: simBusy || simStatus !== "live" || simTurns >= 3 || !simInput.trim() ? "#4b5563" : `${C.lime}cc`, color: "#111", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}
+                      disabled={simStatus !== "live" || !simInput.trim()}
+                      style={{ borderRadius: 10, border: "none", background: simBusy || simStatus !== "live" || !simInput.trim() ? "#4b5563" : `${C.lime}cc`, color: "#111", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}
                     >
                       Enviar
                     </button>
                     <button
                       onClick={() => void toggleRecording()}
-                      disabled={simBusy || simStatus !== "live" || simTurns >= 3}
+                      disabled={simStatus !== "live"}
                       style={{ borderRadius: 10, border: `1px solid ${simRecording ? "rgba(239,68,68,0.65)" : C.border}`, background: simRecording ? "rgba(239,68,68,0.16)" : "rgba(15,23,42,0.5)", color: simRecording ? "#fca5a5" : C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}
                     >
                       {simRecording ? "Detener mic" : "Hablar"}

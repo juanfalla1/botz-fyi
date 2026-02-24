@@ -7,15 +7,15 @@ import OpenAI from "openai";
 
 const TEMPLATES: Record<string, { system_prompt: string; voice: "marin" | "cedar" | "coral" }> = {
   lia: {
-    system_prompt: "Eres Lia, calificadora de leads entrantes. Haz una conversacion corta de 3 preguntas: presupuesto, plazo, necesidad. Formula una sola pregunta por turno, en espanol, sin listas ni markdown.",
+    system_prompt: "Eres Lia, calificadora de leads entrantes de Botz. Tu objetivo es convertir una consulta en lead calificado para ventas. Debes identificar necesidad, urgencia, tipo de empresa/rol y mejor siguiente paso (demo, llamada o seguimiento). Habla como humana, cordial y concreta. Responde breve (1-2 oraciones), haz una pregunta clave por turno y orienta siempre a captacion/comercial.",
     voice: "marin",
   },
   alex: {
-    system_prompt: "Eres Bruno, agente de llamadas en frio salientes. Tu meta es detectar interes real en 3 preguntas cortas y cerrar con propuesta de siguiente paso. Habla directo, claro y sin texto largo.",
+    system_prompt: "Eres Bruno, asesor comercial outbound de Botz. Tu objetivo es detectar encaje y mover al prospecto al siguiente paso comercial. Habla directo, humano y respetuoso; valida interes, pain principal y propone agenda/diagnostico. Responde breve (1-2 oraciones), con foco en cierre de siguiente accion.",
     voice: "cedar",
   },
   julia: {
-    system_prompt: "Eres Sofia, recepcionista virtual. Identifica tipo de consulta, prioridad y datos de contacto en maximo 3 preguntas. Responde breve, natural y sin markdown.",
+    system_prompt: "Eres Sofia, recepcionista virtual de Botz. Tu objetivo es recibir, entender motivo de contacto y enrutar con claridad al area correcta (ventas, soporte, facturacion u otra). Habla con educacion y tono humano. Responde breve (1-2 oraciones), confirma la necesidad y da siguiente paso claro.",
     voice: "coral",
   },
 };
@@ -95,6 +95,7 @@ export async function POST(req: Request) {
     const messagesJson = String(formData.get("messages") || "[]");
     const audioFile = formData.get("audio") as File | null;
     const fastMode = String(formData.get("fast_mode") || "0") === "1";
+    const interrupted = String(formData.get("interrupted") || "0") === "1";
 
     if (!templateId || !TEMPLATES[templateId]) {
       return NextResponse.json({ ok: false, error: "Invalid template_id" }, { status: 400 });
@@ -118,7 +119,7 @@ export async function POST(req: Request) {
       const buffer = Buffer.from(await audioFile.arrayBuffer());
       const transcription = await openai.audio.transcriptions.create({
         file: await new File([buffer], audioFile.name, { type: "audio/webm" }) as any,
-        model: "whisper-1",
+        model: "gpt-4o-mini-transcribe",
         language: "es",
         prompt: "Transcribe solamente la voz del usuario que responde al agente. Ignora musica, subtitulos, locuciones de video y ruido de fondo.",
         temperature: 0,
@@ -138,7 +139,10 @@ export async function POST(req: Request) {
 
     // 4. LLM
     const llmMessages = [
-      { role: "system", content: template.system_prompt },
+      {
+        role: "system",
+        content: `${template.system_prompt} ${interrupted ? "El usuario te interrumpio. Responde con educacion, reconoce brevemente la interrupcion (ej. 'Claro, te escucho') y continua sin friccion." : ""}`.trim(),
+      },
       ...messages.filter((m: any) => m.role && m.content),
       { role: "user", content: userText },
     ];
@@ -146,8 +150,8 @@ export async function POST(req: Request) {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: llmMessages as any,
-      temperature: fastMode ? 0.2 : 0.7,
-      max_tokens: fastMode ? 140 : 300,
+      temperature: fastMode ? 0.15 : 0.7,
+      max_tokens: interrupted ? 55 : fastMode ? 90 : 260,
     });
 
     const assistantText = completion.choices[0]?.message?.content || "";

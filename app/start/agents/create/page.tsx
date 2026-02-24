@@ -39,7 +39,7 @@ const getSteps = (type: AgentType, kind: AgentKind) => {
   if (kind === "notetaker") {
     return [
       { id: 1, label: "Contexto de la empresa", required: true },
-      { id: 2, label: "Configurar notetaker", required: true },
+      { id: 2, label: "Configurar Copiloto IA", required: true },
       { id: 3, label: "Prueba", required: false },
     ];
   }
@@ -66,7 +66,7 @@ const getSteps = (type: AgentType, kind: AgentKind) => {
 };
 
 const titleFor = (type: AgentType, kind: AgentKind) => {
-  if (kind === "notetaker") return "Notetaker";
+  if (kind === "notetaker") return "Copiloto IA";
   if (type === "voice") return "Agente de Voz";
   if (type === "text") return "Agente de Texto";
   return "Flujo";
@@ -433,7 +433,7 @@ export default function CreateAgentPage() {
     },
     2: kind === "notetaker"
       ? {
-          title: "Configura tu notetaker",
+          title: "Configura tu Copiloto IA",
           body: "Define la fuente y el formato de salida para resumir, extraer acuerdos y acciones.",
         }
       : (form.type === "flow"
@@ -729,12 +729,12 @@ export default function CreateAgentPage() {
                   <>
                     <div>
                       <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
-                        Nombre del notetaker: <span style={{ color: C.red }}>*</span>
+                        Nombre del Copiloto IA: <span style={{ color: C.red }}>*</span>
                       </label>
                       <input
                         value={form.agentName}
                         onChange={e => setForm(f => ({ ...f, agentName: e.target.value }))}
-                        placeholder="Ej: Notetaker de Ventas"
+                        placeholder="Ej: Copiloto Comercial"
                         style={input()}
                       />
                     </div>
@@ -1085,7 +1085,7 @@ export default function CreateAgentPage() {
                     { id: "voice", label: "Agente de voz" },
                     { id: "text", label: "Agente de texto" },
                     { id: "flow", label: "Flujo" },
-                    { id: "notetaker", label: "Notetaker" },
+                    { id: "notetaker", label: "Copiloto IA" },
                   ] as const).map(t => (
                     <button
                       key={t.id}

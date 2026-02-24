@@ -52,7 +52,7 @@ const C = {
 };
 
 const titleFor = (type: AgentType, kind: string) => {
-  if (kind === "notetaker") return "Notetaker";
+  if (kind === "notetaker") return "Copiloto IA";
   if (type === "voice") return "Agente de Voz";
   if (type === "text") return "Agente de Texto";
   return "Flujo";
@@ -828,7 +828,7 @@ export default function AgentDetailPage() {
             </span>
             {agentKind === "notetaker" && (
               <span style={{ padding: "3px 10px", borderRadius: 99, backgroundColor: "rgba(163,230,53,.15)", color: C.lime, fontSize: 12, fontWeight: 900 }}>
-                Notetaker
+                Copiloto IA
               </span>
             )}
             <span style={{ color: C.dim, fontSize: 12 }}>{headerTitle}</span>

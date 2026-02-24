@@ -73,7 +73,7 @@ export default function NotetakerPage() {
     try {
       const res = await authedFetch("/api/notetaker/state");
       const json = await res.json();
-      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo cargar el Notetaker");
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo cargar el Copiloto IA");
       const data = json.data || {};
       setState({
         prompt: String(data.prompt || ""),
@@ -87,7 +87,7 @@ export default function NotetakerPage() {
         return;
       }
       console.error(e);
-      setErrorMsg((e as any)?.message || "No se pudo cargar el Notetaker");
+      setErrorMsg((e as any)?.message || "No se pudo cargar el Copiloto IA");
     }
   };
 
@@ -222,7 +222,7 @@ export default function NotetakerPage() {
   if (loading) {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, color: C.white, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter,-apple-system,sans-serif" }}>
-        Cargando notetaker...
+        Cargando Copiloto IA...
       </div>
     );
   }
@@ -231,10 +231,10 @@ export default function NotetakerPage() {
     <div style={{ minHeight: "100vh", background: C.bg, color: C.white, fontFamily: "Inter,-apple-system,sans-serif" }}>
       <div style={{ height: 72, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 16px", background: C.dark }}>
         {([
-          ["panel", "Panel"],
-          ["reuniones", "Reuniones"],
-          ["folders", "Carpetas"],
-          ["settings", "Configuración"],
+          ["panel", "Copiloto IA"],
+          ["reuniones", "Interacciones"],
+          ["folders", "Playbooks"],
+          ["settings", "Estrategia"],
         ] as [TabId, string][]).map(([id, label]) => (
           <button
             key={id}
@@ -262,23 +262,35 @@ export default function NotetakerPage() {
       {tab === "panel" && (
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 360px", minHeight: "calc(100vh - 72px)" }}>
           <div style={{ padding: 14, borderRight: `1px solid ${C.border}` }}>
+            <div style={{ background: "linear-gradient(135deg, rgba(29,161,255,0.16), rgba(163,230,53,0.12))", border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
+              <div style={{ fontWeight: 900, fontSize: 22 }}>Copiloto Comercial IA</div>
+              <div style={{ color: C.muted, fontSize: 14, marginTop: 6, maxWidth: 760 }}>
+                Convierte cada llamada o reunion en acciones de CRM: resumen, prioridad, siguiente paso y seguimiento.
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                <button onClick={() => setTab("reuniones")} style={{ borderRadius: 10, border: "none", background: `${C.blue}cc`, color: "#07101c", fontWeight: 900, padding: "10px 12px", cursor: "pointer" }}>+ Nueva interacción</button>
+                <button onClick={createFolder} disabled={saving} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 800, padding: "10px 12px", cursor: "pointer" }}>+ Crear playbook</button>
+                <button onClick={() => setTab("settings")} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 800, padding: "10px 12px", cursor: "pointer" }}>Ajustar estrategia IA</button>
+              </div>
+            </div>
+
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, display: "flex", alignItems: "center", gap: 18 }}>
-              <div style={{ fontWeight: 800, fontSize: 14 }}>📅 {calendarsConnected} Conectado</div>
-              <div style={{ fontWeight: 800, fontSize: 14 }}>🤖 {recorded} Grabado</div>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>📅 {calendarsConnected} Fuente conectada</div>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>🤖 {recorded} Interacción analizada</div>
               <button onClick={connectGoogleCalendar} disabled={saving} style={{ marginLeft: "auto", borderRadius: 12, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "11px 18px", cursor: saving ? "not-allowed" : "pointer" }}>
-                + Conectar Calendario
+                + Conectar Google Calendar
               </button>
             </div>
 
             <div style={{ marginTop: 14, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, minHeight: 360, padding: 16, display: "flex", flexDirection: "column" }}>
-              <div style={{ fontWeight: 900, fontSize: 34, marginBottom: 10 }}>Calendarios Conectados</div>
+              <div style={{ fontWeight: 900, fontSize: 34, marginBottom: 10 }}>Fuentes de Conversación</div>
               {state.calendars.length === 0 ? (
                 <div style={{ margin: "auto", textAlign: "center" }}>
                   <div style={{ fontSize: 42, color: C.muted }}>☒</div>
-                  <div style={{ fontWeight: 900, fontSize: 44, lineHeight: 1.15, marginTop: 8 }}>No hay calendarios conectados</div>
-                  <div style={{ color: C.muted, fontSize: 16, marginTop: 10 }}>Conecta tu Google Calendar para comenzar a programar bots de reuniones</div>
+                  <div style={{ fontWeight: 900, fontSize: 44, lineHeight: 1.15, marginTop: 8 }}>No hay fuentes conectadas</div>
+                  <div style={{ color: C.muted, fontSize: 16, marginTop: 10 }}>Conecta tu calendario para que el copiloto detecte reuniones y genere acciones de CRM automaticamente</div>
                   <button onClick={connectGoogleCalendar} disabled={saving} style={{ marginTop: 16, borderRadius: 12, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "12px 20px", cursor: saving ? "not-allowed" : "pointer" }}>
-                    + Conectar Calendario
+                    + Conectar Google Calendar
                   </button>
                 </div>
               ) : (
@@ -289,7 +301,7 @@ export default function NotetakerPage() {
                         <div style={{ fontWeight: 800 }}>{cal.calendar_name || "Google Calendar"}</div>
                         <div style={{ color: C.muted, fontSize: 12 }}>{cal.calendar_email || cal.calendar_id}</div>
                       </div>
-                      <span style={{ color: C.blue, fontSize: 12, fontWeight: 900 }}>Conectado</span>
+                      <span style={{ color: C.blue, fontSize: 12, fontWeight: 900 }}>Activo</span>
                     </div>
                   ))}
                 </div>
@@ -297,13 +309,13 @@ export default function NotetakerPage() {
             </div>
 
             <div style={{ marginTop: 14, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
-              <div style={{ fontWeight: 900, fontSize: 34, marginBottom: 12 }}>Análisis de Reuniones</div>
+              <div style={{ fontWeight: 900, fontSize: 34, marginBottom: 12 }}>Analítica Operativa IA</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 12 }}>
                 {[
-                  ["ESTA SEMANA", `${metrics.total}m`, "Minutos de Reunión"],
-                  ["PRÓXIMAS", `${metrics.upcoming}m`, "Minutos Programados"],
-                  ["DURACIÓN PROMEDIO", `${metrics.avg}m`, "Por Reunión"],
-                  ["ESTE MES", `${metrics.month}`, "Total de Reuniones"],
+                  ["ESTA SEMANA", `${metrics.total}m`, "Tiempo analizado"],
+                  ["PRÓXIMAS", `${metrics.upcoming}m`, "Tiempo programado"],
+                  ["PROMEDIO", `${metrics.avg}m`, "Por interacción"],
+                  ["ESTE MES", `${metrics.month}`, "Total interacciones"],
                 ].map((m, i) => (
                   <div key={i} style={{ background: C.dark, border: `1px solid ${i === 2 ? C.blue : C.border}`, borderRadius: 10, padding: 14 }}>
                     <div style={{ color: C.muted, fontSize: 11, fontWeight: 900 }}>{m[0]}</div>
@@ -317,25 +329,26 @@ export default function NotetakerPage() {
 
           <aside style={{ background: C.panel, padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ fontWeight: 900, fontSize: 16 }}>Reuniones Próximas</div>
+              <div style={{ fontWeight: 900, fontSize: 16 }}>Bandeja de seguimiento</div>
               <div style={{ background: C.lime, color: "#111", borderRadius: 8, padding: "4px 8px", fontWeight: 900, fontSize: 12 }}>{state.meetings.length}</div>
             </div>
             <div style={{ borderTop: `1px solid ${C.border}`, margin: "0 -16px", marginBottom: 24 }} />
             {state.meetings.length === 0 ? (
-              <div style={{ marginTop: 80, textAlign: "center" }}>
-                <div style={{ color: C.muted, fontSize: 30 }}>☑</div>
-                <div style={{ fontWeight: 900, fontSize: 40, lineHeight: 1.2, marginTop: 8 }}>No hay reuniones programadas</div>
-                <div style={{ color: C.muted, fontSize: 16, marginTop: 10, lineHeight: 1.5 }}>Los bots de reuniones aparecerán aquí cuando se detecten eventos en tu calendario</div>
-              </div>
-            ) : (
+                <div style={{ marginTop: 80, textAlign: "center" }}>
+                  <div style={{ color: C.muted, fontSize: 30 }}>☑</div>
+                  <div style={{ fontWeight: 900, fontSize: 40, lineHeight: 1.2, marginTop: 8 }}>No hay seguimientos activos</div>
+                  <div style={{ color: C.muted, fontSize: 16, marginTop: 10, lineHeight: 1.5 }}>Aqui apareceran interacciones y acciones sugeridas para mover oportunidades en CRM</div>
+                </div>
+              ) : (
               <div style={{ display: "grid", gap: 8 }}>
                 {state.meetings.slice(0, 8).map((m) => (
-                  <div key={m.id} style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12 }}>
-                    <div style={{ fontWeight: 800, fontSize: 13 }}>{m.title || "Reunión"}</div>
-                    <div style={{ color: C.muted, fontSize: 12, marginTop: 3 }}>{m.starts_at ? new Date(m.starts_at).toLocaleString() : "Sin fecha"}</div>
-                  </div>
-                ))}
-              </div>
+                    <div key={m.id} style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12 }}>
+                      <div style={{ fontWeight: 800, fontSize: 13 }}>{m.title || "Reunión"}</div>
+                      <div style={{ color: C.muted, fontSize: 12, marginTop: 3 }}>{m.starts_at ? new Date(m.starts_at).toLocaleString() : "Sin fecha"}</div>
+                      <div style={{ color: "#93c5fd", fontSize: 11, marginTop: 6 }}>Siguiente acción sugerida: contactar en menos de 24h</div>
+                    </div>
+                  ))}
+                </div>
             )}
           </aside>
         </div>
@@ -344,9 +357,9 @@ export default function NotetakerPage() {
       {tab === "reuniones" && (
         <div style={{ padding: 16 }}>
             <div style={{ background: `${C.blue}1a`, border: `1px solid rgba(29,161,255,0.35)`, borderRadius: 10, padding: 14, display: "flex", gap: 12, alignItems: "center" }}>
-            <div style={{ fontWeight: 800 }}>🤖 Enviar Bot de Reunión:</div>
+            <div style={{ fontWeight: 800 }}>🤖 Registrar interacción y activar copiloto:</div>
             <input value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)} placeholder="URL de Google Meet, Zoom o Teams" style={{ marginLeft: "auto", width: 420, maxWidth: "40vw", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "9px 12px" }} />
-            <button onClick={createMeeting} disabled={saving} style={{ border: "none", borderRadius: 8, background: C.blue, color: "#07101c", fontWeight: 900, padding: "10px 18px", cursor: saving ? "not-allowed" : "pointer" }}>➤ Enviar Bot</button>
+            <button onClick={createMeeting} disabled={saving} style={{ border: "none", borderRadius: 8, background: C.blue, color: "#07101c", fontWeight: 900, padding: "10px 18px", cursor: saving ? "not-allowed" : "pointer" }}>➤ Procesar</button>
           </div>
 
           <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center" }}>
@@ -355,11 +368,11 @@ export default function NotetakerPage() {
           </div>
 
           <div style={{ marginTop: 8, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: "9px 6px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 180px", fontWeight: 900 }}>
-            <span>Reunión</span><span>Fecha</span><span>Duración</span><span>Host</span><span>Participantes</span><span>Estado</span><span>Acciones</span>
+            <span>Interacción</span><span>Fecha</span><span>Duración</span><span>Host</span><span>Participantes</span><span>Estado</span><span>Acciones</span>
           </div>
 
           {filteredMeetings.length === 0 ? (
-            <div style={{ paddingTop: 10 }}>No se encontraron reuniones.</div>
+            <div style={{ paddingTop: 10 }}>No se encontraron interacciones.</div>
           ) : (
             filteredMeetings.map((m) => (
               <div key={m.id} style={{ padding: "10px 6px", borderBottom: `1px solid ${C.border}`, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 180px", alignItems: "center", columnGap: 8 }}>
@@ -388,17 +401,17 @@ export default function NotetakerPage() {
       {tab === "folders" && (
         <div>
           <div style={{ borderBottom: `1px solid ${C.border}`, padding: "18px 24px", display: "flex", alignItems: "center" }}>
-            <div style={{ fontWeight: 900, fontSize: 20 }}>Carpetas</div>
-            <button onClick={createFolder} disabled={saving} style={{ marginLeft: "auto", borderRadius: 10, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "11px 24px", cursor: saving ? "not-allowed" : "pointer" }}>+ Nueva carpeta</button>
+            <div style={{ fontWeight: 900, fontSize: 20 }}>Playbooks comerciales</div>
+            <button onClick={createFolder} disabled={saving} style={{ marginLeft: "auto", borderRadius: 10, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "11px 24px", cursor: saving ? "not-allowed" : "pointer" }}>+ Nuevo playbook</button>
           </div>
 
           {state.folders.length === 0 ? (
             <div style={{ minHeight: "calc(100vh - 150px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 44, color: C.muted }}>⌧</div>
-                <div style={{ fontSize: 44, fontWeight: 900, marginTop: 14 }}>Aún no hay carpetas</div>
-                <div style={{ marginTop: 10, color: C.muted, fontSize: 18 }}>Crea tu primera carpeta para organizar reuniones</div>
-                <button onClick={createFolder} disabled={saving} style={{ marginTop: 20, borderRadius: 12, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "14px 24px", cursor: saving ? "not-allowed" : "pointer" }}>+ Crear carpeta</button>
+                <div style={{ fontSize: 44, fontWeight: 900, marginTop: 14 }}>Aún no hay playbooks</div>
+                <div style={{ marginTop: 10, color: C.muted, fontSize: 18 }}>Crea tu primer playbook para estandarizar el seguimiento comercial</div>
+                <button onClick={createFolder} disabled={saving} style={{ marginTop: 20, borderRadius: 12, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "14px 24px", cursor: saving ? "not-allowed" : "pointer" }}>+ Crear playbook</button>
               </div>
             </div>
           ) : (
@@ -417,13 +430,13 @@ export default function NotetakerPage() {
         <div style={{ display: "grid", gridTemplateColumns: "280px minmax(0,1fr)", minHeight: "calc(100vh - 72px)" }}>
           <aside style={{ borderRight: `1px solid ${C.border}`, background: C.panel, padding: 16 }}>
             <button style={{ width: "100%", textAlign: "left", borderRadius: 10, border: "none", background: `${C.blue}22`, color: C.blue, fontWeight: 900, padding: "12px 14px" }}>
-              💡 Prompt Comercial Personalizado
+              💡 Estrategia Comercial IA
             </button>
           </aside>
           <main style={{ padding: 24 }}>
-            <div style={{ fontSize: 44, fontWeight: 900 }}>Prompt Comercial Personalizado</div>
+            <div style={{ fontSize: 44, fontWeight: 900 }}>Estrategia Comercial IA</div>
             <p style={{ color: C.muted, fontSize: 16, marginTop: 10, maxWidth: 980 }}>
-              Define tu metodología comercial o framework. La IA mejorará esta descripción y la usará para analizar todas tus reuniones.
+              Define tu metodologia comercial y criterios de conversion. El copiloto usara esto para resumir, calificar y recomendar acciones en cada interacción.
             </p>
             <div style={{ marginTop: 22, fontWeight: 800, color: C.muted, fontSize: 14 }}>Tu framework comercial</div>
             <textarea
@@ -433,7 +446,7 @@ export default function NotetakerPage() {
               style={{ marginTop: 10, width: "100%", maxWidth: 980, minHeight: 300, resize: "vertical", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, color: C.white, padding: 16, fontSize: 14, lineHeight: 1.5 }}
             />
             <p style={{ color: C.muted, fontSize: 14, marginTop: 8, maxWidth: 980 }}>
-              Describe tu proceso comercial, criterios de calificación o áreas específicas que quieres medir en cada llamada.
+              Describe tu proceso comercial, criterios de calificacion y reglas de siguiente paso para que el copiloto actualice CRM con consistencia.
             </p>
             <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12 }}>
               <button onClick={savePrompt} disabled={saving} style={{ borderRadius: 10, border: "none", background: `${C.blue}cc`, color: "#07101c", fontWeight: 900, padding: "12px 24px", cursor: saving ? "not-allowed" : "pointer" }}>
