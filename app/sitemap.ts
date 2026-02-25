@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { BLOG_POSTS } from "./blog/posts";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = "https://www.botz.fyi";
@@ -6,6 +7,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   const routes = [
     "",
+    "/blog",
     "/pricing",
     "/demo",
     "/ia-hipotecaria",
@@ -17,10 +19,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/payment",
   ];
 
-  return routes.map((route) => ({
+  const baseRoutes = routes.map((route) => ({
     url: `${base}${route}`,
     lastModified: now,
-    changeFrequency: route === "" ? "daily" : "weekly",
+    changeFrequency: (route === "" ? "daily" : "weekly") as "daily" | "weekly",
     priority: route === "" ? 1 : 0.7,
   }));
+
+  const blogRoutes = BLOG_POSTS.map((post) => ({
+    url: `${base}/blog/${post.slug}`,
+    lastModified: now,
+    changeFrequency: "weekly" as const,
+    priority: 0.72,
+  }));
+
+  return [...baseRoutes, ...blogRoutes];
 }
