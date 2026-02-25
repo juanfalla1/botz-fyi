@@ -490,7 +490,7 @@ export default function CreateAgentPage() {
 
   return (
     /* ── full-screen overlay (dark page, no sidebar here) ── */
-    <div style={{ minHeight: "100vh", backgroundColor: C.bg, display: "flex", flexDirection: "column", fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
+    <div style={{ minHeight: "100vh", width: "100%", maxWidth: "100%", backgroundColor: C.bg, display: "flex", flexDirection: "column", fontFamily: "Inter,-apple-system,sans-serif", color: C.white, boxSizing: "border-box" }}>
 
       <AuthModal
         open={openAuth}
@@ -504,7 +504,7 @@ export default function CreateAgentPage() {
        />
 
       {/* ── top bar ── */}
-      <div style={{ height: 60, borderBottom: `1px solid ${C.border}`, ...fl({ alignItems: "center", justifyContent: "space-between", padding: "0 36px" }), backgroundColor: C.dark, position: "sticky", top: 0, zIndex: 20 }}>
+      <div style={{ height: 60, borderBottom: `1px solid ${C.border}`, ...fl({ alignItems: "center", justifyContent: "space-between", padding: isMobile ? "0 12px" : "0 36px" }), backgroundColor: C.dark, position: "sticky", top: 0, zIndex: 20 }}>
         <button
           onClick={askExit}
           style={{ ...fl({ alignItems: "center", gap: 8 }), background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 14 }}
@@ -555,8 +555,9 @@ export default function CreateAgentPage() {
       )}
 
       {/* ── stepper ── */}
-      <div style={{ borderBottom: `1px solid ${C.border}`, padding: "26px 56px 6px", backgroundColor: C.dark }}>
-        <div style={{ ...fl({ alignItems: "flex-start", gap: 0 }), maxWidth: 1120, margin: "0 auto" }}>
+      <div style={{ borderBottom: `1px solid ${C.border}`, padding: isMobile ? "16px 12px 6px" : "26px 56px 6px", backgroundColor: C.dark }}>
+        <div style={{ overflowX: isMobile ? "auto" : "visible" }}>
+          <div style={{ ...fl({ alignItems: "flex-start", gap: 0 }), maxWidth: 1120, minWidth: isMobile ? 640 : undefined, margin: "0 auto" }}>
           {steps.map((s, idx) => {
             const active = s.id === step;
             const done   = s.id < step;
@@ -588,22 +589,23 @@ export default function CreateAgentPage() {
               </div>
             );
           })}
+          </div>
         </div>
       </div>
 
       {/* ── content ── */}
-       <div style={{ flex: 1, padding: isMobile ? "24px 20px" : "36px 32px", maxWidth: isMobile ? "100%" : 1400, margin: "0 auto", width: "100%" }}>
+       <div style={{ flex: 1, padding: isMobile ? "24px 12px" : "36px 32px", maxWidth: isMobile ? "100%" : 1400, margin: "0 auto", width: "100%", boxSizing: "border-box", minWidth: 0 }}>
           <div
             style={{
               display: "flex",
-              flexDirection: isTextTestStep ? "column" : "row",
+              flexDirection: (isMobile || isTextTestStep) ? "column" : "row",
               gap: isMobile ? 20 : 34,
               alignItems: isTextTestStep ? "stretch" : "flex-start",
             }}
           >
 
            {/* LEFT – description */}
-            <div style={{ flex: isTextTestStep ? "1 1 100%" : "0 0 360px", minWidth: 0, maxWidth: isTextTestStep ? "100%" : 420 }}>
+            <div style={{ flex: (isMobile || isTextTestStep) ? "1 1 100%" : "0 0 360px", minWidth: 0, maxWidth: (isMobile || isTextTestStep) ? "100%" : 420 }}>
              {isTextTestStep ? (
                <>
                  <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 12px", lineHeight: 1.2 }}>
@@ -630,10 +632,10 @@ export default function CreateAgentPage() {
                </>
              ) : (
               <>
-                <h2 style={{ fontSize: isMobile ? 26 : 28, fontWeight: 800, margin: "0 0 12px", lineHeight: 1.2, whiteSpace: "pre-line" }}>
-                   {left.title}
-                 </h2>
-                <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, margin: 0 }}>
+                 <h2 style={{ fontSize: isMobile ? 26 : 28, fontWeight: 800, margin: "0 0 12px", lineHeight: 1.2, whiteSpace: "pre-line", overflowWrap: "anywhere", wordBreak: "break-word", maxWidth: "100%" }}>
+                    {left.title}
+                  </h2>
+                <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, margin: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}>
                   {left.body}
                 </p>
               </>
@@ -641,7 +643,7 @@ export default function CreateAgentPage() {
           </div>
 
           {/* RIGHT – form */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0, flex: "1 1 760px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0, flex: isMobile ? "1 1 100%" : "1 1 760px", width: "100%" }}>
 
             {isTextTestStep ? (
                <>
@@ -678,12 +680,12 @@ export default function CreateAgentPage() {
                   <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
                     URL del sitio web
                   </label>
-                  <div style={fl({ gap: 10 })}>
+                  <div style={fl({ gap: 10, flexWrap: isMobile ? "wrap" : "nowrap" })}>
                     <input
                       value={form.companyUrl}
                       onChange={e => setForm(f => ({ ...f, companyUrl: e.target.value }))}
                       placeholder="https://example.com"
-                      style={input({ flex: 1 })}
+                      style={input({ flex: "1 1 240px" })}
                     />
                     <button style={{
                       ...fl({ alignItems: "center", gap: 6 }),
@@ -692,6 +694,7 @@ export default function CreateAgentPage() {
                       border: `1px solid ${C.lime}`,
                       color: C.lime, fontWeight: 800, fontSize: 14, cursor: "pointer",
                       whiteSpace: "nowrap",
+                      minHeight: 46,
                     }}
                     onClick={genCompanyContext}
                     disabled={contextLoading}
@@ -994,7 +997,7 @@ export default function CreateAgentPage() {
       </div>
 
       {/* ── footer ── */}
-      <div style={{ borderTop: `1px solid ${C.border}`, padding: isMobile ? "14px 20px" : "18px 56px", ...fl({ alignItems: "center", justifyContent: "space-between" }), backgroundColor: C.dark }}>
+      <div style={{ borderTop: `1px solid ${C.border}`, padding: isMobile ? "14px 12px" : "18px 56px", ...fl({ alignItems: "center", justifyContent: "space-between", flexWrap: isMobile ? "wrap" : "nowrap", gap: isMobile ? 10 : 0 }), backgroundColor: C.dark }}>
         <button
           onClick={() => setPickerOpen(true)}
           style={{ padding: "12px 26px", borderRadius: 10, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 800, fontSize: 15, cursor: "pointer" }}
@@ -1002,7 +1005,7 @@ export default function CreateAgentPage() {
           Escoger plantilla
         </button>
 
-        <div style={fl({ gap: 12 })}>
+        <div style={fl({ gap: 12, flexWrap: isMobile ? "wrap" : "nowrap", justifyContent: isMobile ? "flex-end" : "flex-start", width: isMobile ? "100%" : undefined })}>
           {step > 1 && (
             <button
               onClick={() => setStep(s => s - 1)}

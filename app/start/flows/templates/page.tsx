@@ -119,9 +119,20 @@ const TEMPLATES: FlowTemplate[] = [
 
 export default function FlowTemplatesPage() {
   const router = useRouter();
+  const [isMobile, setIsMobile] = useState(false);
   const [cat, setCat] = useState<Cat>("All Templates");
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    const onResize = () => {
+      if (typeof window === "undefined") return;
+      setIsMobile(window.innerWidth < 980);
+    };
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   React.useEffect(() => {
     let mounted = true;
@@ -210,16 +221,16 @@ export default function FlowTemplatesPage() {
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "rgba(0,0,0,.55)",
-        zIndex: 120,
-        overflow: "auto",
-        padding: "72px 18px 18px",
-        boxSizing: "border-box",
-      }}
-    >
+        style={{
+          position: "fixed",
+          inset: 0,
+          backgroundColor: "rgba(0,0,0,.55)",
+          zIndex: 120,
+          overflow: "auto",
+          padding: isMobile ? "64px 8px 8px" : "72px 18px 18px",
+          boxSizing: "border-box",
+        }}
+      >
       <div
         style={{
           position: "relative",
@@ -240,10 +251,11 @@ export default function FlowTemplatesPage() {
           ×
         </button>
 
-        <div style={{ ...flex(), height: "100%" }}>
+        <div style={{ ...flex({ flexDirection: isMobile ? "column" : "row" }), height: "100%" }}>
           {/* left categories */}
-            <aside style={{ width: 230, backgroundColor: C.sidebar, borderRight: `1px solid ${C.border}`, padding: 18 }}>
+            <aside style={{ width: isMobile ? "100%" : 230, backgroundColor: C.sidebar, borderRight: isMobile ? "none" : `1px solid ${C.border}`, borderBottom: isMobile ? `1px solid ${C.border}` : "none", padding: isMobile ? 12 : 18 }}>
               <div style={{ fontWeight: 900, fontSize: 14, marginBottom: 14, color: C.white }}>All Templates</div>
+            <div style={{ display: "flex", flexDirection: isMobile ? "row" : "column", gap: 8, overflowX: isMobile ? "auto" : "visible" }}>
             {VISIBLE_CATEGORIES.map(c => {
               const count = c === "All Templates" ? TEMPLATES.length : TEMPLATES.filter(t => t.category === c).length;
               return (
@@ -251,7 +263,7 @@ export default function FlowTemplatesPage() {
                 key={c}
                 onClick={() => setCat(c)}
                 style={{
-                  width: "100%",
+                  width: isMobile ? "auto" : "100%",
                   textAlign: "left",
                   background: "none",
                   border: "none",
@@ -260,18 +272,21 @@ export default function FlowTemplatesPage() {
                   borderRadius: 10,
                   color: cat === c ? C.white : C.muted,
                   fontWeight: cat === c ? 900 : 700,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
                 }}
               >
                 {c} <span style={{ color: C.dim, fontWeight: 800 }}>({count})</span>
               </button>
               );
             })}
+            </div>
           </aside>
 
           {/* main */}
-          <div style={{ flex: 1, minWidth: 0, padding: 22, overflow: "auto" }}>
-            <div style={{ fontSize: 34, fontWeight: 900, marginBottom: 6 }}>Todas las Plantillas</div>
-            <div style={{ color: C.muted, fontSize: 16, marginBottom: 18 }}>Ahorra tiempo, destácate y obtén resultados.</div>
+          <div style={{ flex: 1, minWidth: 0, padding: isMobile ? 12 : 22, overflow: "auto" }}>
+            <div style={{ fontSize: isMobile ? 24 : 34, fontWeight: 900, marginBottom: 6 }}>Todas las Plantillas</div>
+            <div style={{ color: C.muted, fontSize: isMobile ? 14 : 16, marginBottom: 18 }}>Ahorra tiempo, destácate y obtén resultados.</div>
 
             <div style={{ ...flex({ alignItems: "center", gap: 12 }), marginBottom: 16 }}>
               <div style={{ flex: 1, position: "relative" }}>
@@ -311,8 +326,8 @@ export default function FlowTemplatesPage() {
               {cat} ({list.length})
             </div>
 
-            <div style={{ height: "calc(100% - 220px)", overflow: "auto", paddingRight: 6 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14 }}>
+            <div style={{ height: isMobile ? "auto" : "calc(100% - 220px)", overflow: "auto", paddingRight: isMobile ? 0 : 6 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: 14 }}>
                 {list.map(t => (
                   <button
                     key={t.id}
@@ -329,7 +344,7 @@ export default function FlowTemplatesPage() {
                       color: C.white,
                     }}
                   >
-                    <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 8, lineHeight: 1.15, overflowWrap: "anywhere", wordBreak: "break-word" }}>
                       {t.name}
                     </div>
                     <div style={{ color: C.muted, fontSize: 13, minHeight: 32, lineHeight: 1.4 }}>
@@ -350,6 +365,17 @@ export default function FlowTemplatesPage() {
                 ))}
               </div>
             </div>
+
+            {isMobile && (
+              <div style={{ marginTop: 14 }}>
+                <button
+                  onClick={() => router.push("/start/agents")}
+                  style={{ width: "100%", borderRadius: 12, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "11px 12px", cursor: "pointer", fontWeight: 900 }}
+                >
+                  ← Volver a Agentes
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

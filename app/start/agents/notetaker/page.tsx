@@ -430,7 +430,7 @@ export default function NotetakerPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.white, fontFamily: "Inter,-apple-system,sans-serif" }}>
-      <div style={{ height: 72, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 16px", background: C.dark }}>
+      <div style={{ height: 72, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 12px", background: C.dark, overflowX: "auto" }}>
         {([
           ["panel", "Copiloto IA"],
           ["reuniones", "Interacciones"],
@@ -442,13 +442,15 @@ export default function NotetakerPage() {
             onClick={() => setTab(id)}
             style={{
               height: 72,
-              padding: "0 62px",
+              padding: "0 24px",
               border: "none",
               background: "transparent",
               borderBottom: tab === id ? `2px solid ${C.blue}` : "2px solid transparent",
               color: tab === id ? C.white : C.muted,
               fontWeight: tab === id ? 900 : 700,
               fontSize: 15,
+              whiteSpace: "nowrap",
+              flexShrink: 0,
               cursor: "pointer",
             }}
           >
@@ -461,8 +463,8 @@ export default function NotetakerPage() {
       </div>
 
       {tab === "panel" && (
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 360px", minHeight: "calc(100vh - 72px)" }}>
-          <div style={{ padding: 14, borderRight: `1px solid ${C.border}` }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", minHeight: "calc(100vh - 72px)" }}>
+          <div style={{ padding: 14 }}>
             <div style={{ background: "linear-gradient(135deg, rgba(29,161,255,0.16), rgba(163,230,53,0.12))", border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
               <div style={{ fontWeight: 900, fontSize: 22 }}>Copiloto Comercial IA</div>
               <div style={{ color: C.muted, fontSize: 14, marginTop: 6, maxWidth: 760 }}>
@@ -490,7 +492,7 @@ export default function NotetakerPage() {
               </div>
             </div>
 
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, display: "flex", alignItems: "center", gap: 18 }}>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>📅 {calendarsConnected} Fuente conectada</div>
               <div style={{ fontWeight: 800, fontSize: 14 }}>🤖 {recorded} Interacción analizada</div>
               {calendarsConnected > 0 && (
@@ -541,7 +543,7 @@ export default function NotetakerPage() {
 
             <div style={{ marginTop: 14, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
               <div style={{ fontWeight: 900, fontSize: 34, marginBottom: 12 }}>Analítica Operativa IA</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
                 {[
                   ["ESTA SEMANA", `${metrics.total}m`, "Tiempo analizado"],
                   ["PRÓXIMAS", `${metrics.upcoming}m`, "Tiempo programado"],
@@ -590,14 +592,14 @@ export default function NotetakerPage() {
             <div style={{ marginBottom: 10, padding: "10px 12px", borderRadius: 10, border: `1px solid rgba(29,161,255,0.35)`, background: "rgba(29,161,255,0.12)", color: "#cfe8ff", fontSize: 12 }}>
             En cada interacción: primero <b>Analizar IA</b> y despues <b>Guardar seguimiento</b>. No necesitas usar otra pantalla.
             </div>
-            <div style={{ background: `${C.blue}1a`, border: `1px solid rgba(29,161,255,0.35)`, borderRadius: 10, padding: 14, display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ background: `${C.blue}1a`, border: `1px solid rgba(29,161,255,0.35)`, borderRadius: 10, padding: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ fontWeight: 800 }}>🤖 Registrar interacción y activar copiloto:</div>
-            <input value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)} placeholder="URL de Google Meet, Zoom o Teams" style={{ marginLeft: "auto", width: 420, maxWidth: "40vw", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "9px 12px" }} />
+            <input value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)} placeholder="URL de Google Meet, Zoom o Teams" style={{ flex: "1 1 320px", minWidth: 220, maxWidth: "100%", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "9px 12px" }} />
             <button onClick={createMeeting} disabled={saving} style={{ border: "none", borderRadius: 8, background: C.blue, color: "#07101c", fontWeight: 900, padding: "10px 18px", cursor: saving ? "not-allowed" : "pointer" }}>➤ Procesar</button>
           </div>
 
           <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center" }}>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar" style={{ width: 420, background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar" style={{ flex: "1 1 280px", minWidth: 180, background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
             <button
               onClick={() => postOp("sync_google")}
               disabled={saving}
@@ -607,22 +609,24 @@ export default function NotetakerPage() {
             </button>
           </div>
 
-          <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
             <input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="Nombre del contacto" style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
             <input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="Email (opcional)" style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
             <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="Teléfono (opcional)" style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
           </div>
 
-          <div style={{ marginTop: 8, borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: "9px 6px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 180px", fontWeight: 900 }}>
-            <span>Interacción</span><span>Fecha</span><span>Duración</span><span>Host</span><span>Participantes</span><span>Estado</span><span>Acciones</span>
-          </div>
+          <div style={{ marginTop: 8, overflowX: "auto" }}>
+            <div style={{ minWidth: 1040 }}>
+              <div style={{ borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: "9px 6px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 180px", fontWeight: 900 }}>
+                <span>Interacción</span><span>Fecha</span><span>Duración</span><span>Host</span><span>Participantes</span><span>Estado</span><span>Acciones</span>
+              </div>
 
-          {filteredMeetings.length === 0 ? (
-            <div style={{ paddingTop: 10 }}>No se encontraron interacciones.</div>
-          ) : (
-            filteredMeetings.map((m) => (
-              <React.Fragment key={m.id}>
-                <div style={{ padding: "10px 6px", borderBottom: `1px solid ${C.border}`, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 240px", alignItems: "center", columnGap: 8 }}>
+              {filteredMeetings.length === 0 ? (
+                <div style={{ paddingTop: 10 }}>No se encontraron interacciones.</div>
+              ) : (
+                filteredMeetings.map((m) => (
+                  <React.Fragment key={m.id}>
+                    <div style={{ padding: "10px 6px", borderBottom: `1px solid ${C.border}`, display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 240px", alignItems: "center", columnGap: 8 }}>
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.title || m.meeting_url || "Reunión"}</span>
                   <span>{m.starts_at ? new Date(m.starts_at).toLocaleDateString() : "-"}</span>
                   <span>{m.duration_minutes || 0}m</span>
@@ -669,9 +673,11 @@ export default function NotetakerPage() {
                     {m.metadata?.crm?.next_action && <div style={{ marginTop: 4, fontSize: 12, color: "#93c5fd" }}>➡ Siguiente acción: {m.metadata.crm.next_action}</div>}
                   </div>
                 )}
-              </React.Fragment>
-            ))
-          )}
+                  </React.Fragment>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -699,7 +705,7 @@ export default function NotetakerPage() {
                 </div>
               </div>
             ) : (
-              <div style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 12 }}>
+              <div style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 12 }}>
                 {sortedFolders.map((f) => (
                   <div key={f.id} onClick={() => setSelectedFolderId(f.id)} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, cursor: "pointer" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -724,7 +730,7 @@ export default function NotetakerPage() {
               </div>
             )
           ) : (
-            <div style={{ padding: 24, display: "grid", gridTemplateColumns: "360px minmax(0,1fr)", gap: 14 }}>
+            <div style={{ padding: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14 }}>
               <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                   <div style={{ width: 44, height: 44, borderRadius: 10, background: String(selectedFolder.color || "#06b6d4"), display: "flex", alignItems: "center", justifyContent: "center", color: "#111", fontWeight: 900 }}>{iconForPlaybook(selectedFolder.icon)}</div>
@@ -800,15 +806,13 @@ export default function NotetakerPage() {
       )}
 
       {tab === "settings" && (
-        <div style={{ display: "grid", gridTemplateColumns: "280px minmax(0,1fr)", minHeight: "calc(100vh - 72px)" }}>
-          <aside style={{ borderRight: `1px solid ${C.border}`, background: C.panel, padding: 16 }}>
+        <div style={{ minHeight: "calc(100vh - 72px)", padding: "20px 16px" }}>
+          <main style={{ maxWidth: 1020, margin: "0 auto" }}>
             <button style={{ width: "100%", textAlign: "left", borderRadius: 10, border: "none", background: `${C.blue}22`, color: C.blue, fontWeight: 900, padding: "12px 14px" }}>
               💡 Estrategia Comercial IA
             </button>
-          </aside>
-          <main style={{ padding: 24 }}>
-            <div style={{ fontSize: 44, fontWeight: 900 }}>Estrategia Comercial IA</div>
-            <p style={{ color: C.muted, fontSize: 16, marginTop: 10, maxWidth: 980 }}>
+            <div style={{ fontSize: "clamp(30px, 4vw, 44px)", fontWeight: 900, marginTop: 12 }}>Estrategia Comercial IA</div>
+            <p style={{ color: C.muted, fontSize: 16, marginTop: 10 }}>
               Define tu metodologia comercial y criterios de conversion. El copiloto usara esto para resumir, calificar y recomendar acciones en cada interacción.
             </p>
             <div style={{ marginTop: 22, fontWeight: 800, color: C.muted, fontSize: 14 }}>Tu framework comercial</div>
@@ -816,12 +820,12 @@ export default function NotetakerPage() {
               value={state.prompt}
               onChange={(e) => setState((s) => ({ ...s, prompt: e.target.value }))}
               placeholder="Describe tu metodología o framework comercial..."
-              style={{ marginTop: 10, width: "100%", maxWidth: 980, minHeight: 300, resize: "vertical", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, color: C.white, padding: 16, fontSize: 14, lineHeight: 1.5 }}
+              style={{ marginTop: 10, width: "100%", minHeight: 300, resize: "vertical", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, color: C.white, padding: 16, fontSize: 14, lineHeight: 1.5, boxSizing: "border-box" }}
             />
-            <p style={{ color: C.muted, fontSize: 14, marginTop: 8, maxWidth: 980 }}>
+            <p style={{ color: C.muted, fontSize: 14, marginTop: 8 }}>
               Describe tu proceso comercial, criterios de calificacion y reglas de siguiente paso para que el copiloto mantenga seguimiento consistente.
             </p>
-            <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
               <button onClick={savePrompt} disabled={saving} style={{ borderRadius: 10, border: "none", background: `${C.blue}cc`, color: "#07101c", fontWeight: 900, padding: "12px 24px", cursor: saving ? "not-allowed" : "pointer" }}>
                 {saving ? "Guardando..." : "✨ Guardar y mejorar"}
               </button>

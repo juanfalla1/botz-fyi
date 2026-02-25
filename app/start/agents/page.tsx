@@ -41,6 +41,8 @@ const C = {
 export default function AgentStudio() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [user,   setUser]   = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -144,12 +146,18 @@ export default function AgentStudio() {
   useEffect(() => {
     const onResize = () => {
       if (typeof window === "undefined") return;
-      setCompactSidebarMenu(window.innerHeight < 860);
+      const mobile = window.innerWidth < 1100;
+      setIsMobile(mobile);
+      setCompactSidebarMenu(!mobile && window.innerHeight < 760);
     };
     onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  useEffect(() => {
+    if (!isMobile) setMobileSidebarOpen(false);
+  }, [isMobile]);
 
   const fetchEntitlement = async () => {
     try {
@@ -1046,7 +1054,7 @@ export default function AgentStudio() {
   const col  = (extra?: object): React.CSSProperties => ({ display: "flex", flexDirection: "column", ...extra });
 
   return (
-    <div style={{ ...flex(), minHeight: "100vh", backgroundColor: C.bg, fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
+    <div style={{ ...flex({ flexDirection: isMobile ? "column" : "row" }), minHeight: "100vh", backgroundColor: C.bg, fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
 
        <AuthModal
          open={openAuth}
@@ -1061,10 +1069,25 @@ export default function AgentStudio() {
         />
 
       {/* ════════ SIDEBAR ════════ */}
-      <aside style={{ ...col(), width: 260, minWidth: 260, backgroundColor: C.sidebar, borderRight: `1px solid ${C.border}`, position: "fixed", top: 0, left: 0, bottom: 0, overflow: "hidden" }}>
+      <aside style={{
+        ...col(),
+        width: isMobile ? "84vw" : 260,
+        maxWidth: isMobile ? 320 : undefined,
+        minWidth: isMobile ? undefined : 260,
+        backgroundColor: C.sidebar,
+        borderRight: `1px solid ${C.border}`,
+        position: "fixed",
+        top: 0,
+        left: isMobile ? (mobileSidebarOpen ? 0 : "-90vw") : 0,
+        bottom: 0,
+        overflow: "hidden",
+        zIndex: 80,
+        transition: "left .22s ease",
+        boxShadow: isMobile ? "20px 0 40px rgba(0,0,0,0.45)" : "none",
+      }}>
 
         {/* Logo */}
-        <div style={{ ...flex({ alignItems: "center", gap: 10 }), padding: "20px 16px 10px" }}>
+        <div style={{ ...flex({ alignItems: "center", gap: 10 }), padding: "30px 16px 12px" }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: C.blue, ...flex({ alignItems: "center", justifyContent: "center" }) }}>
             <span style={{ color: "#fff", fontWeight: 700, fontSize: 18 }}>B</span>
           </div>
@@ -1073,7 +1096,7 @@ export default function AgentStudio() {
         </div>
 
         {/* Workspace */}
-        <div style={{ padding: "0 12px 14px" }}>
+        <div style={{ padding: "6px 12px 16px" }}>
           <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), padding: "10px 12px", borderRadius: 12, backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}` }}>
             <div style={flex({ alignItems: "center", gap: 10 })}>
               <div style={{ width: 26, height: 26, borderRadius: 10, backgroundColor: `${C.blue}22`, display: "flex", alignItems: "center", justifyContent: "center", color: C.blue, fontWeight: 900, fontSize: 12 }}>
@@ -1089,7 +1112,7 @@ export default function AgentStudio() {
         </div>
 
         {/* Nav */}
-        <nav className="botz-sidebar-scroll" style={{ padding: "0 12px", flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", paddingBottom: 10 }}>
+        <nav className="botz-sidebar-scroll" style={{ padding: "8px 12px 0", flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", paddingBottom: 10 }}>
           <button
             onClick={() => setHomeRoutesOpen((v) => !v)}
             style={{ ...flex({ alignItems: "center", gap: 10 }), padding: "10px 12px", borderRadius: 12, marginBottom: 6, cursor: "pointer", width: "100%", backgroundColor: "transparent", border: "none", textAlign: "left" }}
@@ -1231,8 +1254,15 @@ export default function AgentStudio() {
         </div>
       </aside>
 
+      {isMobile && mobileSidebarOpen && (
+        <div
+          onClick={() => setMobileSidebarOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(2,6,23,0.62)" }}
+        />
+      )}
+
        {/* ════════ MAIN ════════ */}
-       <main style={{ ...col(), marginLeft: 260, flex: 1 }}>
+       <main style={{ ...col(), marginLeft: isMobile ? 0 : 260, flex: 1, minWidth: 0 }}>
 
          {isBlocked && (
            <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
@@ -1263,15 +1293,32 @@ export default function AgentStudio() {
          )}
 
         {/* body */}
-          <div style={{ padding: "44px 40px", overflowY: "auto" }}>
+          <div style={{ padding: isMobile ? "20px 12px" : "44px 40px", overflowY: "auto" }}>
 
-          <h1 style={{ fontSize: 30, fontWeight: 800, margin: "0 0 6px" }}>
+          {isMobile && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+              <button
+                onClick={() => setMobileSidebarOpen(true)}
+                style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.65)", color: C.white, padding: "10px 12px", cursor: "pointer", fontSize: 13, fontWeight: 900 }}
+              >
+                ☰ Menu
+              </button>
+              <button
+                onClick={() => router.push("/start")}
+                style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, padding: "10px 12px", cursor: "pointer", fontSize: 12, fontWeight: 800 }}
+              >
+                Volver
+              </button>
+            </div>
+          )}
+
+          <h1 style={{ fontSize: isMobile ? 24 : 30, fontWeight: 800, margin: "0 0 6px" }}>
             Hola {user?.email?.split("@")[0] || (authLoading ? "..." : "Usuario")}
           </h1>
-          <p style={{ color: C.muted, fontSize: 16, margin: "0 0 34px" }}>¿Qué quieres crear hoy?</p>
+          <p style={{ color: C.muted, fontSize: isMobile ? 14 : 16, margin: "0 0 24px" }}>¿Qué quieres crear hoy?</p>
 
           {/* 4-col creation cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18, marginBottom: 36 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4,1fr)", gap: 18, marginBottom: 36 }}>
             {cards.map(card => (
               <button
                 key={card.id}
@@ -1286,7 +1333,7 @@ export default function AgentStudio() {
                   }
                   router.push(`/start/agents/create?type=${card.id}`);
                 }}
-                style={{ ...col(), backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: "24px 22px 18px", cursor: "pointer", textAlign: "left", minHeight: 200, transition: "background .15s" }}
+                style={{ ...col(), backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: isMobile ? "16px 14px 14px" : "24px 22px 18px", cursor: "pointer", textAlign: "left", minHeight: isMobile ? 140 : 200, transition: "background .15s" }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = C.hover; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = C.card;  }}
               >
@@ -1298,7 +1345,7 @@ export default function AgentStudio() {
 
           {/* templates */}
           <p style={{ color: "#b8c3d9", fontSize: 15, margin: "0 0 14px", letterSpacing: 0.2 }}>○ inicia con casos de uso populares</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 32 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: 12, marginBottom: 32 }}>
             {templates.map(t => (
               <div
                 key={t.id}
@@ -1341,9 +1388,9 @@ export default function AgentStudio() {
 
           {/* usage dashboard */}
           <div style={{ marginBottom: 26, borderRadius: 14, border: "1px solid rgba(56,189,248,0.22)", background: "linear-gradient(180deg, rgba(24,30,44,0.98), rgba(20,25,38,0.98))", overflow: "hidden" }}>
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(148,163,184,0.18)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ color: C.white, fontSize: 24, fontWeight: 900 }}>Creditos usados: {fmt(entCreditsUsed || 0)}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(148,163,184,0.18)", display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ color: C.white, fontSize: isMobile ? 18 : 24, fontWeight: 900 }}>Creditos usados: {fmt(entCreditsUsed || 0)}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, width: isMobile ? "100%" : undefined, justifyContent: isMobile ? "space-between" : undefined }}>
                 <span style={{ color: C.muted, fontSize: 12 }}>
                   {usageChart.labels[0] || "-"} - {usageChart.labels[usageChart.labels.length - 1] || "-"}
                 </span>
@@ -1357,15 +1404,15 @@ export default function AgentStudio() {
                 <span style={{ color: "#34d399", fontSize: 13, fontWeight: 800 }}>● Flow Studio</span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: 8 }}>
-                <div style={{ display: "grid", alignContent: "space-between", minHeight: 250, color: C.dim, fontSize: 12, paddingBottom: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "58px 1fr" : "48px 1fr", gap: 8 }}>
+                <div style={{ display: "grid", alignContent: "space-between", minHeight: 250, color: C.dim, fontSize: 12, paddingBottom: 20, paddingLeft: 2 }}>
                   {[1, 0.8, 0.6, 0.4, 0.2, 0].map((m, idx) => (
                     <span key={idx}>{Math.round(usageChart.max * m)}</span>
                   ))}
                 </div>
 
-                <div style={{ borderRadius: 10, border: "1px solid rgba(148,163,184,0.2)", background: "rgba(15,23,42,0.45)", padding: "8px 8px 10px", overflowX: "auto" }}>
-                  <div style={{ minWidth: 760 }}>
+                <div style={{ borderRadius: 10, border: "1px solid rgba(148,163,184,0.2)", background: "rgba(15,23,42,0.45)", padding: "8px 6px 10px", overflowX: "hidden" }}>
+                  <div style={{ minWidth: 0 }}>
                     <svg
                       viewBox="0 0 900 210"
                       style={{ width: "100%", height: 210, display: "block" }}
@@ -1391,7 +1438,7 @@ export default function AgentStudio() {
                         stroke="#a78bfa"
                         strokeWidth="2.6"
                         points={usageChart.voice.map((v, i) => {
-                          const x = 24 + (i * (852 / Math.max(1, usageChart.labels.length - 1)));
+                          const x = 34 + (i * (820 / Math.max(1, usageChart.labels.length - 1)));
                           const y = 190 - ((v || 0) / usageChart.max) * 170;
                           return `${x},${y}`;
                         }).join(" ")}
@@ -1402,22 +1449,22 @@ export default function AgentStudio() {
                         stroke="#34d399"
                         strokeWidth="2.6"
                         points={usageChart.flow.map((v, i) => {
-                          const x = 24 + (i * (852 / Math.max(1, usageChart.labels.length - 1)));
+                          const x = 34 + (i * (820 / Math.max(1, usageChart.labels.length - 1)));
                           const y = 190 - ((v || 0) / usageChart.max) * 170;
                           return `${x},${y}`;
                         }).join(" ")}
                       />
 
                       {usageChart.labels.map((label, i) => {
-                        const x = 24 + (i * (852 / Math.max(1, usageChart.labels.length - 1)));
+                        const x = 34 + (i * (820 / Math.max(1, usageChart.labels.length - 1)));
                         const vy = 190 - ((usageChart.voice[i] || 0) / usageChart.max) * 170;
                         const fy = 190 - ((usageChart.flow[i] || 0) / usageChart.max) * 170;
                         return (
                           <g key={`${label}-${i}`}>
                             <rect
-                              x={Math.max(0, x - (852 / Math.max(1, usageChart.labels.length - 1)) / 2)}
+                              x={Math.max(0, x - (820 / Math.max(1, usageChart.labels.length - 1)) / 2)}
                               y={0}
-                              width={Math.max(14, (852 / Math.max(1, usageChart.labels.length - 1)))}
+                              width={Math.max(14, (820 / Math.max(1, usageChart.labels.length - 1)))}
                               height={210}
                               fill="transparent"
                               onMouseEnter={() => setUsageHoverIdx(i)}
@@ -1431,7 +1478,7 @@ export default function AgentStudio() {
 
                       {usageHoverIdx !== null && usageChart.labels[usageHoverIdx] && (() => {
                         const i = usageHoverIdx;
-                        const x = 24 + (i * (852 / Math.max(1, usageChart.labels.length - 1)));
+                        const x = 34 + (i * (820 / Math.max(1, usageChart.labels.length - 1)));
                         const v = usageChart.voice[i] || 0;
                         const f = usageChart.flow[i] || 0;
                         const yRef = 190 - (Math.max(v, f) / usageChart.max) * 170;
@@ -1482,9 +1529,59 @@ export default function AgentStudio() {
 
           {/* table */}
           <div style={{ backgroundColor: "#272d37", borderRadius: 12, border: "1px solid rgba(255,255,255,0.14)", overflow: "hidden" }}>
+            {isMobile ? (
+              <div style={{ display: "grid", gap: 10, padding: 10 }}>
+                {filtered.length === 0 ? (
+                  <div style={{ padding: 30, textAlign: "center" }}>
+                    <div style={{ fontSize: 34, marginBottom: 8 }}>🤖</div>
+                    <p style={{ color: C.muted, margin: 0 }}>No hay agentes todavía</p>
+                  </div>
+                ) : filtered.map((agent) => {
+                  const tc = typeColor(agent.type);
+                  return (
+                    <div key={agent.id} onClick={() => openAgent(agent)} style={{ border: "1px solid rgba(255,255,255,0.14)", borderRadius: 12, padding: 12, background: "rgba(255,255,255,0.02)", cursor: "pointer" }}>
+                      <div style={flex({ alignItems: "center", gap: 10 })}>
+                        <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: `${C.blue}22`, ...flex({ alignItems: "center", justifyContent: "center" }), fontSize: 17, flexShrink: 0 }}>
+                          {agent.type === "voice" ? "📞" : agent.type === "text" ? "💬" : "⚡"}
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{agent.name}</div>
+                          <div style={{ color: C.dim, fontSize: 12, marginTop: 2 }}>
+                            {new Date(agent.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}
+                          </div>
+                        </div>
+                        <span style={{ padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, backgroundColor: tc.bg, color: tc.fg, textTransform: "capitalize" }}>
+                          {agent.type}
+                        </span>
+                      </div>
+                      <div style={{ ...flex({ alignItems: "center", gap: 8 }), marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
+                        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#cbd5e1", fontSize: 12, marginRight: "auto" }}>
+                          Público
+                          <input type="checkbox" checked={agent.status === "active"} onChange={() => togglePublic(agent)} />
+                        </label>
+                        <button onClick={() => renameAgent(agent)} style={{ width: 34, height: 34, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e5e7eb", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Renombrar">✎</button>
+                        <button onClick={() => duplicateAgent(agent)} style={{ width: 34, height: 34, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e5e7eb", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Duplicar">⎘</button>
+                        <button onClick={() => deleteAgent(agent)} style={{ width: 34, height: 34, border: "1px solid rgba(248,113,113,0.55)", background: "transparent", color: "#f87171", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 900 }} title="Eliminar">🗑</button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div style={{ ...flex({ alignItems: "center", gap: 6, flexWrap: "wrap" }), padding: "4px 2px" }}>
+                  <span style={{ color: C.dim, fontSize: 12, marginRight: 6 }}>Mostrando 1 a {filtered.length} de {filtered.length}</span>
+                  {["«","‹","1","›","»"].map((b, i) => (
+                    <button key={i} style={{ width: b === "1" ? 32 : 28, height: 30, borderRadius: 6, backgroundColor: b === "1" ? C.blue : "transparent", border: b === "1" ? "none" : `1px solid ${C.border}`, color: b === "1" ? "#fff" : C.dim, cursor: "pointer", fontSize: 12, fontWeight: b === "1" ? 700 : 400 }}>
+                      {b}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 6 }}>
+              <div style={{ minWidth: 0 }}>
 
             {/* head */}
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(320px,1fr) 120px 170px 260px", padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.14)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "minmax(220px,1fr) 90px 120px 170px" : "minmax(320px,1fr) 120px 170px 260px", padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.14)" }}>
               {["Nombre","Tipo","Última actividad","Acciones"].map(col => (
                 <span key={col} style={{ color: "#cbd5e1", fontSize: 13, fontWeight: 700 }}>{col} ↕</span>
               ))}
@@ -1503,7 +1600,7 @@ export default function AgentStudio() {
                 <div
                   key={agent.id}
                   onClick={() => openAgent(agent)}
-                  style={{ width: "100%", display: "grid", gridTemplateColumns: "minmax(320px,1fr) 120px 170px 260px", padding: "13px 16px", borderBottom: i < filtered.length - 1 ? "1px solid rgba(255,255,255,0.14)" : "none", backgroundColor: "transparent", cursor: "pointer", textAlign: "left", alignItems: "center" }}
+                  style={{ width: "100%", display: "grid", gridTemplateColumns: isMobile ? "minmax(220px,1fr) 90px 120px 170px" : "minmax(320px,1fr) 120px 170px 260px", padding: "13px 16px", borderBottom: i < filtered.length - 1 ? "1px solid rgba(255,255,255,0.14)" : "none", backgroundColor: "transparent", cursor: "pointer", textAlign: "left", alignItems: "center" }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = "#313846"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
                 >
@@ -1553,6 +1650,9 @@ export default function AgentStudio() {
                 <option>5</option><option>10</option><option>25</option>
               </select>
             </div>
+              </div>
+            </div>
+            )}
           </div>
         </div>
       </main>

@@ -18,16 +18,8 @@ export default function StartLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isAgentsOrFlows =
-    pathname?.startsWith("/start/agents") || pathname?.startsWith("/start/flows");
-  const isAgentsCreate = pathname?.startsWith("/start/agents/create");
-  const isAgentsNotetaker = pathname?.startsWith("/start/agents/notetaker");
 
-  const scaledContent = isAgentsOrFlows && !isAgentsCreate && !isAgentsNotetaker ? (
-    <div style={{ zoom: 1.1 }}>{children}</div>
-  ) : (
-    <>{children}</>
-  );
+  const scaledContent = <>{children}</>;
 
   // ✅ EXCEPCIÓN: /start/agents usa su propio login/sesión y NO debe pasar por el AuthProvider de hipotecas
   if (pathname?.startsWith("/start/agents")) {

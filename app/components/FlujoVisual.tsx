@@ -128,10 +128,12 @@ export default function FlujoVisual() {
         ref={canvasRef}
         style={{
           position: "relative",
-          width: "min(1120px, 98vw)",
+          width: "100%",
+          maxWidth: "1120px",
           margin: "0 auto",
           height: layout.containerHeight,
-          minHeight: layout.containerHeight
+          minHeight: layout.containerHeight,
+          boxSizing: "border-box"
         }}
       >
         {layout.showConnections && (

@@ -13,6 +13,8 @@
     user-select: none;
     overflow: hidden;
     padding: 0;
+    box-sizing: border-box;
+    max-width: 100%;
     
   }
 
@@ -89,11 +91,13 @@
 
   /* --- Bloque extra (debajo del diagrama) --- */
   .flujo-extra {
-    width: min(1120px, 98vw);
+    width: 100%;
+    max-width: 1120px;
     margin: 18px auto 0;
     display: grid;
     grid-template-columns: 1fr 1fr 1.1fr;
     gap: 14px;
+    box-sizing: border-box;
   }
 
   .flujo-extra-card,
@@ -188,12 +192,14 @@
 
   /* --- Robots strip --- */
   .flujo-robots {
-    width: min(1120px, 98vw);
+    width: 100%;
+    max-width: 1120px;
     margin: 14px auto 0;
     border-radius: 18px;
     overflow: hidden;
     border: 1px solid rgba(42, 247, 255, 0.18);
     background: rgba(5, 10, 18, 0.55);
+    box-sizing: border-box;
   }
 
   .flujo-robots-svg {
@@ -306,9 +312,10 @@
       align-items: center !important;
       text-align: left !important;
       border-radius: 16px !important;
-      margin: 0 0 16px 20px !important;
+      margin: 0 auto 16px !important;
       padding: 12px !important;
-      width: min(280px, 85vw) !important;
+      width: 100% !important;
+      max-width: 340px !important;
       height: auto !important;
       gap: 16px !important;
       transform: none !important;

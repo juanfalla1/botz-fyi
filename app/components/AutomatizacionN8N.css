@@ -38,6 +38,8 @@
   z-index: 4;
   transition: box-shadow 0.16s, border 0.14s, background 0.14s;
   user-select: none;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 .n8n-flowchart-node:hover {
   box-shadow: 0 0 40px rgba(163, 230, 53, 0.4);
@@ -112,7 +114,7 @@
 @media (max-width: 1080px) {
   .n8n-flowchart-canvas { 
     width: 100% !important; 
-    min-width: 340px; 
+    min-width: 0;
   }
   .n8n-flowchart-svg { 
     width: 100% !important; 
@@ -138,11 +140,11 @@
   .n8n-flowchart-canvas {
     width: 100% !important;
     height: auto !important;
-    padding: 0 1rem;
+    padding: 0;
     margin: 0 !important; /* ⬅️ quita centrado */
     display: flex !important;
     flex-direction: column !important;
-    align-items: flex-start !important; /* ⬅️ alinea izquierda */
+    align-items: center !important;
   }
   
   .n8n-flowchart-bg,
@@ -157,10 +159,10 @@
     align-items: flex-start !important;
     text-align: left !important;
     border-radius: 16px !important;
-    margin: 0 0 16px 0 !important; /* ⬅️ pegados al borde */
+    margin: 0 0 16px 0 !important;
     padding: 12px !important;
-    width: 100% !important; /* ⬅️ ocupar todo el ancho */
-    max-width: 230px;       /* límite opcional */
+    width: 100% !important;
+    max-width: 340px !important;
     height: auto !important;
     gap: 12px !important;
     transform: none !important;
@@ -206,7 +208,8 @@
 /* XS: móviles muy pequeños */
 @media (max-width: 480px) {
   .n8n-flowchart-node {
-    width: min(320px, 94vw) !important;
+    width: 100% !important;
+    max-width: 320px !important;
     padding: 12px !important;
     gap: 12px !important;
   }
@@ -245,6 +248,8 @@
   align-items: center;
   transition: box-shadow 0.25s, border 0.22s;
   min-height: 200px;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 .n8n-ventaja-card:hover {
   box-shadow: 0 0 40px rgba(163, 230, 53, 0.3);
@@ -284,11 +289,14 @@
 
 @media (max-width: 768px) {
   .n8n-ventajas-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
     gap: 30px;
+    width: 100% !important;
   }
   .n8n-ventaja-card {
     min-height: 200px;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 }
 

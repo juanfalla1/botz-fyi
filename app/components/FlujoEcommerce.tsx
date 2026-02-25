@@ -136,9 +136,10 @@ export default function FlujoEcommerce() {
               display: "flex",
               alignItems: "center",
               textAlign: "left",
-              width: "min(320px, 85vw)",
+              width: "100%",
+              maxWidth: "340px",
               height: "auto",
-              margin: "0 0 16px 20px", // corrido a la izquierda
+              margin: "0 auto 16px",
               padding: "12px",
               borderRadius: "16px",
               gap: "12px"

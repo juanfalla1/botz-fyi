@@ -1,4 +1,3 @@
-import Header from '@/components/Header';
 import Hero from '@/components/Hero';
 import Funcionalidades from '@/components/Funcionalidades';
 import Beneficios from '@/components/Beneficios';
@@ -24,7 +23,6 @@ import Agentes from '@/components/Agentes';
 export default function Home() {
   return (
     <>
-      <Header />
       <main className="landing-root" style={{ minHeight: '100vh', paddingTop: 92 }}>
         <Hero />
         <Agentes />
@@ -70,4 +68,3 @@ export default function Home() {
     </>
   );
 }
-

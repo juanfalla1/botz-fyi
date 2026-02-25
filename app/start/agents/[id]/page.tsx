@@ -86,6 +86,8 @@ export default function AgentDetailPage() {
   const router = useRouter();
   const params = useParams();
   const agentId = params.id as string;
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -169,6 +171,20 @@ export default function AgentDetailPage() {
     similarityThreshold: 0.6,
   });
   const [improvingPrompt, setImprovingPrompt] = useState(false);
+
+  useEffect(() => {
+    const onResize = () => {
+      if (typeof window === "undefined") return;
+      setIsMobile(window.innerWidth < 1100);
+    };
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) setMobileSidebarOpen(false);
+  }, [isMobile]);
 
   const ensureVoicePromptStructure = (rawPrompt: string, params: {
     identityName: string;
@@ -775,7 +791,7 @@ export default function AgentDetailPage() {
   );
 
   return (
-    <div style={{ ...flex(), minHeight: "100vh", backgroundColor: C.bg, fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
+    <div style={{ ...flex({ flexDirection: isMobile ? "column" : "row" }), minHeight: "100vh", backgroundColor: C.bg, fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
 
       <AuthModal
         open={openAuth}
@@ -789,7 +805,21 @@ export default function AgentDetailPage() {
          }}
        />
       {/* sidebar */}
-      <aside style={{ ...col(), width: 260, minWidth: 260, backgroundColor: C.sidebar, borderRight: `1px solid ${C.border}`, position: "fixed", top: 0, left: 0, bottom: 0 }}>
+      <aside style={{
+        ...col(),
+        width: isMobile ? "84vw" : 260,
+        maxWidth: isMobile ? 320 : undefined,
+        minWidth: isMobile ? undefined : 260,
+        backgroundColor: C.sidebar,
+        borderRight: `1px solid ${C.border}`,
+        position: "fixed",
+        top: 0,
+        left: isMobile ? (mobileSidebarOpen ? 0 : "-90vw") : 0,
+        bottom: 0,
+        zIndex: 80,
+        transition: "left .22s ease",
+        boxShadow: isMobile ? "20px 0 40px rgba(0,0,0,0.45)" : "none",
+      }}>
         <div style={{ ...flex({ alignItems: "center", gap: 10 }), padding: "20px 16px 10px" }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: C.blue, ...flex({ alignItems: "center", justifyContent: "center" }) }}>
             <span style={{ color: "#fff", fontWeight: 700, fontSize: 18 }}>B</span>
@@ -817,12 +847,27 @@ export default function AgentDetailPage() {
         </div>
       </aside>
 
+      {isMobile && mobileSidebarOpen && (
+        <div
+          onClick={() => setMobileSidebarOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(2,6,23,0.62)" }}
+        />
+      )}
+
       {/* main */}
-      <main style={{ ...col(), marginLeft: 260, flex: 1, minWidth: 0 }}>
+      <main style={{ ...col(), marginLeft: isMobile ? 0 : 260, flex: 1, minWidth: 0 }}>
         {/* top */}
-        <div style={{ height: 64, borderBottom: `1px solid ${C.border}`, ...flex({ alignItems: "center", justifyContent: "space-between" }), padding: "0 32px", backgroundColor: C.bg, position: "sticky", top: 0, zIndex: 10 }}>
-          <div style={flex({ alignItems: "center", gap: 10 })}>
-            <div style={{ fontWeight: 900, fontSize: 18 }}>{agent.name}</div>
+        <div style={{ minHeight: 64, borderBottom: `1px solid ${C.border}`, ...flex({ alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: isMobile ? "wrap" : "nowrap" }), padding: isMobile ? "8px 12px" : "0 32px", backgroundColor: C.bg, position: "sticky", top: 0, zIndex: 10 }}>
+          <div style={flex({ alignItems: "center", gap: 10, minWidth: 0, flex: 1 })}>
+            {isMobile && (
+              <button
+                onClick={() => setMobileSidebarOpen(true)}
+                style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.65)", color: C.white, padding: "8px 10px", cursor: "pointer", fontSize: 13, fontWeight: 900, flexShrink: 0 }}
+              >
+                ☰
+              </button>
+            )}
+            <div style={{ fontWeight: 900, fontSize: isMobile ? 15 : 18, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{agent.name}</div>
             <span style={{ padding: "3px 10px", borderRadius: 99, backgroundColor: badge.bg, color: badge.fg, fontSize: 12, fontWeight: 900 }}>
               {badge.label}
             </span>
@@ -831,10 +876,10 @@ export default function AgentDetailPage() {
                 Copiloto IA
               </span>
             )}
-            <span style={{ color: C.dim, fontSize: 12 }}>{headerTitle}</span>
+            {!isMobile && <span style={{ color: C.dim, fontSize: 12 }}>{headerTitle}</span>}
           </div>
 
-          <div style={flex({ alignItems: "center", gap: 10 })}>
+          <div style={flex({ alignItems: "center", gap: 10, width: isMobile ? "100%" : undefined, justifyContent: isMobile ? "flex-end" : undefined })}>
             <button
               onClick={toggleAgentStatus}
               style={{ padding: "10px 14px", borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: C.dark, color: C.white, cursor: "pointer", fontWeight: 900, fontSize: 13 }}
@@ -846,7 +891,7 @@ export default function AgentDetailPage() {
 
         {/* tabs */}
         <div style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: C.bg }}>
-          <div style={{ ...flex({ alignItems: "center", gap: 4 }), padding: "0 18px" }}>
+          <div style={{ ...flex({ alignItems: "center", gap: 4 }), padding: "0 12px", overflowX: "auto" }}>
             {tabs.map(t => (
               <button
                 key={t.id}
@@ -859,6 +904,7 @@ export default function AgentDetailPage() {
                   color: tab === t.id ? C.white : C.muted,
                   fontWeight: tab === t.id ? 900 : 800,
                   borderBottom: tab === t.id ? `2px solid ${C.blue}` : "2px solid transparent",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {t.label}
@@ -867,10 +913,10 @@ export default function AgentDetailPage() {
           </div>
         </div>
 
-        <div style={{ padding: "32px 32px" }}>
+        <div style={{ padding: isMobile ? "16px 12px" : "32px 32px" }}>
           {tab === "overview" && (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: 14 }}>
                 {[
                   { label: "Conversaciones", value: agent.total_conversations ?? 0 },
                   { label: "Mensajes", value: agent.total_messages ?? 0 },
@@ -889,7 +935,7 @@ export default function AgentDetailPage() {
                   <div style={{ fontWeight: 900 }}>Contexto</div>
                   <div style={{ color: C.dim, fontSize: 12 }}>Empresa + configuracion</div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
                   <div style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
                     <div style={{ color: C.dim, fontSize: 12, marginBottom: 6 }}>Empresa</div>
                     <div style={{ color: C.white, fontWeight: 900 }}>{String(cfg?.company_name || "-")}</div>
@@ -908,9 +954,9 @@ export default function AgentDetailPage() {
 
           {tab === "conversaciones" && (
             <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden" }}>
-              <div style={{ padding: 16, borderBottom: `1px solid ${C.border}`, ...flex({ alignItems: "center", justifyContent: "space-between", gap: 12 }) }}>
+              <div style={{ padding: 16, borderBottom: `1px solid ${C.border}`, ...flex({ alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: isMobile ? "wrap" : "nowrap" }) }}>
                 <div style={{ fontWeight: 900 }}>Conversaciones</div>
-                <div style={{ width: 320, maxWidth: "60%" }}>
+                <div style={{ width: isMobile ? "100%" : 320, maxWidth: isMobile ? "100%" : "60%" }}>
                   <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..." style={input()} />
                 </div>
               </div>

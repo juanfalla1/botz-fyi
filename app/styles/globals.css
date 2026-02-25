@@ -1492,3 +1492,35 @@ html {
   gap: 12px !important; /* 12px es equivalente a gap-3 de Tailwind */
 }
 
+/* === Landing mobile guardrails (overflow hard-stop) === */
+@media (max-width: 768px) {
+  #arquitectura-agentes-ia,
+  #flujo-cognitivo-visual,
+  #arquitectura-E-commerce-hook,
+  #automatizaciones-n8n {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    overflow-x: clip;
+  }
+
+  #arquitectura-agentes-ia .agente-card,
+  #flujo-cognitivo-visual .flujo-node,
+  #arquitectura-E-commerce-hook .flujo-e-node,
+  #automatizaciones-n8n .n8n-flowchart-node,
+  #automatizaciones-n8n .n8n-ventaja-card {
+    width: 100% !important;
+    max-width: calc(100vw - 24px) !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  #flujo-cognitivo-visual .flujo-extra,
+  #flujo-cognitivo-visual .flujo-robots,
+  #arquitectura-E-commerce-hook .ecom-live,
+  #automatizaciones-n8n .n8n-ventajas-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+}

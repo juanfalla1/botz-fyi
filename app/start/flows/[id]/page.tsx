@@ -160,6 +160,7 @@ export default function FlowEditorPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
+  const [isMobile, setIsMobile] = useState(false);
 
   const [agent, setAgent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -178,6 +179,16 @@ export default function FlowEditorPage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>([]);
 
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const onResize = () => {
+      if (typeof window === "undefined") return;
+      setIsMobile(window.innerWidth < 980);
+    };
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -481,38 +492,38 @@ export default function FlowEditorPage() {
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", backgroundColor: C.bg, fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
       {/* ── top bar ── */}
-      <div style={{ height: 52, borderBottom: `1px solid ${C.border}`, backgroundColor: C.dark, display: "flex", alignItems: "center", padding: "0 18px", gap: 14, flexShrink: 0 }}>
+      <div style={{ minHeight: 52, borderBottom: `1px solid ${C.border}`, backgroundColor: C.dark, display: "flex", alignItems: "center", padding: isMobile ? "6px 10px" : "0 18px", gap: 10, flexShrink: 0, flexWrap: isMobile ? "wrap" : "nowrap" }}>
         <button onClick={() => router.push("/start/agents")} style={{ background: "none", border: "none", color: C.lime, cursor: "pointer", fontWeight: 900, fontSize: 14 }}>
           ← Back
         </button>
-        <div style={{ fontWeight: 900, fontSize: 16, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ fontWeight: 900, fontSize: isMobile ? 14 : 16, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: isMobile ? "58vw" : "none" }}>
           {agent.name}
         </div>
-        <span style={{ color: C.dim, fontSize: 13 }}>🕐</span>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ color: saving ? "#fbbf24" : C.dim, fontSize: 13, fontWeight: 800 }}>
+        {!isMobile && <span style={{ color: C.dim, fontSize: 13 }}>🕐</span>}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: isMobile ? 10 : 16, width: isMobile ? "100%" : "auto", justifyContent: isMobile ? "space-between" : "flex-end" }}>
+          <div style={{ color: saving ? "#fbbf24" : C.dim, fontSize: 13, fontWeight: 800, display: isMobile ? "none" : "block" }}>
             {saving ? "Saving..." : "✓ Saved"}
           </div>
           <button
             onClick={() => runFlow("test")}
             disabled={!!running}
-            style={{ background: "none", border: "none", color: !!running ? C.dim : C.muted, cursor: running ? "not-allowed" : "pointer", fontWeight: 900, fontSize: 14 }}
+            style={{ background: "none", border: "none", color: !!running ? C.dim : C.muted, cursor: running ? "not-allowed" : "pointer", fontWeight: 900, fontSize: isMobile ? 13 : 14, padding: isMobile ? "8px 6px" : 0 }}
           >
             {running === "test" ? "⏳ Testing..." : "⚗ Test Flow"}
           </button>
           <button
             onClick={() => runFlow("run")}
             disabled={!!running}
-            style={{ padding: "10px 16px", borderRadius: 10, border: "none", backgroundColor: C.lime, color: "#111", fontWeight: 900, cursor: running ? "not-allowed" : "pointer", opacity: running ? 0.75 : 1 }}
+            style={{ padding: isMobile ? "9px 12px" : "10px 16px", borderRadius: 10, border: "none", backgroundColor: C.lime, color: "#111", fontWeight: 900, cursor: running ? "not-allowed" : "pointer", opacity: running ? 0.75 : 1 }}
           >
             {running === "run" ? "⏳ Running..." : "▶ Run Flow"}
           </button>
         </div>
       </div>
 
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
         {/* ── left sidebar ── */}
-        <div style={{ width: 180, backgroundColor: C.sidebar, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
+        <div style={{ width: isMobile ? 64 : 180, backgroundColor: C.sidebar, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
           {SIDEBAR_ITEMS.map(item => (
             <button
               key={item.id}
@@ -531,10 +542,10 @@ export default function FlowEditorPage() {
                 borderLeft: sidebarTab === item.id ? `3px solid ${C.lime}` : "3px solid transparent",
               }}
             >
-              <span style={{ fontSize: 16, width: 22, textAlign: "center" }}>{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
+                <span style={{ fontSize: 16, width: 22, textAlign: "center" }}>{item.icon}</span>
+                {!isMobile && item.label}
+              </button>
+            ))}
         </div>
 
         {/* ── canvas ── */}
@@ -588,7 +599,7 @@ export default function FlowEditorPage() {
 
         {/* ── right panel: Actions catalog ── */}
         {actionsOpen && (
-          <div style={{ width: 380, backgroundColor: C.sidebar, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0 }}>
+          <div style={{ width: isMobile ? "86vw" : 380, maxWidth: isMobile ? 360 : undefined, backgroundColor: C.sidebar, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0, position: isMobile ? "absolute" : "relative", right: 0, top: 0, bottom: 0, zIndex: isMobile ? 45 : "auto", boxShadow: isMobile ? "-14px 0 30px rgba(0,0,0,.45)" : "none" }}>
             <div style={{ padding: "16px 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               {actionCategory ? (
                 <button onClick={() => setActionCategory(null)} style={{ background: "none", border: "none", color: C.lime, cursor: "pointer", fontWeight: 900 }}>
@@ -668,10 +679,15 @@ export default function FlowEditorPage() {
 
         {/* ── right panel: Executions ── */}
         {sidebarTab === "executions" && !actionsOpen && (
-          <div style={{ width: 380, backgroundColor: C.sidebar, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0 }}>
+          <div style={{ width: isMobile ? "86vw" : 380, maxWidth: isMobile ? 360 : undefined, backgroundColor: C.sidebar, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0, position: isMobile ? "absolute" : "relative", right: 0, top: 0, bottom: 0, zIndex: isMobile ? 45 : "auto", boxShadow: isMobile ? "-14px 0 30px rgba(0,0,0,.45)" : "none" }}>
             <div style={{ padding: 16, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ fontWeight: 900, fontSize: 16 }}>Executions</div>
-              <div style={{ color: C.dim, fontSize: 12, fontWeight: 900 }}>{executions.length}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ color: C.dim, fontSize: 12, fontWeight: 900 }}>{executions.length}</div>
+                {isMobile && (
+                  <button onClick={() => setSidebarTab("actions")} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18, fontWeight: 900 }}>×</button>
+                )}
+              </div>
             </div>
             <div style={{ flex: 1, overflow: "auto" }}>
               {executions.length === 0 && (
@@ -743,9 +759,12 @@ export default function FlowEditorPage() {
 
         {/* ── right panel: Node configuration ── */}
         {selectedNodeId && !actionsOpen && sidebarTab !== "executions" && selectedNode && (
-          <div style={{ width: 380, backgroundColor: C.sidebar, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", overflow: "auto", flexShrink: 0, padding: 16 }}>
+          <div style={{ width: isMobile ? "86vw" : 380, maxWidth: isMobile ? 360 : undefined, backgroundColor: C.sidebar, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", overflow: "auto", flexShrink: 0, padding: 16, position: isMobile ? "absolute" : "relative", right: 0, top: 0, bottom: 0, zIndex: isMobile ? 45 : "auto", boxShadow: isMobile ? "-14px 0 30px rgba(0,0,0,.45)" : "none" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
               <div style={{ fontWeight: 900, fontSize: 16 }}>{String(selectedNode.data.label)}</div>
+              {isMobile && (
+                <button onClick={() => setSelectedNodeId(null)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18, fontWeight: 900 }}>×</button>
+              )}
             </div>
             <div style={{ color: C.dim, fontSize: 12, marginBottom: 14 }}>{String(selectedNode.data.sub)}</div>
 
@@ -915,6 +934,15 @@ export default function FlowEditorPage() {
           </div>
         )}
       </div>
+
+      {isMobile && (
+        <button
+          onClick={() => router.push("/start/agents")}
+          style={{ position: "fixed", right: 12, bottom: 12, zIndex: 60, borderRadius: 999, border: `1px solid ${C.border}`, background: C.lime, color: "#111", fontWeight: 900, padding: "10px 14px", cursor: "pointer", boxShadow: "0 10px 26px rgba(0,0,0,0.45)" }}
+        >
+          ← Volver
+        </button>
+      )}
     </div>
   );
 }

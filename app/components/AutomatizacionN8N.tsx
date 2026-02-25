@@ -115,7 +115,7 @@ export default function AutomatizacionN8N() {
   }, []);
 
   return (
-    <section style={{ margin: "60px 0 80px", position: "relative", padding: "0 40px", width: "100%", maxWidth: "1400px" }}>
+    <section style={{ margin: "60px 0 80px", position: "relative", padding: "0 clamp(12px, 4vw, 40px)", width: "100%", maxWidth: "1400px" }}>
       <h2 className="section-title" style={{ color: "#22d3ee", fontSize: "clamp(1.8em, 4vw, 2.8em)", textAlign: "center" }}>
       botzflow, Automatización de Flujos de Procesos
       </h2>
@@ -164,7 +164,8 @@ export default function AutomatizacionN8N() {
               flexDirection: "row",
               alignItems: "center",
               textAlign: "left",
-              width: "min(340px, 90vw)",
+              width: "100%",
+              maxWidth: "340px",
               height: "auto",
               margin: "0 0 16px 0",
               padding: "16px",
@@ -208,8 +209,8 @@ export default function AutomatizacionN8N() {
       </div>
 
       {/* === Ventajas === */}
-      <div style={{ margin: "70px auto 0", maxWidth: "1400px", width: "100%", padding: "0 20px" }}>
-        <h3 style={{ color: "#22d3ee", marginBottom: 24, fontWeight: 600, textAlign: "center", fontSize: "1.5em" }}>
+      <div style={{ margin: "70px auto 0", maxWidth: "1400px", width: "100%", padding: 0, boxSizing: "border-box" }}>
+        <h3 style={{ color: "#22d3ee", marginBottom: 24, fontWeight: 600, textAlign: "center", fontSize: "clamp(1.1em, 4.5vw, 1.5em)", lineHeight: 1.25, padding: "0 8px", overflowWrap: "anywhere" }}>
           Ventajas Clave de Automatizar con botzflow
         </h3>
         <div className="n8n-ventajas-grid">
