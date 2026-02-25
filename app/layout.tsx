@@ -8,38 +8,45 @@ import type { Metadata } from "next";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-
-
-  title: "botz - Automatización Inteligente",
+  metadataBase: new URL("https://www.botz.fyi"),
+  title: {
+    default: "Botz | IA para Agentes, Automatización y Ventas",
+    template: "%s | Botz",
+  },
   description:
-    "Botz transforma la productividad empresarial con inteligencia artificial: agentes autónomos, predicciones precisas y dashboards en tiempo real que optimizan procesos y ahorran recursos.",
+    "Botz impulsa ventas y operación con IA: agentes inteligentes, automatización de procesos, WhatsApp, n8n y dashboards en tiempo real.",
+  applicationName: "Botz",
   keywords: [
-    "botz",
-    "automatización",
-    "inteligencia artificial",
-    "IA",
-    "procesos",
-    "dashboards",
-    "optimización",
-    "predicción",
+    "Botz",
+    "IA para ventas",
+    "agentes IA",
+    "automatizacion con IA",
+    "automatizacion hipotecaria",
+    "bot hipotecario",
+    "n8n",
+    "WhatsApp API",
+    "CRM con IA",
   ],
+  alternates: {
+    canonical: "/",
+  },
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon-32x32.png",
     apple: "/favicon-512x512.png",
   },
   openGraph: {
-    title: "botz - Automatización Inteligente",
+    title: "Botz | IA para Agentes, Automatización y Ventas",
     description:
-      "Automatización con IA: predicciones basadas en datos, optimización de tareas repetitivas y dashboards inteligentes en tiempo real para tu negocio.",
+      "Agentes IA, automatizaciones con n8n, WhatsApp y flujos comerciales para captar, calificar y convertir más clientes.",
     url: "https://www.botz.fyi",
-    siteName: "botz",
+    siteName: "Botz",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "botz - Automatización Inteligente",
+        alt: "Botz - IA para automatización y agentes",
       },
     ],
     locale: "es_ES",
@@ -47,10 +54,21 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "botz - Automatización Inteligente",
+    title: "Botz | IA para Agentes, Automatización y Ventas",
     description:
-      "Potencia tu empresa con inteligencia artificial: agentes autónomos, analítica predictiva y dashboards en tiempo real.",
+      "Automatiza ventas y operaciones con Botz: agentes IA, flujos n8n, WhatsApp y dashboards en tiempo real.",
     images: ["/og-image.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
   },
 };
 
@@ -93,6 +111,19 @@ export default function RootLayout({
       "@type": "ContactPoint",
       telephone: "+57 315 482 9949",
       contactType: "customer service",
+    },
+  };
+
+  const websiteJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Botz",
+    url: "https://www.botz.fyi",
+    inLanguage: "es",
+    publisher: {
+      "@type": "Organization",
+      name: "BOTZ",
+      url: "https://www.botz.fyi",
     },
   };
 
@@ -162,6 +193,11 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJson) }}
         />
+        {/* WebSite */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        />
       </head>
       <body>
         {/* ✅ Redirect recovery hash (/#access_token=...&type=recovery) -> /auth/reset#... */}
@@ -189,6 +225,5 @@ export default function RootLayout({
     </html>
   );
 }
-
 
 
