@@ -24,10 +24,10 @@ export async function DELETE(
       .from("ai_agents")
       .select("id")
       .eq("id", agentId)
-      .single();
+      .maybeSingle();
 
     if (!agent) {
-      return NextResponse.json({ ok: false, error: "Agent not found" }, { status: 404 });
+      return NextResponse.json({ ok: true, data: [] });
     }
 
     // Eliminar la conversación
