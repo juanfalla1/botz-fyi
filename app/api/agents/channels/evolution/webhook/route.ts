@@ -140,11 +140,32 @@ function extractTextFromMessage(msg: any, messageType?: string): string {
 type InboundEvent = {
   instance: string;
   from: string;
+  alternates?: string[];
   text: string;
   pushName?: string;
   messageId?: string;
   source?: string;
 };
+
+function inboundPhoneCandidates(payload: any, item: any): string[] {
+  const key = item?.key || {};
+  const candidates = [
+    key?.remoteJid,
+    item?.data?.key?.remoteJid,
+    payload?.data?.key?.remoteJid,
+    key?.participant,
+    item?.data?.key?.participant,
+    payload?.data?.key?.participant,
+    item?.from,
+    item?.sender,
+    payload?.from,
+    payload?.sender,
+  ]
+    .map((v) => normalizePhone(String(v || "")))
+    .filter((n) => n.length >= 10 && n.length <= 13);
+
+  return Array.from(new Set(candidates));
+}
 
 function extractInbound(payload: any): InboundEvent | null {
   const event = String(payload?.event || payload?.type || payload?.eventName || "").toLowerCase();
@@ -183,7 +204,11 @@ function extractInbound(payload: any): InboundEvent | null {
     const fromMe = boolish(key?.fromMe ?? item?.fromMe ?? item?.data?.key?.fromMe);
     if (fromMe) continue;
 
-    const remoteJid = String(preferredInboundPhone(payload, item)).trim();
+    const orderedCandidates = inboundPhoneCandidates(payload, item);
+    const preferred = String(preferredInboundPhone(payload, item)).trim();
+    const remoteJid = preferred && preferred.length >= 10 && preferred.length <= 13
+      ? preferred
+      : (orderedCandidates[0] || "");
     if (!remoteJid) continue;
 
     const from = normalizePhone(String(remoteJid).split("@")[0] || "");
@@ -208,6 +233,7 @@ function extractInbound(payload: any): InboundEvent | null {
     return {
       instance,
       from,
+      alternates: orderedCandidates.filter((p) => p !== from),
       text,
       pushName: pushName || undefined,
       messageId: messageId || undefined,
@@ -485,23 +511,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ignored: true, reason: "instance_missing" });
     }
 
-    console.info("[evolution-webhook] sending reply", {
-      outboundInstance,
-      to: inbound.from,
-      messageChars: reply.length,
-      agentId: agent.id,
-    });
-    try {
-      await evolutionService.sendMessage(outboundInstance, inbound.from, reply);
-    } catch (err: any) {
-      const msg = String(err?.message || "");
-      if (msg.includes('"exists":false') || msg.includes("Bad Request")) {
-        console.warn("[evolution-webhook] ignored: invalid_destination", { to: inbound.from, reason: "exists_false" });
-        return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+    const toCandidates = [inbound.from, ...(inbound.alternates || [])].filter((n, i, arr) => n && arr.indexOf(n) === i);
+    let sentTo = "";
+    for (const to of toCandidates) {
+      console.info("[evolution-webhook] sending reply", {
+        outboundInstance,
+        to,
+        messageChars: reply.length,
+        agentId: agent.id,
+      });
+      try {
+        await evolutionService.sendMessage(outboundInstance, to, reply);
+        sentTo = to;
+        break;
+      } catch (err: any) {
+        const msg = String(err?.message || "");
+        if (msg.includes('"exists":false') || msg.includes("Bad Request")) {
+          console.warn("[evolution-webhook] send candidate rejected", { to, reason: "exists_false" });
+          continue;
+        }
+        throw err;
       }
-      throw err;
     }
-    console.info("[evolution-webhook] reply sent", { channelId: (channel as any)?.id, agentId: agent.id, to: inbound.from });
+
+    if (!sentTo) {
+      console.warn("[evolution-webhook] ignored: invalid_destination", { to: inbound.from, alternates: inbound.alternates || [] });
+      return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+    }
+    console.info("[evolution-webhook] reply sent", { channelId: (channel as any)?.id, agentId: agent.id, to: sentTo });
 
     try {
       await persistConversationTurn(supabase as any, {
