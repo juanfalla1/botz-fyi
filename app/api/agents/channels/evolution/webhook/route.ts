@@ -117,6 +117,7 @@ type InboundEvent = {
   text: string;
   pushName?: string;
   messageId?: string;
+  source?: string;
 };
 
 function extractInbound(payload: any): InboundEvent | null {
@@ -150,6 +151,9 @@ function extractInbound(payload: any): InboundEvent | null {
 
   for (const item of candidates) {
     const key = item?.key || {};
+    const source = String(item?.source || item?.data?.source || payload?.data?.source || payload?.source || "").toLowerCase();
+    if (source === "api" || source === "outbound" || source === "server") continue;
+
     const fromMe = boolish(key?.fromMe ?? item?.fromMe ?? item?.data?.key?.fromMe);
     if (fromMe) continue;
 
@@ -173,9 +177,6 @@ function extractInbound(payload: any): InboundEvent | null {
         item?.sender,
         payload?.from,
         payload?.sender,
-        item?.data?.source,
-        payload?.data?.source,
-        payload?.source,
         payload?.jid,
       ])
     ).trim();
@@ -200,7 +201,14 @@ function extractInbound(payload: any): InboundEvent | null {
     const pushName = String(item?.pushName || item?.data?.pushName || payload?.data?.pushName || "").trim();
     const messageId = String(key?.id || item?.id || item?.data?.key?.id || "").trim();
 
-    return { instance, from, text, pushName: pushName || undefined, messageId: messageId || undefined };
+    return {
+      instance,
+      from,
+      text,
+      pushName: pushName || undefined,
+      messageId: messageId || undefined,
+      source: source || undefined,
+    };
   }
 
   return null;
