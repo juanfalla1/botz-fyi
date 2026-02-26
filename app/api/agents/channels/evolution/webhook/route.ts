@@ -433,13 +433,23 @@ export async function POST(req: Request) {
     const tokens = Math.max(1, Number(completion.usage?.total_tokens || 0) || estimateTokens(inbound.text + reply));
 
     const burn = await consumeEntitlementCredits(supabase as any, ownerId, tokens);
-    if (!burn.ok) return NextResponse.json({ ok: true, ignored: true, reason: burn.code || "credits_blocked" });
+    if (!burn.ok) {
+      console.warn("[evolution-webhook] ignored: credits_blocked", { code: burn.code, ownerId, tokens });
+      return NextResponse.json({ ok: true, ignored: true, reason: burn.code || "credits_blocked" });
+    }
 
     const outboundInstance = String((channel as any)?.config?.evolution_instance_name || inbound.instance || "");
     if (!outboundInstance) {
+      console.warn("[evolution-webhook] ignored: instance_missing", { inboundInstance: inbound.instance || null });
       return NextResponse.json({ ok: true, ignored: true, reason: "instance_missing" });
     }
 
+    console.info("[evolution-webhook] sending reply", {
+      outboundInstance,
+      to: inbound.from,
+      messageChars: reply.length,
+      agentId: agent.id,
+    });
     await evolutionService.sendMessage(outboundInstance, inbound.from, reply);
     console.info("[evolution-webhook] reply sent", { channelId: (channel as any)?.id, agentId: agent.id });
 
