@@ -16,6 +16,30 @@ function normalizePhone(raw: string) {
   return digits;
 }
 
+function boolish(value: any): boolean {
+  if (value === true || value === 1) return true;
+  const v = String(value ?? "").trim().toLowerCase();
+  return v === "true" || v === "1" || v === "yes";
+}
+
+function findTextCandidate(node: any, depth = 0): string {
+  if (depth > 3 || node == null) return "";
+  if (typeof node === "string") return node.trim();
+  if (typeof node !== "object") return "";
+
+  const directKeys = ["conversation", "text", "body", "content", "caption", "title", "selectedDisplayText"];
+  for (const k of directKeys) {
+    const v = (node as any)?.[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+
+  for (const v of Object.values(node)) {
+    const found = findTextCandidate(v, depth + 1);
+    if (found) return found;
+  }
+  return "";
+}
+
 function unwrapMessage(raw: any): any {
   if (!raw || typeof raw !== "object") return raw;
 
@@ -44,6 +68,7 @@ function unwrapMessage(raw: any): any {
 }
 
 function extractTextFromMessage(msg: any, messageType?: string): string {
+  if (typeof msg === "string") return msg.trim();
   const m = unwrapMessage(msg);
   const typeKey = String(messageType || "").trim();
 
@@ -65,6 +90,7 @@ function extractTextFromMessage(msg: any, messageType?: string): string {
       byType?.caption ||
       byType?.selectedDisplayText ||
       byType?.title ||
+      findTextCandidate(m) ||
       ""
   ).trim();
 }
@@ -98,7 +124,7 @@ function extractInbound(payload: any): { instance: string; from: string; text: s
 
   for (const item of candidates) {
     const key = item?.key || {};
-    const fromMe = Boolean(key?.fromMe || item?.fromMe);
+    const fromMe = boolish(key?.fromMe ?? item?.fromMe ?? item?.data?.key?.fromMe);
     if (fromMe) continue;
 
     const remoteJid = String(
