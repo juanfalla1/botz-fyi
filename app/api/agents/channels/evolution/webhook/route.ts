@@ -140,6 +140,7 @@ function extractTextFromMessage(msg: any, messageType?: string): string {
 type InboundEvent = {
   instance: string;
   from: string;
+  phoneCandidates?: string[];
   text: string;
   pushName?: string;
   messageId?: string;
@@ -183,6 +184,29 @@ function extractInbound(payload: any): InboundEvent | null {
     const fromMe = boolish(key?.fromMe ?? item?.fromMe ?? item?.data?.key?.fromMe);
     if (fromMe) continue;
 
+    const rawCandidates = [
+      key?.remoteJid,
+      item?.data?.key?.remoteJid,
+      payload?.data?.key?.remoteJid,
+      key?.participant,
+      item?.data?.key?.participant,
+      payload?.data?.key?.participant,
+      item?.remoteJid,
+      item?.participant,
+      item?.jid,
+      item?.from,
+      item?.sender,
+      payload?.from,
+      payload?.sender,
+      payload?.jid,
+      item?.data?.source,
+      payload?.data?.source,
+      payload?.source,
+      item?.data?.from,
+      item?.data?.sender,
+    ];
+
+    const candidatePhones = Array.from(new Set(rawCandidates.map((v) => normalizePhone(String(v || ""))).filter((v) => v.length >= 10 && v.length <= 15)));
     const remoteJid = String(preferredInboundPhone(payload, item)).trim();
     if (!remoteJid) continue;
 
@@ -208,6 +232,7 @@ function extractInbound(payload: any): InboundEvent | null {
     return {
       instance,
       from,
+      phoneCandidates: candidatePhones,
       text,
       pushName: pushName || undefined,
       messageId: messageId || undefined,
@@ -485,14 +510,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ignored: true, reason: "instance_missing" });
     }
 
-    console.info("[evolution-webhook] sending reply", {
-      outboundInstance,
-      to: inbound.from,
-      messageChars: reply.length,
-      agentId: agent.id,
-    });
-    await evolutionService.sendMessage(outboundInstance, inbound.from, reply);
-    console.info("[evolution-webhook] reply sent", { channelId: (channel as any)?.id, agentId: agent.id });
+    const toCandidates = Array.from(new Set([inbound.from, ...(inbound.phoneCandidates || [])].filter(Boolean)));
+    let sentTo = "";
+    let lastErr: any = null;
+    for (const to of toCandidates) {
+      try {
+        console.info("[evolution-webhook] sending reply", {
+          outboundInstance,
+          to,
+          messageChars: reply.length,
+          agentId: agent.id,
+        });
+        await evolutionService.sendMessage(outboundInstance, to, reply);
+        sentTo = to;
+        break;
+      } catch (err: any) {
+        lastErr = err;
+        const msg = String(err?.message || "");
+        const notExists = msg.includes('"exists":false') || msg.includes("Bad Request");
+        if (!notExists) throw err;
+      }
+    }
+
+    if (!sentTo) {
+      throw new Error(lastErr?.message || "No se pudo enviar mensaje a ningun candidato");
+    }
+    console.info("[evolution-webhook] reply sent", { channelId: (channel as any)?.id, agentId: agent.id, to: sentTo });
 
     try {
       await persistConversationTurn(supabase as any, {
