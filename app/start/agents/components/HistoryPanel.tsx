@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { authedFetch } from "../authedFetchAgents";
 
 interface Conversation {
   id: string;
@@ -63,9 +64,15 @@ export default function HistoryPanel({
     try {
       // Intentar obtener de la API
       try {
-        const response = await fetch(`/api/agents/conversations/${agentId}`);
+        const response = await authedFetch(`/api/agents/conversations/${agentId}`);
         if (response.ok) {
-          const json = await response.json();
+          const raw = await response.text();
+          let json: any = {};
+          try {
+            json = raw ? JSON.parse(raw) : {};
+          } catch {
+            throw new Error("Respuesta invalida del servidor (no JSON)");
+          }
           const apiConversations = json.data || [];
           
           // Filtrar por búsqueda
@@ -138,12 +145,18 @@ export default function HistoryPanel({
   const handleDelete = async (conversationId: string) => {
     if (confirm("¿Estás seguro de que quieres eliminar esta conversación?")) {
       try {
-        const response = await fetch(`/api/agents/conversations/${agentId}/${conversationId}`, {
+        const response = await authedFetch(`/api/agents/conversations/${agentId}/${conversationId}`, {
           method: "DELETE",
         });
 
         if (!response.ok) {
-          const json = await response.json();
+          const raw = await response.text();
+          let json: any = {};
+          try {
+            json = raw ? JSON.parse(raw) : {};
+          } catch {
+            throw new Error("El servidor devolvio HTML en lugar de JSON");
+          }
           throw new Error(json?.error || "Error eliminando conversación");
         }
 
