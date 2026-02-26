@@ -430,11 +430,24 @@ export async function POST(req: Request) {
     });
 
     const reply = String(completion.choices?.[0]?.message?.content || "").trim() || "No tengo una respuesta en este momento.";
-    const tokens = Math.max(1, Number(completion.usage?.total_tokens || 0) || estimateTokens(inbound.text + reply));
+    const usageTotal = Math.max(0, Number(completion.usage?.total_tokens || 0));
+    const usageCompletion = Math.max(0, Number(completion.usage?.completion_tokens || 0));
+    // Para WhatsApp cobramos solo salida del modelo y con tope por turno,
+    // evitando bloquear una respuesta por prompts/documentos largos de entrada.
+    const billedTokens = Math.max(
+      1,
+      Math.min(500, usageCompletion || estimateTokens(reply))
+    );
 
-    const burn = await consumeEntitlementCredits(supabase as any, ownerId, tokens);
+    const burn = await consumeEntitlementCredits(supabase as any, ownerId, billedTokens);
     if (!burn.ok) {
-      console.warn("[evolution-webhook] ignored: credits_blocked", { code: burn.code, ownerId, tokens });
+      console.warn("[evolution-webhook] ignored: credits_blocked", {
+        code: burn.code,
+        ownerId,
+        billedTokens,
+        usageTotal,
+        usageCompletion,
+      });
       return NextResponse.json({ ok: true, ignored: true, reason: burn.code || "credits_blocked" });
     }
 
@@ -468,12 +481,14 @@ export async function POST(req: Request) {
       console.warn("[evolution-webhook] conversation save failed", saveErr?.message || saveErr);
     }
 
-    await logUsageEvent(supabase as any, ownerId, tokens, {
+    await logUsageEvent(supabase as any, ownerId, billedTokens, {
       endpoint: "/api/agents/channels/evolution/webhook",
       action: "whatsapp_evolution_turn",
       metadata: {
         agent_id: agent.id,
-        llm_tokens: tokens,
+        llm_tokens_total: usageTotal,
+        llm_tokens_completion: usageCompletion,
+        llm_tokens_billed: billedTokens,
         channel: "whatsapp_evolution",
       },
     });
