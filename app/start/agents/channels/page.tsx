@@ -474,12 +474,12 @@ export default function AgentChannelsPage() {
                 </span>
               </div>
               <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>Conecta un numero para Agentes escaneando QR. No mezcla con Hipotecario.</div>
-              <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 6, alignItems: "stretch" }}>
+              <div style={{ marginTop: 8, display: "flex", gap: 6, alignItems: "stretch" }}>
                 <input
                   value={evolutionWebhookUrl}
                   readOnly
                   style={{
-                    width: "100%",
+                    flex: 1,
                     minWidth: 0,
                     padding: "7px 8px",
                     borderRadius: 8,
@@ -489,16 +489,17 @@ export default function AgentChannelsPage() {
                     fontSize: 11,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
+                    height: "auto",
                   }}
                 />
-                <button onClick={() => void copyText(evolutionWebhookUrl, "Webhook copiado")} style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontSize: 11, padding: "0 8px", cursor: "pointer", fontWeight: 800, whiteSpace: "nowrap" }}>
+                <button onClick={() => void copyText(evolutionWebhookUrl, "Webhook copiado")} style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontSize: 11, padding: "7px 12px", cursor: "pointer", fontWeight: 800, whiteSpace: "nowrap", alignSelf: "center" }}>
                   Copiar
                 </button>
               </div>
               <button
                 onClick={() => void connectEvolution()}
                 disabled={evolutionBusy}
-                style={{ marginTop: 10, borderRadius: 8, border: `1px solid ${C.lime}`, background: "transparent", color: C.lime, padding: "8px 10px", cursor: evolutionBusy ? "not-allowed" : "pointer", fontWeight: 800 }}
+                style={{ marginTop: 10, borderRadius: 8, border: `1px solid ${C.lime}`, background: "transparent", color: C.lime, padding: "8px 10px", cursor: evolutionBusy ? "not-allowed" : "pointer", fontWeight: 800, width: "100%" }}
               >
                 {evolutionBusy ? "Iniciando..." : "Conectar por QR"}
               </button>
