@@ -6,8 +6,56 @@ export function getBearerToken(req: Request) {
   return m ? m[1].trim() : "";
 }
 
+function parseCookieHeader(req: Request) {
+  const raw = req.headers.get("cookie") || "";
+  const map: Record<string, string> = {};
+  raw.split(";").forEach((part) => {
+    const idx = part.indexOf("=");
+    if (idx <= 0) return;
+    const key = part.slice(0, idx).trim();
+    const val = part.slice(idx + 1).trim();
+    if (!key) return;
+    map[key] = val;
+  });
+  return map;
+}
+
+function tokenFromCookieValue(rawValue: string) {
+  const val = decodeURIComponent(String(rawValue || "").trim());
+  if (!val) return "";
+
+  if (/^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/.test(val)) {
+    return val;
+  }
+
+  try {
+    const parsed = JSON.parse(val);
+    if (parsed && typeof parsed === "object") {
+      if (typeof parsed.access_token === "string" && parsed.access_token) return parsed.access_token;
+      if (typeof parsed?.currentSession?.access_token === "string" && parsed.currentSession.access_token) {
+        return parsed.currentSession.access_token;
+      }
+    }
+    if (Array.isArray(parsed) && typeof parsed[0] === "string" && parsed[0]) {
+      return parsed[0];
+    }
+  } catch {
+    // no-op
+  }
+
+  return "";
+}
+
+function getCookieAccessToken(req: Request) {
+  const cookies = parseCookieHeader(req);
+  const keys = Object.keys(cookies);
+  const authTokenKey = keys.find((k) => k.includes("auth-token"));
+  if (!authTokenKey) return "";
+  return tokenFromCookieValue(cookies[authTokenKey] || "");
+}
+
 export async function getRequestUser(req: Request) {
-  const token = getBearerToken(req);
+  const token = getBearerToken(req) || getCookieAccessToken(req);
   if (!token) return { ok: false as const, token: "", user: null as any, error: "Unauthorized" };
 
   const anon = getAnonSupabase();
