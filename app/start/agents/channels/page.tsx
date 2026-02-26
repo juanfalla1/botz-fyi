@@ -474,9 +474,24 @@ export default function AgentChannelsPage() {
                 </span>
               </div>
               <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>Conecta un numero para Agentes escaneando QR. No mezcla con Hipotecario.</div>
-              <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr auto", gap: 6 }}>
-                <input value={evolutionWebhookUrl} readOnly style={{ padding: "7px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white, fontSize: 11 }} />
-                <button onClick={() => void copyText(evolutionWebhookUrl, "Webhook copiado")} style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontSize: 11, padding: "0 8px", cursor: "pointer", fontWeight: 800 }}>
+              <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 6, alignItems: "stretch" }}>
+                <input
+                  value={evolutionWebhookUrl}
+                  readOnly
+                  style={{
+                    width: "100%",
+                    minWidth: 0,
+                    padding: "7px 8px",
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                    background: C.dark,
+                    color: C.white,
+                    fontSize: 11,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                />
+                <button onClick={() => void copyText(evolutionWebhookUrl, "Webhook copiado")} style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontSize: 11, padding: "0 8px", cursor: "pointer", fontWeight: 800, whiteSpace: "nowrap" }}>
                   Copiar
                 </button>
               </div>
