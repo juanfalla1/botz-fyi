@@ -394,6 +394,10 @@ function buildDocumentContext(message: string, files: { name: string; content: s
 
 export async function POST(req: Request) {
   try {
+    console.log("[evolution-webhook] HIT", {
+      time: new Date().toISOString(),
+    });
+
     const payload = await req.json().catch(() => ({}));
     const inbound = extractInbound(payload);
     if (!inbound) {
