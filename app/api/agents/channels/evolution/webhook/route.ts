@@ -32,6 +32,32 @@ function pickBestPhone(candidates: any[]): string {
   return long || parsed[0] || "";
 }
 
+function preferredInboundPhone(payload: any, item: any): string {
+  const key = item?.key || {};
+  const rawPrimary = [
+    key?.remoteJid,
+    item?.data?.key?.remoteJid,
+    payload?.data?.key?.remoteJid,
+    key?.participant,
+    item?.data?.key?.participant,
+    payload?.data?.key?.participant,
+  ];
+
+  const primary = pickBestPhone(rawPrimary);
+  if (primary) return primary;
+
+  return pickBestPhone([
+    item?.remoteJid,
+    item?.participant,
+    item?.jid,
+    item?.from,
+    item?.sender,
+    payload?.from,
+    payload?.sender,
+    payload?.jid,
+  ]);
+}
+
 function boolish(value: any): boolean {
   if (value === true || value === 1) return true;
   const v = String(value ?? "").trim().toLowerCase();
@@ -157,29 +183,7 @@ function extractInbound(payload: any): InboundEvent | null {
     const fromMe = boolish(key?.fromMe ?? item?.fromMe ?? item?.data?.key?.fromMe);
     if (fromMe) continue;
 
-    const remoteJid = String(
-      pickBestPhone([
-        key?.remoteJid,
-        key?.participant,
-        item?.remoteJid,
-        item?.participant,
-        item?.jid,
-        item?.data?.key?.remoteJid,
-        item?.data?.key?.participant,
-        item?.data?.from,
-        item?.data?.sender,
-        item?.data?.jid,
-        item?.message?.key?.remoteJid,
-        item?.message?.key?.participant,
-        payload?.data?.key?.remoteJid,
-        payload?.data?.key?.participant,
-        item?.from,
-        item?.sender,
-        payload?.from,
-        payload?.sender,
-        payload?.jid,
-      ])
-    ).trim();
+    const remoteJid = String(preferredInboundPhone(payload, item)).trim();
     if (!remoteJid) continue;
 
     const from = normalizePhone(String(remoteJid).split("@")[0] || "");
