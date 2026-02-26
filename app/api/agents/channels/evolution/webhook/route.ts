@@ -105,7 +105,10 @@ export async function POST(req: Request) {
   try {
     const payload = await req.json().catch(() => ({}));
     const inbound = extractInbound(payload);
-    if (!inbound) return NextResponse.json({ ok: true, ignored: true });
+    if (!inbound) {
+      console.warn("[evolution-webhook] ignored: no inbound payload match");
+      return NextResponse.json({ ok: true, ignored: true });
+    }
 
     const supabase = getServiceSupabase();
     if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
@@ -121,8 +124,14 @@ export async function POST(req: Request) {
     if (!channel && (channels || []).length === 1) {
       channel = (channels || [])[0];
     }
-    if (!channel) return NextResponse.json({ ok: true, ignored: true, reason: "channel_not_found" });
-    if (!channel.assigned_agent_id) return NextResponse.json({ ok: true, ignored: true, reason: "agent_not_assigned" });
+    if (!channel) {
+      console.warn("[evolution-webhook] ignored: channel_not_found", { instance: inbound.instance });
+      return NextResponse.json({ ok: true, ignored: true, reason: "channel_not_found" });
+    }
+    if (!channel.assigned_agent_id) {
+      console.warn("[evolution-webhook] ignored: agent_not_assigned", { channelId: (channel as any)?.id });
+      return NextResponse.json({ ok: true, ignored: true, reason: "agent_not_assigned" });
+    }
 
     const { data: agent, error: agentErr } = await supabase
       .from("ai_agents")
@@ -130,16 +139,25 @@ export async function POST(req: Request) {
       .eq("id", String(channel.assigned_agent_id))
       .maybeSingle();
     if (agentErr) return NextResponse.json({ ok: false, error: agentErr.message }, { status: 500 });
-    if (!agent || String(agent.status) !== "active") return NextResponse.json({ ok: true, ignored: true, reason: "agent_inactive" });
+    if (!agent || String(agent.status) !== "active") {
+      console.warn("[evolution-webhook] ignored: agent_inactive", { agentId: String(channel.assigned_agent_id) });
+      return NextResponse.json({ ok: true, ignored: true, reason: "agent_inactive" });
+    }
 
     const ownerId = String((agent as any).created_by || "").trim();
     if (!ownerId) return NextResponse.json({ ok: false, error: "Agente sin propietario" }, { status: 400 });
 
     const access = await checkEntitlementAccess(supabase as any, ownerId);
-    if (!access.ok) return NextResponse.json({ ok: true, ignored: true, reason: access.code || "entitlement_blocked" });
+    if (!access.ok) {
+      console.warn("[evolution-webhook] ignored: entitlement_blocked", { code: access.code });
+      return NextResponse.json({ ok: true, ignored: true, reason: access.code || "entitlement_blocked" });
+    }
 
     const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
-    if (!apiKey) return NextResponse.json({ ok: false, error: "Missing OPENAI_API_KEY" }, { status: 500 });
+    if (!apiKey) {
+      console.error("[evolution-webhook] missing OPENAI_API_KEY");
+      return NextResponse.json({ ok: false, error: "Missing OPENAI_API_KEY" }, { status: 500 });
+    }
 
     const cfg = (agent.configuration || {}) as any;
     const rawFiles = Array.isArray(cfg?.brain?.files) ? cfg.brain.files : [];
@@ -183,6 +201,7 @@ export async function POST(req: Request) {
     }
 
     await evolutionService.sendMessage(outboundInstance, inbound.from, reply);
+    console.info("[evolution-webhook] reply sent", { channelId: (channel as any)?.id, agentId: agent.id });
 
     await logUsageEvent(supabase as any, ownerId, tokens, {
       endpoint: "/api/agents/channels/evolution/webhook",
@@ -196,6 +215,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, sent: true });
   } catch (e: any) {
+    console.error("[evolution-webhook] error", e?.message || e);
     return NextResponse.json({ ok: false, error: e?.message || "Error en webhook Evolution" }, { status: 500 });
   }
 }

@@ -51,7 +51,6 @@ export default function HistoryPanel({
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [usingMockData, setUsingMockData] = useState(false);
 
   useEffect(() => {
     if (agentId) {
@@ -63,84 +62,30 @@ export default function HistoryPanel({
     setLoading(true);
     setError(null);
     try {
-      // Intentar obtener de la API
+      const response = await authedFetch(`/api/agents/conversations/${agentId}`);
+      const raw = await response.text();
+      let json: any = {};
       try {
-        const response = await authedFetch(`/api/agents/conversations/${agentId}`);
-        if (response.ok) {
-          const raw = await response.text();
-          let json: any = {};
-          try {
-            json = raw ? JSON.parse(raw) : {};
-          } catch {
-            throw new Error("Respuesta invalida del servidor (no JSON)");
-          }
-          const apiConversations = json.data || [];
-          
-          // Filtrar por búsqueda
-          const filtered = apiConversations.filter(
-            (c: Conversation) =>
-              c.contact_name?.toLowerCase().includes(search.toLowerCase()) ||
-              c.contact_email?.toLowerCase().includes(search.toLowerCase())
-          );
-          
-          setConversations(filtered);
-          setUsingMockData(false);
-          setLoading(false);
-          return;
-        }
-      } catch (apiErr) {
-        console.log("API no disponible, usando datos de ejemplo");
+        json = raw ? JSON.parse(raw) : {};
+      } catch {
+        throw new Error("Respuesta invalida del servidor (no JSON)");
+      }
+      if (!response.ok || !json?.ok) {
+        throw new Error(json?.error || "No se pudo cargar historial");
       }
 
-      // Fallback: Usar conversaciones de ejemplo
-      const mockConversations: Conversation[] = [
-        {
-          id: "conv-1",
-          contact_name: "Juan Carlos",
-          contact_email: "juan@example.com",
-          channel: "web",
-          status: "completed",
-          message_count: 5,
-          duration_seconds: 180,
-          started_at: new Date(Date.now() - 3600000).toISOString(),
-          transcript: "Usuario: Hola\nAgent: Hola, ¿cómo puedo ayudarte?\nUsuario: Información sobre precios\nAgent: Tenemos 3 planes...",
-        },
-        {
-          id: "conv-2",
-          contact_name: "María García",
-          contact_email: "maria@example.com",
-          channel: "whatsapp",
-          status: "completed",
-          message_count: 8,
-          duration_seconds: 240,
-          started_at: new Date(Date.now() - 7200000).toISOString(),
-          transcript: "Usuario: Buenos días\nAgent: Buenos días, ¿en qué puedo ayudarte?",
-        },
-        {
-          id: "conv-3",
-          contact_name: "Carlos López",
-          contact_email: "carlos@example.com",
-          channel: "voice",
-          status: "completed",
-          message_count: 3,
-          duration_seconds: 120,
-          started_at: new Date(Date.now() - 10800000).toISOString(),
-          transcript: "Llamada de prueba",
-        },
-      ];
-
-      // Filtrar por búsqueda
-      const filtered = mockConversations.filter(
-        (c) =>
+      const apiConversations = Array.isArray(json.data) ? json.data : [];
+      const filtered = apiConversations.filter(
+        (c: Conversation) =>
           c.contact_name?.toLowerCase().includes(search.toLowerCase()) ||
           c.contact_email?.toLowerCase().includes(search.toLowerCase())
       );
 
       setConversations(filtered);
-      setUsingMockData(true);
       setLoading(false);
     } catch (err: any) {
       setError(err?.message || "Error cargando historial");
+      setConversations([]);
       setLoading(false);
     }
   };
@@ -148,12 +93,6 @@ export default function HistoryPanel({
   const handleDelete = async (conversationId: string) => {
     if (confirm("¿Estás seguro de que quieres eliminar esta conversación?")) {
       try {
-        if (usingMockData) {
-          setConversations(conversations.filter((c) => c.id !== conversationId));
-          if (onDelete) onDelete(conversationId);
-          return;
-        }
-
         const response = await authedFetch(`/api/agents/conversations/${agentId}/${conversationId}`, {
           method: "DELETE",
         });
