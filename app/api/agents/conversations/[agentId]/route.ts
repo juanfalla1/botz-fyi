@@ -33,7 +33,7 @@ export async function DELETE(
 
     // Eliminar la conversación
     const { error } = await supabase
-      .from("conversations")
+      .from("agent_conversations")
       .delete()
       .eq("id", conversationId)
       .eq("agent_id", agentId);
@@ -79,7 +79,7 @@ export async function GET(
 
     // Obtener conversaciones
     const { data: conversations, error } = await supabase
-      .from("conversations")
+      .from("agent_conversations")
       .select("*")
       .eq("agent_id", agentId)
       .order("started_at", { ascending: false });

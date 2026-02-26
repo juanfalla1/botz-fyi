@@ -31,7 +31,7 @@ export async function DELETE(
     }
 
     const { error } = await supabase
-      .from("conversations")
+      .from("agent_conversations")
       .delete()
       .eq("id", conversationId)
       .eq("agent_id", agentId);
