@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { authedFetch } from "@/app/start/agents/authedFetchAgents";
 
 const C = {
@@ -121,6 +121,7 @@ const PROVIDERS_BY_CHANNEL: Record<string, string[]> = {
 
 export default function AgentChannelsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [rows, setRows] = useState<Channel[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [numbers, setNumbers] = useState<Phone[]>([]);
@@ -160,8 +161,17 @@ export default function AgentChannelsPage() {
     auth_token: "",
     twilio_phone_number: "",
   });
+  const [evolutionModalOpen, setEvolutionModalOpen] = useState(false);
+  const [evolutionBusy, setEvolutionBusy] = useState(false);
+  const [evolutionError, setEvolutionError] = useState<string | null>(null);
+  const [evolutionStatus, setEvolutionStatus] = useState<"connected" | "pending" | "disconnected">("disconnected");
+  const [evolutionQr, setEvolutionQr] = useState<string | null>(null);
+  const [evolutionDisconnectBusy, setEvolutionDisconnectBusy] = useState(false);
+  const pollRef = useRef<number | null>(null);
 
   const schemaKey = `${form.channel_type}:${form.provider}`;
+  const preselectedAgentId = String(searchParams.get("agentId") || "").trim();
+  const preselectedAgent = agents.find((a) => a.id === preselectedAgentId) || null;
   const activeSchema = CRED_SCHEMAS[schemaKey] || {
     title: "Configuracion personalizada",
     notes: "Este canal no tiene plantilla predefinida. Completa campos basicos y webhook.",
@@ -171,6 +181,13 @@ export default function AgentChannelsPage() {
   const callbackUrl = typeof window !== "undefined"
     ? `${window.location.origin}/api/whatsapp/meta/callback`
     : "https://tu-dominio.com/api/whatsapp/meta/callback";
+  const evolutionWebhookUrl = (() => {
+    if (typeof window === "undefined") return "https://tu-dominio.com/api/agents/channels/evolution/webhook";
+    const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    const publicBase = String(process.env.NEXT_PUBLIC_APP_URL || "https://www.botz.fyi").replace(/\/$/, "");
+    const base = isLocal ? publicBase : window.location.origin;
+    return `${base}/api/agents/channels/evolution/webhook`;
+  })();
 
   const genVerifyToken = () => {
     const token = `botz_meta_${Math.random().toString(36).slice(2, 8)}_${Date.now().toString(36)}`;
@@ -185,6 +202,82 @@ export default function AgentChannelsPage() {
     } catch {
       setCopyMsg("No se pudo copiar");
       window.setTimeout(() => setCopyMsg(""), 1800);
+    }
+  };
+
+  const stopPolling = () => {
+    if (pollRef.current !== null) {
+      window.clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const fetchEvolutionStatus = async () => {
+    const res = await authedFetch("/api/agents/channels/evolution/status");
+    const json = await res.json();
+    if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo consultar estado Evolution");
+    const nextStatus = String(json?.data?.status || "disconnected") as "connected" | "pending" | "disconnected";
+    setEvolutionStatus(nextStatus);
+    setEvolutionQr(json?.data?.qr_code ? String(json.data.qr_code) : null);
+    if (nextStatus === "connected") {
+      stopPolling();
+      await fetchData();
+    }
+  };
+
+  const startPolling = () => {
+    stopPolling();
+    pollRef.current = window.setInterval(() => {
+      void fetchEvolutionStatus().catch(() => {
+        // no-op: se mantiene estado actual hasta siguiente intento
+      });
+    }, 4000);
+  };
+
+  const connectEvolution = async () => {
+    setEvolutionBusy(true);
+    setEvolutionError(null);
+    setEvolutionModalOpen(true);
+    try {
+      const assignedAgentId = preselectedAgentId || form.assigned_agent_id || null;
+      const res = await authedFetch("/api/agents/channels/evolution/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assigned_agent_id: assignedAgentId }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo iniciar conexion Evolution");
+
+      const status = String(json?.data?.status || "disconnected") as "connected" | "pending" | "disconnected";
+      setEvolutionStatus(status);
+      setEvolutionQr(json?.data?.qr_code ? String(json.data.qr_code) : null);
+      await fetchData();
+
+      if (status !== "connected") startPolling();
+    } catch (e: any) {
+      setEvolutionError(String(e?.message || "No se pudo iniciar conexion Evolution"));
+    } finally {
+      setEvolutionBusy(false);
+    }
+  };
+
+  const disconnectEvolution = async () => {
+    setEvolutionDisconnectBusy(true);
+    setEvolutionError(null);
+    try {
+      const res = await authedFetch("/api/agents/channels/evolution/disconnect", {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo desconectar Evolution");
+      setEvolutionStatus("disconnected");
+      setEvolutionQr(null);
+      stopPolling();
+      await fetchData();
+    } catch (e: any) {
+      setEvolutionError(String(e?.message || "No se pudo desconectar Evolution"));
+    } finally {
+      setEvolutionDisconnectBusy(false);
     }
   };
 
@@ -275,6 +368,24 @@ export default function AgentChannelsPage() {
 
   useEffect(() => { void fetchData(); }, []);
 
+  useEffect(() => {
+    if (!preselectedAgentId || agents.length === 0) return;
+    const exists = agents.some((a) => a.id === preselectedAgentId);
+    if (!exists) return;
+    setForm((s) => (s.assigned_agent_id === preselectedAgentId ? s : { ...s, assigned_agent_id: preselectedAgentId }));
+  }, [preselectedAgentId, agents]);
+
+  useEffect(() => {
+    return () => stopPolling();
+  }, []);
+
+  useEffect(() => {
+    if (canAdvanced) return;
+    void fetchEvolutionStatus().catch(() => {
+      // no-op initial check
+    });
+  }, [canAdvanced]);
+
   const createChannel = async () => {
     try {
       const missing = activeSchema.fields.filter((f) => f.required && !String(form.config[f.key] || "").trim());
@@ -339,6 +450,11 @@ export default function AgentChannelsPage() {
 
       <div style={{ maxWidth: 1160, margin: "0 auto", padding: "22px 18px 36px" }}>
         <div style={{ color: C.muted, marginBottom: 14 }}>Conecta canales reales (voz, WhatsApp, webchat), asigna numero y agente responsable.</div>
+        {preselectedAgent && (
+          <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 12, border: `1px solid ${C.border}`, background: "rgba(163,230,53,0.12)", color: C.white, fontSize: 13 }}>
+            Agente preseleccionado: <strong>{preselectedAgent.name}</strong>. Las nuevas conexiones quedaran asignadas a este agente.
+          </div>
+        )}
         {error && <div style={{ marginBottom: 12, border: `1px solid ${C.border}`, background: "rgba(239,68,68,0.12)", color: "#fca5a5", padding: "10px 12px", borderRadius: 10 }}>{error}</div>}
 
         {!canAdvanced && (
@@ -350,6 +466,38 @@ export default function AgentChannelsPage() {
 
         {!canAdvanced && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, marginBottom: 12 }}>
+            <div style={{ borderRadius: 12, border: "1px solid rgba(163,230,53,0.35)", background: "rgba(163,230,53,0.08)", padding: 12 }}>
+              <div style={{ fontWeight: 900, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <span>WhatsApp QR (Evolution)</span>
+                <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 900, background: evolutionStatus === "connected" ? "rgba(16,185,129,0.18)" : evolutionStatus === "pending" ? "rgba(245,158,11,0.16)" : "rgba(107,114,128,0.18)", color: evolutionStatus === "connected" ? "#34d399" : evolutionStatus === "pending" ? "#fbbf24" : "#9ca3af" }}>
+                  {evolutionStatus === "connected" ? "Conectado" : evolutionStatus === "pending" ? "Pendiente" : "Sin conectar"}
+                </span>
+              </div>
+              <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>Conecta un numero para Agentes escaneando QR. No mezcla con Hipotecario.</div>
+              <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr auto", gap: 6 }}>
+                <input value={evolutionWebhookUrl} readOnly style={{ padding: "7px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white, fontSize: 11 }} />
+                <button onClick={() => void copyText(evolutionWebhookUrl, "Webhook copiado")} style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontSize: 11, padding: "0 8px", cursor: "pointer", fontWeight: 800 }}>
+                  Copiar
+                </button>
+              </div>
+              <button
+                onClick={() => void connectEvolution()}
+                disabled={evolutionBusy}
+                style={{ marginTop: 10, borderRadius: 8, border: `1px solid ${C.lime}`, background: "transparent", color: C.lime, padding: "8px 10px", cursor: evolutionBusy ? "not-allowed" : "pointer", fontWeight: 800 }}
+              >
+                {evolutionBusy ? "Iniciando..." : "Conectar por QR"}
+              </button>
+              {evolutionStatus === "connected" && (
+                <button
+                  onClick={() => void disconnectEvolution()}
+                  disabled={evolutionDisconnectBusy}
+                  style={{ marginTop: 8, borderRadius: 8, border: "1px solid rgba(239,68,68,0.45)", background: "rgba(239,68,68,0.12)", color: "#fca5a5", padding: "8px 10px", cursor: evolutionDisconnectBusy ? "not-allowed" : "pointer", fontWeight: 800, width: "100%" }}
+                >
+                  {evolutionDisconnectBusy ? "Desconectando..." : "Desconectar"}
+                </button>
+              )}
+            </div>
+
             {[
               { channel_type: "whatsapp", provider: "meta", title: "WhatsApp (Meta)", desc: "Configuracion asistida con Meta" },
               { channel_type: "whatsapp", provider: "messagebird", variant: "legacy", title: "MessageBird WhatsApp (Legado)", desc: "Canal legado de MessageBird" },
@@ -598,6 +746,49 @@ export default function AgentChannelsPage() {
             </tbody>
           </table>
         </div>
+
+        {evolutionModalOpen && (
+          <div onClick={() => { stopPolling(); setEvolutionModalOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 81, background: "rgba(2,6,23,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 620, borderRadius: 14, border: `1px solid ${C.border}`, background: C.card, padding: 16 }}>
+              <div style={{ fontWeight: 900, fontSize: 24, marginBottom: 4 }}>WhatsApp QR (Evolution)</div>
+              <div style={{ color: C.muted, marginBottom: 12, fontSize: 13 }}>Esta conexion corresponde solo a Agentes. Escanea el QR con el numero que quieres usar para este producto.</div>
+
+              {evolutionError && (
+                <div style={{ marginBottom: 10, border: `1px solid ${C.border}`, background: "rgba(239,68,68,0.12)", color: "#fca5a5", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
+                  {evolutionError}
+                </div>
+              )}
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 13, color: C.muted }}>Estado</span>
+                <span style={{ padding: "4px 10px", borderRadius: 999, fontSize: 12, fontWeight: 900, background: evolutionStatus === "connected" ? "rgba(16,185,129,0.18)" : "rgba(245,158,11,0.16)", color: evolutionStatus === "connected" ? "#34d399" : "#fbbf24" }}>
+                  {evolutionStatus === "connected" ? "Conectado" : evolutionStatus === "pending" ? "Pendiente de escaneo" : "Desconectado"}
+                </span>
+              </div>
+
+              {evolutionQr ? (
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+                  <img src={evolutionQr} alt="QR Evolution" style={{ width: 260, height: 260, borderRadius: 10, border: `1px solid ${C.border}`, background: "#fff", objectFit: "contain" }} />
+                </div>
+              ) : (
+                <div style={{ marginBottom: 12, color: C.muted, fontSize: 13 }}>
+                  {evolutionStatus === "connected" ? "El numero ya esta conectado." : "Aun no hay QR disponible. Pulsa refrescar para reintentar."}
+                </div>
+              )}
+
+              <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 12 }}>
+                Pasos: 1) Abre WhatsApp en tu telefono. 2) Ve a Dispositivos vinculados. 3) Escanea este QR. 4) Espera estado Conectado.
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button onClick={() => void fetchEvolutionStatus()} style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "9px 12px", cursor: "pointer", fontWeight: 800 }}>
+                  Refrescar
+                </button>
+                <button onClick={() => { stopPolling(); setEvolutionModalOpen(false); }} style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "9px 12px", cursor: "pointer" }}>Cerrar</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {!canAdvanced && assistModal.open && (
           <div onClick={() => setAssistModal((s) => ({ ...s, open: false }))} style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(2,6,23,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>

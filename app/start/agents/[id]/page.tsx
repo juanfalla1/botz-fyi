@@ -38,6 +38,15 @@ interface Conversation {
   started_at: string;
 }
 
+interface ChannelConnection {
+  id: string;
+  display_name: string;
+  channel_type: string;
+  provider: string;
+  status: string;
+  assigned_agent_id: string | null;
+}
+
 const C = {
   bg: "#1a1d26",
   sidebar: "#15181f",
@@ -102,6 +111,9 @@ export default function AgentDetailPage() {
   const [contextLoading, setContextLoading] = useState(false);
   const [contextError, setContextError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [integrationRows, setIntegrationRows] = useState<ChannelConnection[]>([]);
+  const [integrationsLoading, setIntegrationsLoading] = useState(false);
+  const [integrationsError, setIntegrationsError] = useState<string | null>(null);
   const [ctxForm, setCtxForm] = useState({
     companyName: "",
     companyUrl: "",
@@ -691,6 +703,30 @@ export default function AgentDetailPage() {
       (c.channel || "").toLowerCase().includes(q)
     );
   }, [conversations, search]);
+
+  const linkedChannels = useMemo(() => {
+    return integrationRows.filter((row) => row.assigned_agent_id === agentId);
+  }, [integrationRows, agentId]);
+
+  const fetchIntegrations = async () => {
+    setIntegrationsLoading(true);
+    setIntegrationsError(null);
+    try {
+      const res = await authed("/api/agents/channels");
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo cargar integraciones");
+      setIntegrationRows(Array.isArray(json?.data) ? json.data : []);
+    } catch (e: any) {
+      setIntegrationsError(String(e?.message || "No se pudo cargar integraciones"));
+    } finally {
+      setIntegrationsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab !== "integraciones") return;
+    void fetchIntegrations();
+  }, [tab]);
 
   const promptIndex = useMemo(() => {
     const lines = String(edit.prompt || "").split("\n");
@@ -1828,14 +1864,58 @@ export default function AgentDetailPage() {
 
           {tab === "integraciones" && (
             <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 20 }}>Integraciones</h2>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-                {["Twilio", "WhatsApp", "Slack", "Zapier", "Make", "Discord"].map(integration => (
-                  <div key={integration} style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, textAlign: "center" }}>
-                    <div style={{ fontSize: 32, marginBottom: 8 }}>🔗</div>
+              <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 16 }}>Integraciones</h2>
+
+              <div style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+                <div style={{ fontWeight: 900, marginBottom: 6 }}>Conecta canales reales desde Canales</div>
+                <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>
+                  Esta vista te muestra el estado de integraciones asignadas a este agente. Para conectar WhatsApp, Twilio u otros proveedores usa el centro de Canales.
+                </div>
+                <button
+                  onClick={() => router.push(`/start/agents/channels?agentId=${agentId}`)}
+                  style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 900, cursor: "pointer" }}
+                >
+                  Ir a Canales
+                </button>
+              </div>
+
+              {integrationsError && (
+                <div style={{ marginBottom: 12, border: `1px solid rgba(239,68,68,0.35)`, backgroundColor: "rgba(239,68,68,0.12)", color: "#fca5a5", borderRadius: 10, padding: "10px 12px", fontSize: 12 }}>
+                  {integrationsError}
+                </div>
+              )}
+
+              {integrationsLoading ? (
+                <div style={{ color: C.muted, fontSize: 13 }}>Cargando integraciones...</div>
+              ) : linkedChannels.length === 0 ? (
+                <div style={{ color: C.muted, fontSize: 13 }}>Este agente no tiene canales asignados.</div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+                  {linkedChannels.map((row) => (
+                    <div key={row.id} style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+                        <div style={{ fontWeight: 900 }}>{row.display_name || "Canal"}</div>
+                        <span style={{ padding: "3px 8px", borderRadius: 999, fontSize: 11, fontWeight: 900, backgroundColor: row.status === "connected" ? "rgba(16,185,129,0.18)" : "rgba(245,158,11,0.16)", color: row.status === "connected" ? "#34d399" : "#fbbf24" }}>
+                          {row.status || "pending"}
+                        </span>
+                      </div>
+                      <div style={{ color: C.muted, fontSize: 12 }}>Tipo: {row.channel_type}</div>
+                      <div style={{ color: C.muted, fontSize: 12 }}>Proveedor: {row.provider}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
+                {["WhatsApp", "Twilio Voz", "Instagram"].map((integration) => (
+                  <div key={integration} style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, textAlign: "center" }}>
+                    <div style={{ fontSize: 24, marginBottom: 6 }}>🔗</div>
                     <div style={{ fontWeight: 700, marginBottom: 8 }}>{integration}</div>
-                    <button style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                      Conectar
+                    <button
+                      onClick={() => router.push(`/start/agents/channels?agentId=${agentId}`)}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                    >
+                      Configurar
                     </button>
                   </div>
                 ))}
