@@ -19,7 +19,9 @@ function normalizePhone(raw: string) {
 function extractTextFromMessage(msg: any): string {
   return String(
     msg?.conversation ||
-      msg?.text ||
+    msg?.text ||
+      msg?.body ||
+      msg?.content ||
       msg?.caption ||
       msg?.extendedTextMessage?.text ||
       msg?.imageMessage?.caption ||
@@ -65,16 +67,39 @@ function extractInbound(payload: any): { instance: string; from: string; text: s
 
     const remoteJid = String(
       key?.remoteJid ||
+        key?.participant ||
         item?.remoteJid ||
+        item?.from ||
+        item?.sender ||
+        item?.participant ||
+        item?.jid ||
         item?.data?.key?.remoteJid ||
+        item?.data?.key?.participant ||
+        item?.data?.from ||
+        item?.data?.sender ||
+        item?.data?.jid ||
         item?.message?.key?.remoteJid ||
+        item?.message?.key?.participant ||
         payload?.data?.key?.remoteJid ||
+        payload?.data?.key?.participant ||
+        payload?.from ||
+        payload?.sender ||
+        payload?.jid ||
         ""
     ).trim();
-    if (!remoteJid || remoteJid.includes("status@broadcast") || remoteJid.endsWith("@g.us")) continue;
+    if (!remoteJid) continue;
+    if (remoteJid.includes("status@broadcast") || remoteJid.endsWith("@g.us")) continue;
 
-    const from = normalizePhone(remoteJid.split("@")[0] || "");
-    const text = extractTextFromMessage(item?.message || item?.data?.message || item?.data || {});
+    const from = normalizePhone(String(remoteJid).split("@")[0] || "");
+    const text = String(
+      extractTextFromMessage(item?.message || item?.data?.message || item?.data || {}) ||
+      item?.text ||
+      item?.body ||
+      item?.content ||
+      payload?.text ||
+      payload?.body ||
+      ""
+    ).trim();
     if (!from || !text) continue;
 
     return { instance, from, text };
