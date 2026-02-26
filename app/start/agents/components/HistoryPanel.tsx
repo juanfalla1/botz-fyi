@@ -51,6 +51,7 @@ export default function HistoryPanel({
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [usingMockData, setUsingMockData] = useState(false);
 
   useEffect(() => {
     if (agentId) {
@@ -83,6 +84,7 @@ export default function HistoryPanel({
           );
           
           setConversations(filtered);
+          setUsingMockData(false);
           setLoading(false);
           return;
         }
@@ -135,6 +137,7 @@ export default function HistoryPanel({
       );
 
       setConversations(filtered);
+      setUsingMockData(true);
       setLoading(false);
     } catch (err: any) {
       setError(err?.message || "Error cargando historial");
@@ -145,6 +148,12 @@ export default function HistoryPanel({
   const handleDelete = async (conversationId: string) => {
     if (confirm("¿Estás seguro de que quieres eliminar esta conversación?")) {
       try {
+        if (usingMockData) {
+          setConversations(conversations.filter((c) => c.id !== conversationId));
+          if (onDelete) onDelete(conversationId);
+          return;
+        }
+
         const response = await authedFetch(`/api/agents/conversations/${agentId}/${conversationId}`, {
           method: "DELETE",
         });
