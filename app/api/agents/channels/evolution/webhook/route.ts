@@ -16,19 +16,55 @@ function normalizePhone(raw: string) {
   return digits;
 }
 
-function extractTextFromMessage(msg: any): string {
+function unwrapMessage(raw: any): any {
+  if (!raw || typeof raw !== "object") return raw;
+
+  let msg = raw;
+  for (let i = 0; i < 4; i++) {
+    if (msg?.ephemeralMessage?.message) {
+      msg = msg.ephemeralMessage.message;
+      continue;
+    }
+    if (msg?.viewOnceMessage?.message) {
+      msg = msg.viewOnceMessage.message;
+      continue;
+    }
+    if (msg?.viewOnceMessageV2?.message) {
+      msg = msg.viewOnceMessageV2.message;
+      continue;
+    }
+    if (msg?.viewOnceMessageV2Extension?.message) {
+      msg = msg.viewOnceMessageV2Extension.message;
+      continue;
+    }
+    break;
+  }
+
+  return msg;
+}
+
+function extractTextFromMessage(msg: any, messageType?: string): string {
+  const m = unwrapMessage(msg);
+  const typeKey = String(messageType || "").trim();
+
+  const byType = typeKey && m && typeof m === "object" ? m?.[typeKey] : null;
+
   return String(
-    msg?.conversation ||
-    msg?.text ||
-      msg?.body ||
-      msg?.content ||
-      msg?.caption ||
-      msg?.extendedTextMessage?.text ||
-      msg?.imageMessage?.caption ||
-      msg?.videoMessage?.caption ||
-      msg?.documentMessage?.caption ||
-      msg?.buttonsResponseMessage?.selectedDisplayText ||
-      msg?.listResponseMessage?.title ||
+    m?.conversation ||
+      m?.text ||
+      m?.body ||
+      m?.content ||
+      m?.caption ||
+      m?.extendedTextMessage?.text ||
+      m?.imageMessage?.caption ||
+      m?.videoMessage?.caption ||
+      m?.documentMessage?.caption ||
+      m?.buttonsResponseMessage?.selectedDisplayText ||
+      m?.listResponseMessage?.title ||
+      byType?.text ||
+      byType?.caption ||
+      byType?.selectedDisplayText ||
+      byType?.title ||
       ""
   ).trim();
 }
@@ -91,11 +127,15 @@ function extractInbound(payload: any): { instance: string; from: string; text: s
     if (remoteJid.includes("status@broadcast") || remoteJid.endsWith("@g.us")) continue;
 
     const from = normalizePhone(String(remoteJid).split("@")[0] || "");
+    const typeHint = String(item?.messageType || item?.data?.messageType || "").trim();
     const text = String(
-      extractTextFromMessage(item?.message || item?.data?.message || item?.data || {}) ||
+      extractTextFromMessage(item?.message || item?.data?.message || item?.data || {}, typeHint) ||
       item?.text ||
       item?.body ||
       item?.content ||
+      item?.data?.text ||
+      item?.data?.body ||
+      item?.data?.content ||
       payload?.text ||
       payload?.body ||
       ""
