@@ -19,10 +19,11 @@
 
 .flujo-e-line {
   stroke: #00fff2;
-  stroke-width: 6;
-  stroke-dasharray: 14 12;
-  filter: drop-shadow(0 0 8px #00fff288);
-  animation: flujo-e-move 1.2s linear infinite;
+  stroke-width: 4;
+  stroke-dasharray: 10 10;
+  filter: drop-shadow(0 0 6px #00fff288);
+  animation: flujo-e-move 1.4s linear infinite;
+  fill: none;
 }
 
 @keyframes flujo-e-move {
@@ -51,8 +52,185 @@
   backdrop-filter: blur(10px);
 }
 
-.ecom-live-kicker {
+.ecom-call-scene {
+  border-top: 1px solid rgba(0, 255, 242, 0.12);
+  border-bottom: 1px solid rgba(0, 255, 242, 0.12);
+  background: linear-gradient(180deg, rgba(30, 58, 138, 0.35), rgba(5, 10, 18, 0.58));
+  padding: 16px 16px 14px;
+  display: grid;
+  grid-template-columns: 200px 1fr 300px;
+  gap: 14px;
+  align-items: center;
+}
+
+.ecom-contact-card {
+  background: rgba(37, 67, 144, 0.42);
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 18px;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.ecom-contact-photo {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(186, 230, 253, 0.5);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.45);
+}
+
+.ecom-contact-name {
+  margin-top: 10px;
+  color: #e2e8f0;
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.ecom-contact-phone {
+  margin-top: 4px;
+  color: #cbd5e1;
+  font-size: 14px;
+}
+
+.ecom-contact-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+}
+
+.ecom-contact-actions span {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.ecom-contact-actions .ok { background: rgba(16, 185, 129, 0.25); }
+.ecom-contact-actions .end { background: rgba(239, 68, 68, 0.25); }
+
+.ecom-wave-wrap {
+  position: relative;
+  min-height: 200px;
+  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.58);
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  overflow: hidden;
+}
+
+.ecom-audio-toggle {
+  position: absolute;
+  left: 14px;
+  top: 10px;
+  z-index: 4;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.5);
+  background: rgba(8, 47, 73, 0.8);
+  color: #dbeafe;
   font-size: 12px;
+  font-weight: 800;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.ecom-call-audio-hidden {
+  display: none;
+}
+
+.ecom-play {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #60a5fa, #2563eb);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  box-shadow: 0 0 0 10px rgba(59, 130, 246, 0.18), 0 0 40px rgba(59, 130, 246, 0.35);
+  z-index: 2;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.ecom-play:hover {
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
+.ecom-play::before,
+.ecom-play::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 1px solid rgba(147, 197, 253, 0.35);
+  animation: play-pulse 2.8s linear infinite;
+}
+
+.ecom-play::after {
+  animation-delay: 1.4s;
+}
+
+@keyframes play-pulse {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  100% { transform: scale(1.42); opacity: 0; }
+}
+
+.ecom-wave-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.ecom-wave {
+  fill: none;
+  stroke: url(#ecom-wave-grad);
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 10px rgba(103, 232, 249, 0.25));
+  stroke-dasharray: 18 10;
+}
+
+.ecom-wave.a { stroke-width: 9; opacity: 0.7; animation: wave-slide 5.5s linear infinite; }
+.ecom-wave.b { stroke-width: 5; opacity: 0.55; animation: wave-slide 6.1s linear reverse infinite; }
+.ecom-wave.c { stroke-width: 3.5; opacity: 0.8; animation: wave-slide 4.8s linear infinite; }
+
+@keyframes wave-slide {
+  to { stroke-dashoffset: -160; }
+}
+
+.ecom-details-card {
+  border-radius: 18px;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  background: rgba(30, 58, 138, 0.25);
+  padding: 14px 14px 12px;
+}
+
+.ecom-details-title {
+  color: #c7d2fe;
+  font-size: 14px;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+
+.ecom-details-line {
+  color: #dbeafe;
+  font-size: 14px;
+  line-height: 1.45;
+  margin-top: 6px;
+}
+
+.ecom-live-kicker {
+  font-size: 14px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -61,7 +239,7 @@
 
 .ecom-live-sub {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: 15px;
   color: rgba(226, 232, 240, 0.86);
 }
 
@@ -182,7 +360,7 @@
   background: rgba(5, 10, 18, 0.55);
   border-top: 1px solid rgba(0, 255, 242, 0.12);
   color: rgba(226, 232, 240, 0.70);
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .ecom-live-labels span {
@@ -201,7 +379,7 @@
   background: #111622;
   box-shadow: 0 0 30px #00fff255;
   color: #fff;
-  font-size: 0.98em;
+  font-size: 1.05em;
   font-weight: 600;
   display: flex;
   flex-direction: column;
@@ -209,10 +387,10 @@
   justify-content: center;
   position: absolute;
   cursor: pointer;
-  transition: box-shadow 0.28s, border-color 0.28s;
+  transition: box-shadow 0.24s, border-color 0.24s, transform 0.2s;
   text-align: center;
   z-index: 2;
-  padding: 0 7px;
+  padding: 0 10px;
   user-select: none;
   overflow: visible;
   box-sizing: border-box;
@@ -222,16 +400,23 @@
 .flujo-e-node:hover {
   box-shadow: 0 0 44px #00fff2cc;
   border-color: #10b2cb;
+  transform: translateY(-3px);
 }
 
 .flujo-e-title {
   font-weight: 700;
-  font-size: 1.06em;
+  font-size: 1.12em;
   color: #00baff;
   text-shadow: 0 2px 6px #081229cc;
   word-break: break-word;
-  line-height: 1.15;
+  line-height: 1.25;
   margin-top: 1px;
+}
+
+.flujo-e-content {
+  width: 100%;
+  max-width: 150px;
+  margin: 0 auto;
 }
 
 .flujo-e-modal {
@@ -282,21 +467,23 @@
     min-width: 0;
   }
 
-  .flujo-e-node {
-    width: 100px !important;
-    height: 100px !important;
-    font-size: 0.85em;
-  }
+  .flujo-e-node { font-size: 0.9em; }
 
   .flujo-e-title {
-    font-size: 0.9em;
+    font-size: 0.94em;
     line-height: 1.2;
   }
 
-  .flujo-e-svg {
-    width: 100% !important;
-    height: 100% !important;
+  .flujo-e-svg { width: 100% !important; height: 100% !important; }
+
+  .ecom-call-scene {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
+
+  .ecom-wave-wrap { min-height: 180px; }
+
+  .ecom-details-card { order: 3; }
 }
 
 @media (max-width: 650px) {
@@ -333,6 +520,7 @@
 
   .flujo-e-content {
     flex: 1;
+    max-width: none;
   }
 
   .flujo-e-title {
@@ -359,6 +547,18 @@
   .flujo-e-modal-content h3 {
     font-size: 1.3em;
     margin-bottom: 0.8em;
+  }
+
+  .ecom-audio-toggle {
+    position: static;
+    width: fit-content;
+    margin: 8px 8px 0;
+  }
+
+  .ecom-play {
+    width: 52px;
+    height: 52px;
+    font-size: 22px;
   }
 }
 

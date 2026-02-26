@@ -351,7 +351,7 @@ nav a:hover::after {
   max-width: 1040px;
   margin: auto;
   border-radius: 12px;
-  padding: 2.25em;
+  padding: 2.6em;
   background: rgba(10, 15, 28, 0.7);
   backdrop-filter: blur(10px);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
@@ -360,21 +360,26 @@ nav a:hover::after {
 .landing-root .content:hover {
   transform: translateY(-5px);
 }
-h3 {
+.landing-root .content h3 {
   color: var(--primary);
   margin-top: 0;
-  font-size: 1.8em;
+  font-size: clamp(2.2rem, 3.2vw, 3rem);
   margin-bottom: 1em;
 }
-ul {
+.landing-root .content p {
+  font-size: clamp(1.2rem, 1.8vw, 1.55rem);
+  line-height: 1.68;
+}
+.landing-root ul {
   list-style-type: none;
   padding: 0;
 }
-ul li {
+.landing-root .content ul li {
   margin-bottom: 1em;
   position: relative;
   padding-left: 2em;
-  line-height: 1.6;
+  line-height: 1.7;
+  font-size: clamp(1.1rem, 1.65vw, 1.38rem);
 }
 /* Después */
 .otra-seccion ul li::before {
@@ -398,13 +403,23 @@ ul li {
 .landing-root .feature-card {
   background: rgba(10, 15, 28, 0.8);
   border-radius: 12px;
-  padding: 1.5em;
-  width: 320px;
+  padding: 2em;
+  width: 420px;
+  min-height: 330px;
   max-width: 100%;
   transition: all 0.3s ease;
   border: 1px solid rgba(0, 186, 255, 0.1);
   position: relative;
   overflow: hidden;
+}
+.landing-root .feature-card h4 {
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+  line-height: 1.22;
+  margin: 0.4em 0;
+}
+.landing-root .feature-card p {
+  font-size: clamp(1.1rem, 1.8vw, 1.35rem);
+  line-height: 1.58;
 }
 .landing-root .feature-card:hover {
   transform: translateY(-10px);
@@ -412,7 +427,7 @@ ul li {
   border-color: rgba(0, 186, 255, 0.3);
 }
 .landing-root .feature-icon {
-  font-size: 2.5em;
+  font-size: 3.2em;
   color: var(--primary);
   margin-bottom: 0.5em;
 }

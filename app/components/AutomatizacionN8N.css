@@ -14,16 +14,16 @@
 .n8n-flowchart-canvas {
   position: relative;
   width: 100%;
-  max-width: 1400px;
-  height: 200px;
-  margin: 0 auto 12px auto;
+  max-width: 1320px;
+  height: 250px;
+  margin: 0 auto 26px auto;
   z-index: 2;
 }
 
 /* === Nodo n8n === */
 .n8n-flowchart-node {
-  width: 200px;
-  min-height: 200px;
+  width: 220px;
+  min-height: 220px;
   background: #121b2b;
   border: 3px solid #22d3ee;
   box-shadow: 0 4px 25px rgba(34, 211, 238, 0.2);
@@ -32,42 +32,55 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px 12px 14px 12px;
+  padding: 22px 14px 16px 14px;
   font-family: inherit;
   cursor: pointer;
   z-index: 4;
-  transition: box-shadow 0.16s, border 0.14s, background 0.14s;
+  transition: box-shadow 0.2s, border 0.2s, background 0.2s, transform 0.2s;
   user-select: none;
   box-sizing: border-box;
   max-width: 100%;
+  animation: n8n-card-float 7s ease-in-out infinite;
 }
 .n8n-flowchart-node:hover {
   box-shadow: 0 0 40px rgba(163, 230, 53, 0.4);
   background: #1a2336;
   border-color: #a3e635;
+  transform: translateY(-4px);
+}
+.n8n-flowchart-node:nth-child(2) { animation-delay: 0.12s; }
+.n8n-flowchart-node:nth-child(3) { animation-delay: 0.24s; }
+.n8n-flowchart-node:nth-child(4) { animation-delay: 0.36s; }
+.n8n-flowchart-node:nth-child(5) { animation-delay: 0.48s; }
+.n8n-flowchart-node:nth-child(6) { animation-delay: 0.6s; }
+
+@keyframes n8n-card-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 .n8n-flowchart-node-icon {
-  font-size: 3em;
+  font-size: 3.2em;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 72px; height: 72px;
+  width: 80px; height: 80px;
   border-radius: 50%;
   background: rgba(34, 211, 238, 0.15);
   box-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
   color: #22d3ee;
   margin-bottom: 12px;
+  line-height: 1;
 }
 .n8n-flowchart-node-label {
   font-weight: 700;
-  font-size: 1.3em;
+  font-size: 1.4em;
   color: #22d3ee;
   line-height: 1.2;
   marginBottom: 6px;
   text-align: center;
 }
 .n8n-flowchart-node-desc {
-  font-size: 1.1em;
+  font-size: 1.16em;
   color: #e2e8f0;
   font-weight: 400;
   line-height: 1.2;
@@ -100,8 +113,8 @@
 /* ✅ Responsive mejorado para flowchart n8n */
 @media (max-width: 1200px) {
   .n8n-flowchart-node { 
-    width: 170px; 
-    min-height: 170px; 
+    width: 186px; 
+    min-height: 186px; 
     padding: 14px 10px; 
   }
   .n8n-flowchart-node-icon { 
@@ -166,6 +179,7 @@
     height: auto !important;
     gap: 12px !important;
     transform: none !important;
+    animation: none !important;
   }
   
   .n8n-flowchart-node-content {
@@ -231,7 +245,7 @@
 .n8n-ventajas-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 40px;
+  gap: 32px;
   margin: 0 auto;
   margin-bottom: 15px;
   width: 100%;
@@ -242,28 +256,35 @@
   border: 2px solid rgba(34, 211, 238, 0.3);
   box-shadow: 0 0 25px rgba(34, 211, 238, 0.15);
   border-radius: 20px;
-  padding: 2.5em 2em 2em;
+  padding: 2.4em 2em 2em;
   display: flex;
   flex-direction: column;
   align-items: center;
-  transition: box-shadow 0.25s, border 0.22s;
-  min-height: 200px;
+  transition: box-shadow 0.25s, border 0.22s, transform 0.2s;
+  min-height: 280px;
   box-sizing: border-box;
   max-width: 100%;
+  animation: n8n-card-float 7.8s ease-in-out infinite;
 }
 .n8n-ventaja-card:hover {
   box-shadow: 0 0 40px rgba(163, 230, 53, 0.3);
   border-color: #a3e635;
+  transform: translateY(-5px);
 }
+.n8n-ventaja-card:nth-child(2) { animation-delay: 0.15s; }
+.n8n-ventaja-card:nth-child(3) { animation-delay: 0.3s; }
+.n8n-ventaja-card:nth-child(4) { animation-delay: 0.45s; }
+.n8n-ventaja-card:nth-child(5) { animation-delay: 0.6s; }
+.n8n-ventaja-card:nth-child(6) { animation-delay: 0.75s; }
 .n8n-ventaja-icon {
-  font-size: 3em;
+  font-size: 3.3em;
   margin-bottom: 0.5em;
   color: #22d3ee;
   filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.5));
 }
 .n8n-ventaja-title {
   font-weight: 700;
-  font-size: 1.3em;
+  font-size: 1.45em;
   color: #22d3ee;
   text-align: center;
   margin-bottom: 0.4em;
@@ -271,8 +292,9 @@
 .n8n-ventaja-desc {
   color: #e2e8f0;
   text-align: center;
-  font-size: 1.15em;
-  line-height: 1.4;
+  font-size: 1.22em;
+  line-height: 1.45;
+  max-width: 24ch;
 }
 
 @media (max-width: 1200px) {
@@ -297,6 +319,14 @@
     min-height: 200px;
     width: 100% !important;
     max-width: 100% !important;
+    animation: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .n8n-flowchart-node,
+  .n8n-ventaja-card {
+    animation: none !important;
   }
 }
 

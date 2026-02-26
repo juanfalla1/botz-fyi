@@ -58,7 +58,8 @@ const getN8nLayout = (width: number) => {
   } else if (width <= 900) {
     // Tablet: horizontal compacto
     const containerWidth = Math.min(width, 800);
-    const nodeWidth = 160;
+    const nodeWidth = 190;
+    const nodeCenter = nodeWidth / 2;
     const totalNodesWidth = steps.length * nodeWidth;
     const availableSpace = containerWidth - totalNodesWidth;
     const spacing = availableSpace / (steps.length - 1);
@@ -69,6 +70,7 @@ const getN8nLayout = (width: number) => {
       containerHeight: 200,
       showConnections: true,
       isMobile: false,
+      nodeCenter,
       nodePositions: steps.map((_, i) => ({ 
         x: startX + i * (nodeWidth + spacing), 
         y: 80 
@@ -76,8 +78,9 @@ const getN8nLayout = (width: number) => {
     };
   } else {
     // Escritorio: fila horizontal con conexiones SVG
-    const containerWidth = Math.min(width, 1200);
-    const nodeWidth = 180;
+    const containerWidth = Math.min(width, 1320);
+    const nodeWidth = 220;
+    const nodeCenter = nodeWidth / 2;
     const totalNodesWidth = steps.length * nodeWidth;
     const availableSpace = containerWidth - totalNodesWidth;
     const spacing = availableSpace / (steps.length - 1);
@@ -88,6 +91,7 @@ const getN8nLayout = (width: number) => {
       containerHeight: 220,
       showConnections: true,
       isMobile: false,
+      nodeCenter,
       nodePositions: steps.map((_, i) => ({ 
         x: startX + i * (nodeWidth + spacing), 
         y: 90 
@@ -104,10 +108,10 @@ export default function AutomatizacionN8N() {
     const handleResize = () => {
       const container = document.querySelector(".n8n-flowchart-canvas")?.parentElement;
       if (container) {
-        const width = Math.min(container.clientWidth - 40, 1000);
-        setLayout(getN8nLayout(width));
-      }
-    };
+          const width = Math.min(container.clientWidth - 20, 1320);
+          setLayout(getN8nLayout(width));
+        }
+      };
 
     handleResize();
     window.addEventListener("resize", handleResize);
@@ -115,7 +119,7 @@ export default function AutomatizacionN8N() {
   }, []);
 
   return (
-    <section style={{ margin: "60px 0 80px", position: "relative", padding: "0 clamp(12px, 4vw, 40px)", width: "100%", maxWidth: "1400px" }}>
+    <section style={{ margin: "60px 0 80px", position: "relative", padding: "0 clamp(12px, 4vw, 40px)", width: "100%", maxWidth: "1400px", boxSizing: "border-box" }}>
       <h2 className="section-title" style={{ color: "#22d3ee", fontSize: "clamp(1.8em, 4vw, 2.8em)", textAlign: "center" }}>
       botzflow, Automatización de Flujos de Procesos
       </h2>
@@ -129,7 +133,7 @@ export default function AutomatizacionN8N() {
         className="n8n-flowchart-canvas"
         style={{
           width: "100%",
-          maxWidth: "1200px",
+          maxWidth: "1320px",
           height: layout.containerHeight,
           margin: layout.isMobile ? "0 0 12px 0" : "0 auto 12px auto",
           display: "flex",
@@ -140,16 +144,18 @@ export default function AutomatizacionN8N() {
         {/* SVG conexiones */}
         {layout.showConnections && !layout.isMobile && (
           <svg className="n8n-flowchart-svg" width="100%" height="100%" viewBox={`0 0 ${layout.containerWidth} ${layout.containerHeight}`} preserveAspectRatio="xMidYMid meet">
-            {steps.map((_, i) =>
+            {steps.map((_, i) => {
+              const center = layout.nodeCenter ?? 60;
+              return (
               i < steps.length - 1 ? (
                 <path
                   key={i}
-                  d={`M${layout.nodePositions[i].x + 60},${layout.nodePositions[i].y + 60}
-                      C${layout.nodePositions[i].x + 100},${layout.nodePositions[i].y + 60} ${layout.nodePositions[i + 1].x + 20},${layout.nodePositions[i + 1].y + 60} ${layout.nodePositions[i + 1].x + 60},${layout.nodePositions[i + 1].y + 60}`}
+                  d={`M${layout.nodePositions[i].x + center},${layout.nodePositions[i].y + center}
+                      C${layout.nodePositions[i].x + center + 35},${layout.nodePositions[i].y + center} ${layout.nodePositions[i + 1].x + center - 35},${layout.nodePositions[i + 1].y + center} ${layout.nodePositions[i + 1].x + center},${layout.nodePositions[i + 1].y + center}`}
                   className="n8n-flowchart-connector"
                 />
               ) : null
-            )}
+            );})}
           </svg>
         )}
 
@@ -209,7 +215,7 @@ export default function AutomatizacionN8N() {
       </div>
 
       {/* === Ventajas === */}
-      <div style={{ margin: "70px auto 0", maxWidth: "1400px", width: "100%", padding: 0, boxSizing: "border-box" }}>
+      <div style={{ margin: "88px auto 0", maxWidth: "1400px", width: "100%", padding: 0, boxSizing: "border-box" }}>
         <h3 style={{ color: "#22d3ee", marginBottom: 24, fontWeight: 600, textAlign: "center", fontSize: "clamp(1.1em, 4.5vw, 1.5em)", lineHeight: 1.25, padding: "0 8px", overflowWrap: "anywhere" }}>
           Ventajas Clave de Automatizar con botzflow
         </h3>

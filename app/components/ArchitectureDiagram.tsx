@@ -44,7 +44,7 @@ export default function ArchitectureDiagram() {
   const [selected, setSelected] = useState<number | null>(null);
 
   return (
-    <section style={{ margin: "80px auto 40px", padding: "0 clamp(12px, 4vw, 40px)", width: "100%", maxWidth: "1400px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+    <section style={{ margin: "80px auto 40px", padding: "0 clamp(12px, 4vw, 40px)", width: "100%", maxWidth: "1400px", boxSizing: "border-box", display: "flex", flexDirection: "column", alignItems: "center" }}>
       <h2 className="section-title" style={{ textAlign: "center", fontSize: "clamp(1.6em, 4.8vw, 2.8em)", marginBottom: "16px", lineHeight: 1.2 }}>Arquitectura de Nuestros Agentes IA</h2>
       <p className="section-subtitle" style={{ textAlign: "center", fontSize: "clamp(1em, 3.6vw, 1.3em)", maxWidth: "800px", margin: "0 auto 40px", color: "#ccc", padding: "0 6px" }}>
         Cada agente actúa como un bot especializado, trabajando en equipo para optimizar tu proceso de negocio.

@@ -100,19 +100,19 @@
     box-sizing: border-box;
   }
 
-  .flujo-extra-card,
-  .flujo-extra-cta {
+.flujo-extra-card,
+.flujo-extra-cta {
     border-radius: 14px;
     border: 1px solid rgba(0, 186, 255, 0.16);
     background: rgba(10, 15, 28, 0.55);
     backdrop-filter: blur(10px);
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
-    padding: 14px 14px 12px;
+    padding: 18px 18px 16px;
   }
 
   .flujo-extra-title {
     font-weight: 800;
-    font-size: 12px;
+    font-size: 15px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: #7dd3fc;
@@ -123,8 +123,8 @@
     display: grid;
     gap: 8px;
     color: #e5e7eb;
-    font-size: 13px;
-    line-height: 1.25;
+    font-size: 17px;
+    line-height: 1.4;
   }
 
   .flujo-extra-list div {
@@ -146,7 +146,7 @@
 
   .flujo-extra-cta-title {
     font-weight: 900;
-    font-size: 14px;
+    font-size: 20px;
     color: #e2e8f0;
     margin-bottom: 10px;
   }
@@ -161,13 +161,13 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 10px 12px;
+    padding: 12px 16px;
     border-radius: 12px;
     border: 1px solid rgba(0, 186, 255, 0.35);
     background: rgba(0, 186, 255, 0.12);
     color: #7dd3fc;
     font-weight: 900;
-    font-size: 12px;
+    font-size: 15px;
     text-decoration: none;
     cursor: pointer;
     transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
@@ -191,10 +191,10 @@
   }
 
   /* --- Robots strip --- */
-  .flujo-robots {
+.flujo-robots {
     width: 100%;
     max-width: 1120px;
-    margin: 14px auto 0;
+    margin: 20px auto 0;
     border-radius: 18px;
     overflow: hidden;
     border: 1px solid rgba(42, 247, 255, 0.18);
@@ -208,10 +208,10 @@
     display: block;
   }
 
-  .wire {
+.wire {
     fill: none;
     stroke: url(#wire);
-    stroke-width: 6;
+    stroke-width: 7;
     stroke-dasharray: 14 12;
     opacity: 0.85;
     filter: drop-shadow(0 0 8px rgba(42, 247, 255, 0.22));
