@@ -34,6 +34,17 @@ function pickBestPhone(candidates: any[]): string {
 
 function preferredInboundPhone(payload: any, item: any): string {
   const key = item?.key || {};
+
+  const firstChoice = pickBestPhone([
+    item?.sender,
+    payload?.sender,
+    item?.from,
+    payload?.from,
+    item?.jid,
+    payload?.jid,
+  ]);
+  if (firstChoice) return firstChoice;
+
   const rawPrimary = [
     key?.remoteJid,
     item?.data?.key?.remoteJid,
@@ -46,16 +57,7 @@ function preferredInboundPhone(payload: any, item: any): string {
   const primary = pickBestPhone(rawPrimary);
   if (primary) return primary;
 
-  return pickBestPhone([
-    item?.remoteJid,
-    item?.participant,
-    item?.jid,
-    item?.from,
-    item?.sender,
-    payload?.from,
-    payload?.sender,
-    payload?.jid,
-  ]);
+  return "";
 }
 
 function boolish(value: any): boolean {
@@ -149,17 +151,20 @@ type InboundEvent = {
 
 function inboundPhoneCandidates(payload: any, item: any): string[] {
   const key = item?.key || {};
+
   const candidates = [
+    item?.sender,
+    payload?.sender,
+    item?.from,
+    payload?.from,
+    item?.jid,
+    payload?.jid,
     key?.remoteJid,
     item?.data?.key?.remoteJid,
     payload?.data?.key?.remoteJid,
     key?.participant,
     item?.data?.key?.participant,
     payload?.data?.key?.participant,
-    item?.from,
-    item?.sender,
-    payload?.from,
-    payload?.sender,
   ]
     .map((v) => normalizePhone(String(v || "")))
     .filter((n) => n.length >= 10 && n.length <= 13);
@@ -422,6 +427,17 @@ export async function POST(req: Request) {
       console.warn("[evolution-webhook] ignored: channel_not_found", { instance: inbound.instance });
       return NextResponse.json({ ok: true, ignored: true, reason: "channel_not_found" });
     }
+
+    const selfPhone = normalizePhone(
+      String(
+        channel?.config?.phone ||
+        channel?.config?.number ||
+        channel?.config?.owner ||
+        channel?.config?.wid ||
+        ""
+      )
+    );
+
     if (!channel.assigned_agent_id) {
       console.warn("[evolution-webhook] ignored: agent_not_assigned", { channelId: (channel as any)?.id });
       return NextResponse.json({ ok: true, ignored: true, reason: "agent_not_assigned" });
@@ -511,7 +527,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ignored: true, reason: "instance_missing" });
     }
 
-    const toCandidates = [inbound.from, ...(inbound.alternates || [])].filter((n, i, arr) => n && arr.indexOf(n) === i);
+    const toCandidates = [inbound.from, ...(inbound.alternates || [])]
+      .map((n) => normalizePhone(String(n || "")))
+      .filter((n, i, arr) => n && arr.indexOf(n) === i)
+      .filter((n) => n !== selfPhone);
+
+    console.log("[evolution-webhook] routing debug", {
+      inboundFrom: inbound.from,
+      alternates: inbound.alternates || [],
+      selfPhone,
+      toCandidates,
+      payloadEvent: payload?.event || payload?.type || payload?.eventName || null,
+    });
+
     let sentTo = "";
     for (const to of toCandidates) {
       console.info("[evolution-webhook] sending reply", {
