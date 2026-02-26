@@ -174,6 +174,25 @@ function extractInbound(payload: any): { instance: string; from: string; text: s
   return null;
 }
 
+function summarizeInboundAttempt(payload: any) {
+  const d = payload?.data || {};
+  const key = d?.key || {};
+  const message = d?.message || payload?.message || {};
+  const remoteJid = String(key?.remoteJid || key?.participant || d?.from || payload?.sender || "");
+  const fromMe = boolish(key?.fromMe);
+  const messageType = String(d?.messageType || payload?.messageType || "");
+  const text = extractTextFromMessage(message, messageType) || findTextCandidate(message);
+  const messageKeys = message && typeof message === "object" ? Object.keys(message).slice(0, 8) : [];
+
+  return {
+    fromMe,
+    remoteJid,
+    messageType,
+    hasText: Boolean(String(text || "").trim()),
+    messageKeys,
+  };
+}
+
 function buildDocumentContext(message: string, files: { name: string; content: string }[]) {
   if (!files.length) return "";
   const terms = Array.from(
@@ -216,10 +235,12 @@ export async function POST(req: Request) {
     if (!inbound) {
       const topKeys = Object.keys(payload || {}).slice(0, 12);
       const dataKeys = payload?.data && typeof payload.data === "object" ? Object.keys(payload.data).slice(0, 12) : [];
+      const summary = summarizeInboundAttempt(payload);
       console.warn("[evolution-webhook] ignored: no inbound payload match", {
         event: payload?.event || payload?.type || payload?.eventName || null,
         topKeys,
         dataKeys,
+        summary,
       });
       return NextResponse.json({ ok: true, ignored: true });
     }
