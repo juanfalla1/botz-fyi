@@ -12,8 +12,24 @@ function estimateTokens(text: string) {
 }
 
 function normalizePhone(raw: string) {
-  const digits = String(raw || "").replace(/\D/g, "");
+  const base = String(raw || "").split(":")[0].split("@")[0];
+  const digits = base.replace(/\D/g, "");
   return digits;
+}
+
+function pickBestPhone(candidates: any[]): string {
+  const raws = candidates.map((v) => String(v || "").trim()).filter(Boolean);
+  if (!raws.length) return "";
+
+  const jidPreferred = raws.find((v) => /@s\.whatsapp\.net$/i.test(v) || /@c\.us$/i.test(v));
+  if (jidPreferred) return normalizePhone(jidPreferred);
+
+  const parsed = raws.map((v) => normalizePhone(v)).filter(Boolean);
+  const medium = parsed.find((n) => n.length >= 10 && n.length <= 13);
+  if (medium) return medium;
+
+  const long = parsed.find((n) => n.length >= 14 && n.length <= 15);
+  return long || parsed[0] || "";
 }
 
 function boolish(value: any): boolean {
@@ -138,32 +154,32 @@ function extractInbound(payload: any): InboundEvent | null {
     if (fromMe) continue;
 
     const remoteJid = String(
-      key?.remoteJid ||
-      key?.participant ||
-      item?.remoteJid ||
-      item?.from ||
-      item?.sender ||
-        item?.participant ||
-        item?.jid ||
-        item?.data?.key?.remoteJid ||
-      item?.data?.key?.participant ||
-      item?.data?.from ||
-      item?.data?.sender ||
-      item?.data?.source ||
-      item?.data?.jid ||
-      item?.message?.key?.remoteJid ||
-      item?.message?.key?.participant ||
-      payload?.data?.key?.remoteJid ||
-      payload?.data?.key?.participant ||
-      payload?.data?.source ||
-      payload?.from ||
-      payload?.sender ||
-      payload?.source ||
-      payload?.jid ||
-      ""
+      pickBestPhone([
+        key?.remoteJid,
+        key?.participant,
+        item?.remoteJid,
+        item?.participant,
+        item?.jid,
+        item?.data?.key?.remoteJid,
+        item?.data?.key?.participant,
+        item?.data?.from,
+        item?.data?.sender,
+        item?.data?.jid,
+        item?.message?.key?.remoteJid,
+        item?.message?.key?.participant,
+        payload?.data?.key?.remoteJid,
+        payload?.data?.key?.participant,
+        item?.from,
+        item?.sender,
+        payload?.from,
+        payload?.sender,
+        item?.data?.source,
+        payload?.data?.source,
+        payload?.source,
+        payload?.jid,
+      ])
     ).trim();
     if (!remoteJid) continue;
-    if (remoteJid.includes("status@broadcast") || remoteJid.endsWith("@g.us")) continue;
 
     const from = normalizePhone(String(remoteJid).split("@")[0] || "");
     const typeHint = String(item?.messageType || item?.data?.messageType || "").trim();
