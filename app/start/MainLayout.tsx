@@ -833,6 +833,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
            console.log("📋 [Auth] app_metadata:", JSON.stringify(session.user.app_metadata, null, 2));
            setUser(session.user);
 
+            // 🔒 Prioridad absoluta: super admin por email nunca cae en expiración de trial
+            if (isSuperAdminEmail(session.user.email)) {
+              console.log("🔒 [Auth] Super admin detectado por email, omitiendo validación de trial");
+              applyPlatformAdminAccess();
+              setLoading(false);
+              return;
+            }
+
            // ✅ Verificar si trial user ha expirado
             if (session.user.user_metadata?.is_trial && session.user.user_metadata?.trial_end) {
               const trialEndDate = new Date(session.user.user_metadata.trial_end);
@@ -997,6 +1005,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
          if (!alive) return;
          console.log("✅ Auth event con sesión:", event, session.user.email);
          setUser(session.user);
+
+          // 🔒 Prioridad absoluta: super admin por email nunca cae en expiración de trial
+          if (isSuperAdminEmail(session.user.email)) {
+            console.log("🔒 [Auth Event] Super admin detectado por email, omitiendo validación de trial");
+            applyPlatformAdminAccess();
+            setLoading(false);
+            return;
+          }
 
          const metaTenantId =
            session.user.user_metadata?.tenant_id ||
