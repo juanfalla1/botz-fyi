@@ -31,12 +31,15 @@ function extractTextFromMessage(msg: any): string {
 
 function extractInbound(payload: any): { instance: string; from: string; text: string } | null {
   const event = String(payload?.event || "").toLowerCase();
-  if (!event.includes("messages.upsert") && !event.includes("message.upsert")) return null;
+  const hasUpsertEvent = event.includes("messages.upsert") || event.includes("message.upsert");
 
   const instance = String(payload?.instance || payload?.instanceName || payload?.data?.instance || "").trim();
-  if (!instance) return null;
 
-  const rawData = payload?.data;
+  if (!hasUpsertEvent && !payload?.data?.message && !payload?.data?.messages && !payload?.messages) {
+    return null;
+  }
+
+  const rawData = payload?.data || payload;
   const candidates = Array.isArray(rawData)
     ? rawData
     : Array.isArray(rawData?.messages)
@@ -114,7 +117,10 @@ export async function POST(req: Request) {
       .eq("channel_type", "whatsapp");
     if (chErr) return NextResponse.json({ ok: false, error: chErr.message }, { status: 500 });
 
-    const channel = (channels || []).find((row: any) => String(row?.config?.evolution_instance_name || "") === inbound.instance);
+    let channel = (channels || []).find((row: any) => String(row?.config?.evolution_instance_name || "") === inbound.instance);
+    if (!channel && (channels || []).length === 1) {
+      channel = (channels || [])[0];
+    }
     if (!channel) return NextResponse.json({ ok: true, ignored: true, reason: "channel_not_found" });
     if (!channel.assigned_agent_id) return NextResponse.json({ ok: true, ignored: true, reason: "agent_not_assigned" });
 
@@ -171,7 +177,12 @@ export async function POST(req: Request) {
     const burn = await consumeEntitlementCredits(supabase as any, ownerId, tokens);
     if (!burn.ok) return NextResponse.json({ ok: true, ignored: true, reason: burn.code || "credits_blocked" });
 
-    await evolutionService.sendMessage(inbound.instance, inbound.from, reply);
+    const outboundInstance = String((channel as any)?.config?.evolution_instance_name || inbound.instance || "");
+    if (!outboundInstance) {
+      return NextResponse.json({ ok: true, ignored: true, reason: "instance_missing" });
+    }
+
+    await evolutionService.sendMessage(outboundInstance, inbound.from, reply);
 
     await logUsageEvent(supabase as any, ownerId, tokens, {
       endpoint: "/api/agents/channels/evolution/webhook",
