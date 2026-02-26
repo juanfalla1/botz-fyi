@@ -37,7 +37,13 @@ function extractInbound(payload: any): { instance: string; from: string; text: s
 
   const instance = String(payload?.instance || payload?.instanceName || payload?.data?.instance || "").trim();
 
-  if (!hasUpsertEvent && !payload?.data?.message && !payload?.data?.messages && !payload?.messages) {
+  if (
+    !hasUpsertEvent &&
+    !payload?.message &&
+    !payload?.messages &&
+    !payload?.data?.message &&
+    !payload?.data?.messages
+  ) {
     return null;
   }
 
