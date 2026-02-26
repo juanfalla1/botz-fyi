@@ -95,11 +95,21 @@ function extractTextFromMessage(msg: any, messageType?: string): string {
   ).trim();
 }
 
-function extractInbound(payload: any): { instance: string; from: string; text: string } | null {
+type InboundEvent = {
+  instance: string;
+  from: string;
+  text: string;
+  pushName?: string;
+  messageId?: string;
+};
+
+function extractInbound(payload: any): InboundEvent | null {
   const event = String(payload?.event || payload?.type || payload?.eventName || "").toLowerCase();
   const hasUpsertEvent = /messages?[._-]?upsert/.test(event);
 
-  const instance = String(payload?.instance || payload?.instanceName || payload?.data?.instance || "").trim();
+  const instance = String(
+    payload?.instance || payload?.instanceName || payload?.data?.instance || payload?.data?.instanceId || ""
+  ).trim();
 
   if (
     !hasUpsertEvent &&
@@ -129,25 +139,28 @@ function extractInbound(payload: any): { instance: string; from: string; text: s
 
     const remoteJid = String(
       key?.remoteJid ||
-        key?.participant ||
-        item?.remoteJid ||
-        item?.from ||
-        item?.sender ||
+      key?.participant ||
+      item?.remoteJid ||
+      item?.from ||
+      item?.sender ||
         item?.participant ||
         item?.jid ||
         item?.data?.key?.remoteJid ||
-        item?.data?.key?.participant ||
-        item?.data?.from ||
-        item?.data?.sender ||
-        item?.data?.jid ||
-        item?.message?.key?.remoteJid ||
-        item?.message?.key?.participant ||
-        payload?.data?.key?.remoteJid ||
-        payload?.data?.key?.participant ||
-        payload?.from ||
-        payload?.sender ||
-        payload?.jid ||
-        ""
+      item?.data?.key?.participant ||
+      item?.data?.from ||
+      item?.data?.sender ||
+      item?.data?.source ||
+      item?.data?.jid ||
+      item?.message?.key?.remoteJid ||
+      item?.message?.key?.participant ||
+      payload?.data?.key?.remoteJid ||
+      payload?.data?.key?.participant ||
+      payload?.data?.source ||
+      payload?.from ||
+      payload?.sender ||
+      payload?.source ||
+      payload?.jid ||
+      ""
     ).trim();
     if (!remoteJid) continue;
     if (remoteJid.includes("status@broadcast") || remoteJid.endsWith("@g.us")) continue;
@@ -168,10 +181,101 @@ function extractInbound(payload: any): { instance: string; from: string; text: s
     ).trim();
     if (!from || !text) continue;
 
-    return { instance, from, text };
+    const pushName = String(item?.pushName || item?.data?.pushName || payload?.data?.pushName || "").trim();
+    const messageId = String(key?.id || item?.id || item?.data?.key?.id || "").trim();
+
+    return { instance, from, text, pushName: pushName || undefined, messageId: messageId || undefined };
   }
 
   return null;
+}
+
+async function persistConversationTurn(
+  supabase: any,
+  params: {
+    agentId: string;
+    ownerId: string;
+    tenantId?: string | null;
+    from: string;
+    pushName?: string;
+    inboundText: string;
+    outboundText: string;
+    messageId?: string;
+  }
+) {
+  const nowIso = new Date().toISOString();
+  const {
+    agentId,
+    ownerId,
+    tenantId = null,
+    from,
+    pushName,
+    inboundText,
+    outboundText,
+    messageId,
+  } = params;
+
+  const { data: existing } = await supabase
+    .from("agent_conversations")
+    .select("id,transcript,message_count,metadata")
+    .eq("agent_id", agentId)
+    .eq("channel", "whatsapp")
+    .eq("contact_phone", from)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextItems = [
+    { role: "user", content: inboundText, timestamp: nowIso },
+    { role: "assistant", content: outboundText, timestamp: nowIso },
+  ];
+
+  if (existing?.id) {
+    const currentTranscript = Array.isArray(existing.transcript) ? existing.transcript : [];
+    const currentMeta = existing.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
+
+    if (messageId && String(currentMeta?.last_inbound_message_id || "") === messageId) {
+      return;
+    }
+
+    const mergedTranscript = [...currentTranscript, ...nextItems].slice(-80);
+    const currentCount = Number(existing.message_count || 0) || 0;
+    await supabase
+      .from("agent_conversations")
+      .update({
+        transcript: mergedTranscript,
+        message_count: currentCount + 2,
+        status: "completed",
+        ended_at: nowIso,
+        metadata: {
+          ...currentMeta,
+          owner_id: ownerId,
+          last_inbound_message_id: messageId || currentMeta?.last_inbound_message_id || null,
+        },
+      })
+      .eq("id", existing.id);
+    return;
+  }
+
+  await supabase.from("agent_conversations").insert({
+    agent_id: agentId,
+    tenant_id: tenantId || null,
+    contact_name: pushName || from,
+    contact_phone: from,
+    channel: "whatsapp",
+    status: "completed",
+    message_count: 2,
+    duration_seconds: 0,
+    credits_used: 0,
+    transcript: nextItems,
+    metadata: {
+      owner_id: ownerId,
+      source: "evolution_webhook",
+      last_inbound_message_id: messageId || null,
+    },
+    started_at: nowIso,
+    ended_at: nowIso,
+  });
 }
 
 function summarizeInboundAttempt(payload: any) {
@@ -190,6 +294,7 @@ function summarizeInboundAttempt(payload: any) {
     messageType,
     hasText: Boolean(String(text || "").trim()),
     messageKeys,
+    source: String(d?.source || payload?.source || ""),
   };
 }
 
@@ -270,7 +375,7 @@ export async function POST(req: Request) {
 
     const { data: agent, error: agentErr } = await supabase
       .from("ai_agents")
-      .select("id,name,status,description,created_by,configuration")
+      .select("id,name,status,description,created_by,tenant_id,configuration")
       .eq("id", String(channel.assigned_agent_id))
       .maybeSingle();
     if (agentErr) return NextResponse.json({ ok: false, error: agentErr.message }, { status: 500 });
@@ -337,6 +442,21 @@ export async function POST(req: Request) {
 
     await evolutionService.sendMessage(outboundInstance, inbound.from, reply);
     console.info("[evolution-webhook] reply sent", { channelId: (channel as any)?.id, agentId: agent.id });
+
+    try {
+      await persistConversationTurn(supabase as any, {
+        agentId: String(agent.id),
+        ownerId,
+        tenantId: (agent as any)?.tenant_id || null,
+        from: inbound.from,
+        pushName: inbound.pushName,
+        inboundText: inbound.text,
+        outboundText: reply,
+        messageId: inbound.messageId,
+      });
+    } catch (saveErr: any) {
+      console.warn("[evolution-webhook] conversation save failed", saveErr?.message || saveErr);
+    }
 
     await logUsageEvent(supabase as any, ownerId, tokens, {
       endpoint: "/api/agents/channels/evolution/webhook",
