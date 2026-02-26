@@ -438,9 +438,16 @@ export async function POST(req: Request) {
         channel?.config?.number ||
         channel?.config?.owner ||
         channel?.config?.wid ||
+        channel?.config?.me ||
         ""
       )
     );
+
+    console.log("[evolution-webhook] channel debug", {
+      instance: inbound.instance,
+      selfPhone,
+      configKeys: channel?.config ? Object.keys(channel.config) : [],
+    });
 
     if (!channel.assigned_agent_id) {
       console.warn("[evolution-webhook] ignored: agent_not_assigned", { channelId: (channel as any)?.id });

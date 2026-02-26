@@ -786,6 +786,10 @@ export default function AgentChannelsPage() {
                 <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
                   <img src={evolutionQr} alt="QR Evolution" style={{ width: 260, height: 260, borderRadius: 10, border: `1px solid ${C.border}`, background: "#fff", objectFit: "contain" }} />
                 </div>
+              ) : evolutionBusy ? (
+                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 12, padding: 40, color: C.muted }}>
+                  Obteniendo QR...
+                </div>
               ) : (
                 <div style={{ marginBottom: 12, color: C.muted, fontSize: 13 }}>
                   {evolutionStatus === "connected" ? "El numero ya esta conectado." : "Aun no hay QR disponible. Pulsa refrescar para reintentar."}
