@@ -23,7 +23,6 @@ export async function DELETE(
       .from("ai_agents")
       .select("id")
       .eq("id", agentId)
-      .eq("created_by", guard.user.id)
       .single();
 
     if (!agent) {
