@@ -49,9 +49,28 @@ function tokenFromCookieValue(rawValue: string) {
 function getCookieAccessToken(req: Request) {
   const cookies = parseCookieHeader(req);
   const keys = Object.keys(cookies);
-  const authTokenKey = keys.find((k) => k.includes("auth-token"));
-  if (!authTokenKey) return "";
-  return tokenFromCookieValue(cookies[authTokenKey] || "");
+
+  const chunked: Record<string, Array<{ idx: number; value: string }>> = {};
+  keys.forEach((k) => {
+    const m = k.match(/^(.*auth-token)(?:\.(\d+))?$/);
+    if (!m) return;
+    const base = m[1];
+    const idx = m[2] ? Number(m[2]) : 0;
+    if (!chunked[base]) chunked[base] = [];
+    chunked[base].push({ idx, value: cookies[k] || "" });
+  });
+
+  const bases = Object.keys(chunked);
+  if (!bases.length) return "";
+
+  for (const base of bases) {
+    const parts = chunked[base].sort((a, b) => a.idx - b.idx);
+    const combined = parts.map((p) => p.value).join("");
+    const token = tokenFromCookieValue(combined);
+    if (token) return token;
+  }
+
+  return "";
 }
 
 export async function getRequestUser(req: Request) {
