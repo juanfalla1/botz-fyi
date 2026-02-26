@@ -19,6 +19,8 @@ function normalizePhone(raw: string) {
 function extractTextFromMessage(msg: any): string {
   return String(
     msg?.conversation ||
+      msg?.text ||
+      msg?.caption ||
       msg?.extendedTextMessage?.text ||
       msg?.imageMessage?.caption ||
       msg?.videoMessage?.caption ||
@@ -30,8 +32,8 @@ function extractTextFromMessage(msg: any): string {
 }
 
 function extractInbound(payload: any): { instance: string; from: string; text: string } | null {
-  const event = String(payload?.event || "").toLowerCase();
-  const hasUpsertEvent = event.includes("messages.upsert") || event.includes("message.upsert");
+  const event = String(payload?.event || payload?.type || payload?.eventName || "").toLowerCase();
+  const hasUpsertEvent = /messages?[._-]?upsert/.test(event);
 
   const instance = String(payload?.instance || payload?.instanceName || payload?.data?.instance || "").trim();
 
@@ -39,11 +41,13 @@ function extractInbound(payload: any): { instance: string; from: string; text: s
     return null;
   }
 
-  const rawData = payload?.data || payload;
+  const rawData = payload?.data || payload?.payload || payload;
   const candidates = Array.isArray(rawData)
     ? rawData
     : Array.isArray(rawData?.messages)
       ? rawData.messages
+      : Array.isArray(rawData?.data)
+        ? rawData.data
       : rawData
         ? [rawData]
         : [];
@@ -53,11 +57,18 @@ function extractInbound(payload: any): { instance: string; from: string; text: s
     const fromMe = Boolean(key?.fromMe || item?.fromMe);
     if (fromMe) continue;
 
-    const remoteJid = String(key?.remoteJid || item?.remoteJid || "").trim();
+    const remoteJid = String(
+      key?.remoteJid ||
+        item?.remoteJid ||
+        item?.data?.key?.remoteJid ||
+        item?.message?.key?.remoteJid ||
+        payload?.data?.key?.remoteJid ||
+        ""
+    ).trim();
     if (!remoteJid || remoteJid.includes("status@broadcast") || remoteJid.endsWith("@g.us")) continue;
 
     const from = normalizePhone(remoteJid.split("@")[0] || "");
-    const text = extractTextFromMessage(item?.message || item?.data?.message || {});
+    const text = extractTextFromMessage(item?.message || item?.data?.message || item?.data || {});
     if (!from || !text) continue;
 
     return { instance, from, text };
@@ -106,7 +117,13 @@ export async function POST(req: Request) {
     const payload = await req.json().catch(() => ({}));
     const inbound = extractInbound(payload);
     if (!inbound) {
-      console.warn("[evolution-webhook] ignored: no inbound payload match");
+      const topKeys = Object.keys(payload || {}).slice(0, 12);
+      const dataKeys = payload?.data && typeof payload.data === "object" ? Object.keys(payload.data).slice(0, 12) : [];
+      console.warn("[evolution-webhook] ignored: no inbound payload match", {
+        event: payload?.event || payload?.type || payload?.eventName || null,
+        topKeys,
+        dataKeys,
+      });
       return NextResponse.json({ ok: true, ignored: true });
     }
 
