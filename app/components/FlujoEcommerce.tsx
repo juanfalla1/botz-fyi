@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./FlujoEcommerce.css";
 
 const steps = [
@@ -168,7 +168,11 @@ const pickBestVoice = (voices: SpeechSynthesisVoice[], role: "cliente" | "bot") 
     return s;
   };
 
-  return [...voices].sort((a, b) => score(b) - score(a))[0] || null;
+  return [...voices].sort((a, b) => {
+    const byScore = score(b) - score(a);
+    if (byScore !== 0) return byScore;
+    return String(a.name || "").localeCompare(String(b.name || ""));
+  })[0] || null;
 };
 
 export default function FlujoEcommerce() {
@@ -179,29 +183,43 @@ export default function FlujoEcommerce() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioAvailabilityByDemo, setAudioAvailabilityByDemo] = useState<Record<string, boolean>>({});
   const [demoId, setDemoId] = useState<(typeof CALL_DEMOS)[number]["id"]>("reservas");
+  const [ttsVoiceUris, setTtsVoiceUris] = useState<{ client: string | null; bot: string | null }>({ client: null, bot: null });
 
   const activeDemo = CALL_DEMOS.find((d) => d.id === demoId) || CALL_DEMOS[0];
   const hasRealAudio = audioAvailabilityByDemo[activeDemo.id] !== false;
   const shouldForceDualTts = activeDemo.id === "reservas";
 
-  const ttsVoices = useMemo(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      return { clientVoice: null as SpeechSynthesisVoice | null, botVoice: null as SpeechSynthesisVoice | null };
-    }
+  const getVoiceByUri = (uri: string | null): SpeechSynthesisVoice | null => {
+    if (!uri || typeof window === "undefined" || !("speechSynthesis" in window)) return null;
     const voices = window.speechSynthesis.getVoices();
+    return voices.find((v) => v.voiceURI === uri) || null;
+  };
+
+  const selectStableVoices = () => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return;
     const esVoices = voices.filter((v) => String(v.lang || "").toLowerCase().startsWith("es"));
     const pool = esVoices.length ? esVoices : voices;
-    if (!pool.length) {
-      return { clientVoice: null as SpeechSynthesisVoice | null, botVoice: null as SpeechSynthesisVoice | null };
-    }
     const botVoice = pickBestVoice(pool, "bot");
     const clientCandidates = pool.filter((v) => v.voiceURI !== botVoice?.voiceURI);
     const clientVoice = pickBestVoice(clientCandidates.length ? clientCandidates : pool, "cliente");
-    return {
-      clientVoice: clientVoice || null,
-      botVoice: botVoice || null,
+    setTtsVoiceUris({
+      client: clientVoice?.voiceURI || null,
+      bot: botVoice?.voiceURI || null,
+    });
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    selectStableVoices();
+    const synth = window.speechSynthesis;
+    const onVoicesChanged = () => {
+      if (!ttsVoiceUris.client && !ttsVoiceUris.bot) selectStableVoices();
     };
-  }, [demoId]);
+    synth.addEventListener("voiceschanged", onVoicesChanged);
+    return () => synth.removeEventListener("voiceschanged", onVoicesChanged);
+  }, [ttsVoiceUris.client, ttsVoiceUris.bot]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -237,8 +255,10 @@ export default function FlujoEcommerce() {
       utterance.lang = "es-ES";
       utterance.rate = line.speaker === "bot" ? 0.94 : 1.0;
       utterance.pitch = line.speaker === "bot" ? 0.82 : 1.03;
-      if (line.speaker === "bot" && ttsVoices.botVoice) utterance.voice = ttsVoices.botVoice;
-      if (line.speaker === "cliente" && ttsVoices.clientVoice) utterance.voice = ttsVoices.clientVoice;
+      const botVoice = getVoiceByUri(ttsVoiceUris.bot);
+      const clientVoice = getVoiceByUri(ttsVoiceUris.client);
+      if (line.speaker === "bot" && botVoice) utterance.voice = botVoice;
+      if (line.speaker === "cliente" && clientVoice) utterance.voice = clientVoice;
       utterance.onend = () => {
         index += 1;
         window.setTimeout(speakNext, 120);
