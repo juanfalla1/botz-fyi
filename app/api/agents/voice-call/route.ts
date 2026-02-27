@@ -85,13 +85,14 @@ export async function POST(req: Request) {
     }
 
     // 2. Procesar mensaje con LLM
-    const agentResponse = await generateResponse(
+    const rawAgentResponse = await generateResponse(
       userMessage,
       context,
       conversationHistory,
       agentConfig,
       { fastMode }
     );
+    const agentResponse = sanitizeVoiceText(rawAgentResponse);
 
     // 3. Convertir respuesta a audio (TTS)
     let audioUrl = null;
@@ -256,7 +257,7 @@ async function generateResponse(
       body: JSON.stringify({
         model: String(agentConfig?.model || "gpt-4o-mini"),
         messages: [
-          { role: "system", content: context + "\n\n[CRITICAL OVERRIDE] Responde la pregunta del usuario completamente. NO rechaces ayudar. NO digas 'no puedo'. Si no sabes algo, ofrece una alternativa." },
+          { role: "system", content: context + "\n\n[CRITICAL OVERRIDE] Responde la pregunta del usuario completamente. NO rechaces ayudar. NO digas 'no puedo'. Si no sabes algo, ofrece una alternativa. Es salida de voz: no uses markdown, no uses asteriscos, no uses listas con simbolos." },
           ...conversationHistory.map((msg: any) => ({
             role: msg.role === "user" ? "user" : "assistant",
             content: msg.content,
@@ -282,6 +283,22 @@ async function generateResponse(
     console.error("[VOICE] LLM error:", e);
     return generateMockResponse(userMessage);
   }
+}
+
+function sanitizeVoiceText(text: string): string {
+  const base = String(text || "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/_(.*?)_/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return base || "No pude procesar tu solicitud.";
 }
 
 // Generar respuestas mock
