@@ -148,12 +148,20 @@ export class EvolutionService {
 
   async sendMessage(instanceName: string, phone: string, message: string): Promise<any> {
     const number = String(phone || "").replace(/\D/g, "");
+    console.log("[evolutionService] sendMessage", { instanceName, number, messageLength: message.length });
 
-    return await evolutionFetch(`/message/sendText/${instanceName}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ number, text: message }),
-    });
+    try {
+      const result = await evolutionFetch(`/message/sendText/${instanceName}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number, text: message }),
+      });
+      console.log("[evolutionService] sendMessage success", { instanceName, number, result });
+      return result;
+    } catch (err: any) {
+      console.error("[evolutionService] sendMessage error", { instanceName, number, error: err?.message });
+      throw err;
+    }
   }
 
   async disconnect(instanceName: string): Promise<void> {

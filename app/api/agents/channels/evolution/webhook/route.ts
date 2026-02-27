@@ -567,6 +567,11 @@ export async function POST(req: Request) {
     }
 
     const outboundInstance = String((channel as any)?.config?.evolution_instance_name || inbound.instance || "");
+    console.log("[evolution-webhook] outbound instance debug", {
+      configInstance: (channel as any)?.config?.evolution_instance_name,
+      inboundInstance: inbound.instance,
+      outboundInstance,
+    });
     if (!outboundInstance) {
       console.warn("[evolution-webhook] ignored: instance_missing", { inboundInstance: inbound.instance || null });
       return NextResponse.json({ ok: true, ignored: true, reason: "instance_missing" });
