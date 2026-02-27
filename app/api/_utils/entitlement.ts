@@ -36,6 +36,8 @@ async function getOrCreateEntitlement(supabase: SupabaseClient, userId: string) 
     .eq("product_key", AGENTS_PRODUCT_KEY)
     .maybeSingle();
 
+  console.log("[entitlement] getOrCreateEntitlement", { userId, found: !!existing, error: selErr?.message });
+
   if (selErr) throw new Error(selErr.message || "No se pudo leer entitlements");
   if (existing) return existing as any;
 
@@ -61,7 +63,9 @@ async function getOrCreateEntitlement(supabase: SupabaseClient, userId: string) 
 }
 
 export async function checkEntitlementAccess(supabase: SupabaseClient, userId: string) {
+  console.log("[entitlement] checkEntitlementAccess called", { userId });
   const ent = await getOrCreateEntitlement(supabase, userId);
+  console.log("[entitlement] got entitlement", { userId, ent });
   const status = String(ent?.status || "trial").toLowerCase();
 
   if (status === "blocked") {
@@ -76,6 +80,7 @@ export async function checkEntitlementAccess(supabase: SupabaseClient, userId: s
 
   const used = Number(ent?.credits_used || 0) || 0;
   const limit = Number(ent?.credits_limit || 0) || planToCredits(String(ent?.plan_key || "pro"));
+  console.log("[entitlement] debug", { userId, used, limit, credits_limit: ent?.credits_limit, plan_key: ent?.plan_key });
   if (limit > 0 && used >= limit) {
     return { ok: false, statusCode: 402, code: "credits_exhausted", error: "Creditos agotados", entitlement: ent };
   }
