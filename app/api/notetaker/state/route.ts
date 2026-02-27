@@ -4,6 +4,13 @@ import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { SYSTEM_TENANT_ID } from "@/app/api/_utils/system";
 import OpenAI from "openai";
 
+const NOTETAKER_AUTOMATION_WEBHOOK_URL =
+  process.env.NOTETAKER_AUTOMATION_WEBHOOK_URL ||
+  process.env.AUTOMATION_WEBHOOK_URL ||
+  "";
+
+const NOTETAKER_AUTOMATION_SECRET = process.env.NOTETAKER_AUTOMATION_SECRET || "";
+
 type NotetakerState = {
   agent_id: string;
   profile_id: string;
@@ -42,6 +49,46 @@ function toLegacyState(agent: any): NotetakerState {
 
 function makeId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+}
+
+async function notifyNotetakerAutomation(event: {
+  action: "interaction_created" | "interaction_analyzed" | "pipeline_saved";
+  tenantId: string;
+  userId: string;
+  profileId: string;
+  meeting: any;
+  salesPrompt?: string;
+}) {
+  if (!NOTETAKER_AUTOMATION_WEBHOOK_URL) return;
+
+  try {
+    const payload = {
+      source: "botz_notetaker",
+      timestamp: new Date().toISOString(),
+      action: event.action,
+      tenant_id: event.tenantId,
+      user_id: event.userId,
+      profile_id: event.profileId,
+      meeting: event.meeting || null,
+      sales_prompt: event.salesPrompt || "",
+    };
+
+    const headers: Record<string, string> = { "Content-Type": "application/json", "X-Botz-Source": "notetaker" };
+    if (NOTETAKER_AUTOMATION_SECRET) headers["X-Botz-Secret"] = NOTETAKER_AUTOMATION_SECRET;
+
+    const res = await fetch(NOTETAKER_AUTOMATION_WEBHOOK_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.warn("[notetaker->n8n] webhook error", { status: res.status, detail: detail.slice(0, 300) });
+    }
+  } catch (e: any) {
+    console.warn("[notetaker->n8n] webhook exception", e?.message || e);
+  }
 }
 
 async function resolveTenantId(supabase: any, userId: string): Promise<string> {
@@ -750,7 +797,7 @@ export async function POST(req: Request) {
         const contactName = String(body?.contact_name || "").trim();
         const contactEmail = String(body?.contact_email || "").trim();
         const contactPhone = String(body?.contact_phone || "").trim();
-        const { error } = await supabase
+        const { data: createdMeeting, error } = await supabase
           .from("notetaker_meetings")
           .insert({
             profile_id: profileId,
@@ -772,8 +819,19 @@ export async function POST(req: Request) {
               },
               crm: { state: "pending" },
             },
-          });
+          })
+          .select("id,title,meeting_url,host,starts_at,duration_minutes,participants_count,status,source,metadata")
+          .single();
         if (error) throw new Error(error.message);
+
+        await notifyNotetakerAutomation({
+          action: "interaction_created",
+          tenantId,
+          userId: guard.user.id,
+          profileId,
+          meeting: createdMeeting,
+          salesPrompt: String(profile.sales_prompt || ""),
+        });
       } else if (op === "toggle_meeting") {
         const id = String(body?.meeting_id || "").trim();
         if (!id) {
@@ -851,6 +909,19 @@ export async function POST(req: Request) {
           .eq("profile_id", profileId)
           .eq("created_by", guard.user.id);
         if (error) throw new Error(error.message);
+
+        await notifyNotetakerAutomation({
+          action: "interaction_analyzed",
+          tenantId,
+          userId: guard.user.id,
+          profileId,
+          meeting: {
+            ...m,
+            metadata: nextMetadata,
+            analysis,
+          },
+          salesPrompt: String(profile.sales_prompt || ""),
+        });
       } else if (op === "save_pipeline") {
         const id = String(body?.meeting_id || "").trim();
         if (!id) return NextResponse.json({ ok: false, error: "Falta meeting_id" }, { status: 400 });
@@ -882,6 +953,18 @@ export async function POST(req: Request) {
           .eq("profile_id", profileId)
           .eq("created_by", guard.user.id);
         if (metErr) throw new Error(metErr.message);
+
+        await notifyNotetakerAutomation({
+          action: "pipeline_saved",
+          tenantId,
+          userId: guard.user.id,
+          profileId,
+          meeting: {
+            ...m,
+            metadata: nextMetadata,
+          },
+          salesPrompt: String(profile.sales_prompt || ""),
+        });
       } else if (op === "disconnect_google") {
         const nowIso = new Date().toISOString();
         await supabase
@@ -975,8 +1058,7 @@ export async function POST(req: Request) {
       const contactName = String(body?.contact_name || "").trim();
       const contactEmail = String(body?.contact_email || "").trim();
       const contactPhone = String(body?.contact_phone || "").trim();
-      next.meetings = [
-        {
+      const createdMeeting = {
           id: makeId("meeting"),
           title: contactName ? `Interacción con ${contactName}` : "Interacción manual",
           meeting_url: meetingUrl,
@@ -990,9 +1072,17 @@ export async function POST(req: Request) {
             contact: { name: contactName || null, email: contactEmail || null, phone: contactPhone || null },
             crm: { state: "pending" },
           },
-        },
-        ...next.meetings,
-      ];
+        };
+      next.meetings = [createdMeeting, ...next.meetings];
+
+      await notifyNotetakerAutomation({
+        action: "interaction_created",
+        tenantId,
+        userId: guard.user.id,
+        profileId: next.profile_id,
+        meeting: createdMeeting,
+        salesPrompt: String(next.prompt || ""),
+      });
     } else if (op === "analyze_meeting") {
       const id = String(body?.meeting_id || "").trim();
       const m = next.meetings.find((x: any) => String(x?.id) === id);
@@ -1018,6 +1108,19 @@ export async function POST(req: Request) {
           },
         };
       });
+
+      const analyzed = next.meetings.find((x: any) => String(x?.id) === id) || m;
+      await notifyNotetakerAutomation({
+        action: "interaction_analyzed",
+        tenantId,
+        userId: guard.user.id,
+        profileId: next.profile_id,
+        meeting: {
+          ...analyzed,
+          analysis,
+        },
+        salesPrompt: String(next.prompt || ""),
+      });
     } else if (op === "save_pipeline") {
       const id = String(body?.meeting_id || "").trim();
       const m = next.meetings.find((x: any) => String(x?.id) === id);
@@ -1036,6 +1139,16 @@ export async function POST(req: Request) {
             },
           },
         };
+      });
+
+      const applied = next.meetings.find((x: any) => String(x?.id) === id) || m;
+      await notifyNotetakerAutomation({
+        action: "pipeline_saved",
+        tenantId,
+        userId: guard.user.id,
+        profileId: next.profile_id,
+        meeting: applied,
+        salesPrompt: String(next.prompt || ""),
       });
     } else if (op === "toggle_meeting") {
       const id = String(body?.meeting_id || "").trim();
