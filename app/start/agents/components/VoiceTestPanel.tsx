@@ -446,8 +446,8 @@ export default function VoiceTestPanel({
     try {
       const audioBase64 = await blobToBase64(audioBlob);
 
-      const promptCompact = String(agentPrompt || "").slice(0, 800);
-      const companyCompact = String(companyContext || "No disponible").slice(0, 700);
+      const promptCompact = String(agentPrompt || "").slice(0, 2000);
+      const companyCompact = String(companyContext || "No disponible").slice(0, 2000);
       const context = `Tu nombre es: ${agentName}
 Tu rol/propósito es: ${agentRole}
 

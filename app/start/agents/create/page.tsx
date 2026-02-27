@@ -113,6 +113,113 @@ const PURPOSE_OPTIONS = [
   { value: "cualificacion_leads", label: "Calificacion de leads" },
 ];
 
+const PROMPT_GUIDE_TEMPLATES = [
+  {
+    id: "ventas_consultiva",
+    label: "Ventas consultiva",
+    content:
+`Eres {{NOMBRE_AGENTE}}, asesor comercial de {{EMPRESA}}.
+
+Objetivo:
+- Entender el caso de uso del cliente y recomendar la solucion correcta.
+- Calificar el lead con preguntas concretas.
+- Cerrar un siguiente paso claro (demo, WhatsApp o email).
+
+Reglas de conversacion:
+- Habla en espanol, tono profesional, cercano y directo.
+- Responde en frases cortas y faciles de entender.
+- Nunca inventes datos; si falta informacion, pregunta.
+- Haz una pregunta por turno.
+
+Flujo sugerido:
+1. Saludo breve y contexto.
+2. Detecta tipo de negocio y principal dolor.
+3. Valida volumen de contactos y canal principal.
+4. Presenta 1 a 2 opciones de solucion.
+5. Cierra con una accion concreta.
+
+Datos a capturar:
+- Nombre del contacto
+- Tipo de negocio
+- Problema principal
+- Canal preferido
+- Presupuesto aproximado
+- Urgencia
+
+Cierre:
+Termina siempre con esta pregunta: "Te parece si agendamos una demo de 15 minutos o prefieres que te envie la propuesta por WhatsApp?"`,
+  },
+  {
+    id: "servicio_cliente",
+    label: "Servicio al cliente",
+    content:
+`Eres {{NOMBRE_AGENTE}}, asistente de atencion al cliente de {{EMPRESA}}.
+
+Objetivo:
+- Resolver dudas frecuentes de forma rapida y clara.
+- Guiar al cliente al siguiente paso sin friccion.
+- Escalar a humano cuando corresponda.
+
+Reglas:
+- Tono amable, empatico y resolutivo.
+- Confirma lo que entendiste antes de responder.
+- Si no hay dato suficiente, pide 1 dato puntual.
+- No uses lenguaje tecnico innecesario.
+
+Escalamiento:
+- Escala cuando haya queja critica, tema legal, cobro sensible o solicitud fuera de politica.
+- Al escalar, resume en 1 frase el caso para el equipo humano.
+
+Cierre:
+Pregunta siempre si quedo resuelto y ofrece un siguiente canal de contacto.`,
+  },
+  {
+    id: "cualificacion_leads",
+    label: "Calificacion de leads",
+    content:
+`Eres {{NOMBRE_AGENTE}}, especialista en calificacion de leads de {{EMPRESA}}.
+
+Objetivo:
+- Identificar rapidamente si el lead encaja con nuestro cliente ideal.
+- Priorizar leads de alto potencial.
+
+Criterios de calificacion:
+- Sector y tipo de negocio
+- Tamano del equipo
+- Volumen mensual de prospectos
+- Canal de captacion principal
+- Presupuesto disponible
+- Tiempo de implementacion esperado
+
+Reglas:
+- Haz preguntas cortas, una por mensaje.
+- Resume en una linea al final de cada 2 respuestas del usuario.
+- Si el lead califica, propone agendar demo.
+- Si no califica, deja una recomendacion util y despide cordialmente.`,
+  },
+  {
+    id: "agendamiento_demos",
+    label: "Agendar demos",
+    content:
+`Eres {{NOMBRE_AGENTE}}, asistente de agenda comercial de {{EMPRESA}}.
+
+Objetivo:
+- Llevar al prospecto desde interes hasta demo agendada.
+
+Reglas:
+- Valida interes real antes de pedir datos.
+- Ofrece horarios concretos.
+- Confirma nombre, email y telefono antes de cerrar.
+- Repite fecha y hora final para evitar errores.
+
+Script base:
+1. Entiendo, te ayudo a agendar.
+2. Te sirven estas opciones: [opcion A] o [opcion B]?
+3. Perfecto, para confirmar me compartes nombre, email y telefono?
+4. Listo, quedo agendada para [fecha] a las [hora]. Te envio confirmacion ahora.`,
+  },
+];
+
 export default function CreateAgentPage() {
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -131,6 +238,7 @@ export default function CreateAgentPage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [openAuth, setOpenAuth] = useState(false);
   const [confirmExitOpen, setConfirmExitOpen] = useState(false);
+  const [promptTemplateId, setPromptTemplateId] = useState("ventas_consultiva");
 
   const [form, setForm] = useState({
     companyName:  "",
@@ -327,6 +435,22 @@ export default function CreateAgentPage() {
       return;
     }
     setForm(f => ({ ...f, brainLastRun: new Date().toISOString() }));
+  };
+
+  const applyPromptTemplate = (mode: "replace" | "append") => {
+    const picked = PROMPT_GUIDE_TEMPLATES.find((t) => t.id === promptTemplateId) || PROMPT_GUIDE_TEMPLATES[0];
+    if (!picked) return;
+
+    const hydrated = picked.content
+      .replace(/\{\{NOMBRE_AGENTE\}\}/g, form.agentName?.trim() || "Botz")
+      .replace(/\{\{EMPRESA\}\}/g, form.companyName?.trim() || "tu empresa");
+
+    setForm((f) => ({
+      ...f,
+      agentPrompt: mode === "append"
+        ? `${String(f.agentPrompt || "").trim()}\n\n${hydrated}`.trim()
+        : hydrated,
+    }));
   };
 
   const handleSave = async () => {
@@ -621,9 +745,37 @@ export default function CreateAgentPage() {
                     placeholder="Ejemplo: Eres un asistente de ventas amable y profesional. Ayuda a los clientes, responde preguntas sobre productos. ⚠️ NO INCLUYAS: 'no puedo', 'solo puedo de texto', 'limitaciones técnicas'"
                     style={{ ...input({ minHeight: 100, fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace", fontSize: 12 }), resize: "vertical" as const }}
                   />
-                 <div style={{ marginTop: 12 }}>
-                   <button
-                     type="button"
+                  <div style={{ marginTop: 10, padding: 12, borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: C.dark }}>
+                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 800 }}>Plantillas recomendadas</div>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr auto auto", gap: 8 }}>
+                      <select
+                        value={promptTemplateId}
+                        onChange={e => setPromptTemplateId(e.target.value)}
+                        style={input({ appearance: "none" as const, height: 42, padding: "0 12px", fontSize: 13 })}
+                      >
+                        {PROMPT_GUIDE_TEMPLATES.map((t) => (
+                          <option key={t.id} value={t.id}>{t.label}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => applyPromptTemplate("replace")}
+                        style={{ padding: "0 14px", borderRadius: 10, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 800, cursor: "pointer", minHeight: 42 }}
+                      >
+                        Reemplazar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyPromptTemplate("append")}
+                        style={{ padding: "0 14px", borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: C.card, color: C.white, fontWeight: 800, cursor: "pointer", minHeight: 42 }}
+                      >
+                        Agregar
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <button
+                      type="button"
                      style={{ padding: "14px 20px", borderRadius: 8, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 700, fontSize: 14, cursor: "pointer" }}
                    >
                      ✦ Generar con IA
@@ -872,14 +1024,42 @@ export default function CreateAgentPage() {
                       </select>
                     </div>
 
-                    <div>
-                      <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
-                        Instrucciones importantes
-                        <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
-                      </label>
-                      <textarea
-                         value={form.agentPrompt}
-                         onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
+                     <div>
+                       <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
+                         Instrucciones importantes
+                         <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
+                       </label>
+                       <div style={{ marginBottom: 10, padding: 12, borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: C.dark }}>
+                         <div style={{ fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 800 }}>No sabes crear prompts? Usa una plantilla real</div>
+                         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr auto auto", gap: 8 }}>
+                           <select
+                             value={promptTemplateId}
+                             onChange={e => setPromptTemplateId(e.target.value)}
+                             style={input({ appearance: "none" as const, height: 42, padding: "0 12px", fontSize: 13 })}
+                           >
+                             {PROMPT_GUIDE_TEMPLATES.map((t) => (
+                               <option key={t.id} value={t.id}>{t.label}</option>
+                             ))}
+                           </select>
+                           <button
+                             type="button"
+                             onClick={() => applyPromptTemplate("replace")}
+                             style={{ padding: "0 14px", borderRadius: 10, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 800, cursor: "pointer", minHeight: 42 }}
+                           >
+                             Reemplazar
+                           </button>
+                           <button
+                             type="button"
+                             onClick={() => applyPromptTemplate("append")}
+                             style={{ padding: "0 14px", borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: C.card, color: C.white, fontWeight: 800, cursor: "pointer", minHeight: 42 }}
+                           >
+                             Agregar
+                           </button>
+                         </div>
+                       </div>
+                       <textarea
+                          value={form.agentPrompt}
+                          onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
                          placeholder="Describe el comportamiento de tu agente: su rol, tareas, tono, cómo debe responder. ⚠️ IMPORTANTE: NO incluyas limitaciones como 'no puedo', 'solo puedo', 'asistente de texto'. El agente responderá CUALQUIER pregunta."
                          rows={10}
                          style={{ ...input({ minHeight: 130 }), resize: "vertical" as const }}
