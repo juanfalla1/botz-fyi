@@ -7,7 +7,7 @@ import OpenAI from "openai";
 const NOTETAKER_AUTOMATION_WEBHOOK_URL =
   process.env.NOTETAKER_AUTOMATION_WEBHOOK_URL ||
   process.env.AUTOMATION_WEBHOOK_URL ||
-  "";
+  "https://n8nio-n8n-latest.onrender.com/webhook/botz/notetaker-events";
 
 const NOTETAKER_AUTOMATION_SECRET = process.env.NOTETAKER_AUTOMATION_SECRET || "";
 
@@ -62,6 +62,13 @@ async function notifyNotetakerAutomation(event: {
   if (!NOTETAKER_AUTOMATION_WEBHOOK_URL) return;
 
   try {
+    console.info("[notetaker->n8n] sending", {
+      action: event.action,
+      tenantId: event.tenantId,
+      hasSecret: Boolean(NOTETAKER_AUTOMATION_SECRET),
+      url: NOTETAKER_AUTOMATION_WEBHOOK_URL,
+    });
+
     const payload = {
       source: "botz_notetaker",
       timestamp: new Date().toISOString(),
