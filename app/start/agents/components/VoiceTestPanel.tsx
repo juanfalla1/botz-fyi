@@ -58,6 +58,11 @@ export default function VoiceTestPanel({
     contact_email: "",
   });
 
+  const VAD_RMS_THRESHOLD = 0.015;
+  const VAD_SILENCE_MS_TO_STOP = 1250;
+  const VAD_MIN_SPEECH_MS = 700;
+  const MAX_RECORDING_MS = 15000;
+
   const inputStyle: React.CSSProperties = {
     width: "100%",
     height: 44,
@@ -390,7 +395,7 @@ export default function VoiceTestPanel({
               sum += v * v;
             }
             const rms = Math.sqrt(sum / data.length);
-            const isSpeech = rms > 0.018;
+            const isSpeech = rms > VAD_RMS_THRESHOLD;
 
             if (isSpeech) {
               hasSpokenRef.current = true;
@@ -402,10 +407,10 @@ export default function VoiceTestPanel({
             } else if (hasSpokenRef.current && !silenceStopTimerRef.current) {
               silenceStopTimerRef.current = window.setTimeout(() => {
                 silenceStopTimerRef.current = null;
-                if (Date.now() - (spokenAtRef.current || Date.now()) >= 280) {
+                if (Date.now() - (spokenAtRef.current || Date.now()) >= VAD_MIN_SPEECH_MS) {
                   stopRecording();
                 }
-              }, 460);
+              }, VAD_SILENCE_MS_TO_STOP);
             }
 
             vadAnimationRef.current = window.requestAnimationFrame(tick);
@@ -419,7 +424,7 @@ export default function VoiceTestPanel({
       // Límite duro de grabación
       recordingMaxTimerRef.current = window.setTimeout(() => {
         stopRecording();
-      }, 4200);
+      }, MAX_RECORDING_MS);
     } catch (err: any) {
       setError("No se pudo acceder al micrófono. Verifica los permisos.");
       console.error("Microphone error:", err);
