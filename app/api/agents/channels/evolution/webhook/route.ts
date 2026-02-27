@@ -466,7 +466,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ignored: true, reason: "channel_not_found" });
     }
 
-    const selfPhoneRaw = String(
+    // Extraer el número del agente desde varias fuentes posibles
+    const agentPhoneRaw = String(
       channel?.config?.phone ||
       channel?.config?.number ||
       channel?.config?.owner ||
@@ -475,7 +476,10 @@ export async function POST(req: Request) {
       payload?.sender ||
       ""
     );
-    const selfPhone = normalizePhone(selfPhoneRaw);
+    const agentPhone = normalizePhone(agentPhoneRaw);
+    
+    // Solo filtrar si tenemos un número de agente válido diferente del número que escribe
+    const selfPhone = agentPhone;
 
     console.log("[evolution-webhook] channel debug", {
       instance: inbound.instance,
