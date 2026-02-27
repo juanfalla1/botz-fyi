@@ -181,6 +181,7 @@ function inboundPhoneCandidates(payload: any, item: any): string[] {
 function extractInbound(payload: any): InboundEvent | null {
   const event = String(payload?.event || payload?.type || payload?.eventName || "").toLowerCase();
   const hasUpsertEvent = /messages?[._-]?upsert/.test(event);
+  const hasUpdateEvent = /messages?[._-]?update/.test(event);
 
   const instance = String(
     payload?.instance || payload?.instanceName || payload?.data?.instance || payload?.data?.instanceId || ""
@@ -188,12 +189,36 @@ function extractInbound(payload: any): InboundEvent | null {
 
   if (
     !hasUpsertEvent &&
+    !hasUpdateEvent &&
     !payload?.message &&
     !payload?.messages &&
     !payload?.data?.message &&
     !payload?.data?.messages
   ) {
     return null;
+  }
+
+  // Para messages.update, verificar que sea un mensaje real (no solo ACK de entrega)
+  if (hasUpdateEvent && !payload?.data?.message && !payload?.data?.messages && !payload?.message) {
+    const fromMe = payload?.data?.fromMe ?? payload?.fromMe;
+    console.log("[evolution-webhook] messages.update check", { 
+      fromMe, 
+      hasMessage: !!payload?.data?.message,
+      hasMessages: !!payload?.data?.messages,
+      dataKeys: payload?.data ? Object.keys(payload.data) : []
+    });
+    if (fromMe === true || fromMe === "true") {
+      console.log("[evolution-webhook] ignoring delivery ACK");
+      return null;
+    }
+    
+    // Para messages.update con fromMe: false, verificar si hay datos de mensaje
+    const updateData = payload?.data || {};
+    const hasMessageData = updateData?.message || updateData?.messages || updateData?.text || updateData?.body;
+    if (!hasMessageData) {
+      console.log("[evolution-webhook] ignoring messages.update without message content");
+      return null;
+    }
   }
 
   const rawData = payload?.data || payload?.payload || payload;
@@ -212,7 +237,7 @@ function extractInbound(payload: any): InboundEvent | null {
     const source = String(item?.source || item?.data?.source || payload?.data?.source || payload?.source || "").toLowerCase();
     if (source === "api" || source === "outbound" || source === "server") continue;
 
-    const fromMe = boolish(key?.fromMe ?? item?.fromMe ?? item?.data?.key?.fromMe);
+    const fromMe = boolish(key?.fromMe ?? item?.fromMe ?? item?.data?.key?.fromMe ?? payload?.data?.fromMe ?? payload?.fromMe);
     if (fromMe) continue;
 
     const orderedCandidates = inboundPhoneCandidates(payload, item);
@@ -223,15 +248,20 @@ function extractInbound(payload: any): InboundEvent | null {
     if (!remoteJid) continue;
 
     const from = normalizePhone(String(remoteJid).split("@")[0] || "");
-    const typeHint = String(item?.messageType || item?.data?.messageType || "").trim();
+    
+    // Para messages.update, el mensaje puede estar en payload.data.message
+    const messageData = item?.message || item?.data?.message || item?.data || payload?.data?.message || payload?.message || {};
+    const typeHint = String(item?.messageType || item?.data?.messageType || messageData?.messageType || "").trim();
     const text = String(
-      extractTextFromMessage(item?.message || item?.data?.message || item?.data || {}, typeHint) ||
+      extractTextFromMessage(messageData, typeHint) ||
       item?.text ||
       item?.body ||
       item?.content ||
       item?.data?.text ||
       item?.data?.body ||
       item?.data?.content ||
+      payload?.data?.text ||
+      payload?.data?.body ||
       payload?.text ||
       payload?.body ||
       ""
@@ -239,7 +269,7 @@ function extractInbound(payload: any): InboundEvent | null {
     if (!from || !text) continue;
 
     const pushName = String(item?.pushName || item?.data?.pushName || payload?.data?.pushName || "").trim();
-    const messageId = String(key?.id || item?.id || item?.data?.key?.id || "").trim();
+    const messageId = String(key?.id || item?.id || item?.data?.key?.id || payload?.data?.messageId || "").trim();
 
     return {
       instance,
