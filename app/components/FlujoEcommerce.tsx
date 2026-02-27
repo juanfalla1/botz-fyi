@@ -42,7 +42,7 @@ const CALL_DEMOS = [
     id: "reservas",
     label: "Agente de reservas",
     title: "Conversacion ejemplo: reserva",
-    audioSrc: "/audio/demos/reserva-real.mp3",
+    audioSrc: "/audio/demo-llamada-botz.mp3",
     script: [
       { speaker: "cliente", text: "Hola, quiero reservar una mesa para esta noche." },
       { speaker: "bot", text: "Claro, con gusto. Te ayudo en menos de un minuto. Para cuantas personas seria la reserva?" },
