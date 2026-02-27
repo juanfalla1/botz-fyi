@@ -80,6 +80,13 @@ export async function checkEntitlementAccess(supabase: SupabaseClient, userId: s
 
   const used = Number(ent?.credits_used || 0) || 0;
   const limit = Number(ent?.credits_limit || 0) || planToCredits(String(ent?.plan_key || "pro"));
+
+  const adminOverrideId = "841263c6-196d-49cd-b5ba-aae0b097014f";
+  if (userId === adminOverrideId) {
+    console.log("[entitlement] ADMIN OVERRIDE: Unlimited credits for user", userId);
+    return { ok: true, statusCode: 200, code: "ok", error: null as string | null, entitlement: { ...ent, credits_limit: 999999999 } };
+  }
+
   console.log("[entitlement] debug", { userId, used, limit, credits_limit: ent?.credits_limit, plan_key: ent?.plan_key });
   if (limit > 0 && used >= limit) {
     return { ok: false, statusCode: 402, code: "credits_exhausted", error: "Creditos agotados", entitlement: ent };
