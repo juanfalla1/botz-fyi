@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./FlujoEcommerce.css";
 
 const steps = [
@@ -35,18 +35,21 @@ const steps = [
   }
 ];
 
+type DemoLine = { speaker: "cliente" | "bot"; text: string };
+
 const CALL_DEMOS = [
   {
     id: "reservas",
     label: "Agente de reservas",
     title: "Conversacion ejemplo: reserva",
+    audioSrc: "/audio/demos/reserva-real.mp3",
     script: [
-      "Cliente: Hola, quiero reservar una mesa para esta noche.",
-      "Botz IA: Claro. Te ayudo en menos de un minuto. Para cuantas personas seria la reserva?",
-      "Cliente: Para cuatro personas, a las ocho de la noche.",
-      "Botz IA: Perfecto. Tengo disponibilidad a las ocho o a las ocho y treinta. Cual prefieres?",
-      "Cliente: A las ocho esta bien.",
-      "Botz IA: Listo, reserva confirmada para hoy a las ocho PM, cuatro personas, a nombre de Laura Gomez. Te envio la confirmacion por WhatsApp.",
+      { speaker: "cliente", text: "Hola, quiero reservar una mesa para esta noche." },
+      { speaker: "bot", text: "Claro. Te ayudo en menos de un minuto. Para cuantas personas seria la reserva?" },
+      { speaker: "cliente", text: "Para cuatro personas, a las ocho de la noche." },
+      { speaker: "bot", text: "Perfecto. Tengo disponibilidad a las ocho o a las ocho y treinta. Cual prefieres?" },
+      { speaker: "cliente", text: "A las ocho esta bien." },
+      { speaker: "bot", text: "Listo, reserva confirmada para hoy a las ocho PM, cuatro personas, a nombre de Laura Gomez. Te envio la confirmacion por WhatsApp." },
     ],
     preview: [
       { speaker: "Cliente", text: "Hola, quiero reservar una mesa para hoy" },
@@ -59,13 +62,14 @@ const CALL_DEMOS = [
     id: "ventas",
     label: "Agente de ventas",
     title: "Conversacion ejemplo: ventas consultiva",
+    audioSrc: "/audio/demos/ventas-real.mp3",
     script: [
-      "Cliente: Hola, quiero automatizar WhatsApp para mi equipo comercial.",
-      "Botz IA: Perfecto. Te hago tres preguntas rapidas para recomendarte la mejor opcion. Cuantos leads reciben al mes?",
-      "Cliente: Unos mil doscientos leads entre pauta y referidos.",
-      "Botz IA: Excelente. Con ese volumen, Botz puede responder, calificar y agendar de forma automatica. Te propongo una demo de quince minutos hoy o manana.",
-      "Cliente: Manana en la tarde.",
-      "Botz IA: Agendado para manana a las cuatro PM. Te envio invitacion y checklist por WhatsApp y correo.",
+      { speaker: "cliente", text: "Hola, quiero automatizar WhatsApp para mi equipo comercial." },
+      { speaker: "bot", text: "Perfecto. Te hago tres preguntas rapidas para recomendarte la mejor opcion. Cuantos leads reciben al mes?" },
+      { speaker: "cliente", text: "Unos mil doscientos leads entre pauta y referidos." },
+      { speaker: "bot", text: "Excelente. Con ese volumen, Botz puede responder, calificar y agendar de forma automatica. Te propongo una demo de quince minutos hoy o manana." },
+      { speaker: "cliente", text: "Manana en la tarde." },
+      { speaker: "bot", text: "Agendado para manana a las cuatro PM. Te envio invitacion y checklist por WhatsApp y correo." },
     ],
     preview: [
       { speaker: "Cliente", text: "Quiero automatizar WhatsApp para ventas" },
@@ -78,13 +82,14 @@ const CALL_DEMOS = [
     id: "soporte",
     label: "Agente de soporte",
     title: "Conversacion ejemplo: soporte al cliente",
+    audioSrc: "/audio/demos/soporte-real.mp3",
     script: [
-      "Cliente: Hola, hice un pedido y todavia no me llega.",
-      "Botz IA: Te ayudo enseguida. Me compartes por favor tu numero de pedido?",
-      "Cliente: Si, es el pedido C R M guion tres dos uno ocho.",
-      "Botz IA: Gracias. Ya lo valide: esta en ruta y llega hoy entre cuatro y seis PM. Quieres que te envie el link de seguimiento por WhatsApp?",
-      "Cliente: Si, por favor.",
-      "Botz IA: Listo, enviado. Si no llega en esa ventana, te priorizo con un asesor humano de inmediato.",
+      { speaker: "cliente", text: "Hola, hice un pedido y todavia no me llega." },
+      { speaker: "bot", text: "Te ayudo enseguida. Me compartes por favor tu numero de pedido?" },
+      { speaker: "cliente", text: "Si, es el pedido C R M guion tres dos uno ocho." },
+      { speaker: "bot", text: "Gracias. Ya lo valide: esta en ruta y llega hoy entre cuatro y seis PM. Quieres que te envie el link de seguimiento por WhatsApp?" },
+      { speaker: "cliente", text: "Si, por favor." },
+      { speaker: "bot", text: "Listo, enviado. Si no llega en esa ventana, te priorizo con un asesor humano de inmediato." },
     ],
     preview: [
       { speaker: "Cliente", text: "Mi pedido no llega" },
@@ -146,10 +151,29 @@ export default function FlujoEcommerce() {
   const [layout, setLayout] = useState(() => getEcommerceLayout(800));
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioAvailable, setAudioAvailable] = useState(true);
+  const [audioAvailabilityByDemo, setAudioAvailabilityByDemo] = useState<Record<string, boolean>>({});
   const [demoId, setDemoId] = useState<(typeof CALL_DEMOS)[number]["id"]>("reservas");
 
   const activeDemo = CALL_DEMOS.find((d) => d.id === demoId) || CALL_DEMOS[0];
+  const hasRealAudio = audioAvailabilityByDemo[activeDemo.id] !== false;
+
+  const ttsVoices = useMemo(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      return { clientVoice: null as SpeechSynthesisVoice | null, botVoice: null as SpeechSynthesisVoice | null };
+    }
+    const voices = window.speechSynthesis.getVoices();
+    const esVoices = voices.filter((v) => String(v.lang || "").toLowerCase().startsWith("es"));
+    const pool = esVoices.length ? esVoices : voices;
+    if (!pool.length) {
+      return { clientVoice: null as SpeechSynthesisVoice | null, botVoice: null as SpeechSynthesisVoice | null };
+    }
+    const natural = pool.filter((v) => /natural|neural|online/i.test(v.name));
+    const usePool = natural.length >= 2 ? natural : pool;
+    return {
+      clientVoice: usePool[0] || null,
+      botVoice: usePool[1] || usePool[0] || null,
+    };
+  }, [demoId]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -181,10 +205,12 @@ export default function FlujoEcommerce() {
       }
 
       const line = script[index];
-      const utterance = new SpeechSynthesisUtterance(line);
+      const utterance = new SpeechSynthesisUtterance(line.text);
       utterance.lang = "es-ES";
-      utterance.rate = line.startsWith("Botz IA") ? 0.98 : 1.02;
-      utterance.pitch = line.startsWith("Botz IA") ? 1.03 : 0.96;
+      utterance.rate = line.speaker === "bot" ? 0.97 : 1.01;
+      utterance.pitch = line.speaker === "bot" ? 1.0 : 0.95;
+      if (line.speaker === "bot" && ttsVoices.botVoice) utterance.voice = ttsVoices.botVoice;
+      if (line.speaker === "cliente" && ttsVoices.clientVoice) utterance.voice = ttsVoices.clientVoice;
       utterance.onend = () => {
         index += 1;
         speakNext();
@@ -200,7 +226,7 @@ export default function FlujoEcommerce() {
   };
 
   const toggleAudio = () => {
-    if (ALWAYS_SYNTHETIC_DEMO) {
+    if (ALWAYS_SYNTHETIC_DEMO && !hasRealAudio) {
       if (typeof window !== "undefined" && "speechSynthesis" in window && isPlaying) {
         window.speechSynthesis.cancel();
         setIsPlaying(false);
@@ -210,7 +236,7 @@ export default function FlujoEcommerce() {
       return;
     }
 
-    if (!audioAvailable) {
+    if (!hasRealAudio) {
       if (typeof window !== "undefined" && "speechSynthesis" in window && isPlaying) {
         window.speechSynthesis.cancel();
         setIsPlaying(false);
@@ -230,8 +256,13 @@ export default function FlujoEcommerce() {
   };
 
   useEffect(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
     setIsPlaying(false);
   }, [demoId]);
 
@@ -414,8 +445,9 @@ export default function FlujoEcommerce() {
               ref={audioRef}
               className="ecom-call-audio-hidden"
               preload="none"
-              src="/audio/demo-llamada-botz.mp3"
-              onError={() => setAudioAvailable(false)}
+              src={activeDemo.audioSrc}
+              onError={() => setAudioAvailabilityByDemo((prev) => ({ ...prev, [activeDemo.id]: false }))}
+              onCanPlay={() => setAudioAvailabilityByDemo((prev) => ({ ...prev, [activeDemo.id]: true }))}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
               onEnded={() => setIsPlaying(false)}
