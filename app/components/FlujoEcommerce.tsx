@@ -43,6 +43,7 @@ const CALL_DEMOS = [
     label: "Agente de reservas",
     title: "Conversacion ejemplo: reserva",
     audioSrc: "/audio/demo-llamada-botz.mp3",
+    forceRealAudio: false,
     script: [
       { speaker: "cliente", text: "Hola, quiero reservar una mesa para esta noche." },
       { speaker: "bot", text: "Claro, con gusto. Te ayudo en menos de un minuto. Para cuantas personas seria la reserva?" },
@@ -69,6 +70,7 @@ const CALL_DEMOS = [
     label: "Agente de ventas",
     title: "Conversacion ejemplo: ventas consultiva",
     audioSrc: "/audio/demos/ventas-real.mp3",
+    forceRealAudio: false,
     script: [
       { speaker: "cliente", text: "Hola, quiero automatizar WhatsApp para mi equipo comercial." },
       { speaker: "bot", text: "Perfecto. Te hago tres preguntas rapidas para recomendarte la mejor opcion. Cuantos leads reciben al mes?" },
@@ -89,6 +91,7 @@ const CALL_DEMOS = [
     label: "Agente de soporte",
     title: "Conversacion ejemplo: soporte al cliente",
     audioSrc: "/audio/demos/soporte-real.mp3",
+    forceRealAudio: false,
     script: [
       { speaker: "cliente", text: "Hola, hice un pedido y todavia no me llega." },
       { speaker: "bot", text: "Te ayudo enseguida. Me compartes por favor tu numero de pedido?" },
@@ -179,6 +182,7 @@ export default function FlujoEcommerce() {
 
   const activeDemo = CALL_DEMOS.find((d) => d.id === demoId) || CALL_DEMOS[0];
   const hasRealAudio = audioAvailabilityByDemo[activeDemo.id] !== false;
+  const shouldForceDualTts = activeDemo.id === "reservas";
 
   const ttsVoices = useMemo(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
@@ -231,13 +235,13 @@ export default function FlujoEcommerce() {
       const line = script[index];
       const utterance = new SpeechSynthesisUtterance(line.text);
       utterance.lang = "es-ES";
-      utterance.rate = line.speaker === "bot" ? 0.97 : 1.01;
-      utterance.pitch = line.speaker === "bot" ? 1.0 : 0.95;
+      utterance.rate = line.speaker === "bot" ? 0.94 : 1.0;
+      utterance.pitch = line.speaker === "bot" ? 0.82 : 1.03;
       if (line.speaker === "bot" && ttsVoices.botVoice) utterance.voice = ttsVoices.botVoice;
       if (line.speaker === "cliente" && ttsVoices.clientVoice) utterance.voice = ttsVoices.clientVoice;
       utterance.onend = () => {
         index += 1;
-        speakNext();
+        window.setTimeout(speakNext, 120);
       };
       utterance.onerror = () => {
         setIsPlaying(false);
@@ -250,6 +254,21 @@ export default function FlujoEcommerce() {
   };
 
   const toggleAudio = () => {
+    if (activeDemo.forceRealAudio && !hasRealAudio) {
+      setIsPlaying(false);
+      return;
+    }
+
+    if (shouldForceDualTts) {
+      if (typeof window !== "undefined" && "speechSynthesis" in window && isPlaying) {
+        window.speechSynthesis.cancel();
+        setIsPlaying(false);
+        return;
+      }
+      playSyntheticCall();
+      return;
+    }
+
     if (ALWAYS_SYNTHETIC_DEMO && !hasRealAudio) {
       if (typeof window !== "undefined" && "speechSynthesis" in window && isPlaying) {
         window.speechSynthesis.cancel();
@@ -464,6 +483,11 @@ export default function FlujoEcommerce() {
                 {isPlaying ? "Pausar demo" : `Escuchar ${activeDemo.label.toLowerCase()}`}
               </button>
             </div>
+            {activeDemo.forceRealAudio && !hasRealAudio && (
+              <div style={{ color: "#fca5a5", fontSize: 12, fontWeight: 700, margin: "0 0 8px 2px" }}>
+                Audio real pendiente: carga un mp3 humano+bot en {activeDemo.audioSrc}
+              </div>
+            )}
             <button className="ecom-play" onClick={toggleAudio} aria-label="Reproducir llamada">
               {isPlaying ? "❚❚" : "▶"}
             </button>
