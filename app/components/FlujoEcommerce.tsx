@@ -35,6 +35,66 @@ const steps = [
   }
 ];
 
+const CALL_DEMOS = [
+  {
+    id: "reservas",
+    label: "Agente de reservas",
+    title: "Conversacion ejemplo: reserva",
+    script: [
+      "Cliente: Hola, quiero reservar una mesa para esta noche.",
+      "Botz IA: Claro. Te ayudo en menos de un minuto. Para cuantas personas seria la reserva?",
+      "Cliente: Para cuatro personas, a las ocho de la noche.",
+      "Botz IA: Perfecto. Tengo disponibilidad a las ocho o a las ocho y treinta. Cual prefieres?",
+      "Cliente: A las ocho esta bien.",
+      "Botz IA: Listo, reserva confirmada para hoy a las ocho PM, cuatro personas, a nombre de Laura Gomez. Te envio la confirmacion por WhatsApp.",
+    ],
+    preview: [
+      { speaker: "Cliente", text: "Hola, quiero reservar una mesa para hoy" },
+      { speaker: "BOTZ IA", text: "Perfecto. Para cuantas personas y a que hora te gustaria?" },
+      { speaker: "Cliente", text: "Para 4 personas, a las 8:00 pm" },
+      { speaker: "BOTZ IA", text: "Listo, reserva confirmada. Te envio la confirmacion por WhatsApp." },
+    ],
+  },
+  {
+    id: "ventas",
+    label: "Agente de ventas",
+    title: "Conversacion ejemplo: ventas consultiva",
+    script: [
+      "Cliente: Hola, quiero automatizar WhatsApp para mi equipo comercial.",
+      "Botz IA: Perfecto. Te hago tres preguntas rapidas para recomendarte la mejor opcion. Cuantos leads reciben al mes?",
+      "Cliente: Unos mil doscientos leads entre pauta y referidos.",
+      "Botz IA: Excelente. Con ese volumen, Botz puede responder, calificar y agendar de forma automatica. Te propongo una demo de quince minutos hoy o manana.",
+      "Cliente: Manana en la tarde.",
+      "Botz IA: Agendado para manana a las cuatro PM. Te envio invitacion y checklist por WhatsApp y correo.",
+    ],
+    preview: [
+      { speaker: "Cliente", text: "Quiero automatizar WhatsApp para ventas" },
+      { speaker: "BOTZ IA", text: "Perfecto. Cuantos leads reciben al mes y que canal usan mas?" },
+      { speaker: "Cliente", text: "Cerca de 1200 leads al mes" },
+      { speaker: "BOTZ IA", text: "Con ese volumen, te recomiendo demo de 15 minutos. Te agendo hoy o manana." },
+    ],
+  },
+  {
+    id: "soporte",
+    label: "Agente de soporte",
+    title: "Conversacion ejemplo: soporte al cliente",
+    script: [
+      "Cliente: Hola, hice un pedido y todavia no me llega.",
+      "Botz IA: Te ayudo enseguida. Me compartes por favor tu numero de pedido?",
+      "Cliente: Si, es el pedido C R M guion tres dos uno ocho.",
+      "Botz IA: Gracias. Ya lo valide: esta en ruta y llega hoy entre cuatro y seis PM. Quieres que te envie el link de seguimiento por WhatsApp?",
+      "Cliente: Si, por favor.",
+      "Botz IA: Listo, enviado. Si no llega en esa ventana, te priorizo con un asesor humano de inmediato.",
+    ],
+    preview: [
+      { speaker: "Cliente", text: "Mi pedido no llega" },
+      { speaker: "BOTZ IA", text: "Te ayudo. Me compartes tu numero de pedido?" },
+      { speaker: "Cliente", text: "Pedido CRM-3218" },
+      { speaker: "BOTZ IA", text: "Esta en ruta, llega hoy 4-6 PM. Te envio seguimiento por WhatsApp." },
+    ],
+  },
+] as const;
+
 const getEcommerceLayout = (width: number) => {
   if (width <= 700) {
     return {
@@ -81,11 +141,15 @@ const getEcommerceLayout = (width: number) => {
 };
 
 export default function FlujoEcommerce() {
+  const ALWAYS_SYNTHETIC_DEMO = true;
   const [selected, setSelected] = useState<number | null>(null);
   const [layout, setLayout] = useState(() => getEcommerceLayout(800));
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioAvailable, setAudioAvailable] = useState(true);
+  const [demoId, setDemoId] = useState<(typeof CALL_DEMOS)[number]["id"]>("reservas");
+
+  const activeDemo = CALL_DEMOS.find((d) => d.id === demoId) || CALL_DEMOS[0];
 
   useEffect(() => {
     const handleResize = () => {
@@ -105,14 +169,7 @@ export default function FlujoEcommerce() {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
 
     const synth = window.speechSynthesis;
-    const script = [
-      "Cliente: Hola, quiero saber si califico para credito hipotecario.",
-      "Botz IA: Claro. Te hago cuatro preguntas rapidas para validar perfil.",
-      "Cliente: Tengo ingreso mensual de dos millones cuatrocientos y cuota inicial del dieciocho por ciento.",
-      "Botz IA: Perfecto. Tu perfil es apto. Te agendo asesoria hoy a las cinco y treinta PM.",
-      "Cliente: Excelente, confirmo.",
-      "Botz IA: Listo. Te envio confirmacion por WhatsApp y correo.",
-    ];
+    const script = activeDemo.script;
 
     setIsPlaying(true);
     let index = 0;
@@ -143,6 +200,16 @@ export default function FlujoEcommerce() {
   };
 
   const toggleAudio = () => {
+    if (ALWAYS_SYNTHETIC_DEMO) {
+      if (typeof window !== "undefined" && "speechSynthesis" in window && isPlaying) {
+        window.speechSynthesis.cancel();
+        setIsPlaying(false);
+        return;
+      }
+      playSyntheticCall();
+      return;
+    }
+
     if (!audioAvailable) {
       if (typeof window !== "undefined" && "speechSynthesis" in window && isPlaying) {
         window.speechSynthesis.cancel();
@@ -161,6 +228,12 @@ export default function FlujoEcommerce() {
     }
     audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    setIsPlaying(false);
+  }, [demoId]);
 
   return (
     <section style={{ margin: "54px 0 54px 0", padding: "0 1rem" }}>
@@ -295,9 +368,9 @@ export default function FlujoEcommerce() {
       </div>
 
       <div className="ecom-live" aria-label="Llamada grabada y etapas">
-        <div className="ecom-live-head">
-          <div className="ecom-live-kicker">Llamada grabada + orquestacion por etapas</div>
-          <div className="ecom-live-sub">Escucha una llamada real de ejemplo y observa como se conecta cada paso.</div>
+          <div className="ecom-live-head">
+          <div className="ecom-live-kicker">Llamada demo + orquestacion por etapas</div>
+          <div className="ecom-live-sub">Demos realistas de conversacion para mostrar calidad profesional.</div>
         </div>
 
         <div className="ecom-call-scene">
@@ -312,8 +385,27 @@ export default function FlujoEcommerce() {
           </div>
 
           <div className="ecom-wave-wrap">
+            <select
+              value={demoId}
+              onChange={(e) => setDemoId(e.target.value as (typeof CALL_DEMOS)[number]["id"])}
+              style={{
+                marginBottom: 10,
+                width: "100%",
+                maxWidth: 260,
+                borderRadius: 10,
+                border: "1px solid rgba(34,211,238,0.35)",
+                background: "rgba(8,16,34,0.9)",
+                color: "#dbeafe",
+                padding: "9px 12px",
+                fontWeight: 700,
+              }}
+            >
+              {CALL_DEMOS.map((d) => (
+                <option key={d.id} value={d.id}>{d.label}</option>
+              ))}
+            </select>
             <button className="ecom-audio-toggle" onClick={toggleAudio}>
-              {isPlaying ? "Pausar llamada" : "Escuchar llamada real"}
+              {isPlaying ? "Pausar demo" : `Escuchar ${activeDemo.label.toLowerCase()}`}
             </button>
             <button className="ecom-play" onClick={toggleAudio} aria-label="Reproducir llamada">
               {isPlaying ? "❚❚" : "▶"}
@@ -343,11 +435,12 @@ export default function FlujoEcommerce() {
           </div>
 
           <div className="ecom-details-card">
-            <div className="ecom-details-title">Conversacion real</div>
-            <div className="ecom-details-line"><strong>Cliente:</strong> "Quiero saber si califico para credito"</div>
-            <div className="ecom-details-line"><strong>BOTZ IA:</strong> "Perfecto, te hago 4 preguntas y te digo viabilidad"</div>
-            <div className="ecom-details-line"><strong>Cliente:</strong> "Ingreso 2.4M y tengo 18% de cuota inicial"</div>
-            <div className="ecom-details-line"><strong>BOTZ IA:</strong> "Perfil apto. Te agenda asesoria hoy a las 5:30 pm"</div>
+            <div className="ecom-details-title">{activeDemo.title}</div>
+            {activeDemo.preview.map((line, idx) => (
+              <div key={`${line.speaker}-${idx}`} className="ecom-details-line">
+                <strong>{line.speaker}:</strong> "{line.text}"
+              </div>
+            ))}
           </div>
         </div>
 
