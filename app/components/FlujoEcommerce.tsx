@@ -460,7 +460,7 @@ export default function FlujoEcommerce() {
                   <option key={d.id} value={d.id}>{d.label}</option>
                 ))}
               </select>
-              <button className="ecom-audio-toggle" onClick={toggleAudio} style={{ marginBottom: 0 }}>
+              <button className="ecom-audio-toggle" onClick={toggleAudio} style={{ marginBottom: 0, position: "static" }}>
                 {isPlaying ? "Pausar demo" : `Escuchar ${activeDemo.label.toLowerCase()}`}
               </button>
             </div>
