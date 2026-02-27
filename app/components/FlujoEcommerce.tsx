@@ -45,16 +45,22 @@ const CALL_DEMOS = [
     audioSrc: "/audio/demos/reserva-real.mp3",
     script: [
       { speaker: "cliente", text: "Hola, quiero reservar una mesa para esta noche." },
-      { speaker: "bot", text: "Claro. Te ayudo en menos de un minuto. Para cuantas personas seria la reserva?" },
+      { speaker: "bot", text: "Claro, con gusto. Te ayudo en menos de un minuto. Para cuantas personas seria la reserva?" },
       { speaker: "cliente", text: "Para cuatro personas, a las ocho de la noche." },
       { speaker: "bot", text: "Perfecto. Tengo disponibilidad a las ocho o a las ocho y treinta. Cual prefieres?" },
       { speaker: "cliente", text: "A las ocho esta bien." },
-      { speaker: "bot", text: "Listo, reserva confirmada para hoy a las ocho PM, cuatro personas, a nombre de Laura Gomez. Te envio la confirmacion por WhatsApp." },
+      { speaker: "bot", text: "Listo. Para confirmar la reserva, me compartes tu nombre y un numero de contacto?" },
+      { speaker: "cliente", text: "Si, Laura Gomez, numero 300 555 0142." },
+      { speaker: "bot", text: "Perfecto, Laura. Reserva confirmada para hoy a las ocho PM, mesa para cuatro personas. Te envio confirmacion y ubicacion por WhatsApp." },
+      { speaker: "cliente", text: "Buenisimo, gracias." },
+      { speaker: "bot", text: "Con gusto. Si llegas con retraso de mas de quince minutos, avisanos por este mismo canal para conservar la mesa." },
     ],
     preview: [
       { speaker: "Cliente", text: "Hola, quiero reservar una mesa para hoy" },
       { speaker: "BOTZ IA", text: "Perfecto. Para cuantas personas y a que hora te gustaria?" },
       { speaker: "Cliente", text: "Para 4 personas, a las 8:00 pm" },
+      { speaker: "BOTZ IA", text: "Genial. Me compartes nombre y telefono para confirmar?" },
+      { speaker: "Cliente", text: "Laura Gomez, 300 555 0142" },
       { speaker: "BOTZ IA", text: "Listo, reserva confirmada. Te envio la confirmacion por WhatsApp." },
     ],
   },
@@ -145,6 +151,23 @@ const getEcommerceLayout = (width: number) => {
   };
 };
 
+const pickBestVoice = (voices: SpeechSynthesisVoice[], role: "cliente" | "bot") => {
+  const score = (v: SpeechSynthesisVoice) => {
+    const name = String(v.name || "").toLowerCase();
+    const lang = String(v.lang || "").toLowerCase();
+    let s = 0;
+    if (/es-/.test(lang)) s += 30;
+    if (/es-mx|es-co|es-es|es-us/.test(lang)) s += 20;
+    if (/natural|neural|online/.test(name)) s += 40;
+    if (/microsoft|google/.test(name)) s += 18;
+    if (role === "bot" && /helena|elena|dalia|laura|isabella|sofia|lucia|maria/.test(name)) s += 14;
+    if (role === "cliente" && /pablo|jorge|carlos|diego|andres|mateo|sebastian/.test(name)) s += 12;
+    return s;
+  };
+
+  return [...voices].sort((a, b) => score(b) - score(a))[0] || null;
+};
+
 export default function FlujoEcommerce() {
   const ALWAYS_SYNTHETIC_DEMO = true;
   const [selected, setSelected] = useState<number | null>(null);
@@ -167,11 +190,12 @@ export default function FlujoEcommerce() {
     if (!pool.length) {
       return { clientVoice: null as SpeechSynthesisVoice | null, botVoice: null as SpeechSynthesisVoice | null };
     }
-    const natural = pool.filter((v) => /natural|neural|online/i.test(v.name));
-    const usePool = natural.length >= 2 ? natural : pool;
+    const botVoice = pickBestVoice(pool, "bot");
+    const clientCandidates = pool.filter((v) => v.voiceURI !== botVoice?.voiceURI);
+    const clientVoice = pickBestVoice(clientCandidates.length ? clientCandidates : pool, "cliente");
     return {
-      clientVoice: usePool[0] || null,
-      botVoice: usePool[1] || usePool[0] || null,
+      clientVoice: clientVoice || null,
+      botVoice: botVoice || null,
     };
   }, [demoId]);
 
@@ -416,28 +440,30 @@ export default function FlujoEcommerce() {
           </div>
 
           <div className="ecom-wave-wrap">
-            <select
-              value={demoId}
-              onChange={(e) => setDemoId(e.target.value as (typeof CALL_DEMOS)[number]["id"])}
-              style={{
-                marginBottom: 10,
-                width: "100%",
-                maxWidth: 260,
-                borderRadius: 10,
-                border: "1px solid rgba(34,211,238,0.35)",
-                background: "rgba(8,16,34,0.9)",
-                color: "#dbeafe",
-                padding: "9px 12px",
-                fontWeight: 700,
-              }}
-            >
-              {CALL_DEMOS.map((d) => (
-                <option key={d.id} value={d.id}>{d.label}</option>
-              ))}
-            </select>
-            <button className="ecom-audio-toggle" onClick={toggleAudio}>
-              {isPlaying ? "Pausar demo" : `Escuchar ${activeDemo.label.toLowerCase()}`}
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+              <select
+                value={demoId}
+                onChange={(e) => setDemoId(e.target.value as (typeof CALL_DEMOS)[number]["id"])}
+                style={{
+                  flex: "1 1 230px",
+                  minWidth: 200,
+                  maxWidth: 320,
+                  borderRadius: 10,
+                  border: "1px solid rgba(34,211,238,0.35)",
+                  background: "rgba(8,16,34,0.9)",
+                  color: "#dbeafe",
+                  padding: "9px 12px",
+                  fontWeight: 700,
+                }}
+              >
+                {CALL_DEMOS.map((d) => (
+                  <option key={d.id} value={d.id}>{d.label}</option>
+                ))}
+              </select>
+              <button className="ecom-audio-toggle" onClick={toggleAudio} style={{ marginBottom: 0 }}>
+                {isPlaying ? "Pausar demo" : `Escuchar ${activeDemo.label.toLowerCase()}`}
+              </button>
+            </div>
             <button className="ecom-play" onClick={toggleAudio} aria-label="Reproducir llamada">
               {isPlaying ? "❚❚" : "▶"}
             </button>
