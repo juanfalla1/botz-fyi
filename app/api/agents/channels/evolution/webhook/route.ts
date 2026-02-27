@@ -466,7 +466,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ignored: true, reason: "channel_not_found" });
     }
 
-    const configHasPhone = !!(channel?.config?.phone || channel?.config?.number || channel?.config?.owner || channel?.config?.wid || channel?.config?.me);
     const selfPhoneRaw = String(
       channel?.config?.phone ||
       channel?.config?.number ||
@@ -476,7 +475,7 @@ export async function POST(req: Request) {
       payload?.sender ||
       ""
     );
-    const selfPhone = configHasPhone ? normalizePhone(selfPhoneRaw) : "";
+    const selfPhone = normalizePhone(selfPhoneRaw);
 
     console.log("[evolution-webhook] channel debug", {
       instance: inbound.instance,
