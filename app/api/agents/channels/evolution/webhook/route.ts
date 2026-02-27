@@ -393,13 +393,10 @@ function buildDocumentContext(message: string, files: { name: string; content: s
 }
 
 export async function POST(req: Request) {
-  console.log("[evolution-webhook] START EXECUTION", { time: new Date().toISOString() }); // <-- NUEVO LOG SUPER TEMPRANO
   try {
+    console.log("[evolution-webhook] --- WEBHOOK ENTRY ---", { time: new Date().toISOString() });
+
     const payload = await req.json().catch(() => ({}));
-    
-    console.log("[evolution-webhook] HIT", {
-      time: new Date().toISOString(),
-    });
     const inbound = extractInbound(payload);
     if (!inbound) {
       const topKeys = Object.keys(payload || {}).slice(0, 12);
