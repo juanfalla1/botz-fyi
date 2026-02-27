@@ -73,7 +73,7 @@ export async function GET(
       .single();
 
     if (!agent) {
-      return NextResponse.json({ ok: false, error: "Agent not found" }, { status: 404 });
+      return NextResponse.json({ ok: true, data: [] });
     }
 
     // Obtener conversaciones

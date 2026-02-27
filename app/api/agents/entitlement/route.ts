@@ -122,6 +122,13 @@ export async function GET(req: Request) {
     }
 
     const mergedCreditsUsed = Number(next?.credits_used || 0) || creditsUsedTotal;
+
+    const adminOverrideId = "841263c6-196d-49cd-b5ba-aae0b097014f";
+    if (guard.user.id === adminOverrideId) {
+      console.log("📝 [API entitlement] ADMIN OVERRIDE: Unlimited credits for user in frontend response", guard.user.id);
+      return NextResponse.json({ ok: true, data: { ...next, credits_limit: 999999999 }, credits_used_total: mergedCreditsUsed });
+    }
+
     return NextResponse.json({ ok: true, data: next, credits_used_total: mergedCreditsUsed });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Unknown error" }, { status: 500 });
