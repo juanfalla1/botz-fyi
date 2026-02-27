@@ -14,6 +14,11 @@ function estimateTokens(text: string) {
 function normalizePhone(raw: string) {
   const base = String(raw || "").split(":")[0].split("@")[0];
   const digits = base.replace(/\D/g, "");
+  
+  if (raw.includes("@lid") && digits) {
+    return digits;
+  }
+  
   return digits;
 }
 
@@ -25,10 +30,10 @@ function pickBestPhone(candidates: any[]): string {
   if (jidPreferred) return normalizePhone(jidPreferred);
 
   const parsed = raws.map((v) => normalizePhone(v)).filter(Boolean);
-  const medium = parsed.find((n) => n.length >= 10 && n.length <= 13);
+  const medium = parsed.find((n) => n.length >= 10 && n.length <= 15);
   if (medium) return medium;
 
-  const long = parsed.find((n) => n.length >= 14 && n.length <= 15);
+  const long = parsed.find((n) => n.length >= 16);
   return long || parsed[0] || "";
 }
 
@@ -153,6 +158,7 @@ function inboundPhoneCandidates(payload: any, item: any): string[] {
   const key = item?.key || {};
 
   const candidates = [
+    payload?.sender,
     item?.sender,
     payload?.sender,
     item?.from,
@@ -167,7 +173,7 @@ function inboundPhoneCandidates(payload: any, item: any): string[] {
     payload?.data?.key?.participant,
   ]
     .map((v) => normalizePhone(String(v || "")))
-    .filter((n) => n.length >= 10 && n.length <= 13);
+    .filter((n) => n.length >= 10 && n.length <= 15);
 
   return Array.from(new Set(candidates));
 }
@@ -211,7 +217,7 @@ function extractInbound(payload: any): InboundEvent | null {
 
     const orderedCandidates = inboundPhoneCandidates(payload, item);
     const preferred = String(preferredInboundPhone(payload, item)).trim();
-    const remoteJid = preferred && preferred.length >= 10 && preferred.length <= 13
+    const remoteJid = preferred && preferred.length >= 10 && preferred.length <= 15
       ? preferred
       : (orderedCandidates[0] || "");
     if (!remoteJid) continue;
