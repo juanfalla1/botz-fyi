@@ -466,17 +466,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ignored: true, reason: "channel_not_found" });
     }
 
-    const selfPhone = normalizePhone(
-      String(
-        channel?.config?.phone ||
-        channel?.config?.number ||
-        channel?.config?.owner ||
-        channel?.config?.wid ||
-        channel?.config?.me ||
-        payload?.sender ||
-        ""
-      )
+    const configHasPhone = !!(channel?.config?.phone || channel?.config?.number || channel?.config?.owner || channel?.config?.wid || channel?.config?.me);
+    const selfPhoneRaw = String(
+      channel?.config?.phone ||
+      channel?.config?.number ||
+      channel?.config?.owner ||
+      channel?.config?.wid ||
+      channel?.config?.me ||
+      payload?.sender ||
+      ""
     );
+    const selfPhone = configHasPhone ? normalizePhone(selfPhoneRaw) : "";
 
     console.log("[evolution-webhook] channel debug", {
       instance: inbound.instance,
@@ -522,6 +522,28 @@ export async function POST(req: Request) {
       .filter((f: any) => f.content);
     const docs = buildDocumentContext(inbound.text, files);
 
+    // Obtener historial de conversación
+    const { data: existingConv } = await supabase
+      .from("agent_conversations")
+      .select("transcript")
+      .eq("agent_id", agent.id)
+      .eq("channel", "whatsapp")
+      .eq("contact_phone", inbound.from)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const historyMessages: { role: "user" | "assistant"; content: string }[] = [];
+    if (existingConv?.transcript && Array.isArray(existingConv.transcript)) {
+      for (const msg of existingConv.transcript.slice(-10)) {
+        if (msg?.role === "user" && msg?.content) {
+          historyMessages.push({ role: "user", content: msg.content });
+        } else if (msg?.role === "assistant" && msg?.content) {
+          historyMessages.push({ role: "assistant", content: msg.content });
+        }
+      }
+    }
+
     const systemPrompt = [
       `Eres ${String(cfg?.identity_name || agent.name || "asistente")}.`,
       String(cfg?.purpose || agent.description || "Asistente virtual"),
@@ -535,14 +557,18 @@ export async function POST(req: Request) {
       .join("\n\n");
 
     const openai = new OpenAI({ apiKey });
+    
+    const allMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
+      { role: "system", content: systemPrompt },
+      ...historyMessages,
+      { role: "user", content: inbound.text },
+    ];
+    
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.2,
       max_tokens: 280,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: inbound.text },
-      ] as any,
+      messages: allMessages as any,
     });
 
     const reply = String(completion.choices?.[0]?.message?.content || "").trim() || "No tengo una respuesta en este momento.";
@@ -581,7 +607,7 @@ export async function POST(req: Request) {
     const toCandidates = [inbound.from, ...(inbound.alternates || [])]
       .map((n) => normalizePhone(String(n || "")))
       .filter((n, i, arr) => n && arr.indexOf(n) === i)
-      .filter((n) => n !== selfPhone)
+      .filter((n) => !selfPhone || n !== selfPhone)
       .filter((n) => n.length >= 10 && n.length <= 15);
 
     console.log("[evolution-webhook] routing debug", {
