@@ -473,6 +473,7 @@ export async function POST(req: Request) {
         channel?.config?.owner ||
         channel?.config?.wid ||
         channel?.config?.me ||
+        payload?.sender ||
         ""
       )
     );
@@ -580,7 +581,8 @@ export async function POST(req: Request) {
     const toCandidates = [inbound.from, ...(inbound.alternates || [])]
       .map((n) => normalizePhone(String(n || "")))
       .filter((n, i, arr) => n && arr.indexOf(n) === i)
-      .filter((n) => n !== selfPhone);
+      .filter((n) => n !== selfPhone)
+      .filter((n) => n.length >= 10 && n.length <= 15);
 
     console.log("[evolution-webhook] routing debug", {
       inboundFrom: inbound.from,
