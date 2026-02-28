@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
+import { supabaseAgents } from "@/app/start/agents/supabaseAgentsClient";
 
 const C = {
   bg: "#1a1d26",
@@ -71,6 +72,50 @@ const PLANS = [
 
 export default function AgentPlansPage() {
   const router = useRouter();
+  const [payingPlan, setPayingPlan] = React.useState<string>("");
+
+  const startCheckout = async (planKey: "pro" | "scale" | "prime", planName: string) => {
+    try {
+      setPayingPlan(planKey);
+
+      const { data } = await supabaseAgents.auth.getUser();
+      const user = data?.user || null;
+      if (!user) {
+        router.push("/start/agents");
+        return;
+      }
+
+      let tenantId = String((user.user_metadata as any)?.tenant_id || "").trim();
+      if (!tenantId) {
+        tenantId = crypto.randomUUID();
+        await supabaseAgents.auth.updateUser({ data: { tenant_id: tenantId } });
+      }
+
+      const res = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan: planKey,
+          planName,
+          billing: "month",
+          userId: user.id,
+          email: user.email,
+          tenant_id: tenantId,
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.url) {
+        throw new Error(json?.error || "No se pudo iniciar Stripe");
+      }
+
+      window.location.href = String(json.url);
+    } catch (e: any) {
+      alert(e?.message || "Error iniciando el pago");
+    } finally {
+      setPayingPlan("");
+    }
+  };
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: C.bg, color: C.white, fontFamily: "Inter,-apple-system,sans-serif" }}>
@@ -132,10 +177,11 @@ export default function AgentPlansPage() {
                 </div>
 
                 <button
-                  onClick={() => router.push("/start/agents")}
+                  onClick={() => startCheckout(p.key, p.name)}
+                  disabled={payingPlan === p.key}
                   style={{ marginTop: 18, width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${p.accent}`, backgroundColor: "transparent", color: p.accent, fontWeight: 900, cursor: "pointer" }}
                 >
-                  Seleccionar
+                  {payingPlan === p.key ? "Procesando..." : "Seleccionar"}
                 </button>
               </div>
             </div>

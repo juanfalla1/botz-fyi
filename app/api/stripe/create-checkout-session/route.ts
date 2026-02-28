@@ -114,6 +114,14 @@ export async function POST(req: Request) {
       priceId,
     };
 
+    const isAgentsCheckout = ["pro", "scale", "prime"].includes(planKey);
+    const successUrl = isAgentsCheckout
+      ? `${baseUrl()}/start/agents?paid=1&product=agents`
+      : `${baseUrl()}/start?paid=1`;
+    const cancelUrl = isAgentsCheckout
+      ? `${baseUrl()}/start/agents/plans?canceled=1&product=agents`
+      : `${baseUrl()}/pricing?canceled=1`;
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer_email: body.email ? String(body.email) : undefined,
@@ -121,8 +129,8 @@ export async function POST(req: Request) {
 
       line_items: [{ price: priceId, quantity: 1 }],
 
-      success_url: `${baseUrl()}/start?paid=1`,
-      cancel_url: `${baseUrl()}/pricing?canceled=1`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
 
       // ✅ CRÍTICO: tu captura muestra que esto llega a checkout.session.completed
       metadata,
