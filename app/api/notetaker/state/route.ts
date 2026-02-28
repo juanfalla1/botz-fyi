@@ -5,8 +5,6 @@ import { SYSTEM_TENANT_ID } from "@/app/api/_utils/system";
 import OpenAI from "openai";
 
 const NOTETAKER_AUTOMATION_WEBHOOK_URL =
-  process.env.NOTETAKER_AUTOMATION_WEBHOOK_URL ||
-  process.env.AUTOMATION_WEBHOOK_URL ||
   "https://n8nio-n8n-latest.onrender.com/webhook/botz/notetaker-events";
 
 const NOTETAKER_AUTOMATION_SECRET = process.env.NOTETAKER_AUTOMATION_SECRET || "";
