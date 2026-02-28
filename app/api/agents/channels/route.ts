@@ -3,6 +3,7 @@ import { getRequestUser } from "@/app/api/_utils/auth";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { SYSTEM_TENANT_ID } from "@/app/api/_utils/system";
 import { protectConfig, redactConfig } from "@/app/api/_utils/secret-config";
+import { checkEntitlementAccess, getPlanLimits, hasAdminEntitlementOverride } from "@/app/api/_utils/entitlement";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,37 @@ export async function POST(req: Request) {
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
 
   try {
+    const access = await checkEntitlementAccess(supabase as any, guard.user.id);
+    if (!access.ok) {
+      return NextResponse.json({ ok: false, error: access.error || "Entitlement blocked", code: access.code }, { status: access.statusCode || 402 });
+    }
+
+    if (!hasAdminEntitlementOverride(guard.user.id)) {
+      const planLimits = getPlanLimits(String((access as any)?.entitlement?.plan_key || "pro"));
+      const { count: currentChannels, error: countErr } = await supabase
+        .from("agent_channel_connections")
+        .select("id", { count: "exact", head: true })
+        .eq("created_by", guard.user.id);
+
+      if (countErr) {
+        return NextResponse.json({ ok: false, error: countErr.message || "No se pudo validar límite de canales" }, { status: 500 });
+      }
+
+      const total = Number(currentChannels || 0);
+      if (planLimits.max_channels > 0 && total >= planLimits.max_channels) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: "channels_limit_reached",
+            error: `Tu plan permite hasta ${planLimits.max_channels} canal(es). Actualiza tu plan para crear más.`,
+            limits: planLimits,
+            current: { channels: total },
+          },
+          { status: 402 }
+        );
+      }
+    }
+
     const body = await req.json().catch(() => ({}));
     const channelType = String(body?.channel_type || "voice").toLowerCase();
     const provider = String(body?.provider || "twilio").toLowerCase();

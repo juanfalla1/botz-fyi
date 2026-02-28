@@ -13,10 +13,32 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { persistSession: false },
 });
 
-function normalizePlanForDb(meta: any) {
-  const planName = String(meta?.planName ?? "").trim();
+const AGENTS_PRODUCT_KEY = "agents";
+
+const AGENTS_PLAN_CREDITS: Record<string, number> = {
+  pro: 10000,
+  scale: 100000,
+  prime: 500000,
+};
+
+function normalizePlanKey(meta: any): string {
   const planKey = String(meta?.plan ?? "").trim().toLowerCase();
-  if (["basic", "basico", "básico"].includes(planKey) || /basi/i.test(planName)) return "Basico";
+  const planName = String(meta?.planName ?? "").trim().toLowerCase();
+
+  if (["pro", "scale", "prime", "basic", "growth"].includes(planKey)) return planKey;
+  if (planName.includes("pro")) return "pro";
+  if (planName.includes("scale")) return "scale";
+  if (planName.includes("prime")) return "prime";
+  if (planName.includes("basi")) return "basic";
+  return "growth";
+}
+
+function normalizePlanForDb(meta: any) {
+  const key = normalizePlanKey(meta);
+  if (key === "pro") return "Pro";
+  if (key === "scale") return "Scale";
+  if (key === "prime") return "Prime";
+  if (key === "basic") return "Basico";
   return "Growth";
 }
 
@@ -138,6 +160,7 @@ export async function POST(req: NextRequest) {
 
       const billing_cycle = normalizeBilling(meta);
       const plan = normalizePlanForDb(meta);
+      const rawPlanKey = normalizePlanKey(meta);
       const priceId = String(meta.priceId || "");
 
       const stripe_customer_id = session.customer
@@ -188,6 +211,39 @@ export async function POST(req: NextRequest) {
         }
       } else {
         console.log("✅ Guardado correctamente");
+      }
+
+      // Sync Agents entitlement when checkout is for Agents plans.
+      if (["pro", "scale", "prime"].includes(rawPlanKey)) {
+        const nextCreditsLimit = AGENTS_PLAN_CREDITS[rawPlanKey] || AGENTS_PLAN_CREDITS.pro;
+
+        const { data: entExisting } = await supabaseAdmin
+          .from("agent_entitlements")
+          .select("credits_used")
+          .eq("user_id", userId)
+          .eq("product_key", AGENTS_PRODUCT_KEY)
+          .maybeSingle();
+
+        const entPayload = {
+          user_id: userId,
+          product_key: AGENTS_PRODUCT_KEY,
+          plan_key: rawPlanKey,
+          status: "active",
+          credits_limit: nextCreditsLimit,
+          credits_used: Number((entExisting as any)?.credits_used || 0) || 0,
+          trial_start: null,
+          trial_end: null,
+        } as any;
+
+        const { error: entUpsertErr } = await supabaseAdmin
+          .from("agent_entitlements")
+          .upsert(entPayload, { onConflict: "user_id,product_key" });
+
+        if (entUpsertErr) {
+          console.error("❌ Error actualizando entitlement de agentes:", entUpsertErr.message);
+        } else {
+          console.log("✅ Entitlement de agentes actualizado:", { userId, plan_key: rawPlanKey, credits_limit: nextCreditsLimit });
+        }
       }
 
       // ✅ EMAIL DEL CLIENTE (con fallback real)

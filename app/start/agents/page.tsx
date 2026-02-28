@@ -52,6 +52,8 @@ export default function AgentStudio() {
   const [subStatus, setSubStatus] = useState<string>("inactive");
   const [trialEnd, setTrialEnd] = useState<string | null>(null);
   const [entCreditsUsed, setEntCreditsUsed] = useState<number | null>(null);
+  const [entCreditsLimit, setEntCreditsLimit] = useState<number | null>(null);
+  const [entLimits, setEntLimits] = useState<{ max_agents: number; max_channels: number; allow_overage: boolean; grace_ratio?: number } | null>(null);
   const [usageEvents, setUsageEvents] = useState<UsageEvent[]>([]);
   const [usageSummary, setUsageSummary] = useState<{ today: number; seven_days: number; top_endpoint: string }>({ today: 0, seven_days: 0, top_endpoint: "-" });
   const [usageMissingTable, setUsageMissingTable] = useState(false);
@@ -170,6 +172,8 @@ export default function AgentStudio() {
       setSubStatus(String(ent.status || "trial"));
       setTrialEnd(ent.trial_end ? String(ent.trial_end) : null);
       setEntCreditsUsed(Number(json.credits_used_total ?? ent.credits_used ?? 0));
+      setEntCreditsLimit(Number(ent.credits_limit || 0) || null);
+      setEntLimits(json?.limits || null);
     } catch (e) {
       if (e instanceof AuthRequiredError) {
         setOpenAuth(true);
@@ -975,18 +979,23 @@ export default function AgentStudio() {
   }, [subPlan]);
 
   const planInfo = useMemo(() => {
-    if (planTier === "prime") return { name: "Prime", price: "US$1,499.00", credits: 1500000 };
-    if (planTier === "scale") return { name: "Scale Up", price: "US$499.00", credits: 500000 };
-    return { name: "Pro", price: "US$99.00", credits: 2000 };
+    if (planTier === "prime") return { name: "Prime", price: "US$1,499.00", credits: 500000 };
+    if (planTier === "scale") return { name: "Scale", price: "US$499.00", credits: 100000 };
+    return { name: "Pro", price: "US$99.00", credits: 10000 };
   }, [planTier]);
 
   const allPlans = useMemo(() => {
     return [
-      { key: "pro", name: "Pro", price: "US$99.00", credits: 2000 },
-      { key: "scale", name: "Scale Up", price: "US$499.00", credits: 500000 },
-      { key: "prime", name: "Prime", price: "US$1,499.00", credits: 1500000 },
+      { key: "pro", name: "Pro", price: "US$99.00", credits: 10000 },
+      { key: "scale", name: "Scale", price: "US$499.00", credits: 100000 },
+      { key: "prime", name: "Prime", price: "US$1,499.00", credits: 500000 },
     ] as const;
   }, []);
+
+  const baseCreditsLimit = entCreditsLimit == null ? planInfo.credits : entCreditsLimit;
+  const allowOverage = Boolean(entLimits?.allow_overage);
+  const graceRatio = Math.max(0, Number(entLimits?.grace_ratio || 0));
+  const hardCreditsLimit = allowOverage ? Number.MAX_SAFE_INTEGER : Math.floor(baseCreditsLimit * (1 + graceRatio));
 
   const trialInfo = useMemo(() => {
     if (String(subStatus) !== "trial") return { label: "", daysLeft: null as number | null, expired: false };
@@ -1002,9 +1011,9 @@ export default function AgentStudio() {
   const isBlocked = useMemo(() => {
     if (String(subStatus) === "blocked") return true;
     if (trialInfo.expired) return true;
-    if (creditsUsedTotal >= planInfo.credits) return true;
+    if (!allowOverage && creditsUsedTotal >= hardCreditsLimit) return true;
     return false;
-  }, [subStatus, trialInfo.expired, creditsUsedTotal, planInfo.credits]);
+  }, [subStatus, trialInfo.expired, creditsUsedTotal, allowOverage, hardCreditsLimit]);
 
   const fmt = (n: number) => {
     try {
@@ -1025,7 +1034,7 @@ export default function AgentStudio() {
     return `${m >= 10 ? Math.round(m) : Number(m.toFixed(1))}M`;
   };
 
-  const usagePct = Math.min(100, (creditsUsedTotal / Math.max(1, planInfo.credits)) * 100);
+  const usagePct = Math.min(100, (creditsUsedTotal / Math.max(1, baseCreditsLimit)) * 100);
   const usagePctDisplay =
     usagePct <= 0
       ? 0
@@ -1154,7 +1163,7 @@ export default function AgentStudio() {
                 <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{planInfo.price} / mes</div>
               </div>
               <div style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${C.border}`, backgroundColor: "rgba(0,0,0,0.18)", color: C.lime, fontWeight: 900, fontSize: 12 }}>
-                {fmt(planInfo.credits)} creditos
+                {fmt(baseCreditsLimit)} creditos
               </div>
             </div>
 
@@ -1189,7 +1198,7 @@ export default function AgentStudio() {
 
             <div style={{ ...flex({ justifyContent: "space-between" }), marginBottom: 6 }}>
               <span style={{ color: C.dim, fontSize: 12 }}>Creditos usados</span>
-              <span style={{ fontSize: 12, fontWeight: 900, color: C.white }}>{formatCredits(creditsUsedTotal)} / {formatCredits(planInfo.credits)}</span>
+              <span style={{ fontSize: 12, fontWeight: 900, color: C.white }}>{formatCredits(creditsUsedTotal)} / {formatCredits(baseCreditsLimit)}</span>
             </div>
             <div style={{ height: 8, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 999, overflow: "hidden", border: `1px solid ${C.border}` }}>
               <div
@@ -1216,6 +1225,18 @@ export default function AgentStudio() {
                 </button>
               </div>
             )}
+
+            {!allowOverage && creditsUsedTotal >= baseCreditsLimit && creditsUsedTotal < hardCreditsLimit && (
+              <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(16,185,129,0.45)", background: "rgba(16,185,129,0.10)" }}>
+                <div style={{ color: "#6ee7b7", fontSize: 12, fontWeight: 900 }}>
+                  Estas en ventana de gracia del {Math.round(graceRatio * 100)}%. Recarga para evitar pausa.
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: 10, color: C.muted, fontSize: 12, lineHeight: 1.45 }}>
+              Incluye hasta {entLimits?.max_agents ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} agente(s), {entLimits?.max_channels ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} canal(es) y {allowOverage ? "overage habilitado." : "sin overage."}
+            </div>
 
             {trialInfo.label && (
               <div style={{ marginTop: 10, color: C.muted, fontSize: 12 }}>
@@ -1268,9 +1289,11 @@ export default function AgentStudio() {
            <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
              <div style={{ width: "92vw", maxWidth: 560, borderRadius: 18, border: `1px solid ${C.border}`, background: "linear-gradient(180deg, rgba(21,24,31,0.98), rgba(17,19,24,0.98))", padding: 18, boxShadow: "0 40px 120px rgba(0,0,0,0.6)" }}>
                <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 6 }}>Acceso pausado</div>
-               <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.55 }}>
-                 {creditsUsedTotal >= planInfo.credits ? "Se agotaron tus creditos." : (trialInfo.expired ? "Tu trial de 3 dias termino." : "Tu cuenta esta bloqueada.")}
-               </div>
+                <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.55 }}>
+                  {!allowOverage && creditsUsedTotal >= hardCreditsLimit
+                    ? "Agotaste tus creditos y la ventana de gracia. Recarga para reactivar."
+                    : (trialInfo.expired ? "Tu trial de 3 dias termino." : "Tu cuenta esta bloqueada.")}
+                </div>
                 <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
                   <button
                     onClick={() => router.push("/start/agents/plans")}

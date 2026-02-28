@@ -6,9 +6,9 @@ import { executeFlow } from "@/app/api/flows/_utils/executor";
 import { AGENTS_PRODUCT_KEY, logUsageEvent } from "@/app/api/_utils/entitlement";
 
 const PLAN_CREDITS: Record<string, number> = {
-  pro: 2000,
-  scale: 500000,
-  prime: 1500000,
+  pro: 10000,
+  scale: 100000,
+  prime: 500000,
 };
 
 function nowIso() {

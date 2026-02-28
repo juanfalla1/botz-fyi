@@ -1,15 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { getRequestUser } from "@/app/api/_utils/auth";
-import { AGENTS_PRODUCT_KEY } from "@/app/api/_utils/entitlement";
-
-const TRIAL_DAYS = 3;
-
-function planToCredits(planKey: string) {
-  if (planKey === "prime") return 1500000;
-  if (planKey === "scale") return 500000;
-  return 2000;
-}
+import { AGENTS_PRODUCT_KEY, TRIAL_CREDITS_LIMIT, TRIAL_DAYS, getPlanLimits } from "@/app/api/_utils/entitlement";
 
 function nowIso() {
   return new Date().toISOString();
@@ -47,7 +39,7 @@ export async function GET(req: Request) {
         product_key: AGENTS_PRODUCT_KEY,
         plan_key,
         status: "trial",
-        credits_limit: planToCredits(plan_key),
+        credits_limit: TRIAL_CREDITS_LIMIT,
         credits_used: 0,
         trial_start: trialStart.toISOString(),
         trial_end: trialEnd.toISOString(),
@@ -63,7 +55,7 @@ export async function GET(req: Request) {
         return NextResponse.json({ ok: false, error: insErr.message }, { status: 400 });
       }
 
-      return NextResponse.json({ ok: true, data: inserted });
+      return NextResponse.json({ ok: true, data: inserted, limits: getPlanLimits(String(inserted?.plan_key || "pro")) });
     }
 
     // Ensure trial window exists
@@ -81,7 +73,7 @@ export async function GET(req: Request) {
       if (!updErr && updated) next = updated;
     }
 
-    return NextResponse.json({ ok: true, data: next });
+    return NextResponse.json({ ok: true, data: next, limits: getPlanLimits(String(next?.plan_key || "pro")) });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Unknown error" }, { status: 500 });
   }

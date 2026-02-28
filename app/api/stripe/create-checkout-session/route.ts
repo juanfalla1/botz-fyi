@@ -26,13 +26,21 @@ function baseUrl() {
   return url.replace(/\/$/, "");
 }
 
-function normalizePlanKey(plan: unknown): "basic" | "growth" {
+type CheckoutPlanKey = "basic" | "growth" | "pro" | "scale" | "prime";
+
+function normalizePlanKey(plan: unknown): CheckoutPlanKey {
   const s = String(plan ?? "").trim().toLowerCase();
+  if (["pro"].includes(s)) return "pro";
+  if (["scale", "scale up"].includes(s)) return "scale";
+  if (["prime"].includes(s)) return "prime";
   if (["basic", "basico", "básico"].includes(s)) return "basic";
   return "growth";
 }
 
-function planDisplay(planKey: "basic" | "growth") {
+function planDisplay(planKey: CheckoutPlanKey) {
+  if (planKey === "pro") return "Pro";
+  if (planKey === "scale") return "Scale";
+  if (planKey === "prime") return "Prime";
   return planKey === "basic" ? "Basico" : "Growth";
 }
 
@@ -42,13 +50,19 @@ function normalizePriceId(id?: string) {
   return s.replace(/^price_price_/, "price_");
 }
 
-function pickPriceId(planKey: "basic" | "growth", billing: "month" | "year") {
+function pickPriceId(planKey: CheckoutPlanKey, billing: "month" | "year") {
   const monthly: Record<string, string | undefined> = {
+    pro: process.env.STRIPE_PRICE_PRO_MONTHLY,
+    scale: process.env.STRIPE_PRICE_SCALE_MONTHLY,
+    prime: process.env.STRIPE_PRICE_PRIME_MONTHLY,
     basic: process.env.STRIPE_PRICE_BASIC_MONTHLY,
     growth: process.env.STRIPE_PRICE_GROWTH_MONTHLY,
   };
 
   const yearly: Record<string, string | undefined> = {
+    pro: process.env.STRIPE_PRICE_PRO_YEARLY,
+    scale: process.env.STRIPE_PRICE_SCALE_YEARLY,
+    prime: process.env.STRIPE_PRICE_PRIME_YEARLY,
     basic: process.env.STRIPE_PRICE_BASIC_YEARLY,
     growth: process.env.STRIPE_PRICE_GROWTH_YEARLY,
   };
@@ -74,6 +88,11 @@ export async function POST(req: Request) {
     }
 
     let priceId = pickPriceId(planKey, billing);
+    // Backward-compatible fallback: map pro->basic and scale->growth if new prices are missing.
+    if (!priceId && (planKey === "pro" || planKey === "scale")) {
+      const legacyPlan = planKey === "pro" ? "basic" : "growth";
+      priceId = pickPriceId(legacyPlan, billing);
+    }
     if (!priceId) {
       return NextResponse.json(
         { ok: false, error: "NO_PRICE_ID", details: { planKey, billing } },

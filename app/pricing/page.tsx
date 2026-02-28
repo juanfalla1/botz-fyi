@@ -16,8 +16,8 @@ const STRIPE_LINK_GROWTH =
 function getStripeLinkByPlan(planName: string) {
   const p = (planName || "").toLowerCase();
 
-  if (p.includes("growth")) return STRIPE_LINK_GROWTH;
-  if (p.includes("básic") || p.includes("basico")) return STRIPE_LINK_BASIC;
+  if (p.includes("scale") || p.includes("growth")) return STRIPE_LINK_GROWTH;
+  if (p.includes("pro") || p.includes("básic") || p.includes("basico")) return STRIPE_LINK_BASIC;
 
   return "";
 }
@@ -34,8 +34,12 @@ export default function PricingPage() {
   // ✅ Normaliza el nombre del plan (UI) a una key estable para Stripe
   const getPlanKey = (planName: string) => {
     const s = String(planName || "").trim().toLowerCase();
-    if (s === "basic" || s === "básico" || s === "basico" || s.includes("básico") || s.includes("basico")) return "basic";
-    if (s === "growth" || s.includes("growth")) return "growth";
+    if (s === "pro" || s.includes("pro")) return "pro";
+    if (s === "scale" || s.includes("scale")) return "scale";
+    if (s === "prime" || s.includes("prime")) return "prime";
+    // backward compatibility for old names
+    if (s === "basic" || s === "básico" || s === "basico" || s.includes("básico") || s.includes("basico")) return "pro";
+    if (s === "growth" || s.includes("growth")) return "scale";
     return "";
   };
   const handlePayWithStripe = async (planName?: string) => {
@@ -171,6 +175,11 @@ export default function PricingPage() {
 
   const handleOpenModal = async (planName: string) => {
     setSelectedPlan(planName);
+
+    if (String(planName || "").toLowerCase().includes("medida")) {
+      openSalesModal();
+      return;
+    }
 
     // ✅ Si ya está logueado, NO muestres modal viejo: manda directo a Stripe
     const { data: { user } } = await supabase.auth.getUser();
@@ -352,10 +361,12 @@ export default function PricingPage() {
   // ✅ Función para obtener precio del plan seleccionado
   const getPlanPrice = (plan?: string) => {
     const planToCheck = plan || selectedPlan;
-    if (planToCheck === "Growth") {
-      return isAnnual ? "199.00" : "249.00";
-    } else if (planToCheck === "Básico") {
-      return isAnnual ? "55.00" : "69.00";
+    if (planToCheck === "Prime") {
+      return isAnnual ? "1499.00" : "1799.00";
+    } else if (planToCheck === "Scale") {
+      return isAnnual ? "499.00" : "599.00";
+    } else if (planToCheck === "Pro") {
+      return isAnnual ? "99.00" : "129.00";
     }
     return "0.00";
   };
@@ -469,10 +480,10 @@ if (subError) {
       {/* HEADER */}
       <div style={{ textAlign: "center", padding: "60px 20px 40px" }}>
         <h1 style={{ fontSize: "42px", fontWeight: "800", marginBottom: "16px", background: "linear-gradient(90deg, #fff, #94a3b8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          Automatiza tus leads.<br />Cierra más ventas.
+          Elige tu plan de agentes IA.<br />Escala con reglas claras.
         </h1>
         <p style={{ fontSize: "16px", color: "#64748b", maxWidth: "600px", margin: "0 auto 40px" }}>
-          Deja que nuestra Inteligencia Artificial pre-califique a tus clientes, calcule hipotecas y organice tu agenda las 24 horas del día.
+          Todos los planes incluyen limites por uso, control por creditos y conexion con automatizaciones. Trial: 3 dias y 1000 creditos.
         </p>
 
         {/* TOGGLE MENSUAL / ANUAL */}
@@ -485,82 +496,70 @@ if (subError) {
       {/* GRID DE PRECIOS - 3 PLANES */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "30px", maxWidth: "1200px", margin: "0 auto", padding: "0 20px" }}>
         
-        {/* PLAN 1 - BÁSICO */}
+        {/* PLAN 1 - PRO */}
         <PricingCard 
-          title="Básico"
-          price={isAnnual ? "55" : "69"}
-          description="Para agentes que quieren captar leads y centralizar todo en un CRM. Elige 1 canal de captura y empieza."
+          title="Pro"
+          price={isAnnual ? "99" : "129"}
+          description="Ideal para comenzar con una operacion comercial asistida por IA y control total del costo."
           icon={<Zap size={24} color="#facc15" />}
           features={[
-            "1 asesor (1 usuario)",
-            "1 canal de captura (WhatsApp o Formulario Web/landing)",
-            "Si eliges WhatsApp: 1 agente IA base (preguntas + respuestas)",
-            "Si eliges Formulario: webhook al CRM (sin bot)",
-            "Captura de leads automática",
-            "Integración CRM Botz",
-            "Notificaciones por Email",
-            "Hasta 100 Leads/mes",
-            "Panel de Control"
+            "Hasta 1 agente IA",
+            "Hasta 1 canal conectado",
+            "10,000 creditos/mes (voz + texto)",
+            "Sin overage, con gracia operacional del 10%",
+            "Notetaker + n8n + Webhooks",
+            "Soporte estandar"
           ]}
           missing={[
-            "Motor Hipotecario",
-            "Pre-scoring / Viabilidad",
-            "Radar Bancario",
-            "Generación de PDF",
-            "Integraciones externas"
+            "Canales multiples",
+            "Overage automatico",
+            "Soporte prioritario"
           ]}
-          onBuy={() => handleOpenModal("Básico")} 
+          onBuy={() => handleOpenModal("Pro")} 
         />
 
-        {/* PLAN 2 - GROWTH */}
+        {/* PLAN 2 - SCALE */}
         <PricingCard 
-          title="Growth"
-          price={isAnnual ? "199" : "249"}
-          description="La suite completa para operar en equipo. Multi-canal, hipotecas y automatización. Tú solo cierras."
+          title="Scale"
+          price={isAnnual ? "499" : "599"}
+          description="Para equipos que ya operan volumen y necesitan multi-agente, multi-canal y continuidad operacional."
           icon={<Building2 size={24} color="#22d3ee" />}
           isPopular
           features={[
-            "Hasta 5 asesores (usuarios)",
-            "Multi-canal (WhatsApp + Web + integraciones según tu stack)",
-            "1 agente IA base (califica, responde y enruta)",
-            "Todo lo del plan Básico",
-            "Motor Hipotecario Completo",
-            "Pre-scoring y Viabilidad Financiera",
-            "Radar Bancario (Variable/Fijo)",
-            "Generación de PDF con tu marca",
-            "Hasta 1,000 Leads/mes",
-            "Notificaciones Email + WhatsApp",
+            "Hasta 10 agentes IA",
+            "Hasta 10 canales conectados",
+            "100,000 creditos/mes (voz + texto)",
+            "Overage habilitado",
+            "Integraciones CRM y Calendar",
+            "Notetaker + n8n avanzado",
             "Soporte Prioritario"
           ]}
           missing={[
-            "Integraciones externas (HubSpot, etc)",
-            "Marca Blanca completa"
+            "SLA dedicado",
+            "Acompanamiento enterprise"
           ]}
-          setupFee="497"
-          onBuy={() => handleOpenModal("Growth")} 
+          setupFee="0"
+          onBuy={() => handleOpenModal("Scale")} 
         />
 
-        {/* PLAN 3 - A LA MEDIDA */}
+        {/* PLAN 3 - PRIME */}
         <PricingCard 
-          title="A la Medida"
-          price="Custom"
-          description="Conectamos el bot donde tú quieras. Tu CRM, tus bancos, tu marca. 100% personalizado."
+          title="Prime"
+          price={isAnnual ? "1499" : "1799"}
+          description="Para operacion critica con IA como pilar principal, alta disponibilidad y soporte dedicado."
           icon={<Crown size={24} color="#c084fc" />}
           features={[
-            "10+ asesores / equipos",
-            "Multi-agente IA / multi-número",
-            "Todo lo del plan Growth",
-            "Integración con TU CRM (HubSpot, Sheets, etc)",
-            "Motor ajustado a tus bancos",
-            "Marca Blanca Total (tu logo, colores)",
-            "Leads Ilimitados",
-            "IA entrenada con tu contenido",
-            "Flujos personalizados",
+            "Hasta 50 agentes IA",
+            "Hasta 50 canales conectados",
+            "500,000 creditos/mes (voz + texto)",
+            "Overage habilitado",
+            "Onboarding guiado",
+            "Arquitectura multi-tenant",
+            "Prioridad alta de soporte",
             "Soporte 24/7"
           ]}
-          isEnterprise
-          setupFee="1,997"
-          onBuy={openSalesModal}
+          setupFee="A convenir"
+          onBuy={() => handleOpenModal("Prime")}
         />
       </div>
 
@@ -573,7 +572,7 @@ if (subError) {
           textAlign: "center",
         }}>
           Asesor adicional desde $15/mes. WhatsApp requiere un numero conectado (puede ser tuyo).<br />
-          Agente IA adicional y numero adicional: cotizar.
+          Trial inicial: 3 dias y 1000 creditos. Pro incluye una gracia operacional del 10% y luego se bloquea. En Scale/Prime se habilita overage.
         </div>
       </div>
 
@@ -591,18 +590,47 @@ if (subError) {
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", fontSize: "14px" }}>
             <div style={{ padding: "16px", background: "rgba(250, 204, 21, 0.1)", borderRadius: "12px", border: "1px solid rgba(250, 204, 21, 0.2)" }}>
-              <div style={{ fontWeight: "bold", color: "#facc15", marginBottom: "8px" }}>Básico</div>
-              <div style={{ color: "#94a3b8" }}>Capturas leads, <strong style={{ color: "#fff" }}>tú haces los cálculos</strong></div>
+              <div style={{ fontWeight: "bold", color: "#facc15", marginBottom: "8px" }}>Pro</div>
+              <div style={{ color: "#94a3b8" }}>Operacion inicial con limites claros y costo controlado</div>
             </div>
             <div style={{ padding: "16px", background: "rgba(34, 211, 238, 0.1)", borderRadius: "12px", border: "1px solid rgba(34, 211, 238, 0.2)" }}>
-              <div style={{ fontWeight: "bold", color: "#22d3ee", marginBottom: "8px" }}>Growth</div>
-              <div style={{ color: "#94a3b8" }}>El bot <strong style={{ color: "#fff" }}>hace todo por ti</strong></div>
+              <div style={{ fontWeight: "bold", color: "#22d3ee", marginBottom: "8px" }}>Scale</div>
+              <div style={{ color: "#94a3b8" }}>Escalas equipo, canales y volumen con overage</div>
             </div>
             <div style={{ padding: "16px", background: "rgba(192, 132, 252, 0.1)", borderRadius: "12px", border: "1px solid rgba(192, 132, 252, 0.2)" }}>
-              <div style={{ fontWeight: "bold", color: "#c084fc", marginBottom: "8px" }}>A la Medida</div>
-              <div style={{ color: "#94a3b8" }}>Conectamos <strong style={{ color: "#fff" }}>donde tú quieras</strong></div>
+              <div style={{ fontWeight: "bold", color: "#c084fc", marginBottom: "8px" }}>Prime</div>
+              <div style={{ color: "#94a3b8" }}>Operacion critica, soporte dedicado y arquitectura avanzada</div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: "980px", margin: "28px auto 0", padding: "0 20px" }}>
+        <div style={{ background: "rgba(30, 41, 59, 0.5)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "16px", padding: "20px" }}>
+          <h3 style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "12px", color: "#fff" }}>
+            FAQ de planes
+          </h3>
+
+          <details style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 10 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>Que pasa cuando se acaban mis creditos?</summary>
+            <div style={{ color: "#94a3b8", marginTop: 8, lineHeight: 1.5 }}>
+              Pro incluye gracia operacional del 10% y luego se pausa hasta recargar. Scale y Prime incluyen overage habilitado.
+            </div>
+          </details>
+
+          <details style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 10, marginTop: 10 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>Voz y texto consumen creditos separados?</summary>
+            <div style={{ color: "#94a3b8", marginTop: 8, lineHeight: 1.5 }}>
+              No. Ambos consumen de la misma bolsa de creditos, para que priorices segun tu operacion.
+            </div>
+          </details>
+
+          <details style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 10, marginTop: 10 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>Cuantas llamadas incluye cada plan?</summary>
+            <div style={{ color: "#94a3b8", marginTop: 8, lineHeight: 1.5 }}>
+              Depende de duracion y turnos. Referencia en llamadas de 3 minutos: Pro ~55-111, Scale ~555-1,111, Prime ~2,777-5,555.
+            </div>
+          </details>
         </div>
       </div>
 

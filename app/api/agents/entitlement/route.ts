@@ -2,15 +2,7 @@ import { NextResponse } from "next/server";
 import { getAnonSupabaseWithToken } from "@/app/api/_utils/supabase";
 import { getRequestUser } from "@/app/api/_utils/auth";
 import { SYSTEM_TENANT_ID } from "@/app/api/_utils/system";
-import { AGENTS_PRODUCT_KEY } from "@/app/api/_utils/entitlement";
-
-const TRIAL_DAYS = 3;
-
-function planToCredits(planKey: string) {
-  if (planKey === "prime") return 1500000;
-  if (planKey === "scale") return 500000;
-  return 2000;
-}
+import { AGENTS_PRODUCT_KEY, getPlanLimits, TRIAL_CREDITS_LIMIT, TRIAL_DAYS } from "@/app/api/_utils/entitlement";
 
 export async function GET(req: Request) {
   console.log("🔍 [API entitlement] Request recibida");
@@ -67,7 +59,7 @@ export async function GET(req: Request) {
         product_key: AGENTS_PRODUCT_KEY,
         plan_key,
         status: "trial",
-        credits_limit: planToCredits(plan_key),
+        credits_limit: TRIAL_CREDITS_LIMIT,
         credits_used: creditsUsedTotal,
         trial_start: trialStart.toISOString(),
         trial_end: trialEndIso,
@@ -87,13 +79,34 @@ export async function GET(req: Request) {
       }
 
       console.log("✅ [API entitlement] Entitlement creado exitosamente");
-      return NextResponse.json({ ok: true, data: inserted, credits_used_total: creditsUsedTotal });
+      return NextResponse.json({ ok: true, data: inserted, credits_used_total: creditsUsedTotal, limits: getPlanLimits(String(inserted?.plan_key || "pro")) });
     }
 
     // Keep credits_used in sync without lowering server-side usage.
     // IMPORTANT: chat/voice/flow can consume entitlement credits directly,
     // so entitlement may be higher than ai_agents sum.
     let next = existing as any;
+
+    // Normalize legacy limits so pricing/backend stay consistent.
+    const nextStatus = String(next?.status || "").toLowerCase();
+    const nextPlan = String(next?.plan_key || "pro").toLowerCase();
+    const currentLimit = Number(next?.credits_limit || 0) || 0;
+    const defaultPlanLimit = getPlanLimits(nextPlan).credits_limit;
+    const desiredLimit = nextStatus === "trial"
+      ? TRIAL_CREDITS_LIMIT
+      : defaultPlanLimit;
+
+    if (desiredLimit !== currentLimit) {
+      const { data: limitUpdated, error: limitUpdErr } = await supabase
+        .from("agent_entitlements")
+        .update({ credits_limit: desiredLimit })
+        .eq("user_id", guard.user.id)
+        .eq("product_key", AGENTS_PRODUCT_KEY)
+        .select("*")
+        .single();
+      if (!limitUpdErr && limitUpdated) next = limitUpdated;
+    }
+
     const currentEntUsed = Number(next.credits_used || 0) || 0;
     const desiredEntUsed = Math.max(currentEntUsed, creditsUsedTotal);
     if (currentEntUsed !== desiredEntUsed) {
@@ -126,10 +139,10 @@ export async function GET(req: Request) {
     const adminOverrideId = "841263c6-196d-49cd-b5ba-aae0b097014f";
     if (guard.user.id === adminOverrideId) {
       console.log("📝 [API entitlement] ADMIN OVERRIDE: Unlimited credits for user in frontend response", guard.user.id);
-      return NextResponse.json({ ok: true, data: { ...next, credits_limit: 999999999 }, credits_used_total: mergedCreditsUsed });
+      return NextResponse.json({ ok: true, data: { ...next, credits_limit: 999999999 }, credits_used_total: mergedCreditsUsed, limits: { ...getPlanLimits(String(next?.plan_key || "pro")), credits_limit: 999999999 } });
     }
 
-    return NextResponse.json({ ok: true, data: next, credits_used_total: mergedCreditsUsed });
+    return NextResponse.json({ ok: true, data: next, credits_used_total: mergedCreditsUsed, limits: getPlanLimits(String(next?.plan_key || "pro")) });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Unknown error" }, { status: 500 });
   }

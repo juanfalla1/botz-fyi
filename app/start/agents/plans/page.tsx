@@ -20,17 +20,33 @@ const PLANS = [
     key: "pro",
     name: "Pro",
     price: "US$99.00",
-    credits: "2,000 Creditos",
-    desc: "Ideal para equipos que utilizan IA de forma regular, con soporte asincrono",
+    credits: "10,000 Creditos",
+    desc: "Empieza sin friccion: tu agente principal funciona bien y solo pagas mas cuando escales.",
+    callsEstimate: "~55 a ~111 llamadas/mes",
+    includes: [
+      "Hasta 1 agente IA",
+      "Hasta 1 canal conectado",
+      "10,000 creditos por mes (voz + texto)",
+      "Gracia operacional del 10%",
+      "Sin overage: luego de la gracia se pausa",
+    ],
     accent: C.lime,
     badge: "",
   },
   {
     key: "scale",
-    name: "Scale Up",
+    name: "Scale",
     price: "US$499.00",
-    credits: "500,000 Creditos",
-    desc: "Para empresas con operaciones criticas impulsadas por IA, con soporte prioritario",
+    credits: "100,000 Creditos",
+    desc: "Para equipos con volumen: multi-canal, continuidad y crecimiento con overage.",
+    callsEstimate: "~555 a ~1,111 llamadas/mes",
+    includes: [
+      "Hasta 10 agentes IA",
+      "Hasta 10 canales conectados",
+      "100,000 creditos por mes (voz + texto)",
+      "Overage habilitado",
+      "Soporte prioritario",
+    ],
     accent: C.blue,
     badge: "Most Popular",
   },
@@ -38,8 +54,16 @@ const PLANS = [
     key: "prime",
     name: "Prime",
     price: "US$1,499.00",
-    credits: "1,500,000 Creditos",
-    desc: "Usas IA como pilar fundamental, incluye canal de soporte dedicado y onboarding",
+    credits: "500,000 Creditos",
+    desc: "Operacion critica con IA: alto volumen, onboarding y acompanamiento dedicado.",
+    callsEstimate: "~2,777 a ~5,555 llamadas/mes",
+    includes: [
+      "Hasta 50 agentes IA",
+      "Hasta 50 canales conectados",
+      "500,000 creditos por mes (voz + texto)",
+      "Overage habilitado",
+      "Onboarding y soporte dedicado",
+    ],
     accent: "#e879f9",
     badge: "",
   },
@@ -62,7 +86,9 @@ export default function AgentPlansPage() {
 
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "30px 18px 46px" }}>
         <div style={{ fontSize: 28, fontWeight: 900, marginBottom: 8 }}>Elige tu plan</div>
-        <div style={{ color: C.muted, marginBottom: 18 }}>Creditos se consumen segun ejecuciones.</div>
+        <div style={{ color: C.muted, marginBottom: 18 }}>
+          Trial inicial: 3 dias y 1000 creditos. Voz y texto usan la misma bolsa de creditos.
+        </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14 }}>
           {PLANS.map(p => (
@@ -83,6 +109,27 @@ export default function AgentPlansPage() {
                 <div style={{ marginTop: 10, fontWeight: 900, fontSize: 26 }}>{p.price} <span style={{ color: C.muted, fontSize: 14, fontWeight: 800 }}>/ per-month</span></div>
                 <div style={{ marginTop: 10, fontWeight: 900 }}>{p.credits}</div>
                 <div style={{ marginTop: 14, color: C.muted, lineHeight: 1.6 }}>{p.desc}</div>
+                <div style={{ marginTop: 8, color: C.dim, fontSize: 12, lineHeight: 1.45 }}>
+                  Referencia: interaccion de voz estandar consume aprox. 3 creditos por turno (modo rapido 2).
+                </div>
+                <details style={{ marginTop: 10, border: `1px solid ${C.border}`, borderRadius: 10, background: "rgba(0,0,0,0.14)" }}>
+                  <summary style={{ cursor: "pointer", listStyle: "none", padding: "10px 12px", fontSize: 12, fontWeight: 900, color: C.lime }}>
+                    Cuantas llamadas puedo hacer con este plan?
+                  </summary>
+                  <div style={{ padding: "0 12px 10px", color: C.white, fontSize: 13, fontWeight: 900 }}>
+                    {p.callsEstimate}
+                  </div>
+                  <div style={{ padding: "0 12px 12px", color: C.dim, fontSize: 12, lineHeight: 1.45 }}>
+                    Estimado para llamadas de 3 minutos promedio. Puede variar segun turnos, velocidad y mezcla voz/texto.
+                  </div>
+                </details>
+                <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
+                  {p.includes.map((it) => (
+                    <div key={it} style={{ color: C.white, fontSize: 13, fontWeight: 700 }}>
+                      - {it}
+                    </div>
+                  ))}
+                </div>
 
                 <button
                   onClick={() => router.push("/start/agents")}
@@ -93,6 +140,38 @@ export default function AgentPlansPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        <div style={{ marginTop: 24, borderRadius: 14, border: `1px solid ${C.border}`, background: "rgba(0,0,0,0.16)", padding: 16 }}>
+          <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 10 }}>FAQ de planes</div>
+
+          <details style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>Que pasa cuando se me acaban los creditos?</summary>
+            <div style={{ marginTop: 8, color: C.muted, lineHeight: 1.5, fontSize: 14 }}>
+              En Pro tienes una gracia operacional del 10% y luego se pausa hasta recargar o subir de plan. En Scale y Prime se habilita overage.
+            </div>
+          </details>
+
+          <details style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 10 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>Los creditos de voz y texto son separados?</summary>
+            <div style={{ marginTop: 8, color: C.muted, lineHeight: 1.5, fontSize: 14 }}>
+              No. Se consumen desde una sola bolsa unificada. Asi puedes mover el uso entre voz y texto segun necesidad.
+            </div>
+          </details>
+
+          <details style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 10 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>Cuantos agentes y canales incluye cada plan?</summary>
+            <div style={{ marginTop: 8, color: C.muted, lineHeight: 1.5, fontSize: 14 }}>
+              Pro: 1 agente y 1 canal. Scale: 10 agentes y 10 canales. Prime: 50 agentes y 50 canales.
+            </div>
+          </details>
+
+          <details style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 10 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 800 }}>Puedo cambiar de plan en cualquier momento?</summary>
+            <div style={{ marginTop: 8, color: C.muted, lineHeight: 1.5, fontSize: 14 }}>
+              Si. Puedes subir de plan cuando quieras para evitar pausas y habilitar mas capacidad.
+            </div>
+          </details>
         </div>
       </div>
     </div>
