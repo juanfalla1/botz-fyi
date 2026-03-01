@@ -137,49 +137,51 @@ export default function AgentPlansPage() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14 }}>
           {PLANS.map(p => (
-            <div key={p.key} style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: 18, position: "relative", overflow: "hidden" }}>
+            <div key={p.key} style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: 18, position: "relative", overflow: "hidden", display: "flex" }}>
               <div style={{ position: "absolute", inset: -60, background: `radial-gradient(circle at 20% 20%, ${p.accent}22, transparent 55%)` }} />
-              <div style={{ position: "relative" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                  <div style={{ fontWeight: 900, fontSize: 18 }}>{p.name}</div>
-                  {p.badge ? (
-                    <div style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${C.border}`, backgroundColor: "rgba(0,0,0,0.18)", color: C.white, fontSize: 12, fontWeight: 900 }}>
-                      {p.badge}
-                    </div>
-                  ) : (
-                    <div />
-                  )}
-                </div>
+              <div style={{ position: "relative", display: "flex", flexDirection: "column", width: "100%" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <div style={{ fontWeight: 900, fontSize: 18 }}>{p.name}</div>
+                    {p.badge ? (
+                      <div style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${C.border}`, backgroundColor: "rgba(0,0,0,0.18)", color: C.white, fontSize: 12, fontWeight: 900 }}>
+                        {p.badge}
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+                  </div>
 
-                <div style={{ marginTop: 10, fontWeight: 900, fontSize: 26 }}>{p.price} <span style={{ color: C.muted, fontSize: 14, fontWeight: 800 }}>/ per-month</span></div>
-                <div style={{ marginTop: 10, fontWeight: 900 }}>{p.credits}</div>
-                <div style={{ marginTop: 14, color: C.muted, lineHeight: 1.6 }}>{p.desc}</div>
-                <div style={{ marginTop: 8, color: C.dim, fontSize: 12, lineHeight: 1.45 }}>
-                  Referencia: interaccion de voz estandar consume aprox. 3 creditos por turno (modo rapido 2).
-                </div>
-                <details style={{ marginTop: 10, border: `1px solid ${C.border}`, borderRadius: 10, background: "rgba(0,0,0,0.14)" }}>
-                  <summary style={{ cursor: "pointer", listStyle: "none", padding: "10px 12px", fontSize: 12, fontWeight: 900, color: C.lime }}>
-                    Cuantas llamadas puedo hacer con este plan?
-                  </summary>
-                  <div style={{ padding: "0 12px 10px", color: C.white, fontSize: 13, fontWeight: 900 }}>
-                    {p.callsEstimate}
+                  <div style={{ marginTop: 10, fontWeight: 900, fontSize: 26 }}>{p.price} <span style={{ color: C.muted, fontSize: 14, fontWeight: 800 }}>/ per-month</span></div>
+                  <div style={{ marginTop: 10, fontWeight: 900 }}>{p.credits}</div>
+                  <div style={{ marginTop: 14, color: C.muted, lineHeight: 1.6 }}>{p.desc}</div>
+                  <div style={{ marginTop: 8, color: C.dim, fontSize: 12, lineHeight: 1.45 }}>
+                    Referencia: interaccion de voz estandar consume aprox. 3 creditos por turno (modo rapido 2).
                   </div>
-                  <div style={{ padding: "0 12px 12px", color: C.dim, fontSize: 12, lineHeight: 1.45 }}>
-                    Estimado para llamadas de 3 minutos promedio. Puede variar segun turnos, velocidad y mezcla voz/texto.
-                  </div>
-                </details>
-                <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
-                  {p.includes.map((it) => (
-                    <div key={it} style={{ color: C.white, fontSize: 13, fontWeight: 700 }}>
-                      - {it}
+                  <details style={{ marginTop: 10, border: `1px solid ${C.border}`, borderRadius: 10, background: "rgba(0,0,0,0.14)" }}>
+                    <summary style={{ cursor: "pointer", listStyle: "none", padding: "10px 12px", fontSize: 12, fontWeight: 900, color: C.lime }}>
+                      Cuantas llamadas puedo hacer con este plan?
+                    </summary>
+                    <div style={{ padding: "0 12px 10px", color: C.white, fontSize: 13, fontWeight: 900 }}>
+                      {p.callsEstimate}
                     </div>
-                  ))}
+                    <div style={{ padding: "0 12px 12px", color: C.dim, fontSize: 12, lineHeight: 1.45 }}>
+                      Estimado para llamadas de 3 minutos promedio. Puede variar segun turnos, velocidad y mezcla voz/texto.
+                    </div>
+                  </details>
+                  <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
+                    {p.includes.map((it) => (
+                      <div key={it} style={{ color: C.white, fontSize: 13, fontWeight: 700 }}>
+                        - {it}
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <button
                   onClick={() => startCheckout(p.key, p.name)}
                   disabled={payingPlan === p.key}
-                  style={{ marginTop: 18, width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${p.accent}`, backgroundColor: "transparent", color: p.accent, fontWeight: 900, cursor: "pointer" }}
+                  style={{ marginTop: "auto", width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${p.accent}`, backgroundColor: "transparent", color: p.accent, fontWeight: 900, cursor: "pointer" }}
                 >
                   {payingPlan === p.key ? "Procesando..." : "Seleccionar"}
                 </button>
