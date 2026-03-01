@@ -153,6 +153,18 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
 };
 
 const Agentes = () => {
+  const router = useRouter();
+  const demoVideoUrl = process.env.NEXT_PUBLIC_AGENTS_DEMO_VIDEO_URL || "";
+
+  const goTrial = () => {
+    router.push("/start/agents");
+  };
+
+  const goVideo = () => {
+    if (!demoVideoUrl) return;
+    window.open(demoVideoUrl, "_blank");
+  };
+
   const topRowAgents = [
     {
       name: "Recepcionista de IA",
@@ -287,6 +299,63 @@ const Agentes = () => {
           >
             Contrata agentes especializados que trabajan 24/7 para escalar tu operación
           </p>
+
+          <div
+            style={{
+              marginTop: 20,
+              display: "flex",
+              gap: 12,
+              justifyContent: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              onClick={goTrial}
+              style={{
+                padding: "13px 22px",
+                borderRadius: 12,
+                border: "1px solid #1d4ed8",
+                background: "linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)",
+                color: "#eaf4ff",
+                fontWeight: 900,
+                fontSize: 16,
+                cursor: "pointer",
+                transition: "all .22s ease",
+                boxShadow: "0 8px 24px rgba(37,99,235,0.35)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "0 14px 32px rgba(37,99,235,0.45)";
+                e.currentTarget.style.filter = "brightness(1.06)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 8px 24px rgba(37,99,235,0.35)";
+                e.currentTarget.style.filter = "brightness(1)";
+              }}
+            >
+              Prueba Gratis
+            </button>
+          </div>
+
+          {demoVideoUrl ? (
+            <button
+              onClick={goVideo}
+              style={{
+                marginTop: 12,
+                border: "none",
+                background: "transparent",
+                color: "#38bdf8",
+                fontWeight: 800,
+                fontSize: 14,
+                cursor: "pointer",
+                textDecoration: "underline",
+                textUnderlineOffset: 3,
+              }}
+            >
+              Ver video de como funciona (2 min)
+            </button>
+          ) : null}
         </div>
 
         {/* Primera fila - 4 agentes */}
