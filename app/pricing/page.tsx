@@ -38,7 +38,10 @@ export default function PricingPage() {
     if (s === "growth" || s.includes("growth")) return "growth";
     return "";
   };
-  const handlePayWithStripe = async (planName?: string) => {
+  const handlePayWithStripe = async (
+    planName?: string,
+    opts?: { userId?: string; email?: string; tenantId?: string }
+  ) => {
     const planToPay = planName ?? selectedPlan;
     const planKey = getPlanKey(planToPay);
     if (!planKey) {
@@ -49,22 +52,31 @@ export default function PricingPage() {
     setPaymentLoading(true);
 
     try {
-      // 1. Obtener el usuario actual de Supabase
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        alert("Debes estar registrado para continuar con el pago.");
-        setPaymentLoading(false);
-        return;
-      }
+      // 1. Resolver identidad (usuario logueado o recién creado)
+      let userId = String(opts?.userId || "");
+      let userEmail = String(opts?.email || "");
+      let tenantId = String(opts?.tenantId || "");
 
-      // 2. Obtener o crear tenant_id
-      let tenantId = user.user_metadata?.tenant_id;
-      if (!tenantId) {
-        tenantId = crypto.randomUUID();
-        await supabase.auth.updateUser({
-          data: { tenant_id: tenantId }
-        });
+      if (!userId) {
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) {
+          alert("Debes estar registrado para continuar con el pago.");
+          setPaymentLoading(false);
+          return;
+        }
+
+        userId = user.id;
+        userEmail = user.email || userEmail;
+
+        // 2. Obtener o crear tenant_id
+        tenantId = user.user_metadata?.tenant_id || tenantId;
+        if (!tenantId) {
+          tenantId = crypto.randomUUID();
+          await supabase.auth.updateUser({
+            data: { tenant_id: tenantId }
+          });
+        }
       }
 
       // 3. Llamar a tu API dinámica (el archivo route.ts que me pasaste antes)
@@ -76,8 +88,8 @@ export default function PricingPage() {
           plan: planKey,
           planName: planToPay,
           billing: isAnnual ? "year" : "month",
-          userId: user.id, // <--- ID vital para Supabase
-          email: user.email,
+          userId,
+          email: userEmail || undefined,
           tenant_id: tenantId, // <--- tenant_id para n8n
         }),
       });
@@ -309,25 +321,33 @@ export default function PricingPage() {
       setRegisterError("Error: " + error.message);
       setRegisterLoading(false);
     } else {
-      // Si la confirmación de email está activada, Supabase no devuelve sesión
-      if (!signUpData?.session) {
-        setRegisterError("Cuenta creada. Revisa tu correo para confirmar y luego inicia sesión para continuar con el pago.");
-        setRegisterLoading(false);
-        return;
-      }
-
       setRegisterLoading(false);
+
+      const createdUser = signUpData?.user;
+      const createdUserId = String(createdUser?.id || "");
+      const createdUserEmail = String(createdUser?.email || normalizedEmail);
+      const createdTenantId = String((createdUser?.user_metadata as any)?.tenant_id || tenantId);
+
       try {
-        // ✅ Intentar iniciar sesión para obtener userId y pagar con Stripe
+        if (createdUserId) {
+          setShowModal(false);
+          await handlePayWithStripe(selectedPlan, {
+            userId: createdUserId,
+            email: createdUserEmail,
+            tenantId: createdTenantId,
+          });
+          return;
+        }
+
+        // Fallback: si no vino user en signup, intentar login tradicional
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) {
           const msg = signInError.message || "";
           if (/confirm|confirmed/i.test(msg)) {
-            setRegisterError("Revisa tu correo para confirmar tu cuenta y luego inicia sesión para continuar con el pago.");
+            setRegisterError("Cuenta creada. Confirma tu correo y luego vuelve a intentar el pago.");
           } else {
             setRegisterError("Cuenta creada. Inicia sesión para continuar con el pago.");
           }
-          setShowModal(false);
           return;
         }
 
