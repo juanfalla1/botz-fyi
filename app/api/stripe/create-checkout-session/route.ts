@@ -70,6 +70,19 @@ function pickPriceId(planKey: CheckoutPlanKey, billing: "month" | "year") {
   return billing === "year" ? yearly[planKey] : monthly[planKey];
 }
 
+function pickSetupPriceId(planKey: CheckoutPlanKey) {
+  const setup: Record<string, string | undefined> = {
+    // Legacy mortgage/commercial plans
+    basic: process.env.STRIPE_PRICE_BASIC_SETUP,
+    growth: process.env.STRIPE_PRICE_GROWTH_SETUP,
+    // Agents plans (optional)
+    pro: process.env.STRIPE_PRICE_PRO_SETUP,
+    scale: process.env.STRIPE_PRICE_SCALE_SETUP,
+    prime: process.env.STRIPE_PRICE_PRIME_SETUP,
+  };
+  return setup[planKey];
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -103,6 +116,13 @@ export async function POST(req: Request) {
 
     const planName = planDisplay(planKey);
 
+    let setupPriceId = pickSetupPriceId(planKey);
+    if (!setupPriceId && (planKey === "pro" || planKey === "scale")) {
+      const legacyPlan = planKey === "pro" ? "basic" : "growth";
+      setupPriceId = pickSetupPriceId(legacyPlan);
+    }
+    setupPriceId = normalizePriceId(setupPriceId);
+
     // ✅ metadata doble (camel + snake) para que el webhook SIEMPRE lo lea
     const metadata: Record<string, string> = {
       userId,
@@ -122,12 +142,19 @@ export async function POST(req: Request) {
       ? `${baseUrl()}/start/agents/plans?canceled=1&product=agents`
       : `${baseUrl()}/pricing?canceled=1`;
 
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      { price: priceId, quantity: 1 },
+    ];
+    if (setupPriceId) {
+      lineItems.push({ price: setupPriceId, quantity: 1 });
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer_email: body.email ? String(body.email) : undefined,
       client_reference_id: userId,
 
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: lineItems,
 
       success_url: successUrl,
       cancel_url: cancelUrl,
