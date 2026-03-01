@@ -70,6 +70,21 @@ function pickPriceId(planKey: CheckoutPlanKey, billing: "month" | "year") {
   return billing === "year" ? yearly[planKey] : monthly[planKey];
 }
 
+function pickPriceEnvVarName(planKey: CheckoutPlanKey, billing: "month" | "year") {
+  if (billing === "year") {
+    if (planKey === "pro") return "STRIPE_PRICE_PRO_YEARLY";
+    if (planKey === "scale") return "STRIPE_PRICE_SCALE_YEARLY";
+    if (planKey === "prime") return "STRIPE_PRICE_PRIME_YEARLY";
+    if (planKey === "basic") return "STRIPE_PRICE_BASIC_YEARLY";
+    return "STRIPE_PRICE_GROWTH_YEARLY";
+  }
+  if (planKey === "pro") return "STRIPE_PRICE_PRO_MONTHLY";
+  if (planKey === "scale") return "STRIPE_PRICE_SCALE_MONTHLY";
+  if (planKey === "prime") return "STRIPE_PRICE_PRIME_MONTHLY";
+  if (planKey === "basic") return "STRIPE_PRICE_BASIC_MONTHLY";
+  return "STRIPE_PRICE_GROWTH_MONTHLY";
+}
+
 function pickSetupPriceId(planKey: CheckoutPlanKey) {
   const setup: Record<string, string | undefined> = {
     // Legacy mortgage/commercial plans
@@ -81,6 +96,26 @@ function pickSetupPriceId(planKey: CheckoutPlanKey) {
     prime: process.env.STRIPE_PRICE_PRIME_SETUP,
   };
   return setup[planKey];
+}
+
+function pickSetupEnvVarName(planKey: CheckoutPlanKey) {
+  if (planKey === "pro") return "STRIPE_PRICE_PRO_SETUP";
+  if (planKey === "scale") return "STRIPE_PRICE_SCALE_SETUP";
+  if (planKey === "prime") return "STRIPE_PRICE_PRIME_SETUP";
+  if (planKey === "basic") return "STRIPE_PRICE_BASIC_SETUP";
+  return "STRIPE_PRICE_GROWTH_SETUP";
+}
+
+async function ensureStripePriceExists(priceId: string, envVarName: string) {
+  try {
+    const price = await stripe.prices.retrieve(priceId);
+    if (!price || (price as any).deleted) {
+      throw new Error("Price is deleted or unavailable");
+    }
+  } catch (e: any) {
+    const message = String(e?.message || "PRICE_LOOKUP_FAILED");
+    throw new Error(`INVALID_PRICE_ID (${envVarName}=${priceId}) -> ${message}`);
+  }
 }
 
 export async function POST(req: Request) {
@@ -101,27 +136,24 @@ export async function POST(req: Request) {
     }
 
     let priceId = pickPriceId(planKey, billing);
-    // Backward-compatible fallback: map pro->basic and scale->growth if new prices are missing.
-    if (!priceId && (planKey === "pro" || planKey === "scale")) {
-      const legacyPlan = planKey === "pro" ? "basic" : "growth";
-      priceId = pickPriceId(legacyPlan, billing);
-    }
+    const priceEnvVarName = pickPriceEnvVarName(planKey, billing);
     if (!priceId) {
       return NextResponse.json(
-        { ok: false, error: "NO_PRICE_ID", details: { planKey, billing } },
+        { ok: false, error: "NO_PRICE_ID", details: { planKey, billing, envVar: priceEnvVarName } },
         { status: 400 }
       );
     }
     priceId = normalizePriceId(priceId);
+    await ensureStripePriceExists(priceId, priceEnvVarName);
 
     const planName = planDisplay(planKey);
 
     let setupPriceId = pickSetupPriceId(planKey);
-    if (!setupPriceId && (planKey === "pro" || planKey === "scale")) {
-      const legacyPlan = planKey === "pro" ? "basic" : "growth";
-      setupPriceId = pickSetupPriceId(legacyPlan);
-    }
+    const setupEnvVarName = pickSetupEnvVarName(planKey);
     setupPriceId = normalizePriceId(setupPriceId);
+    if (setupPriceId) {
+      await ensureStripePriceExists(setupPriceId, setupEnvVarName);
+    }
 
     // ✅ metadata doble (camel + snake) para que el webhook SIEMPRE lo lea
     const metadata: Record<string, string> = {
