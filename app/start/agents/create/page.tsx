@@ -35,41 +35,43 @@ const asType = (v: string | null): AgentType | null => {
 
 const asKind = (v: string | null): AgentKind => (v === "notetaker" ? "notetaker" : "agent");
 
-const getSteps = (type: AgentType, kind: AgentKind) => {
+const trByLang = (lang: "es" | "en", es: string, en: string) => (lang === "en" ? en : es);
+
+const getSteps = (type: AgentType, kind: AgentKind, lang: "es" | "en") => {
   if (kind === "notetaker") {
     return [
-      { id: 1, label: "Contexto de la empresa", required: true },
-      { id: 2, label: "Configurar Copiloto IA", required: true },
-      { id: 3, label: "Prueba", required: false },
+      { id: 1, label: trByLang(lang, "Contexto de la empresa", "Company context"), required: true },
+      { id: 2, label: trByLang(lang, "Configurar Copiloto IA", "Set up AI Copilot"), required: true },
+      { id: 3, label: trByLang(lang, "Prueba", "Test"), required: false },
     ];
   }
   if (type === "flow") {
     return [
-      { id: 1, label: "Contexto de la empresa", required: true },
-      { id: 2, label: "Contexto del flujo", required: true },
-      { id: 3, label: "Prueba", required: false },
+      { id: 1, label: trByLang(lang, "Contexto de la empresa", "Company context"), required: true },
+      { id: 2, label: trByLang(lang, "Contexto del flujo", "Flow context"), required: true },
+      { id: 3, label: trByLang(lang, "Prueba", "Test"), required: false },
     ];
   }
   if (type === "text") {
     return [
-      { id: 1, label: "Contexto de la empresa", required: true },
-      { id: 2, label: "Contexto del agente", required: true },
-      { id: 3, label: "Entrena tu agente", required: false },
-      { id: 4, label: "Prueba tu agente", required: false },
+      { id: 1, label: trByLang(lang, "Contexto de la empresa", "Company context"), required: true },
+      { id: 2, label: trByLang(lang, "Contexto del agente", "Agent context"), required: true },
+      { id: 3, label: trByLang(lang, "Entrena tu agente", "Train your agent"), required: false },
+      { id: 4, label: trByLang(lang, "Prueba tu agente", "Test your agent"), required: false },
     ];
   }
   return [
-    { id: 1, label: "Contexto de la empresa", required: true },
-    { id: 2, label: "Contexto del agente", required: true },
-    { id: 3, label: "Prueba tu agente", required: false },
+    { id: 1, label: trByLang(lang, "Contexto de la empresa", "Company context"), required: true },
+    { id: 2, label: trByLang(lang, "Contexto del agente", "Agent context"), required: true },
+    { id: 3, label: trByLang(lang, "Prueba tu agente", "Test your agent"), required: false },
   ];
 };
 
-const titleFor = (type: AgentType, kind: AgentKind) => {
-  if (kind === "notetaker") return "Copiloto IA";
-  if (type === "voice") return "Agente de Voz";
-  if (type === "text") return "Agente de Texto";
-  return "Flujo";
+const titleFor = (type: AgentType, kind: AgentKind, lang: "es" | "en") => {
+  if (kind === "notetaker") return trByLang(lang, "Copiloto IA", "AI Copilot");
+  if (type === "voice") return trByLang(lang, "Agente de Voz", "Voice Agent");
+  if (type === "text") return trByLang(lang, "Agente de Texto", "Text Agent");
+  return trByLang(lang, "Flujo", "Flow");
 };
 
 const TEMPLATE_PRESETS: Record<string, { type: AgentType; kind?: AgentKind; agentName?: string; agentRole?: string; agentPrompt?: string }> = {
@@ -239,6 +241,9 @@ export default function CreateAgentPage() {
   const [openAuth, setOpenAuth] = useState(false);
   const [confirmExitOpen, setConfirmExitOpen] = useState(false);
   const [promptTemplateId, setPromptTemplateId] = useState("ventas_consultiva");
+  const [language, setLanguage] = useState<"es" | "en">("es");
+
+  const tr = (es: string, en: string) => (language === "en" ? en : es);
 
   const [form, setForm] = useState({
     companyName:  "",
@@ -278,7 +283,7 @@ export default function CreateAgentPage() {
     notetakerSendEmail: false,
   });
 
-  const steps = getSteps(form.type as AgentType, kind);
+  const steps = getSteps(form.type as AgentType, kind, language);
 
   // ✅ IMPORTANTE: Agentes requiere login COMPLETAMENTE independiente
   useEffect(() => {
@@ -319,6 +324,23 @@ export default function CreateAgentPage() {
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const saved = window.localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") setLanguage(saved);
+
+    const onLanguageChange = (evt: Event) => {
+      const next = String((evt as CustomEvent<string>)?.detail || "").toLowerCase();
+      if (next === "es" || next === "en") setLanguage(next);
+    };
+
+    window.addEventListener("botz-language-change", onLanguageChange as EventListener);
+    return () => {
+      window.removeEventListener("botz-language-change", onLanguageChange as EventListener);
+    };
   }, []);
 
   // keep kind/type in sync with query
@@ -370,7 +392,7 @@ export default function CreateAgentPage() {
   const genCompanyContext = async () => {
     const url = form.companyUrl.trim();
     if (!url) {
-      alert("Agrega una URL del sitio web");
+      alert(tr("Agrega una URL del sitio web", "Add a website URL"));
       return;
     }
     setContextLoading(true);
@@ -431,7 +453,7 @@ export default function CreateAgentPage() {
   const startBrainTraining = async () => {
     // UI-only for now; stores a timestamp so user sees progress.
     if (!form.brainWebsiteUrl.trim()) {
-      alert("Agrega una URL del sitio web");
+      alert(tr("Agrega una URL del sitio web", "Add a website URL"));
       return;
     }
     setForm(f => ({ ...f, brainLastRun: new Date().toISOString() }));
@@ -552,41 +574,41 @@ export default function CreateAgentPage() {
   /* ── left-panel text per step ── */
   const leftContent: Record<number, { title: string; body: string }> = {
     1: {
-      title: "¡Hola!\nCuéntanos sobre tu empresa",
-      body: "Enseña a tu agente todo lo relacionado con tu empresa. Esta sección puede ser reutilizada en otros agentes.",
+      title: tr("¡Hola!\nCuéntanos sobre tu empresa", "Hi!\nTell us about your company"),
+      body: tr("Enseña a tu agente todo lo relacionado con tu empresa. Esta sección puede ser reutilizada en otros agentes.", "Teach your agent everything related to your company. This section can be reused in other agents."),
     },
     2: kind === "notetaker"
       ? {
-          title: "Configura tu Copiloto IA",
-          body: "Define la fuente y el formato de salida para resumir, extraer acuerdos y acciones.",
+          title: tr("Configura tu Copiloto IA", "Set up your AI Copilot"),
+          body: tr("Define la fuente y el formato de salida para resumir, extraer acuerdos y acciones.", "Define source and output format to summarize, extract agreements, and action items."),
         }
       : (form.type === "flow"
           ? {
-              title: "Contexto del flujo",
-              body: "Define el objetivo y una base. Luego podrás editar nodos e integraciones.",
+              title: tr("Contexto del flujo", "Flow context"),
+              body: tr("Define el objetivo y una base. Luego podrás editar nodos e integraciones.", "Define the goal and baseline. Then you can edit nodes and integrations."),
             }
           : {
-              title: "¡Hola!\nEstás a punto de crear tu agente.",
-              body: "Elige el idioma, asigna un nombre y define el propósito. Estos pasos dan forma a la identidad y al objetivo desde el inicio.",
+              title: tr("¡Hola!\nEstás a punto de crear tu agente.", "Hi!\nYou are about to create your agent."),
+              body: tr("Elige el idioma, asigna un nombre y define el propósito. Estos pasos dan forma a la identidad y al objetivo desde el inicio.", "Choose language, assign a name, and define purpose. These steps shape identity and goals from the start."),
             }),
     3: (form.type === "text" && kind !== "notetaker")
       ? {
-          title: "Construye tu cerebro",
-          body: "Mejora el conocimiento de tu agente importando información de un sitio web o archivos. Puedes omitir este paso si no necesitas formación.",
+          title: tr("Construye tu cerebro", "Build your brain"),
+          body: tr("Mejora el conocimiento de tu agente importando información de un sitio web o archivos. Puedes omitir este paso si no necesitas formación.", "Improve your agent knowledge by importing website or file data. You can skip this step if you do not need training."),
         }
       : {
-          title: "Prueba tu agente",
-          body: "Prueba antes de activarlo para asegurarte de que responde como esperas.",
+          title: tr("Prueba tu agente", "Test your agent"),
+          body: tr("Prueba antes de activarlo para asegurarte de que responde como esperas.", "Test before activation to make sure it responds as expected."),
         },
     4: {
-      title: "Instrucciones",
-      body: "Ingresa las instrucciones específicas para tu agente o selecciona y edita una de las plantillas predefinidas.",
+      title: tr("Instrucciones", "Instructions"),
+      body: tr("Ingresa las instrucciones específicas para tu agente o selecciona y edita una de las plantillas predefinidas.", "Enter specific instructions for your agent or select and edit a predefined template."),
     },
   };
 
   const left = leftContent[step];
 
-  const pageTitle = titleFor((form.type as AgentType), kind);
+  const pageTitle = titleFor((form.type as AgentType), kind, language);
 
   const isTextTestStep = (form.type === "text" && kind !== "notetaker" && step === 4);
 
@@ -633,7 +655,7 @@ export default function CreateAgentPage() {
           onClick={askExit}
           style={{ ...fl({ alignItems: "center", gap: 8 }), background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 14 }}
         >
-          ‹ Volver
+          {tr("‹ Volver", "‹ Back")}
         </button>
         <span style={{ fontWeight: 700, fontSize: 16, color: C.white }}>
           {pageTitle}
@@ -656,22 +678,22 @@ export default function CreateAgentPage() {
             style={{ width: "100%", maxWidth: 560, background: "linear-gradient(180deg, rgba(14,24,40,0.98) 0%, rgba(7,12,22,0.98) 100%)", border: "1px solid rgba(34,211,238,0.18)", borderRadius: 16, padding: 22, boxShadow: "0 24px 90px rgba(0,0,0,0.58)" }}
           >
             <div style={{ fontSize: 24, marginBottom: 8 }}>⚠️</div>
-            <div style={{ fontSize: 32, fontWeight: 900, marginBottom: 8 }}>¿Seguro que deseas salir?</div>
+            <div style={{ fontSize: 32, fontWeight: 900, marginBottom: 8 }}>{tr("¿Seguro que deseas salir?", "Are you sure you want to leave?")}</div>
             <div style={{ color: C.muted, fontSize: 20, lineHeight: 1.45 }}>
-              Si sales ahora, perderás toda la configuración que has hecho hasta el momento.
+              {tr("Si sales ahora, perderás toda la configuración que has hecho hasta el momento.", "If you leave now, you will lose all configuration changes made so far.")}
             </div>
             <div style={{ marginTop: 22, display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <button
                 onClick={goToAgentsList}
                 style={{ border: "1px solid rgba(163,230,53,0.55)", background: "transparent", color: C.lime, fontWeight: 900, cursor: "pointer", fontSize: 20, borderRadius: 12, padding: "10px 14px" }}
               >
-                Salir de todos modos
+                {tr("Salir de todos modos", "Leave anyway")}
               </button>
               <button
                 onClick={() => setConfirmExitOpen(false)}
                 style={{ border: "none", backgroundColor: C.lime, color: "#111", fontWeight: 900, borderRadius: 12, cursor: "pointer", fontSize: 22, padding: "10px 18px" }}
               >
-                Seguir editando
+                {tr("Seguir editando", "Keep editing")}
               </button>
             </div>
           </div>
@@ -732,21 +754,21 @@ export default function CreateAgentPage() {
             <div style={{ flex: (isMobile || isTextTestStep) ? "1 1 100%" : "0 0 360px", minWidth: 0, maxWidth: (isMobile || isTextTestStep) ? "100%" : 420 }}>
              {isTextTestStep ? (
                <>
-                 <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 12px", lineHeight: 1.2 }}>
-                   📝 Instrucciones del Agente
-                 </h2>
-                 <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6, margin: "0 0 14px" }}>
-                   Define el comportamiento y las respuestas del agente de texto.
-                 </p>
+                  <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 12px", lineHeight: 1.2 }}>
+                    {tr("📝 Instrucciones del Agente", "📝 Agent Instructions")}
+                  </h2>
+                  <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6, margin: "0 0 14px" }}>
+                    {tr("Define el comportamiento y las respuestas del agente de texto.", "Define behavior and responses for the text agent.")}
+                  </p>
                   <textarea
                     value={form.agentPrompt}
                     onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
                     rows={10}
-                    placeholder="Ejemplo: Eres un asistente de ventas amable y profesional. Ayuda a los clientes, responde preguntas sobre productos. ⚠️ NO INCLUYAS: 'no puedo', 'solo puedo de texto', 'limitaciones técnicas'"
+                    placeholder={tr("Ejemplo: Eres un asistente de ventas amable y profesional. Ayuda a los clientes, responde preguntas sobre productos. ⚠️ NO INCLUYAS: 'no puedo', 'solo puedo de texto', 'limitaciones técnicas'", "Example: You are a friendly, professional sales assistant. Help customers and answer product questions. ⚠️ DO NOT INCLUDE: 'I cannot', 'text-only', 'technical limitations'")}
                     style={{ ...input({ minHeight: 100, fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace", fontSize: 12 }), resize: "vertical" as const }}
                   />
                   <div style={{ marginTop: 10, padding: 12, borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: C.dark }}>
-                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 800 }}>Plantillas recomendadas</div>
+                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 800 }}>{tr("Plantillas recomendadas", "Recommended templates")}</div>
                     <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr auto auto", gap: 8 }}>
                       <select
                         value={promptTemplateId}
@@ -762,14 +784,14 @@ export default function CreateAgentPage() {
                         onClick={() => applyPromptTemplate("replace")}
                         style={{ padding: "0 14px", borderRadius: 10, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 800, cursor: "pointer", minHeight: 42 }}
                       >
-                        Reemplazar
+                        {tr("Reemplazar", "Replace")}
                       </button>
                       <button
                         type="button"
                         onClick={() => applyPromptTemplate("append")}
                         style={{ padding: "0 14px", borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: C.card, color: C.white, fontWeight: 800, cursor: "pointer", minHeight: 42 }}
                       >
-                        Agregar
+                        {tr("Agregar", "Append")}
                       </button>
                     </div>
                   </div>
@@ -778,8 +800,8 @@ export default function CreateAgentPage() {
                       type="button"
                      style={{ padding: "14px 20px", borderRadius: 8, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 700, fontSize: 14, cursor: "pointer" }}
                    >
-                     ✦ Generar con IA
-                   </button>
+                      {tr("✦ Generar con IA", "✦ Generate with AI")}
+                    </button>
                  </div>
                </>
              ) : (
@@ -817,20 +839,20 @@ export default function CreateAgentPage() {
               <>
                 <div>
                   <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
-                    Nombre de la empresa: <span style={{ color: C.red }}>*</span>
+                    {tr("Nombre de la empresa:", "Company name:")} <span style={{ color: C.red }}>*</span>
                     <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                   </label>
                   <input
                     value={form.companyName}
                     onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))}
-                    placeholder="Escribe el nombre oficial de la empresa"
+                    placeholder={tr("Escribe el nombre oficial de la empresa", "Enter the official company name")}
                     style={input()}
                   />
                 </div>
 
                 <div>
                   <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
-                    URL del sitio web
+                    {tr("URL del sitio web", "Website URL")}
                   </label>
                   <div style={fl({ gap: 10, flexWrap: isMobile ? "wrap" : "nowrap" })}>
                     <input
@@ -851,7 +873,7 @@ export default function CreateAgentPage() {
                     onClick={genCompanyContext}
                     disabled={contextLoading}
                     >
-                      {contextLoading ? "Generando..." : "Generar contexto"}
+                      {contextLoading ? tr("Generando...", "Generating...") : tr("Generar contexto", "Generate context")}
                     </button>
                   </div>
                   {contextError && (
@@ -863,13 +885,13 @@ export default function CreateAgentPage() {
 
                 <div>
                   <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
-                    Descripción de la empresa: <span style={{ color: C.red }}>*</span>
+                    {tr("Descripción de la empresa:", "Company description:")} <span style={{ color: C.red }}>*</span>
                     <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                   </label>
                   <textarea
                     value={form.companyDesc}
                     onChange={e => setForm(f => ({ ...f, companyDesc: e.target.value }))}
-                    placeholder="Describe tu empresa aquí"
+                    placeholder={tr("Describe tu empresa aquí", "Describe your company here")}
                     rows={10}
                     style={{ ...input({ minHeight: 130 }), resize: "vertical" as const }}
                   />
@@ -979,7 +1001,7 @@ export default function CreateAgentPage() {
                   <>
                     <div>
                       <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
-                        Idioma: <span style={{ color: C.red }}>*</span>
+                        {tr("Idioma:", "Language:")} <span style={{ color: C.red }}>*</span>
                         <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                       </label>
                       <select
@@ -987,7 +1009,7 @@ export default function CreateAgentPage() {
                         onChange={e => setForm(f => ({ ...f, language: e.target.value }))}
                         style={input({ appearance: "none" as const })}
                       >
-                        <option value="">Seleccionar</option>
+                        <option value="">{tr("Seleccionar", "Select")}</option>
                         {LANGUAGE_OPTIONS.map(o => (
                           <option key={o.value} value={o.value}>{o.label}</option>
                         ))}
@@ -996,20 +1018,20 @@ export default function CreateAgentPage() {
 
                     <div>
                       <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
-                        Nombre de identidad: <span style={{ color: C.red }}>*</span>
+                        {tr("Nombre de identidad:", "Identity name:")} <span style={{ color: C.red }}>*</span>
                         <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                       </label>
                       <input
                         value={form.agentName}
                         onChange={e => setForm(f => ({ ...f, agentName: e.target.value }))}
-                        placeholder="Escribe el nombre de tu agente"
+                        placeholder={tr("Escribe el nombre de tu agente", "Type your agent name")}
                         style={input()}
                       />
                     </div>
 
                     <div>
                       <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
-                        Propósito: <span style={{ color: C.red }}>*</span>
+                        {tr("Propósito:", "Purpose:")} <span style={{ color: C.red }}>*</span>
                         <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                       </label>
                       <select
@@ -1017,7 +1039,7 @@ export default function CreateAgentPage() {
                         onChange={e => setForm(f => ({ ...f, agentRole: e.target.value }))}
                         style={input({ appearance: "none" as const })}
                       >
-                        <option value="">Seleccionar</option>
+                        <option value="">{tr("Seleccionar", "Select")}</option>
                         {PURPOSE_OPTIONS.map(o => (
                           <option key={o.value} value={o.label}>{o.label}</option>
                         ))}
@@ -1026,11 +1048,11 @@ export default function CreateAgentPage() {
 
                      <div>
                        <label style={{ fontSize: 16, fontWeight: 700, display: "block", marginBottom: 9 }}>
-                         Instrucciones importantes
+                         {tr("Instrucciones importantes", "Important instructions")}
                          <span style={{ marginLeft: 6, color: C.dim, fontWeight: 400 }}>ⓘ</span>
                        </label>
                        <div style={{ marginBottom: 10, padding: 12, borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: C.dark }}>
-                         <div style={{ fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 800 }}>No sabes crear prompts? Usa una plantilla real</div>
+                         <div style={{ fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 800 }}>{tr("No sabes crear prompts? Usa una plantilla real", "Not sure how to write prompts? Use a real template")}</div>
                          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr auto auto", gap: 8 }}>
                            <select
                              value={promptTemplateId}
@@ -1046,28 +1068,28 @@ export default function CreateAgentPage() {
                              onClick={() => applyPromptTemplate("replace")}
                              style={{ padding: "0 14px", borderRadius: 10, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 800, cursor: "pointer", minHeight: 42 }}
                            >
-                             Reemplazar
+                              {tr("Reemplazar", "Replace")}
                            </button>
                            <button
                              type="button"
                              onClick={() => applyPromptTemplate("append")}
                              style={{ padding: "0 14px", borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: C.card, color: C.white, fontWeight: 800, cursor: "pointer", minHeight: 42 }}
                            >
-                             Agregar
+                              {tr("Agregar", "Append")}
                            </button>
                          </div>
                        </div>
                        <textarea
                           value={form.agentPrompt}
                           onChange={e => setForm(f => ({ ...f, agentPrompt: e.target.value }))}
-                         placeholder="Describe el comportamiento de tu agente: su rol, tareas, tono, cómo debe responder. ⚠️ IMPORTANTE: NO incluyas limitaciones como 'no puedo', 'solo puedo', 'asistente de texto'. El agente responderá CUALQUIER pregunta."
+                          placeholder={tr("Describe el comportamiento de tu agente: su rol, tareas, tono, cómo debe responder. ⚠️ IMPORTANTE: NO incluyas limitaciones como 'no puedo', 'solo puedo', 'asistente de texto'. El agente responderá CUALQUIER pregunta.", "Describe your agent behavior: role, tasks, tone, and response style. ⚠️ IMPORTANT: do NOT include limits like 'I can't', 'I only can', or 'text-only assistant'. The agent should answer ANY question.")}
                          rows={10}
                          style={{ ...input({ minHeight: 130 }), resize: "vertical" as const }}
                        />
                        <div style={{ color: C.dim, fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
-                         💡 Tip: Cuanto más específico seas aquí, mejor responderá tu agente. Evita limitaciones técnicas.
-                       </div>
-                    </div>
+                          {tr("💡 Tip: Cuanto más específico seas aquí, mejor responderá tu agente. Evita limitaciones técnicas.", "💡 Tip: The more specific you are here, the better your agent will respond. Avoid technical limitations.")}
+                        </div>
+                     </div>
                   </>
                 )}
               </>
@@ -1082,31 +1104,31 @@ export default function CreateAgentPage() {
                     onClick={() => setForm(f => ({ ...f, brainTab: "web" }))}
                     style={{ background: "none", border: "none", cursor: "pointer", color: form.brainTab === "web" ? C.lime : C.muted, fontWeight: 900, padding: "8px 0", borderBottom: `2px solid ${form.brainTab === "web" ? C.lime : "transparent"}` }}
                   >
-                    🌐 Sitio web
+                    {tr("🌐 Sitio web", "🌐 Website")}
                   </button>
                   <button
                     type="button"
                     onClick={() => setForm(f => ({ ...f, brainTab: "files" }))}
                     style={{ background: "none", border: "none", cursor: "pointer", color: form.brainTab === "files" ? C.lime : C.muted, fontWeight: 900, padding: "8px 0", borderBottom: `2px solid ${form.brainTab === "files" ? C.lime : "transparent"}` }}
                   >
-                    📄 Archivos
+                    {tr("📄 Archivos", "📄 Files")}
                   </button>
                 </div>
 
                 {form.brainTab === "web" ? (
                   <>
-                    <div style={{ fontWeight: 900, fontSize: 16, marginTop: 6 }}>Extracción web</div>
+                    <div style={{ fontWeight: 900, fontSize: 16, marginTop: 6 }}>{tr("Extracción web", "Web extraction")}</div>
                     <div style={{ color: C.muted, fontSize: 14, lineHeight: 1.6 }}>
-                      Importa un sitio web a la base de conocimientos de tu agente. Esto recorrerá los enlaces a partir de la URL.
+                      {tr("Importa un sitio web a la base de conocimientos de tu agente. Esto recorrerá los enlaces a partir de la URL.", "Import a website into your agent knowledge base. It will crawl links from the provided URL.")}
                     </div>
 
                     <div style={{ marginTop: 10 }}>
-                      <div style={{ color: C.muted, fontSize: 14, fontWeight: 800, marginBottom: 8 }}>Sitio web</div>
+                      <div style={{ color: C.muted, fontSize: 14, fontWeight: 800, marginBottom: 8 }}>{tr("Sitio web", "Website")}</div>
                       <div style={fl({ gap: 12 })}>
                         <input
                           value={form.brainWebsiteUrl}
                           onChange={e => setForm(f => ({ ...f, brainWebsiteUrl: e.target.value }))}
-                          placeholder="https://www.tusitio.com/"
+                          placeholder={tr("https://www.tusitio.com/", "https://www.yoursite.com/")}
                           style={input({ flex: 1 })}
                         />
                         <button
@@ -1114,15 +1136,15 @@ export default function CreateAgentPage() {
                           onClick={startBrainTraining}
                           style={{ padding: "0 22px", borderRadius: 12, backgroundColor: "transparent", border: `1px solid ${C.lime}`, color: C.lime, fontWeight: 900, cursor: "pointer", whiteSpace: "nowrap" }}
                         >
-                          Comenzar
+                          {tr("Comenzar", "Start")}
                         </button>
                       </div>
                       <div style={{ color: C.dim, fontSize: 12, marginTop: 10 }}>
-                        Esto rastreará todos los enlaces que comiencen con la URL (sin incluir archivos del sitio web).
+                        {tr("Esto rastreará todos los enlaces que comiencen con la URL (sin incluir archivos del sitio web).", "This will crawl all links that start with the URL (excluding website files).")}
                       </div>
                       {form.brainLastRun && (
                         <div style={{ color: C.dim, fontSize: 12, marginTop: 10 }}>
-                          Ultima ejecucion: {new Date(form.brainLastRun).toLocaleString()}
+                          {tr("Ultima ejecucion", "Last run")}: {new Date(form.brainLastRun).toLocaleString()}
                         </div>
                       )}
                     </div>
@@ -1182,7 +1204,7 @@ export default function CreateAgentPage() {
           onClick={() => setPickerOpen(true)}
           style={{ padding: "12px 26px", borderRadius: 10, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 800, fontSize: 15, cursor: "pointer" }}
         >
-          Escoger plantilla
+          {tr("Escoger plantilla", "Choose template")}
         </button>
 
         <div style={fl({ gap: 12, flexWrap: isMobile ? "wrap" : "nowrap", justifyContent: isMobile ? "flex-end" : "flex-start", width: isMobile ? "100%" : undefined })}>
@@ -1191,7 +1213,7 @@ export default function CreateAgentPage() {
               onClick={() => setStep(s => s - 1)}
               style={{ padding: "12px 26px", borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: "transparent", color: C.muted, fontWeight: 800, fontSize: 15, cursor: "pointer" }}
             >
-              Atrás
+              {tr("Atrás", "Back")}
             </button>
           )}
 
@@ -1201,7 +1223,7 @@ export default function CreateAgentPage() {
               onClick={() => setStep(4)}
               style={{ padding: "12px 10px", borderRadius: 10, border: "none", backgroundColor: "transparent", color: C.lime, fontWeight: 900, fontSize: 15, cursor: "pointer" }}
             >
-              Saltar
+              {tr("Saltar", "Skip")}
             </button>
           )}
 
@@ -1209,7 +1231,7 @@ export default function CreateAgentPage() {
             <button
               onClick={() => {
                 if (!canContinue) {
-                  alert("Completa los campos requeridos para continuar");
+                  alert(tr("Completa los campos requeridos para continuar", "Complete the required fields to continue"));
                   return;
                 }
                 setStep(s => Math.min(s + 1, steps.length));
@@ -1226,7 +1248,9 @@ export default function CreateAgentPage() {
                 cursor: !canContinue ? "not-allowed" : "pointer",
               }}
             >
-              {(form.type === "text" && kind !== "notetaker" && step === 3) ? "Siguiente" : "Guardar y continuar"}
+              {(form.type === "text" && kind !== "notetaker" && step === 3)
+                ? tr("Siguiente", "Next")
+                : tr("Guardar y continuar", "Save and continue")}
             </button>
           ) : (
             <button
@@ -1234,7 +1258,7 @@ export default function CreateAgentPage() {
               disabled={saving}
               style={{ padding: "12px 34px", borderRadius: 10, border: "none", backgroundColor: saving ? C.dim : C.lime, color: "#111", fontWeight: 800, fontSize: 15, cursor: saving ? "not-allowed" : "pointer" }}
             >
-              {saving ? "Creando…" : "Crear Agente"}
+              {saving ? tr("Creando…", "Creating...") : tr("Crear Agente", "Create Agent")}
             </button>
           )}
         </div>
@@ -1252,8 +1276,8 @@ export default function CreateAgentPage() {
           >
             <div style={{ ...fl({ alignItems: "center", justifyContent: "space-between" }), marginBottom: 14 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 800 }}>Plantillas</div>
-                <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>Empieza desde cero o elige un caso de uso.</div>
+                <div style={{ fontSize: 16, fontWeight: 800 }}>{tr("Plantillas", "Templates")}</div>
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{tr("Empieza desde cero o elige un caso de uso.", "Start from scratch or choose a use case.")}</div>
               </div>
               <button onClick={() => setPickerOpen(false)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 20 }}>
                 x
@@ -1262,13 +1286,13 @@ export default function CreateAgentPage() {
 
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 18 }}>
               <div>
-                <div style={{ color: C.dim, fontSize: 12, marginBottom: 8 }}>Crear desde cero</div>
+                <div style={{ color: C.dim, fontSize: 12, marginBottom: 8 }}>{tr("Crear desde cero", "Create from scratch")}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
                   {([
-                    { id: "voice", label: "Agente de voz" },
-                    { id: "text", label: "Agente de texto" },
-                    { id: "flow", label: "Flujo" },
-                    { id: "notetaker", label: "Copiloto IA" },
+                    { id: "voice", label: tr("Agente de voz", "Voice agent") },
+                    { id: "text", label: tr("Agente de texto", "Text agent") },
+                    { id: "flow", label: tr("Flujo", "Flow") },
+                    { id: "notetaker", label: tr("Copiloto IA", "AI Copilot") },
                   ] as const).map(t => (
                     <button
                       key={t.id}
@@ -1299,7 +1323,7 @@ export default function CreateAgentPage() {
                     >
                       {t.label}
                       <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginTop: 4 }}>
-                        Configuracion guiada en 3 pasos
+                        {tr("Configuracion guiada en 3 pasos", "Guided setup in 3 steps")}
                       </div>
                     </button>
                   ))}
@@ -1307,13 +1331,13 @@ export default function CreateAgentPage() {
               </div>
 
               <div>
-                <div style={{ color: C.dim, fontSize: 12, marginBottom: 8 }}>Casos de uso</div>
+                <div style={{ color: C.dim, fontSize: 12, marginBottom: 8 }}>{tr("Casos de uso", "Use cases")}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
                   {([
-                    { id: "lia", title: "Lia", subtitle: "Calificacion de leads", type: "voice" as AgentType },
-                    { id: "alex", title: "Alex", subtitle: "Prospeccion en frio", type: "voice" as AgentType },
-                    { id: "julia", title: "Julia", subtitle: "Recepcionista", type: "text" as AgentType },
-                    { id: "flow-lead-intake", title: "Lead intake", subtitle: "Flujo base", type: "flow" as AgentType },
+                    { id: "lia", title: "Lia", subtitle: tr("Calificacion de leads", "Lead qualification"), type: "voice" as AgentType },
+                    { id: "alex", title: "Alex", subtitle: tr("Prospeccion en frio", "Cold outreach"), type: "voice" as AgentType },
+                    { id: "julia", title: "Julia", subtitle: tr("Recepcionista", "Receptionist"), type: "text" as AgentType },
+                    { id: "flow-lead-intake", title: "Lead intake", subtitle: tr("Flujo base", "Base flow"), type: "flow" as AgentType },
                   ]).map(t => (
                     <button
                       key={t.id}

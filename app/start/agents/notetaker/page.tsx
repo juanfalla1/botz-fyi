@@ -107,6 +107,7 @@ function iconForPlaybook(icon?: string | null) {
 
 export default function NotetakerPage() {
   const router = useRouter();
+  const [language, setLanguage] = useState<"es" | "en">("es");
   const [tab, setTab] = useState<TabId>("panel");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -129,6 +130,22 @@ export default function NotetakerPage() {
   const [folderDetailTab, setFolderDetailTab] = useState<"meetings" | "ai">("meetings");
   const [folderNotesDraft, setFolderNotesDraft] = useState("");
   const [showCalendarModal, setShowCalendarModal] = useState(false);
+
+  const tr = (es: string, en: string) => (language === "en" ? en : es);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") setLanguage(saved);
+
+    const onLanguageChange = (evt: Event) => {
+      const next = String((evt as CustomEvent<string>)?.detail || "").toLowerCase();
+      if (next === "es" || next === "en") setLanguage(next);
+    };
+
+    window.addEventListener("botz-language-change", onLanguageChange as EventListener);
+    return () => window.removeEventListener("botz-language-change", onLanguageChange as EventListener);
+  }, []);
 
   const showMessage = (message: string, tone: "error" | "info" = "error") => {
     setMessageTone(tone);
@@ -423,7 +440,7 @@ export default function NotetakerPage() {
   if (loading) {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, color: C.white, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter,-apple-system,sans-serif" }}>
-        Cargando Copiloto IA...
+        {tr("Cargando Copiloto IA...", "Loading AI Copilot...")}
       </div>
     );
   }
@@ -432,10 +449,10 @@ export default function NotetakerPage() {
     <div style={{ minHeight: "100vh", background: C.bg, color: C.white, fontFamily: "Inter,-apple-system,sans-serif" }}>
       <div style={{ height: 72, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 12px", background: C.dark, overflowX: "auto" }}>
         {([
-          ["panel", "Copiloto IA"],
-          ["reuniones", "Interacciones"],
+          ["panel", tr("Copiloto IA", "AI Copilot")],
+          ["reuniones", tr("Interacciones", "Interactions")],
           ["folders", "Playbooks"],
-          ["settings", "Estrategia"],
+          ["settings", tr("Estrategia", "Strategy")],
         ] as [TabId, string][]).map(([id, label]) => (
           <button
             key={id}
@@ -458,7 +475,7 @@ export default function NotetakerPage() {
           </button>
         ))}
         <button onClick={() => router.push("/start/agents")} style={{ marginLeft: "auto", border: `1px solid ${C.border}`, background: "transparent", color: C.white, borderRadius: 12, padding: "10px 14px", cursor: "pointer" }}>
-          Volver
+          {tr("Volver", "Back")}
         </button>
       </div>
 
@@ -466,19 +483,19 @@ export default function NotetakerPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", minHeight: "calc(100vh - 72px)" }}>
           <div style={{ padding: 14 }}>
             <div style={{ background: "linear-gradient(135deg, rgba(29,161,255,0.16), rgba(163,230,53,0.12))", border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
-              <div style={{ fontWeight: 900, fontSize: 22 }}>Copiloto Comercial IA</div>
+              <div style={{ fontWeight: 900, fontSize: 22 }}>{tr("Copiloto Comercial IA", "Commercial AI Copilot")}</div>
               <div style={{ color: C.muted, fontSize: 14, marginTop: 6, maxWidth: 760 }}>
-                Convierte cada llamada o reunion en acciones comerciales: resumen, prioridad, siguiente paso y seguimiento. Todo se gestiona en esta misma sección.
+                {tr("Convierte cada llamada o reunion en acciones comerciales: resumen, prioridad, siguiente paso y seguimiento. Todo se gestiona en esta misma sección.", "Turn every call or meeting into commercial actions: summary, priority, next step, and follow-up. Everything is managed in this same section.")}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-                <button onClick={() => setTab("reuniones")} style={{ borderRadius: 10, border: "none", background: `${C.blue}cc`, color: "#07101c", fontWeight: 900, padding: "10px 12px", cursor: "pointer" }}>+ Nueva interacción</button>
-                <button onClick={createFolder} disabled={saving} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 800, padding: "10px 12px", cursor: "pointer" }}>+ Crear playbook</button>
-                <button onClick={() => setTab("settings")} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 800, padding: "10px 12px", cursor: "pointer" }}>Ajustar estrategia IA</button>
+                <button onClick={() => setTab("reuniones")} style={{ borderRadius: 10, border: "none", background: `${C.blue}cc`, color: "#07101c", fontWeight: 900, padding: "10px 12px", cursor: "pointer" }}>{tr("+ Nueva interacción", "+ New interaction")}</button>
+                <button onClick={createFolder} disabled={saving} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 800, padding: "10px 12px", cursor: "pointer" }}>{tr("+ Crear playbook", "+ Create playbook")}</button>
+                <button onClick={() => setTab("settings")} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 800, padding: "10px 12px", cursor: "pointer" }}>{tr("Ajustar estrategia IA", "Adjust AI strategy")}</button>
               </div>
             </div>
 
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
-              <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 8 }}>¿Como baja al pipeline?</div>
+              <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 8 }}>{tr("¿Como baja al pipeline?", "How does it move to pipeline?")}</div>
               <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.5 }}>
                 1) Ve a <b style={{ color: C.white }}>Interacciones</b>.<br />
                 2) Crea o sincroniza una interacción.<br />
@@ -487,7 +504,7 @@ export default function NotetakerPage() {
               </div>
               <div style={{ marginTop: 10 }}>
                 <button onClick={() => setTab("reuniones")} style={{ borderRadius: 10, border: "none", background: `${C.blue}cc`, color: "#07101c", fontWeight: 900, padding: "10px 12px", cursor: "pointer" }}>
-                  Ir a Interacciones
+                  {tr("Ir a Interacciones", "Go to Interactions")}
                 </button>
               </div>
             </div>
@@ -562,14 +579,14 @@ export default function NotetakerPage() {
 
           <aside style={{ background: C.panel, padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ fontWeight: 900, fontSize: 16 }}>Bandeja de seguimiento</div>
+              <div style={{ fontWeight: 900, fontSize: 16 }}>{tr("Bandeja de seguimiento", "Follow-up inbox")}</div>
               <div style={{ background: C.lime, color: "#111", borderRadius: 8, padding: "4px 8px", fontWeight: 900, fontSize: 12 }}>{commercialMeetings.length}</div>
             </div>
             <div style={{ borderTop: `1px solid ${C.border}`, margin: "0 -16px", marginBottom: 24 }} />
             {commercialMeetings.length === 0 ? (
                 <div style={{ marginTop: 80, textAlign: "center" }}>
                   <div style={{ color: C.muted, fontSize: 30 }}>☑</div>
-                  <div style={{ fontWeight: 900, fontSize: 40, lineHeight: 1.2, marginTop: 8 }}>No hay seguimientos activos</div>
+                  <div style={{ fontWeight: 900, fontSize: 40, lineHeight: 1.2, marginTop: 8 }}>{tr("No hay seguimientos activos", "No active follow-ups")}</div>
                   <div style={{ color: C.muted, fontSize: 16, marginTop: 10, lineHeight: 1.5 }}>Aqui apareceran interacciones y acciones sugeridas para mover oportunidades en tu pipeline comercial</div>
                 </div>
               ) : (
@@ -593,36 +610,36 @@ export default function NotetakerPage() {
             En cada interacción: primero <b>Analizar IA</b> y despues <b>Guardar seguimiento</b>. No necesitas usar otra pantalla.
             </div>
             <div style={{ background: `${C.blue}1a`, border: `1px solid rgba(29,161,255,0.35)`, borderRadius: 10, padding: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ fontWeight: 800 }}>🤖 Registrar interacción y activar copiloto:</div>
-            <input value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)} placeholder="URL de Google Meet, Zoom o Teams" style={{ flex: "1 1 320px", minWidth: 220, maxWidth: "100%", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "9px 12px" }} />
-            <button onClick={createMeeting} disabled={saving} style={{ border: "none", borderRadius: 8, background: C.blue, color: "#07101c", fontWeight: 900, padding: "10px 18px", cursor: saving ? "not-allowed" : "pointer" }}>➤ Procesar</button>
+             <div style={{ fontWeight: 800 }}>{tr("🤖 Registrar interacción y activar copiloto:", "🤖 Register interaction and activate copilot:")}</div>
+             <input value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)} placeholder={tr("URL de Google Meet, Zoom o Teams", "Google Meet, Zoom, or Teams URL")} style={{ flex: "1 1 320px", minWidth: 220, maxWidth: "100%", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "9px 12px" }} />
+             <button onClick={createMeeting} disabled={saving} style={{ border: "none", borderRadius: 8, background: C.blue, color: "#07101c", fontWeight: 900, padding: "10px 18px", cursor: saving ? "not-allowed" : "pointer" }}>➤ {tr("Procesar", "Process")}</button>
           </div>
 
           <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center" }}>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar" style={{ flex: "1 1 280px", minWidth: 180, background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("Buscar", "Search")} style={{ flex: "1 1 280px", minWidth: 180, background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
             <button
               onClick={() => postOp("sync_google")}
               disabled={saving}
               style={{ border: "none", background: "transparent", color: C.white, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}
             >
-              ⟳ {saving ? "Sincronizando..." : "Actualizar"}
+              ⟳ {saving ? tr("Sincronizando...", "Syncing...") : tr("Actualizar", "Refresh")}
             </button>
           </div>
 
           <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
-            <input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="Nombre del contacto" style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
-            <input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="Email (opcional)" style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
-            <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="Teléfono (opcional)" style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
+            <input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder={tr("Nombre del contacto", "Contact name")} style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
+            <input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder={tr("Email (opcional)", "Email (optional)")} style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
+            <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder={tr("Teléfono (opcional)", "Phone (optional)")} style={{ background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "10px 12px" }} />
           </div>
 
           <div style={{ marginTop: 8, overflowX: "auto" }}>
             <div style={{ minWidth: 1040 }}>
               <div style={{ borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`, padding: "9px 6px", display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 180px", fontWeight: 900 }}>
-                <span>Interacción</span><span>Fecha</span><span>Duración</span><span>Host</span><span>Participantes</span><span>Estado</span><span>Acciones</span>
+                <span>{tr("Interacción", "Interaction")}</span><span>{tr("Fecha", "Date")}</span><span>{tr("Duración", "Duration")}</span><span>Host</span><span>{tr("Participantes", "Participants")}</span><span>{tr("Estado", "Status")}</span><span>{tr("Acciones", "Actions")}</span>
               </div>
 
               {filteredMeetings.length === 0 ? (
-                <div style={{ paddingTop: 10 }}>No se encontraron interacciones.</div>
+                <div style={{ paddingTop: 10 }}>{tr("No se encontraron interacciones.", "No interactions found.")}</div>
               ) : (
                 filteredMeetings.map((m) => (
                   <React.Fragment key={m.id}>
@@ -637,16 +654,16 @@ export default function NotetakerPage() {
                   </span>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <button onClick={() => postOp("analyze_meeting", { meeting_id: m.id })} disabled={saving} style={{ border: `1px solid ${C.blue}88`, background: "transparent", color: C.blue, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}>
-                      Analizar IA
+                      {tr("Analizar IA", "Analyze AI")}
                     </button>
                     <button onClick={() => postOp("save_pipeline", { meeting_id: m.id })} disabled={saving} style={{ border: `1px solid ${C.lime}88`, background: "transparent", color: C.lime, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}>
-                      Guardar seguimiento
+                      {tr("Guardar seguimiento", "Save follow-up")}
                     </button>
                     <button onClick={() => postOp("toggle_meeting", { meeting_id: m.id })} disabled={saving} style={{ border: `1px solid ${C.border}`, background: "transparent", color: C.white, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}>
-                      {m.status === "scheduled" ? "Marcar grabada" : "Marcar próxima"}
+                      {m.status === "scheduled" ? tr("Marcar grabada", "Mark recorded") : tr("Marcar próxima", "Mark upcoming")}
                     </button>
                     <button onClick={() => postOp("delete_meeting", { meeting_id: m.id })} disabled={saving} style={{ border: `1px solid ${C.red}88`, background: "transparent", color: C.red, borderRadius: 8, padding: "6px 8px", cursor: saving ? "not-allowed" : "pointer", fontSize: 12 }}>
-                      Eliminar
+                      {tr("Eliminar", "Delete")}
                     </button>
                     <select
                       value={String(m.folder_id || "")}
@@ -654,7 +671,7 @@ export default function NotetakerPage() {
                       disabled={saving}
                       style={{ minWidth: 150, background: C.dark, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, padding: "6px 8px", fontSize: 12 }}
                     >
-                      <option value="">Sin playbook</option>
+                      <option value="">{tr("Sin playbook", "No playbook")}</option>
                       {state.folders.map((f) => (
                         <option key={f.id} value={f.id}>{f.name}</option>
                       ))}
@@ -684,13 +701,13 @@ export default function NotetakerPage() {
       {tab === "folders" && (
         <div>
           <div style={{ borderBottom: `1px solid ${C.border}`, padding: "18px 24px", display: "flex", alignItems: "center" }}>
-            <div style={{ fontWeight: 900, fontSize: 20 }}>Playbooks comerciales</div>
+            <div style={{ fontWeight: 900, fontSize: 20 }}>{tr("Playbooks comerciales", "Commercial playbooks")}</div>
             {selectedFolder ? (
               <button onClick={() => setSelectedFolderId(null)} style={{ marginLeft: "auto", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 800, padding: "10px 14px", cursor: "pointer" }}>
-                ← Volver a Playbooks
+                {tr("← Volver a Playbooks", "← Back to Playbooks")}
               </button>
             ) : (
-              <button onClick={createFolder} disabled={saving} style={{ marginLeft: "auto", borderRadius: 10, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "11px 24px", cursor: saving ? "not-allowed" : "pointer" }}>+ Nuevo playbook</button>
+              <button onClick={createFolder} disabled={saving} style={{ marginLeft: "auto", borderRadius: 10, border: "none", background: C.blue, color: "#07101c", fontWeight: 900, padding: "11px 24px", cursor: saving ? "not-allowed" : "pointer" }}>{tr("+ Nuevo playbook", "+ New playbook")}</button>
             )}
           </div>
 
@@ -809,27 +826,27 @@ export default function NotetakerPage() {
         <div style={{ minHeight: "calc(100vh - 72px)", padding: "20px 16px" }}>
           <main style={{ maxWidth: 1020, margin: "0 auto" }}>
             <button style={{ width: "100%", textAlign: "left", borderRadius: 10, border: "none", background: `${C.blue}22`, color: C.blue, fontWeight: 900, padding: "12px 14px" }}>
-              💡 Estrategia Comercial IA
+              {tr("💡 Estrategia Comercial IA", "💡 Commercial AI Strategy")}
             </button>
-            <div style={{ fontSize: "clamp(30px, 4vw, 44px)", fontWeight: 900, marginTop: 12 }}>Estrategia Comercial IA</div>
+            <div style={{ fontSize: "clamp(30px, 4vw, 44px)", fontWeight: 900, marginTop: 12 }}>{tr("Estrategia Comercial IA", "Commercial AI Strategy")}</div>
             <p style={{ color: C.muted, fontSize: 16, marginTop: 10 }}>
-              Define tu metodologia comercial y criterios de conversion. El copiloto usara esto para resumir, calificar y recomendar acciones en cada interacción.
+              {tr("Define tu metodologia comercial y criterios de conversion. El copiloto usara esto para resumir, calificar y recomendar acciones en cada interacción.", "Define your sales methodology and conversion criteria. The copilot will use this to summarize, qualify, and recommend actions in each interaction.")}
             </p>
-            <div style={{ marginTop: 22, fontWeight: 800, color: C.muted, fontSize: 14 }}>Tu framework comercial</div>
+            <div style={{ marginTop: 22, fontWeight: 800, color: C.muted, fontSize: 14 }}>{tr("Tu framework comercial", "Your sales framework")}</div>
             <textarea
               value={state.prompt}
               onChange={(e) => setState((s) => ({ ...s, prompt: e.target.value }))}
-              placeholder="Describe tu metodología o framework comercial..."
+              placeholder={tr("Describe tu metodología o framework comercial...", "Describe your sales methodology or framework...")}
               style={{ marginTop: 10, width: "100%", minHeight: 300, resize: "vertical", background: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, color: C.white, padding: 16, fontSize: 14, lineHeight: 1.5, boxSizing: "border-box" }}
             />
             <p style={{ color: C.muted, fontSize: 14, marginTop: 8 }}>
-              Describe tu proceso comercial, criterios de calificacion y reglas de siguiente paso para que el copiloto mantenga seguimiento consistente.
+              {tr("Describe tu proceso comercial, criterios de calificacion y reglas de siguiente paso para que el copiloto mantenga seguimiento consistente.", "Describe your sales process, qualification criteria, and next-step rules so the copilot keeps consistent follow-up.")}
             </p>
             <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
               <button onClick={savePrompt} disabled={saving} style={{ borderRadius: 10, border: "none", background: `${C.blue}cc`, color: "#07101c", fontWeight: 900, padding: "12px 24px", cursor: saving ? "not-allowed" : "pointer" }}>
-                {saving ? "Guardando..." : "✨ Guardar y mejorar"}
+                {saving ? tr("Guardando...", "Saving...") : tr("✨ Guardar y mejorar", "✨ Save and improve")}
               </button>
-              {savedPrompt && <span style={{ color: C.blue, fontWeight: 800 }}>Guardado</span>}
+              {savedPrompt && <span style={{ color: C.blue, fontWeight: 800 }}>{tr("Guardado", "Saved")}</span>}
             </div>
           </main>
         </div>

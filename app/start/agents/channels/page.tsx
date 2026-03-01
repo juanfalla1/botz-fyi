@@ -122,6 +122,7 @@ const PROVIDERS_BY_CHANNEL: Record<string, string[]> = {
 export default function AgentChannelsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [language, setLanguage] = useState<"es" | "en">("es");
   const [rows, setRows] = useState<Channel[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [numbers, setNumbers] = useState<Phone[]>([]);
@@ -168,6 +169,31 @@ export default function AgentChannelsPage() {
   const [evolutionQr, setEvolutionQr] = useState<string | null>(null);
   const [evolutionDisconnectBusy, setEvolutionDisconnectBusy] = useState(false);
   const pollRef = useRef<number | null>(null);
+
+  const tr = (es: string, en: string) => (language === "en" ? en : es);
+  const prettyName = (raw: string) => {
+    const v = String(raw || "").trim();
+    if (!v.includes("_")) return v;
+    return v
+      .split("_")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") setLanguage(saved);
+
+    const onLanguageChange = (evt: Event) => {
+      const next = String((evt as CustomEvent<string>)?.detail || "").toLowerCase();
+      if (next === "es" || next === "en") setLanguage(next);
+    };
+
+    window.addEventListener("botz-language-change", onLanguageChange as EventListener);
+    return () => window.removeEventListener("botz-language-change", onLanguageChange as EventListener);
+  }, []);
 
   const schemaKey = `${form.channel_type}:${form.provider}`;
   const preselectedAgentId = String(searchParams.get("agentId") || "").trim();
@@ -444,23 +470,23 @@ export default function AgentChannelsPage() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: C.bg, color: C.white, fontFamily: "Inter,-apple-system,sans-serif" }}>
       <div style={{ height: 56, backgroundColor: C.dark, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 18px", gap: 12 }}>
-        <button onClick={() => router.push("/start/agents")} style={{ background: "none", border: "none", color: C.lime, cursor: "pointer", fontWeight: 900 }}>← Volver</button>
-        <div style={{ fontWeight: 900, fontSize: 16 }}>Canales</div>
+        <button onClick={() => router.push("/start/agents")} style={{ background: "none", border: "none", color: C.lime, cursor: "pointer", fontWeight: 900 }}>{tr("← Volver", "← Back")}</button>
+        <div style={{ fontWeight: 900, fontSize: 16 }}>{tr("Canales", "Channels")}</div>
       </div>
 
       <div style={{ maxWidth: 1160, margin: "0 auto", padding: "22px 18px 36px" }}>
-        <div style={{ color: C.muted, marginBottom: 14 }}>Conecta canales reales (voz, WhatsApp, webchat), asigna numero y agente responsable.</div>
+        <div style={{ color: C.muted, marginBottom: 14 }}>{tr("Conecta canales reales (voz, WhatsApp, webchat), asigna numero y agente responsable.", "Connect real channels (voice, WhatsApp, webchat), assign number and responsible agent.")}</div>
         {preselectedAgent && (
           <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 12, border: `1px solid ${C.border}`, background: "rgba(163,230,53,0.12)", color: C.white, fontSize: 13 }}>
-            Agente preseleccionado: <strong>{preselectedAgent.name}</strong>. Las nuevas conexiones quedaran asignadas a este agente.
+            {tr("Agente preseleccionado:", "Preselected agent:")} <strong>{preselectedAgent.name}</strong>. {tr("Las nuevas conexiones quedaran asignadas a este agente.", "New connections will be assigned to this agent.")}
           </div>
         )}
         {error && <div style={{ marginBottom: 12, border: `1px solid ${C.border}`, background: "rgba(239,68,68,0.12)", color: "#fca5a5", padding: "10px 12px", borderRadius: 10 }}>{error}</div>}
 
         {!canAdvanced && (
           <div style={{ marginBottom: 12, padding: "12px 14px", borderRadius: 12, border: `1px solid ${C.border}`, background: "rgba(0,150,255,0.09)", color: C.white }}>
-            <div style={{ fontWeight: 900, marginBottom: 4 }}>Modo asistido</div>
-            <div style={{ color: C.muted, fontSize: 13 }}>La configuracion tecnica avanzada esta reservada al equipo Botz. Completa onboarding asistido para activar tu canal.</div>
+            <div style={{ fontWeight: 900, marginBottom: 4 }}>{tr("Modo asistido", "Assisted mode")}</div>
+            <div style={{ color: C.muted, fontSize: 13 }}>{tr("La configuracion tecnica avanzada esta reservada al equipo Botz. Completa onboarding asistido para activar tu canal.", "Advanced technical setup is reserved for the Botz team. Complete assisted onboarding to activate your channel.")}</div>
           </div>
         )}
 
@@ -470,10 +496,10 @@ export default function AgentChannelsPage() {
               <div style={{ fontWeight: 900, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <span>WhatsApp QR (Evolution)</span>
                 <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 900, background: evolutionStatus === "connected" ? "rgba(16,185,129,0.18)" : evolutionStatus === "pending" ? "rgba(245,158,11,0.16)" : "rgba(107,114,128,0.18)", color: evolutionStatus === "connected" ? "#34d399" : evolutionStatus === "pending" ? "#fbbf24" : "#9ca3af" }}>
-                  {evolutionStatus === "connected" ? "Conectado" : evolutionStatus === "pending" ? "Pendiente" : "Sin conectar"}
+                  {evolutionStatus === "connected" ? tr("Conectado", "Connected") : evolutionStatus === "pending" ? tr("Pendiente", "Pending") : tr("Sin conectar", "Not connected")}
                 </span>
               </div>
-              <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>Conecta un numero para Agentes escaneando QR. No mezcla con Hipotecario.</div>
+              <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{tr("Conecta un numero para Agentes escaneando QR. No mezcla con Hipotecario.", "Connect a number for Agents by scanning QR. It does not mix with Mortgage.")}</div>
               <div style={{ marginTop: 8, display: "flex", gap: 6, alignItems: "stretch" }}>
                 <input
                   value={evolutionWebhookUrl}
@@ -493,7 +519,7 @@ export default function AgentChannelsPage() {
                   }}
                 />
                 <button onClick={() => void copyText(evolutionWebhookUrl, "Webhook copiado")} style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontSize: 11, padding: "7px 12px", cursor: "pointer", fontWeight: 800, whiteSpace: "nowrap", alignSelf: "center" }}>
-                  Copiar
+                  {tr("Copiar", "Copy")}
                 </button>
               </div>
               <button
@@ -501,7 +527,7 @@ export default function AgentChannelsPage() {
                 disabled={evolutionBusy}
                 style={{ marginTop: 10, borderRadius: 8, border: `1px solid ${C.lime}`, background: "transparent", color: C.lime, padding: "8px 10px", cursor: evolutionBusy ? "not-allowed" : "pointer", fontWeight: 800, width: "100%" }}
               >
-                {evolutionBusy ? "Iniciando..." : "Conectar por QR"}
+                {evolutionBusy ? tr("Iniciando...", "Starting...") : tr("Conectar por QR", "Connect by QR")}
               </button>
               {evolutionStatus === "connected" && (
                 <button
@@ -509,18 +535,18 @@ export default function AgentChannelsPage() {
                   disabled={evolutionDisconnectBusy}
                   style={{ marginTop: 8, borderRadius: 8, border: "1px solid rgba(239,68,68,0.45)", background: "rgba(239,68,68,0.12)", color: "#fca5a5", padding: "8px 10px", cursor: evolutionDisconnectBusy ? "not-allowed" : "pointer", fontWeight: 800, width: "100%" }}
                 >
-                  {evolutionDisconnectBusy ? "Desconectando..." : "Desconectar"}
+                  {evolutionDisconnectBusy ? tr("Desconectando...", "Disconnecting...") : tr("Desconectar", "Disconnect")}
                 </button>
               )}
             </div>
 
             {[
-              { channel_type: "whatsapp", provider: "meta", title: "WhatsApp (Meta)", desc: "Configuracion asistida con Meta" },
-              { channel_type: "whatsapp", provider: "messagebird", variant: "legacy", title: "MessageBird WhatsApp (Legado)", desc: "Canal legado de MessageBird" },
-              { channel_type: "instagram", provider: "messagebird", title: "MessageBird Instagram", desc: "Mensajes de Instagram por MessageBird" },
-              { channel_type: "whatsapp", provider: "messagebird", title: "MessageBird WhatsApp", desc: "Workspace + channel en MessageBird" },
-              { channel_type: "whatsapp", provider: "twilio", title: "Twilio WhatsApp", desc: "Conecta tu remitente de WhatsApp en Twilio" },
-              { channel_type: "messenger", provider: "messagebird", title: "MessageBird Messenger", desc: "Facebook Messenger por MessageBird" },
+              { channel_type: "whatsapp", provider: "meta", title: "WhatsApp (Meta)", desc: tr("Configuracion asistida con Meta", "Assisted setup with Meta") },
+              { channel_type: "whatsapp", provider: "messagebird", variant: "legacy", title: tr("MessageBird WhatsApp (Legado)", "MessageBird WhatsApp (Legacy)"), desc: tr("Canal legado de MessageBird", "Legacy MessageBird channel") },
+              { channel_type: "instagram", provider: "messagebird", title: "MessageBird Instagram", desc: tr("Mensajes de Instagram por MessageBird", "Instagram messages via MessageBird") },
+              { channel_type: "whatsapp", provider: "messagebird", title: "MessageBird WhatsApp", desc: tr("Workspace + channel en MessageBird", "Workspace + channel in MessageBird") },
+              { channel_type: "whatsapp", provider: "twilio", title: "Twilio WhatsApp", desc: tr("Conecta tu remitente de WhatsApp en Twilio", "Connect your WhatsApp sender in Twilio") },
+              { channel_type: "messenger", provider: "messagebird", title: "MessageBird Messenger", desc: tr("Facebook Messenger por MessageBird", "Facebook Messenger via MessageBird") },
             ].map((x) => (
               <div key={`${x.channel_type}-${x.provider}-${(x as any).variant || "std"}`} style={{ borderRadius: 12, border: `1px solid ${C.border}`, background: C.card, padding: 12 }}>
                 <div style={{ fontWeight: 900, fontSize: 15 }}>{x.title}</div>
@@ -534,7 +560,7 @@ export default function AgentChannelsPage() {
                   }}
                   style={{ marginTop: 10, borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "8px 10px", cursor: "pointer", fontWeight: 800 }}
                 >
-                  Agregar conexión
+                  {tr("Agregar conexión", "Add connection")}
                 </button>
               </div>
             ))}
@@ -569,7 +595,7 @@ export default function AgentChannelsPage() {
           </select>
           <select value={form.assigned_agent_id} onChange={(e) => setForm((s) => ({ ...s, assigned_agent_id: e.target.value }))} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
             <option value="">Agente</option>
-            {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {agents.map((a) => <option key={a.id} value={a.id}>{prettyName(a.name)}</option>)}
           </select>
           <button onClick={() => void createChannel()} style={{ borderRadius: 10, border: "none", background: C.lime, color: "#111", fontWeight: 900, padding: "0 14px", cursor: "pointer" }}>Conectar</button>
         </div>
@@ -692,19 +718,19 @@ export default function AgentChannelsPage() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead style={{ background: C.card }}>
               <tr>
-                <th style={{ textAlign: "left", padding: 12 }}>Canal</th>
-                <th style={{ textAlign: "left", padding: 12 }}>Tipo</th>
-                <th style={{ textAlign: "left", padding: 12 }}>Proveedor</th>
-                <th style={{ textAlign: "left", padding: 12 }}>Numero</th>
-                <th style={{ textAlign: "left", padding: 12 }}>Agente</th>
-                <th style={{ textAlign: "left", padding: 12 }}>Estado</th>
-                <th style={{ textAlign: "left", padding: 12 }}>Credenciales</th>
+                <th style={{ textAlign: "left", padding: 12 }}>{tr("Canal", "Channel")}</th>
+                <th style={{ textAlign: "left", padding: 12 }}>{tr("Tipo", "Type")}</th>
+                <th style={{ textAlign: "left", padding: 12 }}>{tr("Proveedor", "Provider")}</th>
+                <th style={{ textAlign: "left", padding: 12 }}>{tr("Numero", "Number")}</th>
+                <th style={{ textAlign: "left", padding: 12 }}>{tr("Agente", "Agent")}</th>
+                <th style={{ textAlign: "left", padding: 12 }}>{tr("Estado", "Status")}</th>
+                <th style={{ textAlign: "left", padding: 12 }}>{tr("Credenciales", "Credentials")}</th>
                 <th style={{ textAlign: "left", padding: 12 }}>Webhook</th>
-                <th style={{ textAlign: "left", padding: 12 }}>Ultimo inbound</th>
+                <th style={{ textAlign: "left", padding: 12 }}>{tr("Ultimo inbound", "Last inbound")}</th>
               </tr>
             </thead>
             <tbody>
-              {!loading && rows.length === 0 && <tr><td colSpan={9} style={{ padding: 14, color: C.muted }}>Sin canales configurados.</td></tr>}
+              {!loading && rows.length === 0 && <tr><td colSpan={9} style={{ padding: 14, color: C.muted }}>{tr("Sin canales configurados.", "No channels configured.")}</td></tr>}
               {rows.map((r) => (
                 <tr key={r.id} style={{ borderTop: `1px solid ${C.border}` }}>
                   <td style={{ padding: 12 }}>{r.display_name}</td>
@@ -712,40 +738,40 @@ export default function AgentChannelsPage() {
                   <td style={{ padding: 12 }}>{r.provider}</td>
                   <td style={{ padding: 12 }}>
                     <select disabled={!canAdvanced} value={r.phone_number_id || ""} onChange={async (e) => { await patch(r.id, { phone_number_id: e.target.value || null }); await fetchData(); }} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white, opacity: canAdvanced ? 1 : 0.65 }}>
-                      <option value="">Sin numero</option>
+                       <option value="">{tr("Sin numero", "No number")}</option>
                       {numbers.map((n) => <option key={n.id} value={n.id}>{n.friendly_name || n.phone_number_e164}</option>)}
                     </select>
                   </td>
                   <td style={{ padding: 12 }}>
                     <select disabled={!canAdvanced} value={r.assigned_agent_id || ""} onChange={async (e) => { await patch(r.id, { assigned_agent_id: e.target.value || null }); await fetchData(); }} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white, opacity: canAdvanced ? 1 : 0.65 }}>
-                      <option value="">Sin agente</option>
-                      {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                       <option value="">{tr("Sin agente", "No agent")}</option>
+                      {agents.map((a) => <option key={a.id} value={a.id}>{prettyName(a.name)}</option>)}
                     </select>
                   </td>
                   <td style={{ padding: 12 }}>
                     <select disabled={!canAdvanced} value={r.status} onChange={async (e) => { await patch(r.id, { status: e.target.value }); await fetchData(); }} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white, opacity: canAdvanced ? 1 : 0.65 }}>
-                      <option value="connected">Conectado</option>
-                      <option value="disconnected">Desconectado</option>
-                      <option value="pending">Pendiente</option>
+                       <option value="connected">{tr("Conectado", "Connected")}</option>
+                       <option value="disconnected">{tr("Desconectado", "Disconnected")}</option>
+                       <option value="pending">{tr("Pendiente", "Pending")}</option>
                     </select>
                   </td>
                   <td style={{ padding: 12, color: C.muted, fontSize: 12 }}>
                     {(r.config && typeof r.config === "object")
-                      ? `${Object.keys(r.config).filter((k) => !k.startsWith("_")).length} campo(s)`
-                      : "0 campo(s)"}
+                      ? `${Object.keys(r.config).filter((k) => !k.startsWith("_")).length} ${tr("campo(s)", "field(s)")}`
+                      : `0 ${tr("campo(s)", "field(s)")}`}
                   </td>
                   <td style={{ padding: 12 }}>
                     {r.provider === "meta" && r.channel_type === "whatsapp" ? (
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ padding: "4px 8px", borderRadius: 999, fontSize: 11, fontWeight: 900, border: `1px solid ${C.border}`, background: (r.config as any)?.__meta_webhook_verified ? "rgba(16,185,129,0.16)" : "rgba(245,158,11,0.16)", color: (r.config as any)?.__meta_webhook_verified ? "#34d399" : "#fbbf24" }}>
-                          {(r.config as any)?.__meta_webhook_verified ? "Verificado" : "Pendiente"}
+                          {(r.config as any)?.__meta_webhook_verified ? tr("Verificado", "Verified") : tr("Pendiente", "Pending")}
                         </span>
                         <button
                           onClick={() => void recheckWebhook(r.id)}
                           disabled={verifyingId === r.id || !canAdvanced}
                           style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "4px 8px", fontSize: 11, cursor: "pointer", fontWeight: 800, opacity: canAdvanced ? 1 : 0.65 }}
                         >
-                          {verifyingId === r.id ? "Revisando..." : "Revalidar"}
+                          {verifyingId === r.id ? tr("Revisando...", "Checking...") : tr("Revalidar", "Revalidate")}
                         </button>
                       </div>
                     ) : (
@@ -767,7 +793,7 @@ export default function AgentChannelsPage() {
           <div onClick={() => { stopPolling(); setEvolutionModalOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 81, background: "rgba(2,6,23,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
             <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 620, borderRadius: 14, border: `1px solid ${C.border}`, background: C.card, padding: 16 }}>
               <div style={{ fontWeight: 900, fontSize: 24, marginBottom: 4 }}>WhatsApp QR (Evolution)</div>
-              <div style={{ color: C.muted, marginBottom: 12, fontSize: 13 }}>Esta conexion corresponde solo a Agentes. Escanea el QR con el numero que quieres usar para este producto.</div>
+              <div style={{ color: C.muted, marginBottom: 12, fontSize: 13 }}>{tr("Esta conexion corresponde solo a Agentes. Escanea el QR con el numero que quieres usar para este producto.", "This connection is only for Agents. Scan the QR with the number you want to use for this product.")}</div>
 
               {evolutionError && (
                 <div style={{ marginBottom: 10, border: `1px solid ${C.border}`, background: "rgba(239,68,68,0.12)", color: "#fca5a5", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
@@ -776,9 +802,9 @@ export default function AgentChannelsPage() {
               )}
 
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
-                <span style={{ fontSize: 13, color: C.muted }}>Estado</span>
+                <span style={{ fontSize: 13, color: C.muted }}>{tr("Estado", "Status")}</span>
                 <span style={{ padding: "4px 10px", borderRadius: 999, fontSize: 12, fontWeight: 900, background: evolutionStatus === "connected" ? "rgba(16,185,129,0.18)" : "rgba(245,158,11,0.16)", color: evolutionStatus === "connected" ? "#34d399" : "#fbbf24" }}>
-                  {evolutionStatus === "connected" ? "Conectado" : evolutionStatus === "pending" ? "Pendiente de escaneo" : "Desconectado"}
+                  {evolutionStatus === "connected" ? tr("Conectado", "Connected") : evolutionStatus === "pending" ? tr("Pendiente de escaneo", "Pending scan") : tr("Desconectado", "Disconnected")}
                 </span>
               </div>
 
@@ -788,23 +814,23 @@ export default function AgentChannelsPage() {
                 </div>
               ) : evolutionBusy ? (
                 <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 12, padding: 40, color: C.muted }}>
-                  Obteniendo QR...
+                  {tr("Obteniendo QR...", "Fetching QR...")}
                 </div>
               ) : (
                 <div style={{ marginBottom: 12, color: C.muted, fontSize: 13 }}>
-                  {evolutionStatus === "connected" ? "El numero ya esta conectado." : "Aun no hay QR disponible. Pulsa refrescar para reintentar."}
+                  {evolutionStatus === "connected" ? tr("El numero ya esta conectado.", "The number is already connected.") : tr("Aun no hay QR disponible. Pulsa refrescar para reintentar.", "There is no QR available yet. Click refresh to retry.")}
                 </div>
               )}
 
               <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.6, marginBottom: 12 }}>
-                Pasos: 1) Abre WhatsApp en tu telefono. 2) Ve a Dispositivos vinculados. 3) Escanea este QR. 4) Espera estado Conectado.
+                {tr("Pasos: 1) Abre WhatsApp en tu telefono. 2) Ve a Dispositivos vinculados. 3) Escanea este QR. 4) Espera estado Conectado.", "Steps: 1) Open WhatsApp on your phone. 2) Go to Linked devices. 3) Scan this QR. 4) Wait for Connected status.")}
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
                 <button onClick={() => void fetchEvolutionStatus()} style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "9px 12px", cursor: "pointer", fontWeight: 800 }}>
-                  Refrescar
+                  {tr("Refrescar", "Refresh")}
                 </button>
-                <button onClick={() => { stopPolling(); setEvolutionModalOpen(false); }} style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "9px 12px", cursor: "pointer" }}>Cerrar</button>
+                <button onClick={() => { stopPolling(); setEvolutionModalOpen(false); }} style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "9px 12px", cursor: "pointer" }}>{tr("Cerrar", "Close")}</button>
               </div>
             </div>
           </div>
@@ -835,7 +861,7 @@ export default function AgentChannelsPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <select value={assistDetails.assigned_agent_id || ""} onChange={(e) => setAssistDetails((s) => ({ ...s, assigned_agent_id: e.target.value }))} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
                     <option value="">Asignar agente (opcional)</option>
-                    {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    {agents.map((a) => <option key={a.id} value={a.id}>{prettyName(a.name)}</option>)}
                   </select>
                   <input value={assistDetails.channel_name || ""} onChange={(e) => setAssistDetails((s) => ({ ...s, channel_name: e.target.value }))} placeholder="Nombre del canal" style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }} />
                   <input value={assistDetails.workspace_id || ""} onChange={(e) => setAssistDetails((s) => ({ ...s, workspace_id: e.target.value }))} placeholder="ID de Workspace" style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }} />

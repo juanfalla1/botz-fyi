@@ -26,11 +26,23 @@ type NumberRow = {
 
 export default function AgentNumbersPage() {
   const router = useRouter();
+  const [language, setLanguage] = useState<"es" | "en">("es");
   const [rows, setRows] = useState<NumberRow[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ friendly_name: "", phone_number_e164: "", provider: "twilio", assigned_agent_id: "" });
+
+  const tr = (es: string, en: string) => (language === "en" ? en : es);
+  const prettyName = (raw: string) => {
+    const v = String(raw || "").trim();
+    if (!v.includes("_")) return v;
+    return v
+      .split("_")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -49,6 +61,20 @@ export default function AgentNumbersPage() {
   };
 
   useEffect(() => { void fetchData(); }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") setLanguage(saved);
+
+    const onLanguageChange = (evt: Event) => {
+      const next = String((evt as CustomEvent<string>)?.detail || "").toLowerCase();
+      if (next === "es" || next === "en") setLanguage(next);
+    };
+
+    window.addEventListener("botz-language-change", onLanguageChange as EventListener);
+    return () => window.removeEventListener("botz-language-change", onLanguageChange as EventListener);
+  }, []);
 
   const createNumber = async () => {
     try {
@@ -79,42 +105,42 @@ export default function AgentNumbersPage() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: C.bg, color: C.white, fontFamily: "Inter,-apple-system,sans-serif" }}>
       <div style={{ height: 56, backgroundColor: C.dark, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 18px", gap: 12 }}>
-        <button onClick={() => router.push("/start/agents")} style={{ background: "none", border: "none", color: C.lime, cursor: "pointer", fontWeight: 900 }}>← Volver</button>
-        <div style={{ fontWeight: 900, fontSize: 16 }}>Numeros telefonicos</div>
+        <button onClick={() => router.push("/start/agents")} style={{ background: "none", border: "none", color: C.lime, cursor: "pointer", fontWeight: 900 }}>{tr("← Volver", "← Back")}</button>
+        <div style={{ fontWeight: 900, fontSize: 16 }}>{tr("Numeros telefonicos", "Phone numbers")}</div>
       </div>
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "22px 18px 36px" }}>
-        <div style={{ color: C.muted, marginBottom: 14 }}>Configura numeros para llamadas reales y asignalos a tus agentes de voz.</div>
+        <div style={{ color: C.muted, marginBottom: 14 }}>{tr("Configura numeros para llamadas reales y asignalos a tus agentes de voz.", "Configure numbers for real calls and assign them to your voice agents.")}</div>
         {error && <div style={{ marginBottom: 12, border: `1px solid ${C.border}`, background: "rgba(239,68,68,0.12)", color: "#fca5a5", padding: "10px 12px", borderRadius: 10 }}>{error}</div>}
 
         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.2fr .9fr 1.2fr auto", gap: 10, marginBottom: 14, padding: 14, borderRadius: 14, border: `1px solid ${C.border}`, background: C.card }}>
-          <input value={form.friendly_name} onChange={(e) => setForm((s) => ({ ...s, friendly_name: e.target.value }))} placeholder="Nombre (ej: Linea comercial)" style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }} />
+          <input value={form.friendly_name} onChange={(e) => setForm((s) => ({ ...s, friendly_name: e.target.value }))} placeholder={tr("Nombre (ej: Linea comercial)", "Name (e.g. Sales line)")} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }} />
           <input value={form.phone_number_e164} onChange={(e) => setForm((s) => ({ ...s, phone_number_e164: e.target.value }))} placeholder="+573001234567" style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }} />
           <select value={form.provider} onChange={(e) => setForm((s) => ({ ...s, provider: e.target.value }))} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
             <option value="twilio">Twilio</option>
             <option value="sip">SIP</option>
-            <option value="other">Otro</option>
+            <option value="other">{tr("Otro", "Other")}</option>
           </select>
           <select value={form.assigned_agent_id} onChange={(e) => setForm((s) => ({ ...s, assigned_agent_id: e.target.value }))} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
-            <option value="">Sin asignar</option>
-            {agents.filter((a) => a.type !== "flow").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            <option value="">{tr("Sin asignar", "Unassigned")}</option>
+            {agents.filter((a) => a.type !== "flow").map((a) => <option key={a.id} value={a.id}>{prettyName(a.name)}</option>)}
           </select>
-          <button onClick={() => void createNumber()} style={{ borderRadius: 10, border: "none", background: C.lime, color: "#111", fontWeight: 900, padding: "0 14px", cursor: "pointer" }}>Agregar</button>
+          <button onClick={() => void createNumber()} style={{ borderRadius: 10, border: "none", background: C.lime, color: "#111", fontWeight: 900, padding: "0 14px", cursor: "pointer" }}>{tr("Agregar", "Add")}</button>
         </div>
 
         <div style={{ borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead style={{ background: C.card }}>
               <tr>
-                <th style={{ textAlign: "left", padding: 12 }}>Nombre</th>
-                <th style={{ textAlign: "left", padding: 12 }}>Numero</th>
-                <th style={{ textAlign: "left", padding: 12 }}>Proveedor</th>
-                <th style={{ textAlign: "left", padding: 12 }}>Agente</th>
-                <th style={{ textAlign: "left", padding: 12 }}>Estado</th>
+                <th style={{ textAlign: "left", padding: 12 }}>{tr("Nombre", "Name")}</th>
+                <th style={{ textAlign: "left", padding: 12 }}>{tr("Numero", "Number")}</th>
+                <th style={{ textAlign: "left", padding: 12 }}>{tr("Proveedor", "Provider")}</th>
+                <th style={{ textAlign: "left", padding: 12 }}>{tr("Agente", "Agent")}</th>
+                <th style={{ textAlign: "left", padding: 12 }}>{tr("Estado", "Status")}</th>
               </tr>
             </thead>
             <tbody>
-              {!loading && rows.length === 0 && <tr><td colSpan={5} style={{ padding: 14, color: C.muted }}>Sin numeros configurados.</td></tr>}
+              {!loading && rows.length === 0 && <tr><td colSpan={5} style={{ padding: 14, color: C.muted }}>{tr("Sin numeros configurados.", "No numbers configured.")}</td></tr>}
               {rows.map((r) => (
                 <tr key={r.id} style={{ borderTop: `1px solid ${C.border}` }}>
                   <td style={{ padding: 12 }}>{r.friendly_name || "-"}</td>
@@ -122,16 +148,16 @@ export default function AgentNumbersPage() {
                   <td style={{ padding: 12 }}>{r.provider}</td>
                   <td style={{ padding: 12 }}>
                     <select value={r.assigned_agent_id || ""} onChange={async (e) => { await patchRow(r.id, { assigned_agent_id: e.target.value || null }); await fetchData(); }} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
-                      <option value="">Sin asignar</option>
-                      {agents.filter((a) => a.type !== "flow").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      <option value="">{tr("Sin asignar", "Unassigned")}</option>
+                      {agents.filter((a) => a.type !== "flow").map((a) => <option key={a.id} value={a.id}>{prettyName(a.name)}</option>)}
                     </select>
                   </td>
                   <td style={{ padding: 12 }}>
                     <select value={r.status} onChange={async (e) => { await patchRow(r.id, { status: e.target.value }); await fetchData(); }} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
-                      <option value="verified">Verificado</option>
-                      <option value="purchased">Comprado</option>
-                      <option value="pending">Pendiente</option>
-                      <option value="inactive">Inactivo</option>
+                      <option value="verified">{tr("Verificado", "Verified")}</option>
+                      <option value="purchased">{tr("Comprado", "Purchased")}</option>
+                      <option value="pending">{tr("Pendiente", "Pending")}</option>
+                      <option value="inactive">{tr("Inactivo", "Inactive")}</option>
                     </select>
                   </td>
                 </tr>

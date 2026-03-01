@@ -60,6 +60,26 @@ export default function AgentStudio() {
   const [usageHoverIdx, setUsageHoverIdx] = useState<number | null>(null);
   const [renameModal, setRenameModal] = useState<{ id: string; current: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [language, setLanguage] = useState<"es" | "en">("es");
+
+  const tr = (es: string, en: string) => (language === "en" ? en : es);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const saved = window.localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") setLanguage(saved);
+
+    const onLanguageChange = (evt: Event) => {
+      const next = String((evt as CustomEvent<string>)?.detail || "").toLowerCase();
+      if (next === "es" || next === "en") setLanguage(next);
+    };
+
+    window.addEventListener("botz-language-change", onLanguageChange as EventListener);
+    return () => {
+      window.removeEventListener("botz-language-change", onLanguageChange as EventListener);
+    };
+  }, []);
 
   // ✅ IMPORTANTE: Agentes requiere login COMPLETAMENTE independiente
   // Solo comparte sesión si es específicamente de Agentes
@@ -371,12 +391,12 @@ export default function AgentStudio() {
     };
   }, [user?.id]);
 
-  const cards = [
-    { id: "voice",     title: "Crear Agente de Voz"  },
-    { id: "text",      title: "Crear Agente de Texto" },
-    { id: "flow",      title: "Crear Flujo"           },
-    { id: "notetaker", title: "Configurar Copiloto IA"  },
-  ];
+  const cards = useMemo(() => ([
+    { id: "voice",     title: tr("Crear Agente de Voz", "Create Voice Agent")  },
+    { id: "text",      title: tr("Crear Agente de Texto", "Create Text Agent") },
+    { id: "flow",      title: tr("Crear Flujo", "Create Flow")                 },
+    { id: "notetaker", title: tr("Configurar Copiloto IA", "Set Up AI Copilot") },
+  ]), [language]);
 
   const templates = [
     {
@@ -667,10 +687,28 @@ export default function AgentStudio() {
   };
 
   const introForTemplate = (tpl: Template, userName: string) => {
-    const name = String(userName || "Cliente").trim() || "Cliente";
-    if (tpl.id === "lia") return `Hola ${name}, bienvenido a Botz. Soy Lía, asesora de calificacion comercial. ¿En que te puedo ayudar hoy?`;
-    if (tpl.id === "alex") return `Hola ${name}, te habla Bruno de Botz. Soy asesor comercial y puedo ayudarte a evaluar la mejor solucion para tu empresa. ¿Que necesitas resolver hoy?`;
-    return `Hola ${name}, bienvenido a Botz. Soy Sofía, recepcionista virtual. Te ayudo a resolver tu consulta y dirigirte al area correcta. ¿Como puedo ayudarte?`;
+    const fallbackName = language === "en" ? "Customer" : "Cliente";
+    const name = String(userName || fallbackName).trim() || fallbackName;
+    if (tpl.id === "lia") {
+      return language === "en"
+        ? `Hi ${name}, welcome to Botz. I'm Lia, your lead qualification advisor. How can I help you today?`
+        : `Hola ${name}, bienvenido a Botz. Soy Lía, asesora de calificacion comercial. ¿En que te puedo ayudar hoy?`;
+    }
+    if (tpl.id === "alex") {
+      return language === "en"
+        ? `Hi ${name}, this is Bruno from Botz. I'm a sales advisor and I can help you evaluate the best solution for your company. What do you need to solve today?`
+        : `Hola ${name}, te habla Bruno de Botz. Soy asesor comercial y puedo ayudarte a evaluar la mejor solucion para tu empresa. ¿Que necesitas resolver hoy?`;
+    }
+    return language === "en"
+      ? `Hi ${name}, welcome to Botz. I'm Sofia, your virtual receptionist. I can route your request to the right team. How can I help you?`
+      : `Hola ${name}, bienvenido a Botz. Soy Sofía, recepcionista virtual. Te ayudo a resolver tu consulta y dirigirte al area correcta. ¿Como puedo ayudarte?`;
+  };
+
+  const templateCategory = (tpl: Template) => {
+    if (language !== "en") return tpl.cat;
+    if (tpl.id === "lia") return "Inbound lead qualification";
+    if (tpl.id === "alex") return "Outbound cold calls";
+    return "Receptionist assistant";
   };
 
   const sendPreviewTurn = async (tpl: Template, history: { role: "assistant" | "user"; content: string }[], payload: { text?: string; audio?: Blob; interrupted?: boolean }) => {
@@ -900,7 +938,7 @@ export default function AgentStudio() {
       recorder.start();
       setSimRecording(true);
     } catch {
-      setSimError("No se pudo acceder al microfono");
+      setSimError(tr("No se pudo acceder al microfono", "Could not access the microphone"));
     }
   };
 
@@ -922,7 +960,7 @@ export default function AgentStudio() {
         }
       }
 
-      const next = inputs.map((d, i) => ({ id: d.deviceId, label: d.label || `Microfono ${i + 1}` }));
+      const next = inputs.map((d, i) => ({ id: d.deviceId, label: d.label || `${tr("Microfono", "Microphone")} ${i + 1}` }));
       setMicDevices(next);
       setSelectedMicId((prev) => (next.some((m) => m.id === prev) ? prev : (next[0]?.id || "")));
     } finally {
@@ -945,15 +983,15 @@ export default function AgentStudio() {
   const listType = (searchParams.get("type") || "").toLowerCase();
 
   const startRoutes = [
-    { label: "Inicio general", href: "/start/agents", hint: "Panel principal de Agents" },
-    { label: "Agentes IA", href: "/start/agents", hint: "Listado de agentes" },
-    { label: "Numeros telefonicos", href: "/start/agents/numbers", hint: "Lineas para voz real" },
-    { label: "Canales", href: "/start/agents/channels", hint: "WhatsApp, webchat y voz" },
-    { label: "Crear agente voz", href: "/start/agents/create?type=voice", hint: "Asistente telefonico" },
-    { label: "Crear agente texto", href: "/start/agents/create?type=text", hint: "Chat y WhatsApp" },
-    { label: "Copiloto IA", href: "/start/agents/notetaker", hint: "Notas, seguimiento y acciones" },
-    { label: "Flow templates", href: "/start/flows/templates", hint: "Automatizaciones" },
-    { label: "Planes y creditos", href: "/start/agents/plans", hint: "Facturacion Agents" },
+    { label: tr("Inicio general", "Main home"), href: "/start/agents", hint: tr("Panel principal de Agents", "Agents main dashboard") },
+    { label: tr("Agentes IA", "AI Agents"), href: "/start/agents", hint: tr("Listado de agentes", "Agents list") },
+    { label: tr("Numeros telefonicos", "Phone numbers"), href: "/start/agents/numbers", hint: tr("Lineas para voz real", "Real voice lines") },
+    { label: tr("Canales", "Channels"), href: "/start/agents/channels", hint: tr("WhatsApp, webchat y voz", "WhatsApp, webchat and voice") },
+    { label: tr("Crear agente voz", "Create voice agent"), href: "/start/agents/create?type=voice", hint: tr("Asistente telefonico", "Phone assistant") },
+    { label: tr("Crear agente texto", "Create text agent"), href: "/start/agents/create?type=text", hint: tr("Chat y WhatsApp", "Chat and WhatsApp") },
+    { label: tr("Copiloto IA", "AI Copilot"), href: "/start/agents/notetaker", hint: tr("Notas, seguimiento y acciones", "Notes, follow-ups and actions") },
+    { label: tr("Flow templates", "Flow templates"), href: "/start/flows/templates", hint: tr("Automatizaciones", "Automations") },
+    { label: tr("Planes y creditos", "Plans and credits"), href: "/start/agents/plans", hint: tr("Facturacion Agents", "Agents billing") },
   ];
 
   const filtered = agents
@@ -963,7 +1001,13 @@ export default function AgentStudio() {
     a.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const listTitle = listType === "voice" ? "Agentes de Voz" : listType === "text" ? "Agentes de Texto" : listType === "flow" ? "Flujos" : "Actividad reciente";
+  const listTitle = listType === "voice"
+    ? tr("Agentes de Voz", "Voice Agents")
+    : listType === "text"
+      ? tr("Agentes de Texto", "Text Agents")
+      : listType === "flow"
+        ? tr("Flujos", "Flows")
+        : tr("Actividad reciente", "Recent activity");
 
   const creditsUsedFromAgents = useMemo(() => {
     return (agents || []).reduce((sum, a) => sum + (Number(a.credits_used || 0) || 0), 0);
@@ -999,14 +1043,14 @@ export default function AgentStudio() {
 
   const trialInfo = useMemo(() => {
     if (String(subStatus) !== "trial") return { label: "", daysLeft: null as number | null, expired: false };
-    if (!trialEnd) return { label: "Trial activo", daysLeft: null as number | null, expired: false };
+    if (!trialEnd) return { label: tr("Trial activo", "Trial active"), daysLeft: null as number | null, expired: false };
     const end = new Date(trialEnd);
-    if (Number.isNaN(end.getTime())) return { label: "Trial activo", daysLeft: null as number | null, expired: false };
+    if (Number.isNaN(end.getTime())) return { label: tr("Trial activo", "Trial active"), daysLeft: null as number | null, expired: false };
     const msLeft = end.getTime() - Date.now();
     const daysLeft = Math.ceil(msLeft / (24 * 60 * 60 * 1000));
-    if (daysLeft <= 0) return { label: "Trial terminado", daysLeft: 0, expired: true };
-    return { label: `Trial: ${daysLeft} dias restantes`, daysLeft, expired: false };
-  }, [subStatus, trialEnd]);
+    if (daysLeft <= 0) return { label: tr("Trial terminado", "Trial ended"), daysLeft: 0, expired: true };
+    return { label: language === "en" ? `Trial: ${daysLeft} days left` : `Trial: ${daysLeft} dias restantes`, daysLeft, expired: false };
+  }, [subStatus, trialEnd, language]);
 
   const isBlocked = useMemo(() => {
     if (String(subStatus) === "blocked") return true;
@@ -1021,6 +1065,19 @@ export default function AgentStudio() {
     } catch {
       return String(Math.max(0, Math.floor(n || 0)));
     }
+  };
+
+  const dateLocale = language === "en" ? "en-US" : "es-ES";
+
+  const prettyName = (raw: string) => {
+    const v = String(raw || "").trim();
+    if (!v) return raw;
+    if (!v.includes("_")) return v;
+    return v
+      .split("_")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
   };
 
   const formatCredits = (value: number) => {
@@ -1127,7 +1184,7 @@ export default function AgentStudio() {
             style={{ ...flex({ alignItems: "center", gap: 10 }), padding: "10px 12px", borderRadius: 12, marginBottom: 6, cursor: "pointer", width: "100%", backgroundColor: "transparent", border: "none", textAlign: "left" }}
           >
             <span style={{ width: 22, textAlign: "center" }}>🏠</span>
-            <span style={{ color: C.muted, fontSize: 14, fontWeight: 800 }}>Inicio</span>
+            <span style={{ color: C.muted, fontSize: 14, fontWeight: 800 }}>{tr("Inicio", "Home")}</span>
             <span style={{ marginLeft: "auto", color: C.dim, fontSize: 12, fontWeight: 900 }}>{homeRoutesOpen ? "▾" : "▸"}</span>
           </button>
 
@@ -1148,7 +1205,7 @@ export default function AgentStudio() {
 
           <div style={{ ...flex({ alignItems: "center", gap: 10 }), padding: "10px 12px", borderRadius: 12, backgroundColor: `${C.lime}14`, cursor: "default", border: `1px solid ${C.border}` }}>
             <span style={{ width: 22, textAlign: "center" }}>🤖</span>
-            <span style={{ color: C.white, fontSize: 14, fontWeight: 900 }}>Agentes</span>
+            <span style={{ color: C.white, fontSize: 14, fontWeight: 900 }}>{tr("Agentes", "Agents")}</span>
             <span style={{ marginLeft: "auto", fontSize: 11, padding: "2px 8px", borderRadius: 999, backgroundColor: "rgba(255,255,255,0.06)", border: `1px solid ${C.border}`, color: C.muted, fontWeight: 900 }}>BETA</span>
           </div>
         </nav>
@@ -1158,12 +1215,12 @@ export default function AgentStudio() {
           <div style={{ borderRadius: 16, padding: 16, background: "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)", border: `1px solid ${C.border}` }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
               <div>
-                <div style={{ color: C.dim, fontSize: 11, fontWeight: 900, letterSpacing: 0.6 }}>PLAN</div>
+                <div style={{ color: C.dim, fontSize: 11, fontWeight: 900, letterSpacing: 0.6 }}>{tr("PLAN", "PLAN")}</div>
                 <div style={{ fontWeight: 900, fontSize: 16, marginTop: 4 }}>{planInfo.name}</div>
-                <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{planInfo.price} / mes</div>
+                <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{planInfo.price} {tr("/ mes", "/ month")}</div>
               </div>
               <div style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${C.border}`, backgroundColor: "rgba(0,0,0,0.18)", color: C.lime, fontWeight: 900, fontSize: 12 }}>
-                {fmt(baseCreditsLimit)} creditos
+                {fmt(baseCreditsLimit)} {tr("creditos", "credits")}
               </div>
             </div>
 
@@ -1197,7 +1254,7 @@ export default function AgentStudio() {
             </div>
 
             <div style={{ ...flex({ justifyContent: "space-between" }), marginBottom: 6 }}>
-              <span style={{ color: C.dim, fontSize: 12 }}>Creditos usados</span>
+              <span style={{ color: C.dim, fontSize: 12 }}>{tr("Creditos usados", "Credits used")}</span>
               <span style={{ fontSize: 12, fontWeight: 900, color: C.white }}>{formatCredits(creditsUsedTotal)} / {formatCredits(baseCreditsLimit)}</span>
             </div>
             <div style={{ height: 8, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 999, overflow: "hidden", border: `1px solid ${C.border}` }}>
@@ -1215,13 +1272,13 @@ export default function AgentStudio() {
             {(showWarn80 || showWarn90) && (
               <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, border: `1px solid ${showWarn90 ? "rgba(239,68,68,0.45)" : "rgba(245,158,11,0.45)"}`, background: showWarn90 ? "rgba(239,68,68,0.10)" : "rgba(245,158,11,0.10)" }}>
                 <div style={{ color: showWarn90 ? "#fca5a5" : "#fcd34d", fontSize: 12, fontWeight: 900 }}>
-                  {showWarn90 ? "Te quedan muy pocos creditos (90%+ usado)" : "Vas por 80% de consumo"}
+                  {showWarn90 ? tr("Te quedan muy pocos creditos (90%+ usado)", "Very few credits left (90%+ used)") : tr("Vas por 80% de consumo", "You are at 80% usage")}
                 </div>
                 <button
                   onClick={() => router.push("/start/agents/plans")}
                   style={{ marginTop: 8, width: "100%", padding: "9px 0", borderRadius: 10, border: `1px solid ${C.lime}`, background: "transparent", color: C.lime, fontWeight: 900, cursor: "pointer", fontSize: 12 }}
                 >
-                  Recargar ahora
+                  {tr("Recargar ahora", "Top up now")}
                 </button>
               </div>
             )}
@@ -1229,13 +1286,17 @@ export default function AgentStudio() {
             {!allowOverage && creditsUsedTotal >= baseCreditsLimit && creditsUsedTotal < hardCreditsLimit && (
               <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(16,185,129,0.45)", background: "rgba(16,185,129,0.10)" }}>
                 <div style={{ color: "#6ee7b7", fontSize: 12, fontWeight: 900 }}>
-                  Estas en ventana de gracia del {Math.round(graceRatio * 100)}%. Recarga para evitar pausa.
+                  {language === "en"
+                    ? `You are in the ${Math.round(graceRatio * 100)}% grace window. Top up to avoid pause.`
+                    : `Estas en ventana de gracia del ${Math.round(graceRatio * 100)}%. Recarga para evitar pausa.`}
                 </div>
               </div>
             )}
 
             <div style={{ marginTop: 10, color: C.muted, fontSize: 12, lineHeight: 1.45 }}>
-              Incluye hasta {entLimits?.max_agents ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} agente(s), {entLimits?.max_channels ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} canal(es) y {allowOverage ? "overage habilitado." : "sin overage."}
+              {language === "en"
+                ? `Includes up to ${entLimits?.max_agents ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} agent(s), ${entLimits?.max_channels ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} channel(s), and ${allowOverage ? "overage enabled." : "no overage."}`
+                : `Incluye hasta ${entLimits?.max_agents ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} agente(s), ${entLimits?.max_channels ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} canal(es) y ${allowOverage ? "overage habilitado." : "sin overage."}`}
             </div>
 
             {trialInfo.label && (
@@ -1248,7 +1309,7 @@ export default function AgentStudio() {
               onClick={() => router.push("/start/agents/plans")}
               style={{ width: "100%", marginTop: 12, padding: "10px 0", borderRadius: 12, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 900, fontSize: 13, cursor: "pointer" }}
             >
-              Cambiar plan
+              {tr("Cambiar plan", "Change plan")}
             </button>
           </div>
         </div>
@@ -1270,7 +1331,7 @@ export default function AgentStudio() {
             }}
             style={{ width: "100%", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "8px 10px", cursor: "pointer", fontSize: 12, fontWeight: 800 }}
           >
-            Cerrar sesion
+            {tr("Cerrar sesion", "Sign out")}
           </button>
         </div>
       </aside>
@@ -1288,18 +1349,18 @@ export default function AgentStudio() {
          {isBlocked && (
            <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
              <div style={{ width: "92vw", maxWidth: 560, borderRadius: 18, border: `1px solid ${C.border}`, background: "linear-gradient(180deg, rgba(21,24,31,0.98), rgba(17,19,24,0.98))", padding: 18, boxShadow: "0 40px 120px rgba(0,0,0,0.6)" }}>
-               <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 6 }}>Acceso pausado</div>
+               <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 6 }}>{tr("Acceso pausado", "Access paused")}</div>
                 <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.55 }}>
                   {!allowOverage && creditsUsedTotal >= hardCreditsLimit
-                    ? "Agotaste tus creditos y la ventana de gracia. Recarga para reactivar."
-                    : (trialInfo.expired ? "Tu trial de 3 dias termino." : "Tu cuenta esta bloqueada.")}
+                    ? tr("Agotaste tus creditos y la ventana de gracia. Recarga para reactivar.", "You exhausted your credits and grace window. Top up to reactivate.")
+                    : (trialInfo.expired ? tr("Tu trial de 3 dias termino.", "Your 3-day trial ended.") : tr("Tu cuenta esta bloqueada.", "Your account is blocked."))}
                 </div>
                 <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
                   <button
                     onClick={() => router.push("/start/agents/plans")}
                     style={{ flex: 1, padding: "12px 14px", borderRadius: 12, border: "none", backgroundColor: C.lime, color: "#111", fontWeight: 900, cursor: "pointer" }}
                   >
-                    Recargar ahora
+                    {tr("Recargar ahora", "Top up now")}
                   </button>
                  <button
                    onClick={async () => {
@@ -1308,8 +1369,8 @@ export default function AgentStudio() {
                    }}
                    style={{ flex: 1, padding: "12px 14px", borderRadius: 12, border: `1px solid ${C.border}`, backgroundColor: "transparent", color: C.white, fontWeight: 900, cursor: "pointer" }}
                  >
-                   Cerrar sesion
-                 </button>
+                   {tr("Cerrar sesion", "Sign out")}
+                  </button>
                </div>
              </div>
            </div>
@@ -1324,21 +1385,21 @@ export default function AgentStudio() {
                 onClick={() => setMobileSidebarOpen(true)}
                 style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.65)", color: C.white, padding: "10px 12px", cursor: "pointer", fontSize: 13, fontWeight: 900 }}
               >
-                ☰ Menu
+                {tr("☰ Menu", "☰ Menu")}
               </button>
               <button
                 onClick={() => router.push("/start")}
                 style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, padding: "10px 12px", cursor: "pointer", fontSize: 12, fontWeight: 800 }}
               >
-                Volver
+                {tr("Volver", "Back")}
               </button>
             </div>
           )}
 
           <h1 style={{ fontSize: isMobile ? 24 : 30, fontWeight: 800, margin: "0 0 6px" }}>
-            Hola {user?.email?.split("@")[0] || (authLoading ? "..." : "Usuario")}
+            {tr("Hola", "Hi")} {user?.email?.split("@")[0] || (authLoading ? "..." : tr("Usuario", "User"))}
           </h1>
-          <p style={{ color: C.muted, fontSize: isMobile ? 14 : 16, margin: "0 0 24px" }}>¿Qué quieres crear hoy?</p>
+          <p style={{ color: C.muted, fontSize: isMobile ? 14 : 16, margin: "0 0 24px" }}>{tr("¿Qué quieres crear hoy?", "What do you want to create today?")}</p>
 
           {/* 4-col creation cards */}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4,1fr)", gap: 18, marginBottom: 36 }}>
@@ -1367,7 +1428,7 @@ export default function AgentStudio() {
           </div>
 
           {/* templates */}
-          <p style={{ color: "#b8c3d9", fontSize: 15, margin: "0 0 14px", letterSpacing: 0.2 }}>○ inicia con casos de uso populares</p>
+          <p style={{ color: "#b8c3d9", fontSize: 15, margin: "0 0 14px", letterSpacing: 0.2 }}>{tr("○ inicia con casos de uso populares", "○ or start with popular use cases")}</p>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: 12, marginBottom: 32 }}>
             {templates.map(t => (
               <div
@@ -1381,8 +1442,8 @@ export default function AgentStudio() {
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 900, fontSize: 15, lineHeight: 1.1 }}>{t.name}</div>
-                  <div style={{ color: C.muted, fontSize: 14, marginTop: 6 }}>{t.cat}</div>
-                  <div style={{ color: C.dim, fontSize: 12, marginTop: 4 }}>{t.gender === "f" ? "Voz femenina" : "Voz masculina"}</div>
+                  <div style={{ color: C.muted, fontSize: 14, marginTop: 6 }}>{templateCategory(t)}</div>
+                  <div style={{ color: C.dim, fontSize: 12, marginTop: 4 }}>{t.gender === "f" ? tr("Voz femenina", "Female voice") : tr("Voz masculina", "Male voice")}</div>
                 </div>
                 <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                   <button
@@ -1393,7 +1454,7 @@ export default function AgentStudio() {
                     }}
                     style={{ borderRadius: 10, border: `1px solid ${playingTemplateId === t.id ? "rgba(0,150,255,0.65)" : "rgba(89,108,141,0.45)"}`, background: playingTemplateId === t.id ? "rgba(0,150,255,0.16)" : "transparent", color: playingTemplateId === t.id ? "#66c6ff" : C.white, padding: "8px 10px", cursor: "pointer", fontSize: 12, fontWeight: 800 }}
                   >
-                    {playingTemplateId === t.id ? "Detener" : "Probar voz"}
+                    {playingTemplateId === t.id ? tr("Detener", "Stop") : tr("Probar voz", "Test voice")}
                   </button>
                   <button
                     onClick={(e) => {
@@ -1402,7 +1463,7 @@ export default function AgentStudio() {
                     }}
                     style={{ borderRadius: 10, border: "none", background: `${C.lime}cc`, color: "#111", padding: "8px 10px", cursor: "pointer", fontSize: 12, fontWeight: 900 }}
                   >
-                    Usar
+                    {tr("Usar", "Use")}
                   </button>
                 </div>
               </div>
@@ -1412,18 +1473,18 @@ export default function AgentStudio() {
           {/* usage dashboard */}
           <div style={{ marginBottom: 26, borderRadius: 14, border: "1px solid rgba(56,189,248,0.22)", background: "linear-gradient(180deg, rgba(24,30,44,0.98), rgba(20,25,38,0.98))", overflow: "hidden" }}>
               <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(148,163,184,0.18)", display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <div style={{ color: C.white, fontSize: isMobile ? 18 : 24, fontWeight: 900 }}>Creditos usados: {fmt(entCreditsUsed || 0)}</div>
+              <div style={{ color: C.white, fontSize: isMobile ? 18 : 24, fontWeight: 900 }}>{tr("Creditos usados", "Credits used")}: {fmt(entCreditsUsed || 0)}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, width: isMobile ? "100%" : undefined, justifyContent: isMobile ? "space-between" : undefined }}>
                 <span style={{ color: C.muted, fontSize: 12 }}>
                   {usageChart.labels[0] || "-"} - {usageChart.labels[usageChart.labels.length - 1] || "-"}
                 </span>
-                <button onClick={() => fetchUsage()} style={{ border: "1px solid rgba(148,163,184,0.25)", background: "transparent", color: C.white, borderRadius: 8, padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>Actualizar</button>
+                <button onClick={() => fetchUsage()} style={{ border: "1px solid rgba(148,163,184,0.25)", background: "transparent", color: C.white, borderRadius: 8, padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>{tr("Actualizar", "Refresh")}</button>
               </div>
             </div>
 
             <div style={{ padding: 16 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 26, marginBottom: 10 }}>
-                <span style={{ color: "#a78bfa", fontSize: 13, fontWeight: 800 }}>● Agentes de Voz</span>
+                <span style={{ color: "#a78bfa", fontSize: 13, fontWeight: 800 }}>● {tr("Agentes de Voz", "Voice Agents")}</span>
                 <span style={{ color: "#34d399", fontSize: 13, fontWeight: 800 }}>● Flow Studio</span>
               </div>
 
@@ -1512,7 +1573,7 @@ export default function AgentStudio() {
                             <rect x={tx - 86} y={ty} width={172} height={72} rx={8} fill="rgba(3,7,18,0.96)" stroke="rgba(148,163,184,0.35)" />
                             <text x={tx - 72} y={ty + 18} fill="#ffffff" fontSize="12" fontWeight="700">{usageChart.labels[i]}</text>
                             <rect x={tx - 72} y={ty + 28} width={10} height={10} fill="#a78bfa" />
-                            <text x={tx - 58} y={ty + 37} fill="#e5e7eb" fontSize="12">Agentes de Voz: {fmt(v)}</text>
+                             <text x={tx - 58} y={ty + 37} fill="#e5e7eb" fontSize="12">{tr("Agentes de Voz", "Voice Agents")}: {fmt(v)}</text>
                             <rect x={tx - 72} y={ty + 46} width={10} height={10} fill="#34d399" />
                             <text x={tx - 58} y={ty + 55} fill="#e5e7eb" fontSize="12">Flow Studio: {fmt(f)}</text>
                           </g>
@@ -1524,11 +1585,11 @@ export default function AgentStudio() {
               </div>
 
               <div style={{ marginTop: 10, color: C.muted, fontSize: 12 }}>
-                Total acumulado real: <span style={{ color: C.white, fontWeight: 900 }}>{fmt(entCreditsUsed || 0)} cr</span>
+                {tr("Total acumulado real", "Real accumulated total")}: <span style={{ color: C.white, fontWeight: 900 }}>{fmt(entCreditsUsed || 0)} cr</span>
               </div>
               {usageMissingTable && (
                 <div style={{ marginTop: 8, color: "#fca5a5", fontSize: 12 }}>
-                  Falta crear la tabla de eventos (migration 015), por eso el grafico no recibe trazas reales todavia.
+                  {tr("Falta crear la tabla de eventos (migration 015), por eso el grafico no recibe trazas reales todavia.", "The events table is missing (migration 015), so the chart is not receiving real traces yet.")}
                 </div>
               )}
             </div>
@@ -1545,7 +1606,7 @@ export default function AgentStudio() {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Inicio Buscar"
+              placeholder={tr("Inicio Buscar", "Search")}
               style={{ paddingLeft: 36, paddingRight: 14, paddingTop: 9, paddingBottom: 9, backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 8, color: C.white, fontSize: 14, outline: "none", width: 260 }}
             />
           </div>
@@ -1557,7 +1618,7 @@ export default function AgentStudio() {
                 {filtered.length === 0 ? (
                   <div style={{ padding: 30, textAlign: "center" }}>
                     <div style={{ fontSize: 34, marginBottom: 8 }}>🤖</div>
-                    <p style={{ color: C.muted, margin: 0 }}>No hay agentes todavía</p>
+                    <p style={{ color: C.muted, margin: 0 }}>{tr("No hay agentes todavía", "No agents yet")}</p>
                   </div>
                 ) : filtered.map((agent) => {
                   const tc = typeColor(agent.type);
@@ -1568,9 +1629,9 @@ export default function AgentStudio() {
                           {agent.type === "voice" ? "📞" : agent.type === "text" ? "💬" : "⚡"}
                         </div>
                         <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{agent.name}</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prettyName(agent.name)}</div>
                           <div style={{ color: C.dim, fontSize: 12, marginTop: 2 }}>
-                            {new Date(agent.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}
+                            {new Date(agent.created_at).toLocaleDateString(dateLocale, { day: "2-digit", month: "short", year: "numeric" })}
                           </div>
                         </div>
                         <span style={{ padding: "3px 8px", borderRadius: 20, fontSize: 11, fontWeight: 700, backgroundColor: tc.bg, color: tc.fg, textTransform: "capitalize" }}>
@@ -1579,19 +1640,23 @@ export default function AgentStudio() {
                       </div>
                       <div style={{ ...flex({ alignItems: "center", gap: 8 }), marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
                         <label style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#cbd5e1", fontSize: 12, marginRight: "auto" }}>
-                          Público
+                          {tr("Publico", "Public")}
                           <input type="checkbox" checked={agent.status === "active"} onChange={() => togglePublic(agent)} />
                         </label>
-                        <button onClick={() => renameAgent(agent)} style={{ width: 34, height: 34, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e5e7eb", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Renombrar">✎</button>
-                        <button onClick={() => duplicateAgent(agent)} style={{ width: 34, height: 34, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e5e7eb", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center" }} title="Duplicar">⎘</button>
-                        <button onClick={() => deleteAgent(agent)} style={{ width: 34, height: 34, border: "1px solid rgba(248,113,113,0.55)", background: "transparent", color: "#f87171", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 900 }} title="Eliminar">🗑</button>
+                        <button onClick={() => renameAgent(agent)} style={{ width: 34, height: 34, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e5e7eb", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center" }} title={tr("Renombrar", "Rename")}>✎</button>
+                        <button onClick={() => duplicateAgent(agent)} style={{ width: 34, height: 34, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e5e7eb", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center" }} title={tr("Duplicar", "Duplicate")}>⎘</button>
+                        <button onClick={() => deleteAgent(agent)} style={{ width: 34, height: 34, border: "1px solid rgba(248,113,113,0.55)", background: "transparent", color: "#f87171", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 900 }} title={tr("Eliminar", "Delete")}>🗑</button>
                       </div>
                     </div>
                   );
                 })}
 
                 <div style={{ ...flex({ alignItems: "center", gap: 6, flexWrap: "wrap" }), padding: "4px 2px" }}>
-                  <span style={{ color: C.dim, fontSize: 12, marginRight: 6 }}>Mostrando 1 a {filtered.length} de {filtered.length}</span>
+                  <span style={{ color: C.dim, fontSize: 12, marginRight: 6 }}>
+                    {language === "en"
+                      ? `Showing 1 to ${filtered.length} of ${filtered.length}`
+                      : `Mostrando 1 a ${filtered.length} de ${filtered.length}`}
+                  </span>
                   {["«","‹","1","›","»"].map((b, i) => (
                     <button key={i} style={{ width: b === "1" ? 32 : 28, height: 30, borderRadius: 6, backgroundColor: b === "1" ? C.blue : "transparent", border: b === "1" ? "none" : `1px solid ${C.border}`, color: b === "1" ? "#fff" : C.dim, cursor: "pointer", fontSize: 12, fontWeight: b === "1" ? 700 : 400 }}>
                       {b}
@@ -1605,7 +1670,7 @@ export default function AgentStudio() {
 
             {/* head */}
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "minmax(220px,1fr) 90px 120px 170px" : "minmax(320px,1fr) 120px 170px 260px", padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.14)" }}>
-              {["Nombre","Tipo","Última actividad","Acciones"].map(col => (
+              {[tr("Nombre", "Name"), tr("Tipo", "Type"), tr("Ultima actividad", "Last activity"), tr("Acciones", "Actions")].map(col => (
                 <span key={col} style={{ color: "#cbd5e1", fontSize: 13, fontWeight: 700 }}>{col} ↕</span>
               ))}
             </div>
@@ -1614,8 +1679,8 @@ export default function AgentStudio() {
             {filtered.length === 0 ? (
               <div style={{ padding: 48, textAlign: "center" }}>
                 <div style={{ fontSize: 38, marginBottom: 10 }}>🤖</div>
-                <p style={{ color: C.muted, margin: 0 }}>No hay agentes todavía</p>
-                <p style={{ color: C.dim, fontSize: 13, marginTop: 6 }}>Crea tu primer agente usando las opciones de arriba</p>
+                <p style={{ color: C.muted, margin: 0 }}>{tr("No hay agentes todavía", "No agents yet")}</p>
+                <p style={{ color: C.dim, fontSize: 13, marginTop: 6 }}>{tr("Crea tu primer agente usando las opciones de arriba", "Create your first agent using the options above")}</p>
               </div>
             ) : filtered.map((agent, i) => {
               const tc = typeColor(agent.type);
@@ -1631,7 +1696,7 @@ export default function AgentStudio() {
                     <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: `${C.blue}22`, ...flex({ alignItems: "center", justifyContent: "center" }), fontSize: 17 }}>
                       {agent.type === "voice" ? "📞" : agent.type === "text" ? "💬" : "⚡"}
                     </div>
-                    <span style={{ fontSize: 14, fontWeight: 500 }}>{agent.name}</span>
+                    <span style={{ fontSize: 14, fontWeight: 500 }}>{prettyName(agent.name)}</span>
                   </div>
                   <div>
                     <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 500, backgroundColor: tc.bg, color: tc.fg }}>
@@ -1639,21 +1704,21 @@ export default function AgentStudio() {
                     </span>
                   </div>
                   <span style={{ color: "#d1d5db", fontSize: 13 }}>
-                    {new Date(agent.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}
+                    {new Date(agent.created_at).toLocaleDateString(dateLocale, { day: "2-digit", month: "short", year: "numeric" })}
                   </span>
 
                   <div style={flex({ alignItems: "center", gap: 8, justifyContent: "flex-start", minWidth: 0 })} onClick={(e) => e.stopPropagation()}>
                     <label style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#cbd5e1", fontSize: 12, marginRight: 4, whiteSpace: "nowrap" }}>
-                      Público
+                      {tr("Publico", "Public")}
                       <input
                         type="checkbox"
                         checked={agent.status === "active"}
                         onChange={() => togglePublic(agent)}
                       />
                     </label>
-                    <button onClick={() => renameAgent(agent)} style={{ width: 36, height: 36, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e5e7eb", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} title="Renombrar">✎</button>
-                    <button onClick={() => duplicateAgent(agent)} style={{ width: 36, height: 36, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e5e7eb", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} title="Duplicar">⎘</button>
-                    <button onClick={() => deleteAgent(agent)} style={{ width: 36, height: 36, border: "1px solid rgba(248,113,113,0.55)", background: "transparent", color: "#f87171", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 900, flexShrink: 0 }} title="Eliminar">🗑</button>
+                    <button onClick={() => renameAgent(agent)} style={{ width: 36, height: 36, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e5e7eb", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} title={tr("Renombrar", "Rename")}>✎</button>
+                    <button onClick={() => duplicateAgent(agent)} style={{ width: 36, height: 36, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e5e7eb", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} title={tr("Duplicar", "Duplicate")}>⎘</button>
+                    <button onClick={() => deleteAgent(agent)} style={{ width: 36, height: 36, border: "1px solid rgba(248,113,113,0.55)", background: "transparent", color: "#f87171", cursor: "pointer", borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 900, flexShrink: 0 }} title={tr("Eliminar", "Delete")}>🗑</button>
                   </div>
                 </div>
               );
@@ -1662,7 +1727,9 @@ export default function AgentStudio() {
             {/* pagination */}
             <div style={{ ...flex({ alignItems: "center", gap: 6 }), padding: "12px 16px", borderTop: `1px solid ${C.border}` }}>
               <span style={{ color: C.dim, fontSize: 13, marginRight: 10 }}>
-                Mostrando 1 a {filtered.length} de {filtered.length} entradas
+                {language === "en"
+                  ? `Showing 1 to ${filtered.length} of ${filtered.length} entries`
+                  : `Mostrando 1 a ${filtered.length} de ${filtered.length} entradas`}
               </span>
               {["«","‹","1","›","»"].map((b, i) => (
                 <button key={i} style={{ width: b === "1" ? 32 : 28, height: 32, borderRadius: 6, backgroundColor: b === "1" ? C.blue : "transparent", border: b === "1" ? "none" : `1px solid ${C.border}`, color: b === "1" ? "#fff" : C.dim, cursor: "pointer", fontSize: 13, fontWeight: b === "1" ? 700 : 400 }}>
@@ -1685,8 +1752,8 @@ export default function AgentStudio() {
           <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 980, maxHeight: "92vh", overflowY: "auto", borderRadius: 18, border: `1px solid ${C.border}`, background: "linear-gradient(180deg, rgba(26,29,38,0.98), rgba(17,19,24,0.98))", padding: 18 }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
               <div>
-                <div style={{ fontWeight: 900, fontSize: 34, lineHeight: 1.08 }}>Crea tu agente ahora</div>
-                <div style={{ color: C.muted, fontSize: 18, marginTop: 8 }}>Selecciona una plantilla y prueba una conversacion guiada.</div>
+                <div style={{ fontWeight: 900, fontSize: 34, lineHeight: 1.08 }}>{tr("Crea tu agente ahora", "Create your agent now")}</div>
+                <div style={{ color: C.muted, fontSize: 18, marginTop: 8 }}>{tr("Selecciona una plantilla y prueba una conversacion guiada.", "Pick a template and try a guided conversation.")}</div>
               </div>
               <button onClick={closeWizard} style={{ border: "none", background: "transparent", color: C.muted, fontSize: 28, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
@@ -1695,21 +1762,21 @@ export default function AgentStudio() {
               <div style={{ width: 44, height: 44, borderRadius: "50%", background: wizardStep > 1 ? C.lime : "#a78bfa", color: "#111", fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{wizardStep > 1 ? "✓" : "1"}</div>
               <div style={{ height: 2, width: 120, background: wizardStep > 1 ? C.lime : "rgba(255,255,255,0.2)" }} />
               <div style={{ width: 44, height: 44, borderRadius: "50%", background: wizardStep > 1 ? "#a78bfa" : "rgba(255,255,255,0.12)", color: wizardStep > 1 ? "#111" : C.dim, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>2</div>
-              <div style={{ marginLeft: 6, color: C.white, fontWeight: 900, fontSize: 20 }}>{wizardStep === 1 ? "Selecciona el agente" : "Prueba tu agente"}</div>
+              <div style={{ marginLeft: 6, color: C.white, fontWeight: 900, fontSize: 20 }}>{wizardStep === 1 ? tr("Selecciona el agente", "Select an agent") : tr("Prueba tu agente", "Test your agent")}</div>
             </div>
 
             {wizardStep === 1 && (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                  <label style={{ color: C.muted, fontSize: 13, minWidth: 90 }}>Tu nombre</label>
+                  <label style={{ color: C.muted, fontSize: 13, minWidth: 90 }}>{tr("Tu nombre", "Your name")}</label>
                   <input
                     value={simUserName}
                     onChange={(e) => setSimUserName(e.target.value)}
-                    placeholder="Como te llamas"
+                    placeholder={tr("Como te llamas", "What is your name")}
                     style={{ width: 260, padding: "8px 10px", borderRadius: 10, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.55)", color: C.white, fontSize: 13, outline: "none" }}
                   />
                 </div>
-                <div style={{ color: C.white, fontWeight: 900, fontSize: 20, marginBottom: 12 }}>Escoge una plantilla</div>
+                <div style={{ color: C.white, fontWeight: 900, fontSize: 20, marginBottom: 12 }}>{tr("Escoge una plantilla", "Choose a template")}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 12 }}>
                   {templates.map((t) => {
                     const active = wizardTemplate?.id === t.id;
@@ -1717,14 +1784,14 @@ export default function AgentStudio() {
                       <button key={t.id} onClick={() => setWizardTemplate(t)} style={{ borderRadius: 14, border: `2px solid ${active ? C.lime : "rgba(89,108,141,0.45)"}`, background: active ? "rgba(163,230,53,0.09)" : "rgba(15,23,42,0.56)", padding: "14px 12px", color: C.white, cursor: "pointer", textAlign: "center" }}>
                         <div style={{ width: 82, height: 82, margin: "0 auto 10px", borderRadius: "50%", background: "radial-gradient(circle at 30% 30%, rgba(0,150,255,0.24), rgba(163,230,53,0.16))", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38 }}>{t.emoji}</div>
                         <div style={{ fontWeight: 900, fontSize: 26 }}>{t.name}</div>
-                        <div style={{ color: C.muted, fontSize: 14, marginTop: 6, lineHeight: 1.35 }}>{t.cat}</div>
+                        <div style={{ color: C.muted, fontSize: 14, marginTop: 6, lineHeight: 1.35 }}>{templateCategory(t)}</div>
                       </button>
                     );
                   })}
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
-                  <button onClick={closeWizard} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 800 }}>Cancelar</button>
-                  <button disabled={!wizardTemplate} onClick={() => wizardTemplate && startSimulation(wizardTemplate)} style={{ borderRadius: 10, border: "none", background: wizardTemplate ? `${C.lime}cc` : "#4b5563", color: "#111", padding: "10px 14px", cursor: wizardTemplate ? "pointer" : "not-allowed", fontWeight: 900 }}>Continuar</button>
+                  <button onClick={closeWizard} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 800 }}>{tr("Cancelar", "Cancel")}</button>
+                  <button disabled={!wizardTemplate} onClick={() => wizardTemplate && startSimulation(wizardTemplate)} style={{ borderRadius: 10, border: "none", background: wizardTemplate ? `${C.lime}cc` : "#4b5563", color: "#111", padding: "10px 14px", cursor: wizardTemplate ? "pointer" : "not-allowed", fontWeight: 900 }}>{tr("Continuar", "Continue")}</button>
                 </div>
               </>
             )}
@@ -1734,25 +1801,25 @@ export default function AgentStudio() {
                 <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: C.card, padding: 14 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
                     <div>
-                      <div style={{ fontWeight: 900, fontSize: 22 }}>Transcripcion de la llamada</div>
+                      <div style={{ fontWeight: 900, fontSize: 22 }}>{tr("Transcripcion de la llamada", "Call transcript")}</div>
                       <div style={{ color: C.muted, fontSize: 15, marginTop: 4 }}>
-                        {wizardTemplate.name} - {wizardTemplate.cat} - Conversacion activa.
+                        {wizardTemplate.name} - {templateCategory(wizardTemplate)} - {tr("Conversacion activa.", "Live conversation.")}
                       </div>
                     </div>
                     <div style={{ borderRadius: 999, padding: "6px 10px", border: `1px solid ${C.border}`, background: simStatus === "connecting" ? "rgba(245,158,11,0.15)" : simStatus === "live" ? "rgba(16,185,129,0.15)" : "rgba(148,163,184,0.12)", color: simStatus === "connecting" ? "#fbbf24" : simStatus === "live" ? "#34d399" : C.muted, fontSize: 12, fontWeight: 900 }}>
-                      {simStatus === "connecting" ? "Conectando..." : simStatus === "live" ? "En llamada" : simStatus === "ended" ? "Finalizada" : "Listo"}
+                      {simStatus === "connecting" ? tr("Conectando...", "Connecting...") : simStatus === "live" ? tr("En llamada", "Live") : simStatus === "ended" ? tr("Finalizada", "Ended") : tr("Listo", "Ready")}
                     </div>
                   </div>
 
                   {simBusy && (
                     <div style={{ marginBottom: 10, color: "#93c5fd", fontSize: 12, fontWeight: 800 }}>
-                      Procesando respuesta...
+                      {tr("Procesando respuesta...", "Processing response...")}
                     </div>
                   )}
 
                   <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: "rgba(15,23,42,0.6)", padding: 12, minHeight: 210, maxHeight: 340, overflowY: "auto" }}>
                     {simLines.length === 0 ? (
-                      <div style={{ color: C.dim, fontSize: 14 }}>{simStatus === "connecting" ? "Iniciando simulacion..." : "Presiona continuar para iniciar."}</div>
+                      <div style={{ color: C.dim, fontSize: 14 }}>{simStatus === "connecting" ? tr("Iniciando simulacion...", "Starting simulation...") : tr("Presiona continuar para iniciar.", "Press continue to start.")}</div>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {simLines.map((line, idx) => (
@@ -1772,13 +1839,13 @@ export default function AgentStudio() {
                   )}
 
                   <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                    <label style={{ color: C.muted, fontSize: 12, minWidth: 72 }}>Microfono</label>
+                    <label style={{ color: C.muted, fontSize: 12, minWidth: 72 }}>{tr("Microfono", "Microphone")}</label>
                     <select
                       value={selectedMicId}
                       onChange={(e) => setSelectedMicId(e.target.value)}
                       style={{ minWidth: 240, borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.62)", color: C.white, padding: "8px 10px", fontSize: 12 }}
                     >
-                      {micDevices.length === 0 && <option value="">Sin dispositivos</option>}
+                      {micDevices.length === 0 && <option value="">{tr("Sin dispositivos", "No devices")}</option>}
                       {micDevices.map((m) => (
                         <option key={m.id} value={m.id}>{m.label}</option>
                       ))}
@@ -1789,7 +1856,7 @@ export default function AgentStudio() {
                       disabled={micLoading}
                       style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "8px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}
                     >
-                      {micLoading ? "Buscando..." : "Actualizar"}
+                      {micLoading ? tr("Buscando...", "Searching...") : tr("Actualizar", "Refresh")}
                     </button>
                   </div>
 
@@ -1804,7 +1871,7 @@ export default function AgentStudio() {
                         }
                       }}
                       disabled={simStatus !== "live"}
-                      placeholder={simStatus !== "live" ? "Espera a que conecte..." : simBusy ? "Procesando... (puedes interrumpir con microfono)" : "Responde aqui (o usa microfono)"}
+                      placeholder={simStatus !== "live" ? tr("Espera a que conecte...", "Wait for connection...") : simBusy ? tr("Procesando... (puedes interrumpir con microfono)", "Processing... (you can interrupt with microphone)") : tr("Responde aqui (o usa microfono)", "Reply here (or use microphone)")}
                       style={{ flex: 1, borderRadius: 10, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.62)", color: C.white, padding: "10px 12px", fontSize: 14, outline: "none" }}
                     />
                     <button
@@ -1812,27 +1879,27 @@ export default function AgentStudio() {
                       disabled={simStatus !== "live" || !simInput.trim()}
                       style={{ borderRadius: 10, border: "none", background: simBusy || simStatus !== "live" || !simInput.trim() ? "#4b5563" : `${C.lime}cc`, color: "#111", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}
                     >
-                      Enviar
+                      {tr("Enviar", "Send")}
                     </button>
                     <button
                       onClick={() => void toggleRecording()}
                       disabled={simStatus !== "live"}
                       style={{ borderRadius: 10, border: `1px solid ${simRecording ? "rgba(239,68,68,0.65)" : C.border}`, background: simRecording ? "rgba(239,68,68,0.16)" : "rgba(15,23,42,0.5)", color: simRecording ? "#fca5a5" : C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}
                     >
-                      {simRecording ? "Detener mic" : "Hablar"}
+                      {simRecording ? tr("Detener mic", "Stop mic") : tr("Hablar", "Speak")}
                     </button>
                   </div>
                   <div style={{ marginTop: 8, color: C.dim, fontSize: 12 }}>
-                    Consejo: usa un microfono fisico (no "Stereo Mix") para evitar capturar audio externo.
+                    {tr("Consejo: usa un microfono fisico (no \"Stereo Mix\") para evitar capturar audio externo.", "Tip: use a physical microphone (not \"Stereo Mix\") to avoid capturing external audio.")}
                   </div>
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 14 }}>
-                  <button onClick={() => { clearSimTimers(); setWizardStep(1); setSimStatus("idle"); setSimLines([]); setSimHistory([]); setSimTurns(0); setSimInput(""); setSimError(null); setSimRecording(false); }} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 800 }}>Volver</button>
+                  <button onClick={() => { clearSimTimers(); setWizardStep(1); setSimStatus("idle"); setSimLines([]); setSimHistory([]); setSimTurns(0); setSimInput(""); setSimError(null); setSimRecording(false); }} style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 800 }}>{tr("Volver", "Back")}</button>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => wizardTemplate && startSimulation(wizardTemplate)} style={{ borderRadius: 10, border: "1px solid rgba(56,189,248,0.35)", background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 800 }}>Repetir</button>
-                    <button onClick={() => finishRealCall()} style={{ borderRadius: 10, border: "none", background: "rgba(239,68,68,0.9)", color: "#fff", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}>Finalizar llamada</button>
-                    <button onClick={() => { const type = wizardTemplate.id === "julia" ? "text" : "voice"; router.push(`/start/agents/create?type=${type}&kind=agent&template=${wizardTemplate.id}`); closeWizard(); }} style={{ borderRadius: 10, border: "none", background: `${C.lime}cc`, color: "#111", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}>Usar plantilla</button>
+                    <button onClick={() => wizardTemplate && startSimulation(wizardTemplate)} style={{ borderRadius: 10, border: "1px solid rgba(56,189,248,0.35)", background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 800 }}>{tr("Repetir", "Retry")}</button>
+                    <button onClick={() => finishRealCall()} style={{ borderRadius: 10, border: "none", background: "rgba(239,68,68,0.9)", color: "#fff", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}>{tr("Finalizar llamada", "End call")}</button>
+                    <button onClick={() => { const type = wizardTemplate.id === "julia" ? "text" : "voice"; router.push(`/start/agents/create?type=${type}&kind=agent&template=${wizardTemplate.id}`); closeWizard(); }} style={{ borderRadius: 10, border: "none", background: `${C.lime}cc`, color: "#111", padding: "10px 12px", cursor: "pointer", fontWeight: 900 }}>{tr("Usar plantilla", "Use template")}</button>
                   </div>
                 </div>
               </>
@@ -1853,8 +1920,8 @@ export default function AgentStudio() {
             onClick={(e) => e.stopPropagation()}
             style={{ width: "100%", maxWidth: 560, boxSizing: "border-box", borderRadius: 16, border: "1px solid rgba(56,189,248,0.28)", background: "linear-gradient(180deg, rgba(16,24,40,0.98), rgba(12,18,30,0.98))", padding: 18, boxShadow: "0 24px 80px rgba(2,6,23,0.65)" }}
           >
-            <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 6, color: C.white }}>Renombrar agente</div>
-            <div style={{ color: "#9fb2cd", fontSize: 13, marginBottom: 12 }}>Escribe el nuevo nombre para este agente.</div>
+            <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 6, color: C.white }}>{tr("Renombrar agente", "Rename agent")}</div>
+            <div style={{ color: "#9fb2cd", fontSize: 13, marginBottom: 12 }}>{tr("Escribe el nuevo nombre para este agente.", "Type the new name for this agent.")}</div>
 
             <input
               autoFocus
@@ -1867,7 +1934,7 @@ export default function AgentStudio() {
                   setRenameValue("");
                 }
               }}
-              placeholder="Nuevo nombre"
+              placeholder={tr("Nuevo nombre", "New name")}
               style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(56,189,248,0.35)", background: "rgba(15,23,42,0.85)", color: C.white, fontSize: 14, outline: "none" }}
             />
 
@@ -1879,13 +1946,13 @@ export default function AgentStudio() {
                 }}
                 style={{ borderRadius: 10, border: "1px solid rgba(56,189,248,0.35)", background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer", fontWeight: 800 }}
               >
-                Cancelar
+                {tr("Cancelar", "Cancel")}
               </button>
               <button
                 onClick={() => void confirmRenameAgent()}
                 style={{ borderRadius: 10, border: "none", background: "linear-gradient(90deg, #84cc16, #a3e635)", color: "#111", padding: "10px 14px", cursor: "pointer", fontWeight: 900 }}
               >
-                Guardar
+                {tr("Guardar", "Save")}
               </button>
             </div>
           </div>

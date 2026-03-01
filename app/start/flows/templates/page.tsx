@@ -123,6 +123,42 @@ export default function FlowTemplatesPage() {
   const [cat, setCat] = useState<Cat>("All Templates");
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState<string | null>(null);
+  const [language, setLanguage] = useState<"es" | "en">("es");
+
+  const tr = (es: string, en: string) => (language === "en" ? en : es);
+  const trTpl = (text: string) => {
+    if (language !== "en") return text;
+    const map: Record<string, string> = {
+      "Usa Google Sheets como fuente para llamadas.": "Use Google Sheets as the call source.",
+      "Llama una lista de contactos y registra el resultado.": "Call a contact list and log results.",
+    };
+    return map[text] || text;
+  };
+
+  const trTplName = (name: string) => {
+    if (language !== "en") return name;
+    const map: Record<string, string> = {
+      "plantilla_para_llamar": "Call Template",
+      "flujo_para_llamar_gs": "Call Flow GS",
+      "Test Tamplete Miquel 2026": "Test Template Miquel 2026",
+      "Whatsapp + Open AI": "WhatsApp + Open AI",
+    };
+    return map[name] || name;
+  };
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") setLanguage(saved);
+
+    const onLanguageChange = (evt: Event) => {
+      const next = String((evt as CustomEvent<string>)?.detail || "").toLowerCase();
+      if (next === "es" || next === "en") setLanguage(next);
+    };
+
+    window.addEventListener("botz-language-change", onLanguageChange as EventListener);
+    return () => window.removeEventListener("botz-language-change", onLanguageChange as EventListener);
+  }, []);
 
   React.useEffect(() => {
     const onResize = () => {
@@ -254,7 +290,7 @@ export default function FlowTemplatesPage() {
         <div style={{ ...flex({ flexDirection: isMobile ? "column" : "row" }), height: "100%" }}>
           {/* left categories */}
             <aside style={{ width: isMobile ? "100%" : 230, backgroundColor: C.sidebar, borderRight: isMobile ? "none" : `1px solid ${C.border}`, borderBottom: isMobile ? `1px solid ${C.border}` : "none", padding: isMobile ? 12 : 18 }}>
-              <div style={{ fontWeight: 900, fontSize: 14, marginBottom: 14, color: C.white }}>All Templates</div>
+              <div style={{ fontWeight: 900, fontSize: 14, marginBottom: 14, color: C.white }}>{tr("Todas las plantillas", "All Templates")}</div>
             <div style={{ display: "flex", flexDirection: isMobile ? "row" : "column", gap: 8, overflowX: isMobile ? "auto" : "visible" }}>
             {VISIBLE_CATEGORIES.map(c => {
               const count = c === "All Templates" ? TEMPLATES.length : TEMPLATES.filter(t => t.category === c).length;
@@ -285,8 +321,8 @@ export default function FlowTemplatesPage() {
 
           {/* main */}
           <div style={{ flex: 1, minWidth: 0, padding: isMobile ? 12 : 22, overflow: "auto" }}>
-            <div style={{ fontSize: isMobile ? 24 : 34, fontWeight: 900, marginBottom: 6 }}>Todas las Plantillas</div>
-            <div style={{ color: C.muted, fontSize: isMobile ? 14 : 16, marginBottom: 18 }}>Ahorra tiempo, destácate y obtén resultados.</div>
+            <div style={{ fontSize: isMobile ? 24 : 34, fontWeight: 900, marginBottom: 6 }}>{tr("Todas las Plantillas", "All Templates")}</div>
+            <div style={{ color: C.muted, fontSize: isMobile ? 14 : 16, marginBottom: 18 }}>{tr("Ahorra tiempo, destácate y obtén resultados.", "Save time, stand out, and get results.")}</div>
 
             <div style={{ ...flex({ alignItems: "center", gap: 12 }), marginBottom: 16 }}>
               <div style={{ flex: 1, position: "relative" }}>
@@ -319,7 +355,7 @@ export default function FlowTemplatesPage() {
               <span style={{ width: 28, height: 28, borderRadius: 999, border: `1px solid ${C.border}`, ...flex({ alignItems: "center", justifyContent: "center" }), color: C.white }}>
                 +
               </span>
-              New Flow From Scratch
+              {tr("Nuevo flujo desde cero", "New Flow From Scratch")}
             </button>
 
             <div style={{ color: C.muted, fontWeight: 900, margin: "12px 0 12px" }}>
@@ -345,10 +381,10 @@ export default function FlowTemplatesPage() {
                     }}
                   >
                     <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 8, lineHeight: 1.15, overflowWrap: "anywhere", wordBreak: "break-word" }}>
-                      {t.name}
+                      {trTplName(t.name)}
                     </div>
                     <div style={{ color: C.muted, fontSize: 13, minHeight: 32, lineHeight: 1.4 }}>
-                      {t.description}
+                      {trTpl(t.description)}
                     </div>
                     <div style={{ ...flex({ alignItems: "center", gap: 10 }), marginTop: 14 }}>
                       {t.badges.map((b, i) => (
