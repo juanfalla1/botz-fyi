@@ -37,6 +37,8 @@ export async function POST(req: Request) {
     }
 
     const { audio, context, conversationHistory, agentConfig, generateAudioOnly, textToSpeak, fast_mode } = await req.json();
+    const agentLang = String(agentConfig?.language || "es-ES");
+    const baseLang: "es" | "en" = agentLang.toLowerCase().startsWith("en") ? "en" : "es";
     const fastMode = Boolean(fast_mode);
 
     // Caso especial: solo generar audio para un texto específico (ej: saludo inicial)
@@ -47,6 +49,7 @@ export async function POST(req: Request) {
           provider: agentConfig?.voice_provider || "openai",
           profileId: agentConfig?.voice_profile_id || "",
           ttsModel: agentConfig?.tts_model || "",
+          language: baseLang,
         });
         const burn = await consumeEntitlementCredits(supabase as any, guard.user.id, 1);
         if (!burn.ok) {
@@ -71,20 +74,20 @@ export async function POST(req: Request) {
     // 1. Convertir audio a texto (STT)
     let userMessage = "";
     try {
-      userMessage = await speechToText(audio);
+      userMessage = await speechToText(audio, baseLang);
     } catch (e) {
       console.error("STT error:", e);
-      return NextResponse.json({ 
-        ok: false, 
-        error: "No se pudo procesar el audio" 
-      }, { status: 500 });
+        return NextResponse.json({ 
+          ok: false, 
+          error: baseLang === "en" ? "Could not process audio" : "No se pudo procesar el audio" 
+        }, { status: 500 });
     }
 
     if (!userMessage.trim()) {
       return NextResponse.json({ 
         ok: true, 
         userMessage: "", 
-        agentResponse: "No escuché nada. Intenta de nuevo.",
+        agentResponse: baseLang === "en" ? "I could not hear anything. Please try again." : "No escuche nada. Intenta de nuevo.",
         audioUrl: null 
       });
     }
@@ -95,7 +98,7 @@ export async function POST(req: Request) {
       context,
       conversationHistory,
       agentConfig,
-      { fastMode }
+      { fastMode, language: baseLang }
     );
     const agentResponse = sanitizeVoiceText(rawAgentResponse);
 
@@ -108,6 +111,7 @@ export async function POST(req: Request) {
           provider: agentConfig?.voice_provider || "openai",
           profileId: agentConfig?.voice_profile_id || "",
           ttsModel: agentConfig?.tts_model || "",
+          language: baseLang,
         });
       } catch (e) {
         console.error("TTS error:", e);
@@ -144,7 +148,7 @@ export async function POST(req: Request) {
 }
 
 // Speech-to-Text usando OpenAI Whisper
-async function speechToText(audioBase64: string): Promise<string> {
+async function speechToText(audioBase64: string, baseLang: "es" | "en" = "es"): Promise<string> {
   const openaiKey = process.env.OPENAI_API_KEY;
   
   if (!openaiKey) {
@@ -161,9 +165,14 @@ async function speechToText(audioBase64: string): Promise<string> {
       const formData = new FormData();
       formData.append("file", audioBlob, "audio.webm");
       formData.append("model", model);
-      formData.append("language", "es");
+      formData.append("language", baseLang);
       formData.append("temperature", "0");
-      formData.append("prompt", "Transcribe solo la voz del cliente. Ignora musica, subtitulos y ruido.");
+      formData.append(
+        "prompt",
+        baseLang === "en"
+          ? "Transcribe only the customer's voice. Ignore music, subtitles and background noise."
+          : "Transcribe solo la voz del cliente. Ignora musica, subtitulos y ruido."
+      );
 
       const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
         method: "POST",
@@ -247,6 +256,7 @@ type TtsOptions = {
   provider?: string;
   profileId?: string;
   ttsModel?: string;
+  language?: "es" | "en";
 };
 
 // Text-to-Speech con fallback provider -> OpenAI
@@ -257,6 +267,7 @@ async function textToSpeech(text: string, opts: TtsOptions = {}): Promise<string
   const voice = String(opts.voice || "marin");
   const profileId = String(opts.profileId || "");
   const ttsModelRaw = String(opts.ttsModel || "").toLowerCase();
+  const baseLang: "es" | "en" = opts.language === "en" ? "en" : "es";
 
   if (provider === "elevenlabs" && elevenKey) {
     try {
@@ -305,7 +316,9 @@ async function textToSpeech(text: string, opts: TtsOptions = {}): Promise<string
         model: "gpt-4o-mini-tts",
         input: text.substring(0, 4096), // OpenAI TTS limit
         voice: OPENAI_VOICES.has(voice) ? voice : "marin",
-        instructions: "Voz humana, clara y cercana. Pronunciacion nitida en espanol latino neutro, ritmo natural.",
+        instructions: baseLang === "en"
+          ? "Human, clear and warm voice. Natural English pronunciation and rhythm."
+          : "Voz humana, clara y cercana. Pronunciacion nitida en espanol latino neutro, ritmo natural.",
         response_format: "mp3",
       }),
     });
@@ -329,7 +342,7 @@ async function generateResponse(
   context: string,
   conversationHistory: any[] = [],
   agentConfig: any = {},
-  opts: { fastMode?: boolean } = {}
+  opts: { fastMode?: boolean; language?: "es" | "en" } = {}
 ): Promise<string> {
   const openaiKey = process.env.OPENAI_API_KEY;
 
@@ -343,6 +356,10 @@ async function generateResponse(
   console.log("[VOICE] User message:", userMessage);
 
   try {
+    const langOverride = opts.language === "en"
+      ? "[CRITICAL OVERRIDE] Respond fully in ENGLISH. Do not refuse to help. Do not say 'I cannot'. If you do not know something, offer an alternative. Voice output only: no markdown, no asterisks, no symbol bullet lists."
+      : "[CRITICAL OVERRIDE] Responde la pregunta del usuario completamente en ESPANOL. NO rechaces ayudar. NO digas 'no puedo'. Si no sabes algo, ofrece una alternativa. Es salida de voz: no uses markdown, no uses asteriscos, no uses listas con simbolos.";
+
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -352,7 +369,7 @@ async function generateResponse(
       body: JSON.stringify({
         model: String(agentConfig?.model || "gpt-4o-mini"),
         messages: [
-          { role: "system", content: context + "\n\n[CRITICAL OVERRIDE] Responde la pregunta del usuario completamente. NO rechaces ayudar. NO digas 'no puedo'. Si no sabes algo, ofrece una alternativa. Es salida de voz: no uses markdown, no uses asteriscos, no uses listas con simbolos." },
+          { role: "system", content: `${context}\n\n${langOverride}` },
           ...conversationHistory.map((msg: any) => ({
             role: msg.role === "user" ? "user" : "assistant",
             content: msg.content,
@@ -371,12 +388,12 @@ async function generateResponse(
     }
 
     const data = await response.json();
-    const agentResponse = data.choices?.[0]?.message?.content || "No pude procesar tu solicitud.";
+    const agentResponse = data.choices?.[0]?.message?.content || (opts.language === "en" ? "I could not process your request." : "No pude procesar tu solicitud.");
     console.log("[VOICE] Agent response:", agentResponse.substring(0, 100));
     return agentResponse;
   } catch (e) {
     console.error("[VOICE] LLM error:", e);
-    return generateMockResponse(userMessage);
+    return generateMockResponse(userMessage, opts.language === "en" ? "en" : "es");
   }
 }
 
@@ -397,15 +414,28 @@ function sanitizeVoiceText(text: string): string {
 }
 
 // Generar respuestas mock
-function generateMockResponse(message: string): string {
+function generateMockResponse(message: string, baseLang: "es" | "en" = "es"): string {
+  if (baseLang === "en") {
+    if (message.toLowerCase().includes("hello") || message.toLowerCase().includes("hi")) {
+      return "Hi, thanks for calling. How can I help you today?";
+    }
+    if (message.toLowerCase().includes("price") || message.toLowerCase().includes("cost")) {
+      return "Pricing depends on the plan you need. What budget range do you have in mind?";
+    }
+    if (message.toLowerCase().includes("thanks")) {
+      return "You are welcome. I am here to help.";
+    }
+    return `I understood your question about ${message.substring(0, 20)}. Tell me a bit more.`;
+  }
+
   if (message.toLowerCase().includes("hola")) {
-    return "Hola, gracias por llamar. ¿En qué puedo ayudarte?";
+    return "Hola, gracias por llamar. En que puedo ayudarte?";
   }
   if (message.toLowerCase().includes("precio")) {
-    return "El precio depende del plan que necesites. ¿Cuál es tu presupuesto?";
+    return "El precio depende del plan que necesites. Cual es tu presupuesto?";
   }
   if (message.toLowerCase().includes("gracias")) {
-    return "De nada, estoy aquí para ayudarte.";
+    return "De nada, estoy aqui para ayudarte.";
   }
   return `Entendí tu pregunta sobre ${message.substring(0, 20)}. Cuéntame más.`;
 }

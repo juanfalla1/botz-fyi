@@ -8,6 +8,7 @@ interface VoiceTestPanelProps {
   agentRole: string;
   agentPrompt: string;
   companyContext: string;
+  agentLanguage?: string;
   compact?: boolean;
   onSessionSaved?: (session: {
     id: string;
@@ -47,10 +48,13 @@ export default function VoiceTestPanel({
   agentRole,
   agentPrompt,
   companyContext,
+  agentLanguage,
   compact = false,
   onSessionSaved,
   voiceSettings,
 }: VoiceTestPanelProps) {
+  const isEnglish = String(agentLanguage || "es-ES").toLowerCase().startsWith("en");
+  const langPrefix = isEnglish ? "en" : "es";
   const GPT_MODELS = ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o", "gpt-4.1"] as const;
   const [isCallActive, setIsCallActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -58,7 +62,7 @@ export default function VoiceTestPanel({
   const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
   const [handsFreeMode, setHandsFreeMode] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [accentFilter, setAccentFilter] = useState<string>("all");
+  const [accentFilter, setAccentFilter] = useState<string>(isEnglish ? "en" : "all");
   const [speechRate, setSpeechRate] = useState<number>(1.05);
   const [speechPitch, setSpeechPitch] = useState<number>(0.98);
   const [availableVoices, setAvailableVoices] = useState<{ name: string; lang: string; voiceURI: string }[]>([]);
@@ -142,6 +146,25 @@ export default function VoiceTestPanel({
 
     const withName = (txt: string) => (name ? txt.replaceAll("{{name}}", name) : txt.replaceAll("{{name}}", ""));
 
+    if (isEnglish && /collection|overdue|payment/.test(bag)) {
+      return withName("Hi {{name}}, this is Botz following up on an outstanding payment. Can we quickly review your payment status?");
+    }
+    if (isEnglish && /reminder|follow-up/.test(bag)) {
+      return withName("Hi {{name}}, this is Botz with a quick reminder. Can we confirm your commitment now?");
+    }
+    if (isEnglish && /meeting|schedule|appointment/.test(bag)) {
+      return withName("Hi {{name}}, this is Botz calling to confirm your meeting details. Do you have one minute?");
+    }
+    if (isEnglish && /lead|prospect|qualification/.test(bag)) {
+      return withName("Hi {{name}}, this is Botz. I want to understand your current process and see where we can help. Is now a good time?");
+    }
+    if (isEnglish && /support|customer service/.test(bag)) {
+      return withName("Hi {{name}}, this is Botz support. Please tell me how I can help you today.");
+    }
+    if (isEnglish && /receptionist/.test(bag)) {
+      return withName("Hi {{name}}, welcome to Botz. I can route your request to the right team. What is the reason for your call?");
+    }
+
     if (/cobranza|pago pendiente|cartera|mora/.test(bag)) {
       return withName("Hola {{name}}, te llamo de Botz por una gestión de pago pendiente. ¿Podemos validar el estado de tu pago?");
     }
@@ -161,7 +184,11 @@ export default function VoiceTestPanel({
       return withName("Hola {{name}}, bienvenido a Botz. Estoy para ayudarte a dirigir tu solicitud al área correcta. ¿Cuál es el motivo de tu llamada?");
     }
 
-    return withName("Hola {{name}}, soy " + agentName + ". ¿Cómo puedo ayudarte hoy?");
+    return withName(
+      isEnglish
+        ? "Hi {{name}}, I am " + agentName + ". How can I help you today?"
+        : "Hola {{name}}, soy " + agentName + ". ¿Cómo puedo ayudarte hoy?"
+    );
   };
 
   const matchesAccent = (lang: string, filter: string) => {
@@ -194,23 +221,23 @@ export default function VoiceTestPanel({
       const voices = window.speechSynthesis.getVoices();
       const mapped = voices.map((v) => ({ name: v.name, lang: v.lang, voiceURI: v.voiceURI }));
       mapped.sort((a, b) => {
-        const aEs = a.lang.toLowerCase().startsWith("es") ? 0 : 1;
-        const bEs = b.lang.toLowerCase().startsWith("es") ? 0 : 1;
-        if (aEs !== bEs) return aEs - bEs;
+        const aPreferred = a.lang.toLowerCase().startsWith(langPrefix) ? 0 : 1;
+        const bPreferred = b.lang.toLowerCase().startsWith(langPrefix) ? 0 : 1;
+        if (aPreferred !== bPreferred) return aPreferred - bPreferred;
         return `${a.lang}-${a.name}`.localeCompare(`${b.lang}-${b.name}`);
       });
       setAvailableVoices(mapped);
       setSelectedVoiceUri((prev) => {
         if (prev && mapped.some((m) => m.voiceURI === prev)) return prev;
-        const es = mapped.find((m) => m.lang.toLowerCase().startsWith("es"));
-        return es?.voiceURI || mapped[0]?.voiceURI || "";
+        const preferred = mapped.find((m) => m.lang.toLowerCase().startsWith(langPrefix));
+        return preferred?.voiceURI || mapped[0]?.voiceURI || "";
       });
     } catch {
       // noop
     }
   };
 
-  const getPreferredSpanishVoice = () => {
+  const getPreferredVoice = () => {
     const manual = resolveVoiceByUri(selectedVoiceUri);
     if (manual) return manual;
     if (preferredVoiceRef.current) return preferredVoiceRef.current;
@@ -218,14 +245,14 @@ export default function VoiceTestPanel({
     const voices = synth.getVoices();
     if (!voices.length) return null;
 
-    const esVoices = voices.filter((v) => String(v.lang || "").toLowerCase().startsWith("es") && matchesAccent(v.lang, accentFilter));
-    const pool = esVoices.length ? esVoices : voices;
+    const preferredVoices = voices.filter((v) => String(v.lang || "").toLowerCase().startsWith(langPrefix) && matchesAccent(v.lang, accentFilter));
+    const pool = preferredVoices.length ? preferredVoices : voices;
 
     const preferredPatterns = [
       /microsoft.+online.+natural/i,
       /google.+natural/i,
       /microsoft.+(elena|dalia|helena|laura|sabina)/i,
-      /google.+español/i,
+      /google.+español|google.+english/i,
       /(paulina|sofia|lucia|monica|maria|isabella)/i,
       /neural/i,
     ];
@@ -247,11 +274,11 @@ export default function VoiceTestPanel({
       const synth = window.speechSynthesis;
       synth.cancel();
       const utter = new SpeechSynthesisUtterance(String(text || ""));
-      utter.lang = "es-ES";
+      utter.lang = isEnglish ? "en-US" : "es-ES";
       utter.rate = liveRateRef.current;
       utter.pitch = livePitchRef.current;
       utter.volume = 1;
-      const fixedVoice = sessionVoiceRef.current || resolveVoiceByUri(selectedVoiceUri) || getPreferredSpanishVoice();
+      const fixedVoice = sessionVoiceRef.current || resolveVoiceByUri(selectedVoiceUri) || getPreferredVoice();
       if (fixedVoice) {
         utter.voice = fixedVoice;
         utter.lang = fixedVoice.lang || utter.lang;
@@ -357,7 +384,7 @@ export default function VoiceTestPanel({
       const preload = () => {
         preferredVoiceRef.current = null;
         loadVoices();
-        void getPreferredSpanishVoice();
+        void getPreferredVoice();
       };
       preload();
       synth.onvoiceschanged = preload;
@@ -564,26 +591,39 @@ export default function VoiceTestPanel({
 
       const promptCompact = String(agentPrompt || "").slice(0, 1200);
       const companyCompact = String(companyContext || "No disponible").slice(0, 900);
-      const context = `Tu nombre es: ${agentName}
-Tu rol/propósito es: ${agentRole}
+      const context = isEnglish
+        ? `Your name is: ${agentName}
+Your role/purpose is: ${agentRole}
 
-INSTRUCCIONES ORIGINALES (ignorar limitaciones de texto):
+ORIGINAL INSTRUCTIONS:
 ${promptCompact}
 
-CONTEXTO CRÍTICO - LEE ESTO PRIMERO:
-Estás en una LLAMADA TELEFÓNICA EN VIVO. Eres un asistente de VOZ que RESPONDE CUALQUIER PREGUNTA.
-- NO eres "asistente de texto" - eres de VOZ
-- NO tienes limitaciones técnicas - puedes responder TODO
-- Si alguien pregunta sobre cualquier cosa, RESPONDE COMPLETAMENTE
-- Si no sabes algo específico, ofrece una alternativa útil
-- Mantén respuestas cortas (2-3 oraciones)
- - Mantén respuestas muy cortas (1-2 oraciones, máximo 35 palabras)
-- NUNCA digas "no puedo", "no tengo acceso", "lamentablemente no puedo"
+CRITICAL CONTEXT:
+You are in a LIVE PHONE CALL as a VOICE assistant.
+- Keep answers concise (1-2 sentences, max 35 words)
+- If you do not know a specific detail, offer a useful alternative
+- Do not reject requests due to technical limitations
 
-INFORMACIÓN DE LA EMPRESA:
+COMPANY INFORMATION:
 ${companyCompact}
 
-REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechazos por "limitaciones técnicas".`;
+FINAL RULE: Answer as a voice agent, clear and helpful.`
+        : `Tu nombre es: ${agentName}
+Tu rol/proposito es: ${agentRole}
+
+INSTRUCCIONES ORIGINALES:
+${promptCompact}
+
+CONTEXTO CRITICO:
+Estas en una LLAMADA TELEFONICA EN VIVO como asistente de VOZ.
+- Manten respuestas cortas (1-2 oraciones, maximo 35 palabras)
+- Si no sabes algo especifico, ofrece una alternativa util
+- No rechaces por limitaciones tecnicas
+
+INFORMACION DE LA EMPRESA:
+${companyCompact}
+
+REGLA FINAL: Responde como agente de voz, claro y util.`;
 
       const response = await authedFetch("/api/agents/voice-call", {
         method: "POST",
@@ -599,6 +639,7 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
             voice_profile_id: voiceSettings?.profileId || "",
             tts_model: voiceSettings?.ttsModel || "",
             model: selectedModel,
+            language: agentLanguage || (isEnglish ? "en-US" : "es-ES"),
           },
         }),
       });
@@ -626,8 +667,10 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
 
       if (silenceDetected) {
         const nudge = silentTurnsRef.current >= 4
-          ? "No te escucho con claridad. Si quieres, finalizamos por ahora y retomamos cuando estés listo."
-          : "No te escuché bien. ¿Sigues ahí?";
+          ? (isEnglish
+              ? "I cannot hear you clearly. If you want, we can end for now and continue when you are ready."
+              : "No te escucho con claridad. Si quieres, finalizamos por ahora y retomamos cuando estes listo.")
+          : (isEnglish ? "I could not hear you well. Are you still there?" : "No te escuche bien. Sigues ahi?");
         await pushAgentLineSynced(nudge, null, sessionId);
         if (silentTurnsRef.current >= 4) {
           window.setTimeout(() => {
@@ -661,7 +704,7 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
     stopAllPlayback();
 
     try {
-      const picked = resolveVoiceByUri(selectedVoiceUri) || firstVoiceForAccent(accentFilter) || getPreferredSpanishVoice();
+      const picked = resolveVoiceByUri(selectedVoiceUri) || firstVoiceForAccent(accentFilter) || getPreferredVoice();
       sessionVoiceRef.current = picked;
       // Solicitar acceso al micrófono
       const stream = await navigator.mediaDevices.getUserMedia({ audio: MICROPHONE_CONSTRAINTS });

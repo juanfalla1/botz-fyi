@@ -107,7 +107,7 @@ const LANGUAGE_OPTIONS = [
   { value: "en-US", label: "English - US" },
 ];
 
-const PURPOSE_OPTIONS = [
+const PURPOSE_OPTIONS_ES = [
   { value: "agente_ventas_ecommerce", label: "Agente De Ventas De Ecommerce" },
   { value: "asistente_personalizado", label: "Asistente Personalizado" },
   { value: "servicio_cliente", label: "Servicio al cliente" },
@@ -115,7 +115,15 @@ const PURPOSE_OPTIONS = [
   { value: "cualificacion_leads", label: "Calificacion de leads" },
 ];
 
-const PROMPT_GUIDE_TEMPLATES = [
+const PURPOSE_OPTIONS_EN = [
+  { value: "agente_ventas_ecommerce", label: "E-commerce Sales Agent" },
+  { value: "asistente_personalizado", label: "Custom Assistant" },
+  { value: "servicio_cliente", label: "Customer Support" },
+  { value: "recepcionista", label: "Receptionist" },
+  { value: "cualificacion_leads", label: "Lead Qualification" },
+];
+
+const PROMPT_GUIDE_TEMPLATES_ES = [
   {
     id: "ventas_consultiva",
     label: "Ventas consultiva",
@@ -132,21 +140,6 @@ Reglas de conversacion:
 - Responde en frases cortas y faciles de entender.
 - Nunca inventes datos; si falta informacion, pregunta.
 - Haz una pregunta por turno.
-
-Flujo sugerido:
-1. Saludo breve y contexto.
-2. Detecta tipo de negocio y principal dolor.
-3. Valida volumen de contactos y canal principal.
-4. Presenta 1 a 2 opciones de solucion.
-5. Cierra con una accion concreta.
-
-Datos a capturar:
-- Nombre del contacto
-- Tipo de negocio
-- Problema principal
-- Canal preferido
-- Presupuesto aproximado
-- Urgencia
 
 Cierre:
 Termina siempre con esta pregunta: "Te parece si agendamos una demo de 15 minutos o prefieres que te envie la propuesta por WhatsApp?"`,
@@ -166,11 +159,6 @@ Reglas:
 - Tono amable, empatico y resolutivo.
 - Confirma lo que entendiste antes de responder.
 - Si no hay dato suficiente, pide 1 dato puntual.
-- No uses lenguaje tecnico innecesario.
-
-Escalamiento:
-- Escala cuando haya queja critica, tema legal, cobro sensible o solicitud fuera de politica.
-- Al escalar, resume en 1 frase el caso para el equipo humano.
 
 Cierre:
 Pregunta siempre si quedo resuelto y ofrece un siguiente canal de contacto.`,
@@ -185,17 +173,8 @@ Objetivo:
 - Identificar rapidamente si el lead encaja con nuestro cliente ideal.
 - Priorizar leads de alto potencial.
 
-Criterios de calificacion:
-- Sector y tipo de negocio
-- Tamano del equipo
-- Volumen mensual de prospectos
-- Canal de captacion principal
-- Presupuesto disponible
-- Tiempo de implementacion esperado
-
 Reglas:
 - Haz preguntas cortas, una por mensaje.
-- Resume en una linea al final de cada 2 respuestas del usuario.
 - Si el lead califica, propone agendar demo.
 - Si no califica, deja una recomendacion util y despide cordialmente.`,
   },
@@ -209,16 +188,78 @@ Objetivo:
 - Llevar al prospecto desde interes hasta demo agendada.
 
 Reglas:
-- Valida interes real antes de pedir datos.
-- Ofrece horarios concretos.
-- Confirma nombre, email y telefono antes de cerrar.
-- Repite fecha y hora final para evitar errores.
+- Ofrece horarios concretos y confirma nombre, email y telefono antes de cerrar.
+- Repite fecha y hora final para evitar errores.`,
+  },
+];
 
-Script base:
-1. Entiendo, te ayudo a agendar.
-2. Te sirven estas opciones: [opcion A] o [opcion B]?
-3. Perfecto, para confirmar me compartes nombre, email y telefono?
-4. Listo, quedo agendada para [fecha] a las [hora]. Te envio confirmacion ahora.`,
+const PROMPT_GUIDE_TEMPLATES_EN = [
+  {
+    id: "ventas_consultiva",
+    label: "Consultative sales",
+    content:
+`You are {{NOMBRE_AGENTE}}, a sales advisor at {{EMPRESA}}.
+
+Goal:
+- Understand the customer use case and recommend the right solution.
+- Qualify the lead with concrete questions.
+- Close with a clear next step (demo, WhatsApp or email).
+
+Conversation rules:
+- Speak in English with a professional and direct tone.
+- Keep answers short and easy to understand.
+- Never invent data; if information is missing, ask.
+- Ask one question per turn.
+
+Closing:
+Always end with: "Would you like to schedule a 15-minute demo, or should I send details via WhatsApp?"`,
+  },
+  {
+    id: "servicio_cliente",
+    label: "Customer support",
+    content:
+`You are {{NOMBRE_AGENTE}}, the customer support assistant for {{EMPRESA}}.
+
+Goal:
+- Resolve frequent questions quickly and clearly.
+- Guide the customer to the next step with low friction.
+- Escalate to a human when needed.
+
+Rules:
+- Use a friendly, empathetic and solution-oriented tone.
+- Confirm what you understood before answering.
+- If data is missing, ask for one specific detail.
+
+Closing:
+Always ask if the issue is resolved and offer a follow-up channel.`,
+  },
+  {
+    id: "cualificacion_leads",
+    label: "Lead qualification",
+    content:
+`You are {{NOMBRE_AGENTE}}, a lead qualification specialist for {{EMPRESA}}.
+
+Goal:
+- Identify quickly if the lead fits our ideal customer profile.
+- Prioritize high-potential leads.
+
+Rules:
+- Ask short questions, one per message.
+- If the lead qualifies, propose scheduling a demo.
+- If not qualified, provide one useful recommendation and close politely.`,
+  },
+  {
+    id: "agendamiento_demos",
+    label: "Schedule demos",
+    content:
+`You are {{NOMBRE_AGENTE}}, the scheduling assistant for {{EMPRESA}}.
+
+Goal:
+- Move prospects from interest to a confirmed demo.
+
+Rules:
+- Offer specific time slots and confirm name, email and phone.
+- Repeat final date and time to avoid mistakes.`,
   },
 ];
 
@@ -283,6 +324,10 @@ export default function CreateAgentPage() {
     notetakerSendEmail: false,
   });
 
+  const isAgentEnglish = String(form.language || "").toLowerCase().startsWith("en");
+  const purposeOptions = isAgentEnglish ? PURPOSE_OPTIONS_EN : PURPOSE_OPTIONS_ES;
+  const promptGuideTemplates = isAgentEnglish ? PROMPT_GUIDE_TEMPLATES_EN : PROMPT_GUIDE_TEMPLATES_ES;
+
   const steps = getSteps(form.type as AgentType, kind, language);
 
   // ✅ IMPORTANTE: Agentes requiere login COMPLETAMENTE independiente
@@ -342,6 +387,18 @@ export default function CreateAgentPage() {
       window.removeEventListener("botz-language-change", onLanguageChange as EventListener);
     };
   }, []);
+
+  useEffect(() => {
+    setForm((f) => {
+      if (language === "en" && !String(f.language || "").toLowerCase().startsWith("en")) {
+        return { ...f, language: "en-US" };
+      }
+      if (language === "es" && String(f.language || "").toLowerCase().startsWith("en")) {
+        return { ...f, language: "es-ES" };
+      }
+      return f;
+    });
+  }, [language]);
 
   // keep kind/type in sync with query
   useEffect(() => {
@@ -460,7 +517,7 @@ export default function CreateAgentPage() {
   };
 
   const applyPromptTemplate = (mode: "replace" | "append") => {
-    const picked = PROMPT_GUIDE_TEMPLATES.find((t) => t.id === promptTemplateId) || PROMPT_GUIDE_TEMPLATES[0];
+    const picked = promptGuideTemplates.find((t) => t.id === promptTemplateId) || promptGuideTemplates[0];
     if (!picked) return;
 
     const hydrated = picked.content
@@ -775,7 +832,7 @@ export default function CreateAgentPage() {
                         onChange={e => setPromptTemplateId(e.target.value)}
                         style={input({ appearance: "none" as const, height: 42, padding: "0 12px", fontSize: 13 })}
                       >
-                        {PROMPT_GUIDE_TEMPLATES.map((t) => (
+                        {promptGuideTemplates.map((t) => (
                           <option key={t.id} value={t.id}>{t.label}</option>
                         ))}
                       </select>
@@ -1040,7 +1097,7 @@ export default function CreateAgentPage() {
                         style={input({ appearance: "none" as const })}
                       >
                         <option value="">{tr("Seleccionar", "Select")}</option>
-                        {PURPOSE_OPTIONS.map(o => (
+                        {purposeOptions.map(o => (
                           <option key={o.value} value={o.label}>{o.label}</option>
                         ))}
                       </select>
@@ -1059,7 +1116,7 @@ export default function CreateAgentPage() {
                              onChange={e => setPromptTemplateId(e.target.value)}
                              style={input({ appearance: "none" as const, height: 42, padding: "0 12px", fontSize: 13 })}
                            >
-                             {PROMPT_GUIDE_TEMPLATES.map((t) => (
+                             {promptGuideTemplates.map((t) => (
                                <option key={t.id} value={t.id}>{t.label}</option>
                              ))}
                            </select>
@@ -1175,8 +1232,9 @@ export default function CreateAgentPage() {
                     agentRole={form.agentRole}
                     agentPrompt={form.agentPrompt}
                     companyContext={form.companyDesc}
+                    agentLanguage={form.language}
                     voiceSettings={{
-                      model: form.voice,
+                      llmModel: "gpt-4o-mini",
                       voice: form.voice,
                     }}
                   />
