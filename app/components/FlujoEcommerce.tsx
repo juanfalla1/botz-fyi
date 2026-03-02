@@ -1,43 +1,124 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import "./FlujoEcommerce.css";
+import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
-const steps = [
+const stepsEn = [
   {
     icon: "🔎",
-    title: "Análisis\nPredictivo",
-    desc: "Detecta patrones y anticipa picos de demanda.",
-    usecase: "Detecta cuándo subir inventario por alta demanda."
+    title: "Predictive\nAnalysis",
+    desc: "Detects patterns and anticipates demand peaks.",
+    usecase: "Detects when to increase inventory during high demand."
   },
   {
     icon: "🛰️",
-    title: "Monitoreo\nGlobal",
-    desc: "Observa ventas y logística en tiempo real.",
-    usecase: "Notifica retrasos de entregas a clientes automáticamente."
+    title: "Global\nMonitoring",
+    desc: "Tracks sales and logistics in real time.",
+    usecase: "Automatically notifies customers about delivery delays."
   },
   {
     icon: "🧬",
-    title: "Personalización\nIA",
-    desc: "Ajusta recomendaciones a cada cliente.",
-    usecase: "Sugiere productos relevantes durante la compra."
+    title: "AI\nPersonalization",
+    desc: "Adapts recommendations to each customer.",
+    usecase: "Suggests relevant products during checkout."
   },
   {
     icon: "🪙",
-    title: "Pagos\nInteligentes",
-    desc: "Procesa y valida pagos instantáneamente.",
-    usecase: "Reintenta cobros fallidos sin intervención manual."
+    title: "Smart\nPayments",
+    desc: "Processes and validates payments instantly.",
+    usecase: "Retries failed charges without manual intervention."
   },
   {
     icon: "🤝",
-    title: "Cierre\nAutomático",
-    desc: "Cierra ventas y notifica éxito al equipo.",
-    usecase: "Confirma automáticamente ventas exitosas y dispara agradecimientos." 
+    title: "Automated\nClosing",
+    desc: "Closes sales and notifies your team.",
+    usecase: "Automatically confirms successful sales and triggers thank-you messages." 
   }
 ];
 
 type DemoLine = { speaker: "cliente" | "bot"; text: string };
 
-const CALL_DEMOS = [
+const CALL_DEMOS_EN = [
+  {
+    id: "reservas",
+    label: "Booking Agent",
+    title: "Sample conversation: reservation",
+    audioSrc: "/audio/demo-llamada-botz.mp3",
+    forceRealAudio: false,
+    script: [
+      { speaker: "cliente", text: "Hi, I want to book a table for tonight." },
+      { speaker: "bot", text: "Of course, happy to help. I can do this in under a minute. How many people is the reservation for?" },
+      { speaker: "cliente", text: "For four people at eight in the evening." },
+      { speaker: "bot", text: "Perfect. I have availability at eight or eight-thirty. Which do you prefer?" },
+      { speaker: "cliente", text: "Eight works great." },
+      { speaker: "bot", text: "Great. To confirm the booking, can you share your name and a contact number?" },
+      { speaker: "cliente", text: "Yes, Laura Gomez, number 300 555 0142." },
+      { speaker: "bot", text: "Perfect, Laura. Reservation confirmed for today at 8 PM, table for four. I will send the confirmation and location via WhatsApp." },
+      { speaker: "cliente", text: "Awesome, thanks." },
+      { speaker: "bot", text: "You are welcome. If you are delayed by more than fifteen minutes, please message us on this same channel so we can hold the table." },
+    ],
+    preview: [
+      { speaker: "Customer", text: "Hi, I want to book a table for today" },
+      { speaker: "BOTZ AI", text: "Perfect. For how many people and at what time would you like it?" },
+      { speaker: "Customer", text: "For 4 people at 8:00 pm" },
+      { speaker: "BOTZ AI", text: "Great. Can you share your name and phone number to confirm?" },
+      { speaker: "Customer", text: "Laura Gomez, 300 555 0142" },
+      { speaker: "BOTZ AI", text: "Done, reservation confirmed. I will send confirmation via WhatsApp." },
+    ],
+  },
+  {
+    id: "ventas",
+    label: "Sales Agent",
+    title: "Sample conversation: consultative sales",
+    audioSrc: "/audio/demos/ventas-real.mp3",
+    forceRealAudio: false,
+    script: [
+      { speaker: "cliente", text: "Hi, I want to automate WhatsApp for my sales team." },
+      { speaker: "bot", text: "Perfect. I will ask three quick questions to recommend the best option. How many leads do you receive per month?" },
+      { speaker: "cliente", text: "About twelve hundred leads from ads and referrals." },
+      { speaker: "bot", text: "Excellent. With that volume, Botz can respond, qualify and schedule automatically. I suggest a fifteen-minute demo today or tomorrow." },
+      { speaker: "cliente", text: "Tomorrow afternoon." },
+      { speaker: "bot", text: "Scheduled for tomorrow at 4 PM. I will send the invite and checklist via WhatsApp and email." },
+    ],
+    preview: [
+      { speaker: "Customer", text: "I want to automate WhatsApp for sales" },
+      { speaker: "BOTZ AI", text: "Perfect. How many leads do you receive per month and which channel do you use most?" },
+      { speaker: "Customer", text: "Around 1200 leads per month" },
+      { speaker: "BOTZ AI", text: "With that volume, I recommend a 15-minute demo. I can schedule you today or tomorrow." },
+    ],
+  },
+  {
+    id: "soporte",
+    label: "Support Agent",
+    title: "Sample conversation: customer support",
+    audioSrc: "/audio/demos/soporte-real.mp3",
+    forceRealAudio: false,
+    script: [
+      { speaker: "cliente", text: "Hi, I placed an order and it has not arrived yet." },
+      { speaker: "bot", text: "I can help right away. Could you share your order number, please?" },
+      { speaker: "cliente", text: "Yes, it is order C R M dash three two one eight." },
+      { speaker: "bot", text: "Thanks. I checked it: it is in transit and arrives today between 4 and 6 PM. Do you want me to send the tracking link via WhatsApp?" },
+      { speaker: "cliente", text: "Yes, please." },
+      { speaker: "bot", text: "Done, sent. If it does not arrive in that time window, I will prioritize a human agent immediately." },
+    ],
+    preview: [
+      { speaker: "Customer", text: "My order has not arrived" },
+      { speaker: "BOTZ AI", text: "I can help. Can you share your order number?" },
+      { speaker: "Customer", text: "Order CRM-3218" },
+      { speaker: "BOTZ AI", text: "It is in transit and arrives today 4-6 PM. I will send tracking via WhatsApp." },
+    ],
+  },
+] as const;
+
+const stepsEs = [
+  { icon: "🔎", title: "Analisis\nPredictivo", desc: "Detecta patrones y anticipa picos de demanda.", usecase: "Detecta cuando subir inventario por alta demanda." },
+  { icon: "🛰️", title: "Monitoreo\nGlobal", desc: "Observa ventas y logistica en tiempo real.", usecase: "Notifica retrasos de entregas a clientes automaticamente." },
+  { icon: "🧬", title: "Personalizacion\nIA", desc: "Ajusta recomendaciones a cada cliente.", usecase: "Sugiere productos relevantes durante la compra." },
+  { icon: "🪙", title: "Pagos\nInteligentes", desc: "Procesa y valida pagos instantaneamente.", usecase: "Reintenta cobros fallidos sin intervencion manual." },
+  { icon: "🤝", title: "Cierre\nAutomatico", desc: "Cierra ventas y notifica exito al equipo.", usecase: "Confirma ventas exitosas y dispara agradecimientos automaticamente." },
+];
+
+const CALL_DEMOS_ES = [
   {
     id: "reservas",
     label: "Agente de reservas",
@@ -110,10 +191,11 @@ const CALL_DEMOS = [
 ] as const;
 
 const getEcommerceLayout = (width: number) => {
+  const total = stepsEn.length;
   if (width <= 700) {
     return {
       containerWidth: width,
-      containerHeight: steps.length * 80 + 40,
+      containerHeight: total * 80 + 40,
       showConnections: false,
       isMobile: true,
       nodeSize: 0,
@@ -125,8 +207,8 @@ const getEcommerceLayout = (width: number) => {
   const centerX = width * 0.5;
   const centerY = width >= 1000 ? 300 : 250;
   const radius = Math.max(150, Math.min(width * 0.25, width >= 1000 ? 228 : 180));
-  const nodePositions = steps.map((_, i) => {
-    const angle = i * ((2 * Math.PI) / steps.length) - Math.PI / 2;
+  const nodePositions = Array.from({ length: total }).map((_, i) => {
+    const angle = i * ((2 * Math.PI) / total) - Math.PI / 2;
     return {
       x: centerX + radius * Math.cos(angle),
       y: centerY + radius * Math.sin(angle),
@@ -177,12 +259,16 @@ const pickBestVoice = (voices: SpeechSynthesisVoice[], role: "cliente" | "bot") 
 
 export default function FlujoEcommerce() {
   const ALWAYS_SYNTHETIC_DEMO = true;
+  const language = useBotzLanguage("en");
+  const isEn = language === "en";
+  const steps = isEn ? stepsEn : stepsEs;
+  const CALL_DEMOS = isEn ? CALL_DEMOS_EN : CALL_DEMOS_ES;
   const [selected, setSelected] = useState<number | null>(null);
   const [layout, setLayout] = useState(() => getEcommerceLayout(800));
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioAvailabilityByDemo, setAudioAvailabilityByDemo] = useState<Record<string, boolean>>({});
-  const [demoId, setDemoId] = useState<(typeof CALL_DEMOS)[number]["id"]>("reservas");
+  const [demoId, setDemoId] = useState<string>("reservas");
   const [ttsVoiceUris, setTtsVoiceUris] = useState<{ client: string | null; bot: string | null }>({ client: null, bot: null });
 
   const activeDemo = CALL_DEMOS.find((d) => d.id === demoId) || CALL_DEMOS[0];
@@ -338,7 +424,7 @@ export default function FlujoEcommerce() {
           fontSize: "clamp(1.8em, 4vw, 2.8em)"
         }}
       >
-        Botz, E-commerce con IA
+        {isEn ? "Botz AI for E-commerce" : "Botz, E-commerce con IA"}
       </h2>
       <p
         style={{
@@ -350,7 +436,7 @@ export default function FlujoEcommerce() {
           margin: "0 auto 35px"
         }}
       >
-        Descubre cómo la tecnología conecta y automatiza cada etapa del ecommerce moderno.
+        {isEn ? "Discover how technology connects and automates every stage of modern e-commerce." : "Descubre como la tecnologia conecta y automatiza cada etapa del ecommerce moderno."}
       </p>
       <div
         className="flujo-e-container"
@@ -461,16 +547,16 @@ export default function FlujoEcommerce() {
         })}
       </div>
 
-      <div className="ecom-live" aria-label="Llamada grabada y etapas">
+      <div className="ecom-live" aria-label={isEn ? "Recorded call and stages" : "Llamada grabada y etapas"}>
           <div className="ecom-live-head">
-          <div className="ecom-live-kicker">Llamada demo + orquestacion por etapas</div>
-          <div className="ecom-live-sub">Demos realistas de conversacion para mostrar calidad profesional.</div>
+          <div className="ecom-live-kicker">{isEn ? "Demo call + stage orchestration" : "Llamada demo + orquestacion por etapas"}</div>
+          <div className="ecom-live-sub">{isEn ? "Realistic conversation demos to showcase professional quality." : "Demos realistas de conversacion para mostrar calidad profesional."}</div>
         </div>
 
         <div className="ecom-call-scene">
           <div className="ecom-contact-card">
             <img src="/img/agent-icon.png" alt="Robot BOTZ" className="ecom-contact-photo" />
-            <div className="ecom-contact-name">Botz Voice IA</div>
+            <div className="ecom-contact-name">{isEn ? "Botz Voice AI" : "Botz Voice IA"}</div>
             <div className="ecom-contact-phone">+52 8900-9293</div>
             <div className="ecom-contact-actions">
               <span className="ok">📞</span>
@@ -482,7 +568,7 @@ export default function FlujoEcommerce() {
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
               <select
                 value={demoId}
-                onChange={(e) => setDemoId(e.target.value as (typeof CALL_DEMOS)[number]["id"])}
+                onChange={(e) => setDemoId(e.target.value)}
                 style={{
                   flex: "1 1 230px",
                   minWidth: 200,
@@ -500,15 +586,15 @@ export default function FlujoEcommerce() {
                 ))}
               </select>
               <button className="ecom-audio-toggle" onClick={toggleAudio} style={{ marginBottom: 0, position: "static" }}>
-                {isPlaying ? "Pausar demo" : `Escuchar ${activeDemo.label.toLowerCase()}`}
+                 {isPlaying ? (isEn ? "Pause demo" : "Pausar demo") : (isEn ? `Listen to ${activeDemo.label.toLowerCase()}` : `Escuchar ${activeDemo.label.toLowerCase()}`)}
               </button>
             </div>
             {activeDemo.forceRealAudio && !hasRealAudio && (
               <div style={{ color: "#fca5a5", fontSize: 12, fontWeight: 700, margin: "0 0 8px 2px" }}>
-                Audio real pendiente: carga un mp3 humano+bot en {activeDemo.audioSrc}
+                 {isEn ? "Real audio pending: upload a human+bot mp3 at" : "Audio real pendiente: carga un mp3 humano+bot en"} {activeDemo.audioSrc}
               </div>
             )}
-            <button className="ecom-play" onClick={toggleAudio} aria-label="Reproducir llamada">
+            <button className="ecom-play" onClick={toggleAudio} aria-label={isEn ? "Play call" : "Reproducir llamada"}>
               {isPlaying ? "❚❚" : "▶"}
             </button>
             <audio
@@ -557,10 +643,10 @@ export default function FlujoEcommerce() {
         </div>
 
         <div className="ecom-live-labels" aria-hidden="true">
-          <span>Entrada</span>
-          <span>Procesamiento IA</span>
-          <span>Validacion</span>
-          <span>Cierre</span>
+           <span>{isEn ? "Input" : "Entrada"}</span>
+           <span>{isEn ? "AI processing" : "Procesamiento IA"}</span>
+           <span>{isEn ? "Validation" : "Validacion"}</span>
+           <span>{isEn ? "Closing" : "Cierre"}</span>
         </div>
       </div>
 
@@ -570,7 +656,7 @@ export default function FlujoEcommerce() {
             <button
               className="flujo-e-modal-close"
               onClick={() => setSelected(null)}
-              title="Cerrar"
+               title={isEn ? "Close" : "Cerrar"}
             >
               ×
             </button>
@@ -584,7 +670,7 @@ export default function FlujoEcommerce() {
               {steps[selected].desc}
             </div>
             <div style={{ fontWeight: 700, color: "#fff", marginBottom: ".4em" }}>
-              Caso de Uso:
+               {isEn ? "Use Case:" : "Caso de Uso:"}
             </div>
             <div style={{ fontSize: "1.13em" }}>{steps[selected].usecase}</div>
           </div>

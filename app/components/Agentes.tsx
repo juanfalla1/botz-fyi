@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
+import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
 interface AgentCardProps {
   name: string;
@@ -10,9 +11,10 @@ interface AgentCardProps {
   capabilities: string[];
   templateId?: string;
   agentType?: 'voice' | 'text' | 'flow';
+  ctaLabel: string;
 }
 
-const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }: AgentCardProps) => {
+const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType, ctaLabel }: AgentCardProps) => {
   const router = useRouter();
 
   const handleClick = () => {
@@ -48,7 +50,7 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
         e.currentTarget.style.boxShadow = "none";
       }}
     >
-      {/* Nombre arriba */}
+      {/* Name */}
       <h3 
         style={{ 
           fontSize: "1.3em", 
@@ -62,7 +64,7 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
         {name}
       </h3>
 
-      {/* Avatar grande del robot */}
+      {/* Avatar */}
       <div
         style={{
           width: "clamp(102px, 18vw, 140px)",
@@ -81,7 +83,7 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
         {avatar}
       </div>
 
-      {/* Lista de capacidades con checkmarks */}
+      {/* Capabilities list */}
       <div style={{ width: "100%", marginBottom: "24px", flex: 1 }}>
         {capabilities.map((cap, idx) => (
           <div
@@ -118,7 +120,7 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
         ))}
       </div>
 
-      {/* Botón Contratar Ahora */}
+      {/* CTA */}
       <button
         style={{
           width: "100%",
@@ -146,7 +148,7 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
           e.currentTarget.style.color = "#0f172a";
         }}
       >
-        Contratar Ahora
+        {ctaLabel}
       </button>
     </div>
   );
@@ -154,6 +156,8 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType }:
 
 const Agentes = () => {
   const router = useRouter();
+  const language = useBotzLanguage("en");
+  const isEn = language === "en";
   const demoVideoUrl = process.env.NEXT_PUBLIC_AGENTS_DEMO_VIDEO_URL || "";
 
   const goTrial = () => {
@@ -165,108 +169,170 @@ const Agentes = () => {
     window.open(demoVideoUrl, "_blank");
   };
 
-  const topRowAgents = [
+  const ctaLabel = isEn ? "Start Now" : "Contratar Ahora";
+
+  const topRowAgents = isEn ? [
     {
-      name: "Recepcionista de IA",
+      name: "AI Receptionist",
       avatar: "🤖",
       color: "#a3e635",
       capabilities: [
-        "Atiende cada llamada",
-        "Proporciona información",
-        "Agenda citas",
-        "Actualiza el CRM",
+        "Answers every call",
+        "Provides information",
+        "Schedules appointments",
+        "Updates your CRM",
       ],
       templateId: "julia",
       agentType: "text" as const,
     },
     {
-      name: "Calificador de Leads de IA",
+      name: "AI Lead Qualifier",
       avatar: "🎯",
       color: "#a3e635",
       capabilities: [
-        "Califica leads al instante",
-        "Genera interacción",
-        "Puntúa y enruta",
-        "Actualiza el CRM",
+        "Qualifies leads instantly",
+        "Creates engagement",
+        "Scores and routes",
+        "Updates your CRM",
       ],
       templateId: "lia",
       agentType: "voice" as const,
     },
     {
-      name: "Seguimiento de Ventas de IA",
+      name: "AI Sales Follow-up",
       avatar: "📧",
       color: "#a3e635",
       capabilities: [
-        "Envía seguimientos",
-        "Nutre prospectos",
-        "Reactiva leads",
-        "Actualiza el CRM",
+        "Sends follow-ups",
+        "Nurtures prospects",
+        "Reactivates leads",
+        "Updates your CRM",
       ],
       templateId: "alex",
       agentType: "text" as const,
     },
     {
-      name: "Soporte al Cliente de IA",
+      name: "AI Customer Support",
       avatar: "🎧",
       color: "#a3e635",
       capabilities: [
-        "Resuelve problemas",
-        "Responde preguntas frecuentes",
-        "Soluciona incidencias",
-        "Conecta con humanos",
+        "Resolves issues",
+        "Answers FAQs",
+        "Handles incidents",
+        "Escalates to humans",
       ],
+      agentType: "text" as const,
+    },
+  ] : [
+    {
+      name: "Recepcionista de IA",
+      avatar: "🤖",
+      color: "#a3e635",
+      capabilities: ["Atiende cada llamada", "Proporciona informacion", "Agenda citas", "Actualiza tu CRM"],
+      templateId: "julia",
+      agentType: "text" as const,
+    },
+    {
+      name: "Calificador de Leads IA",
+      avatar: "🎯",
+      color: "#a3e635",
+      capabilities: ["Califica leads al instante", "Genera interaccion", "Puntua y enruta", "Actualiza tu CRM"],
+      templateId: "lia",
+      agentType: "voice" as const,
+    },
+    {
+      name: "Seguimiento de Ventas IA",
+      avatar: "📧",
+      color: "#a3e635",
+      capabilities: ["Envia seguimientos", "Nutre prospectos", "Reactiva leads", "Actualiza tu CRM"],
+      templateId: "alex",
+      agentType: "text" as const,
+    },
+    {
+      name: "Soporte al Cliente IA",
+      avatar: "🎧",
+      color: "#a3e635",
+      capabilities: ["Resuelve problemas", "Responde FAQs", "Gestiona incidencias", "Escala a humanos"],
       agentType: "text" as const,
     },
   ];
 
-  const bottomRowAgents = [
+  const bottomRowAgents = isEn ? [
     {
-      name: "Especialista de Onboarding de IA",
+      name: "AI Onboarding Specialist",
       avatar: "👋",
       color: "#a3e635",
       capabilities: [
-        "Guía el onboarding",
-        "Impulsa adopción",
-        "Envía encuestas",
-        "Rastrea progreso",
+        "Guides onboarding",
+        "Drives adoption",
+        "Sends surveys",
+        "Tracks progress",
       ],
       agentType: "text" as const,
     },
     {
-      name: "Evaluador de Candidatos de IA (HR)",
+      name: "AI Candidate Evaluator (HR)",
       avatar: "👔",
       color: "#a3e635",
       capabilities: [
-        "Filtra candidatos",
-        "Hace preguntas estructuradas",
-        "Identifica talento calificado",
-        "Actualiza el ATS",
+        "Screens candidates",
+        "Asks structured questions",
+        "Identifies qualified talent",
+        "Updates ATS",
       ],
       agentType: "voice" as const,
     },
     {
-      name: "Especialista de Cobranza de IA",
+      name: "AI Collections Specialist",
       avatar: "💰",
       color: "#a3e635",
       capabilities: [
-        "Llama por saldos",
-        "Recupera pagos",
-        "Envía recordatorios",
-        "Actualiza el CRM",
+        "Calls overdue accounts",
+        "Recovers payments",
+        "Sends reminders",
+        "Updates your CRM",
       ],
+      agentType: "voice" as const,
+    },
+    {
+      name: "Build Your Own",
+      avatar: "✨",
+      color: "#a3e635",
+      capabilities: [
+        "Create a custom AI agent",
+        "No code required",
+        "Describe what you need",
+        "Botz builds it",
+      ],
+      // No template - goes to main studio
+    },
+  ] : [
+    {
+      name: "Especialista de Onboarding IA",
+      avatar: "👋",
+      color: "#a3e635",
+      capabilities: ["Guia onboarding", "Impulsa adopcion", "Envia encuestas", "Rastrea progreso"],
+      agentType: "text" as const,
+    },
+    {
+      name: "Evaluador de Candidatos IA (HR)",
+      avatar: "👔",
+      color: "#a3e635",
+      capabilities: ["Filtra candidatos", "Hace preguntas estructuradas", "Identifica talento", "Actualiza ATS"],
+      agentType: "voice" as const,
+    },
+    {
+      name: "Especialista de Cobranza IA",
+      avatar: "💰",
+      color: "#a3e635",
+      capabilities: ["Llama por saldos", "Recupera pagos", "Envia recordatorios", "Actualiza tu CRM"],
       agentType: "voice" as const,
     },
     {
       name: "Crea el Tuyo",
       avatar: "✨",
       color: "#a3e635",
-      capabilities: [
-        "Crea un agente de IA personalizado",
-        "Sin usar código",
-        "Describe lo que necesitas",
-        "Botz lo construye",
-      ],
-      // No template - goes to main studio
+      capabilities: ["Crea un agente IA personalizado", "Sin codigo", "Describe lo que necesitas", "Botz lo construye"],
     },
   ];
 
@@ -283,9 +349,9 @@ const Agentes = () => {
               lineHeight: 1.2,
             }}
           >
-            Agentes IA para cada
+            {isEn ? "AI Agents for every" : "Agentes IA para cada"}
             <br />
-            <span style={{ color: "#a3e635" }}>etapa de tu negocio</span>
+            <span style={{ color: "#a3e635" }}>{isEn ? "stage of your business" : "etapa de tu negocio"}</span>
           </h2>
           
           <p
@@ -297,7 +363,7 @@ const Agentes = () => {
               lineHeight: 1.6,
             }}
           >
-            Contrata agentes especializados que trabajan 24/7 para escalar tu operación
+            {isEn ? "Hire specialized agents that run 24/7 to scale your operation" : "Contrata agentes especializados que trabajan 24/7 para escalar tu operacion"}
           </p>
 
           <div
@@ -334,7 +400,7 @@ const Agentes = () => {
                 e.currentTarget.style.filter = "brightness(1)";
               }}
             >
-              Prueba Gratis
+              {isEn ? "Start Free" : "Prueba Gratis"}
             </button>
           </div>
 
@@ -353,12 +419,12 @@ const Agentes = () => {
                 textUnderlineOffset: 3,
               }}
             >
-              Ver video de como funciona (2 min)
+               {isEn ? "Watch how it works (2 min)" : "Ver video de como funciona (2 min)"}
             </button>
           ) : null}
         </div>
 
-        {/* Primera fila - 4 agentes */}
+        {/* Top row */}
         <div
           style={{
             display: "grid",
@@ -368,11 +434,11 @@ const Agentes = () => {
           }}
         >
           {topRowAgents.map((agent, index) => (
-            <AgentCard key={index} {...agent} />
+            <AgentCard key={index} {...agent} ctaLabel={ctaLabel} />
           ))}
         </div>
 
-        {/* Segunda fila - 4 agentes */}
+        {/* Bottom row */}
         <div
           style={{
             display: "grid",
@@ -381,7 +447,7 @@ const Agentes = () => {
           }}
         >
           {bottomRowAgents.map((agent, index) => (
-            <AgentCard key={index} {...agent} />
+            <AgentCard key={index} {...agent} ctaLabel={ctaLabel} />
           ))}
         </div>
       </div>

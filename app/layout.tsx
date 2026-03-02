@@ -10,11 +10,11 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.botz.fyi"),
   title: {
-    default: "Botz | IA para Agentes, Automatización y Ventas",
+    default: "Botz | AI Agents, Automation and Revenue",
     template: "%s | Botz",
   },
   description:
-    "Botz impulsa ventas y operación con IA: agentes inteligentes, automatización de procesos, WhatsApp, n8n y dashboards en tiempo real.",
+    "Botz scales revenue and operations with AI: intelligent agents, process automation, WhatsApp, n8n and real-time dashboards.",
   applicationName: "Botz",
   keywords: [
     "Botz",
@@ -36,9 +36,9 @@ export const metadata: Metadata = {
     apple: "/favicon-512x512.png",
   },
   openGraph: {
-    title: "Botz | IA para Agentes, Automatización y Ventas",
+    title: "Botz | AI Agents, Automation and Revenue",
     description:
-      "Agentes IA, automatizaciones con n8n, WhatsApp y flujos comerciales para captar, calificar y convertir más clientes.",
+      "AI agents, n8n automations, WhatsApp and commercial flows to capture, qualify and convert more customers.",
     url: "https://www.botz.fyi",
     siteName: "Botz",
     images: [
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Botz - IA para automatización y agentes",
+        alt: "Botz - AI automation and agents",
       },
     ],
     locale: "es_ES",
@@ -54,9 +54,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Botz | IA para Agentes, Automatización y Ventas",
+    title: "Botz | AI Agents, Automation and Revenue",
     description:
-      "Automatiza ventas y operaciones con Botz: agentes IA, flujos n8n, WhatsApp y dashboards en tiempo real.",
+      "Automate sales and operations with Botz: AI agents, n8n flows, WhatsApp and real-time dashboards.",
     images: ["/og-image.png"],
   },
   robots: {
@@ -225,5 +225,4 @@ export default function RootLayout({
     </html>
   );
 }
-
 

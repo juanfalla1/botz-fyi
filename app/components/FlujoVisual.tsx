@@ -1,13 +1,22 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import "./FlujoVisual.css";
+import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
-const nodes = [
-  { id: "percepcion", label: "Percepción", desc: "Entrada omnicanal", detail: "Entrada de datos desde formularios o mensajería.", icon: "👁️" },
-  { id: "memoria", label: "Memoria", desc: "Consulta de datos", detail: "Consulta a fuentes como Google Sheets o bases de datos.", icon: "💾" },
-  { id: "nucleo", label: "Núcleo Cognitivo", desc: "Inteligencia central", detail: "Análisis y toma de decisiones usando OpenAI.", icon: "🧠" },
-  { id: "procesamiento", label: "Procesamiento", desc: "Automatización", detail: "Evaluación contextual y lógica basada en datos.", icon: "⚙️" },
-  { id: "accion", label: "Acción", desc: "Respuesta automática", detail: "Respuesta automática enviada al cliente.", icon: "⚡" }
+const nodesEn = [
+  { id: "percepcion", label: "Perception", desc: "Omnichannel input", detail: "Data input from forms and messaging channels.", icon: "👁️" },
+  { id: "memoria", label: "Memory", desc: "Data lookup", detail: "Queries sources like Google Sheets and databases.", icon: "💾" },
+  { id: "nucleo", label: "Cognitive Core", desc: "Central intelligence", detail: "Analysis and decision-making powered by OpenAI.", icon: "🧠" },
+  { id: "procesamiento", label: "Processing", desc: "Automation", detail: "Context evaluation and data-driven logic.", icon: "⚙️" },
+  { id: "accion", label: "Action", desc: "Automated response", detail: "Automated response delivered to the customer.", icon: "⚡" }
+];
+
+const nodesEs = [
+  { id: "percepcion", label: "Percepcion", desc: "Entrada omnicanal", detail: "Entrada de datos desde formularios o mensajeria.", icon: "👁️" },
+  { id: "memoria", label: "Memoria", desc: "Consulta de datos", detail: "Consulta fuentes como Google Sheets y bases de datos.", icon: "💾" },
+  { id: "nucleo", label: "Nucleo Cognitivo", desc: "Inteligencia central", detail: "Analisis y toma de decisiones usando OpenAI.", icon: "🧠" },
+  { id: "procesamiento", label: "Procesamiento", desc: "Automatizacion", detail: "Evaluacion contextual y logica basada en datos.", icon: "⚙️" },
+  { id: "accion", label: "Accion", desc: "Respuesta automatica", detail: "Respuesta automatica enviada al cliente.", icon: "⚡" },
 ];
 
 const connections = [
@@ -62,6 +71,9 @@ const getResponsiveLayout = (width: number) => {
 };
 
 export default function FlujoVisual() {
+  const language = useBotzLanguage("en");
+  const isEn = language === "en";
+  const nodes = isEn ? nodesEn : nodesEs;
   const [selectedNode, setSelectedNode] = useState<number | null>(null);
 
   // ✅ Estado seguro para SSR → arranca con 880
@@ -106,10 +118,10 @@ export default function FlujoVisual() {
           fontSize: "clamp(1.5em, 4vw, 2em)"
         }}
       >
-        <span role="img" aria-label="Flujo" style={{ marginRight: 10 }}>
+        <span role="img" aria-label={isEn ? "Flow" : "Flujo"} style={{ marginRight: 10 }}>
           📊
         </span>
-        Flujo Cognitivo Visual
+        {isEn ? "Visual Cognitive Flow" : "Flujo Cognitivo Visual"}
       </h2>
       <p
         style={{
@@ -121,8 +133,9 @@ export default function FlujoVisual() {
           padding: "0 1rem"
         }}
       >
-        Este diagrama muestra cómo botz procesa datos desde la percepción, consulta su memoria,
-        analiza en su núcleo cognitivo y ejecuta acciones automatizadas.
+        {isEn
+          ? "This diagram shows how botz processes data from perception, consults memory, reasons in its cognitive core and executes automated actions."
+          : "Este diagrama muestra como botz procesa datos desde la percepcion, consulta su memoria, analiza en su nucleo cognitivo y ejecuta acciones automatizadas."}
       </p>
       <div
         ref={canvasRef}
@@ -210,31 +223,31 @@ export default function FlujoVisual() {
         ))}
       </div>
 
-      {/* Extra contexto (compacto) */}
-      <div className="flujo-extra" aria-label="Resumen del flujo">
+      {/* Extra context */}
+      <div className="flujo-extra" aria-label={isEn ? "Flow summary" : "Resumen del flujo"}>
         <div className="flujo-extra-card">
-          <div className="flujo-extra-title">Entradas</div>
+          <div className="flujo-extra-title">{isEn ? "Inputs" : "Entradas"}</div>
           <div className="flujo-extra-list">
-            <div>WhatsApp, formularios y anuncios</div>
-            <div>Datos del lead y contexto</div>
-            <div>Historial y fuentes conectadas</div>
+            <div>{isEn ? "WhatsApp, forms and ads" : "WhatsApp, formularios y anuncios"}</div>
+            <div>{isEn ? "Lead data and context" : "Datos del lead y contexto"}</div>
+            <div>{isEn ? "History and connected sources" : "Historial y fuentes conectadas"}</div>
           </div>
         </div>
 
         <div className="flujo-extra-card">
-          <div className="flujo-extra-title">Salidas</div>
+          <div className="flujo-extra-title">{isEn ? "Outputs" : "Salidas"}</div>
           <div className="flujo-extra-list">
-            <div>Lead limpio en el CRM</div>
-            <div>Acciones: seguimiento, tareas y mensajes</div>
-            <div>Resultados: scoring, viabilidad y PDF</div>
+            <div>{isEn ? "Clean lead in CRM" : "Lead limpio en el CRM"}</div>
+            <div>{isEn ? "Actions: follow-up, tasks and messages" : "Acciones: seguimiento, tareas y mensajes"}</div>
+            <div>{isEn ? "Results: scoring, viability and PDF" : "Resultados: scoring, viabilidad y PDF"}</div>
           </div>
         </div>
 
         <div className="flujo-extra-cta">
-          <div className="flujo-extra-cta-title">Quieres este flujo en tu negocio?</div>
+          <div className="flujo-extra-cta-title">{isEn ? "Want this flow in your business?" : "Quieres este flujo en tu negocio?"}</div>
           <div className="flujo-extra-cta-actions">
             <a className="flujo-extra-btn secondary" href="https://wa.me/573154829949" target="_blank" rel="noopener noreferrer">
-              Hablar por WhatsApp
+              {isEn ? "Chat on WhatsApp" : "Hablar por WhatsApp"}
             </a>
           </div>
         </div>
@@ -325,10 +338,10 @@ export default function FlujoVisual() {
 
           {/* labels */}
           <g fill="#94a3b8" fontSize="11" fontFamily="system-ui, -apple-system, Segoe UI, sans-serif" textAnchor="middle">
-            <text x="160" y="155">Captura</text>
-            <text x="460" y="155">Razonamiento</text>
-            <text x="760" y="155">Accion</text>
-            <text x="1060" y="155">Salida</text>
+            <text x="160" y="155">{isEn ? "Capture" : "Captura"}</text>
+            <text x="460" y="155">{isEn ? "Reasoning" : "Razonamiento"}</text>
+            <text x="760" y="155">{isEn ? "Action" : "Accion"}</text>
+            <text x="1060" y="155">{isEn ? "Output" : "Salida"}</text>
           </g>
         </svg>
       </div>
@@ -340,7 +353,7 @@ export default function FlujoVisual() {
             <button
               className="node-modal-close"
               onClick={() => setSelectedNode(null)}
-              title="Cerrar"
+               title={isEn ? "Close" : "Cerrar"}
             >
               &times;
             </button>

@@ -19,6 +19,7 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const userMessage: string = String(body?.message || "");
+    const requestedLanguage = body?.language === "en" || body?.language === "es" ? body.language : null;
 
     const BOTZ_SYSTEM_PROMPT = `Eres el asistente virtual oficial de Botz (botz.fyi).
 
@@ -33,7 +34,12 @@ Producto (fuente de verdad): Botz es una plataforma con un dashboard /start que 
 Alcance (muy importante):
 - SOLO respondes temas relacionados con Botz y sus funcionalidades.
 - No inventes caracteristicas (ej: "RPA" u otras) si no estan listadas arriba. Si preguntan por algo no listado, responde que Botz se enfoca en lo anterior y pregunta que necesitan lograr.
-- Si el usuario pregunta algo fuera de Botz (ej: "pan", comida, politica, chistes, etc.), NO respondas ese tema. Redirige.
+- Si el usuario pregunta algo fuera de Botz (ej: "pan", comida, politica, chistes, etc.), NO desarrolles ese tema. Redirige con amabilidad.
+
+Saludos y cortesia (importante):
+- Si el usuario solo saluda o hace small talk corto (ej: "hola", "hello", "how are you", "gracias"), responde de forma breve y cordial en su idioma, y luego redirige a como ayudar con Botz.
+- Ejemplo en EN: "Hi! Im doing great, thanks. I can help you with Botz (AI agents, CRM/leads, automations, mortgage scoring). What do you want to set up first?"
+- Ejemplo en ES: "Hola! Todo bien, gracias. Te ayudo con Botz (agentes IA, CRM/leads, automatizaciones, scoring hipotecario). Que quieres configurar primero?"
 
 Si te preguntan: "que herramientas tienen?" responde EXACTAMENTE con bullets como estos (ajusta minimo):
 - CRM en vivo de leads (estados, calificacion, proxima accion, asesor, bitacora)
@@ -55,13 +61,22 @@ Derivacion a WhatsApp:
 - Enlace: https://wa.me/573154829949
 
 Idioma:
-- Espanol por defecto (a menos que el usuario escriba en ingles).
+- Responde en el idioma del usuario.
+- Si detectas ingles, responde en ingles.
+- Si no esta claro, usa espanol.
 `;
+
+    const LANGUAGE_OVERRIDE =
+      requestedLanguage === "en"
+        ? "Idioma forzado por interfaz: responde SIEMPRE en ingles, excepto nombres propios o terminos de producto."
+        : requestedLanguage === "es"
+          ? "Idioma forzado por interfaz: responde SIEMPRE en espanol."
+          : "";
 
     const messages = [
       {
         role: "system",
-        content: BOTZ_SYSTEM_PROMPT,
+        content: `${BOTZ_SYSTEM_PROMPT}\n${LANGUAGE_OVERRIDE}`,
       },
       { role: "user", content: userMessage },
     ] as any;

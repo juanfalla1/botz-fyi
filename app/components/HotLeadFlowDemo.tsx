@@ -6,41 +6,55 @@ import { motion } from "framer-motion";
 import { FaRobot, FaCheckCircle, FaEnvelope, FaTelegramPlane, FaArrowRight } from "react-icons/fa";
 import { MdHttp, MdEmail, MdOutlineAnalytics } from "react-icons/md";
 import { SiGooglesheets } from "react-icons/si";
+import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
-const steps = [
+const stepsEn = [
   {
     icon: <MdHttp size={40} className="text-cyan-400" />,
-    title: "Recepción del Lead",
-    description: "El sistema recibe automáticamente un nuevo contacto a través del sitio web."
+    title: "Lead Intake",
+    description: "The system automatically receives a new contact from your website."
   },
   {
     icon: <FaRobot size={40} className="text-pink-400" />,
-    title: "Clasificación con IA",
-    description: "Una inteligencia artificial analiza el lead para determinar su tipo, urgencia y categoría."
+    title: "AI Qualification",
+    description: "AI analyzes the lead to determine type, urgency and category."
   },
   {
     icon: <SiGooglesheets size={40} className="text-green-400" />,
-    title: "Registro en Google Sheets",
-    description: "Los datos del lead son almacenados ordenadamente en una hoja de cálculo  o en base de datos en tiempo real."
+    title: "Google Sheets Logging",
+    description: "Lead data is stored in a spreadsheet or database in real time."
   },
   {
     icon: <FaEnvelope size={40} className="text-indigo-400" />,
-    title: "Envío de correo",
-    description: "Se envía un correo automático al contacto con información relevante o de bienvenida."
+    title: "Email Delivery",
+    description: "An automatic email is sent to the contact with relevant or welcome information."
   },
   {
     icon: <FaTelegramPlane size={40} className="text-blue-400" />,
-    title: "Notificación por Telegram",
-    description: "Tu equipo recibe una notificación inmediata por Telegram para actuar sin demoras."
+    title: "Telegram Alert",
+    description: "Your team receives an immediate Telegram alert to act quickly."
   },
   {
     icon: <FaCheckCircle size={40} className="text-emerald-400" />,
-    title: "¡Proceso completado!",
-    description: "Todo el flujo fue ejecutado sin intervención manual. Lead listo para seguimiento."
+    title: "Process complete",
+    description: "The full flow runs without manual intervention. Lead is ready for follow-up."
   }
 ];
 
+const stepsEs = [
+  { icon: <MdHttp size={40} className="text-cyan-400" />, title: "Recepcion del Lead", description: "El sistema recibe automaticamente un nuevo contacto a traves del sitio web." },
+  { icon: <FaRobot size={40} className="text-pink-400" />, title: "Clasificacion con IA", description: "Una inteligencia artificial analiza el lead para determinar su tipo, urgencia y categoria." },
+  { icon: <SiGooglesheets size={40} className="text-green-400" />, title: "Registro en Google Sheets", description: "Los datos del lead se almacenan en hoja de calculo o base de datos en tiempo real." },
+  { icon: <FaEnvelope size={40} className="text-indigo-400" />, title: "Envio de correo", description: "Se envia un correo automatico al contacto con informacion relevante." },
+  { icon: <FaTelegramPlane size={40} className="text-blue-400" />, title: "Notificacion por Telegram", description: "Tu equipo recibe una notificacion inmediata por Telegram para actuar sin demoras." },
+  { icon: <FaCheckCircle size={40} className="text-emerald-400" />, title: "Proceso completado", description: "Todo el flujo se ejecuta sin intervencion manual. Lead listo para seguimiento." },
+];
+
 const HotLeadFlowDemo = () => {
+  const language = useBotzLanguage("en");
+  const isEn = language === "en";
+  const steps = isEn ? stepsEn : stepsEs;
+
   return (
     <section className="py-20 px-6 bg-[#0a0f1c] text-white">
       <div className="max-w-6xl mx-auto text-center">
@@ -51,7 +65,7 @@ const HotLeadFlowDemo = () => {
           marginBottom: "1rem",
           lineHeight: 1.2
         }}>
-          Solución Para la Captación de Leads con hotLead
+          {isEn ? "Lead Acquisition Solution with hotLead" : "Solucion para la Captacion de Leads con hotLead"}
         </h2>
         <p style={{
           fontSize: "clamp(1em, 2.5vw, 1.125rem)",
@@ -61,10 +75,10 @@ const HotLeadFlowDemo = () => {
           margin: "0 auto 2rem",
           lineHeight: 1.6
         }}>
-          Este flujo muestra paso a paso cómo hotLead transforma un contacto frío en una oportunidad real.
+          {isEn ? "This flow shows step by step how hotLead turns a cold contact into a real opportunity." : "Este flujo muestra paso a paso como hotLead transforma un contacto frio en una oportunidad real."}
         </p>
 
-        {/* BOTÓN AÑADIDO EN LA MITAD */}
+        {/* Mid-page CTA */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           whileInView={{ opacity: 1, scale: 1 }}
@@ -90,7 +104,7 @@ const HotLeadFlowDemo = () => {
             onMouseOver={(e) => e.currentTarget.style.transform = "translateY(-5px)"}
             onMouseOut={(e) => e.currentTarget.style.transform = "translateY(0)"}
           >
-            Prueba la herramienta para gestión de leads de hipotecas
+            {isEn ? "Try the mortgage lead management tool" : "Prueba la herramienta para gestion de leads de hipotecas"}
             <FaArrowRight />
           </a>
         </motion.div>

@@ -2,24 +2,28 @@
 
 import React from "react";
 import { FaInstagram, FaLinkedin, FaWhatsapp, FaEnvelope } from "react-icons/fa";
+import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
 const Footer = () => {
+  const language = useBotzLanguage("en");
+  const isEn = language === "en";
+
   return (
     <footer id="contacto" className="bg-[#040917] text-white py-12">
       <div className="max-w-7xl mx-auto px-4 text-center space-y-8">
-        {/* Derechos reservados */}
+        {/* Copyright */}
         <p className="text-sm text-gray-400">
-          © {new Date().getFullYear()} BOTZ. Todos los derechos reservados.
+          © {new Date().getFullYear()} BOTZ. {isEn ? "All rights reserved." : "Todos los derechos reservados."}
         </p>
 
-        {/* Datos de contacto */}
-        {/* Datos de contacto */}
+        {/* Contact details */}
+        {/* Contact details */}
 <div className="text-sm text-gray-300 space-y-1">
 
-{/* Dirección Canadá */}
+{/* Canada address */}
 <p>📍 689 The Queensway, Toronto, Ontario, M8Y 1L1</p>
 
-{/* Teléfono Canadá */}
+{/* Canada phone */}
 <p>
   📞{" "}
   <a href="tel:+14374351594" className="hover:text-cyan-400">
@@ -35,10 +39,10 @@ const Footer = () => {
   </a>
 </p>
 
-{/* Dirección Colombia */}
+{/* Colombia address */}
 <p>📍 Colombia, Bogotá, Calle 127A # C46-5</p>
 
-{/* Teléfono Colombia */}
+{/* Colombia phone */}
 <p>
   📞{" "}
   <a href="tel:+573154829949" className="hover:text-cyan-400">
@@ -51,7 +55,7 @@ const Footer = () => {
             
         
 
-        {/* Redes sociales */}
+        {/* Social media */}
         <div className="flex justify-center space-x-10 mt-6">
           <a
             href="https://www.instagram.com/botz.fyi"
@@ -82,13 +86,13 @@ const Footer = () => {
           </a>
         </div>
 
-        {/* Links legales */}
+        {/* Legal links */}
         <div className="flex justify-center space-x-6 text-sm text-gray-400 mt-6">
           <a href="/privacy" className="hover:text-cyan-400">
-            Política de Privacidad
+            {isEn ? "Privacy Policy" : "Politica de Privacidad"}
           </a>
           <a href="/terms" className="hover:text-cyan-400">
-            Términos y Condiciones
+            {isEn ? "Terms and Conditions" : "Terminos y Condiciones"}
           </a>
         </div>
       </div>
@@ -97,8 +101,6 @@ const Footer = () => {
 };
 
 export default Footer;
-
-
 
 
 

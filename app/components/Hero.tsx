@@ -3,9 +3,30 @@ import React, { useState } from "react";
 import styles from "../styles/Hero.module.css";
 import DemoModal from "./DemoModal";
 import TextRotator from "./TextRotator";
+import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
 const Hero = () => {
   const [showModal, setShowModal] = useState(false);
+  const language = useBotzLanguage("en");
+  const t = language === "en"
+    ? {
+        title: "that transform your business",
+        subtitle:
+          "botz is your platform to scale business productivity with intelligent agents that automate tasks and decisions.",
+        cta: "Try Live Demo",
+        note: "Live demo - No card required",
+        goTop: "Go to top",
+        words: ["AI Agents", "Automation", "Intelligent Processes", "Workflows", "Integrations", "Chatbots"],
+      }
+    : {
+        title: "que transforman tu negocio",
+        subtitle:
+          "botz es tu plataforma para transformar la productividad empresarial mediante agentes inteligentes que automatizan tareas y decisiones.",
+        cta: "Prueba Demo en vivo",
+        note: "Demo en vivo - Sin tarjeta",
+        goTop: "Ir al inicio",
+        words: ["Agentes IA", "Automatizacion", "Procesos Inteligentes", "Flujos de Trabajo", "Integraciones", "Chatbots"],
+      };
 
   return (
     <section className={styles.hero}>
@@ -14,7 +35,7 @@ const Hero = () => {
           <div
             className={styles.floatingElement}
             style={{ width: 100, height: 100, top: "20%", left: "10%" }}
-            title="Ir al inicio"
+            title={t.goTop}
           />
         </a>
         <div
@@ -27,14 +48,7 @@ const Hero = () => {
         <h2 className={styles.heroTitle} style={{ fontSize: "48px", fontWeight: "bold", lineHeight: 1.2, color: "#fff", marginBottom: "20px" }}>
           <div style={{ marginBottom: "8px" }}>
             <TextRotator
-              words={[
-                "Agentes IA",
-                "Automatización",
-                "Procesos Inteligentes",
-                "Flujos de Trabajo",
-                "Integraciones",
-                "Chatbots"
-              ]}
+              words={t.words}
               prefix=""
               suffix=""
               highlightColor="#22d3ee"
@@ -43,19 +57,18 @@ const Hero = () => {
               pauseDuration={1500}
             />
           </div>
-          <div>que transforman tu negocio</div>
+          <div>{t.title}</div>
         </h2>
 
         <p className={styles.heroSubtitle}>
-          botz es tu plataforma para transformar la productividad empresarial
-          mediante agentes inteligentes que automatizan tareas y decisiones.
+          {t.subtitle}
         </p>
 
         <button
           className={styles.heroButton}
           onClick={() => setShowModal(true)}
         >
-          Prueba Demo en vivo <i className="fas fa-arrow-right"></i>
+          {t.cta} <i className="fas fa-arrow-right"></i>
         </button>
 
         {/* 👇 TEXTO NUEVO (CLAVE PARA EL TRIAL) */}
@@ -66,7 +79,7 @@ const Hero = () => {
             color: "rgba(255,255,255,0.8)",
           }}
         >
-          Demo en vivo · Sin tarjeta
+          {t.note}
         </p>
       </div>
 

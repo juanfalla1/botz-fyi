@@ -1,56 +1,75 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import "./AutomatizacionN8N.css";
+import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
-const steps = [
+const stepsEn = [
   {
     icon: "🌐",
     label: "Webhook",
-    desc: "Recibe datos del sitio",
-    detail: "Recibe y dispara el flujo con solicitudes HTTP desde el sitio web."
+    desc: "Receives website data",
+    detail: "Receives and triggers the flow with HTTP requests from your website."
   },
   {
     icon: "📊",
     label: "Google Sheets",
-    desc: "Registra la información",
-    detail: "Guarda automáticamente cada entrada recibida en Google Sheets."
+    desc: "Logs information",
+    detail: "Automatically stores every incoming entry in Google Sheets."
   },
   {
     icon: "✉️",
     label: "Gmail",
-    desc: "Envía confirmación",
-    detail: "Envía correos de confirmación o aviso a usuarios y equipo."
+    desc: "Sends confirmation",
+    detail: "Sends confirmation or alert emails to users and your team."
   },
   {
     icon: "🤖",
     label: "OpenAI",
-    desc: "Genera respuestas",
-    detail: "Genera mensajes, análisis o respuestas personalizadas usando IA."
+    desc: "Generates responses",
+    detail: "Generates messages, analysis and personalized responses using AI."
   },
   {
     icon: "📲",
     label: "Telegram",
-    desc: "Entrega al usuario",
-    detail: "Envía la información o respuesta final directamente al usuario."
+    desc: "Delivers to the user",
+    detail: "Sends the final information or response directly to the user."
   }
 ];
 
-const ventajas = [
-  { icon: "⚡", title: "Respuesta 85% Más Rápida", desc: "Reduce tiempos y automatiza procesos críticos en minutos." },
-  { icon: "🔌", title: "+300 Integraciones", desc: "Conecta APIs y apps como CRMs, WhatsApp, pagos, redes y más." },
-  { icon: "👾", title: "No-Code Visual", desc: "Flujos visuales con lógica avanzada, ¡sin necesidad de programar!" },
-  { icon: "📈", title: "Escalabilidad Dinámica", desc: "Crece automáticamente según la demanda y carga de datos." },
-  { icon: "🧠", title: "Lógica y Condiciones", desc: "Soporta ramificaciones complejas y automatizaciones inteligentes." },
-  { icon: "🔍", title: "Monitoreo en Tiempo Real", desc: "Observa, depura y optimiza todos tus flujos en vivo." }
+const stepsEs = [
+  { icon: "🌐", label: "Webhook", desc: "Recibe datos del sitio", detail: "Recibe y dispara el flujo con solicitudes HTTP desde el sitio web." },
+  { icon: "📊", label: "Google Sheets", desc: "Registra la informacion", detail: "Guarda automaticamente cada entrada recibida en Google Sheets." },
+  { icon: "✉️", label: "Gmail", desc: "Envia confirmacion", detail: "Envia correos de confirmacion o aviso a usuarios y equipo." },
+  { icon: "🤖", label: "OpenAI", desc: "Genera respuestas", detail: "Genera mensajes, analisis y respuestas personalizadas usando IA." },
+  { icon: "📲", label: "Telegram", desc: "Entrega al usuario", detail: "Envia la informacion o respuesta final directamente al usuario." },
+];
+
+const ventajasEn = [
+  { icon: "⚡", title: "85% Faster Response", desc: "Cut response times and automate critical processes in minutes." },
+  { icon: "🔌", title: "300+ Integrations", desc: "Connect APIs and apps like CRMs, WhatsApp, payments, social and more." },
+  { icon: "👾", title: "No-Code Visual", desc: "Visual flows with advanced logic, no coding required." },
+  { icon: "📈", title: "Dynamic Scalability", desc: "Scale automatically based on demand and data load." },
+  { icon: "🧠", title: "Logic and Conditions", desc: "Supports complex branching and intelligent automations." },
+  { icon: "🔍", title: "Real-Time Monitoring", desc: "Observe, debug and optimize all your flows live." }
+];
+
+const ventajasEs = [
+  { icon: "⚡", title: "Respuesta 85% Mas Rapida", desc: "Reduce tiempos y automatiza procesos criticos en minutos." },
+  { icon: "🔌", title: "+300 Integraciones", desc: "Conecta APIs y apps como CRMs, WhatsApp, pagos, redes y mas." },
+  { icon: "👾", title: "No-Code Visual", desc: "Flujos visuales con logica avanzada, sin necesidad de programar." },
+  { icon: "📈", title: "Escalabilidad Dinamica", desc: "Crece automaticamente segun la demanda y carga de datos." },
+  { icon: "🧠", title: "Logica y Condiciones", desc: "Soporta ramificaciones complejas y automatizaciones inteligentes." },
+  { icon: "🔍", title: "Monitoreo en Tiempo Real", desc: "Observa, depura y optimiza todos tus flujos en vivo." },
 ];
 
 // ✅ Layout responsivo para AutomatizacionN8N
 const getN8nLayout = (width: number) => {
+  const total = 5;
   if (width <= 650) {
     // Móvil: tarjetas horizontales
     return {
       containerWidth: width,
-      containerHeight: steps.length * 140 + 40,
+      containerHeight: total * 140 + 40,
       showConnections: false,
       isMobile: true,
       nodePositions: [] // No se usan en móvil
@@ -60,10 +79,10 @@ const getN8nLayout = (width: number) => {
     const containerWidth = Math.min(width, 800);
     const nodeWidth = 190;
     const nodeCenter = nodeWidth / 2;
-    const totalNodesWidth = steps.length * nodeWidth;
+    const totalNodesWidth = total * nodeWidth;
     const availableSpace = containerWidth - totalNodesWidth;
-    const spacing = availableSpace / (steps.length - 1);
-    const startX = (containerWidth - totalNodesWidth - (spacing * (steps.length - 1))) / 2;
+    const spacing = availableSpace / (total - 1);
+    const startX = (containerWidth - totalNodesWidth - (spacing * (total - 1))) / 2;
     
     return {
       containerWidth: containerWidth,
@@ -71,7 +90,7 @@ const getN8nLayout = (width: number) => {
       showConnections: true,
       isMobile: false,
       nodeCenter,
-      nodePositions: steps.map((_, i) => ({ 
+      nodePositions: Array.from({ length: total }).map((_, i) => ({ 
         x: startX + i * (nodeWidth + spacing), 
         y: 80 
       }))
@@ -81,10 +100,10 @@ const getN8nLayout = (width: number) => {
     const containerWidth = Math.min(width, 1320);
     const nodeWidth = 220;
     const nodeCenter = nodeWidth / 2;
-    const totalNodesWidth = steps.length * nodeWidth;
+    const totalNodesWidth = total * nodeWidth;
     const availableSpace = containerWidth - totalNodesWidth;
-    const spacing = availableSpace / (steps.length - 1);
-    const startX = (containerWidth - totalNodesWidth - (spacing * (steps.length - 1))) / 2;
+    const spacing = availableSpace / (total - 1);
+    const startX = (containerWidth - totalNodesWidth - (spacing * (total - 1))) / 2;
     
     return {
       containerWidth: containerWidth,
@@ -92,7 +111,7 @@ const getN8nLayout = (width: number) => {
       showConnections: true,
       isMobile: false,
       nodeCenter,
-      nodePositions: steps.map((_, i) => ({ 
+      nodePositions: Array.from({ length: total }).map((_, i) => ({ 
         x: startX + i * (nodeWidth + spacing), 
         y: 90 
       }))
@@ -101,6 +120,10 @@ const getN8nLayout = (width: number) => {
 };
 
 export default function AutomatizacionN8N() {
+  const language = useBotzLanguage("en");
+  const isEn = language === "en";
+  const steps = isEn ? stepsEn : stepsEs;
+  const ventajas = isEn ? ventajasEn : ventajasEs;
   const [selected, setSelected] = useState<number | null>(null);
   const [layout, setLayout] = useState(() => getN8nLayout(1000));
 
@@ -121,10 +144,10 @@ export default function AutomatizacionN8N() {
   return (
     <section style={{ margin: "60px auto 80px", position: "relative", padding: "0 clamp(12px, 4vw, 40px)", width: "100%", maxWidth: "1400px", boxSizing: "border-box" }}>
       <h2 className="section-title" style={{ color: "#22d3ee", fontSize: "clamp(1.8em, 4vw, 2.8em)", textAlign: "center" }}>
-      botzflow, Automatización de Flujos de Procesos
+      {isEn ? "botzflow, Process Automation Flows" : "botzflow, Automatizacion de Flujos de Procesos"}
       </h2>
       <p style={{ textAlign: "center", color: "#e2e8f0", fontSize: "clamp(1.2em, 2.5vw, 1.4em)", marginBottom: 40, maxWidth: "800px", margin: "0 auto 40px" }}>
-        Un flujo inteligente para transformar tu operación: <b>botzflow orquesta tu proceso de extremo a extremo.</b>
+        {isEn ? "An intelligent flow to transform your operation:" : "Un flujo inteligente para transformar tu operacion:"} <b>{isEn ? "botzflow orchestrates your process end to end." : "botzflow orquesta tu proceso de extremo a extremo."}</b>
       </p>
 
       {/* === Fondo y flujo n8n === */}
@@ -217,7 +240,7 @@ export default function AutomatizacionN8N() {
       {/* === Ventajas === */}
       <div style={{ margin: "88px auto 0", maxWidth: "1400px", width: "100%", padding: 0, boxSizing: "border-box" }}>
         <h3 style={{ color: "#22d3ee", marginBottom: 24, fontWeight: 600, textAlign: "center", fontSize: "clamp(1.1em, 4.5vw, 1.5em)", lineHeight: 1.25, padding: "0 8px", overflowWrap: "anywhere" }}>
-          Ventajas Clave de Automatizar con botzflow
+          {isEn ? "Key Benefits of Automating with botzflow" : "Ventajas Clave de Automatizar con botzflow"}
         </h3>
         <div className="n8n-ventajas-grid">
           {ventajas.map((v, i) => (
@@ -234,7 +257,7 @@ export default function AutomatizacionN8N() {
       {selected !== null && (
         <div className="n8n-modal" onClick={() => setSelected(null)}>
           <div className="n8n-modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="n8n-modal-close" onClick={() => setSelected(null)} title="Cerrar">
+            <button className="n8n-modal-close" onClick={() => setSelected(null)} title={isEn ? "Close" : "Cerrar"}>
               ×
             </button>
             <div style={{ fontSize: "2.5em", marginBottom: ".2em" }}>{steps[selected].icon}</div>

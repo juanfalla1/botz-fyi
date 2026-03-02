@@ -1,41 +1,60 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
 const ChatBot = () => {
+  const language = useBotzLanguage("en");
+  const isEn = language === "en";
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<{ role: "user" | "bot"; content: string }[]>([]);
 
   const whatsappUrl = "https://wa.me/573154829949";
 
-  // Mensaje automático al iniciar
+  const copy = {
+    welcome: isEn
+      ? "Hi, I am the Botz assistant. I can help with automation, CRM/Leads and mortgage scoring. If you want a human, use the green WhatsApp button."
+      : "Hola, soy el asistente de Botz. Puedo ayudarte con automatizacion, CRM/Leads y calculo hipotecario. Si quieres hablar con un humano, usa el boton de WhatsApp verde.",
+    processing: isEn ? "Processing..." : "Procesando...",
+    connectError: isEn ? "⚠️ Connection error." : "⚠️ Error al conectar.",
+    openTitle: isEn ? "Open AI Chat" : "Abrir Chat IA",
+    chatTitle: isEn ? "Chat AI" : "Chat IA",
+    waTitle: isEn ? "Talk on WhatsApp" : "Hablar por WhatsApp",
+    humanHint: isEn
+      ? "For faster human support:"
+      : "Para hablar con un humano mas rapido:",
+    openWa: isEn ? "open WhatsApp" : "abre WhatsApp",
+    placeholder: isEn ? "Ask about Botz..." : "Pregunta sobre Botz...",
+  };
+
+  // Mensaje automatico inicial y sincronizacion al cambiar idioma
   useEffect(() => {
-    setMessages([
-      {
-        role: "bot",
-        content:
-          "Hola, soy el asistente de Botz. Puedo ayudarte con automatizacion, CRM/Leads y calculo hipotecario. Si quieres hablar con un humano, usa el boton de WhatsApp verde.",
-      },
-    ]);
-  }, []);
+    setMessages((prev) => {
+      if (prev.length === 0) return [{ role: "bot", content: copy.welcome }];
+      if (prev.length === 1 && prev[0].role === "bot") {
+        return [{ role: "bot", content: copy.welcome }];
+      }
+      return prev;
+    });
+  }, [copy.welcome]);
 
   const sendMessage = async () => {
     if (!input.trim()) return;
 
     const userMessage = { role: "user", content: input } as const;
-    setMessages((prev) => [...prev, userMessage, { role: "bot", content: "Procesando..." }]);
+    setMessages((prev) => [...prev, userMessage, { role: "bot", content: copy.processing }]);
     setInput("");
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        body: JSON.stringify({ message: input }),
+        body: JSON.stringify({ message: input, language }),
       });
       const data = await response.json();
       setMessages((prev) => [...prev.slice(0, -1), { role: "bot", content: data.response }]);
     } catch {
-      setMessages((prev) => [...prev.slice(0, -1), { role: "bot", content: "⚠️ Error al conectar." }]);
+      setMessages((prev) => [...prev.slice(0, -1), { role: "bot", content: copy.connectError }]);
     }
   };
 
@@ -56,7 +75,7 @@ const ChatBot = () => {
             border: "none",
             cursor: "pointer",
           }}
-          title="Abrir Chat IA"
+          title={copy.openTitle}
         >
           <img
             src="/img/agent-icon.png"
@@ -99,7 +118,7 @@ const ChatBot = () => {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <span>🤖 Chat IA</span>
+              <span>🤖 {copy.chatTitle}</span>
               <a
                 href={whatsappUrl}
                 target="_blank"
@@ -113,7 +132,7 @@ const ChatBot = () => {
                   borderRadius: "999px",
                   textDecoration: "none",
                 }}
-                title="Hablar por WhatsApp"
+                title={copy.waTitle}
               >
                 WhatsApp
               </a>
@@ -171,7 +190,7 @@ const ChatBot = () => {
                 paddingTop: "10px",
               }}
             >
-              Para hablar con un humano mas rapido: <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#22c55e", fontWeight: 800, textDecoration: "none" }}>abre WhatsApp</a>
+              {copy.humanHint} <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#22c55e", fontWeight: 800, textDecoration: "none" }}>{copy.openWa}</a>
             </div>
           </div>
 
@@ -188,7 +207,7 @@ const ChatBot = () => {
           >
             <textarea
               rows={2}
-              placeholder="Pregunta sobre Botz..."
+               placeholder={copy.placeholder}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -240,7 +259,7 @@ const ChatBot = () => {
                 borderRadius: "6px",
                 cursor: "pointer",
               }}
-              title="Hablar por WhatsApp"
+              title={copy.waTitle}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -260,4 +279,3 @@ const ChatBot = () => {
 };
 
 export default ChatBot;
-

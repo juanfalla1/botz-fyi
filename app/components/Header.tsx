@@ -12,13 +12,12 @@ const Header = () => {
   const [isMobile, setIsMobile] = useState(false);
 
   type BotzLanguage = "es" | "en";
-  const [botzLanguage, setBotzLanguage] = useState<BotzLanguage>("es");
+  const [botzLanguage, setBotzLanguage] = useState<BotzLanguage>("en");
   const [showLangMenu, setShowLangMenu] = useState(false);
 
   const inQualibotz = Boolean(pathname && pathname.startsWith("/start"));
 
   useEffect(() => {
-    if (!inQualibotz) return;
     try {
       const saved = window.localStorage.getItem("botz-language");
       if (saved === "es" || saved === "en") setBotzLanguage(saved);
@@ -31,7 +30,28 @@ const Header = () => {
 
     window.addEventListener("botz-language-change", onLangChange);
     return () => window.removeEventListener("botz-language-change", onLangChange);
-  }, [inQualibotz]);
+  }, []);
+
+  const isEn = botzLanguage === "en";
+  const navCopy = {
+    menuAria: isEn ? "Open menu" : "Abrir menu",
+    backToSite: isEn ? "Back to site" : "Volver al sitio",
+    ourValue: isEn ? "Our Value" : "Nuestra Propuesta",
+    capabilities: isEn ? "Capabilities" : "Funcionalidades",
+    benefits: isEn ? "Benefits" : "Beneficios",
+    vision: isEn ? "Vision" : "Vision",
+    aboutUs: isEn ? "About Us" : "Sobre Nosotros",
+    automationSolutions: isEn ? "Automation Solutions" : "Soluciones de Automatizacion",
+    aiEcommerce: isEn ? "boty AI E-commerce" : "boty E-commerce con IA",
+    flowAutomation: isEn ? "botzflow Process Automation" : "botzflow Automatizacion de Flujos",
+    leadMgmt: isEn ? "hotLead Lead Management" : "hotLead Gestion de Leads",
+    aiFlows: isEn ? "AI Processes & Flows" : "Procesos y Flujos con IA",
+    agentsArchitecture: isEn ? "AI Agents Architecture" : "Arquitectura Agentes IA",
+    visualFlow: isEn ? "Visual Cognitive Flow" : "Flujo Cognitivo Visual",
+    successStories: isEn ? "Success Stories" : "Casos de Exito",
+    hookStory: isEn ? "HOOK E-commerce" : "E-commerce HOOK",
+    contact: isEn ? "Contact Us" : "Contactenos",
+  };
 
   // Close language menu on outside click / escape
   useEffect(() => {
@@ -135,7 +155,7 @@ const Header = () => {
             {!inQualibotz && (
               <button
                 className={`hamburger ${open ? "active" : ""}`}
-                aria-label="Abrir menú"
+                aria-label={navCopy.menuAria}
                 aria-expanded={open}
                 onClick={() => setOpen(!open)}
               >
@@ -267,7 +287,7 @@ const Header = () => {
                     background: "rgba(255,255,255,0.04)",
                   }}
                 >
-                  Volver al sitio
+                  {navCopy.backToSite}
                 </Link>
               </div>
             )}
@@ -279,7 +299,7 @@ const Header = () => {
             <div className={`nav-container ${open ? "is-open" : ""}`}>
             <nav id="main-nav">
 
-              {/* NUESTRA PROPUESTA */}
+              {/* VALUE */}
               <div 
                 className={`dropdown ${openDropdown === "propuesta" ? "open" : ""}`}
                 onMouseEnter={() => handleDropdownHover("propuesta")}
@@ -289,17 +309,17 @@ const Header = () => {
                   href="#"
                   onClick={(e) => handleDropdownClick(e, "propuesta")}
                 >
-                  Nuestra Propuesta {isMobile ? (openDropdown === "propuesta" ? "▴" : "▾") : ""}
+                  {navCopy.ourValue} {isMobile ? (openDropdown === "propuesta" ? "▴" : "▾") : ""}
                 </a>
                 <div className="dropdown-content">
                   <Link href="/#funcionalidades" onClick={closeMenu}>
-                    ⚡ Funcionalidades
+                    ⚡ {navCopy.capabilities}
                   </Link>
                   <Link href="/#beneficios" onClick={closeMenu}>
-                    🎯 Beneficios
+                    🎯 {navCopy.benefits}
                   </Link>
                   <Link href="/#vision" onClick={closeMenu}>
-                    👁️ Visión
+                    👁️ {navCopy.vision}
                   </Link>
                 </div>
               </div>
@@ -310,11 +330,11 @@ const Header = () => {
                 onMouseLeave={handleDropdownLeave}
               >
                 <Link href="/sobre-nosotros" onClick={closeMenu}>
-                  Sobre Nosotros
+                  {navCopy.aboutUs}
                 </Link>
               </div>
 
-              {/* SOLUCIONES DE AUTOMATIZACIÓN */}
+              {/* AUTOMATION */}
               <div 
                 className={`dropdown ${openDropdown === "auto" ? "open" : ""}`}
                 onMouseEnter={() => handleDropdownHover("auto")}
@@ -324,22 +344,22 @@ const Header = () => {
                   href="#"
                   onClick={(e) => handleDropdownClick(e, "auto")}
                 >
-                  Soluciones de Automatización {isMobile ? (openDropdown === "auto" ? "▴" : "▾") : ""}
+                  {navCopy.automationSolutions} {isMobile ? (openDropdown === "auto" ? "▴" : "▾") : ""}
                 </a>
                 <div className="dropdown-content">
                   <Link href="/#arquitectura-E-commerce-hook" onClick={closeMenu}>
-                    🛍️ boty E-commerce con IA
+                    🛍️ {navCopy.aiEcommerce}
                   </Link>
                   <Link href="/#automatizaciones-n8n" onClick={closeMenu}>
-                    🤖 botzflow Automatización de Flujos
+                    🤖 {navCopy.flowAutomation}
                   </Link>
                   <Link href="/#caso-de-exito-hotlead" onClick={closeMenu}>
-                    🚀 hotLead Gestion de Leads 
+                    🚀 {navCopy.leadMgmt}
                   </Link>
                 </div>
               </div>
 
-              {/* PROCESOS Y FLUJOS CON IA */}
+              {/* AI FLOWS */}
               <div 
                 className={`dropdown ${openDropdown === "ia" ? "open" : ""}`}
                 onMouseEnter={() => handleDropdownHover("ia")}
@@ -349,19 +369,19 @@ const Header = () => {
                   href="#"
                   onClick={(e) => handleDropdownClick(e, "ia")}
                 >
-                  Procesos y Flujos con IA {isMobile ? (openDropdown === "ia" ? "▴" : "▾") : ""}
+                  {navCopy.aiFlows} {isMobile ? (openDropdown === "ia" ? "▴" : "▾") : ""}
                 </a>
                 <div className="dropdown-content">
                   <Link href="/#arquitectura-agentes-ia" onClick={closeMenu}>
-                    🧠 Arquitectura Agentes IA
+                    🧠 {navCopy.agentsArchitecture}
                   </Link>
                   <Link href="/#flujo-cognitivo-visual" onClick={closeMenu}>
-                    🧩 Flujo Cognitivo Visual
+                    🧩 {navCopy.visualFlow}
                   </Link>
                 </div>
               </div>
 
-              {/* CASOS DE ÉXITO */}
+              {/* CASE STUDIES */}
               <div 
                 className={`dropdown ${openDropdown === "exito" ? "open" : ""}`}
                 onMouseEnter={() => handleDropdownHover("exito")}
@@ -371,7 +391,7 @@ const Header = () => {
                   href="#"
                   onClick={(e) => handleDropdownClick(e, "exito")}
                 >
-                  Casos de Éxito {isMobile ? (openDropdown === "exito" ? "▴" : "▾") : ""}
+                  {navCopy.successStories} {isMobile ? (openDropdown === "exito" ? "▴" : "▾") : ""}
                 </a>
                 <div className="dropdown-content">
                   <a
@@ -382,12 +402,12 @@ const Header = () => {
                       closeMenu();
                     }}
                   >
-                    🏆 E-commerce HOOK 
+                     🏆 {navCopy.hookStory}
                   </a>
                 </div>
               </div>
 
-              {/* CONTÁCTENOS - MÓVIL */}
+              {/* CONTACT - MOBILE */}
               <a
                 href="#contacto"
                 onClick={(e) => {
@@ -397,8 +417,54 @@ const Header = () => {
                 }}
                 className="contacto-link font-semibold text-cyan-400"
               >
-                Contáctenos
+                {navCopy.contact}
               </a>
+
+              <div className="dropdown" data-botz-lang-switcher style={{ position: "relative" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowLangMenu((v) => !v)}
+                  aria-label={isEn ? "Language" : "Idioma"}
+                  aria-haspopup="menu"
+                  aria-expanded={showLangMenu}
+                  className="lang-toggle"
+                >
+                  <span>{isEn ? "EN" : "ES"}</span>
+                  <span style={{ opacity: 0.8, fontWeight: 900 }}>{showLangMenu ? "▴" : "▾"}</span>
+                </button>
+
+                {showLangMenu && (
+                  <div role="menu" className="lang-menu">
+                    <button
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        applyBotzLanguage("es");
+                        setShowLangMenu(false);
+                      }}
+                      className="lang-option"
+                      style={{ background: botzLanguage === "es" ? "rgba(34, 211, 238, 0.10)" : "transparent" }}
+                    >
+                      <span>Espanol</span>
+                      <span style={{ color: botzLanguage === "es" ? "#22d3ee" : "#64748b" }}>ES</span>
+                    </button>
+
+                    <button
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        applyBotzLanguage("en");
+                        setShowLangMenu(false);
+                      }}
+                      className="lang-option"
+                      style={{ background: botzLanguage === "en" ? "rgba(34, 211, 238, 0.10)" : "transparent", marginTop: 6 }}
+                    >
+                      <span>English</span>
+                      <span style={{ color: botzLanguage === "en" ? "#22d3ee" : "#64748b" }}>EN</span>
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* BOTÓN ESTELAR AJUSTADO */}
               <Link
@@ -499,6 +565,56 @@ const Header = () => {
           box-shadow: 0 0 15px rgba(16, 178, 203, 0.4);
           margin-left: 10px;
         }
+
+        .lang-toggle {
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          background: rgba(255, 255, 255, 0.07);
+          color: #e2e8f0;
+          border-radius: 10px;
+          height: 30px;
+          padding: 0 10px;
+          font-size: 12px;
+          font-weight: 800;
+          cursor: pointer;
+          margin-left: 6px;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          line-height: 1;
+        }
+        .lang-toggle:hover {
+          color: #22d3ee;
+          border-color: rgba(34, 211, 238, 0.5);
+        }
+
+        .lang-menu {
+          position: absolute;
+          right: 0;
+          top: calc(100% + 8px);
+          min-width: 140px;
+          background: #0b1220;
+          border: 1px solid rgba(255,255,255,0.12);
+          border-radius: 12px;
+          box-shadow: 0 18px 50px rgba(0,0,0,0.55);
+          padding: 6px;
+          z-index: 50;
+        }
+
+        .lang-option {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          padding: 10px 10px;
+          border-radius: 10px;
+          border: 1px solid rgba(255,255,255,0.06);
+          color: #e2e8f0;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 800;
+          text-align: left;
+        }
         .stelar-btn-short:hover { 
           transform: translateY(-2px);
           filter: brightness(1.1);
@@ -521,6 +637,8 @@ const Header = () => {
           .dropdown-content { position: static; display: none; width: 100%; }
           .dropdown.open .dropdown-content { display: flex !important; flex-direction: column; }
           .stelar-btn-short { margin: 20px 25px; justify-content: center; font-size: 14px !important; }
+          .lang-toggle { margin: 12px 25px 0; width: calc(100% - 50px); height: 38px; border-radius: 10px; justify-content: center; }
+          .lang-menu { left: 25px; right: 25px; top: calc(100% + 6px); min-width: auto; }
         }
 
         .contacto-link { display: none; }
