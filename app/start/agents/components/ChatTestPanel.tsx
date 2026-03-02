@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { authedFetch } from "@/app/start/agents/authedFetchAgents";
+import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
 interface ChatTestPanelProps {
   agentName: string;
@@ -32,6 +33,8 @@ export default function ChatTestPanel({
   companyContext,
   brainFiles = [],
 }: ChatTestPanelProps) {
+  const language = useBotzLanguage("en");
+  const tr = (es: string, en: string) => (language === "en" ? en : es);
   const [messages, setMessages] = useState<{ role: "user" | "agent"; content: string }[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -55,12 +58,20 @@ export default function ChatTestPanel({
 
     try {
       // Construir el contexto del agente
-      const context = `
+      const context = language === "en"
+        ? `
+Your name is: ${agentName}
+Your role/purpose is: ${agentRole}
+Instructions: ${agentPrompt}
+${companyContext ? `Company information: ${companyContext}` : ""}
+${indexedFiles.length > 0 ? `\nRelevant docs available: ${indexedFiles.map(f => f.name).join(", ")}` : ""}
+`
+        : `
 Tu nombre es: ${agentName}
-Tu rol/propósito es: ${agentRole}
+Tu rol/proposito es: ${agentRole}
 Instrucciones: ${agentPrompt}
-${companyContext ? `Información de la empresa: ${companyContext}` : ""}
-${indexedFiles.length > 0 ? `\nDocumentación relevante disponible: ${indexedFiles.map(f => f.name).join(", ")}` : ""}
+${companyContext ? `Informacion de la empresa: ${companyContext}` : ""}
+${indexedFiles.length > 0 ? `\nDocumentacion relevante disponible: ${indexedFiles.map(f => f.name).join(", ")}` : ""}
 `;
 
       // Realizar la llamada a la API
@@ -77,17 +88,17 @@ ${indexedFiles.length > 0 ? `\nDocumentación relevante disponible: ${indexedFil
 
       if (!res.ok) {
         const json = await res.json();
-        throw new Error(json?.error || "No se pudo obtener respuesta");
+        throw new Error(json?.error || tr("No se pudo obtener respuesta", "Could not get response"));
       }
 
       const json = await res.json();
-      const agentResponse = json?.response || "No pude procesar tu solicitud.";
+      const agentResponse = json?.response || tr("No pude procesar tu solicitud.", "I could not process your request.");
       
       setMessages(prev => [...prev, { role: "agent", content: agentResponse }]);
     } catch (err: any) {
       console.error("Error en chat:", err);
-      setError(err?.message || "Error al conectar con el agente");
-      const errorMsg = "Disculpa, tengo problemas técnicos. Intenta de nuevo en unos momentos.";
+      setError(err?.message || tr("Error al conectar con el agente", "Error connecting to the agent"));
+      const errorMsg = tr("Disculpa, tengo problemas tecnicos. Intenta de nuevo en unos momentos.", "Sorry, I am having technical issues. Please try again in a moment.");
       setMessages(prev => [...prev, { role: "agent", content: errorMsg }]);
     } finally {
       setIsTyping(false);
@@ -134,10 +145,10 @@ ${indexedFiles.length > 0 ? `\nDocumentación relevante disponible: ${indexedFil
         </div>
         <div>
           <div style={{ color: C.white, fontWeight: 600, fontSize: 16 }}>
-            {agentName || "Agente"}
+            {agentName || tr("Agente", "Agent")}
           </div>
           <div style={{ color: C.muted, fontSize: 13 }}>
-            {agentRole || "Asistente virtual"} • En línea
+            {agentRole || tr("Asistente virtual", "Virtual assistant")} • {tr("En linea", "Online")}
           </div>
         </div>
       </div>
@@ -163,7 +174,7 @@ ${indexedFiles.length > 0 ? `\nDocumentación relevante disponible: ${indexedFil
           fontSize: 12,
           borderBottom: `1px solid rgba(245,158,11,0.35)`,
         }}>
-          Los archivos cargados aun no tienen contenido indexado. Vuelve a subirlos en la pestaña Archivos.
+          {tr("Los archivos cargados aun no tienen contenido indexado. Vuelve a subirlos en la pestaña Archivos.", "Uploaded files still have no indexed content. Re-upload them in the Files tab.")}
         </div>
       )}
 
@@ -185,10 +196,10 @@ ${indexedFiles.length > 0 ? `\nDocumentación relevante disponible: ${indexedFil
           }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>💬</div>
             <div style={{ fontSize: 18, fontWeight: 600, color: C.white, marginBottom: 8 }}>
-              Inicia una conversación
+              {tr("Inicia una conversación", "Start a conversation")}
             </div>
             <div style={{ fontSize: 14 }}>
-              Escribe un mensaje para probar cómo responde tu agente de texto
+              {tr("Escribe un mensaje para probar cómo responde tu agente de texto", "Write a message to test how your text agent responds")}
             </div>
           </div>
         ) : (
@@ -212,7 +223,7 @@ ${indexedFiles.length > 0 ? `\nDocumentación relevante disponible: ${indexedFil
                 marginBottom: 4,
                 textTransform: "capitalize",
               }}>
-                {msg.role === "user" ? "Tú" : agentName || "Agente"}
+                {msg.role === "user" ? tr("Tú", "You") : agentName || tr("Agente", "Agent")}
               </div>
               <div style={{ color: C.white, fontSize: 14, lineHeight: 1.5 }}>
                 {msg.content}
@@ -251,7 +262,7 @@ ${indexedFiles.length > 0 ? `\nDocumentación relevante disponible: ${indexedFil
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder="Escribe un mensaje..."
+          placeholder={tr("Escribe un mensaje...", "Type a message...")}
           style={{
             flex: 1,
             padding: "12px 16px",
@@ -278,7 +289,7 @@ ${indexedFiles.length > 0 ? `\nDocumentación relevante disponible: ${indexedFil
             transition: "all 0.2s",
           }}
         >
-          Enviar
+          {tr("Enviar", "Send")}
         </button>
       </div>
 

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { authedFetch } from "../authedFetchAgents";
+import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
 interface Conversation {
   id: string;
@@ -46,6 +47,8 @@ export default function HistoryPanel({
   onOpenContext,
   onOpenBrain 
 }: HistoryPanelProps) {
+  const language = useBotzLanguage("en");
+  const tr = (es: string, en: string) => (language === "en" ? en : es);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,10 +71,10 @@ export default function HistoryPanel({
       try {
         json = raw ? JSON.parse(raw) : {};
       } catch {
-        throw new Error("Respuesta invalida del servidor (no JSON)");
+        throw new Error(tr("Respuesta invalida del servidor (no JSON)", "Invalid server response (not JSON)"));
       }
       if (!response.ok || !json?.ok) {
-        throw new Error(json?.error || "No se pudo cargar historial");
+        throw new Error(json?.error || tr("No se pudo cargar historial", "Could not load history"));
       }
 
       const apiConversations = Array.isArray(json.data) ? json.data : [];
@@ -84,14 +87,14 @@ export default function HistoryPanel({
       setConversations(filtered);
       setLoading(false);
     } catch (err: any) {
-      setError(err?.message || "Error cargando historial");
+      setError(err?.message || tr("Error cargando historial", "Error loading history"));
       setConversations([]);
       setLoading(false);
     }
   };
 
   const handleDelete = async (conversationId: string) => {
-    if (confirm("¿Estás seguro de que quieres eliminar esta conversación?")) {
+    if (confirm(tr("¿Estás seguro de que quieres eliminar esta conversación?", "Are you sure you want to delete this conversation?"))) {
       try {
         const response = await authedFetch(`/api/agents/conversations/${agentId}/${conversationId}`, {
           method: "DELETE",
@@ -103,21 +106,21 @@ export default function HistoryPanel({
           try {
             json = raw ? JSON.parse(raw) : {};
           } catch {
-            throw new Error("El servidor devolvio HTML en lugar de JSON");
+            throw new Error(tr("El servidor devolvio HTML en lugar de JSON", "Server returned HTML instead of JSON"));
           }
-          throw new Error(json?.error || "Error eliminando conversación");
+          throw new Error(json?.error || tr("Error eliminando conversación", "Error deleting conversation"));
         }
 
         setConversations(conversations.filter((c) => c.id !== conversationId));
         if (onDelete) onDelete(conversationId);
       } catch (err: any) {
-        setError(err?.message || "Error eliminando conversación");
+        setError(err?.message || tr("Error eliminando conversación", "Error deleting conversation"));
       }
     }
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-ES", {
+    return new Date(dateString).toLocaleDateString(language === "en" ? "en-US" : "es-ES", {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -149,11 +152,11 @@ export default function HistoryPanel({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
-        return { bg: "rgba(34,197,94,0.15)", fg: "#22c55e", label: "Completada" };
+        return { bg: "rgba(34,197,94,0.15)", fg: "#22c55e", label: tr("Completada", "Completed") };
       case "active":
-        return { bg: "rgba(59,130,246,0.15)", fg: "#3b82f6", label: "Activa" };
+        return { bg: "rgba(59,130,246,0.15)", fg: "#3b82f6", label: tr("Activa", "Active") };
       case "failed":
-        return { bg: "rgba(239,68,68,0.15)", fg: "#ef4444", label: "Fallida" };
+        return { bg: "rgba(239,68,68,0.15)", fg: "#ef4444", label: tr("Fallida", "Failed") };
       default:
         return { bg: "rgba(107,114,128,0.15)", fg: C.dim, label: status };
     }
@@ -162,7 +165,7 @@ export default function HistoryPanel({
   if (loading) {
     return (
       <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
-        Cargando historial...
+        {tr("Cargando historial...", "Loading history...")}
       </div>
     );
   }
@@ -191,7 +194,7 @@ export default function HistoryPanel({
             // Re-fetch with filter
             fetchConversations();
           }}
-          placeholder="Buscar por nombre o email..."
+          placeholder={tr("Buscar por nombre o email...", "Search by name or email...")}
           style={{
             width: "100%",
             paddingLeft: 36,
@@ -229,10 +232,10 @@ export default function HistoryPanel({
           <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>📭</div>
             <div style={{ fontSize: 16, fontWeight: 600, color: C.white, marginBottom: 8 }}>
-              Sin conversaciones aún
+              {tr("Sin conversaciones aún", "No conversations yet")}
             </div>
             <div style={{ fontSize: 13 }}>
-              {search ? "No hay conversaciones que coincidan con tu búsqueda" : "Las conversaciones aparecerán aquí"}
+              {search ? tr("No hay conversaciones que coincidan con tu búsqueda", "No conversations match your search") : tr("Las conversaciones aparecerán aquí", "Conversations will appear here")}
             </div>
           </div>
         ) : (
@@ -283,10 +286,10 @@ export default function HistoryPanel({
 
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, color: C.white, fontSize: 14, marginBottom: 4 }}>
-                          {conv.contact_name || "Usuario sin nombre"}
+                          {conv.contact_name || tr("Usuario sin nombre", "Unnamed user")}
                         </div>
                         <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>
-                          {conv.contact_email || "Sin email"}
+                          {conv.contact_email || tr("Sin email", "No email")}
                         </div>
                         <div
                           style={{
@@ -297,7 +300,7 @@ export default function HistoryPanel({
                           }}
                         >
                           <span>📅 {formatDate(conv.started_at)}</span>
-                          <span>💬 {conv.message_count} mensajes</span>
+                           <span>💬 {conv.message_count} {tr("mensajes", "messages")}</span>
                           <span>⏱️ {formatDuration(conv.duration_seconds)}</span>
                         </div>
                       </div>
@@ -359,7 +362,7 @@ export default function HistoryPanel({
                               letterSpacing: 0.5,
                             }}
                           >
-                            Transcripción
+                            {tr("Transcripción", "Transcript")}
                           </div>
                           <div
                             style={{
@@ -376,7 +379,7 @@ export default function HistoryPanel({
                               wordBreak: "break-word",
                             }}
                           >
-                            {conv.transcript || "Sin transcripción disponible"}
+                            {conv.transcript || tr("Sin transcripción disponible", "No transcript available")}
                           </div>
                         </div>
                       </div>
@@ -418,7 +421,7 @@ export default function HistoryPanel({
                             (e.target as HTMLElement).style.backgroundColor = "transparent";
                           }}
                         >
-                          📝 Contexto
+                          {tr("📝 Contexto", "📝 Context")}
                         </button>
 
                         <button
@@ -447,7 +450,7 @@ export default function HistoryPanel({
                             (e.target as HTMLElement).style.backgroundColor = "transparent";
                           }}
                         >
-                          ⚙️ Configuración
+                          {tr("⚙️ Configuración", "⚙️ Configuration")}
                         </button>
 
                         <button
@@ -476,7 +479,7 @@ export default function HistoryPanel({
                             (e.target as HTMLElement).style.backgroundColor = "transparent";
                           }}
                         >
-                          🧠 Cerebro
+                          {tr("🧠 Cerebro", "🧠 Brain")}
                         </button>
 
                         <button
@@ -505,7 +508,7 @@ export default function HistoryPanel({
                             (e.target as HTMLElement).style.backgroundColor = "transparent";
                           }}
                         >
-                          🗑️ Eliminar
+                          {tr("🗑️ Eliminar", "🗑️ Delete")}
                         </button>
                       </div>
                     </>
@@ -528,7 +531,7 @@ export default function HistoryPanel({
             borderTop: `1px solid ${C.border}`,
           }}
         >
-          Mostrando {conversations.length} conversación{conversations.length !== 1 ? "es" : ""}
+          {tr("Mostrando", "Showing")} {conversations.length} {tr(`conversación${conversations.length !== 1 ? "es" : ""}`, `conversation${conversations.length !== 1 ? "s" : ""}`)}
         </div>
       )}
     </div>

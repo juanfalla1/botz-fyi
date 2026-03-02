@@ -54,6 +54,7 @@ export default function VoiceTestPanel({
   voiceSettings,
 }: VoiceTestPanelProps) {
   const isEnglish = String(agentLanguage || "es-ES").toLowerCase().startsWith("en");
+  const tr = (es: string, en: string) => (isEnglish ? en : es);
   const langPrefix = isEnglish ? "en" : "es";
   const GPT_MODELS = ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o", "gpt-4.1"] as const;
   const [isCallActive, setIsCallActive] = useState(false);
@@ -165,22 +166,22 @@ export default function VoiceTestPanel({
       return withName("Hi {{name}}, welcome to Botz. I can route your request to the right team. What is the reason for your call?");
     }
 
-    if (/cobranza|pago pendiente|cartera|mora/.test(bag)) {
+    if (!isEnglish && /cobranza|pago pendiente|cartera|mora/.test(bag)) {
       return withName("Hola {{name}}, te llamo de Botz por una gestión de pago pendiente. ¿Podemos validar el estado de tu pago?");
     }
-    if (/recordatorio|enviar recordatorios|reunión programada/.test(bag)) {
+    if (!isEnglish && /recordatorio|enviar recordatorios|reunión programada/.test(bag)) {
       return withName("Hola {{name}}, te llamo de Botz para recordarte tu compromiso programado. ¿Te viene bien confirmarlo ahora?");
     }
-    if (/confirmación de reuniones|confirmar reunión|programar reuniones/.test(bag)) {
+    if (!isEnglish && /confirmación de reuniones|confirmar reunión|programar reuniones/.test(bag)) {
       return withName("Hola {{name}}, te llamo de Botz para confirmar los detalles de tu reunión. ¿Tienes un minuto?");
     }
-    if (/calificación de leads|lead|llamadas en frio|prospección/.test(bag)) {
+    if (!isEnglish && /calificación de leads|lead|llamadas en frio|prospección/.test(bag)) {
       return withName("Hola {{name}}, soy de Botz. Quiero entender tu proceso actual para ver si te podemos ayudar a optimizarlo. ¿Te parece bien?");
     }
-    if (/soporte|atención al cliente|servicio al cliente/.test(bag)) {
+    if (!isEnglish && /soporte|atención al cliente|servicio al cliente/.test(bag)) {
       return withName("Hola {{name}}, te habla Botz del equipo de soporte. Cuéntame por favor en qué te puedo ayudar hoy.");
     }
-    if (/recepcionista/.test(bag)) {
+    if (!isEnglish && /recepcionista/.test(bag)) {
       return withName("Hola {{name}}, bienvenido a Botz. Estoy para ayudarte a dirigir tu solicitud al área correcta. ¿Cuál es el motivo de tu llamada?");
     }
 
@@ -569,7 +570,7 @@ export default function VoiceTestPanel({
         stopRecording();
       }, MAX_RECORDING_MS);
     } catch (err: any) {
-      setError("No se pudo acceder al micrófono. Verifica los permisos.");
+      setError(tr("No se pudo acceder al micrófono. Verifica los permisos.", "Could not access microphone. Check permissions."));
       console.error("Microphone error:", err);
     }
   };
@@ -721,7 +722,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
       conversationHistoryRef.current = [];
       await pushAgentLineSynced(greetingText, null, sessionId);
     } catch (err: any) {
-      setError("No se pudo acceder al micrófono. Verifica los permisos.");
+      setError(tr("No se pudo acceder al micrófono. Verifica los permisos.", "Could not access microphone. Check permissions."));
       console.error("Microphone error:", err);
     } finally {
       setIsLoading(false);
@@ -819,7 +820,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
         }}
       >
         <div style={{ fontWeight: 900, fontSize: compact ? 28 : 16, marginBottom: 16, color: C.white }}>
-          {isCallActive ? "Transcripción de la llamada" : "Haz una llamada de prueba"}
+          {isCallActive ? tr("Transcripción de la llamada", "Call transcript") : tr("Haz una llamada de prueba", "Make a test call")}
         </div>
 
         {!isCallActive ? (
@@ -844,7 +845,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
               </div>}
 
               <div style={{ fontSize: 13, fontWeight: 800, color: C.muted, marginBottom: 10 }}>
-                VARIABLES DE ENTRADA:
+                {tr("VARIABLES DE ENTRADA:", "INPUT VARIABLES:")}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div>
@@ -876,7 +877,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
               <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <div>
                   <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 4 }}>
-                    acento
+                    {tr("acento", "accent")}
                   </label>
                   <select
                     value={accentFilter}
@@ -886,36 +887,36 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
                     }}
                     style={{ ...inputStyle, appearance: "none", cursor: "pointer" }}
                   >
-                    <option value="all">Todos</option>
-                    <option value="es">Español (todos)</option>
-                    <option value="es-ES">España</option>
-                    <option value="es-MX">México</option>
-                    <option value="es-AR">Argentina</option>
-                    <option value="es-CO">Colombia</option>
-                    <option value="es-US">Español USA</option>
+                    <option value="all">{tr("Todos", "All")}</option>
+                    <option value="es">{tr("Español (todos)", "Spanish (all)")}</option>
+                    <option value="es-ES">{tr("España", "Spain")}</option>
+                    <option value="es-MX">{tr("México", "Mexico")}</option>
+                    <option value="es-AR">{tr("Argentina", "Argentina")}</option>
+                    <option value="es-CO">{tr("Colombia", "Colombia")}</option>
+                    <option value="es-US">{tr("Español USA", "US Spanish")}</option>
                   </select>
                 </div>
                 <div>
                   <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 4 }}>
-                    velocidad
+                    {tr("velocidad", "speed")}
                   </label>
                   <select
                     value={String(speechRate)}
                     onChange={(e) => setSpeechRate(Number(e.target.value || "0.9"))}
                     style={{ ...inputStyle, appearance: "none", cursor: "pointer" }}
                   >
-                    <option value="0.78">Muy lenta</option>
-                    <option value="0.92">Lenta</option>
-                    <option value="1.05">Natural</option>
-                    <option value="1.22">Rápida</option>
-                    <option value="1.35">Muy rápida</option>
+                    <option value="0.78">{tr("Muy lenta", "Very slow")}</option>
+                    <option value="0.92">{tr("Lenta", "Slow")}</option>
+                    <option value="1.05">{tr("Natural", "Natural")}</option>
+                    <option value="1.22">{tr("Rápida", "Fast")}</option>
+                    <option value="1.35">{tr("Muy rápida", "Very fast")}</option>
                   </select>
                 </div>
               </div>
 
               <div style={{ marginTop: 10 }}>
                 <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 4 }}>
-                  voz
+                  {tr("voz", "voice")}
                 </label>
                 <select
                   value={selectedVoiceUri}
@@ -932,7 +933,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
               </div>
 
               <div style={{ marginTop: 8, color: C.dim, fontSize: 11 }}>
-                El acento elige voz automática por país; también puedes fijar voz exacta manualmente.
+                {tr("El acento elige voz automática por país; también puedes fijar voz exacta manualmente.", "Accent picks an automatic voice by locale; you can also manually choose an exact voice.")}
               </div>
             </div>
 
@@ -969,7 +970,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
                 transition: "all 0.2s",
               }}
             >
-              {isLoading ? "Conectando..." : "📞 Iniciar llamada web"}
+              {isLoading ? tr("Conectando...", "Connecting...") : tr("📞 Iniciar llamada web", "📞 Start web call")}
             </button>
           </>
         ) : (
@@ -977,8 +978,8 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
             <div style={{ marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
               <div style={{ color: C.muted, fontSize: 12 }}>
                 {handsFreeMode
-                  ? "Manos libres activo: escucha y responde sin presionar botones."
-                  : "Modo manual: usa Hablar para cada turno."}
+                  ? tr("Manos libres activo: escucha y responde sin presionar botones.", "Hands-free enabled: listen and respond without pressing buttons.")
+                  : tr("Modo manual: usa Hablar para cada turno.", "Manual mode: use Talk for each turn.")}
               </div>
               <label style={{ display: "flex", alignItems: "center", gap: 8, color: C.white, fontSize: 12 }}>
                 <input
@@ -986,7 +987,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
                   checked={handsFreeMode}
                   onChange={(e) => setHandsFreeMode(e.target.checked)}
                 />
-                Manos libres
+                {tr("Manos libres", "Hands-free")}
               </label>
             </div>
 
@@ -1006,7 +1007,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
               {transcript.length === 0 ? (
                 <div style={{ textAlign: "center", color: C.muted, paddingTop: 40 }}>
                   <div style={{ fontSize: 32, marginBottom: 10 }}>📞</div>
-                  <div>Esperando...</div>
+                  <div>{tr("Esperando...", "Waiting...")}</div>
                 </div>
               ) : (
                 transcript.map((item, idx) => (
@@ -1021,7 +1022,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
                     }}
                   >
                     <div style={{ fontSize: 11, fontWeight: 600, color: item.speaker === "agent" ? C.purple : "rgba(255,255,255,0.8)", marginBottom: 4 }}>
-                      {item.speaker === "agent" ? agentName : "Tú"}
+                      {item.speaker === "agent" ? agentName : tr("Tú", "You")}
                     </div>
                     <div style={{ color: C.white, fontSize: 13, lineHeight: 1.5 }}>
                       {item.text}
@@ -1032,12 +1033,12 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
 
               {isLoading && (
                 <div style={{ textAlign: "center", color: C.muted }}>
-                  <div style={{ fontSize: 11 }}>Procesando...</div>
+                  <div style={{ fontSize: 11 }}>{tr("Procesando...", "Processing...")}</div>
                 </div>
               )}
               {isAgentSpeaking && (
                 <div style={{ textAlign: "center", color: "#93c5fd" }}>
-                  <div style={{ fontSize: 11 }}>Hablando...</div>
+                  <div style={{ fontSize: 11 }}>{tr("Hablando...", "Speaking...")}</div>
                 </div>
               )}
             </div>

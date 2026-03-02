@@ -70,17 +70,17 @@ const C = {
   dim: "#6b7280",
 };
 
-const titleFor = (type: AgentType, kind: string) => {
-  if (kind === "notetaker") return "Copiloto IA";
-  if (type === "voice") return "Agente de Voz";
-  if (type === "text") return "Agente de Texto";
-  return "Flujo";
+const titleFor = (type: AgentType, kind: string, lang: "es" | "en") => {
+  if (kind === "notetaker") return lang === "en" ? "AI Copilot" : "Copiloto IA";
+  if (type === "voice") return lang === "en" ? "Voice Agent" : "Agente de Voz";
+  if (type === "text") return lang === "en" ? "Text Agent" : "Agente de Texto";
+  return lang === "en" ? "Flow" : "Flujo";
 };
 
-const typeBadge = (t: AgentType) => {
-  if (t === "voice") return { bg: "rgba(239,68,68,.15)", fg: "#f87171", label: "Voz" };
-  if (t === "text") return { bg: `${C.blue}22`, fg: C.blue, label: "Texto" };
-  return { bg: "rgba(139,92,246,.15)", fg: "#a78bfa", label: "Flujo" };
+const typeBadge = (t: AgentType, lang: "es" | "en") => {
+  if (t === "voice") return { bg: "rgba(239,68,68,.15)", fg: "#f87171", label: lang === "en" ? "Voice" : "Voz" };
+  if (t === "text") return { bg: `${C.blue}22`, fg: C.blue, label: lang === "en" ? "Text" : "Texto" };
+  return { bg: "rgba(139,92,246,.15)", fg: "#a78bfa", label: lang === "en" ? "Flow" : "Flujo" };
 };
 
 const PURPOSE_OPTIONS = [
@@ -204,6 +204,7 @@ export default function AgentDetailPage() {
   const router = useRouter();
   const params = useParams();
   const agentId = params.id as string;
+  const [botzLanguage, setBotzLanguage] = useState<"es" | "en">("es");
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -306,6 +307,8 @@ export default function AgentDetailPage() {
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
   const voicePreviewRef = React.useRef<SpeechSynthesisUtterance | null>(null);
 
+  const tr = (es: string, en: string) => (botzLanguage === "en" ? en : es);
+
   useEffect(() => {
     const onResize = () => {
       if (typeof window === "undefined") return;
@@ -314,6 +317,19 @@ export default function AgentDetailPage() {
     onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("botz-language");
+    if (saved === "es" || saved === "en") setBotzLanguage(saved);
+
+    const onLanguageChange = (evt: Event) => {
+      const next = String((evt as CustomEvent<string>)?.detail || "").toLowerCase();
+      if (next === "es" || next === "en") setBotzLanguage(next);
+    };
+    window.addEventListener("botz-language-change", onLanguageChange as EventListener);
+    return () => window.removeEventListener("botz-language-change", onLanguageChange as EventListener);
   }, []);
 
   useEffect(() => {
@@ -1177,7 +1193,7 @@ export default function AgentDetailPage() {
   if (loading) {
     return (
       <div style={{ minHeight: "100vh", backgroundColor: C.bg, ...flex({ alignItems: "center", justifyContent: "center" }), fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
-        Cargando agente...
+        {tr("Cargando agente...", "Loading agent...")}
       </div>
     );
   }
@@ -1187,9 +1203,9 @@ export default function AgentDetailPage() {
       <div style={{ minHeight: "100vh", backgroundColor: C.bg, ...flex({ alignItems: "center", justifyContent: "center" }), fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 44, marginBottom: 10 }}>🤖</div>
-          <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>Agente no encontrado</div>
+          <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>{tr("Agente no encontrado", "Agent not found")}</div>
           <button onClick={() => router.push("/start/agents")} style={{ background: "none", border: "none", color: C.blue, cursor: "pointer", fontWeight: 800 }}>
-            Volver a Agentes
+            {tr("Volver a Agentes", "Back to Agents")}
           </button>
         </div>
       </div>
@@ -1199,28 +1215,28 @@ export default function AgentDetailPage() {
   const cfg = agent.configuration || {};
   const embedScript = `<script src="https://www.botz.fyi/agent.js?agentId=${agent.id}"></script>`;
   const agentKind = String(cfg?.agent_kind || "agent");
-  const badge = typeBadge(agent.type);
-  const headerTitle = titleFor(agent.type, agentKind);
+  const badge = typeBadge(agent.type, botzLanguage);
+  const headerTitle = titleFor(agent.type, agentKind, botzLanguage);
   const tabs = (
     agent.type === "text"
       ? [
-          { id: "overview", label: "Resumen" },
-          { id: "contexto", label: "Contexto" },
-          { id: "configuracion", label: "Configuración" },
-          { id: "cerebro", label: "Cerebro" },
-          { id: "publicar", label: "Publicar" },
-          { id: "integraciones", label: "Integraciones" },
-          { id: "historial", label: "Historial" },
-          { id: "prueba", label: "Prueba" },
+          { id: "overview", label: tr("Resumen", "Overview") },
+          { id: "contexto", label: tr("Contexto", "Context") },
+          { id: "configuracion", label: tr("Configuración", "Configuration") },
+          { id: "cerebro", label: tr("Cerebro", "Brain") },
+          { id: "publicar", label: tr("Publicar", "Publish") },
+          { id: "integraciones", label: tr("Integraciones", "Integrations") },
+          { id: "historial", label: tr("Historial", "History") },
+          { id: "prueba", label: tr("Prueba", "Test") },
         ]
       : [
-          { id: "contexto", label: "Contexto" },
-          { id: "probar", label: "Probar agente" },
-          { id: "configuracion", label: "Configuración" },
-          { id: "analisis", label: "Análisis de llamadas" },
-          { id: "integraciones", label: "Canales" },
-          { id: "registro", label: "Registro de llamadas" },
-          { id: "metrica", label: "Métrica" },
+          { id: "contexto", label: tr("Contexto", "Context") },
+          { id: "probar", label: tr("Probar agente", "Test agent") },
+          { id: "configuracion", label: tr("Configuración", "Configuration") },
+          { id: "analisis", label: tr("Análisis de llamadas", "Call analysis") },
+          { id: "integraciones", label: tr("Canales", "Channels") },
+          { id: "registro", label: tr("Registro de llamadas", "Call log") },
+          { id: "metrica", label: tr("Métrica", "Metrics") },
         ]
   );
 
@@ -1267,7 +1283,7 @@ export default function AgentDetailPage() {
             style={{ width: "100%", ...flex({ alignItems: "center", gap: 10 }), padding: "10px 12px", borderRadius: 8, background: "none", border: "none", color: C.muted, cursor: "pointer", textAlign: "left" }}
           >
             <span>←</span>
-            <span style={{ fontSize: 14, fontWeight: 700 }}>Agentes</span>
+            <span style={{ fontSize: 14, fontWeight: 700 }}>{tr("Agentes", "Agents")}</span>
           </button>
         </nav>
 
@@ -1307,7 +1323,7 @@ export default function AgentDetailPage() {
                 onClick={() => router.push("/start/agents")}
                 style={{ borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, padding: "7px 10px", cursor: "pointer", fontWeight: 800, flexShrink: 0 }}
               >
-                ← Agentes
+                {`← ${tr("Agentes", "Agents")}`}
               </button>
             )}
             <div style={{ fontWeight: 900, fontSize: isMobile ? 15 : 18, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{agent.name}</div>
@@ -1316,7 +1332,7 @@ export default function AgentDetailPage() {
             </span>
             {agentKind === "notetaker" && (
               <span style={{ padding: "3px 10px", borderRadius: 99, backgroundColor: "rgba(163,230,53,.15)", color: C.lime, fontSize: 12, fontWeight: 900 }}>
-                Copiloto IA
+                {tr("Copiloto IA", "AI Copilot")}
               </span>
             )}
             {!isMobile && <span style={{ color: C.dim, fontSize: 12 }}>{headerTitle}</span>}
@@ -1327,7 +1343,7 @@ export default function AgentDetailPage() {
               onClick={toggleAgentStatus}
               style={{ padding: "10px 14px", borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: C.dark, color: C.white, cursor: "pointer", fontWeight: 900, fontSize: 13 }}
             >
-              {agent.status === "active" ? "Pausar" : "Activar"}
+              {agent.status === "active" ? tr("Pausar", "Pause") : tr("Activar", "Activate")}
             </button>
           </div>
         </div>
@@ -1361,10 +1377,10 @@ export default function AgentDetailPage() {
             <>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: 14 }}>
                 {[
-                  { label: "Conversaciones", value: agent.total_conversations ?? 0 },
-                  { label: "Mensajes", value: agent.total_messages ?? 0 },
-                  { label: "Creditos usados", value: agent.credits_used ?? 0 },
-                  { label: "Creado", value: new Date(agent.created_at).toLocaleDateString() },
+                  { label: tr("Conversaciones", "Conversations"), value: agent.total_conversations ?? 0 },
+                  { label: tr("Mensajes", "Messages"), value: agent.total_messages ?? 0 },
+                  { label: tr("Creditos usados", "Credits used"), value: agent.credits_used ?? 0 },
+                  { label: tr("Creado", "Created"), value: new Date(agent.created_at).toLocaleDateString() },
                 ].map((m, i) => (
                   <div key={i} style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16 }}>
                     <div style={{ color: C.dim, fontSize: 12, marginBottom: 10 }}>{m.label}</div>
@@ -1375,17 +1391,17 @@ export default function AgentDetailPage() {
 
               <div style={{ marginTop: 14, backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
                 <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), marginBottom: 10 }}>
-                  <div style={{ fontWeight: 900 }}>Contexto</div>
-                  <div style={{ color: C.dim, fontSize: 12 }}>Empresa + configuracion</div>
+                  <div style={{ fontWeight: 900 }}>{tr("Contexto", "Context")}</div>
+                  <div style={{ color: C.dim, fontSize: 12 }}>{tr("Empresa + configuracion", "Company + configuration")}</div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
                   <div style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-                    <div style={{ color: C.dim, fontSize: 12, marginBottom: 6 }}>Empresa</div>
+                    <div style={{ color: C.dim, fontSize: 12, marginBottom: 6 }}>{tr("Empresa", "Company")}</div>
                     <div style={{ color: C.white, fontWeight: 900 }}>{String(cfg?.company_name || "-")}</div>
                     <div style={{ color: C.muted, fontSize: 13, marginTop: 6, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{String(cfg?.company_desc || "-")}</div>
                   </div>
                   <div style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-                    <div style={{ color: C.dim, fontSize: 12, marginBottom: 6 }}>Prompt / Notas</div>
+                    <div style={{ color: C.dim, fontSize: 12, marginBottom: 6 }}>{tr("Prompt / Notas", "Prompt / Notes")}</div>
                     <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
                       {agent.type === "flow" ? String(cfg?.flow?.notes || "-") : String(cfg?.system_prompt || "-")}
                     </div>
@@ -1398,9 +1414,9 @@ export default function AgentDetailPage() {
           {tab === "conversaciones" && (
             <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden" }}>
               <div style={{ padding: 16, borderBottom: `1px solid ${C.border}`, ...flex({ alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: isMobile ? "wrap" : "nowrap" }) }}>
-                <div style={{ fontWeight: 900 }}>Conversaciones</div>
+                <div style={{ fontWeight: 900 }}>{tr("Conversaciones", "Conversations")}</div>
                 <div style={{ width: isMobile ? "100%" : 320, maxWidth: isMobile ? "100%" : "60%" }}>
-                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..." style={input()} />
+                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder={tr("Buscar...", "Search...")} style={input()} />
                 </div>
               </div>
 
@@ -1409,12 +1425,12 @@ export default function AgentDetailPage() {
                   <thead>
                     <tr style={{ backgroundColor: C.dark }}>
                       {[
-                        "Contacto",
-                        "Canal",
-                        "Estado",
-                        "Mensajes",
-                        "Duracion",
-                        "Fecha",
+                        tr("Contacto", "Contact"),
+                        tr("Canal", "Channel"),
+                        tr("Estado", "Status"),
+                        tr("Mensajes", "Messages"),
+                        tr("Duracion", "Duration"),
+                        tr("Fecha", "Date"),
                       ].map(h => (
                         <th key={h} style={{ textAlign: "left", fontSize: 12, color: C.dim, padding: "12px 14px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" }}>
                           {h}
@@ -1443,7 +1459,7 @@ export default function AgentDetailPage() {
 
                 {filteredConversations.length === 0 && (
                   <div style={{ padding: 30, textAlign: "center", color: C.muted }}>
-                    No hay conversaciones aun.
+                    {tr("No hay conversaciones aun.", "No conversations yet.")}
                   </div>
                 )}
               </div>
@@ -1492,7 +1508,7 @@ export default function AgentDetailPage() {
           {tab === "contexto" && (
             <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
               <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), marginBottom: 20 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>Contexto de la Empresa</h2>
+                <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>{tr("Contexto de la Empresa", "Company Context")}</h2>
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <button
                     type="button"
@@ -1500,14 +1516,14 @@ export default function AgentDetailPage() {
                     disabled={contextLoading}
                     style={{ padding: "10px 16px", borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: "transparent", color: C.white, fontWeight: 800, cursor: contextLoading ? "not-allowed" : "pointer" }}
                   >
-                    {contextLoading ? "Trayendo..." : "Traer desde URL"}
+                    {contextLoading ? tr("Trayendo...", "Loading...") : tr("Traer desde URL", "Fetch from URL")}
                   </button>
                   <button
                     onClick={saveSettings}
                     disabled={saving}
                     style={{ padding: "10px 16px", borderRadius: 10, border: "none", backgroundColor: saving ? C.dim : C.lime, color: "#111", fontWeight: 900, cursor: saving ? "not-allowed" : "pointer" }}
                   >
-                    {saving ? "Guardando..." : "Guardar contexto"}
+                    {saving ? tr("Guardando...", "Saving...") : tr("Guardar contexto", "Save context")}
                   </button>
                 </div>
               </div>
@@ -1520,7 +1536,7 @@ export default function AgentDetailPage() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 22 }}>
                 <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>Nombre de la Empresa</label>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>{tr("Nombre de la Empresa", "Company Name")}</label>
                   <input
                     value={ctxForm.companyName}
                     onChange={(e) => setCtxForm((s) => ({ ...s, companyName: e.target.value }))}
@@ -1528,7 +1544,7 @@ export default function AgentDetailPage() {
                   />
                 </div>
                 <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>URL de la Empresa</label>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>{tr("URL de la Empresa", "Company URL")}</label>
                   <input
                     value={ctxForm.companyUrl}
                     onChange={(e) => setCtxForm((s) => ({ ...s, companyUrl: e.target.value }))}
@@ -1536,7 +1552,7 @@ export default function AgentDetailPage() {
                   />
                 </div>
                 <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>Descripción</label>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>{tr("Descripción", "Description")}</label>
                   <textarea
                     value={ctxForm.companyDesc}
                     onChange={(e) => setCtxForm((s) => ({ ...s, companyDesc: e.target.value }))}
@@ -1548,10 +1564,10 @@ export default function AgentDetailPage() {
 
               {agent.type === "voice" && (
                 <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, display: "grid", gap: 14 }}>
-                  <div style={{ fontWeight: 900, fontSize: 18 }}>Contexto del agente</div>
+                  <div style={{ fontWeight: 900, fontSize: 18 }}>{tr("Contexto del agente", "Agent context")}</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                     <div>
-                      <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>Idioma</label>
+                      <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>{tr("Idioma", "Language")}</label>
                       <select
                         value={ctxForm.language}
                         onChange={(e) => setCtxForm((s) => ({ ...s, language: e.target.value }))}
@@ -1563,7 +1579,7 @@ export default function AgentDetailPage() {
                       </select>
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>Nombre de identidad</label>
+                      <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>{tr("Nombre de identidad", "Identity name")}</label>
                       <input
                         value={ctxForm.identityName}
                         onChange={(e) => {
@@ -1577,7 +1593,7 @@ export default function AgentDetailPage() {
                   </div>
 
                   <div>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>Propósito</label>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>{tr("Propósito", "Purpose")}</label>
                     <select
                       value={ctxForm.purpose}
                       onChange={(e) => {
@@ -1596,7 +1612,7 @@ export default function AgentDetailPage() {
                       }}
                       style={input({ appearance: "none" as const })}
                     >
-                      <option value="">Selecciona propósito</option>
+                      <option value="">{tr("Selecciona propósito", "Select purpose")}</option>
                       {PURPOSE_OPTIONS.map((p) => (
                         <option key={p.value} value={p.value}>{String(ctxForm.language || "es-ES").toLowerCase().startsWith("en") ? p.en : p.es}</option>
                       ))}
@@ -1604,7 +1620,7 @@ export default function AgentDetailPage() {
                   </div>
 
                   <div>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>Instrucciones importantes</label>
+                    <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>{tr("Instrucciones importantes", "Important instructions")}</label>
                     <textarea
                       value={ctxForm.importantInstructions}
                       onChange={(e) => {
@@ -1619,10 +1635,10 @@ export default function AgentDetailPage() {
 
                   <div>
                     <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>
-                      Identificador de llamadas (opcional)
+                      {tr("Identificador de llamadas (opcional)", "Caller ID (optional)")}
                     </label>
                     <div style={{ color: C.dim, fontSize: 12, marginBottom: 8 }}>
-                      Numero que veran los contactos en llamadas salientes.
+                      {tr("Numero que veran los contactos en llamadas salientes.", "Number contacts will see on outbound calls.")}
                     </div>
                     <input
                       value={ctxForm.callerIdNumber}
@@ -1634,7 +1650,7 @@ export default function AgentDetailPage() {
 
                   <div>
                     <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 8 }}>
-                      ID de agente para flujos
+                      {tr("ID de agente para flujos", "Agent ID for flows")}
                     </label>
                     <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between", gap: 10 }), backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
                       <span style={{ color: C.white, fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace", fontSize: 13, wordBreak: "break-all" as const }}>
@@ -1651,7 +1667,7 @@ export default function AgentDetailPage() {
                         }}
                         style={{ border: `1px solid ${C.border}`, backgroundColor: "transparent", color: C.white, borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontWeight: 800, flexShrink: 0 }}
                       >
-                        Copiar
+                        {tr("Copiar", "Copy")}
                       </button>
                     </div>
                   </div>
@@ -1664,9 +1680,12 @@ export default function AgentDetailPage() {
             <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, minHeight: 620 }}>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.1fr 1fr", gap: 14, alignItems: "stretch" }}>
                 <div style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, minHeight: 520, overflow: "auto" }}>
-                  <div style={{ fontSize: 34, fontWeight: 900, lineHeight: 1, marginBottom: 10 }}>Prueba tu agente</div>
+                  <div style={{ fontSize: 34, fontWeight: 900, lineHeight: 1, marginBottom: 10 }}>{tr("Prueba tu agente", "Test your agent")}</div>
                   <div style={{ color: C.muted, fontSize: 15, lineHeight: 1.55, marginBottom: 14 }}>
-                    Prueba tu agente haciendo una llamada web. Agrega información de la persona que responderá la llamada en esta prueba.
+                    {tr(
+                      "Prueba tu agente haciendo una llamada web. Agrega información de la persona que responderá la llamada en esta prueba.",
+                      "Test your agent with a web call. Add the contact data for the person who will answer this test call."
+                    )}
                   </div>
                   <VoiceTestPanel
                     compact
@@ -1704,7 +1723,7 @@ export default function AgentDetailPage() {
                       disabled={improvingPrompt}
                       style={{ borderRadius: 12, border: `1px solid ${C.lime}`, background: "transparent", color: C.lime, padding: "10px 14px", fontWeight: 900, cursor: improvingPrompt ? "not-allowed" : "pointer" }}
                     >
-                      {improvingPrompt ? "Mejorando..." : "✦ Mejorar con IA"}
+                      {improvingPrompt ? tr("Mejorando...", "Improving...") : tr("✦ Mejorar con IA", "✦ Improve with AI")}
                     </button>
 
                     <select
@@ -1727,13 +1746,13 @@ export default function AgentDetailPage() {
                {agent.type === "voice" && agentKind !== "notetaker" ? (
                 <div style={{ ...col(), gap: 14 }}>
                   <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }) }}>
-                    <div style={{ fontWeight: 900, fontSize: 18 }}>Configuración</div>
+                    <div style={{ fontWeight: 900, fontSize: 18 }}>{tr("Configuración", "Configuration")}</div>
                     <button
                       onClick={saveSettings}
                       disabled={saving}
                       style={{ padding: "12px 18px", borderRadius: 12, border: "none", backgroundColor: saving ? C.dim : C.lime, color: "#111", cursor: saving ? "not-allowed" : "pointer", fontWeight: 900 }}
                     >
-                      {saving ? "Guardando..." : "Guardar cambios"}
+                      {saving ? tr("Guardando...", "Saving...") : tr("Guardar cambios", "Save changes")}
                     </button>
                   </div>
 
@@ -1742,19 +1761,19 @@ export default function AgentDetailPage() {
                     <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
                       <div style={{ display: "grid", gap: 12 }}>
                         <details open style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-                          <summary style={{ cursor: "pointer", fontWeight: 900, marginBottom: 12 }}>🔊 Configuración de voz</summary>
+                          <summary style={{ cursor: "pointer", fontWeight: 900, marginBottom: 12 }}>{tr("🔊 Configuración de voz", "🔊 Voice settings")}</summary>
                           <div style={{ display: "grid", gap: 10 }}>
-                            <div style={{ color: C.muted, fontSize: 12, fontWeight: 800 }}>Biblioteca de voces</div>
+                            <div style={{ color: C.muted, fontSize: 12, fontWeight: 800 }}>{tr("Biblioteca de voces", "Voice library")}</div>
                             <div style={{ display: "grid", gap: 8, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10, background: "rgba(255,255,255,0.02)" }}>
                               <div style={{ color: C.white, fontSize: 13, fontWeight: 900 }}>
-                                {selectedVoiceProfile ? selectedVoiceProfile.name : "Sin voz seleccionada"}
+                                {selectedVoiceProfile ? selectedVoiceProfile.name : tr("Sin voz seleccionada", "No voice selected")}
                               </div>
                               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                                 {selectedVoiceProfile
                                   ? [selectedVoiceProfile.gender, selectedVoiceProfile.accent, selectedVoiceProfile.style, selectedVoiceProfile.provider].map((tag, idx) => (
                                       <span key={`active-${tag}-${idx}`} style={{ fontSize: 11, color: C.muted, border: `1px solid ${C.border}`, borderRadius: 999, padding: "2px 6px" }}>{tag}</span>
                                     ))
-                                  : <span style={{ color: C.dim, fontSize: 12 }}>Selecciona una voz desde la biblioteca.</span>}
+                                  : <span style={{ color: C.dim, fontSize: 12 }}>{tr("Selecciona una voz desde la biblioteca.", "Select a voice from the library.")}</span>}
                               </div>
                               <div style={{ display: "flex", gap: 8 }}>
                                 <button
@@ -1765,7 +1784,7 @@ export default function AgentDetailPage() {
                                   }}
                                   style={{ flex: 1, borderRadius: 10, border: `1px solid ${C.lime}`, background: "transparent", color: C.lime, padding: "9px 10px", fontWeight: 900, cursor: "pointer" }}
                                 >
-                                  Abrir biblioteca de voces
+                                  {tr("Abrir biblioteca de voces", "Open voice library")}
                                 </button>
                                 <button
                                   type="button"
@@ -1777,7 +1796,7 @@ export default function AgentDetailPage() {
                               </div>
                             </div>
 
-                            <div style={{ color: C.muted, fontSize: 12, fontWeight: 800 }}>Modelo de voz</div>
+                            <div style={{ color: C.muted, fontSize: 12, fontWeight: 800 }}>{tr("Modelo de voz", "Voice model")}</div>
                             <select value={edit.voiceModel} onChange={e => setEdit(s => ({ ...s, voiceModel: e.target.value }))} style={input({ appearance: "none" as const })}>
                               {VOICE_MODELS.map(m => (
                                 <option key={m} value={m}>{m}</option>
@@ -1785,30 +1804,30 @@ export default function AgentDetailPage() {
                             </select>
 
                             <label style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), color: C.muted, fontSize: 13 }}>
-                              <span>Sonido de fondo</span>
+                              <span>{tr("Sonido de fondo", "Background sound")}</span>
                               <input type="checkbox" checked={voiceCfg.backgroundSound} onChange={e => setVoiceCfg(s => ({ ...s, backgroundSound: e.target.checked }))} />
                             </label>
                             <select value={voiceCfg.backgroundPreset} onChange={e => setVoiceCfg(s => ({ ...s, backgroundPreset: e.target.value }))} style={input({ appearance: "none" as const })}>
                               {AMBIENT_PRESETS.map((a) => (
-                                <option key={a} value={a}>{a === "none" ? "Ninguno" : a.replace(/_/g, " ")}</option>
+                                <option key={a} value={a}>{a === "none" ? tr("Ninguno", "None") : a.replace(/_/g, " ")}</option>
                               ))}
                             </select>
-                            <div style={{ color: C.muted, fontSize: 13 }}>Sensibilidad {voiceCfg.sensitivity.toFixed(1)}</div>
+                            <div style={{ color: C.muted, fontSize: 13 }}>{tr("Sensibilidad", "Sensitivity")} {voiceCfg.sensitivity.toFixed(1)}</div>
                             <input type="range" min={0.2} max={2} step={0.1} value={voiceCfg.sensitivity} onChange={e => setVoiceCfg(s => ({ ...s, sensitivity: Number(e.target.value) }))} />
-                            <div style={{ color: C.muted, fontSize: 13 }}>Sensibilidad a la interrupción {voiceCfg.interruptionSensitivity.toFixed(1)}</div>
+                            <div style={{ color: C.muted, fontSize: 13 }}>{tr("Sensibilidad a la interrupción", "Interruption sensitivity")} {voiceCfg.interruptionSensitivity.toFixed(1)}</div>
                             <input type="range" min={0} max={1} step={0.1} value={voiceCfg.interruptionSensitivity} onChange={e => setVoiceCfg(s => ({ ...s, interruptionSensitivity: Number(e.target.value) }))} />
                             <label style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), color: C.muted, fontSize: 13 }}>
-                              <span>Escucha activa</span>
+                              <span>{tr("Escucha activa", "Active listening")}</span>
                               <input type="checkbox" checked={voiceCfg.activeListening} onChange={e => setVoiceCfg(s => ({ ...s, activeListening: e.target.checked }))} />
                             </label>
-                            <input value={voiceCfg.boostedKeywords} onChange={e => setVoiceCfg(s => ({ ...s, boostedKeywords: e.target.value }))} placeholder="hola, adiós" style={input()} />
+                            <input value={voiceCfg.boostedKeywords} onChange={e => setVoiceCfg(s => ({ ...s, boostedKeywords: e.target.value }))} placeholder={tr("hola, adiós", "hello, goodbye")} style={input()} />
                             <label style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), color: C.muted, fontSize: 13 }}>
-                              <span>Habla limpia</span>
+                              <span>{tr("Habla limpia", "Clean speech")}</span>
                               <input type="checkbox" checked={voiceCfg.cleanSpeech} onChange={e => setVoiceCfg(s => ({ ...s, cleanSpeech: e.target.checked }))} />
                             </label>
                             <select value={voiceCfg.transcriptFormatMode} onChange={e => setVoiceCfg(s => ({ ...s, transcriptFormatMode: e.target.value as any }))} style={input({ appearance: "none" as const })}>
-                              <option value="fast">Rápido</option>
-                              <option value="accurate">Preciso</option>
+                              <option value="fast">{tr("Rápido", "Fast")}</option>
+                              <option value="accurate">{tr("Preciso", "Accurate")}</option>
                             </select>
                             <div style={{ ...flex({ gap: 8 }) }}>
                               <input type="number" value={voiceCfg.reminderFrequencyMs} onChange={e => setVoiceCfg(s => ({ ...s, reminderFrequencyMs: Number(e.target.value || 0) }))} style={input({ flex: 1 })} />
@@ -1818,27 +1837,27 @@ export default function AgentDetailPage() {
                         </details>
 
                         <details style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-                          <summary style={{ cursor: "pointer", fontWeight: 900, marginBottom: 12 }}>🎙 Configuración de conversación</summary>
+                          <summary style={{ cursor: "pointer", fontWeight: 900, marginBottom: 12 }}>{tr("🎙 Configuración de conversación", "🎙 Conversation settings")}</summary>
                           <div style={{ display: "grid", gap: 10 }}>
-                            <label style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), color: C.muted, fontSize: 13 }}><span>Sonido de fondo</span><input type="checkbox" checked={conversationCfg.backgroundSound} onChange={e => setConversationCfg(s => ({ ...s, backgroundSound: e.target.checked }))} /></label>
+                            <label style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), color: C.muted, fontSize: 13 }}><span>{tr("Sonido de fondo", "Background sound")}</span><input type="checkbox" checked={conversationCfg.backgroundSound} onChange={e => setConversationCfg(s => ({ ...s, backgroundSound: e.target.checked }))} /></label>
                             <select value={conversationCfg.backgroundPreset} onChange={e => setConversationCfg(s => ({ ...s, backgroundPreset: e.target.value }))} style={input({ appearance: "none" as const })}>
                               {AMBIENT_PRESETS.map((a) => (
-                                <option key={a} value={a}>{a === "none" ? "Ninguno" : a.replace(/_/g, " ")}</option>
+                                <option key={a} value={a}>{a === "none" ? tr("Ninguno", "None") : a.replace(/_/g, " ")}</option>
                               ))}
                             </select>
-                            <div style={{ color: C.muted, fontSize: 13 }}>Sensibilidad {conversationCfg.sensitivity.toFixed(1)}</div>
+                            <div style={{ color: C.muted, fontSize: 13 }}>{tr("Sensibilidad", "Sensitivity")} {conversationCfg.sensitivity.toFixed(1)}</div>
                             <input type="range" min={0.2} max={2} step={0.1} value={conversationCfg.sensitivity} onChange={e => setConversationCfg(s => ({ ...s, sensitivity: Number(e.target.value) }))} />
-                            <div style={{ color: C.muted, fontSize: 13 }}>Sensibilidad a la interrupción {conversationCfg.interruptionSensitivity.toFixed(1)}</div>
+                            <div style={{ color: C.muted, fontSize: 13 }}>{tr("Sensibilidad a la interrupción", "Interruption sensitivity")} {conversationCfg.interruptionSensitivity.toFixed(1)}</div>
                             <input type="range" min={0} max={1} step={0.1} value={conversationCfg.interruptionSensitivity} onChange={e => setConversationCfg(s => ({ ...s, interruptionSensitivity: Number(e.target.value) }))} />
-                            <label style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), color: C.muted, fontSize: 13 }}><span>Escucha activa</span><input type="checkbox" checked={conversationCfg.activeListening} onChange={e => setConversationCfg(s => ({ ...s, activeListening: e.target.checked }))} /></label>
-                            <input value={conversationCfg.boostedKeywords} onChange={e => setConversationCfg(s => ({ ...s, boostedKeywords: e.target.value }))} placeholder="hola, adiós" style={input()} />
-                            <label style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), color: C.muted, fontSize: 13 }}><span>Habla limpia</span><input type="checkbox" checked={conversationCfg.cleanSpeech} onChange={e => setConversationCfg(s => ({ ...s, cleanSpeech: e.target.checked }))} /></label>
-                            <select value={conversationCfg.transcriptFormatMode} onChange={e => setConversationCfg(s => ({ ...s, transcriptFormatMode: e.target.value as any }))} style={input({ appearance: "none" as const })}><option value="fast">Rápido</option><option value="accurate">Preciso</option></select>
+                            <label style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), color: C.muted, fontSize: 13 }}><span>{tr("Escucha activa", "Active listening")}</span><input type="checkbox" checked={conversationCfg.activeListening} onChange={e => setConversationCfg(s => ({ ...s, activeListening: e.target.checked }))} /></label>
+                            <input value={conversationCfg.boostedKeywords} onChange={e => setConversationCfg(s => ({ ...s, boostedKeywords: e.target.value }))} placeholder={tr("hola, adiós", "hello, goodbye")} style={input()} />
+                            <label style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), color: C.muted, fontSize: 13 }}><span>{tr("Habla limpia", "Clean speech")}</span><input type="checkbox" checked={conversationCfg.cleanSpeech} onChange={e => setConversationCfg(s => ({ ...s, cleanSpeech: e.target.checked }))} /></label>
+                            <select value={conversationCfg.transcriptFormatMode} onChange={e => setConversationCfg(s => ({ ...s, transcriptFormatMode: e.target.value as any }))} style={input({ appearance: "none" as const })}><option value="fast">{tr("Rápido", "Fast")}</option><option value="accurate">{tr("Preciso", "Accurate")}</option></select>
                           </div>
                         </details>
 
                         <details style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-                          <summary style={{ cursor: "pointer", fontWeight: 900, marginBottom: 12 }}>📞 Configuración de llamadas</summary>
+                          <summary style={{ cursor: "pointer", fontWeight: 900, marginBottom: 12 }}>{tr("📞 Configuración de llamadas", "📞 Call settings")}</summary>
                           <div style={{ display: "grid", gap: 10 }}>
                             <label style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), color: C.muted, fontSize: 13 }}><span>Detección de Buzón de Voz</span><input type="checkbox" checked={callCfg.voicemailDetection} onChange={e => setCallCfg(s => ({ ...s, voicemailDetection: e.target.checked }))} /></label>
                             <select value={callCfg.voicemailBehavior} onChange={e => setCallCfg(s => ({ ...s, voicemailBehavior: e.target.value as any }))} style={input({ appearance: "none" as const })}>
@@ -1847,7 +1866,7 @@ export default function AgentDetailPage() {
                             </select>
                             <div style={{ color: C.muted, fontSize: 13 }}>Finalizar llamada en silencio (s)</div>
                             <input type="number" value={callCfg.endCallSilenceSec} onChange={e => setCallCfg(s => ({ ...s, endCallSilenceSec: Number(e.target.value || 0) }))} style={input()} />
-                            <div style={{ color: C.muted, fontSize: 13 }}>Duración máxima de llamada (s)</div>
+                            <div style={{ color: C.muted, fontSize: 13 }}>{tr("Duración máxima de llamada (s)", "Max call duration (s)")}</div>
                             <input type="number" value={callCfg.maxCallDurationSec} onChange={e => setCallCfg(s => ({ ...s, maxCallDurationSec: Number(e.target.value || 0) }))} style={input()} />
                             <div style={{ color: C.muted, fontSize: 13 }}>Retraso de respuesta inicial (s)</div>
                             <input type="number" value={callCfg.initialResponseDelaySec} onChange={e => setCallCfg(s => ({ ...s, initialResponseDelaySec: Number(e.target.value || 0) }))} style={input()} />
@@ -1855,7 +1874,7 @@ export default function AgentDetailPage() {
                         </details>
 
                         <details style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-                          <summary style={{ cursor: "pointer", fontWeight: 900, marginBottom: 12 }}>⌨ Entrada del teclado</summary>
+                          <summary style={{ cursor: "pointer", fontWeight: 900, marginBottom: 12 }}>{tr("⌨ Entrada del teclado", "⌨ Keypad input")}</summary>
                           <label style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), color: C.muted, fontSize: 13 }}>
                             <span>Detección DTMF</span>
                             <input type="checkbox" checked={keyboardCfg.detectDtmf} onChange={e => setKeyboardCfg({ detectDtmf: e.target.checked })} />
@@ -1863,7 +1882,7 @@ export default function AgentDetailPage() {
                         </details>
 
                         <details style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-                          <summary style={{ cursor: "pointer", fontWeight: 900, marginBottom: 12 }}>⚙ Acciones del agente</summary>
+                          <summary style={{ cursor: "pointer", fontWeight: 900, marginBottom: 12 }}>{tr("⚙ Acciones del agente", "⚙ Agent actions")}</summary>
                           <div style={{ display: "grid", gap: 8 }}>
                             {ACTION_TOOL_OPTIONS.map((tool) => {
                               const enabled = actionsCfg.includes(tool);
@@ -1887,7 +1906,7 @@ export default function AgentDetailPage() {
                         </details>
 
                         <details style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-                          <summary style={{ cursor: "pointer", fontWeight: 900, marginBottom: 12 }}>🧠 Brains (Configuración avanzada)</summary>
+                          <summary style={{ cursor: "pointer", fontWeight: 900, marginBottom: 12 }}>{tr("🧠 Brains (Configuración avanzada)", "🧠 Brains (Advanced settings)")}</summary>
                           <div style={{ display: "grid", gap: 10 }}>
                             <div style={{ color: C.muted, fontSize: 13 }}>Fragmentos a recuperar</div>
                             <input type="number" min={1} max={10} value={brainsAdvancedCfg.chunksToRetrieve} onChange={e => setBrainsAdvancedCfg(s => ({ ...s, chunksToRetrieve: Math.max(1, Math.min(10, Number(e.target.value || 1))) }))} style={input()} />
@@ -1901,7 +1920,7 @@ export default function AgentDetailPage() {
                     {/* middle prompt editor */}
                     <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, minWidth: 0 }}>
                       <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), marginBottom: 12 }}>
-                        <div style={{ fontWeight: 900 }}>Instrucciones</div>
+                        <div style={{ fontWeight: 900 }}>{tr("Instrucciones", "Instructions")}</div>
                         <div style={{ color: C.dim, fontSize: 12, fontWeight: 900 }}>Modelo: GPT 4.1</div>
                       </div>
                       <textarea
@@ -1928,7 +1947,7 @@ export default function AgentDetailPage() {
                     {/* index */}
                     <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
                       <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), marginBottom: 12 }}>
-                        <div style={{ fontWeight: 900, color: C.muted, fontSize: 12, letterSpacing: 0.6 }}>ÍNDICE</div>
+                        <div style={{ fontWeight: 900, color: C.muted, fontSize: 12, letterSpacing: 0.6 }}>{tr("ÍNDICE", "INDEX")}</div>
                         <button style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontWeight: 900 }}>×</button>
                       </div>
                       <div style={{ display: "grid", gap: 10 }}>
@@ -1945,28 +1964,28 @@ export default function AgentDetailPage() {
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 14 }}>
                   <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
-                    <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), marginBottom: 12 }}>
-                      <div style={{ fontWeight: 900, fontSize: 18 }}>Configuración</div>
+                      <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), marginBottom: 12 }}>
+                        <div style={{ fontWeight: 900, fontSize: 18 }}>{tr("Configuración", "Configuration")}</div>
                       <button
                         onClick={saveSettings}
                         disabled={saving}
                         style={{ padding: "10px 14px", borderRadius: 12, border: "none", backgroundColor: saving ? C.dim : C.lime, color: "#111", cursor: saving ? "not-allowed" : "pointer", fontWeight: 900 }}
                       >
-                        {saving ? "Guardando..." : "Guardar"}
+                        {saving ? tr("Guardando...", "Saving...") : tr("Guardar", "Save")}
                       </button>
                     </div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
                       <div>
-                        <div style={{ fontSize: 12, color: C.dim, marginBottom: 6 }}>Nombre</div>
+                        <div style={{ fontSize: 12, color: C.dim, marginBottom: 6 }}>{tr("Nombre", "Name")}</div>
                         <input value={edit.name} onChange={e => setEdit(s => ({ ...s, name: e.target.value }))} style={input()} />
                       </div>
                       <div>
-                        <div style={{ fontSize: 12, color: C.dim, marginBottom: 6 }}>Rol / objetivo</div>
+                        <div style={{ fontSize: 12, color: C.dim, marginBottom: 6 }}>{tr("Rol / objetivo", "Role / objective")}</div>
                         <input value={edit.role} onChange={e => setEdit(s => ({ ...s, role: e.target.value }))} style={input()} />
                       </div>
                       <div>
-                        <div style={{ fontSize: 12, color: C.dim, marginBottom: 6 }}>{agent.type === "flow" ? "Notas" : "Prompt"}</div>
+                        <div style={{ fontSize: 12, color: C.dim, marginBottom: 6 }}>{agent.type === "flow" ? tr("Notas", "Notes") : "Prompt"}</div>
                         <textarea value={edit.prompt} onChange={e => setEdit(s => ({ ...s, prompt: e.target.value }))} rows={12} style={{ ...input({ minHeight: 320 }), resize: "vertical" as const }} />
                       </div>
 
@@ -1976,14 +1995,14 @@ export default function AgentDetailPage() {
                           onClick={() => router.push(`/start/flows/${agent.id}`)}
                           style={{ padding: "12px 14px", borderRadius: 12, border: `1px solid ${C.blue}`, backgroundColor: "transparent", color: C.blue, fontWeight: 900, cursor: "pointer" }}
                         >
-                          Abrir editor de flujo
+                          {tr("Abrir editor de flujo", "Open flow editor")}
                         </button>
                       )}
                     </div>
                   </div>
 
                   <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
-                    <div style={{ fontWeight: 900, marginBottom: 10 }}>Datos</div>
+                    <div style={{ fontWeight: 900, marginBottom: 10 }}>{tr("Datos", "Data")}</div>
                     <div style={{ color: C.dim, fontSize: 12, marginBottom: 8 }}>id</div>
                     <div style={{ color: C.muted, fontSize: 12, wordBreak: "break-all" as const }}>{agent.id}</div>
                     <div style={{ color: C.dim, fontSize: 12, marginTop: 14, marginBottom: 8 }}>config</div>
@@ -2000,9 +2019,9 @@ export default function AgentDetailPage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 16 }}>
               <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
                 <div style={{ fontSize: 28, marginBottom: 10 }}>📈</div>
-                <div style={{ fontWeight: 900, fontSize: 22, marginBottom: 14 }}>Análisis posterior a la llamada</div>
+                <div style={{ fontWeight: 900, fontSize: 22, marginBottom: 14 }}>{tr("Análisis posterior a la llamada", "Post-call analysis")}</div>
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 13, color: C.muted, marginBottom: 8, fontWeight: 800 }}>Objetivo de la llamada</div>
+                  <div style={{ fontSize: 13, color: C.muted, marginBottom: 8, fontWeight: 800 }}>{tr("Objetivo de la llamada", "Call objective")}</div>
                   <textarea
                     value={analysisForm.objective}
                     onChange={(e) => setAnalysisForm((s) => ({ ...s, objective: e.target.value }))}
@@ -2010,7 +2029,7 @@ export default function AgentDetailPage() {
                     style={{ ...input({ minHeight: 140 }), resize: "vertical" as const }}
                   />
                 </div>
-                <div style={{ fontSize: 13, color: C.muted, marginBottom: 8, fontWeight: 800 }}>Variables de recuperación</div>
+                <div style={{ fontSize: 13, color: C.muted, marginBottom: 8, fontWeight: 800 }}>{tr("Variables de recuperación", "Retrieval variables")}</div>
                 <div style={{ display: "grid", gap: 8 }}>
                   {analysisForm.variables.map((v, idx) => (
                     <div key={`${v}-${idx}`} style={{ ...flex({ alignItems: "center", gap: 8 }) }}>
@@ -2037,14 +2056,14 @@ export default function AgentDetailPage() {
                   onClick={() => setAnalysisForm((s) => ({ ...s, variables: [...s.variables, ""] }))}
                   style={{ marginTop: 10, border: `1px solid ${C.border}`, backgroundColor: "transparent", color: C.muted, borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontWeight: 700 }}
                 >
-                  + Agregar variable
+                  {tr("+ Agregar variable", "+ Add variable")}
                 </button>
                 <button
                   onClick={saveSettings}
                   disabled={saving}
                   style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, border: "none", backgroundColor: saving ? C.dim : C.lime, color: "#111", fontWeight: 900, cursor: saving ? "not-allowed" : "pointer" }}
                 >
-                  {saving ? "Guardando..." : "Guardar análisis"}
+                  {saving ? tr("Guardando...", "Saving...") : tr("Guardar análisis", "Save analysis")}
                 </button>
               </div>
               <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
@@ -2065,9 +2084,9 @@ export default function AgentDetailPage() {
           {tab === "registro" && agent.type === "voice" && (
             <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden" }}>
               <div style={{ padding: 16, borderBottom: `1px solid ${C.border}`, ...flex({ alignItems: "center", justifyContent: "space-between", gap: 12 }) }}>
-                <div style={{ fontWeight: 900 }}>Registro de llamadas</div>
+                <div style={{ fontWeight: 900 }}>{tr("Registro de llamadas", "Call log")}</div>
                 <div style={{ width: 320, maxWidth: "60%" }}>
-                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar..." style={input()} />
+                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("Buscar...", "Search...")} style={input()} />
                 </div>
               </div>
               <div style={{ overflowX: "auto" }}>
@@ -2075,13 +2094,13 @@ export default function AgentDetailPage() {
                   <thead>
                     <tr style={{ backgroundColor: C.dark }}>
                       {[
-                        "ID de llamada",
-                        "Contacto",
-                        "Canal",
-                        "Estado",
-                        "Duración",
-                        "Fecha",
-                        "Descargar",
+                        tr("ID de llamada", "Call ID"),
+                        tr("Contacto", "Contact"),
+                        tr("Canal", "Channel"),
+                        tr("Estado", "Status"),
+                        tr("Duración", "Duration"),
+                        tr("Fecha", "Date"),
+                        tr("Descargar", "Download"),
                       ].map((h) => (
                         <th key={h} style={{ textAlign: "left", fontSize: 12, color: C.dim, padding: "12px 14px", borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" }}>
                           {h}
@@ -2119,7 +2138,7 @@ export default function AgentDetailPage() {
                     )) : (
                       <tr>
                         <td colSpan={7} style={{ padding: 28, textAlign: "center", color: C.dim }}>
-                          No hay llamadas registradas aún.
+                          {tr("No hay llamadas registradas aún.", "No calls recorded yet.")}
                         </td>
                       </tr>
                     )}
@@ -2133,11 +2152,11 @@ export default function AgentDetailPage() {
             <div style={{ display: "grid", gap: 14 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12 }}>
                 {[
-                  { label: "Créditos usados", value: String(voiceMetrics.creditsUsed) },
-                  { label: "Total de llamadas", value: String(voiceMetrics.totalCalls) },
-                  { label: "Contactos llamados", value: String(voiceMetrics.uniqueContacts) },
-                  { label: "Tasa de conexión", value: `${voiceMetrics.connectionRate.toFixed(1)}%` },
-                  { label: "Duración promedio", value: fmtDuration(voiceMetrics.avgDuration) },
+                  { label: tr("Créditos usados", "Credits used"), value: String(voiceMetrics.creditsUsed) },
+                  { label: tr("Total de llamadas", "Total calls"), value: String(voiceMetrics.totalCalls) },
+                  { label: tr("Contactos llamados", "Contacts called"), value: String(voiceMetrics.uniqueContacts) },
+                  { label: tr("Tasa de conexión", "Connection rate"), value: `${voiceMetrics.connectionRate.toFixed(1)}%` },
+                  { label: tr("Duración promedio", "Average duration"), value: fmtDuration(voiceMetrics.avgDuration) },
                 ].map((m) => (
                   <div key={m.label} style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 16 }}>
                     <div style={{ color: C.dim, fontSize: 12, marginBottom: 8 }}>{m.label}</div>
@@ -2148,7 +2167,7 @@ export default function AgentDetailPage() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
-                  <div style={{ fontWeight: 900, marginBottom: 10 }}>Llamadas realizadas</div>
+                  <div style={{ fontWeight: 900, marginBottom: 10 }}>{tr("Llamadas realizadas", "Calls made")}</div>
                   <div style={{ height: 240, borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: C.dark, padding: 14 }}>
                     <div style={{ height: "100%", display: "flex", alignItems: "flex-end", gap: 12 }}>
                       <div style={{ width: 46, height: `${Math.min(100, voiceMetrics.totalCalls * 8)}%`, backgroundColor: "#4ade80", borderRadius: 6 }} />
@@ -2158,7 +2177,7 @@ export default function AgentDetailPage() {
                 </div>
 
                 <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
-                  <div style={{ fontWeight: 900, marginBottom: 10 }}>Embudo de contacto</div>
+                  <div style={{ fontWeight: 900, marginBottom: 10 }}>{tr("Embudo de contacto", "Contact funnel")}</div>
                   <div style={{ height: 240, borderRadius: 10, border: `1px solid ${C.border}`, backgroundColor: C.dark, overflow: "hidden" }}>
                     <div style={{ height: "50%", backgroundColor: "#60a5fa" }} />
                     <div style={{ height: "35%", backgroundColor: "#fcd34d" }} />
@@ -2172,21 +2191,21 @@ export default function AgentDetailPage() {
           {tab === "cerebro" && (
             <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
               <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), marginBottom: 20 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>Cerebro</h2>
+              <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>{tr("Cerebro", "Brain")}</h2>
                 <button
                   onClick={saveSettings}
                   disabled={saving}
                   style={{ padding: "10px 16px", borderRadius: 10, border: "none", backgroundColor: saving ? C.dim : C.lime, color: "#111", fontWeight: 900, cursor: saving ? "not-allowed" : "pointer" }}
                 >
-                  {saving ? "Guardando..." : "Guardar"}
+                  {saving ? tr("Guardando...", "Saving...") : tr("Guardar", "Save")}
                 </button>
               </div>
 
               <div style={{ ...flex({ gap: 10 }), marginBottom: 16 }}>
                 {([
-                  { id: "website", label: "Sitio web" },
-                  { id: "files", label: "Archivos" },
-                  { id: "config", label: "Configuración" },
+                  { id: "website", label: tr("Sitio web", "Website") },
+                  { id: "files", label: tr("Archivos", "Files") },
+                  { id: "config", label: tr("Configuración", "Configuration") },
                 ] as const).map((it) => (
                   <button
                     key={it.id}
@@ -2209,7 +2228,7 @@ export default function AgentDetailPage() {
               {brainTab === "website" && (
                 <div style={{ display: "grid", gap: 12 }}>
                   <div>
-                    <div style={{ fontSize: 13, color: C.muted, marginBottom: 6 }}>URL del sitio</div>
+                    <div style={{ fontSize: 13, color: C.muted, marginBottom: 6 }}>{tr("URL del sitio", "Website URL")}</div>
                     <input
                       value={brainForm.websiteUrl}
                       onChange={(e) => setBrainForm((s) => ({ ...s, websiteUrl: e.target.value }))}
@@ -2218,7 +2237,7 @@ export default function AgentDetailPage() {
                     />
                   </div>
                   <div style={{ color: C.dim, fontSize: 12 }}>
-                    Usa esta URL como fuente de contexto para respuestas del agente.
+                    {tr("Usa esta URL como fuente de contexto para respuestas del agente.", "Use this URL as context source for the agent responses.")}
                   </div>
                 </div>
               )}
@@ -2234,7 +2253,7 @@ export default function AgentDetailPage() {
               {brainTab === "config" && (
                 <div style={{ display: "grid", gap: 12 }}>
                   <div>
-                    <div style={{ fontSize: 13, color: C.muted, marginBottom: 6 }}>Nombre de contexto</div>
+                    <div style={{ fontSize: 13, color: C.muted, marginBottom: 6 }}>{tr("Nombre de contexto", "Context name")}</div>
                     <input
                       value={brainForm.contextName}
                       onChange={(e) => setBrainForm((s) => ({ ...s, contextName: e.target.value }))}
@@ -2242,7 +2261,7 @@ export default function AgentDetailPage() {
                     />
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, color: C.muted, marginBottom: 6 }}>Descripción</div>
+                    <div style={{ fontSize: 13, color: C.muted, marginBottom: 6 }}>{tr("Descripción", "Description")}</div>
                     <textarea
                       value={brainForm.contextDescription}
                       onChange={(e) => setBrainForm((s) => ({ ...s, contextDescription: e.target.value }))}
@@ -2257,7 +2276,7 @@ export default function AgentDetailPage() {
 
           {tab === "publicar" && (
             <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 20 }}>Publicar Agente</h2>
+              <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 20 }}>{tr("Publicar Agente", "Publish Agent")}</h2>
               <div style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20 }}>
                 <div style={{ marginBottom: 20 }}>
                   <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
@@ -2267,14 +2286,14 @@ export default function AgentDetailPage() {
                       onChange={(e) => setPublishForm((s) => ({ ...s, isPublic: e.target.checked }))}
                       style={{ width: 20, height: 20 }}
                     />
-                    <span style={{ fontWeight: 700, color: C.white }}>Hacer Público</span>
+                    <span style={{ fontWeight: 700, color: C.white }}>{tr("Hacer Público", "Make Public")}</span>
                   </label>
                   <p style={{ color: C.muted, fontSize: 13, marginTop: 8, marginLeft: 32 }}>Versión compartible e integrable</p>
                 </div>
 
-                <div style={{ color: C.white, fontWeight: 800, marginBottom: 6 }}>Incorporado</div>
+                <div style={{ color: C.white, fontWeight: 800, marginBottom: 6 }}>{tr("Incorporado", "Embedded")}</div>
                 <div style={{ color: C.muted, fontSize: 13, marginBottom: 10 }}>
-                  Para agregar el chatbot en cualquier lugar de tu sitio web, agrega esta linea en tu codigo html.
+                  {tr("Para agregar el chatbot en cualquier lugar de tu sitio web, agrega esta linea en tu codigo html.", "To embed the chatbot anywhere on your website, add this line to your HTML code.")}
                 </div>
                 <div style={{ marginTop: 8, padding: "12px 16px", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 8, fontFamily: "monospace", fontSize: 12, color: C.muted, overflowX: "auto" }}>
                   {embedScript}
@@ -2289,7 +2308,7 @@ export default function AgentDetailPage() {
                   }}
                   style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 800, cursor: "pointer" }}
                 >
-                  📋 Copiar script
+                  {tr("📋 Copiar script", "📋 Copy script")}
                 </button>
 
                 <div style={{ marginTop: 18 }}>
@@ -2300,9 +2319,9 @@ export default function AgentDetailPage() {
                       onChange={(e) => setPublishForm((s) => ({ ...s, additionalInstructions: e.target.checked }))}
                       style={{ width: 18, height: 18 }}
                     />
-                    <span style={{ color: C.white, fontWeight: 700 }}>Instrucciones adicionales</span>
+                    <span style={{ color: C.white, fontWeight: 700 }}>{tr("Instrucciones adicionales", "Additional instructions")}</span>
                   </label>
-                  <div style={{ color: C.muted, fontSize: 13, marginBottom: 8 }}>Mensaje de bienvenida</div>
+                  <div style={{ color: C.muted, fontSize: 13, marginBottom: 8 }}>{tr("Mensaje de bienvenida", "Welcome message")}</div>
                   <textarea
                     value={publishForm.welcomeMessage}
                     onChange={(e) => setPublishForm((s) => ({ ...s, welcomeMessage: e.target.value }))}
@@ -2312,7 +2331,7 @@ export default function AgentDetailPage() {
                 </div>
 
                 <div style={{ marginTop: 18 }}>
-                  <div style={{ color: C.white, fontWeight: 800, marginBottom: 8 }}>Ejemplos</div>
+                  <div style={{ color: C.white, fontWeight: 800, marginBottom: 8 }}>{tr("Ejemplos", "Examples")}</div>
                   <div style={{ display: "grid", gap: 8 }}>
                     {publishForm.examples.map((ex, idx) => (
                       <div key={`${idx}-${ex}`} style={{ ...flex({ alignItems: "center", gap: 8 }) }}>
@@ -2339,13 +2358,13 @@ export default function AgentDetailPage() {
                     onClick={() => setPublishForm((s) => ({ ...s, examples: [...s.examples, ""] }))}
                     style={{ marginTop: 10, border: `1px solid ${C.border}`, backgroundColor: "transparent", color: C.muted, borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontWeight: 700 }}
                   >
-                    + Agregar ejemplo
+                    {tr("+ Agregar ejemplo", "+ Add example")}
                   </button>
                 </div>
 
                 <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                   <div>
-                    <div style={{ color: C.muted, fontSize: 13, marginBottom: 6 }}>Color de fondo</div>
+                    <div style={{ color: C.muted, fontSize: 13, marginBottom: 6 }}>{tr("Color de fondo", "Background color")}</div>
                     <input
                       type="color"
                       value={publishForm.bgColor}
@@ -2354,7 +2373,7 @@ export default function AgentDetailPage() {
                     />
                   </div>
                   <div>
-                    <div style={{ color: C.muted, fontSize: 13, marginBottom: 6 }}>Color primario</div>
+                    <div style={{ color: C.muted, fontSize: 13, marginBottom: 6 }}>{tr("Color primario", "Primary color")}</div>
                     <input
                       type="color"
                       value={publishForm.primaryColor}
@@ -2371,7 +2390,7 @@ export default function AgentDetailPage() {
                     onChange={(e) => setPublishForm((s) => ({ ...s, autoOpen: e.target.checked }))}
                     style={{ width: 18, height: 18 }}
                   />
-                  <span style={{ color: C.white, fontWeight: 700 }}>Apertura automática</span>
+                  <span style={{ color: C.white, fontWeight: 700 }}>{tr("Apertura automática", "Auto open")}</span>
                 </label>
 
                 <button
@@ -2379,7 +2398,7 @@ export default function AgentDetailPage() {
                   disabled={saving}
                   style={{ marginTop: 18, padding: "12px 18px", borderRadius: 10, border: "none", backgroundColor: saving ? C.dim : C.lime, color: "#111", fontWeight: 900, cursor: saving ? "not-allowed" : "pointer" }}
                 >
-                  {saving ? "Guardando..." : "Guardar publicación"}
+                  {saving ? tr("Guardando...", "Saving...") : tr("Guardar publicación", "Save publish settings")}
                 </button>
               </div>
             </div>
@@ -2387,18 +2406,18 @@ export default function AgentDetailPage() {
 
           {tab === "integraciones" && (
             <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 16 }}>Canales</h2>
+              <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 16 }}>{tr("Canales", "Channels")}</h2>
 
               <div style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
-                <div style={{ fontWeight: 900, marginBottom: 6 }}>Conecta canales reales desde Canales</div>
+                <div style={{ fontWeight: 900, marginBottom: 6 }}>{tr("Conecta canales reales desde Canales", "Connect real channels from Channels")}</div>
                 <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>
-                  Esta vista te muestra el estado de integraciones asignadas a este agente. Para conectar WhatsApp, Twilio u otros proveedores usa el centro de Canales.
+                  {tr("Esta vista te muestra el estado de integraciones asignadas a este agente. Para conectar WhatsApp, Twilio u otros proveedores usa el centro de Canales.", "This view shows the integration status assigned to this agent. To connect WhatsApp, Twilio or other providers, use the Channels center.")}
                 </div>
                 <button
                   onClick={() => router.push(`/start/agents/channels?agentId=${agentId}`)}
                   style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 900, cursor: "pointer" }}
                 >
-                  Ir a Canales
+                  {tr("Ir a Canales", "Go to Channels")}
                 </button>
               </div>
 
@@ -2409,21 +2428,21 @@ export default function AgentDetailPage() {
               )}
 
               {integrationsLoading ? (
-                <div style={{ color: C.muted, fontSize: 13 }}>Cargando integraciones...</div>
+                <div style={{ color: C.muted, fontSize: 13 }}>{tr("Cargando integraciones...", "Loading integrations...")}</div>
               ) : linkedChannels.length === 0 ? (
-                <div style={{ color: C.muted, fontSize: 13 }}>Este agente no tiene canales asignados.</div>
+                <div style={{ color: C.muted, fontSize: 13 }}>{tr("Este agente no tiene canales asignados.", "This agent has no assigned channels.")}</div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 12 }}>
                   {linkedChannels.map((row) => (
                     <div key={row.id} style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-                        <div style={{ fontWeight: 900 }}>{row.display_name || "Canal"}</div>
+                        <div style={{ fontWeight: 900 }}>{row.display_name || tr("Canal", "Channel")}</div>
                         <span style={{ padding: "3px 8px", borderRadius: 999, fontSize: 11, fontWeight: 900, backgroundColor: row.status === "connected" ? "rgba(16,185,129,0.18)" : "rgba(245,158,11,0.16)", color: row.status === "connected" ? "#34d399" : "#fbbf24" }}>
                           {row.status || "pending"}
                         </span>
                       </div>
-                      <div style={{ color: C.muted, fontSize: 12 }}>Tipo: {row.channel_type}</div>
-                      <div style={{ color: C.muted, fontSize: 12 }}>Proveedor: {row.provider}</div>
+                      <div style={{ color: C.muted, fontSize: 12 }}>{tr("Tipo", "Type")}: {row.channel_type}</div>
+                      <div style={{ color: C.muted, fontSize: 12 }}>{tr("Proveedor", "Provider")}: {row.provider}</div>
                     </div>
                   ))}
                 </div>
@@ -2431,9 +2450,9 @@ export default function AgentDetailPage() {
 
               <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12 }}>
                 {[
-                  { name: "WhatsApp Business", desc: "Recibe llamadas de voz de tus clientes por WhatsApp" },
-                  { name: "Twilio Voice", desc: "Conecta numeración SIP/Twilio para entrada y salida" },
-                  { name: "Webchat", desc: "Atención web en tiempo real con el mismo agente" },
+                  { name: "WhatsApp Business", desc: tr("Recibe llamadas de voz de tus clientes por WhatsApp", "Receive voice calls from your customers on WhatsApp") },
+                  { name: "Twilio Voice", desc: tr("Conecta numeración SIP/Twilio para entrada y salida", "Connect SIP/Twilio numbers for inbound and outbound") },
+                  { name: "Webchat", desc: tr("Atención web en tiempo real con el mismo agente", "Real-time web support with the same agent") },
                 ].map((integration) => (
                   <div key={integration.name} style={{ backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
                     <div style={{ fontSize: 24, marginBottom: 6 }}>🔗</div>
@@ -2443,7 +2462,7 @@ export default function AgentDetailPage() {
                       onClick={() => router.push(`/start/agents/channels?agentId=${agentId}`)}
                       style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: `1px solid ${C.lime}`, backgroundColor: "transparent", color: C.lime, fontWeight: 700, fontSize: 12, cursor: "pointer" }}
                     >
-                      Conectar
+                      {tr("Conectar", "Connect")}
                     </button>
                   </div>
                 ))}
@@ -2509,7 +2528,7 @@ export default function AgentDetailPage() {
                 <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, fontWeight: 900, fontSize: 24 }}>Biblioteca de Voces</div>
 
                 <div style={{ padding: 12, display: "grid", gridTemplateColumns: "1fr 140px 140px", gap: 8, borderBottom: `1px solid ${C.border}` }}>
-                  <input value={voiceSearch} onChange={(e) => setVoiceSearch(e.target.value)} placeholder="Buscar voces" style={input()} />
+                  <input value={voiceSearch} onChange={(e) => setVoiceSearch(e.target.value)} placeholder={tr("Buscar voces", "Search voices")} style={input()} />
                   <select value={voiceGenderFilter} onChange={(e) => setVoiceGenderFilter(e.target.value as any)} style={input({ appearance: "none" as const })}>
                     <option value="all">Todos</option>
                     <option value="femenino">Femenino</option>

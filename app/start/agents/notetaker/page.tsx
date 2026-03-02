@@ -607,7 +607,7 @@ export default function NotetakerPage() {
       {tab === "reuniones" && (
         <div style={{ padding: 16 }}>
             <div style={{ marginBottom: 10, padding: "10px 12px", borderRadius: 10, border: `1px solid rgba(29,161,255,0.35)`, background: "rgba(29,161,255,0.12)", color: "#cfe8ff", fontSize: 12 }}>
-            En cada interacción: primero <b>Analizar IA</b> y despues <b>Guardar seguimiento</b>. No necesitas usar otra pantalla.
+            {tr("En cada interacción: primero Analizar IA y despues Guardar seguimiento. No necesitas usar otra pantalla.", "For each interaction: first Analyze AI, then Save follow-up. You do not need to use another screen.")}
             </div>
             <div style={{ background: `${C.blue}1a`, border: `1px solid rgba(29,161,255,0.35)`, borderRadius: 10, padding: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
              <div style={{ fontWeight: 800 }}>{tr("🤖 Registrar interacción y activar copiloto:", "🤖 Register interaction and activate copilot:")}</div>
