@@ -33,8 +33,18 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: agentError.message }, { status: 400 });
     }
 
-    // Note: conversations are tenant-scoped (RLS). We'll add them once tenant membership is wired.
-    return NextResponse.json({ ok: true, data: { agent, conversations: [] } });
+    const { data: conversations, error: convError } = await supabase
+      .from("agent_conversations")
+      .select("id, contact_name, contact_phone, channel, status, message_count, duration_seconds, started_at")
+      .eq("agent_id", id)
+      .order("started_at", { ascending: false })
+      .limit(300);
+
+    if (convError) {
+      return NextResponse.json({ ok: true, data: { agent, conversations: [] } });
+    }
+
+    return NextResponse.json({ ok: true, data: { agent, conversations: conversations || [] } });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Unknown error" }, { status: 500 });
   }

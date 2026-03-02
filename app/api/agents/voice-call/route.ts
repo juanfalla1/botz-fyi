@@ -42,7 +42,12 @@ export async function POST(req: Request) {
     // Caso especial: solo generar audio para un texto específico (ej: saludo inicial)
     if (generateAudioOnly && textToSpeak) {
       try {
-        const audioUrl = await textToSpeech(textToSpeak, agentConfig?.voice || "marin");
+        const audioUrl = await textToSpeech(textToSpeak, {
+          voice: agentConfig?.voice || "marin",
+          provider: agentConfig?.voice_provider || "openai",
+          profileId: agentConfig?.voice_profile_id || "",
+          ttsModel: agentConfig?.tts_model || "",
+        });
         const burn = await consumeEntitlementCredits(supabase as any, guard.user.id, 1);
         if (!burn.ok) {
           return NextResponse.json({ ok: false, code: burn.code, error: burn.error }, { status: burn.statusCode });
@@ -98,7 +103,12 @@ export async function POST(req: Request) {
     let audioUrl = null;
     if (!fastMode) {
       try {
-        audioUrl = await textToSpeech(agentResponse, agentConfig?.voice || "marin");
+        audioUrl = await textToSpeech(agentResponse, {
+          voice: agentConfig?.voice || "marin",
+          provider: agentConfig?.voice_provider || "openai",
+          profileId: agentConfig?.voice_profile_id || "",
+          ttsModel: agentConfig?.tts_model || "",
+        });
       } catch (e) {
         console.error("TTS error:", e);
         // TTS error no es crítico, retornamos la respuesta texto
@@ -191,9 +201,94 @@ async function speechToText(audioBase64: string): Promise<string> {
   }
 }
 
-// Text-to-Speech usando OpenAI TTS
-async function textToSpeech(text: string, voice: string = "marin"): Promise<string | null> {
+const OPENAI_VOICES = new Set([
+  "alloy",
+  "ash",
+  "ballad",
+  "cedar",
+  "coral",
+  "echo",
+  "fable",
+  "marin",
+  "nova",
+  "onyx",
+  "sage",
+  "shimmer",
+  "verse",
+]);
+
+const ELEVEN_MODEL_MAP: Record<string, string> = {
+  "elevenlabs turbo v2": "eleven_turbo_v2",
+  "elevenlabs turbo v2.5": "eleven_turbo_v2_5",
+  "elevenlabs multilingual v2": "eleven_multilingual_v2",
+  "elevenlabs flash v2.5": "eleven_flash_v2_5",
+};
+
+const ELEVEN_PROFILE_TO_VOICE_ID: Record<string, string> = {
+  angie_col: "EXAVITQu4vr4xnSDxMaL",
+  lupe_mx: "ThT5KcBeYPX3keUQqHPh",
+  adam_cartesia: "ErXwobaYiN019PkySvjV",
+  adam_romantic: "TxGEqnHWrfWFTfGW9XjX",
+  adrian_us: "VR6AewLTigWG4xSOukaG",
+  agustin_relaxed: "CYw3kZ02Hs0563khs1Fj",
+  alejandro_conv: "IKne3meq5aSn9XLyUdCD",
+  amy_uk: "XB0fDUnXU5powFXDhCwa",
+  ana_corp: "Xb7hH8MSUJpSbSDYk0k2",
+  andrea_peru: "onwK4e9ZLuTAKqWW03F9",
+  anthony_el: "bIHbv24MWmeRgasZH58o",
+  brooke: "cgSgspJ2msm6clMCkdW9",
+  camila_warm: "SAz9YHcvj6GT2YYXdXww",
+  carla_vsl: "jBpfuIE2acCO8z3wKNLl",
+  gabriela: "nPczCjzI2devNBz1zQrb",
+};
+
+type TtsOptions = {
+  voice?: string;
+  provider?: string;
+  profileId?: string;
+  ttsModel?: string;
+};
+
+// Text-to-Speech con fallback provider -> OpenAI
+async function textToSpeech(text: string, opts: TtsOptions = {}): Promise<string | null> {
   const openaiKey = process.env.OPENAI_API_KEY;
+  const elevenKey = process.env.ELEVENLABS_API_KEY;
+  const provider = String(opts.provider || "openai").toLowerCase();
+  const voice = String(opts.voice || "marin");
+  const profileId = String(opts.profileId || "");
+  const ttsModelRaw = String(opts.ttsModel || "").toLowerCase();
+
+  if (provider === "elevenlabs" && elevenKey) {
+    try {
+      const elevenVoiceId = ELEVEN_PROFILE_TO_VOICE_ID[profileId] || process.env.ELEVENLABS_DEFAULT_VOICE_ID || "EXAVITQu4vr4xnSDxMaL";
+      const mappedModel = ELEVEN_MODEL_MAP[ttsModelRaw] || "eleven_turbo_v2_5";
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(elevenVoiceId)}`, {
+        method: "POST",
+        headers: {
+          "xi-api-key": elevenKey,
+          "Content-Type": "application/json",
+          Accept: "audio/mpeg",
+        },
+        body: JSON.stringify({
+          text: String(text || "").substring(0, 2500),
+          model_id: mappedModel,
+          output_format: "mp3_44100_128",
+          voice_settings: {
+            stability: 0.45,
+            similarity_boost: 0.75,
+          },
+        }),
+      });
+      if (response.ok) {
+        const audioBuffer = await response.arrayBuffer();
+        const audioBase64 = Buffer.from(audioBuffer).toString("base64");
+        return `data:audio/mp3;base64,${audioBase64}`;
+      }
+      console.warn("[VOICE] ElevenLabs failed, fallback to OpenAI", response.status);
+    } catch (err) {
+      console.warn("[VOICE] ElevenLabs exception, fallback to OpenAI", err);
+    }
+  }
 
   if (!openaiKey) {
     return null;
@@ -209,7 +304,7 @@ async function textToSpeech(text: string, voice: string = "marin"): Promise<stri
       body: JSON.stringify({
         model: "gpt-4o-mini-tts",
         input: text.substring(0, 4096), // OpenAI TTS limit
-        voice: voice || "marin",
+        voice: OPENAI_VOICES.has(voice) ? voice : "marin",
         instructions: "Voz humana, clara y cercana. Pronunciacion nitida en espanol latino neutro, ritmo natural.",
         response_format: "mp3",
       }),

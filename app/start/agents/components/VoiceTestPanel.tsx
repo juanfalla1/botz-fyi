@@ -8,9 +8,22 @@ interface VoiceTestPanelProps {
   agentRole: string;
   agentPrompt: string;
   companyContext: string;
+  compact?: boolean;
+  onSessionSaved?: (session: {
+    id: string;
+    startedAt: string;
+    endedAt: string;
+    durationSec: number;
+    contactName: string;
+    success: boolean;
+    transcript: { speaker: "agent" | "user"; text: string }[];
+  }) => void;
   voiceSettings?: {
-    model?: string;
+    llmModel?: string;
     voice?: string;
+    provider?: string;
+    profileId?: string;
+    ttsModel?: string;
   };
 }
 
@@ -34,6 +47,8 @@ export default function VoiceTestPanel({
   agentRole,
   agentPrompt,
   companyContext,
+  compact = false,
+  onSessionSaved,
   voiceSettings,
 }: VoiceTestPanelProps) {
   const GPT_MODELS = ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o", "gpt-4.1"] as const;
@@ -41,6 +56,7 @@ export default function VoiceTestPanel({
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
+  const [handsFreeMode, setHandsFreeMode] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accentFilter, setAccentFilter] = useState<string>("all");
   const [speechRate, setSpeechRate] = useState<number>(1.05);
@@ -48,8 +64,8 @@ export default function VoiceTestPanel({
   const [availableVoices, setAvailableVoices] = useState<{ name: string; lang: string; voiceURI: string }[]>([]);
   const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>(
-    voiceSettings?.model && GPT_MODELS.includes(voiceSettings.model as any)
-      ? String(voiceSettings.model)
+    voiceSettings?.llmModel && GPT_MODELS.includes(voiceSettings.llmModel as any)
+      ? String(voiceSettings.llmModel)
       : "gpt-4o-mini"
   );
   const [transcript, setTranscript] = useState<{ speaker: "agent" | "user"; text: string }[]>([]);
@@ -58,10 +74,19 @@ export default function VoiceTestPanel({
     contact_email: "",
   });
 
-  const VAD_RMS_THRESHOLD = 0.015;
-  const VAD_SILENCE_MS_TO_STOP = 1250;
-  const VAD_MIN_SPEECH_MS = 700;
+  const VAD_RMS_THRESHOLD = 0.014;
+  const VAD_SILENCE_MS_TO_STOP = 1100;
+  const VAD_MIN_SPEECH_MS = 420;
+  const VAD_MIN_RECORDING_MS_BEFORE_STOP = 1500;
   const MAX_RECORDING_MS = 15000;
+
+  const MICROPHONE_CONSTRAINTS: MediaTrackConstraints = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    channelCount: 1,
+    sampleRate: 16000,
+  };
 
   const inputStyle: React.CSSProperties = {
     width: "100%",
@@ -90,11 +115,54 @@ export default function VoiceTestPanel({
   const audioContextRef = useRef<AudioContext | null>(null);
   const hasSpokenRef = useRef(false);
   const spokenAtRef = useRef<number>(0);
+  const recordingStartedAtRef = useRef<number>(0);
   const preferredVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const sessionVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const liveRateRef = useRef<number>(1.05);
   const livePitchRef = useRef<number>(0.98);
   const callSessionRef = useRef(0);
+  const silentTurnsRef = useRef(0);
+  const isCallActiveRef = useRef(false);
+  const isRecordingRef = useRef(false);
+  const isLoadingRef = useRef(false);
+  const isAgentSpeakingRef = useRef(false);
+  const callStartedAtRef = useRef<number>(0);
+
+  const firstName = (full: string) => {
+    const clean = String(full || "").trim();
+    if (!clean) return "";
+    return clean.split(/\s+/)[0] || "";
+  };
+
+  const buildScenarioGreeting = () => {
+    const name = firstName(variables.contact_name) || "";
+    const roleText = String(agentRole || "").toLowerCase();
+    const promptText = String(agentPrompt || "").toLowerCase();
+    const bag = `${roleText} ${promptText}`;
+
+    const withName = (txt: string) => (name ? txt.replaceAll("{{name}}", name) : txt.replaceAll("{{name}}", ""));
+
+    if (/cobranza|pago pendiente|cartera|mora/.test(bag)) {
+      return withName("Hola {{name}}, te llamo de Botz por una gestión de pago pendiente. ¿Podemos validar el estado de tu pago?");
+    }
+    if (/recordatorio|enviar recordatorios|reunión programada/.test(bag)) {
+      return withName("Hola {{name}}, te llamo de Botz para recordarte tu compromiso programado. ¿Te viene bien confirmarlo ahora?");
+    }
+    if (/confirmación de reuniones|confirmar reunión|programar reuniones/.test(bag)) {
+      return withName("Hola {{name}}, te llamo de Botz para confirmar los detalles de tu reunión. ¿Tienes un minuto?");
+    }
+    if (/calificación de leads|lead|llamadas en frio|prospección/.test(bag)) {
+      return withName("Hola {{name}}, soy de Botz. Quiero entender tu proceso actual para ver si te podemos ayudar a optimizarlo. ¿Te parece bien?");
+    }
+    if (/soporte|atención al cliente|servicio al cliente/.test(bag)) {
+      return withName("Hola {{name}}, te habla Botz del equipo de soporte. Cuéntame por favor en qué te puedo ayudar hoy.");
+    }
+    if (/recepcionista/.test(bag)) {
+      return withName("Hola {{name}}, bienvenido a Botz. Estoy para ayudarte a dirigir tu solicitud al área correcta. ¿Cuál es el motivo de tu llamada?");
+    }
+
+    return withName("Hola {{name}}, soy " + agentName + ". ¿Cómo puedo ayudarte hoy?");
+  };
 
   const matchesAccent = (lang: string, filter: string) => {
     if (filter === "all") return true;
@@ -239,12 +307,24 @@ export default function VoiceTestPanel({
       audio.onended = () => {
         if (activeSession !== callSessionRef.current) return;
         setIsAgentSpeaking(false);
+        if (handsFreeMode && isCallActiveRef.current && !isRecordingRef.current && !isLoadingRef.current) {
+          window.setTimeout(() => {
+            if (activeSession !== callSessionRef.current) return;
+            void startRecording();
+          }, 140);
+        }
       };
       audio.onerror = () => {
         if (activeSession !== callSessionRef.current) return;
         setIsAgentSpeaking(false);
         window.clearTimeout(revealTimer);
         appendAgent();
+        if (handsFreeMode && isCallActiveRef.current && !isRecordingRef.current && !isLoadingRef.current) {
+          window.setTimeout(() => {
+            if (activeSession !== callSessionRef.current) return;
+            void startRecording();
+          }, 180);
+        }
       };
       audio.src = audioUrl;
       await audio.play().catch(() => {
@@ -260,7 +340,15 @@ export default function VoiceTestPanel({
     appendAgent();
     if (activeSession !== callSessionRef.current) return;
     setIsAgentSpeaking(true);
-    speakFallback(agentText, undefined, () => setIsAgentSpeaking(false));
+    speakFallback(agentText, undefined, () => {
+      setIsAgentSpeaking(false);
+      if (handsFreeMode && isCallActiveRef.current && !isRecordingRef.current && !isLoadingRef.current) {
+        window.setTimeout(() => {
+          if (activeSession !== callSessionRef.current) return;
+          void startRecording();
+        }, 160);
+      }
+    });
   };
 
   useEffect(() => {
@@ -286,8 +374,31 @@ export default function VoiceTestPanel({
   }, [speechRate]);
 
   useEffect(() => {
+    isCallActiveRef.current = isCallActive;
+  }, [isCallActive]);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  useEffect(() => {
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
+
+  useEffect(() => {
+    isAgentSpeakingRef.current = isAgentSpeaking;
+  }, [isAgentSpeaking]);
+
+  useEffect(() => {
     livePitchRef.current = speechPitch;
   }, [speechPitch]);
+
+  useEffect(() => {
+    const incoming = String(voiceSettings?.llmModel || "");
+    if (incoming && GPT_MODELS.includes(incoming as any)) {
+      setSelectedModel(incoming);
+    }
+  }, [voiceSettings?.llmModel]);
 
   useEffect(() => {
     try {
@@ -350,9 +461,10 @@ export default function VoiceTestPanel({
   }, []);
 
   const startRecording = async () => {
+    if (!isCallActiveRef.current || isRecordingRef.current || isLoadingRef.current || isAgentSpeakingRef.current) return;
     try {
       setError(null);
-      const stream = streamRef.current || await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = streamRef.current || await navigator.mediaDevices.getUserMedia({ audio: MICROPHONE_CONSTRAINTS });
       streamRef.current = stream;
 
       const mediaRecorder = new MediaRecorder(stream);
@@ -373,6 +485,7 @@ export default function VoiceTestPanel({
 
       mediaRecorder.start();
       setIsRecording(true);
+      recordingStartedAtRef.current = Date.now();
 
       // VAD simple: auto-stop al detectar silencio después de que el usuario hable
       try {
@@ -407,7 +520,10 @@ export default function VoiceTestPanel({
             } else if (hasSpokenRef.current && !silenceStopTimerRef.current) {
               silenceStopTimerRef.current = window.setTimeout(() => {
                 silenceStopTimerRef.current = null;
-                if (Date.now() - (spokenAtRef.current || Date.now()) >= VAD_MIN_SPEECH_MS) {
+                const now = Date.now();
+                const speechEnough = now - (spokenAtRef.current || now) >= VAD_MIN_SPEECH_MS;
+                const recordingEnough = now - (recordingStartedAtRef.current || now) >= VAD_MIN_RECORDING_MS_BEFORE_STOP;
+                if (speechEnough && recordingEnough) {
                   stopRecording();
                 }
               }, VAD_SILENCE_MS_TO_STOP);
@@ -446,8 +562,8 @@ export default function VoiceTestPanel({
     try {
       const audioBase64 = await blobToBase64(audioBlob);
 
-      const promptCompact = String(agentPrompt || "").slice(0, 2000);
-      const companyCompact = String(companyContext || "No disponible").slice(0, 2000);
+      const promptCompact = String(agentPrompt || "").slice(0, 1200);
+      const companyCompact = String(companyContext || "No disponible").slice(0, 900);
       const context = `Tu nombre es: ${agentName}
 Tu rol/propósito es: ${agentRole}
 
@@ -479,6 +595,9 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
           conversationHistory: conversationHistoryRef.current.slice(-6),
           agentConfig: {
             voice: voiceSettings?.voice || "marin",
+            voice_provider: voiceSettings?.provider || "openai",
+            voice_profile_id: voiceSettings?.profileId || "",
+            tts_model: voiceSettings?.ttsModel || "",
             model: selectedModel,
           },
         }),
@@ -493,10 +612,31 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
       const userMessage = String(json.userMessage || "");
       const agentResponse = String(json.agentResponse || "");
 
+      const silenceDetected = !userMessage.trim();
+      if (silenceDetected) {
+        silentTurnsRef.current += 1;
+      } else {
+        silentTurnsRef.current = 0;
+      }
+
       setTranscript((prev) => [
         ...prev,
         { speaker: "user" as const, text: userMessage || "(silencio)" },
       ]);
+
+      if (silenceDetected) {
+        const nudge = silentTurnsRef.current >= 4
+          ? "No te escucho con claridad. Si quieres, finalizamos por ahora y retomamos cuando estés listo."
+          : "No te escuché bien. ¿Sigues ahí?";
+        await pushAgentLineSynced(nudge, null, sessionId);
+        if (silentTurnsRef.current >= 4) {
+          window.setTimeout(() => {
+            if (sessionId !== callSessionRef.current) return;
+            handleEndCall();
+          }, 900);
+        }
+        return;
+      }
 
       conversationHistoryRef.current = [
         ...conversationHistoryRef.current,
@@ -524,12 +664,14 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
       const picked = resolveVoiceByUri(selectedVoiceUri) || firstVoiceForAccent(accentFilter) || getPreferredSpanishVoice();
       sessionVoiceRef.current = picked;
       // Solicitar acceso al micrófono
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: MICROPHONE_CONSTRAINTS });
       streamRef.current = stream;
 
       setIsCallActive(true);
+      callStartedAtRef.current = Date.now();
+      silentTurnsRef.current = 0;
       
-      const greetingText = `Hola ${variables.contact_name}, soy ${agentName}. ¿Cómo puedo ayudarte hoy?`;
+      const greetingText = buildScenarioGreeting();
       
       setTranscript([]);
 
@@ -544,6 +686,26 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
   };
 
   const handleEndCall = () => {
+    const endedAt = Date.now();
+    const startedAt = callStartedAtRef.current || endedAt;
+    const durationSec = Math.max(0, Math.floor((endedAt - startedAt) / 1000));
+    const finalTranscript = [...transcript];
+    if (finalTranscript.length || durationSec > 0) {
+      try {
+        onSessionSaved?.({
+          id: `web_${startedAt}_${Math.random().toString(16).slice(2, 8)}`,
+          startedAt: new Date(startedAt).toISOString(),
+          endedAt: new Date(endedAt).toISOString(),
+          durationSec,
+          contactName: String(variables.contact_name || "N/A"),
+          success: finalTranscript.some((t) => t.speaker === "user" && t.text && t.text !== "(silencio)"),
+          transcript: finalTranscript,
+        });
+      } catch {
+        // noop
+      }
+    }
+
     callSessionRef.current += 1;
     clearRecordingWatchers();
     stopAllPlayback();
@@ -556,45 +718,49 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
     setIsRecording(false);
     setIsLoading(false);
     setIsCallActive(false);
+    silentTurnsRef.current = 0;
+    callStartedAtRef.current = 0;
     sessionVoiceRef.current = null;
     setTranscript([]);
     conversationHistoryRef.current = [];
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20, height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: compact ? 12 : 20, height: compact ? "auto" : "100%" }}>
       {/* Top Panel - Instructions (Horizontal) */}
-      <div
-        style={{
-          backgroundColor: C.dark,
-          borderRadius: 14,
-          border: `1px solid ${C.border}`,
-          padding: 16,
-          display: "flex",
-          flexDirection: "column",
-          maxHeight: 140,
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ fontWeight: 900, fontSize: 14, marginBottom: 8, color: C.white }}>
-          📋 Instrucciones del Agente
-        </div>
+      {!compact && (
         <div
           style={{
-            flex: 1,
-            overflow: "auto",
-            fontSize: 12,
-            lineHeight: 1.5,
-            color: C.muted,
-            fontFamily: "monospace",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
+            backgroundColor: C.dark,
+            borderRadius: 14,
+            border: `1px solid ${C.border}`,
+            padding: 16,
+            display: "flex",
+            flexDirection: "column",
+            maxHeight: 140,
+            overflow: "hidden",
           }}
         >
-          {`Nombre: ${agentName} | Rol: ${agentRole || "Asistente"} | Empresa: ${companyContext?.substring(0, 50) || "Botz"}`}
-          {agentPrompt && `\n\nInstrucciones: ${agentPrompt}`}
+          <div style={{ fontWeight: 900, fontSize: 14, marginBottom: 8, color: C.white }}>
+            📋 Instrucciones del Agente
+          </div>
+          <div
+            style={{
+              flex: 1,
+              overflow: "auto",
+              fontSize: 12,
+              lineHeight: 1.5,
+              color: C.muted,
+              fontFamily: "monospace",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {`Nombre: ${agentName} | Rol: ${agentRole || "Asistente"} | Empresa: ${companyContext?.substring(0, 50) || "Botz"}`}
+            {agentPrompt && `\n\nInstrucciones: ${agentPrompt}`}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Call Interface Panel */}
       <div
@@ -602,13 +768,14 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
           backgroundColor: C.dark,
           borderRadius: 14,
           border: `1px solid ${C.border}`,
-          padding: 20,
+          padding: compact ? 14 : 20,
           display: "flex",
           flexDirection: "column",
-          flex: 1,
+          flex: compact ? undefined : 1,
+          overflow: compact ? "auto" : "visible",
         }}
       >
-        <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 16, color: C.white }}>
+        <div style={{ fontWeight: 900, fontSize: compact ? 28 : 16, marginBottom: 16, color: C.white }}>
           {isCallActive ? "Transcripción de la llamada" : "Haz una llamada de prueba"}
         </div>
 
@@ -616,7 +783,7 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
           <>
             {/* Variables */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ marginBottom: 12 }}>
+              {!compact && <div style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 4 }}>
                   gpt_model
                 </label>
@@ -631,7 +798,7 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
                     </option>
                   ))}
                 </select>
-              </div>
+              </div>}
 
               <div style={{ fontSize: 13, fontWeight: 800, color: C.muted, marginBottom: 10 }}>
                 VARIABLES DE ENTRADA:
@@ -747,6 +914,7 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
               onClick={handleStartCall}
               disabled={isLoading}
               style={{
+                width: "100%",
                 padding: "14px 20px",
                 borderRadius: 12,
                 border: "none",
@@ -763,6 +931,22 @@ REGLA FINAL: Responde como si fueras un chat, pero en formato de voz. Sin rechaz
           </>
         ) : (
           <>
+            <div style={{ marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <div style={{ color: C.muted, fontSize: 12 }}>
+                {handsFreeMode
+                  ? "Manos libres activo: escucha y responde sin presionar botones."
+                  : "Modo manual: usa Hablar para cada turno."}
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, color: C.white, fontSize: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={handsFreeMode}
+                  onChange={(e) => setHandsFreeMode(e.target.checked)}
+                />
+                Manos libres
+              </label>
+            </div>
+
             {/* Transcript */}
             <div
               ref={scrollRef}
