@@ -168,7 +168,9 @@ export default function AgentStudio() {
   useEffect(() => {
     const onResize = () => {
       if (typeof window === "undefined") return;
-      const mobile = window.innerWidth < 1100;
+      const w = window.innerWidth;
+      const mobile = w < 1100;
+      setViewportWidth(w);
       setIsMobile(mobile);
       setCompactSidebarMenu(!mobile && window.innerHeight < 760);
     };
@@ -457,6 +459,7 @@ export default function AgentStudio() {
   const [micLoading, setMicLoading] = useState(false);
   const [homeRoutesOpen, setHomeRoutesOpen] = useState(true);
   const [compactSidebarMenu, setCompactSidebarMenu] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(1440);
   const simTimersRef = useRef<number[]>([]);
   const simSessionRef = useRef(0);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -981,6 +984,8 @@ export default function AgentStudio() {
   }, [wizardOpen, wizardStep]);
 
   const listType = (searchParams.get("type") || "").toLowerCase();
+  const ultraCompactSidebar = !isMobile && viewportWidth < 1380;
+  const compactPlanPanel = ultraCompactSidebar || compactSidebarMenu;
 
   const startRoutes = [
     { label: tr("Inicio general", "Main home"), href: "/start/agents", hint: tr("Panel principal de Agents", "Agents main dashboard") },
@@ -1118,6 +1123,8 @@ export default function AgentStudio() {
   /* ---------- styles ---------- */
   const flex = (extra?: object): React.CSSProperties => ({ display: "flex", ...extra });
   const col  = (extra?: object): React.CSSProperties => ({ display: "flex", flexDirection: "column", ...extra });
+  const desktopSidebarWidth = viewportWidth < 1280 ? 196 : viewportWidth < 1460 ? 212 : viewportWidth < 1680 ? 228 : 248;
+  const sidebarWidth = isMobile ? 0 : desktopSidebarWidth;
 
   return (
     <div style={{ ...flex({ flexDirection: isMobile ? "column" : "row" }), minHeight: "100vh", backgroundColor: C.bg, fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
@@ -1137,9 +1144,9 @@ export default function AgentStudio() {
       {/* ════════ SIDEBAR ════════ */}
       <aside style={{
         ...col(),
-        width: isMobile ? "84vw" : 260,
+        width: isMobile ? "84vw" : sidebarWidth,
         maxWidth: isMobile ? 320 : undefined,
-        minWidth: isMobile ? undefined : 260,
+        minWidth: isMobile ? undefined : sidebarWidth,
         backgroundColor: C.sidebar,
         borderRight: `1px solid ${C.border}`,
         position: "fixed",
@@ -1153,7 +1160,7 @@ export default function AgentStudio() {
       }}>
 
         {/* Logo */}
-        <div style={{ ...flex({ alignItems: "center", gap: 10 }), padding: "30px 16px 12px" }}>
+        <div style={{ ...flex({ alignItems: "center", gap: 10 }), padding: viewportWidth < 1500 ? "18px 12px 8px" : "30px 16px 12px" }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: C.blue, ...flex({ alignItems: "center", justifyContent: "center" }) }}>
             <span style={{ color: "#fff", fontWeight: 700, fontSize: 18 }}>B</span>
           </div>
@@ -1162,7 +1169,7 @@ export default function AgentStudio() {
         </div>
 
         {/* Workspace */}
-        <div style={{ padding: "6px 12px 16px" }}>
+        <div style={{ padding: viewportWidth < 1500 ? "4px 10px 10px" : "6px 12px 16px" }}>
           <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), padding: "10px 12px", borderRadius: 12, backgroundColor: "rgba(255,255,255,0.03)", border: `1px solid ${C.border}` }}>
             <div style={flex({ alignItems: "center", gap: 10 })}>
               <div style={{ width: 26, height: 26, borderRadius: 10, backgroundColor: `${C.blue}22`, display: "flex", alignItems: "center", justifyContent: "center", color: C.blue, fontWeight: 900, fontSize: 12 }}>
@@ -1178,7 +1185,19 @@ export default function AgentStudio() {
         </div>
 
         {/* Nav */}
-        <nav className="botz-sidebar-scroll" style={{ padding: "8px 12px 0", flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", paddingBottom: 10 }}>
+        <nav
+          className="botz-sidebar-scroll"
+          style={{
+            paddingTop: viewportWidth < 1500 ? 6 : 8,
+            paddingLeft: viewportWidth < 1500 ? 10 : 12,
+            paddingRight: viewportWidth < 1500 ? 10 : 12,
+            paddingBottom: 10,
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            overflowX: "hidden",
+          }}
+        >
           <button
             onClick={() => setHomeRoutesOpen((v) => !v)}
             style={{ ...flex({ alignItems: "center", gap: 10 }), padding: "10px 12px", borderRadius: 12, marginBottom: 6, cursor: "pointer", width: "100%", backgroundColor: "transparent", border: "none", textAlign: "left" }}
@@ -1189,7 +1208,7 @@ export default function AgentStudio() {
           </button>
 
           {homeRoutesOpen && (
-            <div style={{ marginBottom: 8, padding: compactSidebarMenu ? "6px" : "8px 8px 10px 10px", borderRadius: 12, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: compactSidebarMenu ? 4 : 6 }}>
+            <div style={{ marginBottom: 8, padding: compactSidebarMenu ? "6px" : "8px 8px 10px 10px", borderRadius: 12, border: `1px solid ${C.border}`, background: "rgba(255,255,255,0.02)", display: "flex", flexDirection: "column", gap: compactSidebarMenu ? 4 : 6, maxHeight: ultraCompactSidebar ? 154 : "none", overflowY: ultraCompactSidebar ? "auto" : "visible" }}>
               {startRoutes.map((r) => (
                 <button
                   key={`${r.label}-${r.href}`}
@@ -1197,7 +1216,9 @@ export default function AgentStudio() {
                   style={{ width: "100%", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", borderRadius: 10, padding: compactSidebarMenu ? "6px 8px" : "8px 10px", color: C.white, display: "flex", flexDirection: "column", gap: 1 }}
                 >
                   <span style={{ fontSize: compactSidebarMenu ? 12 : 13, fontWeight: 800, lineHeight: 1.2 }}>{r.label}</span>
-                  <span style={{ color: C.dim, fontSize: compactSidebarMenu ? 10 : 11, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.hint}</span>
+                  {!ultraCompactSidebar && (
+                    <span style={{ color: C.dim, fontSize: compactSidebarMenu ? 10 : 11, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.hint}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -1212,50 +1233,52 @@ export default function AgentStudio() {
 
         {/* Plan / Usage */}
         <div style={{ padding: 12 }}>
-          <div style={{ borderRadius: 16, padding: 16, background: "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)", border: `1px solid ${C.border}` }}>
+          <div style={{ borderRadius: 16, padding: viewportWidth < 1500 ? 12 : 16, background: "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)", border: `1px solid ${C.border}` }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
               <div>
                 <div style={{ color: C.dim, fontSize: 11, fontWeight: 900, letterSpacing: 0.6 }}>{tr("PLAN", "PLAN")}</div>
                 <div style={{ fontWeight: 900, fontSize: 16, marginTop: 4 }}>{planInfo.name}</div>
                 <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{planInfo.price} {tr("/ mes", "/ month")}</div>
               </div>
-              <div style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${C.border}`, backgroundColor: "rgba(0,0,0,0.18)", color: C.lime, fontWeight: 900, fontSize: 12 }}>
-                {fmt(baseCreditsLimit)} {tr("creditos", "credits")}
+              <div style={{ padding: compactPlanPanel ? "4px 8px" : "6px 10px", borderRadius: 999, border: `1px solid ${C.border}`, backgroundColor: "rgba(0,0,0,0.18)", color: C.lime, fontWeight: 900, fontSize: compactPlanPanel ? 11 : 12, lineHeight: 1.15, maxWidth: compactPlanPanel ? 120 : "none", wordBreak: "break-word" as const }}>
+                {formatCredits(baseCreditsLimit)} {tr("creditos", "credits")}
               </div>
             </div>
 
             <div style={{ height: 12 }} />
 
-            <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
-              {allPlans.map(p => {
-                const active = p.key === planTier;
-                return (
-                  <button
-                    key={p.key}
-                    onClick={() => router.push("/start/agents/plans")}
-                    style={{
-                      flex: "0 0 auto",
-                      borderRadius: 12,
-                      border: `1px solid ${active ? C.lime : C.border}`,
-                      backgroundColor: active ? "rgba(163,230,53,0.08)" : "rgba(0,0,0,0.14)",
-                      padding: "10px 10px",
-                      cursor: "pointer",
-                      color: C.white,
-                      minWidth: 132,
-                      textAlign: "left",
-                    }}
-                  >
-                    <div style={{ fontWeight: 900, fontSize: 13 }}>{p.name}</div>
-                    <div style={{ color: C.dim, fontSize: 12, marginTop: 2 }}>{p.price}/mo</div>
-                    <div style={{ color: C.muted, fontSize: 12, marginTop: 6, fontWeight: 900 }}>{fmt(p.credits)} cr</div>
-                  </button>
-                );
-              })}
-            </div>
+            {!compactPlanPanel && (
+              <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
+                {allPlans.map(p => {
+                  const active = p.key === planTier;
+                  return (
+                    <button
+                      key={p.key}
+                      onClick={() => router.push("/start/agents/plans")}
+                      style={{
+                        flex: "0 0 auto",
+                        borderRadius: 12,
+                        border: `1px solid ${active ? C.lime : C.border}`,
+                        backgroundColor: active ? "rgba(163,230,53,0.08)" : "rgba(0,0,0,0.14)",
+                        padding: "10px 10px",
+                        cursor: "pointer",
+                        color: C.white,
+                        minWidth: viewportWidth < 1500 ? 118 : 132,
+                        textAlign: "left",
+                      }}
+                    >
+                      <div style={{ fontWeight: 900, fontSize: 13 }}>{p.name}</div>
+                      <div style={{ color: C.dim, fontSize: 12, marginTop: 2 }}>{p.price}/mo</div>
+                      <div style={{ color: C.muted, fontSize: 12, marginTop: 6, fontWeight: 900 }}>{fmt(p.credits)} cr</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             <div style={{ ...flex({ justifyContent: "space-between" }), marginBottom: 6 }}>
               <span style={{ color: C.dim, fontSize: 12 }}>{tr("Creditos usados", "Credits used")}</span>
-              <span style={{ fontSize: 12, fontWeight: 900, color: C.white }}>{formatCredits(creditsUsedTotal)} / {formatCredits(baseCreditsLimit)}</span>
+              <span style={{ fontSize: 12, fontWeight: 900, color: C.white, textAlign: "right" }}>{formatCredits(creditsUsedTotal)} / {formatCredits(baseCreditsLimit)}</span>
             </div>
             <div style={{ height: 8, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 999, overflow: "hidden", border: `1px solid ${C.border}` }}>
               <div
@@ -1293,13 +1316,15 @@ export default function AgentStudio() {
               </div>
             )}
 
-            <div style={{ marginTop: 10, color: C.muted, fontSize: 12, lineHeight: 1.45 }}>
-              {language === "en"
-                ? `Includes up to ${entLimits?.max_agents ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} agent(s), ${entLimits?.max_channels ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} channel(s), and ${allowOverage ? "overage enabled." : "no overage."}`
-                : `Incluye hasta ${entLimits?.max_agents ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} agente(s), ${entLimits?.max_channels ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} canal(es) y ${allowOverage ? "overage habilitado." : "sin overage."}`}
-            </div>
+            {!compactPlanPanel && (
+              <div style={{ marginTop: 10, color: C.muted, fontSize: 12, lineHeight: 1.45 }}>
+                {language === "en"
+                  ? `Includes up to ${entLimits?.max_agents ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} agent(s), ${entLimits?.max_channels ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} channel(s), and ${allowOverage ? "overage enabled." : "no overage."}`
+                  : `Incluye hasta ${entLimits?.max_agents ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} agente(s), ${entLimits?.max_channels ?? (planTier === "pro" ? 1 : planTier === "scale" ? 10 : 50)} canal(es) y ${allowOverage ? "overage habilitado." : "sin overage."}`}
+              </div>
+            )}
 
-            {trialInfo.label && (
+            {trialInfo.label && !compactPlanPanel && (
               <div style={{ marginTop: 10, color: C.muted, fontSize: 12 }}>
                 {trialInfo.label}
               </div>
@@ -1344,7 +1369,7 @@ export default function AgentStudio() {
       )}
 
        {/* ════════ MAIN ════════ */}
-       <main style={{ ...col(), marginLeft: isMobile ? 0 : 260, flex: 1, minWidth: 0 }}>
+       <main style={{ ...col(), marginLeft: isMobile ? 0 : sidebarWidth, flex: 1, minWidth: 0 }}>
 
          {isBlocked && (
            <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
@@ -1377,7 +1402,7 @@ export default function AgentStudio() {
          )}
 
         {/* body */}
-          <div style={{ padding: isMobile ? "20px 12px" : "44px 40px", overflowY: "auto" }}>
+          <div style={{ padding: isMobile ? "20px 12px" : (viewportWidth < 1700 ? "24px 18px" : "44px 40px"), overflowY: "auto" }}>
 
           {isMobile && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
@@ -1402,7 +1427,7 @@ export default function AgentStudio() {
           <p style={{ color: C.muted, fontSize: isMobile ? 14 : 16, margin: "0 0 24px" }}>{tr("¿Qué quieres crear hoy?", "What do you want to create today?")}</p>
 
           {/* 4-col creation cards */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4,1fr)", gap: 18, marginBottom: 36 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(240px, 1fr))", gap: 18, marginBottom: 36 }}>
             {cards.map(card => (
               <button
                 key={card.id}
