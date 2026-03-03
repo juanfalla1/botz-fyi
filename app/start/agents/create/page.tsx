@@ -100,7 +100,7 @@ const TEMPLATE_PRESETS: Record<string, { type: AgentType; kind?: AgentKind; comp
     agentPrompt: "Flujo para capturar un lead, validar datos y enrutar a ventas.",
   },
   avanza_balanzas: {
-    type: "text",
+    type: "voice",
     companyName: "Avanza Balanzas",
     agentName: "Asistente Avanza Balanzas",
     agentRole: "Calificacion tecnica y comercial",
@@ -1374,6 +1374,7 @@ export default function CreateAgentPage() {
                     agentName={form.agentName}
                     agentRole={form.agentRole}
                     agentPrompt={form.agentPrompt}
+                    companyName={form.companyName}
                     companyContext={form.companyDesc}
                     agentLanguage={form.language}
                     voiceSettings={{
@@ -1538,7 +1539,7 @@ export default function CreateAgentPage() {
                     { id: "lia", title: "Lia", subtitle: tr("Calificacion de leads", "Lead qualification"), type: "voice" as AgentType },
                     { id: "alex", title: "Alex", subtitle: tr("Prospeccion en frio", "Cold outreach"), type: "voice" as AgentType },
                     { id: "julia", title: "Julia", subtitle: tr("Recepcionista", "Receptionist"), type: "text" as AgentType },
-                    { id: "avanza_balanzas", title: "Avanza Balanzas", subtitle: tr("Calificacion tecnica", "Technical qualification"), type: "text" as AgentType },
+                    { id: "avanza_balanzas", title: "Avanza Balanzas", subtitle: tr("Calificacion tecnica", "Technical qualification"), type: "voice" as AgentType },
                     { id: "flow-lead-intake", title: "Lead intake", subtitle: tr("Flujo base", "Base flow"), type: "flow" as AgentType },
                   ]).map(t => (
                     <button

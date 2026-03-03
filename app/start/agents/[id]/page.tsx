@@ -1784,6 +1784,7 @@ export default function AgentDetailPage() {
                     agentName={edit.name || agent.name}
                     agentRole={edit.role || agent.description}
                     agentPrompt={edit.prompt || String(cfg?.system_prompt || "")}
+                    companyName={ctxForm.companyName || String(cfg?.company_name || "")}
                     companyContext={ctxForm.companyDesc || String(cfg?.company_desc || "")}
                     agentLanguage={ctxForm.language || "es-ES"}
                     onSessionSaved={handleSessionSaved}
