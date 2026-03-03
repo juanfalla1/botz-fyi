@@ -74,7 +74,7 @@ export default function VoiceTestPanel({
   const isEnglish = String(agentLanguage || "es-ES").toLowerCase().startsWith("en");
   const tr = (es: string, en: string) => (isEnglish ? en : es);
   const langPrefix = isEnglish ? "en" : "es";
-  const GPT_MODELS = ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o", "gpt-4.1"] as const;
+  const GPT_MODELS = ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o", "gpt-4.1", "gemini-2.0-flash", "gemini-2.5-flash"] as const;
   const [isCallActive, setIsCallActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -430,16 +430,13 @@ export default function VoiceTestPanel({
 
     appendAgent();
     if (activeSession !== callSessionRef.current) return;
-    setIsAgentSpeaking(true);
-    speakFallback(agentText, undefined, () => {
-      setIsAgentSpeaking(false);
-      if (handsFreeMode && isCallActiveRef.current && !isRecordingRef.current && !isLoadingRef.current) {
-        window.setTimeout(() => {
-          if (activeSession !== callSessionRef.current) return;
-          void startRecording();
-        }, 160);
-      }
-    });
+    setIsAgentSpeaking(false);
+    if (handsFreeMode && isCallActiveRef.current && !isRecordingRef.current && !isLoadingRef.current) {
+      window.setTimeout(() => {
+        if (activeSession !== callSessionRef.current) return;
+        void startRecording();
+      }, 160);
+    }
   };
 
   useEffect(() => {
@@ -1035,26 +1032,8 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
                 </select>
               </div>
 
-              <div style={{ marginTop: 10 }}>
-                <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 4 }}>
-                  {tr("voz local (respaldo)", "local fallback voice")}
-                </label>
-                <select
-                  value={selectedVoiceUri}
-                  onChange={(e) => {
-                    preferredVoiceRef.current = null;
-                    setSelectedVoiceUri(e.target.value);
-                  }}
-                  style={{ ...inputStyle, appearance: "none", cursor: "pointer" }}
-                >
-                  {visibleVoices.map((v) => (
-                    <option key={v.voiceURI} value={v.voiceURI}>{`${v.name} (${v.lang})`}</option>
-                  ))}
-                </select>
-              </div>
-
               <div style={{ marginTop: 8, color: C.dim, fontSize: 11 }}>
-                {tr("La voz del modelo se genera en servidor (consistente para todos). La voz local solo se usa de respaldo.", "Model voice is generated server-side (consistent for all users). Local voice is fallback only.")}
+                {tr("La voz del modelo se genera en servidor y es consistente para todos los usuarios.", "Model voice is server-generated and consistent for all users.")}
               </div>
             </div>
 

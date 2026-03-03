@@ -343,10 +343,13 @@ async function generateResponse(
   opts: { fastMode?: boolean; language?: "es" | "en" } = {}
 ): Promise<string> {
   const openaiKey = process.env.OPENAI_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const configuredModel = String(agentConfig?.model || "gpt-4o-mini").trim();
+  const useGemini = configuredModel.toLowerCase().startsWith("gemini");
 
-  if (!openaiKey) {
+  if (!openaiKey && !(useGemini && geminiKey)) {
     // Fallback: respuesta mock
-    console.warn("[VOICE] No OPENAI_API_KEY found, using mock response");
+    console.warn("[VOICE] Missing LLM API key, using mock response");
     return generateMockResponse(userMessage);
   }
 
@@ -358,6 +361,50 @@ async function generateResponse(
       ? "[CRITICAL OVERRIDE] Respond fully in ENGLISH. Do not refuse to help. Do not say 'I cannot'. If you do not know something, offer an alternative. Voice output only: no markdown, no asterisks, no symbol bullet lists."
       : "[CRITICAL OVERRIDE] Responde la pregunta del usuario completamente en ESPANOL. NO rechaces ayudar. NO digas 'no puedo'. Si no sabes algo, ofrece una alternativa. Es salida de voz: no uses markdown, no uses asteriscos, no uses listas con simbolos.";
 
+    if (useGemini && geminiKey) {
+      const geminiModel = configuredModel || "gemini-2.0-flash";
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(geminiKey)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            system_instruction: {
+              parts: [{ text: `${context}\n\n${langOverride}` }],
+            },
+            contents: [
+              ...conversationHistory.map((msg: any) => ({
+                role: msg.role === "user" ? "user" : "model",
+                parts: [{ text: String(msg.content || "") }],
+              })),
+              { role: "user", parts: [{ text: userMessage }] },
+            ],
+            generationConfig: {
+              temperature: opts.fastMode ? 0.2 : 0.6,
+              maxOutputTokens: opts.fastMode ? 90 : 220,
+            },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("[VOICE] Gemini API error:", errorData);
+        throw new Error("Gemini API error");
+      }
+
+      const data = await response.json();
+      const candidate = data?.candidates?.[0]?.content?.parts || [];
+      const agentResponse = candidate.map((p: any) => String(p?.text || "")).join(" ").trim()
+        || (opts.language === "en" ? "I could not process your request." : "No pude procesar tu solicitud.");
+      console.log("[VOICE] Agent response (gemini):", agentResponse.substring(0, 100));
+      return agentResponse;
+    }
+
+    if (!openaiKey) {
+      throw new Error("OPENAI_API_KEY missing for non-gemini model");
+    }
+
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -365,7 +412,7 @@ async function generateResponse(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: String(agentConfig?.model || "gpt-4o-mini"),
+        model: configuredModel,
         messages: [
           { role: "system", content: `${context}\n\n${langOverride}` },
           ...conversationHistory.map((msg: any) => ({
