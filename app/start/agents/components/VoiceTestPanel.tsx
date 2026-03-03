@@ -417,8 +417,13 @@ export default function VoiceTestPanel({
         if (activeSession !== callSessionRef.current) return;
         window.clearTimeout(revealTimer);
         appendAgent();
-        setIsAgentSpeaking(true);
-        speakFallback(agentText, undefined, () => setIsAgentSpeaking(false));
+        setIsAgentSpeaking(false);
+        if (handsFreeMode && isCallActiveRef.current && !isRecordingRef.current && !isLoadingRef.current) {
+          window.setTimeout(() => {
+            if (activeSession !== callSessionRef.current) return;
+            void startRecording();
+          }, 160);
+        }
       });
       return;
     }
