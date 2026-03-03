@@ -630,10 +630,10 @@ export async function POST(req: Request) {
           (i: any) => String(i?.name || "").toLowerCase() === outboundInstance.toLowerCase()
         );
         const metaPhoneRaw = String(
-          meta?.owner || meta?.number || meta?.wid || meta?.me || meta?.phone || meta?.profileName || ""
+          meta?.owner || meta?.number || meta?.wid || meta?.me || meta?.phone || ""
         );
         const metaPhone = normalizePhone(metaPhoneRaw);
-        if (metaPhone) agentPhone = metaPhone;
+        if (metaPhone.length >= 10 && metaPhone.length <= 15) agentPhone = metaPhone;
       } catch {
         // ignore metadata lookup errors
       }
@@ -656,7 +656,13 @@ export async function POST(req: Request) {
       .map((n) => normalizePhone(String(n || "")))
       .filter((n, i, arr) => n && arr.indexOf(n) === i)
       .filter((n) => !hasSelfPhone || n !== selfPhone)
-      .filter((n) => n.length >= 10 && n.length <= 15);
+      .filter((n) => n.length >= 10 && n.length <= 15)
+      .sort((a, b) => {
+        const aLikelyReal = a.length <= 13 ? 0 : 1;
+        const bLikelyReal = b.length <= 13 ? 0 : 1;
+        if (aLikelyReal !== bLikelyReal) return aLikelyReal - bLikelyReal;
+        return a.length - b.length;
+      });
 
     console.log("[evolution-webhook] routing debug", {
       inboundFrom: inbound.from,
