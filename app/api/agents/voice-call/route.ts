@@ -50,6 +50,7 @@ export async function POST(req: Request) {
           profileId: agentConfig?.voice_profile_id || "",
           ttsModel: agentConfig?.tts_model || "",
           language: baseLang,
+          locale: String(agentConfig?.tts_locale || agentConfig?.language || ""),
         });
         const burn = await consumeEntitlementCredits(supabase as any, guard.user.id, 1);
         if (!burn.ok) {
@@ -111,6 +112,7 @@ export async function POST(req: Request) {
         profileId: agentConfig?.voice_profile_id || "",
         ttsModel: agentConfig?.tts_model || "",
         language: baseLang,
+        locale: String(agentConfig?.tts_locale || agentConfig?.language || ""),
       });
     } catch (e) {
       console.error("TTS error:", e);
@@ -255,6 +257,7 @@ type TtsOptions = {
   profileId?: string;
   ttsModel?: string;
   language?: "es" | "en";
+  locale?: string;
 };
 
 // Text-to-Speech con fallback provider -> OpenAI
@@ -266,6 +269,7 @@ async function textToSpeech(text: string, opts: TtsOptions = {}): Promise<string
   const profileId = String(opts.profileId || "");
   const ttsModelRaw = String(opts.ttsModel || "").toLowerCase();
   const baseLang: "es" | "en" = opts.language === "en" ? "en" : "es";
+  const locale = String(opts.locale || "").toLowerCase();
 
   if (provider === "elevenlabs" && elevenKey) {
     try {
@@ -316,7 +320,15 @@ async function textToSpeech(text: string, opts: TtsOptions = {}): Promise<string
         voice: OPENAI_VOICES.has(voice) ? voice : "marin",
         instructions: baseLang === "en"
           ? "Human, clear and warm voice. Natural English pronunciation and rhythm."
-          : "Voz humana, clara y cercana. Pronunciacion nitida en espanol latino neutro, ritmo natural.",
+          : locale.startsWith("es-co")
+            ? "Voz humana, clara y cercana. Pronunciacion natural colombiana, ritmo dinamico y profesional."
+            : locale.startsWith("es-mx")
+              ? "Voz humana, clara y cercana. Pronunciacion natural mexicana, ritmo agil y amable."
+              : locale.startsWith("es-ar")
+                ? "Voz humana, clara y cercana. Pronunciacion natural rioplatense, ritmo fluido y profesional."
+                : locale.startsWith("es-es")
+                  ? "Voz humana, clara y cercana. Pronunciacion natural de Espana, ritmo dinamico y cordial."
+                  : "Voz humana, clara y cercana. Pronunciacion nitida en espanol latino neutro, ritmo natural.",
         response_format: "mp3",
       }),
     });
@@ -405,7 +417,7 @@ async function generateResponse(
       throw new Error("OPENAI_API_KEY missing for non-gemini model");
     }
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${openaiKey}`,
@@ -422,7 +434,7 @@ async function generateResponse(
           { role: "user", content: userMessage },
         ],
         temperature: opts.fastMode ? 0.2 : 0.7,
-        max_tokens: opts.fastMode ? 70 : 180,
+        max_tokens: opts.fastMode ? 48 : 140,
       }),
     });
 

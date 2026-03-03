@@ -45,19 +45,19 @@ const C = {
 };
 
 const OPENAI_VOICE_PRESETS = [
-  { id: "marin", label: "Marin (Natural ES)" },
-  { id: "sage", label: "Sage (Clear)" },
-  { id: "coral", label: "Coral (Warm)" },
-  { id: "alloy", label: "Alloy (Neutral)" },
-  { id: "nova", label: "Nova (Expressive)" },
+  { id: "marin", label: "Marin (Natural ES)", accents: ["es", "es-CO", "es-MX", "es-AR", "es-US"] },
+  { id: "coral", label: "Coral (Warm)", accents: ["es", "es-CO", "es-MX"] },
+  { id: "sage", label: "Sage (Clear)", accents: ["es", "es-ES", "en"] },
+  { id: "alloy", label: "Alloy (Neutral)", accents: ["es", "en", "es-ES", "es-US"] },
+  { id: "nova", label: "Nova (Expressive)", accents: ["es", "es-AR", "es-MX", "en"] },
 ] as const;
 
 const ELEVEN_VOICE_PRESETS = [
-  { id: "angie_col", label: "Angie Colombia" },
-  { id: "lupe_mx", label: "Lupe Mexico" },
-  { id: "ana_corp", label: "Ana Corporativa" },
-  { id: "camila_warm", label: "Camila Warm" },
-  { id: "gabriela", label: "Gabriela" },
+  { id: "angie_col", label: "Angie Colombia", accents: ["es", "es-CO"] },
+  { id: "lupe_mx", label: "Lupe Mexico", accents: ["es", "es-MX", "es-US"] },
+  { id: "ana_corp", label: "Ana Corporativa", accents: ["es", "es-CO", "es-ES"] },
+  { id: "camila_warm", label: "Camila Warm", accents: ["es", "es-MX", "es-AR"] },
+  { id: "gabriela", label: "Gabriela", accents: ["es", "es-AR", "es-US"] },
 ] as const;
 
 export default function VoiceTestPanel({
@@ -102,10 +102,10 @@ export default function VoiceTestPanel({
   });
 
   const VAD_RMS_THRESHOLD = 0.014;
-  const VAD_SILENCE_MS_TO_STOP = 700;
-  const VAD_MIN_SPEECH_MS = 300;
-  const VAD_MIN_RECORDING_MS_BEFORE_STOP = 900;
-  const MAX_RECORDING_MS = 12000;
+  const VAD_SILENCE_MS_TO_STOP = 520;
+  const VAD_MIN_SPEECH_MS = 220;
+  const VAD_MIN_RECORDING_MS_BEFORE_STOP = 650;
+  const MAX_RECORDING_MS = 9000;
 
   const MICROPHONE_CONSTRAINTS: MediaTrackConstraints = {
     echoCancellation: true,
@@ -275,6 +275,14 @@ export default function VoiceTestPanel({
     return filtered.length ? filtered : availableVoices;
   }, [availableVoices, accentFilter]);
 
+  const modelVoiceOptions = useMemo(() => {
+    const source = providerKey === "elevenlabs" ? ELEVEN_VOICE_PRESETS : OPENAI_VOICE_PRESETS;
+    const normalizedAccent = String(accentFilter || "all").toLowerCase();
+    if (normalizedAccent === "all") return source;
+    const filtered = source.filter((v) => v.accents.some((a) => normalizedAccent.startsWith(a.toLowerCase()) || a.toLowerCase().startsWith(normalizedAccent)));
+    return filtered.length ? filtered : source;
+  }, [providerKey, accentFilter]);
+
   const loadVoices = () => {
     try {
       const voices = window.speechSynthesis.getVoices();
@@ -397,7 +405,7 @@ export default function VoiceTestPanel({
           window.setTimeout(() => {
             if (activeSession !== callSessionRef.current) return;
             void startRecording();
-          }, 140);
+          }, 60);
         }
       };
       audio.onerror = () => {
@@ -409,7 +417,7 @@ export default function VoiceTestPanel({
           window.setTimeout(() => {
             if (activeSession !== callSessionRef.current) return;
             void startRecording();
-          }, 180);
+          }, 80);
         }
       };
       audio.src = audioUrl;
@@ -422,7 +430,7 @@ export default function VoiceTestPanel({
           window.setTimeout(() => {
             if (activeSession !== callSessionRef.current) return;
             void startRecording();
-          }, 160);
+          }, 70);
         }
       });
       return;
@@ -435,7 +443,7 @@ export default function VoiceTestPanel({
       window.setTimeout(() => {
         if (activeSession !== callSessionRef.current) return;
         void startRecording();
-      }, 160);
+      }, 70);
     }
   };
 
@@ -496,6 +504,12 @@ export default function VoiceTestPanel({
     }
     setSelectedCloudVoice(providerKey === "elevenlabs" ? ELEVEN_VOICE_PRESETS[0].id : OPENAI_VOICE_PRESETS[0].id);
   }, [voiceSettings?.voice, providerKey]);
+
+  useEffect(() => {
+    if (!modelVoiceOptions.length) return;
+    if (modelVoiceOptions.some((v) => v.id === selectedCloudVoice)) return;
+    setSelectedCloudVoice(modelVoiceOptions[0].id);
+  }, [modelVoiceOptions, selectedCloudVoice]);
 
   useEffect(() => {
     try {
@@ -718,6 +732,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
             tts_model: voiceSettings?.ttsModel || "",
             model: selectedModel,
             language: agentLanguage || (isEnglish ? "en-US" : "es-ES"),
+            tts_locale: accentFilter,
           },
         }),
       });
@@ -811,6 +826,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
               voice_profile_id: voiceSettings?.profileId || "",
               tts_model: voiceSettings?.ttsModel || "",
               language: agentLanguage || (isEnglish ? "en-US" : "es-ES"),
+              tts_locale: accentFilter,
             },
           }),
         });
@@ -1026,7 +1042,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
                   }}
                   style={{ ...inputStyle, appearance: "none", cursor: "pointer" }}
                 >
-                  {(providerKey === "elevenlabs" ? ELEVEN_VOICE_PRESETS : OPENAI_VOICE_PRESETS).map((v) => (
+                  {modelVoiceOptions.map((v) => (
                     <option key={v.id} value={v.id}>{v.label}</option>
                   ))}
                 </select>
