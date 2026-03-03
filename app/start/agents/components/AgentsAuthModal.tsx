@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { supabaseAgents } from "../supabaseAgentsClient";
+import useBotzLanguage from "../../hooks/useBotzLanguage";
 
 export default function AgentsAuthModal({
   open,
@@ -12,6 +13,8 @@ export default function AgentsAuthModal({
   onClose: () => void;
   onLoggedIn?: () => void;
 }) {
+  const language = useBotzLanguage("es");
+  const tr = (es: string, en: string) => (language === "en" ? en : es);
   const [mode, setMode] = useState<"login" | "signup" | "reset">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,26 +28,29 @@ export default function AgentsAuthModal({
     const msg = String(raw || "").toLowerCase();
     if (mode === "login") {
       if (/invalid login credentials|invalid credentials/.test(msg)) {
-        return "Correo o contraseña incorrectos.";
+        return tr("Correo o contrasena incorrectos.", "Incorrect email or password.");
       }
       if (/email not confirmed/.test(msg)) {
-        return "Debes confirmar tu correo antes de iniciar sesión.";
+        return tr("Debes confirmar tu correo antes de iniciar sesion.", "You must confirm your email before signing in.");
       }
-      return raw || "Error iniciando sesión";
+      return raw || tr("Error iniciando sesion", "Sign-in error");
     }
 
     if (mode === "signup") {
       if (/user already registered|already registered/.test(msg)) {
-        return "Este correo ya está registrado. Usa Iniciar sesión o Recuperar contraseña.";
+        return tr(
+          "Este correo ya esta registrado. Usa Iniciar sesion o Recuperar contrasena.",
+          "This email is already registered. Use Sign in or Reset password."
+        );
       }
       if (/password should be at least/i.test(msg)) {
-        return "La contraseña debe tener al menos 6 caracteres.";
+        return tr("La contrasena debe tener al menos 6 caracteres.", "Password must be at least 6 characters.");
       }
-      return raw || "Error creando cuenta";
+      return raw || tr("Error creando cuenta", "Sign-up error");
     }
 
-    if (/invalid email/.test(msg)) return "Correo inválido.";
-    return raw || "Error enviando recuperación";
+    if (/invalid email/.test(msg)) return tr("Correo invalido.", "Invalid email.");
+    return raw || tr("Error enviando recuperacion", "Password reset request error");
   };
 
   const close = () => {
@@ -60,7 +66,7 @@ export default function AgentsAuthModal({
     setMsg(null);
     try {
       const redirectUrl = typeof window !== "undefined" ? `${window.location.origin}/start/agents` : undefined;
-      console.log("🔑 [AgentsAuth] Iniciando OAuth con Google, redirectTo:", redirectUrl);
+      console.log("[AgentsAuth] Starting Google OAuth, redirectTo:", redirectUrl);
       
       const { data, error } = await supabaseAgents.auth.signInWithOAuth({
         provider: "google",
@@ -73,24 +79,22 @@ export default function AgentsAuthModal({
         },
       });
       
-      console.log("🔑 [AgentsAuth] OAuth response:", { data, error });
+      console.log("[AgentsAuth] OAuth response:", { data, error });
       
       if (error) {
-        console.error("🔑 [AgentsAuth] OAuth error:", error);
+        console.error("[AgentsAuth] OAuth error:", error);
         throw error;
       }
-      
-      // Si no hay error pero tampoco hay data.url, algo salió mal
+
       if (!data?.url) {
-        throw new Error("No se pudo iniciar el flujo de OAuth");
+        throw new Error(tr("No se pudo iniciar el flujo de OAuth", "Could not start OAuth flow"));
       }
-      
-      // El flujo de OAuth redirige automáticamente, no necesitamos hacer nada más
-      console.log("🔑 [AgentsAuth] OAuth iniciado correctamente, redirigiendo a:", data.url);
-      
+
+      console.log("[AgentsAuth] OAuth started successfully, redirecting to:", data.url);
+
     } catch (e: any) {
-      console.error("🔑 [AgentsAuth] Error completo:", e);
-      setErr(e?.message || "Error iniciando con Google");
+      console.error("[AgentsAuth] Full error:", e);
+      setErr(e?.message || tr("Error iniciando con Google", "Error signing in with Google"));
       setLoading(false);
     }
   }
@@ -106,7 +110,7 @@ export default function AgentsAuthModal({
       const { data, error } = await supabaseAgents.auth.signInWithPassword({ email: normalizedEmail, password });
       if (error) throw error;
 
-      setMsg("✅ Sesión iniciada. Cargando...");
+      setMsg(tr("Sesion iniciada. Cargando...", "Signed in. Loading..."));
       
       setTimeout(() => {
         onLoggedIn?.();
@@ -141,13 +145,13 @@ export default function AgentsAuthModal({
       const maybeIdentities = (data?.user as any)?.identities;
       const emailAlreadyExists = Array.isArray(maybeIdentities) && maybeIdentities.length === 0;
       if (emailAlreadyExists) {
-        setErr("Este correo ya esta registrado. Usa Iniciar sesion o Recuperar.");
+        setErr(tr("Este correo ya esta registrado. Usa Iniciar sesion o Recuperar.", "This email is already registered. Use Sign in or Reset."));
         setLoading(false);
         return;
       }
 
       if (!data?.user) {
-        setErr("No se pudo crear la cuenta. Intenta de nuevo.");
+        setErr(tr("No se pudo crear la cuenta. Intenta de nuevo.", "Could not create account. Try again."));
         setLoading(false);
         return;
       }
@@ -157,14 +161,20 @@ export default function AgentsAuthModal({
       if (!data?.session) {
         setMsg(
           isYahoo
-            ? "✅ Cuenta creada. Revisa tu correo para confirmar (tambien Spam/No deseado en Yahoo) y luego inicia sesion."
-            : "✅ Cuenta creada. Revisa tu correo para confirmar y luego inicia sesion."
+            ? tr(
+                "Cuenta creada. Revisa tu correo para confirmar (tambien Spam/No deseado en Yahoo) y luego inicia sesion.",
+                "Account created. Check your email to confirm (also Spam/Junk in Yahoo), then sign in."
+              )
+            : tr(
+                "Cuenta creada. Revisa tu correo para confirmar y luego inicia sesion.",
+                "Account created. Check your email to confirm, then sign in."
+              )
         );
         setLoading(false);
         return;
       }
 
-      setMsg("✅ Cuenta creada con éxito. Entrando...");
+      setMsg(tr("Cuenta creada con exito. Entrando...", "Account created successfully. Entering..."));
       setTimeout(() => {
         onLoggedIn?.();
         close();
@@ -186,12 +196,12 @@ export default function AgentsAuthModal({
     try {
       const normalizedEmail = String(email || "").trim().toLowerCase();
       const redirectTo =
-        typeof window !== "undefined" ? `${window.location.origin}/auth/reset` : undefined;
+        typeof window !== "undefined" ? `${window.location.origin}/start/agents/reset` : undefined;
 
       const { error } = await supabaseAgents.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
       if (error) throw error;
 
-      setMsg("📩 Te enviamos un correo para restablecer tu contraseña.");
+      setMsg(tr("Te enviamos un correo para restablecer tu contrasena.", "We sent you an email to reset your password."));
     } catch (e: any) {
       const raw = String(e?.message || "");
       setErr(authErrorText("reset", raw));
@@ -231,14 +241,18 @@ export default function AgentsAuthModal({
       <div style={cardStyle} onClick={(e) => e.stopPropagation()}>
         <div style={{ position: "relative", zIndex: 1 }}>
           <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4, color: "#fff" }}>
-            {mode === "login" ? "Iniciar Sesión - Agentes" : mode === "signup" ? "Crear Cuenta - Agentes" : "Recuperar Contraseña"}
+            {mode === "login"
+              ? tr("Iniciar sesion - Agentes", "Sign in - Agents")
+              : mode === "signup"
+              ? tr("Crear cuenta - Agentes", "Create account - Agents")
+              : tr("Recuperar contrasena", "Reset password")}
           </h2>
           <p style={{ fontSize: 14, color: "rgba(226,232,240,0.6)", margin: "0 0 20px" }}>
             {mode === "login"
-              ? "Accede a tu cuenta de Agentes"
+              ? tr("Accede a tu cuenta de Agentes", "Access your Agents account")
               : mode === "signup"
-              ? "Crea tu cuenta para Agentes"
-              : "Te enviaremos un correo para resetear tu contraseña"}
+              ? tr("Crea tu cuenta para Agentes", "Create your Agents account")
+              : tr("Te enviaremos un correo para resetear tu contrasena", "We will send you an email to reset your password")}
           </p>
 
           {msg && (
@@ -272,7 +286,7 @@ export default function AgentsAuthModal({
               />
               <input
                 type="password"
-                placeholder="Contraseña"
+                placeholder={tr("Contrasena", "Password")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
@@ -300,7 +314,7 @@ export default function AgentsAuthModal({
                   opacity: loading ? 0.5 : 1,
                 }}
               >
-                {loading ? "Cargando..." : "Iniciar Sesión"}
+                {loading ? tr("Cargando...", "Loading...") : tr("Iniciar sesion", "Sign in")}
               </button>
               
               <div style={{ marginTop: 8 }}>
@@ -320,7 +334,7 @@ export default function AgentsAuthModal({
                     width: "100%",
                   }}
                 >
-                  Continuar con Google
+                  {tr("Continuar con Google", "Continue with Google")}
                 </button>
               </div>
             </form>
@@ -345,7 +359,7 @@ export default function AgentsAuthModal({
               />
               <input
                 type="password"
-                placeholder="Contraseña"
+                placeholder={tr("Contrasena", "Password")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
@@ -373,7 +387,7 @@ export default function AgentsAuthModal({
                   opacity: loading ? 0.5 : 1,
                 }}
               >
-                {loading ? "Cargando..." : "Crear Cuenta"}
+                {loading ? tr("Cargando...", "Loading...") : tr("Crear cuenta", "Create account")}
               </button>
             </form>
           )}
@@ -410,7 +424,7 @@ export default function AgentsAuthModal({
                   opacity: loading ? 0.5 : 1,
                 }}
               >
-                {loading ? "Cargando..." : "Enviar"}
+                {loading ? tr("Cargando...", "Loading...") : tr("Enviar", "Send")}
               </button>
             </form>
           )}
@@ -428,7 +442,7 @@ export default function AgentsAuthModal({
                 cursor: "pointer",
               }}
             >
-              Iniciar sesión
+              {tr("Iniciar sesion", "Sign in")}
             </button>
             <button
               onClick={() => setMode("signup")}
@@ -442,7 +456,7 @@ export default function AgentsAuthModal({
                 cursor: "pointer",
               }}
             >
-              Crear cuenta
+              {tr("Crear cuenta", "Create account")}
             </button>
             <button
               onClick={() => setMode("reset")}
@@ -456,7 +470,7 @@ export default function AgentsAuthModal({
                 cursor: "pointer",
               }}
             >
-              Recuperar
+              {tr("Recuperar", "Reset")}
             </button>
           </div>
         </div>

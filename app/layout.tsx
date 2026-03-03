@@ -32,8 +32,8 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: "/favicon.ico",
-    shortcut: "/favicon-32x32.png",
-    apple: "/favicon-512x512.png",
+    shortcut: "/favicon_32x32.png",
+    apple: "/favicon_512x512.png",
   },
   openGraph: {
     title: "Botz | AI Agents, Automation and Revenue",
@@ -181,7 +181,7 @@ export default function RootLayout({
   };
 
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
         <head>
         {/* Organization */}
         <script
@@ -199,7 +199,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         {/* ✅ Redirect recovery hash (/#access_token=...&type=recovery) -> /auth/reset#... */}
         <script
           dangerouslySetInnerHTML={{
@@ -225,4 +225,3 @@ export default function RootLayout({
     </html>
   );
 }
-

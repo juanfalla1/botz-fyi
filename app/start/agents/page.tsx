@@ -61,6 +61,7 @@ export default function AgentStudio() {
   const [renameModal, setRenameModal] = useState<{ id: string; current: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [language, setLanguage] = useState<"es" | "en">("es");
+  const [hydrated, setHydrated] = useState(false);
 
   const tr = (es: string, en: string) => (language === "en" ? en : es);
 
@@ -79,6 +80,10 @@ export default function AgentStudio() {
     return () => {
       window.removeEventListener("botz-language-change", onLanguageChange as EventListener);
     };
+  }, []);
+
+  useEffect(() => {
+    setHydrated(true);
   }, []);
 
   // ✅ IMPORTANTE: Agentes requiere login COMPLETAMENTE independiente
@@ -1126,8 +1131,27 @@ export default function AgentStudio() {
   const desktopSidebarWidth = viewportWidth < 1280 ? 196 : viewportWidth < 1460 ? 212 : viewportWidth < 1680 ? 228 : 248;
   const sidebarWidth = isMobile ? 0 : desktopSidebarWidth;
 
+  if (!hydrated) {
+    return (
+      <div
+        suppressHydrationWarning
+        style={{
+          minHeight: "100vh",
+          backgroundColor: C.bg,
+          color: C.white,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "Inter,-apple-system,sans-serif",
+        }}
+      >
+        Cargando...
+      </div>
+    );
+  }
+
   return (
-    <div style={{ ...flex({ flexDirection: isMobile ? "column" : "row" }), minHeight: "100vh", backgroundColor: C.bg, fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
+    <div suppressHydrationWarning style={{ ...flex({ flexDirection: isMobile ? "column" : "row" }), minHeight: "100vh", backgroundColor: C.bg, fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
 
        <AuthModal
          open={openAuth}
