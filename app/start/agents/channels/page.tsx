@@ -181,6 +181,14 @@ export default function AgentChannelsPage() {
       .join(" ");
   };
 
+  const agentTypeLabel = (type: string) => {
+    const v = String(type || "").toLowerCase();
+    if (v === "voice") return tr("Voz", "Voice");
+    if (v === "text") return tr("Texto", "Text");
+    if (v === "flow") return tr("Flujo", "Flow");
+    return prettyName(type);
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const saved = window.localStorage.getItem("botz-language");
@@ -595,7 +603,7 @@ export default function AgentChannelsPage() {
           </select>
           <select value={form.assigned_agent_id} onChange={(e) => setForm((s) => ({ ...s, assigned_agent_id: e.target.value }))} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
             <option value="">Agente</option>
-            {agents.map((a) => <option key={a.id} value={a.id}>{prettyName(a.name)}</option>)}
+            {agents.map((a) => <option key={a.id} value={a.id}>{prettyName(a.name)} - {agentTypeLabel(a.type)}</option>)}
           </select>
           <button onClick={() => void createChannel()} style={{ borderRadius: 10, border: "none", background: C.lime, color: "#111", fontWeight: 900, padding: "0 14px", cursor: "pointer" }}>Conectar</button>
         </div>
@@ -745,7 +753,7 @@ export default function AgentChannelsPage() {
                   <td style={{ padding: 12 }}>
                     <select disabled={!canAdvanced} value={r.assigned_agent_id || ""} onChange={async (e) => { await patch(r.id, { assigned_agent_id: e.target.value || null }); await fetchData(); }} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white, opacity: canAdvanced ? 1 : 0.65 }}>
                        <option value="">{tr("Sin agente", "No agent")}</option>
-                      {agents.map((a) => <option key={a.id} value={a.id}>{prettyName(a.name)}</option>)}
+                      {agents.map((a) => <option key={a.id} value={a.id}>{prettyName(a.name)} - {agentTypeLabel(a.type)}</option>)}
                     </select>
                   </td>
                   <td style={{ padding: 12 }}>

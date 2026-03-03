@@ -25,6 +25,15 @@ interface UsageEvent {
   created_at: string;
 }
 
+interface AgentChannel {
+  id: string;
+  display_name?: string;
+  channel_type?: string;
+  provider?: string;
+  status?: string;
+  assigned_agent_id?: string | null;
+}
+
 const C = {
   bg:      "#1a1d26",
   sidebar: "#15181f",
@@ -47,6 +56,8 @@ export default function AgentStudio() {
   const [user,   setUser]   = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [openAuth, setOpenAuth] = useState(false);
+  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [subPlan, setSubPlan] = useState<string>("free");
   const [subStatus, setSubStatus] = useState<string>("inactive");
@@ -56,6 +67,8 @@ export default function AgentStudio() {
   const [entLimits, setEntLimits] = useState<{ max_agents: number; max_channels: number; allow_overage: boolean; grace_ratio?: number } | null>(null);
   const [usageEvents, setUsageEvents] = useState<UsageEvent[]>([]);
   const [usageSummary, setUsageSummary] = useState<{ today: number; seven_days: number; top_endpoint: string }>({ today: 0, seven_days: 0, top_endpoint: "-" });
+  const [channelRows, setChannelRows] = useState<AgentChannel[]>([]);
+  const [selectedAgentToConnect, setSelectedAgentToConnect] = useState("");
   const [usageMissingTable, setUsageMissingTable] = useState(false);
   const [usageHoverIdx, setUsageHoverIdx] = useState<number | null>(null);
   const [renameModal, setRenameModal] = useState<{ id: string; current: string } | null>(null);
@@ -108,6 +121,7 @@ export default function AgentStudio() {
         setAuthLoading(false);
         setOpenAuth(false);
         fetchAgents();
+        fetchChannels();
         fetchEntitlement();
         fetchUsage();
         return;
@@ -133,10 +147,12 @@ export default function AgentStudio() {
         setUser(u);
         setOpenAuth(false);
         fetchAgents();
+        fetchChannels();
         fetchEntitlement();
         fetchUsage();
       } else if (event === "SIGNED_OUT") {
         setUser(null);
+        setChannelRows([]);
         setOpenAuth(true);
       }
     });
@@ -245,6 +261,22 @@ export default function AgentStudio() {
     }
   };
 
+  const fetchChannels = async () => {
+    try {
+      const res = await authedFetch("/api/agents/channels");
+      const json = await res.json();
+      const rows = Array.isArray(json?.data) ? json.data : [];
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo cargar canales");
+      setChannelRows(rows as AgentChannel[]);
+    } catch (e) {
+      if (e instanceof AuthRequiredError) {
+        setOpenAuth(true);
+        return;
+      }
+      setChannelRows([]);
+    }
+  };
+
   const usageChart = useMemo(() => {
     const days = 30;
     const labels: string[] = [];
@@ -332,9 +364,45 @@ export default function AgentStudio() {
   const deleteAgent = async (agent: Agent) => {
     try {
       await updateAgent(agent.id, { status: "archived" });
+      setSelectedAgentIds((prev) => prev.filter((id) => id !== agent.id));
       await fetchAgents();
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const toggleSelectAgent = (id: string) => {
+    setSelectedAgentIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const toggleSelectAllVisible = (visibleIds: string[]) => {
+    if (!visibleIds.length) return;
+    const allSelected = visibleIds.every((id) => selectedAgentIds.includes(id));
+    setSelectedAgentIds((prev) => {
+      if (allSelected) return prev.filter((id) => !visibleIds.includes(id));
+      const next = new Set(prev);
+      visibleIds.forEach((id) => next.add(id));
+      return Array.from(next);
+    });
+  };
+
+  const deleteSelectedAgents = async (ids: string[]) => {
+    if (!ids.length || bulkDeleting) return;
+    const ok = window.confirm(
+      language === "en"
+        ? `Delete ${ids.length} selected agents?`
+        : `Eliminar ${ids.length} agentes seleccionados?`
+    );
+    if (!ok) return;
+    setBulkDeleting(true);
+    try {
+      await Promise.all(ids.map((id) => updateAgent(id, { status: "archived" })));
+      setSelectedAgentIds((prev) => prev.filter((id) => !ids.includes(id)));
+      await fetchAgents();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -377,6 +445,7 @@ export default function AgentStudio() {
       if (!alive) return;
       fetchEntitlement();
       fetchAgents();
+      fetchChannels();
       fetchUsage();
     };
 
@@ -397,6 +466,43 @@ export default function AgentStudio() {
       clearInterval(usageTimer);
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!agents.length) {
+      setSelectedAgentToConnect("");
+      return;
+    }
+    if (!selectedAgentToConnect || !agents.some((a) => a.id === selectedAgentToConnect)) {
+      setSelectedAgentToConnect(agents[0].id);
+    }
+  }, [agents, selectedAgentToConnect]);
+
+  const connectedChannels = useMemo(() => {
+    return channelRows.filter((r) => {
+      const st = String(r.status || "").toLowerCase();
+      return st === "connected" || st === "active";
+    });
+  }, [channelRows]);
+
+  const connectedAgentEntries = useMemo(() => {
+    const agentById = new Map(agents.map((a) => [a.id, a]));
+    const rowsByAgent = new Map<string, AgentChannel[]>();
+    for (const row of connectedChannels) {
+      const id = String(row.assigned_agent_id || "");
+      if (!id) continue;
+      if (!rowsByAgent.has(id)) rowsByAgent.set(id, []);
+      rowsByAgent.get(id)!.push(row);
+    }
+
+    return Array.from(rowsByAgent.entries()).map(([agentId, rows]) => {
+      const agent = agentById.get(agentId);
+      return {
+        agentId,
+        agentName: agent?.name || tr("Agente sin nombre", "Unnamed agent"),
+        channels: rows,
+      };
+    });
+  }, [agents, connectedChannels, language]);
 
   const cards = useMemo(() => ([
     { id: "voice",     title: tr("Crear Agente de Voz", "Create Voice Agent")  },
@@ -1010,6 +1116,18 @@ export default function AgentStudio() {
     .filter(a =>
     a.name.toLowerCase().includes(search.toLowerCase())
   );
+  const visibleAgentIds = filtered.map((a) => a.id);
+  const selectedVisibleCount = visibleAgentIds.filter((id) => selectedAgentIds.includes(id)).length;
+  const allVisibleSelected = visibleAgentIds.length > 0 && selectedVisibleCount === visibleAgentIds.length;
+
+  useEffect(() => {
+    if (!agents.length) {
+      if (selectedAgentIds.length) setSelectedAgentIds([]);
+      return;
+    }
+    const allIds = new Set(agents.map((a) => a.id));
+    setSelectedAgentIds((prev) => prev.filter((id) => allIds.has(id)));
+  }, [agents]);
 
   const listTitle = listType === "voice"
     ? tr("Agentes de Voz", "Voice Agents")
@@ -1088,6 +1206,16 @@ export default function AgentStudio() {
       .filter(Boolean)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(" ");
+  };
+
+  const prettyType = (raw: string) => {
+    const v = String(raw || "").toLowerCase();
+    if (v === "voice") return tr("Voz", "Voice");
+    if (v === "whatsapp") return "WhatsApp";
+    if (v === "webchat") return "Webchat";
+    if (v === "instagram") return "Instagram";
+    if (v === "messenger") return "Messenger";
+    return prettyName(raw);
   };
 
   const formatCredits = (value: number) => {
@@ -1524,6 +1652,72 @@ export default function AgentStudio() {
             ))}
           </div>
 
+          <div style={{ marginBottom: 26, borderRadius: 14, border: "1px solid rgba(56,189,248,0.22)", background: "linear-gradient(180deg, rgba(24,30,44,0.98), rgba(20,25,38,0.98))", overflow: "hidden" }}>
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(148,163,184,0.18)", display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <div>
+                <div style={{ color: C.white, fontSize: isMobile ? 17 : 20, fontWeight: 900 }}>{tr("Agentes conectados", "Connected agents")}</div>
+                <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
+                  {tr("Canales activos asignados por agente", "Active channels assigned by agent")}
+                </div>
+              </div>
+              <button
+                onClick={() => fetchChannels()}
+                style={{ border: "1px solid rgba(148,163,184,0.25)", background: "transparent", color: C.white, borderRadius: 8, padding: "6px 10px", fontSize: 12, cursor: "pointer" }}
+              >
+                {tr("Actualizar", "Refresh")}
+              </button>
+            </div>
+
+            <div style={{ padding: 14, display: "grid", gap: 10 }}>
+              {connectedAgentEntries.length === 0 ? (
+                <div style={{ color: C.muted, fontSize: 13 }}>
+                  {tr("No hay agentes con canales conectados todavia.", "There are no agents with connected channels yet.")}
+                </div>
+              ) : (
+                connectedAgentEntries.map((entry) => (
+                  <div key={entry.agentId} style={{ border: "1px solid rgba(148,163,184,0.18)", borderRadius: 12, padding: "10px 12px", background: "rgba(15,23,42,0.35)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                    <div style={{ color: C.white, fontWeight: 800 }}>{entry.agentName}</div>
+                    <div style={{ color: C.muted, fontSize: 12 }}>
+                      {entry.channels.length} {entry.channels.length === 1 ? tr("canal activo", "active channel") : tr("canales activos", "active channels")}
+                    </div>
+                    <div style={{ marginLeft: "auto", display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {entry.channels.map((ch) => (
+                        <span key={ch.id} style={{ fontSize: 11, borderRadius: 999, padding: "4px 8px", border: "1px solid rgba(163,230,53,0.35)", color: "#bef264", background: "rgba(163,230,53,0.12)" }}>
+                          {prettyType(ch.channel_type || "-")} / {String(ch.provider || "-")}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+
+              <div style={{ borderTop: "1px solid rgba(148,163,184,0.12)", paddingTop: 10, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                <span style={{ color: C.muted, fontSize: 12 }}>{tr("Elegir agente para conectar canal:", "Choose agent to connect channel:")}</span>
+                <select
+                  value={selectedAgentToConnect}
+                  onChange={(e) => setSelectedAgentToConnect(e.target.value)}
+                  style={{ minWidth: 220, padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.7)", color: C.white }}
+                >
+                  <option value="">{tr("Selecciona un agente", "Select an agent")}</option>
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {prettyName(a.name)} - {a.type === "voice" ? tr("Voz", "Voice") : a.type === "text" ? tr("Texto", "Text") : a.type === "flow" ? tr("Flujo", "Flow") : prettyName(a.type)}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => {
+                    const q = selectedAgentToConnect ? `?agentId=${encodeURIComponent(selectedAgentToConnect)}` : "";
+                    router.push(`/start/agents/channels${q}`);
+                  }}
+                  style={{ borderRadius: 9, border: "none", background: `${C.lime}cc`, color: "#111", padding: "8px 12px", cursor: "pointer", fontWeight: 900, fontSize: 12 }}
+                >
+                  {tr("Conectar canal", "Connect channel")}
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* usage dashboard */}
           <div style={{ marginBottom: 26, borderRadius: 14, border: "1px solid rgba(56,189,248,0.22)", background: "linear-gradient(180deg, rgba(24,30,44,0.98), rgba(20,25,38,0.98))", overflow: "hidden" }}>
               <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(148,163,184,0.18)", display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -1665,6 +1859,30 @@ export default function AgentStudio() {
             />
           </div>
 
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <button
+              onClick={() => toggleSelectAllVisible(visibleAgentIds)}
+              disabled={!visibleAgentIds.length}
+              style={{ borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "7px 10px", cursor: visibleAgentIds.length ? "pointer" : "not-allowed", fontSize: 12, fontWeight: 800, opacity: visibleAgentIds.length ? 1 : 0.5 }}
+            >
+              {allVisibleSelected ? tr("Desmarcar todos", "Unselect all") : tr("Seleccionar todos", "Select all")}
+            </button>
+            <button
+              onClick={() => void deleteSelectedAgents(selectedAgentIds)}
+              disabled={!selectedAgentIds.length || bulkDeleting}
+              style={{ borderRadius: 8, border: "1px solid rgba(248,113,113,0.55)", background: "rgba(239,68,68,0.10)", color: "#fca5a5", padding: "7px 10px", cursor: selectedAgentIds.length && !bulkDeleting ? "pointer" : "not-allowed", fontSize: 12, fontWeight: 900, opacity: selectedAgentIds.length && !bulkDeleting ? 1 : 0.55 }}
+            >
+              {bulkDeleting
+                ? tr("Eliminando...", "Deleting...")
+                : selectedAgentIds.length > 0
+                ? tr(`Eliminar seleccionados (${selectedAgentIds.length})`, `Delete selected (${selectedAgentIds.length})`)
+                : tr("Eliminar seleccionados", "Delete selected")}
+            </button>
+            <span style={{ color: C.muted, fontSize: 12 }}>
+              {tr("Seleccionados visibles", "Visible selected")}: {selectedVisibleCount}/{visibleAgentIds.length}
+            </span>
+          </div>
+
           {/* table */}
           <div style={{ backgroundColor: "#272d37", borderRadius: 12, border: "1px solid rgba(255,255,255,0.14)", overflow: "hidden" }}>
             {isMobile ? (
@@ -1693,6 +1911,14 @@ export default function AgentStudio() {
                         </span>
                       </div>
                       <div style={{ ...flex({ alignItems: "center", gap: 8 }), marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
+                        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#cbd5e1", fontSize: 12 }}>
+                          {tr("Sel", "Sel")}
+                          <input
+                            type="checkbox"
+                            checked={selectedAgentIds.includes(agent.id)}
+                            onChange={() => toggleSelectAgent(agent.id)}
+                          />
+                        </label>
                         <label style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#cbd5e1", fontSize: 12, marginRight: "auto" }}>
                           {tr("Publico", "Public")}
                           <input type="checkbox" checked={agent.status === "active"} onChange={() => togglePublic(agent)} />
@@ -1723,7 +1949,10 @@ export default function AgentStudio() {
               <div style={{ minWidth: 0 }}>
 
             {/* head */}
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "minmax(220px,1fr) 90px 120px 170px" : "minmax(320px,1fr) 120px 170px 260px", padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.14)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "52px minmax(320px,1fr) 120px 170px 260px", padding: "10px 16px", borderBottom: "1px solid rgba(255,255,255,0.14)", alignItems: "center" }}>
+              <span style={{ color: "#cbd5e1", fontSize: 13, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <input type="checkbox" checked={allVisibleSelected} onChange={() => toggleSelectAllVisible(visibleAgentIds)} />
+              </span>
               {[tr("Nombre", "Name"), tr("Tipo", "Type"), tr("Ultima actividad", "Last activity"), tr("Acciones", "Actions")].map(col => (
                 <span key={col} style={{ color: "#cbd5e1", fontSize: 13, fontWeight: 700 }}>{col} ↕</span>
               ))}
@@ -1742,10 +1971,17 @@ export default function AgentStudio() {
                 <div
                   key={agent.id}
                   onClick={() => openAgent(agent)}
-                  style={{ width: "100%", display: "grid", gridTemplateColumns: isMobile ? "minmax(220px,1fr) 90px 120px 170px" : "minmax(320px,1fr) 120px 170px 260px", padding: "13px 16px", borderBottom: i < filtered.length - 1 ? "1px solid rgba(255,255,255,0.14)" : "none", backgroundColor: "transparent", cursor: "pointer", textAlign: "left", alignItems: "center" }}
+                  style={{ width: "100%", display: "grid", gridTemplateColumns: "52px minmax(320px,1fr) 120px 170px 260px", padding: "13px 16px", borderBottom: i < filtered.length - 1 ? "1px solid rgba(255,255,255,0.14)" : "none", backgroundColor: "transparent", cursor: "pointer", textAlign: "left", alignItems: "center" }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = "#313846"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
                 >
+                  <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }} onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selectedAgentIds.includes(agent.id)}
+                      onChange={() => toggleSelectAgent(agent.id)}
+                    />
+                  </div>
                   <div style={flex({ alignItems: "center", gap: 12 })}>
                     <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: `${C.blue}22`, ...flex({ alignItems: "center", justifyContent: "center" }), fontSize: 17 }}>
                       {agent.type === "voice" ? "📞" : agent.type === "text" ? "💬" : "⚡"}
