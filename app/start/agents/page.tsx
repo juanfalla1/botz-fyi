@@ -1162,11 +1162,11 @@ export default function AgentStudio() {
             }
             setOpenAuth(true);
           }}
-           onLoggedIn={() => {
-             setOpenAuth(false);
-             fetchAgents();
-           }}
-        />
+          onLoggedIn={(nextUser) => {
+            if (nextUser) setUser(nextUser);
+            setOpenAuth(false);
+          }}
+         />
 
       {/* ════════ SIDEBAR ════════ */}
       <aside style={{

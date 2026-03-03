@@ -11,7 +11,7 @@ export default function AgentsAuthModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onLoggedIn?: () => void;
+  onLoggedIn?: (user?: any) => void;
 }) {
   const language = useBotzLanguage("es");
   const tr = (es: string, en: string) => (language === "en" ? en : es);
@@ -114,7 +114,7 @@ export default function AgentsAuthModal({
 
       setTimeout(() => {
         setLoading(false);
-        onLoggedIn?.();
+        onLoggedIn?.(data?.user || null);
         close();
       }, 300);
     } catch (e: any) {
@@ -179,7 +179,7 @@ export default function AgentsAuthModal({
       setMsg(tr("Cuenta creada con exito. Entrando...", "Account created successfully. Entering..."));
       setTimeout(() => {
         setLoading(false);
-        onLoggedIn?.();
+        onLoggedIn?.(data?.user || null);
         close();
       }, 300);
     } catch (e: any) {
