@@ -21,6 +21,32 @@ export default function AgentsAuthModal({
 
   if (!open) return null;
 
+  const authErrorText = (mode: "login" | "signup" | "reset", raw: string) => {
+    const msg = String(raw || "").toLowerCase();
+    if (mode === "login") {
+      if (/invalid login credentials|invalid credentials/.test(msg)) {
+        return "Correo o contraseña incorrectos.";
+      }
+      if (/email not confirmed/.test(msg)) {
+        return "Debes confirmar tu correo antes de iniciar sesión.";
+      }
+      return raw || "Error iniciando sesión";
+    }
+
+    if (mode === "signup") {
+      if (/user already registered|already registered/.test(msg)) {
+        return "Este correo ya está registrado. Usa Iniciar sesión o Recuperar contraseña.";
+      }
+      if (/password should be at least/i.test(msg)) {
+        return "La contraseña debe tener al menos 6 caracteres.";
+      }
+      return raw || "Error creando cuenta";
+    }
+
+    if (/invalid email/.test(msg)) return "Correo inválido.";
+    return raw || "Error enviando recuperación";
+  };
+
   const close = () => {
     setErr(null);
     setMsg(null);
@@ -76,7 +102,8 @@ export default function AgentsAuthModal({
     setMsg(null);
 
     try {
-      const { data, error } = await supabaseAgents.auth.signInWithPassword({ email, password });
+      const normalizedEmail = String(email || "").trim().toLowerCase();
+      const { data, error } = await supabaseAgents.auth.signInWithPassword({ email: normalizedEmail, password });
       if (error) throw error;
 
       setMsg("✅ Sesión iniciada. Cargando...");
@@ -87,7 +114,8 @@ export default function AgentsAuthModal({
         window.location.reload();
       }, 800);
     } catch (e: any) {
-      setErr(e?.message || "Error iniciando sesión");
+      const raw = String(e?.message || "");
+      setErr(authErrorText("login", raw));
       setLoading(false);
     }
   }
@@ -98,23 +126,25 @@ export default function AgentsAuthModal({
     setErr(null);
     setMsg(null);
     try {
-      const { data, error } = await supabaseAgents.auth.signUp({ email, password });
+      const normalizedEmail = String(email || "").trim().toLowerCase();
+      const { data, error } = await supabaseAgents.auth.signUp({ email: normalizedEmail, password });
       if (error) throw error;
 
       if (!data?.session) {
-        setMsg("Cuenta creada. Revisa tu correo para confirmar y luego inicia sesión.");
+        setMsg("✅ Cuenta creada con éxito. Revisa tu correo para confirmar y luego inicia sesión.");
         setLoading(false);
         return;
       }
 
-      setMsg("✅ Cuenta creada. Entrando...");
+      setMsg("✅ Cuenta creada con éxito. Entrando...");
       setTimeout(() => {
         onLoggedIn?.();
         close();
         window.location.reload();
       }, 600);
     } catch (e: any) {
-      setErr(e?.message || "Error creando cuenta");
+      const raw = String(e?.message || "");
+      setErr(authErrorText("signup", raw));
       setLoading(false);
     }
   }
@@ -126,15 +156,17 @@ export default function AgentsAuthModal({
     setMsg(null);
 
     try {
+      const normalizedEmail = String(email || "").trim().toLowerCase();
       const redirectTo =
         typeof window !== "undefined" ? `${window.location.origin}/auth/reset` : undefined;
 
-      const { error } = await supabaseAgents.auth.resetPasswordForEmail(email, { redirectTo });
+      const { error } = await supabaseAgents.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
       if (error) throw error;
 
       setMsg("📩 Te enviamos un correo para restablecer tu contraseña.");
     } catch (e: any) {
-      setErr(e?.message || "Error enviando recuperación");
+      const raw = String(e?.message || "");
+      setErr(authErrorText("reset", raw));
     } finally {
       setLoading(false);
     }
@@ -368,7 +400,7 @@ export default function AgentsAuthModal({
                 cursor: "pointer",
               }}
             >
-              Login
+              Iniciar sesión
             </button>
             <button
               onClick={() => setMode("signup")}
@@ -382,7 +414,7 @@ export default function AgentsAuthModal({
                 cursor: "pointer",
               }}
             >
-              Signup
+              Crear cuenta
             </button>
             <button
               onClick={() => setMode("reset")}
@@ -396,7 +428,7 @@ export default function AgentsAuthModal({
                 cursor: "pointer",
               }}
             >
-              Reset
+              Recuperar
             </button>
           </div>
         </div>
