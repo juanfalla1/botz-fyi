@@ -71,8 +71,6 @@ function preferredInboundPhone(payload: any, item: any): string {
     payload?.from,
     item?.jid,
     payload?.jid,
-    item?.sender,
-    payload?.sender,
   ]);
   if (firstChoice) return firstChoice;
 
@@ -182,8 +180,6 @@ function inboundPhoneCandidates(payload: any, item: any): string[] {
     payload?.from,
     item?.jid,
     payload?.jid,
-    item?.sender,
-    payload?.sender,
   ]
     .map((v) => {
       const raw = String(v || "");
@@ -451,6 +447,14 @@ export async function POST(req: Request) {
     console.log("[evolution-webhook] --- WEBHOOK ENTRY ---", { time: new Date().toISOString() });
 
     const payload = await req.json().catch(() => ({}));
+    const payloadFromMe = boolish(
+      payload?.data?.key?.fromMe ?? payload?.key?.fromMe ?? payload?.data?.fromMe ?? payload?.fromMe
+    );
+    if (payloadFromMe) {
+      console.log("[evolution-webhook] ignored: fromMe payload");
+      return NextResponse.json({ ok: true, ignored: true, reason: "from_me" });
+    }
+
     const inbound = extractInbound(payload);
     if (!inbound) {
       const topKeys = Object.keys(payload || {}).slice(0, 12);
