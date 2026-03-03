@@ -111,12 +111,12 @@ export default function AgentsAuthModal({
       if (error) throw error;
 
       setMsg(tr("Sesion iniciada. Cargando...", "Signed in. Loading..."));
-      
+
       setTimeout(() => {
+        setLoading(false);
         onLoggedIn?.();
         close();
-        window.location.reload();
-      }, 800);
+      }, 300);
     } catch (e: any) {
       const raw = String(e?.message || "");
       setErr(authErrorText("login", raw));
@@ -170,16 +170,18 @@ export default function AgentsAuthModal({
                 "Account created. Check your email to confirm, then sign in."
               )
         );
+        setMode("login");
+        setPassword("");
         setLoading(false);
         return;
       }
 
       setMsg(tr("Cuenta creada con exito. Entrando...", "Account created successfully. Entering..."));
       setTimeout(() => {
+        setLoading(false);
         onLoggedIn?.();
         close();
-        window.location.reload();
-      }, 600);
+      }, 300);
     } catch (e: any) {
       const raw = String(e?.message || "");
       setErr(authErrorText("signup", raw));
