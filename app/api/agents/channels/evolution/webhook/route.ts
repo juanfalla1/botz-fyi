@@ -160,12 +160,32 @@ type InboundEvent = {
   instance: string;
   from: string;
   fromIsLid?: boolean;
+  jidCandidates?: string[];
   alternates?: string[];
   text: string;
   pushName?: string;
   messageId?: string;
   source?: string;
 };
+
+function inboundJidCandidates(payload: any, item: any): string[] {
+  const key = item?.key || {};
+  const values = [
+    key?.remoteJid,
+    item?.data?.key?.remoteJid,
+    payload?.data?.key?.remoteJid,
+    key?.participant,
+    item?.data?.key?.participant,
+    payload?.data?.key?.participant,
+    item?.jid,
+    payload?.jid,
+    payload?.remoteJid,
+  ]
+    .map((v) => String(v || "").trim())
+    .filter((v) => v.includes("@"));
+
+  return Array.from(new Set(values));
+}
 
 function inboundPhoneCandidates(payload: any, item: any): string[] {
   const key = item?.key || {};
@@ -256,6 +276,7 @@ function extractInbound(payload: any): InboundEvent | null {
     if (fromMe) continue;
 
     const orderedCandidates = inboundPhoneCandidates(payload, item);
+    const jidCandidates = inboundJidCandidates(payload, item);
     const preferred = String(preferredInboundPhone(payload, item)).trim();
     const rawPrimaryRemote = [
       key?.remoteJid,
@@ -301,6 +322,7 @@ function extractInbound(payload: any): InboundEvent | null {
       instance,
       from,
       fromIsLid: preferredIsLid && from === normalizePhone(rawPrimaryRemote),
+      jidCandidates,
       alternates: orderedCandidates.filter((p) => p !== from),
       text,
       pushName: pushName || undefined,
@@ -680,6 +702,12 @@ export async function POST(req: Request) {
         return a.length - b.length;
       });
 
+    const jidCandidates = (inbound.jidCandidates || [])
+      .map((v) => String(v || "").trim())
+      .filter((v, i, arr) => v && arr.indexOf(v) === i)
+      .filter((v) => /@(lid|s\.whatsapp\.net|c\.us)$/i.test(v))
+      .filter((v) => !selfSet.has(normalizePhone(v)));
+
     console.log("[evolution-webhook] routing debug", {
       inboundFrom: inbound.from,
       alternates: inbound.alternates || [],
@@ -687,6 +715,7 @@ export async function POST(req: Request) {
       selfPhone,
       selfHints,
       toCandidates,
+      jidCandidates,
       payloadEvent: payload?.event || payload?.type || payload?.eventName || null,
     });
 
@@ -713,10 +742,34 @@ export async function POST(req: Request) {
     }
 
     if (!sentTo) {
+      for (const jid of jidCandidates) {
+        console.info("[evolution-webhook] sending reply via jid", {
+          outboundInstance,
+          jid,
+          messageChars: reply.length,
+          agentId: agent.id,
+        });
+        try {
+          await evolutionService.sendMessageToJid(outboundInstance, jid, reply);
+          sentTo = jid;
+          break;
+        } catch (err: any) {
+          const msg = String(err?.message || "");
+          if (msg.includes('"exists":false') || msg.includes("Bad Request")) {
+            console.warn("[evolution-webhook] send jid candidate rejected", { jid, reason: "exists_false" });
+            continue;
+          }
+          throw err;
+        }
+      }
+    }
+
+    if (!sentTo) {
       console.warn("[evolution-webhook] ignored: invalid_destination", {
         to: inbound.from,
         fromIsLid: Boolean(inbound.fromIsLid),
         alternates: inbound.alternates || [],
+        jidCandidates,
       });
       return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
     }

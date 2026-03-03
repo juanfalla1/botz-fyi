@@ -164,6 +164,43 @@ export class EvolutionService {
     }
   }
 
+  async sendMessageToJid(instanceName: string, jid: string, message: string): Promise<any> {
+    const destination = String(jid || "").trim();
+    if (!destination.includes("@")) {
+      throw new Error("Invalid JID destination");
+    }
+    console.log("[evolutionService] sendMessageToJid", { instanceName, jid: destination, messageLength: message.length });
+
+    try {
+      const result = await evolutionFetch(`/message/sendText/${instanceName}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number: destination, text: message }),
+      });
+      console.log("[evolutionService] sendMessageToJid success", { instanceName, jid: destination, result });
+      return result;
+    } catch (errA: any) {
+      const firstError = String(errA?.message || "");
+      try {
+        const result = await evolutionFetch(`/message/sendText/${instanceName}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jid: destination, text: message }),
+        });
+        console.log("[evolutionService] sendMessageToJid success_fallback", { instanceName, jid: destination, result });
+        return result;
+      } catch (errB: any) {
+        console.error("[evolutionService] sendMessageToJid error", {
+          instanceName,
+          jid: destination,
+          firstError,
+          error: errB?.message,
+        });
+        throw errB;
+      }
+    }
+  }
+
   async disconnect(instanceName: string): Promise<void> {
     await evolutionFetch(`/instance/logout/${instanceName}`, { method: "DELETE" });
   }
