@@ -127,11 +127,39 @@ export default function AgentsAuthModal({
     setMsg(null);
     try {
       const normalizedEmail = String(email || "").trim().toLowerCase();
-      const { data, error } = await supabaseAgents.auth.signUp({ email: normalizedEmail, password });
+      const emailRedirectTo = typeof window !== "undefined" ? `${window.location.origin}/start/agents` : undefined;
+      const { data, error } = await supabaseAgents.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: {
+          emailRedirectTo,
+          data: { product_key: "agents" },
+        },
+      });
       if (error) throw error;
 
+      const maybeIdentities = (data?.user as any)?.identities;
+      const emailAlreadyExists = Array.isArray(maybeIdentities) && maybeIdentities.length === 0;
+      if (emailAlreadyExists) {
+        setErr("Este correo ya esta registrado. Usa Iniciar sesion o Recuperar.");
+        setLoading(false);
+        return;
+      }
+
+      if (!data?.user) {
+        setErr("No se pudo crear la cuenta. Intenta de nuevo.");
+        setLoading(false);
+        return;
+      }
+
+      const isYahoo = /@(yahoo\.com|yahoo\.es|yahoo\.com\.[a-z]{2})$/i.test(normalizedEmail);
+
       if (!data?.session) {
-        setMsg("✅ Cuenta creada con éxito. Revisa tu correo para confirmar y luego inicia sesión.");
+        setMsg(
+          isYahoo
+            ? "✅ Cuenta creada. Revisa tu correo para confirmar (tambien Spam/No deseado en Yahoo) y luego inicia sesion."
+            : "✅ Cuenta creada. Revisa tu correo para confirmar y luego inicia sesion."
+        );
         setLoading(false);
         return;
       }
