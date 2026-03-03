@@ -74,7 +74,7 @@ const titleFor = (type: AgentType, kind: AgentKind, lang: "es" | "en") => {
   return trByLang(lang, "Flujo", "Flow");
 };
 
-const TEMPLATE_PRESETS: Record<string, { type: AgentType; kind?: AgentKind; agentName?: string; agentRole?: string; agentPrompt?: string }> = {
+const TEMPLATE_PRESETS: Record<string, { type: AgentType; kind?: AgentKind; companyName?: string; agentName?: string; agentRole?: string; agentPrompt?: string }> = {
   lia: {
     type: "voice",
     agentName: "Lia",
@@ -98,6 +98,48 @@ const TEMPLATE_PRESETS: Record<string, { type: AgentType; kind?: AgentKind; agen
     agentName: "Lead Intake",
     agentRole: "Captura y enruta leads",
     agentPrompt: "Flujo para capturar un lead, validar datos y enrutar a ventas.",
+  },
+  avanza_balanzas: {
+    type: "text",
+    companyName: "Avanza Balanzas",
+    agentName: "Asistente Avanza Balanzas",
+    agentRole: "Calificacion tecnica y comercial",
+    agentPrompt:
+`Rol:
+Eres el Asistente Experto en Soluciones de Pesaje de Avanza Balanzas.
+
+Objetivo principal:
+Identificar necesidad, calificar tecnicamente y recomendar el modelo ideal del portafolio: Explorer, Adventurer, Pioneer, Valor o Ranger.
+
+Flujo obligatorio:
+1) Identificacion del cliente
+- Preguntar si ya tuvo contacto con Avanza Balanzas.
+- Si es cliente existente: saludar por nombre, confirmar correo y revisar historial OT/cotizaciones en CRM.
+- Si es cliente nuevo: capturar obligatoriamente empresa, nombre, celular, correo, industria y origen del lead.
+
+2) Calificacion tecnica
+- Capacidad maxima requerida.
+- Resolucion requerida.
+- Tipo de muestra (que va a pesar).
+- Ambiente de uso (campo o laboratorio).
+- Aplicacion y normativa.
+- Ubicacion del cliente.
+
+3) Recomendacion
+- Si encaja en portafolio: recomendar modelo y ofrecer ficha tecnica, imagen y caso de exito.
+- Si no encaja: explicar limite tecnico con respeto, proponer alternativa cercana y ofrecer portafolio PDF.
+
+4) Traspaso comercial
+- Informar que un comercial generara cotizacion formal.
+- Confirmar inventario en Cota/Medellin.
+- Aclarar que precio depende de lista oficial y dolar diario.
+- Ofrecer accesorios y servicios IQ/OQ/PQ.
+
+Restricciones de respuesta:
+- Tono profesional, tecnico, amable y eficiente.
+- No inventar capacidades o datos tecnicos.
+- Si hay duda tecnica, indicar que validara el equipo tecnico.
+- Siempre cerrar confirmando datos de contacto completos para seguimiento semanal.`,
   },
 };
 
@@ -124,6 +166,57 @@ const PURPOSE_OPTIONS_EN = [
 ];
 
 const PROMPT_GUIDE_TEMPLATES_ES = [
+  {
+    id: "avanza_balanzas",
+    label: "Avanza Balanzas (calificacion tecnica)",
+    content:
+`Eres {{NOMBRE_AGENTE}}, asistente experto de {{EMPRESA}} para soluciones de pesaje industrial y de laboratorio.
+
+OBJETIVO:
+- Calificar tecnicamente al prospecto.
+- Recomendar el modelo adecuado del portafolio: Explorer, Adventurer, Pioneer, Valor o Ranger.
+- Preparar handoff comercial para cotizacion formal.
+
+MODULO 1 - IDENTIFICACION:
+- Pregunta si es cliente existente o nuevo.
+- Si es existente: saluda por nombre, confirma correo y menciona revision de historial OT/cotizaciones.
+- Si es nuevo, captura obligatoriamente:
+  Empresa, Nombre, Celular, Correo, Industria, Origen del lead.
+
+MODULO 2 - CALIFICACION TECNICA (OBLIGATORIA):
+- Capacidad maxima requerida.
+- Resolucion requerida.
+- Que va a pesar (tipo de muestra).
+- Uso en campo o laboratorio (vibracion, humedad, polvo, corrientes de aire).
+- Aplicacion (alimentos, agua, pinturas u otra).
+- Normativa requerida.
+- Ubicacion del cliente.
+
+MODULO 3 - RECOMENDACION:
+- Alta precision (0.0001g-0.001g): Explorer o Adventurer.
+- Precision estandar (0.01g-0.1g): Pioneer o Adventurer.
+- Uso industrial/campo: Valor o Ranger.
+
+Si el requerimiento esta fuera de portafolio:
+- Explica la limitacion tecnica con claridad y respeto.
+- Ofrece alternativa cercana si existe.
+- Ofrece portafolio general en PDF y escalacion a especialista.
+
+MODULO 4 - CIERRE COMERCIAL:
+- Indica que se asignara comercial para cotizacion formal.
+- Indica que se revisara inventario en Cota o Medellin.
+- Aclara que precio se calcula con lista oficial y TRM del dia.
+- Ofrece servicios IQ/OQ/PQ y accesorios.
+
+REGLAS DE CONVERSACION:
+- Tono profesional, tecnico y amable.
+- Una pregunta por turno cuando estes calificando.
+- No inventes especificaciones tecnicas.
+- Si falta informacion, dilo y pide el dato exacto.
+
+CIERRE OBLIGATORIO:
+Antes de terminar, confirma que quedaron completos: empresa, nombre, celular y correo para seguimiento semanal.`,
+  },
   {
     id: "ventas_consultiva",
     label: "Ventas consultiva",
@@ -194,6 +287,55 @@ Reglas:
 ];
 
 const PROMPT_GUIDE_TEMPLATES_EN = [
+  {
+    id: "avanza_balanzas",
+    label: "Avanza Balanzas (technical qualification)",
+    content:
+`You are {{NOMBRE_AGENTE}}, a technical sales assistant for {{EMPRESA}} focused on weighing solutions.
+
+GOAL:
+- Run strict technical qualification.
+- Recommend the best portfolio model: Explorer, Adventurer, Pioneer, Valor, or Ranger.
+- Prepare a clear sales handoff for formal quotation.
+
+MODULE 1 - IDENTIFICATION:
+- Ask whether the contact is an existing or new customer.
+- Existing customer: greet by name, confirm email, mention OT/quotation history review.
+- New customer: capture required data (company, full name, mobile, email, industry, lead source).
+
+MODULE 2 - TECHNICAL QUALIFICATION:
+- Required max capacity.
+- Required resolution.
+- Sample type (what they will weigh).
+- Field or lab environment and operating conditions.
+- Application and compliance requirements.
+- Customer location.
+
+MODULE 3 - RECOMMENDATION:
+- High precision (0.0001g-0.001g): Explorer/Adventurer.
+- Standard precision (0.01g-0.1g): Pioneer/Adventurer.
+- Industrial/field use: Valor/Ranger.
+
+If out of portfolio:
+- Explain the technical limitation professionally.
+- Offer the closest alternative if available.
+- Offer full PDF portfolio and specialist escalation.
+
+MODULE 4 - COMMERCIAL HANDOFF:
+- Inform that a sales rep will issue formal quotation.
+- Mention inventory check in Cota/Medellin.
+- Clarify pricing uses official list and daily FX rate.
+- Offer IQ/OQ/PQ services and accessories.
+
+RULES:
+- Professional, technical, friendly tone.
+- Ask one question per turn during qualification.
+- Never invent technical specifications.
+- If uncertain, state that technical team will validate.
+
+MANDATORY CLOSING:
+Always confirm complete contact details for weekly follow-up.`,
+  },
   {
     id: "ventas_consultiva",
     label: "Consultative sales",
@@ -428,6 +570,7 @@ export default function CreateAgentPage() {
     setForm(f => ({
       ...f,
       type: preset.type,
+      companyName: preset.companyName ?? f.companyName,
       agentName: preset.agentName ?? f.agentName,
       agentRole: preset.agentRole ?? f.agentRole,
       agentPrompt: preset.agentPrompt ?? f.agentPrompt,
@@ -1395,6 +1538,7 @@ export default function CreateAgentPage() {
                     { id: "lia", title: "Lia", subtitle: tr("Calificacion de leads", "Lead qualification"), type: "voice" as AgentType },
                     { id: "alex", title: "Alex", subtitle: tr("Prospeccion en frio", "Cold outreach"), type: "voice" as AgentType },
                     { id: "julia", title: "Julia", subtitle: tr("Recepcionista", "Receptionist"), type: "text" as AgentType },
+                    { id: "avanza_balanzas", title: "Avanza Balanzas", subtitle: tr("Calificacion tecnica", "Technical qualification"), type: "text" as AgentType },
                     { id: "flow-lead-intake", title: "Lead intake", subtitle: tr("Flujo base", "Base flow"), type: "flow" as AgentType },
                   ]).map(t => (
                     <button
@@ -1405,13 +1549,14 @@ export default function CreateAgentPage() {
                         setForm(f => ({
                           ...f,
                           type: preset?.type || t.type,
+                          companyName: preset?.companyName || f.companyName,
                           agentName: preset?.agentName || f.agentName,
                           agentRole: preset?.agentRole || f.agentRole,
                           agentPrompt: preset?.agentPrompt || f.agentPrompt,
                           flowTemplate: (preset?.type === "flow") ? t.id : f.flowTemplate,
                         }));
                         updateQuery({ type: preset?.type || t.type, kind: preset?.kind || "agent", template: t.id });
-                        setStep(1);
+                        setStep(2);
                         setPickerOpen(false);
                       }}
                       style={{

@@ -51,6 +51,8 @@ const Header = () => {
     successStories: isEn ? "Success Stories" : "Casos de Exito",
     hookStory: isEn ? "HOOK E-commerce" : "E-commerce HOOK",
     contact: isEn ? "Contact Us" : "Contactenos",
+    signIn: isEn ? "Sign in" : "Iniciar sesion",
+    signUp: isEn ? "Create account" : "Crear una cuenta",
   };
 
   // Close language menu on outside click / escape
@@ -466,11 +468,45 @@ const Header = () => {
                 )}
               </div>
 
+              <Link
+                href="/start/agents?auth=login"
+                className="auth-login-btn"
+                onClick={closeMenu}
+                style={{
+                  color: "#ffffff",
+                  background: "linear-gradient(135deg, #0891b2 0%, #22d3ee 100%)",
+                  border: "1px solid rgba(34, 211, 238, 0.62)",
+                  boxShadow: "0 8px 20px rgba(34, 211, 238, 0.26)",
+                }}
+              >
+                {navCopy.signIn}
+              </Link>
+
+              <Link
+                href="/start/agents?auth=signup"
+                className="auth-signup-btn"
+                onClick={closeMenu}
+                style={{
+                  color: "#ffffff",
+                  background: "linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%)",
+                  border: "1px solid rgba(34, 211, 238, 0.68)",
+                  boxShadow: "0 9px 24px rgba(34, 211, 238, 0.30)",
+                }}
+              >
+                {navCopy.signUp}
+              </Link>
+
               {/* BOTÓN ESTELAR AJUSTADO */}
               <Link
                 href="/start"
                 className="stelar-btn-short"
                 onClick={closeMenu}
+                style={{
+                  color: "#ffffff",
+                  background: "linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%)",
+                  border: "1px solid rgba(34, 211, 238, 0.58)",
+                  boxShadow: "0 8px 24px rgba(14, 165, 233, 0.28)",
+                }}
               >
                 <Sparkles size={14} style={{marginRight: '6px'}} /> Qualibotz
               </Link>
@@ -494,9 +530,13 @@ const Header = () => {
           z-index: 1000;
           border-radius: 12px;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+          max-width: 100%;
+          overflow: visible;
+          width: 100%;
+          margin: 0;
         }
 
-        .logo-nav-container { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .logo-nav-container { display: flex; justify-content: space-between; align-items: center; width: 100%; min-width: 0; }
 
         .logo {
           font-size: 28px;
@@ -531,19 +571,19 @@ const Header = () => {
         .hamburger { display: none; flex-direction: column; justify-content: space-between; width: 40px; height: 30px; background: none; border: none; cursor: pointer; z-index: 9999; }
         .hamburger span { display: block; height: 4px; width: 100%; background: #10b2cb; border-radius: 2px; }
 
-        .nav-container { display: flex; gap: 20px; }
-        #main-nav { display: flex; align-items: center; gap: 5px; }
+        .nav-container { display: flex; gap: 12px; min-width: 0; flex: 1; justify-content: flex-end; }
+        #main-nav { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; min-width: 0; }
 
         /* UNIFICACIÓN DE TAMAÑO DE TÍTULOS */
         #main-nav a, 
         #main-nav :global(a) { 
           color: #fff; 
           text-decoration: none; 
-          padding: 10px 15px; 
+          padding: 9px 10px; 
           border-radius: 6px; 
           transition: all 0.3s ease; 
           font-weight: 600; 
-          font-size: 14px; /* Tamaño unificado para todos los títulos */
+          font-size: 13px;
           white-space: nowrap;
         }
         
@@ -553,17 +593,56 @@ const Header = () => {
         .stelar-btn-short { 
           font-weight: 800 !important; 
           color: #fff !important; 
-          background: linear-gradient(135deg, #10b2cb 0%, #2c6bed 100%) !important;
+          background: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%) !important;
+          border: 1px solid rgba(34, 211, 238, 0.55) !important;
           padding: 8px 18px !important;
           border-radius: 50px !important;
-          font-size: 12px !important; /* Ligeramente menor para compensar el peso visual del gradiente */
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
+          font-size: 13px !important;
+          letter-spacing: 0.2px;
           display: flex;
           align-items: center;
           white-space: nowrap;
-          box-shadow: 0 0 15px rgba(16, 178, 203, 0.4);
+          box-shadow: 0 8px 24px rgba(14, 165, 233, 0.28);
           margin-left: 10px;
+          transition: transform .22s ease, box-shadow .22s ease, filter .22s ease;
+        }
+
+        .auth-login-btn {
+          font-weight: 800 !important;
+          color: #ffffff !important;
+          background: linear-gradient(135deg, #0891b2 0%, #22d3ee 100%) !important;
+          border: 1px solid rgba(34, 211, 238, 0.6) !important;
+          padding: 8px 14px !important;
+          border-radius: 999px !important;
+          font-size: 12px !important;
+          letter-spacing: 0.2px;
+          margin-left: 8px;
+          box-shadow: 0 8px 20px rgba(34, 211, 238, 0.24);
+          transition: transform .22s ease, box-shadow .22s ease, filter .22s ease;
+        }
+        .auth-login-btn:hover {
+          filter: brightness(1.10);
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: 0 12px 30px rgba(34, 211, 238, 0.44), 0 0 0 1px rgba(34,211,238,0.42) inset;
+        }
+
+        .auth-signup-btn {
+          font-weight: 900 !important;
+          color: #ffffff !important;
+          background: linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%) !important;
+          border: 1px solid rgba(34, 211, 238, 0.65) !important;
+          padding: 8px 16px !important;
+          border-radius: 999px !important;
+          font-size: 12px !important;
+          letter-spacing: 0.2px;
+          margin-left: 6px;
+          box-shadow: 0 8px 22px rgba(34, 211, 238, 0.28);
+          transition: transform .22s ease, box-shadow .22s ease, filter .22s ease;
+        }
+        .auth-signup-btn:hover {
+          filter: brightness(1.10);
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: 0 12px 30px rgba(34, 211, 238, 0.46), 0 0 0 1px rgba(34,211,238,0.46) inset;
         }
 
         .lang-toggle {
@@ -617,7 +696,23 @@ const Header = () => {
         }
         .stelar-btn-short:hover { 
           transform: translateY(-2px);
-          filter: brightness(1.1);
+          filter: brightness(1.10);
+          box-shadow: 0 13px 32px rgba(34, 211, 238, 0.40), 0 0 0 1px rgba(34,211,238,0.40) inset;
+        }
+
+        @media (max-width: 1480px) {
+          #main-nav a,
+          #main-nav :global(a) {
+            font-size: 12px;
+            padding: 8px 9px;
+          }
+          .auth-login-btn,
+          .auth-signup-btn,
+          .stelar-btn-short {
+            font-size: 11px !important;
+            padding: 7px 10px !important;
+          }
+          .header-container { padding: 12px 14px; }
         }
 
         .dropdown { position: relative; }
@@ -637,6 +732,8 @@ const Header = () => {
           .dropdown-content { position: static; display: none; width: 100%; }
           .dropdown.open .dropdown-content { display: flex !important; flex-direction: column; }
           .stelar-btn-short { margin: 20px 25px; justify-content: center; font-size: 14px !important; }
+          .auth-login-btn { margin: 14px 25px 0; justify-content: center; font-size: 14px !important; border-radius: 12px !important; }
+          .auth-signup-btn { margin: 10px 25px 0; justify-content: center; font-size: 14px !important; border-radius: 12px !important; }
           .lang-toggle { margin: 12px 25px 0; width: calc(100% - 50px); height: 38px; border-radius: 10px; justify-content: center; }
           .lang-menu { left: 25px; right: 25px; top: calc(100% + 6px); min-width: auto; }
         }

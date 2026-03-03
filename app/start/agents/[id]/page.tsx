@@ -9,6 +9,7 @@ import FileUploadPanel from "@/app/start/agents/components/FileUploadPanel";
 import ChatTestPanel from "@/app/start/agents/components/ChatTestPanel";
 import VoiceTestPanel from "@/app/start/agents/components/VoiceTestPanel";
 import { authedFetch, AuthRequiredError } from "../authedFetchAgents";
+import { jsPDF } from "jspdf";
 
 type AgentType = "voice" | "text" | "flow";
 type AgentStatus = "draft" | "active" | "paused" | "archived";
@@ -225,6 +226,18 @@ export default function AgentDetailPage() {
   const [integrationRows, setIntegrationRows] = useState<ChannelConnection[]>([]);
   const [integrationsLoading, setIntegrationsLoading] = useState(false);
   const [integrationsError, setIntegrationsError] = useState<string | null>(null);
+  const [quoteForm, setQuoteForm] = useState({
+    companyName: "",
+    customerName: "",
+    customerEmail: "",
+    customerPhone: "",
+    model: "",
+    capacity: "",
+    resolution: "",
+    basePriceUsd: "",
+    trm: "",
+    notes: "",
+  });
   const [ctxForm, setCtxForm] = useState({
     companyName: "",
     companyUrl: "",
@@ -318,6 +331,15 @@ export default function AgentDetailPage() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  useEffect(() => {
+    setQuoteForm((s) => {
+      if (s.companyName.trim()) return s;
+      const nextCompany = String(ctxForm.companyName || "").trim();
+      if (!nextCompany) return s;
+      return { ...s, companyName: nextCompany };
+    });
+  }, [ctxForm.companyName]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1010,6 +1032,76 @@ export default function AgentDetailPage() {
   const linkedChannels = useMemo(() => {
     return integrationRows.filter((row) => row.assigned_agent_id === agentId);
   }, [integrationRows, agentId]);
+
+  const generateQuotePdf = () => {
+    const customerName = String(quoteForm.customerName || "").trim();
+    const model = String(quoteForm.model || "").trim();
+    if (!customerName || !model) {
+      alert(tr("Completa al menos cliente y modelo para generar el PDF.", "Fill at least customer and model to generate the PDF."));
+      return;
+    }
+
+    const baseUsd = Number(String(quoteForm.basePriceUsd || "0").replace(/,/g, ".")) || 0;
+    const trm = Number(String(quoteForm.trm || "0").replace(/,/g, ".")) || 0;
+    const totalLocal = baseUsd > 0 && trm > 0 ? baseUsd * trm : 0;
+
+    const doc = new jsPDF();
+    const now = new Date();
+    const quoteNumber = `Q-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, 210, 34, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text(tr("Cotizacion tecnica preliminar", "Preliminary technical quote"), 14, 14);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${tr("Numero", "Number")}: ${quoteNumber}`, 14, 22);
+    doc.text(`${tr("Fecha", "Date")}: ${now.toLocaleDateString(botzLanguage === "en" ? "en-US" : "es-CO")}`, 14, 28);
+
+    let y = 46;
+    const addRow = (label: string, value: string) => {
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(51, 65, 85);
+      doc.text(label, 14, y);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(15, 23, 42);
+      doc.text(value || "-", 78, y);
+      y += 8;
+    };
+
+    addRow(tr("Empresa", "Company"), String(quoteForm.companyName || ctxForm.companyName || "Botz"));
+    addRow(tr("Cliente", "Customer"), customerName);
+    addRow(tr("Correo", "Email"), String(quoteForm.customerEmail || "-"));
+    addRow(tr("Telefono", "Phone"), String(quoteForm.customerPhone || "-"));
+
+    y += 4;
+    doc.setDrawColor(203, 213, 225);
+    doc.line(14, y, 196, y);
+    y += 10;
+
+    addRow(tr("Modelo recomendado", "Recommended model"), model);
+    addRow(tr("Capacidad", "Capacity"), String(quoteForm.capacity || "-"));
+    addRow(tr("Resolucion", "Resolution"), String(quoteForm.resolution || "-"));
+    addRow("Precio base (USD)", baseUsd > 0 ? baseUsd.toFixed(2) : "-");
+    addRow("TRM", trm > 0 ? trm.toFixed(2) : "-");
+    addRow(tr("Total estimado (moneda local)", "Estimated total (local currency)"), totalLocal > 0 ? totalLocal.toFixed(2) : "-");
+
+    y += 6;
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(51, 65, 85);
+    doc.text(tr("Notas", "Notes"), 14, y);
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(15, 23, 42);
+    const notes = String(quoteForm.notes || "").trim() || tr("Cotizacion preliminar sujeta a validacion tecnica, inventario y condiciones comerciales vigentes.", "Preliminary quote subject to technical validation, inventory and current commercial conditions.");
+    const split = doc.splitTextToSize(notes, 182);
+    doc.text(split, 14, y);
+
+    const filenameBase = customerName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "cliente";
+    doc.save(`cotizacion-${filenameBase}.pdf`);
+  };
 
   const fetchIntegrations = async () => {
     setIntegrationsLoading(true);
@@ -2466,6 +2558,35 @@ export default function AgentDetailPage() {
                     </button>
                   </div>
                 ))}
+              </div>
+
+              <div style={{ marginTop: 18, backgroundColor: C.dark, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ fontWeight: 900, marginBottom: 6 }}>{tr("Generar cotizacion PDF (MVP)", "Generate quote PDF (MVP)")}</div>
+                <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>
+                  {tr("Este generador sirve para cualquier cliente. Carga datos basicos y descarga una cotizacion preliminar en PDF.", "This generator works for any customer. Fill basic data and download a preliminary quote PDF.")}
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+                  <input value={quoteForm.companyName} onChange={(e) => setQuoteForm((s) => ({ ...s, companyName: e.target.value }))} placeholder={tr("Empresa", "Company")} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.white }} />
+                  <input value={quoteForm.customerName} onChange={(e) => setQuoteForm((s) => ({ ...s, customerName: e.target.value }))} placeholder={tr("Cliente", "Customer")} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.white }} />
+                  <input value={quoteForm.customerEmail} onChange={(e) => setQuoteForm((s) => ({ ...s, customerEmail: e.target.value }))} placeholder={tr("Correo", "Email")} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.white }} />
+                  <input value={quoteForm.customerPhone} onChange={(e) => setQuoteForm((s) => ({ ...s, customerPhone: e.target.value }))} placeholder={tr("Telefono", "Phone")} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.white }} />
+                  <input value={quoteForm.model} onChange={(e) => setQuoteForm((s) => ({ ...s, model: e.target.value }))} placeholder={tr("Modelo recomendado", "Recommended model")} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.white }} />
+                  <input value={quoteForm.capacity} onChange={(e) => setQuoteForm((s) => ({ ...s, capacity: e.target.value }))} placeholder={tr("Capacidad (ej: 2200 g)", "Capacity (e.g. 2200 g)")} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.white }} />
+                  <input value={quoteForm.resolution} onChange={(e) => setQuoteForm((s) => ({ ...s, resolution: e.target.value }))} placeholder={tr("Resolucion (ej: 0.01 g)", "Resolution (e.g. 0.01 g)")} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.white }} />
+                  <input value={quoteForm.basePriceUsd} onChange={(e) => setQuoteForm((s) => ({ ...s, basePriceUsd: e.target.value }))} placeholder="Precio base USD" style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.white }} />
+                  <input value={quoteForm.trm} onChange={(e) => setQuoteForm((s) => ({ ...s, trm: e.target.value }))} placeholder="TRM" style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.white }} />
+                  <input value={quoteForm.notes} onChange={(e) => setQuoteForm((s) => ({ ...s, notes: e.target.value }))} placeholder={tr("Notas", "Notes")} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.white }} />
+                </div>
+
+                <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    onClick={generateQuotePdf}
+                    style={{ padding: "10px 14px", borderRadius: 8, border: "none", backgroundColor: C.lime, color: "#111", fontWeight: 900, cursor: "pointer" }}
+                  >
+                    {tr("Generar PDF", "Generate PDF")}
+                  </button>
+                </div>
               </div>
             </div>
           )}

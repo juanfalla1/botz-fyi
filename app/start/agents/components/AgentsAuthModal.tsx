@@ -8,19 +8,31 @@ export default function AgentsAuthModal({
   open,
   onClose,
   onLoggedIn,
+  initialMode,
 }: {
   open: boolean;
   onClose: () => void;
   onLoggedIn?: (user?: any) => void;
+  initialMode?: "login" | "signup" | "reset";
 }) {
   const language = useBotzLanguage("es");
   const tr = (es: string, en: string) => (language === "en" ? en : es);
   const [mode, setMode] = useState<"login" | "signup" | "reset">("login");
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    if (initialMode === "signup" || initialMode === "reset" || initialMode === "login") {
+      setMode(initialMode);
+      setErr(null);
+      setMsg(null);
+    }
+  }, [open, initialMode]);
 
   if (!open) return null;
 
@@ -57,6 +69,7 @@ export default function AgentsAuthModal({
     setErr(null);
     setMsg(null);
     setMode("login");
+    setFullName("");
     onClose();
   };
 
@@ -130,6 +143,13 @@ export default function AgentsAuthModal({
     setErr(null);
     setMsg(null);
     try {
+      const normalizedName = String(fullName || "").trim();
+      if (!normalizedName) {
+        setErr(tr("Ingresa tu nombre completo.", "Enter your full name."));
+        setLoading(false);
+        return;
+      }
+
       const normalizedEmail = String(email || "").trim().toLowerCase();
       const emailRedirectTo = typeof window !== "undefined" ? `${window.location.origin}/start/agents` : undefined;
       const { data, error } = await supabaseAgents.auth.signUp({
@@ -137,7 +157,7 @@ export default function AgentsAuthModal({
         password,
         options: {
           emailRedirectTo,
-          data: { product_key: "agents" },
+          data: { product_key: "agents", full_name: normalizedName, name: normalizedName },
         },
       });
       if (error) throw error;
@@ -171,6 +191,7 @@ export default function AgentsAuthModal({
               )
         );
         setMode("login");
+        setFullName("");
         setPassword("");
         setLoading(false);
         return;
@@ -345,6 +366,21 @@ export default function AgentsAuthModal({
           {mode === "signup" && (
             <form onSubmit={handleSignup} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <input
+                type="text"
+                placeholder={tr("Nombre completo", "Full name")}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                disabled={loading}
+                style={{
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid rgba(34,211,238,0.2)",
+                  background: "rgba(0,0,0,0.3)",
+                  color: "#fff",
+                  fontSize: 14,
+                }}
+              />
+              <input
                 type="email"
                 placeholder="Email"
                 value={email}
@@ -391,6 +427,27 @@ export default function AgentsAuthModal({
               >
                 {loading ? tr("Cargando...", "Loading...") : tr("Crear cuenta", "Create account")}
               </button>
+
+              <div style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={handleGoogle}
+                  disabled={loading}
+                  style={{
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    background: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    fontSize: 14,
+                    cursor: loading ? "not-allowed" : "pointer",
+                    opacity: loading ? 0.5 : 1,
+                    width: "100%",
+                  }}
+                >
+                  {tr("Crear cuenta con Google", "Create account with Google")}
+                </button>
+              </div>
             </form>
           )}
 

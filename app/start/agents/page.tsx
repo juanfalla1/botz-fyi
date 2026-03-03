@@ -58,6 +58,7 @@ export default function AgentStudio() {
   const [openAuth, setOpenAuth] = useState(false);
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteModalIds, setBulkDeleteModalIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [subPlan, setSubPlan] = useState<string>("free");
   const [subStatus, setSubStatus] = useState<string>("inactive");
@@ -388,16 +389,17 @@ export default function AgentStudio() {
 
   const deleteSelectedAgents = async (ids: string[]) => {
     if (!ids.length || bulkDeleting) return;
-    const ok = window.confirm(
-      language === "en"
-        ? `Delete ${ids.length} selected agents?`
-        : `Eliminar ${ids.length} agentes seleccionados?`
-    );
-    if (!ok) return;
+    setBulkDeleteModalIds(ids);
+  };
+
+  const confirmBulkDeleteAgents = async () => {
+    const ids = bulkDeleteModalIds;
+    if (!ids.length || bulkDeleting) return;
     setBulkDeleting(true);
     try {
       await Promise.all(ids.map((id) => updateAgent(id, { status: "archived" })));
       setSelectedAgentIds((prev) => prev.filter((id) => !ids.includes(id)));
+      setBulkDeleteModalIds([]);
       await fetchAgents();
     } catch (e) {
       console.error(e);
@@ -467,15 +469,19 @@ export default function AgentStudio() {
     };
   }, [user?.id]);
 
+  const connectableAgents = useMemo(() => {
+    return agents.filter((a) => String((a as any)?.status || "").toLowerCase() !== "archived");
+  }, [agents]);
+
   useEffect(() => {
-    if (!agents.length) {
+    if (!connectableAgents.length) {
       setSelectedAgentToConnect("");
       return;
     }
-    if (!selectedAgentToConnect || !agents.some((a) => a.id === selectedAgentToConnect)) {
-      setSelectedAgentToConnect(agents[0].id);
+    if (!selectedAgentToConnect || !connectableAgents.some((a) => a.id === selectedAgentToConnect)) {
+      setSelectedAgentToConnect(connectableAgents[0].id);
     }
-  }, [agents, selectedAgentToConnect]);
+  }, [connectableAgents, selectedAgentToConnect]);
 
   const connectedChannels = useMemo(() => {
     return channelRows.filter((r) => {
@@ -1095,6 +1101,8 @@ export default function AgentStudio() {
   }, [wizardOpen, wizardStep]);
 
   const listType = (searchParams.get("type") || "").toLowerCase();
+  const authModeParam = (searchParams.get("auth") || "").toLowerCase();
+  const initialAuthMode = authModeParam === "signup" || authModeParam === "reset" ? authModeParam : "login";
   const ultraCompactSidebar = !isMobile && viewportWidth < 1380;
   const compactPlanPanel = ultraCompactSidebar || compactSidebarMenu;
 
@@ -1136,6 +1144,14 @@ export default function AgentStudio() {
       : listType === "flow"
         ? tr("Flujos", "Flows")
         : tr("Actividad reciente", "Recent activity");
+  const isTypeView = listType === "voice" || listType === "text" || listType === "flow";
+  const greetingName = (() => {
+    const fromMeta = String(user?.user_metadata?.full_name || user?.user_metadata?.name || "").trim();
+    if (fromMeta) return fromMeta;
+    const fromEmail = String(user?.email || "").split("@")[0]?.trim();
+    if (fromEmail) return fromEmail;
+    return authLoading ? "..." : tr("Usuario", "User");
+  })();
 
   const creditsUsedFromAgents = useMemo(() => {
     return (agents || []).reduce((sum, a) => sum + (Number(a.credits_used || 0) || 0), 0);
@@ -1281,9 +1297,10 @@ export default function AgentStudio() {
   return (
     <div suppressHydrationWarning style={{ ...flex({ flexDirection: isMobile ? "column" : "row" }), minHeight: "100vh", backgroundColor: C.bg, fontFamily: "Inter,-apple-system,sans-serif", color: C.white }}>
 
-       <AuthModal
-         open={openAuth}
-         onClose={() => {
+        <AuthModal
+          open={openAuth}
+          initialMode={initialAuthMode as "login" | "signup" | "reset"}
+          onClose={() => {
             if (user) {
               setOpenAuth(false);
               return;
@@ -1578,12 +1595,23 @@ export default function AgentStudio() {
             </div>
           )}
 
-          <h1 style={{ fontSize: isMobile ? 24 : 30, fontWeight: 800, margin: "0 0 6px" }}>
-            {tr("Hola", "Hi")} {user?.email?.split("@")[0] || (authLoading ? "..." : tr("Usuario", "User"))}
-          </h1>
-          <p style={{ color: C.muted, fontSize: isMobile ? 14 : 16, margin: "0 0 24px" }}>{tr("¿Qué quieres crear hoy?", "What do you want to create today?")}</p>
+          {isTypeView ? (
+            <>
+              <h1 style={{ fontSize: isMobile ? 24 : 30, fontWeight: 800, margin: "0 0 6px" }}>{listTitle}</h1>
+              <p style={{ color: C.muted, fontSize: isMobile ? 14 : 16, margin: "0 0 24px" }}>
+                {tr("Gestiona tus agentes creados: ver, editar, eliminar o crear uno nuevo.", "Manage your created agents: view, edit, delete, or create a new one.")}
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 style={{ fontSize: isMobile ? 24 : 30, fontWeight: 800, margin: "0 0 6px" }}>
+                {tr("Hola", "Hi")} {greetingName}
+              </h1>
+              <p style={{ color: C.muted, fontSize: isMobile ? 14 : 16, margin: "0 0 24px" }}>{tr("¿Qué quieres crear hoy?", "What do you want to create today?")}</p>
+            </>
+          )}
 
-          {/* 4-col creation cards */}
+          {!isTypeView && (
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(240px, 1fr))", gap: 18, marginBottom: 36 }}>
             {cards.map(card => (
               <button
@@ -1608,8 +1636,10 @@ export default function AgentStudio() {
               </button>
             ))}
           </div>
+          )}
 
-          {/* templates */}
+          {!isTypeView && (
+          <>
           <p style={{ color: "#b8c3d9", fontSize: 15, margin: "0 0 14px", letterSpacing: 0.2 }}>{tr("○ inicia con casos de uso populares", "○ or start with popular use cases")}</p>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: 12, marginBottom: 32 }}>
             {templates.map(t => (
@@ -1651,7 +1681,10 @@ export default function AgentStudio() {
               </div>
             ))}
           </div>
+          </>
+          )}
 
+          {!isTypeView && (
           <div style={{ marginBottom: 26, borderRadius: 14, border: "1px solid rgba(56,189,248,0.22)", background: "linear-gradient(180deg, rgba(24,30,44,0.98), rgba(20,25,38,0.98))", overflow: "hidden" }}>
             <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(148,163,184,0.18)", display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
               <div>
@@ -1699,7 +1732,7 @@ export default function AgentStudio() {
                   style={{ minWidth: 220, padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.7)", color: C.white }}
                 >
                   <option value="">{tr("Selecciona un agente", "Select an agent")}</option>
-                  {agents.map((a) => (
+                  {connectableAgents.map((a) => (
                     <option key={a.id} value={a.id}>
                       {prettyName(a.name)} - {a.type === "voice" ? tr("Voz", "Voice") : a.type === "text" ? tr("Texto", "Text") : a.type === "flow" ? tr("Flujo", "Flow") : prettyName(a.type)}
                     </option>
@@ -1717,8 +1750,9 @@ export default function AgentStudio() {
               </div>
             </div>
           </div>
+          )}
 
-          {/* usage dashboard */}
+          {!isTypeView && (
           <div style={{ marginBottom: 26, borderRadius: 14, border: "1px solid rgba(56,189,248,0.22)", background: "linear-gradient(180deg, rgba(24,30,44,0.98), rgba(20,25,38,0.98))", overflow: "hidden" }}>
               <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(148,163,184,0.18)", display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
               <div style={{ color: C.white, fontSize: isMobile ? 18 : 24, fontWeight: 900 }}>{tr("Creditos usados", "Credits used")}: {fmt(entCreditsUsed || 0)}</div>
@@ -1842,10 +1876,40 @@ export default function AgentStudio() {
               )}
             </div>
           </div>
+          )}
 
           {/* activity header */}
           <div style={{ ...flex({ alignItems: "center", justifyContent: "space-between" }), marginBottom: 12 }}>
             <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{listTitle}</h3>
+            <button
+              onClick={() => {
+                const type = listType === "voice" || listType === "text" || listType === "flow" ? listType : "voice";
+                router.push(`/start/agents/create?type=${type}`);
+              }}
+              style={{ borderRadius: 9, border: "none", background: `${C.lime}cc`, color: "#111", padding: "8px 12px", cursor: "pointer", fontWeight: 900, fontSize: 12 }}
+            >
+              {tr("+ Nuevo", "+ New")}
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+            {[
+              { key: "", label: tr("Todos", "All") },
+              { key: "voice", label: tr("Voz", "Voice") },
+              { key: "text", label: tr("Texto", "Text") },
+              { key: "flow", label: tr("Flujo", "Flow") },
+            ].map((x) => {
+              const active = (listType || "") === x.key;
+              return (
+                <button
+                  key={x.key || "all"}
+                  onClick={() => router.push(x.key ? `/start/agents?type=${x.key}` : "/start/agents")}
+                  style={{ borderRadius: 999, border: `1px solid ${active ? "rgba(163,230,53,0.55)" : C.border}`, background: active ? "rgba(163,230,53,0.18)" : "transparent", color: active ? C.lime : C.white, padding: "6px 11px", cursor: "pointer", fontSize: 12, fontWeight: 800 }}
+                >
+                  {x.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* search */}
@@ -2194,6 +2258,69 @@ export default function AgentStudio() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {bulkDeleteModalIds.length > 0 && (
+        <div
+          onClick={() => {
+            if (bulkDeleting) return;
+            setBulkDeleteModalIds([]);
+          }}
+          style={{ position: "fixed", inset: 0, zIndex: 81, background: "rgba(2,6,23,0.76)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 620, boxSizing: "border-box", borderRadius: 18, border: "1px solid rgba(248,113,113,0.35)", background: "linear-gradient(180deg, rgba(24,14,18,0.98), rgba(14,10,16,0.98))", padding: 18, boxShadow: "0 30px 90px rgba(2,6,23,0.72)" }}
+          >
+            <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 6, color: "#fee2e2" }}>
+              {tr("Eliminar agentes seleccionados", "Delete selected agents")}
+            </div>
+            <div style={{ color: "#fecaca", fontSize: 13, marginBottom: 10 }}>
+              {tr(
+                `Se archivaran ${bulkDeleteModalIds.length} agente(s). Esta accion no se puede deshacer desde aqui.`,
+                `${bulkDeleteModalIds.length} agent(s) will be archived. This action cannot be undone from here.`
+              )}
+            </div>
+
+            <div style={{ border: "1px solid rgba(248,113,113,0.30)", background: "rgba(127,29,29,0.20)", borderRadius: 12, padding: 10, marginBottom: 12 }}>
+              <div style={{ color: "#fda4af", fontSize: 12, fontWeight: 800, marginBottom: 6 }}>
+                {tr("Agentes seleccionados", "Selected agents")}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {bulkDeleteModalIds.slice(0, 8).map((id) => {
+                  const name = prettyName(agents.find((a) => a.id === id)?.name || id.slice(0, 8));
+                  return (
+                    <span key={id} style={{ borderRadius: 999, border: "1px solid rgba(248,113,113,0.35)", background: "rgba(127,29,29,0.25)", color: "#fecaca", padding: "4px 8px", fontSize: 11 }}>
+                      {name}
+                    </span>
+                  );
+                })}
+                {bulkDeleteModalIds.length > 8 && (
+                  <span style={{ borderRadius: 999, border: "1px solid rgba(248,113,113,0.35)", background: "rgba(127,29,29,0.25)", color: "#fecaca", padding: "4px 8px", fontSize: 11 }}>
+                    +{bulkDeleteModalIds.length - 8}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                onClick={() => setBulkDeleteModalIds([])}
+                disabled={bulkDeleting}
+                style={{ borderRadius: 10, border: "1px solid rgba(248,113,113,0.35)", background: "transparent", color: "#fecaca", padding: "10px 12px", cursor: bulkDeleting ? "not-allowed" : "pointer", fontWeight: 800, opacity: bulkDeleting ? 0.6 : 1 }}
+              >
+                {tr("Cancelar", "Cancel")}
+              </button>
+              <button
+                onClick={() => void confirmBulkDeleteAgents()}
+                disabled={bulkDeleting}
+                style={{ borderRadius: 10, border: "none", background: "linear-gradient(90deg, #ef4444, #f43f5e)", color: "#fff", padding: "10px 14px", cursor: bulkDeleting ? "not-allowed" : "pointer", fontWeight: 900, opacity: bulkDeleting ? 0.7 : 1 }}
+              >
+                {bulkDeleting ? tr("Eliminando...", "Deleting...") : tr("Si, eliminar", "Yes, delete")}
+              </button>
+            </div>
           </div>
         </div>
       )}

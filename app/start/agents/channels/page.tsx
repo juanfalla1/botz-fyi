@@ -204,8 +204,9 @@ export default function AgentChannelsPage() {
   }, []);
 
   const schemaKey = `${form.channel_type}:${form.provider}`;
+  const availableAgents = agents.filter((a: any) => String(a?.status || "").toLowerCase() !== "archived");
   const preselectedAgentId = String(searchParams.get("agentId") || "").trim();
-  const preselectedAgent = agents.find((a) => a.id === preselectedAgentId) || null;
+  const preselectedAgent = availableAgents.find((a) => a.id === preselectedAgentId) || null;
   const activeSchema = CRED_SCHEMAS[schemaKey] || {
     title: "Configuracion personalizada",
     notes: "Este canal no tiene plantilla predefinida. Completa campos basicos y webhook.",
@@ -394,7 +395,12 @@ export default function AgentChannelsPage() {
       setCanAdvanced(advanced);
       setAdvancedOpen(advanced);
     } catch (e: any) {
-      setError(String(e?.message || "Error cargando canales"));
+      const msg = String(e?.message || "Error cargando canales");
+      if (/unauthorized|auth|required/i.test(msg)) {
+        router.push("/start/agents");
+        return;
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -603,7 +609,7 @@ export default function AgentChannelsPage() {
           </select>
           <select value={form.assigned_agent_id} onChange={(e) => setForm((s) => ({ ...s, assigned_agent_id: e.target.value }))} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
             <option value="">Agente</option>
-            {agents.map((a) => <option key={a.id} value={a.id}>{prettyName(a.name)} - {agentTypeLabel(a.type)}</option>)}
+            {availableAgents.map((a) => <option key={a.id} value={a.id}>{prettyName(a.name)} - {agentTypeLabel(a.type)}</option>)}
           </select>
           <button onClick={() => void createChannel()} style={{ borderRadius: 10, border: "none", background: C.lime, color: "#111", fontWeight: 900, padding: "0 14px", cursor: "pointer" }}>Conectar</button>
         </div>
@@ -753,7 +759,7 @@ export default function AgentChannelsPage() {
                   <td style={{ padding: 12 }}>
                     <select disabled={!canAdvanced} value={r.assigned_agent_id || ""} onChange={async (e) => { await patch(r.id, { assigned_agent_id: e.target.value || null }); await fetchData(); }} style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white, opacity: canAdvanced ? 1 : 0.65 }}>
                        <option value="">{tr("Sin agente", "No agent")}</option>
-                      {agents.map((a) => <option key={a.id} value={a.id}>{prettyName(a.name)} - {agentTypeLabel(a.type)}</option>)}
+                      {availableAgents.map((a) => <option key={a.id} value={a.id}>{prettyName(a.name)} - {agentTypeLabel(a.type)}</option>)}
                     </select>
                   </td>
                   <td style={{ padding: 12 }}>
