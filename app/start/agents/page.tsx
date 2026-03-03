@@ -154,7 +154,8 @@ export default function AgentStudio() {
       } else if (event === "SIGNED_OUT") {
         setUser(null);
         setChannelRows([]);
-        setOpenAuth(true);
+        setOpenAuth(false);
+        router.push("/");
       }
     });
 
@@ -1525,7 +1526,8 @@ export default function AgentStudio() {
             onClick={async () => {
               try { await supabaseAgents.auth.signOut(); } catch {}
               setUser(null);
-              setOpenAuth(true);
+              setOpenAuth(false);
+              router.push("/");
             }}
             style={{ width: "100%", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "8px 10px", cursor: "pointer", fontSize: 12, fontWeight: 800 }}
           >
@@ -1564,7 +1566,8 @@ export default function AgentStudio() {
                    onClick={async () => {
                      try { await supabaseAgents.auth.signOut(); } catch {}
                      setUser(null);
-                     setOpenAuth(true);
+                     setOpenAuth(false);
+                     router.push("/");
                    }}
                    style={{ flex: 1, padding: "12px 14px", borderRadius: 12, border: `1px solid ${C.border}`, backgroundColor: "transparent", color: C.white, fontWeight: 900, cursor: "pointer" }}
                  >
