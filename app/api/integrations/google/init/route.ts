@@ -1,8 +1,41 @@
 import { NextResponse } from "next/server";
-import { assertTenantAccess, getRequestUser } from "../../../_utils/guards";
+import { getRequestUser } from "../../../_utils/guards";
+import { getServiceSupabase } from "@/app/api/_utils/supabase";
+import { SYSTEM_TENANT_ID } from "@/app/api/_utils/system";
 
 function makeState() {
   return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+async function resolveTenantIdForOAuth(userId: string): Promise<string> {
+  const svc = getServiceSupabase();
+  if (!svc) return SYSTEM_TENANT_ID;
+
+  const byAuth = await svc
+    .from("team_members")
+    .select("tenant_id")
+    .eq("auth_user_id", userId)
+    .eq("activo", true)
+    .maybeSingle();
+  if (byAuth?.data?.tenant_id) return String(byAuth.data.tenant_id);
+
+  const byUser = await svc
+    .from("team_members")
+    .select("tenant_id")
+    .eq("user_id", userId)
+    .eq("activo", true)
+    .maybeSingle();
+  if (byUser?.data?.tenant_id) return String(byUser.data.tenant_id);
+
+  const bySub = await svc
+    .from("subscriptions")
+    .select("tenant_id")
+    .eq("user_id", userId)
+    .in("status", ["active", "trialing"])
+    .maybeSingle();
+  if (bySub?.data?.tenant_id) return String(bySub.data.tenant_id);
+
+  return SYSTEM_TENANT_ID;
 }
 
 export async function POST(req: Request) {
@@ -13,8 +46,10 @@ export async function POST(req: Request) {
     const { user, error: userErr } = await getRequestUser(req);
     if (!user) return NextResponse.json({ ok: false, error: userErr || "Unauthorized" }, { status: 401 });
 
-    const guard = await assertTenantAccess({ req, requestedTenantId });
-    if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: guard.status });
+    const resolvedTenantId = await resolveTenantIdForOAuth(user.id);
+    if (requestedTenantId && requestedTenantId !== resolvedTenantId) {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
 
     const clientId = process.env.GOOGLE_CLIENT_ID;
     if (!clientId) {
@@ -51,7 +86,7 @@ export async function POST(req: Request) {
       sameSite: "lax",
       path: "/",
     });
-    res.cookies.set("botz_google_oauth_tenant", guard.tenantId, {
+    res.cookies.set("botz_google_oauth_tenant", resolvedTenantId, {
       httpOnly: true,
       sameSite: "lax",
       path: "/",

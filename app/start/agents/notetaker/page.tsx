@@ -240,7 +240,11 @@ export default function NotetakerPage() {
       if ((msg.includes("column") || msg.includes("schema cache")) && msg.includes("notetaker_folders")) {
         showMessage("Falta migración de Playbooks. Ejecuta supabase db push para habilitar notas, iconos y favoritos.", "error");
       } else {
-        showMessage(msg, "error");
+        if (msg.toLowerCase() === "forbidden") {
+          showMessage("Acceso denegado para este usuario en Copiloto IA. Cierra sesión y vuelve a entrar, o reasigna el usuario al tenant.", "error");
+        } else {
+          showMessage(msg, "error");
+        }
       }
     } finally {
       setSaving(false);
