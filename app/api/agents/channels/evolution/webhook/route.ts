@@ -466,16 +466,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ignored: true, reason: "channel_not_found" });
     }
 
-    // Extraer el número del agente desde varias fuentes posibles
-    const agentPhoneRaw = String(
+    // Extraer el numero del agente SOLO desde configuracion del canal.
+    // No usar payload.sender porque suele ser el numero del cliente y bloquea el enrutamiento.
+    const configuredSelfPhoneRaw = String(
       channel?.config?.phone ||
       channel?.config?.number ||
       channel?.config?.owner ||
       channel?.config?.wid ||
       channel?.config?.me ||
-      payload?.sender ||
       ""
     );
+    const hasConfiguredSelfPhone = Boolean(configuredSelfPhoneRaw.trim());
+    const agentPhoneRaw = configuredSelfPhoneRaw;
     const agentPhone = normalizePhone(agentPhoneRaw);
     
     // Solo filtrar si tenemos un número de agente válido diferente del número que escribe
@@ -610,7 +612,7 @@ export async function POST(req: Request) {
     const toCandidates = [inbound.from, ...(inbound.alternates || [])]
       .map((n) => normalizePhone(String(n || "")))
       .filter((n, i, arr) => n && arr.indexOf(n) === i)
-      .filter((n) => !selfPhone || n !== selfPhone)
+      .filter((n) => !hasConfiguredSelfPhone || !selfPhone || n !== selfPhone)
       .filter((n) => n.length >= 10 && n.length <= 15);
 
     console.log("[evolution-webhook] routing debug", {
