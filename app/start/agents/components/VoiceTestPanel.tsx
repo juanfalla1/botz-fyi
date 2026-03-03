@@ -44,6 +44,22 @@ const C = {
   purple: "#8b5cf6",
 };
 
+const OPENAI_VOICE_PRESETS = [
+  { id: "marin", label: "Marin (Natural ES)" },
+  { id: "sage", label: "Sage (Clear)" },
+  { id: "coral", label: "Coral (Warm)" },
+  { id: "alloy", label: "Alloy (Neutral)" },
+  { id: "nova", label: "Nova (Expressive)" },
+] as const;
+
+const ELEVEN_VOICE_PRESETS = [
+  { id: "angie_col", label: "Angie Colombia" },
+  { id: "lupe_mx", label: "Lupe Mexico" },
+  { id: "ana_corp", label: "Ana Corporativa" },
+  { id: "camila_warm", label: "Camila Warm" },
+  { id: "gabriela", label: "Gabriela" },
+] as const;
+
 export default function VoiceTestPanel({
   agentName,
   agentRole,
@@ -70,6 +86,10 @@ export default function VoiceTestPanel({
   const [speechPitch, setSpeechPitch] = useState<number>(0.98);
   const [availableVoices, setAvailableVoices] = useState<{ name: string; lang: string; voiceURI: string }[]>([]);
   const [selectedVoiceUri, setSelectedVoiceUri] = useState<string>("");
+  const providerKey = String(voiceSettings?.provider || "openai").toLowerCase();
+  const [selectedCloudVoice, setSelectedCloudVoice] = useState<string>(
+    String(voiceSettings?.voice || (providerKey === "elevenlabs" ? ELEVEN_VOICE_PRESETS[0].id : OPENAI_VOICE_PRESETS[0].id))
+  );
   const [selectedModel, setSelectedModel] = useState<string>(
     voiceSettings?.llmModel && GPT_MODELS.includes(voiceSettings.llmModel as any)
       ? String(voiceSettings.llmModel)
@@ -82,10 +102,10 @@ export default function VoiceTestPanel({
   });
 
   const VAD_RMS_THRESHOLD = 0.014;
-  const VAD_SILENCE_MS_TO_STOP = 1100;
-  const VAD_MIN_SPEECH_MS = 420;
-  const VAD_MIN_RECORDING_MS_BEFORE_STOP = 1500;
-  const MAX_RECORDING_MS = 15000;
+  const VAD_SILENCE_MS_TO_STOP = 700;
+  const VAD_MIN_SPEECH_MS = 300;
+  const VAD_MIN_RECORDING_MS_BEFORE_STOP = 900;
+  const MAX_RECORDING_MS = 12000;
 
   const MICROPHONE_CONSTRAINTS: MediaTrackConstraints = {
     echoCancellation: true,
@@ -467,6 +487,15 @@ export default function VoiceTestPanel({
   }, [voiceSettings?.llmModel]);
 
   useEffect(() => {
+    const incoming = String(voiceSettings?.voice || "").trim();
+    if (incoming) {
+      setSelectedCloudVoice(incoming);
+      return;
+    }
+    setSelectedCloudVoice(providerKey === "elevenlabs" ? ELEVEN_VOICE_PRESETS[0].id : OPENAI_VOICE_PRESETS[0].id);
+  }, [voiceSettings?.voice, providerKey]);
+
+  useEffect(() => {
     try {
       if (isCallActive) return;
       const accentVoice = firstVoiceForAccent(accentFilter);
@@ -681,7 +710,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
           fast_mode: true,
           conversationHistory: conversationHistoryRef.current.slice(-6),
           agentConfig: {
-            voice: voiceSettings?.voice || "marin",
+            voice: selectedCloudVoice || voiceSettings?.voice || "marin",
             voice_provider: voiceSettings?.provider || "openai",
             voice_profile_id: voiceSettings?.profileId || "",
             tts_model: voiceSettings?.ttsModel || "",
@@ -734,7 +763,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
         { role: "agent", content: agentResponse },
       ];
 
-      await pushAgentLineSynced(agentResponse, null, sessionId);
+      await pushAgentLineSynced(agentResponse, json?.audioUrl || null, sessionId);
     } catch (err: any) {
       setError(err?.message || "Error procesando la llamada");
       console.error("Audio processing error:", err);
@@ -766,7 +795,31 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
       setTranscript([]);
 
       conversationHistoryRef.current = [];
-      await pushAgentLineSynced(greetingText, null, sessionId);
+      let greetingAudioUrl: string | null = null;
+      try {
+        const greetingRes = await authedFetch("/api/agents/voice-call", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            generateAudioOnly: true,
+            textToSpeak: greetingText,
+            agentConfig: {
+              voice: selectedCloudVoice || voiceSettings?.voice || "marin",
+              voice_provider: voiceSettings?.provider || "openai",
+              voice_profile_id: voiceSettings?.profileId || "",
+              tts_model: voiceSettings?.ttsModel || "",
+              language: agentLanguage || (isEnglish ? "en-US" : "es-ES"),
+            },
+          }),
+        });
+        const greetingJson = await greetingRes.json().catch(() => ({}));
+        if (greetingRes.ok && greetingJson?.ok && greetingJson?.audioUrl) {
+          greetingAudioUrl = String(greetingJson.audioUrl);
+        }
+      } catch {
+        // fallback local speech
+      }
+      await pushAgentLineSynced(greetingText, greetingAudioUrl, sessionId);
     } catch (err: any) {
       setError(tr("No se pudo acceder al micrófono. Verifica los permisos.", "Could not access microphone. Check permissions."));
       console.error("Microphone error:", err);
@@ -962,7 +1015,24 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
 
               <div style={{ marginTop: 10 }}>
                 <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 4 }}>
-                  {tr("voz", "voice")}
+                  {tr("voz del modelo", "model voice")}
+                </label>
+                <select
+                  value={selectedCloudVoice}
+                  onChange={(e) => {
+                    setSelectedCloudVoice(e.target.value);
+                  }}
+                  style={{ ...inputStyle, appearance: "none", cursor: "pointer" }}
+                >
+                  {(providerKey === "elevenlabs" ? ELEVEN_VOICE_PRESETS : OPENAI_VOICE_PRESETS).map((v) => (
+                    <option key={v.id} value={v.id}>{v.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginTop: 10 }}>
+                <label style={{ fontSize: 12, color: C.muted, display: "block", marginBottom: 4 }}>
+                  {tr("voz local (respaldo)", "local fallback voice")}
                 </label>
                 <select
                   value={selectedVoiceUri}
@@ -979,7 +1049,7 @@ REGLA FINAL: Responde como agente de voz, claro y util.`;
               </div>
 
               <div style={{ marginTop: 8, color: C.dim, fontSize: 11 }}>
-                {tr("El acento elige voz automática por país; también puedes fijar voz exacta manualmente.", "Accent picks an automatic voice by locale; you can also manually choose an exact voice.")}
+                {tr("La voz del modelo se genera en servidor (consistente para todos). La voz local solo se usa de respaldo.", "Model voice is generated server-side (consistent for all users). Local voice is fallback only.")}
               </div>
             </div>
 

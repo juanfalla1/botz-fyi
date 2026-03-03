@@ -104,22 +104,20 @@ export async function POST(req: Request) {
 
     // 3. Convertir respuesta a audio (TTS)
     let audioUrl = null;
-    if (!fastMode) {
-      try {
-        audioUrl = await textToSpeech(agentResponse, {
-          voice: agentConfig?.voice || "marin",
-          provider: agentConfig?.voice_provider || "openai",
-          profileId: agentConfig?.voice_profile_id || "",
-          ttsModel: agentConfig?.tts_model || "",
-          language: baseLang,
-        });
-      } catch (e) {
-        console.error("TTS error:", e);
-        // TTS error no es crítico, retornamos la respuesta texto
-      }
+    try {
+      audioUrl = await textToSpeech(agentResponse, {
+        voice: agentConfig?.voice || "marin",
+        provider: agentConfig?.voice_provider || "openai",
+        profileId: agentConfig?.voice_profile_id || "",
+        ttsModel: agentConfig?.tts_model || "",
+        language: baseLang,
+      });
+    } catch (e) {
+      console.error("TTS error:", e);
+      // TTS error no es crítico, retornamos la respuesta texto
     }
 
-    const creditsDelta = fastMode ? 2 : 3;
+    const creditsDelta = audioUrl ? 3 : (fastMode ? 2 : 3);
     const burn = await consumeEntitlementCredits(supabase as any, guard.user.id, creditsDelta);
     if (!burn.ok) {
       return NextResponse.json({ ok: false, code: burn.code, error: burn.error }, { status: burn.statusCode });
