@@ -165,11 +165,8 @@ export default function VoiceTestPanel({
   const safeAgentName = String(agentName || "Asistente").trim() || "Asistente";
   const agentNameLc = safeAgentName.toLowerCase();
   const brandNameLc = brandName.toLowerCase();
-  const agentAlreadyMentionsBrand = agentNameLc.includes(brandNameLc) || brandNameLc.includes(agentNameLc);
   const agentSameAsBrand = agentNameLc === brandNameLc;
 
-  const agentWithBrand = agentAlreadyMentionsBrand ? safeAgentName : `${safeAgentName} de ${brandName}`;
-  const speakerIntro = agentSameAsBrand ? `nuestro asistente de ${brandName}` : agentWithBrand;
   const speakerShort = agentSameAsBrand ? `nuestro asistente` : safeAgentName;
 
   const dedupePrompt = (raw: string) => {
@@ -195,58 +192,11 @@ export default function VoiceTestPanel({
 
   const buildScenarioGreeting = () => {
     const name = firstName(variables.contact_name) || "";
-    const roleText = String(agentRole || "").toLowerCase();
-    const promptText = String(agentPrompt || "").toLowerCase();
-    const bag = `${roleText} ${promptText}`;
-
     const withName = (txt: string) => (name ? txt.replaceAll("{{name}}", name) : txt.replaceAll("{{name}}", ""));
-
-    if (!isEnglish && /pesaje|balanza|metrolog|calibra|explorer|adventurer|pioneer|valor|ranger/.test(bag)) {
-      return withName(`Hola {{name}}, bienvenido a ${brandName}. Te habla ${speakerShort}. Para recomendarte el equipo ideal, ¿qué capacidad máxima necesitas pesar?`);
-    }
-
-    if (isEnglish && /collection|overdue|payment/.test(bag)) {
-      return withName(`Hi {{name}}, this is ${brandName} following up on an outstanding payment. Can we quickly review your payment status?`);
-    }
-    if (isEnglish && /reminder|follow-up/.test(bag)) {
-      return withName(`Hi {{name}}, this is ${brandName} with a quick reminder. Can we confirm your commitment now?`);
-    }
-    if (isEnglish && /meeting|schedule|appointment/.test(bag)) {
-      return withName(`Hi {{name}}, this is ${brandName} calling to confirm your meeting details. Do you have one minute?`);
-    }
-    if (isEnglish && /lead|prospect|qualification/.test(bag)) {
-      return withName(`Hi {{name}}, this is ${brandName}. I want to understand your current process and see where we can help. Is now a good time?`);
-    }
-    if (isEnglish && /support|customer service/.test(bag)) {
-      return withName(`Hi {{name}}, this is ${brandName} support. Please tell me how I can help you today.`);
-    }
-    if (isEnglish && /receptionist/.test(bag)) {
-      return withName(`Hi {{name}}, welcome to ${brandName}. I can route your request to the right team. What is the reason for your call?`);
-    }
-
-    if (!isEnglish && /cobranza|pago pendiente|cartera|mora/.test(bag)) {
-      return withName(`Hola {{name}}, te llamo de ${brandName} por una gestión de pago pendiente. ¿Podemos validar el estado de tu pago?`);
-    }
-    if (!isEnglish && /recordatorio|enviar recordatorios|reunión programada/.test(bag)) {
-      return withName(`Hola {{name}}, te llamo de ${brandName} para recordarte tu compromiso programado. ¿Te viene bien confirmarlo ahora?`);
-    }
-    if (!isEnglish && /confirmación de reuniones|confirmar reunión|programar reuniones/.test(bag)) {
-      return withName(`Hola {{name}}, te llamo de ${brandName} para confirmar los detalles de tu reunión. ¿Tienes un minuto?`);
-    }
-    if (!isEnglish && /calificación de leads|lead|llamadas en frio|prospección/.test(bag)) {
-      return withName(`Hola {{name}}, te habla ${agentWithBrand}. Quiero entender tu proceso actual para ver si te podemos ayudar a optimizarlo. ¿Te parece bien?`);
-    }
-    if (!isEnglish && /soporte|atención al cliente|servicio al cliente/.test(bag)) {
-      return withName(`Hola {{name}}, te habla ${agentWithBrand} del equipo de soporte. Cuéntame por favor en qué te puedo ayudar hoy.`);
-    }
-    if (!isEnglish && /recepcionista/.test(bag)) {
-      return withName(`Hola {{name}}, bienvenido a ${brandName}. Estoy para ayudarte a dirigir tu solicitud al área correcta. ¿Cuál es el motivo de tu llamada?`);
-    }
-
     return withName(
       isEnglish
-        ? "Hi {{name}}, I am " + agentName + ". How can I help you today?"
-        : "Hola {{name}}, soy " + agentName + ". ¿Cómo puedo ayudarte hoy?"
+        ? `Hi {{name}}, welcome to ${brandName}. This is ${speakerShort}. How can I help you today?`
+        : `Hola {{name}}, bienvenido a ${brandName}. Te habla ${speakerShort}. ¿En qué te puedo ayudar hoy?`
     );
   };
 
