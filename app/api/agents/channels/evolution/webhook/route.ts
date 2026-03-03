@@ -40,16 +40,7 @@ function pickBestPhone(candidates: any[]): string {
 function preferredInboundPhone(payload: any, item: any): string {
   const key = item?.key || {};
 
-  const firstChoice = pickBestPhone([
-    item?.sender,
-    payload?.sender,
-    item?.from,
-    payload?.from,
-    item?.jid,
-    payload?.jid,
-  ]);
-  if (firstChoice) return firstChoice;
-
+  // Priorizar SIEMPRE remoteJid/participant (numero real del cliente en inbound).
   const rawPrimary = [
     key?.remoteJid,
     item?.data?.key?.remoteJid,
@@ -61,6 +52,17 @@ function preferredInboundPhone(payload: any, item: any): string {
 
   const primary = pickBestPhone(rawPrimary);
   if (primary) return primary;
+
+  // Fallback solo si no hubo remoteJid/participant.
+  const firstChoice = pickBestPhone([
+    item?.from,
+    payload?.from,
+    item?.jid,
+    payload?.jid,
+    item?.sender,
+    payload?.sender,
+  ]);
+  if (firstChoice) return firstChoice;
 
   return "";
 }
@@ -158,19 +160,18 @@ function inboundPhoneCandidates(payload: any, item: any): string[] {
   const key = item?.key || {};
 
   const candidates = [
-    payload?.sender,
-    item?.sender,
-    payload?.sender,
-    item?.from,
-    payload?.from,
-    item?.jid,
-    payload?.jid,
     key?.remoteJid,
     item?.data?.key?.remoteJid,
     payload?.data?.key?.remoteJid,
     key?.participant,
     item?.data?.key?.participant,
     payload?.data?.key?.participant,
+    item?.from,
+    payload?.from,
+    item?.jid,
+    payload?.jid,
+    item?.sender,
+    payload?.sender,
   ]
     .map((v) => normalizePhone(String(v || "")))
     .filter((n) => n.length >= 10 && n.length <= 15);
@@ -476,16 +477,11 @@ export async function POST(req: Request) {
       channel?.config?.me ||
       ""
     );
-    const hasConfiguredSelfPhone = Boolean(configuredSelfPhoneRaw.trim());
-    const agentPhoneRaw = configuredSelfPhoneRaw;
-    const agentPhone = normalizePhone(agentPhoneRaw);
-    
-    // Solo filtrar si tenemos un número de agente válido diferente del número que escribe
-    const selfPhone = agentPhone;
+    let agentPhone = normalizePhone(configuredSelfPhoneRaw);
 
     console.log("[evolution-webhook] channel debug", {
       instance: inbound.instance,
-      selfPhone,
+      selfPhone: agentPhone,
       configKeys: channel?.config ? Object.keys(channel.config) : [],
     });
 
@@ -609,10 +605,40 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ignored: true, reason: "instance_missing" });
     }
 
+    // Fallback: si no hay numero propio en config, intentar leerlo desde metadata de la instancia Evolution.
+    if (!agentPhone) {
+      try {
+        const instances = await evolutionService.fetchInstances();
+        const meta = (instances || []).find(
+          (i: any) => String(i?.name || "").toLowerCase() === outboundInstance.toLowerCase()
+        );
+        const metaPhoneRaw = String(
+          meta?.owner || meta?.number || meta?.wid || meta?.me || meta?.phone || meta?.profileName || ""
+        );
+        const metaPhone = normalizePhone(metaPhoneRaw);
+        if (metaPhone) agentPhone = metaPhone;
+      } catch {
+        // ignore metadata lookup errors
+      }
+    }
+
+    // Guardrail anti-loop: si inbound coincide con numero propio, ignorar.
+    if (agentPhone && inbound.from === agentPhone) {
+      console.warn("[evolution-webhook] ignored: self_inbound", {
+        inboundFrom: inbound.from,
+        selfPhone: agentPhone,
+        instance: outboundInstance,
+      });
+      return NextResponse.json({ ok: true, ignored: true, reason: "self_inbound" });
+    }
+
+    const selfPhone = agentPhone;
+    const hasSelfPhone = Boolean(selfPhone);
+
     const toCandidates = [inbound.from, ...(inbound.alternates || [])]
       .map((n) => normalizePhone(String(n || "")))
       .filter((n, i, arr) => n && arr.indexOf(n) === i)
-      .filter((n) => !hasConfiguredSelfPhone || !selfPhone || n !== selfPhone)
+      .filter((n) => !hasSelfPhone || n !== selfPhone)
       .filter((n) => n.length >= 10 && n.length <= 15);
 
     console.log("[evolution-webhook] routing debug", {
