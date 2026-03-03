@@ -649,13 +649,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ignored: true, reason: "self_inbound" });
     }
 
-    const selfPhone = agentPhone;
-    const hasSelfPhone = Boolean(selfPhone);
+    const selfHints = [
+      agentPhone,
+      normalizePhone(String(payload?.destination || "")),
+      normalizePhone(String(payload?.data?.destination || "")),
+      normalizePhone(String(payload?.sender || "")),
+      normalizePhone(String(payload?.data?.sender || "")),
+    ]
+      .filter((n) => n.length >= 10 && n.length <= 15)
+      .filter((n, i, arr) => arr.indexOf(n) === i);
+
+    const selfPhone = selfHints[0] || "";
+    const selfSet = new Set(selfHints);
 
     const toCandidates = [inbound.from, ...(inbound.alternates || [])]
       .map((n) => normalizePhone(String(n || "")))
       .filter((n, i, arr) => n && arr.indexOf(n) === i)
-      .filter((n) => !hasSelfPhone || n !== selfPhone)
+      .filter((n) => !selfSet.has(n))
       .filter((n) => n.length >= 10 && n.length <= 15)
       .sort((a, b) => {
         const aLikelyReal = a.length <= 13 ? 0 : 1;
@@ -668,6 +678,7 @@ export async function POST(req: Request) {
       inboundFrom: inbound.from,
       alternates: inbound.alternates || [],
       selfPhone,
+      selfHints,
       toCandidates,
       payloadEvent: payload?.event || payload?.type || payload?.eventName || null,
     });
