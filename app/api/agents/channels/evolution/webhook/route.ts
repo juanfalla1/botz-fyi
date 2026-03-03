@@ -159,6 +159,7 @@ function extractTextFromMessage(msg: any, messageType?: string): string {
 type InboundEvent = {
   instance: string;
   from: string;
+  fromIsLid?: boolean;
   alternates?: string[];
   text: string;
   pushName?: string;
@@ -256,6 +257,17 @@ function extractInbound(payload: any): InboundEvent | null {
 
     const orderedCandidates = inboundPhoneCandidates(payload, item);
     const preferred = String(preferredInboundPhone(payload, item)).trim();
+    const rawPrimaryRemote = [
+      key?.remoteJid,
+      item?.data?.key?.remoteJid,
+      payload?.data?.key?.remoteJid,
+      key?.participant,
+      item?.data?.key?.participant,
+      payload?.data?.key?.participant,
+    ]
+      .map((v) => String(v || "").trim())
+      .find(Boolean) || "";
+    const preferredIsLid = isLidCandidate(rawPrimaryRemote);
     const remoteJid = preferred && preferred.length >= 10 && preferred.length <= 15
       ? preferred
       : (orderedCandidates[0] || "");
@@ -288,6 +300,7 @@ function extractInbound(payload: any): InboundEvent | null {
     return {
       instance,
       from,
+      fromIsLid: preferredIsLid && from === normalizePhone(rawPrimaryRemote),
       alternates: orderedCandidates.filter((p) => p !== from),
       text,
       pushName: pushName || undefined,
@@ -603,18 +616,6 @@ export async function POST(req: Request) {
       Math.min(500, usageCompletion || estimateTokens(reply))
     );
 
-    const burn = await consumeEntitlementCredits(supabase as any, ownerId, billedTokens);
-    if (!burn.ok) {
-      console.warn("[evolution-webhook] ignored: credits_blocked", {
-        code: burn.code,
-        ownerId,
-        billedTokens,
-        usageTotal,
-        usageCompletion,
-      });
-      return NextResponse.json({ ok: true, ignored: true, reason: burn.code || "credits_blocked" });
-    }
-
     const outboundInstance = String((channel as any)?.config?.evolution_instance_name || inbound.instance || "");
     console.log("[evolution-webhook] outbound instance debug", {
       configInstance: (channel as any)?.config?.evolution_instance_name,
@@ -669,6 +670,7 @@ export async function POST(req: Request) {
     const toCandidates = [inbound.from, ...(inbound.alternates || [])]
       .map((n) => normalizePhone(String(n || "")))
       .filter((n, i, arr) => n && arr.indexOf(n) === i)
+      .filter((n) => !(Boolean(inbound.fromIsLid) && n === inbound.from))
       .filter((n) => !selfSet.has(n))
       .filter((n) => n.length >= 10 && n.length <= 15)
       .sort((a, b) => {
@@ -681,6 +683,7 @@ export async function POST(req: Request) {
     console.log("[evolution-webhook] routing debug", {
       inboundFrom: inbound.from,
       alternates: inbound.alternates || [],
+      inboundFromIsLid: Boolean(inbound.fromIsLid),
       selfPhone,
       selfHints,
       toCandidates,
@@ -710,10 +713,25 @@ export async function POST(req: Request) {
     }
 
     if (!sentTo) {
-      console.warn("[evolution-webhook] ignored: invalid_destination", { to: inbound.from, alternates: inbound.alternates || [] });
+      console.warn("[evolution-webhook] ignored: invalid_destination", {
+        to: inbound.from,
+        fromIsLid: Boolean(inbound.fromIsLid),
+        alternates: inbound.alternates || [],
+      });
       return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
     }
     console.info("[evolution-webhook] reply sent", { channelId: (channel as any)?.id, agentId: agent.id, to: sentTo });
+
+    const burn = await consumeEntitlementCredits(supabase as any, ownerId, billedTokens);
+    if (!burn.ok) {
+      console.warn("[evolution-webhook] credits consume skipped_after_send", {
+        code: burn.code,
+        ownerId,
+        billedTokens,
+        usageTotal,
+        usageCompletion,
+      });
+    }
 
     try {
       await persistConversationTurn(supabase as any, {
