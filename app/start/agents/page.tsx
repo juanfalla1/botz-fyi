@@ -1156,13 +1156,16 @@ export default function AgentStudio() {
        <AuthModal
          open={openAuth}
          onClose={() => {
-           setOpenAuth(false);
-           router.push("/");
-         }}
-          onLoggedIn={() => {
-            setOpenAuth(false);
-            fetchAgents();
+            if (user) {
+              setOpenAuth(false);
+              return;
+            }
+            setOpenAuth(true);
           }}
+           onLoggedIn={() => {
+             setOpenAuth(false);
+             fetchAgents();
+           }}
         />
 
       {/* ════════ SIDEBAR ════════ */}
@@ -1376,7 +1379,8 @@ export default function AgentStudio() {
           <button
             onClick={async () => {
               try { await supabaseAgents.auth.signOut(); } catch {}
-              router.push("/");
+              setUser(null);
+              setOpenAuth(true);
             }}
             style={{ width: "100%", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "8px 10px", cursor: "pointer", fontSize: 12, fontWeight: 800 }}
           >
@@ -1414,7 +1418,8 @@ export default function AgentStudio() {
                  <button
                    onClick={async () => {
                      try { await supabaseAgents.auth.signOut(); } catch {}
-                     router.push("/");
+                     setUser(null);
+                     setOpenAuth(true);
                    }}
                    style={{ flex: 1, padding: "12px 14px", borderRadius: 12, border: `1px solid ${C.border}`, backgroundColor: "transparent", color: C.white, fontWeight: 900, cursor: "pointer" }}
                  >
