@@ -22,6 +22,11 @@ function normalizePhone(raw: string) {
   return digits;
 }
 
+function isLidCandidate(raw: string): boolean {
+  const value = String(raw || "").toLowerCase();
+  return value.includes("@lid") || value.endsWith(":lid");
+}
+
 function pickBestPhone(candidates: any[]): string {
   const raws = candidates.map((v) => String(v || "").trim()).filter(Boolean);
   if (!raws.length) return "";
@@ -29,7 +34,14 @@ function pickBestPhone(candidates: any[]): string {
   const jidPreferred = raws.find((v) => /@s\.whatsapp\.net$/i.test(v) || /@c\.us$/i.test(v));
   if (jidPreferred) return normalizePhone(jidPreferred);
 
-  const parsed = raws.map((v) => normalizePhone(v)).filter(Boolean);
+  const parsedEntries = raws
+    .map((v) => ({ raw: v, phone: normalizePhone(v), isLid: isLidCandidate(v) }))
+    .filter((v) => Boolean(v.phone));
+
+  const nonLid = parsedEntries.filter((v) => !v.isLid).map((v) => v.phone);
+  const lid = parsedEntries.filter((v) => v.isLid).map((v) => v.phone);
+  const parsed = [...nonLid, ...lid];
+
   const medium = parsed.find((n) => n.length >= 10 && n.length <= 15);
   if (medium) return medium;
 
@@ -159,7 +171,7 @@ type InboundEvent = {
 function inboundPhoneCandidates(payload: any, item: any): string[] {
   const key = item?.key || {};
 
-  const candidates = [
+  const ranked = [
     key?.remoteJid,
     item?.data?.key?.remoteJid,
     payload?.data?.key?.remoteJid,
@@ -173,10 +185,15 @@ function inboundPhoneCandidates(payload: any, item: any): string[] {
     item?.sender,
     payload?.sender,
   ]
-    .map((v) => normalizePhone(String(v || "")))
-    .filter((n) => n.length >= 10 && n.length <= 15);
+    .map((v) => {
+      const raw = String(v || "");
+      return { phone: normalizePhone(raw), isLid: isLidCandidate(raw) };
+    })
+    .filter((v) => v.phone.length >= 10 && v.phone.length <= 15)
+    .sort((a, b) => Number(a.isLid) - Number(b.isLid))
+    .map((v) => v.phone);
 
-  return Array.from(new Set(candidates));
+  return Array.from(new Set(ranked));
 }
 
 function extractInbound(payload: any): InboundEvent | null {
