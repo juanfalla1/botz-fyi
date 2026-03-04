@@ -1,0 +1,146 @@
+import { NextResponse } from "next/server";
+import { jsPDF } from "jspdf";
+import { getRequestUser } from "@/app/api/_utils/auth";
+import { getAnonSupabaseWithToken } from "@/app/api/_utils/supabase";
+import { evolutionService } from "../../../../../lib/services/evolution.service";
+
+export const runtime = "nodejs";
+
+function normalizePhone(raw: string) {
+  return String(raw || "").replace(/\D/g, "");
+}
+
+function formatMoney(n: number) {
+  return new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 }).format(Number(n || 0));
+}
+
+function buildQuotePdf(args: {
+  draftId: string;
+  companyName: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  productName: string;
+  quantity: number;
+  basePriceUsd: number;
+  trmRate: number;
+  totalCop: number;
+  notes?: string;
+}) {
+  const doc = new jsPDF();
+  const now = new Date();
+  const quoteNumber = `Q-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("Cotizacion tecnica preliminar", 14, 16);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Numero: ${quoteNumber}`, 14, 24);
+  doc.text(`Fecha: ${now.toLocaleString("es-CO")}`, 14, 29);
+  doc.text(`Draft ID: ${args.draftId}`, 14, 34);
+
+  let y = 44;
+  const row = (k: string, v: string) => {
+    doc.setFont("helvetica", "bold");
+    doc.text(`${k}:`, 14, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(v || "-", 56, y);
+    y += 6;
+  };
+
+  row("Empresa", args.companyName || "Avanza Balanzas");
+  row("Cliente", args.customerName || "-");
+  row("Correo", args.customerEmail || "-");
+  row("Telefono", args.customerPhone || "-");
+  row("Producto", args.productName || "-");
+  row("Cantidad", String(args.quantity || 1));
+  row("Precio base USD", args.basePriceUsd > 0 ? formatMoney(args.basePriceUsd) : "-");
+  row("TRM", args.trmRate > 0 ? formatMoney(args.trmRate) : "-");
+  row("Total COP", args.totalCop > 0 ? formatMoney(args.totalCop) : "-");
+
+  y += 4;
+  doc.setFont("helvetica", "bold");
+  doc.text("Notas:", 14, y);
+  doc.setFont("helvetica", "normal");
+  const notes = String(args.notes || "Cotizacion preliminar sujeta a validacion tecnica, inventario y condiciones comerciales vigentes.");
+  const lines = doc.splitTextToSize(notes, 180);
+  doc.text(lines, 14, y + 5);
+
+  return Buffer.from(doc.output("arraybuffer")).toString("base64");
+}
+
+export async function POST(req: Request) {
+  const guard = await getRequestUser(req);
+  if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
+
+  const supabase = getAnonSupabaseWithToken(guard.token);
+  if (!supabase) return NextResponse.json({ ok: false, error: "Missing Supabase env" }, { status: 500 });
+
+  try {
+    const body = await req.json().catch(() => ({}));
+    const draftId = String(body?.draftId || "").trim();
+    const to = normalizePhone(String(body?.to || ""));
+    const instanceName = String(body?.instanceName || "").trim();
+
+    if (!draftId || !to || !instanceName) {
+      return NextResponse.json({ ok: false, error: "Missing draftId, to or instanceName" }, { status: 400 });
+    }
+
+    const { data: draft, error } = await supabase
+      .from("agent_quote_drafts")
+      .select("*")
+      .eq("id", draftId)
+      .eq("created_by", guard.user.id)
+      .maybeSingle();
+
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+    if (!draft) return NextResponse.json({ ok: false, error: "Draft no encontrado" }, { status: 404 });
+
+    const payload = (draft as any).payload || {};
+    const quantity = Number(payload?.quantity || 1);
+    const pdfBase64 = buildQuotePdf({
+      draftId,
+      companyName: String((draft as any).company_name || "Avanza Balanzas"),
+      customerName: String((draft as any).customer_name || ""),
+      customerEmail: String((draft as any).customer_email || ""),
+      customerPhone: String((draft as any).customer_phone || ""),
+      productName: String((draft as any).product_name || ""),
+      quantity,
+      basePriceUsd: Number((draft as any).base_price_usd || 0),
+      trmRate: Number((draft as any).trm_rate || 0),
+      totalCop: Number((draft as any).total_cop || 0),
+      notes: String((draft as any).notes || ""),
+    });
+
+    const fileName = `cotizacion-${draftId.slice(0, 8)}.pdf`;
+    const caption = `Cotizacion preliminar ${fileName}`;
+    const sendResult = await evolutionService.sendDocument(instanceName, to, {
+      base64: pdfBase64,
+      fileName,
+      caption,
+      mimetype: "application/pdf",
+    });
+
+    const mergedPayload = {
+      ...(draft as any).payload,
+      whatsapp_send: {
+        at: new Date().toISOString(),
+        to,
+        instanceName,
+        fileName,
+      },
+    };
+
+    await supabase
+      .from("agent_quote_drafts")
+      .update({ status: "sent", payload: mergedPayload } as any)
+      .eq("id", draftId)
+      .eq("created_by", guard.user.id);
+
+    return NextResponse.json({ ok: true, data: { draftId, to, instanceName, fileName, sendResult } });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message || "Unknown error" }, { status: 500 });
+  }
+}

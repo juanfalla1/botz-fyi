@@ -201,6 +201,74 @@ export class EvolutionService {
     }
   }
 
+  async sendDocument(
+    instanceName: string,
+    phone: string,
+    args: { base64: string; fileName: string; caption?: string; mimetype?: string }
+  ): Promise<any> {
+    const number = String(phone || "").replace(/\D/g, "");
+    const fileName = String(args?.fileName || "cotizacion.pdf").trim() || "cotizacion.pdf";
+    const caption = String(args?.caption || "").trim();
+    const mimetype = String(args?.mimetype || "application/pdf").trim() || "application/pdf";
+    const rawBase64 = String(args?.base64 || "").trim();
+    const media = rawBase64.startsWith("data:") ? rawBase64 : `data:${mimetype};base64,${rawBase64}`;
+
+    console.log("[evolutionService] sendDocument", {
+      instanceName,
+      number,
+      fileName,
+      captionLength: caption.length,
+      mediaChars: media.length,
+    });
+
+    const attempts: Array<{ body: any; tag: string }> = [
+      {
+        tag: "sendMedia_number",
+        body: {
+          number,
+          mediatype: "document",
+          mimetype,
+          fileName,
+          caption,
+          media,
+        },
+      },
+      {
+        tag: "sendMedia_file",
+        body: {
+          number,
+          mediatype: "document",
+          mimetype,
+          fileName,
+          caption,
+          file: media,
+        },
+      },
+    ];
+
+    let lastErr: any = null;
+    for (const att of attempts) {
+      try {
+        const result = await evolutionFetch(`/message/sendMedia/${instanceName}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(att.body),
+        });
+        console.log("[evolutionService] sendDocument success", { instanceName, number, attempt: att.tag, result });
+        return result;
+      } catch (e: any) {
+        lastErr = e;
+      }
+    }
+
+    console.error("[evolutionService] sendDocument error", {
+      instanceName,
+      number,
+      error: lastErr?.message,
+    });
+    throw lastErr || new Error("sendDocument failed");
+  }
+
   async disconnect(instanceName: string): Promise<void> {
     await evolutionFetch(`/instance/logout/${instanceName}`, { method: "DELETE" });
   }
