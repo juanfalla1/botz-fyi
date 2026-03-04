@@ -32,6 +32,7 @@ export default function AgentsAuthModal({
   const [otpEmail, setOtpEmail] = useState("");
   const [otpPurpose, setOtpPurpose] = useState<"signup" | "reset">("signup");
   const [resetNewPassword, setResetNewPassword] = useState("");
+  const [hasTriedSignup, setHasTriedSignup] = useState(false);
 
   React.useEffect(() => {
     if (!open) return;
@@ -41,6 +42,7 @@ export default function AgentsAuthModal({
       setMsg(null);
       setNeedsEmailConfirmation(false);
       setSuggestCreateAccount(false);
+      setHasTriedSignup(false);
     }
   }, [open, initialMode]);
 
@@ -80,12 +82,13 @@ export default function AgentsAuthModal({
     setMsg(null);
     setNeedsEmailConfirmation(false);
     setSuggestCreateAccount(false);
+    setHasTriedSignup(false);
     setMode("login");
     setFullName("");
     onClose();
   };
 
-  const canShowResendButton = mode === "signup";
+  const canShowResendButton = mode === "signup" && hasTriedSignup;
   const hasSignupEmail = String(email || "").trim().includes("@");
 
   async function handleResendConfirmation() {
@@ -271,6 +274,7 @@ export default function AgentsAuthModal({
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
+    setHasTriedSignup(true);
     setLoading(true);
     setErr(null);
     setMsg(null);
@@ -713,6 +717,7 @@ export default function AgentsAuthModal({
                 setMode("login");
                 setNeedsEmailConfirmation(false);
                 setSuggestCreateAccount(false);
+                setHasTriedSignup(false);
                 setErr(null);
               }}
               style={{
@@ -732,6 +737,7 @@ export default function AgentsAuthModal({
                 setMode("signup");
                 setNeedsEmailConfirmation(false);
                 setSuggestCreateAccount(false);
+                setHasTriedSignup(false);
                 setErr(null);
               }}
               style={{
@@ -751,6 +757,7 @@ export default function AgentsAuthModal({
                 setMode("reset");
                 setNeedsEmailConfirmation(false);
                 setSuggestCreateAccount(false);
+                setHasTriedSignup(false);
                 setErr(null);
               }}
               style={{
