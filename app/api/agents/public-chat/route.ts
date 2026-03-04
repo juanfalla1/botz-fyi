@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
+import { SYSTEM_TENANT_ID } from "@/app/api/_utils/system";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,6 +63,71 @@ function buildDocumentContext(message: string, files: { name: string; content: s
   return `\n\nDocumentos indexados (extractos):\n${blocks.join("\n")}`;
 }
 
+function buildSearchTerms(message: string) {
+  return Array.from(
+    new Set(
+      String(message || "")
+        .toLowerCase()
+        .split(/[^a-z0-9áéíóúñü]+/i)
+        .map((t) => t.trim())
+        .filter((t) => t.length >= 4)
+    )
+  ).slice(0, 6);
+}
+
+function shouldUseCatalog(message: string) {
+  const m = String(message || "").toLowerCase();
+  return /(precio|cotiz|referencia|modelo|ficha|pdf|inventario|trm|equipo|producto)/.test(m);
+}
+
+async function buildCatalogContext(supabase: any, ownerId: string, message: string) {
+  if (!shouldUseCatalog(message)) return "";
+
+  const terms = buildSearchTerms(message);
+  let query = supabase
+    .from("agent_product_catalog")
+    .select("id,name,brand,category,summary")
+    .eq("tenant_id", SYSTEM_TENANT_ID)
+    .eq("created_by", ownerId)
+    .eq("is_active", true)
+    .order("updated_at", { ascending: false })
+    .limit(5);
+
+  if (terms.length) {
+    const or = terms
+      .map((t) => `name.ilike.%${t}%,summary.ilike.%${t}%,description.ilike.%${t}%`)
+      .join(",");
+    query = query.or(or);
+  }
+
+  const [{ data: products }, { data: fx }] = await Promise.all([
+    query,
+    supabase
+      .from("agent_fx_rates")
+      .select("rate,rate_date,source")
+      .eq("tenant_id", SYSTEM_TENANT_ID)
+      .eq("created_by", ownerId)
+      .eq("from_currency", "USD")
+      .eq("to_currency", "COP")
+      .order("rate_date", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const lines = (products || []).slice(0, 5).map((p: any) => {
+    const desc = String(p?.summary || "").slice(0, 160);
+    return `- ${p?.name || "Producto"} (${p?.brand || ""}/${p?.category || ""})${desc ? `: ${desc}` : ""}`;
+  });
+
+  const trmLine = fx?.rate
+    ? `TRM USD->COP vigente: ${Number(fx.rate).toFixed(2)} (fecha ${fx.rate_date}, fuente ${fx.source || "N/A"}).`
+    : "TRM no disponible en cache. Si el cliente pide precio final, indica que se validara TRM antes de enviar cotizacion.";
+
+  if (!lines.length && !fx?.rate) return "";
+
+  return `\n\nCatalogo conectado (datos reales):\n${lines.join("\n")}\n${trmLine}\nSi el cliente pide cotizacion, usa estos datos y no inventes modelos fuera del catalogo.`;
+}
+
 export async function POST(req: Request) {
   const supabase = getServiceSupabase();
   if (!supabase) {
@@ -108,6 +174,7 @@ export async function POST(req: Request) {
   const cfg = (agent.configuration || {}) as any;
   const brainFiles = normalizeBrainFiles(cfg?.brain?.files);
   const docs = buildDocumentContext(message, brainFiles);
+  const catalog = await buildCatalogContext(supabase as any, ownerId, message);
   const systemPrompt = [
     `Eres ${String(cfg?.identity_name || agent.name || "asistente")}.`,
     String(cfg?.purpose || agent.description || "Asistente virtual"),
@@ -116,6 +183,7 @@ export async function POST(req: Request) {
     "Responde en el idioma del usuario con tono profesional y claro.",
     "Si no tienes la informacion, dilo sin inventar.",
     docs,
+    catalog,
   ]
     .filter(Boolean)
     .join("\n\n");
