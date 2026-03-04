@@ -79,6 +79,25 @@ export default function AgentStudio() {
 
   const tr = (es: string, en: string) => (language === "en" ? en : es);
 
+  function warmAfterLogin() {
+    void fetchAgents();
+    void fetchChannels();
+
+    if (typeof window === "undefined") {
+      void fetchEntitlement();
+      void fetchUsage();
+      return;
+    }
+
+    window.setTimeout(() => {
+      void fetchEntitlement();
+    }, 0);
+
+    window.setTimeout(() => {
+      void fetchUsage();
+    }, 400);
+  }
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -121,10 +140,7 @@ export default function AgentStudio() {
         setUser(sessionUser);
         setAuthLoading(false);
         setOpenAuth(false);
-        fetchAgents();
-        fetchChannels();
-        fetchEntitlement();
-        fetchUsage();
+        warmAfterLogin();
         return;
       }
 
@@ -147,10 +163,7 @@ export default function AgentStudio() {
         }
         setUser(u);
         setOpenAuth(false);
-        fetchAgents();
-        fetchChannels();
-        fetchEntitlement();
-        fetchUsage();
+        warmAfterLogin();
       } else if (event === "SIGNED_OUT") {
         setUser(null);
         setChannelRows([]);
