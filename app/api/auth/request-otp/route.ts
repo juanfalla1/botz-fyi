@@ -8,16 +8,29 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ✅ Configurar transporte de email (ajusta según tu proveedor)
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: process.env.SMTP_SECURE === "true", // true para 465, false para otros puertos
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD,
-  },
-});
+function buildTransport() {
+  const host = process.env.SMTP_HOST || process.env.ZOHO_HOST || "smtp.zoho.com";
+  const port = Number(process.env.SMTP_PORT || process.env.ZOHO_PORT || 465);
+  const secure = process.env.SMTP_SECURE
+    ? process.env.SMTP_SECURE === "true"
+    : port === 465;
+  const user = process.env.SMTP_USER || process.env.ZOHO_USER || "";
+  const pass = process.env.SMTP_PASSWORD || process.env.ZOHO_PASS || process.env.ZOHO_APP_PASSWORD || "";
+
+  if (!user || !pass) {
+    throw new Error("SMTP credentials missing (SMTP_USER/SMTP_PASSWORD or ZOHO_USER/ZOHO_PASS)");
+  }
+
+  return {
+    transporter: nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass },
+    }),
+    from: process.env.SMTP_FROM || process.env.MAIL_FROM || process.env.ZOHO_USER || user,
+  };
+}
 
 // ✅ Función para generar código OTP de 6 dígitos
 function generateOTP(): string {
@@ -27,8 +40,9 @@ function generateOTP(): string {
 // ✅ Función para enviar email con OTP
 async function sendOTPEmail(email: string, otp: string): Promise<boolean> {
   try {
+    const { transporter, from } = buildTransport();
     const mailOptions = {
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      from,
       to: email,
       subject: "Tu código de verificación Botz - 2FA",
       html: `
