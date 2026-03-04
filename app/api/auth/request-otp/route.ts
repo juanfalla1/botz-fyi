@@ -91,27 +91,28 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ Limpiar sesiones OTP expiradas
-    await supabase
-      .from("otp_sessions")
-      .delete()
-      .lt("expires_at", new Date().toISOString());
+    // ✅ Limpiar sesiones OTP expiradas (best effort)
+    try {
+      await supabase
+        .from("otp_sessions")
+        .delete()
+        .lt("expires_at", new Date().toISOString());
+    } catch (e) {
+      console.warn("[OTP] cleanup warning:", e);
+    }
 
     // ✅ Verificar si ya existe una sesión OTP activa para este email
     const { data: existingOTP, error: existingError } = await supabase
       .from("otp_sessions")
       .select("id, created_at")
       .eq("email", email)
-      .is("auth_user_id", null) // Aún no se ha verificado
       .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (existingError) {
-      console.error("Error consultando OTP existente:", existingError);
-      return NextResponse.json(
-        { ok: false, error: "Error al procesar solicitud" },
-        { status: 500 }
-      );
+      console.warn("[OTP] query existing warning (continuing):", existingError);
     }
 
     // ✅ Si existe sesión reciente, esperar antes de generar nueva (rate limiting)
@@ -139,21 +140,33 @@ export async function POST(req: Request) {
     const otp = generateOTP();
 
     // ✅ Guardar OTP en base de datos
-    const { data, error } = await supabase
-      .from("otp_sessions")
-      .insert({
-        email,
-        otp_code: otp,
-        attempts_remaining: 3,
-        expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutos
-      })
-      .select("id")
-      .single();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const variants = [
+      { email, otp_code: otp, attempts_remaining: 3, is_verified: false, expires_at: expiresAt },
+      { email, otp_code: otp, attempts_remaining: 3, expires_at: expiresAt },
+      { email, otp_code: otp, expires_at: expiresAt },
+    ];
 
-    if (error) {
-      console.error("Error creando sesión OTP:", error);
+    let created: any = null;
+    let lastInsertError: any = null;
+    for (const payload of variants) {
+      const { data: createdData, error: createdError } = await supabase
+        .from("otp_sessions")
+        .insert(payload as any)
+        .select("id")
+        .single();
+      if (!createdError) {
+        created = createdData;
+        lastInsertError = null;
+        break;
+      }
+      lastInsertError = createdError;
+    }
+
+    if (!created) {
+      console.error("Error creando sesión OTP:", lastInsertError);
       return NextResponse.json(
-        { ok: false, error: "Error al crear sesión OTP" },
+        { ok: false, error: "Error al crear sesión OTP", details: String(lastInsertError?.message || "") },
         { status: 500 }
       );
     }
@@ -163,7 +176,7 @@ export async function POST(req: Request) {
 
     if (!emailSent) {
       // Eliminar la sesión OTP si no se pudo enviar el email
-      await supabase.from("otp_sessions").delete().eq("id", data.id);
+      await supabase.from("otp_sessions").delete().eq("id", created.id);
 
       return NextResponse.json(
         {
@@ -185,14 +198,14 @@ export async function POST(req: Request) {
       {
         ok: true,
         message: "Código OTP enviado al email",
-        sessionId: data.id,
+        sessionId: created.id,
       },
       { status: 200 }
     );
   } catch (error: any) {
     console.error("❌ [OTP] Error en request-otp:", error);
     return NextResponse.json(
-      { ok: false, error: "Error interno del servidor" },
+      { ok: false, error: "Error interno del servidor", details: String(error?.message || error) },
       { status: 500 }
     );
   }

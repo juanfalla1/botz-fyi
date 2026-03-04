@@ -9,7 +9,7 @@ const supabase = createClient(
 // ✅ Handler principal
 export async function POST(req: Request) {
   try {
-    const { email, otp } = await req.json();
+    const { email, otp, auth_user_id } = await req.json();
 
     if (!email || typeof email !== "string") {
       return NextResponse.json(
@@ -26,13 +26,37 @@ export async function POST(req: Request) {
     }
 
     // ✅ Buscar sesión OTP activa para este email
-    const { data: otpSession, error: queryError } = await supabase
-      .from("otp_sessions")
-      .select("id, otp_code, attempts_remaining, expires_at, is_verified")
-      .eq("email", email)
-      .is("auth_user_id", null) // Aún no verificada
-      .gt("expires_at", new Date().toISOString()) // No expirada
-      .maybeSingle();
+    let otpSession: any = null;
+    let queryError: any = null;
+
+    const queries = [
+      () => supabase
+        .from("otp_sessions")
+        .select("id, otp_code, attempts_remaining, expires_at, is_verified")
+        .eq("email", email)
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      () => supabase
+        .from("otp_sessions")
+        .select("id, otp_code, attempts_remaining, expires_at")
+        .eq("email", email)
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ];
+
+    for (const run of queries) {
+      const result = await run();
+      if (!result.error) {
+        otpSession = result.data as any;
+        queryError = null;
+        break;
+      }
+      queryError = result.error;
+    }
 
     if (queryError) {
       console.error("Error consultando sesión OTP:", queryError);
@@ -55,7 +79,7 @@ export async function POST(req: Request) {
     }
 
     // ✅ Caso 2: OTP ya fue verificado anteriormente
-    if (otpSession.is_verified) {
+    if ((otpSession as any)?.is_verified) {
       return NextResponse.json(
         {
           ok: false,
@@ -67,12 +91,12 @@ export async function POST(req: Request) {
 
     // ✅ Caso 3: Código OTP incorrecto
     if (otpSession.otp_code !== otp) {
-      const attemptsRemaining = otpSession.attempts_remaining - 1;
+      const attemptsRemaining = Number((otpSession as any)?.attempts_remaining ?? 3) - 1;
 
       // ✅ Actualizar intentos restantes
       const { error: updateError } = await supabase
         .from("otp_sessions")
-        .update({ attempts_remaining: attemptsRemaining })
+        .update({ attempts_remaining: attemptsRemaining } as any)
         .eq("id", otpSession.id);
 
       if (updateError) {
@@ -120,13 +144,22 @@ export async function POST(req: Request) {
     console.log("✅ [OTP] Verificación exitosa para:", email);
 
     // ✅ Marcar como verificado
-    const { error: verifyError } = await supabase
-      .from("otp_sessions")
-      .update({
-        is_verified: true,
-        verified_at: new Date().toISOString(),
-      })
-      .eq("id", otpSession.id);
+    let verifyError: any = null;
+    const verifyVariants = [
+      { is_verified: true, verified_at: new Date().toISOString() },
+      { verified_at: new Date().toISOString() },
+    ];
+    for (const payload of verifyVariants) {
+      const { error } = await supabase
+        .from("otp_sessions")
+        .update(payload as any)
+        .eq("id", otpSession.id);
+      if (!error) {
+        verifyError = null;
+        break;
+      }
+      verifyError = error;
+    }
 
     if (verifyError) {
       console.error("Error marcando OTP como verificado:", verifyError);
@@ -137,6 +170,33 @@ export async function POST(req: Request) {
     }
 
     // ✅ Retornar éxito
+    try {
+      let authUserId = String(auth_user_id || "").trim();
+
+      if (!authUserId) {
+        const { data: appUser } = await supabase
+          .from("app_users")
+          .select("auth_user_id")
+          .eq("email", email)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        authUserId = String(appUser?.auth_user_id || "").trim();
+      }
+
+      if (!authUserId) {
+        const { data: usersData } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const match = (usersData?.users || []).find((u: any) => String(u?.email || "").toLowerCase() === String(email).toLowerCase());
+        authUserId = String(match?.id || "").trim();
+      }
+
+      if (authUserId) {
+        await supabase.auth.admin.updateUserById(authUserId, { email_confirm: true });
+      }
+    } catch (e) {
+      console.warn("[OTP] No se pudo confirmar usuario auth por OTP:", e);
+    }
+
     return NextResponse.json(
       {
         ok: true,

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { supabaseAgents } from "../supabaseAgentsClient";
 import useBotzLanguage from "../../hooks/useBotzLanguage";
+import OTPVerificationModal from "@/app/components/OTPVerificationModal";
 
 export default function AgentsAuthModal({
   open,
@@ -22,8 +23,13 @@ export default function AgentsAuthModal({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
+  const [suggestCreateAccount, setSuggestCreateAccount] = useState(false);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otpEmail, setOtpEmail] = useState("");
 
   React.useEffect(() => {
     if (!open) return;
@@ -31,6 +37,8 @@ export default function AgentsAuthModal({
       setMode(initialMode);
       setErr(null);
       setMsg(null);
+      setNeedsEmailConfirmation(false);
+      setSuggestCreateAccount(false);
     }
   }, [open, initialMode]);
 
@@ -68,10 +76,100 @@ export default function AgentsAuthModal({
   const close = () => {
     setErr(null);
     setMsg(null);
+    setNeedsEmailConfirmation(false);
+    setSuggestCreateAccount(false);
     setMode("login");
     setFullName("");
     onClose();
   };
+
+  const canShowResendButton = mode === "signup";
+  const hasSignupEmail = String(email || "").trim().includes("@");
+
+  async function handleResendConfirmation() {
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    if (!normalizedEmail) {
+      setErr(tr("Escribe el correo para reenviar confirmacion.", "Enter the email to resend confirmation."));
+      return;
+    }
+
+    setResendLoading(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      const emailRedirectTo = typeof window !== "undefined" ? `${window.location.origin}/start/agents` : undefined;
+      const { error } = await (supabaseAgents.auth as any).resend({
+        type: "signup",
+        email: normalizedEmail,
+        options: { emailRedirectTo },
+      });
+      if (error) throw error;
+      setMsg(tr("Te reenviamos el correo de confirmacion. Revisa entrada y spam.", "We resent the confirmation email. Check inbox and spam."));
+    } catch (e: any) {
+      setErr(e?.message || tr("No se pudo reenviar el correo.", "Could not resend the email."));
+    } finally {
+      setResendLoading(false);
+    }
+  }
+
+  async function handleRequestOtpForSignup() {
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      setErr(tr("Escribe un email valido para enviar el codigo.", "Enter a valid email to send the code."));
+      return;
+    }
+
+    setResendLoading(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      const response = await fetch("/api/auth/request-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.ok) {
+        const details = String(data?.details || "").trim();
+        const baseError = String(data?.error || tr("No se pudo enviar el codigo OTP.", "Could not send OTP code."));
+        throw new Error(details ? `${baseError}: ${details}` : baseError);
+      }
+      setOtpEmail(normalizedEmail);
+      setOtpOpen(true);
+      setMsg(tr("Te enviamos un codigo OTP por correo.", "We sent you an OTP code by email."));
+    } catch (e: any) {
+      setErr(e?.message || tr("No se pudo enviar el codigo OTP.", "Could not send OTP code."));
+    } finally {
+      setResendLoading(false);
+    }
+  }
+
+  async function handleOtpVerified() {
+    setOtpOpen(false);
+    setNeedsEmailConfirmation(false);
+    setMsg(tr("Correo verificado por OTP. Iniciando sesion...", "Email verified by OTP. Signing in..."));
+
+    const normalizedEmail = String(email || otpEmail || "").trim().toLowerCase();
+    const pwd = String(password || "").trim();
+    if (!normalizedEmail || !pwd) {
+      setMode("login");
+      setMsg(tr("Correo verificado. Ahora inicia sesion con tu correo y contrasena.", "Email verified. Now sign in with your email and password."));
+      return;
+    }
+
+    try {
+      const { data, error } = await supabaseAgents.auth.signInWithPassword({
+        email: normalizedEmail,
+        password: pwd,
+      });
+      if (error) throw error;
+      onLoggedIn?.(data?.user || null);
+      close();
+    } catch (e: any) {
+      setMode("login");
+      setErr(e?.message || tr("Correo verificado, pero no se pudo iniciar sesion automaticamente.", "Email verified, but auto sign-in failed."));
+    }
+  }
 
   async function handleGoogle() {
     setLoading(true);
@@ -117,6 +215,8 @@ export default function AgentsAuthModal({
     setLoading(true);
     setErr(null);
     setMsg(null);
+    setNeedsEmailConfirmation(false);
+    setSuggestCreateAccount(false);
 
     try {
       const normalizedEmail = String(email || "").trim().toLowerCase();
@@ -129,6 +229,10 @@ export default function AgentsAuthModal({
       close();
     } catch (e: any) {
       const raw = String(e?.message || "");
+      if (/email not confirmed/i.test(raw)) setNeedsEmailConfirmation(true);
+      if (/invalid login credentials|invalid credentials/i.test(raw)) {
+        setSuggestCreateAccount(true);
+      }
       setErr(authErrorText("login", raw));
       setLoading(false);
     }
@@ -139,6 +243,8 @@ export default function AgentsAuthModal({
     setLoading(true);
     setErr(null);
     setMsg(null);
+    setNeedsEmailConfirmation(false);
+    setSuggestCreateAccount(false);
     try {
       const normalizedName = String(fullName || "").trim();
       if (!normalizedName) {
@@ -176,6 +282,7 @@ export default function AgentsAuthModal({
       const isYahoo = /@(yahoo\.com|yahoo\.es|yahoo\.com\.[a-z]{2})$/i.test(normalizedEmail);
 
       if (!data?.session) {
+        setNeedsEmailConfirmation(true);
         setMsg(
           isYahoo
             ? tr(
@@ -185,7 +292,7 @@ export default function AgentsAuthModal({
             : tr(
                 "Cuenta creada. Revisa tu correo para confirmar y luego inicia sesion.",
                 "Account created. Check your email to confirm, then sign in."
-              )
+          )
         );
         setMode("login");
         setFullName("");
@@ -243,6 +350,7 @@ export default function AgentsAuthModal({
   };
 
   return (
+    <>
     <div
       style={{
         position: "fixed",
@@ -282,6 +390,66 @@ export default function AgentsAuthModal({
           {err && (
             <div style={{ marginBottom: 16, padding: 12, borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#fca5a5", fontSize: 14 }}>
               {err}
+            </div>
+          )}
+
+          {(needsEmailConfirmation || canShowResendButton) && (
+            <div style={{ marginBottom: 16 }}>
+              <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={loading || resendLoading || !hasSignupEmail}
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid rgba(34,211,238,0.35)",
+                  background: "rgba(34,211,238,0.12)",
+                  color: "#67e8f9",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: loading || resendLoading ? "not-allowed" : "pointer",
+                  opacity: loading || resendLoading || !hasSignupEmail ? 0.6 : 1,
+                }}
+              >
+                {resendLoading
+                  ? tr("Reenviando...", "Resending...")
+                  : tr("No me llego: reenviar confirmacion", "Didn't receive it: resend confirmation")}
+              </button>
+              {!hasSignupEmail && (
+                <div style={{ marginTop: 6, fontSize: 12, color: "rgba(148,163,184,0.9)" }}>
+                  {tr("Escribe tu email para habilitar el reenvio.", "Enter your email to enable resend.")}
+                </div>
+              )}
+            </div>
+          )}
+
+          {mode === "login" && suggestCreateAccount && (
+            <div style={{ marginBottom: 16 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signup");
+                  setErr(null);
+                  setMsg(tr("Primero crea tu cuenta y luego inicia sesion.", "Create your account first, then sign in."));
+                  setSuggestCreateAccount(false);
+                }}
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid rgba(14,165,233,0.35)",
+                  background: "rgba(14,165,233,0.12)",
+                  color: "#7dd3fc",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.6 : 1,
+                }}
+              >
+                {tr("No tienes cuenta? Crear cuenta ahora", "No account yet? Create account now")}
+              </button>
             </div>
           )}
 
@@ -423,6 +591,27 @@ export default function AgentsAuthModal({
                 {loading ? tr("Cargando...", "Loading...") : tr("Crear cuenta", "Create account")}
               </button>
 
+              <button
+                type="button"
+                onClick={handleRequestOtpForSignup}
+                disabled={loading || resendLoading || !hasSignupEmail}
+                style={{
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid rgba(34,211,238,0.35)",
+                  background: "rgba(34,211,238,0.12)",
+                  color: "#67e8f9",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: loading || resendLoading || !hasSignupEmail ? "not-allowed" : "pointer",
+                  opacity: loading || resendLoading || !hasSignupEmail ? 0.6 : 1,
+                }}
+              >
+                {resendLoading
+                  ? tr("Enviando codigo...", "Sending code...")
+                  : tr("No llega el correo? Verificar con codigo OTP", "Email not arriving? Verify with OTP code")}
+              </button>
+
               <div style={{ marginTop: 8 }}>
                 <button
                   type="button"
@@ -485,7 +674,12 @@ export default function AgentsAuthModal({
 
           <div style={{ marginTop: 16, display: "flex", gap: 8, justifyContent: "center" }}>
             <button
-              onClick={() => setMode("login")}
+              onClick={() => {
+                setMode("login");
+                setNeedsEmailConfirmation(false);
+                setSuggestCreateAccount(false);
+                setErr(null);
+              }}
               style={{
                 background: mode === "login" ? "#0096ff" : "transparent",
                 border: "1px solid rgba(34,211,238,0.2)",
@@ -499,7 +693,12 @@ export default function AgentsAuthModal({
               {tr("Iniciar sesion", "Sign in")}
             </button>
             <button
-              onClick={() => setMode("signup")}
+              onClick={() => {
+                setMode("signup");
+                setNeedsEmailConfirmation(false);
+                setSuggestCreateAccount(false);
+                setErr(null);
+              }}
               style={{
                 background: mode === "signup" ? "#0096ff" : "transparent",
                 border: "1px solid rgba(34,211,238,0.2)",
@@ -513,7 +712,12 @@ export default function AgentsAuthModal({
               {tr("Crear cuenta", "Create account")}
             </button>
             <button
-              onClick={() => setMode("reset")}
+              onClick={() => {
+                setMode("reset");
+                setNeedsEmailConfirmation(false);
+                setSuggestCreateAccount(false);
+                setErr(null);
+              }}
               style={{
                 background: mode === "reset" ? "#0096ff" : "transparent",
                 border: "1px solid rgba(34,211,238,0.2)",
@@ -530,5 +734,17 @@ export default function AgentsAuthModal({
         </div>
       </div>
     </div>
+    <OTPVerificationModal
+      isOpen={otpOpen}
+      email={otpEmail || String(email || "").trim().toLowerCase()}
+      onVerified={async () => {
+        await handleOtpVerified();
+      }}
+      onCancel={() => setOtpOpen(false)}
+      onResendOTP={async () => {
+        await handleRequestOtpForSignup();
+      }}
+    />
+    </>
   );
 }
