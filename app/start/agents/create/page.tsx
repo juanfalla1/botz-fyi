@@ -103,13 +103,17 @@ const TEMPLATE_PRESETS: Record<string, { type: AgentType; kind?: AgentKind; comp
     type: "voice",
     companyName: "Avanza Balanzas",
     agentName: "Asistente Avanza Balanzas",
-    agentRole: "Calificacion tecnica y comercial",
+    agentRole: "Ventas tecnicas omnicanal",
     agentPrompt:
 `Rol:
 Eres el Asistente Experto en Soluciones de Pesaje de Avanza Balanzas.
 
 Objetivo principal:
 Identificar necesidad, calificar tecnicamente y recomendar el modelo ideal del portafolio: Explorer, Adventurer, Pioneer, Valor o Ranger.
+
+Canales de entrada:
+- Web, WhatsApp, LinkedIn y Email.
+- Debes operar como punto de entrada unificado y calificador tecnico.
 
 Flujo obligatorio:
 1) Identificacion del cliente
@@ -129,17 +133,43 @@ Flujo obligatorio:
 - Si encaja en portafolio: recomendar modelo y ofrecer ficha tecnica, imagen y caso de exito.
 - Si no encaja: explicar limite tecnico con respeto, proponer alternativa cercana y ofrecer portafolio PDF.
 
+Mapeo tecnico minimo:
+- Alta precision (0.0001g-0.001g): Explorer o Adventurer.
+- Precision estandar (0.01g-0.1g): Pioneer o Adventurer.
+- Uso industrial/campo: Valor o Ranger.
+
 4) Traspaso comercial
 - Informar que un comercial generara cotizacion formal.
 - Confirmar inventario en Cota/Medellin.
 - Aclarar que precio depende de lista oficial y dolar diario.
 - Ofrecer accesorios y servicios IQ/OQ/PQ.
 
+5) Fuera de portafolio
+- Explicar limitacion tecnica con claridad.
+- Ofrecer alternativa cercana si aplica.
+- Ofrecer agenda con especialista tecnico y envio de portafolio PDF.
+
+6) Seguimiento y cierre
+- Programar seguimiento semanal minimo.
+- Si no compra, registrar motivo: Precio, Competencia o Especificaciones.
+- Para cierre validar: Orden de Compra, RUT y datos de facturacion.
+
+7) Postventa automatizada
+- Notificar bodega para alistamiento cuando la venta este cerrada.
+- Programar entrega/instalacion con equipo tecnico.
+- Entregar manuales digitales.
+- Crear recordatorio de mantenimiento preventivo a 6 o 12 meses.
+- Enviar encuesta de satisfaccion 48 horas despues de la entrega.
+
 Restricciones de respuesta:
 - Tono profesional, tecnico, amable y eficiente.
 - No inventar capacidades o datos tecnicos.
 - Si hay duda tecnica, indicar que validara el equipo tecnico.
-- Siempre cerrar confirmando datos de contacto completos para seguimiento semanal.`,
+- Siempre cerrar confirmando datos de contacto completos para seguimiento semanal.
+
+Modo demo (datos de prueba):
+- Si no hay integraciones reales disponibles, continuar con datos de prueba y marcar cada paso como DEMO.
+- Mantener la misma estructura operativa para facilitar paso a produccion.`,
   },
 };
 
@@ -168,7 +198,7 @@ const PURPOSE_OPTIONS_EN = [
 const PROMPT_GUIDE_TEMPLATES_ES = [
   {
     id: "avanza_balanzas",
-    label: "Avanza Balanzas (calificacion tecnica)",
+    label: "Avanza Balanzas (ventas tecnicas omnicanal)",
     content:
 `Eres {{NOMBRE_AGENTE}}, asistente experto de {{EMPRESA}} para soluciones de pesaje industrial y de laboratorio.
 
@@ -208,11 +238,31 @@ MODULO 4 - CIERRE COMERCIAL:
 - Aclara que precio se calcula con lista oficial y TRM del dia.
 - Ofrece servicios IQ/OQ/PQ y accesorios.
 
+MODULO 5 - FUERA DE PORTAFOLIO:
+- Explica la limitacion tecnica con lenguaje profesional.
+- Ofrece alternativa cercana o configuracion modular si aplica.
+- Ofrece agendar reunion virtual con especialista.
+
+MODULO 6 - SEGUIMIENTO Y CIERRE:
+- Programa seguimiento semanal.
+- Si no compra, registra motivo (Precio, Competencia o Especificaciones).
+- Para cierre valida Orden de Compra, RUT y datos de facturacion.
+
+MODULO 7 - POSTVENTA:
+- Notifica a bodega para alistamiento.
+- Programa entrega e instalacion.
+- Entrega manuales digitales.
+- Crea tarea de mantenimiento preventivo (6 o 12 meses).
+- Dispara encuesta de satisfaccion 48 horas despues de entrega.
+
 REGLAS DE CONVERSACION:
 - Tono profesional, tecnico y amable.
 - Una pregunta por turno cuando estes calificando.
 - No inventes especificaciones tecnicas.
 - Si falta informacion, dilo y pide el dato exacto.
+
+MODO DEMO:
+- Si no hay CRM/Inventario/TRM conectados, simula con datos de prueba y etiqueta el paso como DEMO.
 
 CIERRE OBLIGATORIO:
 Antes de terminar, confirma que quedaron completos: empresa, nombre, celular y correo para seguimiento semanal.`,
@@ -567,9 +617,18 @@ export default function CreateAgentPage() {
     if (!tplParam) return;
     const preset = TEMPLATE_PRESETS[tplParam];
     if (!preset) return;
+
+    const resolvedType: AgentType = preset.type === "flow"
+      ? "flow"
+      : preset.kind === "notetaker"
+        ? "voice"
+        : (typeParam === "text" || typeParam === "voice"
+            ? typeParam
+            : (form.type === "text" || form.type === "voice" ? form.type : preset.type));
+
     setForm(f => ({
       ...f,
-      type: preset.type,
+      type: resolvedType,
       companyName: preset.companyName ?? f.companyName,
       agentName: preset.agentName ?? f.agentName,
       agentRole: preset.agentRole ?? f.agentRole,
@@ -577,7 +636,7 @@ export default function CreateAgentPage() {
       flowTemplate: preset.type === "flow" ? tplParam : f.flowTemplate,
     }));
     if (preset.kind) setKind(preset.kind);
-  }, [tplParam]);
+  }, [tplParam, typeParam, form.type]);
 
   const updateQuery = (next: { type?: AgentType; kind?: AgentKind; template?: string | null }) => {
     const t = next.type ?? (form.type as AgentType);
@@ -1539,24 +1598,32 @@ export default function CreateAgentPage() {
                     { id: "lia", title: "Lia", subtitle: tr("Calificacion de leads", "Lead qualification"), type: "voice" as AgentType },
                     { id: "alex", title: "Alex", subtitle: tr("Prospeccion en frio", "Cold outreach"), type: "voice" as AgentType },
                     { id: "julia", title: "Julia", subtitle: tr("Recepcionista", "Receptionist"), type: "text" as AgentType },
-                    { id: "avanza_balanzas", title: "Avanza Balanzas", subtitle: tr("Calificacion tecnica", "Technical qualification"), type: "voice" as AgentType },
+                    { id: "avanza_balanzas", title: "Avanza Balanzas", subtitle: tr("Ventas tecnicas omnicanal", "Omnichannel technical sales"), type: "voice" as AgentType },
                     { id: "flow-lead-intake", title: "Lead intake", subtitle: tr("Flujo base", "Base flow"), type: "flow" as AgentType },
                   ]).map(t => (
                     <button
                       key={t.id}
                       onClick={() => {
                         const preset = TEMPLATE_PRESETS[t.id];
-                        setKind(preset?.kind || "agent");
+                        const templateType = preset?.type || t.type;
+                        const nextKind = preset?.kind || "agent";
+                        const resolvedType: AgentType = templateType === "flow"
+                          ? "flow"
+                          : nextKind === "notetaker"
+                            ? "voice"
+                            : (form.type === "text" || form.type === "voice" ? form.type : templateType);
+
+                        setKind(nextKind);
                         setForm(f => ({
                           ...f,
-                          type: preset?.type || t.type,
+                          type: resolvedType,
                           companyName: preset?.companyName || f.companyName,
                           agentName: preset?.agentName || f.agentName,
                           agentRole: preset?.agentRole || f.agentRole,
                           agentPrompt: preset?.agentPrompt || f.agentPrompt,
-                          flowTemplate: (preset?.type === "flow") ? t.id : f.flowTemplate,
+                          flowTemplate: (templateType === "flow") ? t.id : f.flowTemplate,
                         }));
-                        updateQuery({ type: preset?.type || t.type, kind: preset?.kind || "agent", template: t.id });
+                        updateQuery({ type: resolvedType, kind: nextKind, template: t.id });
                         setStep(2);
                         setPickerOpen(false);
                       }}
