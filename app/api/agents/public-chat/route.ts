@@ -80,6 +80,16 @@ function shouldUseCatalog(message: string) {
   return /(precio|cotiz|referencia|modelo|ficha|pdf|inventario|trm|equipo|producto)/.test(m);
 }
 
+function buildQuoteModeInstruction(message: string) {
+  if (!shouldUseCatalog(message)) return "";
+  return `\n\nMODO COTIZACION RAPIDA (OBLIGATORIO):
+- Si el usuario ya menciona un producto/modelo, NO repitas cuestionario completo de 6 puntos.
+- Primero entrega valor inmediato: confirma producto encontrado y explica que precio final requiere precio base + TRM vigente.
+- Si falta informacion, pide maximo 2 datos en este turno (ej: cantidad y ciudad) y continua.
+- No afirmes "revise CRM" o "verifique historial" si no tienes evidencia estructurada en el contexto.
+- No inventes precios. Si falta precio base, dilo claramente y ofrece cotizacion formal con PDF.`;
+}
+
 async function buildCatalogContext(supabase: any, ownerId: string, message: string) {
   if (!shouldUseCatalog(message)) return "";
 
@@ -175,6 +185,7 @@ export async function POST(req: Request) {
   const brainFiles = normalizeBrainFiles(cfg?.brain?.files);
   const docs = buildDocumentContext(message, brainFiles);
   const catalog = await buildCatalogContext(supabase as any, ownerId, message);
+  const quoteMode = buildQuoteModeInstruction(message);
   const systemPrompt = [
     `Eres ${String(cfg?.identity_name || agent.name || "asistente")}.`,
     String(cfg?.purpose || agent.description || "Asistente virtual"),
@@ -184,6 +195,7 @@ export async function POST(req: Request) {
     "Si no tienes la informacion, dilo sin inventar.",
     docs,
     catalog,
+    quoteMode,
   ]
     .filter(Boolean)
     .join("\n\n");
