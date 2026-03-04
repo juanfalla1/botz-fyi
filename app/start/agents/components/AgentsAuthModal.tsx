@@ -30,6 +30,8 @@ export default function AgentsAuthModal({
   const [suggestCreateAccount, setSuggestCreateAccount] = useState(false);
   const [otpOpen, setOtpOpen] = useState(false);
   const [otpEmail, setOtpEmail] = useState("");
+  const [otpPurpose, setOtpPurpose] = useState<"signup" | "reset">("signup");
+  const [resetNewPassword, setResetNewPassword] = useState("");
 
   React.useEffect(() => {
     if (!open) return;
@@ -112,8 +114,8 @@ export default function AgentsAuthModal({
     }
   }
 
-  async function handleRequestOtpForSignup() {
-    const normalizedEmail = String(email || "").trim().toLowerCase();
+  async function requestOtpForEmail(targetEmail: string, purpose: "signup" | "reset") {
+    const normalizedEmail = String(targetEmail || "").trim().toLowerCase();
     if (!normalizedEmail || !normalizedEmail.includes("@")) {
       setErr(tr("Escribe un email valido para enviar el codigo.", "Enter a valid email to send the code."));
       return;
@@ -135,6 +137,7 @@ export default function AgentsAuthModal({
         throw new Error(details ? `${baseError}: ${details}` : baseError);
       }
       setOtpEmail(normalizedEmail);
+      setOtpPurpose(purpose);
       setOtpOpen(true);
       setMsg(tr("Te enviamos un codigo OTP por correo.", "We sent you an OTP code by email."));
     } catch (e: any) {
@@ -144,12 +147,40 @@ export default function AgentsAuthModal({
     }
   }
 
-  async function handleOtpVerified() {
+  async function handleRequestOtpForSignup() {
+    await requestOtpForEmail(email, "signup");
+  }
+
+  async function handleOtpVerified(otpSessionId?: string) {
     setOtpOpen(false);
     setNeedsEmailConfirmation(false);
-    setMsg(tr("Correo verificado por OTP. Iniciando sesion...", "Email verified by OTP. Signing in..."));
-
     const normalizedEmail = String(email || otpEmail || "").trim().toLowerCase();
+
+    if (otpPurpose === "reset") {
+      try {
+        const response = await fetch("/api/auth/reset-password-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: normalizedEmail,
+            otpSessionId,
+            newPassword: resetNewPassword,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data?.ok) {
+          throw new Error(String(data?.error || tr("No se pudo restablecer la contrasena.", "Could not reset password.")));
+        }
+        setMode("login");
+        setResetNewPassword("");
+        setMsg(tr("Contrasena actualizada. Ahora inicia sesion.", "Password updated. Now sign in."));
+      } catch (e: any) {
+        setErr(e?.message || tr("No se pudo restablecer la contrasena.", "Could not reset password."));
+      }
+      return;
+    }
+
+    setMsg(tr("Correo verificado por OTP. Iniciando sesion...", "Email verified by OTP. Signing in..."));
     const pwd = String(password || "").trim();
     if (!normalizedEmail || !pwd) {
       setMode("login");
@@ -314,25 +345,11 @@ export default function AgentsAuthModal({
 
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setErr(null);
-    setMsg(null);
-
-    try {
-      const normalizedEmail = String(email || "").trim().toLowerCase();
-      const redirectTo =
-        typeof window !== "undefined" ? `${window.location.origin}/start/agents/reset` : undefined;
-
-      const { error } = await supabaseAgents.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
-      if (error) throw error;
-
-      setMsg(tr("Te enviamos un correo para restablecer tu contrasena.", "We sent you an email to reset your password."));
-    } catch (e: any) {
-      const raw = String(e?.message || "");
-      setErr(authErrorText("reset", raw));
-    } finally {
-      setLoading(false);
+    if (String(resetNewPassword || "").trim().length < 6) {
+      setErr(tr("La nueva contrasena debe tener al menos 6 caracteres.", "New password must be at least 6 characters."));
+      return;
     }
+    await requestOtpForEmail(email, "reset");
   }
 
   const cardStyle: React.CSSProperties = {
@@ -475,6 +492,7 @@ export default function AgentsAuthModal({
                 placeholder={tr("Contrasena", "Password")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 disabled={loading}
                 style={{
                   padding: 10,
@@ -563,6 +581,7 @@ export default function AgentsAuthModal({
                 placeholder={tr("Contrasena", "Password")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
                 disabled={loading}
                 style={{
                   padding: 10,
@@ -652,6 +671,22 @@ export default function AgentsAuthModal({
                   fontSize: 14,
                 }}
               />
+              <input
+                type="password"
+                placeholder={tr("Nueva contrasena", "New password")}
+                value={resetNewPassword}
+                onChange={(e) => setResetNewPassword(e.target.value)}
+                autoComplete="new-password"
+                disabled={loading}
+                style={{
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid rgba(34,211,238,0.2)",
+                  background: "rgba(0,0,0,0.3)",
+                  color: "#fff",
+                  fontSize: 14,
+                }}
+              />
               <button
                 type="submit"
                 disabled={loading}
@@ -667,7 +702,7 @@ export default function AgentsAuthModal({
                   opacity: loading ? 0.5 : 1,
                 }}
               >
-                {loading ? tr("Cargando...", "Loading...") : tr("Enviar", "Send")}
+                {loading ? tr("Cargando...", "Loading...") : tr("Enviar codigo OTP", "Send OTP code")}
               </button>
             </form>
           )}
@@ -737,12 +772,12 @@ export default function AgentsAuthModal({
     <OTPVerificationModal
       isOpen={otpOpen}
       email={otpEmail || String(email || "").trim().toLowerCase()}
-      onVerified={async () => {
-        await handleOtpVerified();
+      onVerified={async (otpSessionId) => {
+        await handleOtpVerified(otpSessionId);
       }}
       onCancel={() => setOtpOpen(false)}
       onResendOTP={async () => {
-        await handleRequestOtpForSignup();
+        await requestOtpForEmail(otpEmail || email, otpPurpose);
       }}
     />
     </>
