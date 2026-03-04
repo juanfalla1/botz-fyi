@@ -447,7 +447,7 @@ const Header = () => {
                       className="lang-option"
                       style={{ background: botzLanguage === "es" ? "rgba(34, 211, 238, 0.10)" : "transparent" }}
                     >
-                      <span>Espanol</span>
+                      <span>Español</span>
                       <span style={{ color: botzLanguage === "es" ? "#22d3ee" : "#64748b" }}>ES</span>
                     </button>
 
