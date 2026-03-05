@@ -499,6 +499,29 @@ function extractCustomerName(text: string, fallback: string): string {
   return fb;
 }
 
+function extractCustomerPhone(text: string, fallbackInbound: string): string {
+  const raw = String(text || "");
+  const labeled = raw.match(/(?:telefono|tel|celular|movil|whatsapp)\s*[:=]?\s*([+\d\s().-]{8,25})/i);
+  const fromLabel = normalizePhone(String(labeled?.[1] || ""));
+  if (fromLabel.length >= 10 && fromLabel.length <= 12) return fromLabel;
+
+  const any = raw.match(/\+?\d[\d\s().-]{8,20}\d/g);
+  if (any?.length) {
+    for (const candidate of any) {
+      const n = normalizePhone(candidate);
+      if (n.length >= 10 && n.length <= 12) return n;
+    }
+  }
+
+  const inbound = normalizePhone(fallbackInbound || "");
+  if (inbound.length >= 10 && inbound.length <= 12) return inbound;
+  return "";
+}
+
+function isPresent(v: string): boolean {
+  return Boolean(String(v || "").trim());
+}
+
 function extractQuantity(text: string): number {
   const t = String(text || "");
   const m1 = t.match(/(?:cantidad|qty|x)\s*[:=]?\s*(\d{1,5})/i);
@@ -720,9 +743,8 @@ function buildQuotePdf(args: {
   doc.setFontSize(10);
   doc.text(`Numero: ${quoteNumber}`, 14, 71);
   doc.text(`Fecha: ${now.toLocaleString("es-CO")}`, 14, 76);
-  doc.text(`Draft ID: ${args.draftId}`, 14, 81);
 
-  let y = 92;
+  let y = 86;
   const row = (k: string, v: string) => {
     doc.setFont("helvetica", "bold");
     doc.text(`${k}:`, 14, y);
@@ -734,7 +756,8 @@ function buildQuotePdf(args: {
   row("Empresa", args.companyName || "Avanza Balanzas");
   row("Cliente", args.customerName || "-");
   row("Correo", args.customerEmail || "-");
-  row("Telefono", args.customerPhone || "-");
+  const phoneSafe = normalizePhone(args.customerPhone || "");
+  row("Telefono", phoneSafe.length >= 10 && phoneSafe.length <= 12 ? phoneSafe : "-");
   row("Producto", args.productName || "-");
   row("Cantidad", String(args.quantity || 1));
   row("Precio base USD", args.basePriceUsd > 0 ? formatMoney(args.basePriceUsd) : "-");
@@ -897,6 +920,7 @@ export async function POST(req: Request) {
     let billedTokens = 0;
     let handledByInventory = false;
     let handledByRecall = false;
+    let handledByQuoteIntake = false;
     let resendPdf: null | {
       draftId: string;
       fileName: string;
@@ -1025,9 +1049,21 @@ export async function POST(req: Request) {
           const quantity = extractQuantity(inbound.text);
           const customerEmail = extractEmail(combinedUserContext);
           const customerName = extractCustomerName(combinedUserContext, inbound.pushName || "");
+          const customerPhone = extractCustomerPhone(combinedUserContext, inbound.from);
           const basePriceUsd = Number(matchedProduct?.base_price_usd || 0);
 
-          if (basePriceUsd > 0) {
+          const missingFields: string[] = [];
+          if (!isPresent(customerName)) missingFields.push("nombre completo");
+          if (!isPresent(customerEmail)) missingFields.push("correo");
+          if (!isPresent(customerPhone)) missingFields.push("telefono");
+
+          if (missingFields.length) {
+            reply = `Para enviarte la cotizacion en PDF sin campos vacios, me faltan estos datos: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Nombre: ..., Correo: ..., Telefono: ...).`;
+            handledByQuoteIntake = true;
+            billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+          }
+
+          if (!missingFields.length && basePriceUsd > 0) {
             const trm = await getOrFetchTrm(supabase, ownerId, (agent as any)?.tenant_id || null);
             const trmRate = Number(trm?.rate || 0);
 
@@ -1039,7 +1075,7 @@ export async function POST(req: Request) {
                 agent_id: String(agent.id),
                 customer_name: customerName || null,
                 customer_email: customerEmail || null,
-                customer_phone: inbound.from,
+                customer_phone: customerPhone || null,
                 company_name: String(cfg?.company_name || cfg?.company_desc || "Avanza Balanzas").slice(0, 120) || "Avanza Balanzas",
                 location: null,
                 product_catalog_id: matchedProduct.id,
@@ -1070,7 +1106,7 @@ export async function POST(req: Request) {
                   companyName: String(draftPayload.company_name || "Avanza Balanzas"),
                   customerName: customerName || "",
                   customerEmail: customerEmail || "",
-                  customerPhone: inbound.from,
+                  customerPhone: customerPhone || "",
                   productName: String(matchedProduct.name || ""),
                   quantity,
                   basePriceUsd,
@@ -1097,7 +1133,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!autoQuote && !handledByRecall && !handledByInventory) {
+    if (!autoQuote && !handledByRecall && !handledByInventory && !handledByQuoteIntake) {
       const systemPrompt = [
         `Eres ${String(cfg?.identity_name || agent.name || "asistente")}.`,
         String(cfg?.purpose || agent.description || "Asistente virtual"),

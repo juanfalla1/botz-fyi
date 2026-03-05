@@ -10,6 +10,11 @@ function normalizePhone(raw: string) {
   return String(raw || "").replace(/\D/g, "");
 }
 
+function printablePhone(raw: string) {
+  const n = normalizePhone(raw || "");
+  return n.length >= 10 && n.length <= 12 ? n : "-";
+}
+
 function formatMoney(n: number) {
   return new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 }).format(Number(n || 0));
 }
@@ -58,9 +63,8 @@ function buildQuotePdf(args: {
   doc.setFontSize(10);
   doc.text(`Numero: ${quoteNumber}`, 14, 71);
   doc.text(`Fecha: ${now.toLocaleString("es-CO")}`, 14, 76);
-  doc.text(`Draft ID: ${args.draftId}`, 14, 81);
 
-  let y = 92;
+  let y = 86;
   const row = (k: string, v: string) => {
     doc.setFont("helvetica", "bold");
     doc.text(`${k}:`, 14, y);
@@ -72,7 +76,7 @@ function buildQuotePdf(args: {
   row("Empresa", args.companyName || "Avanza Balanzas");
   row("Cliente", args.customerName || "-");
   row("Correo", args.customerEmail || "-");
-  row("Telefono", args.customerPhone || "-");
+  row("Telefono", printablePhone(args.customerPhone || ""));
   row("Producto", args.productName || "-");
   row("Cantidad", String(args.quantity || 1));
   row("Precio base USD", args.basePriceUsd > 0 ? formatMoney(args.basePriceUsd) : "-");
