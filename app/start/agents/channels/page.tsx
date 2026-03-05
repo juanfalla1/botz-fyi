@@ -504,9 +504,8 @@ export default function AgentChannelsPage() {
           </div>
         )}
 
-        {!canAdvanced && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, marginBottom: 12 }}>
-            <div style={{ borderRadius: 12, border: "1px solid rgba(163,230,53,0.35)", background: "rgba(163,230,53,0.08)", padding: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, marginBottom: 12 }}>
+          <div style={{ borderRadius: 12, border: "1px solid rgba(163,230,53,0.35)", background: "rgba(163,230,53,0.08)", padding: 12 }}>
               <div style={{ fontWeight: 900, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <span>WhatsApp QR (Evolution)</span>
                 <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 900, background: evolutionStatus === "connected" ? "rgba(16,185,129,0.18)" : evolutionStatus === "pending" ? "rgba(245,158,11,0.16)" : "rgba(107,114,128,0.18)", color: evolutionStatus === "connected" ? "#34d399" : evolutionStatus === "pending" ? "#fbbf24" : "#9ca3af" }}>
@@ -552,9 +551,9 @@ export default function AgentChannelsPage() {
                   {evolutionDisconnectBusy ? tr("Desconectando...", "Disconnecting...") : tr("Desconectar", "Disconnect")}
                 </button>
               )}
-            </div>
+          </div>
 
-            {[
+          {!canAdvanced && [
               { channel_type: "whatsapp", provider: "meta", title: "WhatsApp (Meta)", desc: tr("Configuracion asistida con Meta", "Assisted setup with Meta") },
               { channel_type: "whatsapp", provider: "messagebird", variant: "legacy", title: tr("MessageBird WhatsApp (Legado)", "MessageBird WhatsApp (Legacy)"), desc: tr("Canal legado de MessageBird", "Legacy MessageBird channel") },
               { channel_type: "instagram", provider: "messagebird", title: "MessageBird Instagram", desc: tr("Mensajes de Instagram por MessageBird", "Instagram messages via MessageBird") },
@@ -578,8 +577,7 @@ export default function AgentChannelsPage() {
                 </button>
               </div>
             ))}
-          </div>
-        )}
+        </div>
 
         {canAdvanced && (
         <div style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr .9fr 1fr 1fr auto", gap: 10, marginBottom: 10, padding: 14, borderRadius: 14, border: `1px solid ${C.border}`, background: C.card }}>
