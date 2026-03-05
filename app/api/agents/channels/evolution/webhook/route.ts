@@ -566,6 +566,11 @@ function isRecommendationIntent(text: string): boolean {
   return /(recomiend|modelo ideal|que modelo|cual modelo|me sirve|para mi caso|que balanza|sugerencia)/.test(t);
 }
 
+function isHistoryIntent(text: string): boolean {
+  const t = normalizeText(text);
+  return /(mi historial|que tengo en mi historial|historial|mis cotizaciones|cotizaciones anteriores|compras anteriores|mi ultima cotizacion)/.test(t);
+}
+
 function withAvaSignature(text: string): string {
   const body = String(text || "").trim();
   if (!body) return "Soy Ava de Avanza Balanzas. ¿En qué puedo ayudarte hoy?";
@@ -924,6 +929,7 @@ export async function POST(req: Request) {
     let usageCompletion = 0;
     let billedTokens = 0;
     let handledByInventory = false;
+    let handledByHistory = false;
     let handledByRecommendation = false;
     let handledByRecall = false;
     let handledByQuoteIntake = false;
@@ -975,7 +981,41 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByInventory && isRecommendationIntent(inbound.text)) {
+    if (!handledByInventory && isHistoryIntent(inbound.text)) {
+      try {
+        const inboundPhone = normalizePhone(inbound.from || "");
+        const inboundTail = phoneTail10(inbound.from || "");
+
+        const { data: drafts } = await supabase
+          .from("agent_quote_drafts")
+          .select("id,product_name,total_cop,trm_rate,status,payload,customer_phone,created_at")
+          .eq("created_by", ownerId)
+          .eq("agent_id", String(agent.id))
+          .order("created_at", { ascending: false })
+          .limit(30);
+
+        const list = Array.isArray(drafts) ? drafts : [];
+        const mine = list.filter((d: any) => {
+          const p = normalizePhone(String(d?.customer_phone || ""));
+          return p === inboundPhone || phoneTail10(p) === inboundTail;
+        });
+
+        if (mine.length) {
+          const last = mine[0] as any;
+          const qty = Math.max(1, Number(last?.payload?.quantity || 1));
+          reply = `Si, ya tengo tu historial. Veo ${mine.length} cotizacion(es) asociadas a este numero. La ultima fue de ${String(last?.product_name || "producto")}, cantidad ${qty}, total COP ${formatMoney(Number(last?.total_cop || 0))}, estado ${String(last?.status || "draft")}. Si quieres, te la reenvio en PDF escribiendo: reenviar PDF.`;
+        } else {
+          reply = "Por ahora no encuentro cotizaciones previas asociadas a este numero. Si quieres, te genero una nueva en este momento.";
+        }
+
+        handledByHistory = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      } catch (histErr: any) {
+        console.warn("[evolution-webhook] history_lookup_failed", histErr?.message || histErr);
+      }
+    }
+
+    if (!handledByInventory && !handledByHistory && isRecommendationIntent(inbound.text)) {
       try {
         const { data: products } = await supabase
           .from("agent_product_catalog")
@@ -1009,7 +1049,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByInventory && isQuoteRecallIntent(inbound.text)) {
+    if (!handledByInventory && !handledByHistory && isQuoteRecallIntent(inbound.text)) {
       try {
         const { data: recentDrafts } = await supabase
           .from("agent_quote_drafts")
@@ -1065,7 +1105,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByInventory && !handledByRecall && shouldAutoQuote(inbound.text)) {
+    if (!handledByInventory && !handledByHistory && !handledByRecall && shouldAutoQuote(inbound.text)) {
       try {
         const { data: products } = await supabase
           .from("agent_product_catalog")
@@ -1173,7 +1213,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!autoQuote && !handledByRecall && !handledByInventory && !handledByRecommendation && !handledByQuoteIntake) {
+    if (!autoQuote && !handledByRecall && !handledByInventory && !handledByHistory && !handledByRecommendation && !handledByQuoteIntake) {
       const { data: catalogRows } = await supabase
         .from("agent_product_catalog")
         .select("name,brand,category")
