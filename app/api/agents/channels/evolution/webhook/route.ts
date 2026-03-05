@@ -576,6 +576,14 @@ function isHistoryIntent(text: string): boolean {
   return /(mi historial|que tengo en mi historial|historial|mis cotizaciones|cotizaciones anteriores|compras anteriores|mi ultima cotizacion)/.test(t);
 }
 
+function isContactInfoBundle(text: string): boolean {
+  const t = String(text || "");
+  const hasEmail = Boolean(extractEmail(t));
+  const hasPhone = Boolean(extractCustomerPhone(t, ""));
+  const hasNameLike = /(^|\n|\r)(nombre|name)\s*[:=]|^[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}(\s+[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,})?/m.test(t);
+  return hasEmail && hasPhone && hasNameLike;
+}
+
 function isGreetingIntent(text: string): boolean {
   const t = normalizeText(text).replace(/[^a-z0-9\s]/g, " ").trim();
   if (!t) return false;
@@ -1156,7 +1164,16 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecall && shouldAutoQuote(inbound.text)) {
+    const recentUserContext = historyMessages
+      .filter((m) => m.role === "user")
+      .map((m) => m.content)
+      .slice(-6)
+      .join("\n");
+    const resumeQuoteFromContext =
+      isContactInfoBundle(inbound.text) &&
+      shouldAutoQuote(`${recentUserContext}\n${inbound.text}`);
+
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext)) {
       try {
         const { data: products } = await supabase
           .from("agent_product_catalog")
@@ -1167,7 +1184,8 @@ export async function POST(req: Request) {
           .order("updated_at", { ascending: false })
           .limit(80);
 
-        const matchedProduct = pickBestCatalogProduct(inbound.text, products || []);
+        const quoteSourceText = resumeQuoteFromContext ? `${recentUserContext}\n${inbound.text}` : inbound.text;
+        const matchedProduct = pickBestCatalogProduct(quoteSourceText, products || []);
 
         if (matchedProduct) {
           const transcript = Array.isArray(existingConv?.transcript) ? existingConv.transcript : [];
@@ -1177,7 +1195,7 @@ export async function POST(req: Request) {
             .map((m: any) => String(m.content || ""));
           const combinedUserContext = `${latestUserLines.join("\n")}\n${inbound.text}`;
 
-          const quantity = extractQuantity(inbound.text);
+          const quantity = extractQuantity(quoteSourceText);
           const customerEmail = extractEmail(combinedUserContext);
           const customerName = extractCustomerName(combinedUserContext, inbound.pushName || "");
           const customerPhone = extractCustomerPhone(combinedUserContext, inbound.from);
