@@ -528,6 +528,14 @@ function shouldResendPdf(text: string): boolean {
   return /(reenviar|reenvia|reenvie|volver a enviar|mandame otra vez|otra vez el pdf|reenvio)/.test(t);
 }
 
+function isInventoryInfoIntent(text: string): boolean {
+  const t = normalizeText(text);
+  return (
+    /(cuantos|cuantas|numero de|cantidad de).*(productos|equipos|referencias|items)/.test(t) ||
+    /(catalogo|catalogo|inventario).*(productos|equipos|referencias)/.test(t)
+  );
+}
+
 function phoneTail10(raw: string): string {
   const n = normalizePhone(raw || "");
   return n.length > 10 ? n.slice(-10) : n;
@@ -877,6 +885,7 @@ export async function POST(req: Request) {
     let usageTotal = 0;
     let usageCompletion = 0;
     let billedTokens = 0;
+    let handledByInventory = false;
     let handledByRecall = false;
     let resendPdf: null | {
       draftId: string;
@@ -891,7 +900,42 @@ export async function POST(req: Request) {
       quantity: number;
     } = null;
 
-    if (isQuoteRecallIntent(inbound.text)) {
+    if (isInventoryInfoIntent(inbound.text)) {
+      try {
+        const { count: totalActive } = await supabase
+          .from("agent_product_catalog")
+          .select("id", { count: "exact", head: true })
+          .eq("created_by", ownerId)
+          .eq("is_active", true);
+
+        const { count: totalPriced } = await supabase
+          .from("agent_product_catalog")
+          .select("id", { count: "exact", head: true })
+          .eq("created_by", ownerId)
+          .eq("is_active", true)
+          .gt("base_price_usd", 0);
+
+        const { data: sample } = await supabase
+          .from("agent_product_catalog")
+          .select("name")
+          .eq("created_by", ownerId)
+          .eq("is_active", true)
+          .order("updated_at", { ascending: false })
+          .limit(5);
+
+        const examples = Array.isArray(sample)
+          ? sample.map((x: any) => String(x?.name || "").trim()).filter(Boolean)
+          : [];
+
+        reply = `Hoy tengo ${Number(totalActive || 0)} productos activos en catalogo. De esos, ${Number(totalPriced || 0)} tienen precio base cargado para cotizacion automatica con PDF. ${examples.length ? `Ejemplos: ${examples.join(", ")}.` : ""}`.trim();
+        handledByInventory = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      } catch (invErr: any) {
+        console.warn("[evolution-webhook] inventory_info_failed", invErr?.message || invErr);
+      }
+    }
+
+    if (!handledByInventory && isQuoteRecallIntent(inbound.text)) {
       try {
         const { data: recentDrafts } = await supabase
           .from("agent_quote_drafts")
@@ -947,7 +991,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByRecall && shouldAutoQuote(inbound.text)) {
+    if (!handledByInventory && !handledByRecall && shouldAutoQuote(inbound.text)) {
       try {
         const { data: products } = await supabase
           .from("agent_product_catalog")
@@ -1043,7 +1087,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!autoQuote && !handledByRecall) {
+    if (!autoQuote && !handledByRecall && !handledByInventory) {
       const systemPrompt = [
         `Eres ${String(cfg?.identity_name || agent.name || "asistente")}.`,
         String(cfg?.purpose || agent.description || "Asistente virtual"),
