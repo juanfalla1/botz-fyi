@@ -561,6 +561,11 @@ function isInventoryInfoIntent(text: string): boolean {
   );
 }
 
+function isRecommendationIntent(text: string): boolean {
+  const t = normalizeText(text);
+  return /(recomiend|modelo ideal|que modelo|cual modelo|me sirve|para mi caso|que balanza|sugerencia)/.test(t);
+}
+
 function withAvaSignature(text: string): string {
   const body = String(text || "").trim();
   if (!body) return "Soy Ava de Avanza Balanzas. ¿En qué puedo ayudarte hoy?";
@@ -919,6 +924,7 @@ export async function POST(req: Request) {
     let usageCompletion = 0;
     let billedTokens = 0;
     let handledByInventory = false;
+    let handledByRecommendation = false;
     let handledByRecall = false;
     let handledByQuoteIntake = false;
     let resendPdf: null | {
@@ -966,6 +972,40 @@ export async function POST(req: Request) {
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       } catch (invErr: any) {
         console.warn("[evolution-webhook] inventory_info_failed", invErr?.message || invErr);
+      }
+    }
+
+    if (!handledByInventory && isRecommendationIntent(inbound.text)) {
+      try {
+        const { data: products } = await supabase
+          .from("agent_product_catalog")
+          .select("id,name,brand,category")
+          .eq("created_by", ownerId)
+          .eq("is_active", true)
+          .order("updated_at", { ascending: false })
+          .limit(80);
+
+        const list = Array.isArray(products) ? products : [];
+        const matched = pickBestCatalogProduct(inbound.text, list);
+        const suggestions = [
+          matched,
+          ...list.filter((p: any) => !matched || String(p.id) !== String(matched.id)),
+        ]
+          .filter(Boolean)
+          .slice(0, 3)
+          .map((p: any) => String(p?.name || "").trim())
+          .filter(Boolean);
+
+        if (suggestions.length) {
+          reply = `Con base en tu caso, te puedo recomendar opciones de nuestro catalogo actual: ${suggestions.join("; ")}. Si eliges una, te preparo cotizacion con TRM de hoy y PDF.`;
+        } else {
+          reply = "Ahora mismo no encuentro productos activos en el catalogo para recomendar. Si quieres, actualizo catalogo y te cotizo enseguida.";
+        }
+
+        handledByRecommendation = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      } catch (recErr: any) {
+        console.warn("[evolution-webhook] recommendation_failed", recErr?.message || recErr);
       }
     }
 
@@ -1133,13 +1173,30 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!autoQuote && !handledByRecall && !handledByInventory && !handledByQuoteIntake) {
+    if (!autoQuote && !handledByRecall && !handledByInventory && !handledByRecommendation && !handledByQuoteIntake) {
+      const { data: catalogRows } = await supabase
+        .from("agent_product_catalog")
+        .select("name,brand,category")
+        .eq("created_by", ownerId)
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(80);
+
+      const catalogNames = Array.isArray(catalogRows)
+        ? catalogRows
+            .map((r: any) => `${String(r?.name || "").trim()}${r?.brand ? ` (marca ${String(r.brand).trim()})` : ""}`.trim())
+            .filter(Boolean)
+        : [];
+
       const systemPrompt = [
         `Eres ${String(cfg?.identity_name || agent.name || "asistente")}.`,
         String(cfg?.purpose || agent.description || "Asistente virtual"),
         String(cfg?.company_desc || ""),
         String(cfg?.system_prompt || cfg?.important_instructions || ""),
         "Responde en espanol claro y profesional, con mensajes cortos de WhatsApp.",
+        "Regla estricta: solo puedes mencionar, recomendar o cotizar productos presentes en el catalogo cargado abajo. Si el usuario pide algo fuera de catalogo, dilo explicitamente y pide elegir un producto existente.",
+        "Nunca afirmes vender carros/vehiculos; solo equipos de pesaje/laboratorio del catalogo.",
+        catalogNames.length ? `Catalogo activo (nombres exactos): ${catalogNames.join(" | ")}` : "Catalogo activo: no disponible.",
         "Si no tienes la informacion, dilo sin inventar.",
         docs,
       ]
