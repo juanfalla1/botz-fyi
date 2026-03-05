@@ -541,9 +541,14 @@ function shouldAutoQuote(text: string): boolean {
 function isQuoteRecallIntent(text: string): boolean {
   const t = normalizeText(text);
   return (
-    /recuerd|ultima cotizacion|cotizacion que me enviaste|cotizacion anterior|mi cotizacion|la cotizacion/.test(t) &&
+    /recuerd|ultima cotizacion|cotizacion que me enviaste|cotizacion anterior|mi cotizacion|mi ultima cotizacion/.test(t) &&
     /(cotiz|pdf|enviaste|anterior|ultima|recordar|recuerd)/.test(t)
   );
+}
+
+function isPriceIntent(text: string): boolean {
+  const t = normalizeText(text);
+  return /(precio|precios|cuanto vale|cuanto cuest|valor|valen|cuestan)/.test(t);
 }
 
 function shouldResendPdf(text: string): boolean {
@@ -939,6 +944,7 @@ export async function POST(req: Request) {
     let handledByGreeting = false;
     let handledByInventory = false;
     let handledByHistory = false;
+    let handledByPricing = false;
     let handledByRecommendation = false;
     let handledByRecall = false;
     let handledByQuoteIntake = false;
@@ -1030,7 +1036,37 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && isRecommendationIntent(inbound.text)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && isPriceIntent(inbound.text)) {
+      try {
+        const { data: pricedProducts } = await supabase
+          .from("agent_product_catalog")
+          .select("id,name,base_price_usd")
+          .eq("created_by", ownerId)
+          .eq("is_active", true)
+          .gt("base_price_usd", 0)
+          .order("updated_at", { ascending: false })
+          .limit(20);
+
+        const list = Array.isArray(pricedProducts) ? pricedProducts : [];
+        const matched = pickBestCatalogProduct(inbound.text, list as any);
+
+        if (matched?.name) {
+          reply = `El producto ${String(matched.name)} tiene precio base USD ${formatMoney(Number(matched.base_price_usd || 0))}. Si quieres, te genero la cotizacion con TRM de hoy y PDF.`;
+        } else if (list.length) {
+          const sample = list.slice(0, 8).map((p: any) => `${String(p.name)} (USD ${formatMoney(Number(p.base_price_usd || 0))})`);
+          reply = `Estos son los productos con precio cargado actualmente: ${sample.join("; ")}. Elige uno y te genero cotizacion con TRM y PDF.`;
+        } else {
+          reply = "Ahora mismo no tengo productos con precio cargado para cotizar. Si quieres, te confirmo el catalogo disponible primero.";
+        }
+
+        handledByPricing = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      } catch (priceErr: any) {
+        console.warn("[evolution-webhook] pricing_lookup_failed", priceErr?.message || priceErr);
+      }
+    }
+
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && isRecommendationIntent(inbound.text)) {
       try {
         const { data: products } = await supabase
           .from("agent_product_catalog")
@@ -1064,7 +1100,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && isQuoteRecallIntent(inbound.text)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && isQuoteRecallIntent(inbound.text)) {
       try {
         const { data: recentDrafts } = await supabase
           .from("agent_quote_drafts")
@@ -1120,7 +1156,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByRecall && shouldAutoQuote(inbound.text)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecall && shouldAutoQuote(inbound.text)) {
       try {
         const { data: products } = await supabase
           .from("agent_product_catalog")
@@ -1228,7 +1264,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!autoQuote && !handledByGreeting && !handledByRecall && !handledByInventory && !handledByHistory && !handledByRecommendation && !handledByQuoteIntake) {
+    if (!autoQuote && !handledByGreeting && !handledByRecall && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteIntake) {
       const { data: catalogRows } = await supabase
         .from("agent_product_catalog")
         .select("name,brand,category")
