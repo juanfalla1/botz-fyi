@@ -528,6 +528,11 @@ function shouldResendPdf(text: string): boolean {
   return /(reenviar|reenvia|reenvie|volver a enviar|mandame otra vez|otra vez el pdf|reenvio)/.test(t);
 }
 
+function phoneTail10(raw: string): string {
+  const n = normalizePhone(raw || "");
+  return n.length > 10 ? n.slice(-10) : n;
+}
+
 function pickBestCatalogProduct(text: string, rows: any[]): any | null {
   const inbound = normalizeText(text);
   const terms = Array.from(
@@ -888,15 +893,22 @@ export async function POST(req: Request) {
 
     if (isQuoteRecallIntent(inbound.text)) {
       try {
-        const { data: lastDraft } = await supabase
+        const { data: recentDrafts } = await supabase
           .from("agent_quote_drafts")
           .select("id,product_name,base_price_usd,trm_rate,total_cop,status,payload,customer_phone,customer_name,customer_email,company_name,notes,created_at")
           .eq("created_by", ownerId)
           .eq("agent_id", String(agent.id))
-          .eq("customer_phone", inbound.from)
           .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .limit(30);
+
+        const inboundPhone = normalizePhone(inbound.from || "");
+        const inboundTail = phoneTail10(inbound.from || "");
+        const draftList = Array.isArray(recentDrafts) ? recentDrafts : [];
+
+        const lastDraft =
+          draftList.find((d: any) => normalizePhone(String(d?.customer_phone || "")) === inboundPhone) ||
+          draftList.find((d: any) => phoneTail10(String(d?.customer_phone || "")) === inboundTail) ||
+          null;
 
         if (lastDraft?.id) {
           const qty = Math.max(1, Number((lastDraft as any)?.payload?.quantity || 1));
