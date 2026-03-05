@@ -31,17 +31,36 @@ function buildQuotePdf(args: {
   const now = new Date();
   const quoteNumber = `Q-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
 
+  // Header block (brand style)
+  doc.setFillColor(10, 121, 167);
+  doc.rect(0, 0, 210, 52, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(28);
+  doc.text("Avanza", 14, 20);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text("International group s.a.s", 70, 13);
+  doc.text("EQUIPOS Y CONSUMIBLES PARA LABORATORIO", 14, 26);
+  doc.setFontSize(10);
+  doc.text("+57 300 8265047  |  +57 320 8336976", 14, 34);
+  doc.text("Autopista Medellin K 2.5 entrada parcelas 900 m CIEM OIKOS OCCIDENTE", 14, 39);
+  doc.text("Cra 81 # 32-332 Nueva Villa de Aburra - Local 332", 14, 44);
+  doc.text("info@avanzagroup.com.co", 14, 49);
+
+  doc.setTextColor(20, 20, 20);
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text("Cotizacion tecnica preliminar", 14, 16);
+  doc.text("Cotizacion tecnica preliminar", 14, 64);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  doc.text(`Numero: ${quoteNumber}`, 14, 24);
-  doc.text(`Fecha: ${now.toLocaleString("es-CO")}`, 14, 29);
-  doc.text(`Draft ID: ${args.draftId}`, 14, 34);
+  doc.text(`Numero: ${quoteNumber}`, 14, 71);
+  doc.text(`Fecha: ${now.toLocaleString("es-CO")}`, 14, 76);
+  doc.text(`Draft ID: ${args.draftId}`, 14, 81);
 
-  let y = 44;
+  let y = 92;
   const row = (k: string, v: string) => {
     doc.setFont("helvetica", "bold");
     doc.text(`${k}:`, 14, y);
