@@ -211,37 +211,84 @@ export class EvolutionService {
     const caption = String(args?.caption || "").trim();
     const mimetype = String(args?.mimetype || "application/pdf").trim() || "application/pdf";
     const rawBase64 = String(args?.base64 || "").trim();
-    const media = rawBase64.startsWith("data:") ? rawBase64 : `data:${mimetype};base64,${rawBase64}`;
+    const base64Only = rawBase64.startsWith("data:")
+      ? (rawBase64.split(",")[1] || "").trim()
+      : rawBase64;
+    const mediaDataUrl = rawBase64.startsWith("data:") ? rawBase64 : `data:${mimetype};base64,${base64Only}`;
 
     console.log("[evolutionService] sendDocument", {
       instanceName,
       number,
       fileName,
       captionLength: caption.length,
-      mediaChars: media.length,
+      mediaChars: mediaDataUrl.length,
     });
 
     const attempts: Array<{ body: any; tag: string }> = [
       {
-        tag: "sendMedia_number",
+        tag: "sendMedia_media_base64Only",
         body: {
           number,
           mediatype: "document",
           mimetype,
           fileName,
           caption,
-          media,
+          media: base64Only,
         },
       },
       {
-        tag: "sendMedia_file",
+        tag: "sendMedia_file_base64Only",
         body: {
           number,
           mediatype: "document",
           mimetype,
           fileName,
           caption,
-          file: media,
+          file: base64Only,
+        },
+      },
+      {
+        tag: "sendMedia_base64_base64Only",
+        body: {
+          number,
+          mediatype: "document",
+          mimetype,
+          fileName,
+          caption,
+          base64: base64Only,
+        },
+      },
+      {
+        tag: "sendMedia_media_dataUrl",
+        body: {
+          number,
+          mediatype: "document",
+          mimetype,
+          fileName,
+          caption,
+          media: mediaDataUrl,
+        },
+      },
+      {
+        tag: "sendMedia_file_dataUrl",
+        body: {
+          number,
+          mediatype: "document",
+          mimetype,
+          fileName,
+          caption,
+          file: mediaDataUrl,
+        },
+      },
+      {
+        tag: "sendMedia_base64_dataUrl",
+        body: {
+          number,
+          mediatype: "document",
+          mimetype,
+          fileName,
+          caption,
+          base64: mediaDataUrl,
         },
       },
     ];
