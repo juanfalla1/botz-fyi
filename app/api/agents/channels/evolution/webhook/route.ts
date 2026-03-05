@@ -515,6 +515,19 @@ function shouldAutoQuote(text: string): boolean {
   return asksQuote && asksDelivery;
 }
 
+function isQuoteRecallIntent(text: string): boolean {
+  const t = normalizeText(text);
+  return (
+    /recuerd|ultima cotizacion|cotizacion que me enviaste|cotizacion anterior|mi cotizacion|la cotizacion/.test(t) &&
+    /(cotiz|pdf|enviaste|anterior|ultima|recordar|recuerd)/.test(t)
+  );
+}
+
+function shouldResendPdf(text: string): boolean {
+  const t = normalizeText(text);
+  return /(reenviar|reenvia|reenvie|volver a enviar|mandame otra vez|otra vez el pdf|reenvio)/.test(t);
+}
+
 function pickBestCatalogProduct(text: string, rows: any[]): any | null {
   const inbound = normalizeText(text);
   const terms = Array.from(
@@ -859,6 +872,12 @@ export async function POST(req: Request) {
     let usageTotal = 0;
     let usageCompletion = 0;
     let billedTokens = 0;
+    let handledByRecall = false;
+    let resendPdf: null | {
+      draftId: string;
+      fileName: string;
+      pdfBase64: string;
+    } = null;
     let autoQuote: null | {
       handled: true;
       draftId: string;
@@ -867,7 +886,56 @@ export async function POST(req: Request) {
       quantity: number;
     } = null;
 
-    if (shouldAutoQuote(inbound.text)) {
+    if (isQuoteRecallIntent(inbound.text)) {
+      try {
+        const { data: lastDraft } = await supabase
+          .from("agent_quote_drafts")
+          .select("id,product_name,base_price_usd,trm_rate,total_cop,status,payload,customer_phone,customer_name,customer_email,company_name,notes,created_at")
+          .eq("created_by", ownerId)
+          .eq("agent_id", String(agent.id))
+          .eq("customer_phone", inbound.from)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (lastDraft?.id) {
+          const qty = Math.max(1, Number((lastDraft as any)?.payload?.quantity || 1));
+          reply = `Si, claro. Tu ultima cotizacion fue del producto ${String(lastDraft.product_name || "")}, cantidad ${qty}, total COP ${formatMoney(Number(lastDraft.total_cop || 0))} con TRM ${formatMoney(Number(lastDraft.trm_rate || 0))}.`;
+
+          if (shouldResendPdf(inbound.text)) {
+            const pdfBase64 = buildQuotePdf({
+              draftId: String(lastDraft.id),
+              companyName: String((lastDraft as any).company_name || "Avanza Balanzas"),
+              customerName: String((lastDraft as any).customer_name || inbound.pushName || ""),
+              customerEmail: String((lastDraft as any).customer_email || ""),
+              customerPhone: String((lastDraft as any).customer_phone || inbound.from),
+              productName: String((lastDraft as any).product_name || ""),
+              quantity: qty,
+              basePriceUsd: Number((lastDraft as any).base_price_usd || 0),
+              trmRate: Number((lastDraft as any).trm_rate || 0),
+              totalCop: Number((lastDraft as any).total_cop || 0),
+              notes: String((lastDraft as any).notes || ""),
+            });
+            resendPdf = {
+              draftId: String(lastDraft.id),
+              fileName: `cotizacion-${String(lastDraft.id).slice(0, 8)}.pdf`,
+              pdfBase64,
+            };
+            reply += " Te reenvio el PDF ahora mismo por este chat.";
+          } else {
+            reply += " Si quieres, escribe 'reenviar PDF' y te lo mando de nuevo ahora.";
+          }
+        } else {
+          reply = "Por ahora no encuentro una cotizacion previa asociada a este numero. Si quieres, te genero una nueva de inmediato.";
+        }
+        handledByRecall = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      } catch (recallErr: any) {
+        console.warn("[evolution-webhook] recall_quote_failed", recallErr?.message || recallErr);
+      }
+    }
+
+    if (!handledByRecall && shouldAutoQuote(inbound.text)) {
       try {
         const { data: products } = await supabase
           .from("agent_product_catalog")
@@ -963,7 +1031,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!autoQuote) {
+    if (!autoQuote && !handledByRecall) {
       const systemPrompt = [
         `Eres ${String(cfg?.identity_name || agent.name || "asistente")}.`,
         String(cfg?.purpose || agent.description || "Asistente virtual"),
@@ -1134,20 +1202,30 @@ export async function POST(req: Request) {
     }
     console.info("[evolution-webhook] reply sent", { channelId: (channel as any)?.id, agentId: agent.id, to: sentTo });
 
-    if (autoQuote) {
+    if (autoQuote || resendPdf) {
       try {
+        const pdfToSend = autoQuote
+          ? {
+              draftId: autoQuote.draftId,
+              fileName: autoQuote.fileName,
+              pdfBase64: autoQuote.pdfBase64,
+            }
+          : resendPdf!;
+
         await evolutionService.sendDocument(outboundInstance, sentTo, {
-          base64: autoQuote.pdfBase64,
-          fileName: autoQuote.fileName,
-          caption: `Cotizacion preliminar ${autoQuote.fileName}`,
+          base64: pdfToSend.pdfBase64,
+          fileName: pdfToSend.fileName,
+          caption: `Cotizacion preliminar ${pdfToSend.fileName}`,
           mimetype: "application/pdf",
         });
 
-        await supabase
-          .from("agent_quote_drafts")
-          .update({ status: "sent" })
-          .eq("id", autoQuote.draftId)
-          .eq("created_by", ownerId);
+        if (autoQuote) {
+          await supabase
+            .from("agent_quote_drafts")
+            .update({ status: "sent" })
+            .eq("id", autoQuote.draftId)
+            .eq("created_by", ownerId);
+        }
       } catch (pdfErr: any) {
         console.warn("[evolution-webhook] auto_quote_pdf_send_failed", pdfErr?.message || pdfErr);
       }
