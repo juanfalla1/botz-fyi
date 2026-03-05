@@ -532,8 +532,18 @@ function isInventoryInfoIntent(text: string): boolean {
   const t = normalizeText(text);
   return (
     /(cuantos|cuantas|numero de|cantidad de).*(productos|equipos|referencias|items)/.test(t) ||
-    /(catalogo|catalogo|inventario).*(productos|equipos|referencias)/.test(t)
+    /(catalogo|inventario).*(productos|equipos|referencias)/.test(t) ||
+    /(que|cuales).*(productos|equipos).*(tienen|manejan|venden|ofrecen)/.test(t) ||
+    /(productos|equipos).*(tienen|manejan|venden|ofrecen)/.test(t)
   );
+}
+
+function withAvaSignature(text: string): string {
+  const body = String(text || "").trim();
+  if (!body) return "Soy Ava de Avanza Balanzas. ¿En qué puedo ayudarte hoy?";
+  const normalized = normalizeText(body);
+  if (normalized.includes("soy ava") || normalized.startsWith("ava:")) return body;
+  return `Ava: ${body}`;
 }
 
 function phoneTail10(raw: string): string {
@@ -1120,6 +1130,8 @@ export async function POST(req: Request) {
       usageCompletion = Math.max(0, Number(completion.usage?.completion_tokens || 0));
       billedTokens = Math.max(1, Math.min(500, usageCompletion || estimateTokens(reply)));
     }
+
+    reply = withAvaSignature(reply);
 
     const outboundInstance = String((channel as any)?.config?.evolution_instance_name || inbound.instance || "");
     console.log("[evolution-webhook] outbound instance debug", {

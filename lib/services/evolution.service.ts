@@ -206,7 +206,9 @@ export class EvolutionService {
     phone: string,
     args: { base64: string; fileName: string; caption?: string; mimetype?: string }
   ): Promise<any> {
-    const number = String(phone || "").replace(/\D/g, "");
+    const destinationRaw = String(phone || "").trim();
+    const number = destinationRaw.replace(/\D/g, "");
+    const hasJid = destinationRaw.includes("@");
     const fileName = String(args?.fileName || "cotizacion.pdf").trim() || "cotizacion.pdf";
     const caption = String(args?.caption || "").trim();
     const mimetype = String(args?.mimetype || "application/pdf").trim() || "application/pdf";
@@ -219,79 +221,99 @@ export class EvolutionService {
     console.log("[evolutionService] sendDocument", {
       instanceName,
       number,
+      destinationRaw,
+      hasJid,
       fileName,
       captionLength: caption.length,
       mediaChars: mediaDataUrl.length,
     });
 
-    const attempts: Array<{ body: any; tag: string }> = [
-      {
-        tag: "sendMedia_media_base64Only",
-        body: {
-          number,
-          mediatype: "document",
-          mimetype,
-          fileName,
-          caption,
-          media: base64Only,
+    const destinationShapes: Array<Record<string, any>> = [];
+    if (hasJid) {
+      destinationShapes.push({ number: destinationRaw });
+      destinationShapes.push({ jid: destinationRaw });
+    }
+    if (number) {
+      destinationShapes.push({ number });
+      destinationShapes.push({ jid: `${number}@s.whatsapp.net` });
+    }
+
+    const uniqueShapes = destinationShapes.filter((v, i, arr) => {
+      const key = JSON.stringify(v);
+      return arr.findIndex((x) => JSON.stringify(x) === key) === i;
+    });
+
+    const attempts: Array<{ body: any; tag: string }> = [];
+    for (const dst of uniqueShapes) {
+      attempts.push(
+        {
+          tag: `sendMedia_media_base64Only_${Object.keys(dst)[0]}`,
+          body: {
+            ...dst,
+            mediatype: "document",
+            mimetype,
+            fileName,
+            caption,
+            media: base64Only,
+          },
         },
-      },
-      {
-        tag: "sendMedia_file_base64Only",
-        body: {
-          number,
-          mediatype: "document",
-          mimetype,
-          fileName,
-          caption,
-          file: base64Only,
+        {
+          tag: `sendMedia_file_base64Only_${Object.keys(dst)[0]}`,
+          body: {
+            ...dst,
+            mediatype: "document",
+            mimetype,
+            fileName,
+            caption,
+            file: base64Only,
+          },
         },
-      },
-      {
-        tag: "sendMedia_base64_base64Only",
-        body: {
-          number,
-          mediatype: "document",
-          mimetype,
-          fileName,
-          caption,
-          base64: base64Only,
+        {
+          tag: `sendMedia_base64_base64Only_${Object.keys(dst)[0]}`,
+          body: {
+            ...dst,
+            mediatype: "document",
+            mimetype,
+            fileName,
+            caption,
+            base64: base64Only,
+          },
         },
-      },
-      {
-        tag: "sendMedia_media_dataUrl",
-        body: {
-          number,
-          mediatype: "document",
-          mimetype,
-          fileName,
-          caption,
-          media: mediaDataUrl,
+        {
+          tag: `sendMedia_media_dataUrl_${Object.keys(dst)[0]}`,
+          body: {
+            ...dst,
+            mediatype: "document",
+            mimetype,
+            fileName,
+            caption,
+            media: mediaDataUrl,
+          },
         },
-      },
-      {
-        tag: "sendMedia_file_dataUrl",
-        body: {
-          number,
-          mediatype: "document",
-          mimetype,
-          fileName,
-          caption,
-          file: mediaDataUrl,
+        {
+          tag: `sendMedia_file_dataUrl_${Object.keys(dst)[0]}`,
+          body: {
+            ...dst,
+            mediatype: "document",
+            mimetype,
+            fileName,
+            caption,
+            file: mediaDataUrl,
+          },
         },
-      },
-      {
-        tag: "sendMedia_base64_dataUrl",
-        body: {
-          number,
-          mediatype: "document",
-          mimetype,
-          fileName,
-          caption,
-          base64: mediaDataUrl,
-        },
-      },
-    ];
+        {
+          tag: `sendMedia_base64_dataUrl_${Object.keys(dst)[0]}`,
+          body: {
+            ...dst,
+            mediatype: "document",
+            mimetype,
+            fileName,
+            caption,
+            base64: mediaDataUrl,
+          },
+        }
+      );
+    }
 
     let lastErr: any = null;
     for (const att of attempts) {
