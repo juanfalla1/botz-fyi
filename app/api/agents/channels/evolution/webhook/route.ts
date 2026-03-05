@@ -514,9 +514,24 @@ export async function POST(req: Request) {
       .eq("channel_type", "whatsapp");
     if (chErr) return NextResponse.json({ ok: false, error: chErr.message }, { status: 500 });
 
-    let channel = (channels || []).find((row: any) => String(row?.config?.evolution_instance_name || "") === inbound.instance);
-    if (!channel && (channels || []).length === 1) {
-      channel = (channels || [])[0];
+    const byInstance = (channels || []).filter(
+      (row: any) => String(row?.config?.evolution_instance_name || "") === inbound.instance
+    );
+
+    let channel =
+      byInstance.find((row: any) => String(row?.status || "").toLowerCase() === "connected") ||
+      byInstance[0] ||
+      null;
+
+    if (!channel) {
+      const connectedAny = (channels || []).filter(
+        (row: any) => String(row?.status || "").toLowerCase() === "connected"
+      );
+      if (connectedAny.length === 1) {
+        channel = connectedAny[0];
+      } else if ((channels || []).length === 1) {
+        channel = (channels || [])[0];
+      }
     }
     if (!channel) {
       console.warn("[evolution-webhook] ignored: channel_not_found", { instance: inbound.instance });
