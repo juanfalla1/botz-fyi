@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { jsPDF } from "jspdf";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
 import { evolutionService } from "../../../../../../lib/services/evolution.service";
@@ -477,6 +478,222 @@ function buildDocumentContext(message: string, files: { name: string; content: s
   return `\n\nDocumentos indexados (extractos):\n${blocks.join("\n")}`;
 }
 
+function normalizeText(v: string) {
+  return String(v || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function extractEmail(text: string): string {
+  const m = String(text || "").match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+  return m ? String(m[0] || "").toLowerCase() : "";
+}
+
+function extractCustomerName(text: string, fallback: string): string {
+  const m = String(text || "").match(/nombre(?:\s+completo)?\s*:\s*([^\n,.]+)/i);
+  if (m?.[1]) return String(m[1]).trim();
+  const fb = String(fallback || "").trim();
+  if (!fb) return "";
+  if (["hola", "cliente", "usuario", "user"].includes(fb.toLowerCase())) return "";
+  return fb;
+}
+
+function extractQuantity(text: string): number {
+  const t = String(text || "");
+  const m1 = t.match(/(?:cantidad|qty|x)\s*[:=]?\s*(\d{1,5})/i);
+  if (m1?.[1]) return Math.max(1, Math.min(100000, Number(m1[1])));
+  const m2 = t.match(/\b(\d{1,5})\s*(?:unidad|unidades|equipos?)\b/i);
+  if (m2?.[1]) return Math.max(1, Math.min(100000, Number(m2[1])));
+  return 1;
+}
+
+function shouldAutoQuote(text: string): boolean {
+  const t = normalizeText(text);
+  const asksQuote = /(cotiz|cotizacion|cotizar|presupuesto|precio)/.test(t);
+  const asksDelivery = /(pdf|archivo|adjunt|enviame|enviame|enviame|whatsapp|trm)/.test(t);
+  return asksQuote && asksDelivery;
+}
+
+function pickBestCatalogProduct(text: string, rows: any[]): any | null {
+  const inbound = normalizeText(text);
+  const terms = Array.from(
+    new Set(
+      inbound
+        .split(/[^a-z0-9]+/i)
+        .map((x) => x.trim())
+        .filter((x) => x.length >= 4)
+        .filter((x) => !["quiero", "cotizar", "cotizacion", "marca", "cliente", "cantidad", "trm", "hoy", "enviame", "whatsapp", "pdf", "producto"].includes(x))
+    )
+  );
+
+  let best: { row: any; score: number } | null = null;
+  for (const row of rows || []) {
+    const hay = normalizeText(`${row?.name || ""} ${row?.brand || ""} ${row?.category || ""}`);
+    let score = 0;
+    if (inbound.includes(normalizeText(String(row?.name || "")))) score += 8;
+    for (const term of terms) {
+      if (hay.includes(term)) score += 2;
+    }
+    if (!best || score > best.score) best = { row, score };
+  }
+
+  if (!best || best.score < 4) return null;
+  return best.row;
+}
+
+function parseRate(v: any) {
+  const s = String(v ?? "").replace(/\./g, "").replace(/,/g, ".").replace(/[^0-9.\-]/g, "");
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function todayKey() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+
+async function fetchTrmFromSocrata() {
+  const url = "https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde%20desc";
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`Socrata TRM failed (${res.status})`);
+  const rows = await res.json();
+  const first = Array.isArray(rows) ? rows[0] : null;
+  const rate = parseRate(first?.valor);
+  if (!rate) throw new Error("Invalid TRM payload");
+  return { rate, source: "datos.gov.co", source_url: url };
+}
+
+async function fetchTrmFallback() {
+  const url = "https://open.er-api.com/v6/latest/USD";
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`Fallback FX failed (${res.status})`);
+  const json = await res.json();
+  const rate = Number(json?.rates?.COP || 0);
+  if (!Number.isFinite(rate) || rate <= 0) throw new Error("Invalid fallback FX payload");
+  return { rate, source: "open.er-api.com", source_url: url };
+}
+
+async function getOrFetchTrm(supabase: any, ownerId: string, tenantId: string | null) {
+  const day = todayKey();
+  const { data: cached } = await supabase
+    .from("agent_fx_rates")
+    .select("id,rate,rate_date,source")
+    .eq("tenant_id", tenantId)
+    .eq("created_by", ownerId)
+    .eq("from_currency", "USD")
+    .eq("to_currency", "COP")
+    .eq("rate_date", day)
+    .maybeSingle();
+
+  if (cached?.rate) return cached;
+
+  let fetched: { rate: number; source: string; source_url: string };
+  try {
+    fetched = await fetchTrmFromSocrata();
+  } catch {
+    fetched = await fetchTrmFallback();
+  }
+
+  const payload = {
+    tenant_id: tenantId,
+    created_by: ownerId,
+    rate_date: day,
+    from_currency: "USD",
+    to_currency: "COP",
+    rate: fetched.rate,
+    source: fetched.source,
+    source_url: fetched.source_url,
+  };
+
+  const { data, error } = await supabase
+    .from("agent_fx_rates")
+    .upsert(payload, { onConflict: "tenant_id,rate_date,from_currency,to_currency" })
+    .select("id,rate,rate_date,source")
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+function formatMoney(n: number) {
+  return new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 }).format(Number(n || 0));
+}
+
+function buildQuotePdf(args: {
+  draftId: string;
+  companyName: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  productName: string;
+  quantity: number;
+  basePriceUsd: number;
+  trmRate: number;
+  totalCop: number;
+  notes?: string;
+}) {
+  const doc = new jsPDF();
+  const now = new Date();
+  const quoteNumber = `Q-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+
+  doc.setFillColor(10, 121, 167);
+  doc.rect(0, 0, 210, 52, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(28);
+  doc.text("Avanza", 14, 20);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text("International group s.a.s", 70, 13);
+  doc.text("EQUIPOS Y CONSUMIBLES PARA LABORATORIO", 14, 26);
+  doc.setFontSize(10);
+  doc.text("+57 300 8265047  |  +57 320 8336976", 14, 34);
+  doc.text("Autopista Medellin K 2.5 entrada parcelas 900 m CIEM OIKOS OCCIDENTE", 14, 39);
+  doc.text("Cra 81 # 32-332 Nueva Villa de Aburra - Local 332", 14, 44);
+  doc.text("info@avanzagroup.com.co", 14, 49);
+
+  doc.setTextColor(20, 20, 20);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("Cotizacion tecnica preliminar", 14, 64);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Numero: ${quoteNumber}`, 14, 71);
+  doc.text(`Fecha: ${now.toLocaleString("es-CO")}`, 14, 76);
+  doc.text(`Draft ID: ${args.draftId}`, 14, 81);
+
+  let y = 92;
+  const row = (k: string, v: string) => {
+    doc.setFont("helvetica", "bold");
+    doc.text(`${k}:`, 14, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(v || "-", 56, y);
+    y += 6;
+  };
+
+  row("Empresa", args.companyName || "Avanza Balanzas");
+  row("Cliente", args.customerName || "-");
+  row("Correo", args.customerEmail || "-");
+  row("Telefono", args.customerPhone || "-");
+  row("Producto", args.productName || "-");
+  row("Cantidad", String(args.quantity || 1));
+  row("Precio base USD", args.basePriceUsd > 0 ? formatMoney(args.basePriceUsd) : "-");
+  row("TRM", args.trmRate > 0 ? formatMoney(args.trmRate) : "-");
+  row("Total COP", args.totalCop > 0 ? formatMoney(args.totalCop) : "-");
+
+  y += 4;
+  doc.setFont("helvetica", "bold");
+  doc.text("Notas:", 14, y);
+  doc.setFont("helvetica", "normal");
+  const notes = String(args.notes || "Cotizacion preliminar sujeta a validacion tecnica, inventario y condiciones comerciales vigentes.");
+  const lines = doc.splitTextToSize(notes, 180);
+  doc.text(lines, 14, y + 5);
+
+  return Buffer.from(doc.output("arraybuffer")).toString("base64");
+}
+
 export async function POST(req: Request) {
   try {
     console.log("[evolution-webhook] --- WEBHOOK ENTRY ---", { time: new Date().toISOString() });
@@ -616,42 +833,147 @@ export async function POST(req: Request) {
       }
     }
 
-    const systemPrompt = [
-      `Eres ${String(cfg?.identity_name || agent.name || "asistente")}.`,
-      String(cfg?.purpose || agent.description || "Asistente virtual"),
-      String(cfg?.company_desc || ""),
-      String(cfg?.system_prompt || cfg?.important_instructions || ""),
-      "Responde en espanol claro y profesional, con mensajes cortos de WhatsApp.",
-      "Si no tienes la informacion, dilo sin inventar.",
-      docs,
-    ]
-      .filter(Boolean)
-      .join("\n\n");
+    let reply = "";
+    let usageTotal = 0;
+    let usageCompletion = 0;
+    let billedTokens = 0;
+    let autoQuote: null | {
+      handled: true;
+      draftId: string;
+      fileName: string;
+      pdfBase64: string;
+      quantity: number;
+    } = null;
 
-    const openai = new OpenAI({ apiKey });
-    
-    const allMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
-      { role: "system", content: systemPrompt },
-      ...historyMessages,
-      { role: "user", content: inbound.text },
-    ];
-    
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0.2,
-      max_tokens: 280,
-      messages: allMessages as any,
-    });
+    if (shouldAutoQuote(inbound.text)) {
+      try {
+        const { data: products } = await supabase
+          .from("agent_product_catalog")
+          .select("id,name,brand,category,base_price_usd,price_currency")
+          .eq("created_by", ownerId)
+          .eq("is_active", true)
+          .gt("base_price_usd", 0)
+          .order("updated_at", { ascending: false })
+          .limit(80);
 
-    const reply = String(completion.choices?.[0]?.message?.content || "").trim() || "No tengo una respuesta en este momento.";
-    const usageTotal = Math.max(0, Number(completion.usage?.total_tokens || 0));
-    const usageCompletion = Math.max(0, Number(completion.usage?.completion_tokens || 0));
-    // Para WhatsApp cobramos solo salida del modelo y con tope por turno,
-    // evitando bloquear una respuesta por prompts/documentos largos de entrada.
-    const billedTokens = Math.max(
-      1,
-      Math.min(500, usageCompletion || estimateTokens(reply))
-    );
+        const matchedProduct = pickBestCatalogProduct(inbound.text, products || []);
+
+        if (matchedProduct) {
+          const transcript = Array.isArray(existingConv?.transcript) ? existingConv.transcript : [];
+          const latestUserLines = transcript
+            .filter((m: any) => m?.role === "user" && m?.content)
+            .slice(-8)
+            .map((m: any) => String(m.content || ""));
+          const combinedUserContext = `${latestUserLines.join("\n")}\n${inbound.text}`;
+
+          const quantity = extractQuantity(inbound.text);
+          const customerEmail = extractEmail(combinedUserContext);
+          const customerName = extractCustomerName(combinedUserContext, inbound.pushName || "");
+          const basePriceUsd = Number(matchedProduct?.base_price_usd || 0);
+
+          if (basePriceUsd > 0) {
+            const trm = await getOrFetchTrm(supabase, ownerId, (agent as any)?.tenant_id || null);
+            const trmRate = Number(trm?.rate || 0);
+
+            if (trmRate > 0) {
+              const totalCop = Number((basePriceUsd * trmRate * quantity).toFixed(2));
+              const draftPayload = {
+                tenant_id: (agent as any)?.tenant_id || null,
+                created_by: ownerId,
+                agent_id: String(agent.id),
+                customer_name: customerName || null,
+                customer_email: customerEmail || null,
+                customer_phone: inbound.from,
+                company_name: String(cfg?.company_name || cfg?.company_desc || "Avanza Balanzas").slice(0, 120) || "Avanza Balanzas",
+                location: null,
+                product_catalog_id: matchedProduct.id,
+                product_name: String(matchedProduct.name || ""),
+                base_price_usd: basePriceUsd,
+                trm_rate: trmRate,
+                total_cop: totalCop,
+                notes: "Cotizacion automatica por WhatsApp",
+                payload: {
+                  quantity,
+                  trm_date: trm.rate_date,
+                  trm_source: trm.source,
+                  price_currency: String(matchedProduct?.price_currency || "USD"),
+                  automation: "evolution_webhook",
+                },
+                status: "draft",
+              };
+
+              const { data: draft, error: draftError } = await supabase
+                .from("agent_quote_drafts")
+                .insert(draftPayload)
+                .select("id")
+                .single();
+
+              if (!draftError && draft?.id) {
+                const pdfBase64 = buildQuotePdf({
+                  draftId: String(draft.id),
+                  companyName: String(draftPayload.company_name || "Avanza Balanzas"),
+                  customerName: customerName || "",
+                  customerEmail: customerEmail || "",
+                  customerPhone: inbound.from,
+                  productName: String(matchedProduct.name || ""),
+                  quantity,
+                  basePriceUsd,
+                  trmRate,
+                  totalCop,
+                  notes: String(draftPayload.notes || ""),
+                });
+
+                autoQuote = {
+                  handled: true,
+                  draftId: String(draft.id),
+                  fileName: `cotizacion-${String(draft.id).slice(0, 8)}.pdf`,
+                  pdfBase64,
+                  quantity,
+                };
+                reply = `Listo. Ya genere tu cotizacion para ${String(matchedProduct.name || "el producto")} (cantidad ${quantity}) con la TRM de hoy. Te envio el PDF en este chat ahora mismo.`;
+                billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+              }
+            }
+          }
+        }
+      } catch (autoErr: any) {
+        console.warn("[evolution-webhook] auto_quote_failed", autoErr?.message || autoErr);
+      }
+    }
+
+    if (!autoQuote) {
+      const systemPrompt = [
+        `Eres ${String(cfg?.identity_name || agent.name || "asistente")}.`,
+        String(cfg?.purpose || agent.description || "Asistente virtual"),
+        String(cfg?.company_desc || ""),
+        String(cfg?.system_prompt || cfg?.important_instructions || ""),
+        "Responde en espanol claro y profesional, con mensajes cortos de WhatsApp.",
+        "Si no tienes la informacion, dilo sin inventar.",
+        docs,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      const openai = new OpenAI({ apiKey });
+
+      const allMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
+        { role: "system", content: systemPrompt },
+        ...historyMessages,
+        { role: "user", content: inbound.text },
+      ];
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        temperature: 0.2,
+        max_tokens: 280,
+        messages: allMessages as any,
+      });
+
+      reply = String(completion.choices?.[0]?.message?.content || "").trim() || "No tengo una respuesta en este momento.";
+      usageTotal = Math.max(0, Number(completion.usage?.total_tokens || 0));
+      usageCompletion = Math.max(0, Number(completion.usage?.completion_tokens || 0));
+      billedTokens = Math.max(1, Math.min(500, usageCompletion || estimateTokens(reply)));
+    }
 
     const outboundInstance = String((channel as any)?.config?.evolution_instance_name || inbound.instance || "");
     console.log("[evolution-webhook] outbound instance debug", {
@@ -790,6 +1112,25 @@ export async function POST(req: Request) {
     }
     console.info("[evolution-webhook] reply sent", { channelId: (channel as any)?.id, agentId: agent.id, to: sentTo });
 
+    if (autoQuote) {
+      try {
+        await evolutionService.sendDocument(outboundInstance, sentTo, {
+          base64: autoQuote.pdfBase64,
+          fileName: autoQuote.fileName,
+          caption: `Cotizacion preliminar ${autoQuote.fileName}`,
+          mimetype: "application/pdf",
+        });
+
+        await supabase
+          .from("agent_quote_drafts")
+          .update({ status: "sent" })
+          .eq("id", autoQuote.draftId)
+          .eq("created_by", ownerId);
+      } catch (pdfErr: any) {
+        console.warn("[evolution-webhook] auto_quote_pdf_send_failed", pdfErr?.message || pdfErr);
+      }
+    }
+
     const burn = await consumeEntitlementCredits(supabase as any, ownerId, billedTokens);
     if (!burn.ok) {
       console.warn("[evolution-webhook] credits consume skipped_after_send", {
@@ -818,13 +1159,14 @@ export async function POST(req: Request) {
 
     await logUsageEvent(supabase as any, ownerId, billedTokens, {
       endpoint: "/api/agents/channels/evolution/webhook",
-      action: "whatsapp_evolution_turn",
+      action: autoQuote ? "whatsapp_evolution_quote_auto" : "whatsapp_evolution_turn",
       metadata: {
         agent_id: agent.id,
         llm_tokens_total: usageTotal,
         llm_tokens_completion: usageCompletion,
         llm_tokens_billed: billedTokens,
         channel: "whatsapp_evolution",
+        quote_auto: Boolean(autoQuote),
       },
     });
 
