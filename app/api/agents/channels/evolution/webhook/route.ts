@@ -571,11 +571,19 @@ function isHistoryIntent(text: string): boolean {
   return /(mi historial|que tengo en mi historial|historial|mis cotizaciones|cotizaciones anteriores|compras anteriores|mi ultima cotizacion)/.test(t);
 }
 
+function isGreetingIntent(text: string): boolean {
+  const t = normalizeText(text).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return false;
+  const hasGreeting = /^(hola|buenas|buenos dias|buen dia|buenas tardes|buenas noches|hey|hi)\b/.test(t);
+  const hasBusinessIntent = /(cotiz|producto|pdf|trm|historial|recomiend|precio|catalogo)/.test(t);
+  return hasGreeting && !hasBusinessIntent && t.length <= 40;
+}
+
 function withAvaSignature(text: string): string {
   const body = String(text || "").trim();
   if (!body) return "Soy Ava de Avanza Balanzas. ¿En qué puedo ayudarte hoy?";
   const normalized = normalizeText(body);
-  if (normalized.includes("soy ava") || normalized.startsWith("ava:")) return body;
+  if (normalized.includes("soy ava") || normalized.startsWith("ava:") || normalized.startsWith("hola soy ava")) return body;
   return `Ava: ${body}`;
 }
 
@@ -928,6 +936,7 @@ export async function POST(req: Request) {
     let usageTotal = 0;
     let usageCompletion = 0;
     let billedTokens = 0;
+    let handledByGreeting = false;
     let handledByInventory = false;
     let handledByHistory = false;
     let handledByRecommendation = false;
@@ -946,7 +955,13 @@ export async function POST(req: Request) {
       quantity: number;
     } = null;
 
-    if (isInventoryInfoIntent(inbound.text)) {
+    if (isGreetingIntent(inbound.text)) {
+      reply = "Hola, soy Ava, tu asistente virtual de Avanza Group";
+      handledByGreeting = true;
+      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+    }
+
+    if (!handledByGreeting && isInventoryInfoIntent(inbound.text)) {
       try {
         const { count: totalActive } = await supabase
           .from("agent_product_catalog")
@@ -981,7 +996,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByInventory && isHistoryIntent(inbound.text)) {
+    if (!handledByGreeting && !handledByInventory && isHistoryIntent(inbound.text)) {
       try {
         const inboundPhone = normalizePhone(inbound.from || "");
         const inboundTail = phoneTail10(inbound.from || "");
@@ -1015,7 +1030,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByInventory && !handledByHistory && isRecommendationIntent(inbound.text)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && isRecommendationIntent(inbound.text)) {
       try {
         const { data: products } = await supabase
           .from("agent_product_catalog")
@@ -1049,7 +1064,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByInventory && !handledByHistory && isQuoteRecallIntent(inbound.text)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && isQuoteRecallIntent(inbound.text)) {
       try {
         const { data: recentDrafts } = await supabase
           .from("agent_quote_drafts")
@@ -1105,7 +1120,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByInventory && !handledByHistory && !handledByRecall && shouldAutoQuote(inbound.text)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByRecall && shouldAutoQuote(inbound.text)) {
       try {
         const { data: products } = await supabase
           .from("agent_product_catalog")
@@ -1213,7 +1228,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!autoQuote && !handledByRecall && !handledByInventory && !handledByHistory && !handledByRecommendation && !handledByQuoteIntake) {
+    if (!autoQuote && !handledByGreeting && !handledByRecall && !handledByInventory && !handledByHistory && !handledByRecommendation && !handledByQuoteIntake) {
       const { data: catalogRows } = await supabase
         .from("agent_product_catalog")
         .select("name,brand,category")
