@@ -848,6 +848,92 @@ function buildQuotePdf(args: {
   return Buffer.from(doc.output("arraybuffer")).toString("base64");
 }
 
+function buildBundleQuotePdf(args: {
+  bundleId: string;
+  companyName: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  items: Array<{ productName: string; quantity: number; basePriceUsd: number; trmRate: number; totalCop: number }>;
+}) {
+  const doc = new jsPDF();
+  const now = new Date();
+  const quoteNumber = `QB-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+
+  doc.setFillColor(10, 121, 167);
+  doc.rect(0, 0, 210, 40, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text("Avanza", 14, 18);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text("Cotizacion consolidada", 14, 28);
+
+  doc.setTextColor(20, 20, 20);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("Cotizacion tecnica consolidada", 14, 50);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Numero: ${quoteNumber}`, 14, 57);
+  doc.text(`Fecha: ${now.toLocaleString("es-CO")}`, 14, 62);
+
+  let y = 70;
+  const row = (k: string, v: string) => {
+    doc.setFont("helvetica", "bold");
+    doc.text(`${k}:`, 14, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(v || "-", 56, y);
+    y += 6;
+  };
+
+  row("Empresa", args.companyName || "Avanza Balanzas");
+  row("Cliente", args.customerName || "-");
+  row("Correo", args.customerEmail || "-");
+  const phoneSafe = normalizePhone(args.customerPhone || "");
+  row("Telefono", phoneSafe.length >= 10 && phoneSafe.length <= 12 ? phoneSafe : "-");
+  row("Bundle", args.bundleId);
+
+  y += 3;
+  doc.setFont("helvetica", "bold");
+  doc.text("Items", 14, y);
+  y += 6;
+
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text("Producto", 14, y);
+  doc.text("Cant.", 112, y);
+  doc.text("USD", 130, y);
+  doc.text("TRM", 155, y);
+  doc.text("Total COP", 178, y, { align: "right" });
+  y += 5;
+  doc.setFont("helvetica", "normal");
+
+  let grandTotal = 0;
+  for (const item of args.items || []) {
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+    grandTotal += Number(item.totalCop || 0);
+    const pLines = doc.splitTextToSize(String(item.productName || "-"), 92);
+    doc.text(pLines, 14, y);
+    doc.text(String(item.quantity || 1), 112, y);
+    doc.text(formatMoney(Number(item.basePriceUsd || 0)), 130, y);
+    doc.text(formatMoney(Number(item.trmRate || 0)), 155, y);
+    doc.text(formatMoney(Number(item.totalCop || 0)), 178, y, { align: "right" });
+    y += Math.max(6, pLines.length * 4 + 1);
+  }
+
+  y += 3;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text(`Total consolidado COP: ${formatMoney(grandTotal)}`, 14, y);
+
+  return Buffer.from(doc.output("arraybuffer")).toString("base64");
+}
+
 export async function POST(req: Request) {
   try {
     console.log("[evolution-webhook] --- WEBHOOK ENTRY ---", { time: new Date().toISOString() });
@@ -1008,7 +1094,12 @@ export async function POST(req: Request) {
       fileName: string;
       pdfBase64: string;
       quantity: number;
+      productName: string;
+      basePriceUsd: number;
+      trmRate: number;
+      totalCop: number;
     }> = [];
+    let autoQuoteBundle: null | { fileName: string; pdfBase64: string; draftIds: string[] } = null;
 
     if (isGreetingIntent(inbound.text)) {
       reply = "Hola, soy Ava, tu asistente virtual de Avanza Group";
@@ -1338,6 +1429,10 @@ export async function POST(req: Request) {
                     fileName: `cotizacion-${String(draft.id).slice(0, 8)}.pdf`,
                     pdfBase64,
                     quantity,
+                    productName: String((selected as any).name || ""),
+                    basePriceUsd,
+                    trmRate,
+                    totalCop,
                   });
                 }
               }
@@ -1346,10 +1441,30 @@ export async function POST(req: Request) {
                 const q1 = autoQuoteDocs[0]?.quantity || 1;
                 reply = `Listo. Ya genere tu cotizacion para ${String((selectedProducts[0] as any)?.name || "el producto")} (cantidad ${q1}) con la TRM de hoy. Te envio el PDF en este chat ahora mismo.`;
               } else if (autoQuoteDocs.length > 1) {
+                const bundlePdfBase64 = buildBundleQuotePdf({
+                  bundleId: `B-${new Date().toISOString().slice(0, 10)}-${String(autoQuoteDocs[0].draftId).slice(0, 6)}`,
+                  companyName: String(cfg?.company_name || cfg?.company_desc || "Avanza Balanzas").slice(0, 120) || "Avanza Balanzas",
+                  customerName: customerName || "",
+                  customerEmail: customerEmail || "",
+                  customerPhone: customerPhone || "",
+                  items: autoQuoteDocs.map((d) => ({
+                    productName: d.productName,
+                    quantity: d.quantity,
+                    basePriceUsd: d.basePriceUsd,
+                    trmRate: d.trmRate,
+                    totalCop: d.totalCop,
+                  })),
+                });
+                autoQuoteBundle = {
+                  fileName: `cotizacion-consolidada-${String(autoQuoteDocs[0].draftId).slice(0, 8)}.pdf`,
+                  pdfBase64: bundlePdfBase64,
+                  draftIds: autoQuoteDocs.map((d) => d.draftId),
+                };
+
                 const byQty = autoQuoteDocs.every((d) => d.quantity === autoQuoteDocs[0].quantity);
                 reply = byQty
-                  ? `Listo. Ya genere ${autoQuoteDocs.length} cotizaciones (cantidad ${autoQuoteDocs[0].quantity} cada una) con la TRM de hoy. Te envio los PDFs por este chat ahora mismo.`
-                  : `Listo. Ya genere ${autoQuoteDocs.length} cotizaciones con las cantidades que me indicaste y la TRM de hoy. Te envio los PDFs por este chat ahora mismo.`;
+                  ? `Listo. Ya genere la cotizacion consolidada de ${autoQuoteDocs.length} productos (cantidad ${autoQuoteDocs[0].quantity} cada una) con la TRM de hoy. Te envio un solo PDF por este chat ahora mismo.`
+                  : `Listo. Ya genere la cotizacion consolidada de ${autoQuoteDocs.length} productos con las cantidades que me indicaste y la TRM de hoy. Te envio un solo PDF por este chat ahora mismo.`;
               }
               if (reply) billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
             }
@@ -1567,9 +1682,24 @@ export async function POST(req: Request) {
     }
     console.info("[evolution-webhook] reply sent", { channelId: (channel as any)?.id, agentId: agent.id, to: sentTo });
 
-    if (autoQuoteDocs.length || resendPdf) {
+    if (autoQuoteDocs.length || resendPdf || autoQuoteBundle) {
       try {
-        if (autoQuoteDocs.length) {
+        if (autoQuoteBundle) {
+          await evolutionService.sendDocument(outboundInstance, sentTo, {
+            base64: autoQuoteBundle.pdfBase64,
+            fileName: autoQuoteBundle.fileName,
+            caption: `Cotizacion consolidada ${autoQuoteBundle.fileName}`,
+            mimetype: "application/pdf",
+          });
+
+          for (const id of autoQuoteBundle.draftIds) {
+            await supabase
+              .from("agent_quote_drafts")
+              .update({ status: "sent" })
+              .eq("id", id)
+              .eq("created_by", ownerId);
+          }
+        } else if (autoQuoteDocs.length) {
           for (const doc of autoQuoteDocs) {
             await evolutionService.sendDocument(outboundInstance, sentTo, {
               base64: doc.pdfBase64,
