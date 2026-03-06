@@ -1192,10 +1192,10 @@ export async function POST(req: Request) {
         const matchedProduct = pickBestCatalogProduct(quoteSourceText, products || []);
         const pricedProducts = Array.isArray(products) ? products : [];
         const wantsMulti = isMultiProductQuoteIntent(quoteSourceText);
-        const selectedProducts = matchedProduct
-          ? [matchedProduct]
-          : wantsMulti
-            ? pricedProducts.slice(0, 3)
+        const selectedProducts = wantsMulti
+          ? pricedProducts.slice(0, 3)
+          : matchedProduct
+            ? [matchedProduct]
             : [];
 
         if (selectedProducts.length) {
