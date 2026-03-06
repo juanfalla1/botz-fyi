@@ -1125,6 +1125,7 @@ export default function AgentStudio() {
     { label: tr("Agentes IA", "AI Agents"), href: "/start/agents", hint: tr("Listado de agentes", "Agents list") },
     { label: tr("Numeros telefonicos", "Phone numbers"), href: "/start/agents/numbers", hint: tr("Lineas para voz real", "Real voice lines") },
     { label: tr("Canales", "Channels"), href: "/start/agents/channels", hint: tr("WhatsApp, webchat y voz", "WhatsApp, webchat and voice") },
+    { label: tr("CRM", "CRM"), href: "/start/agents/crm", hint: tr("Pipeline y seguimiento comercial", "Pipeline and sales follow-up") },
     { label: tr("Crear agente voz", "Create voice agent"), href: "/start/agents/create?type=voice", hint: tr("Asistente telefonico", "Phone assistant") },
     { label: tr("Crear agente texto", "Create text agent"), href: "/start/agents/create?type=text", hint: tr("Chat y WhatsApp", "Chat and WhatsApp") },
     { label: tr("Copiloto IA", "AI Copilot"), href: "/start/agents/notetaker", hint: tr("Notas, seguimiento y acciones", "Notes, follow-ups and actions") },
