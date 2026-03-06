@@ -642,6 +642,23 @@ function withAvaSignature(text: string): string {
   return `Ava: ${body}`;
 }
 
+function enforceWhatsAppDelivery(text: string, inboundText: string): string {
+  const body = String(text || "");
+  const intent = normalizeText(inboundText || "");
+  const isQuoteFlow = /(cotiz|cotizacion|pdf|trm|precio|presupuesto)/.test(intent);
+  if (!isQuoteFlow) return body;
+
+  let fixed = body;
+  fixed = fixed.replace(/te\s+la\s+enviare\s+a\s+tu\s+correo\s+en\s+breve\.?/gi, "Te la enviaré por este WhatsApp en breve.");
+  fixed = fixed.replace(/te\s+la\s+enviare\s+a\s+tu\s+correo\s+electronico\.?/gi, "Te la enviaré por este WhatsApp.");
+  fixed = fixed.replace(/te\s+la\s+enviare\s+a\s+tu\s+correo\.?/gi, "Te la enviaré por este WhatsApp.");
+  fixed = fixed.replace(/enviarla\s+a\s+tu\s+correo\s+electronico/gi, "enviarla por este WhatsApp");
+  fixed = fixed.replace(/enviarla\s+a\s+tu\s+correo/gi, "enviarla por este WhatsApp");
+  fixed = fixed.replace(/enviartela\s+a\s+tu\s+correo\s+electronico/gi, "enviártela por este WhatsApp");
+  fixed = fixed.replace(/enviartela\s+a\s+tu\s+correo/gi, "enviártela por este WhatsApp");
+  return fixed;
+}
+
 function phoneTail10(raw: string): string {
   const n = normalizePhone(raw || "");
   return n.length > 10 ? n.slice(-10) : n;
@@ -1543,6 +1560,7 @@ export async function POST(req: Request) {
       billedTokens = Math.max(1, Math.min(500, usageCompletion || estimateTokens(reply)));
     }
 
+    reply = enforceWhatsAppDelivery(reply, inbound.text);
     reply = withAvaSignature(reply);
 
     const outboundInstance = String((channel as any)?.config?.evolution_instance_name || inbound.instance || "");
