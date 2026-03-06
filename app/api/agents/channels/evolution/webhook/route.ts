@@ -900,13 +900,13 @@ function buildBundleQuotePdf(args: {
   doc.text("Items", 14, y);
   y += 6;
 
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setFont("helvetica", "bold");
   doc.text("Producto", 14, y);
-  doc.text("Cant.", 112, y);
-  doc.text("USD", 130, y);
-  doc.text("TRM", 155, y);
-  doc.text("Total COP", 178, y, { align: "right" });
+  doc.text("Cant.", 110, y, { align: "right" });
+  doc.text("USD", 138, y, { align: "right" });
+  doc.text("TRM", 166, y, { align: "right" });
+  doc.text("Total COP", 198, y, { align: "right" });
   y += 5;
   doc.setFont("helvetica", "normal");
 
@@ -919,10 +919,10 @@ function buildBundleQuotePdf(args: {
     grandTotal += Number(item.totalCop || 0);
     const pLines = doc.splitTextToSize(String(item.productName || "-"), 92);
     doc.text(pLines, 14, y);
-    doc.text(String(item.quantity || 1), 112, y);
-    doc.text(formatMoney(Number(item.basePriceUsd || 0)), 130, y);
-    doc.text(formatMoney(Number(item.trmRate || 0)), 155, y);
-    doc.text(formatMoney(Number(item.totalCop || 0)), 178, y, { align: "right" });
+    doc.text(String(item.quantity || 1), 110, y, { align: "right" });
+    doc.text(formatMoney(Number(item.basePriceUsd || 0)), 138, y, { align: "right" });
+    doc.text(formatMoney(Number(item.trmRate || 0)), 166, y, { align: "right" });
+    doc.text(formatMoney(Number(item.totalCop || 0)), 198, y, { align: "right" });
     y += Math.max(6, pLines.length * 4 + 1);
   }
 
