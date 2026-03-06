@@ -551,6 +551,11 @@ function isPriceIntent(text: string): boolean {
   return /(precio|precios|cuanto vale|cuanto cuest|valor|valen|cuestan)/.test(t);
 }
 
+function isMultiProductQuoteIntent(text: string): boolean {
+  const t = normalizeText(text);
+  return /(los\s*3|los\s*tres|todos\s+los\s+productos|todos\s+los\s+que\s+tienen\s+precio|de\s+los\s+3)/.test(t);
+}
+
 function shouldResendPdf(text: string): boolean {
   const t = normalizeText(text);
   return /(reenviar|reenvia|reenvie|volver a enviar|mandame otra vez|otra vez el pdf|reenvio)/.test(t);
@@ -961,13 +966,12 @@ export async function POST(req: Request) {
       fileName: string;
       pdfBase64: string;
     } = null;
-    let autoQuote: null | {
-      handled: true;
+    const autoQuoteDocs: Array<{
       draftId: string;
       fileName: string;
       pdfBase64: string;
       quantity: number;
-    } = null;
+    }> = [];
 
     if (isGreetingIntent(inbound.text)) {
       reply = "Hola, soy Ava, tu asistente virtual de Avanza Group";
@@ -1186,8 +1190,15 @@ export async function POST(req: Request) {
 
         const quoteSourceText = resumeQuoteFromContext ? `${recentUserContext}\n${inbound.text}` : inbound.text;
         const matchedProduct = pickBestCatalogProduct(quoteSourceText, products || []);
+        const pricedProducts = Array.isArray(products) ? products : [];
+        const wantsMulti = isMultiProductQuoteIntent(quoteSourceText);
+        const selectedProducts = matchedProduct
+          ? [matchedProduct]
+          : wantsMulti
+            ? pricedProducts.slice(0, 3)
+            : [];
 
-        if (matchedProduct) {
+        if (selectedProducts.length) {
           const transcript = Array.isArray(existingConv?.transcript) ? existingConv.transcript : [];
           const latestUserLines = transcript
             .filter((m: any) => m?.role === "user" && m?.content)
@@ -1199,7 +1210,6 @@ export async function POST(req: Request) {
           const customerEmail = extractEmail(combinedUserContext);
           const customerName = extractCustomerName(combinedUserContext, inbound.pushName || "");
           const customerPhone = extractCustomerPhone(combinedUserContext, inbound.from);
-          const basePriceUsd = Number(matchedProduct?.base_price_usd || 0);
 
           const missingFields: string[] = [];
           if (!isPresent(customerName)) missingFields.push("nombre completo");
@@ -1212,77 +1222,93 @@ export async function POST(req: Request) {
             billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
           }
 
-          if (!missingFields.length && basePriceUsd > 0) {
+          if (!missingFields.length) {
             const trm = await getOrFetchTrm(supabase, ownerId, (agent as any)?.tenant_id || null);
             const trmRate = Number(trm?.rate || 0);
 
             if (trmRate > 0) {
-              const totalCop = Number((basePriceUsd * trmRate * quantity).toFixed(2));
-              const draftPayload = {
-                tenant_id: (agent as any)?.tenant_id || null,
-                created_by: ownerId,
-                agent_id: String(agent.id),
-                customer_name: customerName || null,
-                customer_email: customerEmail || null,
-                customer_phone: customerPhone || null,
-                company_name: String(cfg?.company_name || cfg?.company_desc || "Avanza Balanzas").slice(0, 120) || "Avanza Balanzas",
-                location: null,
-                product_catalog_id: matchedProduct.id,
-                product_name: String(matchedProduct.name || ""),
-                base_price_usd: basePriceUsd,
-                trm_rate: trmRate,
-                total_cop: totalCop,
-                notes: "Cotizacion automatica por WhatsApp",
-                payload: {
-                  quantity,
-                  trm_date: trm.rate_date,
-                  trm_source: trm.source,
-                  price_currency: String(matchedProduct?.price_currency || "USD"),
-                  automation: "evolution_webhook",
-                },
-                status: "draft",
-              };
+              for (const selected of selectedProducts) {
+                const basePriceUsd = Number((selected as any)?.base_price_usd || 0);
+                if (!(basePriceUsd > 0)) continue;
 
-              const { data: draft, error: draftError } = await supabase
-                .from("agent_quote_drafts")
-                .insert(draftPayload)
-                .select("id")
-                .single();
-
-              if (!draftError && draft?.id) {
-                const pdfBase64 = buildQuotePdf({
-                  draftId: String(draft.id),
-                  companyName: String(draftPayload.company_name || "Avanza Balanzas"),
-                  customerName: customerName || "",
-                  customerEmail: customerEmail || "",
-                  customerPhone: customerPhone || "",
-                  productName: String(matchedProduct.name || ""),
-                  quantity,
-                  basePriceUsd,
-                  trmRate,
-                  totalCop,
-                  notes: String(draftPayload.notes || ""),
-                });
-
-                autoQuote = {
-                  handled: true,
-                  draftId: String(draft.id),
-                  fileName: `cotizacion-${String(draft.id).slice(0, 8)}.pdf`,
-                  pdfBase64,
-                  quantity,
+                const totalCop = Number((basePriceUsd * trmRate * quantity).toFixed(2));
+                const draftPayload = {
+                  tenant_id: (agent as any)?.tenant_id || null,
+                  created_by: ownerId,
+                  agent_id: String(agent.id),
+                  customer_name: customerName || null,
+                  customer_email: customerEmail || null,
+                  customer_phone: customerPhone || null,
+                  company_name: String(cfg?.company_name || cfg?.company_desc || "Avanza Balanzas").slice(0, 120) || "Avanza Balanzas",
+                  location: null,
+                  product_catalog_id: (selected as any).id,
+                  product_name: String((selected as any).name || ""),
+                  base_price_usd: basePriceUsd,
+                  trm_rate: trmRate,
+                  total_cop: totalCop,
+                  notes: "Cotizacion automatica por WhatsApp",
+                  payload: {
+                    quantity,
+                    trm_date: trm.rate_date,
+                    trm_source: trm.source,
+                    price_currency: String((selected as any)?.price_currency || "USD"),
+                    automation: "evolution_webhook",
+                  },
+                  status: "draft",
                 };
-                reply = `Listo. Ya genere tu cotizacion para ${String(matchedProduct.name || "el producto")} (cantidad ${quantity}) con la TRM de hoy. Te envio el PDF en este chat ahora mismo.`;
-                billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+
+                const { data: draft, error: draftError } = await supabase
+                  .from("agent_quote_drafts")
+                  .insert(draftPayload)
+                  .select("id")
+                  .single();
+
+                if (!draftError && draft?.id) {
+                  const pdfBase64 = buildQuotePdf({
+                    draftId: String(draft.id),
+                    companyName: String(draftPayload.company_name || "Avanza Balanzas"),
+                    customerName: customerName || "",
+                    customerEmail: customerEmail || "",
+                    customerPhone: customerPhone || "",
+                    productName: String((selected as any).name || ""),
+                    quantity,
+                    basePriceUsd,
+                    trmRate,
+                    totalCop,
+                    notes: String(draftPayload.notes || ""),
+                  });
+
+                  autoQuoteDocs.push({
+                    draftId: String(draft.id),
+                    fileName: `cotizacion-${String(draft.id).slice(0, 8)}.pdf`,
+                    pdfBase64,
+                    quantity,
+                  });
+                }
               }
+
+              if (autoQuoteDocs.length === 1) {
+                reply = `Listo. Ya genere tu cotizacion para ${String((selectedProducts[0] as any)?.name || "el producto")} (cantidad ${quantity}) con la TRM de hoy. Te envio el PDF en este chat ahora mismo.`;
+              } else if (autoQuoteDocs.length > 1) {
+                reply = `Listo. Ya genere ${autoQuoteDocs.length} cotizaciones (cantidad ${quantity} cada una) con la TRM de hoy. Te envio los PDFs por este chat ahora mismo.`;
+              }
+              if (reply) billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
             }
           }
+        } else if (resumeQuoteFromContext || shouldAutoQuote(inbound.text)) {
+          const pricedNames = pricedProducts.slice(0, 8).map((p: any) => String(p?.name || "").trim()).filter(Boolean);
+          reply = pricedNames.length
+            ? `Para generar la cotizacion, elige un producto exacto de este listado: ${pricedNames.join("; ")}.`
+            : "No encontre productos con precio cargado para cotizar en este momento.";
+          handledByQuoteIntake = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
       } catch (autoErr: any) {
         console.warn("[evolution-webhook] auto_quote_failed", autoErr?.message || autoErr);
       }
     }
 
-    if (!autoQuote && !handledByGreeting && !handledByRecall && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteIntake) {
+    if (!autoQuoteDocs.length && !handledByGreeting && !handledByRecall && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteIntake) {
       const { data: catalogRows } = await supabase
         .from("agent_product_catalog")
         .select("name,brand,category")
@@ -1472,29 +1498,30 @@ export async function POST(req: Request) {
     }
     console.info("[evolution-webhook] reply sent", { channelId: (channel as any)?.id, agentId: agent.id, to: sentTo });
 
-    if (autoQuote || resendPdf) {
+    if (autoQuoteDocs.length || resendPdf) {
       try {
-        const pdfToSend = autoQuote
-          ? {
-              draftId: autoQuote.draftId,
-              fileName: autoQuote.fileName,
-              pdfBase64: autoQuote.pdfBase64,
-            }
-          : resendPdf!;
+        if (autoQuoteDocs.length) {
+          for (const doc of autoQuoteDocs) {
+            await evolutionService.sendDocument(outboundInstance, sentTo, {
+              base64: doc.pdfBase64,
+              fileName: doc.fileName,
+              caption: `Cotizacion preliminar ${doc.fileName}`,
+              mimetype: "application/pdf",
+            });
 
-        await evolutionService.sendDocument(outboundInstance, sentTo, {
-          base64: pdfToSend.pdfBase64,
-          fileName: pdfToSend.fileName,
-          caption: `Cotizacion preliminar ${pdfToSend.fileName}`,
-          mimetype: "application/pdf",
-        });
-
-        if (autoQuote) {
-          await supabase
-            .from("agent_quote_drafts")
-            .update({ status: "sent" })
-            .eq("id", autoQuote.draftId)
-            .eq("created_by", ownerId);
+            await supabase
+              .from("agent_quote_drafts")
+              .update({ status: "sent" })
+              .eq("id", doc.draftId)
+              .eq("created_by", ownerId);
+          }
+        } else {
+          await evolutionService.sendDocument(outboundInstance, sentTo, {
+            base64: resendPdf!.pdfBase64,
+            fileName: resendPdf!.fileName,
+            caption: `Cotizacion preliminar ${resendPdf!.fileName}`,
+            mimetype: "application/pdf",
+          });
         }
       } catch (pdfErr: any) {
         console.warn("[evolution-webhook] auto_quote_pdf_send_failed", pdfErr?.message || pdfErr);
@@ -1529,14 +1556,15 @@ export async function POST(req: Request) {
 
     await logUsageEvent(supabase as any, ownerId, billedTokens, {
       endpoint: "/api/agents/channels/evolution/webhook",
-      action: autoQuote ? "whatsapp_evolution_quote_auto" : "whatsapp_evolution_turn",
+      action: autoQuoteDocs.length ? "whatsapp_evolution_quote_auto" : "whatsapp_evolution_turn",
       metadata: {
         agent_id: agent.id,
         llm_tokens_total: usageTotal,
         llm_tokens_completion: usageCompletion,
         llm_tokens_billed: billedTokens,
         channel: "whatsapp_evolution",
-        quote_auto: Boolean(autoQuote),
+        quote_auto: Boolean(autoQuoteDocs.length),
+        quote_auto_docs: autoQuoteDocs.length,
       },
     });
 
