@@ -531,11 +531,48 @@ function extractQuantity(text: string): number {
   return 1;
 }
 
+function extractPerProductQuantities(text: string, products: Array<{ id: string; name: string }>): Record<string, number> {
+  const result: Record<string, number> = {};
+  const chunks = String(text || "")
+    .split(/\n|;|\|/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+  for (const p of products || []) {
+    const pName = normalizeText(String(p?.name || ""));
+    const terms = pName
+      .split(/[^a-z0-9]+/i)
+      .map((x) => x.trim())
+      .filter((x) => x.length >= 5)
+      .slice(0, 6);
+
+    for (const chunk of chunks) {
+      const c = normalizeText(chunk);
+      const hits = terms.reduce((acc, t) => (c.includes(t) ? acc + 1 : acc), 0);
+      if (hits >= 2 || (pName && c.includes(pName))) {
+        const qty = extractQuantity(chunk);
+        if (qty > 0) {
+          result[String(p.id)] = qty;
+          break;
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+function hasUniformQuantityHint(text: string): boolean {
+  const t = normalizeText(text);
+  return /(para todos|cada uno|cada producto|los 3|los tres)/.test(t) && /\d/.test(t);
+}
+
 function shouldAutoQuote(text: string): boolean {
   const t = normalizeText(text);
   const asksQuote = /(cotiz|cotizacion|cotizar|presupuesto|precio)/.test(t);
   const asksDelivery = /(pdf|archivo|adjunt|enviame|enviame|enviame|whatsapp|trm)/.test(t);
-  return asksQuote && asksDelivery;
+  const asksMulti = isMultiProductQuoteIntent(t);
+  return asksQuote && (asksDelivery || asksMulti);
 }
 
 function isQuoteRecallIntent(text: string): boolean {
@@ -1206,7 +1243,20 @@ export async function POST(req: Request) {
             .map((m: any) => String(m.content || ""));
           const combinedUserContext = `${latestUserLines.join("\n")}\n${inbound.text}`;
 
-          const quantity = extractQuantity(quoteSourceText);
+          const defaultQuantity = extractQuantity(quoteSourceText);
+          const perProductQty = extractPerProductQuantities(
+            quoteSourceText,
+            selectedProducts.map((p: any) => ({ id: String(p.id), name: String(p.name || "") }))
+          );
+          const uniformHint = hasUniformQuantityHint(quoteSourceText);
+
+          if (wantsMulti && Object.keys(perProductQty).length < selectedProducts.length && !uniformHint) {
+            const listNames = selectedProducts.map((p: any) => String(p?.name || "")).filter(Boolean);
+            reply = `Para cotizar los 3 productos, confirmame la cantidad de cada uno. Ejemplo: ${listNames[0] || "Producto 1"}: 2; ${listNames[1] || "Producto 2"}: 1; ${listNames[2] || "Producto 3"}: 3. Si es la misma cantidad para todos, escribe: cantidad ${defaultQuantity || 1} para todos.`;
+            handledByQuoteIntake = true;
+            billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+          }
+
           const customerEmail = extractEmail(combinedUserContext);
           const customerName = extractCustomerName(combinedUserContext, inbound.pushName || "");
           const customerPhone = extractCustomerPhone(combinedUserContext, inbound.from);
@@ -1222,12 +1272,17 @@ export async function POST(req: Request) {
             billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
           }
 
-          if (!missingFields.length) {
+          if (!missingFields.length && !handledByQuoteIntake) {
             const trm = await getOrFetchTrm(supabase, ownerId, (agent as any)?.tenant_id || null);
             const trmRate = Number(trm?.rate || 0);
 
             if (trmRate > 0) {
               for (const selected of selectedProducts) {
+                const quantity =
+                  Number(perProductQty[String((selected as any).id)]) ||
+                  (uniformHint ? defaultQuantity : 0) ||
+                  defaultQuantity ||
+                  1;
                 const basePriceUsd = Number((selected as any)?.base_price_usd || 0);
                 if (!(basePriceUsd > 0)) continue;
 
@@ -1288,9 +1343,13 @@ export async function POST(req: Request) {
               }
 
               if (autoQuoteDocs.length === 1) {
-                reply = `Listo. Ya genere tu cotizacion para ${String((selectedProducts[0] as any)?.name || "el producto")} (cantidad ${quantity}) con la TRM de hoy. Te envio el PDF en este chat ahora mismo.`;
+                const q1 = autoQuoteDocs[0]?.quantity || 1;
+                reply = `Listo. Ya genere tu cotizacion para ${String((selectedProducts[0] as any)?.name || "el producto")} (cantidad ${q1}) con la TRM de hoy. Te envio el PDF en este chat ahora mismo.`;
               } else if (autoQuoteDocs.length > 1) {
-                reply = `Listo. Ya genere ${autoQuoteDocs.length} cotizaciones (cantidad ${quantity} cada una) con la TRM de hoy. Te envio los PDFs por este chat ahora mismo.`;
+                const byQty = autoQuoteDocs.every((d) => d.quantity === autoQuoteDocs[0].quantity);
+                reply = byQty
+                  ? `Listo. Ya genere ${autoQuoteDocs.length} cotizaciones (cantidad ${autoQuoteDocs[0].quantity} cada una) con la TRM de hoy. Te envio los PDFs por este chat ahora mismo.`
+                  : `Listo. Ya genere ${autoQuoteDocs.length} cotizaciones con las cantidades que me indicaste y la TRM de hoy. Te envio los PDFs por este chat ahora mismo.`;
               }
               if (reply) billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
             }
@@ -1354,6 +1413,16 @@ export async function POST(req: Request) {
       });
 
       reply = String(completion.choices?.[0]?.message?.content || "").trim() || "No tengo una respuesta en este momento.";
+
+      const lcReply = normalizeText(reply);
+      if (
+        lcReply.includes("no puedo enviar archivos") ||
+        lcReply.includes("no puedo enviar cotizaciones completas por este medio") ||
+        lcReply.includes("solo puedo enviarla a tu correo")
+      ) {
+        reply = "Si puedo enviarte la cotizacion por este WhatsApp en PDF. Si me confirmas producto(s), cantidad y datos de contacto, la genero y te la envio por aqui.";
+      }
+
       usageTotal = Math.max(0, Number(completion.usage?.total_tokens || 0));
       usageCompletion = Math.max(0, Number(completion.usage?.completion_tokens || 0));
       billedTokens = Math.max(1, Math.min(500, usageCompletion || estimateTokens(reply)));
