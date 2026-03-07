@@ -338,6 +338,66 @@ export class EvolutionService {
     throw lastErr || new Error("sendDocument failed");
   }
 
+  async sendImage(
+    instanceName: string,
+    phone: string,
+    args: { base64: string; fileName?: string; caption?: string; mimetype?: string }
+  ): Promise<any> {
+    const destinationRaw = String(phone || "").trim();
+    const number = destinationRaw.replace(/\D/g, "");
+    const hasJid = destinationRaw.includes("@");
+    const fileName = String(args?.fileName || "imagen.jpg").trim() || "imagen.jpg";
+    const caption = String(args?.caption || "").trim();
+    const mimetype = String(args?.mimetype || "image/jpeg").trim() || "image/jpeg";
+    const rawBase64 = String(args?.base64 || "").trim();
+    const base64Only = rawBase64.startsWith("data:")
+      ? (rawBase64.split(",")[1] || "").trim()
+      : rawBase64;
+    const mediaDataUrl = rawBase64.startsWith("data:") ? rawBase64 : `data:${mimetype};base64,${base64Only}`;
+
+    const destinationShapes: Array<Record<string, any>> = [];
+    if (hasJid) {
+      destinationShapes.push({ number: destinationRaw });
+      destinationShapes.push({ jid: destinationRaw });
+    }
+    if (number) {
+      destinationShapes.push({ number });
+      destinationShapes.push({ jid: `${number}@s.whatsapp.net` });
+    }
+
+    const uniqueShapes = destinationShapes.filter((v, i, arr) => {
+      const key = JSON.stringify(v);
+      return arr.findIndex((x) => JSON.stringify(x) === key) === i;
+    });
+
+    const attempts: Array<{ body: any }> = [];
+    for (const dst of uniqueShapes) {
+      attempts.push(
+        { body: { ...dst, mediatype: "image", fileName, caption, mimetype, media: base64Only } },
+        { body: { ...dst, mediatype: "image", fileName, caption, mimetype, file: base64Only } },
+        { body: { ...dst, mediatype: "image", fileName, caption, mimetype, base64: base64Only } },
+        { body: { ...dst, mediatype: "image", fileName, caption, mimetype, media: mediaDataUrl } },
+        { body: { ...dst, mediatype: "image", fileName, caption, mimetype, file: mediaDataUrl } },
+        { body: { ...dst, mediatype: "image", fileName, caption, mimetype, base64: mediaDataUrl } }
+      );
+    }
+
+    let lastErr: any = null;
+    for (const att of attempts) {
+      try {
+        return await evolutionFetch(`/message/sendMedia/${instanceName}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(att.body),
+        });
+      } catch (e: any) {
+        lastErr = e;
+      }
+    }
+
+    throw lastErr || new Error("sendImage failed");
+  }
+
   async disconnect(instanceName: string): Promise<void> {
     await evolutionFetch(`/instance/logout/${instanceName}`, { method: "DELETE" });
   }

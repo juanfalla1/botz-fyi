@@ -634,6 +634,18 @@ function safeFileName(input: string, fallbackBase: string, fallbackExt: string):
   return /\.[a-z0-9]{2,8}$/i.test(base) ? base : `${base}.${fallbackExt}`;
 }
 
+function toReadableBulletList(raw: string, maxLines = 4): string {
+  const cleaned = String(raw || "").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+  const chunks = cleaned
+    .split(/[.;]\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, maxLines);
+  if (!chunks.length) return "";
+  return chunks.map((c) => `- ${c}`).join("\n");
+}
+
 async function fetchRemoteFileAsBase64(url: string): Promise<{ base64: string; mimetype: string; fileName: string } | null> {
   const target = String(url || "").trim();
   if (!/^https?:\/\//i.test(target)) return null;
@@ -1181,7 +1193,7 @@ export async function POST(req: Request) {
     let handledByTechSheet = false;
     let handledByRecall = false;
     let handledByQuoteIntake = false;
-    const technicalDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }> = [];
+    const technicalDocs: Array<{ kind: "document" | "image"; base64: string; fileName: string; mimetype: string; caption?: string }> = [];
     let resendPdf: null | {
       draftId: string;
       fileName: string;
@@ -1363,9 +1375,21 @@ export async function POST(req: Request) {
 
         if (!matched?.name) {
           const sample = list.slice(0, 8).map((p: any) => String(p?.name || "").trim()).filter(Boolean);
-          reply = sample.length
-            ? `Claro. Para enviarte la ficha técnica o imagen, dime el producto exacto. Opciones disponibles: ${sample.join("; ")}.`
-            : "Ahora mismo no encuentro productos activos en catálogo para enviarte ficha técnica.";
+          if (sample.length) {
+            const top = sample.slice(0, 5);
+            const more = Math.max(0, sample.length - top.length);
+            reply = [
+              "Claro. Para enviarte la ficha técnica o imagen necesito el producto exacto.",
+              "",
+              "Opciones disponibles:",
+              ...top.map((s) => `- ${s}`),
+              ...(more > 0 ? [`- y ${more} más`] : []),
+              "",
+              "Escríbeme solo el nombre exacto del producto.",
+            ].join("\n");
+          } else {
+            reply = "Ahora mismo no encuentro productos activos en catálogo para enviarte ficha técnica.";
+          }
         } else {
           const wantsSheet = isTechnicalSheetIntent(inbound.text);
           const wantsImage = isProductImageIntent(inbound.text);
@@ -1379,6 +1403,7 @@ export async function POST(req: Request) {
               const remote = await fetchRemoteFileAsBase64(datasheetUrl);
               if (remote) {
                 technicalDocs.push({
+                  kind: "document",
                   base64: remote.base64,
                   mimetype: remote.mimetype || "application/pdf",
                   fileName: safeFileName(remote.fileName, `ficha-${String((matched as any)?.name || "producto")}`, "pdf"),
@@ -1394,6 +1419,7 @@ export async function POST(req: Request) {
               const remote = await fetchRemoteFileAsBase64(imageUrl);
               if (remote) {
                 technicalDocs.push({
+                  kind: "image",
                   base64: remote.base64,
                   mimetype: remote.mimetype || "image/jpeg",
                   fileName: safeFileName(remote.fileName, `imagen-${String((matched as any)?.name || "producto")}`, "jpg"),
@@ -1404,13 +1430,21 @@ export async function POST(req: Request) {
           }
 
           const specs = String((matched as any)?.specs_text || "").replace(/\s+/g, " ").trim();
-          const briefSpecs = specs ? specs.slice(0, 420) : "";
+          const briefSpecs = specs ? toReadableBulletList(specs.slice(0, 700), 4) : "";
           const productUrl = String((matched as any)?.product_url || "").trim();
 
           if (technicalDocs.length) {
-            reply = `Perfecto. Ya te envío por este WhatsApp la información técnica de ${String((matched as any)?.name || "ese producto")}${briefSpecs ? `. Resumen: ${briefSpecs}` : ""}`;
+            reply = [
+              `Perfecto. Ya te envío por este WhatsApp la información técnica de ${String((matched as any)?.name || "ese producto")}.`,
+              ...(briefSpecs ? ["", "Resumen técnico:", briefSpecs] : []),
+            ].join("\n");
           } else if (briefSpecs) {
-            reply = `Te comparto la ficha técnica de ${String((matched as any)?.name || "ese producto")}: ${briefSpecs}${productUrl ? ` Más detalle: ${productUrl}` : ""}`;
+            reply = [
+              `Te comparto la ficha técnica de ${String((matched as any)?.name || "ese producto")}:`,
+              "",
+              briefSpecs,
+              ...(productUrl ? ["", `Más detalle: ${productUrl}`] : []),
+            ].join("\n");
           } else {
             reply = `No tengo el archivo de ficha técnica listo para ${String((matched as any)?.name || "ese producto")} en este momento, pero sí su enlace: ${productUrl || "no disponible"}. Si quieres, te ayudo a cotizarlo de una vez.`;
           }
@@ -1902,12 +1936,21 @@ export async function POST(req: Request) {
     if (technicalDocs.length) {
       try {
         for (const doc of technicalDocs) {
-          await evolutionService.sendDocument(outboundInstance, sentTo, {
-            base64: doc.base64,
-            fileName: doc.fileName,
-            caption: doc.caption || "Información técnica",
-            mimetype: doc.mimetype || "application/pdf",
-          });
+          if (doc.kind === "image") {
+            await evolutionService.sendImage(outboundInstance, sentTo, {
+              base64: doc.base64,
+              fileName: doc.fileName,
+              caption: doc.caption || "Imagen del producto",
+              mimetype: doc.mimetype || "image/jpeg",
+            });
+          } else {
+            await evolutionService.sendDocument(outboundInstance, sentTo, {
+              base64: doc.base64,
+              fileName: doc.fileName,
+              caption: doc.caption || "Información técnica",
+              mimetype: doc.mimetype || "application/pdf",
+            });
+          }
         }
       } catch (techDocErr: any) {
         console.warn("[evolution-webhook] technical_doc_send_failed", techDocErr?.message || techDocErr);
