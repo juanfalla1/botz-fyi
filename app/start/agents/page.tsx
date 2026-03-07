@@ -525,10 +525,40 @@ export default function AgentStudio() {
   }, [agents, connectedChannels, language]);
 
   const cards = useMemo(() => ([
-    { id: "voice",     title: tr("Crear Agente de Voz", "Create Voice Agent")  },
-    { id: "text",      title: tr("Crear Agente de Texto", "Create Text Agent") },
-    { id: "flow",      title: tr("Crear Flujo", "Create Flow")                 },
-    { id: "notetaker", title: tr("Configurar Copiloto IA", "Set Up AI Copilot") },
+    {
+      id: "voice",
+      title: tr("Crear Agente de Voz", "Create Voice Agent"),
+      subtitle: tr("Llamadas y voz en tiempo real", "Live calls and voice"),
+      icon: "/img/agent-voice.png",
+      fallbackIcon: "/img/agent-voice.svg",
+      accent: "linear-gradient(135deg, rgba(56,189,248,0.22), rgba(34,211,238,0.08))",
+    },
+    {
+      id: "text",
+      title: tr("Crear Agente de Texto", "Create Text Agent"),
+      subtitle: tr("WhatsApp, web y chat multicanal", "WhatsApp, web and chat"),
+      icon: "/img/agent-text.png",
+      fallbackIcon: "/img/agent-text.svg",
+      accent: "linear-gradient(135deg, rgba(163,230,53,0.18), rgba(56,189,248,0.08))",
+    },
+    {
+      id: "flow",
+      title: tr("Crear Flujo", "Create Flow"),
+      subtitle: tr("Automatiza procesos comerciales", "Automate sales processes"),
+      icon: "/img/agent-crear flujo.png",
+      fallbackIcon: "/img/agent-flow.svg",
+      accent: "linear-gradient(135deg, rgba(251,191,36,0.2), rgba(56,189,248,0.08))",
+      blendMode: "lighten",
+    },
+    {
+      id: "notetaker",
+      title: tr("Configurar Copiloto IA", "Set Up AI Copilot"),
+      subtitle: tr("Resumir, clasificar y asistir", "Summarize and assist"),
+      icon: "/img/agent-copilot.png",
+      fallbackIcon: "/img/agent-copilot.svg",
+      accent: "linear-gradient(135deg, rgba(244,114,182,0.2), rgba(139,92,246,0.08))",
+      blendMode: "lighten",
+    },
   ]), [language]);
 
   const templates = [
@@ -1644,12 +1674,79 @@ export default function AgentStudio() {
                   }
                   router.push(`/start/agents/create?type=${card.id}`);
                 }}
-                style={{ ...col(), backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: isMobile ? "16px 14px 14px" : "24px 22px 18px", cursor: "pointer", textAlign: "left", minHeight: isMobile ? 140 : 200, transition: "background .15s" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = C.hover; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = C.card;  }}
+                style={{
+                  ...col(),
+                  background: `linear-gradient(180deg, rgba(33,39,52,0.98), rgba(24,30,44,0.98)), ${card.accent}`,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 18,
+                  padding: isMobile ? "14px 14px 12px" : "16px 16px 14px",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  minHeight: isMobile ? 158 : 224,
+                  transition: "transform .18s ease, box-shadow .18s ease, border-color .18s ease",
+                  boxShadow: "0 10px 24px rgba(0,0,0,0.22)",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+                onMouseEnter={e => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.transform = "translateY(-3px)";
+                  el.style.boxShadow = "0 14px 30px rgba(0,0,0,0.3)";
+                  el.style.borderColor = "rgba(96,165,250,0.36)";
+                  const img = el.querySelector("img[data-card-image='1']") as HTMLImageElement | null;
+                  if (img) img.style.transform = "translateX(-50%) scale(1.04)";
+                }}
+                onMouseLeave={e => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.style.transform = "translateY(0)";
+                  el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.22)";
+                  el.style.borderColor = C.border;
+                  const img = el.querySelector("img[data-card-image='1']") as HTMLImageElement | null;
+                  if (img) img.style.transform = "translateX(-50%) scale(1)";
+                }}
               >
-                <span style={{ color: C.white, fontWeight: 800, fontSize: 15, lineHeight: 1.25 }}>{card.title}</span>
-                <span style={{ textAlign: "center", fontSize: 64, marginTop: "auto", paddingTop: 16, lineHeight: 1 }}>🤖</span>
+                <div style={{ position: "relative", zIndex: 3, display: "grid", gap: 4 }}>
+                  <span style={{ color: C.white, fontWeight: 900, fontSize: isMobile ? 14 : 15, lineHeight: 1.2 }}>{card.title}</span>
+                  <span style={{ color: "#a7b4cb", fontSize: 11, lineHeight: 1.2, opacity: 0.85 }}>{card.subtitle}</span>
+                </div>
+
+                <div style={{
+                  position: "absolute",
+                  left: "50%",
+                  bottom: isMobile ? -8 : -12,
+                  width: isMobile ? 160 : 220,
+                  height: isMobile ? 56 : 76,
+                  transform: "translateX(-50%)",
+                  background: "radial-gradient(ellipse at center, rgba(59,130,246,0.32), rgba(15,23,42,0.02))",
+                  filter: "blur(8px)",
+                  zIndex: 1,
+                }} />
+
+                <img
+                  data-card-image="1"
+                  src={card.icon}
+                  alt={card.title}
+                  width={isMobile ? 170 : 220}
+                  height={isMobile ? 170 : 220}
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    bottom: isMobile ? -22 : -28,
+                    transform: "translateX(-50%) scale(1)",
+                    transformOrigin: "bottom center",
+                    transition: "transform .18s ease",
+                    objectFit: "contain",
+                    filter: "drop-shadow(0 10px 20px rgba(0,0,0,0.38))",
+                    mixBlendMode: (card as any).blendMode || "normal",
+                    zIndex: 2,
+                    pointerEvents: "none",
+                  }}
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement;
+                    if (target.src.endsWith(String(card.fallbackIcon || ""))) return;
+                    target.src = String(card.fallbackIcon || card.icon || "");
+                  }}
+                />
               </button>
             ))}
           </div>
