@@ -334,3 +334,63 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: e?.message || "No se pudo guardar bitacora" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  const guard = await getRequestUser(req);
+  if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
+
+  const supabase = getServiceSupabase();
+  if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+
+  const body = await req.json().catch(() => ({}));
+  const ownerId = guard.user.id;
+  const phone = normalizePhone(body?.phone);
+  const email = String(body?.email || "").trim().toLowerCase();
+  const key = contactKeyOf(phone, email);
+
+  if (!key) return NextResponse.json({ ok: false, error: "Missing phone or email" }, { status: 400 });
+
+  try {
+    let query = supabase
+      .from("agent_crm_contacts")
+      .select("id")
+      .eq("created_by", ownerId)
+      .eq("contact_key", key)
+      .limit(200);
+
+    if (phone) {
+      const p10 = tail10(phone);
+      query = supabase
+        .from("agent_crm_contacts")
+        .select("id")
+        .eq("created_by", ownerId)
+        .or(`contact_key.eq.${key},phone.like.%${p10}`)
+        .limit(200);
+    }
+
+    const { data: rows, error: readErr } = await query;
+    if (readErr) return NextResponse.json({ ok: false, error: readErr.message }, { status: 400 });
+    const ids = (Array.isArray(rows) ? rows : []).map((r: any) => String(r?.id || "")).filter(Boolean);
+    if (!ids.length) return NextResponse.json({ ok: true, deleted: 0 });
+
+    await supabase
+      .from("agent_crm_notes")
+      .delete()
+      .eq("created_by", ownerId)
+      .in("contact_id", ids);
+
+    const { error: delErr } = await supabase
+      .from("agent_crm_contacts")
+      .delete()
+      .eq("created_by", ownerId)
+      .in("id", ids);
+    if (delErr) return NextResponse.json({ ok: false, error: delErr.message }, { status: 400 });
+
+    return NextResponse.json({ ok: true, deleted: ids.length });
+  } catch (e: any) {
+    if (isMissingTableError(e, "agent_crm_contacts")) {
+      return NextResponse.json({ ok: false, code: "missing_table", error: "Falta migración CRM contacts (agent_crm_contacts)" }, { status: 400 });
+    }
+    return NextResponse.json({ ok: false, error: e?.message || "No se pudo eliminar contacto" }, { status: 500 });
+  }
+}

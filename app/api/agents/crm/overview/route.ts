@@ -48,7 +48,15 @@ function isMissingTableError(err: any, tableName: string) {
 function contactKeyOf(phoneRaw: string | null | undefined, emailRaw: string | null | undefined) {
   const phone = phoneTail10(phoneRaw);
   const email = String(emailRaw || "").trim().toLowerCase();
-  return phone || email;
+  return email || phone;
+}
+
+function cleanContactName(raw: string | null | undefined) {
+  const name = String(raw || "").trim().replace(/\s+/g, " ");
+  if (!name) return "";
+  const letters = name.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ\s]/g, "").trim();
+  if (letters.length < 3) return "";
+  return letters;
 }
 
 function normalizeContactKey(raw: string | null | undefined) {
@@ -198,6 +206,12 @@ export async function GET(req: Request) {
 
   const safeDrafts: Draft[] = Array.isArray(drafts) ? (drafts as Draft[]) : [];
   const convRows = Array.isArray(conversations) ? conversations : [];
+  const draftEmailByPhone = new Map<string, string>();
+  for (const d of safeDrafts) {
+    const t10 = phoneTail10(d?.customer_phone);
+    const email = String(d?.customer_email || "").trim().toLowerCase();
+    if (t10 && email) draftEmailByPhone.set(t10, email);
+  }
 
   const byStatus = {
     draft: 0,
@@ -326,7 +340,7 @@ export async function GET(req: Request) {
       contact_id: null,
     };
 
-    prev.name = prev.name || d.customer_name || "";
+    prev.name = prev.name || cleanContactName(d.customer_name) || "";
     prev.email = prev.email || email;
     prev.phone = prev.phone || phoneTail10(phone);
     prev.company = prev.company || d.company_name || "";
@@ -359,12 +373,14 @@ export async function GET(req: Request) {
   for (const c of convRows as any[]) {
     const phone = normalizePhone(c?.contact_phone);
     if (!phone) continue;
-    const key = phoneTail10(phone);
+    const p10 = phoneTail10(phone);
+    const key = String(draftEmailByPhone.get(p10) || p10 || "");
+    if (!key) continue;
     const prev = contactsMap.get(key) || {
       key,
       name: "",
       email: "",
-      phone: phoneTail10(phone),
+      phone: p10,
       company: "",
       quotes_count: 0,
       quote_requests_count: 0,
@@ -388,7 +404,7 @@ export async function GET(req: Request) {
     if (new Date(c?.created_at).getTime() > new Date(prev.last_activity_at).getTime()) {
       prev.last_activity_at = c?.created_at;
       prev.last_channel = String(c?.channel || "").toLowerCase();
-      prev.name = String(c?.contact_name || prev.name || "").trim();
+      prev.name = cleanContactName(c?.contact_name) || prev.name || "";
     }
     contactsMap.set(key, prev);
   }
@@ -422,7 +438,7 @@ export async function GET(req: Request) {
       contact_id: (cc as any)?.id || null,
     };
 
-    prev.name = String((cc as any)?.name || prev.name || "");
+    prev.name = cleanContactName((cc as any)?.name) || prev.name || "";
     prev.email = String((cc as any)?.email || prev.email || "");
     prev.phone = phoneTail10((cc as any)?.phone || prev.phone || "");
     prev.company = String((cc as any)?.company || prev.company || "");
@@ -456,7 +472,7 @@ export async function GET(req: Request) {
       contact.last_channel = latest.channel;
     }
     if (latest?.contact_name && !String(contact.name || "").trim()) {
-      contact.name = latest.contact_name;
+      contact.name = cleanContactName(latest.contact_name) || contact.name;
     }
     if (latest?.last_intent) {
       contact.last_intent = latest.last_intent;

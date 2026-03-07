@@ -91,6 +91,7 @@ export default function AgentsCrmPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterAgent, setFilterAgent] = useState("all");
   const [filterChannel, setFilterChannel] = useState("all");
+  const [filterQuoteDemand, setFilterQuoteDemand] = useState("all");
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [contactDetail, setContactDetail] = useState<{ contact?: any; drafts: any[]; conversations: any[]; timeline: Array<{ at: string; kind: string; text: string }>; notes?: Array<{ id: string; note: string; created_at: string }> } | null>(null);
   const [contactLoading, setContactLoading] = useState(false);
@@ -263,6 +264,30 @@ export default function AgentsCrmPage() {
     await patchContactInline(c, { next_action_at }, "No se pudo actualizar fecha de próxima acción");
   };
 
+  const deleteContactInline = async (c: Contact) => {
+    const ok = window.confirm(tr("¿Eliminar este contacto del CRM? Esta acción quitará su ficha y bitácora.", "Delete this CRM contact? This removes contact card and notes."));
+    if (!ok) return;
+    setUpdatingContactKey(String(c.key || ""));
+    try {
+      const res = await authedFetch("/api/agents/crm/contact", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: c.phone, email: c.email }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo eliminar contacto");
+      if (selectedContact && String(selectedContact.key || "") === String(c.key || "")) {
+        setSelectedContact(null);
+        setContactDetail(null);
+      }
+      await fetchData();
+    } catch (e: any) {
+      setError(String(e?.message || "Error eliminando contacto"));
+    } finally {
+      setUpdatingContactKey("");
+    }
+  };
+
   const openContactDetail = async (c: Contact) => {
     setSelectedContact(c);
     setContactLoading(true);
@@ -364,11 +389,15 @@ export default function AgentsCrmPage() {
       if (filterStatus !== "all" && String(c.status || "") !== filterStatus) return false;
       if (filterAgent !== "all" && String(c.assigned_agent_id || "") !== filterAgent) return false;
       if (filterChannel !== "all" && String(c.last_channel || "") !== filterChannel) return false;
+      if (filterQuoteDemand === "with_quotes") {
+        const has = Number((c as any).quote_requests_count || c.quotes_count || 0) > 0;
+        if (!has) return false;
+      }
       if (!q) return true;
       const hay = `${c.name || ""} ${c.email || ""} ${c.phone || ""} ${c.company || ""} ${c.last_product || ""}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [contacts, search, filterStatus, filterAgent, filterChannel]);
+  }, [contacts, search, filterStatus, filterAgent, filterChannel, filterQuoteDemand]);
 
   const filteredPipeline = useMemo(() => {
     const statusSet = new Set(filteredContacts.map((c) => String(c.phone || "") + "|" + String(c.email || "").toLowerCase()));
@@ -457,7 +486,7 @@ export default function AgentsCrmPage() {
 
         {!!settings?.enabled && (
           <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: C.card, padding: 12, marginBottom: 14 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1.2fr repeat(3,minmax(160px,1fr))", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1.2fr repeat(4,minmax(160px,1fr))", gap: 10 }}>
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("Buscar contacto, correo, producto...", "Search contact, email, product...")} style={{ padding: "9px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }} />
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: "9px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
                 <option value="all">{tr("Todos los estados", "All statuses")}</option>
@@ -473,6 +502,10 @@ export default function AgentsCrmPage() {
               <select value={filterChannel} onChange={(e) => setFilterChannel(e.target.value)} style={{ padding: "9px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
                 <option value="all">{tr("Todos los canales", "All channels")}</option>
                 {channelSummary.map((c) => <option key={c.channel} value={c.channel}>{c.channel}</option>)}
+              </select>
+              <select value={filterQuoteDemand} onChange={(e) => setFilterQuoteDemand(e.target.value)} style={{ padding: "9px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
+                <option value="all">{tr("Todos los clientes", "All customers")}</option>
+                <option value="with_quotes">{tr("Clientes con cotizaciones", "Customers with quotes")}</option>
               </select>
             </div>
 
@@ -638,11 +671,12 @@ export default function AgentsCrmPage() {
                 {(visibleContactFields.length ? visibleContactFields : [{ key: "name", label: tr("Nombre", "Name") } as any]).map((f: any) => (
                   <th key={f.key} style={{ ...th, minWidth: colMinWidth(f.key) }}>{f.label}</th>
                 ))}
+                <th style={{ ...th, minWidth: 110 }}>{tr("Acciones", "Actions")}</th>
               </tr>
             </thead>
             <tbody>
               {!loading && filteredContacts.length === 0 && (
-                <tr><td colSpan={Math.max(1, visibleContactFields.length)} style={{ padding: 12, color: C.muted }}>{tr("Aun no hay contactos.", "No contacts yet.")}</td></tr>
+                <tr><td colSpan={Math.max(2, visibleContactFields.length + 1)} style={{ padding: 12, color: C.muted }}>{tr("Aun no hay contactos.", "No contacts yet.")}</td></tr>
               )}
               {filteredContacts.slice(0, 200).map((c) => (
                 <tr key={c.key} style={{ borderTop: `1px solid ${C.border}`, cursor: "pointer" }} onClick={() => void openContactDetail(c)}>
@@ -698,6 +732,15 @@ export default function AgentsCrmPage() {
                       ) : renderContactValue(c, f.key)}
                     </td>
                   ))}
+                  <td style={{ ...td, minWidth: 110 }} onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => void deleteContactInline(c)}
+                      disabled={updatingContactKey === String(c.key || "")}
+                      style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: "#2a1216", color: "#fca5a5", padding: "6px 10px", cursor: "pointer", fontSize: 12 }}
+                    >
+                      {tr("Eliminar", "Delete")}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
