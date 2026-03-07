@@ -1578,6 +1578,129 @@ export async function POST(req: Request) {
       }
     }
 
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && isQuantityUpdateIntent(inbound.text)) {
+      try {
+        const requestedQty = extractQuantity(inbound.text);
+        const memoryDraftId = String(previousMemory?.last_quote_draft_id || "").trim();
+
+        let baseDraft: any = null;
+        if (memoryDraftId) {
+          const { data } = await supabase
+            .from("agent_quote_drafts")
+            .select("id,tenant_id,product_catalog_id,product_name,base_price_usd,trm_rate,total_cop,status,payload,customer_phone,customer_name,customer_email,company_name,notes,created_at")
+            .eq("id", memoryDraftId)
+            .eq("created_by", ownerId)
+            .eq("agent_id", String(agent.id))
+            .maybeSingle();
+          baseDraft = data || null;
+        }
+
+        if (!baseDraft) {
+          const { data: recentDrafts } = await supabase
+            .from("agent_quote_drafts")
+            .select("id,tenant_id,product_catalog_id,product_name,base_price_usd,trm_rate,total_cop,status,payload,customer_phone,customer_name,customer_email,company_name,notes,created_at")
+            .eq("created_by", ownerId)
+            .eq("agent_id", String(agent.id))
+            .order("created_at", { ascending: false })
+            .limit(30);
+
+          const inboundPhone = normalizePhone(inbound.from || "");
+          const inboundTail = phoneTail10(inbound.from || "");
+          const draftList = Array.isArray(recentDrafts) ? recentDrafts : [];
+          baseDraft =
+            draftList.find((d: any) => normalizePhone(String(d?.customer_phone || "")) === inboundPhone) ||
+            draftList.find((d: any) => phoneTail10(String(d?.customer_phone || "")) === inboundTail) ||
+            null;
+        }
+
+        if (!baseDraft?.id) {
+          reply = "No encuentro una cotización previa para ajustar cantidad en este momento. Si me dices producto y cantidad, la genero de inmediato por este WhatsApp.";
+          handledByRecall = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        } else {
+          const basePriceUsd = Number((baseDraft as any)?.base_price_usd || 0);
+          if (!(requestedQty > 0) || !(basePriceUsd > 0)) {
+            reply = "Entendido. Confírmame la cantidad exacta para recalcular y enviarte el PDF actualizado.";
+            handledByRecall = true;
+            billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+          } else {
+            const trm = await getOrFetchTrm(supabase, ownerId, (agent as any)?.tenant_id || null);
+            const trmRate = Number(trm?.rate || 0);
+            if (!(trmRate > 0)) {
+              reply = "No pude consultar la TRM de hoy para actualizar la cotización. Intenta de nuevo en 1 minuto y te la envío por este WhatsApp.";
+              handledByRecall = true;
+              billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+            } else {
+              const totalCop = Number((basePriceUsd * trmRate * requestedQty).toFixed(2));
+              const payload = {
+                ...((baseDraft as any)?.payload || {}),
+                quantity: requestedQty,
+                trm_date: trm?.rate_date || null,
+                trm_source: trm?.source || null,
+                automation: "evolution_webhook_qty_adjust",
+              };
+
+              const { data: newDraft, error: newDraftErr } = await supabase
+                .from("agent_quote_drafts")
+                .insert({
+                  tenant_id: (baseDraft as any)?.tenant_id || (agent as any)?.tenant_id || null,
+                  created_by: ownerId,
+                  agent_id: String(agent.id),
+                  customer_name: String((baseDraft as any)?.customer_name || nextMemory.customer_name || inbound.pushName || "") || null,
+                  customer_email: String((baseDraft as any)?.customer_email || nextMemory.customer_email || "") || null,
+                  customer_phone: String((baseDraft as any)?.customer_phone || nextMemory.customer_phone || inbound.from || "") || null,
+                  company_name: String((baseDraft as any)?.company_name || cfg?.company_name || "Avanza Balanzas") || "Avanza Balanzas",
+                  location: null,
+                  product_catalog_id: (baseDraft as any)?.product_catalog_id || null,
+                  product_name: String((baseDraft as any)?.product_name || ""),
+                  base_price_usd: basePriceUsd,
+                  trm_rate: trmRate,
+                  total_cop: totalCop,
+                  notes: "Cotizacion ajustada por cantidad solicitada por cliente",
+                  payload,
+                  status: "draft",
+                })
+                .select("id")
+                .single();
+
+              if (newDraftErr || !newDraft?.id) {
+                reply = "Ocurrió un error al actualizar la cotización por cantidad. Inténtalo de nuevo y te la envío por este WhatsApp.";
+              } else {
+                const draftId = String(newDraft.id);
+                const pdfBase64 = buildQuotePdf({
+                  draftId,
+                  companyName: String((baseDraft as any)?.company_name || "Avanza Balanzas"),
+                  customerName: String((baseDraft as any)?.customer_name || nextMemory.customer_name || inbound.pushName || ""),
+                  customerEmail: String((baseDraft as any)?.customer_email || nextMemory.customer_email || ""),
+                  customerPhone: String((baseDraft as any)?.customer_phone || nextMemory.customer_phone || inbound.from),
+                  productName: String((baseDraft as any)?.product_name || ""),
+                  quantity: requestedQty,
+                  basePriceUsd,
+                  trmRate,
+                  totalCop,
+                  notes: "Cotización ajustada por cantidad",
+                });
+
+                resendPdf = {
+                  draftId,
+                  fileName: `cotizacion-${draftId.slice(0, 8)}.pdf`,
+                  pdfBase64,
+                };
+                nextMemory.last_quote_draft_id = draftId;
+                nextMemory.last_quote_product_name = String((baseDraft as any)?.product_name || "");
+                reply = `Perfecto. Ya actualicé la cotización a ${requestedQty} unidades con TRM de hoy y te envío el PDF ahora mismo por este chat.`;
+              }
+
+              handledByRecall = true;
+              billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+            }
+          }
+        }
+      } catch (qtyErr: any) {
+        console.warn("[evolution-webhook] quantity_adjust_failed", qtyErr?.message || qtyErr);
+      }
+    }
+
     const recallByConfirmation = Boolean(previousMemory?.last_quote_draft_id) && isAffirmativeIntent(inbound.text);
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && (isQuoteRecallIntent(inbound.text) || recallByConfirmation)) {
       try {
