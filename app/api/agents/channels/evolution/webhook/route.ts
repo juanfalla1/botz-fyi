@@ -1395,6 +1395,9 @@ export async function POST(req: Request) {
           const wantsImage = isProductImageIntent(inbound.text);
           const payload = matched?.source_payload && typeof matched.source_payload === "object" ? matched.source_payload : {};
           const payloadPdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
+          const imageUrl = String((matched as any)?.image_url || "").trim();
+          let attachedSheet = false;
+          let attachedImage = false;
 
           if (wantsSheet) {
             const productUrlAsPdf = /\.pdf(\?|$)/i.test(String((matched as any)?.product_url || "")) ? String((matched as any)?.product_url || "") : "";
@@ -1409,12 +1412,12 @@ export async function POST(req: Request) {
                   fileName: safeFileName(remote.fileName, `ficha-${String((matched as any)?.name || "producto")}`, "pdf"),
                   caption: `Ficha técnica - ${String((matched as any)?.name || "producto")}`,
                 });
+                attachedSheet = true;
               }
             }
           }
 
-          if (wantsImage) {
-            const imageUrl = String((matched as any)?.image_url || "").trim();
+          if (wantsImage || wantsSheet) {
             if (imageUrl) {
               const remote = await fetchRemoteFileAsBase64(imageUrl);
               if (remote) {
@@ -1425,6 +1428,7 @@ export async function POST(req: Request) {
                   fileName: safeFileName(remote.fileName, `imagen-${String((matched as any)?.name || "producto")}`, "jpg"),
                   caption: `Imagen - ${String((matched as any)?.name || "producto")}`,
                 });
+                attachedImage = true;
               }
             }
           }
@@ -1435,7 +1439,7 @@ export async function POST(req: Request) {
 
           if (technicalDocs.length) {
             reply = [
-              `Perfecto. Ya te envío por este WhatsApp la información técnica de ${String((matched as any)?.name || "ese producto")}.`,
+              `Perfecto. Ya te envío por este WhatsApp la información técnica de ${String((matched as any)?.name || "ese producto")}${attachedSheet ? " (ficha)" : ""}${attachedImage ? " e imagen" : ""}.`,
               ...(briefSpecs ? ["", "Resumen técnico:", briefSpecs] : []),
             ].join("\n");
           } else if (briefSpecs) {
@@ -1443,10 +1447,11 @@ export async function POST(req: Request) {
               `Te comparto la ficha técnica de ${String((matched as any)?.name || "ese producto")}:`,
               "",
               briefSpecs,
+              ...(imageUrl ? ["", `Imagen del producto: ${imageUrl}`] : []),
               ...(productUrl ? ["", `Más detalle: ${productUrl}`] : []),
             ].join("\n");
           } else {
-            reply = `No tengo el archivo de ficha técnica listo para ${String((matched as any)?.name || "ese producto")} en este momento, pero sí su enlace: ${productUrl || "no disponible"}. Si quieres, te ayudo a cotizarlo de una vez.`;
+            reply = `No tengo el archivo adjunto listo para ${String((matched as any)?.name || "ese producto")} en este momento.${imageUrl ? ` Imagen: ${imageUrl}.` : ""} ${productUrl ? `Detalle: ${productUrl}.` : ""} Si quieres, te ayudo a cotizarlo de una vez.`;
           }
         }
 
