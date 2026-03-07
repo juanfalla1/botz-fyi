@@ -611,7 +611,7 @@ function isQuantityUpdateIntent(text: string): boolean {
 function isQuoteRecallIntent(text: string): boolean {
   const t = normalizeText(text);
   return (
-    /recuerd|ultima cotizacion|cotizacion que me enviaste|cotizacion anterior|mi cotizacion|mi ultima cotizacion|donde esta la cotizacion|donde va la cotizacion|estado de la cotizacion/.test(t) &&
+    /recuerd|ultima cotizacion|cotizacion que me enviaste|cotizacion anterior|mi cotizacion|mi ultima cotizacion|donde esta la cotizacion|donde va la cotizacion|estado de la cotizacion|aun no me envias|aun no envias|no me has enviado|sigue pendiente la cotizacion/.test(t) &&
     /(cotiz|pdf|enviaste|anterior|ultima|recordar|recuerd)/.test(t)
   );
 }
@@ -1583,7 +1583,7 @@ export async function POST(req: Request) {
       try {
         const { data: recentDrafts } = await supabase
           .from("agent_quote_drafts")
-          .select("id,product_name,base_price_usd,trm_rate,total_cop,status,payload,customer_phone,customer_name,customer_email,company_name,notes,created_at")
+          .select("id,tenant_id,product_catalog_id,product_name,base_price_usd,trm_rate,total_cop,status,payload,customer_phone,customer_name,customer_email,company_name,notes,created_at")
           .eq("created_by", ownerId)
           .eq("agent_id", String(agent.id))
           .order("created_at", { ascending: false })
@@ -1602,29 +1602,80 @@ export async function POST(req: Request) {
           nextMemory.last_quote_draft_id = String(lastDraft.id);
           nextMemory.last_quote_product_name = String(lastDraft.product_name || "");
           const qty = Math.max(1, Number((lastDraft as any)?.payload?.quantity || 1));
+          const requestedQty = extractQuantity(inbound.text);
+          const hasQtyUpdate = isQuantityUpdateIntent(inbound.text) && requestedQty > 0 && requestedQty !== qty;
           reply = `Si, claro. Tu ultima cotizacion fue del producto ${String(lastDraft.product_name || "")}, cantidad ${qty}, total COP ${formatMoney(Number(lastDraft.total_cop || 0))} con TRM ${formatMoney(Number(lastDraft.trm_rate || 0))}.`;
 
-          const wantsResend = shouldResendPdf(inbound.text) || recallByConfirmation;
+          const wantsResend = shouldResendPdf(inbound.text) || recallByConfirmation || hasQtyUpdate;
           if (wantsResend) {
+            let draftIdForSend = String(lastDraft.id);
+            let qtyForSend = qty;
+            let trmForSend = Number((lastDraft as any).trm_rate || 0);
+            let totalForSend = Number((lastDraft as any).total_cop || 0);
+            const basePriceUsd = Number((lastDraft as any).base_price_usd || 0);
+            if (hasQtyUpdate && basePriceUsd > 0) {
+              qtyForSend = requestedQty;
+              const trm = await getOrFetchTrm(supabase, ownerId, (agent as any)?.tenant_id || null);
+              trmForSend = Number(trm?.rate || trmForSend || 0);
+              if (trmForSend > 0) {
+                totalForSend = Number((basePriceUsd * trmForSend * qtyForSend).toFixed(2));
+                const payload = {
+                  ...(lastDraft as any)?.payload,
+                  quantity: qtyForSend,
+                  trm_date: trm?.rate_date || (lastDraft as any)?.payload?.trm_date || null,
+                  trm_source: trm?.source || (lastDraft as any)?.payload?.trm_source || null,
+                  automation: "evolution_webhook_requote",
+                };
+                const { data: newDraft } = await supabase
+                  .from("agent_quote_drafts")
+                  .insert({
+                    tenant_id: (lastDraft as any)?.tenant_id || (agent as any)?.tenant_id || null,
+                    created_by: ownerId,
+                    agent_id: String(agent.id),
+                    customer_name: String((lastDraft as any).customer_name || nextMemory.customer_name || inbound.pushName || "") || null,
+                    customer_email: String((lastDraft as any).customer_email || nextMemory.customer_email || "") || null,
+                    customer_phone: String((lastDraft as any).customer_phone || nextMemory.customer_phone || inbound.from) || null,
+                    company_name: String((lastDraft as any).company_name || cfg?.company_name || "Avanza Balanzas") || "Avanza Balanzas",
+                    location: null,
+                    product_catalog_id: (lastDraft as any)?.product_catalog_id || null,
+                    product_name: String((lastDraft as any).product_name || ""),
+                    base_price_usd: basePriceUsd,
+                    trm_rate: trmForSend,
+                    total_cop: totalForSend,
+                    notes: "Ajuste de cantidad por solicitud del cliente",
+                    payload,
+                    status: "draft",
+                  })
+                  .select("id")
+                  .single();
+                if (newDraft?.id) draftIdForSend = String(newDraft.id);
+              }
+            }
+
             const pdfBase64 = buildQuotePdf({
-              draftId: String(lastDraft.id),
+              draftId: draftIdForSend,
               companyName: String((lastDraft as any).company_name || "Avanza Balanzas"),
-              customerName: String((lastDraft as any).customer_name || inbound.pushName || ""),
-              customerEmail: String((lastDraft as any).customer_email || ""),
-              customerPhone: String((lastDraft as any).customer_phone || inbound.from),
+              customerName: String((lastDraft as any).customer_name || nextMemory.customer_name || inbound.pushName || ""),
+              customerEmail: String((lastDraft as any).customer_email || nextMemory.customer_email || ""),
+              customerPhone: String((lastDraft as any).customer_phone || nextMemory.customer_phone || inbound.from),
               productName: String((lastDraft as any).product_name || ""),
-              quantity: qty,
-              basePriceUsd: Number((lastDraft as any).base_price_usd || 0),
-              trmRate: Number((lastDraft as any).trm_rate || 0),
-              totalCop: Number((lastDraft as any).total_cop || 0),
-              notes: String((lastDraft as any).notes || ""),
+              quantity: qtyForSend,
+              basePriceUsd,
+              trmRate: trmForSend,
+              totalCop: totalForSend,
+              notes: hasQtyUpdate ? "Cotizacion ajustada por cantidad" : String((lastDraft as any).notes || ""),
             });
             resendPdf = {
-              draftId: String(lastDraft.id),
-              fileName: `cotizacion-${String(lastDraft.id).slice(0, 8)}.pdf`,
+              draftId: draftIdForSend,
+              fileName: `cotizacion-${String(draftIdForSend).slice(0, 8)}.pdf`,
               pdfBase64,
             };
-            reply += " Te reenvio el PDF ahora mismo por este chat.";
+            if (hasQtyUpdate) {
+              nextMemory.last_quote_draft_id = draftIdForSend;
+              reply = `Perfecto. Ya ajusté la cotización a ${qtyForSend} unidades y te reenvío el PDF ahora mismo por este chat.`;
+            } else {
+              reply += " Te reenvio el PDF ahora mismo por este chat.";
+            }
           } else {
             reply += " Si quieres, escribe 'reenviar PDF' y te lo mando de nuevo ahora.";
           }
