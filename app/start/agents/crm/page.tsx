@@ -58,16 +58,16 @@ const CONTACT_FIELD_DEFAULTS = [
   { key: "last_channel", label: "Canal", visible: false, required: false },
   { key: "last_product", label: "Ultimo producto", visible: false, required: false },
   { key: "status", label: "Estado", visible: false, required: false },
+  { key: "quotes_count", label: "Cotizaciones generadas", visible: true, required: false },
+  { key: "quote_requests_count", label: "Solicitudes de cotizacion", visible: true, required: false },
+  { key: "last_quote_value_cop", label: "Ultimo valor cotizado", visible: true, required: false },
+  { key: "total_quoted_cop", label: "Valor total cotizado", visible: true, required: false },
   { key: "last_intent", label: "Ultima intencion", visible: true, required: false },
   { key: "lead_temperature", label: "Temperatura", visible: true, required: false },
   { key: "last_quote_sent_at", label: "Ultima cotizacion enviada", visible: true, required: false },
-  { key: "quote_requests_count", label: "Solicitudes de cotizacion", visible: true, required: false },
   { key: "tech_sheet_requests_count", label: "Solicitudes ficha/imagen", visible: true, required: false },
-  { key: "last_quote_value_cop", label: "Ultimo valor cotizado", visible: true, required: false },
-  { key: "total_quoted_cop", label: "Valor total cotizado", visible: true, required: false },
   { key: "next_action", label: "Proxima accion", visible: false, required: false },
   { key: "next_action_at", label: "Fecha proxima accion", visible: false, required: false },
-  { key: "quotes_count", label: "Cotizaciones generadas", visible: false, required: false },
   { key: "last_activity_at", label: "Ultima actividad", visible: true, required: false },
 ];
 
@@ -106,6 +106,29 @@ export default function AgentsCrmPage() {
   }, []);
 
   const money = (n: number) => new Intl.NumberFormat(language === "en" ? "en-US" : "es-CO", { maximumFractionDigits: 0 }).format(Number(n || 0));
+
+  const toDateTimeLocalValue = (raw: any) => {
+    const s = String(raw || "").trim();
+    if (!s) return "";
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) return s.slice(0, 16);
+    const d = new Date(s);
+    if (!Number.isFinite(d.getTime())) return "";
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  };
+
+  const colMinWidth = (key: string) => {
+    if (key === "name") return 180;
+    if (key === "email") return 220;
+    if (key === "phone") return 140;
+    if (key === "company") return 160;
+    if (key === "status") return 150;
+    if (key === "next_action") return 220;
+    if (key === "next_action_at") return 210;
+    if (key === "last_intent") return 220;
+    if (key === "last_product") return 260;
+    return 130;
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -608,11 +631,12 @@ export default function AgentsCrmPage() {
               {tr("Descargar Excel (CSV)", "Download Excel (CSV)")}
             </button>
           </div>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div style={{ overflowX: "auto", overflowY: "hidden" }}>
+          <table style={{ width: "max-content", minWidth: "100%", borderCollapse: "collapse" }}>
             <thead style={{ background: C.dark }}>
               <tr>
                 {(visibleContactFields.length ? visibleContactFields : [{ key: "name", label: tr("Nombre", "Name") } as any]).map((f: any) => (
-                  <th key={f.key} style={th}>{f.label}</th>
+                  <th key={f.key} style={{ ...th, minWidth: colMinWidth(f.key) }}>{f.label}</th>
                 ))}
               </tr>
             </thead>
@@ -623,7 +647,7 @@ export default function AgentsCrmPage() {
               {filteredContacts.slice(0, 200).map((c) => (
                 <tr key={c.key} style={{ borderTop: `1px solid ${C.border}`, cursor: "pointer" }} onClick={() => void openContactDetail(c)}>
                   {(visibleContactFields.length ? visibleContactFields : [{ key: "name", label: tr("Nombre", "Name") } as any]).map((f: any) => (
-                    <td key={f.key} style={td} onClick={(e) => {
+                    <td key={f.key} style={{ ...td, minWidth: colMinWidth(f.key) }} onClick={(e) => {
                       if (f.key === "status" || f.key === "next_action" || f.key === "next_action_at") e.stopPropagation();
                     }}>
                       {f.key === "status" ? (
@@ -631,7 +655,7 @@ export default function AgentsCrmPage() {
                           value={String(c.status || "draft")}
                           disabled={updatingContactKey === String(c.key || "")}
                           onChange={(e) => void updateContactStatusInline(c, e.target.value)}
-                          style={{ width: "100%", padding: "6px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}
+                          style={{ width: "100%", minWidth: 136, padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0b0e14", color: C.white, fontSize: 13 }}
                         >
                           <option value="draft">{settings?.stage_labels?.draft || tr("Nuevo", "New")}</option>
                           <option value="sent">{settings?.stage_labels?.sent || tr("Cotizacion enviada", "Quote sent")}</option>
@@ -643,7 +667,7 @@ export default function AgentsCrmPage() {
                           value={String(c.next_action || "")}
                           disabled={updatingContactKey === String(c.key || "")}
                           onChange={(e) => void updateContactNextActionInline(c, e.target.value)}
-                          style={{ width: "100%", padding: "6px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}
+                          style={{ width: "100%", minWidth: 210, padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0b0e14", color: C.white, fontSize: 13 }}
                         >
                           <option value="">{tr("Sin acción", "No action")}</option>
                           <option value="Calificar lead y validar necesidad">{tr("Calificar lead", "Qualify lead")}</option>
@@ -666,10 +690,10 @@ export default function AgentsCrmPage() {
                       ) : f.key === "next_action_at" ? (
                         <input
                           type="datetime-local"
-                          value={c.next_action_at ? String(c.next_action_at).slice(0, 16) : ""}
+                          value={toDateTimeLocalValue(c.next_action_at)}
                           disabled={updatingContactKey === String(c.key || "")}
                           onChange={(e) => void updateContactNextActionAtInline(c, e.target.value)}
-                          style={{ width: "100%", padding: "6px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}
+                          style={{ width: "100%", minWidth: 190, padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0b0e14", color: C.white, fontSize: 13 }}
                         />
                       ) : renderContactValue(c, f.key)}
                     </td>
@@ -678,6 +702,7 @@ export default function AgentsCrmPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
 
         {selectedContact && (
@@ -719,7 +744,7 @@ export default function AgentsCrmPage() {
 
               <input
                 type="datetime-local"
-                defaultValue={selectedContact.next_action_at ? String(selectedContact.next_action_at).slice(0, 16) : ""}
+                defaultValue={toDateTimeLocalValue(selectedContact.next_action_at)}
                 onBlur={(e) => void saveContactPatch({ next_action_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
                 style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}
               />
