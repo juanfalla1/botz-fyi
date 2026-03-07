@@ -620,7 +620,7 @@ function isTechnicalSheetIntent(text: string): boolean {
 
 function isProductImageIntent(text: string): boolean {
   const t = normalizeText(text);
-  return /(imagen|imagenes|foto|fotos|fotografia|ver producto)/.test(t);
+  return /(imagen|imagenes|foto|fotos|fotografia|ver producto|no veo imagen|no cargo imagen|reenvia imagen|reenvia imagen)/.test(t);
 }
 
 function safeFileName(input: string, fallbackBase: string, fallbackExt: string): string {
@@ -1194,6 +1194,12 @@ export async function POST(req: Request) {
     let handledByRecall = false;
     let handledByQuoteIntake = false;
     const technicalDocs: Array<{ kind: "document" | "image"; base64: string; fileName: string; mimetype: string; caption?: string }> = [];
+    const transcriptForContext = Array.isArray(existingConv?.transcript) ? existingConv.transcript : [];
+    const recentUserContextForCatalog = transcriptForContext
+      .filter((m: any) => m?.role === "user" && m?.content)
+      .slice(-8)
+      .map((m: any) => String(m.content || ""))
+      .join("\n");
     let resendPdf: null | {
       draftId: string;
       fileName: string;
@@ -1371,7 +1377,8 @@ export async function POST(req: Request) {
         const products = await fetchCatalogRows("id,name,product_url,image_url,datasheet_url,specs_text,source_payload", 120, false);
 
         const list = Array.isArray(products) ? products : [];
-        const matched = pickBestCatalogProduct(inbound.text, list as any);
+        const techSourceText = `${recentUserContextForCatalog}\n${inbound.text}`.trim();
+        const matched = pickBestCatalogProduct(techSourceText, list as any);
 
         if (!matched?.name) {
           const sample = list.slice(0, 8).map((p: any) => String(p?.name || "").trim()).filter(Boolean);
