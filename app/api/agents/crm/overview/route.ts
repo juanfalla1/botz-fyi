@@ -69,6 +69,16 @@ function classifyIntent(rawText: string | null | undefined) {
   return "Sin clasificar";
 }
 
+function isQuoteRequestMessage(rawText: string | null | undefined) {
+  const t = normalizeText(rawText);
+  return /(cotiz|cotizacion|presupuesto|precio|trm|pdf|propuesta|valor final|cuanto queda)/.test(t);
+}
+
+function isTechSheetRequestMessage(rawText: string | null | undefined) {
+  const t = normalizeText(rawText);
+  return /(ficha|ficha tecnica|datasheet|especificaciones|brochure|imagen|foto|catalogo tecnico)/.test(t);
+}
+
 function scoreLeadTemperature(args: { status: string; quotesCount: number; intent: string }) {
   const status = String(args.status || "").toLowerCase();
   const intent = normalizeText(args.intent);
@@ -142,8 +152,12 @@ export async function GET(req: Request) {
           contacts: 0,
           opportunities: 0,
           quotes_sent: 0,
+          quotes_requested: 0,
           won: 0,
           lost: 0,
+          contacts_with_quote_requests: 0,
+          contacts_with_tech_sheet_requests: 0,
+          total_quotes_requested_cop: 0,
           total_pipeline_cop: 0,
         },
         pipeline: { draft: [], sent: [], won: [], lost: [] },
@@ -229,6 +243,7 @@ export async function GET(req: Request) {
 
   const contactsMap = new Map<string, any>();
   const latestConvByPhone = new Map<string, { channel: string; at: string; contact_name: string; last_intent: string }>();
+  const intentMetricsByPhone = new Map<string, { quote_requests_count: number; tech_sheet_requests_count: number; last_quote_request_at: string | null; last_tech_sheet_request_at: string | null }>();
 
   for (const c of convRows as any[]) {
     const phone = phoneTail10(c?.contact_phone);
@@ -246,6 +261,32 @@ export async function GET(req: Request) {
         last_intent: lastIntent,
       });
     }
+
+    const transcript = Array.isArray(c?.transcript) ? c.transcript : [];
+    const metric = intentMetricsByPhone.get(phone) || {
+      quote_requests_count: 0,
+      tech_sheet_requests_count: 0,
+      last_quote_request_at: null,
+      last_tech_sheet_request_at: null,
+    };
+    for (const m of transcript) {
+      if (String(m?.role || "") !== "user") continue;
+      const text = String(m?.content || "");
+      const atMsg = String(m?.timestamp || c?.created_at || "");
+      if (isQuoteRequestMessage(text)) {
+        metric.quote_requests_count += 1;
+        if (!metric.last_quote_request_at || new Date(atMsg).getTime() > new Date(metric.last_quote_request_at).getTime()) {
+          metric.last_quote_request_at = atMsg;
+        }
+      }
+      if (isTechSheetRequestMessage(text)) {
+        metric.tech_sheet_requests_count += 1;
+        if (!metric.last_tech_sheet_request_at || new Date(atMsg).getTime() > new Date(metric.last_tech_sheet_request_at).getTime()) {
+          metric.last_tech_sheet_request_at = atMsg;
+        }
+      }
+    }
+    intentMetricsByPhone.set(phone, metric);
   }
 
   const channelSummaryMap = new Map<string, number>();
@@ -266,7 +307,11 @@ export async function GET(req: Request) {
       phone: phoneTail10(phone),
       company: d.company_name || "",
       quotes_count: 0,
+      quote_requests_count: 0,
+      tech_sheet_requests_count: 0,
       total_quoted_cop: 0,
+      last_quote_value_cop: 0,
+      last_quote_at: null,
       last_activity_at: d.updated_at || d.created_at,
       status: d.status,
       assigned_agent_id: d.agent_id || null,
@@ -286,7 +331,13 @@ export async function GET(req: Request) {
     prev.phone = prev.phone || phoneTail10(phone);
     prev.company = prev.company || d.company_name || "";
     prev.quotes_count += 1;
+    prev.quote_requests_count += 1;
     prev.total_quoted_cop += Number(d.total_cop || 0);
+    const draftAt = String(d.updated_at || d.created_at || "");
+    if (!prev.last_quote_at || new Date(draftAt).getTime() >= new Date(String(prev.last_quote_at || "")).getTime()) {
+      prev.last_quote_at = draftAt;
+      prev.last_quote_value_cop = Number(d.total_cop || 0);
+    }
     prev.last_product = prev.last_product || d.product_name || "";
     if (!prev.assigned_agent_id && d.agent_id) {
       prev.assigned_agent_id = d.agent_id;
@@ -316,7 +367,11 @@ export async function GET(req: Request) {
       phone: phoneTail10(phone),
       company: "",
       quotes_count: 0,
+      quote_requests_count: 0,
+      tech_sheet_requests_count: 0,
       total_quoted_cop: 0,
+      last_quote_value_cop: 0,
+      last_quote_at: null,
       last_activity_at: c?.created_at,
       status: "draft",
       assigned_agent_id: null,
@@ -348,7 +403,11 @@ export async function GET(req: Request) {
       phone: "",
       company: "",
       quotes_count: 0,
+      quote_requests_count: 0,
+      tech_sheet_requests_count: 0,
       total_quoted_cop: 0,
+      last_quote_value_cop: 0,
+      last_quote_at: null,
       last_activity_at: (cc as any)?.updated_at || new Date().toISOString(),
       status: String((cc as any)?.status || "draft"),
       assigned_agent_id: (cc as any)?.assigned_agent_id || null,
@@ -403,6 +462,12 @@ export async function GET(req: Request) {
       contact.last_intent = latest.last_intent;
     }
 
+    const metrics = intentMetricsByPhone.get(phone);
+    if (metrics) {
+      contact.quote_requests_count = Math.max(Number(contact.quote_requests_count || 0), Number(metrics.quote_requests_count || 0));
+      contact.tech_sheet_requests_count = Number(metrics.tech_sheet_requests_count || 0);
+    }
+
     const sentAt = latestSentByKey.get(String(contact.key || ""));
     if (sentAt) contact.last_quote_sent_at = sentAt;
 
@@ -430,6 +495,11 @@ export async function GET(req: Request) {
         last_intent: String(c.last_intent || "Sin clasificar"),
         lead_temperature: String(c.lead_temperature || "cold"),
         last_quote_sent_at: c.last_quote_sent_at || null,
+        quote_requests_count: Number(c.quote_requests_count || c.quotes_count || 0),
+        tech_sheet_requests_count: Number(c.tech_sheet_requests_count || 0),
+        total_quoted_cop: Number(c.total_quoted_cop || 0),
+        last_quote_value_cop: Number(c.last_quote_value_cop || 0),
+        last_quote_at: c.last_quote_at || null,
       };
     })
     .filter((c: any) => {
@@ -445,8 +515,12 @@ export async function GET(req: Request) {
     contacts: contacts.length,
     opportunities: safeDrafts.length,
     quotes_sent: byStatus.sent,
+    quotes_requested: safeDrafts.length,
     won: byStatus.won,
     lost: byStatus.lost,
+    contacts_with_quote_requests: contacts.filter((c: any) => Number(c.quote_requests_count || 0) > 0).length,
+    contacts_with_tech_sheet_requests: contacts.filter((c: any) => Number(c.tech_sheet_requests_count || 0) > 0).length,
+    total_quotes_requested_cop: safeDrafts.reduce((acc, d) => acc + Number(d.total_cop || 0), 0),
     total_pipeline_cop: safeDrafts
       .filter((d) => d.status !== "lost")
       .reduce((acc, d) => acc + Number(d.total_cop || 0), 0),

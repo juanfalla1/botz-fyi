@@ -24,9 +24,13 @@ const DEFAULT_CONTACT_FIELDS = [
   { key: "last_intent", label: "Ultima intencion", visible: true, required: false },
   { key: "lead_temperature", label: "Temperatura", visible: true, required: false },
   { key: "last_quote_sent_at", label: "Ultima cotizacion enviada", visible: true, required: false },
+  { key: "quote_requests_count", label: "Solicitudes de cotizacion", visible: true, required: false },
+  { key: "tech_sheet_requests_count", label: "Solicitudes ficha/imagen", visible: true, required: false },
+  { key: "last_quote_value_cop", label: "Ultimo valor cotizado", visible: true, required: false },
+  { key: "total_quoted_cop", label: "Valor total cotizado", visible: true, required: false },
   { key: "next_action", label: "Proxima accion", visible: false, required: false },
   { key: "next_action_at", label: "Fecha proxima accion", visible: false, required: false },
-  { key: "quotes_count", label: "Cotizaciones", visible: true, required: false },
+  { key: "quotes_count", label: "Cotizaciones generadas", visible: false, required: false },
   { key: "last_activity_at", label: "Ultima actividad", visible: true, required: false },
 ];
 

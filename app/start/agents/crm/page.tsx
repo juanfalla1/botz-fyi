@@ -61,9 +61,13 @@ const CONTACT_FIELD_DEFAULTS = [
   { key: "last_intent", label: "Ultima intencion", visible: true, required: false },
   { key: "lead_temperature", label: "Temperatura", visible: true, required: false },
   { key: "last_quote_sent_at", label: "Ultima cotizacion enviada", visible: true, required: false },
+  { key: "quote_requests_count", label: "Solicitudes de cotizacion", visible: true, required: false },
+  { key: "tech_sheet_requests_count", label: "Solicitudes ficha/imagen", visible: true, required: false },
+  { key: "last_quote_value_cop", label: "Ultimo valor cotizado", visible: true, required: false },
+  { key: "total_quoted_cop", label: "Valor total cotizado", visible: true, required: false },
   { key: "next_action", label: "Proxima accion", visible: false, required: false },
   { key: "next_action_at", label: "Fecha proxima accion", visible: false, required: false },
-  { key: "quotes_count", label: "Cotizaciones", visible: true, required: false },
+  { key: "quotes_count", label: "Cotizaciones generadas", visible: false, required: false },
   { key: "last_activity_at", label: "Ultima actividad", visible: true, required: false },
 ];
 
@@ -399,7 +403,9 @@ export default function AgentsCrmPage() {
     if (key === "last_activity_at") return c.last_activity_at ? new Date(c.last_activity_at).toLocaleString() : "-";
     if (key === "next_action_at") return c.next_action_at ? new Date(c.next_action_at).toLocaleString() : "-";
     if (key === "last_quote_sent_at") return c.last_quote_sent_at ? new Date(c.last_quote_sent_at).toLocaleString() : "-";
+    if (key === "last_quote_at") return c.last_quote_at ? new Date(c.last_quote_at).toLocaleString() : "-";
     if (key === "status") return stageLabel(String(c.status || ""));
+    if (key === "total_quoted_cop" || key === "last_quote_value_cop") return `COP ${money(Number(c[key] || 0))}`;
     if (key === "lead_temperature") {
       const v = String(c.lead_temperature || "cold").toLowerCase();
       if (v === "hot") return tr("Caliente", "Hot");
@@ -547,9 +553,13 @@ export default function AgentsCrmPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 10, marginBottom: 14 }}>
           <Metric label={tr("Contactos", "Contacts")} value={summary?.contacts ?? 0} />
           <Metric label={tr("Oportunidades", "Opportunities")} value={summary?.opportunities ?? 0} />
+          <Metric label={tr("Solicitudes cotización", "Quote requests")} value={summary?.quotes_requested ?? 0} />
           <Metric label={tr("Cotizaciones enviadas", "Quotes sent")} value={summary?.quotes_sent ?? 0} />
+          <Metric label={tr("Contactos con cotización", "Contacts with quotes")} value={summary?.contacts_with_quote_requests ?? 0} />
+          <Metric label={tr("Contactos con ficha/imagen", "Contacts with spec/image")} value={summary?.contacts_with_tech_sheet_requests ?? 0} />
           <Metric label={tr("Ganadas", "Won")} value={summary?.won ?? 0} />
           <Metric label={tr("Perdidas", "Lost")} value={summary?.lost ?? 0} />
+          <Metric label={tr("Valor total cotizado", "Total quoted value")} value={`COP ${money(summary?.total_quotes_requested_cop ?? 0)}`} accent={C.blue} />
           <Metric label={tr("Pipeline COP", "Pipeline COP")} value={money(summary?.total_pipeline_cop ?? 0)} accent={C.blue} />
         </div>
 
@@ -713,6 +723,21 @@ export default function AgentsCrmPage() {
                 onBlur={(e) => void saveContactPatch({ next_action_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
                 style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}
               />
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+              <span style={{ border: `1px solid ${C.border}`, borderRadius: 999, background: C.dark, color: C.muted, fontSize: 12, padding: "4px 10px" }}>
+                {tr("Solicitudes cotización", "Quote requests")}: {Number((selectedContact as any)?.quote_requests_count || (selectedContact as any)?.quotes_count || 0)}
+              </span>
+              <span style={{ border: `1px solid ${C.border}`, borderRadius: 999, background: C.dark, color: C.muted, fontSize: 12, padding: "4px 10px" }}>
+                {tr("Solicitudes ficha/imagen", "Spec/image requests")}: {Number((selectedContact as any)?.tech_sheet_requests_count || 0)}
+              </span>
+              <span style={{ border: `1px solid ${C.border}`, borderRadius: 999, background: C.dark, color: C.muted, fontSize: 12, padding: "4px 10px" }}>
+                {tr("Ultimo valor", "Last quote")}: COP {money(Number((selectedContact as any)?.last_quote_value_cop || 0))}
+              </span>
+              <span style={{ border: `1px solid ${C.border}`, borderRadius: 999, background: C.dark, color: C.muted, fontSize: 12, padding: "4px 10px" }}>
+                {tr("Valor acumulado", "Total quoted")}: COP {money(Number((selectedContact as any)?.total_quoted_cop || 0))}
+              </span>
             </div>
 
             {contactLoading && <div style={{ color: C.muted }}>{tr("Cargando detalle...", "Loading detail...")}</div>}
