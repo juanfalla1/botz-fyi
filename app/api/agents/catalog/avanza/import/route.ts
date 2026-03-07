@@ -57,6 +57,21 @@ function extractProductLinks(html: string, baseUrl: string) {
   return uniqueStrings(links);
 }
 
+function extractPdfLinks(html: string, baseUrl: string) {
+  const links: string[] = [];
+  const re = /href=["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const href = String(m[1] || "").trim();
+    if (!href) continue;
+    const abs = toAbsoluteUrl(baseUrl, href);
+    if (!abs) continue;
+    const clean = abs.split("#")[0];
+    if (/\.pdf(\?|$)/i.test(clean)) links.push(clean);
+  }
+  return uniqueStrings(links);
+}
+
 function extractMetaContent(html: string, property: string) {
   const re = new RegExp(`<meta[^>]+(?:property|name)=["']${property}["'][^>]+content=["']([^"']+)["'][^>]*>`, "i");
   const m = html.match(re);
@@ -153,6 +168,8 @@ async function parseProduct(url: string) {
   const standards = extractStandards(fullText);
   const methods = guessMethods(fullText);
   const tables = extractTables(descHtml || html);
+  const pdfLinks = extractPdfLinks(html, url);
+  const datasheetUrl = String(pdfLinks[0] || "").trim();
 
   const slug = (() => {
     try {
@@ -175,7 +192,8 @@ async function parseProduct(url: string) {
     methods,
     specs_text: fullText,
     specs_json: { tables },
-    source_payload: { fetched_at: new Date().toISOString() },
+    datasheet_url: datasheetUrl || null,
+    source_payload: { fetched_at: new Date().toISOString(), pdf_links: pdfLinks },
     variants: tables.flatMap((t) =>
       t.rows
         .filter((row) => row.some((v) => String(v || "").trim()))
@@ -242,6 +260,7 @@ export async function POST(req: Request) {
           methods: parsed.methods,
           specs_text: parsed.specs_text,
           specs_json: parsed.specs_json,
+          datasheet_url: parsed.datasheet_url,
           source_payload: parsed.source_payload,
         };
 
@@ -300,7 +319,7 @@ export async function GET(req: Request) {
 
   const { data, error } = await supabase
     .from("agent_product_catalog")
-    .select("id,name,brand,category,product_url,image_url,summary,standards,methods,updated_at")
+    .select("id,name,brand,category,product_url,image_url,datasheet_url,summary,standards,methods,updated_at")
     .eq("tenant_id", SYSTEM_TENANT_ID)
     .eq("created_by", guard.user.id)
     .order("updated_at", { ascending: false })

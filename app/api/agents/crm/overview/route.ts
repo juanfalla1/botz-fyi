@@ -23,6 +23,11 @@ function normalizePhone(raw: string | null | undefined) {
   return String(raw || "").replace(/\D/g, "");
 }
 
+function phoneTail10(raw: string | null | undefined) {
+  const n = normalizePhone(raw);
+  return n.length > 10 ? n.slice(-10) : n;
+}
+
 function isMissingTableError(err: any, tableName: string) {
   const msg = String(err?.message || "").toLowerCase();
   const t = tableName.toLowerCase();
@@ -34,9 +39,36 @@ function isMissingTableError(err: any, tableName: string) {
 }
 
 function contactKeyOf(phoneRaw: string | null | undefined, emailRaw: string | null | undefined) {
-  const phone = normalizePhone(phoneRaw);
+  const phone = phoneTail10(phoneRaw);
   const email = String(emailRaw || "").trim().toLowerCase();
   return phone || email;
+}
+
+function normalizeContactKey(raw: string | null | undefined) {
+  const key = String(raw || "").trim();
+  if (!key) return "";
+  const digits = key.replace(/\D/g, "");
+  if (digits && digits.length >= 7 && digits.length === key.length) return phoneTail10(digits);
+  return key.toLowerCase();
+}
+
+function suggestNextAction(statusRaw: string) {
+  const s = String(statusRaw || "draft").toLowerCase();
+  if (s === "sent") return "Seguimiento de cotizacion enviada";
+  if (s === "won") return "Coordinar pago y entrega";
+  if (s === "lost") return "Reactivar contacto en 30 dias";
+  return "Calificar lead y validar necesidad";
+}
+
+function suggestNextActionAt(statusRaw: string, baseAtRaw: string) {
+  const s = String(statusRaw || "draft").toLowerCase();
+  const base = new Date(baseAtRaw || new Date().toISOString());
+  const ts = Number.isFinite(base.getTime()) ? base.getTime() : Date.now();
+  let plusMs = 4 * 60 * 60 * 1000;
+  if (s === "sent") plusMs = 24 * 60 * 60 * 1000;
+  if (s === "won") plusMs = 48 * 60 * 60 * 1000;
+  if (s === "lost") plusMs = 30 * 24 * 60 * 60 * 1000;
+  return new Date(ts + plusMs).toISOString();
 }
 
 export async function GET(req: Request) {
@@ -171,7 +203,7 @@ export async function GET(req: Request) {
   const latestConvByPhone = new Map<string, { channel: string; at: string }>();
 
   for (const c of convRows as any[]) {
-    const phone = normalizePhone(c?.contact_phone);
+    const phone = phoneTail10(c?.contact_phone);
     if (!phone) continue;
     const prev = latestConvByPhone.get(phone);
     const at = String(c?.created_at || "");
@@ -195,7 +227,7 @@ export async function GET(req: Request) {
       key,
       name: d.customer_name || "",
       email,
-      phone,
+      phone: phoneTail10(phone),
       company: d.company_name || "",
       quotes_count: 0,
       total_quoted_cop: 0,
@@ -212,7 +244,7 @@ export async function GET(req: Request) {
 
     prev.name = prev.name || d.customer_name || "";
     prev.email = prev.email || email;
-    prev.phone = prev.phone || phone;
+    prev.phone = prev.phone || phoneTail10(phone);
     prev.company = prev.company || d.company_name || "";
     prev.quotes_count += 1;
     prev.total_quoted_cop += Number(d.total_cop || 0);
@@ -237,12 +269,12 @@ export async function GET(req: Request) {
   for (const c of convRows as any[]) {
     const phone = normalizePhone(c?.contact_phone);
     if (!phone) continue;
-    const key = phone;
+    const key = phoneTail10(phone);
     const prev = contactsMap.get(key) || {
       key,
       name: "",
       email: "",
-      phone,
+      phone: phoneTail10(phone),
       company: "",
       quotes_count: 0,
       total_quoted_cop: 0,
@@ -264,7 +296,7 @@ export async function GET(req: Request) {
   }
 
   for (const cc of Array.isArray(crmContacts) ? crmContacts : []) {
-    const key = String((cc as any)?.contact_key || contactKeyOf((cc as any)?.phone, (cc as any)?.email) || "").trim();
+    const key = normalizeContactKey((cc as any)?.contact_key || contactKeyOf((cc as any)?.phone, (cc as any)?.email) || "");
     if (!key) continue;
     const prev = contactsMap.get(key) || {
       key,
@@ -287,7 +319,7 @@ export async function GET(req: Request) {
 
     prev.name = String((cc as any)?.name || prev.name || "");
     prev.email = String((cc as any)?.email || prev.email || "");
-    prev.phone = normalizePhone((cc as any)?.phone || prev.phone || "");
+    prev.phone = phoneTail10((cc as any)?.phone || prev.phone || "");
     prev.company = String((cc as any)?.company || prev.company || "");
     prev.status = String((cc as any)?.status || prev.status || "draft");
     prev.assigned_agent_id = (cc as any)?.assigned_agent_id || prev.assigned_agent_id || null;
@@ -299,7 +331,7 @@ export async function GET(req: Request) {
   }
 
   for (const contact of contactsMap.values()) {
-    const phone = normalizePhone(String(contact.phone || ""));
+    const phone = phoneTail10(String(contact.phone || ""));
     if (!phone) continue;
     const latest = latestConvByPhone.get(phone);
     if (latest?.channel) {
@@ -307,7 +339,28 @@ export async function GET(req: Request) {
     }
   }
 
-  const contacts = Array.from(contactsMap.values()).sort(
+  const contacts = Array.from(contactsMap.values())
+    .map((c: any) => {
+      const phone = phoneTail10(String(c.phone || ""));
+      const hasName = Boolean(String(c.name || "").trim());
+      const status = String(c.status || "draft");
+      const nextAction = String(c.next_action || "").trim() || suggestNextAction(status);
+      const nextActionAt = c.next_action_at || suggestNextActionAt(status, String(c.last_activity_at || ""));
+      return {
+        ...c,
+        phone,
+        status,
+        name: hasName ? c.name : (phone ? `Contacto ${phone.slice(-4)}` : ""),
+        next_action: nextAction,
+        next_action_at: nextActionAt,
+      };
+    })
+    .filter((c: any) => {
+      const hasIdentity = Boolean(String(c.name || "").trim() || String(c.email || "").trim() || String(c.company || "").trim());
+      const hasCommercialData = Number(c.quotes_count || 0) > 0 || Boolean(String(c.next_action || "").trim()) || Boolean(c.assigned_agent_id);
+      return hasIdentity || hasCommercialData;
+    })
+    .sort(
     (a, b) => new Date(b.last_activity_at).getTime() - new Date(a.last_activity_at).getTime()
   );
 

@@ -9,8 +9,13 @@ function normalizePhone(raw: string | null | undefined) {
   return String(raw || "").replace(/\D/g, "");
 }
 
+function tail10(raw: string | null | undefined) {
+  const n = normalizePhone(raw);
+  return n.length > 10 ? n.slice(-10) : n;
+}
+
 function contactKeyOf(phoneRaw: string | null | undefined, emailRaw: string | null | undefined) {
-  const phone = normalizePhone(phoneRaw);
+  const phone = tail10(phoneRaw);
   const email = String(emailRaw || "").trim().toLowerCase();
   return phone || email;
 }
@@ -25,18 +30,35 @@ function isMissingTableError(err: any, tableName: string) {
   ) && msg.includes(t);
 }
 
+const ALLOWED_STATUS = new Set(["draft", "sent", "won", "lost"]);
+
 async function resolveOrCreateContact(supabase: any, ownerId: string, args: { phone?: string; email?: string; name?: string; company?: string }) {
   const phone = normalizePhone(args.phone);
+  const phoneKey = tail10(phone);
   const email = String(args.email || "").trim().toLowerCase();
-  const contactKey = contactKeyOf(phone, email);
+  const contactKey = contactKeyOf(phoneKey, email);
   if (!contactKey) throw new Error("Missing contact key");
 
-  const { data: existing } = await supabase
-    .from("agent_crm_contacts")
-    .select("id,contact_key,name,email,phone,company,assigned_agent_id,status,next_action,next_action_at,updated_at")
-    .eq("created_by", ownerId)
-    .eq("contact_key", contactKey)
-    .maybeSingle();
+  let existing: any = null;
+  if (phoneKey) {
+    const { data } = await supabase
+      .from("agent_crm_contacts")
+      .select("id,contact_key,name,email,phone,company,assigned_agent_id,status,next_action,next_action_at,updated_at")
+      .eq("created_by", ownerId)
+      .or(`contact_key.eq.${contactKey},phone.like.%${phoneKey}`)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    existing = data || null;
+  } else {
+    const { data } = await supabase
+      .from("agent_crm_contacts")
+      .select("id,contact_key,name,email,phone,company,assigned_agent_id,status,next_action,next_action_at,updated_at")
+      .eq("created_by", ownerId)
+      .eq("contact_key", contactKey)
+      .maybeSingle();
+    existing = data || null;
+  }
 
   if (existing) return existing;
 
@@ -46,7 +68,7 @@ async function resolveOrCreateContact(supabase: any, ownerId: string, args: { ph
     contact_key: contactKey,
     name: args.name || null,
     email: email || null,
-    phone: phone || null,
+    phone: phoneKey || null,
     company: args.company || null,
     status: "draft",
   };
@@ -85,23 +107,28 @@ export async function GET(req: Request) {
   if (agentsErr) return NextResponse.json({ ok: false, error: agentsErr.message }, { status: 400 });
   const agentIds = Array.isArray(ownerAgents) ? ownerAgents.map((a: any) => String(a.id)).filter(Boolean) : [];
 
+  const draftRowsLimit = qPhone ? 500 : 120;
   let draftsQuery = supabase
     .from("agent_quote_drafts")
     .select("id,agent_id,customer_name,customer_email,customer_phone,company_name,product_name,total_cop,trm_rate,status,payload,created_at,updated_at")
     .eq("created_by", ownerId)
     .order("created_at", { ascending: false })
-    .limit(80);
+    .limit(draftRowsLimit);
 
-  if (qPhone && qEmail) {
-    draftsQuery = draftsQuery.or(`customer_phone.eq.${qPhone},customer_email.eq.${qEmail}`);
-  } else if (qPhone) {
-    draftsQuery = draftsQuery.eq("customer_phone", qPhone);
-  } else {
+  if (!qPhone && qEmail) {
     draftsQuery = draftsQuery.eq("customer_email", qEmail);
   }
 
-  const { data: drafts, error: draftsErr } = await draftsQuery;
+  const { data: rawDrafts, error: draftsErr } = await draftsQuery;
   if (draftsErr) return NextResponse.json({ ok: false, error: draftsErr.message }, { status: 400 });
+  const drafts = (Array.isArray(rawDrafts) ? rawDrafts : []).filter((d: any) => {
+    const email = String(d?.customer_email || "").trim().toLowerCase();
+    const phone = normalizePhone(d?.customer_phone);
+    if (qPhone && qEmail) return tail10(phone) === tail10(qPhone) || email === qEmail;
+    if (qPhone) return tail10(phone) === tail10(qPhone);
+    if (qEmail) return email === qEmail;
+    return true;
+  });
 
   let convRows: any[] = [];
   if (agentIds.length && qPhone) {
@@ -109,11 +136,18 @@ export async function GET(req: Request) {
       .from("agent_conversations")
       .select("id,agent_id,contact_phone,contact_name,channel,status,message_count,transcript,created_at")
       .in("agent_id", agentIds)
-      .eq("contact_phone", qPhone)
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(1200);
     if (convErr) return NextResponse.json({ ok: false, error: convErr.message }, { status: 400 });
-    convRows = Array.isArray(convData) ? convData : [];
+    const rows = Array.isArray(convData) ? convData : [];
+    const exact = normalizePhone(qPhone);
+    const t10 = tail10(qPhone);
+    convRows = rows.filter((c: any) => {
+      const cp = normalizePhone(c?.contact_phone);
+      if (!cp) return false;
+      if (cp === exact) return true;
+      return tail10(cp) === t10;
+    });
   }
 
   const timeline: Array<{ at: string; kind: string; text: string }> = [];
@@ -128,7 +162,7 @@ export async function GET(req: Request) {
 
   for (const c of convRows) {
     const transcript = Array.isArray(c?.transcript) ? c.transcript : [];
-    const lastMsgs = transcript.slice(-4);
+    const lastMsgs = transcript.slice(-20);
     for (const m of lastMsgs) {
       timeline.push({
         at: String(m?.timestamp || c?.created_at || ""),
@@ -186,9 +220,13 @@ export async function PATCH(req: Request) {
   const email = String(body?.email || "").trim().toLowerCase();
   const name = String(body?.name || "").trim();
   const company = String(body?.company || "").trim();
+  const nextStatus = body?.status !== undefined ? String(body.status || "").toLowerCase() : undefined;
 
   if (!phone && !email) {
     return NextResponse.json({ ok: false, error: "Missing phone or email" }, { status: 400 });
+  }
+  if (nextStatus !== undefined && !ALLOWED_STATUS.has(nextStatus)) {
+    return NextResponse.json({ ok: false, error: "Invalid status" }, { status: 400 });
   }
 
   try {
@@ -196,10 +234,10 @@ export async function PATCH(req: Request) {
     const patch: any = {};
     if (name) patch.name = name;
     if (email) patch.email = email;
-    if (phone) patch.phone = phone;
+    if (phone) patch.phone = tail10(phone);
     if (company) patch.company = company;
     if (body?.assigned_agent_id !== undefined) patch.assigned_agent_id = body.assigned_agent_id || null;
-    if (body?.status !== undefined) patch.status = String(body.status || "draft");
+    if (nextStatus !== undefined) patch.status = nextStatus;
     if (body?.next_action !== undefined) patch.next_action = String(body.next_action || "").trim() || null;
     if (body?.next_action_at !== undefined) patch.next_action_at = body.next_action_at ? String(body.next_action_at) : null;
 
@@ -211,6 +249,31 @@ export async function PATCH(req: Request) {
       .select("id,contact_key,name,email,phone,company,assigned_agent_id,status,next_action,next_action_at,updated_at")
       .single();
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+
+    if (nextStatus !== undefined) {
+      const phoneKey = tail10(phone || contact?.phone);
+      const emailKey = String(email || contact?.email || "").trim().toLowerCase();
+      if (phoneKey || emailKey) {
+        let draftsStatusQuery = supabase
+          .from("agent_quote_drafts")
+          .update({ status: nextStatus, updated_at: new Date().toISOString() })
+          .eq("created_by", ownerId);
+
+        if (phoneKey && emailKey) {
+          draftsStatusQuery = draftsStatusQuery.or(`customer_phone.like.%${phoneKey},customer_email.eq.${emailKey}`);
+        } else if (phoneKey) {
+          draftsStatusQuery = draftsStatusQuery.like("customer_phone", `%${phoneKey}`);
+        } else {
+          draftsStatusQuery = draftsStatusQuery.eq("customer_email", emailKey);
+        }
+
+        const { error: draftsStatusErr } = await draftsStatusQuery;
+        if (draftsStatusErr) {
+          return NextResponse.json({ ok: false, error: draftsStatusErr.message }, { status: 400 });
+        }
+      }
+    }
+
     return NextResponse.json({ ok: true, data });
   } catch (e: any) {
     if (isMissingTableError(e, "agent_crm_contacts")) {

@@ -613,6 +613,78 @@ function isRecommendationIntent(text: string): boolean {
   return /(recomiend|modelo ideal|que modelo|cual modelo|me sirve|para mi caso|que balanza|sugerencia)/.test(t);
 }
 
+function isTechnicalSheetIntent(text: string): boolean {
+  const t = normalizeText(text);
+  return /(ficha|ficha tecnica|fichas tecnicas|datasheet|especificaciones|specs|hoja tecnica|brochure|catalogo tecnico)/.test(t);
+}
+
+function isProductImageIntent(text: string): boolean {
+  const t = normalizeText(text);
+  return /(imagen|imagenes|foto|fotos|fotografia|ver producto)/.test(t);
+}
+
+function safeFileName(input: string, fallbackBase: string, fallbackExt: string): string {
+  const raw = String(input || "").trim();
+  const clean = raw
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "-")
+    .slice(0, 80)
+    .replace(/^-+|-+$/g, "");
+  const base = clean || fallbackBase;
+  return /\.[a-z0-9]{2,8}$/i.test(base) ? base : `${base}.${fallbackExt}`;
+}
+
+async function fetchRemoteFileAsBase64(url: string): Promise<{ base64: string; mimetype: string; fileName: string } | null> {
+  const target = String(url || "").trim();
+  if (!/^https?:\/\//i.test(target)) return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(target, {
+      method: "GET",
+      signal: controller.signal,
+      redirect: "follow",
+      headers: { "User-Agent": "BotzWhatsApp/1.0" },
+    });
+    if (!res.ok) return null;
+
+    const arr = await res.arrayBuffer();
+    const base64 = Buffer.from(arr).toString("base64");
+    if (!base64) return null;
+
+    const contentType = String(res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    const mimetype = contentType || "application/octet-stream";
+
+    let pathname = "archivo";
+    try {
+      pathname = decodeURIComponent(new URL(target).pathname.split("/").pop() || "archivo");
+    } catch {
+      pathname = "archivo";
+    }
+
+    const ext = mimetype === "application/pdf"
+      ? "pdf"
+      : mimetype.includes("png")
+        ? "png"
+        : mimetype.includes("jpeg") || mimetype.includes("jpg")
+          ? "jpg"
+          : mimetype.includes("webp")
+            ? "webp"
+            : "bin";
+
+    return {
+      base64,
+      mimetype,
+      fileName: safeFileName(pathname, "archivo", ext),
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function isHistoryIntent(text: string): boolean {
   const t = normalizeText(text);
   return /(mi historial|que tengo en mi historial|historial|mis cotizaciones|cotizaciones anteriores|compras anteriores|mi ultima cotizacion)/.test(t);
@@ -645,10 +717,16 @@ function withAvaSignature(text: string): string {
 function enforceWhatsAppDelivery(text: string, inboundText: string): string {
   const body = String(text || "");
   const intent = normalizeText(inboundText || "");
-  const isQuoteFlow = /(cotiz|cotizacion|pdf|trm|precio|presupuesto)/.test(intent);
-  if (!isQuoteFlow) return body;
+  const isSalesOrInfoFlow = /(cotiz|cotizacion|pdf|trm|precio|presupuesto|ficha|fichas|modelo|modelos|informacion|informacion tecnica|imagen|imagenes)/.test(intent);
+  if (!isSalesOrInfoFlow) return body;
+  const customerAskedEmail = /(correo|email|e-mail)/.test(intent);
+  if (customerAskedEmail) return body;
 
   let fixed = body;
+  fixed = fixed.replace(/correo\s+electr[oó]nico/gi, "WhatsApp");
+  fixed = fixed.replace(/por\s+correo/gi, "por este WhatsApp");
+  fixed = fixed.replace(/via\s+correo/gi, "por este WhatsApp");
+  fixed = fixed.replace(/v[íi]a\s+correo/gi, "por este WhatsApp");
   fixed = fixed.replace(/te\s+la\s+enviare\s+a\s+tu\s+correo\s+en\s+breve\.?/gi, "Te la enviaré por este WhatsApp en breve.");
   fixed = fixed.replace(/te\s+la\s+enviare\s+a\s+tu\s+correo\s+electronico\.?/gi, "Te la enviaré por este WhatsApp.");
   fixed = fixed.replace(/te\s+la\s+enviare\s+a\s+tu\s+correo\.?/gi, "Te la enviaré por este WhatsApp.");
@@ -656,6 +734,7 @@ function enforceWhatsAppDelivery(text: string, inboundText: string): string {
   fixed = fixed.replace(/enviarla\s+a\s+tu\s+correo/gi, "enviarla por este WhatsApp");
   fixed = fixed.replace(/enviartela\s+a\s+tu\s+correo\s+electronico/gi, "enviártela por este WhatsApp");
   fixed = fixed.replace(/enviartela\s+a\s+tu\s+correo/gi, "enviártela por este WhatsApp");
+  fixed = fixed.replace(/se\s+pondra\s+en\s+contacto\s+contigo\s+para\s+generar\s+una\s+cotizacion\s+formal\.?/gi, "Si quieres, te genero la cotización aquí mismo por WhatsApp.");
   return fixed;
 }
 
@@ -1099,8 +1178,10 @@ export async function POST(req: Request) {
     let handledByHistory = false;
     let handledByPricing = false;
     let handledByRecommendation = false;
+    let handledByTechSheet = false;
     let handledByRecall = false;
     let handledByQuoteIntake = false;
+    const technicalDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }> = [];
     let resendPdf: null | {
       draftId: string;
       fileName: string;
@@ -1257,7 +1338,82 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && isQuoteRecallIntent(inbound.text)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && (isTechnicalSheetIntent(inbound.text) || isProductImageIntent(inbound.text))) {
+      try {
+        const { data: products } = await supabase
+          .from("agent_product_catalog")
+          .select("id,name,product_url,image_url,datasheet_url,specs_text,source_payload")
+          .eq("created_by", ownerId)
+          .eq("is_active", true)
+          .order("updated_at", { ascending: false })
+          .limit(120);
+
+        const list = Array.isArray(products) ? products : [];
+        const matched = pickBestCatalogProduct(inbound.text, list as any);
+
+        if (!matched?.name) {
+          const sample = list.slice(0, 8).map((p: any) => String(p?.name || "").trim()).filter(Boolean);
+          reply = sample.length
+            ? `Claro. Para enviarte la ficha técnica o imagen, dime el producto exacto. Opciones disponibles: ${sample.join("; ")}.`
+            : "Ahora mismo no encuentro productos activos en catálogo para enviarte ficha técnica.";
+        } else {
+          const wantsSheet = isTechnicalSheetIntent(inbound.text);
+          const wantsImage = isProductImageIntent(inbound.text);
+          const payload = matched?.source_payload && typeof matched.source_payload === "object" ? matched.source_payload : {};
+          const payloadPdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
+
+          if (wantsSheet) {
+            const productUrlAsPdf = /\.pdf(\?|$)/i.test(String((matched as any)?.product_url || "")) ? String((matched as any)?.product_url || "") : "";
+            const datasheetUrl = String((matched as any)?.datasheet_url || payloadPdfLinks[0] || productUrlAsPdf || "").trim();
+            if (datasheetUrl) {
+              const remote = await fetchRemoteFileAsBase64(datasheetUrl);
+              if (remote) {
+                technicalDocs.push({
+                  base64: remote.base64,
+                  mimetype: remote.mimetype || "application/pdf",
+                  fileName: safeFileName(remote.fileName, `ficha-${String((matched as any)?.name || "producto")}`, "pdf"),
+                  caption: `Ficha técnica - ${String((matched as any)?.name || "producto")}`,
+                });
+              }
+            }
+          }
+
+          if (wantsImage) {
+            const imageUrl = String((matched as any)?.image_url || "").trim();
+            if (imageUrl) {
+              const remote = await fetchRemoteFileAsBase64(imageUrl);
+              if (remote) {
+                technicalDocs.push({
+                  base64: remote.base64,
+                  mimetype: remote.mimetype || "image/jpeg",
+                  fileName: safeFileName(remote.fileName, `imagen-${String((matched as any)?.name || "producto")}`, "jpg"),
+                  caption: `Imagen - ${String((matched as any)?.name || "producto")}`,
+                });
+              }
+            }
+          }
+
+          const specs = String((matched as any)?.specs_text || "").replace(/\s+/g, " ").trim();
+          const briefSpecs = specs ? specs.slice(0, 420) : "";
+          const productUrl = String((matched as any)?.product_url || "").trim();
+
+          if (technicalDocs.length) {
+            reply = `Perfecto. Ya te envío por este WhatsApp la información técnica de ${String((matched as any)?.name || "ese producto")}${briefSpecs ? `. Resumen: ${briefSpecs}` : ""}`;
+          } else if (briefSpecs) {
+            reply = `Te comparto la ficha técnica de ${String((matched as any)?.name || "ese producto")}: ${briefSpecs}${productUrl ? ` Más detalle: ${productUrl}` : ""}`;
+          } else {
+            reply = `No tengo el archivo de ficha técnica listo para ${String((matched as any)?.name || "ese producto")} en este momento, pero sí su enlace: ${productUrl || "no disponible"}. Si quieres, te ayudo a cotizarlo de una vez.`;
+          }
+        }
+
+        handledByTechSheet = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      } catch (techErr: any) {
+        console.warn("[evolution-webhook] tech_sheet_failed", techErr?.message || techErr);
+      }
+    }
+
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && isQuoteRecallIntent(inbound.text)) {
       try {
         const { data: recentDrafts } = await supabase
           .from("agent_quote_drafts")
@@ -1322,7 +1478,7 @@ export async function POST(req: Request) {
       isContactInfoBundle(inbound.text) &&
       shouldAutoQuote(`${recentUserContext}\n${inbound.text}`);
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext)) {
       try {
         const { data: products } = await supabase
           .from("agent_product_catalog")
@@ -1499,7 +1655,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!autoQuoteDocs.length && !handledByGreeting && !handledByRecall && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteIntake) {
+    if (!autoQuoteDocs.length && !handledByGreeting && !handledByRecall && !handledByTechSheet && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteIntake) {
       const { data: catalogRows } = await supabase
         .from("agent_product_catalog")
         .select("name,brand,category")
@@ -1520,6 +1676,7 @@ export async function POST(req: Request) {
         String(cfg?.company_desc || ""),
         String(cfg?.system_prompt || cfg?.important_instructions || ""),
         "Responde en espanol claro y profesional, con mensajes cortos de WhatsApp.",
+        "Regla estricta de canal: toda entrega de informacion, fichas tecnicas, imagenes y cotizaciones debe ser por este mismo WhatsApp; no ofrecer envio por correo salvo que el cliente lo pida explicitamente.",
         "Regla estricta: solo puedes mencionar, recomendar o cotizar productos presentes en el catalogo cargado abajo. Si el usuario pide algo fuera de catalogo, dilo explicitamente y pide elegir un producto existente.",
         "Nunca afirmes vender carros/vehiculos; solo equipos de pesaje/laboratorio del catalogo.",
         catalogNames.length ? `Catalogo activo (nombres exactos): ${catalogNames.join(" | ")}` : "Catalogo activo: no disponible.",
@@ -1742,6 +1899,21 @@ export async function POST(req: Request) {
         }
       } catch (pdfErr: any) {
         console.warn("[evolution-webhook] auto_quote_pdf_send_failed", pdfErr?.message || pdfErr);
+      }
+    }
+
+    if (technicalDocs.length) {
+      try {
+        for (const doc of technicalDocs) {
+          await evolutionService.sendDocument(outboundInstance, sentTo, {
+            base64: doc.base64,
+            fileName: doc.fileName,
+            caption: doc.caption || "Información técnica",
+            mimetype: doc.mimetype || "application/pdf",
+          });
+        }
+      } catch (techDocErr: any) {
+        console.warn("[evolution-webhook] technical_doc_send_failed", techDocErr?.message || techDocErr);
       }
     }
 

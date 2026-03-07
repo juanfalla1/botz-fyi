@@ -73,6 +73,7 @@ export default function AgentsCrmPage() {
   const [pipeline, setPipeline] = useState<{ draft: Draft[]; sent: Draft[]; won: Draft[]; lost: Draft[] }>({ draft: [], sent: [], won: [], lost: [] });
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [updatingId, setUpdatingId] = useState<string>("");
+  const [updatingContactKey, setUpdatingContactKey] = useState<string>("");
   const [settings, setSettings] = useState<CrmSettings | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [agentOptions, setAgentOptions] = useState<Array<{ id: string; name: string }>>([]);
@@ -181,6 +182,55 @@ export default function AgentsCrmPage() {
     } finally {
       setUpdatingId("");
     }
+  };
+
+  const stageLabel = (status: string) => {
+    const key = String(status || "").toLowerCase();
+    if (key === "draft") return settings?.stage_labels?.draft || tr("Nuevo", "New");
+    if (key === "sent") return settings?.stage_labels?.sent || tr("Cotizacion enviada", "Quote sent");
+    if (key === "won") return settings?.stage_labels?.won || tr("Ganado", "Won");
+    if (key === "lost") return settings?.stage_labels?.lost || tr("Perdido", "Lost");
+    return status || "-";
+  };
+
+  const patchContactInline = async (c: Contact, patch: any, fallbackError: string) => {
+    setUpdatingContactKey(String(c.key || ""));
+    try {
+      const res = await authedFetch("/api/agents/crm/contact", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: c.phone,
+          email: c.email,
+          name: c.name,
+          company: c.company,
+          ...patch,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || fallbackError);
+      await fetchData();
+      if (selectedContact && String(selectedContact.key || "") === String(c.key || "")) {
+        await openContactDetail({ ...selectedContact, ...patch } as Contact);
+      }
+    } catch (e: any) {
+      setError(String(e?.message || fallbackError));
+    } finally {
+      setUpdatingContactKey("");
+    }
+  };
+
+  const updateContactStatusInline = async (c: Contact, status: string) => {
+    await patchContactInline(c, { status }, "No se pudo actualizar estado del contacto");
+  };
+
+  const updateContactNextActionInline = async (c: Contact, next_action: string) => {
+    await patchContactInline(c, { next_action }, "No se pudo actualizar próxima acción");
+  };
+
+  const updateContactNextActionAtInline = async (c: Contact, localDateTime: string) => {
+    const next_action_at = localDateTime ? new Date(localDateTime).toISOString() : null;
+    await patchContactInline(c, { next_action_at }, "No se pudo actualizar fecha de próxima acción");
   };
 
   const openContactDetail = async (c: Contact) => {
@@ -345,6 +395,7 @@ export default function AgentsCrmPage() {
   const renderContactValue = (c: Contact, key: string) => {
     if (key === "last_activity_at") return c.last_activity_at ? new Date(c.last_activity_at).toLocaleString() : "-";
     if (key === "next_action_at") return c.next_action_at ? new Date(c.next_action_at).toLocaleString() : "-";
+    if (key === "status") return stageLabel(String(c.status || ""));
     const v = c[key];
     return v == null || v === "" ? "-" : String(v);
   };
@@ -514,10 +565,10 @@ export default function AgentsCrmPage() {
                         disabled={updatingId === d.id}
                         style={{ width: "100%", marginTop: 8, padding: "7px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: C.card, color: C.white }}
                       >
-                        <option value="draft">{tr("Nuevo", "New")}</option>
-                        <option value="sent">{tr("Enviado", "Sent")}</option>
-                        <option value="won">{tr("Ganado", "Won")}</option>
-                        <option value="lost">{tr("Perdido", "Lost")}</option>
+                        <option value="draft">{settings?.stage_labels?.draft || tr("Nuevo", "New")}</option>
+                        <option value="sent">{settings?.stage_labels?.sent || tr("Cotizacion enviada", "Quote sent")}</option>
+                        <option value="won">{settings?.stage_labels?.won || tr("Ganado", "Won")}</option>
+                        <option value="lost">{settings?.stage_labels?.lost || tr("Perdido", "Lost")}</option>
                       </select>
                     </div>
                   ))}
@@ -550,7 +601,56 @@ export default function AgentsCrmPage() {
               {filteredContacts.slice(0, 200).map((c) => (
                 <tr key={c.key} style={{ borderTop: `1px solid ${C.border}`, cursor: "pointer" }} onClick={() => void openContactDetail(c)}>
                   {(visibleContactFields.length ? visibleContactFields : [{ key: "name", label: tr("Nombre", "Name") } as any]).map((f: any) => (
-                    <td key={f.key} style={td}>{renderContactValue(c, f.key)}</td>
+                    <td key={f.key} style={td} onClick={(e) => {
+                      if (f.key === "status" || f.key === "next_action" || f.key === "next_action_at") e.stopPropagation();
+                    }}>
+                      {f.key === "status" ? (
+                        <select
+                          value={String(c.status || "draft")}
+                          disabled={updatingContactKey === String(c.key || "")}
+                          onChange={(e) => void updateContactStatusInline(c, e.target.value)}
+                          style={{ width: "100%", padding: "6px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}
+                        >
+                          <option value="draft">{settings?.stage_labels?.draft || tr("Nuevo", "New")}</option>
+                          <option value="sent">{settings?.stage_labels?.sent || tr("Cotizacion enviada", "Quote sent")}</option>
+                          <option value="won">{settings?.stage_labels?.won || tr("Ganado", "Won")}</option>
+                          <option value="lost">{settings?.stage_labels?.lost || tr("Perdido", "Lost")}</option>
+                        </select>
+                      ) : f.key === "next_action" ? (
+                        <select
+                          value={String(c.next_action || "")}
+                          disabled={updatingContactKey === String(c.key || "")}
+                          onChange={(e) => void updateContactNextActionInline(c, e.target.value)}
+                          style={{ width: "100%", padding: "6px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}
+                        >
+                          <option value="">{tr("Sin acción", "No action")}</option>
+                          <option value="Calificar lead y validar necesidad">{tr("Calificar lead", "Qualify lead")}</option>
+                          <option value="Enviar catalogo/ficha tecnica por WhatsApp">{tr("Enviar ficha/catálogo", "Send catalog/spec")}</option>
+                          <option value="Seguimiento de cotizacion enviada">{tr("Seguimiento cotización", "Quote follow-up")}</option>
+                          <option value="Llamar para resolver objeciones y cierre">{tr("Llamar para cierre", "Call to close")}</option>
+                          <option value="Coordinar pago y entrega">{tr("Coordinar pago y entrega", "Arrange payment and delivery")}</option>
+                          <option value="Reactivar contacto en 30 dias">{tr("Reactivar en 30 días", "Reactivate in 30 days")}</option>
+                          {!!String(c.next_action || "").trim() && ![
+                            "Calificar lead y validar necesidad",
+                            "Enviar catalogo/ficha tecnica por WhatsApp",
+                            "Seguimiento de cotizacion enviada",
+                            "Llamar para resolver objeciones y cierre",
+                            "Coordinar pago y entrega",
+                            "Reactivar contacto en 30 dias",
+                          ].includes(String(c.next_action || "")) && (
+                            <option value={String(c.next_action)}>{String(c.next_action)}</option>
+                          )}
+                        </select>
+                      ) : f.key === "next_action_at" ? (
+                        <input
+                          type="datetime-local"
+                          value={c.next_action_at ? String(c.next_action_at).slice(0, 16) : ""}
+                          disabled={updatingContactKey === String(c.key || "")}
+                          onChange={(e) => void updateContactNextActionAtInline(c, e.target.value)}
+                          style={{ width: "100%", padding: "6px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}
+                        />
+                      ) : renderContactValue(c, f.key)}
+                    </td>
                   ))}
                 </tr>
               ))}
@@ -612,7 +712,7 @@ export default function AgentsCrmPage() {
                     {(contactDetail?.drafts || []).map((d: any) => (
                       <div key={d.id} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: 8, background: "#0f1117" }}>
                         <div style={{ fontSize: 13, fontWeight: 700 }}>{d.product_name || "-"}</div>
-                        <div style={{ color: C.muted, fontSize: 12 }}>{new Date(d.created_at).toLocaleString()} · {d.status}</div>
+                        <div style={{ color: C.muted, fontSize: 12 }}>{new Date(d.created_at).toLocaleString()} · {stageLabel(d.status)}</div>
                         <div style={{ color: C.blue, fontSize: 12 }}>COP {money(Number(d.total_cop || 0))}</div>
                       </div>
                     ))}
@@ -624,7 +724,7 @@ export default function AgentsCrmPage() {
                   <div style={{ display: "grid", gap: 6, maxHeight: 240, overflow: "auto" }}>
                     {(contactDetail?.timeline || []).map((t, idx) => (
                       <div key={`${t.at}-${idx}`} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: 8, background: "#0f1117" }}>
-                        <div style={{ color: C.muted, fontSize: 11 }}>{new Date(t.at).toLocaleString()} · {t.kind}</div>
+                        <div style={{ color: C.muted, fontSize: 11 }}>{new Date(t.at).toLocaleString()} · {t.kind === "assistant" ? tr("Bot", "Bot") : t.kind === "user" ? tr("Cliente", "Customer") : t.kind}</div>
                         <div style={{ fontSize: 13 }}>{t.text}</div>
                       </div>
                     ))}

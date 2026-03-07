@@ -18,7 +18,7 @@ export async function GET(req: Request) {
 
   let query = supabase
     .from("agent_product_catalog")
-    .select("id,name,brand,category,product_url,image_url,summary,standards,methods,updated_at")
+    .select("id,name,brand,category,product_url,image_url,datasheet_url,summary,standards,methods,updated_at")
     .eq("tenant_id", SYSTEM_TENANT_ID)
     .eq("created_by", guard.user.id)
     .eq("is_active", true)
