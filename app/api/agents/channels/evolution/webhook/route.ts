@@ -346,6 +346,7 @@ async function persistConversationTurn(
     inboundText: string;
     outboundText: string;
     messageId?: string;
+    memory?: Record<string, any>;
   }
 ) {
   const nowIso = new Date().toISOString();
@@ -358,6 +359,7 @@ async function persistConversationTurn(
     inboundText,
     outboundText,
     messageId,
+    memory,
   } = params;
 
   const { data: existing } = await supabase
@@ -396,6 +398,11 @@ async function persistConversationTurn(
           ...currentMeta,
           owner_id: ownerId,
           last_inbound_message_id: messageId || currentMeta?.last_inbound_message_id || null,
+          whatsapp_memory: {
+            ...(currentMeta?.whatsapp_memory && typeof currentMeta.whatsapp_memory === "object" ? currentMeta.whatsapp_memory : {}),
+            ...(memory && typeof memory === "object" ? memory : {}),
+            updated_at: nowIso,
+          },
         },
       })
       .eq("id", existing.id);
@@ -417,6 +424,10 @@ async function persistConversationTurn(
       owner_id: ownerId,
       source: "evolution_webhook",
       last_inbound_message_id: messageId || null,
+      whatsapp_memory: {
+        ...(memory && typeof memory === "object" ? memory : {}),
+        updated_at: nowIso,
+      },
     },
     started_at: nowIso,
     ended_at: nowIso,
@@ -595,7 +606,7 @@ function isMultiProductQuoteIntent(text: string): boolean {
 
 function shouldResendPdf(text: string): boolean {
   const t = normalizeText(text);
-  return /(reenviar|reenvia|reenvie|volver a enviar|mandame otra vez|otra vez el pdf|reenvio|enviala por aqui|mandala por aqui|dame por aqui|pasala por aqui)/.test(t);
+  return /(reenviar|reenvia|reenvie|volver a enviar|mandame otra vez|otra vez el pdf|reenvio|enviala por aqui|mandala por aqui|dame por aqui|pasala por aqui|donde esta la cotizacion|donde va la cotizacion|estado de la cotizacion)/.test(t);
 }
 
 function isInventoryInfoIntent(text: string): boolean {
@@ -790,6 +801,15 @@ function pickBestCatalogProduct(text: string, rows: any[]): any | null {
 
   if (!best || best.score < 4) return null;
   return best.row;
+}
+
+function findCatalogProductByName(rows: any[], rememberedName: string): any | null {
+  const target = normalizeText(rememberedName || "");
+  if (!target) return null;
+  const exact = (rows || []).find((r: any) => normalizeText(String(r?.name || "")) === target);
+  if (exact) return exact;
+  const partial = (rows || []).find((r: any) => target.includes(normalizeText(String(r?.name || ""))) || normalizeText(String(r?.name || "")).includes(target));
+  return partial || null;
 }
 
 function parseRate(v: any) {
@@ -1172,13 +1192,23 @@ export async function POST(req: Request) {
     // Obtener historial de conversación
     const { data: existingConv } = await supabase
       .from("agent_conversations")
-      .select("transcript")
+      .select("transcript,metadata")
       .eq("agent_id", agent.id)
       .eq("channel", "whatsapp")
       .eq("contact_phone", inbound.from)
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    const existingMeta = existingConv?.metadata && typeof existingConv.metadata === "object" ? existingConv.metadata : {};
+    const previousMemory = existingMeta?.whatsapp_memory && typeof existingMeta.whatsapp_memory === "object"
+      ? existingMeta.whatsapp_memory
+      : {};
+    const nextMemory: Record<string, any> = {
+      ...previousMemory,
+      last_user_text: inbound.text,
+      last_user_at: new Date().toISOString(),
+    };
 
     const historyMessages: { role: "user" | "assistant"; content: string }[] = [];
     if (existingConv?.transcript && Array.isArray(existingConv.transcript)) {
@@ -1203,6 +1233,9 @@ export async function POST(req: Request) {
     let handledByTechSheet = false;
     let handledByRecall = false;
     let handledByQuoteIntake = false;
+    let sentQuotePdf = false;
+    let sentTechSheet = false;
+    let sentImage = false;
     const technicalDocs: Array<{ kind: "document" | "image"; base64: string; fileName: string; mimetype: string; caption?: string }> = [];
     const transcriptForContext = Array.isArray(existingConv?.transcript) ? existingConv.transcript : [];
     const recentUserContextForCatalog = transcriptForContext
@@ -1339,6 +1372,8 @@ export async function POST(req: Request) {
         const matched = pickBestCatalogProduct(inbound.text, list as any);
 
         if (matched?.name) {
+          nextMemory.last_product_name = String(matched.name || "");
+          nextMemory.last_product_id = String((matched as any)?.id || "");
           reply = `El producto ${String(matched.name)} tiene precio base USD ${formatMoney(Number(matched.base_price_usd || 0))}. Si quieres, te genero la cotizacion con TRM de hoy y PDF.`;
         } else if (list.length) {
           const sample = list.slice(0, 8).map((p: any) => `${String(p.name)} (USD ${formatMoney(Number(p.base_price_usd || 0))})`);
@@ -1370,6 +1405,10 @@ export async function POST(req: Request) {
           .filter(Boolean);
 
         if (suggestions.length) {
+          if (matched?.name) {
+            nextMemory.last_product_name = String(matched.name || "");
+            nextMemory.last_product_id = String((matched as any)?.id || "");
+          }
           reply = `Con base en tu caso, te puedo recomendar opciones de nuestro catalogo actual: ${suggestions.join("; ")}. Si eliges una, te preparo cotizacion con TRM de hoy y PDF.`;
         } else {
           reply = "Ahora mismo no encuentro productos activos en el catalogo para recomendar. Si quieres, actualizo catalogo y te cotizo enseguida.";
@@ -1388,7 +1427,10 @@ export async function POST(req: Request) {
 
         const list = Array.isArray(products) ? products : [];
         const techSourceText = `${recentUserContextForCatalog}\n${inbound.text}`.trim();
-        const matched = pickBestCatalogProduct(techSourceText, list as any);
+        let matched = pickBestCatalogProduct(techSourceText, list as any);
+        if (!matched?.name && nextMemory.last_product_name) {
+          matched = findCatalogProductByName(list, String(nextMemory.last_product_name || ""));
+        }
 
         if (!matched?.name) {
           const sample = list.slice(0, 8).map((p: any) => String(p?.name || "").trim()).filter(Boolean);
@@ -1408,6 +1450,8 @@ export async function POST(req: Request) {
             reply = "Ahora mismo no encuentro productos activos en catálogo para enviarte ficha técnica.";
           }
         } else {
+          nextMemory.last_product_name = String((matched as any)?.name || "");
+          nextMemory.last_product_id = String((matched as any)?.id || "");
           const wantsSheet = isTechnicalSheetIntent(inbound.text);
           const wantsImage = isProductImageIntent(inbound.text);
           const payload = matched?.source_payload && typeof matched.source_payload === "object" ? matched.source_payload : {};
@@ -1500,6 +1544,8 @@ export async function POST(req: Request) {
           null;
 
         if (lastDraft?.id) {
+          nextMemory.last_quote_draft_id = String(lastDraft.id);
+          nextMemory.last_quote_product_name = String(lastDraft.product_name || "");
           const qty = Math.max(1, Number((lastDraft as any)?.payload?.quantity || 1));
           reply = `Si, claro. Tu ultima cotizacion fue del producto ${String(lastDraft.product_name || "")}, cantidad ${qty}, total COP ${formatMoney(Number(lastDraft.total_cop || 0))} con TRM ${formatMoney(Number(lastDraft.trm_rate || 0))}.`;
 
@@ -1551,12 +1597,13 @@ export async function POST(req: Request) {
 
         const quoteSourceText = resumeQuoteFromContext ? `${recentUserContext}\n${inbound.text}` : inbound.text;
         const matchedProduct = pickBestCatalogProduct(quoteSourceText, products || []);
+        const rememberedProduct = findCatalogProductByName(products || [], String(nextMemory.last_product_name || ""));
         const pricedProducts = Array.isArray(products) ? products : [];
         const wantsMulti = isMultiProductQuoteIntent(quoteSourceText);
         const selectedProducts = wantsMulti
           ? pricedProducts.slice(0, 3)
-          : matchedProduct
-            ? [matchedProduct]
+          : matchedProduct || rememberedProduct
+            ? [matchedProduct || rememberedProduct]
             : [];
 
         if (selectedProducts.length) {
@@ -1601,6 +1648,8 @@ export async function POST(req: Request) {
 
             if (trmRate > 0) {
               for (const selected of selectedProducts) {
+                nextMemory.last_product_name = String((selected as any)?.name || nextMemory.last_product_name || "");
+                nextMemory.last_product_id = String((selected as any)?.id || nextMemory.last_product_id || "");
                 const quantity =
                   Number(perProductQty[String((selected as any).id)]) ||
                   (uniformHint ? defaultQuantity : 0) ||
@@ -1642,6 +1691,8 @@ export async function POST(req: Request) {
                   .single();
 
                 if (!draftError && draft?.id) {
+                  nextMemory.last_quote_draft_id = String(draft.id);
+                  nextMemory.last_quote_product_name = String((selected as any).name || "");
                   const pdfBase64 = buildQuotePdf({
                     draftId: String(draft.id),
                     companyName: String(draftPayload.company_name || "Avanza Balanzas"),
@@ -1928,6 +1979,7 @@ export async function POST(req: Request) {
               .eq("id", id)
               .eq("created_by", ownerId);
           }
+          sentQuotePdf = true;
         } else if (autoQuoteDocs.length) {
           for (const doc of autoQuoteDocs) {
             await evolutionService.sendDocument(outboundInstance, sentTo, {
@@ -1943,6 +1995,7 @@ export async function POST(req: Request) {
               .eq("id", doc.draftId)
               .eq("created_by", ownerId);
           }
+          sentQuotePdf = true;
         } else {
           await evolutionService.sendDocument(outboundInstance, sentTo, {
             base64: resendPdf!.pdfBase64,
@@ -1950,6 +2003,7 @@ export async function POST(req: Request) {
             caption: `Cotizacion preliminar ${resendPdf!.fileName}`,
             mimetype: "application/pdf",
           });
+          sentQuotePdf = true;
         }
       } catch (pdfErr: any) {
         console.warn("[evolution-webhook] auto_quote_pdf_send_failed", pdfErr?.message || pdfErr);
@@ -1966,6 +2020,7 @@ export async function POST(req: Request) {
               caption: doc.caption || "Imagen del producto",
               mimetype: doc.mimetype || "image/jpeg",
             });
+            sentImage = true;
           } else {
             await evolutionService.sendDocument(outboundInstance, sentTo, {
               base64: doc.base64,
@@ -1973,12 +2028,26 @@ export async function POST(req: Request) {
               caption: doc.caption || "Información técnica",
               mimetype: doc.mimetype || "application/pdf",
             });
+            sentTechSheet = true;
           }
         }
       } catch (techDocErr: any) {
         console.warn("[evolution-webhook] technical_doc_send_failed", techDocErr?.message || techDocErr);
       }
     }
+
+    if (sentQuotePdf) nextMemory.last_quote_pdf_sent_at = new Date().toISOString();
+    if (sentTechSheet) nextMemory.last_datasheet_sent_at = new Date().toISOString();
+    if (sentImage) nextMemory.last_image_sent_at = new Date().toISOString();
+
+    if (autoQuoteDocs.length || autoQuoteBundle) nextMemory.last_intent = "quote_generated";
+    else if (handledByRecall) nextMemory.last_intent = "quote_recall";
+    else if (handledByTechSheet && isProductImageIntent(inbound.text)) nextMemory.last_intent = "image_request";
+    else if (handledByTechSheet) nextMemory.last_intent = "tech_sheet_request";
+    else if (handledByPricing) nextMemory.last_intent = "price_request";
+    else if (handledByRecommendation) nextMemory.last_intent = "recommendation_request";
+    else if (handledByHistory) nextMemory.last_intent = "history_request";
+    else if (handledByGreeting) nextMemory.last_intent = "greeting";
 
     const burn = await consumeEntitlementCredits(supabase as any, ownerId, billedTokens);
     if (!burn.ok) {
@@ -2001,6 +2070,7 @@ export async function POST(req: Request) {
         inboundText: inbound.text,
         outboundText: reply,
         messageId: inbound.messageId,
+        memory: nextMemory,
       });
     } catch (saveErr: any) {
       console.warn("[evolution-webhook] conversation save failed", saveErr?.message || saveErr);
