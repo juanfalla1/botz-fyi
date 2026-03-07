@@ -578,7 +578,7 @@ function shouldAutoQuote(text: string): boolean {
 function isQuoteRecallIntent(text: string): boolean {
   const t = normalizeText(text);
   return (
-    /recuerd|ultima cotizacion|cotizacion que me enviaste|cotizacion anterior|mi cotizacion|mi ultima cotizacion/.test(t) &&
+    /recuerd|ultima cotizacion|cotizacion que me enviaste|cotizacion anterior|mi cotizacion|mi ultima cotizacion|donde esta la cotizacion|donde va la cotizacion|estado de la cotizacion/.test(t) &&
     /(cotiz|pdf|enviaste|anterior|ultima|recordar|recuerd)/.test(t)
   );
 }
@@ -595,7 +595,7 @@ function isMultiProductQuoteIntent(text: string): boolean {
 
 function shouldResendPdf(text: string): boolean {
   const t = normalizeText(text);
-  return /(reenviar|reenvia|reenvie|volver a enviar|mandame otra vez|otra vez el pdf|reenvio)/.test(t);
+  return /(reenviar|reenvia|reenvie|volver a enviar|mandame otra vez|otra vez el pdf|reenvio|enviala por aqui|mandala por aqui|dame por aqui|pasala por aqui)/.test(t);
 }
 
 function isInventoryInfoIntent(text: string): boolean {
@@ -637,10 +637,18 @@ function safeFileName(input: string, fallbackBase: string, fallbackExt: string):
 function toReadableBulletList(raw: string, maxLines = 4): string {
   const cleaned = String(raw || "").replace(/\s+/g, " ").trim();
   if (!cleaned) return "";
-  const chunks = cleaned
+  let chunks = cleaned
     .split(/[.;]\s+/)
     .map((s) => s.trim())
-    .filter(Boolean)
+    .filter(Boolean);
+  if (chunks.length <= 1) {
+    chunks = cleaned
+      .split(/,\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  chunks = chunks
+    .filter((s, i, arr) => arr.findIndex((x) => normalizeText(x) === normalizeText(s)) === i)
     .slice(0, maxLines);
   if (!chunks.length) return "";
   return chunks.map((c) => `- ${c}`).join("\n");
@@ -707,7 +715,7 @@ function isContactInfoBundle(text: string): boolean {
   const hasEmail = Boolean(extractEmail(t));
   const hasPhone = Boolean(extractCustomerPhone(t, ""));
   const hasNameLike = /(^|\n|\r)(nombre|name)\s*[:=]|^[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}(\s+[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,})?/m.test(t);
-  return hasEmail && hasPhone && hasNameLike;
+  return (hasPhone && hasNameLike) || (hasEmail && hasNameLike);
 }
 
 function isGreetingIntent(text: string): boolean {
@@ -746,6 +754,8 @@ function enforceWhatsAppDelivery(text: string, inboundText: string): string {
   fixed = fixed.replace(/enviarla\s+a\s+tu\s+correo/gi, "enviarla por este WhatsApp");
   fixed = fixed.replace(/enviartela\s+a\s+tu\s+correo\s+electronico/gi, "enviártela por este WhatsApp");
   fixed = fixed.replace(/enviartela\s+a\s+tu\s+correo/gi, "enviártela por este WhatsApp");
+  fixed = fixed.replace(/la\s+cotizacion\s+formal\s+sera\s+generada\s+por\s+un\s+comercial[^.]*\.?/gi, "Te genero y envío la cotización por este WhatsApp.");
+  fixed = fixed.replace(/no\s+puedo\s+enviar\s+la\s+cotizacion\s+formal\s+directamente\s+por\s+aqu[ií]\.?/gi, "Sí puedo enviarte la cotización por este WhatsApp.");
   fixed = fixed.replace(/se\s+pondra\s+en\s+contacto\s+contigo\s+para\s+generar\s+una\s+cotizacion\s+formal\.?/gi, "Si quieres, te genero la cotización aquí mismo por WhatsApp.");
   return fixed;
 }
@@ -1441,13 +1451,14 @@ export async function POST(req: Request) {
           }
 
           const specs = String((matched as any)?.specs_text || "").replace(/\s+/g, " ").trim();
-          const briefSpecs = specs ? toReadableBulletList(specs.slice(0, 700), 4) : "";
+          const briefSpecs = specs ? toReadableBulletList(specs.slice(0, 320), 3) : "";
+          const includeSummary = wantsSheet && !wantsImage;
           const productUrl = String((matched as any)?.product_url || "").trim();
 
           if (technicalDocs.length) {
             reply = [
               `Perfecto. Ya te envío por este WhatsApp la información técnica de ${String((matched as any)?.name || "ese producto")}${attachedSheet ? " (ficha)" : ""}${attachedImage ? " e imagen" : ""}.`,
-              ...(briefSpecs ? ["", "Resumen técnico:", briefSpecs] : []),
+              ...(includeSummary && briefSpecs ? ["", "Resumen técnico:", briefSpecs] : []),
             ].join("\n");
           } else if (briefSpecs) {
             reply = [
@@ -1576,11 +1587,10 @@ export async function POST(req: Request) {
 
           const missingFields: string[] = [];
           if (!isPresent(customerName)) missingFields.push("nombre completo");
-          if (!isPresent(customerEmail)) missingFields.push("correo");
           if (!isPresent(customerPhone)) missingFields.push("telefono");
 
           if (missingFields.length) {
-            reply = `Para enviarte la cotizacion en PDF sin campos vacios, me faltan estos datos: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Nombre: ..., Correo: ..., Telefono: ...).`;
+            reply = `Para enviarte la cotizacion en PDF sin campos vacios, me faltan estos datos: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Nombre: ..., Telefono: ...).`;
             handledByQuoteIntake = true;
             billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
           }
@@ -1750,7 +1760,8 @@ export async function POST(req: Request) {
       if (
         lcReply.includes("no puedo enviar archivos") ||
         lcReply.includes("no puedo enviar cotizaciones completas por este medio") ||
-        lcReply.includes("solo puedo enviarla a tu correo")
+        lcReply.includes("solo puedo enviarla a tu correo") ||
+        lcReply.includes("no puedo enviar la cotizacion formal directamente por aqui")
       ) {
         reply = "Si puedo enviarte la cotizacion por este WhatsApp en PDF. Si me confirmas producto(s), cantidad y datos de contacto, la genero y te la envio por aqui.";
       }
