@@ -541,10 +541,16 @@ function isPresent(v: string): boolean {
 
 function extractQuantity(text: string): number {
   const t = String(text || "");
-  const m1 = t.match(/(?:cantidad|qty|x)\s*[:=]?\s*(\d{1,5})/i);
-  if (m1?.[1]) return Math.max(1, Math.min(100000, Number(m1[1])));
-  const m2 = t.match(/\b(\d{1,5})\s*(?:unidad|unidades|equipos?)\b/i);
-  if (m2?.[1]) return Math.max(1, Math.min(100000, Number(m2[1])));
+  const m1 = [...t.matchAll(/(?:cantidad|qty|x)\s*[:=]?\s*(\d{1,5})/gi)];
+  if (m1.length) {
+    const n = Number(m1[m1.length - 1]?.[1] || 1);
+    return Math.max(1, Math.min(100000, n));
+  }
+  const m2 = [...t.matchAll(/\b(\d{1,5})\s*(?:unidad|unidades|equipos?)\b/gi)];
+  if (m2.length) {
+    const n = Number(m2[m2.length - 1]?.[1] || 1);
+    return Math.max(1, Math.min(100000, n));
+  }
   return 1;
 }
 
@@ -597,6 +603,11 @@ function isQuoteProceedIntent(text: string): boolean {
   return /(damela|dámela|enviamela|enviamela|hazla|generala|genérala|cotizala|cotízala|adelante|si por favor|si, por favor|dale|de una)/.test(t);
 }
 
+function isQuantityUpdateIntent(text: string): boolean {
+  const t = normalizeText(text);
+  return /(\d{1,5})\s*(unidad|unidades|equipos?)/.test(t) && /(te pedi|te pedí|corrige|actualiza|ajusta|son|quiero|necesito)/.test(t);
+}
+
 function isQuoteRecallIntent(text: string): boolean {
   const t = normalizeText(text);
   return (
@@ -617,7 +628,7 @@ function isMultiProductQuoteIntent(text: string): boolean {
 
 function shouldResendPdf(text: string): boolean {
   const t = normalizeText(text);
-  return /(reenviar|reenvia|reenvie|volver a enviar|mandame otra vez|otra vez el pdf|reenvio|enviala por aqui|mandala por aqui|dame por aqui|pasala por aqui|donde esta la cotizacion|donde va la cotizacion|estado de la cotizacion)/.test(t);
+  return /(reenviar|reenvia|reenvie|volver a enviar|mandame otra vez|otra vez el pdf|reenvio|enviala por aqui|mandala por aqui|dame por aqui|pasala por aqui|donde esta la cotizacion|donde va la cotizacion|estado de la cotizacion|no la veo|no llego el pdf|no me llego el pdf|aun no llega el pdf)/.test(t);
 }
 
 function isInventoryInfoIntent(text: string): boolean {
@@ -1633,7 +1644,7 @@ export async function POST(req: Request) {
       .slice(-6)
       .join("\n");
     const quoteProceedFromMemory =
-      isQuoteProceedIntent(inbound.text) &&
+      (isQuoteProceedIntent(inbound.text) || isQuantityUpdateIntent(inbound.text)) &&
       Boolean(nextMemory.last_product_name || nextMemory.last_product_id);
     const resumeQuoteFromContext =
       isContactInfoBundle(inbound.text) &&
