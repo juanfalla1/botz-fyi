@@ -592,6 +592,11 @@ function shouldAutoQuote(text: string): boolean {
   return asksQuote && (asksDelivery || asksMulti);
 }
 
+function isQuoteProceedIntent(text: string): boolean {
+  const t = normalizeText(text);
+  return /(damela|dámela|enviamela|enviamela|hazla|generala|genérala|cotizala|cotízala|adelante|si por favor|si, por favor|dale|de una)/.test(t);
+}
+
 function isQuoteRecallIntent(text: string): boolean {
   const t = normalizeText(text);
   return (
@@ -1260,9 +1265,16 @@ export async function POST(req: Request) {
     const transcriptForContext = Array.isArray(existingConv?.transcript) ? existingConv.transcript : [];
     const recentUserContextForCatalog = transcriptForContext
       .filter((m: any) => m?.role === "user" && m?.content)
-      .slice(-8)
+      .slice(-20)
       .map((m: any) => String(m.content || ""))
       .join("\n");
+
+    const inferredName = extractCustomerName(`${recentUserContextForCatalog}\n${inbound.text}`, inbound.pushName || "");
+    const inferredPhone = extractCustomerPhone(`${recentUserContextForCatalog}\n${inbound.text}`, inbound.from);
+    const inferredEmail = extractEmail(`${recentUserContextForCatalog}\n${inbound.text}`);
+    if (isPresent(inferredName)) nextMemory.customer_name = inferredName;
+    if (isPresent(inferredPhone)) nextMemory.customer_phone = inferredPhone;
+    if (isPresent(inferredEmail)) nextMemory.customer_email = inferredEmail;
     let resendPdf: null | {
       draftId: string;
       fileName: string;
@@ -1620,15 +1632,22 @@ export async function POST(req: Request) {
       .map((m) => m.content)
       .slice(-6)
       .join("\n");
+    const quoteProceedFromMemory =
+      isQuoteProceedIntent(inbound.text) &&
+      Boolean(nextMemory.last_product_name || nextMemory.last_product_id);
     const resumeQuoteFromContext =
       isContactInfoBundle(inbound.text) &&
       shouldAutoQuote(`${recentUserContext}\n${inbound.text}`);
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory)) {
       try {
         const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency", 80, true);
 
-        const quoteSourceText = resumeQuoteFromContext ? `${recentUserContext}\n${inbound.text}` : inbound.text;
+        const quoteSourceText = resumeQuoteFromContext
+          ? `${recentUserContext}\n${inbound.text}`
+          : quoteProceedFromMemory
+            ? `${String(nextMemory.last_product_name || "")}\n${inbound.text}`
+            : inbound.text;
         const matchedProduct = pickBestCatalogProduct(quoteSourceText, products || []);
         const rememberedProduct = findCatalogProductByName(products || [], String(nextMemory.last_product_name || ""));
         const pricedProducts = Array.isArray(products) ? products : [];
@@ -1661,9 +1680,9 @@ export async function POST(req: Request) {
             billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
           }
 
-          const customerEmail = extractEmail(combinedUserContext);
-          const customerName = extractCustomerName(combinedUserContext, inbound.pushName || "");
-          const customerPhone = extractCustomerPhone(combinedUserContext, inbound.from);
+          const customerEmail = extractEmail(combinedUserContext) || String(nextMemory.customer_email || "");
+          const customerName = extractCustomerName(combinedUserContext, inbound.pushName || "") || String(nextMemory.customer_name || "");
+          const customerPhone = extractCustomerPhone(combinedUserContext, inbound.from) || String(nextMemory.customer_phone || "");
 
           const missingFields: string[] = [];
           if (!isPresent(customerName)) missingFields.push("nombre completo");
@@ -1783,6 +1802,10 @@ export async function POST(req: Request) {
                   : `Listo. Ya genere la cotizacion consolidada de ${autoQuoteDocs.length} productos con las cantidades que me indicaste y la TRM de hoy. Te envio un solo PDF por este chat ahora mismo.`;
               }
               if (reply) billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+            } else {
+              reply = "No pude consultar la TRM de hoy en este momento. Intenta de nuevo en 1 minuto y te genero el PDF por este WhatsApp.";
+              handledByQuoteIntake = true;
+              billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
             }
           }
         } else if (resumeQuoteFromContext || shouldAutoQuote(inbound.text)) {
@@ -2042,6 +2065,13 @@ export async function POST(req: Request) {
         }
       } catch (pdfErr: any) {
         console.warn("[evolution-webhook] auto_quote_pdf_send_failed", pdfErr?.message || pdfErr);
+        try {
+          await evolutionService.sendMessage(
+            outboundInstance,
+            sentTo,
+            "Tu cotización ya quedó generada, pero falló el envío del PDF en este intento. Si escribes 'reenviar PDF' te lo intento nuevamente ahora mismo."
+          );
+        } catch {}
       }
     }
 
@@ -2068,6 +2098,13 @@ export async function POST(req: Request) {
         }
       } catch (techDocErr: any) {
         console.warn("[evolution-webhook] technical_doc_send_failed", techDocErr?.message || techDocErr);
+        try {
+          await evolutionService.sendMessage(
+            outboundInstance,
+            sentTo,
+            "Intenté enviarte el archivo técnico, pero falló en este intento. Si escribes 'reenviar ficha' o 'reenviar imagen', lo reintento ahora mismo."
+          );
+        } catch {}
       }
     }
 
