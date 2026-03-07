@@ -738,6 +738,11 @@ function isGreetingIntent(text: string): boolean {
   return hasGreeting && !hasBusinessIntent && t.length <= 40;
 }
 
+function isAffirmativeIntent(text: string): boolean {
+  const t = normalizeText(text).replace(/[^a-z0-9\s]/g, " ").trim();
+  return /^(si|sí|ok|vale|listo|dale|de una|perfecto|por favor|si por favor|hazlo|enviala|enviamela)\b/.test(t);
+}
+
 function withAvaSignature(text: string): string {
   const body = String(text || "").trim();
   if (!body) return "Soy Ava de Avanza Balanzas. ¿En qué puedo ayudarte hoy?";
@@ -1536,7 +1541,8 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && isQuoteRecallIntent(inbound.text)) {
+    const recallByConfirmation = Boolean(previousMemory?.last_quote_draft_id) && isAffirmativeIntent(inbound.text);
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && (isQuoteRecallIntent(inbound.text) || recallByConfirmation)) {
       try {
         const { data: recentDrafts } = await supabase
           .from("agent_quote_drafts")
@@ -1561,7 +1567,8 @@ export async function POST(req: Request) {
           const qty = Math.max(1, Number((lastDraft as any)?.payload?.quantity || 1));
           reply = `Si, claro. Tu ultima cotizacion fue del producto ${String(lastDraft.product_name || "")}, cantidad ${qty}, total COP ${formatMoney(Number(lastDraft.total_cop || 0))} con TRM ${formatMoney(Number(lastDraft.trm_rate || 0))}.`;
 
-          if (shouldResendPdf(inbound.text)) {
+          const wantsResend = shouldResendPdf(inbound.text) || recallByConfirmation;
+          if (wantsResend) {
             const pdfBase64 = buildQuotePdf({
               draftId: String(lastDraft.id),
               companyName: String((lastDraft as any).company_name || "Avanza Balanzas"),
