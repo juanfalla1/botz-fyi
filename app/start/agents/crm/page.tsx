@@ -58,6 +58,9 @@ const CONTACT_FIELD_DEFAULTS = [
   { key: "last_channel", label: "Canal", visible: false, required: false },
   { key: "last_product", label: "Ultimo producto", visible: false, required: false },
   { key: "status", label: "Estado", visible: false, required: false },
+  { key: "last_intent", label: "Ultima intencion", visible: true, required: false },
+  { key: "lead_temperature", label: "Temperatura", visible: true, required: false },
+  { key: "last_quote_sent_at", label: "Ultima cotizacion enviada", visible: true, required: false },
   { key: "next_action", label: "Proxima accion", visible: false, required: false },
   { key: "next_action_at", label: "Fecha proxima accion", visible: false, required: false },
   { key: "quotes_count", label: "Cotizaciones", visible: true, required: false },
@@ -395,7 +398,16 @@ export default function AgentsCrmPage() {
   const renderContactValue = (c: Contact, key: string) => {
     if (key === "last_activity_at") return c.last_activity_at ? new Date(c.last_activity_at).toLocaleString() : "-";
     if (key === "next_action_at") return c.next_action_at ? new Date(c.next_action_at).toLocaleString() : "-";
+    if (key === "last_quote_sent_at") return c.last_quote_sent_at ? new Date(c.last_quote_sent_at).toLocaleString() : "-";
     if (key === "status") return stageLabel(String(c.status || ""));
+    if (key === "lead_temperature") {
+      const v = String(c.lead_temperature || "cold").toLowerCase();
+      if (v === "hot") return tr("Caliente", "Hot");
+      if (v === "warm") return tr("Tibio", "Warm");
+      if (v === "closed_won") return tr("Cerrado ganado", "Closed won");
+      if (v === "closed_lost") return tr("Cerrado perdido", "Closed lost");
+      return tr("Frio", "Cold");
+    }
     const v = c[key];
     return v == null || v === "" ? "-" : String(v);
   };

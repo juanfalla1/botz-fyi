@@ -1198,6 +1198,52 @@ export async function POST(req: Request) {
       totalCop: number;
     }> = [];
     let autoQuoteBundle: null | { fileName: string; pdfBase64: string; draftIds: string[] } = null;
+    const tenantId = String((agent as any)?.tenant_id || "").trim();
+
+    const countCatalogRows = async (pricedOnly = false): Promise<number> => {
+      let ownerQuery = supabase
+        .from("agent_product_catalog")
+        .select("id", { count: "exact", head: true })
+        .eq("created_by", ownerId)
+        .eq("is_active", true);
+      if (pricedOnly) ownerQuery = ownerQuery.gt("base_price_usd", 0);
+      const { count: ownerCount } = await ownerQuery;
+      if (Number(ownerCount || 0) > 0 || !tenantId) return Number(ownerCount || 0);
+
+      let tenantQuery = supabase
+        .from("agent_product_catalog")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId)
+        .eq("is_active", true);
+      if (pricedOnly) tenantQuery = tenantQuery.gt("base_price_usd", 0);
+      const { count: tenantCount } = await tenantQuery;
+      return Number(tenantCount || 0);
+    };
+
+    const fetchCatalogRows = async (selectCols: string, limitRows: number, pricedOnly = false) => {
+      let ownerQuery = supabase
+        .from("agent_product_catalog")
+        .select(selectCols)
+        .eq("created_by", ownerId)
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(limitRows);
+      if (pricedOnly) ownerQuery = ownerQuery.gt("base_price_usd", 0);
+      const { data: ownerRows } = await ownerQuery;
+      const ownerList = Array.isArray(ownerRows) ? ownerRows : [];
+      if (ownerList.length || !tenantId) return ownerList;
+
+      let tenantQuery = supabase
+        .from("agent_product_catalog")
+        .select(selectCols)
+        .eq("tenant_id", tenantId)
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(limitRows);
+      if (pricedOnly) tenantQuery = tenantQuery.gt("base_price_usd", 0);
+      const { data: tenantRows } = await tenantQuery;
+      return Array.isArray(tenantRows) ? tenantRows : [];
+    };
 
     if (isGreetingIntent(inbound.text)) {
       reply = "Hola, soy Ava, tu asistente virtual de Avanza Group";
@@ -1207,26 +1253,9 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && isInventoryInfoIntent(inbound.text)) {
       try {
-        const { count: totalActive } = await supabase
-          .from("agent_product_catalog")
-          .select("id", { count: "exact", head: true })
-          .eq("created_by", ownerId)
-          .eq("is_active", true);
-
-        const { count: totalPriced } = await supabase
-          .from("agent_product_catalog")
-          .select("id", { count: "exact", head: true })
-          .eq("created_by", ownerId)
-          .eq("is_active", true)
-          .gt("base_price_usd", 0);
-
-        const { data: sample } = await supabase
-          .from("agent_product_catalog")
-          .select("name")
-          .eq("created_by", ownerId)
-          .eq("is_active", true)
-          .order("updated_at", { ascending: false })
-          .limit(5);
+        const totalActive = await countCatalogRows(false);
+        const totalPriced = await countCatalogRows(true);
+        const sample = await fetchCatalogRows("name", 5, false);
 
         const examples = Array.isArray(sample)
           ? sample.map((x: any) => String(x?.name || "").trim()).filter(Boolean)
@@ -1276,14 +1305,7 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && isPriceIntent(inbound.text)) {
       try {
-        const { data: pricedProducts } = await supabase
-          .from("agent_product_catalog")
-          .select("id,name,base_price_usd")
-          .eq("created_by", ownerId)
-          .eq("is_active", true)
-          .gt("base_price_usd", 0)
-          .order("updated_at", { ascending: false })
-          .limit(20);
+        const pricedProducts = await fetchCatalogRows("id,name,base_price_usd", 20, true);
 
         const list = Array.isArray(pricedProducts) ? pricedProducts : [];
         const matched = pickBestCatalogProduct(inbound.text, list as any);
@@ -1306,13 +1328,7 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && isRecommendationIntent(inbound.text)) {
       try {
-        const { data: products } = await supabase
-          .from("agent_product_catalog")
-          .select("id,name,brand,category")
-          .eq("created_by", ownerId)
-          .eq("is_active", true)
-          .order("updated_at", { ascending: false })
-          .limit(80);
+        const products = await fetchCatalogRows("id,name,brand,category", 80, false);
 
         const list = Array.isArray(products) ? products : [];
         const matched = pickBestCatalogProduct(inbound.text, list);
@@ -1340,13 +1356,7 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && (isTechnicalSheetIntent(inbound.text) || isProductImageIntent(inbound.text))) {
       try {
-        const { data: products } = await supabase
-          .from("agent_product_catalog")
-          .select("id,name,product_url,image_url,datasheet_url,specs_text,source_payload")
-          .eq("created_by", ownerId)
-          .eq("is_active", true)
-          .order("updated_at", { ascending: false })
-          .limit(120);
+        const products = await fetchCatalogRows("id,name,product_url,image_url,datasheet_url,specs_text,source_payload", 120, false);
 
         const list = Array.isArray(products) ? products : [];
         const matched = pickBestCatalogProduct(inbound.text, list as any);
@@ -1480,14 +1490,7 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext)) {
       try {
-        const { data: products } = await supabase
-          .from("agent_product_catalog")
-          .select("id,name,brand,category,base_price_usd,price_currency")
-          .eq("created_by", ownerId)
-          .eq("is_active", true)
-          .gt("base_price_usd", 0)
-          .order("updated_at", { ascending: false })
-          .limit(80);
+        const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency", 80, true);
 
         const quoteSourceText = resumeQuoteFromContext ? `${recentUserContext}\n${inbound.text}` : inbound.text;
         const matchedProduct = pickBestCatalogProduct(quoteSourceText, products || []);
@@ -1656,13 +1659,7 @@ export async function POST(req: Request) {
     }
 
     if (!autoQuoteDocs.length && !handledByGreeting && !handledByRecall && !handledByTechSheet && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteIntake) {
-      const { data: catalogRows } = await supabase
-        .from("agent_product_catalog")
-        .select("name,brand,category")
-        .eq("created_by", ownerId)
-        .eq("is_active", true)
-        .order("updated_at", { ascending: false })
-        .limit(80);
+      const catalogRows = await fetchCatalogRows("name,brand,category", 80, false);
 
       const catalogNames = Array.isArray(catalogRows)
         ? catalogRows

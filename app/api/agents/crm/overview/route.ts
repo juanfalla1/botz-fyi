@@ -23,6 +23,13 @@ function normalizePhone(raw: string | null | undefined) {
   return String(raw || "").replace(/\D/g, "");
 }
 
+function normalizeText(raw: string | null | undefined) {
+  return String(raw || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function phoneTail10(raw: string | null | undefined) {
   const n = normalizePhone(raw);
   return n.length > 10 ? n.slice(-10) : n;
@@ -50,6 +57,27 @@ function normalizeContactKey(raw: string | null | undefined) {
   const digits = key.replace(/\D/g, "");
   if (digits && digits.length >= 7 && digits.length === key.length) return phoneTail10(digits);
   return key.toLowerCase();
+}
+
+function classifyIntent(rawText: string | null | undefined) {
+  const t = normalizeText(rawText);
+  if (!t) return "Sin clasificar";
+  if (/(comprar|pedido|orden|pagar|cierre|cerrar|entrega|factura)/.test(t)) return "Listo para cierre";
+  if (/(cotiz|cotizacion|pdf|presupuesto|precio|trm|reenviar)/.test(t)) return "Solicita cotizacion/PDF";
+  if (/(ficha|datasheet|especificaciones|imagen|foto|brochure)/.test(t)) return "Solicita ficha/imagen";
+  if (/(catalogo|productos|info|informacion|modelo|referencia)/.test(t)) return "Explorando opciones";
+  return "Sin clasificar";
+}
+
+function scoreLeadTemperature(args: { status: string; quotesCount: number; intent: string }) {
+  const status = String(args.status || "").toLowerCase();
+  const intent = normalizeText(args.intent);
+  const quotes = Number(args.quotesCount || 0);
+  if (status === "won") return "closed_won";
+  if (status === "lost") return "closed_lost";
+  if (/(listo para cierre|solicita cotizacion\/pdf)/.test(intent) || status === "sent" || quotes >= 2) return "hot";
+  if (/(solicita ficha\/imagen|explorando opciones)/.test(intent) || quotes >= 1) return "warm";
+  return "cold";
 }
 
 function suggestNextAction(statusRaw: string) {
@@ -135,7 +163,7 @@ export async function GET(req: Request) {
     agentIds.length
       ? supabase
           .from("agent_conversations")
-          .select("id,agent_id,contact_phone,created_at,channel")
+          .select("id,agent_id,contact_phone,contact_name,created_at,channel,transcript")
           .in("agent_id", agentIds)
           .order("created_at", { ascending: false })
           .limit(800)
@@ -200,7 +228,7 @@ export async function GET(req: Request) {
   }
 
   const contactsMap = new Map<string, any>();
-  const latestConvByPhone = new Map<string, { channel: string; at: string }>();
+  const latestConvByPhone = new Map<string, { channel: string; at: string; contact_name: string; last_intent: string }>();
 
   for (const c of convRows as any[]) {
     const phone = phoneTail10(c?.contact_phone);
@@ -208,7 +236,15 @@ export async function GET(req: Request) {
     const prev = latestConvByPhone.get(phone);
     const at = String(c?.created_at || "");
     if (!prev || new Date(at).getTime() > new Date(prev.at).getTime()) {
-      latestConvByPhone.set(phone, { channel: String(c?.channel || "").toLowerCase(), at });
+      const transcript = Array.isArray(c?.transcript) ? c.transcript : [];
+      const lastUser = [...transcript].reverse().find((m: any) => String(m?.role || "") === "user");
+      const lastIntent = classifyIntent(String(lastUser?.content || ""));
+      latestConvByPhone.set(phone, {
+        channel: String(c?.channel || "").toLowerCase(),
+        at,
+        contact_name: String(c?.contact_name || "").trim(),
+        last_intent: lastIntent,
+      });
     }
   }
 
@@ -237,6 +273,9 @@ export async function GET(req: Request) {
       assigned_agent_name: d.agent_id ? (agentNameMap.get(String(d.agent_id)) || "") : "",
       last_channel: "",
       last_product: d.product_name || "",
+      last_intent: "",
+      lead_temperature: "cold",
+      last_quote_sent_at: null,
       next_action: "",
       next_action_at: null,
       contact_id: null,
@@ -284,6 +323,9 @@ export async function GET(req: Request) {
       assigned_agent_name: "",
       last_channel: String(c?.channel || "").toLowerCase(),
       last_product: "",
+      last_intent: "",
+      lead_temperature: "cold",
+      last_quote_sent_at: null,
       next_action: "",
       next_action_at: null,
       contact_id: null,
@@ -291,6 +333,7 @@ export async function GET(req: Request) {
     if (new Date(c?.created_at).getTime() > new Date(prev.last_activity_at).getTime()) {
       prev.last_activity_at = c?.created_at;
       prev.last_channel = String(c?.channel || "").toLowerCase();
+      prev.name = String(c?.contact_name || prev.name || "").trim();
     }
     contactsMap.set(key, prev);
   }
@@ -312,6 +355,9 @@ export async function GET(req: Request) {
       assigned_agent_name: (cc as any)?.assigned_agent_id ? (agentNameMap.get(String((cc as any)?.assigned_agent_id)) || "") : "",
       last_channel: "",
       last_product: "",
+      last_intent: "",
+      lead_temperature: "cold",
+      last_quote_sent_at: null,
       next_action: String((cc as any)?.next_action || ""),
       next_action_at: (cc as any)?.next_action_at || null,
       contact_id: (cc as any)?.id || null,
@@ -330,6 +376,19 @@ export async function GET(req: Request) {
     contactsMap.set(key, prev);
   }
 
+  const latestSentByKey = new Map<string, string>();
+  for (const d of safeDrafts) {
+    const st = String(d.status || "").toLowerCase();
+    if (!(st === "sent" || st === "won")) continue;
+    const key = contactKeyOf(d.customer_phone, d.customer_email);
+    if (!key) continue;
+    const at = String(d.updated_at || d.created_at || "");
+    const prevAt = latestSentByKey.get(key);
+    if (!prevAt || new Date(at).getTime() > new Date(prevAt).getTime()) {
+      latestSentByKey.set(key, at);
+    }
+  }
+
   for (const contact of contactsMap.values()) {
     const phone = phoneTail10(String(contact.phone || ""));
     if (!phone) continue;
@@ -337,6 +396,21 @@ export async function GET(req: Request) {
     if (latest?.channel) {
       contact.last_channel = latest.channel;
     }
+    if (latest?.contact_name && !String(contact.name || "").trim()) {
+      contact.name = latest.contact_name;
+    }
+    if (latest?.last_intent) {
+      contact.last_intent = latest.last_intent;
+    }
+
+    const sentAt = latestSentByKey.get(String(contact.key || ""));
+    if (sentAt) contact.last_quote_sent_at = sentAt;
+
+    contact.lead_temperature = scoreLeadTemperature({
+      status: String(contact.status || "draft"),
+      quotesCount: Number(contact.quotes_count || 0),
+      intent: String(contact.last_intent || ""),
+    });
   }
 
   const contacts = Array.from(contactsMap.values())
@@ -353,6 +427,9 @@ export async function GET(req: Request) {
         name: hasName ? c.name : (phone ? `Contacto ${phone.slice(-4)}` : ""),
         next_action: nextAction,
         next_action_at: nextActionAt,
+        last_intent: String(c.last_intent || "Sin clasificar"),
+        lead_temperature: String(c.lead_temperature || "cold"),
+        last_quote_sent_at: c.last_quote_sent_at || null,
       };
     })
     .filter((c: any) => {
