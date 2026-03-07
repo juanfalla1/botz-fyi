@@ -596,7 +596,7 @@ function isQuoteRecallIntent(text: string): boolean {
 
 function isPriceIntent(text: string): boolean {
   const t = normalizeText(text);
-  return /(precio|precios|cuanto vale|cuanto cuest|valor|valen|cuestan)/.test(t);
+  return /(precio|precios|con precio|tienen precio|productos con precio|cuanto vale|cuanto cuest|valor|valen|cuestan)/.test(t);
 }
 
 function isMultiProductQuoteIntent(text: string): boolean {
@@ -611,6 +611,7 @@ function shouldResendPdf(text: string): boolean {
 
 function isInventoryInfoIntent(text: string): boolean {
   const t = normalizeText(text);
+  if (isPriceIntent(t)) return false;
   return (
     /(cuantos|cuantas|numero de|cantidad de).*(productos|equipos|referencias|items)/.test(t) ||
     /(catalogo|inventario).*(productos|equipos|referencias)/.test(t) ||
@@ -1321,8 +1322,12 @@ export async function POST(req: Request) {
         const examples = Array.isArray(sample)
           ? sample.map((x: any) => String(x?.name || "").trim()).filter(Boolean)
           : [];
-
-        reply = `Hoy tengo ${Number(totalActive || 0)} productos activos en catalogo. De esos, ${Number(totalPriced || 0)} tienen precio base cargado para cotizacion automatica con PDF. ${examples.length ? `Ejemplos: ${examples.join(", ")}.` : ""}`.trim();
+        const top = examples.slice(0, 3);
+        reply = [
+          `Hoy tengo ${Number(totalActive || 0)} productos activos en catálogo.`,
+          `De esos, ${Number(totalPriced || 0)} tienen precio base para cotización automática en PDF.`,
+          ...(top.length ? ["", "Ejemplos de catálogo:", ...top.map((x) => `- ${x}`)] : []),
+        ].join("\n");
         handledByInventory = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       } catch (invErr: any) {
@@ -1376,8 +1381,15 @@ export async function POST(req: Request) {
           nextMemory.last_product_id = String((matched as any)?.id || "");
           reply = `El producto ${String(matched.name)} tiene precio base USD ${formatMoney(Number(matched.base_price_usd || 0))}. Si quieres, te genero la cotizacion con TRM de hoy y PDF.`;
         } else if (list.length) {
-          const sample = list.slice(0, 8).map((p: any) => `${String(p.name)} (USD ${formatMoney(Number(p.base_price_usd || 0))})`);
-          reply = `Estos son los productos con precio cargado actualmente: ${sample.join("; ")}. Elige uno y te genero cotizacion con TRM y PDF.`;
+          const sample = list
+            .slice(0, 5)
+            .map((p: any) => `- ${String(p.name)} (USD ${formatMoney(Number(p.base_price_usd || 0))})`);
+          reply = [
+            "Estos son los productos con precio cargado actualmente:",
+            ...sample,
+            "",
+            "Elige uno y te genero cotización con TRM y PDF por este WhatsApp.",
+          ].join("\n");
         } else {
           reply = "Ahora mismo no tengo productos con precio cargado para cotizar. Si quieres, te confirmo el catalogo disponible primero.";
         }
