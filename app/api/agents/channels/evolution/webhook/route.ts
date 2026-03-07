@@ -362,12 +362,18 @@ async function persistConversationTurn(
     memory,
   } = params;
 
+  const fromNorm = normalizePhone(from || "");
+  const fromTail = phoneTail10(from || "");
+  const contactFilter = fromTail
+    ? `contact_phone.eq.${fromNorm},contact_phone.like.%${fromTail}`
+    : `contact_phone.eq.${fromNorm}`;
+
   const { data: existing } = await supabase
     .from("agent_conversations")
     .select("id,transcript,message_count,metadata")
     .eq("agent_id", agentId)
     .eq("channel", "whatsapp")
-    .eq("contact_phone", from)
+    .or(contactFilter)
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -413,7 +419,7 @@ async function persistConversationTurn(
     agent_id: agentId,
     tenant_id: tenantId || null,
     contact_name: pushName || from,
-    contact_phone: from,
+    contact_phone: fromNorm || from,
     channel: "whatsapp",
     status: "completed",
     message_count: 2,
@@ -773,6 +779,8 @@ function enforceWhatsAppDelivery(text: string, inboundText: string): string {
   fixed = fixed.replace(/enviartela\s+a\s+tu\s+correo/gi, "enviártela por este WhatsApp");
   fixed = fixed.replace(/la\s+cotizacion\s+formal\s+sera\s+generada\s+por\s+un\s+comercial[^.]*\.?/gi, "Te genero y envío la cotización por este WhatsApp.");
   fixed = fixed.replace(/no\s+puedo\s+enviar\s+la\s+cotizacion\s+formal\s+directamente\s+por\s+aqu[ií]\.?/gi, "Sí puedo enviarte la cotización por este WhatsApp.");
+  fixed = fixed.replace(/estoy\s+en\s+modo\s+demo[^.]*\.?/gi, "Puedo enviarte archivos reales por este WhatsApp.");
+  fixed = fixed.replace(/no\s+puedo\s+enviar\s+el\s+pdf\s+real[^.]*\.?/gi, "Sí puedo enviarte el PDF real por este WhatsApp.");
   fixed = fixed.replace(/se\s+pondra\s+en\s+contacto\s+contigo\s+para\s+generar\s+una\s+cotizacion\s+formal\.?/gi, "Si quieres, te genero la cotización aquí mismo por WhatsApp.");
   return fixed;
 }
@@ -1196,12 +1204,18 @@ export async function POST(req: Request) {
     const docs = buildDocumentContext(inbound.text, files);
 
     // Obtener historial de conversación
+    const inboundPhoneNorm = normalizePhone(inbound.from || "");
+    const inboundPhoneTail = phoneTail10(inbound.from || "");
+    const inboundFilter = inboundPhoneTail
+      ? `contact_phone.eq.${inboundPhoneNorm},contact_phone.like.%${inboundPhoneTail}`
+      : `contact_phone.eq.${inboundPhoneNorm}`;
+
     const { data: existingConv } = await supabase
       .from("agent_conversations")
       .select("transcript,metadata")
       .eq("agent_id", agent.id)
       .eq("channel", "whatsapp")
-      .eq("contact_phone", inbound.from)
+      .or(inboundFilter)
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -1831,7 +1845,9 @@ export async function POST(req: Request) {
         lcReply.includes("no puedo enviar archivos") ||
         lcReply.includes("no puedo enviar cotizaciones completas por este medio") ||
         lcReply.includes("solo puedo enviarla a tu correo") ||
-        lcReply.includes("no puedo enviar la cotizacion formal directamente por aqui")
+        lcReply.includes("no puedo enviar la cotizacion formal directamente por aqui") ||
+        lcReply.includes("modo demo") ||
+        lcReply.includes("no puedo enviar el pdf real")
       ) {
         reply = "Si puedo enviarte la cotizacion por este WhatsApp en PDF. Si me confirmas producto(s), cantidad y datos de contacto, la genero y te la envio por aqui.";
       }
