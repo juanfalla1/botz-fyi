@@ -567,6 +567,7 @@ export default function AgentStudio() {
       name: "Lía",
       cat: "Calificación de leads entrantes",
       emoji: "🎯",
+      avatar: "/img/lia.png",
       gender: "f" as const,
       demo: "Hola, soy Lia de Botz. Te ayudo a calificar leads en menos de dos minutos.",
       convo: [
@@ -580,6 +581,7 @@ export default function AgentStudio() {
       name: "Bruno",
       cat: "Llamadas en frío salientes",
       emoji: "📞",
+      avatar: "/img/bruno.png",
       gender: "m" as const,
       demo: "Hola, soy Bruno de Botz. Te llamo para validar interés y agendar una llamada comercial.",
       convo: [
@@ -593,6 +595,7 @@ export default function AgentStudio() {
       name: "Sofía",
       cat: "Asistente recepcionista",
       emoji: "💬",
+      avatar: "/img/Sofia.png",
       gender: "f" as const,
       demo: "Hola, soy Sofía, tu recepcionista virtual. Puedo tomar datos y dirigir tu consulta al área correcta.",
       convo: [
@@ -1763,8 +1766,21 @@ export default function AgentStudio() {
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(180deg, rgba(32,40,56,0.98), rgba(24,31,46,0.98))"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(180deg, rgba(27,33,46,0.98), rgba(21,27,39,0.98))"; }}
               >
-                <div style={{ width: 70, height: 70, borderRadius: "50%", background: "radial-gradient(circle at 30% 30%, rgba(0,150,255,0.26), rgba(163,230,53,0.20))", border: "1px solid rgba(89,108,141,0.42)", ...flex({ alignItems: "center", justifyContent: "center" }), fontSize: 32, flexShrink: 0 }}>
-                  {t.emoji}
+                <div style={{ width: 70, height: 70, borderRadius: "50%", background: "radial-gradient(circle at 30% 30%, rgba(0,150,255,0.26), rgba(163,230,53,0.20))", border: "1px solid rgba(89,108,141,0.42)", ...flex({ alignItems: "center", justifyContent: "center" }), fontSize: 32, flexShrink: 0, overflow: "hidden" }}>
+                  <img
+                    src={(t as any).avatar || ""}
+                    alt={t.name}
+                    width={70}
+                    height={70}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                    onError={(e) => {
+                      const img = e.currentTarget as HTMLImageElement;
+                      img.style.display = "none";
+                      const fallback = img.nextElementSibling as HTMLElement | null;
+                      if (fallback) fallback.style.display = "block";
+                    }}
+                  />
+                  <span style={{ display: "none" }}>{t.emoji}</span>
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 900, fontSize: 15, lineHeight: 1.1 }}>{t.name}</div>
@@ -2216,41 +2232,56 @@ export default function AgentStudio() {
       </main>
 
       {wizardOpen && (
-        <div onClick={closeWizard} style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(2,6,23,0.74)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 980, maxHeight: "92vh", overflowY: "auto", borderRadius: 18, border: `1px solid ${C.border}`, background: "linear-gradient(180deg, rgba(26,29,38,0.98), rgba(17,19,24,0.98))", padding: 18 }}>
+        <div onClick={closeWizard} style={{ position: "fixed", inset: 0, zIndex: 1400, background: "rgba(2,6,23,0.82)", display: "flex", alignItems: "center", justifyContent: "center", padding: isMobile ? 10 : 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: isMobile ? "calc(100vw - 12px)" : "min(1100px, calc(100vw - 32px))", maxHeight: "calc(100vh - 20px)", overflowY: "auto", borderRadius: isMobile ? 14 : 18, border: `1px solid ${C.border}`, background: "linear-gradient(180deg, rgba(26,29,38,0.98), rgba(17,19,24,0.98))", padding: isMobile ? 12 : 18, boxSizing: "border-box" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
               <div>
-                <div style={{ fontWeight: 900, fontSize: 34, lineHeight: 1.08 }}>{tr("Crea tu agente ahora", "Create your agent now")}</div>
-                <div style={{ color: C.muted, fontSize: 18, marginTop: 8 }}>{tr("Selecciona una plantilla y prueba una conversacion guiada.", "Pick a template and try a guided conversation.")}</div>
+                <div style={{ fontWeight: 900, fontSize: isMobile ? 24 : 34, lineHeight: 1.08 }}>{tr("Crea tu agente ahora", "Create your agent now")}</div>
+                <div style={{ color: C.muted, fontSize: isMobile ? 14 : 18, marginTop: 8 }}>{tr("Selecciona una plantilla y prueba una conversacion guiada.", "Pick a template and try a guided conversation.")}</div>
               </div>
               <button onClick={closeWizard} style={{ border: "none", background: "transparent", color: C.muted, fontSize: 28, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
               <div style={{ width: 44, height: 44, borderRadius: "50%", background: wizardStep > 1 ? C.lime : "#a78bfa", color: "#111", fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{wizardStep > 1 ? "✓" : "1"}</div>
-              <div style={{ height: 2, width: 120, background: wizardStep > 1 ? C.lime : "rgba(255,255,255,0.2)" }} />
+              <div style={{ height: 2, width: isMobile ? 54 : 120, background: wizardStep > 1 ? C.lime : "rgba(255,255,255,0.2)" }} />
               <div style={{ width: 44, height: 44, borderRadius: "50%", background: wizardStep > 1 ? "#a78bfa" : "rgba(255,255,255,0.12)", color: wizardStep > 1 ? "#111" : C.dim, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>2</div>
-              <div style={{ marginLeft: 6, color: C.white, fontWeight: 900, fontSize: 20 }}>{wizardStep === 1 ? tr("Selecciona el agente", "Select an agent") : tr("Prueba tu agente", "Test your agent")}</div>
+              <div style={{ marginLeft: 6, color: C.white, fontWeight: 900, fontSize: isMobile ? 16 : 20 }}>{wizardStep === 1 ? tr("Selecciona el agente", "Select an agent") : tr("Prueba tu agente", "Test your agent")}</div>
             </div>
 
             {wizardStep === 1 && (
               <>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                  <label style={{ color: C.muted, fontSize: 13, minWidth: 90 }}>{tr("Tu nombre", "Your name")}</label>
+                <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "center", gap: 10, marginBottom: 12, flexDirection: isMobile ? "column" : "row" }}>
+                  <label style={{ color: C.muted, fontSize: 13, minWidth: isMobile ? "auto" : 90 }}>{tr("Tu nombre", "Your name")}</label>
                   <input
                     value={simUserName}
                     onChange={(e) => setSimUserName(e.target.value)}
                     placeholder={tr("Como te llamas", "What is your name")}
-                    style={{ width: 260, padding: "8px 10px", borderRadius: 10, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.55)", color: C.white, fontSize: 13, outline: "none" }}
+                    style={{ width: isMobile ? "100%" : 260, padding: "8px 10px", borderRadius: 10, border: `1px solid ${C.border}`, background: "rgba(15,23,42,0.55)", color: C.white, fontSize: 13, outline: "none" }}
                   />
                 </div>
-                <div style={{ color: C.white, fontWeight: 900, fontSize: 20, marginBottom: 12 }}>{tr("Escoge una plantilla", "Choose a template")}</div>
+                <div style={{ color: C.white, fontWeight: 900, fontSize: isMobile ? 18 : 20, marginBottom: 12 }}>{tr("Escoge una plantilla", "Choose a template")}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 12 }}>
                   {templates.map((t) => {
                     const active = wizardTemplate?.id === t.id;
                     return (
                       <button key={t.id} onClick={() => setWizardTemplate(t)} style={{ borderRadius: 14, border: `2px solid ${active ? C.lime : "rgba(89,108,141,0.45)"}`, background: active ? "rgba(163,230,53,0.09)" : "rgba(15,23,42,0.56)", padding: "14px 12px", color: C.white, cursor: "pointer", textAlign: "center" }}>
-                        <div style={{ width: 82, height: 82, margin: "0 auto 10px", borderRadius: "50%", background: "radial-gradient(circle at 30% 30%, rgba(0,150,255,0.24), rgba(163,230,53,0.16))", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38 }}>{t.emoji}</div>
+                        <div style={{ width: 82, height: 82, margin: "0 auto 10px", borderRadius: "50%", background: "radial-gradient(circle at 30% 30%, rgba(0,150,255,0.24), rgba(163,230,53,0.16))", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38, overflow: "hidden" }}>
+                          <img
+                            src={(t as any).avatar || ""}
+                            alt={t.name}
+                            width={82}
+                            height={82}
+                            style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                            onError={(e) => {
+                              const img = e.currentTarget as HTMLImageElement;
+                              img.style.display = "none";
+                              const fallback = img.nextElementSibling as HTMLElement | null;
+                              if (fallback) fallback.style.display = "block";
+                            }}
+                          />
+                          <span style={{ display: "none" }}>{t.emoji}</span>
+                        </div>
                         <div style={{ fontWeight: 900, fontSize: 26 }}>{t.name}</div>
                         <div style={{ color: C.muted, fontSize: 14, marginTop: 6, lineHeight: 1.35 }}>{templateCategory(t)}</div>
                       </button>
