@@ -9,18 +9,20 @@ const Header = () => {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.innerWidth <= 768;
   });
 
   type BotzLanguage = "es" | "en";
-  const [botzLanguage, setBotzLanguage] = useState<BotzLanguage>("en");
+  const [botzLanguage, setBotzLanguage] = useState<BotzLanguage>("es");
   const [showLangMenu, setShowLangMenu] = useState(false);
 
   const inQualibotz = Boolean(pathname && pathname.startsWith("/start"));
 
   useEffect(() => {
+    setHydrated(true);
     try {
       const saved = window.localStorage.getItem("botz-language");
       if (saved === "es" || saved === "en") setBotzLanguage(saved);
@@ -262,6 +264,7 @@ const Header = () => {
                 aria-label={navCopy.menuAria}
                 aria-expanded={open}
                 onClick={() => setOpen(!open)}
+                style={{ visibility: hydrated ? "visible" : "hidden" }}
               >
                 <span />
                 <span />
@@ -397,7 +400,7 @@ const Header = () => {
             )}
           </div>
 
-          {!inQualibotz && open && <div className="bz-overlay" onClick={closeMenu} />}
+          {!inQualibotz && hydrated && open && <div className="bz-overlay" onClick={closeMenu} />}
 
           {!inQualibotz && (
             <div
@@ -416,6 +419,8 @@ const Header = () => {
                 marginTop: 0,
                 alignItems: "center",
                 justifySelf: isMobile ? "stretch" : "end",
+                visibility: hydrated ? "visible" : "hidden",
+                opacity: hydrated ? 1 : 0,
               }}
             >
             <div className="bz-main-nav" role="navigation" aria-label="Main navigation" style={{ marginLeft: "auto", justifyContent: isMobile ? "flex-start" : "space-between", gap: isMobile ? 0 : 6, display: "flex", alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", width: "100%" }}>
