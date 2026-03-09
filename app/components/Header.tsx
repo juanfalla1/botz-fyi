@@ -9,7 +9,10 @@ const Header = () => {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth <= 768;
+  });
 
   type BotzLanguage = "es" | "en";
   const [botzLanguage, setBotzLanguage] = useState<BotzLanguage>("en");
@@ -415,7 +418,7 @@ const Header = () => {
                 justifySelf: isMobile ? "stretch" : "end",
               }}
             >
-            <div className="bz-main-nav" role="navigation" aria-label="Main navigation" style={{ marginLeft: "auto", justifyContent: "space-between", gap: isMobile ? 0 : 6, display: "flex", alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", width: "100%" }}>
+            <div className="bz-main-nav" role="navigation" aria-label="Main navigation" style={{ marginLeft: "auto", justifyContent: isMobile ? "flex-start" : "space-between", gap: isMobile ? 0 : 6, display: "flex", alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", width: "100%" }}>
 
               <div className="bz-nav-links-group" style={{ marginLeft: 0 }}>
 
@@ -462,7 +465,18 @@ const Header = () => {
                 onMouseEnter={() => handleDropdownHover("nosotros")}
                 onMouseLeave={handleDropdownLeave}
               >
-                <Link href="/sobre-nosotros" onClick={closeMenu}>
+                <Link
+                  href="/sobre-nosotros"
+                  onClick={closeMenu}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    padding: isMobile ? "12px 22px" : undefined,
+                    fontSize: isMobile ? "16px" : undefined,
+                    fontWeight: 700,
+                    lineHeight: 1.25,
+                  }}
+                >
                   {navCopy.aboutUs}
                 </Link>
               </div>
@@ -1164,20 +1178,68 @@ const Header = () => {
         @media (min-width: 769px) { .bz-dropdown:hover .bz-dropdown-content { display: block; } }
         .bz-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 1500; }
 
-        @media (max-width: 768px) {
-          .bz-hamburger { display: flex; }
-          .bz-nav-container { position: fixed; top: 0; right: -100%; width: 280px; height: 100vh; background: #112f46; flex-direction: column; padding: 100px 0 30px 0; transition: right 0.4s ease-in-out; z-index: 2000; }
-          .bz-nav-container.is-open { right: 0; }
-          .bz-main-nav { flex-direction: column; width: 100%; gap: 0; }
-          .bz-nav-links-group, .bz-nav-cta-group { width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 0; margin-left: 0; }
-          .bz-main-nav a { font-size: 16px; padding: 15px 25px; width: 100%; border-bottom: 1px solid rgba(255,255,255,0.1); }
-          .bz-dropdown-content { position: static; display: none; width: 100%; }
-          .bz-dropdown.open .bz-dropdown-content { display: flex !important; flex-direction: column; }
-          .stelar-btn-short { margin: 20px 25px; justify-content: center; font-size: 14px !important; }
-          .auth-login-btn { margin: 14px 25px 0; justify-content: center; font-size: 14px !important; border-radius: 12px !important; }
-          .auth-signup-btn { margin: 10px 25px 0; justify-content: center; font-size: 14px !important; border-radius: 12px !important; }
-          .lang-toggle { margin: 12px 25px 0; width: calc(100% - 50px); height: 38px; border-radius: 10px; justify-content: center; }
-          .lang-menu { left: 25px; right: 25px; top: calc(100% + 6px); min-width: auto; }
+        @media (max-width: 1024px) {
+          .bz-hamburger { display: flex !important; }
+          .bz-nav-container {
+            position: fixed !important;
+            top: 64px !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100vw !important;
+            height: auto !important;
+            max-height: calc(100vh - 64px) !important;
+            background: #112f46 !important;
+            flex-direction: column !important;
+            padding: 8px 0 14px 0 !important;
+            transform: translateX(100%) !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            transition: transform 0.28s ease-in-out, opacity 0.2s ease-in-out !important;
+            z-index: 2000 !important;
+            overflow-y: auto !important;
+          }
+          .bz-nav-container.is-open {
+            transform: translateX(0) !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+          }
+          .bz-main-nav {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: flex-start !important;
+            align-items: stretch !important;
+            width: 100% !important;
+            gap: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            min-height: auto !important;
+          }
+          .bz-nav-links-group,
+          .bz-nav-cta-group {
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            justify-content: flex-start !important;
+            gap: 0 !important;
+            margin: 0 !important;
+            flex: 0 0 auto !important;
+          }
+          .bz-nav-links-group > .bz-dropdown > a,
+          .bz-nav-links-group > a {
+            font-size: 16px !important;
+            font-weight: 700 !important;
+            line-height: 1.25 !important;
+          }
+          .bz-main-nav a { font-size: 16px !important; padding: 12px 22px !important; width: 100% !important; border-bottom: 1px solid rgba(255,255,255,0.1) !important; }
+          .bz-dropdown-content { position: static !important; display: none !important; width: 100% !important; }
+          .bz-dropdown.open .bz-dropdown-content { display: flex !important; flex-direction: column !important; }
+          .bz-dropdown-content a { font-size: 15px !important; padding: 10px 24px !important; }
+          .stelar-btn-short { margin: 10px 22px 0 !important; justify-content: center !important; font-size: 14px !important; border-radius: 12px !important; }
+          .auth-login-btn { margin: 10px 22px 0 !important; justify-content: center !important; font-size: 14px !important; border-radius: 12px !important; }
+          .auth-signup-btn { margin: 8px 22px 0 !important; justify-content: center !important; font-size: 14px !important; border-radius: 12px !important; }
+          .lang-toggle { margin: 10px 22px 0 !important; width: calc(100% - 44px) !important; height: 40px !important; border-radius: 10px !important; justify-content: center !important; }
+          .lang-menu { left: 22px !important; right: 22px !important; top: calc(100% + 6px) !important; min-width: auto !important; }
         }
 
         .bz-contacto-link { display: none; }
