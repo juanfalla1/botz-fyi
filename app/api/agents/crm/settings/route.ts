@@ -58,6 +58,16 @@ function sanitizeStageLabels(input: any) {
   };
 }
 
+function isMissingTableError(err: any, tableName: string) {
+  const msg = String(err?.message || "").toLowerCase();
+  const t = tableName.toLowerCase();
+  return (
+    msg.includes("does not exist") ||
+    msg.includes("could not find the table") ||
+    msg.includes("schema cache")
+  ) && msg.includes(t);
+}
+
 async function ensureSettings(supabase: any, ownerId: string) {
   const { data: row, error: readErr } = await supabase
     .from("agent_crm_settings")
@@ -93,6 +103,21 @@ async function ensureSettings(supabase: any, ownerId: string) {
   return inserted;
 }
 
+async function isOwnerAuthorizedForCrm(supabase: any, userId: string) {
+  const { data, error } = await supabase
+    .from("agent_crm_access")
+    .select("enabled")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingTableError(error, "agent_crm_access")) return false;
+    throw new Error(error.message);
+  }
+
+  return Boolean((data as any)?.enabled);
+}
+
 export async function GET(req: Request) {
   const guard = await getRequestUser(req);
   if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
@@ -101,7 +126,8 @@ export async function GET(req: Request) {
 
   try {
     const data = await ensureSettings(supabase, guard.user.id);
-    return NextResponse.json({ ok: true, data });
+    const authorized = await isOwnerAuthorizedForCrm(supabase, guard.user.id);
+    return NextResponse.json({ ok: true, data: { ...data, enabled: authorized }, authorized_by_owner: authorized });
   } catch (e: any) {
     const msg = String(e?.message || "");
     if (msg.includes("agent_crm_settings") && msg.includes("does not exist")) {
@@ -116,6 +142,7 @@ export async function GET(req: Request) {
           stage_labels: DEFAULT_STAGE_LABELS,
           contact_fields: DEFAULT_CONTACT_FIELDS,
         },
+        authorized_by_owner: false,
       });
     }
     return NextResponse.json({ ok: false, error: e?.message || "No se pudo cargar configuración CRM" }, { status: 500 });
@@ -133,7 +160,9 @@ export async function PATCH(req: Request) {
     const current = await ensureSettings(supabase, guard.user.id);
 
     const patch: any = {};
-    if (typeof body?.enabled === "boolean") patch.enabled = body.enabled;
+    if (typeof body?.enabled === "boolean") {
+      return NextResponse.json({ ok: false, error: "El CRM solo puede habilitarse por autorización del owner (integración)." }, { status: 403 });
+    }
     if (body?.stage_labels) patch.stage_labels = sanitizeStageLabels(body.stage_labels);
     if (body?.contact_fields) patch.contact_fields = sanitizeContactFields(body.contact_fields);
 

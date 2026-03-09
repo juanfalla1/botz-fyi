@@ -602,18 +602,9 @@ export default function AgentsCrmPage() {
         )}
 
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: C.card, padding: 12, marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontWeight: 800 }}>{tr("Habilitación por cliente", "Client enablement")}</div>
-              <div style={{ color: C.muted, fontSize: 12 }}>{tr("Activa o desactiva este CRM solo para este cliente/tenant.", "Enable or disable this CRM for this client/tenant only.")}</div>
-            </div>
-            <button
-              onClick={() => void saveSettings({ enabled: !Boolean(settings?.enabled) })}
-              disabled={savingSettings}
-              style={{ border: "none", borderRadius: 10, background: settings?.enabled ? "#ef4444" : C.lime, color: settings?.enabled ? "#fff" : "#111", fontWeight: 900, padding: "9px 12px", cursor: "pointer" }}
-            >
-              {settings?.enabled ? tr("Deshabilitar CRM", "Disable CRM") : tr("Habilitar CRM", "Enable CRM")}
-            </button>
+          <div style={{ fontWeight: 800 }}>{tr("Estado de integración CRM", "CRM integration status")}</div>
+          <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
+            {tr("Este CRM solo se habilita por autorización del owner vía integración. Desde esta pantalla no se puede activar/desactivar.", "This CRM is enabled only by owner authorization via integration. It cannot be enabled/disabled from this screen.")}
           </div>
 
           {!!settings?.enabled && (
@@ -640,7 +631,7 @@ export default function AgentsCrmPage() {
 
         {!settings?.enabled && !loading && (
           <div style={{ border: `1px dashed ${C.border}`, borderRadius: 12, background: C.dark, color: C.muted, padding: 16, marginBottom: 12 }}>
-            {tr("CRM deshabilitado para este cliente. Haz clic en 'Habilitar CRM' para activarlo cuando quieras.", "CRM is disabled for this client. Click 'Enable CRM' whenever you want to activate it.")}
+            {tr("CRM deshabilitado para este cliente. Debe habilitarlo el owner desde la integración.", "CRM is disabled for this client. It must be enabled by the owner from the integration.")}
           </div>
         )}
 

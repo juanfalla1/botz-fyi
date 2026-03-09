@@ -45,6 +45,19 @@ function isMissingTableError(err: any, tableName: string) {
   ) && msg.includes(t);
 }
 
+async function isOwnerAuthorizedForCrm(supabase: any, userId: string) {
+  const { data, error } = await supabase
+    .from("agent_crm_access")
+    .select("enabled")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) {
+    if (isMissingTableError(error, "agent_crm_access")) return false;
+    throw new Error(error.message);
+  }
+  return Boolean((data as any)?.enabled);
+}
+
 function contactKeyOf(phoneRaw: string | null | undefined, emailRaw: string | null | undefined) {
   const phone = phoneTail10(phoneRaw);
   const email = String(emailRaw || "").trim().toLowerCase();
@@ -148,9 +161,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: settingsErr.message }, { status: 400 });
   }
 
-  const crmEnabled = settingsErr && String(settingsErr.message || "").includes("does not exist")
-    ? false
-    : Boolean(settings?.enabled);
+  const ownerAuthorized = await isOwnerAuthorizedForCrm(supabase, ownerId);
+  const crmEnabled = ownerAuthorized && !(settingsErr && String(settingsErr.message || "").includes("does not exist")) && Boolean(settings?.enabled !== false);
   if (!crmEnabled) {
     return NextResponse.json({
       ok: true,
