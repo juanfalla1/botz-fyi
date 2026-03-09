@@ -97,6 +97,10 @@ export default function AgentsCrmPage() {
   const [contactLoading, setContactLoading] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
   const [savingContact, setSavingContact] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteMode, setDeleteMode] = useState<"one" | "selected">("one");
+  const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
+  const [selectedContactKeys, setSelectedContactKeys] = useState<string[]>([]);
 
   const tr = (es: string, en: string) => (language === "en" ? en : es);
 
@@ -265,14 +269,12 @@ export default function AgentsCrmPage() {
   };
 
   const deleteContactInline = async (c: Contact) => {
-    const ok = window.confirm(tr("¿Eliminar este contacto del CRM? Esta acción quitará su ficha y bitácora.", "Delete this CRM contact? This removes contact card and notes."));
-    if (!ok) return;
     setUpdatingContactKey(String(c.key || ""));
     try {
       const res = await authedFetch("/api/agents/crm/contact", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: c.phone, email: c.email }),
+        body: JSON.stringify({ phone: c.phone, email: c.email, contact_key: c.key }),
       });
       const json = await res.json();
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo eliminar contacto");
@@ -283,6 +285,65 @@ export default function AgentsCrmPage() {
       await fetchData();
     } catch (e: any) {
       setError(String(e?.message || "Error eliminando contacto"));
+    } finally {
+      setUpdatingContactKey("");
+    }
+  };
+
+  const openDeleteModal = (c: Contact) => {
+    setDeleteTarget(c);
+    setDeleteMode("one");
+    setDeleteModalOpen(true);
+  };
+
+  const openDeleteSelectedModal = () => {
+    if (!selectedContactKeys.length) return;
+    setDeleteTarget(null);
+    setDeleteMode("selected");
+    setDeleteModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    if (updatingContactKey) return;
+    setDeleteModalOpen(false);
+    setDeleteTarget(null);
+    setDeleteMode("one");
+  };
+
+  const confirmDelete = async () => {
+    if (deleteMode === "one") {
+      if (!deleteTarget) return;
+      await deleteContactInline(deleteTarget);
+      closeDeleteModal();
+      return;
+    }
+
+    const rows = visibleContacts.filter((c) => selectedContactKeys.includes(String(c.key || "")));
+    if (!rows.length) {
+      closeDeleteModal();
+      return;
+    }
+
+    setUpdatingContactKey("bulk");
+    try {
+      for (const c of rows) {
+        const res = await authedFetch("/api/agents/crm/contact", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: c.phone, email: c.email, contact_key: c.key }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo eliminar todos los contactos");
+      }
+      if (selectedContact) {
+        setSelectedContact(null);
+        setContactDetail(null);
+      }
+      await fetchData();
+      setSelectedContactKeys([]);
+      closeDeleteModal();
+    } catch (e: any) {
+      setError(String(e?.message || "Error eliminando contactos"));
     } finally {
       setUpdatingContactKey("");
     }
@@ -398,6 +459,27 @@ export default function AgentsCrmPage() {
       return hay.includes(q);
     });
   }, [contacts, search, filterStatus, filterAgent, filterChannel, filterQuoteDemand]);
+
+  const visibleContacts = useMemo(() => filteredContacts.slice(0, 200), [filteredContacts]);
+
+  useEffect(() => {
+    const valid = new Set(contacts.map((c) => String(c.key || "")));
+    setSelectedContactKeys((prev) => prev.filter((k) => valid.has(k)));
+  }, [contacts]);
+
+  const isSelected = (c: Contact) => selectedContactKeys.includes(String(c.key || ""));
+
+  const toggleSelect = (c: Contact) => {
+    const key = String(c.key || "");
+    if (!key) return;
+    setSelectedContactKeys((prev) => (prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]));
+  };
+
+  const toggleSelectAllVisible = () => {
+    const keys = visibleContacts.map((c) => String(c.key || "")).filter(Boolean);
+    const allSelected = keys.length > 0 && keys.every((k) => selectedContactKeys.includes(k));
+    setSelectedContactKeys(allSelected ? selectedContactKeys.filter((k) => !keys.includes(k)) : Array.from(new Set([...selectedContactKeys, ...keys])));
+  };
 
   const filteredPipeline = useMemo(() => {
     const statusSet = new Set(filteredContacts.map((c) => String(c.phone || "") + "|" + String(c.email || "").toLowerCase()));
@@ -660,14 +742,30 @@ export default function AgentsCrmPage() {
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
           <div style={{ background: C.card, padding: "10px 12px", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>{tr("Contactos", "Contacts")}</span>
-            <button onClick={downloadCsv} style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: C.dark, color: C.white, padding: "6px 10px", cursor: "pointer", fontSize: 12 }}>
-              {tr("Descargar Excel (CSV)", "Download Excel (CSV)")}
-            </button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button
+                onClick={openDeleteSelectedModal}
+                disabled={!selectedContactKeys.length || Boolean(updatingContactKey)}
+                style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: selectedContactKeys.length ? "#2a1216" : C.dark, color: selectedContactKeys.length ? "#fca5a5" : C.muted, padding: "6px 10px", cursor: selectedContactKeys.length ? "pointer" : "not-allowed", fontSize: 12 }}
+              >
+                {tr("Eliminar seleccionados", "Delete selected")} ({selectedContactKeys.length})
+              </button>
+              <button onClick={downloadCsv} style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: C.dark, color: C.white, padding: "6px 10px", cursor: "pointer", fontSize: 12 }}>
+                {tr("Descargar Excel (CSV)", "Download Excel (CSV)")}
+              </button>
+            </div>
           </div>
           <div style={{ overflowX: "auto", overflowY: "hidden" }}>
           <table style={{ width: "max-content", minWidth: "100%", borderCollapse: "collapse" }}>
             <thead style={{ background: C.dark }}>
               <tr>
+                <th style={{ ...th, minWidth: 40 }}>
+                  <input
+                    type="checkbox"
+                    checked={visibleContacts.length > 0 && visibleContacts.every((c) => selectedContactKeys.includes(String(c.key || "")))}
+                    onChange={toggleSelectAllVisible}
+                  />
+                </th>
                 {(visibleContactFields.length ? visibleContactFields : [{ key: "name", label: tr("Nombre", "Name") } as any]).map((f: any) => (
                   <th key={f.key} style={{ ...th, minWidth: colMinWidth(f.key) }}>{f.label}</th>
                 ))}
@@ -676,10 +774,13 @@ export default function AgentsCrmPage() {
             </thead>
             <tbody>
               {!loading && filteredContacts.length === 0 && (
-                <tr><td colSpan={Math.max(2, visibleContactFields.length + 1)} style={{ padding: 12, color: C.muted }}>{tr("Aun no hay contactos.", "No contacts yet.")}</td></tr>
+                <tr><td colSpan={Math.max(3, visibleContactFields.length + 2)} style={{ padding: 12, color: C.muted }}>{tr("Aun no hay contactos.", "No contacts yet.")}</td></tr>
               )}
-              {filteredContacts.slice(0, 200).map((c) => (
+              {visibleContacts.map((c) => (
                 <tr key={c.key} style={{ borderTop: `1px solid ${C.border}`, cursor: "pointer" }} onClick={() => void openContactDetail(c)}>
+                  <td style={{ ...td, minWidth: 40 }} onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={isSelected(c)} onChange={() => toggleSelect(c)} />
+                  </td>
                   {(visibleContactFields.length ? visibleContactFields : [{ key: "name", label: tr("Nombre", "Name") } as any]).map((f: any) => (
                     <td key={f.key} style={{ ...td, minWidth: colMinWidth(f.key) }} onClick={(e) => {
                       if (f.key === "status" || f.key === "next_action" || f.key === "next_action_at") e.stopPropagation();
@@ -733,12 +834,12 @@ export default function AgentsCrmPage() {
                     </td>
                   ))}
                   <td style={{ ...td, minWidth: 110 }} onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => void deleteContactInline(c)}
-                      disabled={updatingContactKey === String(c.key || "")}
-                      style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: "#2a1216", color: "#fca5a5", padding: "6px 10px", cursor: "pointer", fontSize: 12 }}
-                    >
-                      {tr("Eliminar", "Delete")}
+                      <button
+                        onClick={() => openDeleteModal(c)}
+                        disabled={Boolean(updatingContactKey)}
+                        style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: "#2a1216", color: "#fca5a5", padding: "6px 10px", cursor: "pointer", fontSize: 12 }}
+                      >
+                        {tr("Eliminar", "Delete")}
                     </button>
                   </td>
                 </tr>
@@ -859,6 +960,73 @@ export default function AgentsCrmPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {deleteModalOpen && (
+          <div
+            onClick={closeDeleteModal}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(2,6,23,0.72)",
+              zIndex: 3000,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 14,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "min(540px, 100%)",
+                borderRadius: 14,
+                border: `1px solid ${C.border}`,
+                background: "linear-gradient(180deg, rgba(28,33,44,0.98), rgba(19,24,34,0.98))",
+                boxShadow: "0 24px 60px rgba(0,0,0,0.45)",
+                padding: 14,
+              }}
+            >
+              <div style={{ fontWeight: 900, fontSize: 17, marginBottom: 8 }}>{tr("Eliminar contacto", "Delete contact")}</div>
+              <div style={{ color: C.muted, fontSize: 13, marginBottom: 10 }}>
+                {tr("Elige si deseas eliminar solo este contacto o los contactos que seleccionaste en la tabla.", "Choose whether to delete only this contact or the contacts you selected in the table.")}
+              </div>
+
+              <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", background: C.dark }}>
+                  <input type="radio" name="delete-mode" checked={deleteMode === "one"} onChange={() => setDeleteMode("one")} />
+                  <span style={{ fontSize: 13 }}>
+                    {tr("Eliminar solo este contacto", "Delete only this contact")}:{" "}
+                    <b>{deleteTarget?.name || deleteTarget?.email || deleteTarget?.phone || "-"}</b>
+                  </span>
+                </label>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 8, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", background: C.dark }}>
+                  <input type="radio" name="delete-mode" checked={deleteMode === "selected"} onChange={() => setDeleteMode("selected")} />
+                  <span style={{ fontSize: 13 }}>
+                    {tr("Eliminar contactos seleccionados", "Delete selected contacts")} ({selectedContactKeys.length})
+                  </span>
+                </label>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button
+                  onClick={closeDeleteModal}
+                  disabled={Boolean(updatingContactKey)}
+                  style={{ border: `1px solid ${C.border}`, borderRadius: 9, background: C.dark, color: C.white, padding: "8px 12px", cursor: "pointer", fontWeight: 700 }}
+                >
+                  {tr("Cancelar", "Cancel")}
+                </button>
+                <button
+                  onClick={() => void confirmDelete()}
+                  disabled={Boolean(updatingContactKey)}
+                  style={{ border: "none", borderRadius: 9, background: "#ef4444", color: "#fff", padding: "8px 12px", cursor: "pointer", fontWeight: 800 }}
+                >
+                  {updatingContactKey ? tr("Eliminando...", "Deleting...") : tr("Confirmar eliminación", "Confirm delete")}
+                </button>
+              </div>
+            </div>
           </div>
         )}
           </>

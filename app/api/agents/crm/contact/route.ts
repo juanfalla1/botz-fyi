@@ -346,7 +346,8 @@ export async function DELETE(req: Request) {
   const ownerId = guard.user.id;
   const phone = normalizePhone(body?.phone);
   const email = String(body?.email || "").trim().toLowerCase();
-  const key = contactKeyOf(phone, email);
+  const explicitKey = String(body?.contact_key || "").trim();
+  const key = explicitKey || contactKeyOf(phone, email);
 
   if (!key) return NextResponse.json({ ok: false, error: "Missing phone or email" }, { status: 400 });
 
@@ -371,6 +372,46 @@ export async function DELETE(req: Request) {
     const { data: rows, error: readErr } = await query;
     if (readErr) return NextResponse.json({ ok: false, error: readErr.message }, { status: 400 });
     const ids = (Array.isArray(rows) ? rows : []).map((r: any) => String(r?.id || "")).filter(Boolean);
+
+    const p10 = phone ? tail10(phone) : "";
+    const emailKey = email || "";
+
+    // Remove related quotes so the contact does not reappear in CRM overview.
+    if (p10 || emailKey) {
+      let draftsDel = supabase
+        .from("agent_quote_drafts")
+        .delete()
+        .eq("created_by", ownerId);
+      if (p10 && emailKey) {
+        draftsDel = draftsDel.or(`customer_phone.like.%${p10},customer_email.eq.${emailKey}`);
+      } else if (p10) {
+        draftsDel = draftsDel.like("customer_phone", `%${p10}`);
+      } else {
+        draftsDel = draftsDel.eq("customer_email", emailKey);
+      }
+      const { error: draftsDelErr } = await draftsDel;
+      if (draftsDelErr) return NextResponse.json({ ok: false, error: draftsDelErr.message }, { status: 400 });
+    }
+
+    // Remove related conversations (mainly phone-based) for owner agents.
+    if (p10) {
+      const { data: ownerAgents, error: ownerAgentsErr } = await supabase
+        .from("ai_agents")
+        .select("id")
+        .eq("created_by", ownerId)
+        .limit(500);
+      if (ownerAgentsErr) return NextResponse.json({ ok: false, error: ownerAgentsErr.message }, { status: 400 });
+      const agentIds = Array.isArray(ownerAgents) ? ownerAgents.map((a: any) => String(a.id)).filter(Boolean) : [];
+      if (agentIds.length) {
+        const { error: convDelErr } = await supabase
+          .from("agent_conversations")
+          .delete()
+          .in("agent_id", agentIds)
+          .like("contact_phone", `%${p10}`);
+        if (convDelErr) return NextResponse.json({ ok: false, error: convDelErr.message }, { status: 400 });
+      }
+    }
+
     if (!ids.length) return NextResponse.json({ ok: true, deleted: 0 });
 
     await supabase

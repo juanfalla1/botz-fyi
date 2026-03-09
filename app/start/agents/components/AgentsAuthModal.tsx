@@ -26,13 +26,11 @@ export default function AgentsAuthModal({
   const [resendLoading, setResendLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
   const [suggestCreateAccount, setSuggestCreateAccount] = useState(false);
   const [otpOpen, setOtpOpen] = useState(false);
   const [otpEmail, setOtpEmail] = useState("");
-  const [otpPurpose, setOtpPurpose] = useState<"signup" | "reset">("signup");
+  const [otpPurpose, setOtpPurpose] = useState<"signup" | "reset" | "confirm">("signup");
   const [resetNewPassword, setResetNewPassword] = useState("");
-  const [hasTriedSignup, setHasTriedSignup] = useState(false);
 
   React.useEffect(() => {
     if (!open) return;
@@ -40,9 +38,7 @@ export default function AgentsAuthModal({
       setMode(initialMode);
       setErr(null);
       setMsg(null);
-      setNeedsEmailConfirmation(false);
       setSuggestCreateAccount(false);
-      setHasTriedSignup(false);
     }
   }, [open, initialMode]);
 
@@ -80,44 +76,15 @@ export default function AgentsAuthModal({
   const close = () => {
     setErr(null);
     setMsg(null);
-    setNeedsEmailConfirmation(false);
     setSuggestCreateAccount(false);
-    setHasTriedSignup(false);
     setMode("login");
     setFullName("");
     onClose();
   };
 
-  const canShowResendButton = mode === "signup" && hasTriedSignup;
   const hasSignupEmail = String(email || "").trim().includes("@");
 
-  async function handleResendConfirmation() {
-    const normalizedEmail = String(email || "").trim().toLowerCase();
-    if (!normalizedEmail) {
-      setErr(tr("Escribe el correo para reenviar confirmacion.", "Enter the email to resend confirmation."));
-      return;
-    }
-
-    setResendLoading(true);
-    setErr(null);
-    setMsg(null);
-    try {
-      const emailRedirectTo = typeof window !== "undefined" ? `${window.location.origin}/start/agents` : undefined;
-      const { error } = await (supabaseAgents.auth as any).resend({
-        type: "signup",
-        email: normalizedEmail,
-        options: { emailRedirectTo },
-      });
-      if (error) throw error;
-      setMsg(tr("Te reenviamos el correo de confirmacion. Revisa entrada y spam.", "We resent the confirmation email. Check inbox and spam."));
-    } catch (e: any) {
-      setErr(e?.message || tr("No se pudo reenviar el correo.", "Could not resend the email."));
-    } finally {
-      setResendLoading(false);
-    }
-  }
-
-  async function requestOtpForEmail(targetEmail: string, purpose: "signup" | "reset") {
+  async function requestOtpForEmail(targetEmail: string, purpose: "signup" | "reset" | "confirm") {
     const normalizedEmail = String(targetEmail || "").trim().toLowerCase();
     if (!normalizedEmail || !normalizedEmail.includes("@")) {
       setErr(tr("Escribe un email valido para enviar el codigo.", "Enter a valid email to send the code."));
@@ -154,9 +121,12 @@ export default function AgentsAuthModal({
     await requestOtpForEmail(email, "signup");
   }
 
+  async function handleRequestOtpForLoginConfirm() {
+    await requestOtpForEmail(email, "confirm");
+  }
+
   async function handleOtpVerified(otpSessionId?: string) {
     setOtpOpen(false);
-    setNeedsEmailConfirmation(false);
     const normalizedEmail = String(email || otpEmail || "").trim().toLowerCase();
 
     if (otpPurpose === "reset") {
@@ -179,6 +149,37 @@ export default function AgentsAuthModal({
         setMsg(tr("Contrasena actualizada. Ahora inicia sesion.", "Password updated. Now sign in."));
       } catch (e: any) {
         setErr(e?.message || tr("No se pudo restablecer la contrasena.", "Could not reset password."));
+      }
+      return;
+    }
+
+    if (otpPurpose === "signup") {
+      try {
+        const response = await fetch("/api/auth/complete-signup-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: normalizedEmail,
+            otpSessionId,
+            password,
+            fullName,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data?.ok) {
+          throw new Error(String(data?.error || tr("No se pudo completar el registro.", "Could not complete signup.")));
+        }
+
+        const { data: signInData, error: signInErr } = await supabaseAgents.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
+        if (signInErr) throw signInErr;
+        onLoggedIn?.(signInData?.user || null);
+        close();
+      } catch (e: any) {
+        setMode("signup");
+        setErr(e?.message || tr("OTP verificado, pero no se pudo crear/iniciar sesion.", "OTP verified, but could not create/sign in."));
       }
       return;
     }
@@ -249,7 +250,6 @@ export default function AgentsAuthModal({
     setLoading(true);
     setErr(null);
     setMsg(null);
-    setNeedsEmailConfirmation(false);
     setSuggestCreateAccount(false);
 
     try {
@@ -263,7 +263,11 @@ export default function AgentsAuthModal({
       close();
     } catch (e: any) {
       const raw = String(e?.message || "");
-      if (/email not confirmed/i.test(raw)) setNeedsEmailConfirmation(true);
+      if (/email not confirmed/i.test(raw)) {
+        await requestOtpForEmail(String(email || "").trim().toLowerCase(), "confirm");
+        setLoading(false);
+        return;
+      }
       if (/invalid login credentials|invalid credentials/i.test(raw)) {
         setSuggestCreateAccount(true);
       }
@@ -274,11 +278,9 @@ export default function AgentsAuthModal({
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
-    setHasTriedSignup(true);
     setLoading(true);
     setErr(null);
     setMsg(null);
-    setNeedsEmailConfirmation(false);
     setSuggestCreateAccount(false);
     try {
       const normalizedName = String(fullName || "").trim();
@@ -289,57 +291,25 @@ export default function AgentsAuthModal({
       }
 
       const normalizedEmail = String(email || "").trim().toLowerCase();
-      const emailRedirectTo = typeof window !== "undefined" ? `${window.location.origin}/start/agents` : undefined;
-      const { data, error } = await supabaseAgents.auth.signUp({
-        email: normalizedEmail,
-        password,
-        options: {
-          emailRedirectTo,
-          data: { product_key: "agents", full_name: normalizedName, name: normalizedName },
-        },
-      });
-      if (error) throw error;
-
-      const maybeIdentities = (data?.user as any)?.identities;
-      const emailAlreadyExists = Array.isArray(maybeIdentities) && maybeIdentities.length === 0;
-      if (emailAlreadyExists) {
-        setErr(tr("Este correo ya esta registrado. Usa Iniciar sesion o Recuperar.", "This email is already registered. Use Sign in or Reset."));
-        setLoading(false);
-        return;
-      }
-
-      if (!data?.user) {
-        setErr(tr("No se pudo crear la cuenta. Intenta de nuevo.", "Could not create account. Try again."));
+      if (String(password || "").length < 6) {
+        setErr(tr("La contrasena debe tener al menos 6 caracteres.", "Password must be at least 6 characters."));
         setLoading(false);
         return;
       }
 
       const isYahoo = /@(yahoo\.com|yahoo\.es|yahoo\.com\.[a-z]{2})$/i.test(normalizedEmail);
 
-      if (!data?.session) {
-        setNeedsEmailConfirmation(true);
-        setMsg(
-          isYahoo
-            ? tr(
-                "Cuenta creada. Revisa tu correo para confirmar (tambien Spam/No deseado en Yahoo) y luego inicia sesion.",
-                "Account created. Check your email to confirm (also Spam/Junk in Yahoo), then sign in."
-              )
-            : tr(
-                "Cuenta creada. Revisa tu correo para confirmar y luego inicia sesion.",
-                "Account created. Check your email to confirm, then sign in."
-          )
-        );
-        setMode("login");
-        setFullName("");
-        setPassword("");
-        setLoading(false);
-        return;
-      }
-
-      setMsg(tr("Cuenta creada con exito. Entrando...", "Account created successfully. Entering..."));
+      await requestOtpForEmail(normalizedEmail, "signup");
+      setMsg(
+        isYahoo
+          ? tr(
+              "Te enviamos codigo OTP (revisa tambien Spam/No deseado en Yahoo) para activar tu cuenta.",
+              "We sent an OTP code (also check Spam/Junk in Yahoo) to activate your account."
+            )
+          : tr("Te enviamos codigo OTP para activar tu cuenta.", "We sent an OTP code to activate your account.")
+      );
       setLoading(false);
-      onLoggedIn?.(data?.user || null);
-      close();
+      return;
     } catch (e: any) {
       const raw = String(e?.message || "");
       setErr(authErrorText("signup", raw));
@@ -414,11 +384,11 @@ export default function AgentsAuthModal({
             </div>
           )}
 
-          {(needsEmailConfirmation || canShowResendButton) && (
+          {mode === "login" && err && /confirmar tu correo|email before signing in|email not confirmed/i.test(String(err)) && (
             <div style={{ marginBottom: 16 }}>
               <button
                 type="button"
-                onClick={handleResendConfirmation}
+                onClick={handleRequestOtpForLoginConfirm}
                 disabled={loading || resendLoading || !hasSignupEmail}
                 style={{
                   width: "100%",
@@ -429,17 +399,17 @@ export default function AgentsAuthModal({
                   color: "#67e8f9",
                   fontSize: 14,
                   fontWeight: 700,
-                  cursor: loading || resendLoading ? "not-allowed" : "pointer",
+                  cursor: loading || resendLoading || !hasSignupEmail ? "not-allowed" : "pointer",
                   opacity: loading || resendLoading || !hasSignupEmail ? 0.6 : 1,
                 }}
               >
                 {resendLoading
-                  ? tr("Reenviando...", "Resending...")
-                  : tr("No me llego: reenviar confirmacion", "Didn't receive it: resend confirmation")}
+                  ? tr("Enviando codigo...", "Sending code...")
+                  : tr("Verificar correo con codigo OTP", "Verify email with OTP code")}
               </button>
               {!hasSignupEmail && (
                 <div style={{ marginTop: 6, fontSize: 12, color: "rgba(148,163,184,0.9)" }}>
-                  {tr("Escribe tu email para habilitar el reenvio.", "Enter your email to enable resend.")}
+                  {tr("Escribe tu email para enviar el codigo OTP.", "Enter your email to send OTP code.")}
                 </div>
               )}
             </div>
@@ -715,9 +685,7 @@ export default function AgentsAuthModal({
             <button
               onClick={() => {
                 setMode("login");
-                setNeedsEmailConfirmation(false);
                 setSuggestCreateAccount(false);
-                setHasTriedSignup(false);
                 setErr(null);
               }}
               style={{
@@ -735,9 +703,7 @@ export default function AgentsAuthModal({
             <button
               onClick={() => {
                 setMode("signup");
-                setNeedsEmailConfirmation(false);
                 setSuggestCreateAccount(false);
-                setHasTriedSignup(false);
                 setErr(null);
               }}
               style={{
@@ -755,9 +721,7 @@ export default function AgentsAuthModal({
             <button
               onClick={() => {
                 setMode("reset");
-                setNeedsEmailConfirmation(false);
                 setSuggestCreateAccount(false);
-                setHasTriedSignup(false);
                 setErr(null);
               }}
               style={{
