@@ -7,6 +7,7 @@ import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 interface AgentCardProps {
   name: string;
   avatar: React.ReactNode;
+  imageSrc?: string;
   color: string;
   capabilities: string[];
   templateId?: string;
@@ -14,7 +15,7 @@ interface AgentCardProps {
   ctaLabel: string;
 }
 
-const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType, ctaLabel }: AgentCardProps) => {
+const AgentCard = ({ name, avatar, imageSrc, color, capabilities, templateId, agentType, ctaLabel }: AgentCardProps) => {
   const router = useRouter();
 
   const handleClick = () => {
@@ -65,22 +66,38 @@ const AgentCard = ({ name, avatar, color, capabilities, templateId, agentType, c
       </h3>
 
       {/* Avatar */}
-      <div
-        style={{
-          width: "clamp(102px, 18vw, 140px)",
-          height: "clamp(102px, 18vw, 140px)",
-          borderRadius: "50%",
+        <div
+          style={{
+            width: "clamp(102px, 18vw, 140px)",
+            height: "clamp(102px, 18vw, 140px)",
+            borderRadius: "50%",
           background: `linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(34, 211, 238, 0.05))`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           marginBottom: "28px",
-          border: `2px solid ${color}40`,
-          fontSize: "clamp(42px, 7vw, 64px)",
-          boxShadow: `0 0 40px ${color}20`,
-        }}
-      >
-        {avatar}
+            border: `2px solid ${color}40`,
+            fontSize: "clamp(42px, 7vw, 64px)",
+            boxShadow: `0 0 40px ${color}20`,
+            overflow: "hidden",
+          }}
+        >
+        {imageSrc ? (
+          <img
+            src={imageSrc}
+            alt={name}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              objectPosition: "center 35%",
+              borderRadius: "50%",
+              display: "block",
+            }}
+          />
+        ) : (
+          avatar
+        )}
       </div>
 
       {/* Capabilities list */}
@@ -175,6 +192,7 @@ const Agentes = () => {
     {
       name: "AI Receptionist",
       avatar: "🤖",
+      imageSrc: "/img/Recepcionista.png",
       color: "#a3e635",
       capabilities: [
         "Answers every call",
@@ -188,6 +206,7 @@ const Agentes = () => {
     {
       name: "AI Lead Qualifier",
       avatar: "🎯",
+      imageSrc: "/img/Calificador%20de%20Leads%20IA.png",
       color: "#a3e635",
       capabilities: [
         "Qualifies leads instantly",
@@ -201,6 +220,7 @@ const Agentes = () => {
     {
       name: "AI Sales Follow-up",
       avatar: "📧",
+      imageSrc: "/img/seguimiento%20de%20ventas.png",
       color: "#a3e635",
       capabilities: [
         "Sends follow-ups",
@@ -214,6 +234,7 @@ const Agentes = () => {
     {
       name: "AI Customer Support",
       avatar: "🎧",
+      imageSrc: "/img/soporte%20al%20cliente.png",
       color: "#a3e635",
       capabilities: [
         "Resolves issues",
@@ -227,6 +248,7 @@ const Agentes = () => {
     {
       name: "Recepcionista de IA",
       avatar: "🤖",
+      imageSrc: "/img/Recepcionista.png",
       color: "#a3e635",
       capabilities: ["Atiende cada llamada", "Proporciona informacion", "Agenda citas", "Actualiza tu CRM"],
       templateId: "julia",
@@ -235,6 +257,7 @@ const Agentes = () => {
     {
       name: "Calificador de Leads IA",
       avatar: "🎯",
+      imageSrc: "/img/Calificador%20de%20Leads%20IA.png",
       color: "#a3e635",
       capabilities: ["Califica leads al instante", "Genera interaccion", "Puntua y enruta", "Actualiza tu CRM"],
       templateId: "lia",
@@ -243,6 +266,7 @@ const Agentes = () => {
     {
       name: "Seguimiento de Ventas IA",
       avatar: "📧",
+      imageSrc: "/img/seguimiento%20de%20ventas.png",
       color: "#a3e635",
       capabilities: ["Envia seguimientos", "Nutre prospectos", "Reactiva leads", "Actualiza tu CRM"],
       templateId: "alex",
@@ -251,6 +275,7 @@ const Agentes = () => {
     {
       name: "Soporte al Cliente IA",
       avatar: "🎧",
+      imageSrc: "/img/soporte%20al%20cliente.png",
       color: "#a3e635",
       capabilities: ["Resuelve problemas", "Responde FAQs", "Gestiona incidencias", "Escala a humanos"],
       agentType: "text" as const,
@@ -261,6 +286,7 @@ const Agentes = () => {
     {
       name: "AI Onboarding Specialist",
       avatar: "👋",
+      imageSrc: "/img/onboarding.png",
       color: "#a3e635",
       capabilities: [
         "Guides onboarding",
@@ -273,6 +299,7 @@ const Agentes = () => {
     {
       name: "AI Candidate Evaluator (HR)",
       avatar: "👔",
+      imageSrc: "/img/evaluardor%20de%20candidatos.png",
       color: "#a3e635",
       capabilities: [
         "Screens candidates",
@@ -285,6 +312,7 @@ const Agentes = () => {
     {
       name: "AI Collections Specialist",
       avatar: "💰",
+      imageSrc: "/img/cobranza.png",
       color: "#a3e635",
       capabilities: [
         "Calls overdue accounts",
@@ -297,6 +325,7 @@ const Agentes = () => {
     {
       name: "Build Your Own",
       avatar: "✨",
+      imageSrc: "/img/crea%20el%20tuyo.png",
       color: "#a3e635",
       capabilities: [
         "Create a custom AI agent",
@@ -310,6 +339,7 @@ const Agentes = () => {
     {
       name: "Especialista de Onboarding IA",
       avatar: "👋",
+      imageSrc: "/img/onboarding.png",
       color: "#a3e635",
       capabilities: ["Guia onboarding", "Impulsa adopcion", "Envia encuestas", "Rastrea progreso"],
       agentType: "text" as const,
@@ -317,6 +347,7 @@ const Agentes = () => {
     {
       name: "Evaluador de Candidatos IA (HR)",
       avatar: "👔",
+      imageSrc: "/img/evaluardor%20de%20candidatos.png",
       color: "#a3e635",
       capabilities: ["Filtra candidatos", "Hace preguntas estructuradas", "Identifica talento", "Actualiza ATS"],
       agentType: "voice" as const,
@@ -324,6 +355,7 @@ const Agentes = () => {
     {
       name: "Especialista de Cobranza IA",
       avatar: "💰",
+      imageSrc: "/img/cobranza.png",
       color: "#a3e635",
       capabilities: ["Llama por saldos", "Recupera pagos", "Envia recordatorios", "Actualiza tu CRM"],
       agentType: "voice" as const,
@@ -331,6 +363,7 @@ const Agentes = () => {
     {
       name: "Crea el Tuyo",
       avatar: "✨",
+      imageSrc: "/img/crea%20el%20tuyo.png",
       color: "#a3e635",
       capabilities: ["Crea un agente IA personalizado", "Sin codigo", "Describe lo que necesitas", "Botz lo construye"],
     },

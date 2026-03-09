@@ -79,6 +79,16 @@ export default function AgentStudio() {
 
   const tr = (es: string, en: string) => (language === "en" ? en : es);
 
+  const isConnectivityError = (err: any) => {
+    const msg = String(err?.message || "").toLowerCase();
+    return (
+      msg.includes("failed to fetch") ||
+      msg.includes("no se pudo conectar con el servidor") ||
+      msg.includes("networkerror") ||
+      msg.includes("load failed")
+    );
+  };
+
   function warmAfterLogin() {
     void fetchAgents();
     void fetchChannels();
@@ -251,7 +261,7 @@ export default function AgentStudio() {
       setAgents(json.data || []);
     } catch (e) {
       if (e instanceof AuthRequiredError) setOpenAuth(true);
-      console.error(e);
+      if (!isConnectivityError(e)) console.error(e);
       setAgents([]);
     }
   };
@@ -269,7 +279,7 @@ export default function AgentStudio() {
         top_endpoint: String(json?.summary?.top_endpoint || "-"),
       });
     } catch (e) {
-      console.error(e);
+      if (!isConnectivityError(e)) console.error(e);
       setUsageEvents([]);
       setUsageMissingTable(false);
       setUsageSummary({ today: 0, seven_days: 0, top_endpoint: "-" });
@@ -351,7 +361,7 @@ export default function AgentStudio() {
       await updateAgent(agent.id, { status: next });
       await fetchAgents();
     } catch (e) {
-      console.error(e);
+      if (!isConnectivityError(e)) console.error(e);
     }
   };
 
@@ -372,7 +382,7 @@ export default function AgentStudio() {
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo duplicar");
       await fetchAgents();
     } catch (e) {
-      console.error(e);
+      if (!isConnectivityError(e)) console.error(e);
     }
   };
 
@@ -382,7 +392,7 @@ export default function AgentStudio() {
       setSelectedAgentIds((prev) => prev.filter((id) => id !== agent.id));
       await fetchAgents();
     } catch (e) {
-      console.error(e);
+      if (!isConnectivityError(e)) console.error(e);
     }
   };
 
@@ -416,7 +426,7 @@ export default function AgentStudio() {
       setBulkDeleteModalIds([]);
       await fetchAgents();
     } catch (e) {
-      console.error(e);
+      if (!isConnectivityError(e)) console.error(e);
     } finally {
       setBulkDeleting(false);
     }
@@ -439,7 +449,7 @@ export default function AgentStudio() {
       await updateAgent(renameModal.id, { name });
       await fetchAgents();
     } catch (e) {
-      console.error(e);
+      if (!isConnectivityError(e)) console.error(e);
     } finally {
       setRenameModal(null);
       setRenameValue("");
@@ -1772,7 +1782,7 @@ export default function AgentStudio() {
                     alt={t.name}
                     width={70}
                     height={70}
-                    style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 35%", borderRadius: "50%" }}
                     onError={(e) => {
                       const img = e.currentTarget as HTMLImageElement;
                       img.style.display = "none";
@@ -2272,7 +2282,7 @@ export default function AgentStudio() {
                             alt={t.name}
                             width={82}
                             height={82}
-                            style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 35%", borderRadius: "50%" }}
                             onError={(e) => {
                               const img = e.currentTarget as HTMLImageElement;
                               img.style.display = "none";
