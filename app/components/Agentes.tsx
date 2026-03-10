@@ -3,6 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
+import Vapi from "@vapi-ai/web";
 
 interface AgentCardProps {
   name: string;
@@ -180,10 +181,13 @@ const Agentes = () => {
   const [callPhone, setCallPhone] = React.useState("");
   const [callName, setCallName] = React.useState("");
   const [callEmail, setCallEmail] = React.useState("");
-  const [callLoading, setCallLoading] = React.useState(false);
   const [callError, setCallError] = React.useState("");
-  const [callSuccess, setCallSuccess] = React.useState("");
-  const [callWarning, setCallWarning] = React.useState("");
+  const [webCallActive, setWebCallActive] = React.useState(false);
+  const [webCallBusy, setWebCallBusy] = React.useState(false);
+  const [webCallStatus, setWebCallStatus] = React.useState("");
+  const [webCallError, setWebCallError] = React.useState("");
+  const vapiRef = React.useRef<any>(null);
+  const vapiEventsRef = React.useRef(false);
 
   const goTrial = () => {
     router.push("/start/agents");
@@ -196,62 +200,103 @@ const Agentes = () => {
 
   const ctaLabel = isEn ? "Start Now" : "Contratar Ahora";
 
-  const submitLiveCall = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const phoneRaw = `${callCountryCode}${callPhone}`.replace(/\s+/g, "").trim();
-    const email = String(callEmail || "").trim().toLowerCase();
+  const bindVapiEvents = React.useCallback((instance: any) => {
+    if (!instance || vapiEventsRef.current) return;
+    vapiEventsRef.current = true;
+
+    instance.on("call-start", () => {
+      setWebCallActive(true);
+      setWebCallBusy(false);
+      setWebCallError("");
+      setWebCallStatus(isEn ? "Connected. Speak naturally." : "Conectado. Habla con naturalidad.");
+    });
+
+    instance.on("speech-start", () => {
+      setWebCallStatus(isEn ? "Assistant speaking..." : "Asistente hablando...");
+    });
+
+    instance.on("speech-end", () => {
+      setWebCallStatus(isEn ? "Listening..." : "Escuchando...");
+    });
+
+    instance.on("call-end", () => {
+      setWebCallActive(false);
+      setWebCallBusy(false);
+      setWebCallStatus(isEn ? "Call ended." : "Llamada finalizada.");
+    });
+
+    instance.on("error", (e: any) => {
+      setWebCallBusy(false);
+      setWebCallError(String(e?.message || (isEn ? "Web call error." : "Error en llamada web.")));
+    });
+  }, [isEn]);
+
+  const startWebCall = React.useCallback(async () => {
     const name = String(callName || "").trim();
+    const email = String(callEmail || "").trim().toLowerCase();
+    const phoneRaw = `${callCountryCode}${callPhone}`.replace(/\s+/g, "").trim();
 
     if (!name || !email || !callPhone.trim()) {
       setCallError(isEn ? "Complete name, phone and email." : "Completa nombre, telefono y correo.");
-      setCallSuccess("");
       return;
     }
 
-    setCallLoading(true);
-    setCallError("");
-    setCallSuccess("");
-    setCallWarning("");
+    const publicKey = String(process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || "").trim();
+    const assistantId = String(process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID || "").trim();
+
+    if (!publicKey || !assistantId) {
+      setWebCallError(isEn ? "Missing Vapi keys in env vars." : "Faltan claves de Vapi en variables de entorno.");
+      return;
+    }
 
     try {
-      const payload = {
-        nombre: name,
-        email,
-        telefono: phoneRaw,
-        empresa: "Lead web call Botz",
-        interes: "Llamada en vivo de agente",
-      };
+      setCallError("");
+      setWebCallError("");
+      setWebCallBusy(true);
+      setWebCallStatus(isEn ? "Starting web call..." : "Iniciando llamada web...");
 
-      const res = await fetch("/api/live-call/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      if (!vapiRef.current) {
+        vapiRef.current = new (Vapi as any)(publicKey);
+        bindVapiEvents(vapiRef.current);
+      }
+
+      await vapiRef.current.start(assistantId, {
+        variableValues: {
+          name,
+          email,
+          phone: phoneRaw,
+        },
       });
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok || data?.ok === false || data?.success === false) {
-        throw new Error(String(data?.error || data?.message || (isEn ? "Could not request the call." : "No se pudo solicitar la llamada.")));
-      }
-
-      if (data?.mode === "webhook") {
-        setCallSuccess(isEn ? "Done. We will call you shortly." : "Listo. Te llamaremos en breve.");
-      } else {
-        setCallSuccess(isEn ? "Done. Your request was saved." : "Listo. Tu solicitud fue guardada.");
-        setCallWarning(
-          isEn
-            ? "Live call is not connected yet (fallback mode). Configure LIVE_CALL_WEBHOOK_URL in deployment env vars."
-            : "La llamada en vivo aun no esta conectada (modo fallback). Configura LIVE_CALL_WEBHOOK_URL en las variables de entorno del despliegue."
-        );
-      }
-      setCallPhone("");
-      setCallName("");
-      setCallEmail("");
     } catch (err: any) {
-      setCallError(String(err?.message || (isEn ? "Could not request the call." : "No se pudo solicitar la llamada.")));
-    } finally {
-      setCallLoading(false);
+      setWebCallBusy(false);
+      setWebCallError(String(err?.message || (isEn ? "Could not start web call." : "No se pudo iniciar la llamada web.")));
     }
-  };
+  }, [bindVapiEvents, callCountryCode, callEmail, callName, callPhone, isEn]);
+
+  const stopWebCall = React.useCallback(async () => {
+    try {
+      setWebCallBusy(true);
+      if (vapiRef.current) {
+        await vapiRef.current.stop();
+      }
+    } catch {
+      // ignore stop errors
+    } finally {
+      setWebCallBusy(false);
+      setWebCallActive(false);
+      setWebCallStatus(isEn ? "Call ended." : "Llamada finalizada.");
+    }
+  }, [isEn]);
+
+  React.useEffect(() => {
+    return () => {
+      if (vapiRef.current) {
+        try {
+          vapiRef.current.stop();
+        } catch {}
+      }
+    };
+  }, []);
 
   const topRowAgents = isEn ? [
     {
@@ -576,11 +621,14 @@ const Agentes = () => {
             overflow: "hidden",
           }}
         >
-          <form onSubmit={submitLiveCall} style={{ flex: "1 1 520px", maxWidth: 760, width: "100%" }}>
+          <form onSubmit={(e) => { e.preventDefault(); startWebCall(); }} style={{ flex: "1 1 520px", maxWidth: 760, width: "100%" }}>
             <div style={{ display: "grid", gridTemplateColumns: "102px 1fr", gap: 10, marginBottom: 10 }}>
               <select
                 value={callCountryCode}
-                onChange={(e) => setCallCountryCode(e.target.value)}
+                onChange={(e) => {
+                  setCallCountryCode(e.target.value);
+                  if (callError) setCallError("");
+                }}
                 style={{
                   width: "100%",
                   borderRadius: 14,
@@ -607,7 +655,10 @@ const Agentes = () => {
               </select>
               <input
                 value={callPhone}
-                onChange={(e) => setCallPhone(e.target.value.replace(/[^0-9\s-]/g, ""))}
+                onChange={(e) => {
+                  setCallPhone(e.target.value.replace(/[^0-9\s-]/g, ""));
+                  if (callError) setCallError("");
+                }}
                 placeholder={isEn ? "Enter your phone" : "Ingresa tu numero"}
                 style={{
                   width: "100%",
@@ -625,41 +676,67 @@ const Agentes = () => {
 
             <input
               value={callName}
-              onChange={(e) => setCallName(e.target.value)}
+              onChange={(e) => {
+                setCallName(e.target.value);
+                if (callError) setCallError("");
+              }}
               placeholder={isEn ? "Your name" : "Tu nombre"}
               style={{ width: "100%", borderRadius: 14, border: "1px solid rgba(34,211,238,0.45)", background: "rgba(15,23,42,0.72)", color: "#e2e8f0", padding: "0 18px", marginBottom: 10, fontSize: 18, lineHeight: 1, height: 56, display: "flex", alignItems: "center" }}
             />
 
             <input
               value={callEmail}
-              onChange={(e) => setCallEmail(e.target.value)}
+              onChange={(e) => {
+                setCallEmail(e.target.value);
+                if (callError) setCallError("");
+              }}
               placeholder={isEn ? "Your email" : "Tu correo"}
               type="email"
               style={{ width: "100%", borderRadius: 14, border: "1px solid rgba(34,211,238,0.45)", background: "rgba(15,23,42,0.72)", color: "#e2e8f0", padding: "0 18px", marginBottom: 12, fontSize: 18, lineHeight: 1, height: 56, display: "flex", alignItems: "center" }}
             />
 
             {callError ? <div style={{ color: "#fda4af", fontSize: 13, marginBottom: 8 }}>{callError}</div> : null}
-            {callWarning ? <div style={{ color: "#fcd34d", fontSize: 13, marginBottom: 8 }}>{callWarning}</div> : null}
-            {callSuccess ? <div style={{ color: "#86efac", fontSize: 13, marginBottom: 8 }}>{callSuccess}</div> : null}
 
-            <button
-              type="submit"
-              disabled={callLoading}
-              style={{
-                width: "100%",
-                border: "none",
-                borderRadius: 12,
-                background: "linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%)",
-                color: "#031525",
-                fontWeight: 900,
-                padding: "12px 16px",
-                fontSize: 16,
-                cursor: callLoading ? "not-allowed" : "pointer",
-                opacity: callLoading ? 0.7 : 1,
-              }}
-            >
-              {callLoading ? (isEn ? "Sending..." : "Enviando...") : (isEn ? "Receive Call" : "Recibir llamada")}
-            </button>
+            <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+              <button
+                type="submit"
+                disabled={webCallActive || webCallBusy}
+                style={{
+                  flex: 1,
+                  border: "1px solid rgba(34,211,238,0.55)",
+                  borderRadius: 12,
+                  background: "rgba(15,23,42,0.75)",
+                  color: "#67e8f9",
+                  fontWeight: 800,
+                  padding: "10px 14px",
+                  cursor: webCallActive || webCallBusy ? "not-allowed" : "pointer",
+                  opacity: webCallActive || webCallBusy ? 0.7 : 1,
+                }}
+              >
+                {isEn ? "Start Web Call" : "Iniciar llamada web"}
+              </button>
+              <button
+                type="button"
+                onClick={stopWebCall}
+                disabled={!webCallActive}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  borderRadius: 12,
+                  background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                  color: "#fff",
+                  fontWeight: 800,
+                  padding: "10px 14px",
+                  cursor: !webCallActive ? "not-allowed" : "pointer",
+                  opacity: !webCallActive ? 0.7 : 1,
+                }}
+              >
+                {isEn ? "End Web Call" : "Finalizar llamada web"}
+              </button>
+            </div>
+
+            {webCallStatus ? <div style={{ color: "#a3e635", fontSize: 12, marginTop: 8 }}>{webCallStatus}</div> : null}
+            {webCallError ? <div style={{ color: "#fda4af", fontSize: 12, marginTop: 6 }}>{webCallError}</div> : null}
           </form>
 
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", flex: "0 1 390px", width: "100%", maxWidth: 390 }}>

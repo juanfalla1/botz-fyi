@@ -67,7 +67,7 @@ async function generateAiVoiceReply(args: { userText: string; identity: string; 
 async function resolveGreetingByDialedNumber(toNumber: string): Promise<{ greeting: string; voice: string; language: string; identity: string; company: string }> {
   const supabase = getServiceSupabase();
   if (!supabase || !toNumber) {
-    return { greeting: defaultGreeting(), voice: "alice", language: "es-ES", identity: "asistente virtual", company: "Botz" };
+    return { greeting: defaultGreeting(), voice: "Polly.Lupe", language: "es-MX", identity: "asistente virtual", company: "Botz" };
   }
 
   const { data: numbers } = await supabase
@@ -114,8 +114,8 @@ async function resolveGreetingByDialedNumber(toNumber: string): Promise<{ greeti
     (company ? `Hola, te habla ${identity} de ${company}. Tu llamada ya esta conectada.` : `Hola, te habla ${identity}. Tu llamada ya esta conectada.`)
   ).trim();
 
-  const language = String(channelCfg?.twilio_language || cfg?.language || "es-ES").trim() || "es-ES";
-  const voice = String(channelCfg?.twilio_voice || "alice").trim() || "alice";
+  const language = String(channelCfg?.twilio_language || cfg?.language || "es-MX").trim() || "es-MX";
+  const voice = String(channelCfg?.twilio_voice || "Polly.Lupe").trim() || "Polly.Lupe";
 
   return {
     greeting: greeting || defaultGreeting(),
