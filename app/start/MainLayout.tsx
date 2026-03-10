@@ -3055,16 +3055,27 @@ export default function MainLayout({
                       {language === "en" ? "More Leads" : "Más Leads"}
                     </div>
                     <TextRotator
-                      words={[
-                        "en Hipotecas Firmadas",
-                        "con tu CRM Inteligente",
-                        "con Cálculo Hipotecario",
-                        "vía WhatsApp Automatizado",
-                        "en Ventas Cerradas",
-                        "desde tu Sitio Web",
-                        "vía Meta Ads",
-                        "con Automatización 24/7"
-                      ]}
+                      words={language === "en"
+                        ? [
+                            "into Signed Mortgages",
+                            "with Your Smart CRM",
+                            "with Mortgage Calculator",
+                            "via Automated WhatsApp",
+                            "into Closed Deals",
+                            "from Your Website",
+                            "via Meta Ads",
+                            "with 24/7 Automation",
+                          ]
+                        : [
+                            "en Hipotecas Firmadas",
+                            "con tu CRM Inteligente",
+                            "con Cálculo Hipotecario",
+                            "vía WhatsApp Automatizado",
+                            "en Ventas Cerradas",
+                            "desde tu Sitio Web",
+                            "vía Meta Ads",
+                            "con Automatización 24/7",
+                          ]}
                       prefix=""
                       suffix=""
                       highlightColor="#a3e635"
