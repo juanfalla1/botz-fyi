@@ -1586,26 +1586,46 @@ export async function POST(req: Request) {
         const askList = isTechSheetCatalogListIntent(inbound.text);
 
         if (askList) {
-          const withTech = list.filter((p: any) => {
+          const withSheet = list.filter((p: any) => {
             const payload = p?.source_payload && typeof p.source_payload === "object" ? p.source_payload : {};
             const pdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
             const productUrlAsPdf = /\.pdf(\?|$)/i.test(String(p?.product_url || ""));
             return Boolean(String(p?.datasheet_url || "").trim()) || pdfLinks.length > 0 || productUrlAsPdf;
           });
 
-          if (withTech.length) {
-            const names = withTech
+          const withImageOrSpecs = list.filter((p: any) => {
+            const specs = String(p?.specs_text || "").trim();
+            const image = String(p?.image_url || "").trim();
+            return Boolean(specs) || Boolean(image);
+          });
+
+          if (withSheet.length) {
+            const names = withSheet
               .map((p: any) => String(p?.name || "").trim())
               .filter(Boolean)
               .slice(0, 12);
-            const rest = Math.max(0, withTech.length - names.length);
+            const rest = Math.max(0, withSheet.length - names.length);
             reply = [
-              `Claro. En este momento tengo ${withTech.length} producto(s) con ficha técnica disponible:`,
+              `Claro. En este momento tengo ${withSheet.length} producto(s) con ficha técnica (PDF) disponible:`,
               "",
               ...names.map((n: string) => `- ${n}`),
               ...(rest > 0 ? [`- y ${rest} más`] : []),
               "",
               "Dime cuál te interesa y te envío la ficha técnica por este WhatsApp.",
+            ].join("\n");
+          } else if (withImageOrSpecs.length) {
+            const names = withImageOrSpecs
+              .map((p: any) => String(p?.name || "").trim())
+              .filter(Boolean)
+              .slice(0, 10);
+            const rest = Math.max(0, withImageOrSpecs.length - names.length);
+            reply = [
+              "No tengo fichas técnicas PDF cargadas ahora mismo.",
+              "Sí tengo información técnica resumida y/o imagen en:",
+              ...names.map((n: string) => `- ${n}`),
+              ...(rest > 0 ? [`- y ${rest} más`] : []),
+              "",
+              "Si me dices un producto, te envío lo disponible por este WhatsApp.",
             ].join("\n");
           } else {
             reply = "En este momento no tengo fichas técnicas cargadas en catálogo para enviar por WhatsApp. Si quieres, te comparto los productos activos y te indico cuáles ya tienen imagen.";
