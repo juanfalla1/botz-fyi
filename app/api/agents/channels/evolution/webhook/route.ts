@@ -823,24 +823,34 @@ function pickBestCatalogProduct(text: string, rows: any[]): any | null {
       inbound
         .split(/[^a-z0-9]+/i)
         .map((x) => x.trim())
-        .filter((x) => x.length >= 4)
+        .filter((x) => x.length >= 2)
         .filter((x) => !["quiero", "cotizar", "cotizacion", "marca", "cliente", "cantidad", "trm", "hoy", "enviame", "whatsapp", "pdf", "producto"].includes(x))
     )
   );
 
   let best: { row: any; score: number } | null = null;
   for (const row of rows || []) {
+    const rowName = normalizeText(String(row?.name || ""));
     const hay = normalizeText(`${row?.name || ""} ${row?.brand || ""} ${row?.category || ""}`);
+    const inboundCompact = inbound.replace(/\s+/g, "");
+    const nameCompact = rowName.replace(/\s+/g, "");
     let score = 0;
-    if (inbound.includes(normalizeText(String(row?.name || "")))) score += 8;
+    if (rowName && inbound.includes(rowName)) score += 10;
+    if (nameCompact && inboundCompact.includes(nameCompact)) score += 8;
     for (const term of terms) {
-      if (hay.includes(term)) score += 2;
+      if (hay.includes(term)) score += /^\d+$/.test(term) ? 3 : 2;
     }
     if (!best || score > best.score) best = { row, score };
   }
 
   if (!best || best.score < 4) return null;
   return best.row;
+}
+
+function isProductLookupIntent(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  return /(tienen|tienes|manejan|venden|disponible|disponibilidad|hay|referencia|modelo|explorer|adventurer|balanza|analizador|centrifuga)/.test(t);
 }
 
 function findCatalogProductByName(rows: any[], rememberedName: string): any | null {
@@ -1275,6 +1285,7 @@ export async function POST(req: Request) {
     let handledByInventory = false;
     let handledByHistory = false;
     let handledByPricing = false;
+    let handledByProductLookup = false;
     let handledByRecommendation = false;
     let handledByTechSheet = false;
     let handledByRecall = false;
@@ -1466,7 +1477,26 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && isPriceIntent(inbound.text)) {
+    if (!handledByGreeting && !handledByInventory && isProductLookupIntent(inbound.text)) {
+      try {
+        const catalog = await fetchCatalogRows("id,name,brand,category,base_price_usd", 120, false);
+        const matched = pickBestCatalogProduct(inbound.text, catalog as any);
+        if (matched?.name) {
+          nextMemory.last_product_name = String(matched.name || "");
+          nextMemory.last_product_id = String((matched as any)?.id || "");
+          const hasPrice = Number((matched as any)?.base_price_usd || 0) > 0;
+          reply = hasPrice
+            ? `Sí, sí tenemos ${String(matched.name)}. Si quieres, te envío de una la cotización con TRM de hoy por este WhatsApp.`
+            : `Sí, sí tenemos ${String(matched.name)}. Si quieres, te comparto ficha técnica y opciones disponibles por este WhatsApp.`;
+          handledByProductLookup = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
+      } catch (lookupErr: any) {
+        console.warn("[evolution-webhook] product_lookup_failed", lookupErr?.message || lookupErr);
+      }
+    }
+
+    if (!handledByGreeting && !handledByInventory && !handledByProductLookup && !handledByHistory && isPriceIntent(inbound.text)) {
       try {
         const pricedProducts = await fetchCatalogRows("id,name,base_price_usd", 20, true);
 
