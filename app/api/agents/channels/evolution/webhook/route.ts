@@ -347,6 +347,7 @@ async function persistConversationTurn(
     outboundText: string;
     messageId?: string;
     memory?: Record<string, any>;
+    contactName?: string;
   }
 ) {
   const nowIso = new Date().toISOString();
@@ -360,6 +361,7 @@ async function persistConversationTurn(
     outboundText,
     messageId,
     memory,
+    contactName,
   } = params;
 
   const fromNorm = normalizePhone(from || "");
@@ -396,6 +398,7 @@ async function persistConversationTurn(
     await supabase
       .from("agent_conversations")
       .update({
+        ...(contactName ? { contact_name: contactName } : {}),
         transcript: mergedTranscript,
         message_count: currentCount + 2,
         status: "completed",
@@ -418,7 +421,7 @@ async function persistConversationTurn(
   await supabase.from("agent_conversations").insert({
     agent_id: agentId,
     tenant_id: tenantId || null,
-    contact_name: pushName || from,
+    contact_name: contactName || pushName || from,
     contact_phone: fromNorm || from,
     channel: "whatsapp",
     status: "completed",
@@ -547,6 +550,71 @@ function sanitizeCustomerDisplayName(raw: string): string {
   if (/^\+?\d+$/.test(v)) return "";
   if (v.length < 2) return "";
   return v;
+}
+
+function looksLikeCustomerNameAnswer(text: string): string {
+  const src = String(text || "").trim();
+  if (!src) return "";
+  const cleaned = src
+    .replace(/^soy\s+/i, "")
+    .replace(/^mi\s+nombre\s+es\s+/i, "")
+    .replace(/^nombre\s*[:\-]\s*/i, "")
+    .replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return "";
+  if (cleaned.length < 3 || cleaned.length > 60) return "";
+  const words = cleaned.split(" ").filter(Boolean);
+  if (words.length > 5) return "";
+  const bad = ["hola", "si", "ok", "dale", "cotizar", "producto", "ficha", "imagen", "pdf"];
+  if (words.some((w) => bad.includes(w.toLowerCase()))) return "";
+  return sanitizeCustomerDisplayName(cleaned);
+}
+
+async function persistKnownNameInCrm(
+  supabase: any,
+  args: { ownerId: string; tenantId?: string | null; phone: string; name: string }
+) {
+  const ownerId = String(args.ownerId || "").trim();
+  const phone = normalizePhone(args.phone || "");
+  const tail = phoneTail10(phone);
+  const name = sanitizeCustomerDisplayName(args.name || "");
+  if (!ownerId || !tail || !name) return;
+
+  try {
+    const { data: existing, error: readErr } = await supabase
+      .from("agent_crm_contacts")
+      .select("id,name")
+      .eq("created_by", ownerId)
+      .or(`phone.eq.${phone},phone.like.%${tail}`)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (readErr) return;
+
+    if (existing?.id) {
+      await supabase
+        .from("agent_crm_contacts")
+        .update({ name })
+        .eq("id", String(existing.id))
+        .eq("created_by", ownerId);
+      return;
+    }
+
+    await supabase.from("agent_crm_contacts").insert({
+      tenant_id: args.tenantId || null,
+      created_by: ownerId,
+      name,
+      phone,
+      status: "new",
+      next_action: null,
+      next_action_at: null,
+      metadata: { source: "whatsapp_name_capture" },
+    });
+  } catch {
+    // best effort
+  }
 }
 
 function extractQuantity(text: string): number {
@@ -1386,6 +1454,16 @@ export async function POST(req: Request) {
 
     if (knownCustomerName) nextMemory.customer_name = knownCustomerName;
 
+    const awaitingAction = String(previousMemory?.awaiting_action || "");
+    if (!knownCustomerName && awaitingAction === "capture_name") {
+      const nameFromReply = looksLikeCustomerNameAnswer(inbound.text);
+      if (nameFromReply) {
+        knownCustomerName = nameFromReply;
+        nextMemory.customer_name = nameFromReply;
+        nextMemory.awaiting_action = "none";
+      }
+    }
+
     const countCatalogRows = async (pricedOnly = false): Promise<number> => {
       let ownerQuery = supabase
         .from("agent_product_catalog")
@@ -1434,7 +1512,8 @@ export async function POST(req: Request) {
     if (isGreetingIntent(inbound.text)) {
       reply = knownCustomerName
         ? `Hola ${knownCustomerName}, soy Ava, tu asistente virtual de Avanza Group. ¿Qué necesitas hoy?`
-        : "Hola, soy Ava, tu asistente virtual de Avanza Group. ¿Qué necesitas hoy?";
+        : "Hola, soy Ava, tu asistente virtual de Avanza Group. ¿Con quién tengo el gusto?";
+      if (!knownCustomerName) nextMemory.awaiting_action = "capture_name";
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
@@ -1578,7 +1657,6 @@ export async function POST(req: Request) {
       }
     }
 
-    const awaitingAction = String(previousMemory?.awaiting_action || "");
     const awaitingTechProductSelection = awaitingAction === "tech_product_selection";
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && (isTechnicalSheetIntent(inbound.text) || isProductImageIntent(inbound.text) || awaitingTechProductSelection)) {
@@ -2273,6 +2351,17 @@ export async function POST(req: Request) {
       billedTokens = Math.max(1, Math.min(500, usageCompletion || estimateTokens(reply)));
     }
 
+    if (
+      !knownCustomerName &&
+      !handledByGreeting &&
+      String(reply || "").trim() &&
+      !/con quien tengo el gusto/i.test(normalizeText(reply)) &&
+      (handledByQuoteIntake || handledByTechSheet || handledByPricing || handledByProductLookup)
+    ) {
+      reply = `${String(reply || "").trim()}\n\nSi quieres, compárteme tu nombre para dejarlo guardado.`;
+      nextMemory.awaiting_action = "capture_name";
+    }
+
     reply = enforceWhatsAppDelivery(reply, inbound.text);
     reply = withAvaSignature(reply);
 
@@ -2526,12 +2615,22 @@ export async function POST(req: Request) {
     }
 
     try {
+      if (knownCustomerName) {
+        await persistKnownNameInCrm(supabase as any, {
+          ownerId,
+          tenantId: (agent as any)?.tenant_id || null,
+          phone: inbound.from,
+          name: knownCustomerName,
+        });
+      }
+
       await persistConversationTurn(supabase as any, {
         agentId: String(agent.id),
         ownerId,
         tenantId: (agent as any)?.tenant_id || null,
         from: inbound.from,
         pushName: inbound.pushName,
+        contactName: knownCustomerName || inbound.pushName || inbound.from,
         inboundText: inbound.text,
         outboundText: reply,
         messageId: inbound.messageId,
