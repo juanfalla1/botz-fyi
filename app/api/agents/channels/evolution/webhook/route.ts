@@ -1578,7 +1578,10 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && (isTechnicalSheetIntent(inbound.text) || isProductImageIntent(inbound.text))) {
+    const awaitingAction = String(previousMemory?.awaiting_action || "");
+    const awaitingTechProductSelection = awaitingAction === "tech_product_selection";
+
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && (isTechnicalSheetIntent(inbound.text) || isProductImageIntent(inbound.text) || awaitingTechProductSelection)) {
       try {
         const products = await fetchCatalogRows("id,name,product_url,image_url,datasheet_url,specs_text,source_payload", 120, false);
 
@@ -1613,6 +1616,7 @@ export async function POST(req: Request) {
               "",
               "Dime cuál te interesa y te envío la ficha técnica por este WhatsApp.",
             ].join("\n");
+            nextMemory.awaiting_action = "tech_product_selection";
           } else if (withImageOrSpecs.length) {
             const names = withImageOrSpecs
               .map((p: any) => String(p?.name || "").trim())
@@ -1627,8 +1631,10 @@ export async function POST(req: Request) {
               "",
               "Si me dices un producto, te envío lo disponible por este WhatsApp.",
             ].join("\n");
+            nextMemory.awaiting_action = "tech_product_selection";
           } else {
             reply = "En este momento no tengo fichas técnicas cargadas en catálogo para enviar por WhatsApp. Si quieres, te comparto los productos activos y te indico cuáles ya tienen imagen.";
+            nextMemory.awaiting_action = "none";
           }
 
           handledByTechSheet = true;
@@ -1654,13 +1660,15 @@ export async function POST(req: Request) {
               "",
               "Escríbeme solo el nombre exacto del producto.",
             ].join("\n");
+            nextMemory.awaiting_action = "tech_product_selection";
           } else {
             reply = "Ahora mismo no encuentro productos activos en catálogo para enviarte ficha técnica.";
+            nextMemory.awaiting_action = "none";
           }
         } else {
           nextMemory.last_product_name = String((matched as any)?.name || "");
           nextMemory.last_product_id = String((matched as any)?.id || "");
-          const wantsSheet = isTechnicalSheetIntent(inbound.text);
+          const wantsSheet = isTechnicalSheetIntent(inbound.text) || awaitingTechProductSelection;
           const wantsImage = isProductImageIntent(inbound.text);
           const payload = matched?.source_payload && typeof matched.source_payload === "object" ? matched.source_payload : {};
           const payloadPdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
@@ -1723,6 +1731,7 @@ export async function POST(req: Request) {
           } else {
             reply = `No tengo el archivo adjunto listo para ${String((matched as any)?.name || "ese producto")} en este momento.${imageUrl ? ` Imagen: ${imageUrl}.` : ""} ${productUrl ? `Detalle: ${productUrl}.` : ""} Si quieres, te ayudo a cotizarlo de una vez.`;
           }
+          nextMemory.awaiting_action = "none";
           handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
@@ -1747,6 +1756,7 @@ export async function POST(req: Request) {
               "Ejemplo: Explorer 220, 2 unidades.",
             ].join("\n")
           : "Claro. Para cotizar de una, dime modelo exacto y cantidad (ejemplo: Explorer 220, 2 unidades).";
+        nextMemory.awaiting_action = "quote_product_selection";
 
         handledByQuoteStarter = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
@@ -1878,7 +1888,23 @@ export async function POST(req: Request) {
       }
     }
 
-    const recallByConfirmation = Boolean(previousMemory?.last_quote_draft_id) && isAffirmativeIntent(inbound.text);
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && isAffirmativeIntent(inbound.text)) {
+      const prevIntent = String(previousMemory?.last_intent || "");
+      const lastProductName = String(previousMemory?.last_product_name || nextMemory?.last_product_name || "").trim();
+      if ((/(tech_sheet_request|image_request)/.test(prevIntent) || awaitingAction === "tech_product_selection") && lastProductName) {
+        reply = `Perfecto. Para ${lastProductName}, ¿prefieres que te envíe ficha técnica, imagen o ambas por este WhatsApp?`;
+        nextMemory.awaiting_action = "tech_asset_choice";
+        handledByTechSheet = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      }
+    }
+
+    const previousIntent = String(previousMemory?.last_intent || "");
+    const recallByConfirmation =
+      Boolean(previousMemory?.last_quote_draft_id) &&
+      isAffirmativeIntent(inbound.text) &&
+      /(quote_recall|quote_generated|price_request)/.test(previousIntent) &&
+      awaitingAction === "quote_resend_confirmation";
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && (isQuoteRecallIntent(inbound.text) || recallByConfirmation)) {
       try {
         const { data: recentDrafts } = await supabase
@@ -1976,11 +2002,14 @@ export async function POST(req: Request) {
             } else {
               reply += " Te reenvio el PDF ahora mismo por este chat.";
             }
+            nextMemory.awaiting_action = "none";
           } else {
             reply += " Si quieres, escribe 'reenviar PDF' y te lo mando de nuevo ahora.";
+            nextMemory.awaiting_action = "quote_resend_confirmation";
           }
         } else {
           reply = "Por ahora no encuentro una cotizacion previa asociada a este numero. Si quieres, te genero una nueva de inmediato.";
+          nextMemory.awaiting_action = "none";
         }
         handledByRecall = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
@@ -2107,6 +2136,7 @@ export async function POST(req: Request) {
                 if (!draftError && draft?.id) {
                   nextMemory.last_quote_draft_id = String(draft.id);
                   nextMemory.last_quote_product_name = String((selected as any).name || "");
+                  nextMemory.awaiting_action = "none";
                   const pdfBase64 = buildQuotePdf({
                     draftId: String(draft.id),
                     companyName: String(draftPayload.company_name || "Avanza Balanzas"),
