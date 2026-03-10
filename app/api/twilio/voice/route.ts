@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
+import OpenAI from "openai";
 
 export const runtime = "nodejs";
 
@@ -30,10 +31,43 @@ function defaultGreeting() {
   return "Hola. Tu llamada ya esta conectada correctamente.";
 }
 
-async function resolveGreetingByDialedNumber(toNumber: string): Promise<{ greeting: string; voice: string; language: string }> {
+function shouldHangup(text: string) {
+  const v = String(text || "").toLowerCase();
+  return v.includes("adios") || v.includes("chao") || v.includes("gracias") || v.includes("hasta luego");
+}
+
+async function generateAiVoiceReply(args: { userText: string; identity: string; company: string }) {
+  const apiKey = String(process.env.OPENAI_API_KEY || "").trim();
+  if (!apiKey) return "En este momento no tengo IA habilitada. Puedes dejar tus datos y te contactamos en breve.";
+
+  try {
+    const openai = new OpenAI({ apiKey });
+    const identity = args.identity || "asistente virtual";
+    const company = args.company || "la empresa";
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.5,
+      max_tokens: 120,
+      messages: [
+        {
+          role: "system",
+          content:
+            `Eres ${identity}, asistente telefonico de ${company}. Responde en espanol neutro, en 1-2 frases maximo, tono claro y profesional. Si piden agendar o cotizar, pide solo el dato minimo siguiente. No uses markdown ni listas.`,
+        },
+        { role: "user", content: args.userText },
+      ],
+    });
+    const text = String(completion.choices?.[0]?.message?.content || "").trim();
+    return text || "Perfecto, te ayudo con eso. Puedes contarme un poco mas para continuar.";
+  } catch {
+    return "Perfecto, te escucho. Cuentame que necesitas y te ayudo ahora mismo.";
+  }
+}
+
+async function resolveGreetingByDialedNumber(toNumber: string): Promise<{ greeting: string; voice: string; language: string; identity: string; company: string }> {
   const supabase = getServiceSupabase();
   if (!supabase || !toNumber) {
-    return { greeting: defaultGreeting(), voice: "alice", language: "es-ES" };
+    return { greeting: defaultGreeting(), voice: "alice", language: "es-ES", identity: "asistente virtual", company: "Botz" };
   }
 
   const { data: numbers } = await supabase
@@ -87,16 +121,47 @@ async function resolveGreetingByDialedNumber(toNumber: string): Promise<{ greeti
     greeting: greeting || defaultGreeting(),
     voice,
     language,
+    identity,
+    company: company || "Botz",
   };
 }
 
 export async function POST(req: Request) {
   const form = await req.formData().catch(() => null);
   const to = normalizePhone(String(form?.get("To") || ""));
-  const { greeting, voice, language } = await resolveGreetingByDialedNumber(to);
+  const speechResult = String(form?.get("SpeechResult") || "").trim();
+  const { greeting, voice, language, identity, company } = await resolveGreetingByDialedNumber(to);
+
+  if (speechResult) {
+    if (shouldHangup(speechResult)) {
+      const byeXml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say language="${escapeXml(language)}" voice="${escapeXml(voice)}">Gracias por tu tiempo. Te contactaremos pronto. Hasta luego.</Say>
+  <Hangup/>
+</Response>`;
+      return twiml(byeXml);
+    }
+
+    const aiReply = await generateAiVoiceReply({ userText: speechResult, identity, company });
+    const xmlTurn = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say language="${escapeXml(language)}" voice="${escapeXml(voice)}">${escapeXml(aiReply)}</Say>
+  <Gather input="speech" speechTimeout="auto" action="/api/twilio/voice" method="POST" language="${escapeXml(language)}" speechModel="phone_call" timeout="5">
+    <Say language="${escapeXml(language)}" voice="${escapeXml(voice)}">Te escucho.</Say>
+  </Gather>
+  <Say language="${escapeXml(language)}" voice="${escapeXml(voice)}">No logre escucharte. Hasta pronto.</Say>
+  <Hangup/>
+</Response>`;
+    return twiml(xmlTurn);
+  }
+
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say language="${escapeXml(language)}" voice="${escapeXml(voice)}">${escapeXml(greeting)}</Say>
+  <Gather input="speech" speechTimeout="auto" action="/api/twilio/voice" method="POST" language="${escapeXml(language)}" speechModel="phone_call" timeout="5">
+    <Say language="${escapeXml(language)}" voice="${escapeXml(voice)}">Puedes contarme que necesitas y te ayudo ahora mismo.</Say>
+  </Gather>
+  <Say language="${escapeXml(language)}" voice="${escapeXml(voice)}">No logre escucharte. Si deseas, intenta nuevamente en unos segundos.</Say>
 </Response>`;
   return twiml(xml);
 }

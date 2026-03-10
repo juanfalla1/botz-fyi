@@ -10,10 +10,7 @@ const Header = () => {
   const [open, setOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.innerWidth <= 768;
-  });
+  const [isMobile, setIsMobile] = useState(false);
 
   type BotzLanguage = "es" | "en";
   const [botzLanguage, setBotzLanguage] = useState<BotzLanguage>("es");
@@ -38,6 +35,7 @@ const Header = () => {
   }, []);
 
   const isEn = botzLanguage === "en";
+  const isMobileView = hydrated && isMobile;
   const navCopy = {
     menuAria: isEn ? "Open menu" : "Abrir menu",
     backToSite: isEn ? "Back to site" : "Volver al sitio",
@@ -130,19 +128,19 @@ const Header = () => {
 
   const handleDropdownClick = (e: React.MouseEvent, name: string) => {
     e.preventDefault();
-    if (isMobile) {
+    if (isMobileView) {
       toggleDropdown(name);
     }
   };
 
   const handleDropdownHover = (name: string) => {
-    if (!isMobile) {
+    if (!isMobileView) {
       setOpenDropdown(name);
     }
   };
 
   const handleDropdownLeave = () => {
-    if (!isMobile) {
+    if (!isMobileView) {
       setOpenDropdown(null);
     }
   };
@@ -208,7 +206,7 @@ const Header = () => {
   };
 
   const getDropdownPanelStyle = (name: string): React.CSSProperties => {
-    if (isMobile) {
+    if (isMobileView) {
       return {
         position: "static",
         display: openDropdown === name ? "flex" : "none",
@@ -249,7 +247,7 @@ const Header = () => {
           backdropFilter: "blur(6px)",
         }}
       >
-        <div className="bz-header-container" style={{ maxWidth: "100%", width: "100%", margin: 0, padding: isMobile ? "10px 12px" : "12px 10px", display: isMobile ? "flex" : "grid", gridTemplateColumns: isMobile ? undefined : "auto minmax(0, 1fr)", columnGap: isMobile ? 0 : "8px", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="bz-header-container" style={{ maxWidth: "100%", width: "100%", margin: 0, padding: isMobileView ? "10px 12px" : "12px 10px", display: isMobileView ? "flex" : "grid", gridTemplateColumns: isMobileView ? undefined : "auto minmax(0, 1fr)", columnGap: isMobileView ? 0 : "8px", alignItems: "center", justifyContent: "space-between" }}>
           <div className="bz-logo-nav" style={{ width: "auto", display: "flex", alignItems: "center", columnGap: 10, flex: "0 0 auto", justifySelf: "start" }}>
             {/* LOGO MANTENIDO EN LA ESQUINA IZQUIERDA */}
             <Link href="/" passHref style={{ textDecoration: "none", borderBottom: "none", display: "inline-block" }}>
@@ -406,24 +404,24 @@ const Header = () => {
             <div
               className={`bz-nav-container ${open ? "is-open" : ""}`}
               style={{
-                marginLeft: isMobile ? 0 : "auto",
-                paddingLeft: isMobile ? 0 : "24px",
-                display: isMobile ? undefined : "flex",
-                justifyContent: isMobile ? undefined : "flex-end",
-                width: isMobile ? "100%" : "100%",
-                maxWidth: isMobile ? "100%" : "none",
-                flex: isMobile ? undefined : "1 1 auto",
+                marginLeft: isMobileView ? 0 : "auto",
+                paddingLeft: isMobileView ? 0 : "24px",
+                display: isMobileView ? undefined : "flex",
+                justifyContent: isMobileView ? undefined : "flex-end",
+                width: isMobileView ? "100%" : "100%",
+                maxWidth: isMobileView ? "100%" : "none",
+                flex: isMobileView ? undefined : "1 1 auto",
                 transform: "none",
                 transformOrigin: "center",
                 minWidth: 0,
                 marginTop: 0,
                 alignItems: "center",
-                justifySelf: isMobile ? "stretch" : "end",
+                justifySelf: isMobileView ? "stretch" : "end",
                 visibility: hydrated ? "visible" : "hidden",
                 opacity: hydrated ? 1 : 0,
               }}
             >
-            <div className="bz-main-nav" role="navigation" aria-label="Main navigation" style={{ marginLeft: "auto", justifyContent: isMobile ? "flex-start" : "space-between", gap: isMobile ? 0 : 6, display: "flex", alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", width: "100%" }}>
+            <div className="bz-main-nav" role="navigation" aria-label="Main navigation" style={{ marginLeft: "auto", justifyContent: isMobileView ? "flex-start" : "space-between", gap: isMobileView ? 0 : 6, display: "flex", alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", width: "100%" }}>
 
               <div className="bz-nav-links-group" style={{ marginLeft: 0 }}>
 
@@ -437,7 +435,7 @@ const Header = () => {
                   href="#"
                   onClick={(e) => handleDropdownClick(e, "propuesta")}
                 >
-                  {navCopy.ourValue} {isMobile ? (openDropdown === "propuesta" ? "▴" : "▾") : ""}
+                  {navCopy.ourValue} {isMobileView ? (openDropdown === "propuesta" ? "▴" : "▾") : ""}
                 </a>
                 <div className="bz-dropdown-content" style={getDropdownPanelStyle("propuesta")}>
                   <Link href="/#funcionalidades" onClick={closeMenu} style={submenuItemBaseStyle} onMouseEnter={handleSubmenuHoverEnter} onMouseLeave={handleSubmenuHoverLeave}>
@@ -476,8 +474,8 @@ const Header = () => {
                   style={{
                     display: "block",
                     width: "100%",
-                    padding: isMobile ? "12px 22px" : undefined,
-                    fontSize: isMobile ? "16px" : undefined,
+                    padding: isMobileView ? "12px 22px" : undefined,
+                    fontSize: isMobileView ? "16px" : undefined,
                     fontWeight: 700,
                     lineHeight: 1.25,
                   }}
@@ -496,7 +494,7 @@ const Header = () => {
                   href="#"
                   onClick={(e) => handleDropdownClick(e, "auto")}
                 >
-                  {navCopy.automationSolutions} {isMobile ? (openDropdown === "auto" ? "▴" : "▾") : ""}
+                  {navCopy.automationSolutions} {isMobileView ? (openDropdown === "auto" ? "▴" : "▾") : ""}
                 </a>
                 <div className="bz-dropdown-content" style={getDropdownPanelStyle("auto")}>
                   <Link href="/#arquitectura-E-commerce-hook" onClick={closeMenu} style={submenuItemBaseStyle} onMouseEnter={handleSubmenuHoverEnter} onMouseLeave={handleSubmenuHoverLeave}>
@@ -521,7 +519,7 @@ const Header = () => {
                   href="#"
                   onClick={(e) => handleDropdownClick(e, "ia")}
                 >
-                  {navCopy.aiFlows} {isMobile ? (openDropdown === "ia" ? "▴" : "▾") : ""}
+                  {navCopy.aiFlows} {isMobileView ? (openDropdown === "ia" ? "▴" : "▾") : ""}
                 </a>
                 <div className="bz-dropdown-content" style={getDropdownPanelStyle("ia")}>
                   <Link href="/#arquitectura-agentes-ia" onClick={closeMenu} style={submenuItemBaseStyle} onMouseEnter={handleSubmenuHoverEnter} onMouseLeave={handleSubmenuHoverLeave}>
@@ -611,8 +609,8 @@ const Header = () => {
                   background: "linear-gradient(135deg, #0891b2 0%, #22d3ee 100%)",
                   border: "1px solid rgba(34, 211, 238, 0.62)",
                   boxShadow: "0 8px 20px rgba(34, 211, 238, 0.26)",
-                  padding: isMobile ? undefined : "6px 9px",
-                  fontSize: isMobile ? undefined : "11px",
+                  padding: isMobileView ? undefined : "6px 9px",
+                  fontSize: isMobileView ? undefined : "11px",
                   lineHeight: 1,
                   transition: "transform .12s ease, filter .12s ease, box-shadow .12s ease",
                 }}
@@ -635,8 +633,8 @@ const Header = () => {
                   background: "linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%)",
                   border: "1px solid rgba(34, 211, 238, 0.68)",
                   boxShadow: "0 9px 24px rgba(34, 211, 238, 0.30)",
-                  padding: isMobile ? undefined : "6px 9px",
-                  fontSize: isMobile ? undefined : "11px",
+                  padding: isMobileView ? undefined : "6px 9px",
+                  fontSize: isMobileView ? undefined : "11px",
                   lineHeight: 1,
                   transition: "transform .12s ease, filter .12s ease, box-shadow .12s ease",
                 }}
@@ -660,8 +658,8 @@ const Header = () => {
                   background: "linear-gradient(135deg, #0ea5e9 0%, #22d3ee 100%)",
                   border: "1px solid rgba(34, 211, 238, 0.58)",
                   boxShadow: "0 8px 24px rgba(14, 165, 233, 0.28)",
-                  padding: isMobile ? undefined : "6px 8px",
-                  fontSize: isMobile ? undefined : "11px",
+                  padding: isMobileView ? undefined : "6px 8px",
+                  fontSize: isMobileView ? undefined : "11px",
                   lineHeight: 1,
                   transition: "transform .12s ease, filter .12s ease, box-shadow .12s ease",
                 }}
