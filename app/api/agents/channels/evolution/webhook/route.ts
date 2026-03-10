@@ -662,6 +662,15 @@ function isTechnicalSheetIntent(text: string): boolean {
   return /(ficha|ficha tecnica|fichas tecnicas|datasheet|especificaciones|specs|hoja tecnica|brochure|catalogo tecnico)/.test(t);
 }
 
+function isTechSheetCatalogListIntent(text: string): boolean {
+  const t = normalizeText(text);
+  return (
+    /(de que productos|que productos|cuales productos|cuales referencias|que referencias).*(ficha|ficha tecnica|datasheet|especificaciones)/.test(t) ||
+    /(productos|referencias|modelos).*(con|que tengan).*(ficha|ficha tecnica|datasheet)/.test(t) ||
+    /(listado|lista|catalogo).*(ficha|ficha tecnica|datasheet)/.test(t)
+  );
+}
+
 function isProductImageIntent(text: string): boolean {
   const t = normalizeText(text);
   return /(imagen|imagenes|foto|fotos|fotografia|ver producto|no veo imagen|no cargo imagen|reenvia imagen|reenvia imagen)/.test(t);
@@ -1565,6 +1574,37 @@ export async function POST(req: Request) {
         const products = await fetchCatalogRows("id,name,product_url,image_url,datasheet_url,specs_text,source_payload", 120, false);
 
         const list = Array.isArray(products) ? products : [];
+        const askList = isTechSheetCatalogListIntent(inbound.text);
+
+        if (askList) {
+          const withTech = list.filter((p: any) => {
+            const payload = p?.source_payload && typeof p.source_payload === "object" ? p.source_payload : {};
+            const pdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
+            const productUrlAsPdf = /\.pdf(\?|$)/i.test(String(p?.product_url || ""));
+            return Boolean(String(p?.datasheet_url || "").trim()) || pdfLinks.length > 0 || productUrlAsPdf;
+          });
+
+          if (withTech.length) {
+            const names = withTech
+              .map((p: any) => String(p?.name || "").trim())
+              .filter(Boolean)
+              .slice(0, 12);
+            const rest = Math.max(0, withTech.length - names.length);
+            reply = [
+              `Claro. En este momento tengo ${withTech.length} producto(s) con ficha técnica disponible:`,
+              "",
+              ...names.map((n: string) => `- ${n}`),
+              ...(rest > 0 ? [`- y ${rest} más`] : []),
+              "",
+              "Dime cuál te interesa y te envío la ficha técnica por este WhatsApp.",
+            ].join("\n");
+          } else {
+            reply = "En este momento no tengo fichas técnicas cargadas en catálogo para enviar por WhatsApp. Si quieres, te comparto los productos activos y te indico cuáles ya tienen imagen.";
+          }
+
+          handledByTechSheet = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        } else {
         const techSourceText = `${recentUserContextForCatalog}\n${inbound.text}`.trim();
         let matched = pickBestCatalogProduct(techSourceText, list as any);
         if (!matched?.name && nextMemory.last_product_name) {
@@ -1654,10 +1694,10 @@ export async function POST(req: Request) {
           } else {
             reply = `No tengo el archivo adjunto listo para ${String((matched as any)?.name || "ese producto")} en este momento.${imageUrl ? ` Imagen: ${imageUrl}.` : ""} ${productUrl ? `Detalle: ${productUrl}.` : ""} Si quieres, te ayudo a cotizarlo de una vez.`;
           }
+          handledByTechSheet = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
-
-        handledByTechSheet = true;
-        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
       } catch (techErr: any) {
         console.warn("[evolution-webhook] tech_sheet_failed", techErr?.message || techErr);
       }
