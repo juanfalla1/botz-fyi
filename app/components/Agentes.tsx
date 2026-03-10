@@ -184,7 +184,6 @@ const Agentes = () => {
   const [callError, setCallError] = React.useState("");
   const [callSuccess, setCallSuccess] = React.useState("");
   const [callWarning, setCallWarning] = React.useState("");
-  const [callMeta, setCallMeta] = React.useState("");
 
   const goTrial = () => {
     router.push("/start/agents");
@@ -213,7 +212,6 @@ const Agentes = () => {
     setCallError("");
     setCallSuccess("");
     setCallWarning("");
-    setCallMeta("");
 
     try {
       const payload = {
@@ -237,18 +235,6 @@ const Agentes = () => {
 
       if (data?.mode === "webhook") {
         setCallSuccess(isEn ? "Done. We will call you shortly." : "Listo. Te llamaremos en breve.");
-        const rows = Array.isArray(data?.data) ? data.data : [];
-        const first = rows[0] || {};
-        const from = String(first?.from || "").trim();
-        const to = String(first?.to || phoneRaw).trim();
-        const status = String(first?.status || "queued").trim();
-        if (from || to) {
-          setCallMeta(
-            isEn
-              ? `Call created (${status}). From ${from || "Twilio"} to ${to}.`
-              : `Llamada creada (${status}). Desde ${from || "Twilio"} hacia ${to}.`
-          );
-        }
       } else {
         setCallSuccess(isEn ? "Done. Your request was saved." : "Listo. Tu solicitud fue guardada.");
         setCallWarning(
@@ -655,7 +641,6 @@ const Agentes = () => {
             {callError ? <div style={{ color: "#fda4af", fontSize: 13, marginBottom: 8 }}>{callError}</div> : null}
             {callWarning ? <div style={{ color: "#fcd34d", fontSize: 13, marginBottom: 8 }}>{callWarning}</div> : null}
             {callSuccess ? <div style={{ color: "#86efac", fontSize: 13, marginBottom: 8 }}>{callSuccess}</div> : null}
-            {callMeta ? <div style={{ color: "#7dd3fc", fontSize: 12, marginBottom: 8 }}>{callMeta}</div> : null}
 
             <button
               type="submit"
@@ -675,11 +660,6 @@ const Agentes = () => {
             >
               {callLoading ? (isEn ? "Sending..." : "Enviando...") : (isEn ? "Receive Call" : "Recibir llamada")}
             </button>
-            <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 8 }}>
-              {isEn
-                ? "Trial note: Twilio trial can call only verified numbers."
-                : "Nota trial: Twilio en modo prueba solo llama a numeros verificados."}
-            </div>
           </form>
 
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", flex: "0 1 390px", width: "100%", maxWidth: 390 }}>
