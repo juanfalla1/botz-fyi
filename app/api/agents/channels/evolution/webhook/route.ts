@@ -539,6 +539,16 @@ function isPresent(v: string): boolean {
   return Boolean(String(v || "").trim());
 }
 
+function sanitizeCustomerDisplayName(raw: string): string {
+  const v = String(raw || "").trim().replace(/\s+/g, " ");
+  if (!v) return "";
+  const lc = v.toLowerCase();
+  if (["hola", "cliente", "usuario", "user", "amigo", "amiga"].includes(lc)) return "";
+  if (/^\+?\d+$/.test(v)) return "";
+  if (v.length < 2) return "";
+  return v;
+}
+
 function extractQuantity(text: string): number {
   const t = String(text || "");
   const m1 = [...t.matchAll(/(?:cantidad|qty|x)\s*[:=]?\s*(\d{1,5})/gi)];
@@ -1228,7 +1238,7 @@ export async function POST(req: Request) {
 
     const { data: existingConv } = await supabase
       .from("agent_conversations")
-      .select("transcript,metadata")
+      .select("transcript,metadata,contact_name")
       .eq("agent_id", agent.id)
       .eq("channel", "whatsapp")
       .or(inboundFilter)
@@ -1304,6 +1314,49 @@ export async function POST(req: Request) {
     let autoQuoteBundle: null | { fileName: string; pdfBase64: string; draftIds: string[] } = null;
     const tenantId = String((agent as any)?.tenant_id || "").trim();
 
+    const inboundName = sanitizeCustomerDisplayName(inbound.pushName || "");
+    let knownCustomerName = sanitizeCustomerDisplayName(String(nextMemory.customer_name || ""))
+      || sanitizeCustomerDisplayName(String((existingConv as any)?.contact_name || ""))
+      || inboundName;
+
+    if (!knownCustomerName) {
+      try {
+        const { data: crmContact } = await supabase
+          .from("agent_crm_contacts")
+          .select("name")
+          .eq("created_by", ownerId)
+          .or(inboundFilter.replace(/contact_phone/g, "phone"))
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        knownCustomerName = sanitizeCustomerDisplayName(String((crmContact as any)?.name || ""));
+      } catch {
+        // ignore missing table or transient query errors
+      }
+    }
+
+    if (!knownCustomerName) {
+      try {
+        const { data: nameDrafts } = await supabase
+          .from("agent_quote_drafts")
+          .select("customer_name,customer_phone")
+          .eq("created_by", ownerId)
+          .eq("agent_id", String(agent.id))
+          .order("created_at", { ascending: false })
+          .limit(30);
+        const list = Array.isArray(nameDrafts) ? nameDrafts : [];
+        const mine = list.find((d: any) => {
+          const p = normalizePhone(String(d?.customer_phone || ""));
+          return p === inboundPhoneNorm || phoneTail10(p) === inboundPhoneTail;
+        });
+        knownCustomerName = sanitizeCustomerDisplayName(String((mine as any)?.customer_name || ""));
+      } catch {
+        // ignore
+      }
+    }
+
+    if (knownCustomerName) nextMemory.customer_name = knownCustomerName;
+
     const countCatalogRows = async (pricedOnly = false): Promise<number> => {
       let ownerQuery = supabase
         .from("agent_product_catalog")
@@ -1350,7 +1403,9 @@ export async function POST(req: Request) {
     };
 
     if (isGreetingIntent(inbound.text)) {
-      reply = "Hola, soy Ava, tu asistente virtual de Avanza Group";
+      reply = knownCustomerName
+        ? `Hola ${knownCustomerName}, soy Ava, tu asistente virtual de Avanza Group. ¿Qué necesitas hoy?`
+        : "Hola, soy Ava, tu asistente virtual de Avanza Group. ¿Qué necesitas hoy?";
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
