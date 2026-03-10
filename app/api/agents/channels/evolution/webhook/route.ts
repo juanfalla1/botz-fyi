@@ -608,6 +608,14 @@ function shouldAutoQuote(text: string): boolean {
   return asksQuote && (asksDelivery || asksMulti);
 }
 
+function isQuoteStarterIntent(text: string): boolean {
+  const t = normalizeText(text);
+  const asksQuote = /(cotiz|cotizacion|cotizar|presupuesto)/.test(t);
+  const genericProduct = /(balanza|producto|equipo|instrumento)/.test(t);
+  const hasConcreteRef = /\b\d{2,}\b/.test(t) || /(explorer|adventurer|koehler|modelo|referencia)/.test(t);
+  return asksQuote && (genericProduct || !hasConcreteRef);
+}
+
 function isQuoteProceedIntent(text: string): boolean {
   const t = normalizeText(text);
   return /(damela|dámela|enviamela|enviamela|hazla|generala|genérala|cotizala|cotízala|adelante|si por favor|si, por favor|dale|de una)/.test(t);
@@ -1297,6 +1305,7 @@ export async function POST(req: Request) {
     let handledByProductLookup = false;
     let handledByRecommendation = false;
     let handledByTechSheet = false;
+    let handledByQuoteStarter = false;
     let handledByRecall = false;
     let handledByQuoteIntake = false;
     let sentQuotePdf = false;
@@ -1703,7 +1712,30 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && isQuantityUpdateIntent(inbound.text)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && isQuoteStarterIntent(inbound.text)) {
+      try {
+        const priced = await fetchCatalogRows("name,base_price_usd", 12, true);
+        const names = (Array.isArray(priced) ? priced : [])
+          .map((p: any) => String(p?.name || "").trim())
+          .filter(Boolean)
+          .slice(0, 4);
+
+        reply = names.length
+          ? [
+              "Claro. Para cotizar de una, dime modelo exacto y cantidad.",
+              `Opciones rápidas: ${names.join("; ")}.`,
+              "Ejemplo: Explorer 220, 2 unidades.",
+            ].join("\n")
+          : "Claro. Para cotizar de una, dime modelo exacto y cantidad (ejemplo: Explorer 220, 2 unidades).";
+
+        handledByQuoteStarter = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      } catch (starterErr: any) {
+        console.warn("[evolution-webhook] quote_starter_failed", starterErr?.message || starterErr);
+      }
+    }
+
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && isQuantityUpdateIntent(inbound.text)) {
       try {
         const requestedQty = extractQuantity(inbound.text);
         const memoryDraftId = String(previousMemory?.last_quote_draft_id || "").trim();
@@ -1949,7 +1981,7 @@ export async function POST(req: Request) {
       isContactInfoBundle(inbound.text) &&
       shouldAutoQuote(`${recentUserContext}\n${inbound.text}`);
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory)) {
       try {
         const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency", 80, true);
 
@@ -2131,7 +2163,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!autoQuoteDocs.length && !handledByGreeting && !handledByRecall && !handledByTechSheet && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteIntake) {
+    if (!autoQuoteDocs.length && !handledByGreeting && !handledByRecall && !handledByTechSheet && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteStarter && !handledByQuoteIntake) {
       const catalogRows = await fetchCatalogRows("name,brand,category", 80, false);
 
       const catalogNames = Array.isArray(catalogRows)
@@ -2146,6 +2178,7 @@ export async function POST(req: Request) {
         String(cfg?.company_desc || ""),
         String(cfg?.system_prompt || cfg?.important_instructions || ""),
         "Responde en espanol claro y profesional, con mensajes cortos de WhatsApp.",
+        "Regla de brevedad estricta: 2-4 lineas, maximo 1 pregunta por mensaje, sin formularios largos ni listas extensas salvo que el cliente pida un listado.",
         "Regla estricta de canal: toda entrega de informacion, fichas tecnicas, imagenes y cotizaciones debe ser por este mismo WhatsApp; no ofrecer envio por correo salvo que el cliente lo pida explicitamente.",
         "Regla estricta: solo puedes mencionar, recomendar o cotizar productos presentes en el catalogo cargado abajo. Si el usuario pide algo fuera de catalogo, dilo explicitamente y pide elegir un producto existente.",
         "Nunca afirmes vender carros/vehiculos; solo equipos de pesaje/laboratorio del catalogo.",
@@ -2167,7 +2200,7 @@ export async function POST(req: Request) {
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         temperature: 0.2,
-        max_tokens: 280,
+        max_tokens: 160,
         messages: allMessages as any,
       });
 
