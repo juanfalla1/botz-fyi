@@ -1942,8 +1942,11 @@ export async function POST(req: Request) {
           }
 
           if (pool.length) {
-            const names = pool.map((r: any) => String(r?.name || "").trim()).filter(Boolean).slice(0, 10);
-            const extra = Math.max(0, pool.length - names.length);
+            const uniqueNames = uniqueNormalizedStrings(
+              pool.map((r: any) => String(r?.name || "").trim()).filter(Boolean)
+            );
+            const names = uniqueNames.slice(0, 10);
+            const extra = Math.max(0, uniqueNames.length - names.length);
             const categoryLabel = categoryIntent.replace(/_/g, " ");
             nextMemory.last_category_intent = categoryIntent;
             reply = [
@@ -2016,6 +2019,9 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && isProductLookupIntent(inbound.text)) {
       try {
+        if (isTechnicalSheetIntent(inbound.text) || isProductImageIntent(inbound.text) || Boolean(detectTechResendIntent(inbound.text))) {
+          // Technical requests are handled by dedicated tech-sheet flow.
+        } else {
         const catalog = await fetchCatalogRows("id,name,brand,category,base_price_usd,source_payload,product_url", 160, false);
         const commercialCatalog = (Array.isArray(catalog) ? catalog : []).filter((r: any) => isCommercialCatalogRow(r));
         const scopedCategory = normalizeText(String(detectCatalogCategoryIntent(inbound.text) || previousMemory?.last_category_intent || ""));
@@ -2033,6 +2039,7 @@ export async function POST(req: Request) {
           handledByProductLookup = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
+        }
       } catch (lookupErr: any) {
         console.warn("[evolution-webhook] product_lookup_failed", lookupErr?.message || lookupErr);
       }
@@ -2040,6 +2047,9 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByProductLookup && !handledByHistory && isPriceIntent(inbound.text)) {
       try {
+        if (isTechnicalSheetIntent(inbound.text) || isProductImageIntent(inbound.text) || Boolean(detectTechResendIntent(inbound.text))) {
+          // Technical requests are handled by dedicated tech-sheet flow.
+        } else {
         const pricedProducts = await fetchCatalogRows("id,name,base_price_usd,category,source_payload,product_url", 40, true);
 
         const list = (Array.isArray(pricedProducts) ? pricedProducts : []).filter((r: any) => isCommercialCatalogRow(r));
@@ -2069,6 +2079,7 @@ export async function POST(req: Request) {
 
         handledByPricing = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
       } catch (priceErr: any) {
         console.warn("[evolution-webhook] pricing_lookup_failed", priceErr?.message || priceErr);
       }
@@ -2076,6 +2087,9 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && isRecommendationIntent(inbound.text)) {
       try {
+        if (isTechnicalSheetIntent(inbound.text) || isProductImageIntent(inbound.text) || Boolean(detectTechResendIntent(inbound.text))) {
+          // Technical requests are handled by dedicated tech-sheet flow.
+        } else {
         const products = await fetchCatalogRows("id,name,brand,category,source_payload,product_url", 120, false);
 
         const list = (Array.isArray(products) ? products : []).filter((r: any) => isCommercialCatalogRow(r));
@@ -2105,6 +2119,7 @@ export async function POST(req: Request) {
 
         handledByRecommendation = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
       } catch (recErr: any) {
         console.warn("[evolution-webhook] recommendation_failed", recErr?.message || recErr);
       }
@@ -2144,6 +2159,9 @@ export async function POST(req: Request) {
         );
         const scopedList = preferredTechCategory ? scopeCatalogRows(list as any, preferredTechCategory) : list;
         const listForTech = scopedList.length ? scopedList : list;
+        const rememberedRow = rememberedTechProduct
+          ? findCatalogProductByName(list, rememberedTechProduct)
+          : null;
         const askList = isTechSheetCatalogListIntent(inbound.text);
 
         if (askList) {
@@ -2198,11 +2216,33 @@ export async function POST(req: Request) {
           handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         } else {
-        const techSourceText = `${recentUserContextForCatalog}\n${techInboundText}`.trim();
-        let matched = pickBestCatalogProduct(techSourceText, scopedList as any);
-        if (!matched?.name && nextMemory.last_product_name) {
-          matched = findCatalogProductByName(scopedList, String(nextMemory.last_product_name || ""));
+        if (techResendIntent && rememberedTechProduct && !rememberedRow?.name) {
+          reply = `No pude recuperar el archivo técnico de ${rememberedTechProduct} en este momento. Escríbeme nuevamente el modelo exacto para reenviarlo.`;
+          nextMemory.awaiting_action = "tech_product_selection";
+          handledByTechSheet = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        } else {
+        const modelTokens = extractModelLikeTokens(techInboundText);
+        const explicitTerms = extractCatalogTerms(techInboundText);
+        const hasExplicitProductHint = modelTokens.length > 0 || explicitTerms.length >= 2;
+
+        let matched: any = null;
+        if (!hasExplicitProductHint && rememberedRow?.name) {
+          matched = rememberedRow;
+        } else {
+          const techSourceText = String(techInboundText || "").trim();
+          let candidatePool: any[] = scopedList as any[];
+          if (hasExplicitProductHint) {
+            const scopedNarrowed = filterCatalogByTerms(techInboundText, scopedList as any, preferredTechCategory);
+            if (!scopedNarrowed.length) {
+              const allNarrowed = filterCatalogByTerms(techInboundText, list as any);
+              if (allNarrowed.length) candidatePool = list as any[];
+            }
+          }
+          matched = pickBestCatalogProduct(techSourceText, candidatePool as any);
+          if (!matched?.name && rememberedRow?.name) matched = rememberedRow;
         }
+
         if (matched?.name && !isCatalogMatchConsistent(techInboundText, matched, preferredTechCategory)) {
           matched = null;
         }
@@ -2303,6 +2343,7 @@ export async function POST(req: Request) {
           nextMemory.awaiting_action = "none";
           handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
         }
         }
         }
