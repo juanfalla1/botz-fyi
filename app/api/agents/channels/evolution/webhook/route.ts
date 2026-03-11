@@ -1178,6 +1178,24 @@ function isContextResetIntent(text: string): boolean {
   return /(reiniciar contexto|resetear contexto|reset context|limpiar contexto|borrar contexto|olvida contexto|olvida todo|empecemos de nuevo|empezar de nuevo)/.test(t);
 }
 
+function hasConcreteProductHint(text: string): boolean {
+  const t = normalizeCatalogQueryText(text || "");
+  if (!t) return false;
+
+  if (extractModelLikeTokens(t).length > 0) return true;
+
+  if (/\b(sjx|spx|stx|px\d{2,6}[a-z]?|ax\d{2,6}[a-z]?|mb\d{2,6}|st\d{2,6}|pr\d{2,6})\b/.test(t)) {
+    return true;
+  }
+
+  const hasFamily = /\b(scout|pioneer|adventurer|explorer|defender|ranger|valor|frontier|starter)\b/.test(t);
+  if (!hasFamily) return false;
+
+  const generic = new Set(["balanza", "balanzas", "bascula", "basculas", "electroquimica", "analizador", "humedad", "equipo", "equipos", "laboratorio"]);
+  const terms = extractCatalogTerms(t).filter((x) => !generic.has(x));
+  return terms.length >= 2;
+}
+
 function extractModelLikeTokens(text: string): string[] {
   return Array.from(
     new Set(
@@ -1246,7 +1264,7 @@ function filterCatalogByTerms(text: string, rows: any[], forcedCategory?: string
 function isProductLookupIntent(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
-  return /(tienen|tienes|manejan|venden|disponible|disponibilidad|hay|referencia|modelo|explorer|adventurer|balanza|analizador|centrifuga)/.test(t);
+  return /(tienen|tienes|tiene|manejan|venden|disponible|disponibilidad|hay|referencia|modelo|explorer|adventurer|balanza|analizador|centrifuga)/.test(t);
 }
 
 function isStrictCatalogIntent(text: string): boolean {
@@ -2006,11 +2024,9 @@ export async function POST(req: Request) {
       const categoryIntent = detectCatalogCategoryIntent(inbound.text)
         || (isCategoryFollowUpIntent(inbound.text) ? rememberedCategoryIntent : "");
       if (categoryIntent) {
-        const userShortText = normalizeCatalogQueryText(inbound.text);
-        const looksLikeConcreteModel =
-          extractModelLikeTokens(userShortText).length > 0 ||
-          /\b(sjx|spx|stx|px|ax|mb120|mb90|mb62|mb32|st2\d{2}|st\d{2,4})\b/.test(userShortText);
-        if (awaitingAction === "tech_product_selection" && looksLikeConcreteModel) {
+        const looksLikeConcreteModel = hasConcreteProductHint(inbound.text);
+        const shouldSkipCategorySummary = looksLikeConcreteModel;
+        if (shouldSkipCategorySummary) {
           // Do not hijack technical selection with category summary.
         } else {
         try {

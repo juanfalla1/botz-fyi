@@ -1,0 +1,570 @@
+.next/dev/types/validator.ts(540,31): error TS2344: Type 'typeof import("C:/Users/USUARIO/botz-fyi/app/api/agents/conversations/[agentId]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/agents/conversations/[agentId]">'.
+  Types of property 'GET' are incompatible.
+    Type '(req: Request, { params }: { params: { agentId: string; }; }) => Promise<NextResponse<{ ok: boolean; data: any[]; }> | NextResponse<{ ok: boolean; error: any; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ agentId: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ agentId: string; }>; }' is not assignable to type '{ params: { agentId: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'agentId' is missing in type 'Promise<{ agentId: string; }>' but required in type '{ agentId: string; }'.
+.next/types/app/api/agents/conversations/[agentId]/route.ts(52,7): error TS2344: Type '{ __tag__: "GET"; __param_position__: "second"; __param_type__: { params: { agentId: string; }; }; }' does not satisfy the constraint 'ParamCheck<RouteContext>'.
+  The types of '__param_type__.params' are incompatible between these types.
+    Type '{ agentId: string; }' is missing the following properties from type 'Promise<any>': then, catch, finally, [Symbol.toStringTag]
+.next/types/app/api/agents/conversations/[agentId]/route.ts(247,7): error TS2344: Type '{ __tag__: "DELETE"; __param_position__: "second"; __param_type__: { params: { agentId: string; conversationId: string; }; }; }' does not satisfy the constraint 'ParamCheck<RouteContext>'.
+  The types of '__param_type__.params' are incompatible between these types.
+    Type '{ agentId: string; conversationId: string; }' is missing the following properties from type 'Promise<any>': then, catch, finally, [Symbol.toStringTag]
+.next/types/validator.ts(531,31): error TS2344: Type 'typeof import("C:/Users/USUARIO/botz-fyi/app/api/agents/conversations/[agentId]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/agents/conversations/[agentId]">'.
+  Types of property 'GET' are incompatible.
+    Type '(req: Request, { params }: { params: { agentId: string; }; }) => Promise<NextResponse<{ ok: boolean; data: any[]; }> | NextResponse<{ ok: boolean; error: any; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ agentId: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ agentId: string; }>; }' is not assignable to type '{ params: { agentId: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'agentId' is missing in type 'Promise<{ agentId: string; }>' but required in type '{ agentId: string; }'.
+app/start/agents/prueba.tsx(2,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(3,16): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+app/start/agents/prueba.tsx(7,16): error TS7006: Parameter 'N' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(10,16): error TS7006: Parameter 'N' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(10,19): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(18,38): error TS2339: Property 'ZoneAwarePromise' does not exist on type '{}'.
+app/start/agents/prueba.tsx(31,24): error TS7005: Variable 'S' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(33,33): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(33,36): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(35,29): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'typeof globalThis'.
+app/start/agents/prueba.tsx(38,29): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'typeof globalThis'.
+  No index signature with a parameter of type 'string' was found on type 'typeof globalThis'.
+app/start/agents/prueba.tsx(41,21): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(55,25): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(55,28): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(61,17): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(66,25): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(75,18): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(80,18): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(80,21): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(86,44): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(89,17): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(89,20): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(89,23): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(89,26): error TS7006: Parameter 'P' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(91,21): error TS2322: Type '{ parent: null; zone: N; }' is not assignable to type 'null'.
+app/start/agents/prueba.tsx(97,21): error TS2322: Type 'null' is not assignable to type '{ parent: null; zone: N; }'.
+app/start/agents/prueba.tsx(100,24): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(100,35): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(100,38): error TS7006: Parameter 'P' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(102,21): error TS2322: Type '{ parent: null; zone: N; }' is not assignable to type 'null'.
+app/start/agents/prueba.tsx(113,21): error TS2322: Type 'null' is not assignable to type '{ parent: null; zone: N; }'.
+app/start/agents/prueba.tsx(116,21): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(116,24): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(116,27): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(125,26): error TS7005: Variable 'S' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(128,21): error TS2322: Type '{ parent: null; zone: N; }' is not assignable to type 'null'.
+app/start/agents/prueba.tsx(150,21): error TS2322: Type 'null' is not assignable to type '{ parent: null; zone: N; }'.
+app/start/agents/prueba.tsx(154,26): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(164,21): error TS7034: Variable 'o' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(165,36): error TS7005: Variable 'o' implicitly has an 'any[]' type.
+app/start/agents/prueba.tsx(174,45): error TS7005: Variable 'o' implicitly has an 'any[]' type.
+app/start/agents/prueba.tsx(178,31): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(178,34): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(178,37): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(178,40): error TS7006: Parameter 'P' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(181,31): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(181,34): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(181,37): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(181,40): error TS7006: Parameter 'P' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(181,43): error TS7006: Parameter 'q' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(184,31): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(184,34): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(184,37): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(184,40): error TS7006: Parameter 'P' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(184,43): error TS7006: Parameter 'q' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(187,24): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(205,30): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(205,33): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(217,21): error TS7006: Parameter 'N' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(217,24): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(217,27): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(217,30): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(218,26): error TS7006: Parameter 'N' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(218,29): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(218,32): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(218,35): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(219,24): error TS7006: Parameter 'N' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(219,27): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(219,30): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(219,33): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(219,36): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(219,39): error TS7006: Parameter 'P' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(220,24): error TS7006: Parameter 'N' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(220,27): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(220,30): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(220,33): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(255,9): error TS7022: '_hasTaskDlgtOwner' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+app/start/agents/prueba.tsx(258,21): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(258,24): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(258,27): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(302,14): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(302,17): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(305,19): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(305,22): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(305,25): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(308,16): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(308,19): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(308,22): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(308,25): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(308,28): error TS7006: Parameter 'P' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(311,21): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(311,24): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(314,22): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(314,25): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(328,20): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(328,23): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(328,26): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(328,29): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(331,20): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(331,23): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(342,17): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(342,20): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(349,26): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(349,29): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(351,21): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ microTask: number; macroTask: number; eventTask: number; }'.
+app/start/agents/prueba.tsx(352,21): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ microTask: number; macroTask: number; eventTask: number; }'.
+app/start/agents/prueba.tsx(378,21): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(378,24): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(378,27): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(378,30): error TS7006: Parameter 'p' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(378,33): error TS7006: Parameter 'P' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(378,36): error TS7006: Parameter 'q' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(392,27): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(392,30): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(392,33): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(410,18): error TS2554: Expected 3 arguments, but got 2.
+app/start/agents/prueba.tsx(412,23): error TS7006: Parameter '_' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(412,26): error TS7006: Parameter 'n' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(412,29): error TS7006: Parameter 'o' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(427,23): error TS2531: Object is possibly 'null'.
+app/start/agents/prueba.tsx(432,66): error TS7034: Variable 'd' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(432,82): error TS7034: Variable 'M' implicitly has type 'any' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(433,16): error TS7006: Parameter 'N' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(434,13): error TS7005: Variable 'M' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(434,18): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'typeof globalThis'.
+app/start/agents/prueba.tsx(434,32): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'typeof globalThis'.
+app/start/agents/prueba.tsx(435,9): error TS7005: Variable 'M' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(440,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'typeof globalThis'.
+app/start/agents/prueba.tsx(442,16): error TS7006: Parameter 'N' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(449,25): error TS7005: Variable 'd' implicitly has an 'any[]' type.
+app/start/agents/prueba.tsx(456,44): error TS2554: Expected 0 arguments, but got 1.
+app/start/agents/prueba.tsx(483,35): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'typeof N'.
+app/start/agents/prueba.tsx(512,9): error TS7034: Variable 'S' implicitly has type 'any' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(520,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'typeof globalThis'.
+app/start/agents/prueba.tsx(521,11): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+app/start/agents/prueba.tsx(521,34): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+app/start/agents/prueba.tsx(523,14): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+app/start/agents/prueba.tsx(524,7): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+app/start/agents/prueba.tsx(538,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(538,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(539,12): error TS2304: Cannot find name 'Zone'.
+app/start/agents/prueba.tsx(541,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(541,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(541,19): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(541,22): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(541,25): error TS7006: Parameter 'i' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(542,12): error TS2304: Cannot find name 'Zone'.
+app/start/agents/prueba.tsx(546,5): error TS7022: 'be' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+app/start/agents/prueba.tsx(549,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(549,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(554,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(554,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(565,36): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(574,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(577,17): error TS2304: Cannot find name 'WorkerGlobalScope'.
+app/start/agents/prueba.tsx(577,60): error TS2304: Cannot find name 'WorkerGlobalScope'.
+app/start/agents/prueba.tsx(583,19): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(587,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(588,15): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(589,13): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(592,25): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(595,26): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(599,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(599,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(599,19): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(610,12): error TS18048: 't' is possibly 'undefined'.
+app/start/agents/prueba.tsx(611,12): error TS18048: 't' is possibly 'undefined'.
+app/start/agents/prueba.tsx(612,13): error TS18048: 't' is possibly 'undefined'.
+app/start/agents/prueba.tsx(613,13): error TS18048: 't' is possibly 'undefined'.
+app/start/agents/prueba.tsx(615,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(616,15): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(617,5): error TS18048: 't' is possibly 'undefined'.
+app/start/agents/prueba.tsx(622,16): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'PropertyDescriptor'.
+app/start/agents/prueba.tsx(622,40): error TS2339: Property 'removeEventListener' does not exist on type 'PropertyDescriptor'.
+app/start/agents/prueba.tsx(624,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'PropertyDescriptor'.
+app/start/agents/prueba.tsx(625,37): error TS2339: Property 'addEventListener' does not exist on type 'PropertyDescriptor'.
+app/start/agents/prueba.tsx(628,5): error TS18048: 't' is possibly 'undefined'.
+app/start/agents/prueba.tsx(633,17): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'PropertyDescriptor'.
+app/start/agents/prueba.tsx(639,24): error TS18048: 't' is possibly 'undefined'.
+app/start/agents/prueba.tsx(639,24): error TS2684: The 'this' context of type '((v: any) => void) | undefined' is not assignable to method's 'this' of type '(this: PropertyDescriptor | undefined, args_0: any) => void'.
+  Type 'undefined' is not assignable to type '(this: PropertyDescriptor | undefined, args_0: any) => void'.
+app/start/agents/prueba.tsx(639,24): error TS18048: 't.set' is possibly 'undefined'.
+app/start/agents/prueba.tsx(640,24): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'PropertyDescriptor'.
+  No index signature with a parameter of type 'string' was found on type 'PropertyDescriptor'.
+app/start/agents/prueba.tsx(640,49): error TS2339: Property 'removeAttribute' does not exist on type 'PropertyDescriptor'.
+app/start/agents/prueba.tsx(646,14): error TS2345: Argument of type 'PropertyDescriptor | undefined' is not assignable to parameter of type 'PropertyDescriptor & ThisType<any>'.
+  Type 'undefined' is not assignable to type 'PropertyDescriptor & ThisType<any>'.
+    Type 'undefined' is not assignable to type 'PropertyDescriptor'.
+app/start/agents/prueba.tsx(649,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(649,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(649,19): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(662,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(712,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(712,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(712,19): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(733,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(733,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(733,19): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(734,9): error TS7034: Variable 't' implicitly has type 'any' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(735,16): error TS7006: Parameter 'u' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(741,9): error TS7005: Variable 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(744,18): error TS7006: Parameter 'u' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(744,32): error TS7006: Parameter 'E' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(744,35): error TS7006: Parameter 'T' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(746,66): error TS2554: Expected 5 arguments, but got 4.
+app/start/agents/prueba.tsx(750,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(750,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(765,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(768,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(778,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(778,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(783,5): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(784,5): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(785,5): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(787,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(787,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(787,19): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(787,22): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(796,22): error TS7006: Parameter 'y' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(796,25): error TS7006: Parameter 'h' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(796,28): error TS7006: Parameter 'j' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(800,64): error TS7006: Parameter 'g' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(815,16): error TS7006: Parameter 'y' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(815,19): error TS7006: Parameter 'h' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(815,22): error TS7006: Parameter 'j' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(820,19): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(844,22): error TS7006: Parameter 'y' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(845,18): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(847,22): error TS7006: Parameter 'y' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(848,18): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(850,16): error TS7006: Parameter 'y' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(850,19): error TS7006: Parameter 'h' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(866,128): error TS7034: Variable 'W' implicitly has type 'any' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(868,20): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(868,23): error TS7006: Parameter 'l' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(879,26): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(880,20): error TS2339: Property 'isExisting' does not exist on type '{}'.
+app/start/agents/prueba.tsx(881,33): error TS2339: Property 'target' does not exist on type '{}'.
+app/start/agents/prueba.tsx(881,43): error TS2339: Property 'eventName' does not exist on type '{}'.
+app/start/agents/prueba.tsx(881,56): error TS2339: Property 'capture' does not exist on type '{}'.
+app/start/agents/prueba.tsx(881,75): error TS2339: Property 'options' does not exist on type '{}'.
+app/start/agents/prueba.tsx(883,26): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(885,25): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(904,26): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(905,29): error TS2339: Property 'target' does not exist on type '{}'.
+app/start/agents/prueba.tsx(905,39): error TS2339: Property 'eventName' does not exist on type '{}'.
+app/start/agents/prueba.tsx(905,62): error TS2339: Property 'options' does not exist on type '{}'.
+app/start/agents/prueba.tsx(907,26): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(908,20): error TS7005: Variable 'W' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(908,29): error TS2339: Property 'target' does not exist on type '{}'.
+app/start/agents/prueba.tsx(908,39): error TS2339: Property 'eventName' does not exist on type '{}'.
+app/start/agents/prueba.tsx(908,62): error TS2339: Property 'options' does not exist on type '{}'.
+app/start/agents/prueba.tsx(910,26): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(915,27): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(915,30): error TS7006: Parameter 'l' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(920,18): error TS2304: Cannot find name 'Zone'.
+app/start/agents/prueba.tsx(922,20): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(932,26): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(932,29): error TS7006: Parameter 'l' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(932,32): error TS7006: Parameter 'v' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(932,35): error TS7006: Parameter 'C' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(934,25): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(939,36): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(941,36): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(945,40): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(958,71): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(962,26): error TS2304: Cannot find name 'Zone'.
+app/start/agents/prueba.tsx(963,26): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(965,22): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(978,55): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(981,19): error TS2339: Property 'options' does not exist on type '{}'.
+app/start/agents/prueba.tsx(982,26): error TS2339: Property 'options' does not exist on type '{}'.
+app/start/agents/prueba.tsx(983,19): error TS2339: Property 'target' does not exist on type '{}'.
+app/start/agents/prueba.tsx(984,19): error TS2339: Property 'capture' does not exist on type '{}'.
+app/start/agents/prueba.tsx(985,19): error TS2339: Property 'eventName' does not exist on type '{}'.
+app/start/agents/prueba.tsx(986,19): error TS2339: Property 'isExisting' does not exist on type '{}'.
+app/start/agents/prueba.tsx(988,27): error TS2339: Property 'taskData' does not exist on type '{ useG: boolean; }'.
+app/start/agents/prueba.tsx(989,26): error TS2339: Property 'options' does not exist on type '{}'.
+app/start/agents/prueba.tsx(992,23): error TS2339: Property 'options' does not exist on type '{}'.
+app/start/agents/prueba.tsx(999,23): error TS2339: Property 'target' does not exist on type '{}'.
+app/start/agents/prueba.tsx(1000,27): error TS2339: Property 'taskData' does not exist on type '{ useG: boolean; }'.
+app/start/agents/prueba.tsx(1001,26): error TS2339: Property 'options' does not exist on type '{}'.
+app/start/agents/prueba.tsx(1025,21): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(1066,25): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(1114,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1114,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1129,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(1130,11): error TS2554: Expected 2 arguments, but got 1.
+app/start/agents/prueba.tsx(1131,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(1136,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1136,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1138,80): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1138,94): error TS7006: Parameter 'i' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1138,97): error TS7006: Parameter 'u' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1144,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1144,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1145,40): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1145,54): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1145,57): error TS7006: Parameter 'i' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1146,9): error TS2304: Cannot find name 'Zone'.
+app/start/agents/prueba.tsx(1151,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1151,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1151,19): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1151,22): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1152,9): error TS7034: Variable 'i' implicitly has type 'any' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(1153,9): error TS7034: Variable 'u' implicitly has type 'any' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(1157,16): error TS7006: Parameter 'D' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1163,17): error TS7005: Variable 'i' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1168,16): error TS7006: Parameter 'D' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1170,16): error TS7005: Variable 'u' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1172,18): error TS7006: Parameter 'D' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1172,32): error TS7006: Parameter 'd' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1172,35): error TS7006: Parameter 'w' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1185,26): error TS2339: Property 'handle' does not exist on type '{ isRefreshable: boolean; isPeriodic: boolean; delay: any; args: any; }'.
+app/start/agents/prueba.tsx(1185,37): error TS2339: Property 'handleId' does not exist on type '{ isRefreshable: boolean; isPeriodic: boolean; delay: any; args: any; }'.
+app/start/agents/prueba.tsx(1186,45): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(1195,17): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/start/agents/prueba.tsx(1211,18): error TS7006: Parameter 'D' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1211,32): error TS7006: Parameter 'd' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1211,35): error TS7006: Parameter 'w' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1213,22): error TS7053: Element implicitly has an 'any' type because expression of type 'number' can't be used to index type '{}'.
+  No index signature with a parameter of type 'number' was found on type '{}'.
+app/start/agents/prueba.tsx(1214,16): error TS7053: Element implicitly has an 'any' type because expression of type 'number' can't be used to index type '{}'.
+  No index signature with a parameter of type 'number' was found on type '{}'.
+app/start/agents/prueba.tsx(1220,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1220,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1227,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1227,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1228,9): error TS2304: Cannot find name 'Zone'.
+app/start/agents/prueba.tsx(1246,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1246,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1249,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1249,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1249,19): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1252,22): error TS7006: Parameter 'u' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1256,21): error TS7006: Parameter 'u' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1258,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1258,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1258,19): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1258,22): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1264,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1267,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1267,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1268,22): error TS2304: Cannot find name 'Zone'.
+app/start/agents/prueba.tsx(1271,9): error TS7034: Variable 't' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(1274,13): error TS7005: Variable 't' implicitly has an 'any[]' type.
+app/start/agents/prueba.tsx(1275,13): error TS7034: Variable 'u' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(1276,36): error TS7005: Variable 'u' implicitly has an 'any[]' type.
+app/start/agents/prueba.tsx(1281,25): error TS2554: Expected 4 arguments, but got 3.
+app/start/agents/prueba.tsx(1284,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1285,30): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1290,30): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1297,45): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1303,33): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1303,36): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1307,23): error TS7006: Parameter 'E' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1307,26): error TS7006: Parameter 'T' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1307,29): error TS7006: Parameter 'm' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1307,44): error TS7006: Parameter 'D' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1307,47): error TS7006: Parameter 'd' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1314,36): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1314,39): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1314,42): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1321,41): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1321,44): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1321,47): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1326,45): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1326,48): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1326,51): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1330,35): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1330,38): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1330,41): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1334,36): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1334,39): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1334,42): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1338,39): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1338,42): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1338,45): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1342,28): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1342,31): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1350,20): error TS7006: Parameter 'd' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1355,24): error TS7006: Parameter 'R' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1370,24): error TS7006: Parameter 'R' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1406,24): error TS7006: Parameter 'R' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1411,50): error TS7006: Parameter 'R' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1411,53): error TS7006: Parameter 'b' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1420,50): error TS7006: Parameter 'R' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1420,53): error TS7006: Parameter 'b' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1436,51): error TS7006: Parameter 'R' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1436,54): error TS7006: Parameter 'b' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1449,35): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1453,46): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1453,49): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1454,20): error TS7006: Parameter 'i' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1455,29): error TS7006: Parameter 'u' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1456,34): error TS7006: Parameter 'T' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1473,39): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1473,42): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1473,45): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1478,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1479,41): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1479,44): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1479,47): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1482,20): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1490,13): error TS7034: Variable 'm' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(1495,30): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1504,25): error TS7005: Variable 'm' implicitly has an 'any[]' type.
+app/start/agents/prueba.tsx(1517,20): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1521,50): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(1524,20): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1527,20): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1530,20): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1539,13): error TS7034: Variable 'g' implicitly has type 'any' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(1543,20): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1543,23): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1544,20): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1554,29): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1563,20): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1563,23): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1563,26): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1567,26): error TS7005: Variable 'g' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1578,96): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'A'.
+app/start/agents/prueba.tsx(1578,105): error TS7005: Variable 'g' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1580,26): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'A'.
+app/start/agents/prueba.tsx(1580,32): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'A'.
+app/start/agents/prueba.tsx(1629,20): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1633,59): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(1640,27): error TS7005: Variable 'm' implicitly has an 'any[]' type.
+app/start/agents/prueba.tsx(1640,43): error TS7005: Variable 'm' implicitly has an 'any[]' type.
+app/start/agents/prueba.tsx(1643,20): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1643,23): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1643,26): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1643,29): error TS7006: Parameter 'l' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1643,32): error TS7006: Parameter 'v' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1668,28): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1671,27): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1676,26): error TS2339: Property 'promise' does not exist on type '{}'.
+app/start/agents/prueba.tsx(1676,44): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1676,47): error TS7006: Parameter 'l' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1677,23): error TS2339: Property 'resolve' does not exist on type '{}'.
+app/start/agents/prueba.tsx(1678,23): error TS2339: Property 'reject' does not exist on type '{}'.
+app/start/agents/prueba.tsx(1683,24): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1699,32): error TS7006: Parameter 'k' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1699,35): error TS7006: Parameter 'Z' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1701,35): error TS7006: Parameter 'I' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1705,27): error TS7006: Parameter 'I' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1715,25): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1716,21): error TS7034: Variable 's' implicitly has type 'any' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(1716,24): error TS7034: Variable 'l' implicitly has type 'any' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(1716,42): error TS7006: Parameter 'Z' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1716,45): error TS7006: Parameter 'L' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1721,28): error TS7006: Parameter 'Z' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1722,21): error TS7005: Variable 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1724,28): error TS7006: Parameter 'Z' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1725,21): error TS7005: Variable 'l' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1732,24): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1733,26): error TS2554: Expected 2 arguments, but got 1.
+app/start/agents/prueba.tsx(1735,31): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1737,35): error TS7006: Parameter 'l' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1741,36): error TS7006: Parameter 'l' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1747,36): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1747,39): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1748,21): error TS7034: Variable 'l' implicitly has type 'any' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(1748,24): error TS7034: Variable 'v' implicitly has type 'any' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(1748,42): error TS7006: Parameter 'I' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1748,45): error TS7006: Parameter 'F' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1752,34): error TS7034: Variable 'L' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/start/agents/prueba.tsx(1757,32): error TS7006: Parameter 'B' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1760,40): error TS7005: Variable 'l' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1762,27): error TS7006: Parameter 'B' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1765,40): error TS7005: Variable 'l' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1765,48): error TS7005: Variable 'v' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1769,25): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+app/start/agents/prueba.tsx(1775,28): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+app/start/agents/prueba.tsx(1775,30): error TS7005: Variable 'L' implicitly has an 'any[]' type.
+app/start/agents/prueba.tsx(1778,25): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1782,17): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'A'.
+app/start/agents/prueba.tsx(1782,24): error TS7005: Variable 'g' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1783,17): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'A'.
+app/start/agents/prueba.tsx(1797,18): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1797,21): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1798,25): error TS7053: Element implicitly has an 'any' type because expression of type 'unique symbol' can't be used to index type 'Function'.
+  Property '[SymbolConstructor.species]' does not exist on type 'Function'.
+app/start/agents/prueba.tsx(1802,24): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'A'.
+app/start/agents/prueba.tsx(1802,35): error TS7005: Variable 'g' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1802,39): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'A'.
+app/start/agents/prueba.tsx(1805,19): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1808,21): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1809,25): error TS7053: Element implicitly has an 'any' type because expression of type 'unique symbol' can't be used to index type 'Function'.
+  Property '[SymbolConstructor.species]' does not exist on type 'Function'.
+app/start/agents/prueba.tsx(1814,24): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'A'.
+app/start/agents/prueba.tsx(1814,35): error TS7005: Variable 'g' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1814,39): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'A'.
+app/start/agents/prueba.tsx(1825,21): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1832,41): error TS7006: Parameter 'v' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1832,44): error TS7006: Parameter 'C' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1833,32): error TS7006: Parameter 'Z' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1833,35): error TS7006: Parameter 'L' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1842,21): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1843,29): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1843,32): error TS7006: Parameter 's' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1853,24): error TS7006: Parameter 'f' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1854,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'PromiseConstructor'.
+app/start/agents/prueba.tsx(1854,58): error TS7005: Variable 'm' implicitly has an 'any[]' type.
+app/start/agents/prueba.tsx(1859,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1860,32): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1866,24): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(1867,25): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(1870,21): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(1875,21): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(1881,27): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+app/start/agents/prueba.tsx(1883,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '() => string'.
+app/start/agents/prueba.tsx(1893,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1893,16): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1893,19): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1893,22): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1893,25): error TS7006: Parameter 'i' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1894,13): error TS2304: Cannot find name 'Zone'.
+app/start/agents/prueba.tsx(1898,21): error TS7006: Parameter 'T' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1898,24): error TS7006: Parameter 'm' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1898,27): error TS7006: Parameter 'D' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1899,55): error TS7006: Parameter 'd' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1916,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1917,29): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1917,32): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1917,35): error TS7006: Parameter 't' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1956,13): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/start/agents/prueba.tsx(1966,5): error TS2741: Property 'NODE_ENV' is missing in type '{ DEBUG: undefined; }' but required in type 'ProcessEnv'.
+app/start/components/InboxView.tsx(92,143): error TS2561: Object literal may only specify known properties, but 'justifyCenter' does not exist in type 'Properties<string | number, string & {}>'. Did you mean to write 'justifyContent'?
+app/start/components/index.ts(2,10): error TS2614: Module '"./DemoForm"' has no exported member 'DemoForm'. Did you mean to use 'import DemoForm from "./DemoForm"' instead?
+app/start/components/index.ts(3,10): error TS2614: Module '"./DemoProgress"' has no exported member 'DemoProgress'. Did you mean to use 'import DemoProgress from "./DemoProgress"' instead?
+app/start/components/index.ts(5,10): error TS2614: Module '"./ChatBox"' has no exported member 'ChatBox'. Did you mean to use 'import ChatBox from "./ChatBox"' instead?
+app/start/services/mortgageCalculator.ts(1,26): error TS2307: Cannot find module '../supabaseClient' or its corresponding type declarations.
+start-page-code.tsx(5,37): error TS2307: Cannot find module './MainLayout' or its corresponding type declarations.
+start-page-code.tsx(6,22): error TS2307: Cannot find module './components/DemoForm' or its corresponding type declarations.
+start-page-code.tsx(7,26): error TS2307: Cannot find module './components/DemoProgress' or its corresponding type declarations.
+start-page-code.tsx(8,34): error TS2307: Cannot find module './components/ChatBox' or its corresponding type declarations.
+start-page-code.tsx(9,26): error TS2307: Cannot find module './components/ChannelsView' or its corresponding type declarations.
+start-page-code.tsx(10,26): error TS2307: Cannot find module './components/HipotecaView' or its corresponding type declarations.
+start-page-code.tsx(11,25): error TS2307: Cannot find module './components/CRMFullView' or its corresponding type declarations.
+start-page-code.tsx(12,29): error TS2307: Cannot find module './components/MetricsFullView' or its corresponding type declarations.
+start-page-code.tsx(13,32): error TS2307: Cannot find module './components/ExecutiveDashboard' or its corresponding type declarations.
+start-page-code.tsx(14,29): error TS2307: Cannot find module './components/ExperienceGuide' or its corresponding type declarations.
+start-page-code.tsx(15,31): error TS2307: Cannot find module './components/LiveSystemMonitor' or its corresponding type declarations.
+start-page-code.tsx(16,33): error TS2307: Cannot find module './components/IntegrationsSection' or its corresponding type declarations.
+start-page-code.tsx(17,25): error TS2307: Cannot find module './components/KanbanBoard' or its corresponding type declarations.
+start-page-code.tsx(18,30): error TS2307: Cannot find module './components/SLAControlCenter' or its corresponding type declarations.
+start-page-code.tsx(19,26): error TS2307: Cannot find module './components/supabaseClient' or its corresponding type declarations.
+start-page-code.tsx(20,23): error TS2307: Cannot find module './components/AuthModal' or its corresponding type declarations.
