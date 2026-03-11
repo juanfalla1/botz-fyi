@@ -1261,6 +1261,68 @@ function filterCatalogByTerms(text: string, rows: any[], forcedCategory?: string
   });
 }
 
+function pickCatalogByVariantText(
+  text: string,
+  catalogRows: any[],
+  variantRows: any[],
+  forcedCategory?: string
+): any | null {
+  const requestedCategory = normalizeText(String(forcedCategory || detectCatalogCategoryIntent(text) || ""));
+  const scopedCatalog = requestedCategory ? scopeCatalogRows(catalogRows || [], requestedCategory) : (catalogRows || []);
+  const sourceCatalog = scopedCatalog.length ? scopedCatalog : (catalogRows || []);
+  if (!sourceCatalog.length || !Array.isArray(variantRows) || !variantRows.length) return null;
+
+  const byCatalogId = new Map<string, any>();
+  for (const row of sourceCatalog) {
+    const id = String(row?.id || "").trim();
+    if (id) byCatalogId.set(id, row);
+  }
+  if (!byCatalogId.size) return null;
+
+  const terms = extractCatalogTerms(text);
+  const modelTokens = extractModelLikeTokens(text);
+  const compactInbound = normalizeCatalogQueryText(text).replace(/[^a-z0-9]+/g, "");
+
+  let best: { row: any; score: number } | null = null;
+  for (const variant of variantRows) {
+    const catalogId = String((variant as any)?.catalog_id || "").trim();
+    const row = byCatalogId.get(catalogId);
+    if (!row) continue;
+
+    const attrs = (variant as any)?.attributes && typeof (variant as any).attributes === "object"
+      ? Object.values((variant as any).attributes as Record<string, any>).map((v) => String(v || "")).join(" ")
+      : String((variant as any)?.attributes || "");
+
+    const blob = `${(variant as any)?.sku || ""} ${(variant as any)?.variant_name || ""} ${(variant as any)?.range_text || ""} ${attrs} ${row?.name || ""}`;
+    const hay = normalizeCatalogQueryText(blob);
+    const hayCompact = hay.replace(/[^a-z0-9]+/g, "");
+
+    let score = 0;
+
+    if (modelTokens.length) {
+      const modelMatches = modelTokens.filter((t) => hay.includes(t));
+      if (!modelMatches.length) continue;
+      score += modelMatches.length * 10;
+      if (modelMatches.some((t) => hayCompact.includes(t))) score += 4;
+    }
+
+    if (compactInbound && hayCompact && compactInbound.includes(hayCompact)) score += 6;
+    if (compactInbound && hayCompact && hayCompact.includes(compactInbound)) score += 6;
+
+    for (const term of terms) {
+      if (hay.includes(term)) score += 3;
+    }
+
+    if (!modelTokens.length && terms.length && score < Math.min(6, terms.length * 3)) {
+      continue;
+    }
+
+    if (!best || score > best.score) best = { row, score };
+  }
+
+  return best?.row || null;
+}
+
 function isProductLookupIntent(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
@@ -1956,6 +2018,30 @@ export async function POST(req: Request) {
       return (Array.isArray(providerRows) ? providerRows : []).filter((r: any) => isAllowedCatalogRow(r));
     };
 
+    const fetchVariantRowsByCatalog = async (catalogRows: any[]) => {
+      const ids = Array.from(
+        new Set((catalogRows || []).map((r: any) => String(r?.id || "").trim()).filter(Boolean))
+      );
+      if (!ids.length) return [] as any[];
+
+      const out: any[] = [];
+      const chunkSize = 150;
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        const { data } = await supabase
+          .from("agent_product_variants")
+          .select("catalog_id,sku,variant_name,range_text,attributes")
+          .in("catalog_id", chunk);
+        if (Array.isArray(data)) out.push(...data);
+      }
+      return out;
+    };
+
+    const findCatalogByVariant = async (queryText: string, catalogRows: any[], forcedCategory?: string) => {
+      const variantRows = await fetchVariantRowsByCatalog(catalogRows);
+      return pickCatalogByVariantText(queryText, catalogRows, variantRows, forcedCategory);
+    };
+
     if (isContextResetIntent(inbound.text)) {
       const keepCustomerName = String(nextMemory.customer_name || "").trim();
       const keepCustomerPhone = String(nextMemory.customer_phone || "").trim();
@@ -2172,7 +2258,11 @@ export async function POST(req: Request) {
         const commercialCatalog = (Array.isArray(catalog) ? catalog : []).filter((r: any) => isCommercialCatalogRow(r));
         const scopedCategory = normalizeText(String(detectCatalogCategoryIntent(inbound.text) || previousMemory?.last_category_intent || ""));
         const scopedCatalog = scopedCategory ? scopeCatalogRows(commercialCatalog as any, scopedCategory) : commercialCatalog;
+        const hasConcreteHint = hasConcreteProductHint(inbound.text);
         let matched = pickBestCatalogProduct(inbound.text, scopedCatalog as any);
+        if (!matched?.name && hasConcreteHint) {
+          matched = await findCatalogByVariant(inbound.text, (scopedCatalog.length ? scopedCatalog : commercialCatalog) as any[], scopedCategory);
+        }
         if (matched?.name && !isCatalogMatchConsistent(inbound.text, matched, scopedCategory)) matched = null;
         if (matched?.name) {
           nextMemory.last_product_name = String(matched.name || "");
@@ -2182,6 +2272,18 @@ export async function POST(req: Request) {
           reply = hasPrice
             ? `Sí, sí tenemos ${String(matched.name)}. Si quieres, te envío de una la cotización con TRM de hoy por este WhatsApp.`
             : `Sí, sí tenemos ${String(matched.name)}. Si quieres, te comparto ficha técnica y opciones disponibles por este WhatsApp.`;
+          handledByProductLookup = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        } else if (hasConcreteHint) {
+          const candidates = uniqueNormalizedStrings(
+            (scopedCatalog.length ? scopedCatalog : commercialCatalog)
+              .map((r: any) => humanCatalogName(String(r?.name || "").trim()))
+              .filter(Boolean),
+            3
+          );
+          reply = candidates.length
+            ? `No encontré una coincidencia exacta para ese modelo en esta base. Prueba con uno de estos nombres exactos: ${candidates.join(" / ")}.`
+            : "No encontré una coincidencia exacta para ese modelo en esta base. Escríbeme el nombre exacto del producto para validarlo.";
           handledByProductLookup = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
@@ -2201,7 +2303,11 @@ export async function POST(req: Request) {
         const list = (Array.isArray(pricedProducts) ? pricedProducts : []).filter((r: any) => isCommercialCatalogRow(r));
         const scopedCategory = normalizeText(String(detectCatalogCategoryIntent(inbound.text) || previousMemory?.last_category_intent || ""));
         const scopedList = scopedCategory ? scopeCatalogRows(list as any, scopedCategory) : list;
+        const hasConcreteHint = hasConcreteProductHint(inbound.text);
         let matched = pickBestCatalogProduct(inbound.text, scopedList as any);
+        if (!matched?.name && hasConcreteHint) {
+          matched = await findCatalogByVariant(inbound.text, (scopedList.length ? scopedList : list) as any[], scopedCategory);
+        }
         if (matched?.name && !isCatalogMatchConsistent(inbound.text, matched, scopedCategory)) matched = null;
 
         if (matched?.name) {
@@ -2390,6 +2496,10 @@ export async function POST(req: Request) {
           }
           matched = pickBestCatalogProduct(techSourceText, candidatePool as any);
           if (!matched?.name && rememberedRow?.name && !hasExplicitProductHint) matched = rememberedRow;
+        }
+
+        if (!matched?.name && hasExplicitProductHint) {
+          matched = await findCatalogByVariant(techInboundText, (scopedList.length ? scopedList : list) as any[], preferredTechCategory);
         }
 
         if (matched?.name && !isCatalogMatchConsistent(techInboundText, matched, preferredTechCategory)) {

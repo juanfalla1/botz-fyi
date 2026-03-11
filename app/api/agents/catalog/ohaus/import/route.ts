@@ -211,7 +211,7 @@ async function fetchHtml(url: string) {
       signal: controller.signal,
       redirect: "follow",
       headers: {
-        "User-Agent": "BotzCatalogBot/1.0 (+https://botz.fyi)",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml",
       },
     });
@@ -341,6 +341,22 @@ export async function POST(req: Request) {
     const linkCategoryMap = new Map<string, string>();
     const allPdfLinks: string[] = [];
     for (const src of categorySources) {
+      const directProductUrl = (() => {
+        try {
+          const parsed = new URL(src.url);
+          parsed.hash = "";
+          const normalized = parsed.toString();
+          return /\/producto\//i.test(normalized) ? normalized : "";
+        } catch {
+          return /\/producto\//i.test(src.url) ? src.url : "";
+        }
+      })();
+
+      if (directProductUrl) {
+        if (!linkCategoryMap.has(directProductUrl)) linkCategoryMap.set(directProductUrl, src.category);
+        continue;
+      }
+
       const categoryHtml = await fetchHtml(src.url);
       const links = extractProductLinks(categoryHtml, src.url);
       for (const l of links) {
