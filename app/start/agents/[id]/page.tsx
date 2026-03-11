@@ -522,9 +522,9 @@ export default function AgentDetailPage() {
   });
 
   useEffect(() => {
-    if (!agentId) return;
+    if (!agentId || authLoading || !user) return;
     fetchAgent();
-  }, [agentId]);
+  }, [agentId, authLoading, user]);
 
   useEffect(() => {
     if (!agentId || typeof window === "undefined") return;
@@ -724,7 +724,9 @@ export default function AgentDetailPage() {
         similarityThreshold: Number(cfg?.brain?.advanced?.similarity_threshold ?? 0.6),
       });
     } catch (e) {
-      console.error(e);
+      if (!(e instanceof AuthRequiredError)) {
+        console.error(e);
+      }
     } finally {
       setLoading(false);
     }

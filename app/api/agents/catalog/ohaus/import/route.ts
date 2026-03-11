@@ -130,6 +130,24 @@ function inferCategoryFromProductUrl(productUrl: string): string {
   return "balanzas";
 }
 
+function resolveCategory(explicitCategory: string, inferredCategory: string, productUrl: string, name: string): string {
+  const explicit = normalizeCategory(explicitCategory || "");
+  const inferred = normalizeCategory(inferredCategory || "");
+  const hay = `${String(productUrl || "")} ${String(name || "")}`.toLowerCase();
+
+  // Strong signals always win over broad source category.
+  if (/(analizador\s*de\s*humedad|\bmb120\b|\bmb90\b|\bmb27\b|\bmb23\b)/i.test(hay)) return "analizador_humedad";
+  if (/electroquim|aquasearcher|\bab\d{2}/i.test(hay)) return inferred.startsWith("electroquimica") ? inferred : "electroquimica";
+  if (/impresora/i.test(hay)) return "impresoras";
+
+  // If explicit category is too broad and inferred is more specific, prefer inferred.
+  if ((explicit === "balanzas" || explicit === "basculas" || explicit === "equipos_laboratorio") && inferred && inferred !== explicit) {
+    return inferred;
+  }
+
+  return explicit || inferred || "balanzas";
+}
+
 function fileNameFromUrl(url: string) {
   try {
     const u = new URL(url);
@@ -348,13 +366,15 @@ export async function POST(req: Request) {
     for (const link of links) {
       try {
         const parsed = await parseProduct(link);
-        const explicitCategory = linkCategoryMap.get(link) || inferCategoryFromProductUrl(link);
+        const explicitCategory = linkCategoryMap.get(link) || "";
+        const inferredCategory = inferCategoryFromProductUrl(link);
+        const finalCategory = resolveCategory(explicitCategory, inferredCategory, parsed.product_url, parsed.name);
         const payload = {
           tenant_id: SYSTEM_TENANT_ID,
           created_by: createdBy,
           provider: "ohaus_colombia",
           brand: "OHAUS",
-          category: explicitCategory,
+          category: finalCategory,
           name: parsed.name,
           slug: parsed.slug,
           product_url: parsed.product_url,
@@ -366,7 +386,12 @@ export async function POST(req: Request) {
           specs_text: parsed.specs_text,
           specs_json: parsed.specs_json,
           datasheet_url: parsed.datasheet_url,
-          source_payload: { ...(parsed.source_payload || {}), category_source: explicitCategory },
+          source_payload: {
+            ...(parsed.source_payload || {}),
+            category_source: explicitCategory || null,
+            category_inferred: inferredCategory || null,
+            category_final: finalCategory,
+          },
           is_active: true,
         };
 
@@ -389,10 +414,10 @@ export async function POST(req: Request) {
           id: catalogRow.id,
           name: catalogRow.name,
           product_url: catalogRow.product_url,
-          category: explicitCategory,
+          category: finalCategory,
           variants: parsed.variants.length,
         });
-        categoryCounts[explicitCategory] = Number(categoryCounts[explicitCategory] || 0) + 1;
+        categoryCounts[finalCategory] = Number(categoryCounts[finalCategory] || 0) + 1;
       } catch (e: any) {
         failed.push({ url: link, error: e?.message || "parse_failed" });
       }

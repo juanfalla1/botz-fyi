@@ -29,6 +29,27 @@ function isAllowedCatalogRow(row: any) {
   return ALLOWED_NAME_KEYS.some((k) => name.includes(k));
 }
 
+function catalogSubcategory(row: any): string {
+  const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  return normalizeText(String((payload as any)?.subcategory || ""));
+}
+
+function isDocumentCatalogRow(row: any): boolean {
+  const category = normalizeText(String(row?.category || ""));
+  const subcategory = catalogSubcategory(row);
+  const name = normalizeText(String(row?.name || ""));
+  const productUrl = normalizeText(String(row?.product_url || ""));
+  if (category === "documentos") return true;
+  if (subcategory.startsWith("documentos")) return true;
+  if (name.includes("datasheet") || name.includes("data sheet") || name.includes("ficha")) return true;
+  if (productUrl.includes(".pdf")) return true;
+  return false;
+}
+
+function isCommercialCatalogRow(row: any): boolean {
+  return isAllowedCatalogRow(row) && !isDocumentCatalogRow(row);
+}
+
 function estimateTokens(text: string) {
   return Math.max(1, Math.ceil(String(text || "").length / 4));
 }
@@ -978,6 +999,19 @@ function isProductLookupIntent(text: string): boolean {
   return /(tienen|tienes|manejan|venden|disponible|disponibilidad|hay|referencia|modelo|explorer|adventurer|balanza|analizador|centrifuga)/.test(t);
 }
 
+function isStrictCatalogIntent(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  return (
+    isProductLookupIntent(t) ||
+    isPriceIntent(t) ||
+    isRecommendationIntent(t) ||
+    isTechnicalSheetIntent(t) ||
+    isProductImageIntent(t) ||
+    Boolean(detectCatalogCategoryIntent(t))
+  );
+}
+
 function findCatalogProductByName(rows: any[], rememberedName: string): any | null {
   const target = normalizeText(rememberedName || "");
   if (!target) return null;
@@ -1586,18 +1620,26 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && !handledByInventory) {
+    if (
+      !handledByGreeting &&
+      !handledByInventory &&
+      !isTechnicalSheetIntent(inbound.text) &&
+      !isProductImageIntent(inbound.text) &&
+      !shouldAutoQuote(inbound.text) &&
+      !isPriceIntent(inbound.text)
+    ) {
       const categoryIntent = detectCatalogCategoryIntent(inbound.text);
       if (categoryIntent) {
         try {
-          const categoryRows = await fetchCatalogRows("name,category", 120, false);
+          const categoryRows = await fetchCatalogRows("name,category,source_payload,product_url", 160, false);
           const allRows = Array.isArray(categoryRows) ? categoryRows : [];
+          const filteredRows = categoryIntent === "documentos"
+            ? allRows.filter((r: any) => isDocumentCatalogRow(r))
+            : allRows.filter((r: any) => isCommercialCatalogRow(r));
 
-          const sameCategory = allRows.filter((r: any) => normalizeText(String(r?.category || "")) === normalizeText(categoryIntent));
-          const fallbackElectro = categoryIntent === "electroquimica"
-            ? allRows.filter((r: any) => normalizeText(String(r?.category || "")).startsWith("electroquimica_"))
-            : [];
-          const pool = sameCategory.length ? sameCategory : fallbackElectro;
+          const sameCategory = filteredRows.filter((r: any) => normalizeText(String(r?.category || "")) === normalizeText(categoryIntent));
+          const groupedSubcategories = filteredRows.filter((r: any) => catalogSubcategory(r).startsWith(`${normalizeText(categoryIntent)}_`));
+          const pool = sameCategory.length ? sameCategory : groupedSubcategories;
 
           if (pool.length) {
             const names = pool.map((r: any) => String(r?.name || "").trim()).filter(Boolean).slice(0, 10);
@@ -1659,8 +1701,9 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && isProductLookupIntent(inbound.text)) {
       try {
-        const catalog = await fetchCatalogRows("id,name,brand,category,base_price_usd", 120, false);
-        const matched = pickBestCatalogProduct(inbound.text, catalog as any);
+        const catalog = await fetchCatalogRows("id,name,brand,category,base_price_usd,source_payload,product_url", 160, false);
+        const commercialCatalog = (Array.isArray(catalog) ? catalog : []).filter((r: any) => isCommercialCatalogRow(r));
+        const matched = pickBestCatalogProduct(inbound.text, commercialCatalog as any);
         if (matched?.name) {
           nextMemory.last_product_name = String(matched.name || "");
           nextMemory.last_product_id = String((matched as any)?.id || "");
@@ -1678,9 +1721,9 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByProductLookup && !handledByHistory && isPriceIntent(inbound.text)) {
       try {
-        const pricedProducts = await fetchCatalogRows("id,name,base_price_usd", 20, true);
+        const pricedProducts = await fetchCatalogRows("id,name,base_price_usd,category,source_payload,product_url", 40, true);
 
-        const list = Array.isArray(pricedProducts) ? pricedProducts : [];
+        const list = (Array.isArray(pricedProducts) ? pricedProducts : []).filter((r: any) => isCommercialCatalogRow(r));
         const matched = pickBestCatalogProduct(inbound.text, list as any);
 
         if (matched?.name) {
@@ -1710,9 +1753,9 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && isRecommendationIntent(inbound.text)) {
       try {
-        const products = await fetchCatalogRows("id,name,brand,category", 80, false);
+        const products = await fetchCatalogRows("id,name,brand,category,source_payload,product_url", 120, false);
 
-        const list = Array.isArray(products) ? products : [];
+        const list = (Array.isArray(products) ? products : []).filter((r: any) => isCommercialCatalogRow(r));
         const matched = pickBestCatalogProduct(inbound.text, list);
         const suggestions = [
           matched,
@@ -1748,13 +1791,14 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && (isTechnicalSheetIntent(techInboundText) || isProductImageIntent(techInboundText) || awaitingTechProductSelection || awaitingTechAssetChoice)) {
       try {
-        const products = await fetchCatalogRows("id,name,product_url,image_url,datasheet_url,specs_text,source_payload", 120, false);
+        const products = await fetchCatalogRows("id,name,category,product_url,image_url,datasheet_url,specs_text,source_payload", 180, false);
 
-        const list = Array.isArray(products) ? products : [];
+        const list = (Array.isArray(products) ? products : []).filter((p: any) => isCommercialCatalogRow(p));
         const askList = isTechSheetCatalogListIntent(inbound.text);
 
         if (askList) {
           const withSheet = list.filter((p: any) => {
+            if (!isCommercialCatalogRow(p)) return false;
             const payload = p?.source_payload && typeof p.source_payload === "object" ? p.source_payload : {};
             const pdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
             const productUrlAsPdf = /\.pdf(\?|$)/i.test(String(p?.product_url || ""));
@@ -1762,6 +1806,7 @@ export async function POST(req: Request) {
           });
 
           const withImageOrSpecs = list.filter((p: any) => {
+            if (!isCommercialCatalogRow(p)) return false;
             const specs = String(p?.specs_text || "").trim();
             const image = String(p?.image_url || "").trim();
             return Boolean(specs) || Boolean(image);
@@ -2198,16 +2243,16 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory)) {
       try {
-        const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency", 80, true);
+        const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url", 120, true);
 
         const quoteSourceText = resumeQuoteFromContext
           ? `${recentUserContext}\n${inbound.text}`
           : quoteProceedFromMemory
             ? `${String(nextMemory.last_product_name || "")}\n${inbound.text}`
             : inbound.text;
-        const matchedProduct = pickBestCatalogProduct(quoteSourceText, products || []);
-        const rememberedProduct = findCatalogProductByName(products || [], String(nextMemory.last_product_name || ""));
-        const pricedProducts = Array.isArray(products) ? products : [];
+        const pricedProducts = (Array.isArray(products) ? products : []).filter((r: any) => isCommercialCatalogRow(r));
+        const matchedProduct = pickBestCatalogProduct(quoteSourceText, pricedProducts || []);
+        const rememberedProduct = findCatalogProductByName(pricedProducts || [], String(nextMemory.last_product_name || ""));
         const wantsMulti = isMultiProductQuoteIntent(quoteSourceText);
         const selectedProducts = wantsMulti
           ? pricedProducts.slice(0, 3)
@@ -2380,10 +2425,26 @@ export async function POST(req: Request) {
     }
 
     if (!autoQuoteDocs.length && !handledByGreeting && !handledByRecall && !handledByTechSheet && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteStarter && !handledByQuoteIntake) {
-      const catalogRows = await fetchCatalogRows("name,brand,category", 80, false);
+      const catalogRows = await fetchCatalogRows("name,brand,category,source_payload,product_url", 120, false);
+      const commercialRows = (Array.isArray(catalogRows) ? catalogRows : []).filter((r: any) => isCommercialCatalogRow(r));
 
-      const catalogNames = Array.isArray(catalogRows)
-        ? catalogRows
+      if (isStrictCatalogIntent(inbound.text)) {
+        const sample = commercialRows
+          .map((r: any) => String(r?.name || "").trim())
+          .filter(Boolean)
+          .slice(0, 6);
+        reply = sample.length
+          ? [
+              "Para evitar errores, solo respondo con productos activos de esta base de datos.",
+              "No encontré coincidencia exacta con lo que pediste.",
+              `Prueba con un modelo exacto. Ejemplos: ${sample.join("; ")}.`,
+            ].join("\n")
+          : "Para evitar errores, solo respondo con productos activos de esta base de datos y no encontré coincidencias en este momento.";
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      } else {
+
+      const catalogNames = Array.isArray(commercialRows)
+        ? commercialRows
             .map((r: any) => `${String(r?.name || "").trim()}${r?.brand ? ` (marca ${String(r.brand).trim()})` : ""}`.trim())
             .filter(Boolean)
         : [];
@@ -2440,6 +2501,7 @@ export async function POST(req: Request) {
       usageTotal = Math.max(0, Number(completion.usage?.total_tokens || 0));
       usageCompletion = Math.max(0, Number(completion.usage?.completion_tokens || 0));
       billedTokens = Math.max(1, Math.min(500, usageCompletion || estimateTokens(reply)));
+      }
     }
 
     if (
