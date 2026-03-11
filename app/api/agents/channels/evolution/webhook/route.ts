@@ -1072,6 +1072,33 @@ function extractCatalogTerms(text: string): string[] {
   );
 }
 
+function uniqueNormalizedStrings(values: string[], max = 0): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values || []) {
+    const value = String(raw || "").trim();
+    if (!value) continue;
+    const key = normalizeText(value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+    if (max > 0 && out.length >= max) break;
+  }
+  return out;
+}
+
+function detectTechResendIntent(text: string): "sheet" | "image" | "both" | null {
+  const t = normalizeText(text || "");
+  if (!t) return null;
+  const asksResend = /(reenviar|reenvia|reenvie|reenvio|volver a enviar|otra vez|de nuevo|manda de nuevo)/.test(t);
+  const asksSheet = /(ficha|datasheet|hoja tecnica|documento tecnico|especificaciones)/.test(t);
+  const asksImage = /(imagen|foto)/.test(t);
+  if (!asksResend && !(asksSheet || asksImage)) return null;
+  if (asksSheet && asksImage) return "both";
+  if (asksImage) return "image";
+  return "sheet";
+}
+
 function extractModelLikeTokens(text: string): string[] {
   return Array.from(
     new Set(
@@ -1998,6 +2025,7 @@ export async function POST(req: Request) {
         if (matched?.name) {
           nextMemory.last_product_name = String(matched.name || "");
           nextMemory.last_product_id = String((matched as any)?.id || "");
+          nextMemory.last_product_category = String((matched as any)?.category || "");
           const hasPrice = Number((matched as any)?.base_price_usd || 0) > 0;
           reply = hasPrice
             ? `Sí, sí tenemos ${String(matched.name)}. Si quieres, te envío de una la cotización con TRM de hoy por este WhatsApp.`
@@ -2023,6 +2051,7 @@ export async function POST(req: Request) {
         if (matched?.name) {
           nextMemory.last_product_name = String(matched.name || "");
           nextMemory.last_product_id = String((matched as any)?.id || "");
+          nextMemory.last_product_category = String((matched as any)?.category || "");
           reply = `El producto ${String(matched.name)} tiene precio base USD ${formatMoney(Number(matched.base_price_usd || 0))}. Si quieres, te genero la cotizacion con TRM de hoy y PDF.`;
         } else if (list.length) {
           const sample = list
@@ -2067,6 +2096,7 @@ export async function POST(req: Request) {
           if (matched?.name) {
             nextMemory.last_product_name = String(matched.name || "");
             nextMemory.last_product_id = String((matched as any)?.id || "");
+            nextMemory.last_product_category = String((matched as any)?.category || "");
           }
           reply = `Con base en tu caso, te puedo recomendar opciones de nuestro catalogo actual: ${suggestions.join("; ")}. Si eliges una, te preparo cotizacion con TRM de hoy y PDF.`;
         } else {
@@ -2082,12 +2112,22 @@ export async function POST(req: Request) {
 
     const awaitingTechProductSelection = awaitingAction === "tech_product_selection";
     const awaitingTechAssetChoice = awaitingAction === "tech_asset_choice";
-    const techInboundText = awaitingTechAssetChoice && isAffirmativeIntent(inbound.text)
-      ? `ficha tecnica e imagen de ${String(previousMemory?.last_product_name || nextMemory?.last_product_name || "").trim()}`
-      : inbound.text;
+    const rememberedTechProduct = String(previousMemory?.last_product_name || nextMemory?.last_product_name || "").trim();
+    const techResendIntent = detectTechResendIntent(inbound.text);
+    const techInboundText = techResendIntent && rememberedTechProduct
+      ? `${techResendIntent === "image" ? "imagen" : techResendIntent === "sheet" ? "ficha tecnica" : "ficha tecnica e imagen"} de ${rememberedTechProduct}`
+      : awaitingTechAssetChoice && isAffirmativeIntent(inbound.text) && rememberedTechProduct
+        ? `ficha tecnica e imagen de ${rememberedTechProduct}`
+        : inbound.text;
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && (isTechnicalSheetIntent(techInboundText) || isProductImageIntent(techInboundText) || awaitingTechProductSelection || awaitingTechAssetChoice)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && (isTechnicalSheetIntent(techInboundText) || isProductImageIntent(techInboundText) || Boolean(techResendIntent) || awaitingTechProductSelection || awaitingTechAssetChoice)) {
       try {
+        if (techResendIntent && !rememberedTechProduct) {
+          reply = "Para reenviar la ficha o imagen necesito el modelo exacto del producto. Escríbeme solo el nombre del modelo.";
+          nextMemory.awaiting_action = "tech_product_selection";
+          handledByTechSheet = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        } else {
         const products = await fetchCatalogRows("id,name,category,product_url,image_url,datasheet_url,specs_text,source_payload", 180, false);
 
         const rawList = Array.isArray(products) ? products : [];
@@ -2100,7 +2140,7 @@ export async function POST(req: Request) {
           return true;
         });
         const preferredTechCategory = normalizeText(
-          String(detectCatalogCategoryIntent(techInboundText) || previousMemory?.last_category_intent || "")
+          String(detectCatalogCategoryIntent(techInboundText) || previousMemory?.last_product_category || previousMemory?.last_category_intent || "")
         );
         const scopedList = preferredTechCategory ? scopeCatalogRows(list as any, preferredTechCategory) : list;
         const listForTech = scopedList.length ? scopedList : list;
@@ -2121,10 +2161,10 @@ export async function POST(req: Request) {
           });
 
           if (withSheet.length) {
-            const names = withSheet
-              .map((p: any) => String(p?.name || "").trim())
-              .filter(Boolean)
-              .slice(0, 12);
+            const names = uniqueNormalizedStrings(
+              withSheet.map((p: any) => String(p?.name || "").trim()).filter(Boolean),
+              12
+            );
             const rest = Math.max(0, withSheet.length - names.length);
             reply = [
               `Claro. En este momento tengo ${withSheet.length} producto(s) con ficha técnica (PDF) disponible:`,
@@ -2136,10 +2176,10 @@ export async function POST(req: Request) {
             ].join("\n");
             nextMemory.awaiting_action = "tech_product_selection";
           } else if (withImageOrSpecs.length) {
-            const names = withImageOrSpecs
-              .map((p: any) => String(p?.name || "").trim())
-              .filter(Boolean)
-              .slice(0, 10);
+            const names = uniqueNormalizedStrings(
+              withImageOrSpecs.map((p: any) => String(p?.name || "").trim()).filter(Boolean),
+              10
+            );
             const rest = Math.max(0, withImageOrSpecs.length - names.length);
             reply = [
               "No tengo fichas técnicas PDF cargadas ahora mismo.",
@@ -2170,7 +2210,10 @@ export async function POST(req: Request) {
         if (!matched?.name) {
           const narrowed = filterCatalogByTerms(techInboundText, scopedList as any, preferredTechCategory);
           const sourceOptions = narrowed.length ? narrowed : (scopedList.length ? scopedList : list);
-          const sample = sourceOptions.slice(0, 8).map((p: any) => String(p?.name || "").trim()).filter(Boolean);
+          const sample = uniqueNormalizedStrings(
+            sourceOptions.slice(0, 20).map((p: any) => String(p?.name || "").trim()).filter(Boolean),
+            8
+          );
           if (sample.length) {
             const top = sample.slice(0, 3);
             const more = Math.max(0, sample.length - top.length);
@@ -2193,6 +2236,7 @@ export async function POST(req: Request) {
         } else {
           nextMemory.last_product_name = String((matched as any)?.name || "");
           nextMemory.last_product_id = String((matched as any)?.id || "");
+          nextMemory.last_product_category = String((matched as any)?.category || "");
           const wantsSheet = isTechnicalSheetIntent(techInboundText) || awaitingTechProductSelection || awaitingTechAssetChoice;
           const wantsImage = isProductImageIntent(techInboundText) || awaitingTechAssetChoice;
           const payload = matched?.source_payload && typeof matched.source_payload === "object" ? matched.source_payload : {};
@@ -2259,6 +2303,7 @@ export async function POST(req: Request) {
           nextMemory.awaiting_action = "none";
           handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
         }
         }
       } catch (techErr: any) {
@@ -2758,11 +2803,12 @@ export async function POST(req: Request) {
           : (categoryScopedAll.length ? categoryScopedAll : commercialRows);
         const narrowed = filterCatalogByTerms(inbound.text, baseSource as any, requestedCategory);
         const sampleSource = narrowed.length ? narrowed : baseSource;
-        const sample = sampleSource
-          .map((r: any) => String(r?.name || "").trim())
-          .filter(Boolean)
+        const sample = uniqueNormalizedStrings(
+          sampleSource.map((r: any) => String(r?.name || "").trim()).filter(Boolean),
+          2
+        )
           .map((n) => (n.length > 56 ? `${n.slice(0, 53)}...` : n))
-          .slice(0, 2);
+          ;
         const categoryHint = requestedCategory ? ` Categoría: ${requestedCategory.replace(/_/g, " ")}.` : "";
         reply = sample.length
           ? `Para evitar errores, solo respondo con datos confirmados del catálogo.${categoryHint} Escríbeme el modelo exacto (ej.: ${sample.join(" / ")}).`
