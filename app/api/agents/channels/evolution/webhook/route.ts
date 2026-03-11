@@ -1839,7 +1839,21 @@ export async function POST(req: Request) {
               "Dime un modelo exacto y te envío ficha técnica o imagen por este WhatsApp.",
             ].join("\n");
           } else {
-            reply = `En este momento no tengo referencias cargadas en esa categoría dentro de esta instancia. Puedes ver el catálogo oficial aquí: ${CATALOG_REFERENCE_URL}`;
+            const { count: providerCategoryCount } = await supabase
+              .from("agent_product_catalog")
+              .select("id", { count: "exact", head: true })
+              .eq("provider", catalogProvider)
+              .eq("is_active", true)
+              .eq("category", normalizeText(categoryIntent));
+
+            const categoryLabel = categoryIntent.replace(/_/g, " ");
+            const countNum = Number(providerCategoryCount || 0);
+            if (countNum > 0) {
+              nextMemory.last_category_intent = categoryIntent;
+              reply = `Sí tengo ${countNum} referencia(s) en ${categoryLabel} en esta base de datos, pero no pude listar nombres en este intento. Dime un modelo exacto y te envío ficha o imagen por este WhatsApp.`;
+            } else {
+              reply = `En este momento no tengo referencias cargadas en esa categoría dentro de esta instancia. Puedes ver el catálogo oficial aquí: ${CATALOG_REFERENCE_URL}`;
+            }
           }
 
           handledByInventory = true;
