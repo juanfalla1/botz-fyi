@@ -8,6 +8,27 @@ import { evolutionService } from "../../../../../../lib/services/evolution.servi
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const CATALOG_REFERENCE_URL = "https://balanzasybasculas.com.co/";
+const CATALOG_REFERENCE_SHARE_URL = "https://share.google/cE6wPPEGCH3vytJMm";
+const ALLOWED_BRAND_KEYS = ["ohaus"];
+const ALLOWED_NAME_KEYS = ["explorer", "adventurer", "pioneer", "ranger", "defender", "valor", "scout", "mb120", "mb90", "mb27", "mb23", "aquasearcher", "frontier"];
+const OFFICIAL_CATALOG_CATEGORIES = [
+  "Balanzas (Explorer, Adventurer, Pioneer, PR, Scout)",
+  "Basculas (Ranger, Defender, Valor)",
+  "Equipos de laboratorio (centrifugas, agitadores, mezcladores, planchas)",
+  "Analizadores de humedad (MB120, MB90, MB27, MB23)",
+  "Electroquimica (medidores y electrodos)",
+  "Impresoras, pesas patron y accesorios",
+];
+
+function isAllowedCatalogRow(row: any) {
+  const brand = normalizeText(String(row?.brand || ""));
+  const name = normalizeText(String(row?.name || ""));
+  if (!name) return false;
+  if (ALLOWED_BRAND_KEYS.some((k) => brand.includes(k))) return true;
+  return ALLOWED_NAME_KEYS.some((k) => name.includes(k));
+}
+
 function estimateTokens(text: string) {
   return Math.max(1, Math.ceil(String(text || "").length / 4));
 }
@@ -731,6 +752,25 @@ function isInventoryInfoIntent(text: string): boolean {
 function isRecommendationIntent(text: string): boolean {
   const t = normalizeText(text);
   return /(recomiend|modelo ideal|que modelo|cual modelo|me sirve|para mi caso|que balanza|sugerencia)/.test(t);
+}
+
+function detectCatalogCategoryIntent(text: string): string | null {
+  const t = normalizeText(text || "");
+  if (!t) return null;
+  if (/(electroquim|ph|orp|conductividad|tds|salinidad|aquasearcher|electrodo|medidor)/.test(t)) {
+    if (/(mesa|sobremesa)/.test(t)) return "electroquimica_medidores_mesa";
+    if (/(portatil|portatiles)/.test(t)) return "electroquimica_medidores_portatiles";
+    if (/(bolsillo)/.test(t)) return "electroquimica_medidores_bolsillo";
+    if (/(electrodo)/.test(t)) return "electroquimica_electrodos";
+    return "electroquimica";
+  }
+  if (/(analizador de humedad|humedad|mb120|mb90|mb27|mb23)/.test(t)) return "analizador_humedad";
+  if (/(bascula|basculas|ranger|defender|valor)/.test(t)) return "basculas";
+  if (/(impresora)/.test(t)) return "impresoras";
+  if (/(centrifuga|agitador|mezclador|homogeneizador|planchas|laboratorio)/.test(t)) return "equipos_laboratorio";
+  if (/(balanza|balanzas|explorer|adventurer|pioneer|pr\b|scout|analitica|semi analitica|precision)/.test(t)) return "balanzas";
+  if (/(documento|brochure|manual|guia|catalogo pdf)/.test(t)) return "documentos";
+  return null;
 }
 
 function isTechnicalSheetIntent(text: string): boolean {
@@ -1494,7 +1534,7 @@ export async function POST(req: Request) {
         .limit(limitRows);
       if (pricedOnly) ownerQuery = ownerQuery.gt("base_price_usd", 0);
       const { data: ownerRows } = await ownerQuery;
-      const ownerList = Array.isArray(ownerRows) ? ownerRows : [];
+      const ownerList = (Array.isArray(ownerRows) ? ownerRows : []).filter((r: any) => isAllowedCatalogRow(r));
       if (ownerList.length || !tenantId) return ownerList;
 
       let tenantQuery = supabase
@@ -1506,7 +1546,7 @@ export async function POST(req: Request) {
         .limit(limitRows);
       if (pricedOnly) tenantQuery = tenantQuery.gt("base_price_usd", 0);
       const { data: tenantRows } = await tenantQuery;
-      return Array.isArray(tenantRows) ? tenantRows : [];
+      return (Array.isArray(tenantRows) ? tenantRows : []).filter((r: any) => isAllowedCatalogRow(r));
     };
 
     if (isGreetingIntent(inbound.text)) {
@@ -1529,14 +1569,57 @@ export async function POST(req: Request) {
           : [];
         const top = examples.slice(0, 3);
         reply = [
-          `Hoy tengo ${Number(totalActive || 0)} productos activos en catálogo.`,
-          `De esos, ${Number(totalPriced || 0)} tienen precio base para cotización automática en PDF.`,
-          ...(top.length ? ["", "Ejemplos de catálogo:", ...top.map((x) => `- ${x}`)] : []),
+          `Te comparto el catalogo oficial actualizado de OHAUS Colombia: ${CATALOG_REFERENCE_URL}`,
+          "",
+          "Categorias principales:",
+          ...OFFICIAL_CATALOG_CATEGORIES.map((c) => `- ${c}`),
+          "",
+          `Catalogo interno para envio rapido por WhatsApp: ${Number(totalActive || 0)} productos activos, ${Number(totalPriced || 0)} con precio base para cotizacion automatica.`,
+          ...(top.length ? ["", "Ejemplos disponibles en esta instancia:", ...top.map((x) => `- ${x}`)] : []),
+          "",
+          "Si quieres, dime categoria y modelo exacto y te envio ficha/imagen por este chat.",
         ].join("\n");
         handledByInventory = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       } catch (invErr: any) {
         console.warn("[evolution-webhook] inventory_info_failed", invErr?.message || invErr);
+      }
+    }
+
+    if (!handledByGreeting && !handledByInventory) {
+      const categoryIntent = detectCatalogCategoryIntent(inbound.text);
+      if (categoryIntent) {
+        try {
+          const categoryRows = await fetchCatalogRows("name,category", 120, false);
+          const allRows = Array.isArray(categoryRows) ? categoryRows : [];
+
+          const sameCategory = allRows.filter((r: any) => normalizeText(String(r?.category || "")) === normalizeText(categoryIntent));
+          const fallbackElectro = categoryIntent === "electroquimica"
+            ? allRows.filter((r: any) => normalizeText(String(r?.category || "")).startsWith("electroquimica_"))
+            : [];
+          const pool = sameCategory.length ? sameCategory : fallbackElectro;
+
+          if (pool.length) {
+            const names = pool.map((r: any) => String(r?.name || "").trim()).filter(Boolean).slice(0, 10);
+            const extra = Math.max(0, pool.length - names.length);
+            const categoryLabel = categoryIntent.replace(/_/g, " ");
+            reply = [
+              `Perfecto. En ${categoryLabel} tengo ${pool.length} referencia(s) en catálogo.`,
+              ...names.map((n) => `- ${n}`),
+              ...(extra > 0 ? [`- y ${extra} más`] : []),
+              "",
+              `Si quieres ver todo el catálogo oficial: ${CATALOG_REFERENCE_URL}`,
+              "Dime un modelo exacto y te envío ficha técnica o imagen por este WhatsApp.",
+            ].join("\n");
+          } else {
+            reply = `En este momento no tengo referencias cargadas en esa categoría dentro de esta instancia. Puedes ver el catálogo oficial aquí: ${CATALOG_REFERENCE_URL}`;
+          }
+
+          handledByInventory = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        } catch (catErr: any) {
+          console.warn("[evolution-webhook] category_inventory_failed", catErr?.message || catErr);
+        }
       }
     }
 
@@ -1658,8 +1741,12 @@ export async function POST(req: Request) {
     }
 
     const awaitingTechProductSelection = awaitingAction === "tech_product_selection";
+    const awaitingTechAssetChoice = awaitingAction === "tech_asset_choice";
+    const techInboundText = awaitingTechAssetChoice && isAffirmativeIntent(inbound.text)
+      ? `ficha tecnica e imagen de ${String(previousMemory?.last_product_name || nextMemory?.last_product_name || "").trim()}`
+      : inbound.text;
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && (isTechnicalSheetIntent(inbound.text) || isProductImageIntent(inbound.text) || awaitingTechProductSelection)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && (isTechnicalSheetIntent(techInboundText) || isProductImageIntent(techInboundText) || awaitingTechProductSelection || awaitingTechAssetChoice)) {
       try {
         const products = await fetchCatalogRows("id,name,product_url,image_url,datasheet_url,specs_text,source_payload", 120, false);
 
@@ -1718,7 +1805,7 @@ export async function POST(req: Request) {
           handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         } else {
-        const techSourceText = `${recentUserContextForCatalog}\n${inbound.text}`.trim();
+        const techSourceText = `${recentUserContextForCatalog}\n${techInboundText}`.trim();
         let matched = pickBestCatalogProduct(techSourceText, list as any);
         if (!matched?.name && nextMemory.last_product_name) {
           matched = findCatalogProductByName(list, String(nextMemory.last_product_name || ""));
@@ -1737,17 +1824,18 @@ export async function POST(req: Request) {
               ...(more > 0 ? [`- y ${more} más`] : []),
               "",
               "Escríbeme solo el nombre exacto del producto.",
+              `También puedes ver el catálogo oficial aquí: ${CATALOG_REFERENCE_URL}`,
             ].join("\n");
             nextMemory.awaiting_action = "tech_product_selection";
           } else {
-            reply = "Ahora mismo no encuentro productos activos en catálogo para enviarte ficha técnica.";
+            reply = `Ahora mismo no encuentro productos activos en catálogo para enviarte ficha técnica. Catálogo oficial: ${CATALOG_REFERENCE_URL}`;
             nextMemory.awaiting_action = "none";
           }
         } else {
           nextMemory.last_product_name = String((matched as any)?.name || "");
           nextMemory.last_product_id = String((matched as any)?.id || "");
-          const wantsSheet = isTechnicalSheetIntent(inbound.text) || awaitingTechProductSelection;
-          const wantsImage = isProductImageIntent(inbound.text);
+          const wantsSheet = isTechnicalSheetIntent(techInboundText) || awaitingTechProductSelection || awaitingTechAssetChoice;
+          const wantsImage = isProductImageIntent(techInboundText) || awaitingTechAssetChoice;
           const payload = matched?.source_payload && typeof matched.source_payload === "object" ? matched.source_payload : {};
           const payloadPdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
           const imageUrl = String((matched as any)?.image_url || "").trim();
@@ -2310,6 +2398,9 @@ export async function POST(req: Request) {
         "Regla estricta de canal: toda entrega de informacion, fichas tecnicas, imagenes y cotizaciones debe ser por este mismo WhatsApp; no ofrecer envio por correo salvo que el cliente lo pida explicitamente.",
         "Regla estricta: solo puedes mencionar, recomendar o cotizar productos presentes en el catalogo cargado abajo. Si el usuario pide algo fuera de catalogo, dilo explicitamente y pide elegir un producto existente.",
         "Nunca afirmes vender carros/vehiculos; solo equipos de pesaje/laboratorio del catalogo.",
+        `Catalogo oficial web de referencia: ${CATALOG_REFERENCE_URL} (acceso alterno: ${CATALOG_REFERENCE_SHARE_URL}).`,
+        "Si el cliente pide catalogo completo, comparte el enlace del catalogo oficial web antes de listar opciones.",
+        "No mencionar ni recomendar marcas fuera de OHAUS dentro de esta instancia.",
         catalogNames.length ? `Catalogo activo (nombres exactos): ${catalogNames.join(" | ")}` : "Catalogo activo: no disponible.",
         "Si no tienes la informacion, dilo sin inventar.",
         docs,

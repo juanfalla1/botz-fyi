@@ -50,6 +50,21 @@ function getCookieAccessToken(req: Request) {
   const cookies = parseCookieHeader(req);
   const keys = Object.keys(cookies);
 
+  // Newer Supabase SSR cookie layouts may store direct access token cookies.
+  // Accept common patterns like sb-access-token or sb-<project>-access-token.
+  for (const k of keys) {
+    if (!/access-token/i.test(k)) continue;
+    const token = tokenFromCookieValue(cookies[k] || "");
+    if (token) return token;
+  }
+
+  // Fallback: try decoding any cookie value that looks like an auth payload/JWT.
+  // This covers custom key names used by different Supabase SDK versions.
+  for (const k of keys) {
+    const token = tokenFromCookieValue(cookies[k] || "");
+    if (token) return token;
+  }
+
   const chunked: Record<string, Array<{ idx: number; value: string }>> = {};
   keys.forEach((k) => {
     const m = k.match(/^(.*auth-token)(?:\.(\d+))?$/);
