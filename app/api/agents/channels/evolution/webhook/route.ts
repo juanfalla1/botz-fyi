@@ -1024,7 +1024,7 @@ function phoneTail10(raw: string): string {
 }
 
 function pickBestCatalogProduct(text: string, rows: any[]): any | null {
-  const inbound = normalizeText(text);
+  const inbound = normalizeCatalogQueryText(text);
   const terms = Array.from(
     new Set(
       inbound
@@ -1063,7 +1063,7 @@ function extractCatalogTerms(text: string): string[] {
   ]);
   return Array.from(
     new Set(
-      normalizeText(text || "")
+      normalizeCatalogQueryText(text || "")
         .split(/[^a-z0-9]+/i)
         .map((x) => x.trim())
         .filter((x) => x.length >= 3)
@@ -1091,7 +1091,9 @@ function humanCatalogName(raw: string): string {
   const base = String(raw || "").replace(/\s+/g, " ").trim();
   if (!base) return "";
   const cleaned = base
-    .replace(/\b(data\s*sheet|datasheet|ficha\s*tecnica|ficha\s*t[eé]cnica)\b.*$/i, "")
+    .replace(/^(data\s*sheet|datasheet|ficha\s*tecnica|ficha\s*t[eé]cnica)\s*/i, "")
+    .replace(/\b(data\s*sheet|datasheet|ficha\s*tecnica|ficha\s*t[eé]cnica)\b/gi, "")
+    .replace(/\b(us|es)\s*\d{6,}\b[ a-z0-9-]*$/i, "")
     .replace(/\b(\d{7,})\b\s*[a-z]?$/i, "")
     .replace(/\s{2,}/g, " ")
     .trim();
@@ -1110,6 +1112,14 @@ function detectTechResendIntent(text: string): "sheet" | "image" | "both" | null
   return "sheet";
 }
 
+function normalizeCatalogQueryText(text: string): string {
+  return normalizeText(text || "")
+    .replace(/\baventura\b/g, "adventurer")
+    .replace(/\badventure\b/g, "adventurer")
+    .replace(/\bpioner\b/g, "pioneer")
+    .replace(/\bsemi\s+seco\b/g, "semi micro");
+}
+
 function isContextResetIntent(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
@@ -1119,7 +1129,7 @@ function isContextResetIntent(text: string): boolean {
 function extractModelLikeTokens(text: string): string[] {
   return Array.from(
     new Set(
-      normalizeText(text || "")
+      normalizeCatalogQueryText(text || "")
         .split(/[^a-z0-9]+/i)
         .map((x) => x.trim())
         .filter((x) => x.length >= 3)
@@ -1935,6 +1945,8 @@ export async function POST(req: Request) {
     if (
       !handledByGreeting &&
       !handledByInventory &&
+      awaitingAction !== "tech_product_selection" &&
+      awaitingAction !== "tech_asset_choice" &&
       !isTechnicalSheetIntent(inbound.text) &&
       !isProductImageIntent(inbound.text) &&
       !shouldAutoQuote(inbound.text) &&
@@ -1954,11 +1966,6 @@ export async function POST(req: Request) {
           const sameCategory = filteredRows.filter((r: any) => normalizeText(String(r?.category || "")) === normalizeText(categoryIntent));
           const groupedSubcategories = filteredRows.filter((r: any) => catalogSubcategory(r).startsWith(`${normalizeText(categoryIntent)}_`));
           let pool = sameCategory.length ? sameCategory : groupedSubcategories;
-
-          if (!pool.length && categoryIntent !== "documentos") {
-            const docsInCategory = allRows.filter((r: any) => categoryMatchesIntent(r, categoryIntent) && isDocumentCatalogRow(r));
-            if (docsInCategory.length) pool = docsInCategory;
-          }
 
           if (!pool.length) {
             let providerCategoryQuery = supabase
@@ -2388,6 +2395,10 @@ export async function POST(req: Request) {
         }
       } catch (techErr: any) {
         console.warn("[evolution-webhook] tech_sheet_failed", techErr?.message || techErr);
+        reply = "Tuve un problema al preparar la ficha técnica en este intento. Escríbeme nuevamente el modelo exacto y te la envío por este WhatsApp.";
+        nextMemory.awaiting_action = "tech_product_selection";
+        handledByTechSheet = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       }
     }
 
