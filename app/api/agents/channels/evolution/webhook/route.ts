@@ -1100,6 +1100,55 @@ function humanCatalogName(raw: string): string {
   return cleaned || base;
 }
 
+function extractSpecsFromJson(specsJson: any, maxLines = 4): string[] {
+  const tables = Array.isArray(specsJson?.tables) ? specsJson.tables : [];
+  const out: string[] = [];
+  for (const t of tables) {
+    const headers = Array.isArray(t?.headers) ? t.headers.map((h: any) => String(h || "").trim()) : [];
+    const rows = Array.isArray(t?.rows) ? t.rows : [];
+    for (const row of rows) {
+      if (!Array.isArray(row)) continue;
+      for (let i = 0; i < row.length; i++) {
+        const value = String(row[i] || "").replace(/\s+/g, " ").trim();
+        if (!value) continue;
+        const header = String(headers[i] || "").replace(/\s+/g, " ").trim();
+        const line = header && !/^col_\d+$/i.test(header)
+          ? `${header}: ${value}`
+          : value;
+        const normalized = normalizeText(line);
+        if (!normalized || normalized === "especificaciones" || normalized === "specifications") continue;
+        out.push(line);
+        if (out.length >= maxLines) return uniqueNormalizedStrings(out, maxLines);
+      }
+    }
+  }
+  return uniqueNormalizedStrings(out, maxLines);
+}
+
+function buildTechnicalSummary(row: any, maxLines = 4): string {
+  const specsText = String(row?.specs_text || "").replace(/\s+/g, " ").trim();
+  const summaryText = String(row?.summary || "").replace(/\s+/g, " ").trim();
+  const descriptionText = String(row?.description || "").replace(/\s+/g, " ").trim();
+
+  const primary = specsText || summaryText || descriptionText;
+  let lines = primary
+    .split(/[.;]\s+|\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => s.replace(/^[-•\u2022]+\s*/, "").trim())
+    .filter((s) => {
+      const n = normalizeText(s);
+      return Boolean(n) && n !== "especificaciones" && n !== "specifications" && n.length > 8;
+    });
+
+  lines = uniqueNormalizedStrings(lines, maxLines);
+  if (!lines.length) {
+    lines = extractSpecsFromJson(row?.specs_json, maxLines);
+  }
+  if (!lines.length) return "";
+  return lines.slice(0, maxLines).map((l) => `- ${l}`).join("\n");
+}
+
 function detectTechResendIntent(text: string): "sheet" | "image" | "both" | null {
   const t = normalizeText(text || "");
   if (!t) return null;
@@ -2215,7 +2264,7 @@ export async function POST(req: Request) {
           handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         } else {
-        const products = await fetchCatalogRows("id,name,category,product_url,image_url,datasheet_url,specs_text,source_payload", 180, false);
+        const products = await fetchCatalogRows("id,name,category,product_url,image_url,datasheet_url,summary,description,specs_text,specs_json,source_payload", 180, false);
 
         const rawList = Array.isArray(products) ? products : [];
         const merged = [...rawList.filter((p: any) => isCommercialCatalogRow(p)), ...rawList.filter((p: any) => isDocumentCatalogRow(p))];
@@ -2226,9 +2275,12 @@ export async function POST(req: Request) {
           seen.add(key);
           return true;
         });
-        const preferredTechCategory = normalizeText(
-          String(detectCatalogCategoryIntent(techInboundText) || previousMemory?.last_product_category || previousMemory?.last_category_intent || "")
-        );
+        const modelTokensForTech = extractModelLikeTokens(techInboundText);
+        const explicitTermsForTech = extractCatalogTerms(techInboundText);
+        const hasExplicitProductHintForTech = modelTokensForTech.length > 0 || explicitTermsForTech.length >= 2;
+        const detectedTechCategory = normalizeText(String(detectCatalogCategoryIntent(techInboundText) || ""));
+        const rememberedTechCategory = normalizeText(String(previousMemory?.last_product_category || previousMemory?.last_category_intent || ""));
+        const preferredTechCategory = detectedTechCategory || (hasExplicitProductHintForTech ? "" : rememberedTechCategory);
         const scopedList = preferredTechCategory ? scopeCatalogRows(list as any, preferredTechCategory) : list;
         const listForTech = scopedList.length ? scopedList : list;
         const rememberedRow = rememberedTechProduct
@@ -2294,9 +2346,9 @@ export async function POST(req: Request) {
           handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         } else {
-        const modelTokens = extractModelLikeTokens(techInboundText);
-        const explicitTerms = extractCatalogTerms(techInboundText);
-        const hasExplicitProductHint = modelTokens.length > 0 || explicitTerms.length >= 2;
+        const modelTokens = modelTokensForTech;
+        const explicitTerms = explicitTermsForTech;
+        const hasExplicitProductHint = hasExplicitProductHintForTech;
 
         let matched: any = null;
         if (!hasExplicitProductHint && rememberedRow?.name) {
@@ -2393,15 +2445,24 @@ export async function POST(req: Request) {
             }
           }
 
-          const specs = String((matched as any)?.specs_text || "").replace(/\s+/g, " ").trim();
-          const briefSpecs = specs ? toReadableBulletList(specs.slice(0, 320), 3) : "";
+          const briefSpecs = buildTechnicalSummary(matched, 4);
           const includeSummary = wantsSheet && !wantsImage;
           const productUrl = String((matched as any)?.product_url || "").trim();
+          const primaryTechLink = String(technicalFallbackLinks[0] || "").trim();
 
           if (technicalDocs.length) {
+            const summarySection = includeSummary
+              ? (
+                  briefSpecs
+                    ? ["", "Resumen técnico:", briefSpecs]
+                    : (primaryTechLink
+                        ? ["", "No pude extraer especificaciones limpias en este intento. Puedes revisar la ficha aquí:", primaryTechLink]
+                        : ["", "No pude extraer especificaciones limpias en este intento. Revisa la ficha adjunta."])
+                )
+              : [];
             reply = [
               `Perfecto. Ya te envío por este WhatsApp la información técnica de ${String((matched as any)?.name || "ese producto")}${attachedSheet ? " (ficha)" : ""}${attachedImage ? " e imagen" : ""}.`,
-              ...(includeSummary && briefSpecs ? ["", "Resumen técnico:", briefSpecs] : []),
+              ...summarySection,
             ].join("\n");
           } else if (briefSpecs) {
             reply = [
