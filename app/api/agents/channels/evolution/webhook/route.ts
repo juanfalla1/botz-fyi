@@ -1805,7 +1805,25 @@ export async function POST(req: Request) {
 
           const sameCategory = filteredRows.filter((r: any) => normalizeText(String(r?.category || "")) === normalizeText(categoryIntent));
           const groupedSubcategories = filteredRows.filter((r: any) => catalogSubcategory(r).startsWith(`${normalizeText(categoryIntent)}_`));
-          const pool = sameCategory.length ? sameCategory : groupedSubcategories;
+          let pool = sameCategory.length ? sameCategory : groupedSubcategories;
+
+          if (!pool.length) {
+            let providerCategoryQuery = supabase
+              .from("agent_product_catalog")
+              .select("name,category,source_payload,product_url")
+              .eq("provider", catalogProvider)
+              .eq("is_active", true)
+              .order("updated_at", { ascending: false })
+              .limit(200);
+            const { data: providerCategoryRows } = await providerCategoryQuery;
+            const providerRowsAny: any[] = Array.isArray(providerCategoryRows) ? (providerCategoryRows as any[]) : [];
+            const providerFiltered = categoryIntent === "documentos"
+              ? providerRowsAny.filter((r: any) => isDocumentCatalogRow(r))
+              : providerRowsAny.filter((r: any) => isCommercialCatalogRow(r));
+            const providerSameCategory = providerFiltered.filter((r: any) => normalizeText(String(r?.category || "")) === normalizeText(categoryIntent));
+            const providerGroupedSubcategories = providerFiltered.filter((r: any) => catalogSubcategory(r).startsWith(`${normalizeText(categoryIntent)}_`));
+            pool = providerSameCategory.length ? providerSameCategory : providerGroupedSubcategories;
+          }
 
           if (pool.length) {
             const names = pool.map((r: any) => String(r?.name || "").trim()).filter(Boolean).slice(0, 10);
