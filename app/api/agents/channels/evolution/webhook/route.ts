@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 const CATALOG_REFERENCE_URL = "https://balanzasybasculas.com.co/";
 const CATALOG_REFERENCE_SHARE_URL = "https://share.google/cE6wPPEGCH3vytJMm";
 const STRICT_WHATSAPP_MODE = String(process.env.WHATSAPP_STRICT_MODE || "true").toLowerCase() !== "false";
+const MAX_WHATSAPP_DOC_BYTES = Number(process.env.WHATSAPP_DOC_MAX_BYTES || 8 * 1024 * 1024);
 const ALLOWED_BRAND_KEYS = ["ohaus"];
 const ALLOWED_NAME_KEYS = ["explorer", "adventurer", "pioneer", "ranger", "defender", "valor", "scout", "mb120", "mb90", "mb27", "mb23", "aquasearcher", "frontier"];
 const ALLOWED_CATEGORY_KEYS = ["balanzas", "basculas", "analizador_humedad", "electroquimica", "equipos_laboratorio", "documentos"];
@@ -905,7 +906,7 @@ function toReadableBulletList(raw: string, maxLines = 4): string {
   return chunks.map((c) => `- ${c}`).join("\n");
 }
 
-async function fetchRemoteFileAsBase64(url: string): Promise<{ base64: string; mimetype: string; fileName: string } | null> {
+async function fetchRemoteFileAsBase64(url: string): Promise<{ base64: string; mimetype: string; fileName: string; byteSize: number } | null> {
   const target = String(url || "").trim();
   if (!/^https?:\/\//i.test(target)) return null;
 
@@ -923,6 +924,7 @@ async function fetchRemoteFileAsBase64(url: string): Promise<{ base64: string; m
     const arr = await res.arrayBuffer();
     const base64 = Buffer.from(arr).toString("base64");
     if (!base64) return null;
+    const byteSize = Number(arr.byteLength || 0);
 
     const contentType = String(res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
     const mimetype = contentType || "application/octet-stream";
@@ -948,6 +950,7 @@ async function fetchRemoteFileAsBase64(url: string): Promise<{ base64: string; m
       base64,
       mimetype,
       fileName: safeFileName(pathname, "archivo", ext),
+      byteSize,
     };
   } catch {
     return null;
@@ -1059,7 +1062,7 @@ function extractCatalogTerms(text: string): string[] {
     "hola", "quiero", "necesito", "enviame", "envia", "ficha", "tecnica", "fichatecnica", "imagen", "imagenes", "foto", "fotos",
     "de", "del", "la", "el", "los", "las", "por", "para", "con", "y", "o", "que", "cual", "cuales", "modelo", "producto",
     "whatsapp", "favor", "porfavor", "si", "no", "una", "un", "esa", "ese", "me", "ya", "tienes", "tiene", "balanza", "balanzas",
-    "bascula", "basculas", "ohaus", "especificaciones", "especificacion", "specs",
+    "bascula", "basculas", "ohaus", "especificaciones", "especificacion", "specs", "puedes", "puede", "enviar", "mandar", "mandame", "podrias", "podria",
   ]);
   return Array.from(
     new Set(
@@ -2422,14 +2425,16 @@ export async function POST(req: Request) {
             if (datasheetUrl) {
               const remote = await fetchRemoteFileAsBase64(datasheetUrl);
               if (remote) {
-                technicalDocs.push({
-                  kind: "document",
-                  base64: remote.base64,
-                  mimetype: remote.mimetype || "application/pdf",
-                  fileName: safeFileName(remote.fileName, `ficha-${String((matched as any)?.name || "producto")}`, "pdf"),
-                  caption: `Ficha técnica - ${String((matched as any)?.name || "producto")}`,
-                });
-                attachedSheet = true;
+                if (Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+                  technicalDocs.push({
+                    kind: "document",
+                    base64: remote.base64,
+                    mimetype: remote.mimetype || "application/pdf",
+                    fileName: safeFileName(remote.fileName, `ficha-${String((matched as any)?.name || "producto")}`, "pdf"),
+                    caption: `Ficha técnica - ${String((matched as any)?.name || "producto")}`,
+                  });
+                  attachedSheet = true;
+                }
               }
             }
           }
@@ -2439,14 +2444,16 @@ export async function POST(req: Request) {
               technicalFallbackLinks.push(imageUrl);
               const remote = await fetchRemoteFileAsBase64(imageUrl);
               if (remote) {
-                technicalDocs.push({
-                  kind: "image",
-                  base64: remote.base64,
-                  mimetype: remote.mimetype || "image/jpeg",
-                  fileName: safeFileName(remote.fileName, `imagen-${String((matched as any)?.name || "producto")}`, "jpg"),
-                  caption: `Imagen - ${String((matched as any)?.name || "producto")}`,
-                });
-                attachedImage = true;
+                if (Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+                  technicalDocs.push({
+                    kind: "image",
+                    base64: remote.base64,
+                    mimetype: remote.mimetype || "image/jpeg",
+                    fileName: safeFileName(remote.fileName, `imagen-${String((matched as any)?.name || "producto")}`, "jpg"),
+                    caption: `Imagen - ${String((matched as any)?.name || "producto")}`,
+                  });
+                  attachedImage = true;
+                }
               }
             }
           }
@@ -2455,6 +2462,8 @@ export async function POST(req: Request) {
           const includeSummary = wantsSheet && !wantsImage;
           const productUrl = String((matched as any)?.product_url || "").trim();
           const primaryTechLink = String(technicalFallbackLinks[0] || "").trim();
+          const pdfLink = technicalFallbackLinks.find((u) => /\.pdf(\?|$)/i.test(String(u || ""))) || "";
+          const pdfTooLargeForAttachment = wantsSheet && !attachedSheet && Boolean(pdfLink);
 
           if (technicalDocs.length) {
             const summarySection = includeSummary
@@ -2475,11 +2484,14 @@ export async function POST(req: Request) {
               `Te comparto la ficha técnica de ${String((matched as any)?.name || "ese producto")}:`,
               "",
               briefSpecs,
+              ...(pdfTooLargeForAttachment ? ["", `La ficha PDF es pesada para envío directo; aquí la puedes abrir: ${pdfLink}`] : []),
               ...(imageUrl ? ["", `Imagen del producto: ${imageUrl}`] : []),
               ...(productUrl ? ["", `Más detalle: ${productUrl}`] : []),
             ].join("\n");
           } else {
-            reply = `No tengo el archivo adjunto listo para ${String((matched as any)?.name || "ese producto")} en este momento.${imageUrl ? ` Imagen: ${imageUrl}.` : ""} ${productUrl ? `Detalle: ${productUrl}.` : ""} Si quieres, te ayudo a cotizarlo de una vez.`;
+            reply = pdfTooLargeForAttachment
+              ? `La ficha PDF de ${String((matched as any)?.name || "ese producto")} es pesada para envío directo por WhatsApp. Puedes abrirla aquí: ${pdfLink}.${imageUrl ? ` Imagen: ${imageUrl}.` : ""}`
+              : `No tengo el archivo adjunto listo para ${String((matched as any)?.name || "ese producto")} en este momento.${imageUrl ? ` Imagen: ${imageUrl}.` : ""} ${productUrl ? `Detalle: ${productUrl}.` : ""} Si quieres, te ayudo a cotizarlo de una vez.`;
           }
           nextMemory.awaiting_action = "none";
           handledByTechSheet = true;
