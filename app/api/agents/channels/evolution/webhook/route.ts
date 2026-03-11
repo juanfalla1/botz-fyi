@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 const CATALOG_REFERENCE_URL = "https://balanzasybasculas.com.co/";
 const CATALOG_REFERENCE_SHARE_URL = "https://share.google/cE6wPPEGCH3vytJMm";
+const STRICT_WHATSAPP_MODE = String(process.env.WHATSAPP_STRICT_MODE || "true").toLowerCase() !== "false";
 const ALLOWED_BRAND_KEYS = ["ohaus"];
 const ALLOWED_NAME_KEYS = ["explorer", "adventurer", "pioneer", "ranger", "defender", "valor", "scout", "mb120", "mb90", "mb27", "mb23", "aquasearcher", "frontier"];
 const ALLOWED_CATEGORY_KEYS = ["balanzas", "basculas", "analizador_humedad", "electroquimica", "equipos_laboratorio", "documentos"];
@@ -1053,6 +1054,56 @@ function pickBestCatalogProduct(text: string, rows: any[]): any | null {
   return best.row;
 }
 
+function extractCatalogTerms(text: string): string[] {
+  const stop = new Set([
+    "hola", "quiero", "necesito", "enviame", "envia", "ficha", "tecnica", "fichatecnica", "imagen", "imagenes", "foto", "fotos",
+    "de", "del", "la", "el", "los", "las", "por", "para", "con", "y", "o", "que", "cual", "cuales", "modelo", "producto",
+    "whatsapp", "favor", "porfavor", "si", "no", "una", "un", "esa", "ese", "me", "ya", "tienes", "tiene", "balanza", "balanzas",
+    "bascula", "basculas", "ohaus", "especificaciones", "especificacion", "specs",
+  ]);
+  return Array.from(
+    new Set(
+      normalizeText(text || "")
+        .split(/[^a-z0-9]+/i)
+        .map((x) => x.trim())
+        .filter((x) => x.length >= 3)
+        .filter((x) => !stop.has(x))
+    )
+  );
+}
+
+function isCatalogMatchConsistent(text: string, row: any): boolean {
+  if (!row) return false;
+  const requestedCategory = detectCatalogCategoryIntent(text);
+  const rowCategory = normalizeText(String(row?.category || ""));
+  if (requestedCategory) {
+    const req = normalizeText(requestedCategory);
+    if (!(rowCategory === req || rowCategory.startsWith(`${req}_`))) {
+      return false;
+    }
+  }
+
+  const terms = extractCatalogTerms(text);
+  if (!terms.length) return true;
+  const hay = normalizeText(`${row?.name || ""} ${row?.brand || ""} ${row?.category || ""} ${catalogSubcategory(row)}`);
+  return terms.some((t) => hay.includes(t));
+}
+
+function filterCatalogByTerms(text: string, rows: any[]): any[] {
+  const requestedCategory = detectCatalogCategoryIntent(text);
+  const terms = extractCatalogTerms(text);
+  return (rows || []).filter((row: any) => {
+    const rowCategory = normalizeText(String(row?.category || ""));
+    if (requestedCategory) {
+      const req = normalizeText(requestedCategory);
+      if (!(rowCategory === req || rowCategory.startsWith(`${req}_`))) return false;
+    }
+    if (!terms.length) return true;
+    const hay = normalizeText(`${row?.name || ""} ${row?.brand || ""} ${row?.category || ""} ${catalogSubcategory(row)}`);
+    return terms.some((t) => hay.includes(t));
+  });
+}
+
 function isProductLookupIntent(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
@@ -2054,9 +2105,14 @@ export async function POST(req: Request) {
         if (!matched?.name && nextMemory.last_product_name) {
           matched = findCatalogProductByName(list, String(nextMemory.last_product_name || ""));
         }
+        if (matched?.name && !isCatalogMatchConsistent(techInboundText, matched)) {
+          matched = null;
+        }
 
         if (!matched?.name) {
-          const sample = list.slice(0, 8).map((p: any) => String(p?.name || "").trim()).filter(Boolean);
+          const narrowed = filterCatalogByTerms(techInboundText, list as any);
+          const sourceOptions = narrowed.length ? narrowed : list;
+          const sample = sourceOptions.slice(0, 8).map((p: any) => String(p?.name || "").trim()).filter(Boolean);
           if (sample.length) {
             const top = sample.slice(0, 5);
             const more = Math.max(0, sample.length - top.length);
@@ -2628,6 +2684,7 @@ export async function POST(req: Request) {
       const commercialRows = (Array.isArray(catalogRows) ? catalogRows : []).filter((r: any) => isCommercialCatalogRow(r));
       const rememberedCategoryIntent = String(previousMemory?.last_category_intent || "").trim();
       const deterministicOnly =
+        STRICT_WHATSAPP_MODE ||
         isStrictCatalogIntent(inbound.text) ||
         (isCategoryFollowUpIntent(inbound.text) && Boolean(rememberedCategoryIntent)) ||
         isConsistencyChallengeIntent(inbound.text);
