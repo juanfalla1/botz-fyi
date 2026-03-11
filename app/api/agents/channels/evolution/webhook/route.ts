@@ -2590,6 +2590,8 @@ export async function POST(req: Request) {
           const primaryTechLink = String(technicalFallbackLinks[0] || "").trim();
           const pdfLink = technicalFallbackLinks.find((u) => /\.pdf(\?|$)/i.test(String(u || ""))) || "";
           const pdfTooLargeForAttachment = wantsSheet && !attachedSheet && Boolean(pdfLink);
+          const urlKey = (u: string) => String(u || "").trim().replace(/\/+$/, "").toLowerCase();
+          const detailUrl = productUrl && (!pdfLink || urlKey(productUrl) !== urlKey(pdfLink)) ? productUrl : "";
 
           if (technicalDocs.length) {
             const summarySection = includeSummary
@@ -2612,12 +2614,12 @@ export async function POST(req: Request) {
               briefSpecs,
               ...(pdfTooLargeForAttachment ? ["", `La ficha PDF es pesada para envío directo; aquí la puedes abrir: ${pdfLink}`] : []),
               ...(imageUrl ? ["", `Imagen del producto: ${imageUrl}`] : []),
-              ...(productUrl ? ["", `Más detalle: ${productUrl}`] : []),
+              ...(detailUrl ? ["", `Más detalle: ${detailUrl}`] : []),
             ].join("\n");
           } else {
             reply = pdfTooLargeForAttachment
               ? `La ficha PDF de ${String((matched as any)?.name || "ese producto")} es pesada para envío directo por WhatsApp. Puedes abrirla aquí: ${pdfLink}.${imageUrl ? ` Imagen: ${imageUrl}.` : ""}`
-              : `No tengo el archivo adjunto listo para ${String((matched as any)?.name || "ese producto")} en este momento.${imageUrl ? ` Imagen: ${imageUrl}.` : ""} ${productUrl ? `Detalle: ${productUrl}.` : ""} Si quieres, te ayudo a cotizarlo de una vez.`;
+              : `No tengo el archivo adjunto listo para ${String((matched as any)?.name || "ese producto")} en este momento.${imageUrl ? ` Imagen: ${imageUrl}.` : ""} ${detailUrl ? `Detalle: ${detailUrl}.` : ""} Si quieres, te ayudo a cotizarlo de una vez.`;
           }
           nextMemory.awaiting_action = "none";
           handledByTechSheet = true;
