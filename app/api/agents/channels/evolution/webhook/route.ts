@@ -1087,16 +1087,33 @@ function uniqueNormalizedStrings(values: string[], max = 0): string[] {
   return out;
 }
 
+function humanCatalogName(raw: string): string {
+  const base = String(raw || "").replace(/\s+/g, " ").trim();
+  if (!base) return "";
+  const cleaned = base
+    .replace(/\b(data\s*sheet|datasheet|ficha\s*tecnica|ficha\s*t[eé]cnica)\b.*$/i, "")
+    .replace(/\b(\d{7,})\b\s*[a-z]?$/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return cleaned || base;
+}
+
 function detectTechResendIntent(text: string): "sheet" | "image" | "both" | null {
   const t = normalizeText(text || "");
   if (!t) return null;
   const asksResend = /(reenviar|reenvia|reenvie|reenvio|volver a enviar|otra vez|de nuevo|manda de nuevo)/.test(t);
   const asksSheet = /(ficha|datasheet|hoja tecnica|documento tecnico|especificaciones)/.test(t);
   const asksImage = /(imagen|foto)/.test(t);
-  if (!asksResend && !(asksSheet || asksImage)) return null;
+  if (!asksResend) return null;
   if (asksSheet && asksImage) return "both";
   if (asksImage) return "image";
   return "sheet";
+}
+
+function isContextResetIntent(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  return /(reiniciar contexto|resetear contexto|reset context|limpiar contexto|borrar contexto|olvida contexto|olvida todo|empecemos de nuevo|empezar de nuevo)/.test(t);
 }
 
 function extractModelLikeTokens(text: string): string[] {
@@ -1707,6 +1724,7 @@ export async function POST(req: Request) {
     let sentTechSheet = false;
     let sentImage = false;
     const technicalDocs: Array<{ kind: "document" | "image"; base64: string; fileName: string; mimetype: string; caption?: string }> = [];
+    const technicalFallbackLinks: string[] = [];
     const transcriptForContext = Array.isArray(existingConv?.transcript) ? existingConv.transcript : [];
     const recentUserContextForCatalog = transcriptForContext
       .filter((m: any) => m?.role === "user" && m?.content)
@@ -1858,7 +1876,26 @@ export async function POST(req: Request) {
       return (Array.isArray(providerRows) ? providerRows : []).filter((r: any) => isAllowedCatalogRow(r));
     };
 
-    if (isGreetingIntent(inbound.text)) {
+    if (isContextResetIntent(inbound.text)) {
+      const keepCustomerName = String(nextMemory.customer_name || "").trim();
+      const keepCustomerPhone = String(nextMemory.customer_phone || "").trim();
+      const keepCustomerEmail = String(nextMemory.customer_email || "").trim();
+
+      Object.keys(nextMemory).forEach((k) => delete nextMemory[k]);
+      if (keepCustomerName) nextMemory.customer_name = keepCustomerName;
+      if (keepCustomerPhone) nextMemory.customer_phone = keepCustomerPhone;
+      if (keepCustomerEmail) nextMemory.customer_email = keepCustomerEmail;
+      nextMemory.awaiting_action = "none";
+      nextMemory.last_user_text = inbound.text;
+      nextMemory.last_user_at = new Date().toISOString();
+      nextMemory.last_intent = "reset_context";
+
+      reply = "Listo, reinicié el contexto de esta conversación. Ahora dime el modelo exacto y te respondo solo con datos confirmados de la base de datos.";
+      handledByGreeting = true;
+      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+    }
+
+    if (!handledByGreeting && isGreetingIntent(inbound.text)) {
       reply = knownCustomerName
         ? `Hola ${knownCustomerName}, soy Ava, tu asistente virtual de Avanza Group. ¿Qué necesitas hoy?`
         : "Hola, soy Ava, tu asistente virtual de Avanza Group. ¿Con quién tengo el gusto?";
@@ -1943,7 +1980,7 @@ export async function POST(req: Request) {
 
           if (pool.length) {
             const uniqueNames = uniqueNormalizedStrings(
-              pool.map((r: any) => String(r?.name || "").trim()).filter(Boolean)
+              pool.map((r: any) => humanCatalogName(String(r?.name || "").trim())).filter(Boolean)
             );
             const names = uniqueNames.slice(0, 10);
             const extra = Math.max(0, uniqueNames.length - names.length);
@@ -2180,7 +2217,7 @@ export async function POST(req: Request) {
 
           if (withSheet.length) {
             const names = uniqueNormalizedStrings(
-              withSheet.map((p: any) => String(p?.name || "").trim()).filter(Boolean),
+              withSheet.map((p: any) => humanCatalogName(String(p?.name || "").trim())).filter(Boolean),
               12
             );
             const rest = Math.max(0, withSheet.length - names.length);
@@ -2195,7 +2232,7 @@ export async function POST(req: Request) {
             nextMemory.awaiting_action = "tech_product_selection";
           } else if (withImageOrSpecs.length) {
             const names = uniqueNormalizedStrings(
-              withImageOrSpecs.map((p: any) => String(p?.name || "").trim()).filter(Boolean),
+              withImageOrSpecs.map((p: any) => humanCatalogName(String(p?.name || "").trim())).filter(Boolean),
               10
             );
             const rest = Math.max(0, withImageOrSpecs.length - names.length);
@@ -2240,7 +2277,7 @@ export async function POST(req: Request) {
             }
           }
           matched = pickBestCatalogProduct(techSourceText, candidatePool as any);
-          if (!matched?.name && rememberedRow?.name) matched = rememberedRow;
+          if (!matched?.name && rememberedRow?.name && !hasExplicitProductHint) matched = rememberedRow;
         }
 
         if (matched?.name && !isCatalogMatchConsistent(techInboundText, matched, preferredTechCategory)) {
@@ -2251,7 +2288,7 @@ export async function POST(req: Request) {
           const narrowed = filterCatalogByTerms(techInboundText, scopedList as any, preferredTechCategory);
           const sourceOptions = narrowed.length ? narrowed : (scopedList.length ? scopedList : list);
           const sample = uniqueNormalizedStrings(
-            sourceOptions.slice(0, 20).map((p: any) => String(p?.name || "").trim()).filter(Boolean),
+            sourceOptions.slice(0, 20).map((p: any) => humanCatalogName(String(p?.name || "").trim())).filter(Boolean),
             8
           );
           if (sample.length) {
@@ -2288,6 +2325,7 @@ export async function POST(req: Request) {
           if (wantsSheet) {
             const productUrlAsPdf = /\.pdf(\?|$)/i.test(String((matched as any)?.product_url || "")) ? String((matched as any)?.product_url || "") : "";
             const datasheetUrl = String((matched as any)?.datasheet_url || payloadPdfLinks[0] || productUrlAsPdf || "").trim();
+            if (datasheetUrl) technicalFallbackLinks.push(datasheetUrl);
             if (datasheetUrl) {
               const remote = await fetchRemoteFileAsBase64(datasheetUrl);
               if (remote) {
@@ -2305,6 +2343,7 @@ export async function POST(req: Request) {
 
           if (wantsImage || wantsSheet) {
             if (imageUrl) {
+              technicalFallbackLinks.push(imageUrl);
               const remote = await fetchRemoteFileAsBase64(imageUrl);
               if (remote) {
                 technicalDocs.push({
@@ -2845,7 +2884,7 @@ export async function POST(req: Request) {
         const narrowed = filterCatalogByTerms(inbound.text, baseSource as any, requestedCategory);
         const sampleSource = narrowed.length ? narrowed : baseSource;
         const sample = uniqueNormalizedStrings(
-          sampleSource.map((r: any) => String(r?.name || "").trim()).filter(Boolean),
+          sampleSource.map((r: any) => humanCatalogName(String(r?.name || "").trim())).filter(Boolean),
           2
         )
           .map((n) => (n.length > 56 ? `${n.slice(0, 53)}...` : n))
@@ -3150,10 +3189,14 @@ export async function POST(req: Request) {
       } catch (techDocErr: any) {
         console.warn("[evolution-webhook] technical_doc_send_failed", techDocErr?.message || techDocErr);
         try {
+          const links = uniqueNormalizedStrings(technicalFallbackLinks, 2);
+          const extra = links.length
+            ? ` Puedes abrirlo desde aquí mientras tanto: ${links.join(" | ")}`
+            : "";
           await evolutionService.sendMessage(
             outboundInstance,
             sentTo,
-            "Intenté enviarte el archivo técnico, pero falló en este intento. Si escribes 'reenviar ficha' o 'reenviar imagen', lo reintento ahora mismo."
+            `Intenté enviarte el archivo técnico, pero falló en este intento. Si escribes 'reenviar ficha' o 'reenviar imagen', lo reintento ahora mismo.${extra}`
           );
         } catch {}
       }
