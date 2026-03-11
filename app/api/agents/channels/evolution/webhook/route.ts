@@ -1072,35 +1072,68 @@ function extractCatalogTerms(text: string): string[] {
   );
 }
 
-function isCatalogMatchConsistent(text: string, row: any): boolean {
-  if (!row) return false;
-  const requestedCategory = detectCatalogCategoryIntent(text);
+function extractModelLikeTokens(text: string): string[] {
+  return Array.from(
+    new Set(
+      normalizeText(text || "")
+        .split(/[^a-z0-9]+/i)
+        .map((x) => x.trim())
+        .filter((x) => x.length >= 3)
+        .filter((x) => /\d/.test(x))
+    )
+  );
+}
+
+function categoryMatchesIntent(row: any, categoryIntent: string): boolean {
+  const wanted = normalizeText(String(categoryIntent || ""));
+  if (!wanted) return true;
   const rowCategory = normalizeText(String(row?.category || ""));
-  if (requestedCategory) {
-    const req = normalizeText(requestedCategory);
-    if (!(rowCategory === req || rowCategory.startsWith(`${req}_`))) {
-      return false;
-    }
+  const rowSubcategory = catalogSubcategory(row);
+  return (
+    rowCategory === wanted ||
+    rowCategory.startsWith(`${wanted}_`) ||
+    rowSubcategory === wanted ||
+    rowSubcategory.startsWith(`${wanted}_`)
+  );
+}
+
+function scopeCatalogRows(rows: any[], categoryIntent: string): any[] {
+  const wanted = normalizeText(String(categoryIntent || ""));
+  if (!wanted) return rows || [];
+  return (rows || []).filter((row: any) => categoryMatchesIntent(row, wanted));
+}
+
+function isCatalogMatchConsistent(text: string, row: any, forcedCategory?: string): boolean {
+  if (!row) return false;
+  const requestedCategory = normalizeText(String(forcedCategory || detectCatalogCategoryIntent(text) || ""));
+  if (requestedCategory && !categoryMatchesIntent(row, requestedCategory)) {
+    return false;
   }
 
   const terms = extractCatalogTerms(text);
   if (!terms.length) return true;
   const hay = normalizeText(`${row?.name || ""} ${row?.brand || ""} ${row?.category || ""} ${catalogSubcategory(row)}`);
-  return terms.some((t) => hay.includes(t));
+
+  const modelTokens = extractModelLikeTokens(text);
+  if (modelTokens.length && modelTokens.some((t) => !hay.includes(t))) return false;
+
+  const matchedTerms = terms.filter((t) => hay.includes(t));
+  const minMatches = terms.length <= 2 ? terms.length : Math.min(3, terms.length);
+  return matchedTerms.length >= minMatches;
 }
 
-function filterCatalogByTerms(text: string, rows: any[]): any[] {
-  const requestedCategory = detectCatalogCategoryIntent(text);
+function filterCatalogByTerms(text: string, rows: any[], forcedCategory?: string): any[] {
+  const requestedCategory = normalizeText(String(forcedCategory || detectCatalogCategoryIntent(text) || ""));
   const terms = extractCatalogTerms(text);
+  const modelTokens = extractModelLikeTokens(text);
   return (rows || []).filter((row: any) => {
-    const rowCategory = normalizeText(String(row?.category || ""));
-    if (requestedCategory) {
-      const req = normalizeText(requestedCategory);
-      if (!(rowCategory === req || rowCategory.startsWith(`${req}_`))) return false;
-    }
+    if (requestedCategory && !categoryMatchesIntent(row, requestedCategory)) return false;
     if (!terms.length) return true;
     const hay = normalizeText(`${row?.name || ""} ${row?.brand || ""} ${row?.category || ""} ${catalogSubcategory(row)}`);
-    return terms.some((t) => hay.includes(t));
+    if (modelTokens.length && modelTokens.some((t) => !hay.includes(t))) return false;
+    const matchedTerms = terms.filter((t) => hay.includes(t));
+    const minMatches = terms.length <= 2 ? terms.length : Math.min(3, terms.length);
+    return matchedTerms.length >= minMatches;
   });
 }
 
@@ -1858,6 +1891,11 @@ export async function POST(req: Request) {
           const groupedSubcategories = filteredRows.filter((r: any) => catalogSubcategory(r).startsWith(`${normalizeText(categoryIntent)}_`));
           let pool = sameCategory.length ? sameCategory : groupedSubcategories;
 
+          if (!pool.length && categoryIntent !== "documentos") {
+            const docsInCategory = allRows.filter((r: any) => categoryMatchesIntent(r, categoryIntent) && isDocumentCatalogRow(r));
+            if (docsInCategory.length) pool = docsInCategory;
+          }
+
           if (!pool.length) {
             let providerCategoryQuery = supabase
               .from("agent_product_catalog")
@@ -1953,7 +1991,10 @@ export async function POST(req: Request) {
       try {
         const catalog = await fetchCatalogRows("id,name,brand,category,base_price_usd,source_payload,product_url", 160, false);
         const commercialCatalog = (Array.isArray(catalog) ? catalog : []).filter((r: any) => isCommercialCatalogRow(r));
-        const matched = pickBestCatalogProduct(inbound.text, commercialCatalog as any);
+        const scopedCategory = normalizeText(String(detectCatalogCategoryIntent(inbound.text) || previousMemory?.last_category_intent || ""));
+        const scopedCatalog = scopedCategory ? scopeCatalogRows(commercialCatalog as any, scopedCategory) : commercialCatalog;
+        let matched = pickBestCatalogProduct(inbound.text, scopedCatalog as any);
+        if (matched?.name && !isCatalogMatchConsistent(inbound.text, matched, scopedCategory)) matched = null;
         if (matched?.name) {
           nextMemory.last_product_name = String(matched.name || "");
           nextMemory.last_product_id = String((matched as any)?.id || "");
@@ -1974,7 +2015,10 @@ export async function POST(req: Request) {
         const pricedProducts = await fetchCatalogRows("id,name,base_price_usd,category,source_payload,product_url", 40, true);
 
         const list = (Array.isArray(pricedProducts) ? pricedProducts : []).filter((r: any) => isCommercialCatalogRow(r));
-        const matched = pickBestCatalogProduct(inbound.text, list as any);
+        const scopedCategory = normalizeText(String(detectCatalogCategoryIntent(inbound.text) || previousMemory?.last_category_intent || ""));
+        const scopedList = scopedCategory ? scopeCatalogRows(list as any, scopedCategory) : list;
+        let matched = pickBestCatalogProduct(inbound.text, scopedList as any);
+        if (matched?.name && !isCatalogMatchConsistent(inbound.text, matched, scopedCategory)) matched = null;
 
         if (matched?.name) {
           nextMemory.last_product_name = String(matched.name || "");
@@ -2006,10 +2050,13 @@ export async function POST(req: Request) {
         const products = await fetchCatalogRows("id,name,brand,category,source_payload,product_url", 120, false);
 
         const list = (Array.isArray(products) ? products : []).filter((r: any) => isCommercialCatalogRow(r));
-        const matched = pickBestCatalogProduct(inbound.text, list);
+        const scopedCategory = normalizeText(String(detectCatalogCategoryIntent(inbound.text) || previousMemory?.last_category_intent || ""));
+        const scopedList = scopedCategory ? scopeCatalogRows(list as any, scopedCategory) : list;
+        let matched = pickBestCatalogProduct(inbound.text, scopedList);
+        if (matched?.name && !isCatalogMatchConsistent(inbound.text, matched, scopedCategory)) matched = null;
         const suggestions = [
           matched,
-          ...list.filter((p: any) => !matched || String(p.id) !== String(matched.id)),
+          ...(scopedList.length ? scopedList : list).filter((p: any) => !matched || String(p.id) !== String(matched.id)),
         ]
           .filter(Boolean)
           .slice(0, 3)
@@ -2043,20 +2090,31 @@ export async function POST(req: Request) {
       try {
         const products = await fetchCatalogRows("id,name,category,product_url,image_url,datasheet_url,specs_text,source_payload", 180, false);
 
-        const list = (Array.isArray(products) ? products : []).filter((p: any) => isCommercialCatalogRow(p));
+        const rawList = Array.isArray(products) ? products : [];
+        const merged = [...rawList.filter((p: any) => isCommercialCatalogRow(p)), ...rawList.filter((p: any) => isDocumentCatalogRow(p))];
+        const seen = new Set<string>();
+        const list = merged.filter((p: any) => {
+          const key = String(p?.id || `${String(p?.name || "").trim()}::${String(p?.product_url || "").trim()}`);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        const preferredTechCategory = normalizeText(
+          String(detectCatalogCategoryIntent(techInboundText) || previousMemory?.last_category_intent || "")
+        );
+        const scopedList = preferredTechCategory ? scopeCatalogRows(list as any, preferredTechCategory) : list;
+        const listForTech = scopedList.length ? scopedList : list;
         const askList = isTechSheetCatalogListIntent(inbound.text);
 
         if (askList) {
-          const withSheet = list.filter((p: any) => {
-            if (!isCommercialCatalogRow(p)) return false;
+          const withSheet = listForTech.filter((p: any) => {
             const payload = p?.source_payload && typeof p.source_payload === "object" ? p.source_payload : {};
             const pdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
             const productUrlAsPdf = /\.pdf(\?|$)/i.test(String(p?.product_url || ""));
             return Boolean(String(p?.datasheet_url || "").trim()) || pdfLinks.length > 0 || productUrlAsPdf;
           });
 
-          const withImageOrSpecs = list.filter((p: any) => {
-            if (!isCommercialCatalogRow(p)) return false;
+          const withImageOrSpecs = listForTech.filter((p: any) => {
             const specs = String(p?.specs_text || "").trim();
             const image = String(p?.image_url || "").trim();
             return Boolean(specs) || Boolean(image);
@@ -2101,20 +2159,20 @@ export async function POST(req: Request) {
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         } else {
         const techSourceText = `${recentUserContextForCatalog}\n${techInboundText}`.trim();
-        let matched = pickBestCatalogProduct(techSourceText, list as any);
+        let matched = pickBestCatalogProduct(techSourceText, scopedList as any);
         if (!matched?.name && nextMemory.last_product_name) {
-          matched = findCatalogProductByName(list, String(nextMemory.last_product_name || ""));
+          matched = findCatalogProductByName(scopedList, String(nextMemory.last_product_name || ""));
         }
-        if (matched?.name && !isCatalogMatchConsistent(techInboundText, matched)) {
+        if (matched?.name && !isCatalogMatchConsistent(techInboundText, matched, preferredTechCategory)) {
           matched = null;
         }
 
         if (!matched?.name) {
-          const narrowed = filterCatalogByTerms(techInboundText, list as any);
-          const sourceOptions = narrowed.length ? narrowed : list;
+          const narrowed = filterCatalogByTerms(techInboundText, scopedList as any, preferredTechCategory);
+          const sourceOptions = narrowed.length ? narrowed : (scopedList.length ? scopedList : list);
           const sample = sourceOptions.slice(0, 8).map((p: any) => String(p?.name || "").trim()).filter(Boolean);
           if (sample.length) {
-            const top = sample.slice(0, 5);
+            const top = sample.slice(0, 3);
             const more = Math.max(0, sample.length - top.length);
             reply = [
               "Claro. Para enviarte la ficha técnica o imagen necesito el producto exacto.",
@@ -2124,13 +2182,14 @@ export async function POST(req: Request) {
               ...(more > 0 ? [`- y ${more} más`] : []),
               "",
               "Escríbeme solo el nombre exacto del producto.",
-              `También puedes ver el catálogo oficial aquí: ${CATALOG_REFERENCE_URL}`,
             ].join("\n");
             nextMemory.awaiting_action = "tech_product_selection";
           } else {
             reply = `Ahora mismo no encuentro productos activos en catálogo para enviarte ficha técnica. Catálogo oficial: ${CATALOG_REFERENCE_URL}`;
             nextMemory.awaiting_action = "none";
           }
+          handledByTechSheet = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         } else {
           nextMemory.last_product_name = String((matched as any)?.name || "");
           nextMemory.last_product_id = String((matched as any)?.id || "");
@@ -2681,7 +2740,8 @@ export async function POST(req: Request) {
 
     if (!autoQuoteDocs.length && !handledByGreeting && !handledByRecall && !handledByTechSheet && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteStarter && !handledByQuoteIntake) {
       const catalogRows = await fetchCatalogRows("name,brand,category,source_payload,product_url", 120, false);
-      const commercialRows = (Array.isArray(catalogRows) ? catalogRows : []).filter((r: any) => isCommercialCatalogRow(r));
+      const allCatalogRows = Array.isArray(catalogRows) ? catalogRows : [];
+      const commercialRows = allCatalogRows.filter((r: any) => isCommercialCatalogRow(r));
       const rememberedCategoryIntent = String(previousMemory?.last_category_intent || "").trim();
       const deterministicOnly =
         STRICT_WHATSAPP_MODE ||
@@ -2690,14 +2750,25 @@ export async function POST(req: Request) {
         isConsistencyChallengeIntent(inbound.text);
 
       if (deterministicOnly) {
-        const sample = commercialRows
+        const requestedCategory = normalizeText(String(detectCatalogCategoryIntent(inbound.text) || rememberedCategoryIntent || ""));
+        const categoryScopedCommercial = requestedCategory ? scopeCatalogRows(commercialRows as any, requestedCategory) : commercialRows;
+        const categoryScopedAll = requestedCategory ? scopeCatalogRows(allCatalogRows as any, requestedCategory) : allCatalogRows;
+        const baseSource = categoryScopedCommercial.length
+          ? categoryScopedCommercial
+          : (categoryScopedAll.length ? categoryScopedAll : commercialRows);
+        const narrowed = filterCatalogByTerms(inbound.text, baseSource as any, requestedCategory);
+        const sampleSource = narrowed.length ? narrowed : baseSource;
+        const sample = sampleSource
           .map((r: any) => String(r?.name || "").trim())
           .filter(Boolean)
-          .slice(0, 6);
-        const categoryHint = rememberedCategoryIntent ? ` Última categoría consultada: ${rememberedCategoryIntent.replace(/_/g, " ")}.` : "";
+          .map((n) => (n.length > 56 ? `${n.slice(0, 53)}...` : n))
+          .slice(0, 2);
+        const categoryHint = requestedCategory ? ` Categoría: ${requestedCategory.replace(/_/g, " ")}.` : "";
         reply = sample.length
-          ? `Para evitar errores, solo respondo con datos confirmados del catálogo.${categoryHint} Indícame modelo exacto o categoría exacta. Ejemplos: ${sample.join("; ")}.`
-          : `Para evitar errores, solo respondo con datos confirmados del catálogo.${categoryHint} En este momento no tengo coincidencias exactas para tu mensaje.`;
+          ? `Para evitar errores, solo respondo con datos confirmados del catálogo.${categoryHint} Escríbeme el modelo exacto (ej.: ${sample.join(" / ")}).`
+          : `Para evitar errores, solo respondo con datos confirmados del catálogo.${categoryHint} No encontré coincidencia exacta. Escríbeme el modelo completo.`;
+        if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
+        nextMemory.awaiting_action = "tech_product_selection";
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       } else {
 
