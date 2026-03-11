@@ -2648,8 +2648,9 @@ export async function POST(req: Request) {
           const urlKey = (u: string) => String(u || "").trim().replace(/\/+$/, "").toLowerCase();
           const detailUrl = !webTechOnly && productUrl && (!pdfLink || urlKey(productUrl) !== urlKey(pdfLink)) ? productUrl : "";
           const webTechLinkSection = webTechOnly && wantsSheet && matchedProductUrl
-            ? ["", `Este modelo no tiene ficha PDF oficial. Ficha web del producto: ${matchedProductUrl}`]
+            ? ["", `FICHA WEB: ${matchedProductUrl}`]
             : [];
+          const hasSamePrimaryWebLink = webTechOnly && matchedProductUrl && primaryTechLink && urlKey(primaryTechLink) === urlKey(matchedProductUrl);
 
           if (technicalDocs.length) {
             const summarySection = includeSummary
@@ -2657,7 +2658,7 @@ export async function POST(req: Request) {
                   briefSpecs
                     ? ["", "Resumen técnico:", briefSpecs]
                     : (primaryTechLink
-                        ? ["", "No pude extraer especificaciones limpias en este intento. Puedes revisar la ficha aquí:", primaryTechLink]
+                        ? (hasSamePrimaryWebLink ? [] : ["", "No pude extraer especificaciones limpias en este intento. Puedes revisar la ficha aquí:", primaryTechLink])
                         : ["", "No pude extraer especificaciones limpias en este intento. Revisa la ficha adjunta."])
                 )
               : [];
