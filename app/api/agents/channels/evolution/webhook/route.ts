@@ -2009,11 +2009,39 @@ export async function POST(req: Request) {
               .eq("is_active", true)
               .eq("category", normalizeText(categoryIntent));
 
+            const { data: providerCategoryRowsRaw } = await supabase
+              .from("agent_product_catalog")
+              .select("name")
+              .eq("provider", catalogProvider)
+              .eq("is_active", true)
+              .eq("category", normalizeText(categoryIntent))
+              .order("updated_at", { ascending: false })
+              .limit(40);
+
             const categoryLabel = categoryIntent.replace(/_/g, " ");
             const countNum = Number(providerCategoryCount || 0);
             if (countNum > 0) {
               nextMemory.last_category_intent = categoryIntent;
-              reply = `Sí tengo ${countNum} referencia(s) en ${categoryLabel} en esta base de datos, pero no pude listar nombres en este intento. Dime un modelo exacto y te envío ficha o imagen por este WhatsApp.`;
+              const backupNames = uniqueNormalizedStrings(
+                (Array.isArray(providerCategoryRowsRaw) ? providerCategoryRowsRaw : [])
+                  .map((r: any) => humanCatalogName(String(r?.name || "").trim()))
+                  .filter(Boolean),
+                8
+              );
+              if (backupNames.length) {
+                const top = backupNames.slice(0, 6);
+                const more = Math.max(0, countNum - top.length);
+                reply = [
+                  `Perfecto. En ${categoryLabel} tengo ${countNum} referencia(s) en catálogo.`,
+                  ...top.map((n) => `- ${n}`),
+                  ...(more > 0 ? [`- y ${more} más`] : []),
+                  "",
+                  `Si quieres ver todo el catálogo oficial: ${CATALOG_REFERENCE_URL}`,
+                  "Si quieres una en específico, dime el modelo exacto y te envío ficha técnica o imagen por este WhatsApp.",
+                ].join("\n");
+              } else {
+                reply = `Sí tengo ${countNum} referencia(s) en ${categoryLabel} en esta base de datos. Si quieres una en específico, dime el modelo exacto y te envío ficha o imagen por este WhatsApp.`;
+              }
             } else {
               reply = `En este momento no tengo referencias cargadas en esa categoría dentro de esta instancia. Puedes ver el catálogo oficial aquí: ${CATALOG_REFERENCE_URL}`;
             }
