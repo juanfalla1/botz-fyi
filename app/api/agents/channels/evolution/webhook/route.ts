@@ -12,6 +12,7 @@ const CATALOG_REFERENCE_URL = "https://balanzasybasculas.com.co/";
 const CATALOG_REFERENCE_SHARE_URL = "https://share.google/cE6wPPEGCH3vytJMm";
 const ALLOWED_BRAND_KEYS = ["ohaus"];
 const ALLOWED_NAME_KEYS = ["explorer", "adventurer", "pioneer", "ranger", "defender", "valor", "scout", "mb120", "mb90", "mb27", "mb23", "aquasearcher", "frontier"];
+const ALLOWED_CATEGORY_KEYS = ["balanzas", "basculas", "analizador_humedad", "electroquimica", "equipos_laboratorio", "documentos"];
 const OFFICIAL_CATALOG_CATEGORIES = [
   "Balanzas (Explorer, Adventurer, Pioneer, PR, Scout)",
   "Basculas (Ranger, Defender, Valor)",
@@ -24,8 +25,10 @@ const OFFICIAL_CATALOG_CATEGORIES = [
 function isAllowedCatalogRow(row: any) {
   const brand = normalizeText(String(row?.brand || ""));
   const name = normalizeText(String(row?.name || ""));
+  const category = normalizeText(String(row?.category || ""));
   if (!name) return false;
   if (ALLOWED_BRAND_KEYS.some((k) => brand.includes(k))) return true;
+  if (ALLOWED_CATEGORY_KEYS.some((k) => category === k || category.startsWith(`${k}_`))) return true;
   return ALLOWED_NAME_KEYS.some((k) => name.includes(k));
 }
 
