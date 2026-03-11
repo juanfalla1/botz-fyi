@@ -1196,6 +1196,11 @@ function hasConcreteProductHint(text: string): boolean {
   return terms.length >= 2;
 }
 
+function prefersWebTechPageOnly(category: string): boolean {
+  const c = normalizeText(String(category || ""));
+  return c === "analizador_humedad";
+}
+
 function extractModelLikeTokens(text: string): string[] {
   return Array.from(
     new Set(
@@ -2587,13 +2592,17 @@ export async function POST(req: Request) {
           nextMemory.last_product_category = String((matched as any)?.category || "");
           const wantsSheet = isTechnicalSheetIntent(techInboundText) || awaitingTechProductSelection || awaitingTechAssetChoice;
           const wantsImage = isProductImageIntent(techInboundText) || awaitingTechAssetChoice;
+          const matchedCategory = normalizeText(String((matched as any)?.category || ""));
+          const webTechOnly = prefersWebTechPageOnly(matchedCategory);
+          const matchedProductUrl = String((matched as any)?.product_url || "").trim();
           const imageUrl = String((matched as any)?.image_url || "").trim();
           let attachedSheet = false;
           let attachedImage = false;
 
           if (wantsSheet) {
-            const datasheetUrl = pickBestProductPdfUrl(matched, techInboundText);
+            const datasheetUrl = webTechOnly ? "" : pickBestProductPdfUrl(matched, techInboundText);
             if (datasheetUrl) technicalFallbackLinks.push(datasheetUrl);
+            if (webTechOnly && matchedProductUrl) technicalFallbackLinks.push(matchedProductUrl);
             if (datasheetUrl) {
               const remote = await fetchRemoteFileAsBase64(datasheetUrl);
               if (remote) {
@@ -2637,7 +2646,10 @@ export async function POST(req: Request) {
           const pdfLink = technicalFallbackLinks.find((u) => /\.pdf(\?|$)/i.test(String(u || ""))) || "";
           const pdfTooLargeForAttachment = wantsSheet && !attachedSheet && Boolean(pdfLink);
           const urlKey = (u: string) => String(u || "").trim().replace(/\/+$/, "").toLowerCase();
-          const detailUrl = productUrl && (!pdfLink || urlKey(productUrl) !== urlKey(pdfLink)) ? productUrl : "";
+          const detailUrl = !webTechOnly && productUrl && (!pdfLink || urlKey(productUrl) !== urlKey(pdfLink)) ? productUrl : "";
+          const webTechLinkSection = webTechOnly && wantsSheet && matchedProductUrl
+            ? ["", `Este modelo no tiene ficha PDF oficial. Ficha web del producto: ${matchedProductUrl}`]
+            : [];
 
           if (technicalDocs.length) {
             const summarySection = includeSummary
@@ -2652,20 +2664,24 @@ export async function POST(req: Request) {
             reply = [
               `Perfecto. Ya te envío por este WhatsApp la información técnica de ${String((matched as any)?.name || "ese producto")}${attachedSheet ? " (ficha)" : ""}${attachedImage ? " e imagen" : ""}.`,
               ...summarySection,
+              ...webTechLinkSection,
             ].join("\n");
           } else if (briefSpecs) {
             reply = [
               `Te comparto la ficha técnica de ${String((matched as any)?.name || "ese producto")}:`,
               "",
               briefSpecs,
+              ...webTechLinkSection,
               ...(pdfTooLargeForAttachment ? ["", `La ficha PDF es pesada para envío directo; aquí la puedes abrir: ${pdfLink}`] : []),
               ...(imageUrl ? ["", `Imagen del producto: ${imageUrl}`] : []),
               ...(detailUrl ? ["", `Más detalle: ${detailUrl}`] : []),
             ].join("\n");
           } else {
-            reply = pdfTooLargeForAttachment
-              ? `La ficha PDF de ${String((matched as any)?.name || "ese producto")} es pesada para envío directo por WhatsApp. Puedes abrirla aquí: ${pdfLink}.${imageUrl ? ` Imagen: ${imageUrl}.` : ""}`
-              : `No tengo el archivo adjunto listo para ${String((matched as any)?.name || "ese producto")} en este momento.${imageUrl ? ` Imagen: ${imageUrl}.` : ""} ${detailUrl ? `Detalle: ${detailUrl}.` : ""} Si quieres, te ayudo a cotizarlo de una vez.`;
+            reply = webTechOnly && wantsSheet && matchedProductUrl
+              ? `Este modelo no tiene ficha PDF oficial. Puedes revisar su ficha web aquí: ${matchedProductUrl}.${imageUrl ? ` Imagen: ${imageUrl}.` : ""}`
+              : pdfTooLargeForAttachment
+                ? `La ficha PDF de ${String((matched as any)?.name || "ese producto")} es pesada para envío directo por WhatsApp. Puedes abrirla aquí: ${pdfLink}.${imageUrl ? ` Imagen: ${imageUrl}.` : ""}`
+                : `No tengo el archivo adjunto listo para ${String((matched as any)?.name || "ese producto")} en este momento.${imageUrl ? ` Imagen: ${imageUrl}.` : ""} ${detailUrl ? `Detalle: ${detailUrl}.` : ""} Si quieres, te ayudo a cotizarlo de una vez.`;
           }
           nextMemory.awaiting_action = "none";
           handledByTechSheet = true;
