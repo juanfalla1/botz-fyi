@@ -1487,6 +1487,7 @@ export async function POST(req: Request) {
     }> = [];
     let autoQuoteBundle: null | { fileName: string; pdfBase64: string; draftIds: string[] } = null;
     const tenantId = String((agent as any)?.tenant_id || "").trim();
+    const catalogProvider = String((cfg as any)?.catalog_provider || "ohaus_colombia").trim().toLowerCase();
 
     const inboundName = sanitizeCustomerDisplayName(inbound.pushName || "");
     let knownCustomerName = sanitizeCustomerDisplayName(String(nextMemory.customer_name || ""))
@@ -1558,7 +1559,16 @@ export async function POST(req: Request) {
         .eq("is_active", true);
       if (pricedOnly) tenantQuery = tenantQuery.gt("base_price_usd", 0);
       const { count: tenantCount } = await tenantQuery;
-      return Number(tenantCount || 0);
+      if (Number(tenantCount || 0) > 0) return Number(tenantCount || 0);
+
+      let providerQuery = supabase
+        .from("agent_product_catalog")
+        .select("id", { count: "exact", head: true })
+        .eq("provider", catalogProvider)
+        .eq("is_active", true);
+      if (pricedOnly) providerQuery = providerQuery.gt("base_price_usd", 0);
+      const { count: providerCount } = await providerQuery;
+      return Number(providerCount || 0);
     };
 
     const fetchCatalogRows = async (selectCols: string, limitRows: number, pricedOnly = false) => {
@@ -1583,7 +1593,19 @@ export async function POST(req: Request) {
         .limit(limitRows);
       if (pricedOnly) tenantQuery = tenantQuery.gt("base_price_usd", 0);
       const { data: tenantRows } = await tenantQuery;
-      return (Array.isArray(tenantRows) ? tenantRows : []).filter((r: any) => isAllowedCatalogRow(r));
+      const tenantList = (Array.isArray(tenantRows) ? tenantRows : []).filter((r: any) => isAllowedCatalogRow(r));
+      if (tenantList.length) return tenantList;
+
+      let providerQuery = supabase
+        .from("agent_product_catalog")
+        .select(selectCols)
+        .eq("provider", catalogProvider)
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(limitRows);
+      if (pricedOnly) providerQuery = providerQuery.gt("base_price_usd", 0);
+      const { data: providerRows } = await providerQuery;
+      return (Array.isArray(providerRows) ? providerRows : []).filter((r: any) => isAllowedCatalogRow(r));
     };
 
     if (isGreetingIntent(inbound.text)) {
