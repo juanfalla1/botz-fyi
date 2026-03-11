@@ -1261,6 +1261,55 @@ function filterCatalogByTerms(text: string, rows: any[], forcedCategory?: string
   });
 }
 
+function pickBestProductPdfUrl(row: any, queryText: string): string {
+  const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const payloadPdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
+  const productUrlAsPdf = /\.pdf(\?|$)/i.test(String(row?.product_url || "")) ? String(row?.product_url || "") : "";
+
+  const candidates = uniqueNormalizedStrings(
+    [String(row?.datasheet_url || "").trim(), ...payloadPdfLinks.map((u: any) => String(u || "").trim()), productUrlAsPdf]
+      .filter(Boolean)
+  ).filter((u) => /^https?:\/\//i.test(u) && /\.pdf(\?|$)/i.test(u));
+
+  if (!candidates.length) return "";
+
+  const baseText = `${String(row?.name || "")} ${String(row?.slug || "")} ${String(queryText || "")}`;
+  const modelTokens = extractModelLikeTokens(baseText);
+  const terms = extractCatalogTerms(baseText);
+  const slugCompact = normalizeCatalogQueryText(String(row?.slug || "")).replace(/[^a-z0-9]+/g, "");
+
+  let best: { url: string; score: number; modelHits: number } | null = null;
+  for (const url of candidates) {
+    const hay = normalizeCatalogQueryText(url);
+    const hayCompact = hay.replace(/[^a-z0-9]+/g, "");
+    let score = 0;
+    let modelHits = 0;
+
+    for (const token of modelTokens) {
+      if (hay.includes(token)) {
+        modelHits += 1;
+        score += 10;
+      }
+    }
+
+    for (const term of terms) {
+      if (hay.includes(term)) score += 2;
+    }
+
+    if (slugCompact && hayCompact.includes(slugCompact)) score += 5;
+    if (/datasheet|ficha/i.test(hay)) score += 2;
+    if (/brochure|catalog|catalogo|guia|manual|folleto|conceptos|fundamentos|comparativa/i.test(hay)) score -= 4;
+
+    if (!best || score > best.score) {
+      best = { url, score, modelHits };
+    }
+  }
+
+  if (!best) return "";
+  if (modelTokens.length && best.modelHits === 0) return "";
+  return best.url;
+}
+
 function pickCatalogByVariantText(
   text: string,
   catalogRows: any[],
@@ -2538,15 +2587,12 @@ export async function POST(req: Request) {
           nextMemory.last_product_category = String((matched as any)?.category || "");
           const wantsSheet = isTechnicalSheetIntent(techInboundText) || awaitingTechProductSelection || awaitingTechAssetChoice;
           const wantsImage = isProductImageIntent(techInboundText) || awaitingTechAssetChoice;
-          const payload = matched?.source_payload && typeof matched.source_payload === "object" ? matched.source_payload : {};
-          const payloadPdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
           const imageUrl = String((matched as any)?.image_url || "").trim();
           let attachedSheet = false;
           let attachedImage = false;
 
           if (wantsSheet) {
-            const productUrlAsPdf = /\.pdf(\?|$)/i.test(String((matched as any)?.product_url || "")) ? String((matched as any)?.product_url || "") : "";
-            const datasheetUrl = String((matched as any)?.datasheet_url || payloadPdfLinks[0] || productUrlAsPdf || "").trim();
+            const datasheetUrl = pickBestProductPdfUrl(matched, techInboundText);
             if (datasheetUrl) technicalFallbackLinks.push(datasheetUrl);
             if (datasheetUrl) {
               const remote = await fetchRemoteFileAsBase64(datasheetUrl);
