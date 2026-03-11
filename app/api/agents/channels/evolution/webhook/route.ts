@@ -1994,8 +1994,6 @@ export async function POST(req: Request) {
     if (
       !handledByGreeting &&
       !handledByInventory &&
-      awaitingAction !== "tech_product_selection" &&
-      awaitingAction !== "tech_asset_choice" &&
       !isTechnicalSheetIntent(inbound.text) &&
       !isProductImageIntent(inbound.text) &&
       !shouldAutoQuote(inbound.text) &&
@@ -2005,6 +2003,13 @@ export async function POST(req: Request) {
       const categoryIntent = detectCatalogCategoryIntent(inbound.text)
         || (isCategoryFollowUpIntent(inbound.text) ? rememberedCategoryIntent : "");
       if (categoryIntent) {
+        const userShortText = normalizeCatalogQueryText(inbound.text);
+        const looksLikeConcreteModel =
+          extractModelLikeTokens(userShortText).length > 0 ||
+          /\b(sjx|spx|stx|px|ax|mb120|mb90|mb62|mb32|st2\d{2}|st\d{2,4})\b/.test(userShortText);
+        if (awaitingAction === "tech_product_selection" && looksLikeConcreteModel) {
+          // Do not hijack technical selection with category summary.
+        } else {
         try {
           const categoryRows = await fetchCatalogRows("name,category,source_payload,product_url", 160, false);
           const allRows = Array.isArray(categoryRows) ? categoryRows : [];
@@ -2100,6 +2105,7 @@ export async function POST(req: Request) {
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         } catch (catErr: any) {
           console.warn("[evolution-webhook] category_inventory_failed", catErr?.message || catErr);
+        }
         }
       }
     }
