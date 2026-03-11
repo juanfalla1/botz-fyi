@@ -214,6 +214,25 @@ type InboundEvent = {
   source?: string;
 };
 
+type ClassifiedIntent = {
+  intent:
+    | "greeting"
+    | "consultar_categoria"
+    | "consultar_producto"
+    | "solicitar_ficha"
+    | "solicitar_cotizacion"
+    | "consultar_trm"
+    | "consultar_historial"
+    | "despedida"
+    | "aclaracion";
+  category: string | null;
+  product: string | null;
+  request_datasheet: boolean;
+  request_quote: boolean;
+  request_trm: boolean;
+  needs_clarification: boolean;
+};
+
 function inboundJidCandidates(payload: any, item: any): string[] {
   const key = item?.key || {};
   const values = [
@@ -486,6 +505,44 @@ async function persistConversationTurn(
     started_at: nowIso,
     ended_at: nowIso,
   });
+}
+
+async function reserveIncomingMessage(
+  supabase: any,
+  args: {
+    provider: string;
+    providerMessageId: string;
+    instance?: string;
+    fromPhone?: string;
+    payload?: any;
+  }
+): Promise<{ ok: boolean; duplicate: boolean }> {
+  const providerMessageId = String(args.providerMessageId || "").trim();
+  if (!providerMessageId) return { ok: true, duplicate: false };
+
+  const { error } = await supabase.from("incoming_messages").insert({
+    provider: String(args.provider || "evolution").trim() || "evolution",
+    provider_message_id: providerMessageId,
+    instance_name: String(args.instance || "").trim() || null,
+    from_phone: String(args.fromPhone || "").trim() || null,
+    payload: args.payload && typeof args.payload === "object" ? args.payload : null,
+    status: "received",
+  });
+
+  if (!error) return { ok: true, duplicate: false };
+
+  const code = String((error as any)?.code || "").trim();
+  const msg = String((error as any)?.message || "").toLowerCase();
+  if (code === "23505" || msg.includes("duplicate key") || msg.includes("unique constraint")) {
+    return { ok: true, duplicate: true };
+  }
+
+  if (msg.includes("relation") && msg.includes("incoming_messages")) {
+    return { ok: true, duplicate: false };
+  }
+
+  console.warn("[evolution-webhook] reserve incoming failed", error?.message || error);
+  return { ok: false, duplicate: false };
 }
 
 function summarizeInboundAttempt(payload: any) {
@@ -1015,6 +1072,46 @@ function isStrictCatalogIntent(text: string): boolean {
   );
 }
 
+function isCategoryFollowUpIntent(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  return /^(cuales|cu[aá]les|que tienen|que mas tienen|de cual|de cuales|muestrame|muestrame mas|dame una|damela|dámela|quiero esa|quiero ese|esa|ese)\b/.test(t);
+}
+
+function isConsistencyChallengeIntent(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  return /(arriba me dij|me dijiste|te contradices|contradic|eso no coincide|no coincide|pero dijiste)/.test(t);
+}
+
+function classifyIntent(text: string, memory?: Record<string, any>): ClassifiedIntent {
+  const t = normalizeText(text || "");
+  const category = detectCatalogCategoryIntent(t) || String(memory?.last_category_intent || "").trim() || null;
+  const requestDatasheet = isTechnicalSheetIntent(t) || isProductImageIntent(t);
+  const requestQuote = shouldAutoQuote(t) || isQuoteStarterIntent(t) || isQuoteProceedIntent(t);
+  const requestTrm = /(trm|tasa representativa|dolar hoy|usd cop|tasa de cambio)/.test(t);
+
+  let intent: ClassifiedIntent["intent"] = "aclaracion";
+  if (isGreetingIntent(t)) intent = "greeting";
+  else if (isHistoryIntent(t) || isQuoteRecallIntent(t)) intent = "consultar_historial";
+  else if (requestQuote) intent = "solicitar_cotizacion";
+  else if (requestDatasheet) intent = "solicitar_ficha";
+  else if (requestTrm) intent = "consultar_trm";
+  else if (category) intent = "consultar_categoria";
+  else if (isProductLookupIntent(t) || isPriceIntent(t) || isRecommendationIntent(t)) intent = "consultar_producto";
+  else if (/(gracias|ok gracias|listo gracias|chao|adios|hasta luego)/.test(t)) intent = "despedida";
+
+  return {
+    intent,
+    category,
+    product: null,
+    request_datasheet: requestDatasheet,
+    request_quote: requestQuote,
+    request_trm: requestTrm,
+    needs_clarification: intent === "aclaracion",
+  };
+}
+
 function findCatalogProductByName(rows: any[], rememberedName: string): any | null {
   const target = normalizeText(rememberedName || "");
   if (!target) return null;
@@ -1382,6 +1479,22 @@ export async function POST(req: Request) {
     const ownerId = String((agent as any).created_by || "").trim();
     if (!ownerId) return NextResponse.json({ ok: false, error: "Agente sin propietario" }, { status: 400 });
 
+    const incomingDedupKey = String(inbound.messageId || `${inbound.instance || "default"}:${inbound.from}:${normalizeText(inbound.text)}`).trim();
+    const dedup = await reserveIncomingMessage(supabase as any, {
+      provider: "evolution",
+      providerMessageId: incomingDedupKey,
+      instance: inbound.instance,
+      fromPhone: inbound.from,
+      payload: {
+        message_id: inbound.messageId || null,
+        text: String(inbound.text || "").slice(0, 1000),
+      },
+    });
+    if (dedup.duplicate) {
+      console.log("[evolution-webhook] ignored: duplicate_provider_message", { key: incomingDedupKey });
+      return NextResponse.json({ ok: true, ignored: true, reason: "duplicate_provider_message" });
+    }
+
     const access = await checkEntitlementAccess(supabase as any, ownerId);
     if (!access.ok) {
       console.warn("[evolution-webhook] ignored: entitlement_blocked", { code: access.code });
@@ -1419,14 +1532,40 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     const existingMeta = existingConv?.metadata && typeof existingConv.metadata === "object" ? existingConv.metadata : {};
+    const lastInboundMessageId = String((existingMeta as any)?.last_inbound_message_id || "").trim();
+    if (inbound.messageId && lastInboundMessageId && inbound.messageId === lastInboundMessageId) {
+      console.log("[evolution-webhook] ignored: duplicate_message_id", {
+        messageId: inbound.messageId,
+        from: inbound.from,
+        agentId: agent.id,
+      });
+      return NextResponse.json({ ok: true, ignored: true, reason: "duplicate_message_id" });
+    }
     const previousMemory = existingMeta?.whatsapp_memory && typeof existingMeta.whatsapp_memory === "object"
       ? existingMeta.whatsapp_memory
       : {};
+    const prevTextNorm = normalizeText(String((previousMemory as any)?.last_user_text || ""));
+    const currTextNorm = normalizeText(String(inbound.text || ""));
+    const prevUserAtMs = Date.parse(String((previousMemory as any)?.last_user_at || ""));
+    if (
+      prevTextNorm &&
+      currTextNorm &&
+      prevTextNorm === currTextNorm &&
+      Number.isFinite(prevUserAtMs) &&
+      Date.now() - prevUserAtMs < 45_000
+    ) {
+      console.log("[evolution-webhook] ignored: duplicate_recent_text", {
+        from: inbound.from,
+        text: currTextNorm.slice(0, 80),
+      });
+      return NextResponse.json({ ok: true, ignored: true, reason: "duplicate_recent_text" });
+    }
     const nextMemory: Record<string, any> = {
       ...previousMemory,
       last_user_text: inbound.text,
       last_user_at: new Date().toISOString(),
     };
+    const classifiedIntent = classifyIntent(inbound.text, previousMemory);
 
     const historyMessages: { role: "user" | "assistant"; content: string }[] = [];
     if (existingConv?.transcript && Array.isArray(existingConv.transcript)) {
@@ -1653,7 +1792,9 @@ export async function POST(req: Request) {
       !shouldAutoQuote(inbound.text) &&
       !isPriceIntent(inbound.text)
     ) {
-      const categoryIntent = detectCatalogCategoryIntent(inbound.text);
+      const rememberedCategoryIntent = String(previousMemory?.last_category_intent || "").trim();
+      const categoryIntent = detectCatalogCategoryIntent(inbound.text)
+        || (isCategoryFollowUpIntent(inbound.text) ? rememberedCategoryIntent : "");
       if (categoryIntent) {
         try {
           const categoryRows = await fetchCatalogRows("name,category,source_payload,product_url", 160, false);
@@ -1670,6 +1811,7 @@ export async function POST(req: Request) {
             const names = pool.map((r: any) => String(r?.name || "").trim()).filter(Boolean).slice(0, 10);
             const extra = Math.max(0, pool.length - names.length);
             const categoryLabel = categoryIntent.replace(/_/g, " ");
+            nextMemory.last_category_intent = categoryIntent;
             reply = [
               `Perfecto. En ${categoryLabel} tengo ${pool.length} referencia(s) en catálogo.`,
               ...names.map((n) => `- ${n}`),
@@ -2452,19 +2594,21 @@ export async function POST(req: Request) {
     if (!autoQuoteDocs.length && !handledByGreeting && !handledByRecall && !handledByTechSheet && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteStarter && !handledByQuoteIntake) {
       const catalogRows = await fetchCatalogRows("name,brand,category,source_payload,product_url", 120, false);
       const commercialRows = (Array.isArray(catalogRows) ? catalogRows : []).filter((r: any) => isCommercialCatalogRow(r));
+      const rememberedCategoryIntent = String(previousMemory?.last_category_intent || "").trim();
+      const deterministicOnly =
+        isStrictCatalogIntent(inbound.text) ||
+        (isCategoryFollowUpIntent(inbound.text) && Boolean(rememberedCategoryIntent)) ||
+        isConsistencyChallengeIntent(inbound.text);
 
-      if (isStrictCatalogIntent(inbound.text)) {
+      if (deterministicOnly) {
         const sample = commercialRows
           .map((r: any) => String(r?.name || "").trim())
           .filter(Boolean)
           .slice(0, 6);
+        const categoryHint = rememberedCategoryIntent ? ` Última categoría consultada: ${rememberedCategoryIntent.replace(/_/g, " ")}.` : "";
         reply = sample.length
-          ? [
-              "Para evitar errores, solo respondo con productos activos de esta base de datos.",
-              "No encontré coincidencia exacta con lo que pediste.",
-              `Prueba con un modelo exacto. Ejemplos: ${sample.join("; ")}.`,
-            ].join("\n")
-          : "Para evitar errores, solo respondo con productos activos de esta base de datos y no encontré coincidencias en este momento.";
+          ? `Para evitar errores, solo respondo con datos confirmados del catálogo.${categoryHint} Indícame modelo exacto o categoría exacta. Ejemplos: ${sample.join("; ")}.`
+          : `Para evitar errores, solo respondo con datos confirmados del catálogo.${categoryHint} En este momento no tengo coincidencias exactas para tu mensaje.`;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       } else {
 
@@ -2780,6 +2924,18 @@ export async function POST(req: Request) {
     else if (handledByRecommendation) nextMemory.last_intent = "recommendation_request";
     else if (handledByHistory) nextMemory.last_intent = "history_request";
     else if (handledByGreeting) nextMemory.last_intent = "greeting";
+    else nextMemory.last_intent = classifiedIntent.intent;
+
+    nextMemory.intent_snapshot = {
+      intent: classifiedIntent.intent,
+      category: classifiedIntent.category,
+      product: classifiedIntent.product,
+      request_datasheet: classifiedIntent.request_datasheet,
+      request_quote: classifiedIntent.request_quote,
+      request_trm: classifiedIntent.request_trm,
+      needs_clarification: classifiedIntent.needs_clarification,
+      at: new Date().toISOString(),
+    };
 
     const burn = await consumeEntitlementCredits(supabase as any, ownerId, billedTokens);
     if (!burn.ok) {
@@ -2831,6 +2987,39 @@ export async function POST(req: Request) {
         quote_auto_docs: autoQuoteDocs.length,
       },
     });
+
+    try {
+      await supabase.from("message_audit_log").insert({
+        provider: "evolution",
+        agent_id: String(agent.id),
+        owner_id: ownerId,
+        tenant_id: (agent as any)?.tenant_id || null,
+        phone: inbound.from,
+        message_id: incomingDedupKey,
+        intent: String(classifiedIntent.intent || ""),
+        category: classifiedIntent.category,
+        product: classifiedIntent.product,
+        action: String(nextMemory.last_intent || classifiedIntent.intent || ""),
+        request_payload: {
+          text: inbound.text,
+          classified_intent: classifiedIntent,
+        },
+        response_payload: {
+          reply,
+          sent_quote_pdf: sentQuotePdf,
+          sent_tech_sheet: sentTechSheet,
+          sent_image: sentImage,
+        },
+      });
+    } catch (auditErr: any) {
+      console.warn("[evolution-webhook] audit_log_failed", auditErr?.message || auditErr);
+    }
+
+    await supabase
+      .from("incoming_messages")
+      .update({ status: "processed", processed_at: new Date().toISOString() })
+      .eq("provider", "evolution")
+      .eq("provider_message_id", incomingDedupKey);
 
     return NextResponse.json({ ok: true, sent: true });
   } catch (e: any) {
