@@ -2808,6 +2808,9 @@ export async function POST(req: Request) {
           const webTechLinkSection = webTechOnly && wantsSheet && matchedProductUrl
             ? ["", `FICHA WEB: ${matchedProductUrl}`]
             : [];
+          const sheetLinkFallbackSection = wantsSheet && !attachedSheet && !webTechOnly && primarySheetLink
+            ? ["", `Ficha técnica (enlace): ${primarySheetLink}`]
+            : [];
           const hasSamePrimaryWebLink = webTechOnly && matchedProductUrl && primarySheetLink && urlKey(primarySheetLink) === urlKey(matchedProductUrl);
 
           if (technicalDocs.length) {
@@ -2825,6 +2828,7 @@ export async function POST(req: Request) {
             reply = [
               `Perfecto. Ya te envío por este WhatsApp la información técnica de ${String((matched as any)?.name || "ese producto")}${attachedSheet ? " (ficha)" : ""}${attachedImage ? " e imagen" : ""}.`,
               ...summarySection,
+              ...sheetLinkFallbackSection,
               ...webTechLinkSection,
             ].join("\n");
           } else if (briefSpecs) {
