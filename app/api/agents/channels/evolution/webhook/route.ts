@@ -1028,6 +1028,7 @@ function phoneTail10(raw: string): string {
 
 function pickBestCatalogProduct(text: string, rows: any[]): any | null {
   const inbound = normalizeCatalogQueryText(text);
+  const modelTokens = extractModelLikeTokens(inbound);
   const terms = Array.from(
     new Set(
       inbound
@@ -1047,6 +1048,9 @@ function pickBestCatalogProduct(text: string, rows: any[]): any | null {
     let score = 0;
     if (rowName && inbound.includes(rowName)) score += 10;
     if (nameCompact && inboundCompact.includes(nameCompact)) score += 8;
+    for (const token of modelTokens) {
+      if (hay.includes(token)) score += 10;
+    }
     for (const term of terms) {
       if (hay.includes(term)) score += /^\d+$/.test(term) ? 3 : 2;
     }
@@ -2032,7 +2036,7 @@ export async function POST(req: Request) {
         .eq("is_active", true);
       if (pricedOnly) providerQuery = providerQuery.gt("base_price_usd", 0);
       const { count: providerCount } = await providerQuery;
-      return Number(providerCount || 0);
+      return Math.max(Number(ownerCount || 0), Number(tenantCount || 0), Number(providerCount || 0));
     };
 
     const fetchCatalogRows = async (selectCols: string, limitRows: number, pricedOnly = false) => {
@@ -2045,20 +2049,20 @@ export async function POST(req: Request) {
         .limit(limitRows);
       if (pricedOnly) ownerQuery = ownerQuery.gt("base_price_usd", 0);
       const { data: ownerRows } = await ownerQuery;
-      const ownerList = (Array.isArray(ownerRows) ? ownerRows : []).filter((r: any) => isAllowedCatalogRow(r));
-      if (ownerList.length || !tenantId) return ownerList;
 
-      let tenantQuery = supabase
-        .from("agent_product_catalog")
-        .select(selectCols)
-        .eq("tenant_id", tenantId)
-        .eq("is_active", true)
-        .order("updated_at", { ascending: false })
-        .limit(limitRows);
-      if (pricedOnly) tenantQuery = tenantQuery.gt("base_price_usd", 0);
-      const { data: tenantRows } = await tenantQuery;
-      const tenantList = (Array.isArray(tenantRows) ? tenantRows : []).filter((r: any) => isAllowedCatalogRow(r));
-      if (tenantList.length) return tenantList;
+      let tenantRows: any[] = [];
+      if (tenantId) {
+        let tenantQuery = supabase
+          .from("agent_product_catalog")
+          .select(selectCols)
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true)
+          .order("updated_at", { ascending: false })
+          .limit(limitRows);
+        if (pricedOnly) tenantQuery = tenantQuery.gt("base_price_usd", 0);
+        const { data } = await tenantQuery;
+        tenantRows = Array.isArray(data) ? data : [];
+      }
 
       let providerQuery = supabase
         .from("agent_product_catalog")
@@ -2069,7 +2073,26 @@ export async function POST(req: Request) {
         .limit(limitRows);
       if (pricedOnly) providerQuery = providerQuery.gt("base_price_usd", 0);
       const { data: providerRows } = await providerQuery;
-      return (Array.isArray(providerRows) ? providerRows : []).filter((r: any) => isAllowedCatalogRow(r));
+
+      const mergedRaw = [
+        ...(Array.isArray(ownerRows) ? ownerRows : []),
+        ...tenantRows,
+        ...(Array.isArray(providerRows) ? providerRows : []),
+      ];
+
+      const merged: any[] = [];
+      const seen = new Set<string>();
+      for (const row of mergedRaw) {
+        const key = String((row as any)?.id || (row as any)?.product_url || `${(row as any)?.name || ""}::${(row as any)?.category || ""}`)
+          .trim()
+          .toLowerCase();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        merged.push(row);
+        if (merged.length >= limitRows) break;
+      }
+
+      return merged.filter((r: any) => isAllowedCatalogRow(r));
     };
 
     const fetchVariantRowsByCatalog = async (catalogRows: any[]) => {
