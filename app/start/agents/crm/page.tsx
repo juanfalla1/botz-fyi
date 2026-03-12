@@ -927,9 +927,9 @@ export default function AgentsCrmPage() {
           <div style={{ fontWeight: 800, marginBottom: 10 }}>{tr("Dashboard comercial", "Sales dashboard")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1.4fr 0.9fr", gap: 12 }}>
             <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: "linear-gradient(180deg,#101522,#0c111b)", padding: 12 }}>
-              <div style={{ color: C.white, fontWeight: 700, marginBottom: 8 }}>{tr("Flujo 30 días", "30-day flow")}</div>
+              <div style={{ color: C.white, fontWeight: 700, marginBottom: 8 }}>{tr("Flujo 30 días (oportunidades creadas)", "30-day flow (created opportunities)")}</div>
               <div style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>
-                {tr("Línea comparativa: periodo actual vs mes anterior (oportunidades creadas).", "Comparison line: current period vs previous month (created opportunities).")}
+                {tr("Compara la cantidad diaria de oportunidades creadas: últimos 30 días vs los 30 días anteriores.", "Compares daily created opportunities: last 30 days vs previous 30 days.")}
               </div>
               <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: "#0b0f18", padding: 10, position: "relative" }}>
                 {(() => {
@@ -1020,17 +1020,17 @@ export default function AgentsCrmPage() {
                             {flowSeries.labels[hoverIndex] || "-"}
                           </div>
                           <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-                            {hoverSeries === "cur" ? tr("Últimos 30 días", "Last 30 days") : tr("Mes anterior", "Previous month")}: <b style={{ color: C.white }}>{hoverValue}</b>
+                            {hoverSeries === "cur" ? tr("Últimos 30 días", "Last 30 days") : tr("Mes anterior", "Previous month")}: <b style={{ color: C.white }}>{hoverValue}</b> {tr("oportunidades", "opportunities")}
                           </div>
                         </div>
                       )}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, gap: 8, flexWrap: "wrap" }}>
                         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12 }}>
-                          <span style={{ color: C.muted }}><span style={{ color: "#60a5fa" }}>●</span> {tr("Últimos 30 días", "Last 30 days")}: <b style={{ color: C.white }}>{flowSeries.currentTotal}</b></span>
-                          <span style={{ color: C.muted }}><span style={{ color: "#f59e0b" }}>●</span> {tr("Mes anterior", "Previous month")}: <b style={{ color: C.white }}>{flowSeries.previousTotal}</b></span>
+                          <span style={{ color: C.muted }}><span style={{ color: "#60a5fa" }}>●</span> {tr("Últimos 30 días", "Last 30 days")}: <b style={{ color: C.white }}>{flowSeries.currentTotal}</b> {tr("oportunidades", "opportunities")}</span>
+                          <span style={{ color: C.muted }}><span style={{ color: "#f59e0b" }}>●</span> {tr("Mes anterior", "Previous month")}: <b style={{ color: C.white }}>{flowSeries.previousTotal}</b> {tr("oportunidades", "opportunities")}</span>
                         </div>
                         <div style={{ fontSize: 12, color: trendColor }}>
-                          {delta >= 0 ? "+" : ""}{delta} {tr("vs mes anterior", "vs previous month")}
+                          {delta >= 0 ? "+" : ""}{delta} {tr("oportunidades vs mes anterior", "opportunities vs previous month")}
                         </div>
                       </div>
                     </>
