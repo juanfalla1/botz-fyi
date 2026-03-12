@@ -2316,6 +2316,7 @@ export async function POST(req: Request) {
               if (rankedByFeature.length) {
                 const top = rankedByFeature.slice(0, 3);
                 const topNames = top.map((x) => humanCatalogName(String(x?.row?.name || "").trim())).filter(Boolean);
+                const more = Math.max(0, rankedByFeature.length - topNames.length);
                 const first = top[0]?.row;
                 if (first?.name) {
                   nextMemory.last_product_name = String(first.name || "");
@@ -2323,8 +2324,9 @@ export async function POST(req: Request) {
                   nextMemory.last_product_category = String((first as any)?.category || "");
                 }
                 reply = [
-                  `Sí, en ${categoryLabel} tengo ${rankedByFeature.length} referencia(s) que coinciden con esa característica (${featureTerms.join(", ")}).`,
+                  `Sí, en ${categoryLabel} tengo ${rankedByFeature.length} referencia(s) que coinciden con esa característica (${featureTerms.join(", ")}). Te muestro ${topNames.length}:`,
                   ...topNames.map((n) => `- ${n}`),
+                  ...(more > 0 ? [`- y ${more} más`] : []),
                   "",
                   "Si quieres, te envío ficha técnica o imagen del modelo que elijas por este WhatsApp.",
                 ].join("\n");
