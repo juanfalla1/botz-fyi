@@ -2808,10 +2808,19 @@ export async function POST(req: Request) {
           const webTechLinkSection = webTechOnly && wantsSheet && matchedProductUrl
             ? ["", `FICHA WEB: ${matchedProductUrl}`]
             : [];
-          const sheetLinkFallbackSection = wantsSheet && !attachedSheet && !webTechOnly && primarySheetLink
-            ? ["", `Ficha técnica (enlace): ${primarySheetLink}`]
-            : [];
           const hasSamePrimaryWebLink = webTechOnly && matchedProductUrl && primarySheetLink && urlKey(primarySheetLink) === urlKey(matchedProductUrl);
+          const summaryAlreadyContainsSheetLink = includeSummary && !briefSpecs && !webTechOnly && Boolean(primarySheetLink);
+          const sheetLinkFallbackSection = wantsSheet && !attachedSheet && !webTechOnly && primarySheetLink && !summaryAlreadyContainsSheetLink
+            ? [
+                "",
+                `Te envío el enlace directo de la ficha técnica: ${primarySheetLink}`,
+                ...(pdfLink && !attachedSheet
+                  ? [pdfTooLargeForAttachment
+                      ? "Si prefieres, te intento reenviar el PDF cuando el archivo permita envio por WhatsApp."
+                      : "Si prefieres, escribe 'reenviar ficha' y te intento enviar el PDF por este WhatsApp."]
+                  : []),
+              ]
+            : [];
 
           if (technicalDocs.length) {
             const summarySection = includeSummary
