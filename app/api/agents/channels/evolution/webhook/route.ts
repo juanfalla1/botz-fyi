@@ -1098,6 +1098,67 @@ function extractCatalogTerms(text: string): string[] {
   );
 }
 
+function isFeatureQuestionIntent(text: string): boolean {
+  const t = normalizeCatalogQueryText(text || "");
+  if (!t) return false;
+  return (
+    /(que tenga|que tengan|tiene|tienen|incluye|incluyan|debe tener|caracteristic|especificacion|especificaciones)/.test(t) ||
+    /(con\s+(calibracion|precision|resolucion|capacidad|bateria|usb|bluetooth|wifi|rs\s*232|ip\d{2}|pantalla|sensor|humedad|analitic|semi|micro))/.test(t)
+  );
+}
+
+function extractFeatureTerms(text: string): string[] {
+  const blacklist = new Set([
+    "balanza", "balanzas", "bascula", "basculas", "equipo", "equipos", "producto", "productos", "categoria",
+    "cotizar", "cotizacion", "presupuesto", "precio", "trm", "whatsapp", "catalogo", "referencia", "referencias",
+    "modelo", "modelos", "tiene", "tienen", "tenga", "tengan", "incluye", "incluyan", "caracteristica", "caracteristicas",
+    "especificacion", "especificaciones", "debe", "tener", "con", "busco", "necesito", "quiero", "ohaus",
+  ]);
+  return extractCatalogTerms(text).filter((term) => !blacklist.has(term));
+}
+
+function catalogFeatureSearchBlob(row: any): string {
+  const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const specsJson = row?.specs_json;
+  const specsJsonText = typeof specsJson === "string"
+    ? specsJson
+    : (specsJson ? JSON.stringify(specsJson) : "");
+  return normalizeCatalogQueryText(
+    [
+      String(row?.name || ""),
+      String(row?.brand || ""),
+      String(row?.category || ""),
+      String(catalogSubcategory(row) || ""),
+      String(row?.summary || ""),
+      String(row?.description || ""),
+      String(row?.specs_text || ""),
+      specsJsonText,
+      JSON.stringify(payload || {}),
+    ].join(" ")
+  );
+}
+
+function rankCatalogByFeature(rows: any[], featureTerms: string[]): Array<{ row: any; matches: number; score: number }> {
+  if (!Array.isArray(rows) || !rows.length || !featureTerms.length) return [];
+  const ranked = (rows || []).map((row: any) => {
+    const hay = catalogFeatureSearchBlob(row);
+    let matches = 0;
+    let score = 0;
+    for (const term of featureTerms) {
+      if (!term) continue;
+      if (hay.includes(term)) {
+        matches += 1;
+        score += /\d/.test(term) ? 3 : term.length >= 6 ? 2 : 1;
+      }
+    }
+    if (matches === featureTerms.length) score += 2;
+    return { row, matches, score };
+  });
+  return ranked
+    .filter((x) => x.matches >= Math.min(featureTerms.length, featureTerms.length <= 2 ? 1 : 2))
+    .sort((a, b) => b.score - a.score);
+}
+
 function uniqueNormalizedStrings(values: string[], max = 0): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -2205,6 +2266,8 @@ export async function POST(req: Request) {
       const rememberedCategoryIntent = String(previousMemory?.last_category_intent || "").trim();
       const categoryIntent = detectCatalogCategoryIntent(inbound.text)
         || (isCategoryFollowUpIntent(inbound.text) ? rememberedCategoryIntent : "");
+      const featureTerms = extractFeatureTerms(inbound.text);
+      const wantsFeatureAnswer = isFeatureQuestionIntent(inbound.text) && featureTerms.length > 0;
       if (categoryIntent) {
         const looksLikeConcreteModel = hasConcreteProductHint(inbound.text);
         const shouldSkipCategorySummary = looksLikeConcreteModel;
@@ -2212,7 +2275,7 @@ export async function POST(req: Request) {
           // Do not hijack technical selection with category summary.
         } else {
         try {
-          const categoryRows = await fetchCatalogRows("name,category,source_payload,product_url", 160, false);
+          const categoryRows = await fetchCatalogRows("id,name,brand,category,summary,description,specs_text,specs_json,source_payload,product_url", 160, false);
           const allRows = Array.isArray(categoryRows) ? categoryRows : [];
           const filteredRows = categoryIntent === "documentos"
             ? allRows.filter((r: any) => isDocumentCatalogRow(r))
@@ -2248,14 +2311,43 @@ export async function POST(req: Request) {
             const extra = Math.max(0, uniqueNames.length - names.length);
             const categoryLabel = categoryIntent.replace(/_/g, " ");
             nextMemory.last_category_intent = categoryIntent;
-            reply = [
-              `Perfecto. En ${categoryLabel} tengo ${pool.length} referencia(s) en catálogo.`,
-              ...names.map((n) => `- ${n}`),
-              ...(extra > 0 ? [`- y ${extra} más`] : []),
-              "",
-              `Si quieres ver todo el catálogo oficial: ${CATALOG_REFERENCE_URL}`,
-              "Dime un modelo exacto y te envío ficha técnica o imagen por este WhatsApp.",
-            ].join("\n");
+            if (wantsFeatureAnswer) {
+              const rankedByFeature = rankCatalogByFeature(pool as any[], featureTerms).slice(0, 5);
+              if (rankedByFeature.length) {
+                const top = rankedByFeature.slice(0, 3);
+                const topNames = top.map((x) => humanCatalogName(String(x?.row?.name || "").trim())).filter(Boolean);
+                const first = top[0]?.row;
+                if (first?.name) {
+                  nextMemory.last_product_name = String(first.name || "");
+                  nextMemory.last_product_id = String((first as any)?.id || "");
+                  nextMemory.last_product_category = String((first as any)?.category || "");
+                }
+                reply = [
+                  `Sí, en ${categoryLabel} tengo ${rankedByFeature.length} referencia(s) que coinciden con esa característica (${featureTerms.join(", ")}).`,
+                  ...topNames.map((n) => `- ${n}`),
+                  "",
+                  "Si quieres, te envío ficha técnica o imagen del modelo que elijas por este WhatsApp.",
+                ].join("\n");
+              } else {
+                reply = [
+                  `En ${categoryLabel} no encontré una coincidencia exacta para esa característica (${featureTerms.join(", ")}) en este momento.`,
+                  "Opciones cercanas disponibles:",
+                  ...names.slice(0, 3).map((n) => `- ${n}`),
+                  ...(extra > 0 ? [`- y ${extra} más`] : []),
+                  "",
+                  "Si me dices la característica exacta (por ejemplo: capacidad, resolución o calibración), te filtro mejor.",
+                ].join("\n");
+              }
+            } else {
+              reply = [
+                `Perfecto. En ${categoryLabel} tengo ${pool.length} referencia(s) en catálogo.`,
+                ...names.map((n) => `- ${n}`),
+                ...(extra > 0 ? [`- y ${extra} más`] : []),
+                "",
+                `Si quieres ver todo el catálogo oficial: ${CATALOG_REFERENCE_URL}`,
+                "Dime un modelo exacto y te envío ficha técnica o imagen por este WhatsApp.",
+              ].join("\n");
+            }
           } else {
             const { count: providerCategoryCount } = await supabase
               .from("agent_product_catalog")
@@ -2438,23 +2530,43 @@ export async function POST(req: Request) {
         if (isTechnicalSheetIntent(inbound.text) || isProductImageIntent(inbound.text) || Boolean(detectTechResendIntent(inbound.text))) {
           // Technical requests are handled by dedicated tech-sheet flow.
         } else {
-        const products = await fetchCatalogRows("id,name,brand,category,source_payload,product_url", 120, false);
+        const products = await fetchCatalogRows("id,name,brand,category,summary,description,specs_text,specs_json,source_payload,product_url", 120, false);
 
         const list = (Array.isArray(products) ? products : []).filter((r: any) => isCommercialCatalogRow(r));
         const scopedCategory = normalizeText(String(detectCatalogCategoryIntent(inbound.text) || previousMemory?.last_category_intent || ""));
         const scopedList = scopedCategory ? scopeCatalogRows(list as any, scopedCategory) : list;
+        const featureTerms = extractFeatureTerms(inbound.text);
+        const wantsFeatureAnswer = isFeatureQuestionIntent(inbound.text) && featureTerms.length > 0;
         let matched = pickBestCatalogProduct(inbound.text, scopedList);
         if (matched?.name && !isCatalogMatchConsistent(inbound.text, matched, scopedCategory)) matched = null;
+        const sourceList = scopedList.length ? scopedList : list;
         const suggestions = [
           matched,
-          ...(scopedList.length ? scopedList : list).filter((p: any) => !matched || String(p.id) !== String(matched.id)),
+          ...sourceList.filter((p: any) => !matched || String(p.id) !== String(matched.id)),
         ]
           .filter(Boolean)
           .slice(0, 3)
           .map((p: any) => String(p?.name || "").trim())
           .filter(Boolean);
 
-        if (suggestions.length) {
+        if (wantsFeatureAnswer) {
+          const rankedByFeature = rankCatalogByFeature(sourceList as any[], featureTerms).slice(0, 5);
+          if (rankedByFeature.length) {
+            const top = rankedByFeature.slice(0, 3);
+            const topNames = top.map((x) => humanCatalogName(String(x?.row?.name || "").trim())).filter(Boolean);
+            const first = top[0]?.row;
+            if (first?.name) {
+              nextMemory.last_product_name = String(first.name || "");
+              nextMemory.last_product_id = String((first as any)?.id || "");
+              nextMemory.last_product_category = String((first as any)?.category || "");
+            }
+            reply = `Sí, tengo opciones que cumplen esa característica (${featureTerms.join(", ")}): ${topNames.join("; ")}. Si eliges una, te envío ficha o cotización por este WhatsApp.`;
+          } else if (suggestions.length) {
+            reply = `No encontré coincidencia exacta para esa característica (${featureTerms.join(", ")}). Te propongo alternativas cercanas: ${suggestions.join("; ")}.`;
+          } else {
+            reply = "No encontré coincidencias para esa característica en este momento. Si quieres, te filtro por capacidad, resolución o calibración interna.";
+          }
+        } else if (suggestions.length) {
           if (matched?.name) {
             nextMemory.last_product_name = String(matched.name || "");
             nextMemory.last_product_id = String((matched as any)?.id || "");
