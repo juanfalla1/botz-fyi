@@ -780,12 +780,31 @@ function shouldAutoQuote(text: string): boolean {
   return asksQuote && (asksDelivery || asksMulti);
 }
 
+function asksQuoteIntent(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  return /(cotiz|cotizacion|cotizar|presupuesto)/.test(t);
+}
+
 function isQuoteStarterIntent(text: string): boolean {
   const t = normalizeText(text);
-  const asksQuote = /(cotiz|cotizacion|cotizar|presupuesto)/.test(t);
+  const asksQuote = asksQuoteIntent(t);
   const genericProduct = /(balanza|producto|equipo|instrumento)/.test(t);
-  const hasConcreteRef = /\b\d{2,}\b/.test(t) || /(explorer|adventurer|koehler|modelo|referencia)/.test(t);
+  const hasConcreteRef = hasConcreteProductHint(t) || /\b\d{2,}\b/.test(t) || /(explorer|adventurer|pioneer|scout|defender|valor|fron|modelo|referencia)/.test(t);
   return asksQuote && (genericProduct || !hasConcreteRef);
+}
+
+function hasReferencePronoun(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  return /\b(de\s+esta|de\s+este|de\s+esa|de\s+ese|esta|este|esa|ese)\b/.test(t);
+}
+
+function isConcreteQuoteIntent(text: string, rememberedProductName?: string): boolean {
+  const t = normalizeText(text || "");
+  if (!asksQuoteIntent(t)) return false;
+  if (hasConcreteProductHint(t)) return true;
+  return hasReferencePronoun(t) && Boolean(normalizeText(String(rememberedProductName || "")));
 }
 
 function isQuoteProceedIntent(text: string): boolean {
@@ -2665,24 +2684,28 @@ export async function POST(req: Request) {
           const briefSpecs = buildTechnicalSummary(matched, 4);
           const includeSummary = wantsSheet && !wantsImage;
           const productUrl = String((matched as any)?.product_url || "").trim();
-          const primaryTechLink = String(technicalFallbackLinks[0] || "").trim();
           const pdfLink = technicalFallbackLinks.find((u) => /\.pdf(\?|$)/i.test(String(u || ""))) || "";
           const pdfTooLargeForAttachment = wantsSheet && !attachedSheet && Boolean(pdfLink);
           const urlKey = (u: string) => String(u || "").trim().replace(/\/+$/, "").toLowerCase();
           const detailUrl = !webTechOnly && productUrl && (!pdfLink || urlKey(productUrl) !== urlKey(pdfLink)) ? productUrl : "";
+          const primarySheetLink = webTechOnly
+            ? String(matchedProductUrl || "").trim()
+            : String(pdfLink || detailUrl || "").trim();
           const webTechLinkSection = webTechOnly && wantsSheet && matchedProductUrl
             ? ["", `FICHA WEB: ${matchedProductUrl}`]
             : [];
-          const hasSamePrimaryWebLink = webTechOnly && matchedProductUrl && primaryTechLink && urlKey(primaryTechLink) === urlKey(matchedProductUrl);
+          const hasSamePrimaryWebLink = webTechOnly && matchedProductUrl && primarySheetLink && urlKey(primarySheetLink) === urlKey(matchedProductUrl);
 
           if (technicalDocs.length) {
             const summarySection = includeSummary
               ? (
                   briefSpecs
                     ? ["", "Resumen técnico:", briefSpecs]
-                    : (primaryTechLink
-                        ? (hasSamePrimaryWebLink ? [] : ["", "No pude extraer especificaciones limpias en este intento. Puedes revisar la ficha aquí:", primaryTechLink])
-                        : ["", "No pude extraer especificaciones limpias en este intento. Revisa la ficha adjunta."])
+                    : (primarySheetLink
+                        ? (hasSamePrimaryWebLink ? [] : ["", "No pude extraer especificaciones limpias en este intento. Puedes revisar la ficha aquí:", primarySheetLink])
+                        : (imageUrl
+                            ? ["", "No encontré ficha PDF para este modelo en este intento; te envié la imagen del producto."]
+                            : ["", "No pude extraer especificaciones limpias en este intento. Revisa la ficha adjunta."]))
                 )
               : [];
             reply = [
@@ -2723,7 +2746,10 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && isQuoteStarterIntent(inbound.text)) {
+    const rememberedQuoteProductName = String(nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
+    const concreteQuoteIntent = isConcreteQuoteIntent(inbound.text, rememberedQuoteProductName);
+
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !concreteQuoteIntent && isQuoteStarterIntent(inbound.text)) {
       try {
         const priced = await fetchCatalogRows("name,base_price_usd", 12, true);
         const names = (Array.isArray(priced) ? priced : [])
@@ -3012,7 +3038,7 @@ export async function POST(req: Request) {
       isContactInfoBundle(inbound.text) &&
       shouldAutoQuote(`${recentUserContext}\n${inbound.text}`);
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory)) {
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory || concreteQuoteIntent)) {
       try {
         const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url", 120, true);
 
