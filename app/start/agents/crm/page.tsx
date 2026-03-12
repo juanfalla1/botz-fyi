@@ -49,6 +49,16 @@ type CrmSettings = {
   contact_fields: Array<{ key: string; label: string; visible: boolean; required: boolean }>;
 };
 
+type IntegrationAccessState = {
+  requester_user_id: string;
+  requester_email: string;
+  is_owner: boolean;
+  self_enabled: boolean;
+  self_enabled_updated_at: string | null;
+};
+
+type CrmTab = "dashboard" | "pipeline" | "contacts";
+
 const CONTACT_FIELD_DEFAULTS = [
   { key: "name", label: "Nombre", visible: true, required: true },
   { key: "email", label: "Email", visible: true, required: true },
@@ -101,6 +111,16 @@ export default function AgentsCrmPage() {
   const [deleteMode, setDeleteMode] = useState<"one" | "selected">("one");
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [selectedContactKeys, setSelectedContactKeys] = useState<string[]>([]);
+  const [integrationAccess, setIntegrationAccess] = useState<IntegrationAccessState | null>(null);
+  const [integrationLoading, setIntegrationLoading] = useState(false);
+  const [integrationSaving, setIntegrationSaving] = useState(false);
+  const [integrationTargetEmail, setIntegrationTargetEmail] = useState("");
+  const [integrationTargetEnabled, setIntegrationTargetEnabled] = useState(true);
+  const [integrationNotes, setIntegrationNotes] = useState("");
+  const [activeTab, setActiveTab] = useState<CrmTab>("dashboard");
+  const [showContactFieldsConfig, setShowContactFieldsConfig] = useState(false);
+  const [dashboardHoverKey, setDashboardHoverKey] = useState("");
+  const [flowHoverKey, setFlowHoverKey] = useState("");
 
   const tr = (es: string, en: string) => (language === "en" ? en : es);
 
@@ -139,6 +159,15 @@ export default function AgentsCrmPage() {
     setLoading(true);
     setError(null);
     try {
+      setIntegrationLoading(true);
+      const integrationRes = await authedFetch("/api/agents/crm/integration-access");
+      const integrationJson = await integrationRes.json();
+      if (integrationRes.ok && integrationJson?.ok) {
+        setIntegrationAccess(integrationJson?.data || null);
+      } else {
+        setIntegrationAccess(null);
+      }
+
       const settingsRes = await authedFetch("/api/agents/crm/settings");
       const settingsJson = await settingsRes.json();
       if (!settingsRes.ok || !settingsJson?.ok) throw new Error(settingsJson?.error || "No se pudo cargar configuración CRM");
@@ -162,7 +191,73 @@ export default function AgentsCrmPage() {
       }
       setError(String(e?.message || "Error cargando CRM"));
     } finally {
+      setIntegrationLoading(false);
       setLoading(false);
+    }
+  };
+
+  const saveIntegrationAccess = async () => {
+    if (!integrationAccess?.is_owner) {
+      setError(tr("Solo un owner puede autorizar CRM.", "Only an owner can authorize CRM."));
+      return;
+    }
+    const targetEmail = integrationTargetEmail.trim().toLowerCase();
+    if (!targetEmail || !targetEmail.includes("@")) {
+      setError(tr("Ingresa un correo válido para autorizar CRM.", "Enter a valid email to authorize CRM."));
+      return;
+    }
+
+    setIntegrationSaving(true);
+    setError(null);
+    try {
+      const res = await authedFetch("/api/agents/crm/integration-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target_email: targetEmail,
+          enabled: integrationTargetEnabled,
+          source: "crm_front_owner_panel",
+          notes: integrationNotes.trim() || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo actualizar autorización CRM");
+      await fetchData();
+      setIntegrationNotes("");
+    } catch (e: any) {
+      if (e instanceof AuthRequiredError) {
+        setError(tr("Sesion expirada. Inicia sesion de nuevo en Agents.", "Session expired. Sign in again in Agents."));
+        router.push("/start/agents?auth=login");
+        return;
+      }
+      setError(String(e?.message || "Error actualizando autorización CRM"));
+    } finally {
+      setIntegrationSaving(false);
+    }
+  };
+
+  const enableMyCrmNow = async () => {
+    if (!integrationAccess?.is_owner || !integrationAccess?.requester_user_id) return;
+    setIntegrationSaving(true);
+    setError(null);
+    try {
+      const res = await authedFetch("/api/agents/crm/integration-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target_user_id: integrationAccess.requester_user_id,
+          enabled: true,
+          source: "crm_front_owner_panel",
+          notes: "Auto habilitado por owner desde CRM",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo habilitar CRM");
+      await fetchData();
+    } catch (e: any) {
+      setError(String(e?.message || "Error habilitando CRM"));
+    } finally {
+      setIntegrationSaving(false);
     }
   };
 
@@ -350,6 +445,7 @@ export default function AgentsCrmPage() {
   };
 
   const openContactDetail = async (c: Contact) => {
+    setActiveTab("contacts");
     setSelectedContact(c);
     setContactLoading(true);
     setContactDetail(null);
@@ -552,6 +648,68 @@ export default function AgentsCrmPage() {
     return v == null || v === "" ? "-" : String(v);
   };
 
+  const allDeals = useMemo(() => {
+    const map = new Map<string, Draft>();
+    [...(pipeline.draft || []), ...(pipeline.sent || []), ...(pipeline.won || []), ...(pipeline.lost || [])].forEach((d) => {
+      const id = String(d?.id || "").trim();
+      if (!id || map.has(id)) return;
+      map.set(id, d);
+    });
+    return Array.from(map.values());
+  }, [pipeline]);
+
+  const flowSeries = useMemo(() => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const prevStart = new Date(today.getTime() - 59 * DAY);
+    const buckets = Array.from({ length: 60 }, () => 0);
+
+    for (const d of allDeals) {
+      const dt = new Date(String(d?.created_at || ""));
+      if (Number.isNaN(dt.getTime())) continue;
+      const day = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+      const idx = Math.floor((day.getTime() - prevStart.getTime()) / DAY);
+      if (idx >= 0 && idx < 60) buckets[idx] += 1;
+    }
+
+    const previous = buckets.slice(0, 30);
+    const current = buckets.slice(30, 60);
+    const labels = Array.from({ length: 30 }, (_, i) => {
+      const dt = new Date(today.getTime() - (29 - i) * DAY);
+      return dt.toLocaleDateString(language === "en" ? "en-US" : "es-CO", { day: "numeric", month: "short" });
+    });
+    const currentTotal = current.reduce((acc, n) => acc + n, 0);
+    const previousTotal = previous.reduce((acc, n) => acc + n, 0);
+    return { current, previous, labels, currentTotal, previousTotal };
+  }, [allDeals, language]);
+
+  const flowMax = Math.max(1, ...flowSeries.current, ...flowSeries.previous);
+
+  const opportunitiesTotal = Number(summary?.opportunities || 0);
+  const wonDeals = Number(summary?.won || 0);
+  const lostDeals = Number(summary?.lost || 0);
+  const openDeals = Math.max(0, opportunitiesTotal - wonDeals - lostDeals);
+  const outcomeBase = [
+    { key: "won", label: tr("Ganadas", "Won"), value: wonDeals, color: "#34d399" },
+    { key: "lost", label: tr("Perdidas", "Lost"), value: lostDeals, color: "#f87171" },
+    { key: "open", label: tr("Abiertas", "Open"), value: openDeals, color: "#60a5fa" },
+  ];
+  const outcomeTotal = Math.max(0, outcomeBase.reduce((acc, item) => acc + Number(item.value || 0), 0));
+  const outcomeSlices = outcomeBase
+    .filter((item) => item.value > 0)
+    .map((item) => ({ ...item, fraction: outcomeTotal > 0 ? item.value / outcomeTotal : 0 }));
+
+  const quotedValue = Number(summary?.total_quotes_requested_cop || 0);
+  const inProcessValue = Number(summary?.total_pipeline_cop || 0);
+  const closedValue = Number((summary as any)?.total_closed_won_cop || 0);
+  const valueBars = [
+    { key: "quoted", label: tr("Valor cotizado", "Quoted value"), value: quotedValue, color: "#60a5fa" },
+    { key: "process", label: tr("Valor en gestión", "Value in process"), value: inProcessValue, color: "#22d3ee" },
+    { key: "closed", label: tr("Valor cerrado", "Closed value"), value: closedValue, color: "#34d399" },
+  ];
+  const maxValueBar = Math.max(1, ...valueBars.map((item) => Number(item.value || 0)));
+
   return (
     <div style={{ minHeight: "100vh", backgroundColor: C.bg, color: C.white, fontFamily: "Inter,-apple-system,sans-serif" }}>
       <div style={{ height: 56, backgroundColor: C.dark, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 18px", gap: 12 }}>
@@ -561,12 +719,42 @@ export default function AgentsCrmPage() {
 
       <div style={{ maxWidth: 1320, margin: "0 auto", padding: "20px 18px 40px" }}>
         <div style={{ color: C.muted, marginBottom: 14 }}>
-          {tr("Pipeline comercial unificado con leads, cotizaciones y seguimiento desde WhatsApp.", "Unified sales pipeline with leads, quotes and WhatsApp follow-ups.")}
+          {tr("Gestión comercial unificada con leads, cotizaciones y seguimiento desde WhatsApp.", "Unified sales management with leads, quotes and WhatsApp follow-ups.")}
         </div>
 
         {error && <div style={{ marginBottom: 12, border: `1px solid ${C.border}`, background: "rgba(239,68,68,0.12)", color: "#fca5a5", padding: "10px 12px", borderRadius: 10 }}>{error}</div>}
 
         {!!settings?.enabled && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+            {([
+              { key: "dashboard", label: tr("Dashboard", "Dashboard") },
+              { key: "pipeline", label: tr("Negocios", "Deals") },
+              { key: "contacts", label: tr("Contactos", "Contacts") },
+            ] as Array<{ key: CrmTab; label: string }>).map((tab) => {
+              const active = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  style={{
+                    border: `1px solid ${active ? "rgba(163,230,53,0.55)" : C.border}`,
+                    borderRadius: 999,
+                    background: active ? "rgba(163,230,53,0.16)" : C.card,
+                    color: active ? C.lime : C.white,
+                    fontWeight: active ? 800 : 700,
+                    fontSize: 13,
+                    padding: "8px 12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {!!settings?.enabled && (activeTab === "pipeline" || activeTab === "contacts") && (
           <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: C.card, padding: 12, marginBottom: 14 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1.2fr repeat(4,minmax(160px,1fr))", gap: 10 }}>
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("Buscar contacto, correo, producto...", "Search contact, email, product...")} style={{ padding: "9px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }} />
@@ -604,76 +792,337 @@ export default function AgentsCrmPage() {
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: C.card, padding: 12, marginBottom: 14 }}>
           <div style={{ fontWeight: 800 }}>{tr("Estado de integración CRM", "CRM integration status")}</div>
           <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
-            {tr("Este CRM solo se habilita por autorización del owner vía integración. Desde esta pantalla no se puede activar/desactivar.", "This CRM is enabled only by owner authorization via integration. It cannot be enabled/disabled from this screen.")}
+            {tr("El owner puede habilitar/deshabilitar accesos CRM desde este panel de integración.", "Owner can enable/disable CRM access from this integration panel.")}
+          </div>
+
+          <div style={{ marginTop: 10, border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: 10 }}>
+            <div style={{ color: C.muted, fontSize: 12 }}>
+              {tr("Tu usuario", "Your user")}:
+              {" "}
+              <b style={{ color: C.white }}>{integrationAccess?.requester_email || "-"}</b>
+              {" · "}
+              {integrationLoading
+                ? tr("validando permisos...", "checking permissions...")
+                : (integrationAccess?.is_owner ? tr("rol owner", "owner role") : tr("sin rol owner", "not owner role"))}
+            </div>
+            <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
+              {tr("Estado CRM para este usuario", "CRM status for this user")}: {integrationAccess?.self_enabled ? tr("habilitado", "enabled") : tr("deshabilitado", "disabled")}
+              {integrationAccess?.self_enabled_updated_at ? ` (${new Date(integrationAccess.self_enabled_updated_at).toLocaleString()})` : ""}
+            </div>
+
+            {integrationAccess?.is_owner && (
+              <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.8fr", gap: 8 }}>
+                  <input
+                    value={integrationTargetEmail}
+                    onChange={(e) => setIntegrationTargetEmail(e.target.value)}
+                    placeholder={tr("Correo del usuario a autorizar (ej: asesor@botz.fyi)", "User email to authorize (e.g. sales@botz.fyi)")}
+                    style={{ padding: "9px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.white }}
+                  />
+                  <select
+                    value={integrationTargetEnabled ? "on" : "off"}
+                    onChange={(e) => setIntegrationTargetEnabled(e.target.value === "on")}
+                    style={{ padding: "9px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.white }}
+                  >
+                    <option value="on">{tr("Habilitar CRM", "Enable CRM")}</option>
+                    <option value="off">{tr("Deshabilitar CRM", "Disable CRM")}</option>
+                  </select>
+                </div>
+                <input
+                  value={integrationNotes}
+                  onChange={(e) => setIntegrationNotes(e.target.value)}
+                  placeholder={tr("Nota opcional de autorización", "Optional authorization note")}
+                  style={{ padding: "9px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.white }}
+                />
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    onClick={saveIntegrationAccess}
+                    disabled={integrationSaving}
+                    style={{
+                      border: "none",
+                      borderRadius: 8,
+                      background: C.lime,
+                      color: "#0b0e14",
+                      fontWeight: 800,
+                      cursor: integrationSaving ? "not-allowed" : "pointer",
+                      opacity: integrationSaving ? 0.65 : 1,
+                      padding: "9px 12px",
+                    }}
+                  >
+                    {integrationSaving ? tr("Guardando...", "Saving...") : tr("Guardar autorización", "Save authorization")}
+                  </button>
+                  <button
+                    onClick={enableMyCrmNow}
+                    disabled={integrationSaving || !!settings?.enabled}
+                    style={{
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 8,
+                      background: C.bg,
+                      color: C.white,
+                      fontWeight: 700,
+                      cursor: integrationSaving || !!settings?.enabled ? "not-allowed" : "pointer",
+                      opacity: integrationSaving || !!settings?.enabled ? 0.65 : 1,
+                      padding: "9px 12px",
+                    }}
+                  >
+                    {tr("Habilitar mi CRM ahora", "Enable my CRM now")}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {!!settings?.enabled && (
             <div style={{ marginTop: 12 }}>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>{tr("Campos visibles de contactos", "Visible contact fields")}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 8 }}>
-                {mergedContactFields.map((f) => (
-                  <label key={f.key} style={{ display: "flex", alignItems: "center", gap: 8, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", background: C.dark }}>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(f.visible)}
-                      onChange={() => {
-                        const next = mergedContactFields.map((x) => (x.key === f.key ? { ...x, visible: !x.visible } : x));
-                        void saveSettings({ contact_fields: next });
-                      }}
-                    />
-                    <span style={{ fontSize: 13 }}>{f.label}</span>
-                  </label>
-                ))}
-              </div>
+              <button
+                onClick={() => setShowContactFieldsConfig((prev) => !prev)}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  background: C.dark,
+                  color: C.white,
+                  fontWeight: 700,
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                {showContactFieldsConfig ? "▾" : "▸"} {tr("Campos visibles de contactos", "Visible contact fields")}
+              </button>
+              {showContactFieldsConfig && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 8, marginTop: 8 }}>
+                  {mergedContactFields.map((f) => (
+                    <label key={f.key} style={{ display: "flex", alignItems: "center", gap: 8, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", background: C.dark }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(f.visible)}
+                        onChange={() => {
+                          const next = mergedContactFields.map((x) => (x.key === f.key ? { ...x, visible: !x.visible } : x));
+                          void saveSettings({ contact_fields: next });
+                        }}
+                      />
+                      <span style={{ fontSize: 13 }}>{f.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {!settings?.enabled && !loading && (
           <div style={{ border: `1px dashed ${C.border}`, borderRadius: 12, background: C.dark, color: C.muted, padding: 16, marginBottom: 12 }}>
-            {tr("CRM deshabilitado para este cliente. Debe habilitarlo el owner desde la integración.", "CRM is disabled for this client. It must be enabled by the owner from the integration.")}
+            {tr("CRM deshabilitado para este cliente. El owner puede habilitarlo desde el panel de integración de esta pantalla.", "CRM is disabled for this client. The owner can enable it from this screen integration panel.")}
           </div>
         )}
 
         {settings?.enabled && (
           <>
 
+        {activeTab === "dashboard" && (
+          <>
+
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 14, background: C.card, padding: 12, marginBottom: 14 }}>
           <div style={{ fontWeight: 800, marginBottom: 10 }}>{tr("Dashboard comercial", "Sales dashboard")}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 12 }}>
-            <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: 10 }}>
-              <div style={{ color: C.muted, fontSize: 12, marginBottom: 8 }}>{tr("Embudo de oportunidades", "Opportunity funnel")}</div>
-              <div style={{ display: "grid", gap: 8 }}>
-                {funnel.map((f) => {
-                  const max = Math.max(...funnel.map((x) => Number(x.value || 0)), 1);
-                  const w = Math.max(8, Math.round((Number(f.value || 0) / max) * 100));
+          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 0.9fr", gap: 12 }}>
+            <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: "linear-gradient(180deg,#101522,#0c111b)", padding: 12 }}>
+              <div style={{ color: C.white, fontWeight: 700, marginBottom: 8 }}>{tr("Flujo 30 días", "30-day flow")}</div>
+              <div style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>
+                {tr("Línea comparativa: periodo actual vs mes anterior (oportunidades creadas).", "Comparison line: current period vs previous month (created opportunities).")}
+              </div>
+              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: "#0b0f18", padding: 10, position: "relative" }}>
+                {(() => {
+                  const w = 620;
+                  const h = 190;
+                  const px = 8;
+                  const py = 12;
+                  const len = flowSeries.current.length || 30;
+                  const toX = (i: number) => px + (i * (w - px * 2)) / Math.max(1, len - 1);
+                  const toY = (v: number) => h - py - (v / Math.max(1, flowMax)) * (h - py * 2);
+                  const currPoints = flowSeries.current.map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
+                  const prevPoints = flowSeries.previous.map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
+                  const areaPoints = `${toX(0)},${h - py} ${currPoints} ${toX(len - 1)},${h - py}`;
+                  const delta = flowSeries.currentTotal - flowSeries.previousTotal;
+                  const trendColor = delta > 0 ? "#34d399" : delta < 0 ? "#f87171" : C.muted;
+                  const hoverMatch = /^(cur|prev)-(\d+)$/.exec(flowHoverKey);
+                  const hoverSeries = hoverMatch?.[1] === "prev" ? "prev" : hoverMatch?.[1] === "cur" ? "cur" : "";
+                  const hoverIndex = hoverMatch ? Number(hoverMatch[2]) : -1;
+                  const hoverValue = hoverSeries === "cur"
+                    ? Number(flowSeries.current[hoverIndex] || 0)
+                    : hoverSeries === "prev"
+                      ? Number(flowSeries.previous[hoverIndex] || 0)
+                      : 0;
+                  const hoverX = hoverIndex >= 0 ? toX(hoverIndex) : 0;
+                  const hoverY = hoverIndex >= 0 ? toY(hoverValue) : 0;
                   return (
-                    <div key={f.key}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted }}>
-                        <span>{f.label}</span>
-                        <span>{f.value}</span>
+                    <>
+                      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: 210, display: "block" }}>
+                        <defs>
+                          <linearGradient id="crmFlowArea" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="rgba(96,165,250,0.38)" />
+                            <stop offset="100%" stopColor="rgba(96,165,250,0.02)" />
+                          </linearGradient>
+                        </defs>
+                        {[0, 0.25, 0.5, 0.75, 1].map((n) => (
+                          <line key={`grid-${n}`} x1={px} x2={w - px} y1={py + n * (h - py * 2)} y2={py + n * (h - py * 2)} stroke="rgba(148,163,184,0.22)" strokeDasharray="4 4" />
+                        ))}
+                        {hoverIndex >= 0 && <line x1={hoverX} x2={hoverX} y1={py} y2={h - py} stroke="rgba(255,255,255,0.25)" strokeDasharray="5 5" />}
+                        <polygon points={areaPoints} fill="url(#crmFlowArea)" />
+                        <polyline fill="none" stroke="#60a5fa" strokeWidth="2.5" points={currPoints} />
+                        <polyline fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="6 5" points={prevPoints} />
+                        {flowSeries.current.map((v, i) => (
+                          <circle
+                            key={`cur-pt-${i}`}
+                            cx={toX(i)}
+                            cy={toY(v)}
+                            r={flowHoverKey === `cur-${i}` ? 4 : 3}
+                            fill="#60a5fa"
+                            style={{ cursor: "pointer" }}
+                            onMouseEnter={() => setFlowHoverKey(`cur-${i}`)}
+                            onMouseLeave={() => setFlowHoverKey("")}
+                          />
+                        ))}
+                        {flowSeries.previous.map((v, i) => (
+                          <circle
+                            key={`prev-pt-${i}`}
+                            cx={toX(i)}
+                            cy={toY(v)}
+                            r={flowHoverKey === `prev-${i}` ? 4 : 3}
+                            fill="#f59e0b"
+                            style={{ cursor: "pointer" }}
+                            onMouseEnter={() => setFlowHoverKey(`prev-${i}`)}
+                            onMouseLeave={() => setFlowHoverKey("")}
+                          />
+                        ))}
+                        {flowSeries.current.map((v, i) => (
+                          i % 6 === 0 || i === flowSeries.current.length - 1
+                            ? <text key={`lb-${i}`} x={toX(i)} y={h - 2} fill="rgba(156,163,175,0.9)" fontSize="10" textAnchor="middle">{flowSeries.labels[i]}</text>
+                            : null
+                        ))}
+                      </svg>
+                      {hoverIndex >= 0 && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: `${(hoverX / w) * 100}%`,
+                            top: `${Math.max(10, (hoverY / h) * 100)}%`,
+                            transform: "translate(-50%,-115%)",
+                            background: "#111827",
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 10,
+                            padding: "8px 10px",
+                            minWidth: 150,
+                            pointerEvents: "none",
+                          }}
+                        >
+                          <div style={{ fontSize: 12, color: C.white, fontWeight: 800 }}>
+                            {flowSeries.labels[hoverIndex] || "-"}
+                          </div>
+                          <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+                            {hoverSeries === "cur" ? tr("Últimos 30 días", "Last 30 days") : tr("Mes anterior", "Previous month")}: <b style={{ color: C.white }}>{hoverValue}</b>
+                          </div>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, gap: 8, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12 }}>
+                          <span style={{ color: C.muted }}><span style={{ color: "#60a5fa" }}>●</span> {tr("Últimos 30 días", "Last 30 days")}: <b style={{ color: C.white }}>{flowSeries.currentTotal}</b></span>
+                          <span style={{ color: C.muted }}><span style={{ color: "#f59e0b" }}>●</span> {tr("Mes anterior", "Previous month")}: <b style={{ color: C.white }}>{flowSeries.previousTotal}</b></span>
+                        </div>
+                        <div style={{ fontSize: 12, color: trendColor }}>
+                          {delta >= 0 ? "+" : ""}{delta} {tr("vs mes anterior", "vs previous month")}
+                        </div>
                       </div>
-                      <div style={{ height: 8, borderRadius: 999, background: "#0b0e14", overflow: "hidden" }}>
-                        <div style={{ width: `${w}%`, height: "100%", background: "linear-gradient(90deg,#60a5fa,#22d3ee)" }} />
-                      </div>
-                    </div>
+                    </>
                   );
-                })}
+                })()}
               </div>
             </div>
-            <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: 10 }}>
-              <div style={{ color: C.muted, fontSize: 12, marginBottom: 8 }}>{tr("Rendimiento por asesor", "Performance by assignee")}</div>
-              <div style={{ display: "grid", gap: 8, maxHeight: 180, overflow: "auto" }}>
-                {byAgent.slice(0, 8).map((a) => (
-                  <div key={a.agent_id} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: 8, background: "#0f1117" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                      <b>{a.agent_name || a.agent_id}</b>
-                      <span style={{ color: C.blue }}>COP {money(a.pipeline_cop)}</span>
+
+            <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: "linear-gradient(180deg,#101522,#0c111b)", padding: 12 }}>
+              <div style={{ color: C.white, fontWeight: 700, marginBottom: 8 }}>{tr("Resultados y montos", "Results and values")}</div>
+              <div style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>
+                {tr("Comparativos con datos reales del CRM.", "Comparisons with real CRM data.")}
+              </div>
+
+              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: "#0f1117", padding: 10, marginBottom: 10 }}>
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>{tr("Torta de resultados", "Results pie")}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ position: "relative", width: 130, height: 130, flex: "0 0 auto" }}>
+                    <svg width="130" height="130" viewBox="0 0 130 130" style={{ transform: "rotate(-90deg)" }}>
+                      <circle cx="65" cy="65" r="44" fill="none" stroke="rgba(148,163,184,0.22)" strokeWidth="16" />
+                      {(() => {
+                        const circumference = 2 * Math.PI * 44;
+                        let acc = 0;
+                        return outcomeSlices.map((slice) => {
+                          const dash = Math.max(0, slice.fraction * circumference);
+                          const active = dashboardHoverKey === `out-${slice.key}`;
+                          const node = (
+                            <circle
+                              key={slice.key}
+                              cx="65"
+                              cy="65"
+                              r="44"
+                              fill="none"
+                              stroke={slice.color}
+                              strokeWidth={active ? 18 : 16}
+                              strokeDasharray={`${dash} ${circumference}`}
+                              strokeDashoffset={-acc * circumference}
+                              style={{ cursor: "pointer", transition: "all .18s ease" }}
+                              onMouseEnter={() => setDashboardHoverKey(`out-${slice.key}`)}
+                              onMouseLeave={() => setDashboardHoverKey("")}
+                            />
+                          );
+                          acc += slice.fraction;
+                          return node;
+                        });
+                      })()}
+                    </svg>
+                    <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ color: C.white, fontWeight: 900, fontSize: 18 }}>{outcomeTotal}</div>
+                        <div style={{ color: C.muted, fontSize: 11 }}>{tr("negocios", "deals")}</div>
+                      </div>
                     </div>
-                    <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{tr("Total", "Total")}: {a.total} · Sent: {a.sent} · Won: {a.won}</div>
                   </div>
-                ))}
-                {!byAgent.length && <div style={{ color: C.muted, fontSize: 12 }}>{tr("Sin actividad de asesores", "No assignee activity")}</div>}
+
+                  <div style={{ display: "grid", gap: 6, width: "100%" }}>
+                    {outcomeBase.map((item) => (
+                      <div
+                        key={item.key}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12, border: `1px solid ${dashboardHoverKey === `out-${item.key}` ? item.color : C.border}`, borderRadius: 8, padding: "6px 8px", background: "#0b0e14", cursor: "pointer" }}
+                        onMouseEnter={() => setDashboardHoverKey(`out-${item.key}`)}
+                        onMouseLeave={() => setDashboardHoverKey("")}
+                      >
+                        <span style={{ display: "flex", alignItems: "center", gap: 6, color: C.muted }}>
+                          <span style={{ width: 9, height: 9, borderRadius: 999, background: item.color, display: "inline-block" }} />
+                          {item.label}
+                        </span>
+                        <b style={{ color: C.white }}>{item.value}</b>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: "#0f1117", padding: 10 }}>
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>{tr("Barras de valor", "Value bars")}</div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {valueBars.map((row) => {
+                    const pct = Math.max(4, Math.round((Number(row.value || 0) / maxValueBar) * 100));
+                    return (
+                      <div key={row.key}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                          <span style={{ color: C.muted }}>{row.label}</span>
+                          <b style={{ color: C.white }}>COP {money(row.value)}</b>
+                        </div>
+                        <div style={{ height: 8, borderRadius: 999, background: "#0b0e14", overflow: "hidden", border: `1px solid ${C.border}` }}>
+                          <div style={{ width: `${pct}%`, height: "100%", background: `linear-gradient(90deg, ${row.color}, #93c5fd)` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
@@ -689,11 +1138,15 @@ export default function AgentsCrmPage() {
           <Metric label={tr("Ganadas", "Won")} value={summary?.won ?? 0} />
           <Metric label={tr("Perdidas", "Lost")} value={summary?.lost ?? 0} />
           <Metric label={tr("Valor total cotizado", "Total quoted value")} value={`COP ${money(summary?.total_quotes_requested_cop ?? 0)}`} accent={C.blue} />
-          <Metric label={tr("Pipeline COP", "Pipeline COP")} value={money(summary?.total_pipeline_cop ?? 0)} accent={C.blue} />
+          <Metric label={tr("Valor en gestión COP", "Value in process COP")} value={money(summary?.total_pipeline_cop ?? 0)} accent={C.blue} />
         </div>
 
+          </>
+        )}
+
+        {activeTab === "pipeline" && (
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 14, background: C.card, padding: 12, marginBottom: 16 }}>
-          <div style={{ fontWeight: 800, marginBottom: 10 }}>{tr("Pipeline", "Pipeline")}</div>
+          <div style={{ fontWeight: 800, marginBottom: 10 }}>{tr("Negocios", "Deals")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(250px,1fr))", gap: 10, overflowX: "auto" }}>
             {columns.map((col) => (
               <div key={col.key} style={{ minHeight: 230, border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: 8 }}>
@@ -729,7 +1182,10 @@ export default function AgentsCrmPage() {
             ))}
           </div>
         </div>
+        )}
 
+        {activeTab === "contacts" && (
+          <>
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
           <div style={{ background: C.card, padding: "10px 12px", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>{tr("Contactos", "Contacts")}</span>
@@ -952,6 +1408,8 @@ export default function AgentsCrmPage() {
               </div>
             )}
           </div>
+        )}
+          </>
         )}
 
         {deleteModalOpen && (
