@@ -3334,6 +3334,8 @@ export async function POST(req: Request) {
                   "Opciones rápidas de modelo:",
                   ...quoteOptions.map((o) => `${o.code}) ${o.name}`),
                   "",
+                  `Catálogo oficial de balanzas: ${CATALOG_REFERENCE_URL}`,
+                  "",
                   "Responde con un tipo (ej: joyería) o con letra/número (ej: A o 1).",
                 ].join("\n")
               : [
