@@ -1232,9 +1232,11 @@ function extractCatalogTerms(text: string): string[] {
 function isFeatureQuestionIntent(text: string): boolean {
   const t = normalizeCatalogQueryText(text || "");
   if (!t) return false;
+  const hasMeasurementSpec = /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)\b/.test(t);
   return (
     /(que tenga|que tengan|tiene|tienen|incluye|incluyan|debe tener|caracteristic|especificacion|especificaciones)/.test(t) ||
-    /(con\s+(calibracion|precision|resolucion|capacidad|bateria|usb|bluetooth|wifi|rs\s*232|ip\d{2}|pantalla|sensor|humedad|analitic|semi|micro))/.test(t)
+    /(con\s+(calibracion|precision|resolucion|capacidad|bateria|usb|bluetooth|wifi|rs\s*232|ip\d{2}|pantalla|sensor|humedad|analitic|semi|micro))/.test(t) ||
+    hasMeasurementSpec
   );
 }
 
@@ -1303,22 +1305,31 @@ function catalogFeatureSearchBlob(row: any): string {
 
 function rankCatalogByFeature(rows: any[], featureTerms: string[]): Array<{ row: any; matches: number; score: number }> {
   if (!Array.isArray(rows) || !rows.length || !featureTerms.length) return [];
+  const measurementTerms = featureTerms.filter((t) => /\d/.test(t) && /(mg|g|kg)$/.test(t));
   const ranked = (rows || []).map((row: any) => {
     const hay = catalogFeatureSearchBlob(row);
+    const hayCompact = hay.replace(/\s+/g, "");
     let matches = 0;
     let score = 0;
+    let measurementMatches = 0;
     for (const term of featureTerms) {
       if (!term) continue;
-      if (hay.includes(term)) {
+      const found = hay.includes(term) || hayCompact.includes(term.replace(/\s+/g, ""));
+      if (found) {
         matches += 1;
         score += /\d/.test(term) ? 3 : term.length >= 6 ? 2 : 1;
+        if (measurementTerms.includes(term)) measurementMatches += 1;
       }
     }
     if (matches === featureTerms.length) score += 2;
-    return { row, matches, score };
+    if (measurementTerms.length && measurementMatches === measurementTerms.length) score += 4;
+    return { row, matches, score, measurementMatches };
   });
   return ranked
-    .filter((x) => x.matches >= Math.min(featureTerms.length, featureTerms.length <= 2 ? 1 : 2))
+    .filter((x: any) => {
+      if (measurementTerms.length > 0) return x.measurementMatches === measurementTerms.length;
+      return x.matches >= Math.min(featureTerms.length, featureTerms.length <= 2 ? 1 : 2);
+    })
     .sort((a, b) => b.score - a.score);
 }
 
