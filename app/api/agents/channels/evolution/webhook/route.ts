@@ -964,7 +964,7 @@ function isInventoryInfoIntent(text: string): boolean {
 
 function isRecommendationIntent(text: string): boolean {
   const t = normalizeText(text);
-  return /(recomiend|modelo ideal|que modelo|cual modelo|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia)/.test(t);
+  return /(recomiend|modelo ideal|que modelo|cual modelo|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza)/.test(t);
 }
 
 function detectCatalogCategoryIntent(text: string): string | null {
@@ -1244,6 +1244,12 @@ function extractFeatureTerms(text: string): string[] {
     humedad: "humedad",
     plataforma: "plataforma",
   };
+  const measurementTerms = Array.from(
+    new Set(
+      (String(text || "").toLowerCase().match(/\b\d+(?:[\.,]\d+)?\s*(?:g|kg|mg)\b/g) || [])
+        .map((x) => x.replace(/\s+/g, "").replace(/,/g, "."))
+    )
+  );
   const normalized = extractCatalogTerms(text)
     .map((term) => {
       const key = normalizeText(term);
@@ -1251,7 +1257,7 @@ function extractFeatureTerms(text: string): string[] {
       return String(aliasMap[key] || "").trim();
     })
     .filter((term) => term && !blacklist.has(term));
-  return uniqueNormalizedStrings(normalized, 8);
+  return uniqueNormalizedStrings([...normalized, ...measurementTerms], 10);
 }
 
 function catalogFeatureSearchBlob(row: any): string {
@@ -3446,10 +3452,13 @@ export async function POST(req: Request) {
       .join("\n");
     const previousIntentForQuoteFlow = String(previousMemory?.last_intent || "");
     const asksQuoteWithNumber = asksQuoteIntent(inbound.text) && /\b\d{1,5}\b/.test(normalizeText(inbound.text || ""));
+    const quoteContextActive =
+      /^(quote_|product_option_action)/.test(String(awaitingAction || "")) ||
+      /(quote_recall|quote_generated|price_request|quote_starter)/.test(previousIntentForQuoteFlow);
     const quoteProceedFromMemory =
       (isQuoteProceedIntent(inbound.text) ||
         isQuantityUpdateIntent(inbound.text) ||
-        hasBareQuantity(inbound.text) ||
+        (hasBareQuantity(inbound.text) && quoteContextActive) ||
         asksQuoteWithNumber ||
         (isAffirmativeIntent(inbound.text) && /(price_request|quote_starter|recommendation_request)/.test(previousIntentForQuoteFlow))) &&
       Boolean(nextMemory.last_product_name || nextMemory.last_product_id);
