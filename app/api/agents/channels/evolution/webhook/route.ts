@@ -736,6 +736,27 @@ function extractQuantity(text: string): number {
   return 1;
 }
 
+function extractQuoteRequestedQuantity(text: string): number {
+  const t = normalizeText(String(text || ""));
+  if (!t) return 1;
+  const m1 = t.match(/\b(?:de|por|para)\s*(\d{1,4})\s*(?:unidad|unidades|equipo|equipos|balanza|balanzas|bascula|basculas|pieza|piezas)?\b/);
+  if (m1?.[1]) {
+    const n = Number(m1[1]);
+    if (Number.isFinite(n) && n > 0) return Math.max(1, Math.min(100000, n));
+  }
+  const m2 = t.match(/\b(\d{1,4})\s*(?:unidad|unidades|equipo|equipos|balanza|balanzas|bascula|basculas|pieza|piezas)\b/);
+  if (m2?.[1]) {
+    const n = Number(m2[1]);
+    if (Number.isFinite(n) && n > 0) return Math.max(1, Math.min(100000, n));
+  }
+  const m3 = t.match(/\bcotiz(?:acion|ar)?\s*(?:de|por)?\s*(\d{1,4})\b/);
+  if (m3?.[1]) {
+    const n = Number(m3[1]);
+    if (Number.isFinite(n) && n > 0) return Math.max(1, Math.min(100000, n));
+  }
+  return extractQuantity(text);
+}
+
 function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: string; rank: number; id: string; name: string; category: string; base_price_usd: number }> {
   const list = Array.isArray(rows) ? rows : [];
   const out: Array<{ code: string; rank: number; id: string; name: string; category: string; base_price_usd: number }> = [];
@@ -3399,8 +3420,8 @@ export async function POST(req: Request) {
             .map((m: any) => String(m.content || ""));
           const combinedUserContext = `${latestUserLines.join("\n")}\n${inbound.text}`;
 
-          const qtyFromInbound = extractQuantity(inbound.text);
-          const qtyFromSource = extractQuantity(quoteSourceText);
+          const qtyFromInbound = extractQuoteRequestedQuantity(inbound.text);
+          const qtyFromSource = extractQuoteRequestedQuantity(quoteSourceText);
           const defaultQuantity = Math.max(1, qtyFromInbound || qtyFromSource || 1);
           const perProductQty = extractPerProductQuantities(
             quoteSourceText,
@@ -3431,7 +3452,7 @@ export async function POST(req: Request) {
 
           if (!missingFields.length && !handledByQuoteIntake && selectedProducts.length === 1) {
             const selected = selectedProducts[0] as any;
-            const requestedQty = Math.max(1, extractQuantity(inbound.text) || extractQuantity(quoteSourceText));
+            const requestedQty = Math.max(1, extractQuoteRequestedQuantity(inbound.text) || extractQuoteRequestedQuantity(quoteSourceText));
             const basePrice = Number(selected?.base_price_usd || 0);
             if (!(basePrice > 0)) {
               reply = `Confirmo ${requestedQty} unidades de ${String(selected?.name || "ese producto")}. Este modelo no tiene precio base USD cargado todavía, por eso no puedo generar el PDF de cotización en este momento. Si me compartes precio base o autorizas cargarlo, te la genero de inmediato.`;
