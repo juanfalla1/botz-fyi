@@ -723,7 +723,7 @@ async function persistKnownNameInCrm(
 
 function extractQuantity(text: string): number {
   const t = String(text || "");
-  const m1 = [...t.matchAll(/(?:cantidad|qty|x)\s*[:=]?\s*(\d{1,5})/gi)];
+  const m1 = [...t.matchAll(/(?:\bcantidad\b|\bqty\b|\bx\b)\s*[:=]?\s*(\d{1,5})/gi)];
   if (m1.length) {
     const n = Number(m1[m1.length - 1]?.[1] || 1);
     return Math.max(1, Math.min(100000, n));
