@@ -777,10 +777,20 @@ function resolvePendingProductOption(text: string, optionsRaw: any): { code: str
     .filter((o: any) => o.name);
   if (!options.length) return null;
 
+  const firstToken = String(tRaw).trim().split(/\s+/)[0] || "";
+  const firstTokenClean = firstToken.replace(/[^a-z0-9]/gi, "").toUpperCase();
   const codeMatch = t.match(/(?:^|\b)(?:opcion|codigo|código|letra)\s*([a-z])\b/i) || t.match(/^\s*([a-z])\s*$/i);
   const numMatch = t.match(/(?:^|\b)(?:opcion|numero|número|#)\s*([1-9])\b/i) || t.match(/^\s*([1-9])(?:\s|$)/i);
   const code = String(codeMatch?.[1] || "").toUpperCase();
   const rank = Number(numMatch?.[1] || 0);
+  if (!code && !rank && /^[A-Z]$/.test(firstTokenClean)) {
+    const byLeadingCode = options.find((o: any) => o.code === firstTokenClean);
+    if (byLeadingCode) return byLeadingCode;
+  }
+  if (!code && !rank && /^[1-9]$/.test(firstTokenClean)) {
+    const byLeadingRank = options.find((o: any) => o.rank === Number(firstTokenClean));
+    if (byLeadingRank) return byLeadingRank;
+  }
   if (code) {
     const byCode = options.find((o: any) => o.code === code);
     if (byCode) return byCode;
@@ -2203,11 +2213,12 @@ export async function POST(req: Request) {
       const rememberedOptionProduct = String(nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
       const optText = normalizeText(originalInboundText);
       if (rememberedOptionProduct) {
+        const confirmsDefaultFromOption = isAffirmativeIntent(optText) || /^(ok|vale|listo|de una)$/i.test(String(originalInboundText || "").trim());
         const asksQuoteByOption = /^(1|a)\b/.test(optText) || /\b(cotiz|cotizacion|precio|la cotizacion)\b/.test(optText);
         const asksSheetByOption = /^(2|b)\b/.test(optText) || isTechnicalSheetIntent(optText);
         const asksImageByOption = /^(3|c)\b/.test(optText) || isProductImageIntent(optText);
         const asksBothByOption = /^(4|d)\b/.test(optText) || (isTechnicalSheetIntent(optText) && isProductImageIntent(optText));
-        if (asksQuoteByOption) {
+        if (asksQuoteByOption || confirmsDefaultFromOption) {
           inbound.text = `cotizar ${rememberedOptionProduct} ${originalInboundText}`.trim();
           nextMemory.awaiting_action = "quote_product_selection";
         } else if (asksBothByOption) {
@@ -3310,8 +3321,12 @@ export async function POST(req: Request) {
       .map((m) => m.content)
       .slice(-6)
       .join("\n");
+    const previousIntentForQuoteFlow = String(previousMemory?.last_intent || "");
     const quoteProceedFromMemory =
-      (isQuoteProceedIntent(inbound.text) || isQuantityUpdateIntent(inbound.text) || hasBareQuantity(inbound.text)) &&
+      (isQuoteProceedIntent(inbound.text) ||
+        isQuantityUpdateIntent(inbound.text) ||
+        hasBareQuantity(inbound.text) ||
+        (isAffirmativeIntent(inbound.text) && /(price_request|quote_starter|recommendation_request)/.test(previousIntentForQuoteFlow))) &&
       Boolean(nextMemory.last_product_name || nextMemory.last_product_id);
     const resumeQuoteFromContext =
       isContactInfoBundle(inbound.text) &&
