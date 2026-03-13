@@ -3212,6 +3212,9 @@ export async function POST(req: Request) {
                 ? `La ficha PDF de ${String((matched as any)?.name || "ese producto")} es pesada para envío directo por WhatsApp. Puedes abrirla aquí: ${pdfLink}.${imageUrl ? ` Imagen: ${imageUrl}.` : ""}`
                 : `Te comparto el enlace directo de la ficha técnica de ${String((matched as any)?.name || "ese producto")}.${detailUrl ? ` ${detailUrl}` : ""}${imageUrl ? ` Imagen: ${imageUrl}.` : ""} Si quieres, te genero la cotización de una vez.`;
           }
+          if (reply && !/\bquieres\b.*\b(cotizacion|ficha|imagen|producto)\b/i.test(normalizeText(reply))) {
+            reply = `${reply}\n\n¿Quieres cotización de este modelo o prefieres revisar otro producto?`;
+          }
           nextMemory.awaiting_action = "none";
           handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
@@ -3239,8 +3242,14 @@ export async function POST(req: Request) {
         const pricedRows = (Array.isArray(priced) ? priced : []).filter((r: any) => isCommercialCatalogRow(r));
         const options = buildNumberedProductOptions(pricedRows, 4);
         const quoteText = normalizeText(inbound.text || "");
+        const rememberedCategory = normalizeText(String(previousMemory?.last_category_intent || nextMemory?.last_product_category || ""));
         const asksBasculas = /(bascula|basculas|plataforma|indicador)/.test(quoteText);
-        const targetCategoryForQuote = asksBasculas ? "basculas" : "balanzas";
+        const asksBalanzas = /(balanza|balanzas)/.test(quoteText);
+        const targetCategoryForQuote = asksBasculas
+          ? "basculas"
+          : asksBalanzas
+            ? "balanzas"
+            : (rememberedCategory === "basculas" || rememberedCategory === "balanzas" ? rememberedCategory : "balanzas");
         const isGenericBalanceQuote = /(balanza|balanzas|bascula|basculas)/.test(quoteText) && !hasConcreteProductHint(inbound.text);
         const categoryRows = allRows.filter((r: any) => {
           const c = normalizeText(String((r as any)?.category || ""));
@@ -3373,7 +3382,7 @@ export async function POST(req: Request) {
                   "",
                   `Catálogo oficial: ${CATALOG_REFERENCE_URL}`,
                   "",
-                  `Responde con un tipo (ej: ${targetCategoryForQuote === "basculas" ? "plataformas" : "joyería"}) o con letra/número (ej: A o 1).`,
+                  `Responde con un tipo (ej: ${targetCategoryForQuote === "basculas" ? "plataformas" : "precisión"}) o con letra/número (ej: A o 1).`,
                 ].join("\n")
               : [
                   "Claro. Para cotizar de una, elige primero un modelo:",
@@ -3384,6 +3393,7 @@ export async function POST(req: Request) {
           : "Claro. Para cotizar de una, dime modelo exacto y cantidad (ejemplo: Explorer 220, 2 unidades).";
         nextMemory.awaiting_action = quoteOptions.length ? "product_option_selection" : "quote_product_selection";
         nextMemory.pending_product_options = quoteOptions;
+        nextMemory.last_category_intent = targetCategoryForQuote;
 
         handledByQuoteStarter = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
