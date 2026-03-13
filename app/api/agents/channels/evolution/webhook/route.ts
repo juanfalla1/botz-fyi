@@ -964,7 +964,7 @@ function isInventoryInfoIntent(text: string): boolean {
 
 function isRecommendationIntent(text: string): boolean {
   const t = normalizeText(text);
-  return /(recomiend|modelo ideal|que modelo|cual modelo|me sirve|para mi caso|que balanza|sugerencia)/.test(t);
+  return /(recomiend|modelo ideal|que modelo|cual modelo|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia)/.test(t);
 }
 
 function detectCatalogCategoryIntent(text: string): string | null {
@@ -1225,7 +1225,33 @@ function extractFeatureTerms(text: string): string[] {
     "modelo", "modelos", "tiene", "tienen", "tenga", "tengan", "incluye", "incluyan", "caracteristica", "caracteristicas",
     "especificacion", "especificaciones", "debe", "tener", "con", "busco", "necesito", "quiero", "ohaus",
   ]);
-  return extractCatalogTerms(text).filter((term) => !blacklist.has(term));
+  const aliasMap: Record<string, string> = {
+    tipo: "",
+    tipos: "",
+    clase: "",
+    clases: "",
+    balanza: "balanzas",
+    balanzas: "balanzas",
+    bascula: "basculas",
+    basculas: "basculas",
+    joyeria: "joyeria",
+    joyería: "joyeria",
+    precision: "precision",
+    precisión: "precision",
+    analitica: "analitica",
+    analítica: "analitica",
+    semi: "semi",
+    humedad: "humedad",
+    plataforma: "plataforma",
+  };
+  const normalized = extractCatalogTerms(text)
+    .map((term) => {
+      const key = normalizeText(term);
+      if (!(key in aliasMap)) return key;
+      return String(aliasMap[key] || "").trim();
+    })
+    .filter((term) => term && !blacklist.has(term));
+  return uniqueNormalizedStrings(normalized, 8);
 }
 
 function catalogFeatureSearchBlob(row: any): string {
@@ -1268,6 +1294,12 @@ function rankCatalogByFeature(rows: any[], featureTerms: string[]): Array<{ row:
   return ranked
     .filter((x) => x.matches >= Math.min(featureTerms.length, featureTerms.length <= 2 ? 1 : 2))
     .sort((a, b) => b.score - a.score);
+}
+
+function isBalanceTypeQuestion(text: string): boolean {
+  const t = normalizeCatalogQueryText(text || "");
+  if (!t) return false;
+  return /(que tipo de balanza|que tipos de balanza|tipos de balanzas|tipo de balanzas|clases de balanza|clase de balanza)/.test(t);
 }
 
 function uniqueNormalizedStrings(values: string[], max = 0): string[] {
@@ -2432,6 +2464,7 @@ export async function POST(req: Request) {
         || (isCategoryFollowUpIntent(inbound.text) ? rememberedCategoryIntent : "");
       const featureTerms = extractFeatureTerms(inbound.text);
       const wantsFeatureAnswer = isFeatureQuestionIntent(inbound.text) && featureTerms.length > 0;
+      const asksBalanceTypes = isBalanceTypeQuestion(inbound.text);
       if (categoryIntent) {
         const looksLikeConcreteModel = hasConcreteProductHint(inbound.text);
         const shouldSkipCategorySummary =
@@ -2480,7 +2513,40 @@ export async function POST(req: Request) {
             const extra = Math.max(0, uniqueNames.length - names.length);
             const categoryLabel = categoryIntent.replace(/_/g, " ");
             nextMemory.last_category_intent = categoryIntent;
-            if (wantsFeatureAnswer) {
+            if (asksBalanceTypes && categoryIntent === "balanzas") {
+              const subMap = new Map<string, number>();
+              for (const r of pool as any[]) {
+                const sub = String(catalogSubcategory(r) || "").trim();
+                if (!sub) continue;
+                subMap.set(sub, Number(subMap.get(sub) || 0) + 1);
+              }
+              const preferredOrder = [
+                "balanzas_analiticas",
+                "balanzas_semianaliticas",
+                "balanzas_precision",
+                "balanzas_joyeria",
+                "balanzas_portatiles",
+              ];
+              const available = preferredOrder
+                .map((k) => ({ key: k, count: Number(subMap.get(k) || 0) }))
+                .filter((x) => x.count > 0);
+              if (available.length) {
+                const labels: Record<string, string> = {
+                  balanzas_analiticas: "Analíticas",
+                  balanzas_semianaliticas: "Semianalíticas",
+                  balanzas_precision: "Precisión",
+                  balanzas_joyeria: "Joyería",
+                  balanzas_portatiles: "Portátiles",
+                };
+                const lines = available.map((x) => `- ${labels[x.key] || x.key.replace(/^balanzas_/, "").replace(/_/g, " ")} (${x.count})`);
+                reply = [
+                  `Sí. En balanzas manejo ${available.length} tipo(s) en catálogo:`,
+                  ...lines,
+                  "",
+                  "Si quieres, te filtro por uno y te doy modelos exactos para ficha o cotización.",
+                ].join("\n");
+              }
+            } else if (wantsFeatureAnswer) {
               const rankedByFeature = rankCatalogByFeature(pool as any[], featureTerms).slice(0, 5);
               if (rankedByFeature.length) {
                 const top = rankedByFeature.slice(0, 3);
