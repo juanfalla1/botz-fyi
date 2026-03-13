@@ -3399,7 +3399,9 @@ export async function POST(req: Request) {
             .map((m: any) => String(m.content || ""));
           const combinedUserContext = `${latestUserLines.join("\n")}\n${inbound.text}`;
 
-          const defaultQuantity = extractQuantity(quoteSourceText);
+          const qtyFromInbound = extractQuantity(inbound.text);
+          const qtyFromSource = extractQuantity(quoteSourceText);
+          const defaultQuantity = Math.max(1, qtyFromInbound || qtyFromSource || 1);
           const perProductQty = extractPerProductQuantities(
             quoteSourceText,
             selectedProducts.map((p: any) => ({ id: String(p.id), name: String(p.name || "") }))
@@ -3429,7 +3431,7 @@ export async function POST(req: Request) {
 
           if (!missingFields.length && !handledByQuoteIntake && selectedProducts.length === 1) {
             const selected = selectedProducts[0] as any;
-            const requestedQty = Math.max(1, extractQuantity(quoteSourceText));
+            const requestedQty = Math.max(1, extractQuantity(inbound.text) || extractQuantity(quoteSourceText));
             const basePrice = Number(selected?.base_price_usd || 0);
             if (!(basePrice > 0)) {
               reply = `Confirmo ${requestedQty} unidades de ${String(selected?.name || "ese producto")}. Este modelo no tiene precio base USD cargado todavía, por eso no puedo generar el PDF de cotización en este momento. Si me compartes precio base o autorizas cargarlo, te la genero de inmediato.`;
