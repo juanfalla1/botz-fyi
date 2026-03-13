@@ -728,7 +728,7 @@ function extractQuantity(text: string): number {
     const n = Number(m1[m1.length - 1]?.[1] || 1);
     return Math.max(1, Math.min(100000, n));
   }
-  const m2 = [...t.matchAll(/\b(\d{1,5})\s*(?:unidad|unidades|equipos?)\b/gi)];
+  const m2 = [...t.matchAll(/\b(\d{1,5})\s*(?:unidad|unidades|equipos?|balanza|balanzas|bascula|basculas|pieza|piezas)\b/gi)];
   if (m2.length) {
     const n = Number(m2[m2.length - 1]?.[1] || 1);
     return Math.max(1, Math.min(100000, n));
@@ -895,7 +895,7 @@ function isConcreteQuoteIntent(text: string, rememberedProductName?: string): bo
 
 function hasBareQuantity(text: string): boolean {
   const t = normalizeText(text || "");
-  return /\b\d{1,5}\b/.test(t) && /(unidad|unidades|equipo|equipos|qty|cantidad|x\s*\d)/.test(t);
+  return /\b\d{1,5}\b/.test(t) && /(unidad|unidades|equipo|equipos|balanza|balanzas|bascula|basculas|pieza|piezas|qty|cantidad|x\s*\d)/.test(t);
 }
 
 function isQuoteProceedIntent(text: string): boolean {
@@ -2414,7 +2414,12 @@ export async function POST(req: Request) {
       const wantsFeatureAnswer = isFeatureQuestionIntent(inbound.text) && featureTerms.length > 0;
       if (categoryIntent) {
         const looksLikeConcreteModel = hasConcreteProductHint(inbound.text);
-        const shouldSkipCategorySummary = looksLikeConcreteModel;
+        const shouldSkipCategorySummary =
+          looksLikeConcreteModel ||
+          asksQuoteIntent(inbound.text) ||
+          shouldAutoQuote(inbound.text) ||
+          isQuoteProceedIntent(inbound.text) ||
+          hasBareQuantity(inbound.text);
         if (shouldSkipCategorySummary) {
           // Do not hijack technical selection with category summary.
         } else {
@@ -3051,7 +3056,7 @@ export async function POST(req: Request) {
               ? `Este modelo no tiene ficha PDF oficial. Puedes revisar su ficha web aquí: ${matchedProductUrl}.${imageUrl ? ` Imagen: ${imageUrl}.` : ""}`
               : pdfTooLargeForAttachment
                 ? `La ficha PDF de ${String((matched as any)?.name || "ese producto")} es pesada para envío directo por WhatsApp. Puedes abrirla aquí: ${pdfLink}.${imageUrl ? ` Imagen: ${imageUrl}.` : ""}`
-                : `No tengo el archivo adjunto listo para ${String((matched as any)?.name || "ese producto")} en este momento.${imageUrl ? ` Imagen: ${imageUrl}.` : ""} ${detailUrl ? `Detalle: ${detailUrl}.` : ""} Si quieres, te ayudo a cotizarlo de una vez.`;
+                : `Te comparto el enlace directo de la ficha técnica de ${String((matched as any)?.name || "ese producto")}.${detailUrl ? ` ${detailUrl}` : ""}${imageUrl ? ` Imagen: ${imageUrl}.` : ""} Si quieres, te genero la cotización de una vez.`;
           }
           nextMemory.awaiting_action = "none";
           handledByTechSheet = true;
@@ -3354,10 +3359,12 @@ export async function POST(req: Request) {
       .slice(-6)
       .join("\n");
     const previousIntentForQuoteFlow = String(previousMemory?.last_intent || "");
+    const asksQuoteWithNumber = asksQuoteIntent(inbound.text) && /\b\d{1,5}\b/.test(normalizeText(inbound.text || ""));
     const quoteProceedFromMemory =
       (isQuoteProceedIntent(inbound.text) ||
         isQuantityUpdateIntent(inbound.text) ||
         hasBareQuantity(inbound.text) ||
+        asksQuoteWithNumber ||
         (isAffirmativeIntent(inbound.text) && /(price_request|quote_starter|recommendation_request)/.test(previousIntentForQuoteFlow))) &&
       Boolean(nextMemory.last_product_name || nextMemory.last_product_id);
     const resumeQuoteFromContext =
