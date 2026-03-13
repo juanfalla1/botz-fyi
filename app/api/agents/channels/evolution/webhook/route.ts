@@ -3270,7 +3270,57 @@ export async function POST(req: Request) {
           .filter((x) => x.count > 0)
           .slice(0, 6);
 
-        reply = options.length
+        let quoteOptions = options;
+        if (isGenericBalanceQuote && balanceRows.length) {
+          const buckets = new Map<string, any[]>();
+          for (const row of balanceRows) {
+            const rawSub = normalizeText(String(catalogSubcategory(row) || ""));
+            const categoryKey = normalizeText(String((row as any)?.category || ""));
+            const key = rawSub || categoryKey || "otros";
+            if (!buckets.has(key)) buckets.set(key, []);
+            buckets.get(key)!.push(row);
+          }
+
+          const diversifiedTypeOrder = [
+            "balanzas_analiticas",
+            "balanzas_semianaliticas",
+            "balanzas_precision",
+            "balanzas_portatiles",
+            "basculas",
+            "balanzas_joyeria",
+            "balanzas",
+            "otros",
+          ];
+
+          const pickedRows: any[] = [];
+          const pickedKeys = new Set<string>();
+          const queues = diversifiedTypeOrder
+            .map((k) => ({ key: k, rows: [...(buckets.get(k) || [])] }))
+            .filter((q) => q.rows.length > 0);
+
+          let guard = 0;
+          while (pickedRows.length < 4 && guard < 50) {
+            guard += 1;
+            let added = false;
+            for (const q of queues) {
+              if (!q.rows.length) continue;
+              const candidate = q.rows.shift();
+              const cKey = normalizeText(String((candidate as any)?.name || ""));
+              if (!candidate || !cKey || pickedKeys.has(cKey)) continue;
+              pickedRows.push(candidate);
+              pickedKeys.add(cKey);
+              added = true;
+              if (pickedRows.length >= 4) break;
+            }
+            if (!added) break;
+          }
+
+          if (pickedRows.length) {
+            quoteOptions = buildNumberedProductOptions(pickedRows, 4);
+          }
+        }
+
+        reply = quoteOptions.length
           ? (isGenericBalanceQuote
               ? [
                   "Claro. Para cotizar una balanza, primero elige tipo o modelo:",
@@ -3279,22 +3329,22 @@ export async function POST(req: Request) {
                         "Tipos disponibles:",
                         ...types.map((t) => `- ${typeLabel[t.key] || t.key.replace(/_/g, " ")} (${t.count})`),
                         "",
-                      ]
+                  ]
                     : []),
                   "Opciones rápidas de modelo:",
-                  ...options.map((o) => `${o.code}) ${o.name}`),
+                  ...quoteOptions.map((o) => `${o.code}) ${o.name}`),
                   "",
                   "Responde con un tipo (ej: joyería) o con letra/número (ej: A o 1).",
                 ].join("\n")
               : [
                   "Claro. Para cotizar de una, elige primero un modelo:",
-                  ...options.map((o) => `${o.code}) ${o.name}`),
+                  ...quoteOptions.map((o) => `${o.code}) ${o.name}`),
                   "",
                   "Responde con letra o número (ej.: A o 1). Luego te pido cantidad.",
                 ].join("\n"))
           : "Claro. Para cotizar de una, dime modelo exacto y cantidad (ejemplo: Explorer 220, 2 unidades).";
-        nextMemory.awaiting_action = options.length ? "product_option_selection" : "quote_product_selection";
-        nextMemory.pending_product_options = options;
+        nextMemory.awaiting_action = quoteOptions.length ? "product_option_selection" : "quote_product_selection";
+        nextMemory.pending_product_options = quoteOptions;
 
         handledByQuoteStarter = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
