@@ -3233,47 +3233,83 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !concreteQuoteIntent && isQuoteStarterIntent(inbound.text)) {
       try {
-        const priced = await fetchCatalogRows("id,name,category,source_payload,base_price_usd", 80, true);
+        const allCatalog = await fetchCatalogRows("id,name,category,source_payload,base_price_usd", 260, false);
+        const priced = await fetchCatalogRows("id,name,category,source_payload,base_price_usd", 160, true);
+        const allRows = (Array.isArray(allCatalog) ? allCatalog : []).filter((r: any) => isCommercialCatalogRow(r));
         const pricedRows = (Array.isArray(priced) ? priced : []).filter((r: any) => isCommercialCatalogRow(r));
         const options = buildNumberedProductOptions(pricedRows, 4);
         const quoteText = normalizeText(inbound.text || "");
+        const asksBasculas = /(bascula|basculas|plataforma|indicador)/.test(quoteText);
+        const targetCategoryForQuote = asksBasculas ? "basculas" : "balanzas";
         const isGenericBalanceQuote = /(balanza|balanzas|bascula|basculas)/.test(quoteText) && !hasConcreteProductHint(inbound.text);
-        const balanceRows = pricedRows.filter((r: any) => {
+        const categoryRows = allRows.filter((r: any) => {
           const c = normalizeText(String((r as any)?.category || ""));
-          return c === "balanzas" || c === "basculas";
+          return c === targetCategoryForQuote;
+        });
+        const pricedCategoryRows = pricedRows.filter((r: any) => {
+          const c = normalizeText(String((r as any)?.category || ""));
+          return c === targetCategoryForQuote;
         });
         const subCount = new Map<string, number>();
-        for (const row of balanceRows) {
+        for (const row of categoryRows) {
           const rawSub = normalizeText(String(catalogSubcategory(row) || ""));
           const key = rawSub || normalizeText(String((row as any)?.category || ""));
           if (!key) continue;
           subCount.set(key, Number(subCount.get(key) || 0) + 1);
         }
-        const typeOrder = [
-          "balanzas_analiticas",
-          "balanzas_semianaliticas",
-          "balanzas_precision",
-          "balanzas_joyeria",
-          "balanzas_portatiles",
-          "basculas",
-        ];
+        const typeOrder = targetCategoryForQuote === "basculas"
+          ? [
+              "basculas_mesa",
+              "basculas_piso",
+              "basculas_lavables",
+              "plataformas",
+              "plataformas_lavables",
+              "indicadores",
+              "indicadores_lavables",
+              "basculas",
+            ]
+          : [
+              "balanzas_semimicro",
+              "balanzas_analiticas",
+              "balanzas_semianaliticas",
+              "balanzas_precision",
+              "balanzas_mesa",
+              "balanzas_portatiles",
+              "balanzas_joyeria",
+              "balanzas_alimentos",
+              "balanzas_conteo",
+              "balanzas",
+            ];
         const typeLabel: Record<string, string> = {
+          balanzas_semimicro: "Semi-Micro",
           balanzas_analiticas: "Analíticas",
           balanzas_semianaliticas: "Semianalíticas",
           balanzas_precision: "Precisión",
+          balanzas_mesa: "De Mesa",
           balanzas_joyeria: "Joyería",
           balanzas_portatiles: "Portátiles",
+          balanzas_alimentos: "De Alimentos",
+          balanzas_conteo: "De Conteo",
+          basculas_mesa: "Básculas de Mesa",
+          basculas_piso: "Básculas de Piso",
+          basculas_lavables: "Básculas Lavables",
+          plataformas: "Plataformas",
+          plataformas_lavables: "Plataformas Lavables",
+          indicadores: "Indicadores",
+          indicadores_lavables: "Indicadores Lavables",
           basculas: "Básculas",
+          balanzas: "Balanzas",
         };
         const types = typeOrder
           .map((k) => ({ key: k, count: Number(subCount.get(k) || 0) }))
           .filter((x) => x.count > 0)
-          .slice(0, 6);
+          .slice(0, 10);
 
         let quoteOptions = options;
-        if (isGenericBalanceQuote && balanceRows.length) {
+        if (isGenericBalanceQuote && categoryRows.length) {
           const buckets = new Map<string, any[]>();
-          for (const row of balanceRows) {
+          const sourceForQuoteOptions = pricedCategoryRows.length ? pricedCategoryRows : categoryRows;
+          for (const row of sourceForQuoteOptions) {
             const rawSub = normalizeText(String(catalogSubcategory(row) || ""));
             const categoryKey = normalizeText(String((row as any)?.category || ""));
             const key = rawSub || categoryKey || "otros";
@@ -3323,7 +3359,8 @@ export async function POST(req: Request) {
         reply = quoteOptions.length
           ? (isGenericBalanceQuote
               ? [
-                  "Claro. Para cotizar una balanza, primero elige tipo o modelo:",
+                  `Claro. Para cotizar una ${targetCategoryForQuote === "basculas" ? "báscula" : "balanza"}, primero elige tipo o modelo:`,
+                  `Tengo ${categoryRows.length} referencia(s) de ${targetCategoryForQuote === "basculas" ? "básculas" : "balanzas"} en catálogo (${pricedCategoryRows.length} con precio para cotización inmediata).`,
                   ...(types.length
                     ? [
                         "Tipos disponibles:",
@@ -3334,9 +3371,9 @@ export async function POST(req: Request) {
                   "Opciones rápidas de modelo:",
                   ...quoteOptions.map((o) => `${o.code}) ${o.name}`),
                   "",
-                  `Catálogo oficial de balanzas: ${CATALOG_REFERENCE_URL}`,
+                  `Catálogo oficial: ${CATALOG_REFERENCE_URL}`,
                   "",
-                  "Responde con un tipo (ej: joyería) o con letra/número (ej: A o 1).",
+                  `Responde con un tipo (ej: ${targetCategoryForQuote === "basculas" ? "plataformas" : "joyería"}) o con letra/número (ej: A o 1).`,
                 ].join("\n")
               : [
                   "Claro. Para cotizar de una, elige primero un modelo:",
