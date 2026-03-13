@@ -872,9 +872,8 @@ function asksQuoteIntent(text: string): boolean {
 function isQuoteStarterIntent(text: string): boolean {
   const t = normalizeText(text);
   const asksQuote = asksQuoteIntent(t);
-  const genericProduct = /(balanza|producto|equipo|instrumento)/.test(t);
   const hasConcreteRef = hasConcreteProductHint(t) || /\b\d{2,}\b/.test(t) || /(explorer|adventurer|pioneer|scout|defender|valor|fron|modelo|referencia)/.test(t);
-  return asksQuote && (genericProduct || !hasConcreteRef);
+  return asksQuote && !hasConcreteRef;
 }
 
 function hasReferencePronoun(text: string): boolean {
@@ -3373,16 +3372,18 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory || concreteQuoteIntent)) {
       try {
-        const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url", 120, true);
+        const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url", 120, false);
 
         const quoteSourceText = resumeQuoteFromContext
           ? `${recentUserContext}\n${inbound.text}`
           : quoteProceedFromMemory
             ? `${String(nextMemory.last_product_name || "")}\n${inbound.text}`
             : inbound.text;
-        const pricedProducts = (Array.isArray(products) ? products : []).filter((r: any) => isCommercialCatalogRow(r));
-        const matchedProduct = pickBestCatalogProduct(quoteSourceText, pricedProducts || []);
-        const rememberedProduct = findCatalogProductByName(pricedProducts || [], String(nextMemory.last_product_name || ""));
+        const commercialProducts = (Array.isArray(products) ? products : []).filter((r: any) => isCommercialCatalogRow(r));
+        const pricedProducts = commercialProducts.filter((r: any) => Number(r?.base_price_usd || 0) > 0);
+        const quoteMatchPool = quoteProceedFromMemory ? commercialProducts : (pricedProducts.length ? pricedProducts : commercialProducts);
+        const matchedProduct = pickBestCatalogProduct(quoteSourceText, quoteMatchPool || []);
+        const rememberedProduct = findCatalogProductByName(commercialProducts || [], String(nextMemory.last_product_name || ""));
         const wantsMulti = isMultiProductQuoteIntent(quoteSourceText);
         const selectedProducts = wantsMulti
           ? pricedProducts.slice(0, 3)
@@ -3424,6 +3425,17 @@ export async function POST(req: Request) {
             reply = `Para enviarte la cotizacion en PDF sin campos vacios, me faltan estos datos: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Nombre: ..., Telefono: ...).`;
             handledByQuoteIntake = true;
             billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+          }
+
+          if (!missingFields.length && !handledByQuoteIntake && selectedProducts.length === 1) {
+            const selected = selectedProducts[0] as any;
+            const requestedQty = Math.max(1, extractQuantity(quoteSourceText));
+            const basePrice = Number(selected?.base_price_usd || 0);
+            if (!(basePrice > 0)) {
+              reply = `Confirmo ${requestedQty} unidades de ${String(selected?.name || "ese producto")}. Este modelo no tiene precio base USD cargado todavía, por eso no puedo generar el PDF de cotización en este momento. Si me compartes precio base o autorizas cargarlo, te la genero de inmediato.`;
+              handledByQuoteIntake = true;
+              billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+            }
           }
 
           if (!missingFields.length && !handledByQuoteIntake) {
@@ -3507,7 +3519,7 @@ export async function POST(req: Request) {
 
               if (autoQuoteDocs.length === 1) {
                 const q1 = autoQuoteDocs[0]?.quantity || 1;
-                reply = `Listo. Ya genere tu cotizacion para ${String((selectedProducts[0] as any)?.name || "el producto")} (cantidad ${q1}) con la TRM de hoy. Te envio el PDF en este chat ahora mismo.`;
+                reply = `Confirmo ${q1} unidades de ${String((selectedProducts[0] as any)?.name || "el producto")}. Ya generé tu cotización con la TRM de hoy y te envío el PDF por este chat ahora mismo.`;
               } else if (autoQuoteDocs.length > 1) {
                 const bundlePdfBase64 = buildBundleQuotePdf({
                   bundleId: `B-${new Date().toISOString().slice(0, 10)}-${String(autoQuoteDocs[0].draftId).slice(0, 6)}`,
