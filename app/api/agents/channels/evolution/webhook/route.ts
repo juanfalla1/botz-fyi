@@ -1125,9 +1125,9 @@ function isAffirmativeIntent(text: string): boolean {
 }
 
 function isConversationCloseIntent(text: string): boolean {
-  const t = normalizeText(text).replace(/[^a-z0-9\s]/g, " ").trim();
+  const t = normalizeCatalogQueryText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
   if (!t) return false;
-  return /^(no|no gracias|gracias|eso es todo|nada mas|nada m[aá]s|finaliza|finalizar|termina|terminar|cerrar|cerramos|listo gracias|ok gracias|perfecto gracias|hasta luego|adios|chao)\b/.test(t);
+  return /\b(no|no gracias|gracias|eso es todo|nada mas|finaliza|finalizar|finalicemos|finalizamos|termina|terminar|cerrar|cerramos|listo gracias|ok gracias|perfecto gracias|hasta luego|adios|chao)\b/.test(t);
 }
 
 function withAvaSignature(text: string): string {
