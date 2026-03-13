@@ -3233,16 +3233,65 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !concreteQuoteIntent && isQuoteStarterIntent(inbound.text)) {
       try {
-        const priced = await fetchCatalogRows("id,name,category,base_price_usd", 12, true);
-        const options = buildNumberedProductOptions(Array.isArray(priced) ? priced : [], 4);
+        const priced = await fetchCatalogRows("id,name,category,source_payload,base_price_usd", 80, true);
+        const pricedRows = (Array.isArray(priced) ? priced : []).filter((r: any) => isCommercialCatalogRow(r));
+        const options = buildNumberedProductOptions(pricedRows, 4);
+        const quoteText = normalizeText(inbound.text || "");
+        const isGenericBalanceQuote = /(balanza|balanzas|bascula|basculas)/.test(quoteText) && !hasConcreteProductHint(inbound.text);
+        const balanceRows = pricedRows.filter((r: any) => {
+          const c = normalizeText(String((r as any)?.category || ""));
+          return c === "balanzas" || c === "basculas";
+        });
+        const subCount = new Map<string, number>();
+        for (const row of balanceRows) {
+          const rawSub = normalizeText(String(catalogSubcategory(row) || ""));
+          const key = rawSub || normalizeText(String((row as any)?.category || ""));
+          if (!key) continue;
+          subCount.set(key, Number(subCount.get(key) || 0) + 1);
+        }
+        const typeOrder = [
+          "balanzas_analiticas",
+          "balanzas_semianaliticas",
+          "balanzas_precision",
+          "balanzas_joyeria",
+          "balanzas_portatiles",
+          "basculas",
+        ];
+        const typeLabel: Record<string, string> = {
+          balanzas_analiticas: "Analíticas",
+          balanzas_semianaliticas: "Semianalíticas",
+          balanzas_precision: "Precisión",
+          balanzas_joyeria: "Joyería",
+          balanzas_portatiles: "Portátiles",
+          basculas: "Básculas",
+        };
+        const types = typeOrder
+          .map((k) => ({ key: k, count: Number(subCount.get(k) || 0) }))
+          .filter((x) => x.count > 0)
+          .slice(0, 6);
 
         reply = options.length
-          ? [
-              "Claro. Para cotizar de una, elige primero un modelo:",
-              ...options.map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Responde con letra o número (ej.: A o 1). Luego te pido cantidad.",
-            ].join("\n")
+          ? (isGenericBalanceQuote
+              ? [
+                  "Claro. Para cotizar una balanza, primero elige tipo o modelo:",
+                  ...(types.length
+                    ? [
+                        "Tipos disponibles:",
+                        ...types.map((t) => `- ${typeLabel[t.key] || t.key.replace(/_/g, " ")} (${t.count})`),
+                        "",
+                      ]
+                    : []),
+                  "Opciones rápidas de modelo:",
+                  ...options.map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Responde con un tipo (ej: joyería) o con letra/número (ej: A o 1).",
+                ].join("\n")
+              : [
+                  "Claro. Para cotizar de una, elige primero un modelo:",
+                  ...options.map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Responde con letra o número (ej.: A o 1). Luego te pido cantidad.",
+                ].join("\n"))
           : "Claro. Para cotizar de una, dime modelo exacto y cantidad (ejemplo: Explorer 220, 2 unidades).";
         nextMemory.awaiting_action = options.length ? "product_option_selection" : "quote_product_selection";
         nextMemory.pending_product_options = options;
