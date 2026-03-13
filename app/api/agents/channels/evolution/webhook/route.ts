@@ -1496,22 +1496,31 @@ function categoryMatchesIntent(row: any, categoryIntent: string): boolean {
   );
 }
 
+function passesStrictCategoryGuard(row: any, categoryIntent: string): boolean {
+  const wanted = normalizeText(String(categoryIntent || ""));
+  if (!wanted) return true;
+  const rowName = normalizeText(String(row?.name || ""));
+  const rowSub = catalogSubcategory(row);
+
+  if (wanted === "balanzas") {
+    if (/\b(bascul|bscul|plataform|indicador)\b/.test(rowName)) return false;
+    if (rowSub.startsWith("basculas") || rowSub.startsWith("plataformas") || rowSub.startsWith("indicadores")) return false;
+  }
+
+  if (wanted === "basculas") {
+    if (/\b(balanz)\b/.test(rowName)) return false;
+    if (rowSub.startsWith("balanzas")) return false;
+  }
+
+  return true;
+}
+
 function scopeCatalogRows(rows: any[], categoryIntent: string): any[] {
   const wanted = normalizeText(String(categoryIntent || ""));
   if (!wanted) return rows || [];
   return (rows || []).filter((row: any) => {
     if (!categoryMatchesIntent(row, wanted)) return false;
-    const rowName = normalizeText(String(row?.name || ""));
-    const rowSub = catalogSubcategory(row);
-    if (wanted === "balanzas") {
-      if (rowName.includes("bascula") || rowName.includes("basculas")) return false;
-      if (rowSub.startsWith("basculas") || rowSub.startsWith("plataformas") || rowSub.startsWith("indicadores")) return false;
-    }
-    if (wanted === "basculas") {
-      if (rowName.includes("balanza") || rowName.includes("balanzas")) return false;
-      if (rowSub.startsWith("balanzas")) return false;
-    }
-    return true;
+    return passesStrictCategoryGuard(row, wanted);
   });
 }
 
@@ -2290,6 +2299,7 @@ export async function POST(req: Request) {
     if (knownCustomerName) nextMemory.customer_name = knownCustomerName;
 
     const awaitingAction = String(previousMemory?.awaiting_action || "");
+    const originalInboundText = String(inbound.text || "").trim();
     if (awaitingAction === "conversation_followup" && isConversationCloseIntent(inbound.text)) {
       reply = "Perfecto, finalizamos este chat por ahora. Cuando quieras, me escribes y retomamos con gusto.";
       nextMemory.awaiting_action = "none";
@@ -2297,6 +2307,28 @@ export async function POST(req: Request) {
       nextMemory.last_intent = "conversation_closed";
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+    }
+    if (!handledByGreeting && awaitingAction === "conversation_followup" && !isConversationCloseIntent(inbound.text)) {
+      const rememberedProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
+      if (rememberedProduct) {
+        const t = normalizeText(originalInboundText);
+        const asksQuoteNow = asksQuoteIntent(t) || isPriceIntent(t) || isQuoteProceedIntent(t) || /\b(cotiza|cotizacion|precio)\b/.test(t);
+        const asksSheetNow = isTechnicalSheetIntent(t);
+        const asksImageNow = isProductImageIntent(t);
+        if (asksQuoteNow || (isAffirmativeIntent(t) && !asksSheetNow && !asksImageNow)) {
+          inbound.text = `cotizar ${rememberedProduct} ${originalInboundText}`.trim();
+          nextMemory.awaiting_action = "quote_product_selection";
+        } else if (asksSheetNow && asksImageNow) {
+          inbound.text = `ficha tecnica e imagen de ${rememberedProduct}`;
+          nextMemory.awaiting_action = "none";
+        } else if (asksSheetNow) {
+          inbound.text = `ficha tecnica de ${rememberedProduct}`;
+          nextMemory.awaiting_action = "none";
+        } else if (asksImageNow) {
+          inbound.text = `imagen de ${rememberedProduct}`;
+          nextMemory.awaiting_action = "none";
+        }
+      }
     }
     if (!handledByGreeting && isConversationCloseIntent(inbound.text) && normalizeText(inbound.text).length <= 32) {
       reply = "Perfecto, finalizamos este chat por ahora. Cuando quieras, me escribes y retomamos con gusto.";
@@ -2306,7 +2338,6 @@ export async function POST(req: Request) {
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
-    const originalInboundText = String(inbound.text || "").trim();
     if (!knownCustomerName && awaitingAction === "capture_name") {
       const nameFromReply = looksLikeCustomerNameAnswer(inbound.text);
       if (nameFromReply) {
@@ -3586,7 +3617,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && isAffirmativeIntent(inbound.text)) {
+    if (!handledByGreeting && awaitingAction !== "conversation_followup" && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && isAffirmativeIntent(inbound.text)) {
       const prevIntent = String(previousMemory?.last_intent || "");
       const lastProductName = String(previousMemory?.last_product_name || nextMemory?.last_product_name || "").trim();
       if ((/(tech_sheet_request|image_request)/.test(prevIntent) || awaitingAction === "tech_product_selection") && lastProductName) {
