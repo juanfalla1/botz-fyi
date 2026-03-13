@@ -1200,6 +1200,17 @@ function pickBestCatalogProduct(text: string, rows: any[]): any | null {
   return best.row;
 }
 
+function findExactModelProduct(text: string, rows: any[]): any | null {
+  const inbound = normalizeCatalogQueryText(text || "");
+  const tokens = extractModelLikeTokens(inbound);
+  if (!tokens.length) return null;
+  for (const row of rows || []) {
+    const hay = normalizeCatalogQueryText(`${row?.name || ""} ${row?.brand || ""} ${row?.category || ""} ${catalogSubcategory(row)}`);
+    if (tokens.every((t) => hay.includes(normalizeCatalogQueryText(t)))) return row;
+  }
+  return null;
+}
+
 function extractCatalogTerms(text: string): string[] {
   const stop = new Set([
     "hola", "quiero", "necesito", "enviame", "envia", "ficha", "tecnica", "fichatecnica", "imagen", "imagenes", "foto", "fotos",
@@ -1471,7 +1482,20 @@ function categoryMatchesIntent(row: any, categoryIntent: string): boolean {
 function scopeCatalogRows(rows: any[], categoryIntent: string): any[] {
   const wanted = normalizeText(String(categoryIntent || ""));
   if (!wanted) return rows || [];
-  return (rows || []).filter((row: any) => categoryMatchesIntent(row, wanted));
+  return (rows || []).filter((row: any) => {
+    if (!categoryMatchesIntent(row, wanted)) return false;
+    const rowName = normalizeText(String(row?.name || ""));
+    const rowSub = catalogSubcategory(row);
+    if (wanted === "balanzas") {
+      if (rowName.includes("bascula") || rowName.includes("basculas")) return false;
+      if (rowSub.startsWith("basculas") || rowSub.startsWith("plataformas") || rowSub.startsWith("indicadores")) return false;
+    }
+    if (wanted === "basculas") {
+      if (rowName.includes("balanza") || rowName.includes("balanzas")) return false;
+      if (rowSub.startsWith("balanzas")) return false;
+    }
+    return true;
+  });
 }
 
 function isCatalogMatchConsistent(text: string, row: any, forcedCategory?: string): boolean {
@@ -3251,14 +3275,8 @@ export async function POST(req: Request) {
             ? "balanzas"
             : (rememberedCategory === "basculas" || rememberedCategory === "balanzas" ? rememberedCategory : "balanzas");
         const isGenericBalanceQuote = /(balanza|balanzas|bascula|basculas)/.test(quoteText) && !hasConcreteProductHint(inbound.text);
-        const categoryRows = allRows.filter((r: any) => {
-          const c = normalizeText(String((r as any)?.category || ""));
-          return c === targetCategoryForQuote;
-        });
-        const pricedCategoryRows = pricedRows.filter((r: any) => {
-          const c = normalizeText(String((r as any)?.category || ""));
-          return c === targetCategoryForQuote;
-        });
+        const categoryRows = scopeCatalogRows(allRows as any[], targetCategoryForQuote);
+        const pricedCategoryRows = scopeCatalogRows(pricedRows as any[], targetCategoryForQuote);
         const subCount = new Map<string, number>();
         for (const row of categoryRows) {
           const rawSub = normalizeText(String(catalogSubcategory(row) || ""));
@@ -3695,9 +3713,10 @@ export async function POST(req: Request) {
         const selectedProduct = selectedById
           ? (commercialProducts.find((p: any) => String(p?.id || "").trim() === selectedById) || null)
           : (selectedByName ? findCatalogProductByName(commercialProducts || [], selectedByName) : null);
-        const matchedProduct = (quoteProceedFromMemory && selectedProduct)
+        const explicitModelProduct = findExactModelProduct(quoteSourceText, commercialProducts || []);
+        const matchedProduct = explicitModelProduct || ((quoteProceedFromMemory && selectedProduct)
           ? selectedProduct
-          : pickBestCatalogProduct(quoteSourceText, quoteMatchPool || []);
+          : pickBestCatalogProduct(quoteSourceText, quoteMatchPool || []));
         const rememberedProduct = findCatalogProductByName(commercialProducts || [], String(nextMemory.last_product_name || ""));
         const wantsMulti = isMultiProductQuoteIntent(quoteSourceText);
         const selectedProducts = wantsMulti
@@ -3766,11 +3785,15 @@ export async function POST(req: Request) {
                 nextMemory.last_selected_product_name = String((selected as any)?.name || nextMemory.last_selected_product_name || "");
                 nextMemory.last_selected_product_id = String((selected as any)?.id || nextMemory.last_selected_product_id || "");
                 nextMemory.last_selection_at = new Date().toISOString();
-                const quantity =
+                let quantity =
                   Number(perProductQty[String((selected as any).id)]) ||
                   (uniformHint ? defaultQuantity : 0) ||
                   defaultQuantity ||
                   1;
+                if (selectedProducts.length === 1) {
+                  const explicitQty = extractQuoteRequestedQuantity(inbound.text);
+                  if (explicitQty > 1) quantity = explicitQty;
+                }
                 const basePriceUsd = Number((selected as any)?.base_price_usd || 0);
                 if (!(basePriceUsd > 0)) continue;
 
