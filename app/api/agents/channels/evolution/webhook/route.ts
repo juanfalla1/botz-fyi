@@ -958,7 +958,7 @@ function detectCatalogCategoryIntent(text: string): string | null {
     return "electroquimica";
   }
   if (/(analizador de humedad|humedad|mb120|mb90|mb27|mb23)/.test(t)) return "analizador_humedad";
-  if (/(bascula|basculas|ranger|defender|valor)/.test(t)) return "basculas";
+  if (/(bascula|basculas|ranger|defender|valor|plataforma|control de peso|ckw|td52p)/.test(t)) return "basculas";
   if (/(impresora)/.test(t)) return "impresoras";
   if (/(centrifuga|agitador|mezclador|homogeneizador|planchas|laboratorio)/.test(t)) return "equipos_laboratorio";
   if (/(balanza|balanzas|explorer|adventurer|pioneer|pr\b|scout|analitica|semi analitica|precision)/.test(t)) return "balanzas";
@@ -2475,14 +2475,34 @@ export async function POST(req: Request) {
                   "Si quieres, te envío ficha técnica o imagen del modelo que elijas por este WhatsApp.",
                 ].join("\n");
               } else {
-                reply = [
-                  `En ${categoryLabel} no encontré una coincidencia exacta para esa característica (${featureTerms.join(", ")}) en este momento.`,
-                  "Opciones cercanas disponibles:",
-                  ...names.slice(0, 3).map((n) => `- ${n}`),
-                  ...(extra > 0 ? [`- y ${extra} más`] : []),
-                  "",
-                  "Si me dices la característica exacta (por ejemplo: capacidad, resolución o calibración), te filtro mejor.",
-                ].join("\n");
+                const crossCategoryMatches = rankCatalogByFeature(filteredRows as any[], featureTerms)
+                  .filter((x) => normalizeText(String(x?.row?.category || "")) !== normalizeText(categoryIntent))
+                  .slice(0, 4);
+                if (crossCategoryMatches.length) {
+                  const crossTop = crossCategoryMatches.slice(0, 3);
+                  const crossNames = crossTop.map((x) => humanCatalogName(String(x?.row?.name || "").trim())).filter(Boolean);
+                  const crossCats = uniqueNormalizedStrings(
+                    crossTop.map((x) => String(x?.row?.category || "").trim().replace(/_/g, " ")).filter(Boolean),
+                    2
+                  );
+                  const crossLabel = crossCats.length ? crossCats.join(" / ") : "otra categoría";
+                  reply = [
+                    `En ${categoryLabel} no encontré coincidencia exacta para (${featureTerms.join(", ")}).`,
+                    `Pero sí tengo opciones en ${crossLabel}:`,
+                    ...crossNames.map((n) => `- ${n}`),
+                    "",
+                    "Si quieres, te envío ficha técnica o cotización del modelo que elijas.",
+                  ].join("\n");
+                } else {
+                  reply = [
+                    `En ${categoryLabel} no encontré una coincidencia exacta para esa característica (${featureTerms.join(", ")}) en este momento.`,
+                    "Opciones cercanas disponibles:",
+                    ...names.slice(0, 3).map((n) => `- ${n}`),
+                    ...(extra > 0 ? [`- y ${extra} más`] : []),
+                    "",
+                    "Si me dices la característica exacta (por ejemplo: capacidad, resolución o calibración), te filtro mejor.",
+                  ].join("\n");
+                }
               }
             } else {
               reply = [
@@ -2639,8 +2659,15 @@ export async function POST(req: Request) {
         const scopedList = scopedCategory ? scopeCatalogRows(list as any, scopedCategory) : list;
         const hasConcreteHint = hasConcreteProductHint(inbound.text);
         let matched = pickBestCatalogProduct(inbound.text, scopedList as any);
+        const rememberedProductNameForPrice = String(previousMemory?.last_product_name || nextMemory?.last_product_name || "").trim();
+        const rememberedPriced = rememberedProductNameForPrice
+          ? findCatalogProductByName((scopedList.length ? scopedList : list) as any[], rememberedProductNameForPrice)
+          : null;
         if (!matched?.name && hasConcreteHint) {
           matched = await findCatalogByVariant(inbound.text, (scopedList.length ? scopedList : list) as any[], scopedCategory);
+        }
+        if (!matched?.name && !hasConcreteHint && rememberedPriced?.name) {
+          matched = rememberedPriced;
         }
         if (matched?.name && !isCatalogMatchConsistent(inbound.text, matched, scopedCategory)) matched = null;
 
@@ -2657,10 +2684,11 @@ export async function POST(req: Request) {
           nextMemory.pending_product_options = options;
           nextMemory.awaiting_action = "product_option_selection";
           reply = [
-            "Estos son los productos con precio cargado actualmente:",
+            "Tengo precios base cargados en todo el catálogo.",
+            "Aquí van 5 opciones rápidas:",
             ...sample,
             "",
-            "Responde con letra o número (ej.: A o 1) y lo guío: cotización, ficha o imagen.",
+            "Responde con letra o número (ej.: A o 1) y te genero cotización con TRM, o te envío ficha/imagen.",
           ].join("\n");
         } else {
           reply = "Ahora mismo no tengo productos con precio cargado para cotizar. Si quieres, te confirmo el catalogo disponible primero.";
@@ -2751,8 +2779,14 @@ export async function POST(req: Request) {
       }
     }
 
-    const awaitingTechProductSelection = awaitingAction === "tech_product_selection";
-    const awaitingTechAssetChoice = awaitingAction === "tech_asset_choice";
+    const quoteIntentNow = asksQuoteIntent(inbound.text) || isQuoteStarterIntent(inbound.text) || isQuoteProceedIntent(inbound.text) || isPriceIntent(inbound.text);
+    const hasExplicitTechNow = isTechnicalSheetIntent(inbound.text) || isProductImageIntent(inbound.text) || Boolean(detectTechResendIntent(inbound.text));
+    const forceExitTechAwaiting = quoteIntentNow && !hasExplicitTechNow;
+    const awaitingTechProductSelection = awaitingAction === "tech_product_selection" && !forceExitTechAwaiting;
+    const awaitingTechAssetChoice = awaitingAction === "tech_asset_choice" && !forceExitTechAwaiting;
+    if (forceExitTechAwaiting && String(nextMemory.awaiting_action || "").startsWith("tech_")) {
+      nextMemory.awaiting_action = "none";
+    }
     const rememberedTechProduct = String(previousMemory?.last_product_name || nextMemory?.last_product_name || "").trim();
     const techResendIntent = detectTechResendIntent(inbound.text);
     const techInboundText = techResendIntent && rememberedTechProduct
@@ -2883,23 +2917,21 @@ export async function POST(req: Request) {
         if (!matched?.name) {
           const narrowed = filterCatalogByTerms(techInboundText, scopedList as any, preferredTechCategory);
           const sourceOptions = narrowed.length ? narrowed : (scopedList.length ? scopedList : list);
-          const sample = uniqueNormalizedStrings(
-            sourceOptions.slice(0, 20).map((p: any) => humanCatalogName(String(p?.name || "").trim())).filter(Boolean),
-            8
-          );
-          if (sample.length) {
-            const top = sample.slice(0, 3);
-            const more = Math.max(0, sample.length - top.length);
+          const options = buildNumberedProductOptions(sourceOptions as any[], 6);
+          if (options.length) {
+            const top = options.slice(0, 4);
+            const more = Math.max(0, options.length - top.length);
             reply = [
               "Claro. Para enviarte la ficha técnica o imagen necesito el producto exacto.",
               "",
               "Opciones disponibles:",
-              ...top.map((s) => `- ${s}`),
+              ...top.map((o) => `${o.code}) ${o.name}`),
               ...(more > 0 ? [`- y ${more} más`] : []),
               "",
-              "Escríbeme solo el nombre exacto del producto.",
+              "Responde con letra o número (ej.: A o 1).",
             ].join("\n");
-            nextMemory.awaiting_action = "tech_product_selection";
+            nextMemory.awaiting_action = "product_option_selection";
+            nextMemory.pending_product_options = options;
           } else {
             reply = `Ahora mismo no encuentro productos activos en catálogo para enviarte ficha técnica. Catálogo oficial: ${CATALOG_REFERENCE_URL}`;
             nextMemory.awaiting_action = "none";
@@ -2992,10 +3024,10 @@ export async function POST(req: Request) {
                   briefSpecs
                     ? ["", "Resumen técnico:", briefSpecs]
                     : (primarySheetLink
-                        ? (hasSamePrimaryWebLink ? [] : ["", "No pude extraer especificaciones limpias en este intento. Puedes revisar la ficha aquí:", primarySheetLink])
+                        ? (hasSamePrimaryWebLink ? [] : ["", "Te comparto el enlace directo de la ficha técnica:", primarySheetLink])
                         : (imageUrl
                             ? ["", "No encontré ficha PDF para este modelo en este intento; te envié la imagen del producto."]
-                            : ["", "No pude extraer especificaciones limpias en este intento. Revisa la ficha adjunta."]))
+                            : ["", "Te comparto la ficha técnica adjunta."]))
                 )
               : [];
             reply = [
