@@ -1124,6 +1124,12 @@ function isAffirmativeIntent(text: string): boolean {
   return /^(si|sí|ok|vale|listo|dale|de una|perfecto|por favor|si por favor|hazlo|enviala|enviamela)\b/.test(t);
 }
 
+function isConversationCloseIntent(text: string): boolean {
+  const t = normalizeText(text).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return false;
+  return /^(no|no gracias|gracias|eso es todo|nada mas|nada m[aá]s|finaliza|finalizar|termina|terminar|cerrar|cerramos|listo gracias|ok gracias|perfecto gracias|hasta luego|adios|chao)\b/.test(t);
+}
+
 function withAvaSignature(text: string): string {
   const body = String(text || "").trim();
   if (!body) return "Soy Ava de Avanza Balanzas. ¿En qué puedo ayudarte hoy?";
@@ -2166,6 +2172,16 @@ export async function POST(req: Request) {
       last_user_text: inbound.text,
       last_user_at: new Date().toISOString(),
     };
+    if (String(previousMemory?.conversation_status || "") === "closed") {
+      nextMemory.awaiting_action = "none";
+      nextMemory.pending_product_options = [];
+      nextMemory.last_selected_product_id = "";
+      nextMemory.last_selected_product_name = "";
+      nextMemory.last_selection_at = "";
+      nextMemory.conversation_status = "open";
+    } else if (!nextMemory.conversation_status) {
+      nextMemory.conversation_status = "open";
+    }
     const classifiedIntent = classifyIntent(inbound.text, previousMemory);
 
     const historyMessages: { role: "user" | "assistant"; content: string }[] = [];
@@ -2274,6 +2290,22 @@ export async function POST(req: Request) {
     if (knownCustomerName) nextMemory.customer_name = knownCustomerName;
 
     const awaitingAction = String(previousMemory?.awaiting_action || "");
+    if (awaitingAction === "conversation_followup" && isConversationCloseIntent(inbound.text)) {
+      reply = "Perfecto, finalizamos este chat por ahora. Cuando quieras, me escribes y retomamos con gusto.";
+      nextMemory.awaiting_action = "none";
+      nextMemory.conversation_status = "closed";
+      nextMemory.last_intent = "conversation_closed";
+      handledByGreeting = true;
+      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+    }
+    if (!handledByGreeting && isConversationCloseIntent(inbound.text) && normalizeText(inbound.text).length <= 32) {
+      reply = "Perfecto, finalizamos este chat por ahora. Cuando quieras, me escribes y retomamos con gusto.";
+      nextMemory.awaiting_action = "none";
+      nextMemory.conversation_status = "closed";
+      nextMemory.last_intent = "conversation_closed";
+      handledByGreeting = true;
+      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+    }
     const originalInboundText = String(inbound.text || "").trim();
     if (!knownCustomerName && awaitingAction === "capture_name") {
       const nameFromReply = looksLikeCustomerNameAnswer(inbound.text);
@@ -4034,6 +4066,16 @@ export async function POST(req: Request) {
     ) {
       reply = `${String(reply || "").trim()}\n\nSi quieres, compárteme tu nombre para dejarlo guardado.`;
       nextMemory.awaiting_action = "capture_name";
+    }
+
+    const deliveredSalesAsset = Boolean(autoQuoteDocs.length || autoQuoteBundle || resendPdf || technicalDocs.length || handledByTechSheet || handledByQuoteIntake);
+    if (!handledByGreeting && deliveredSalesAsset) {
+      const replyNorm = normalizeText(String(reply || ""));
+      if (!/quieres algo mas|prefieres revisar otro producto|finalizamos por ahora|ficha imagen o cotizacion/.test(replyNorm)) {
+        reply = `${String(reply || "").trim()}\n\n¿Quieres algo más o finalizamos por ahora?`;
+      }
+      nextMemory.awaiting_action = "conversation_followup";
+      nextMemory.conversation_status = "open";
     }
 
     reply = enforceWhatsAppDelivery(reply, inbound.text);
