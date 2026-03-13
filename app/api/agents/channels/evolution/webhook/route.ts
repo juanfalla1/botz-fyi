@@ -967,6 +967,15 @@ function isRecommendationIntent(text: string): boolean {
   return /(recomiend|modelo ideal|que modelo|cual modelo|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza)/.test(t);
 }
 
+function isOutOfCatalogDomainQuery(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  const outTerms = /(tornillo|tornillos|herramienta|herramientas|taladro|martillo|llave inglesa|destornillador|broca|ferreteria|ferreteria|tuerca|perno|clavo|soldadura|silicona|pintura)/.test(t);
+  if (!outTerms) return false;
+  const inDomain = /(balanza|balanzas|bascula|basculas|ohaus|analitica|analitica|precision|precision|trm|cotizacion|ficha tecnica|humedad|electroquimica|laboratorio|centrifuga|mezclador|agitador)/.test(t);
+  return outTerms && !inDomain;
+}
+
 function detectCatalogCategoryIntent(text: string): string | null {
   const t = normalizeText(text || "");
   if (!t) return null;
@@ -2816,6 +2825,12 @@ export async function POST(req: Request) {
       } catch (priceErr: any) {
         console.warn("[evolution-webhook] pricing_lookup_failed", priceErr?.message || priceErr);
       }
+    }
+
+    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByProductLookup && isOutOfCatalogDomainQuery(inbound.text)) {
+      reply = "Ahora mismo solo manejo productos OHAUS de pesaje y laboratorio del catálogo (balanzas, básculas, electroquímica, analizador de humedad y equipos de laboratorio). Si quieres, te recomiendo un modelo OHAUS según tu aplicación.";
+      handledByRecommendation = true;
+      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && isRecommendationIntent(inbound.text)) {
