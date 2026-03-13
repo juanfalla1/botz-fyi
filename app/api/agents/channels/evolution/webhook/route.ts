@@ -1503,7 +1503,7 @@ function passesStrictCategoryGuard(row: any, categoryIntent: string): boolean {
   const rowSub = catalogSubcategory(row);
 
   if (wanted === "balanzas") {
-    if (/\b(bascul|bscul|plataform|indicador)\b/.test(rowName)) return false;
+    if (/(bascul|bscul|plataform|indicador)/.test(rowName)) return false;
     if (rowSub.startsWith("basculas") || rowSub.startsWith("plataformas") || rowSub.startsWith("indicadores")) return false;
   }
 
