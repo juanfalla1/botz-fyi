@@ -2275,6 +2275,11 @@ export async function POST(req: Request) {
         ].join("\n");
         nextMemory.awaiting_action = "product_action";
         handledByQuoteStarter = true;
+        handledByProductLookup = true;
+        handledByPricing = true;
+        handledByRecommendation = true;
+        handledByInventory = true;
+        handledByTechSheet = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       }
     }
@@ -2315,6 +2320,11 @@ export async function POST(req: Request) {
           reply = `¿Quieres ficha, imagen o cotización de ${rememberedOptionProduct}?`;
           nextMemory.awaiting_action = "product_action";
           handledByQuoteStarter = true;
+          handledByProductLookup = true;
+          handledByPricing = true;
+          handledByRecommendation = true;
+          handledByInventory = true;
+          handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
       }
@@ -2591,6 +2601,9 @@ export async function POST(req: Request) {
                   nextMemory.last_product_name = String(first.name || "");
                   nextMemory.last_product_id = String((first as any)?.id || "");
                   nextMemory.last_product_category = String((first as any)?.category || "");
+                  nextMemory.last_selected_product_name = String(first.name || "");
+                  nextMemory.last_selected_product_id = String((first as any)?.id || "");
+                  nextMemory.last_selection_at = new Date().toISOString();
                 }
                 reply = [
                   `Sí, en ${categoryLabel} tengo ${rankedByFeature.length} referencia(s) que coinciden con esa característica (${featureTerms.join(", ")}). Te muestro ${topNames.length}:`,
@@ -2747,6 +2760,9 @@ export async function POST(req: Request) {
           nextMemory.last_product_name = String(matched.name || "");
           nextMemory.last_product_id = String((matched as any)?.id || "");
           nextMemory.last_product_category = String((matched as any)?.category || "");
+          nextMemory.last_selected_product_name = String(matched.name || "");
+          nextMemory.last_selected_product_id = String((matched as any)?.id || "");
+          nextMemory.last_selection_at = new Date().toISOString();
           const hasPrice = Number((matched as any)?.base_price_usd || 0) > 0;
           reply = hasPrice
             ? `Sí, sí tenemos ${String(matched.name)}. Si quieres, te envío de una la cotización con TRM de hoy por este WhatsApp.`
@@ -2800,6 +2816,9 @@ export async function POST(req: Request) {
           nextMemory.last_product_name = String(matched.name || "");
           nextMemory.last_product_id = String((matched as any)?.id || "");
           nextMemory.last_product_category = String((matched as any)?.category || "");
+          nextMemory.last_selected_product_name = String(matched.name || "");
+          nextMemory.last_selected_product_id = String((matched as any)?.id || "");
+          nextMemory.last_selection_at = new Date().toISOString();
           nextMemory.pending_product_options = [];
           reply = `El producto ${String(matched.name)} tiene precio base USD ${formatMoney(Number(matched.base_price_usd || 0))}. Si quieres, te genero la cotizacion con TRM de hoy y PDF.`;
         } else if (list.length) {
@@ -2867,6 +2886,9 @@ export async function POST(req: Request) {
               nextMemory.last_product_name = String(first.name || "");
               nextMemory.last_product_id = String((first as any)?.id || "");
               nextMemory.last_product_category = String((first as any)?.category || "");
+              nextMemory.last_selected_product_name = String(first.name || "");
+              nextMemory.last_selected_product_id = String((first as any)?.id || "");
+              nextMemory.last_selection_at = new Date().toISOString();
             }
             nextMemory.pending_product_options = options;
             nextMemory.awaiting_action = "product_option_selection";
@@ -2886,6 +2908,9 @@ export async function POST(req: Request) {
             nextMemory.last_product_name = String(matched.name || "");
             nextMemory.last_product_id = String((matched as any)?.id || "");
             nextMemory.last_product_category = String((matched as any)?.category || "");
+            nextMemory.last_selected_product_name = String(matched.name || "");
+            nextMemory.last_selected_product_id = String((matched as any)?.id || "");
+            nextMemory.last_selection_at = new Date().toISOString();
             nextMemory.pending_product_options = [];
           }
           const optionSource = [matched, ...sourceList].filter(Boolean).slice(0, 4);
@@ -3073,6 +3098,9 @@ export async function POST(req: Request) {
           nextMemory.last_product_name = String((matched as any)?.name || "");
           nextMemory.last_product_id = String((matched as any)?.id || "");
           nextMemory.last_product_category = String((matched as any)?.category || "");
+          nextMemory.last_selected_product_name = String((matched as any)?.name || "");
+          nextMemory.last_selected_product_id = String((matched as any)?.id || "");
+          nextMemory.last_selection_at = new Date().toISOString();
           const wantsSheet = isTechnicalSheetIntent(techInboundText) || awaitingTechProductSelection || awaitingTechAssetChoice;
           const wantsImage = isProductImageIntent(techInboundText) || awaitingTechAssetChoice;
           const matchedCategory = normalizeText(String((matched as any)?.category || ""));
