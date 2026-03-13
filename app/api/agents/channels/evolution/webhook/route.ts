@@ -736,6 +736,79 @@ function extractQuantity(text: string): number {
   return 1;
 }
 
+function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: string; rank: number; id: string; name: string; category: string; base_price_usd: number }> {
+  const list = Array.isArray(rows) ? rows : [];
+  const out: Array<{ code: string; rank: number; id: string; name: string; category: string; base_price_usd: number }> = [];
+  const seen = new Set<string>();
+  for (const row of list) {
+    const name = String(row?.name || "").trim();
+    if (!name) continue;
+    const key = normalizeText(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const rank = out.length + 1;
+    if (rank > Math.max(1, maxItems)) break;
+    const code = String.fromCharCode(64 + rank);
+    out.push({
+      code,
+      rank,
+      id: String(row?.id || "").trim(),
+      name,
+      category: String(row?.category || "").trim(),
+      base_price_usd: Number(row?.base_price_usd || 0),
+    });
+  }
+  return out;
+}
+
+function resolvePendingProductOption(text: string, optionsRaw: any): { code: string; rank: number; id: string; name: string; category: string; base_price_usd: number } | null {
+  const tRaw = String(text || "").trim();
+  const t = normalizeText(tRaw);
+  if (!t) return null;
+  const options = (Array.isArray(optionsRaw) ? optionsRaw : [])
+    .map((o: any) => ({
+      code: String(o?.code || "").trim().toUpperCase(),
+      rank: Number(o?.rank || 0),
+      id: String(o?.id || "").trim(),
+      name: String(o?.name || "").trim(),
+      category: String(o?.category || "").trim(),
+      base_price_usd: Number(o?.base_price_usd || 0),
+    }))
+    .filter((o: any) => o.name);
+  if (!options.length) return null;
+
+  const codeMatch = t.match(/(?:^|\b)(?:opcion|codigo|código|letra)\s*([a-z])\b/i) || t.match(/^\s*([a-z])\s*$/i);
+  const numMatch = t.match(/(?:^|\b)(?:opcion|numero|número|#)\s*([1-9])\b/i) || t.match(/^\s*([1-9])(?:\s|$)/i);
+  const code = String(codeMatch?.[1] || "").toUpperCase();
+  const rank = Number(numMatch?.[1] || 0);
+  if (code) {
+    const byCode = options.find((o: any) => o.code === code);
+    if (byCode) return byCode;
+  }
+  if (rank > 0) {
+    const byRank = options.find((o: any) => o.rank === rank);
+    if (byRank) return byRank;
+  }
+
+  for (const option of options) {
+    const nameNorm = normalizeText(option.name);
+    if (nameNorm && t.includes(nameNorm)) return option;
+    const modelTokens = extractModelLikeTokens(option.name);
+    if (modelTokens.some((tk) => t.includes(normalizeText(tk)))) return option;
+    const terms = extractCatalogTerms(option.name).filter((term) => term.length >= 5).slice(0, 6);
+    const hits = terms.reduce((acc, term) => (t.includes(term) ? acc + 1 : acc), 0);
+    if (hits >= Math.min(2, Math.max(1, terms.length))) return option;
+  }
+
+  return null;
+}
+
+function isOptionOnlyReply(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  return /^(opcion\s*)?([a-z]|[1-9])$/.test(t) || /^(quiero|elijo|escojo)\s+(opcion\s*)?([a-z]|[1-9])$/.test(t);
+}
+
 function extractPerProductQuantities(text: string, products: Array<{ id: string; name: string }>): Record<string, number> {
   const result: Record<string, number> = {};
   const chunks = String(text || "")
@@ -804,7 +877,15 @@ function isConcreteQuoteIntent(text: string, rememberedProductName?: string): bo
   const t = normalizeText(text || "");
   if (!asksQuoteIntent(t)) return false;
   if (hasConcreteProductHint(t)) return true;
-  return hasReferencePronoun(t) && Boolean(normalizeText(String(rememberedProductName || "")));
+  const hasRememberedProduct = Boolean(normalizeText(String(rememberedProductName || "")));
+  if (!hasRememberedProduct) return false;
+  if (hasReferencePronoun(t)) return true;
+  return /\b(la|esta|esa)\s+cotizacion\b|^cotizacion\b|^la\s+cotizacion\b/.test(t);
+}
+
+function hasBareQuantity(text: string): boolean {
+  const t = normalizeText(text || "");
+  return /\b\d{1,5}\b/.test(t) && /(unidad|unidades|equipo|equipos|qty|cantidad|x\s*\d)/.test(t);
 }
 
 function isQuoteProceedIntent(text: string): boolean {
@@ -2081,12 +2162,64 @@ export async function POST(req: Request) {
     if (knownCustomerName) nextMemory.customer_name = knownCustomerName;
 
     const awaitingAction = String(previousMemory?.awaiting_action || "");
+    const originalInboundText = String(inbound.text || "").trim();
     if (!knownCustomerName && awaitingAction === "capture_name") {
       const nameFromReply = looksLikeCustomerNameAnswer(inbound.text);
       if (nameFromReply) {
         knownCustomerName = nameFromReply;
         nextMemory.customer_name = nameFromReply;
         nextMemory.awaiting_action = "none";
+      }
+    }
+
+    const pendingProductOptions = Array.isArray((previousMemory as any)?.pending_product_options)
+      ? (previousMemory as any).pending_product_options
+      : [];
+    const selectedPendingOption = resolvePendingProductOption(originalInboundText, pendingProductOptions);
+    if (selectedPendingOption) {
+      nextMemory.last_product_name = String(selectedPendingOption.name || "");
+      nextMemory.last_product_id = String(selectedPendingOption.id || "");
+      nextMemory.last_product_category = String(selectedPendingOption.category || "");
+      nextMemory.pending_product_selection_code = String(selectedPendingOption.code || "");
+      if (!normalizeText(originalInboundText).includes(normalizeText(String(selectedPendingOption.name || "")))) {
+        inbound.text = `${originalInboundText} ${String(selectedPendingOption.name || "")}`.trim();
+      }
+      if (isOptionOnlyReply(originalInboundText)) {
+        reply = [
+          `Perfecto, seleccionaste ${String(selectedPendingOption.code || "")} - ${String(selectedPendingOption.name || "")}.`,
+          "Ahora dime qué deseas con ese modelo:",
+          "1) Cotización con TRM y PDF",
+          "2) Ficha técnica",
+          "3) Imagen",
+          "4) Ficha + imagen",
+        ].join("\n");
+        nextMemory.awaiting_action = "product_option_action";
+        handledByQuoteStarter = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      }
+    }
+
+    if (String(previousMemory?.awaiting_action || "") === "product_option_action") {
+      const rememberedOptionProduct = String(nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
+      const optText = normalizeText(originalInboundText);
+      if (rememberedOptionProduct) {
+        const asksQuoteByOption = /^(1|a)\b/.test(optText) || /\b(cotiz|cotizacion|precio|la cotizacion)\b/.test(optText);
+        const asksSheetByOption = /^(2|b)\b/.test(optText) || isTechnicalSheetIntent(optText);
+        const asksImageByOption = /^(3|c)\b/.test(optText) || isProductImageIntent(optText);
+        const asksBothByOption = /^(4|d)\b/.test(optText) || (isTechnicalSheetIntent(optText) && isProductImageIntent(optText));
+        if (asksQuoteByOption) {
+          inbound.text = `cotizar ${rememberedOptionProduct} ${originalInboundText}`.trim();
+          nextMemory.awaiting_action = "quote_product_selection";
+        } else if (asksBothByOption) {
+          inbound.text = `ficha tecnica e imagen de ${rememberedOptionProduct}`;
+          nextMemory.awaiting_action = "none";
+        } else if (asksSheetByOption) {
+          inbound.text = `ficha tecnica de ${rememberedOptionProduct}`;
+          nextMemory.awaiting_action = "none";
+        } else if (asksImageByOption) {
+          inbound.text = `imagen de ${rememberedOptionProduct}`;
+          nextMemory.awaiting_action = "none";
+        }
       }
     }
 
@@ -2504,16 +2637,19 @@ export async function POST(req: Request) {
           nextMemory.last_product_name = String(matched.name || "");
           nextMemory.last_product_id = String((matched as any)?.id || "");
           nextMemory.last_product_category = String((matched as any)?.category || "");
+          nextMemory.pending_product_options = [];
           reply = `El producto ${String(matched.name)} tiene precio base USD ${formatMoney(Number(matched.base_price_usd || 0))}. Si quieres, te genero la cotizacion con TRM de hoy y PDF.`;
         } else if (list.length) {
-          const sample = list
-            .slice(0, 5)
-            .map((p: any) => `- ${String(p.name)} (USD ${formatMoney(Number(p.base_price_usd || 0))})`);
+          const options = buildNumberedProductOptions(list, 5);
+          const sample = options
+            .map((p: any) => `${p.code}) ${String(p.name)} (USD ${formatMoney(Number(p.base_price_usd || 0))})`);
+          nextMemory.pending_product_options = options;
+          nextMemory.awaiting_action = "product_option_selection";
           reply = [
             "Estos son los productos con precio cargado actualmente:",
             ...sample,
             "",
-            "Elige uno y te genero cotización con TRM y PDF por este WhatsApp.",
+            "Responde con letra o número (ej.: A o 1) y lo guío: cotización, ficha o imagen.",
           ].join("\n");
         } else {
           reply = "Ahora mismo no tengo productos con precio cargado para cotizar. Si quieres, te confirmo el catalogo disponible primero.";
@@ -2555,14 +2691,21 @@ export async function POST(req: Request) {
           const rankedByFeature = rankCatalogByFeature(sourceList as any[], featureTerms).slice(0, 5);
           if (rankedByFeature.length) {
             const top = rankedByFeature.slice(0, 3);
-            const topNames = top.map((x) => humanCatalogName(String(x?.row?.name || "").trim())).filter(Boolean);
+            const options = buildNumberedProductOptions(top.map((x) => x.row), 3);
             const first = top[0]?.row;
             if (first?.name) {
               nextMemory.last_product_name = String(first.name || "");
               nextMemory.last_product_id = String((first as any)?.id || "");
               nextMemory.last_product_category = String((first as any)?.category || "");
             }
-            reply = `Sí, tengo opciones que cumplen esa característica (${featureTerms.join(", ")}): ${topNames.join("; ")}. Si eliges una, te envío ficha o cotización por este WhatsApp.`;
+            nextMemory.pending_product_options = options;
+            nextMemory.awaiting_action = "product_option_selection";
+            reply = [
+              `Sí, tengo opciones que cumplen esa característica (${featureTerms.join(", ")}):`,
+              ...options.map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+            ].join("\n");
           } else if (suggestions.length) {
             reply = `No encontré coincidencia exacta para esa característica (${featureTerms.join(", ")}). Te propongo alternativas cercanas: ${suggestions.join("; ")}.`;
           } else {
@@ -2573,8 +2716,18 @@ export async function POST(req: Request) {
             nextMemory.last_product_name = String(matched.name || "");
             nextMemory.last_product_id = String((matched as any)?.id || "");
             nextMemory.last_product_category = String((matched as any)?.category || "");
+            nextMemory.pending_product_options = [];
           }
-          reply = `Con base en tu caso, te puedo recomendar opciones de nuestro catalogo actual: ${suggestions.join("; ")}. Si eliges una, te preparo cotizacion con TRM de hoy y PDF.`;
+          const optionSource = [matched, ...sourceList].filter(Boolean).slice(0, 4);
+          const options = buildNumberedProductOptions(optionSource as any[], 4);
+          nextMemory.pending_product_options = options;
+          nextMemory.awaiting_action = "product_option_selection";
+          reply = [
+            "Con base en tu caso, estas son opciones del catálogo:",
+            ...options.map((o) => `${o.code}) ${o.name}`),
+            "",
+            "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+          ].join("\n");
         } else {
           reply = "Ahora mismo no encuentro productos activos en el catalogo para recomendar. Si quieres, actualizo catalogo y te cotizo enseguida.";
         }
@@ -2878,20 +3031,19 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !concreteQuoteIntent && isQuoteStarterIntent(inbound.text)) {
       try {
-        const priced = await fetchCatalogRows("name,base_price_usd", 12, true);
-        const names = (Array.isArray(priced) ? priced : [])
-          .map((p: any) => String(p?.name || "").trim())
-          .filter(Boolean)
-          .slice(0, 4);
+        const priced = await fetchCatalogRows("id,name,category,base_price_usd", 12, true);
+        const options = buildNumberedProductOptions(Array.isArray(priced) ? priced : [], 4);
 
-        reply = names.length
+        reply = options.length
           ? [
-              "Claro. Para cotizar de una, dime modelo exacto y cantidad.",
-              `Opciones rápidas: ${names.join("; ")}.`,
-              "Ejemplo: Explorer 220, 2 unidades.",
+              "Claro. Para cotizar de una, elige primero un modelo:",
+              ...options.map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Responde con letra o número (ej.: A o 1). Luego te pido cantidad.",
             ].join("\n")
           : "Claro. Para cotizar de una, dime modelo exacto y cantidad (ejemplo: Explorer 220, 2 unidades).";
-        nextMemory.awaiting_action = "quote_product_selection";
+        nextMemory.awaiting_action = options.length ? "product_option_selection" : "quote_product_selection";
+        nextMemory.pending_product_options = options;
 
         handledByQuoteStarter = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
@@ -3159,7 +3311,7 @@ export async function POST(req: Request) {
       .slice(-6)
       .join("\n");
     const quoteProceedFromMemory =
-      (isQuoteProceedIntent(inbound.text) || isQuantityUpdateIntent(inbound.text)) &&
+      (isQuoteProceedIntent(inbound.text) || isQuantityUpdateIntent(inbound.text) || hasBareQuantity(inbound.text)) &&
       Boolean(nextMemory.last_product_name || nextMemory.last_product_id);
     const resumeQuoteFromContext =
       isContactInfoBundle(inbound.text) &&
@@ -3690,6 +3842,10 @@ export async function POST(req: Request) {
     if (sentQuotePdf) nextMemory.last_quote_pdf_sent_at = new Date().toISOString();
     if (sentTechSheet) nextMemory.last_datasheet_sent_at = new Date().toISOString();
     if (sentImage) nextMemory.last_image_sent_at = new Date().toISOString();
+    if (autoQuoteDocs.length || autoQuoteBundle || handledByTechSheet || handledByQuoteIntake) {
+      nextMemory.pending_product_options = [];
+      if (String(nextMemory.awaiting_action || "") === "product_option_selection") nextMemory.awaiting_action = "none";
+    }
 
     if (autoQuoteDocs.length || autoQuoteBundle) nextMemory.last_intent = "quote_generated";
     else if (handledByRecall) nextMemory.last_intent = "quote_recall";
