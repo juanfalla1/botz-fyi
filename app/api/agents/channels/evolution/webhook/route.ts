@@ -2248,6 +2248,9 @@ export async function POST(req: Request) {
       nextMemory.last_product_name = String(selectedPendingOption.name || "");
       nextMemory.last_product_id = String(selectedPendingOption.id || "");
       nextMemory.last_product_category = String(selectedPendingOption.category || "");
+      nextMemory.last_selected_product_name = String(selectedPendingOption.name || "");
+      nextMemory.last_selected_product_id = String(selectedPendingOption.id || "");
+      nextMemory.last_selection_at = new Date().toISOString();
       nextMemory.pending_product_selection_code = String(selectedPendingOption.code || "");
       if (!normalizeText(originalInboundText).includes(normalizeText(String(selectedPendingOption.name || "")))) {
         inbound.text = `${originalInboundText} ${String(selectedPendingOption.name || "")}`.trim();
@@ -2261,14 +2264,22 @@ export async function POST(req: Request) {
           "3) Imagen",
           "4) Ficha + imagen",
         ].join("\n");
-        nextMemory.awaiting_action = "product_option_action";
+        nextMemory.awaiting_action = "product_action";
         handledByQuoteStarter = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       }
     }
 
-    if (String(previousMemory?.awaiting_action || "") === "product_option_action") {
-      const rememberedOptionProduct = String(nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
+    const selectionAtRaw = String(nextMemory.last_selection_at || previousMemory?.last_selection_at || "");
+    const selectionAtMs = Date.parse(selectionAtRaw);
+    const activeSelectionWindowMs = 30 * 60 * 1000;
+    const hasActiveSelectedProduct =
+      Boolean(String(nextMemory.last_selected_product_id || previousMemory?.last_selected_product_id || "").trim() || String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || "").trim()) &&
+      Number.isFinite(selectionAtMs) &&
+      (Date.now() - selectionAtMs) <= activeSelectionWindowMs;
+
+    if (String(previousMemory?.awaiting_action || "") === "product_action" && hasActiveSelectedProduct) {
+      const rememberedOptionProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
       const optText = normalizeText(originalInboundText);
       if (rememberedOptionProduct) {
         const confirmsDefaultFromOption = isAffirmativeIntent(optText) || /^(ok|vale|listo|de una)$/i.test(String(originalInboundText || "").trim());
@@ -2288,6 +2299,14 @@ export async function POST(req: Request) {
         } else if (asksImageByOption) {
           inbound.text = `imagen de ${rememberedOptionProduct}`;
           nextMemory.awaiting_action = "none";
+        } else if (hasBareQuantity(optText) || /\b\d{1,5}\b/.test(optText)) {
+          inbound.text = `cotizar ${rememberedOptionProduct} ${originalInboundText}`.trim();
+          nextMemory.awaiting_action = "quote_product_selection";
+        } else {
+          reply = `¿Quieres ficha, imagen o cotización de ${rememberedOptionProduct}?`;
+          nextMemory.awaiting_action = "product_action";
+          handledByQuoteStarter = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
       }
     }
@@ -3453,15 +3472,17 @@ export async function POST(req: Request) {
     const previousIntentForQuoteFlow = String(previousMemory?.last_intent || "");
     const asksQuoteWithNumber = asksQuoteIntent(inbound.text) && /\b\d{1,5}\b/.test(normalizeText(inbound.text || ""));
     const quoteContextActive =
-      /^(quote_|product_option_action)/.test(String(awaitingAction || "")) ||
+      /^(quote_|product_action)/.test(String(awaitingAction || "")) ||
       /(quote_recall|quote_generated|price_request|quote_starter)/.test(previousIntentForQuoteFlow);
+    const rememberedSelectedProductName = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || "").trim();
+    const rememberedSelectedProductId = String(nextMemory.last_selected_product_id || previousMemory?.last_selected_product_id || "").trim();
     const quoteProceedFromMemory =
       (isQuoteProceedIntent(inbound.text) ||
         isQuantityUpdateIntent(inbound.text) ||
         (hasBareQuantity(inbound.text) && quoteContextActive) ||
         asksQuoteWithNumber ||
         (isAffirmativeIntent(inbound.text) && /(price_request|quote_starter|recommendation_request)/.test(previousIntentForQuoteFlow))) &&
-      Boolean(nextMemory.last_product_name || nextMemory.last_product_id);
+      Boolean(nextMemory.last_product_name || nextMemory.last_product_id || rememberedSelectedProductName || rememberedSelectedProductId);
     const resumeQuoteFromContext =
       isContactInfoBundle(inbound.text) &&
       shouldAutoQuote(`${recentUserContext}\n${inbound.text}`);
@@ -3478,7 +3499,14 @@ export async function POST(req: Request) {
         const commercialProducts = (Array.isArray(products) ? products : []).filter((r: any) => isCommercialCatalogRow(r));
         const pricedProducts = commercialProducts.filter((r: any) => Number(r?.base_price_usd || 0) > 0);
         const quoteMatchPool = quoteProceedFromMemory ? commercialProducts : (pricedProducts.length ? pricedProducts : commercialProducts);
-        const matchedProduct = pickBestCatalogProduct(quoteSourceText, quoteMatchPool || []);
+        const selectedById = String(nextMemory.last_selected_product_id || previousMemory?.last_selected_product_id || "").trim();
+        const selectedByName = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || "").trim();
+        const selectedProduct = selectedById
+          ? (commercialProducts.find((p: any) => String(p?.id || "").trim() === selectedById) || null)
+          : (selectedByName ? findCatalogProductByName(commercialProducts || [], selectedByName) : null);
+        const matchedProduct = (quoteProceedFromMemory && selectedProduct)
+          ? selectedProduct
+          : pickBestCatalogProduct(quoteSourceText, quoteMatchPool || []);
         const rememberedProduct = findCatalogProductByName(commercialProducts || [], String(nextMemory.last_product_name || ""));
         const wantsMulti = isMultiProductQuoteIntent(quoteSourceText);
         const selectedProducts = wantsMulti
@@ -3544,6 +3572,9 @@ export async function POST(req: Request) {
               for (const selected of selectedProducts) {
                 nextMemory.last_product_name = String((selected as any)?.name || nextMemory.last_product_name || "");
                 nextMemory.last_product_id = String((selected as any)?.id || nextMemory.last_product_id || "");
+                nextMemory.last_selected_product_name = String((selected as any)?.name || nextMemory.last_selected_product_name || "");
+                nextMemory.last_selected_product_id = String((selected as any)?.id || nextMemory.last_selected_product_id || "");
+                nextMemory.last_selection_at = new Date().toISOString();
                 const quantity =
                   Number(perProductQty[String((selected as any).id)]) ||
                   (uniformHint ? defaultQuantity : 0) ||
@@ -3665,6 +3696,14 @@ export async function POST(req: Request) {
     }
 
     if (!autoQuoteDocs.length && !handledByGreeting && !handledByRecall && !handledByTechSheet && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteStarter && !handledByQuoteIntake) {
+      const selectedProductForGuide = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || "").trim();
+      const selectedAtMs = Date.parse(String(nextMemory.last_selection_at || previousMemory?.last_selection_at || ""));
+      const selectedStillActive = Boolean(selectedProductForGuide) && Number.isFinite(selectedAtMs) && (Date.now() - selectedAtMs) <= 30 * 60 * 1000;
+      if (selectedStillActive) {
+        reply = `¿Quieres ficha, imagen o cotización de ${selectedProductForGuide}?`;
+        nextMemory.awaiting_action = "product_action";
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      } else {
       const catalogRows = await fetchCatalogRows("name,brand,category,source_payload,product_url", 120, false);
       const allCatalogRows = Array.isArray(catalogRows) ? catalogRows : [];
       const commercialRows = allCatalogRows.filter((r: any) => isCommercialCatalogRow(r));
@@ -3757,6 +3796,7 @@ export async function POST(req: Request) {
       usageTotal = Math.max(0, Number(completion.usage?.total_tokens || 0));
       usageCompletion = Math.max(0, Number(completion.usage?.completion_tokens || 0));
       billedTokens = Math.max(1, Math.min(500, usageCompletion || estimateTokens(reply)));
+      }
       }
     }
 
