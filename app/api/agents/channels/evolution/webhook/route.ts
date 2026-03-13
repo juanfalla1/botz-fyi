@@ -2628,6 +2628,7 @@ export async function POST(req: Request) {
           const sameCategory = filteredRows.filter((r: any) => normalizeText(String(r?.category || "")) === normalizeText(categoryIntent));
           const groupedSubcategories = filteredRows.filter((r: any) => catalogSubcategory(r).startsWith(`${normalizeText(categoryIntent)}_`));
           let pool = sameCategory.length ? sameCategory : groupedSubcategories;
+          pool = pool.filter((r: any) => passesStrictCategoryGuard(r, categoryIntent));
 
           if (!pool.length) {
             let providerCategoryQuery = supabase
@@ -2645,6 +2646,7 @@ export async function POST(req: Request) {
             const providerSameCategory = providerFiltered.filter((r: any) => normalizeText(String(r?.category || "")) === normalizeText(categoryIntent));
             const providerGroupedSubcategories = providerFiltered.filter((r: any) => catalogSubcategory(r).startsWith(`${normalizeText(categoryIntent)}_`));
             pool = providerSameCategory.length ? providerSameCategory : providerGroupedSubcategories;
+            pool = pool.filter((r: any) => passesStrictCategoryGuard(r, categoryIntent));
           }
 
           if (pool.length) {
