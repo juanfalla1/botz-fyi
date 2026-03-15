@@ -958,7 +958,8 @@ function isInventoryInfoIntent(text: string): boolean {
     /(cuantos|cuantas|numero de|cantidad de).*(productos|equipos|referencias|items)/.test(t) ||
     /(catalogo|inventario).*(productos|equipos|referencias)/.test(t) ||
     /(que|cuales).*(productos|equipos).*(tienen|manejan|venden|ofrecen)/.test(t) ||
-    /(productos|equipos).*(tienen|manejan|venden|ofrecen)/.test(t)
+    /(productos|producto|equipos|equipo).*(tienen|tiene|manejan|maneja|venden|vende|ofrecen|ofrece)/.test(t) ||
+    /(que mas producto|que mas productos|que otros productos|que otras referencias|que mas tienes|que otro tienes)/.test(t)
   );
 }
 
