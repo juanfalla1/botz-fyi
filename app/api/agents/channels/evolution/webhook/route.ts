@@ -3824,9 +3824,10 @@ export async function POST(req: Request) {
             .map((m: any) => String(m.content || ""));
           const combinedUserContext = `${latestUserLines.join("\n")}\n${inbound.text}`;
 
+          const qtyFromOriginalInbound = extractQuoteRequestedQuantity(originalInboundText);
           const qtyFromInbound = extractQuoteRequestedQuantity(inbound.text);
           const qtyFromSource = extractQuoteRequestedQuantity(quoteSourceText);
-          const defaultQuantity = Math.max(1, qtyFromInbound || qtyFromSource || 1);
+          const defaultQuantity = Math.max(1, qtyFromOriginalInbound || qtyFromInbound || qtyFromSource || 1);
           const perProductQty = extractPerProductQuantities(
             quoteSourceText,
             selectedProducts.map((p: any) => ({ id: String(p.id), name: String(p.name || "") }))
@@ -3856,7 +3857,11 @@ export async function POST(req: Request) {
 
           if (!missingFields.length && !handledByQuoteIntake && selectedProducts.length === 1) {
             const selected = selectedProducts[0] as any;
-            const requestedQty = Math.max(1, extractQuoteRequestedQuantity(inbound.text) || extractQuoteRequestedQuantity(quoteSourceText));
+            const requestedQty = Math.max(1,
+              extractQuoteRequestedQuantity(originalInboundText) ||
+              extractQuoteRequestedQuantity(inbound.text) ||
+              extractQuoteRequestedQuantity(quoteSourceText)
+            );
             const basePrice = Number(selected?.base_price_usd || 0);
             if (!(basePrice > 0)) {
               reply = `Confirmo ${requestedQty} unidades de ${String(selected?.name || "ese producto")}. Este modelo no tiene precio base USD cargado todavía, por eso no puedo generar el PDF de cotización en este momento. Si me compartes precio base o autorizas cargarlo, te la genero de inmediato.`;
@@ -3882,7 +3887,10 @@ export async function POST(req: Request) {
                   defaultQuantity ||
                   1;
                 if (selectedProducts.length === 1) {
-                  const explicitQty = extractQuoteRequestedQuantity(inbound.text);
+                  const explicitQty = Math.max(
+                    extractQuoteRequestedQuantity(originalInboundText),
+                    extractQuoteRequestedQuantity(inbound.text)
+                  );
                   if (explicitQty > 1) quantity = explicitQty;
                 }
                 const basePriceUsd = Number((selected as any)?.base_price_usd || 0);
