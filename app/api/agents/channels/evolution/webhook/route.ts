@@ -3343,13 +3343,16 @@ export async function POST(req: Request) {
         const options = buildNumberedProductOptions(pricedRows, 4);
         const quoteText = normalizeText(inbound.text || "");
         const rememberedCategory = normalizeText(String(previousMemory?.last_category_intent || nextMemory?.last_product_category || ""));
+        const detectedCategory = normalizeText(String(detectCatalogCategoryIntent(inbound.text) || ""));
         const asksBasculas = /(bascula|basculas|plataforma|indicador)/.test(quoteText);
         const asksBalanzas = /(balanza|balanzas)/.test(quoteText);
-        const targetCategoryForQuote = asksBasculas
+        const targetCategoryForQuote = ["balanzas", "basculas", "electroquimica", "equipos_laboratorio", "analizador_humedad"].includes(detectedCategory)
+          ? detectedCategory
+          : asksBasculas
           ? "basculas"
           : asksBalanzas
             ? "balanzas"
-            : (rememberedCategory === "basculas" || rememberedCategory === "balanzas" ? rememberedCategory : "balanzas");
+            : (["balanzas", "basculas", "electroquimica", "equipos_laboratorio", "analizador_humedad"].includes(rememberedCategory) ? rememberedCategory : "balanzas");
         const isGenericBalanceQuote = /(balanza|balanzas|bascula|basculas)/.test(quoteText) && !hasConcreteProductHint(inbound.text);
         const categoryRows = scopeCatalogRows(allRows as any[], targetCategoryForQuote);
         const pricedCategoryRows = scopeCatalogRows(pricedRows as any[], targetCategoryForQuote);
@@ -3409,6 +3412,10 @@ export async function POST(req: Request) {
           .slice(0, 10);
 
         let quoteOptions = options;
+        if (!isGenericBalanceQuote && targetCategoryForQuote) {
+          const sourceForCategory = pricedCategoryRows.length ? pricedCategoryRows : categoryRows;
+          if (sourceForCategory.length) quoteOptions = buildNumberedProductOptions(sourceForCategory as any[], 4);
+        }
         if (isGenericBalanceQuote && categoryRows.length) {
           const buckets = new Map<string, any[]>();
           const sourceForQuoteOptions = pricedCategoryRows.length ? pricedCategoryRows : categoryRows;
@@ -4101,7 +4108,7 @@ export async function POST(req: Request) {
       nextMemory.awaiting_action = "capture_name";
     }
 
-    const deliveredSalesAsset = Boolean(autoQuoteDocs.length || autoQuoteBundle || resendPdf || technicalDocs.length || handledByTechSheet || handledByQuoteIntake);
+    const deliveredSalesAsset = Boolean(autoQuoteDocs.length || autoQuoteBundle || resendPdf || technicalDocs.length || sentQuotePdf || sentTechSheet || sentImage);
     if (!handledByGreeting && deliveredSalesAsset) {
       const replyNorm = normalizeText(String(reply || ""));
       if (!/quieres algo mas|prefieres revisar otro producto|finalizamos por ahora|ficha imagen o cotizacion/.test(replyNorm)) {
