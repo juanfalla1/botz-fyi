@@ -3899,7 +3899,11 @@ export async function POST(req: Request) {
 
           const customerEmail = extractEmail(combinedUserContext) || String(nextMemory.customer_email || "");
           const customerName = extractCustomerName(combinedUserContext, inbound.pushName || "") || String(nextMemory.customer_name || "");
-          const customerPhone = extractCustomerPhone(combinedUserContext, inbound.from) || String(nextMemory.customer_phone || "");
+          const inboundPhoneFallback = normalizePhone(String(inbound.from || ""));
+          const customerPhone =
+            extractCustomerPhone(combinedUserContext, inbound.from) ||
+            String(nextMemory.customer_phone || "") ||
+            inboundPhoneFallback;
 
           const missingFields: string[] = [];
           if (!isPresent(customerName)) missingFields.push("nombre completo");
