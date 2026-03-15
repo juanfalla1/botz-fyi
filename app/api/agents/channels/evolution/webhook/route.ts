@@ -2300,6 +2300,48 @@ export async function POST(req: Request) {
 
     const awaitingAction = String(previousMemory?.awaiting_action || "");
     const originalInboundText = String(inbound.text || "").trim();
+    const selectedNameStrict = String(
+      nextMemory.last_selected_product_name ||
+      previousMemory?.last_selected_product_name ||
+      nextMemory.last_product_name ||
+      previousMemory?.last_product_name ||
+      ""
+    ).trim();
+    const selectedIdStrict = String(nextMemory.last_selected_product_id || previousMemory?.last_selected_product_id || "").trim();
+    const selectedAtStrictMs = Date.parse(String(nextMemory.last_selection_at || previousMemory?.last_selection_at || ""));
+    const selectedStrictActive =
+      Boolean(selectedNameStrict || selectedIdStrict) &&
+      Number.isFinite(selectedAtStrictMs) &&
+      (Date.now() - selectedAtStrictMs) <= 30 * 60 * 1000;
+
+    if (!handledByGreeting && selectedStrictActive && !isConversationCloseIntent(originalInboundText)) {
+      const tStrict = normalizeText(originalInboundText);
+      const asksCatalogListStrict = isInventoryInfoIntent(originalInboundText) || isBalanceTypeQuestion(originalInboundText) || /(catalogo|que tipos|que tipo|que manejan|que tienen)/.test(tStrict);
+      const explicitOtherModel = hasConcreteProductHint(originalInboundText) && !normalizeText(selectedNameStrict || "").includes(normalizeText(extractModelLikeTokens(originalInboundText).join(" ")));
+
+      if (!asksCatalogListStrict && !explicitOtherModel) {
+        const wantsQuoteStrict = asksQuoteIntent(tStrict) || isPriceIntent(tStrict) || isQuoteProceedIntent(tStrict) || hasBareQuantity(tStrict);
+        const wantsSheetStrict = isTechnicalSheetIntent(tStrict);
+        const wantsImageStrict = isProductImageIntent(tStrict);
+
+        if (wantsQuoteStrict) {
+          inbound.text = `cotizar ${selectedNameStrict} ${originalInboundText}`.trim();
+          nextMemory.awaiting_action = "quote_product_selection";
+        } else if (wantsSheetStrict && wantsImageStrict) {
+          inbound.text = `ficha tecnica e imagen de ${selectedNameStrict}`;
+          nextMemory.awaiting_action = "none";
+        } else if (wantsSheetStrict) {
+          inbound.text = `ficha tecnica de ${selectedNameStrict}`;
+          nextMemory.awaiting_action = "none";
+        } else if (wantsImageStrict) {
+          inbound.text = `imagen de ${selectedNameStrict}`;
+          nextMemory.awaiting_action = "none";
+        } else if ((awaitingAction === "product_action" || awaitingAction === "conversation_followup") && isAffirmativeIntent(tStrict)) {
+          inbound.text = `cotizar ${selectedNameStrict} ${originalInboundText}`.trim();
+          nextMemory.awaiting_action = "quote_product_selection";
+        }
+      }
+    }
     if (awaitingAction === "conversation_followup" && isConversationCloseIntent(inbound.text)) {
       reply = "Perfecto, finalizamos este chat por ahora. Cuando quieras, me escribes y retomamos con gusto.";
       nextMemory.awaiting_action = "none";
