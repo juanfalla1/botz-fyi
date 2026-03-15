@@ -3412,9 +3412,15 @@ export async function POST(req: Request) {
           .slice(0, 10);
 
         let quoteOptions = options;
+        let categoryRestrictedWithoutMatches = false;
         if (!isGenericBalanceQuote && targetCategoryForQuote) {
           const sourceForCategory = pricedCategoryRows.length ? pricedCategoryRows : categoryRows;
-          if (sourceForCategory.length) quoteOptions = buildNumberedProductOptions(sourceForCategory as any[], 4);
+          if (sourceForCategory.length) {
+            quoteOptions = buildNumberedProductOptions(sourceForCategory as any[], 4);
+          } else {
+            quoteOptions = [];
+            categoryRestrictedWithoutMatches = true;
+          }
         }
         if (isGenericBalanceQuote && categoryRows.length) {
           const buckets = new Map<string, any[]>();
@@ -3491,7 +3497,9 @@ export async function POST(req: Request) {
                   "",
                   "Responde con letra o número (ej.: A o 1). Luego te pido cantidad.",
                 ].join("\n"))
-          : "Claro. Para cotizar de una, dime modelo exacto y cantidad (ejemplo: Explorer 220, 2 unidades).";
+          : (categoryRestrictedWithoutMatches
+              ? `Ahora mismo no tengo referencias activas para cotizar en la categoría ${targetCategoryForQuote.replace(/_/g, " ")}. Si quieres, te muestro opciones disponibles en balanzas o básculas.`
+              : "Claro. Para cotizar de una, dime modelo exacto y cantidad (ejemplo: Explorer 220, 2 unidades).");
         nextMemory.awaiting_action = quoteOptions.length ? "product_option_selection" : "quote_product_selection";
         nextMemory.pending_product_options = quoteOptions;
         nextMemory.last_category_intent = targetCategoryForQuote;
