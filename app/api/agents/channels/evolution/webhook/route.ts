@@ -968,6 +968,15 @@ function isRecommendationIntent(text: string): boolean {
   return /(recomiend|modelo ideal|que modelo|cual modelo|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza)/.test(t);
 }
 
+function isCatalogBreadthQuestion(text: string): boolean {
+  const t = normalizeCatalogQueryText(String(text || ""));
+  if (!t) return false;
+  return (
+    /(que\s+mas|que\s+otros?|otras\s+referencias|mas\s+referencias|catalogo\s+completo)/.test(t) ||
+    /(?:producto|productos|productod|referencia|referencias).*(tien|manej|ofrec|hay)/.test(t)
+  );
+}
+
 function isOutOfCatalogDomainQuery(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
@@ -2317,7 +2326,11 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && selectedStrictActive && !isConversationCloseIntent(originalInboundText)) {
       const tStrict = normalizeText(originalInboundText);
-      const asksCatalogListStrict = isInventoryInfoIntent(originalInboundText) || isBalanceTypeQuestion(originalInboundText) || /(catalogo|que tipos|que tipo|que manejan|que tienen)/.test(tStrict);
+      const asksCatalogListStrict =
+        isCatalogBreadthQuestion(originalInboundText) ||
+        isInventoryInfoIntent(originalInboundText) ||
+        isBalanceTypeQuestion(originalInboundText) ||
+        /(catalogo|que tipos|que tipo|que manejan|que tienen)/.test(tStrict);
       const explicitOtherModel = hasConcreteProductHint(originalInboundText) && !normalizeText(selectedNameStrict || "").includes(normalizeText(extractModelLikeTokens(originalInboundText).join(" ")));
 
       if (!asksCatalogListStrict && !explicitOtherModel) {
@@ -2471,6 +2484,9 @@ export async function POST(req: Request) {
         } else if (hasBareQuantity(optText) || /\b\d{1,5}\b/.test(optText)) {
           inbound.text = `cotizar ${rememberedOptionProduct} ${originalInboundText}`.trim();
           nextMemory.awaiting_action = "quote_product_selection";
+        } else if (isCatalogBreadthQuestion(originalInboundText) || isInventoryInfoIntent(originalInboundText)) {
+          nextMemory.awaiting_action = "none";
+          nextMemory.pending_product_options = [];
         } else {
           reply = `¿Quieres ficha, imagen o cotización de ${rememberedOptionProduct}?`;
           nextMemory.awaiting_action = "product_action";
