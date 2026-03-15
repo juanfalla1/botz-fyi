@@ -2347,6 +2347,20 @@ export async function POST(req: Request) {
       }
     }
 
+    if (awaitingAction === "quote_contact_bundle" && isContactInfoBundle(inbound.text)) {
+      const rememberedForQuote = String(
+        nextMemory.last_selected_product_name ||
+        previousMemory?.last_selected_product_name ||
+        nextMemory.last_product_name ||
+        previousMemory?.last_product_name ||
+        ""
+      ).trim();
+      if (rememberedForQuote) {
+        inbound.text = `cotizar ${rememberedForQuote} ${originalInboundText}`.trim();
+      }
+      nextMemory.awaiting_action = "quote_product_selection";
+    }
+
     const pendingProductOptions = Array.isArray((previousMemory as any)?.pending_product_options)
       ? (previousMemory as any).pending_product_options
       : [];
@@ -3851,6 +3865,7 @@ export async function POST(req: Request) {
 
           if (missingFields.length) {
             reply = `Para enviarte la cotizacion en PDF sin campos vacios, me faltan estos datos: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Nombre: ..., Telefono: ...).`;
+            nextMemory.awaiting_action = "quote_contact_bundle";
             handledByQuoteIntake = true;
             billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
           }
