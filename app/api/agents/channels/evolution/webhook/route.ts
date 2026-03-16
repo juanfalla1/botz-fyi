@@ -918,6 +918,12 @@ function hasBareQuantity(text: string): boolean {
   return /\b\d{1,5}\b/.test(t) && /(unidad|unidades|equipo|equipos|balanza|balanzas|bascula|basculas|pieza|piezas|qty|cantidad|x\s*\d)/.test(t);
 }
 
+function isTechnicalSpecQuery(text: string): boolean {
+  const t = normalizeCatalogQueryText(String(text || ""));
+  if (!t) return false;
+  return /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*[x×]\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b/.test(t);
+}
+
 function isQuoteProceedIntent(text: string): boolean {
   const t = normalizeText(text);
   return /(damela|dámela|enviamela|enviamela|hazla|generala|genérala|cotizala|cotízala|adelante|si por favor|si, por favor|dale|de una)/.test(t);
@@ -3845,6 +3851,7 @@ export async function POST(req: Request) {
       .map((m) => m.content)
       .slice(-6)
       .join("\n");
+    const inboundIsTechnicalSpec = isTechnicalSpecQuery(inbound.text);
     const previousIntentForQuoteFlow = String(previousMemory?.last_intent || "");
     const asksQuoteWithNumber = asksQuoteIntent(inbound.text) && /\b\d{1,5}\b/.test(normalizeText(inbound.text || ""));
     const quoteContextActive =
@@ -3858,6 +3865,7 @@ export async function POST(req: Request) {
         (hasBareQuantity(inbound.text) && quoteContextActive) ||
         asksQuoteWithNumber ||
         (isAffirmativeIntent(inbound.text) && /(price_request|quote_starter|recommendation_request)/.test(previousIntentForQuoteFlow))) &&
+      !inboundIsTechnicalSpec &&
       Boolean(nextMemory.last_product_name || nextMemory.last_product_id || rememberedSelectedProductName || rememberedSelectedProductId);
     const resumeQuoteFromContext =
       isContactInfoBundle(inbound.text) &&
