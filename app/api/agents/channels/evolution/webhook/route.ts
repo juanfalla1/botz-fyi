@@ -1015,7 +1015,8 @@ function isInventoryInfoIntent(text: string): boolean {
     /(catalogo|inventario).*(productos|equipos|referencias)/.test(t) ||
     /(que|cuales).*(productos|equipos).*(tienen|manejan|venden|ofrecen)/.test(t) ||
     /(productos|producto|equipos|equipo).*(tienen|tiene|manejan|maneja|venden|vende|ofrecen|ofrece)/.test(t) ||
-    /(que mas producto|que mas productos|que otros productos|que otras referencias|que mas tienes|que otro tienes)/.test(t)
+    /(que mas producto|que mas productos|que otros productos|que otras referencias|que mas tienes|que otro tienes)/.test(t) ||
+    /(tiene|tienen|tinen|hay).*(balanza|balanzas|bascula|basculas)/.test(t)
   );
 }
 
@@ -2523,6 +2524,10 @@ export async function POST(req: Request) {
       const rememberedOptionProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
       const optText = normalizeText(originalInboundText);
       if (rememberedOptionProduct) {
+        if (isCatalogBreadthQuestion(originalInboundText) || isInventoryInfoIntent(originalInboundText) || isBalanceTypeQuestion(originalInboundText)) {
+          nextMemory.awaiting_action = "none";
+          nextMemory.pending_product_options = [];
+        } else {
         const confirmsDefaultFromOption = isAffirmativeIntent(optText) || /^(ok|vale|listo|de una)$/i.test(String(originalInboundText || "").trim());
         const asksQuoteByOption = /^(1|a)\b/.test(optText) || /\b(cotiz|cotizacion|precio|la cotizacion)\b/.test(optText);
         const asksSheetByOption = /^(2|b)\b/.test(optText) || isTechnicalSheetIntent(optText);
@@ -2556,6 +2561,7 @@ export async function POST(req: Request) {
           handledByInventory = true;
           handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
         }
       }
     }
