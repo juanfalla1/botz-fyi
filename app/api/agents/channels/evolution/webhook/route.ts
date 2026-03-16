@@ -2326,15 +2326,18 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && selectedStrictActive && !isConversationCloseIntent(originalInboundText)) {
       const tStrict = normalizeText(originalInboundText);
+      const looksLikeTechnicalNumericSpec = /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*[x×]\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b/.test(normalizeCatalogQueryText(originalInboundText));
       const asksCatalogListStrict =
         isCatalogBreadthQuestion(originalInboundText) ||
         isInventoryInfoIntent(originalInboundText) ||
         isBalanceTypeQuestion(originalInboundText) ||
+        looksLikeTechnicalNumericSpec ||
         /(catalogo|que tipos|que tipo|que manejan|que tienen)/.test(tStrict);
       const explicitOtherModel = hasConcreteProductHint(originalInboundText) && !normalizeText(selectedNameStrict || "").includes(normalizeText(extractModelLikeTokens(originalInboundText).join(" ")));
 
       if (!asksCatalogListStrict && !explicitOtherModel) {
-        const wantsQuoteStrict = asksQuoteIntent(tStrict) || isPriceIntent(tStrict) || isQuoteProceedIntent(tStrict) || hasBareQuantity(tStrict);
+        const quoteByQtyOnly = hasBareQuantity(tStrict) && /^(quote_|product_action|quote_product_selection)$/.test(String(awaitingAction || ""));
+        const wantsQuoteStrict = asksQuoteIntent(tStrict) || isPriceIntent(tStrict) || isQuoteProceedIntent(tStrict) || quoteByQtyOnly;
         const wantsSheetStrict = isTechnicalSheetIntent(tStrict);
         const wantsImageStrict = isProductImageIntent(tStrict);
 
@@ -4112,6 +4115,30 @@ export async function POST(req: Request) {
         const baseSource = categoryScopedCommercial.length
           ? categoryScopedCommercial
           : (categoryScopedAll.length ? categoryScopedAll : commercialRows);
+        const featureTerms = extractFeatureTerms(inbound.text);
+        const asksNumericSpec = /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*[x×]\s*\d+(?:[\.,]\d+)?/.test(normalizeCatalogQueryText(inbound.text || ""));
+        const asksFeatureLike = isFeatureQuestionIntent(inbound.text) || asksNumericSpec;
+
+        if (asksFeatureLike && baseSource.length) {
+          const ranked = rankCatalogByFeature(baseSource as any[], featureTerms.length ? featureTerms : extractCatalogTerms(inbound.text)).slice(0, 6);
+          if (ranked.length) {
+            const options = buildNumberedProductOptions(ranked.map((x: any) => x.row), 4);
+            if (options.length) {
+              reply = [
+                "Con base en esa referencia técnica, estas son opciones relacionadas del catálogo:",
+                ...options.map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+              ].join("\n");
+              nextMemory.pending_product_options = options;
+              nextMemory.awaiting_action = "product_option_selection";
+              if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
+              billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+            }
+          }
+        }
+
+        if (!String(reply || "").trim()) {
         const narrowed = filterCatalogByTerms(inbound.text, baseSource as any, requestedCategory);
         const sampleSource = narrowed.length ? narrowed : baseSource;
         const sample = uniqueNormalizedStrings(
@@ -4127,6 +4154,7 @@ export async function POST(req: Request) {
         if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
         nextMemory.awaiting_action = "tech_product_selection";
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
       } else {
 
       const catalogNames = Array.isArray(commercialRows)
