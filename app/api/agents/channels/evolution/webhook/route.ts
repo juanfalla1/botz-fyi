@@ -924,6 +924,56 @@ function isTechnicalSpecQuery(text: string): boolean {
   return /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*[x×]\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b/.test(t);
 }
 
+function toGrams(valueRaw: string, unitRaw: string): number {
+  const n = Number(String(valueRaw || "").replace(/,/g, "."));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  const u = normalizeText(String(unitRaw || "g"));
+  if (u === "mg") return n / 1000;
+  if (u === "kg") return n * 1000;
+  return n;
+}
+
+function parseTechnicalSpecQuery(text: string): { capacityG: number; readabilityG: number } | null {
+  const t = normalizeCatalogQueryText(String(text || ""));
+  const m = t.match(/\b(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b\s*[x×]\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b/);
+  if (!m) return null;
+  const capacityG = toGrams(m[1], m[2] || "g");
+  const readabilityG = toGrams(m[3], m[4] || "g");
+  if (!(capacityG > 0) || !(readabilityG > 0)) return null;
+  return { capacityG, readabilityG };
+}
+
+function extractRowTechnicalSpec(row: any): { capacityG: number; readabilityG: number } {
+  const specsText = String(row?.specs_text || "");
+  const specsJsonText = row?.specs_json ? JSON.stringify(row.specs_json) : "";
+  const payloadText = row?.source_payload ? JSON.stringify(row.source_payload) : "";
+  const hay = normalizeCatalogQueryText(`${specsText} ${specsJsonText} ${payloadText}`);
+  const cap = hay.match(/capacidad[^0-9]{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/);
+  const read = hay.match(/(?:resolucion|lectura minima)[^0-9]{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/);
+  return {
+    capacityG: cap ? toGrams(cap[1], cap[2]) : 0,
+    readabilityG: read ? toGrams(read[1], read[2]) : 0,
+  };
+}
+
+function rankCatalogByTechnicalSpec(rows: any[], spec: { capacityG: number; readabilityG: number }): Array<{ row: any; capacityDeltaPct: number; readabilityRatio: number; score: number }> {
+  const targetCap = Math.max(0.000001, Number(spec?.capacityG || 0));
+  const targetRead = Math.max(0.000000001, Number(spec?.readabilityG || 0));
+  if (!(targetCap > 0) || !(targetRead > 0)) return [];
+  return (rows || [])
+    .map((row: any) => {
+      const rs = extractRowTechnicalSpec(row);
+      if (!(rs.capacityG > 0) || !(rs.readabilityG > 0)) return null;
+      const capacityDeltaPct = Math.abs(rs.capacityG - targetCap) / targetCap * 100;
+      const readabilityRatio = rs.readabilityG / targetRead;
+      const readPenalty = readabilityRatio <= 1 ? readabilityRatio * 0.2 : readabilityRatio;
+      const score = capacityDeltaPct + readPenalty * 100;
+      return { row, capacityDeltaPct, readabilityRatio, score };
+    })
+    .filter(Boolean)
+    .sort((a: any, b: any) => a.score - b.score) as any;
+}
+
 function isQuoteProceedIntent(text: string): boolean {
   const t = normalizeText(text);
   return /(damela|dámela|enviamela|enviamela|hazla|generala|genérala|cotizala|cotízala|adelante|si por favor|si, por favor|dale|de una)/.test(t);
@@ -4117,7 +4167,8 @@ export async function POST(req: Request) {
         isConsistencyChallengeIntent(inbound.text);
 
       if (deterministicOnly) {
-        const requestedCategory = normalizeText(String(detectCatalogCategoryIntent(inbound.text) || rememberedCategoryIntent || ""));
+        const technicalSpecQuery = parseTechnicalSpecQuery(inbound.text);
+        const requestedCategory = normalizeText(String(technicalSpecQuery ? "balanzas" : (detectCatalogCategoryIntent(inbound.text) || rememberedCategoryIntent || "")));
         const categoryScopedCommercial = requestedCategory ? scopeCatalogRows(commercialRows as any, requestedCategory) : commercialRows;
         const categoryScopedAll = requestedCategory ? scopeCatalogRows(allCatalogRows as any, requestedCategory) : allCatalogRows;
         const baseSource = categoryScopedCommercial.length
@@ -4128,12 +4179,23 @@ export async function POST(req: Request) {
         const asksFeatureLike = isFeatureQuestionIntent(inbound.text) || asksNumericSpec;
 
         if (asksFeatureLike && baseSource.length) {
-          const ranked = rankCatalogByFeature(baseSource as any[], featureTerms.length ? featureTerms : extractCatalogTerms(inbound.text)).slice(0, 6);
+          const numericRanked = technicalSpecQuery
+            ? rankCatalogByTechnicalSpec(baseSource as any[], technicalSpecQuery)
+            : [];
+          const ranked = numericRanked.length
+            ? numericRanked.slice(0, 8)
+            : rankCatalogByFeature(baseSource as any[], featureTerms.length ? featureTerms : extractCatalogTerms(inbound.text)).slice(0, 6);
           if (ranked.length) {
-            const options = buildNumberedProductOptions(ranked.map((x: any) => x.row), 4);
+            const strictNumeric = technicalSpecQuery
+              ? (ranked as any[]).filter((x: any) => x.capacityDeltaPct <= 40 && x.readabilityRatio <= 2)
+              : [];
+            const sourceRows = (strictNumeric.length ? strictNumeric : ranked).map((x: any) => x.row);
+            const options = buildNumberedProductOptions(sourceRows, 4);
             if (options.length) {
               reply = [
-                "Con base en esa referencia técnica, estas son opciones relacionadas del catálogo:",
+                technicalSpecQuery && !strictNumeric.length
+                  ? "No encontré coincidencia exacta para esa referencia, pero estas son las opciones más cercanas del catálogo:"
+                  : "Con base en esa referencia técnica, estas son opciones relacionadas del catálogo:",
                 ...options.map((o) => `${o.code}) ${o.name}`),
                 "",
                 "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
