@@ -4196,17 +4196,38 @@ export async function POST(req: Request) {
               ? (ranked as any[]).filter((x: any) => x.capacityDeltaPct <= 40 && x.readabilityRatio <= 2)
               : [];
             const sourceRows = (strictNumeric.length ? strictNumeric : ranked).map((x: any) => x.row);
-            const options = buildNumberedProductOptions(sourceRows, 4);
+            const options = buildNumberedProductOptions(sourceRows, technicalSpecQuery ? 10 : 4);
             if (options.length) {
+              const shown = technicalSpecQuery ? options.slice(0, 10) : options;
+              const more = Math.max(0, options.length - shown.length);
               reply = [
                 technicalSpecQuery && !strictNumeric.length
                   ? "No encontré coincidencia exacta para esa referencia, pero estas son las opciones más cercanas del catálogo:"
                   : "Con base en esa referencia técnica, estas son opciones relacionadas del catálogo:",
-                ...options.map((o) => `${o.code}) ${o.name}`),
+                ...shown.map((o) => `${o.code}) ${o.name}`),
+                ...(more > 0 ? [`- y ${more} más`] : []),
                 "",
                 "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
               ].join("\n");
               nextMemory.pending_product_options = options;
+              nextMemory.awaiting_action = "product_option_selection";
+              if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
+              billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+            }
+          } else if (technicalSpecQuery) {
+            const allByCapacity = rankCatalogByTechnicalSpec(baseSource as any[], {
+              capacityG: technicalSpecQuery.capacityG,
+              readabilityG: Math.max(technicalSpecQuery.readabilityG, 0.000000001),
+            }).slice(0, 10);
+            const fallbackOptions = buildNumberedProductOptions(allByCapacity.map((x: any) => x.row), 10);
+            if (fallbackOptions.length) {
+              reply = [
+                "No encontré coincidencia exacta para esa referencia. Estas son las más cercanas disponibles:",
+                ...fallbackOptions.slice(0, 10).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+              ].join("\n");
+              nextMemory.pending_product_options = fallbackOptions;
               nextMemory.awaiting_action = "product_option_selection";
               if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
               billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
