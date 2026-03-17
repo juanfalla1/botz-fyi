@@ -2390,6 +2390,11 @@ export async function POST(req: Request) {
         nextMemory.awaiting_action = "technical_refine_choice";
         handledByRecommendation = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      } else if (!isConversationCloseIntent(originalInboundText)) {
+        reply = "Para continuar, responde 'sí' y te doy opciones de ajuste, o escribe una nueva referencia (ej.: 320g x 0.0001).";
+        nextMemory.awaiting_action = "technical_refine_prompt";
+        handledByRecommendation = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       }
     }
 
