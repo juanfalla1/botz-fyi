@@ -2544,7 +2544,13 @@ export async function POST(req: Request) {
     const pendingProductOptions = Array.isArray((previousMemory as any)?.pending_product_options)
       ? (previousMemory as any).pending_product_options
       : [];
-    const selectedPendingOption = resolvePendingProductOption(originalInboundText, pendingProductOptions);
+    const menuActionChoiceOnly = /^(1|2|3|4|a|b|c|d)\b/.test(normalizeText(originalInboundText));
+    const canResolvePendingOption =
+      String(previousMemory?.awaiting_action || "") !== "product_action" ||
+      !menuActionChoiceOnly;
+    const selectedPendingOption = canResolvePendingOption
+      ? resolvePendingProductOption(originalInboundText, pendingProductOptions)
+      : null;
     if (selectedPendingOption) {
       nextMemory.last_product_name = String(selectedPendingOption.name || "");
       nextMemory.last_product_id = String(selectedPendingOption.id || "");
@@ -2566,6 +2572,7 @@ export async function POST(req: Request) {
           "4) Ficha + imagen",
         ].join("\n");
         nextMemory.awaiting_action = "product_action";
+        nextMemory.pending_product_options = [];
         handledByQuoteStarter = true;
         handledByProductLookup = true;
         handledByPricing = true;
