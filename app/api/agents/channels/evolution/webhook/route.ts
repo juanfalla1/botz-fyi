@@ -3193,7 +3193,7 @@ export async function POST(req: Request) {
 
     const quoteIntentNow = asksQuoteIntent(inbound.text) || isQuoteStarterIntent(inbound.text) || isQuoteProceedIntent(inbound.text) || isPriceIntent(inbound.text);
     const hasExplicitTechNow = isTechnicalSheetIntent(inbound.text) || isProductImageIntent(inbound.text) || Boolean(detectTechResendIntent(inbound.text));
-    const forceExitTechAwaiting = quoteIntentNow && !hasExplicitTechNow;
+    const forceExitTechAwaiting = (quoteIntentNow && !hasExplicitTechNow) || inboundTechnicalSpec;
     const awaitingTechProductSelection = awaitingAction === "tech_product_selection" && !forceExitTechAwaiting;
     const awaitingTechAssetChoice = awaitingAction === "tech_asset_choice" && !forceExitTechAwaiting;
     if (forceExitTechAwaiting && String(nextMemory.awaiting_action || "").startsWith("tech_")) {
