@@ -4572,7 +4572,8 @@ export async function POST(req: Request) {
     if (sentQuotePdf) nextMemory.last_quote_pdf_sent_at = new Date().toISOString();
     if (sentTechSheet) nextMemory.last_datasheet_sent_at = new Date().toISOString();
     if (sentImage) nextMemory.last_image_sent_at = new Date().toISOString();
-    if (autoQuoteDocs.length || autoQuoteBundle || handledByTechSheet || handledByQuoteIntake) {
+    const deliveredAssetNow = Boolean(sentQuotePdf || sentTechSheet || sentImage || autoQuoteDocs.length || autoQuoteBundle);
+    if (deliveredAssetNow) {
       nextMemory.pending_product_options = [];
       if (String(nextMemory.awaiting_action || "") === "product_option_selection") nextMemory.awaiting_action = "none";
     }
