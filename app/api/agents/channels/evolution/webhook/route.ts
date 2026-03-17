@@ -2375,9 +2375,22 @@ export async function POST(req: Request) {
     const awaitingAction = String(previousMemory?.awaiting_action || "");
     const originalInboundText = String(inbound.text || "").trim();
     const inboundTechnicalSpec = isTechnicalSpecQuery(originalInboundText);
+    const interruptsRefineFlow = Boolean(
+      detectCatalogCategoryIntent(originalInboundText) ||
+      isInventoryInfoIntent(originalInboundText) ||
+      isCatalogBreadthQuestion(originalInboundText) ||
+      asksQuoteIntent(originalInboundText) ||
+      isPriceIntent(originalInboundText) ||
+      isTechnicalSheetIntent(originalInboundText) ||
+      isProductImageIntent(originalInboundText) ||
+      isGreetingIntent(originalInboundText)
+    );
     if (inboundTechnicalSpec) {
       nextMemory.awaiting_action = "none";
       nextMemory.pending_product_options = [];
+    }
+    if ((awaitingAction === "technical_refine_prompt" || awaitingAction === "technical_refine_choice") && interruptsRefineFlow) {
+      nextMemory.awaiting_action = "none";
     }
 
     if (!handledByGreeting && awaitingAction === "technical_refine_prompt") {
@@ -4477,12 +4490,8 @@ export async function POST(req: Request) {
 
     const deliveredSalesAsset = Boolean(autoQuoteDocs.length || autoQuoteBundle || resendPdf || technicalDocs.length || sentQuotePdf || sentTechSheet || sentImage);
     if (!handledByGreeting && deliveredSalesAsset) {
-      const replyNorm = normalizeText(String(reply || ""));
-      if (!/quieres algo mas|prefieres revisar otro producto|finalizamos por ahora|ficha imagen o cotizacion/.test(replyNorm)) {
-        reply = `${String(reply || "").trim()}\n\n¿Quieres algo más o finalizamos por ahora?`;
-      }
-      nextMemory.awaiting_action = "conversation_followup";
       nextMemory.conversation_status = "open";
+      if (String(nextMemory.awaiting_action || "") === "conversation_followup") nextMemory.awaiting_action = "none";
     }
 
     reply = enforceWhatsAppDelivery(reply, inbound.text);
