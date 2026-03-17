@@ -2708,7 +2708,7 @@ export async function POST(req: Request) {
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
 
-    if (!handledByGreeting && isInventoryInfoIntent(inbound.text)) {
+    if (!handledByGreeting && isInventoryInfoIntent(inbound.text) && !detectCatalogCategoryIntent(inbound.text)) {
       try {
         const totalActive = await countCatalogRows(false);
         const totalPriced = await countCatalogRows(true);
@@ -4175,6 +4175,8 @@ export async function POST(req: Request) {
       const rememberedCategoryIntent = String(previousMemory?.last_category_intent || "").trim();
       const deterministicOnly =
         STRICT_WHATSAPP_MODE ||
+        isTechnicalSpecQuery(inbound.text) ||
+        isFeatureQuestionIntent(inbound.text) ||
         isStrictCatalogIntent(inbound.text) ||
         (isCategoryFollowUpIntent(inbound.text) && Boolean(rememberedCategoryIntent)) ||
         isConsistencyChallengeIntent(inbound.text);
