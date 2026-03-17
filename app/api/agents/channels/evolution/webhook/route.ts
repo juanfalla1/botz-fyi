@@ -2372,6 +2372,19 @@ export async function POST(req: Request) {
       nextMemory.awaiting_action = "none";
       nextMemory.pending_product_options = [];
     }
+
+    if (!handledByGreeting && awaitingAction === "technical_refine_prompt") {
+      const tRefine = normalizeText(originalInboundText);
+      if (isAffirmativeIntent(tRefine)) {
+        const lastSpec = String(previousMemory?.last_technical_spec_query || nextMemory?.last_technical_spec_query || "").trim();
+        reply = lastSpec
+          ? `Perfecto. Para afinar, partiendo de "${lastSpec}", dime cuál variable ajustamos: 1) mayor capacidad, 2) menor capacidad, 3) mejor resolución, 4) resolución más flexible.`
+          : "Perfecto. Para afinar, dime capacidad y resolución objetivo (ej.: 220g x 0.001g o 320g x 0.0001g).";
+        nextMemory.awaiting_action = "none";
+        handledByRecommendation = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      }
+    }
     const selectedNameStrict = String(
       nextMemory.last_selected_product_name ||
       previousMemory?.last_selected_product_name ||
@@ -4192,6 +4205,7 @@ export async function POST(req: Request) {
         const featureTerms = extractFeatureTerms(inbound.text);
         const asksNumericSpec = /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*[x×]\s*\d+(?:[\.,]\d+)?/.test(normalizeCatalogQueryText(inbound.text || ""));
         const asksFeatureLike = isFeatureQuestionIntent(inbound.text) || asksNumericSpec;
+        if (technicalSpecQuery) nextMemory.last_technical_spec_query = originalInboundText;
 
         if (asksFeatureLike && baseSource.length) {
           const numericRanked = technicalSpecQuery
@@ -4264,7 +4278,7 @@ export async function POST(req: Request) {
                 nextMemory.awaiting_action = "product_option_selection";
               } else {
                 reply = "No encontré referencias cercanas para esa capacidad/resolución en el catálogo actual. Si quieres, te ayudo a filtrar por otra capacidad o resolución.";
-                nextMemory.awaiting_action = "none";
+                nextMemory.awaiting_action = "technical_refine_prompt";
               }
               if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
               billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
