@@ -4193,16 +4193,18 @@ export async function POST(req: Request) {
             : rankCatalogByFeature(baseSource as any[], featureTerms.length ? featureTerms : extractCatalogTerms(inbound.text)).slice(0, 6);
           if (ranked.length) {
             const strictNumeric = technicalSpecQuery
-              ? (ranked as any[]).filter((x: any) => x.capacityDeltaPct <= 40 && x.readabilityRatio <= 2)
+              ? (ranked as any[]).filter((x: any) => x.capacityDeltaPct <= 40 && x.readabilityRatio <= 1)
               : [];
-            const sourceRows = (strictNumeric.length ? strictNumeric : ranked).map((x: any) => x.row);
+            const sourceRows = technicalSpecQuery
+              ? strictNumeric.map((x: any) => x.row)
+              : (ranked as any[]).map((x: any) => x.row);
             const options = buildNumberedProductOptions(sourceRows, technicalSpecQuery ? 10 : 4);
             if (options.length) {
               const shown = technicalSpecQuery ? options.slice(0, 10) : options;
               const more = Math.max(0, options.length - shown.length);
               reply = [
-                technicalSpecQuery && !strictNumeric.length
-                  ? "No encontré coincidencia exacta para esa referencia, pero estas son las opciones más cercanas del catálogo:"
+                technicalSpecQuery
+                  ? "Con base en esa referencia técnica, estas son opciones relacionadas del catálogo:"
                   : "Con base en esa referencia técnica, estas son opciones relacionadas del catálogo:",
                 ...shown.map((o) => `${o.code}) ${o.name}`),
                 ...(more > 0 ? [`- y ${more} más`] : []),
@@ -4218,7 +4220,9 @@ export async function POST(req: Request) {
             const allByCapacity = rankCatalogByTechnicalSpec(baseSource as any[], {
               capacityG: technicalSpecQuery.capacityG,
               readabilityG: Math.max(technicalSpecQuery.readabilityG, 0.000000001),
-            }).slice(0, 10);
+            })
+              .filter((x: any) => x.readabilityRatio <= 1)
+              .slice(0, 10);
             const fallbackOptions = buildNumberedProductOptions(allByCapacity.map((x: any) => x.row), 10);
             if (fallbackOptions.length) {
               reply = [
@@ -4229,6 +4233,11 @@ export async function POST(req: Request) {
               ].join("\n");
               nextMemory.pending_product_options = fallbackOptions;
               nextMemory.awaiting_action = "product_option_selection";
+              if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
+              billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+            } else {
+              reply = "No tengo una referencia que cumpla esa resolución en el catálogo actual. Si quieres, te muestro opciones analíticas cercanas por capacidad.";
+              nextMemory.awaiting_action = "none";
               if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
               billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
             }
