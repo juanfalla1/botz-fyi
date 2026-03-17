@@ -4344,12 +4344,25 @@ export async function POST(req: Request) {
                 nextMemory.pending_product_options = capacityOnlyOptions;
                 nextMemory.awaiting_action = "product_option_selection";
               } else {
-                const nearbyGeneral = buildNumberedProductOptions(
-                  (baseSource as any[])
-                    .filter((r: any) => /analitic|precision|explorer|adventurer|pioneer|scout/.test(normalizeText(String(r?.name || ""))))
-                    .slice(0, 8),
-                  6
-                );
+                const requiresFineReadability = Number(technicalSpecQuery?.readabilityG || 0) > 0 && Number(technicalSpecQuery?.readabilityG || 0) <= 0.001;
+                const nearbyGeneralSource = (baseSource as any[])
+                  .map((r: any) => {
+                    const hay = normalizeText(`${String(r?.name || "")} ${String(r?.specs_text || "")}`);
+                    const score = (
+                      (/analitic|semi micro|semi-micro|explorer|adventurer|pioneer|precision|exr|exp/.test(hay) ? 4 : 0) +
+                      (/lectura minima|resolucion/.test(hay) ? 2 : 0) +
+                      (/scout|compass|joyeria|portatil/.test(hay) ? -3 : 0)
+                    );
+                    return { row: r, hay, score };
+                  })
+                  .filter((x: any) => {
+                    if (!requiresFineReadability) return /analitic|precision|explorer|adventurer|pioneer|scout/.test(x.hay);
+                    return /analitic|semi micro|semi-micro|explorer|adventurer|pioneer|precision|exr|exp/.test(x.hay) && !/scout|compass|joyeria|portatil/.test(x.hay);
+                  })
+                  .sort((a: any, b: any) => b.score - a.score)
+                  .map((x: any) => x.row)
+                  .slice(0, 8);
+                const nearbyGeneral = buildNumberedProductOptions(nearbyGeneralSource, 6);
                 if (nearbyGeneral.length) {
                   reply = [
                     "No encontré coincidencia exacta para esa capacidad/resolución. Te comparto opciones analíticas o de precisión disponibles:",
