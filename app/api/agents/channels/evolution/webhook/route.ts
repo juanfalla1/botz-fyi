@@ -4245,8 +4245,27 @@ export async function POST(req: Request) {
               if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
               billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
             } else {
-              reply = "No tengo una referencia que cumpla esa resolución en el catálogo actual. Si quieres, te muestro opciones analíticas cercanas por capacidad.";
-              nextMemory.awaiting_action = "none";
+              const capacityOnlyRanked = rankCatalogByTechnicalSpec(baseSource as any[], {
+                capacityG: technicalSpecQuery.capacityG,
+                readabilityG: Math.max(technicalSpecQuery.readabilityG, 0.000000001),
+              })
+                .filter((x: any) => x.capacityDeltaPct <= 60)
+                .slice(0, 10);
+              const capacityOnlyOptions = buildNumberedProductOptions(capacityOnlyRanked.map((x: any) => x.row), 10);
+              if (capacityOnlyOptions.length) {
+                reply = [
+                  "No tengo una referencia que cumpla esa resolución exacta en el catálogo actual.",
+                  "Te comparto opciones cercanas por capacidad:",
+                  ...capacityOnlyOptions.slice(0, 10).map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+                ].join("\n");
+                nextMemory.pending_product_options = capacityOnlyOptions;
+                nextMemory.awaiting_action = "product_option_selection";
+              } else {
+                reply = "No encontré referencias cercanas para esa capacidad/resolución en el catálogo actual. Si quieres, te ayudo a filtrar por otra capacidad o resolución.";
+                nextMemory.awaiting_action = "none";
+              }
               if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
               billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
             }
