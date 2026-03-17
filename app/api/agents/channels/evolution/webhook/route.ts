@@ -4278,6 +4278,20 @@ export async function POST(req: Request) {
               nextMemory.awaiting_action = "product_option_selection";
               if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
               billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+            } else if (technicalSpecQuery) {
+              const closestOptions = buildNumberedProductOptions((ranked as any[]).map((x: any) => x.row), 6);
+              if (closestOptions.length) {
+                reply = [
+                  "No encontré una coincidencia exacta con esa combinación, pero estas son las referencias más cercanas del catálogo:",
+                  ...closestOptions.map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+                ].join("\n");
+                nextMemory.pending_product_options = closestOptions;
+                nextMemory.awaiting_action = "product_option_selection";
+                if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
+                billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+              }
             }
           } else if (technicalSpecQuery) {
             const allByCapacity = rankCatalogByTechnicalSpec(baseSource as any[], {
