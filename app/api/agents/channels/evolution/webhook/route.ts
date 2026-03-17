@@ -2367,6 +2367,11 @@ export async function POST(req: Request) {
 
     const awaitingAction = String(previousMemory?.awaiting_action || "");
     const originalInboundText = String(inbound.text || "").trim();
+    const inboundTechnicalSpec = isTechnicalSpecQuery(originalInboundText);
+    if (inboundTechnicalSpec) {
+      nextMemory.awaiting_action = "none";
+      nextMemory.pending_product_options = [];
+    }
     const selectedNameStrict = String(
       nextMemory.last_selected_product_name ||
       previousMemory?.last_selected_product_name ||
@@ -2381,7 +2386,7 @@ export async function POST(req: Request) {
       Number.isFinite(selectedAtStrictMs) &&
       (Date.now() - selectedAtStrictMs) <= 30 * 60 * 1000;
 
-    if (!handledByGreeting && selectedStrictActive && !isConversationCloseIntent(originalInboundText)) {
+    if (!handledByGreeting && selectedStrictActive && !inboundTechnicalSpec && !isConversationCloseIntent(originalInboundText)) {
       const tStrict = normalizeText(originalInboundText);
       const looksLikeTechnicalNumericSpec = /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*[x×]\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b/.test(normalizeCatalogQueryText(originalInboundText));
       const asksCatalogListStrict =
@@ -3907,7 +3912,7 @@ export async function POST(req: Request) {
       .map((m) => m.content)
       .slice(-6)
       .join("\n");
-    const inboundIsTechnicalSpec = isTechnicalSpecQuery(inbound.text);
+    const inboundIsTechnicalSpec = isTechnicalSpecQuery(inbound.text) || inboundTechnicalSpec;
     const previousIntentForQuoteFlow = String(previousMemory?.last_intent || "");
     const asksQuoteWithNumber = asksQuoteIntent(inbound.text) && /\b\d{1,5}\b/.test(normalizeText(inbound.text || ""));
     const quoteContextActive =
@@ -4158,9 +4163,11 @@ export async function POST(req: Request) {
       const selectedAtMs = Date.parse(String(nextMemory.last_selection_at || previousMemory?.last_selection_at || ""));
       const selectedStillActive = Boolean(selectedProductForGuide) && Number.isFinite(selectedAtMs) && (Date.now() - selectedAtMs) <= 30 * 60 * 1000;
       if (selectedStillActive) {
-        reply = `¿Quieres ficha, imagen o cotización de ${selectedProductForGuide}?`;
-        nextMemory.awaiting_action = "product_action";
-        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        if (!inboundTechnicalSpec) {
+          reply = `¿Quieres ficha, imagen o cotización de ${selectedProductForGuide}?`;
+          nextMemory.awaiting_action = "product_action";
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
       } else {
       const catalogRows = await fetchCatalogRows("name,brand,category,source_payload,product_url", 120, false);
       const allCatalogRows = Array.isArray(catalogRows) ? catalogRows : [];
