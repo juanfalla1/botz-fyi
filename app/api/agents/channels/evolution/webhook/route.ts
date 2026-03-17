@@ -943,6 +943,13 @@ function parseTechnicalSpecQuery(text: string): { capacityG: number; readability
   return { capacityG, readabilityG };
 }
 
+function formatSpecNumber(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0";
+  if (n >= 1) return String(Number(n.toFixed(3))).replace(/\.0+$/, "");
+  if (n >= 0.01) return String(Number(n.toFixed(4))).replace(/\.0+$/, "");
+  return String(Number(n.toFixed(6))).replace(/\.0+$/, "");
+}
+
 function extractRowTechnicalSpec(row: any): { capacityG: number; readabilityG: number } {
   const specsText = String(row?.specs_text || "");
   const specsJsonText = row?.specs_json ? JSON.stringify(row.specs_json) : "";
@@ -2380,7 +2387,35 @@ export async function POST(req: Request) {
         reply = lastSpec
           ? `Perfecto. Para afinar, partiendo de "${lastSpec}", dime cuál variable ajustamos: 1) mayor capacidad, 2) menor capacidad, 3) mejor resolución, 4) resolución más flexible.`
           : "Perfecto. Para afinar, dime capacidad y resolución objetivo (ej.: 220g x 0.001g o 320g x 0.0001g).";
+        nextMemory.awaiting_action = "technical_refine_choice";
+        handledByRecommendation = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      }
+    }
+
+    if (!handledByGreeting && String(previousMemory?.awaiting_action || "") === "technical_refine_choice") {
+      const tChoice = normalizeText(originalInboundText);
+      const lastSpec = String(previousMemory?.last_technical_spec_query || nextMemory?.last_technical_spec_query || "").trim();
+      const parsed = parseTechnicalSpecQuery(lastSpec);
+      const pickHighCap = /^(1|a)\b/.test(tChoice) || /mayor capacidad|mas capacidad/.test(tChoice);
+      const pickLowCap = /^(2|b)\b/.test(tChoice) || /menor capacidad/.test(tChoice);
+      const pickBetterRead = /^(3|c)\b/.test(tChoice) || /mejor resolucion/.test(tChoice);
+      const pickFlexibleRead = /^(4|d)\b/.test(tChoice) || /resolucion mas flexible|mas flexible/.test(tChoice);
+
+      if (parsed && (pickHighCap || pickLowCap || pickBetterRead || pickFlexibleRead)) {
+        let nextCap = parsed.capacityG;
+        let nextRead = parsed.readabilityG;
+        if (pickHighCap) nextCap = parsed.capacityG * 1.5;
+        if (pickLowCap) nextCap = parsed.capacityG * 0.7;
+        if (pickBetterRead) nextRead = parsed.readabilityG / 10;
+        if (pickFlexibleRead) nextRead = parsed.readabilityG * 10;
+        const capText = formatSpecNumber(nextCap);
+        const readText = formatSpecNumber(nextRead);
+        inbound.text = `Necesitamos ${capText}g x ${readText}`;
         nextMemory.awaiting_action = "none";
+      } else if (!isTechnicalSpecQuery(originalInboundText)) {
+        reply = "Para afinar la búsqueda, responde 1, 2, 3 o 4 (o escribe capacidad y resolución, ej.: 320g x 0.0001).";
+        nextMemory.awaiting_action = "technical_refine_choice";
         handledByRecommendation = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       }
