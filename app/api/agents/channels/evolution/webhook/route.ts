@@ -2382,14 +2382,20 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && awaitingAction === "technical_refine_prompt") {
       const tRefine = normalizeText(originalInboundText);
-      if (isAffirmativeIntent(tRefine)) {
-        const lastSpec = String(previousMemory?.last_technical_spec_query || nextMemory?.last_technical_spec_query || "").trim();
-        reply = lastSpec
-          ? `Perfecto. Para afinar, partiendo de "${lastSpec}", dime cuál variable ajustamos: 1) mayor capacidad, 2) menor capacidad, 3) mejor resolución, 4) resolución más flexible.`
-          : "Perfecto. Para afinar, dime capacidad y resolución objetivo (ej.: 220g x 0.001g o 320g x 0.0001g).";
+      const directRefineChoice = /^(1|2|3|4|a|b|c|d)\b/.test(tRefine) || /mayor capacidad|menor capacidad|mejor resolucion|resolucion mas flexible|mas flexible/.test(tRefine);
+      if (directRefineChoice) {
         nextMemory.awaiting_action = "technical_refine_choice";
-        handledByRecommendation = true;
-        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      }
+      if (isAffirmativeIntent(tRefine) || directRefineChoice) {
+        const lastSpec = String(previousMemory?.last_technical_spec_query || nextMemory?.last_technical_spec_query || "").trim();
+        if (!directRefineChoice) {
+          reply = lastSpec
+            ? `Perfecto. Para afinar, partiendo de "${lastSpec}", dime cuál variable ajustamos: 1) mayor capacidad, 2) menor capacidad, 3) mejor resolución, 4) resolución más flexible.`
+            : "Perfecto. Para afinar, dime capacidad y resolución objetivo (ej.: 220g x 0.001g o 320g x 0.0001g).";
+          nextMemory.awaiting_action = "technical_refine_choice";
+          handledByRecommendation = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
       } else if (!isConversationCloseIntent(originalInboundText)) {
         reply = "Para continuar, responde 'sí' y te doy opciones de ajuste, o escribe una nueva referencia (ej.: 320g x 0.0001).";
         nextMemory.awaiting_action = "technical_refine_prompt";
@@ -4331,8 +4337,25 @@ export async function POST(req: Request) {
                 nextMemory.pending_product_options = capacityOnlyOptions;
                 nextMemory.awaiting_action = "product_option_selection";
               } else {
-                reply = "No encontré referencias cercanas para esa capacidad/resolución en el catálogo actual. Si quieres, te ayudo a filtrar por otra capacidad o resolución.";
-                nextMemory.awaiting_action = "technical_refine_prompt";
+                const nearbyGeneral = buildNumberedProductOptions(
+                  (baseSource as any[])
+                    .filter((r: any) => /analitic|precision|explorer|adventurer|pioneer|scout/.test(normalizeText(String(r?.name || ""))))
+                    .slice(0, 8),
+                  6
+                );
+                if (nearbyGeneral.length) {
+                  reply = [
+                    "No encontré coincidencia exacta para esa capacidad/resolución. Te comparto opciones analíticas o de precisión disponibles:",
+                    ...nearbyGeneral.map((o) => `${o.code}) ${o.name}`),
+                    "",
+                    "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+                  ].join("\n");
+                  nextMemory.pending_product_options = nearbyGeneral;
+                  nextMemory.awaiting_action = "product_option_selection";
+                } else {
+                  reply = "No encontré referencias cercanas para esa capacidad/resolución en el catálogo actual. Si quieres, te ayudo a filtrar por otra capacidad o resolución.";
+                  nextMemory.awaiting_action = "technical_refine_prompt";
+                }
               }
               if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
               billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
