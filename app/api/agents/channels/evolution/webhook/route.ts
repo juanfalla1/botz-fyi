@@ -2374,11 +2374,16 @@ export async function POST(req: Request) {
 
     const awaitingAction = String(previousMemory?.awaiting_action || "");
     const originalInboundText = String(inbound.text || "").trim();
-    const inboundTechnicalSpec = isTechnicalSpecQuery(originalInboundText);
-    const interruptsRefineFlow = Boolean(
-      detectCatalogCategoryIntent(originalInboundText) ||
+    const inboundCategoryIntent = normalizeText(String(detectCatalogCategoryIntent(originalInboundText) || ""));
+    const inboundInventoryIntent = Boolean(
       isInventoryInfoIntent(originalInboundText) ||
       isCatalogBreadthQuestion(originalInboundText) ||
+      isBalanceTypeQuestion(originalInboundText)
+    );
+    const inboundCategoryOrInventoryIntent = Boolean(inboundCategoryIntent) || inboundInventoryIntent;
+    const inboundTechnicalSpec = isTechnicalSpecQuery(originalInboundText);
+    const interruptsRefineFlow = Boolean(
+      inboundCategoryOrInventoryIntent ||
       asksQuoteIntent(originalInboundText) ||
       isPriceIntent(originalInboundText) ||
       isTechnicalSheetIntent(originalInboundText) ||
@@ -2596,6 +2601,35 @@ export async function POST(req: Request) {
       }
     }
 
+    if (!handledByGreeting && String(previousMemory?.awaiting_action || "") === "product_option_selection" && !selectedPendingOption) {
+      const optionInterruptIntent = Boolean(
+        isConversationCloseIntent(originalInboundText) ||
+        inboundTechnicalSpec ||
+        inboundCategoryOrInventoryIntent ||
+        asksQuoteIntent(originalInboundText) ||
+        isPriceIntent(originalInboundText) ||
+        isTechnicalSheetIntent(originalInboundText) ||
+        isProductImageIntent(originalInboundText) ||
+        isContextResetIntent(originalInboundText)
+      );
+      if (!optionInterruptIntent) {
+        const listed = pendingProductOptions
+          .slice(0, 6)
+          .map((o: any) => `${String(o?.code || "").toUpperCase()}) ${String(o?.name || "").trim()}`)
+          .filter(Boolean);
+        reply = listed.length
+          ? [
+              "Para continuar, elige una opcion del listado.",
+              ...listed,
+              "",
+              "Responde con letra o numero (ej.: A o 1).",
+            ].join("\n")
+          : "Para continuar, responde con la opcion (ej.: A o 1) del modelo que deseas.";
+        handledByRecommendation = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      }
+    }
+
     const selectionAtRaw = String(nextMemory.last_selection_at || previousMemory?.last_selection_at || "");
     const selectionAtMs = Date.parse(selectionAtRaw);
     const activeSelectionWindowMs = 30 * 60 * 1000;
@@ -2608,7 +2642,7 @@ export async function POST(req: Request) {
       const rememberedOptionProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
       const optText = normalizeText(originalInboundText);
       if (rememberedOptionProduct) {
-        if (isCatalogBreadthQuestion(originalInboundText) || isInventoryInfoIntent(originalInboundText) || isBalanceTypeQuestion(originalInboundText)) {
+        if (inboundTechnicalSpec || inboundCategoryOrInventoryIntent) {
           nextMemory.awaiting_action = "none";
           nextMemory.pending_product_options = [];
         } else {
@@ -2787,27 +2821,51 @@ export async function POST(req: Request) {
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
 
-    if (!handledByGreeting && isInventoryInfoIntent(inbound.text) && !detectCatalogCategoryIntent(inbound.text)) {
+    if (!handledByGreeting && (inboundInventoryIntent || Boolean(inboundCategoryIntent))) {
       try {
-        const totalActive = await countCatalogRows(false);
-        const totalPriced = await countCatalogRows(true);
-        const sample = await fetchCatalogRows("name", 5, false);
+        if (inboundCategoryIntent) {
+          const categoryRowsRaw = await fetchCatalogRows("id,name,category,brand,base_price_usd,source_payload,product_url", 220, false);
+          const categoryRowsCommercial = (Array.isArray(categoryRowsRaw) ? categoryRowsRaw : []).filter((r: any) => isCommercialCatalogRow(r));
+          const scoped = scopeCatalogRows(categoryRowsCommercial as any, inboundCategoryIntent);
+          const options = buildNumberedProductOptions(scoped, 10);
+          const shown = options.slice(0, 8);
+          const categoryLabel = inboundCategoryIntent.replace(/_/g, " ");
+          if (options.length) {
+            reply = [
+              `Si, tenemos ${options.length} referencias en la categoria ${categoryLabel}.`,
+              ...shown.map((o) => `${o.code}) ${o.name}`),
+              ...(options.length > shown.length ? ["- y mas referencias disponibles"] : []),
+              "",
+              "Responde con letra o numero (ej.: A o 1) y te envio ficha, imagen o cotizacion.",
+            ].join("\n");
+            nextMemory.pending_product_options = options;
+            nextMemory.awaiting_action = "product_option_selection";
+            nextMemory.last_category_intent = inboundCategoryIntent;
+          } else {
+            reply = `No encuentro referencias activas en la categoria ${categoryLabel} dentro de esta base. Si quieres, te muestro otra categoria disponible.`;
+            nextMemory.last_category_intent = inboundCategoryIntent;
+          }
+        } else {
+          const totalActive = await countCatalogRows(false);
+          const totalPriced = await countCatalogRows(true);
+          const sample = await fetchCatalogRows("name", 5, false);
 
-        const examples = Array.isArray(sample)
-          ? sample.map((x: any) => String(x?.name || "").trim()).filter(Boolean)
-          : [];
-        const top = examples.slice(0, 3);
-        reply = [
-          `Te comparto el catalogo oficial actualizado de OHAUS Colombia: ${CATALOG_REFERENCE_URL}`,
-          "",
-          "Categorias principales:",
-          ...OFFICIAL_CATALOG_CATEGORIES.map((c) => `- ${c}`),
-          "",
-          `Catalogo interno para envio rapido por WhatsApp: ${Number(totalActive || 0)} productos activos, ${Number(totalPriced || 0)} con precio base para cotizacion automatica.`,
-          ...(top.length ? ["", "Ejemplos disponibles en esta instancia:", ...top.map((x) => `- ${x}`)] : []),
-          "",
-          "Si quieres, dime categoria y modelo exacto y te envio ficha/imagen por este chat.",
-        ].join("\n");
+          const examples = Array.isArray(sample)
+            ? sample.map((x: any) => String(x?.name || "").trim()).filter(Boolean)
+            : [];
+          const top = examples.slice(0, 3);
+          reply = [
+            `Te comparto el catalogo oficial actualizado de OHAUS Colombia: ${CATALOG_REFERENCE_URL}`,
+            "",
+            "Categorias principales:",
+            ...OFFICIAL_CATALOG_CATEGORIES.map((c) => `- ${c}`),
+            "",
+            `Catalogo interno para envio rapido por WhatsApp: ${Number(totalActive || 0)} productos activos, ${Number(totalPriced || 0)} con precio base para cotizacion automatica.`,
+            ...(top.length ? ["", "Ejemplos disponibles en esta instancia:", ...top.map((x) => `- ${x}`)] : []),
+            "",
+            "Si quieres, dime categoria y modelo exacto y te envio ficha/imagen por este chat.",
+          ].join("\n");
+        }
         handledByInventory = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       } catch (invErr: any) {
@@ -4487,6 +4545,42 @@ export async function POST(req: Request) {
       reply = `${String(reply || "").trim()}\n\nSi quieres, compárteme tu nombre para dejarlo guardado.`;
       nextMemory.awaiting_action = "capture_name";
     }
+
+    const resolvedRoute =
+      autoQuoteDocs.length || autoQuoteBundle || resendPdf
+        ? "quote_delivery"
+        : technicalDocs.length || sentTechSheet || sentImage
+          ? "technical_delivery"
+          : handledByRecall
+            ? "quote_recall"
+            : handledByQuoteIntake
+              ? "quote_intake"
+              : handledByQuoteStarter
+                ? "quote_starter"
+                : handledByInventory
+                  ? "inventory_category"
+                  : handledByTechSheet
+                    ? "technical_lookup"
+                    : handledByPricing
+                      ? "pricing_lookup"
+                      : handledByProductLookup
+                        ? "product_lookup"
+                        : handledByRecommendation
+                          ? "recommendation"
+                          : handledByHistory
+                            ? "history"
+                            : handledByGreeting
+                              ? (isConversationCloseIntent(originalInboundText) ? "conversation_close" : "greeting")
+                              : "fallback";
+    nextMemory.last_route = resolvedRoute;
+    nextMemory.last_route_at = new Date().toISOString();
+    console.log("[evolution-webhook] route_decision", {
+      route: resolvedRoute,
+      awaitingAction,
+      inboundCategoryIntent: inboundCategoryIntent || null,
+      inboundInventoryIntent,
+      inboundTechnicalSpec,
+    });
 
     const deliveredSalesAsset = Boolean(autoQuoteDocs.length || autoQuoteBundle || resendPdf || technicalDocs.length || sentQuotePdf || sentTechSheet || sentImage);
     if (!handledByGreeting && deliveredSalesAsset) {

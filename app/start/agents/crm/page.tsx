@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { authedFetch } from "@/app/start/agents/authedFetchAgents";
 import { AuthRequiredError } from "@/app/start/agents/authedFetchAgents";
 
+const CRM_STAGE_KEYS = ["analysis", "study", "quote", "purchase_order", "invoicing"] as const;
+type CrmStage = (typeof CRM_STAGE_KEYS)[number];
+
 const C = {
   bg: "#1a1d26",
   card: "#22262d",
@@ -25,7 +28,7 @@ type Draft = {
   company_name: string | null;
   product_name: string | null;
   total_cop: number | null;
-  status: "draft" | "sent" | "won" | "lost";
+  status: CrmStage;
   created_at: string;
   updated_at: string;
 };
@@ -45,7 +48,7 @@ type Contact = {
 
 type CrmSettings = {
   enabled: boolean;
-  stage_labels: { draft: string; sent: string; won: string; lost: string };
+  stage_labels: { analysis: string; study: string; quote: string; purchase_order: string; invoicing: string };
   contact_fields: Array<{ key: string; label: string; visible: boolean; required: boolean }>;
 };
 
@@ -87,7 +90,7 @@ export default function AgentsCrmPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<any>(null);
-  const [pipeline, setPipeline] = useState<{ draft: Draft[]; sent: Draft[]; won: Draft[]; lost: Draft[] }>({ draft: [], sent: [], won: [], lost: [] });
+  const [pipeline, setPipeline] = useState<Record<CrmStage, Draft[]>>({ analysis: [], study: [], quote: [], purchase_order: [], invoicing: [] });
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [updatingId, setUpdatingId] = useState<string>("");
   const [updatingContactKey, setUpdatingContactKey] = useState<string>("");
@@ -95,7 +98,7 @@ export default function AgentsCrmPage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [agentOptions, setAgentOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [channelSummary, setChannelSummary] = useState<Array<{ channel: string; count: number }>>([]);
-  const [byAgent, setByAgent] = useState<Array<{ agent_id: string; agent_name: string; total: number; sent: number; won: number; lost: number; pipeline_cop: number }>>([]);
+  const [byAgent, setByAgent] = useState<Array<{ agent_id: string; agent_name: string; total: number; quote: number; purchase_order: number; invoicing: number; pipeline_cop: number }>>([]);
   const [funnel, setFunnel] = useState<Array<{ key: string; label: string; value: number }>>([]);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -123,6 +126,16 @@ export default function AgentsCrmPage() {
   const [flowHoverKey, setFlowHoverKey] = useState("");
 
   const tr = (es: string, en: string) => (language === "en" ? en : es);
+
+  const normalizeStage = (raw: string): CrmStage => {
+    const s = String(raw || "").toLowerCase();
+    if (s === "analysis" || s === "study" || s === "quote" || s === "purchase_order" || s === "invoicing") return s;
+    if (s === "draft") return "analysis";
+    if (s === "sent") return "quote";
+    if (s === "won") return "purchase_order";
+    if (s === "lost") return "invoicing";
+    return "analysis";
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -177,7 +190,7 @@ export default function AgentsCrmPage() {
       const json = await res.json();
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo cargar CRM");
       setSummary(json?.data?.summary || null);
-      setPipeline(json?.data?.pipeline || { draft: [], sent: [], won: [], lost: [] });
+      setPipeline(json?.data?.pipeline || { analysis: [], study: [], quote: [], purchase_order: [], invoicing: [] });
       setContacts(Array.isArray(json?.data?.contacts) ? json.data.contacts : []);
       setAgentOptions(Array.isArray(json?.data?.agents) ? json.data.agents : []);
       setChannelSummary(Array.isArray(json?.data?.channel_summary) ? json.data.channel_summary : []);
@@ -315,13 +328,25 @@ export default function AgentsCrmPage() {
   };
 
   const stageLabel = (status: string) => {
-    const key = String(status || "").toLowerCase();
-    if (key === "draft") return settings?.stage_labels?.draft || tr("Nuevo", "New");
-    if (key === "sent") return settings?.stage_labels?.sent || tr("Cotizacion enviada", "Quote sent");
-    if (key === "won") return settings?.stage_labels?.won || tr("Ganado", "Won");
-    if (key === "lost") return settings?.stage_labels?.lost || tr("Perdido", "Lost");
-    return status || "-";
+    const key = normalizeStage(status);
+    if (key === "analysis") return tr("Analisis de Necesidad", "Needs Analysis");
+    if (key === "study") return tr("Estudio", "Study");
+    if (key === "quote") return tr("Cotizacion", "Quote");
+    if (key === "purchase_order") return tr("Orden de Compra", "Purchase Order");
+    if (key === "invoicing") return tr("Facturacion", "Invoicing");
+    return stageLabel("analysis");
   };
+
+  const stageOptions = useMemo(
+    () => [
+      { value: "analysis" as CrmStage, label: tr("Analisis de Necesidad", "Needs Analysis") },
+      { value: "study" as CrmStage, label: tr("Estudio", "Study") },
+      { value: "quote" as CrmStage, label: tr("Cotizacion", "Quote") },
+      { value: "purchase_order" as CrmStage, label: tr("Orden de Compra", "Purchase Order") },
+      { value: "invoicing" as CrmStage, label: tr("Facturacion", "Invoicing") },
+    ],
+    [language]
+  );
 
   const patchContactInline = async (c: Contact, patch: any, fallbackError: string) => {
     setUpdatingContactKey(String(c.key || ""));
@@ -522,13 +547,8 @@ export default function AgentsCrmPage() {
   };
 
   const columns = useMemo(
-    () => [
-      { key: "draft", title: settings?.stage_labels?.draft || tr("Nuevo", "New"), rows: pipeline.draft },
-      { key: "sent", title: settings?.stage_labels?.sent || tr("Cotizacion enviada", "Quote sent"), rows: pipeline.sent },
-      { key: "won", title: settings?.stage_labels?.won || tr("Ganado", "Won"), rows: pipeline.won },
-      { key: "lost", title: settings?.stage_labels?.lost || tr("Perdido", "Lost"), rows: pipeline.lost },
-    ],
-    [pipeline, language, settings]
+    () => CRM_STAGE_KEYS.map((key) => ({ key, title: stageLabel(key), rows: pipeline[key] || [] })),
+    [pipeline, stageOptions]
   );
 
   const mergedContactFields = useMemo(() => {
@@ -543,7 +563,7 @@ export default function AgentsCrmPage() {
   const filteredContacts = useMemo(() => {
     const q = search.trim().toLowerCase();
     return contacts.filter((c) => {
-      if (filterStatus !== "all" && String(c.status || "") !== filterStatus) return false;
+      if (filterStatus !== "all" && normalizeStage(String(c.status || "analysis")) !== normalizeStage(filterStatus)) return false;
       if (filterAgent !== "all" && String(c.assigned_agent_id || "") !== filterAgent) return false;
       if (filterChannel !== "all" && String(c.last_channel || "") !== filterChannel) return false;
       if (filterQuoteDemand === "with_quotes") {
@@ -579,14 +599,15 @@ export default function AgentsCrmPage() {
 
   const filteredPipeline = useMemo(() => {
     const statusSet = new Set(filteredContacts.map((c) => String(c.phone || "") + "|" + String(c.email || "").toLowerCase()));
-    const byStatus = {
-      draft: columns[0]?.rows || [],
-      sent: columns[1]?.rows || [],
-      won: columns[2]?.rows || [],
-      lost: columns[3]?.rows || [],
+    const byStatus: Record<CrmStage, Draft[]> = {
+      analysis: columns.find((c) => c.key === "analysis")?.rows || [],
+      study: columns.find((c) => c.key === "study")?.rows || [],
+      quote: columns.find((c) => c.key === "quote")?.rows || [],
+      purchase_order: columns.find((c) => c.key === "purchase_order")?.rows || [],
+      invoicing: columns.find((c) => c.key === "invoicing")?.rows || [],
     };
     const apply = (rows: Draft[]) => {
-      if (filterStatus !== "all") return rows.filter((r) => r.status === filterStatus);
+      if (filterStatus !== "all") return rows.filter((r) => normalizeStage(r.status) === normalizeStage(filterStatus));
       if (filterAgent !== "all") return rows.filter((r: any) => String((r as any).agent_id || "") === filterAgent);
       if (filterChannel === "all" && !search.trim()) return rows;
       return rows.filter((r) => {
@@ -599,10 +620,11 @@ export default function AgentsCrmPage() {
       });
     };
     return {
-      draft: apply(byStatus.draft),
-      sent: apply(byStatus.sent),
-      won: apply(byStatus.won),
-      lost: apply(byStatus.lost),
+      analysis: apply(byStatus.analysis),
+      study: apply(byStatus.study),
+      quote: apply(byStatus.quote),
+      purchase_order: apply(byStatus.purchase_order),
+      invoicing: apply(byStatus.invoicing),
     };
   }, [columns, filteredContacts, filterStatus, filterAgent, filterChannel, search]);
 
@@ -650,7 +672,7 @@ export default function AgentsCrmPage() {
 
   const allDeals = useMemo(() => {
     const map = new Map<string, Draft>();
-    [...(pipeline.draft || []), ...(pipeline.sent || []), ...(pipeline.won || []), ...(pipeline.lost || [])].forEach((d) => {
+    CRM_STAGE_KEYS.flatMap((k) => pipeline[k] || []).forEach((d) => {
       const id = String(d?.id || "").trim();
       if (!id || map.has(id)) return;
       map.set(id, d);
@@ -687,12 +709,12 @@ export default function AgentsCrmPage() {
   const flowMax = Math.max(1, ...flowSeries.current, ...flowSeries.previous);
 
   const opportunitiesTotal = Number(summary?.opportunities || 0);
-  const wonDeals = Number(summary?.won || 0);
-  const lostDeals = Number(summary?.lost || 0);
-  const openDeals = Math.max(0, opportunitiesTotal - wonDeals - lostDeals);
+  const purchaseOrderDeals = Number(summary?.purchase_order || 0);
+  const invoicingDeals = Number(summary?.invoicing || 0);
+  const openDeals = Math.max(0, opportunitiesTotal - purchaseOrderDeals - invoicingDeals);
   const outcomeBase = [
-    { key: "won", label: tr("Ganadas", "Won"), value: wonDeals, color: "#34d399" },
-    { key: "lost", label: tr("Perdidas", "Lost"), value: lostDeals, color: "#f87171" },
+    { key: "purchase_order", label: tr("Orden de compra", "Purchase order"), value: purchaseOrderDeals, color: "#34d399" },
+    { key: "invoicing", label: tr("Facturacion", "Invoicing"), value: invoicingDeals, color: "#f87171" },
     { key: "open", label: tr("Abiertas", "Open"), value: openDeals, color: "#60a5fa" },
   ];
   const outcomeTotal = Math.max(0, outcomeBase.reduce((acc, item) => acc + Number(item.value || 0), 0));
@@ -760,10 +782,7 @@ export default function AgentsCrmPage() {
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("Buscar contacto, correo, producto...", "Search contact, email, product...")} style={{ padding: "9px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }} />
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: "9px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
                 <option value="all">{tr("Todos los estados", "All statuses")}</option>
-                <option value="draft">{settings?.stage_labels?.draft || tr("Nuevo", "New")}</option>
-                <option value="sent">{settings?.stage_labels?.sent || tr("Cotizacion enviada", "Quote sent")}</option>
-                <option value="won">{settings?.stage_labels?.won || tr("Ganado", "Won")}</option>
-                <option value="lost">{settings?.stage_labels?.lost || tr("Perdido", "Lost")}</option>
+                {stageOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
               <select value={filterAgent} onChange={(e) => setFilterAgent(e.target.value)} style={{ padding: "9px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
                 <option value="all">{tr("Todos los asesores", "All assignees")}</option>
@@ -1132,11 +1151,13 @@ export default function AgentsCrmPage() {
           <Metric label={tr("Contactos", "Contacts")} value={summary?.contacts ?? 0} />
           <Metric label={tr("Oportunidades", "Opportunities")} value={summary?.opportunities ?? 0} />
           <Metric label={tr("Solicitudes cotización", "Quote requests")} value={summary?.quotes_requested ?? 0} />
-          <Metric label={tr("Cotizaciones enviadas", "Quotes sent")} value={summary?.quotes_sent ?? 0} />
+          <Metric label={tr("Análisis", "Analysis")} value={summary?.analysis ?? 0} />
+          <Metric label={tr("Estudio", "Study")} value={summary?.study ?? 0} />
+          <Metric label={tr("Cotización", "Quote")} value={summary?.quote ?? 0} />
+          <Metric label={tr("Orden de compra", "Purchase order")} value={summary?.purchase_order ?? 0} />
+          <Metric label={tr("Facturación", "Invoicing")} value={summary?.invoicing ?? 0} />
           <Metric label={tr("Contactos con cotización", "Contacts with quotes")} value={summary?.contacts_with_quote_requests ?? 0} />
           <Metric label={tr("Contactos con ficha/imagen", "Contacts with spec/image")} value={summary?.contacts_with_tech_sheet_requests ?? 0} />
-          <Metric label={tr("Ganadas", "Won")} value={summary?.won ?? 0} />
-          <Metric label={tr("Perdidas", "Lost")} value={summary?.lost ?? 0} />
           <Metric label={tr("Valor total cotizado", "Total quoted value")} value={`COP ${money(summary?.total_quotes_requested_cop ?? 0)}`} accent={C.blue} />
           <Metric label={tr("Valor en gestión COP", "Value in process COP")} value={money(summary?.total_pipeline_cop ?? 0)} accent={C.blue} />
         </div>
@@ -1147,7 +1168,7 @@ export default function AgentsCrmPage() {
         {activeTab === "pipeline" && (
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 14, background: C.card, padding: 12, marginBottom: 16 }}>
           <div style={{ fontWeight: 800, marginBottom: 10 }}>{tr("Negocios", "Deals")}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(250px,1fr))", gap: 10, overflowX: "auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns.length},minmax(250px,1fr))`, gap: 10, overflowX: "auto" }}>
             {columns.map((col) => (
               <div key={col.key} style={{ minHeight: 230, border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -1164,15 +1185,12 @@ export default function AgentsCrmPage() {
                         <span style={{ color: C.muted }}>{new Date(d.created_at).toLocaleDateString()}</span>
                       </div>
                       <select
-                        value={d.status}
+                        value={normalizeStage(d.status)}
                         onChange={(e) => void updateStatus(d.id, e.target.value as Draft["status"])}
                         disabled={updatingId === d.id}
                         style={{ width: "100%", marginTop: 8, padding: "7px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: C.card, color: C.white }}
                       >
-                        <option value="draft">{settings?.stage_labels?.draft || tr("Nuevo", "New")}</option>
-                        <option value="sent">{settings?.stage_labels?.sent || tr("Cotizacion enviada", "Quote sent")}</option>
-                        <option value="won">{settings?.stage_labels?.won || tr("Ganado", "Won")}</option>
-                        <option value="lost">{settings?.stage_labels?.lost || tr("Perdido", "Lost")}</option>
+                        {stageOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
                     </div>
                   ))}
@@ -1234,15 +1252,12 @@ export default function AgentsCrmPage() {
                     }}>
                       {f.key === "status" ? (
                         <select
-                          value={String(c.status || "draft")}
+                          value={normalizeStage(String(c.status || "analysis"))}
                           disabled={updatingContactKey === String(c.key || "")}
                           onChange={(e) => void updateContactStatusInline(c, e.target.value)}
                           style={{ width: "100%", minWidth: 136, padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0b0e14", color: C.white, fontSize: 13 }}
                         >
-                          <option value="draft">{settings?.stage_labels?.draft || tr("Nuevo", "New")}</option>
-                          <option value="sent">{settings?.stage_labels?.sent || tr("Cotizacion enviada", "Quote sent")}</option>
-                          <option value="won">{settings?.stage_labels?.won || tr("Ganado", "Won")}</option>
-                          <option value="lost">{settings?.stage_labels?.lost || tr("Perdido", "Lost")}</option>
+                          {stageOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                       ) : f.key === "next_action" ? (
                         <select
@@ -1316,14 +1331,11 @@ export default function AgentsCrmPage() {
 
               <select
                 disabled={savingContact}
-                value={String(selectedContact.status || "draft")}
+                value={normalizeStage(String(selectedContact.status || "analysis"))}
                 onChange={(e) => void saveContactPatch({ status: e.target.value })}
                 style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}
               >
-                <option value="draft">{settings?.stage_labels?.draft || tr("Nuevo", "New")}</option>
-                <option value="sent">{settings?.stage_labels?.sent || tr("Cotizacion enviada", "Quote sent")}</option>
-                <option value="won">{settings?.stage_labels?.won || tr("Ganado", "Won")}</option>
-                <option value="lost">{settings?.stage_labels?.lost || tr("Perdido", "Lost")}</option>
+                {stageOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
 
               <input

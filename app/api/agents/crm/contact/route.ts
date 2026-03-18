@@ -30,7 +30,17 @@ function isMissingTableError(err: any, tableName: string) {
   ) && msg.includes(t);
 }
 
-const ALLOWED_STATUS = new Set(["draft", "sent", "won", "lost"]);
+const ALLOWED_STATUS = new Set(["analysis", "study", "quote", "purchase_order", "invoicing", "draft", "sent", "won", "lost"]);
+
+function normalizeCrmStage(raw: string) {
+  const s = String(raw || "").toLowerCase();
+  if (s === "analysis" || s === "study" || s === "quote" || s === "purchase_order" || s === "invoicing") return s;
+  if (s === "draft") return "analysis";
+  if (s === "sent") return "quote";
+  if (s === "won") return "purchase_order";
+  if (s === "lost") return "invoicing";
+  return "analysis";
+}
 
 async function resolveOrCreateContact(supabase: any, ownerId: string, args: { phone?: string; email?: string; name?: string; company?: string }) {
   const phone = normalizePhone(args.phone);
@@ -70,7 +80,7 @@ async function resolveOrCreateContact(supabase: any, ownerId: string, args: { ph
     email: email || null,
     phone: phoneKey || null,
     company: args.company || null,
-    status: "draft",
+    status: "analysis",
   };
 
   const { data: inserted, error } = await supabase
@@ -156,7 +166,7 @@ export async function GET(req: Request) {
     timeline.push({
       at: String((d as any).created_at || ""),
       kind: "quote",
-      text: `Cotización ${String((d as any).product_name || "producto")}: COP ${Number((d as any).total_cop || 0).toLocaleString("es-CO")} (${String((d as any).status || "draft")})`,
+      text: `Cotización ${String((d as any).product_name || "producto")}: COP ${Number((d as any).total_cop || 0).toLocaleString("es-CO")} (${normalizeCrmStage(String((d as any).status || "analysis"))})`,
     });
   }
 
@@ -220,12 +230,13 @@ export async function PATCH(req: Request) {
   const email = String(body?.email || "").trim().toLowerCase();
   const name = String(body?.name || "").trim();
   const company = String(body?.company || "").trim();
-  const nextStatus = body?.status !== undefined ? String(body.status || "").toLowerCase() : undefined;
+  const nextStatusRaw = body?.status !== undefined ? String(body.status || "").toLowerCase() : undefined;
+  const nextStatus = nextStatusRaw !== undefined ? normalizeCrmStage(nextStatusRaw) : undefined;
 
   if (!phone && !email) {
     return NextResponse.json({ ok: false, error: "Missing phone or email" }, { status: 400 });
   }
-  if (nextStatus !== undefined && !ALLOWED_STATUS.has(nextStatus)) {
+  if (nextStatusRaw !== undefined && !ALLOWED_STATUS.has(nextStatusRaw)) {
     return NextResponse.json({ ok: false, error: "Invalid status" }, { status: 400 });
   }
 

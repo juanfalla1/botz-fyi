@@ -5,7 +5,17 @@ import { getServiceSupabase } from "@/app/api/_utils/supabase";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED = new Set(["draft", "sent", "won", "lost"]);
+const ALLOWED = new Set(["analysis", "study", "quote", "purchase_order", "invoicing", "draft", "sent", "won", "lost"]);
+
+function normalizeCrmStage(raw: string) {
+  const s = String(raw || "").toLowerCase();
+  if (s === "analysis" || s === "study" || s === "quote" || s === "purchase_order" || s === "invoicing") return s;
+  if (s === "draft") return "analysis";
+  if (s === "sent") return "quote";
+  if (s === "won") return "purchase_order";
+  if (s === "lost") return "invoicing";
+  return "analysis";
+}
 
 function normalizePhone(raw: string | null | undefined) {
   return String(raw || "").replace(/\D/g, "");
@@ -37,8 +47,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (!id) return NextResponse.json({ ok: false, error: "Missing id" }, { status: 400 });
 
   const body = await req.json().catch(() => ({}));
-  const nextStatus = String(body?.status || "").toLowerCase();
-  if (!ALLOWED.has(nextStatus)) {
+  const nextStatusRaw = String(body?.status || "").toLowerCase();
+  const nextStatus = normalizeCrmStage(nextStatusRaw);
+  if (!ALLOWED.has(nextStatusRaw)) {
     return NextResponse.json({ ok: false, error: "Invalid status" }, { status: 400 });
   }
 

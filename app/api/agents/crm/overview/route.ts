@@ -14,10 +14,20 @@ type Draft = {
   company_name: string | null;
   product_name: string | null;
   total_cop: number | null;
-  status: "draft" | "sent" | "won" | "lost";
+  status: "analysis" | "study" | "quote" | "purchase_order" | "invoicing";
   created_at: string;
   updated_at: string;
 };
+
+function normalizeCrmStage(raw: string | null | undefined): Draft["status"] {
+  const s = String(raw || "").toLowerCase();
+  if (s === "analysis" || s === "study" || s === "quote" || s === "purchase_order" || s === "invoicing") return s;
+  if (s === "draft") return "analysis";
+  if (s === "sent") return "quote";
+  if (s === "won") return "purchase_order";
+  if (s === "lost") return "invoicing";
+  return "analysis";
+}
 
 function normalizePhone(raw: string | null | undefined) {
   return String(raw || "").replace(/\D/g, "");
@@ -104,29 +114,32 @@ function scoreLeadTemperature(args: { status: string; quotesCount: number; inten
   const status = String(args.status || "").toLowerCase();
   const intent = normalizeText(args.intent);
   const quotes = Number(args.quotesCount || 0);
-  if (status === "won") return "closed_won";
-  if (status === "lost") return "closed_lost";
-  if (/(listo para cierre|solicita cotizacion\/pdf)/.test(intent) || status === "sent" || quotes >= 2) return "hot";
+  if (status === "invoicing") return "closed_won";
+  if (status === "purchase_order") return "hot";
+  if (/(listo para cierre|solicita cotizacion\/pdf)/.test(intent) || status === "quote" || quotes >= 2) return "hot";
   if (/(solicita ficha\/imagen|explorando opciones)/.test(intent) || quotes >= 1) return "warm";
   return "cold";
 }
 
 function suggestNextAction(statusRaw: string) {
-  const s = String(statusRaw || "draft").toLowerCase();
-  if (s === "sent") return "Seguimiento de cotizacion enviada";
-  if (s === "won") return "Coordinar pago y entrega";
-  if (s === "lost") return "Reactivar contacto en 30 dias";
+  const s = normalizeCrmStage(statusRaw);
+  if (s === "analysis") return "Calificar lead y validar necesidad";
+  if (s === "study") return "Levantar requerimiento tecnico y alcance";
+  if (s === "quote") return "Enviar y hacer seguimiento de cotizacion";
+  if (s === "purchase_order") return "Solicitar y validar orden de compra";
+  if (s === "invoicing") return "Emitir factura y coordinar entrega";
   return "Calificar lead y validar necesidad";
 }
 
 function suggestNextActionAt(statusRaw: string, baseAtRaw: string) {
-  const s = String(statusRaw || "draft").toLowerCase();
+  const s = normalizeCrmStage(statusRaw);
   const base = new Date(baseAtRaw || new Date().toISOString());
   const ts = Number.isFinite(base.getTime()) ? base.getTime() : Date.now();
   let plusMs = 4 * 60 * 60 * 1000;
-  if (s === "sent") plusMs = 24 * 60 * 60 * 1000;
-  if (s === "won") plusMs = 48 * 60 * 60 * 1000;
-  if (s === "lost") plusMs = 30 * 24 * 60 * 60 * 1000;
+  if (s === "study") plusMs = 12 * 60 * 60 * 1000;
+  if (s === "quote") plusMs = 24 * 60 * 60 * 1000;
+  if (s === "purchase_order") plusMs = 48 * 60 * 60 * 1000;
+  if (s === "invoicing") plusMs = 72 * 60 * 60 * 1000;
   return new Date(ts + plusMs).toISOString();
 }
 
@@ -172,6 +185,11 @@ export async function GET(req: Request) {
           contacts: 0,
           opportunities: 0,
           quotes_sent: 0,
+          analysis: 0,
+          study: 0,
+          quote: 0,
+          purchase_order: 0,
+          invoicing: 0,
           quotes_requested: 0,
           won: 0,
           lost: 0,
@@ -180,7 +198,7 @@ export async function GET(req: Request) {
           total_quotes_requested_cop: 0,
           total_pipeline_cop: 0,
         },
-        pipeline: { draft: [], sent: [], won: [], lost: [] },
+        pipeline: { analysis: [], study: [], quote: [], purchase_order: [], invoicing: [] },
         contacts: [],
         drafts: [],
       },
@@ -226,25 +244,28 @@ export async function GET(req: Request) {
   }
 
   const byStatus = {
-    draft: 0,
-    sent: 0,
-    won: 0,
-    lost: 0,
+    analysis: 0,
+    study: 0,
+    quote: 0,
+    purchase_order: 0,
+    invoicing: 0,
   };
-  const byAgentMap = new Map<string, { agent_id: string; agent_name: string; total: number; sent: number; won: number; lost: number; pipeline_cop: number }>();
+  const byAgentMap = new Map<string, { agent_id: string; agent_name: string; total: number; quote: number; purchase_order: number; invoicing: number; pipeline_cop: number }>();
 
   const pipeline = {
-    draft: [] as Draft[],
-    sent: [] as Draft[],
-    won: [] as Draft[],
-    lost: [] as Draft[],
+    analysis: [] as Draft[],
+    study: [] as Draft[],
+    quote: [] as Draft[],
+    purchase_order: [] as Draft[],
+    invoicing: [] as Draft[],
   };
 
   for (const d of safeDrafts) {
-    const st = String(d.status || "draft") as keyof typeof byStatus;
+    const st = normalizeCrmStage(d.status) as keyof typeof byStatus;
+    const normalizedDraft = { ...d, status: st } as Draft;
     if (st in byStatus) {
       byStatus[st] += 1;
-      pipeline[st].push(d);
+      pipeline[st].push(normalizedDraft);
     }
 
     const aid = String((d as any).agent_id || "");
@@ -253,16 +274,16 @@ export async function GET(req: Request) {
         agent_id: aid,
         agent_name: agentNameMap.get(aid) || aid,
         total: 0,
-        sent: 0,
-        won: 0,
-        lost: 0,
+        quote: 0,
+        purchase_order: 0,
+        invoicing: 0,
         pipeline_cop: 0,
       };
       prev.total += 1;
-      if (st === "sent") prev.sent += 1;
-      if (st === "won") prev.won += 1;
-      if (st === "lost") prev.lost += 1;
-      if (st !== "lost") prev.pipeline_cop += Number(d.total_cop || 0);
+      if (st === "quote") prev.quote += 1;
+      if (st === "purchase_order") prev.purchase_order += 1;
+      if (st === "invoicing") prev.invoicing += 1;
+      prev.pipeline_cop += Number(d.total_cop || 0);
       byAgentMap.set(aid, prev);
     }
   }
@@ -339,7 +360,7 @@ export async function GET(req: Request) {
       last_quote_value_cop: 0,
       last_quote_at: null,
       last_activity_at: d.updated_at || d.created_at,
-      status: d.status,
+      status: normalizeCrmStage(d.status),
       assigned_agent_id: d.agent_id || null,
       assigned_agent_name: d.agent_id ? (agentNameMap.get(String(d.agent_id)) || "") : "",
       last_channel: "",
@@ -371,7 +392,7 @@ export async function GET(req: Request) {
     }
     if (new Date(d.updated_at || d.created_at).getTime() > new Date(prev.last_activity_at).getTime()) {
       prev.last_activity_at = d.updated_at || d.created_at;
-      prev.status = d.status;
+      prev.status = normalizeCrmStage(d.status);
       prev.last_product = d.product_name || prev.last_product;
       if (d.agent_id) {
         prev.assigned_agent_id = d.agent_id;
@@ -401,7 +422,7 @@ export async function GET(req: Request) {
       last_quote_value_cop: 0,
       last_quote_at: null,
       last_activity_at: c?.created_at,
-      status: "draft",
+      status: "analysis",
       assigned_agent_id: null,
       assigned_agent_name: "",
       last_channel: String(c?.channel || "").toLowerCase(),
@@ -437,7 +458,7 @@ export async function GET(req: Request) {
       last_quote_value_cop: 0,
       last_quote_at: null,
       last_activity_at: (cc as any)?.updated_at || new Date().toISOString(),
-      status: String((cc as any)?.status || "draft"),
+      status: normalizeCrmStage((cc as any)?.status || "analysis"),
       assigned_agent_id: (cc as any)?.assigned_agent_id || null,
       assigned_agent_name: (cc as any)?.assigned_agent_id ? (agentNameMap.get(String((cc as any)?.assigned_agent_id)) || "") : "",
       last_channel: "",
@@ -454,7 +475,7 @@ export async function GET(req: Request) {
     prev.email = String((cc as any)?.email || prev.email || "");
     prev.phone = phoneTail10((cc as any)?.phone || prev.phone || "");
     prev.company = String((cc as any)?.company || prev.company || "");
-    prev.status = String((cc as any)?.status || prev.status || "draft");
+    prev.status = normalizeCrmStage((cc as any)?.status || prev.status || "analysis");
     prev.assigned_agent_id = (cc as any)?.assigned_agent_id || prev.assigned_agent_id || null;
     prev.assigned_agent_name = prev.assigned_agent_id ? (agentNameMap.get(String(prev.assigned_agent_id)) || prev.assigned_agent_name || "") : "";
     prev.next_action = String((cc as any)?.next_action || prev.next_action || "");
@@ -465,8 +486,8 @@ export async function GET(req: Request) {
 
   const latestSentByKey = new Map<string, string>();
   for (const d of safeDrafts) {
-    const st = String(d.status || "").toLowerCase();
-    if (!(st === "sent" || st === "won")) continue;
+    const st = normalizeCrmStage(d.status);
+    if (!(st === "quote" || st === "purchase_order" || st === "invoicing")) continue;
     const key = contactKeyOf(d.customer_phone, d.customer_email);
     if (!key) continue;
     const at = String(d.updated_at || d.created_at || "");
@@ -500,7 +521,7 @@ export async function GET(req: Request) {
     if (sentAt) contact.last_quote_sent_at = sentAt;
 
     contact.lead_temperature = scoreLeadTemperature({
-      status: String(contact.status || "draft"),
+      status: normalizeCrmStage(contact.status || "analysis"),
       quotesCount: Number(contact.quotes_count || 0),
       intent: String(contact.last_intent || ""),
     });
@@ -510,7 +531,7 @@ export async function GET(req: Request) {
     .map((c: any) => {
       const phone = phoneTail10(String(c.phone || ""));
       const hasName = Boolean(String(c.name || "").trim());
-      const status = String(c.status || "draft");
+      const status = normalizeCrmStage(String(c.status || "analysis"));
       const nextAction = String(c.next_action || "").trim() || suggestNextAction(status);
       const nextActionAt = c.next_action_at || suggestNextActionAt(status, String(c.last_activity_at || ""));
       return {
@@ -542,23 +563,27 @@ export async function GET(req: Request) {
   const summary = {
     contacts: contacts.length,
     opportunities: safeDrafts.length,
-    quotes_sent: byStatus.sent,
+    quotes_sent: byStatus.quote + byStatus.purchase_order + byStatus.invoicing,
+    analysis: byStatus.analysis,
+    study: byStatus.study,
+    quote: byStatus.quote,
+    purchase_order: byStatus.purchase_order,
+    invoicing: byStatus.invoicing,
     quotes_requested: safeDrafts.length,
-    won: byStatus.won,
-    lost: byStatus.lost,
+    won: byStatus.purchase_order,
+    lost: 0,
     contacts_with_quote_requests: contacts.filter((c: any) => Number(c.quote_requests_count || 0) > 0).length,
     contacts_with_tech_sheet_requests: contacts.filter((c: any) => Number(c.tech_sheet_requests_count || 0) > 0).length,
     total_quotes_requested_cop: safeDrafts.reduce((acc, d) => acc + Number(d.total_cop || 0), 0),
-    total_pipeline_cop: safeDrafts
-      .filter((d) => d.status !== "lost")
-      .reduce((acc, d) => acc + Number(d.total_cop || 0), 0),
+    total_pipeline_cop: safeDrafts.reduce((acc, d) => acc + Number(d.total_cop || 0), 0),
   };
 
   const funnel = [
-    { key: "draft", label: "Nuevo", value: byStatus.draft },
-    { key: "sent", label: "Cotizacion enviada", value: byStatus.sent },
-    { key: "won", label: "Ganado", value: byStatus.won },
-    { key: "lost", label: "Perdido", value: byStatus.lost },
+    { key: "analysis", label: "Analisis de necesidad", value: byStatus.analysis },
+    { key: "study", label: "Estudio", value: byStatus.study },
+    { key: "quote", label: "Cotizacion", value: byStatus.quote },
+    { key: "purchase_order", label: "Orden de compra", value: byStatus.purchase_order },
+    { key: "invoicing", label: "Facturacion", value: byStatus.invoicing },
   ];
 
   return NextResponse.json({

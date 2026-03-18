@@ -6,10 +6,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_STAGE_LABELS = {
-  draft: "Nuevo",
-  sent: "Cotizacion enviada",
-  won: "Ganado",
-  lost: "Perdido",
+  analysis: "Analisis de necesidad",
+  study: "Estudio",
+  quote: "Cotizacion",
+  purchase_order: "Orden de compra",
+  invoicing: "Facturacion",
 };
 
 const DEFAULT_CONTACT_FIELDS = [
@@ -50,11 +51,16 @@ function sanitizeContactFields(input: any) {
 
 function sanitizeStageLabels(input: any) {
   const src = input && typeof input === "object" ? input : {};
+  const legacyDraft = String(src?.draft || "").trim();
+  const legacySent = String(src?.sent || "").trim();
+  const legacyWon = String(src?.won || "").trim();
+  const legacyLost = String(src?.lost || "").trim();
   return {
-    draft: String(src?.draft || DEFAULT_STAGE_LABELS.draft),
-    sent: String(src?.sent || DEFAULT_STAGE_LABELS.sent),
-    won: String(src?.won || DEFAULT_STAGE_LABELS.won),
-    lost: String(src?.lost || DEFAULT_STAGE_LABELS.lost),
+    analysis: String(src?.analysis || legacyDraft || DEFAULT_STAGE_LABELS.analysis),
+    study: String(src?.study || DEFAULT_STAGE_LABELS.study),
+    quote: String(src?.quote || legacySent || DEFAULT_STAGE_LABELS.quote),
+    purchase_order: String(src?.purchase_order || legacyWon || DEFAULT_STAGE_LABELS.purchase_order),
+    invoicing: String(src?.invoicing || legacyLost || DEFAULT_STAGE_LABELS.invoicing),
   };
 }
 
