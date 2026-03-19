@@ -2445,6 +2445,7 @@ export async function POST(req: Request) {
     const catalogProvider = String((cfg as any)?.catalog_provider || "ohaus_colombia").trim().toLowerCase();
 
     const inboundName = sanitizeCustomerDisplayName(inbound.pushName || "");
+    let recognizedReturningCustomer = false;
     let knownCustomerName = sanitizeCustomerDisplayName(String(nextMemory.customer_name || ""))
       || sanitizeCustomerDisplayName(String((existingConv as any)?.contact_name || ""))
       || inboundName;
@@ -2453,13 +2454,19 @@ export async function POST(req: Request) {
       try {
         const { data: crmContact } = await supabase
           .from("agent_crm_contacts")
-          .select("name")
+          .select("name,status,quote_requests_count")
           .eq("created_by", ownerId)
           .or(inboundFilter.replace(/contact_phone/g, "phone"))
           .order("updated_at", { ascending: false })
           .limit(1)
           .maybeSingle();
         knownCustomerName = sanitizeCustomerDisplayName(String((crmContact as any)?.name || ""));
+        const crmStatus = normalizeText(String((crmContact as any)?.status || ""));
+        const crmQuotes = Number((crmContact as any)?.quote_requests_count || 0);
+        recognizedReturningCustomer =
+          recognizedReturningCustomer ||
+          crmQuotes > 0 ||
+          /^(purchase_order|invoicing|won|quote|sent)$/.test(crmStatus);
       } catch {
         // ignore missing table or transient query errors
       }
@@ -2480,12 +2487,33 @@ export async function POST(req: Request) {
           return p === inboundPhoneNorm || phoneTail10(p) === inboundPhoneTail;
         });
         knownCustomerName = sanitizeCustomerDisplayName(String((mine as any)?.customer_name || ""));
+        if (mine) recognizedReturningCustomer = true;
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!recognizedReturningCustomer) {
+      try {
+        const { data: recentDrafts } = await supabase
+          .from("agent_quote_drafts")
+          .select("customer_phone")
+          .eq("created_by", ownerId)
+          .eq("agent_id", String(agent.id))
+          .order("created_at", { ascending: false })
+          .limit(60);
+        const drafts = Array.isArray(recentDrafts) ? recentDrafts : [];
+        recognizedReturningCustomer = drafts.some((d: any) => {
+          const p = normalizePhone(String(d?.customer_phone || ""));
+          return p === inboundPhoneNorm || phoneTail10(p) === inboundPhoneTail;
+        });
       } catch {
         // ignore
       }
     }
 
     if (knownCustomerName) nextMemory.customer_name = knownCustomerName;
+    nextMemory.recognized_returning_customer = recognizedReturningCustomer;
 
     const awaitingAction = String(previousMemory?.awaiting_action || "");
     const originalInboundText = String(inbound.text || "").trim();
@@ -2929,7 +2957,9 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && isGreetingIntent(inbound.text)) {
       reply = knownCustomerName
-        ? `Hola ${knownCustomerName}, soy Ava, tu asistente virtual de Avanza Group. ¿Qué necesitas hoy?`
+        ? (recognizedReturningCustomer
+            ? `Hola ${knownCustomerName}, que bueno tenerte nuevamente con nosotros. Soy Ava, tu asistente virtual de Avanza Group. ¿Que producto necesitas hoy?`
+            : `Hola ${knownCustomerName}, soy Ava, tu asistente virtual de Avanza Group. ¿Qué necesitas hoy?`)
         : "Hola, soy Ava, tu asistente virtual de Avanza Group. ¿Con quién tengo el gusto?";
       if (!knownCustomerName) nextMemory.awaiting_action = "capture_name";
       handledByGreeting = true;
