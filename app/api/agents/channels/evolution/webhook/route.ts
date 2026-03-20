@@ -5299,12 +5299,23 @@ export async function POST(req: Request) {
             });
             sentImage = true;
           } else {
-            await evolutionService.sendDocument(outboundInstance, sentTo, {
-              base64: doc.base64,
-              fileName: doc.fileName,
-              caption: doc.caption || "Información técnica",
-              mimetype: doc.mimetype || "application/pdf",
-            });
+            const primaryName = safeFileName(String(doc.fileName || "ficha-tecnica.pdf"), "ficha-tecnica", "pdf");
+            const retryName = safeFileName(`ficha-${Date.now()}.pdf`, "ficha-tecnica", "pdf");
+            try {
+              await evolutionService.sendDocument(outboundInstance, sentTo, {
+                base64: doc.base64,
+                fileName: primaryName,
+                caption: doc.caption || "Ficha técnica",
+                mimetype: doc.mimetype || "application/pdf",
+              });
+            } catch {
+              await evolutionService.sendDocument(outboundInstance, sentTo, {
+                base64: doc.base64,
+                fileName: retryName,
+                caption: "Ficha técnica",
+                mimetype: doc.mimetype || "application/pdf",
+              });
+            }
             sentTechSheet = true;
           }
         }
@@ -5318,7 +5329,7 @@ export async function POST(req: Request) {
           await evolutionService.sendMessage(
             outboundInstance,
             sentTo,
-            `Intenté enviarte el archivo técnico, pero falló en este intento. Si escribes 'reenviar ficha' o 'reenviar imagen', lo reintento ahora mismo.${extra}`
+            `Intenté enviarte la ficha técnica, pero falló en este intento. Si escribes 'reenviar ficha', lo reintento ahora mismo.${extra}`
           );
         } catch {}
       }
