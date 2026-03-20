@@ -2747,6 +2747,13 @@ export async function POST(req: Request) {
 
     const awaitingAction = String(previousMemory?.awaiting_action || "");
     const originalInboundText = String(inbound.text || "").trim();
+    const explicitModelGlobal = hasConcreteProductHint(originalInboundText) && !isOptionOnlyReply(originalInboundText);
+    if (explicitModelGlobal) {
+      nextMemory.awaiting_action = "none";
+      nextMemory.pending_product_options = [];
+      nextMemory.pending_family_options = [];
+      nextMemory.last_category_intent = "";
+    }
     const inboundCategoryIntent = normalizeText(String(detectCatalogCategoryIntent(originalInboundText) || ""));
     const inboundInventoryIntent = Boolean(
       isInventoryInfoIntent(originalInboundText) ||
@@ -3060,7 +3067,7 @@ export async function POST(req: Request) {
           .limit(320);
         const commercial = (Array.isArray(ownerRows) ? ownerRows : []).filter((r: any) => isCommercialCatalogRow(r));
         const scoped = rememberedCategory ? scopeCatalogRows(commercial as any, rememberedCategory) : commercial;
-        const direct = pickBestCatalogProduct(originalInboundText, scoped as any[]);
+        const direct = pickBestCatalogProduct(originalInboundText, scoped as any[]) || pickBestCatalogProduct(originalInboundText, commercial as any[]);
         if (direct?.id) {
           const directName = String((direct as any)?.name || "").trim();
           nextMemory.last_product_name = directName;
