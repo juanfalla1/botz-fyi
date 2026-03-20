@@ -1,6 +1,5 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import * as XLSX from "xlsx";
 import { supabase } from "./supabaseClient";
 import LeadDetailsDrawer from "./LeadDetailsDrawer";
 import AsignarAsesor from "./Asignarasesor";
@@ -988,18 +987,29 @@ export default function LeadsTable({
   };
 
   const exportExcel = () => {
-    const data = filteredLeads.map((l) => ({
-      Nombre: l.name,
-      Email: l.email,
-      Telefono: l.phone,
-      Estado: l.status,
-      Accion: l.next_action,
-      Calificacion: l.calificacion,
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Leads");
-    XLSX.writeFile(wb, "leads.xlsx");
+    const headers = ["Nombre", "Email", "Telefono", "Estado", "Accion", "Calificacion"];
+    const escapeCell = (value: unknown) => {
+      const text = String(value ?? "").replace(/\r?\n/g, " ").trim();
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+    const rows = filteredLeads.map((l) => [
+      l.name,
+      l.email,
+      l.phone,
+      l.status,
+      l.next_action,
+      l.calificacion,
+    ]);
+    const csv = [headers.map(escapeCell).join(","), ...rows.map((r) => r.map(escapeCell).join(","))].join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "leads.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   const getStatusColor = (status: string | null | undefined) => {

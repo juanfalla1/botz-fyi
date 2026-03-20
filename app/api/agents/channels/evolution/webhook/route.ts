@@ -652,6 +652,24 @@ function extractCustomerPhone(text: string, fallbackInbound: string): string {
   return "";
 }
 
+function extractLabeledValue(text: string, labels: string[]): string {
+  const raw = String(text || "");
+  for (const label of labels) {
+    const rx = new RegExp(`(?:${label})\\s*[:=]\\s*([^\\n,;]{2,120})`, "i");
+    const m = raw.match(rx);
+    if (m?.[1]) return String(m[1]).trim();
+  }
+  return "";
+}
+
+function normalizeCityLabel(raw: string): string {
+  const t = normalizeText(String(raw || ""));
+  if (!t) return "";
+  if (/(bogota|bogota dc|bogota d c)/.test(t)) return "bogota";
+  if (/(medellin|antioquia|envigado|itagui|sabaneta|bello)/.test(t)) return "antioquia";
+  return "";
+}
+
 function isPresent(v: string): boolean {
   return Boolean(String(v || "").trim());
 }
@@ -1070,7 +1088,7 @@ function isInventoryInfoIntent(text: string): boolean {
     /(que|cuales).*(productos|equipos).*(tienen|manejan|venden|ofrecen)/.test(t) ||
     /(productos|producto|equipos|equipo).*(tienen|tiene|manejan|maneja|venden|vende|ofrecen|ofrece)/.test(t) ||
     /(que mas producto|que mas productos|que otros productos|que otras referencias|que mas tienes|que otro tienes)/.test(t) ||
-    /(tiene|tienen|tinen|hay).*(balanza|balanzas|bascula|basculas)/.test(t)
+    /(tiene|tienen|tinen|hay).*(balanza|balanzas|blanza|blanzas|bascula|basculas|bscula|bsculas)/.test(t)
   );
 }
 
@@ -1108,10 +1126,10 @@ function detectCatalogCategoryIntent(text: string): string | null {
     return "electroquimica";
   }
   if (/(analizador de humedad|humedad|mb120|mb90|mb27|mb23)/.test(t)) return "analizador_humedad";
-  if (/(bascula|basculas|ranger|defender|valor|plataforma|control de peso|ckw|td52p)/.test(t)) return "basculas";
+  if (/(bascula|basculas|bscula|bsculas|ranger|defender|valor|plataforma|control de peso|ckw|td52p)/.test(t)) return "basculas";
   if (/(impresora)/.test(t)) return "impresoras";
   if (/(centrifuga|agitador|mezclador|homogeneizador|planchas|laboratorio)/.test(t)) return "equipos_laboratorio";
-  if (/(balanza|balanzas|explorer|adventurer|pioneer|pr\b|scout|analitica|semi analitica|precision)/.test(t)) return "balanzas";
+  if (/(balanza|balanzas|blanza|blanzas|explorer|adventurer|pioneer|pr\b|scout|analitica|semi analitica|precision)/.test(t)) return "balanzas";
   if (/(documento|brochure|manual|guia|catalogo pdf)/.test(t)) return "documentos";
   return null;
 }
@@ -2773,11 +2791,13 @@ export async function POST(req: Request) {
     if (!handledByGreeting && selectedStrictActive && !inboundTechnicalSpec && !isConversationCloseIntent(originalInboundText)) {
       const tStrict = normalizeText(originalInboundText);
       const looksLikeTechnicalNumericSpec = /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*[x×]\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b/.test(normalizeCatalogQueryText(originalInboundText));
+      const looksLikeCategoryOrInventoryByTypos = /(balanza|balanzas|blanza|blanzas|bascula|basculas|bscula|bsculas|catalogo|inventario|referencias|que\s+tienen|tienen\s+bal)/.test(tStrict);
       const asksCatalogListStrict =
         isCatalogBreadthQuestion(originalInboundText) ||
         isInventoryInfoIntent(originalInboundText) ||
         isBalanceTypeQuestion(originalInboundText) ||
         looksLikeTechnicalNumericSpec ||
+        looksLikeCategoryOrInventoryByTypos ||
         /(catalogo|que tipos|que tipo|que manejan|que tienen)/.test(tStrict);
       const explicitOtherModel = hasConcreteProductHint(originalInboundText) && !normalizeText(selectedNameStrict || "").includes(normalizeText(extractModelLikeTokens(originalInboundText).join(" ")));
 
@@ -2800,8 +2820,10 @@ export async function POST(req: Request) {
           inbound.text = `imagen de ${selectedNameStrict}`;
           nextMemory.awaiting_action = "none";
         } else if ((awaitingAction === "product_action" || awaitingAction === "conversation_followup") && isAffirmativeIntent(tStrict)) {
-          inbound.text = `cotizar ${selectedNameStrict} ${originalInboundText}`.trim();
-          nextMemory.awaiting_action = "quote_product_selection";
+          reply = `Perfecto. Para ${selectedNameStrict}, responde 1 para cotización o 2 para ficha técnica.`;
+          nextMemory.awaiting_action = "product_action";
+          handledByQuoteStarter = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
       }
     }
@@ -2820,7 +2842,7 @@ export async function POST(req: Request) {
         const asksQuoteNow = asksQuoteIntent(t) || isPriceIntent(t) || isQuoteProceedIntent(t) || /\b(cotiza|cotizacion|precio)\b/.test(t);
         const asksSheetNow = isTechnicalSheetIntent(t);
         const asksImageNow = isProductImageIntent(t);
-        if (asksQuoteNow || (isAffirmativeIntent(t) && !asksSheetNow && !asksImageNow)) {
+        if (asksQuoteNow) {
           inbound.text = `cotizar ${rememberedProduct} ${originalInboundText}`.trim();
           nextMemory.awaiting_action = "quote_product_selection";
         } else if (asksSheetNow && asksImageNow) {
@@ -4240,11 +4262,11 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && awaitingAction !== "conversation_followup" && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && isAffirmativeIntent(inbound.text)) {
+    if (!handledByGreeting && awaitingAction === "tech_asset_choice" && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && isAffirmativeIntent(inbound.text)) {
       const prevIntent = String(previousMemory?.last_intent || "");
       const lastProductName = String(previousMemory?.last_product_name || nextMemory?.last_product_name || "").trim();
-      if ((/(tech_sheet_request|image_request)/.test(prevIntent) || awaitingAction === "tech_product_selection") && lastProductName) {
-        reply = `Perfecto. Para ${lastProductName}, ¿prefieres que te envíe ficha técnica, imagen o ambas por este WhatsApp?`;
+      if ((/(tech_sheet_request|image_request)/.test(prevIntent)) && lastProductName) {
+        reply = `Perfecto. Para ${lastProductName}, responde 1 para cotización o 2 para ficha técnica.`;
         nextMemory.awaiting_action = "tech_asset_choice";
         handledByTechSheet = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
@@ -4456,13 +4478,22 @@ export async function POST(req: Request) {
             extractCustomerPhone(combinedUserContext, inbound.from) ||
             String(nextMemory.customer_phone || "") ||
             inboundPhoneFallback;
+          const customerCityRaw = extractLabeledValue(combinedUserContext, ["ciudad", "city"]);
+          const customerCity = normalizeCityLabel(customerCityRaw);
+          const customerCompany = extractLabeledValue(combinedUserContext, ["empresa", "company", "razon social"]);
+          const customerNit = extractLabeledValue(combinedUserContext, ["nit"]);
+          const customerContact = extractLabeledValue(combinedUserContext, ["contacto"]);
 
           const missingFields: string[] = [];
-          if (!isPresent(customerName)) missingFields.push("nombre completo");
-          if (!isPresent(customerPhone)) missingFields.push("telefono");
+          if (!isPresent(customerCity)) missingFields.push("ciudad");
+          if (!isPresent(customerCompany)) missingFields.push("empresa");
+          if (!isPresent(customerNit)) missingFields.push("NIT");
+          if (!isPresent(customerContact) && !isPresent(customerName)) missingFields.push("contacto");
+          if (!isPresent(customerEmail)) missingFields.push("correo");
+          if (!isPresent(customerPhone)) missingFields.push("celular");
 
           if (missingFields.length) {
-            reply = `Para enviarte la cotizacion en PDF sin campos vacios, me faltan estos datos: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Nombre: ..., Telefono: ...).`;
+            reply = `Para formalizar la cotizacion me faltan: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Ciudad: Bogota, Empresa: ..., NIT: ..., Contacto: ..., Correo: ..., Celular: ...).`;
             nextMemory.awaiting_action = "quote_contact_bundle";
             handledByQuoteIntake = true;
             billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
@@ -4475,8 +4506,10 @@ export async function POST(req: Request) {
               extractQuoteRequestedQuantity(inbound.text) ||
               extractQuoteRequestedQuantity(quoteSourceText)
             );
+            const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
+            const cityPriceCop = Number(cityPrices?.[customerCity] || 0);
             const basePrice = Number(selected?.base_price_usd || 0);
-            if (!(basePrice > 0)) {
+            if (!(basePrice > 0) && !(cityPriceCop > 0)) {
               reply = `Confirmo ${requestedQty} unidades de ${String(selected?.name || "ese producto")}. Este modelo no tiene precio base USD cargado todavía, por eso no puedo generar el PDF de cotización en este momento. Si me compartes precio base o autorizas cargarlo, te la genero de inmediato.`;
               handledByQuoteIntake = true;
               billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
@@ -4506,30 +4539,46 @@ export async function POST(req: Request) {
                   );
                   if (explicitQty > 1) quantity = explicitQty;
                 }
-                const basePriceUsd = Number((selected as any)?.base_price_usd || 0);
-                if (!(basePriceUsd > 0)) continue;
+                const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
+                const cityPriceCop = Number(cityPrices?.[customerCity] || 0);
+                const bogotaPriceCop = Number(cityPrices?.bogota || 0);
+                const selectedUnitCop = cityPriceCop > 0 ? cityPriceCop : bogotaPriceCop;
+                const basePriceUsdRaw = Number((selected as any)?.base_price_usd || 0);
+                const basePriceUsd = basePriceUsdRaw > 0
+                  ? basePriceUsdRaw
+                  : (selectedUnitCop > 0 && trmRate > 0 ? Number((selectedUnitCop / trmRate).toFixed(6)) : 0);
+                if (!(basePriceUsd > 0) && !(selectedUnitCop > 0)) continue;
 
-                const totalCop = Number((basePriceUsd * trmRate * quantity).toFixed(2));
+                const totalCop = selectedUnitCop > 0
+                  ? Number((selectedUnitCop * quantity).toFixed(2))
+                  : Number((basePriceUsd * trmRate * quantity).toFixed(2));
                 const draftPayload = {
                   tenant_id: (agent as any)?.tenant_id || null,
                   created_by: ownerId,
                   agent_id: String(agent.id),
-                  customer_name: customerName || null,
+                  customer_name: (customerContact || customerName) || null,
                   customer_email: customerEmail || null,
                   customer_phone: customerPhone || null,
-                  company_name: String(cfg?.company_name || cfg?.company_desc || "Avanza Balanzas").slice(0, 120) || "Avanza Balanzas",
-                  location: null,
+                  company_name: String(customerCompany || cfg?.company_name || cfg?.company_desc || "Avanza Balanzas").slice(0, 120) || "Avanza Balanzas",
+                  location: customerCity || null,
                   product_catalog_id: (selected as any).id,
                   product_name: String((selected as any).name || ""),
                   base_price_usd: basePriceUsd,
                   trm_rate: trmRate,
                   total_cop: totalCop,
-                  notes: "Cotizacion automatica por WhatsApp",
+                  notes: selectedUnitCop > 0
+                    ? `Cotizacion automatica por WhatsApp - precio ciudad ${customerCity}`
+                    : "Cotizacion automatica por WhatsApp",
                   payload: {
                     quantity,
                     trm_date: trm.rate_date,
                     trm_source: trm.source,
                     price_currency: String((selected as any)?.price_currency || "USD"),
+                    customer_city: customerCity || null,
+                    customer_nit: customerNit || null,
+                    customer_company: customerCompany || null,
+                    customer_contact: customerContact || customerName || null,
+                    unit_price_cop: selectedUnitCop > 0 ? selectedUnitCop : null,
                     automation: "evolution_webhook",
                   },
                   status: "draft",
