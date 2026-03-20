@@ -1303,7 +1303,11 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
   }
 
   if (!best) return "";
-  if (modelTokens.length && best.modelHits === 0 && !(best.termHits >= 2 && best.score >= 8)) return "";
+  const hasStrongFamilyHint = familyHints.some((h) => /explorer|pioneer|adventurer|mb|basculas|electroquimica/.test(normalizeCatalogQueryText(h)));
+  if (modelTokens.length && best.modelHits === 0) {
+    if (hasStrongFamilyHint && best.termHits >= 1 && best.score >= 4) return best.filePath;
+    if (!(best.termHits >= 2 && best.score >= 8)) return "";
+  }
   return best.filePath;
 }
 
