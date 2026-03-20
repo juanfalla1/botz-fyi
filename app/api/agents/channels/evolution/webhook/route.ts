@@ -4039,7 +4039,9 @@ export async function POST(req: Request) {
                 )
               : [];
             reply = [
-              `Perfecto. Ya te envío por este WhatsApp la ficha técnica de ${String((matched as any)?.name || "ese producto")}.`,
+              attachedSheet
+                ? `Perfecto. Te envío por este WhatsApp la ficha técnica en PDF de ${String((matched as any)?.name || "ese producto")}.`
+                : `Perfecto. Te comparto la información técnica de ${String((matched as any)?.name || "ese producto")}.`,
               ...summarySection,
               ...sheetLinkFallbackSection,
               ...repositoryLinkFallbackSection,
