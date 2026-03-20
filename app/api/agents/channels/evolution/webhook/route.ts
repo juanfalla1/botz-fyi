@@ -899,6 +899,50 @@ function resolvePendingProductOption(text: string, optionsRaw: any): { code: str
   return null;
 }
 
+function familyLabelFromRow(row: any): string {
+  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const family = String(source?.family || source?.familia || "").trim();
+  if (family) return family;
+  const cat = String(row?.category || "").trim().replace(/_/g, " ");
+  return cat || "General";
+}
+
+function buildNumberedFamilyOptions(rows: any[], maxItems = 8): Array<{ code: string; rank: number; key: string; label: string; count: number }> {
+  const map = new Map<string, { key: string; label: string; count: number }>();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const label = familyLabelFromRow(row);
+    const key = normalizeText(label);
+    if (!key) continue;
+    const prev = map.get(key) || { key, label, count: 0 };
+    prev.count += 1;
+    if (!prev.label || prev.label.length > label.length) prev.label = label;
+    map.set(key, prev);
+  }
+  return Array.from(map.values())
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .slice(0, maxItems)
+    .map((x, i) => ({ code: String.fromCharCode(65 + i), rank: i + 1, key: x.key, label: x.label, count: x.count }));
+}
+
+function resolvePendingFamilyOption(text: string, optionsRaw: any): { code: string; rank: number; key: string; label: string; count: number } | null {
+  const options = (Array.isArray(optionsRaw) ? optionsRaw : [])
+    .map((o: any) => ({
+      code: String(o?.code || "").toUpperCase(),
+      rank: Number(o?.rank || 0),
+      key: String(o?.key || "").trim(),
+      label: String(o?.label || "").trim(),
+      count: Number(o?.count || 0),
+    }))
+    .filter((o: any) => o.code && o.rank > 0 && o.key);
+  if (!options.length) return null;
+  const t = normalizeText(String(text || "").trim());
+  if (!t) return null;
+  const byDirect = options.find((o: any) => t === normalizeText(o.code) || t === String(o.rank));
+  if (byDirect) return byDirect;
+  const byMention = options.find((o: any) => normalizeText(o.label).includes(t) || t.includes(normalizeText(o.label)));
+  return byMention || null;
+}
+
 function isOptionOnlyReply(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
@@ -2891,6 +2935,47 @@ export async function POST(req: Request) {
     const pendingProductOptions = Array.isArray((previousMemory as any)?.pending_product_options)
       ? (previousMemory as any).pending_product_options
       : [];
+    const pendingFamilyOptions = Array.isArray((previousMemory as any)?.pending_family_options)
+      ? (previousMemory as any).pending_family_options
+      : [];
+    const selectedPendingFamily = String(previousMemory?.awaiting_action || "") === "family_option_selection"
+      ? resolvePendingFamilyOption(originalInboundText, pendingFamilyOptions)
+      : null;
+    if (!handledByGreeting && selectedPendingFamily) {
+      const rememberedCategory = String(previousMemory?.last_category_intent || nextMemory?.last_category_intent || "").trim();
+      const { data: ownerFamilyRows } = await supabase
+        .from("agent_product_catalog")
+        .select("id,name,category,brand,base_price_usd,source_payload,product_url,is_active")
+        .eq("created_by", ownerId)
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(320);
+      const familyRowsCommercial = (Array.isArray(ownerFamilyRows) ? ownerFamilyRows : []).filter((r: any) => isCommercialCatalogRow(r));
+      const categoryScoped = rememberedCategory ? scopeCatalogRows(familyRowsCommercial as any, rememberedCategory) : familyRowsCommercial;
+      const familyScoped = categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedPendingFamily.key || "")));
+      const options = buildNumberedProductOptions(familyScoped as any[], 10);
+      const shown = options.slice(0, 8);
+      if (options.length) {
+        reply = [
+          `Perfecto, para la familia ${String(selectedPendingFamily.label || "")} tengo ${options.length} referencia(s).`,
+          ...shown.map((o) => `${o.code}) ${o.name}`),
+          ...(options.length > shown.length ? ["- y mas referencias disponibles"] : []),
+          "",
+          "Responde con letra o numero (ej.: A o 1).",
+        ].join("\n");
+        nextMemory.pending_product_options = options;
+        nextMemory.pending_family_options = [];
+        nextMemory.last_family_intent = String(selectedPendingFamily.key || "");
+        nextMemory.awaiting_action = "product_option_selection";
+      } else {
+        reply = `No encuentro referencias activas en la familia ${String(selectedPendingFamily.label || "")} dentro de esta base.`;
+        nextMemory.pending_family_options = [];
+        nextMemory.awaiting_action = "none";
+      }
+      handledByInventory = true;
+      handledByRecommendation = true;
+      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+    }
     const menuActionChoiceOnly = /^(1|2|3|4|a|b|c|d)\b/.test(normalizeText(originalInboundText));
     const canResolvePendingOption =
       String(previousMemory?.awaiting_action || "") !== "product_action" ||
@@ -2956,6 +3041,23 @@ export async function POST(req: Request) {
         handledByRecommendation = true;
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       }
+    }
+
+    if (!handledByGreeting && String(previousMemory?.awaiting_action || "") === "family_option_selection" && !selectedPendingFamily) {
+      const listed = pendingFamilyOptions
+        .slice(0, 8)
+        .map((o: any) => `${String(o?.code || "").toUpperCase()}) ${String(o?.label || "").trim()} (${Number(o?.count || 0)})`)
+        .filter(Boolean);
+      reply = listed.length
+        ? [
+            "Para continuar, elige una familia del listado.",
+            ...listed,
+            "",
+            "Responde con letra o numero (ej.: A o 1).",
+          ].join("\n")
+        : "Para continuar, responde con una opcion de familia (ej.: A o 1).";
+      handledByRecommendation = true;
+      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
 
     const selectionAtRaw = String(nextMemory.last_selection_at || previousMemory?.last_selection_at || "");
@@ -3153,23 +3255,39 @@ export async function POST(req: Request) {
           const categoryRowsRaw = await fetchCatalogRows("id,name,category,brand,base_price_usd,source_payload,product_url", 220, false);
           const categoryRowsCommercial = (Array.isArray(categoryRowsRaw) ? categoryRowsRaw : []).filter((r: any) => isCommercialCatalogRow(r));
           const scoped = scopeCatalogRows(categoryRowsCommercial as any, inboundCategoryIntent);
-          const options = buildNumberedProductOptions(scoped, 10);
-          const shown = options.slice(0, 8);
+          const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
           const categoryLabel = inboundCategoryIntent.replace(/_/g, " ");
-          if (options.length) {
+          if (familyOptions.length > 1) {
             reply = [
-              `Si, tenemos ${options.length} referencias en la categoria ${categoryLabel}.`,
-              ...shown.map((o) => `${o.code}) ${o.name}`),
-              ...(options.length > shown.length ? ["- y mas referencias disponibles"] : []),
+              `Si, tenemos ${scoped.length} referencias en la categoria ${categoryLabel}.`,
+              "Primero elige la familia:",
+              ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
               "",
-              "Responde con letra o numero (ej.: A o 1) y te envio ficha tecnica o cotizacion.",
+              "Responde con letra o numero (ej.: A o 1).",
             ].join("\n");
-            nextMemory.pending_product_options = options;
-            nextMemory.awaiting_action = "product_option_selection";
+            nextMemory.pending_family_options = familyOptions;
+            nextMemory.pending_product_options = [];
+            nextMemory.awaiting_action = "family_option_selection";
             nextMemory.last_category_intent = inboundCategoryIntent;
           } else {
-            reply = `No encuentro referencias activas en la categoria ${categoryLabel} dentro de esta base. Si quieres, te muestro otra categoria disponible.`;
-            nextMemory.last_category_intent = inboundCategoryIntent;
+            const options = buildNumberedProductOptions(scoped, 10);
+            const shown = options.slice(0, 8);
+            if (options.length) {
+              reply = [
+                `Si, tenemos ${options.length} referencias en la categoria ${categoryLabel}.`,
+                ...shown.map((o) => `${o.code}) ${o.name}`),
+                ...(options.length > shown.length ? ["- y mas referencias disponibles"] : []),
+                "",
+                "Responde con letra o numero (ej.: A o 1) y te envio ficha tecnica o cotizacion.",
+              ].join("\n");
+              nextMemory.pending_product_options = options;
+              nextMemory.pending_family_options = [];
+              nextMemory.awaiting_action = "product_option_selection";
+              nextMemory.last_category_intent = inboundCategoryIntent;
+            } else {
+              reply = `No encuentro referencias activas en la categoria ${categoryLabel} dentro de esta base. Si quieres, te muestro otra categoria disponible.`;
+              nextMemory.last_category_intent = inboundCategoryIntent;
+            }
           }
         } else {
           const totalActive = await countCatalogRows(false);
