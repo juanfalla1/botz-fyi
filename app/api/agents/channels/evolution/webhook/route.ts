@@ -802,9 +802,9 @@ function optionDisplayName(row: any): string {
   return out.length > 88 ? `${out.slice(0, 85)}...` : out;
 }
 
-function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: string; rank: number; id: string; name: string; category: string; base_price_usd: number }> {
+function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: string; rank: number; id: string; name: string; raw_name: string; category: string; base_price_usd: number }> {
   const list = Array.isArray(rows) ? rows : [];
-  const out: Array<{ code: string; rank: number; id: string; name: string; category: string; base_price_usd: number }> = [];
+  const out: Array<{ code: string; rank: number; id: string; name: string; raw_name: string; category: string; base_price_usd: number }> = [];
   const seen = new Set<string>();
   for (const row of list) {
     const name = optionDisplayName(row);
@@ -820,6 +820,7 @@ function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: s
       rank,
       id: String(row?.id || "").trim(),
       name,
+      raw_name: String(row?.name || "").trim() || name,
       category: String(row?.category || "").trim(),
       base_price_usd: Number(row?.base_price_usd || 0),
     });
@@ -827,7 +828,7 @@ function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: s
   return out;
 }
 
-function resolvePendingProductOption(text: string, optionsRaw: any): { code: string; rank: number; id: string; name: string; category: string; base_price_usd: number } | null {
+function resolvePendingProductOption(text: string, optionsRaw: any): { code: string; rank: number; id: string; name: string; raw_name: string; category: string; base_price_usd: number } | null {
   const tRaw = String(text || "").trim();
   const t = normalizeText(tRaw);
   if (!t) return null;
@@ -837,6 +838,7 @@ function resolvePendingProductOption(text: string, optionsRaw: any): { code: str
       rank: Number(o?.rank || 0),
       id: String(o?.id || "").trim(),
       name: String(o?.name || "").trim(),
+      raw_name: String(o?.raw_name || o?.name || "").trim(),
       category: String(o?.category || "").trim(),
       base_price_usd: Number(o?.base_price_usd || 0),
     }))
@@ -2858,15 +2860,16 @@ export async function POST(req: Request) {
       ? resolvePendingProductOption(originalInboundText, pendingProductOptions)
       : null;
     if (selectedPendingOption) {
-      nextMemory.last_product_name = String(selectedPendingOption.name || "");
+      const selectedCanonicalName = String((selectedPendingOption as any)?.raw_name || selectedPendingOption.name || "").trim();
+      nextMemory.last_product_name = selectedCanonicalName;
       nextMemory.last_product_id = String(selectedPendingOption.id || "");
       nextMemory.last_product_category = String(selectedPendingOption.category || "");
-      nextMemory.last_selected_product_name = String(selectedPendingOption.name || "");
+      nextMemory.last_selected_product_name = selectedCanonicalName;
       nextMemory.last_selected_product_id = String(selectedPendingOption.id || "");
       nextMemory.last_selection_at = new Date().toISOString();
       nextMemory.pending_product_selection_code = String(selectedPendingOption.code || "");
-      if (!normalizeText(originalInboundText).includes(normalizeText(String(selectedPendingOption.name || "")))) {
-        inbound.text = `${originalInboundText} ${String(selectedPendingOption.name || "")}`.trim();
+      if (!normalizeText(originalInboundText).includes(normalizeText(selectedCanonicalName))) {
+        inbound.text = `${originalInboundText} ${selectedCanonicalName}`.trim();
       }
       if (isOptionOnlyReply(originalInboundText)) {
         reply = [
@@ -3642,9 +3645,13 @@ export async function POST(req: Request) {
         const preferredTechCategory = detectedTechCategory || (hasExplicitProductHintForTech ? "" : rememberedTechCategory);
         const scopedList = preferredTechCategory ? scopeCatalogRows(list as any, preferredTechCategory) : list;
         const listForTech = scopedList.length ? scopedList : list;
-        const rememberedRow = rememberedTechProduct
-          ? findCatalogProductByName(list, rememberedTechProduct)
+        const rememberedTechProductId = String(previousMemory?.last_product_id || nextMemory?.last_product_id || previousMemory?.last_selected_product_id || nextMemory?.last_selected_product_id || "").trim();
+        const rememberedById = rememberedTechProductId
+          ? (list.find((x: any) => String(x?.id || "").trim() === rememberedTechProductId) || null)
           : null;
+        const rememberedRow = rememberedById || (rememberedTechProduct
+          ? findCatalogProductByName(list, rememberedTechProduct)
+          : null);
         const askList = isTechSheetCatalogListIntent(inbound.text);
 
         if (askList) {
