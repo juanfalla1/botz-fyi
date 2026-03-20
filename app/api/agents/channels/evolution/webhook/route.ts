@@ -3048,20 +3048,57 @@ export async function POST(req: Request) {
     }
 
     if (!handledByGreeting && String(previousMemory?.awaiting_action || "") === "family_option_selection" && !selectedPendingFamily) {
-      const listed = pendingFamilyOptions
-        .slice(0, 8)
-        .map((o: any) => `${String(o?.code || "").toUpperCase()}) ${String(o?.label || "").trim()} (${Number(o?.count || 0)})`)
-        .filter(Boolean);
-      reply = listed.length
-        ? [
-            "Para continuar, elige una familia del listado.",
-            ...listed,
-            "",
-            "Responde con letra o numero (ej.: A o 1).",
-          ].join("\n")
-        : "Para continuar, responde con una opcion de familia (ej.: A o 1).";
-      handledByRecommendation = true;
-      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      const looksLikeDirectModel = hasConcreteProductHint(originalInboundText);
+      if (looksLikeDirectModel) {
+        const rememberedCategory = String(previousMemory?.last_category_intent || nextMemory?.last_category_intent || "").trim();
+        const { data: ownerRows } = await supabase
+          .from("agent_product_catalog")
+          .select("id,name,category,brand,base_price_usd,source_payload,product_url,is_active")
+          .eq("created_by", ownerId)
+          .eq("is_active", true)
+          .order("updated_at", { ascending: false })
+          .limit(320);
+        const commercial = (Array.isArray(ownerRows) ? ownerRows : []).filter((r: any) => isCommercialCatalogRow(r));
+        const scoped = rememberedCategory ? scopeCatalogRows(commercial as any, rememberedCategory) : commercial;
+        const direct = pickBestCatalogProduct(originalInboundText, scoped as any[]);
+        if (direct?.id) {
+          const directName = String((direct as any)?.name || "").trim();
+          nextMemory.last_product_name = directName;
+          nextMemory.last_product_id = String((direct as any)?.id || "").trim();
+          nextMemory.last_product_category = String((direct as any)?.category || "").trim();
+          nextMemory.last_selected_product_name = directName;
+          nextMemory.last_selected_product_id = String((direct as any)?.id || "").trim();
+          nextMemory.last_selection_at = new Date().toISOString();
+          nextMemory.pending_family_options = [];
+          nextMemory.pending_product_options = [];
+          nextMemory.awaiting_action = "product_action";
+          reply = [
+            `Perfecto, encontré el modelo ${directName}.`,
+            "Ahora dime qué deseas con ese modelo:",
+            "1) Cotización con TRM y PDF",
+            "2) Ficha técnica",
+          ].join("\n");
+          handledByRecommendation = true;
+          handledByProductLookup = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
+      }
+      if (!String(reply || "").trim()) {
+        const listed = pendingFamilyOptions
+          .slice(0, 8)
+          .map((o: any) => `${String(o?.code || "").toUpperCase()}) ${String(o?.label || "").trim()} (${Number(o?.count || 0)})`)
+          .filter(Boolean);
+        reply = listed.length
+          ? [
+              "Para continuar, elige una familia del listado.",
+              ...listed,
+              "",
+              "Responde con letra o numero (ej.: A o 1).",
+            ].join("\n")
+          : "Para continuar, responde con una opcion de familia (ej.: A o 1).";
+        handledByRecommendation = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      }
     }
 
     const selectionAtRaw = String(nextMemory.last_selection_at || previousMemory?.last_selection_at || "");
