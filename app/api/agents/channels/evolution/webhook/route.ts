@@ -4954,6 +4954,28 @@ export async function POST(req: Request) {
         if (!String(reply || "").trim()) {
         const narrowed = filterCatalogByTerms(inbound.text, baseSource as any, requestedCategory);
         const sampleSource = narrowed.length ? narrowed : baseSource;
+        const directModelMatch = hasConcreteProductHint(inbound.text)
+          ? pickBestCatalogProduct(inbound.text, sampleSource as any)
+          : null;
+        if (directModelMatch?.id) {
+          const directName = String((directModelMatch as any)?.name || "").trim();
+          nextMemory.last_product_name = directName;
+          nextMemory.last_product_id = String((directModelMatch as any)?.id || "").trim();
+          nextMemory.last_product_category = String((directModelMatch as any)?.category || "").trim();
+          nextMemory.last_selected_product_name = directName;
+          nextMemory.last_selected_product_id = String((directModelMatch as any)?.id || "").trim();
+          nextMemory.last_selection_at = new Date().toISOString();
+          nextMemory.awaiting_action = "product_action";
+          nextMemory.pending_product_options = [];
+          reply = [
+            `Perfecto, encontré el modelo ${directName}.`,
+            "Ahora dime qué deseas con ese modelo:",
+            "1) Cotización con TRM y PDF",
+            "2) Ficha técnica",
+          ].join("\n");
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
+        if (!String(reply || "").trim()) {
         const sample = uniqueNormalizedStrings(
           sampleSource.map((r: any) => humanCatalogName(String(r?.name || "").trim())).filter(Boolean),
           2
@@ -4967,6 +4989,7 @@ export async function POST(req: Request) {
         if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
         nextMemory.awaiting_action = "tech_product_selection";
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
         }
       } else {
 
