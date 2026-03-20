@@ -3950,11 +3950,15 @@ export async function POST(req: Request) {
             if (datasheetUrl) {
               const remote = await fetchRemoteFileAsBase64(datasheetUrl);
               if (remote) {
-                if (Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+                const remoteLooksPdf =
+                  /application\/pdf/i.test(String(remote.mimetype || "")) ||
+                  /\.pdf$/i.test(String(remote.fileName || "")) ||
+                  /\.pdf(\?|$)/i.test(String(datasheetUrl || ""));
+                if (remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
                   technicalDocs.push({
                     kind: "document",
                     base64: remote.base64,
-                    mimetype: remote.mimetype || "application/pdf",
+                    mimetype: "application/pdf",
                     fileName: safeFileName(remote.fileName, `ficha-${String((matched as any)?.name || "producto")}`, "pdf"),
                     caption: `Ficha técnica - ${String((matched as any)?.name || "producto")}`,
                   });
