@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { jsPDF } from "jspdf";
+import fs from "node:fs";
+import path from "node:path";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
 import { evolutionService } from "../../../../../../lib/services/evolution.service";
@@ -10,6 +12,14 @@ export const dynamic = "force-dynamic";
 
 const CATALOG_REFERENCE_URL = "https://balanzasybasculas.com.co/";
 const CATALOG_REFERENCE_SHARE_URL = "https://share.google/cE6wPPEGCH3vytJMm";
+const DATASHEET_REPOSITORY_URL = String(
+  process.env.OHAUS_DATASHEET_DRIVE_URL ||
+  "https://drive.google.com/drive/folders/15Ym8V02ds5iN24qoF855RULtQYcXmopc?usp=sharing"
+).trim();
+const LOCAL_DATASHEET_DIR = String(
+  process.env.OHAUS_LOCAL_DATASHEET_DIR ||
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook", "Ohaus", "data sheet")
+).trim();
 const STRICT_WHATSAPP_MODE = String(process.env.WHATSAPP_STRICT_MODE || "true").toLowerCase() !== "false";
 const MAX_WHATSAPP_DOC_BYTES = Number(process.env.WHATSAPP_DOC_MAX_BYTES || 8 * 1024 * 1024);
 const ALLOWED_BRAND_KEYS = ["ohaus"];
@@ -757,14 +767,49 @@ function extractQuoteRequestedQuantity(text: string): number {
   return extractQuantity(text);
 }
 
+function catalogReferenceCode(row: any): string {
+  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const fromSource = String(source?.product_code || source?.sap || source?.numero_modelo || "").trim();
+  if (fromSource) return fromSource;
+  const fromName = String(row?.name || "").trim().match(/\b([A-Z]{1,4}\d+[A-Z0-9\/-]*)\b/);
+  if (fromName?.[1]) return fromName[1];
+  return "";
+}
+
+function prettifyCatalogLabel(raw: string): string {
+  const txt = String(raw || "").replace(/\s+/g, " ").trim();
+  if (!txt) return "";
+  const alpha = (txt.match(/[a-zA-Z]/g) || []).length;
+  const upper = (txt.match(/[A-Z]/g) || []).length;
+  const mostlyUpper = alpha > 8 && (upper / Math.max(1, alpha)) >= 0.72;
+  if (!mostlyUpper) return txt;
+  const lower = txt.toLowerCase();
+  const titled = lower.replace(/\b([a-záéíóúñ][a-záéíóúñ0-9\/-]*)\b/g, (w) => w.charAt(0).toUpperCase() + w.slice(1));
+  return titled
+    .replace(/\bDe\b/g, "de")
+    .replace(/\bY\b/g, "y")
+    .replace(/\bCon\b/g, "con")
+    .replace(/\bPara\b/g, "para");
+}
+
+function optionDisplayName(row: any): string {
+  const base = humanCatalogName(String(row?.name || "").trim()) || String(row?.name || "").trim();
+  const clean = prettifyCatalogLabel(base).replace(/\s*\+\s*/g, " + ").trim();
+  const code = catalogReferenceCode(row);
+  const out = code && !normalizeText(clean).includes(normalizeText(code))
+    ? `${code} - ${clean}`
+    : clean;
+  return out.length > 88 ? `${out.slice(0, 85)}...` : out;
+}
+
 function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: string; rank: number; id: string; name: string; category: string; base_price_usd: number }> {
   const list = Array.isArray(rows) ? rows : [];
   const out: Array<{ code: string; rank: number; id: string; name: string; category: string; base_price_usd: number }> = [];
   const seen = new Set<string>();
   for (const row of list) {
-    const name = String(row?.name || "").trim();
+    const name = optionDisplayName(row);
     if (!name) continue;
-    const key = normalizeText(name);
+    const key = String(row?.id || "").trim() || normalizeText(name);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const rank = out.length + 1;
@@ -1097,6 +1142,106 @@ function safeFileName(input: string, fallbackBase: string, fallbackExt: string):
     .replace(/^-+|-+$/g, "");
   const base = clean || fallbackBase;
   return /\.[a-z0-9]{2,8}$/i.test(base) ? base : `${base}.${fallbackExt}`;
+}
+
+type LocalPdfIndexEntry = { filePath: string; fileName: string; normalized: string };
+let localPdfIndexCache: { dir: string; at: number; files: LocalPdfIndexEntry[] } | null = null;
+
+function listLocalPdfFiles(dir: string): LocalPdfIndexEntry[] {
+  const root = String(dir || "").trim();
+  if (!root || !fs.existsSync(root)) return [];
+  const out: LocalPdfIndexEntry[] = [];
+  const stack = [root];
+  while (stack.length) {
+    const cur = String(stack.pop() || "");
+    if (!cur) continue;
+    let entries: fs.Dirent[] = [];
+    try {
+      entries = fs.readdirSync(cur, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      const abs = path.join(cur, e.name);
+      if (e.isDirectory()) {
+        stack.push(abs);
+        continue;
+      }
+      if (!e.isFile() || !/\.pdf$/i.test(e.name)) continue;
+      out.push({ filePath: abs, fileName: e.name, normalized: normalizeCatalogQueryText(e.name) });
+    }
+  }
+  return out;
+}
+
+function getLocalPdfIndex(): LocalPdfIndexEntry[] {
+  const ttlMs = 5 * 60 * 1000;
+  const now = Date.now();
+  if (localPdfIndexCache && localPdfIndexCache.dir === LOCAL_DATASHEET_DIR && (now - localPdfIndexCache.at) < ttlMs) {
+    return localPdfIndexCache.files;
+  }
+  const files = listLocalPdfFiles(LOCAL_DATASHEET_DIR);
+  localPdfIndexCache = { dir: LOCAL_DATASHEET_DIR, at: now, files };
+  return files;
+}
+
+function pickBestLocalPdfPath(row: any, queryText: string): string {
+  const files = getLocalPdfIndex();
+  if (!files.length) return "";
+
+  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const codeTokens = [
+    String(source?.product_code || "").trim(),
+    String(source?.sap || "").trim(),
+    String(source?.numero_modelo || "").trim(),
+  ].filter(Boolean);
+  const modelTokens = uniqueNormalizedStrings([
+    ...extractModelLikeTokens(String(row?.name || "")),
+    ...extractModelLikeTokens(String(queryText || "")),
+    ...codeTokens.map((x) => normalizeCatalogQueryText(x)),
+  ]).filter((x) => x.length >= 3);
+  const textTerms = extractCatalogTerms(`${String(row?.name || "")} ${String(queryText || "")}`).slice(0, 12);
+
+  let best: { filePath: string; score: number; modelHits: number } | null = null;
+  for (const f of files) {
+    const hay = f.normalized;
+    let score = 0;
+    let modelHits = 0;
+    for (const token of modelTokens) {
+      if (hay.includes(normalizeCatalogQueryText(token))) {
+        score += 12;
+        modelHits += 1;
+      }
+    }
+    for (const term of textTerms) {
+      if (hay.includes(normalizeCatalogQueryText(term))) score += 2;
+    }
+    if (/datasheet|data sheet|ficha/.test(hay)) score += 2;
+    if (/manual|brochure|catalogo|catalog/.test(hay)) score -= 2;
+    if (!best || score > best.score) best = { filePath: f.filePath, score, modelHits };
+  }
+
+  if (!best) return "";
+  if (modelTokens.length && best.modelHits === 0) return "";
+  return best.filePath;
+}
+
+function fetchLocalFileAsBase64(filePath: string): { base64: string; mimetype: string; fileName: string; byteSize: number } | null {
+  const abs = String(filePath || "").trim();
+  if (!abs || !fs.existsSync(abs)) return null;
+  try {
+    const buff = fs.readFileSync(abs);
+    const byteSize = Number(buff.byteLength || 0);
+    if (!byteSize) return null;
+    return {
+      base64: buff.toString("base64"),
+      mimetype: "application/pdf",
+      fileName: safeFileName(path.basename(abs), "ficha-tecnica", "pdf"),
+      byteSize,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function toReadableBulletList(raw: string, maxLines = 4): string {
@@ -2729,8 +2874,6 @@ export async function POST(req: Request) {
           "Ahora dime qué deseas con ese modelo:",
           "1) Cotización con TRM y PDF",
           "2) Ficha técnica",
-          "3) Imagen",
-          "4) Ficha + imagen",
         ].join("\n");
         nextMemory.awaiting_action = "product_action";
         nextMemory.pending_product_options = [];
@@ -2792,19 +2935,15 @@ export async function POST(req: Request) {
         const confirmsDefaultFromOption = isAffirmativeIntent(optText) || /^(ok|vale|listo|de una)$/i.test(String(originalInboundText || "").trim());
         const asksQuoteByOption = /^(1|a)\b/.test(optText) || /\b(cotiz|cotizacion|precio|la cotizacion)\b/.test(optText);
         const asksSheetByOption = /^(2|b)\b/.test(optText) || isTechnicalSheetIntent(optText);
-        const asksImageByOption = /^(3|c)\b/.test(optText) || isProductImageIntent(optText);
-        const asksBothByOption = /^(4|d)\b/.test(optText) || (isTechnicalSheetIntent(optText) && isProductImageIntent(optText));
+        const asksImageByOption = /^(3|c|4|d)\b/.test(optText) || isProductImageIntent(optText) || (isTechnicalSheetIntent(optText) && isProductImageIntent(optText));
         if (asksQuoteByOption || confirmsDefaultFromOption) {
           inbound.text = `cotizar ${rememberedOptionProduct} ${originalInboundText}`.trim();
           nextMemory.awaiting_action = "quote_product_selection";
-        } else if (asksBothByOption) {
-          inbound.text = `ficha tecnica e imagen de ${rememberedOptionProduct}`;
-          nextMemory.awaiting_action = "none";
         } else if (asksSheetByOption) {
           inbound.text = `ficha tecnica de ${rememberedOptionProduct}`;
           nextMemory.awaiting_action = "none";
         } else if (asksImageByOption) {
-          inbound.text = `imagen de ${rememberedOptionProduct}`;
+          inbound.text = `ficha tecnica de ${rememberedOptionProduct}`;
           nextMemory.awaiting_action = "none";
         } else if (hasBareQuantity(optText) || /\b\d{1,5}\b/.test(optText)) {
           inbound.text = `cotizar ${rememberedOptionProduct} ${originalInboundText}`.trim();
@@ -2813,7 +2952,7 @@ export async function POST(req: Request) {
           nextMemory.awaiting_action = "none";
           nextMemory.pending_product_options = [];
         } else {
-          reply = `¿Quieres ficha, imagen o cotización de ${rememberedOptionProduct}?`;
+          reply = `¿Quieres ficha técnica o cotización de ${rememberedOptionProduct}?`;
           nextMemory.awaiting_action = "product_action";
           handledByQuoteStarter = true;
           handledByProductLookup = true;
@@ -2981,7 +3120,7 @@ export async function POST(req: Request) {
               ...shown.map((o) => `${o.code}) ${o.name}`),
               ...(options.length > shown.length ? ["- y mas referencias disponibles"] : []),
               "",
-              "Responde con letra o numero (ej.: A o 1) y te envio ficha, imagen o cotizacion.",
+              "Responde con letra o numero (ej.: A o 1) y te envio ficha tecnica o cotizacion.",
             ].join("\n");
             nextMemory.pending_product_options = options;
             nextMemory.awaiting_action = "product_option_selection";
@@ -3008,7 +3147,7 @@ export async function POST(req: Request) {
             `Catalogo interno para envio rapido por WhatsApp: ${Number(totalActive || 0)} productos activos, ${Number(totalPriced || 0)} con precio base para cotizacion automatica.`,
             ...(top.length ? ["", "Ejemplos disponibles en esta instancia:", ...top.map((x) => `- ${x}`)] : []),
             "",
-            "Si quieres, dime categoria y modelo exacto y te envio ficha/imagen por este chat.",
+            "Si quieres, dime categoria y modelo exacto y te envio ficha tecnica o cotizacion por este chat.",
           ].join("\n");
         }
         handledByInventory = true;
@@ -3135,7 +3274,7 @@ export async function POST(req: Request) {
                   ...topNames.map((n) => `- ${n}`),
                   ...(more > 0 ? [`- y ${more} más`] : []),
                   "",
-                  "Si quieres, te envío ficha técnica o imagen del modelo que elijas por este WhatsApp.",
+                  "Si quieres, te envío ficha técnica o cotización del modelo que elijas por este WhatsApp.",
                 ].join("\n");
               } else {
                 const crossCategoryMatches = rankCatalogByFeature(filteredRows as any[], featureTerms)
@@ -3174,7 +3313,7 @@ export async function POST(req: Request) {
                 ...(extra > 0 ? [`- y ${extra} más`] : []),
                 "",
                 `Si quieres ver todo el catálogo oficial: ${CATALOG_REFERENCE_URL}`,
-                "Dime un modelo exacto y te envío ficha técnica o imagen por este WhatsApp.",
+                "Dime un modelo exacto y te envío ficha técnica o cotización por este WhatsApp.",
               ].join("\n");
             }
           } else {
@@ -3213,10 +3352,10 @@ export async function POST(req: Request) {
                   ...(more > 0 ? [`- y ${more} más`] : []),
                   "",
                   `Si quieres ver todo el catálogo oficial: ${CATALOG_REFERENCE_URL}`,
-                  "Si quieres una en específico, dime el modelo exacto y te envío ficha técnica o imagen por este WhatsApp.",
+                  "Si quieres una en específico, dime el modelo exacto y te envío ficha técnica o cotización por este WhatsApp.",
                 ].join("\n");
               } else {
-                reply = `Sí tengo ${countNum} referencia(s) en ${categoryLabel} en esta base de datos. Si quieres una en específico, dime el modelo exacto y te envío ficha o imagen por este WhatsApp.`;
+                reply = `Sí tengo ${countNum} referencia(s) en ${categoryLabel} en esta base de datos. Si quieres una en específico, dime el modelo exacto y te envío ficha técnica o cotización por este WhatsApp.`;
               }
             } else {
               reply = `En este momento no tengo referencias cargadas en esa categoría dentro de esta instancia. Puedes ver el catálogo oficial aquí: ${CATALOG_REFERENCE_URL}`;
@@ -3357,7 +3496,7 @@ export async function POST(req: Request) {
             "Aquí van 5 opciones rápidas:",
             ...sample,
             "",
-            "Responde con letra o número (ej.: A o 1) y te genero cotización con TRM, o te envío ficha/imagen.",
+            "Responde con letra o número (ej.: A o 1) y te genero cotización con TRM, o te envío ficha técnica.",
           ].join("\n");
         } else {
           reply = "Ahora mismo no tengo productos con precio cargado para cotizar. Si quieres, te confirmo el catalogo disponible primero.";
@@ -3421,7 +3560,7 @@ export async function POST(req: Request) {
               `Sí, tengo opciones que cumplen esa característica (${featureTerms.join(", ")}):`,
               ...options.map((o) => `${o.code}) ${o.name}`),
               "",
-              "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+              "Responde con letra o número (ej.: A o 1) y te envío ficha técnica o cotización.",
             ].join("\n");
           } else if (suggestions.length) {
             reply = `No encontré coincidencia exacta para esa característica (${featureTerms.join(", ")}). Te propongo alternativas cercanas: ${suggestions.join("; ")}.`;
@@ -3446,7 +3585,7 @@ export async function POST(req: Request) {
             "Con base en tu caso, estas son opciones del catálogo:",
             ...options.map((o) => `${o.code}) ${o.name}`),
             "",
-            "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+            "Responde con letra o número (ej.: A o 1) y te envío ficha técnica o cotización.",
           ].join("\n");
         } else {
           reply = "Ahora mismo no encuentro productos activos en el catalogo para recomendar. Si quieres, actualizo catalogo y te cotizo enseguida.";
@@ -3471,15 +3610,15 @@ export async function POST(req: Request) {
     const rememberedTechProduct = String(previousMemory?.last_product_name || nextMemory?.last_product_name || "").trim();
     const techResendIntent = detectTechResendIntent(inbound.text);
     const techInboundText = techResendIntent && rememberedTechProduct
-      ? `${techResendIntent === "image" ? "imagen" : techResendIntent === "sheet" ? "ficha tecnica" : "ficha tecnica e imagen"} de ${rememberedTechProduct}`
+      ? `ficha tecnica de ${rememberedTechProduct}`
       : awaitingTechAssetChoice && isAffirmativeIntent(inbound.text) && rememberedTechProduct
-        ? `ficha tecnica e imagen de ${rememberedTechProduct}`
+        ? `ficha tecnica de ${rememberedTechProduct}`
         : inbound.text;
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && (isTechnicalSheetIntent(techInboundText) || isProductImageIntent(techInboundText) || Boolean(techResendIntent) || awaitingTechProductSelection || awaitingTechAssetChoice)) {
       try {
         if (techResendIntent && !rememberedTechProduct) {
-          reply = "Para reenviar la ficha o imagen necesito el modelo exacto del producto. Escríbeme solo el nombre del modelo.";
+          reply = "Para reenviar la ficha técnica necesito el modelo exacto del producto. Escríbeme solo el nombre del modelo.";
           nextMemory.awaiting_action = "tech_product_selection";
           handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
@@ -3545,7 +3684,7 @@ export async function POST(req: Request) {
             const rest = Math.max(0, withImageOrSpecs.length - names.length);
             reply = [
               "No tengo fichas técnicas PDF cargadas ahora mismo.",
-              "Sí tengo información técnica resumida y/o imagen en:",
+              "Sí tengo información técnica resumida en:",
               ...names.map((n: string) => `- ${n}`),
               ...(rest > 0 ? [`- y ${rest} más`] : []),
               "",
@@ -3553,7 +3692,7 @@ export async function POST(req: Request) {
             ].join("\n");
             nextMemory.awaiting_action = "tech_product_selection";
           } else {
-            reply = "En este momento no tengo fichas técnicas cargadas en catálogo para enviar por WhatsApp. Si quieres, te comparto los productos activos y te indico cuáles ya tienen imagen.";
+            reply = "En este momento no tengo fichas técnicas cargadas en catálogo para enviar por WhatsApp. Si quieres, te comparto los productos activos.";
             nextMemory.awaiting_action = "none";
           }
 
@@ -3603,7 +3742,7 @@ export async function POST(req: Request) {
             const top = options.slice(0, 4);
             const more = Math.max(0, options.length - top.length);
             reply = [
-              "Claro. Para enviarte la ficha técnica o imagen necesito el producto exacto.",
+              "Claro. Para enviarte la ficha técnica necesito el producto exacto.",
               "",
               "Opciones disponibles:",
               ...top.map((o) => `${o.code}) ${o.name}`),
@@ -3626,8 +3765,8 @@ export async function POST(req: Request) {
           nextMemory.last_selected_product_name = String((matched as any)?.name || "");
           nextMemory.last_selected_product_id = String((matched as any)?.id || "");
           nextMemory.last_selection_at = new Date().toISOString();
-          const wantsSheet = isTechnicalSheetIntent(techInboundText) || awaitingTechProductSelection || awaitingTechAssetChoice;
-          const wantsImage = isProductImageIntent(techInboundText) || awaitingTechAssetChoice;
+          const wantsSheet = isTechnicalSheetIntent(techInboundText) || isProductImageIntent(techInboundText) || awaitingTechProductSelection || awaitingTechAssetChoice;
+          const wantsImage = false;
           const matchedCategory = normalizeText(String((matched as any)?.category || ""));
           const webTechOnly = prefersWebTechPageOnly(matchedCategory);
           const matchedProductUrl = String((matched as any)?.product_url || "").trim();
@@ -3637,6 +3776,7 @@ export async function POST(req: Request) {
 
           if (wantsSheet) {
             const datasheetUrl = webTechOnly ? "" : pickBestProductPdfUrl(matched, techInboundText);
+            const localPdfPath = webTechOnly ? "" : (!datasheetUrl ? pickBestLocalPdfPath(matched, techInboundText) : "");
             if (datasheetUrl) technicalFallbackLinks.push(datasheetUrl);
             if (webTechOnly && matchedProductUrl) technicalFallbackLinks.push(matchedProductUrl);
             if (datasheetUrl) {
@@ -3648,6 +3788,21 @@ export async function POST(req: Request) {
                     base64: remote.base64,
                     mimetype: remote.mimetype || "application/pdf",
                     fileName: safeFileName(remote.fileName, `ficha-${String((matched as any)?.name || "producto")}`, "pdf"),
+                    caption: `Ficha técnica - ${String((matched as any)?.name || "producto")}`,
+                  });
+                  attachedSheet = true;
+                }
+              }
+            }
+            if (!attachedSheet && localPdfPath) {
+              const local = fetchLocalFileAsBase64(localPdfPath);
+              if (local) {
+                if (Number(local.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+                  technicalDocs.push({
+                    kind: "document",
+                    base64: local.base64,
+                    mimetype: local.mimetype || "application/pdf",
+                    fileName: safeFileName(local.fileName, `ficha-${String((matched as any)?.name || "producto")}`, "pdf"),
                     caption: `Ficha técnica - ${String((matched as any)?.name || "producto")}`,
                   });
                   attachedSheet = true;
@@ -3685,6 +3840,9 @@ export async function POST(req: Request) {
           const primarySheetLink = webTechOnly
             ? String(matchedProductUrl || "").trim()
             : String(pdfLink || detailUrl || "").trim();
+          const repositoryLinkFallbackSection = wantsSheet && !attachedSheet && !primarySheetLink && DATASHEET_REPOSITORY_URL
+            ? ["", `Repositorio de fichas tecnicas: ${DATASHEET_REPOSITORY_URL}`]
+            : [];
           const webTechLinkSection = webTechOnly && wantsSheet && matchedProductUrl
             ? ["", `FICHA WEB: ${matchedProductUrl}`]
             : [];
@@ -3709,15 +3867,14 @@ export async function POST(req: Request) {
                     ? ["", "Resumen técnico:", briefSpecs]
                     : (primarySheetLink
                         ? (hasSamePrimaryWebLink ? [] : ["", "Te comparto el enlace directo de la ficha técnica:", primarySheetLink])
-                        : (imageUrl
-                            ? ["", "No encontré ficha PDF para este modelo en este intento; te envié la imagen del producto."]
-                            : ["", "Te comparto la ficha técnica adjunta."]))
+                        : ["", "Te comparto la ficha técnica adjunta."])
                 )
               : [];
             reply = [
-              `Perfecto. Ya te envío por este WhatsApp la información técnica de ${String((matched as any)?.name || "ese producto")}${attachedSheet ? " (ficha)" : ""}${attachedImage ? " e imagen" : ""}.`,
+              `Perfecto. Ya te envío por este WhatsApp la ficha técnica de ${String((matched as any)?.name || "ese producto")}.`,
               ...summarySection,
               ...sheetLinkFallbackSection,
+              ...repositoryLinkFallbackSection,
               ...webTechLinkSection,
             ].join("\n");
           } else if (briefSpecs) {
@@ -3726,18 +3883,18 @@ export async function POST(req: Request) {
               "",
               briefSpecs,
               ...webTechLinkSection,
+              ...repositoryLinkFallbackSection,
               ...(pdfTooLargeForAttachment ? ["", `La ficha PDF es pesada para envío directo; aquí la puedes abrir: ${pdfLink}`] : []),
-              ...(imageUrl ? ["", `Imagen del producto: ${imageUrl}`] : []),
               ...(detailUrl ? ["", `Más detalle: ${detailUrl}`] : []),
             ].join("\n");
           } else {
             reply = webTechOnly && wantsSheet && matchedProductUrl
-              ? `Este modelo no tiene ficha PDF oficial. Puedes revisar su ficha web aquí: ${matchedProductUrl}.${imageUrl ? ` Imagen: ${imageUrl}.` : ""}`
+              ? `Este modelo no tiene ficha PDF oficial. Puedes revisar su ficha web aquí: ${matchedProductUrl}.`
               : pdfTooLargeForAttachment
-                ? `La ficha PDF de ${String((matched as any)?.name || "ese producto")} es pesada para envío directo por WhatsApp. Puedes abrirla aquí: ${pdfLink}.${imageUrl ? ` Imagen: ${imageUrl}.` : ""}`
-                : `Te comparto el enlace directo de la ficha técnica de ${String((matched as any)?.name || "ese producto")}.${detailUrl ? ` ${detailUrl}` : ""}${imageUrl ? ` Imagen: ${imageUrl}.` : ""} Si quieres, te genero la cotización de una vez.`;
+                ? `La ficha PDF de ${String((matched as any)?.name || "ese producto")} es pesada para envío directo por WhatsApp. Puedes abrirla aquí: ${pdfLink}.`
+                : `Te comparto el enlace directo de la ficha técnica de ${String((matched as any)?.name || "ese producto")}.${detailUrl ? ` ${detailUrl}` : ""}${!detailUrl && DATASHEET_REPOSITORY_URL ? ` Repositorio de fichas: ${DATASHEET_REPOSITORY_URL}.` : ""} Si quieres, te genero la cotización de una vez.`;
           }
-          if (reply && !/\bquieres\b.*\b(cotizacion|ficha|imagen|producto)\b/i.test(normalizeText(reply))) {
+          if (reply && !/\bquieres\b.*\b(cotizacion|ficha|producto)\b/i.test(normalizeText(reply))) {
             reply = `${reply}\n\n¿Quieres cotización de este modelo o prefieres revisar otro producto?`;
           }
           nextMemory.awaiting_action = "none";
@@ -4445,8 +4602,8 @@ export async function POST(req: Request) {
       const selectedAtMs = Date.parse(String(nextMemory.last_selection_at || previousMemory?.last_selection_at || ""));
       const selectedStillActive = Boolean(selectedProductForGuide) && Number.isFinite(selectedAtMs) && (Date.now() - selectedAtMs) <= 30 * 60 * 1000;
       if (selectedStillActive && !inboundTechnicalSpec) {
-        reply = `¿Quieres ficha, imagen o cotización de ${selectedProductForGuide}?`;
-        nextMemory.awaiting_action = "product_action";
+          reply = `¿Quieres ficha técnica o cotización de ${selectedProductForGuide}?`;
+          nextMemory.awaiting_action = "product_action";
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       } else {
       const catalogRows = await fetchCatalogRows("name,brand,category,source_payload,product_url", 120, false);
@@ -4499,7 +4656,7 @@ export async function POST(req: Request) {
                 ...shown.map((o) => `${o.code}) ${o.name}`),
                 ...(more > 0 ? [`- y ${more} más`] : []),
                 "",
-                "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+                "Responde con letra o número (ej.: A o 1) y te envío ficha técnica o cotización.",
               ].join("\n");
               nextMemory.pending_product_options = options;
               nextMemory.awaiting_action = "product_option_selection";
@@ -4512,7 +4669,7 @@ export async function POST(req: Request) {
                   "No encontré una coincidencia exacta con esa combinación, pero estas son las referencias más cercanas del catálogo:",
                   ...closestOptions.map((o) => `${o.code}) ${o.name}`),
                   "",
-                  "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+                  "Responde con letra o número (ej.: A o 1) y te envío ficha técnica o cotización.",
                 ].join("\n");
                 nextMemory.pending_product_options = closestOptions;
                 nextMemory.awaiting_action = "product_option_selection";
@@ -4533,7 +4690,7 @@ export async function POST(req: Request) {
                 "No encontré coincidencia exacta para esa referencia. Estas son las más cercanas disponibles:",
                 ...fallbackOptions.slice(0, 10).map((o) => `${o.code}) ${o.name}`),
                 "",
-                "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+                "Responde con letra o número (ej.: A o 1) y te envío ficha técnica o cotización.",
               ].join("\n");
               nextMemory.pending_product_options = fallbackOptions;
               nextMemory.awaiting_action = "product_option_selection";
@@ -4553,7 +4710,7 @@ export async function POST(req: Request) {
                   "Te comparto opciones cercanas por capacidad:",
                   ...capacityOnlyOptions.slice(0, 10).map((o) => `${o.code}) ${o.name}`),
                   "",
-                  "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+                  "Responde con letra o número (ej.: A o 1) y te envío ficha técnica o cotización.",
                 ].join("\n");
                 nextMemory.pending_product_options = capacityOnlyOptions;
                 nextMemory.awaiting_action = "product_option_selection";
@@ -4582,7 +4739,7 @@ export async function POST(req: Request) {
                     "No encontré coincidencia exacta para esa capacidad/resolución. Te comparto opciones analíticas o de precisión disponibles:",
                     ...nearbyGeneral.map((o) => `${o.code}) ${o.name}`),
                     "",
-                    "Responde con letra o número (ej.: A o 1) y te envío ficha, imagen o cotización.",
+                    "Responde con letra o número (ej.: A o 1) y te envío ficha técnica o cotización.",
                   ].join("\n");
                   nextMemory.pending_product_options = nearbyGeneral;
                   nextMemory.awaiting_action = "product_option_selection";
