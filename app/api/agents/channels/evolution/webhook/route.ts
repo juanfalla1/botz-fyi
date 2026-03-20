@@ -3944,7 +3944,7 @@ export async function POST(req: Request) {
 
           if (wantsSheet) {
             const datasheetUrl = webTechOnly ? "" : pickBestProductPdfUrl(matched, techInboundText);
-            const localPdfPath = webTechOnly ? "" : (!datasheetUrl ? pickBestLocalPdfPath(matched, techInboundText) : "");
+            const localPdfPath = webTechOnly ? "" : pickBestLocalPdfPath(matched, techInboundText);
             if (datasheetUrl) technicalFallbackLinks.push(datasheetUrl);
             if (webTechOnly && matchedProductUrl) technicalFallbackLinks.push(matchedProductUrl);
             if (datasheetUrl) {
