@@ -1192,6 +1192,16 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
   if (!files.length) return "";
 
   const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const familyHints = uniqueNormalizedStrings([
+    String(source?.family || ""),
+    String(source?.instrument || ""),
+    String(row?.category || ""),
+    /\bexp\d|explorer|exr\d|ex\d/.test(normalizeCatalogQueryText(String(row?.name || ""))) ? "explorer" : "",
+    /\bpr\d|px\d|pioneer/.test(normalizeCatalogQueryText(String(row?.name || ""))) ? "pioneer" : "",
+    /\bad\d|ax\d|adventurer/.test(normalizeCatalogQueryText(String(row?.name || ""))) ? "adventurer" : "",
+    /\bmb\d|humedad/.test(normalizeCatalogQueryText(String(row?.name || ""))) ? "mb" : "",
+    /\bdefender|ranger|valor\b/.test(normalizeCatalogQueryText(String(row?.name || ""))) ? "basculas" : "",
+  ].filter(Boolean));
   const codeTokens = [
     String(source?.product_code || "").trim(),
     String(source?.sap || "").trim(),
@@ -1202,13 +1212,17 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
     ...extractModelLikeTokens(String(queryText || "")),
     ...codeTokens.map((x) => normalizeCatalogQueryText(x)),
   ]).filter((x) => x.length >= 3);
-  const textTerms = extractCatalogTerms(`${String(row?.name || "")} ${String(queryText || "")}`).slice(0, 12);
+  const textTerms = uniqueNormalizedStrings([
+    ...extractCatalogTerms(`${String(row?.name || "")} ${String(queryText || "")}`).slice(0, 12),
+    ...familyHints,
+  ]).slice(0, 16);
 
-  let best: { filePath: string; score: number; modelHits: number } | null = null;
+  let best: { filePath: string; score: number; modelHits: number; termHits: number } | null = null;
   for (const f of files) {
     const hay = f.normalized;
     let score = 0;
     let modelHits = 0;
+    let termHits = 0;
     for (const token of modelTokens) {
       if (hay.includes(normalizeCatalogQueryText(token))) {
         score += 12;
@@ -1216,15 +1230,18 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
       }
     }
     for (const term of textTerms) {
-      if (hay.includes(normalizeCatalogQueryText(term))) score += 2;
+      if (hay.includes(normalizeCatalogQueryText(term))) {
+        score += 2;
+        termHits += 1;
+      }
     }
     if (/datasheet|data sheet|ficha/.test(hay)) score += 2;
     if (/manual|brochure|catalogo|catalog/.test(hay)) score -= 2;
-    if (!best || score > best.score) best = { filePath: f.filePath, score, modelHits };
+    if (!best || score > best.score) best = { filePath: f.filePath, score, modelHits, termHits };
   }
 
   if (!best) return "";
-  if (modelTokens.length && best.modelHits === 0) return "";
+  if (modelTokens.length && best.modelHits === 0 && !(best.termHits >= 2 && best.score >= 8)) return "";
   return best.filePath;
 }
 
