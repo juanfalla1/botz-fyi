@@ -655,9 +655,12 @@ function extractCustomerPhone(text: string, fallbackInbound: string): string {
 function extractLabeledValue(text: string, labels: string[]): string {
   const raw = String(text || "");
   for (const label of labels) {
-    const rx = new RegExp(`(?:${label})\\s*[:=]\\s*([^\\n,;]{2,120})`, "i");
-    const m = raw.match(rx);
-    if (m?.[1]) return String(m[1]).trim();
+    const rxStrict = new RegExp(`(?:${label})\\s*[:=]\\s*([^\\n,;]{2,120})`, "i");
+    const mStrict = raw.match(rxStrict);
+    if (mStrict?.[1]) return String(mStrict[1]).trim();
+    const rxLoose = new RegExp(`(?:${label})\\s+([^\\n,;]{2,120})`, "i");
+    const mLoose = raw.match(rxLoose);
+    if (mLoose?.[1]) return String(mLoose[1]).trim();
   }
   return "";
 }
@@ -667,7 +670,7 @@ function normalizeCityLabel(raw: string): string {
   if (!t) return "";
   if (/(bogota|bogota dc|bogota d c)/.test(t)) return "bogota";
   if (/(medellin|antioquia|envigado|itagui|sabaneta|bello)/.test(t)) return "antioquia";
-  return "";
+  return t;
 }
 
 function isPresent(v: string): boolean {
@@ -2817,6 +2820,7 @@ export async function POST(req: Request) {
 
       const rememberedCategory = String(previousMemory?.last_category_intent || strictMemory.last_category_intent || "").trim();
       const baseScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+      const prevSpecQuery = String(previousMemory?.strict_spec_query || "").trim();
 
       let selectedProduct: any = null;
       if (explicitModel) {
@@ -2882,6 +2886,40 @@ export async function POST(req: Request) {
         strictReply = knownCustomerName
           ? `Hola ${knownCustomerName}, soy Ava de Avanza Group. ¿Qué producto necesitas hoy?`
           : "Hola, soy Ava de Avanza Group. ¿Qué producto necesitas hoy?";
+      } else if (awaiting === "strict_need_spec") {
+        const parsed = parseTechnicalSpecQuery(text);
+        if (!parsed) {
+          strictReply = "Perfecto. Para cotizar bien, dime capacidad y resolución objetivo (ej.: 2 kg x 0.01 g o 220 g x 0.001 g).";
+          strictMemory.awaiting_action = "strict_need_spec";
+        } else {
+          strictMemory.strict_spec_query = text;
+          strictMemory.awaiting_action = "strict_need_industry";
+          strictReply = "Gracias. ¿Para qué industria o uso la necesitas? (ej.: laboratorio de alimentos, farmacia, producción).";
+        }
+      } else if (awaiting === "strict_need_industry") {
+        const industry = String(text || "").trim();
+        if (industry.length < 3 || /^(si|ok|listo|dale|de una)$/i.test(industry)) {
+          strictReply = "Para recomendarte el mejor modelo, dime el uso o industria (ej.: laboratorio alimentos, control de calidad, bodega).";
+          strictMemory.awaiting_action = "strict_need_industry";
+        } else {
+          strictMemory.strict_industry = industry;
+          const specParsed = parseTechnicalSpecQuery(prevSpecQuery || String(strictMemory.strict_spec_query || ""));
+          const ranked = specParsed
+            ? rankCatalogByTechnicalSpec(baseScoped as any[], { capacityG: specParsed.capacityG, readabilityG: specParsed.readabilityG })
+            : [];
+          const recommendedRows = (ranked.length ? ranked.map((r: any) => r.row) : baseScoped).slice(0, 8);
+          const options = buildNumberedProductOptions(recommendedRows as any[], 8);
+          strictMemory.pending_product_options = options;
+          strictMemory.pending_family_options = [];
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictMemory.strict_model_offset = 0;
+          strictReply = [
+            `Perfecto. Con ese uso te recomiendo estas opciones${strictMemory.strict_spec_query ? ` para ${String(strictMemory.strict_spec_query)}` : ""}:`,
+            ...options.map((o) => `${o.code}) ${o.name}`),
+            "",
+            "Responde con letra o número (ej.: A o 1).",
+          ].join("\n");
+        }
       } else if (selectedProduct) {
         const selectedName = String(selectedProduct?.name || "").trim();
         strictMemory.last_product_name = selectedName;
@@ -2937,12 +2975,36 @@ export async function POST(req: Request) {
           ].join("\n");
         }
       } else if (awaiting === "strict_quote_data") {
-        const customerCity = normalizeCityLabel(extractLabeledValue(text, ["ciudad", "city"]));
-        const customerCompany = extractLabeledValue(text, ["empresa", "company", "razon social"]);
-        const customerNit = extractLabeledValue(text, ["nit"]);
-        const customerContact = extractLabeledValue(text, ["contacto"]) || extractCustomerName(text, inbound.pushName || "");
-        const customerEmail = extractEmail(text);
-        const customerPhone = extractCustomerPhone(text, inbound.from);
+        const pickBounded = (label: string) => {
+          const rx = new RegExp(`${label}\\s*[:=]?\\s*([^\\n,;]+?)(?=\\s+(ciudad|empresa|company|nit|contacto|correo|email|celular|telefono)\\b|$)`, "i");
+          const m = String(text || "").match(rx);
+          return m?.[1] ? String(m[1]).trim() : "";
+        };
+
+        const cityNow = normalizeCityLabel(pickBounded("ciudad|city") || extractLabeledValue(text, ["ciudad", "city"]));
+        const companyNow = pickBounded("empresa|company|razon social") || extractLabeledValue(text, ["empresa", "company", "razon social"]);
+        const nitNow = (String(text || "").match(/\bnit\s*[:=]?\s*([0-9\.\-]{5,20})/i)?.[1] || extractLabeledValue(text, ["nit"]).replace(/[^0-9.\-]/g, "")).trim();
+        const contactNow = pickBounded("contacto") || extractLabeledValue(text, ["contacto"]) || extractCustomerName(text, inbound.pushName || "");
+        const emailNow = extractEmail(text);
+        const phoneNow = extractCustomerPhone(text, inbound.from);
+
+        const prevQuoteData = previousMemory?.quote_data && typeof previousMemory.quote_data === "object" ? previousMemory.quote_data : {};
+        const quoteData = {
+          city: cityNow || String(prevQuoteData.city || ""),
+          company: companyNow || String(prevQuoteData.company || ""),
+          nit: nitNow || String(prevQuoteData.nit || ""),
+          contact: contactNow || String(prevQuoteData.contact || ""),
+          email: emailNow || String(prevQuoteData.email || ""),
+          phone: phoneNow || String(prevQuoteData.phone || ""),
+        };
+        strictMemory.quote_data = quoteData;
+
+        const customerCity = String(quoteData.city || "").trim();
+        const customerCompany = String(quoteData.company || "").trim();
+        const customerNit = String(quoteData.nit || "").trim();
+        const customerContact = String(quoteData.contact || "").trim();
+        const customerEmail = String(quoteData.email || "").trim();
+        const customerPhone = String(quoteData.phone || "").trim();
         const missing: string[] = [];
         if (!customerCity) missing.push("ciudad");
         if (!customerCompany) missing.push("empresa");
@@ -2951,9 +3013,10 @@ export async function POST(req: Request) {
         if (!customerEmail) missing.push("correo");
         if (!customerPhone) missing.push("celular");
         if (missing.length) {
-          strictReply = `Me faltan: ${missing.join(", ")}. Envíamelos en un solo mensaje.`;
+          strictReply = `Perfecto, ya guardé datos. Solo me faltan: ${missing.join(", ")}.`;
         } else {
           strictMemory.awaiting_action = "none";
+          strictMemory.quote_data = {};
           strictReply = "Gracias. En breve, uno de nuestros asesores se pondrá en contacto para entregarte la cotización ajustada a tu necesidad. ¡Estamos para ayudarte!";
         }
       } else if (awaiting === "strict_choose_model") {
@@ -3015,6 +3078,15 @@ export async function POST(req: Request) {
               : "Responde con letra o número (ej.: A o 1).",
           ].join("\n");
         }
+      } else if (wantsQuote && !selectedProduct && !explicitModel) {
+        strictMemory.awaiting_action = "strict_need_spec";
+        strictMemory.pending_product_options = [];
+        strictMemory.pending_family_options = [];
+        strictReply = "Claro. Para cotizarte bien, dime capacidad y resolución (ej.: 2 kg x 0.01 g).";
+      } else if (!selectedProduct && isTechnicalSpecQuery(text)) {
+        strictMemory.strict_spec_query = text;
+        strictMemory.awaiting_action = "strict_need_industry";
+        strictReply = "Perfecto. ¿Para qué industria o uso la necesitas?";
       } else if (categoryIntent || isInventoryInfoIntent(text)) {
         const scoped = categoryIntent ? scopeCatalogRows(ownerRows as any, categoryIntent) : ownerRows;
         const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
@@ -3051,7 +3123,7 @@ export async function POST(req: Request) {
         try {
           const openai = new OpenAI({ apiKey });
           const llm = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
+            model: String(process.env.WHATSAPP_STRICT_MODEL || "gpt-4.1"),
             temperature: 0.2,
             max_tokens: 180,
             messages: [
