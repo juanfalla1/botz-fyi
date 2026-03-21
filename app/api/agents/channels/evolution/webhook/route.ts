@@ -2823,6 +2823,17 @@ export async function POST(req: Request) {
         selectedProduct = findExactModelProduct(text, ownerRows as any[]) || pickBestCatalogProduct(text, ownerRows as any[]);
       }
 
+      if (!selectedProduct && awaiting === "strict_choose_action") {
+        const rememberedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || "").trim();
+        const rememberedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || "").trim();
+        if (rememberedId) {
+          selectedProduct = ownerRows.find((r: any) => String(r?.id || "").trim() === rememberedId) || null;
+        }
+        if (!selectedProduct && rememberedName) {
+          selectedProduct = findCatalogProductByName(ownerRows as any[], rememberedName) || null;
+        }
+      }
+
       if (!selectedProduct && awaiting === "strict_choose_model") {
         const pending = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
         const selected = resolvePendingProductOption(text, pending);
@@ -2882,7 +2893,10 @@ export async function POST(req: Request) {
         strictMemory.pending_family_options = [];
         strictMemory.pending_product_options = [];
 
-        if (wantsSheet || /^2\b/.test(textNorm) || awaiting === "strict_choose_action") {
+        if (wantsQuote || /^1\b/.test(textNorm)) {
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = "Perfecto. Para formalizar la cotización necesito: Ciudad, Empresa, NIT, Contacto, Correo y Celular (en un solo mensaje).";
+        } else if (wantsSheet || /^2\b/.test(textNorm)) {
           const datasheetUrl = pickBestProductPdfUrl(selectedProduct, text) || "";
           const localPdfPath = pickBestLocalPdfPath(selectedProduct, text);
           let attached = false;
@@ -2914,9 +2928,6 @@ export async function POST(req: Request) {
           strictReply = attached
             ? `Perfecto. Te envío por este WhatsApp la ficha técnica en PDF de ${selectedName}.`
             : `No tengo un PDF válido para ${selectedName} en este momento. Si quieres, te genero la cotización ahora.`;
-        } else if (wantsQuote || /^1\b/.test(textNorm)) {
-          strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = "Perfecto. Para formalizar la cotización necesito: Ciudad, Empresa, NIT, Contacto, Correo y Celular (en un solo mensaje).";
         } else {
           strictReply = [
             `Perfecto, encontré el modelo ${selectedName}.`,
