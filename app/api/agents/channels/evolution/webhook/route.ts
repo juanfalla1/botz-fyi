@@ -2786,6 +2786,228 @@ export async function POST(req: Request) {
     if (knownCustomerName) nextMemory.customer_name = knownCustomerName;
     nextMemory.recognized_returning_customer = recognizedReturningCustomer;
 
+    // Strict deterministic mode: single flow, no ambiguous branches.
+    const STRICT_REBUILD_MODE = String(process.env.WHATSAPP_STRICT_REBUILD || "true").toLowerCase() !== "false";
+    if (STRICT_REBUILD_MODE) {
+      const outboundInstance = String((channel as any)?.config?.evolution_instance_name || inbound.instance || "");
+      if (!outboundInstance) return NextResponse.json({ ok: true, ignored: true, reason: "instance_missing" });
+
+      const strictMemory: Record<string, any> = {
+        ...nextMemory,
+        last_user_text: inbound.text,
+        last_user_at: new Date().toISOString(),
+      };
+      const text = String(inbound.text || "").trim();
+      const textNorm = normalizeCatalogQueryText(text);
+      const awaiting = String(previousMemory?.awaiting_action || "");
+      const wantsSheet = isTechnicalSheetIntent(text);
+      const wantsQuote = asksQuoteIntent(text) || isPriceIntent(text);
+      const isGreeting = isGreetingIntent(text);
+      const explicitModel = hasConcreteProductHint(text) && !isOptionOnlyReply(text);
+      const categoryIntent = detectCatalogCategoryIntent(text);
+
+      const { data: ownerRowsRaw } = await supabase
+        .from("agent_product_catalog")
+        .select("id,name,category,brand,base_price_usd,price_currency,source_payload,product_url,image_url,datasheet_url,is_active")
+        .eq("created_by", ownerId)
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(360);
+      const ownerRows = (Array.isArray(ownerRowsRaw) ? ownerRowsRaw : []).filter((r: any) => isCommercialCatalogRow(r));
+
+      const rememberedCategory = String(previousMemory?.last_category_intent || strictMemory.last_category_intent || "").trim();
+      const baseScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+
+      let selectedProduct: any = null;
+      if (explicitModel) {
+        selectedProduct = findExactModelProduct(text, ownerRows as any[]) || pickBestCatalogProduct(text, ownerRows as any[]);
+      }
+
+      if (!selectedProduct && awaiting === "strict_choose_model") {
+        const pending = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+        const selected = resolvePendingProductOption(text, pending);
+        if (selected?.id) {
+          selectedProduct = ownerRows.find((r: any) => String(r?.id || "") === String(selected.id || "")) || null;
+        }
+      }
+
+      const toCandidates = [inbound.from, ...(inbound.alternates || [])]
+        .map((n) => normalizePhone(String(n || "")))
+        .filter((n, i, arr) => n && arr.indexOf(n) === i)
+        .filter((n) => n.length >= 10 && n.length <= 15);
+
+      const sendTextAndDocs = async (replyText: string, docs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }>) => {
+        let sentTo = "";
+        for (const to of toCandidates) {
+          try {
+            await evolutionService.sendMessage(outboundInstance, to, withAvaSignature(enforceWhatsAppDelivery(replyText, text)));
+            sentTo = to;
+            break;
+          } catch {
+            continue;
+          }
+        }
+        if (!sentTo) return false;
+        for (const d of docs) {
+          try {
+            await evolutionService.sendDocument(outboundInstance, sentTo, {
+              base64: d.base64,
+              fileName: safeFileName(d.fileName, "ficha-tecnica", "pdf"),
+              caption: d.caption || "Ficha técnica",
+              mimetype: d.mimetype || "application/pdf",
+            });
+          } catch {
+            await evolutionService.sendMessage(outboundInstance, sentTo, "Intenté enviarte la ficha técnica, pero falló en este intento. Escribe 'reenviar ficha' y lo reintento ahora mismo.");
+            break;
+          }
+        }
+        return true;
+      };
+
+      let strictReply = "";
+      const strictDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }> = [];
+
+      if (isGreeting && !explicitModel && !categoryIntent && !wantsQuote && !wantsSheet) {
+        strictReply = knownCustomerName
+          ? `Hola ${knownCustomerName}, soy Ava de Avanza Group. ¿Qué producto necesitas hoy?`
+          : "Hola, soy Ava de Avanza Group. ¿Qué producto necesitas hoy?";
+      } else if (selectedProduct) {
+        const selectedName = String(selectedProduct?.name || "").trim();
+        strictMemory.last_product_name = selectedName;
+        strictMemory.last_product_id = String(selectedProduct?.id || "").trim();
+        strictMemory.last_selected_product_name = selectedName;
+        strictMemory.last_selected_product_id = String(selectedProduct?.id || "").trim();
+        strictMemory.last_selection_at = new Date().toISOString();
+        strictMemory.awaiting_action = "strict_choose_action";
+        strictMemory.pending_family_options = [];
+        strictMemory.pending_product_options = [];
+
+        if (wantsSheet || /^2\b/.test(textNorm) || awaiting === "strict_choose_action") {
+          const datasheetUrl = pickBestProductPdfUrl(selectedProduct, text) || "";
+          const localPdfPath = pickBestLocalPdfPath(selectedProduct, text);
+          let attached = false;
+          if (datasheetUrl) {
+            const remote = await fetchRemoteFileAsBase64(datasheetUrl);
+            const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrl));
+            if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+              strictDocs.push({
+                base64: remote.base64,
+                fileName: safeFileName(remote.fileName, `ficha-${selectedName}`, "pdf"),
+                mimetype: "application/pdf",
+                caption: `Ficha técnica - ${selectedName}`,
+              });
+              attached = true;
+            }
+          }
+          if (!attached && localPdfPath) {
+            const local = fetchLocalFileAsBase64(localPdfPath);
+            if (local && Number(local.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+              strictDocs.push({
+                base64: local.base64,
+                fileName: safeFileName(local.fileName, `ficha-${selectedName}`, "pdf"),
+                mimetype: "application/pdf",
+                caption: `Ficha técnica - ${selectedName}`,
+              });
+              attached = true;
+            }
+          }
+          strictReply = attached
+            ? `Perfecto. Te envío por este WhatsApp la ficha técnica en PDF de ${selectedName}.`
+            : `No tengo un PDF válido para ${selectedName} en este momento. Si quieres, te genero la cotización ahora.`;
+        } else if (wantsQuote || /^1\b/.test(textNorm)) {
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = "Perfecto. Para formalizar la cotización necesito: Ciudad, Empresa, NIT, Contacto, Correo y Celular (en un solo mensaje).";
+        } else {
+          strictReply = [
+            `Perfecto, encontré el modelo ${selectedName}.`,
+            "Ahora dime qué deseas con ese modelo:",
+            "1) Cotización con TRM y PDF",
+            "2) Ficha técnica",
+          ].join("\n");
+        }
+      } else if (awaiting === "strict_quote_data") {
+        const customerCity = normalizeCityLabel(extractLabeledValue(text, ["ciudad", "city"]));
+        const customerCompany = extractLabeledValue(text, ["empresa", "company", "razon social"]);
+        const customerNit = extractLabeledValue(text, ["nit"]);
+        const customerContact = extractLabeledValue(text, ["contacto"]) || extractCustomerName(text, inbound.pushName || "");
+        const customerEmail = extractEmail(text);
+        const customerPhone = extractCustomerPhone(text, inbound.from);
+        const missing: string[] = [];
+        if (!customerCity) missing.push("ciudad");
+        if (!customerCompany) missing.push("empresa");
+        if (!customerNit) missing.push("NIT");
+        if (!customerContact) missing.push("contacto");
+        if (!customerEmail) missing.push("correo");
+        if (!customerPhone) missing.push("celular");
+        if (missing.length) {
+          strictReply = `Me faltan: ${missing.join(", ")}. Envíamelos en un solo mensaje.`;
+        } else {
+          strictMemory.awaiting_action = "none";
+          strictReply = "Gracias. En breve, uno de nuestros asesores se pondrá en contacto para entregarte la cotización ajustada a tu necesidad. ¡Estamos para ayudarte!";
+        }
+      } else if (awaiting === "strict_choose_family") {
+        const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
+        const selectedFamily = resolvePendingFamilyOption(text, pendingFamilies);
+        if (!selectedFamily) {
+          strictReply = "Elige una familia con letra o número (ej.: A o 1).";
+        } else {
+          const familyRows = baseScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamily.key || "")));
+          const options = buildNumberedProductOptions(familyRows as any[], 8);
+          strictMemory.pending_product_options = options;
+          strictMemory.pending_family_options = [];
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictReply = [
+            `Perfecto. Modelos de ${String(selectedFamily.label || "familia")}:`,
+            ...options.map((o) => `${o.code}) ${o.name}`),
+            "",
+            "Responde con letra o número (ej.: A o 1).",
+          ].join("\n");
+        }
+      } else if (categoryIntent || isInventoryInfoIntent(text)) {
+        const scoped = categoryIntent ? scopeCatalogRows(ownerRows as any, categoryIntent) : ownerRows;
+        const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
+        strictMemory.pending_family_options = familyOptions;
+        strictMemory.pending_product_options = [];
+        strictMemory.awaiting_action = "strict_choose_family";
+        strictMemory.last_category_intent = String(categoryIntent || "");
+        strictReply = [
+          `Sí, tenemos ${scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
+          "Primero elige la familia:",
+          ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
+          "",
+          "Responde con letra o número (ej.: A o 1).",
+        ].join("\n");
+      } else {
+        strictReply = "Para ayudarte sin errores, escribe el modelo exacto (ej.: AX12001/E, MB120, R31P15) o pide una categoría (balanzas, basculas, analizador humedad).";
+      }
+
+      const sentOk = await sendTextAndDocs(strictReply, strictDocs);
+      if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+
+      try {
+        await persistConversationTurn(supabase as any, {
+          agentId: String(agent.id),
+          ownerId,
+          tenantId: (agent as any)?.tenant_id || null,
+          from: inbound.from,
+          pushName: inbound.pushName,
+          contactName: knownCustomerName || inbound.pushName || inbound.from,
+          inboundText: inbound.text,
+          outboundText: strictReply,
+          messageId: inbound.messageId,
+          memory: strictMemory,
+        });
+      } catch {}
+
+      await supabase
+        .from("incoming_messages")
+        .update({ status: "processed", processed_at: new Date().toISOString() })
+        .eq("provider", "evolution")
+        .eq("provider_message_id", incomingDedupKey);
+
+      return NextResponse.json({ ok: true, sent: true, strict: true });
+    }
+
     const awaitingAction = String(previousMemory?.awaiting_action || "");
     const originalInboundText = String(inbound.text || "").trim();
     const explicitModelGlobal = hasConcreteProductHint(originalInboundText) && !isOptionOnlyReply(originalInboundText);
@@ -2794,6 +3016,47 @@ export async function POST(req: Request) {
       nextMemory.pending_product_options = [];
       nextMemory.pending_family_options = [];
       nextMemory.last_category_intent = "";
+
+      try {
+        const { data: ownerDirectRows } = await supabase
+          .from("agent_product_catalog")
+          .select("id,name,category,brand,base_price_usd,price_currency,source_payload,product_url,is_active")
+          .eq("created_by", ownerId)
+          .eq("is_active", true)
+          .order("updated_at", { ascending: false })
+          .limit(320);
+        const directCommercialRows = (Array.isArray(ownerDirectRows) ? ownerDirectRows : []).filter((r: any) => isCommercialCatalogRow(r));
+        const directModel = findExactModelProduct(originalInboundText, directCommercialRows as any[]) || pickBestCatalogProduct(originalInboundText, directCommercialRows as any[]);
+        if (directModel?.id) {
+          const directName = String((directModel as any)?.name || "").trim();
+          nextMemory.last_product_name = directName;
+          nextMemory.last_product_id = String((directModel as any)?.id || "").trim();
+          nextMemory.last_product_category = String((directModel as any)?.category || "").trim();
+          nextMemory.last_selected_product_name = directName;
+          nextMemory.last_selected_product_id = String((directModel as any)?.id || "").trim();
+          nextMemory.last_selection_at = new Date().toISOString();
+
+          if (isTechnicalSheetIntent(originalInboundText)) {
+            inbound.text = `ficha tecnica de ${directName}`;
+          } else if (asksQuoteIntent(originalInboundText) || isPriceIntent(originalInboundText)) {
+            inbound.text = `cotizar ${directName} ${originalInboundText}`.trim();
+            nextMemory.awaiting_action = "quote_product_selection";
+          } else {
+            reply = [
+              `Perfecto, encontré el modelo ${directName}.`,
+              "Ahora dime qué deseas con ese modelo:",
+              "1) Cotización con TRM y PDF",
+              "2) Ficha técnica",
+            ].join("\n");
+            nextMemory.awaiting_action = "product_action";
+            handledByRecommendation = true;
+            handledByProductLookup = true;
+            billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+          }
+        }
+      } catch {
+        // ignore strict model bootstrap errors and continue with regular flow
+      }
     }
     const inboundCategoryIntent = normalizeText(String(detectCatalogCategoryIntent(originalInboundText) || ""));
     const inboundInventoryIntent = Boolean(
