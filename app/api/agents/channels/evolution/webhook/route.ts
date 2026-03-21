@@ -2956,6 +2956,42 @@ export async function POST(req: Request) {
           strictMemory.awaiting_action = "none";
           strictReply = "Gracias. En breve, uno de nuestros asesores se pondrá en contacto para entregarte la cotización ajustada a tu necesidad. ¡Estamos para ayudarte!";
         }
+      } else if (awaiting === "strict_choose_model") {
+        const familyLabel = String(previousMemory?.strict_family_label || "").trim();
+        const askMore = /\b(mas|más|siguiente|siguientes|resto|todas|todos)\b/.test(textNorm);
+        const askCount = /\b(cuantas|cuantos|total|tienen\s+\d+|\d+)\b/.test(textNorm);
+        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+        const familyRows = familyLabel
+          ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
+          : categoryScoped;
+        const allOptions = buildNumberedProductOptions(familyRows as any[], 60);
+        const total = allOptions.length;
+        const prevOffset = Math.max(0, Number(previousMemory?.strict_model_offset || 0));
+        const nextOffset = askMore ? Math.min(prevOffset + 8, Math.max(0, total - 1)) : prevOffset;
+        const page = allOptions.slice(nextOffset, nextOffset + 8);
+        strictMemory.pending_product_options = page;
+        strictMemory.strict_model_offset = nextOffset;
+        strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
+
+        if (!page.length) {
+          strictReply = "No tengo más modelos en ese grupo. Si quieres, te muestro otra familia.";
+        } else if (askMore || askCount) {
+          strictReply = [
+            familyLabel
+              ? `Sí, en ${familyLabel} tengo ${total} referencia(s).`
+              : `Sí, tengo ${total} referencia(s) en este grupo.`,
+            ...page.map((o) => `${o.code}) ${o.name}`),
+            "",
+            (nextOffset + 8 < total)
+              ? "Escribe 'más' para ver siguientes, o elige con letra/número (A/1)."
+              : "Elige con letra/número (A/1), o pide otra familia.",
+          ].join("\n");
+        } else {
+          strictReply = [
+            "Elige un modelo del listado con letra o número (A/1), o escribe 'más' para ver siguientes.",
+            ...page.map((o) => `${o.code}) ${o.name}`),
+          ].join("\n");
+        }
       } else if (awaiting === "strict_choose_family") {
         const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
         const selectedFamily = resolvePendingFamilyOption(text, pendingFamilies);
@@ -2963,15 +2999,20 @@ export async function POST(req: Request) {
           strictReply = "Elige una familia con letra o número (ej.: A o 1).";
         } else {
           const familyRows = baseScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamily.key || "")));
-          const options = buildNumberedProductOptions(familyRows as any[], 8);
+          const allOptions = buildNumberedProductOptions(familyRows as any[], 60);
+          const options = allOptions.slice(0, 8);
           strictMemory.pending_product_options = options;
           strictMemory.pending_family_options = [];
           strictMemory.awaiting_action = "strict_choose_model";
+          strictMemory.strict_family_label = String(selectedFamily.label || "");
+          strictMemory.strict_model_offset = 0;
           strictReply = [
-            `Perfecto. Modelos de ${String(selectedFamily.label || "familia")}:`,
+            `Perfecto. Modelos de ${String(selectedFamily.label || "familia")} (${allOptions.length}):`,
             ...options.map((o) => `${o.code}) ${o.name}`),
             "",
-            "Responde con letra o número (ej.: A o 1).",
+            (allOptions.length > options.length)
+              ? "Responde con letra o número (ej.: A o 1), o escribe 'más' para ver siguientes."
+              : "Responde con letra o número (ej.: A o 1).",
           ].join("\n");
         }
       } else if (categoryIntent || isInventoryInfoIntent(text)) {
@@ -2989,7 +3030,56 @@ export async function POST(req: Request) {
           "Responde con letra o número (ej.: A o 1).",
         ].join("\n");
       } else {
-        strictReply = "Para ayudarte sin errores, escribe el modelo exacto (ej.: AX12001/E, MB120, R31P15) o pide una categoría (balanzas, basculas, analizador humedad).";
+        const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
+        const pendingModels = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+        const inProgressState = String(previousMemory?.awaiting_action || "none");
+
+        const conversationalContext = [
+          `Estado actual: ${inProgressState}`,
+          rememberedCategory ? `Categoria en contexto: ${rememberedCategory}` : "",
+          strictMemory.last_selected_product_name ? `Producto en contexto: ${String(strictMemory.last_selected_product_name)}` : "",
+          pendingFamilies.length
+            ? `Familias disponibles: ${pendingFamilies.map((f: any) => `${String(f?.code || "").toUpperCase()}) ${String(f?.label || "")}`).join(" | ")}`
+            : "",
+          pendingModels.length
+            ? `Modelos visibles: ${pendingModels.map((m: any) => `${String(m?.code || "").toUpperCase()}) ${String(m?.name || "")}`).join(" | ")}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        try {
+          const openai = new OpenAI({ apiKey });
+          const llm = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            temperature: 0.2,
+            max_tokens: 180,
+            messages: [
+              {
+                role: "system",
+                content:
+                  [
+                    "Eres Ava de Avanza Group por WhatsApp.",
+                    "Objetivo: mantener la conversación natural sin perder el estado actual.",
+                    "No inventes productos. Solo usa el catálogo cargado y opciones visibles.",
+                    "Si el usuario está en flujo de elección (familia/modelo/acción), responde guiando en lenguaje natural y conserva el contexto.",
+                    "Si no hay suficiente información, haz una sola pregunta corta para avanzar.",
+                    "Responde en 2-5 líneas, tono humano y directo.",
+                  ].join("\n"),
+              },
+              { role: "system", content: conversationalContext },
+              ...historyMessages.slice(-6),
+              { role: "user", content: text },
+            ],
+          });
+          strictReply = String(llm.choices?.[0]?.message?.content || "").trim();
+        } catch {
+          strictReply = "Entiendo. Te acompaño paso a paso para no perder el hilo. Si quieres, te muestro opciones y avanzamos con una sola respuesta tuya.";
+        }
+
+        if (!strictReply) {
+          strictReply = "Entiendo. Dime el modelo exacto o la categoría y seguimos en esta misma conversación.";
+        }
       }
 
       const sentOk = await sendTextAndDocs(strictReply, strictDocs);
