@@ -943,7 +943,25 @@ function resolvePendingFamilyOption(text: string, optionsRaw: any): { code: stri
   const byDirect = options.find((o: any) => t === normalizeText(o.code) || t === String(o.rank));
   if (byDirect) return byDirect;
   const byMention = options.find((o: any) => normalizeText(o.label).includes(t) || t.includes(normalizeText(o.label)));
-  return byMention || null;
+  if (byMention) return byMention;
+
+  const tTerms = t
+    .split(/[^a-z0-9]+/i)
+    .map((x) => x.trim())
+    .filter((x) => x.length >= 4)
+    .filter((x) => !["dije", "dijiste", "quiero", "busco", "tengo", "tienes", "familia", "elige", "opcion"].includes(x));
+  if (!tTerms.length) return null;
+
+  let best: any = null;
+  for (const o of options) {
+    const labelTerms = normalizeText(String(o.label || ""))
+      .split(/[^a-z0-9]+/i)
+      .map((x) => x.trim())
+      .filter((x) => x.length >= 4);
+    const hits = tTerms.filter((tt) => labelTerms.some((lt) => lt.includes(tt) || tt.includes(lt))).length;
+    if (!best || hits > best.hits) best = { o, hits };
+  }
+  return best && best.hits > 0 ? best.o : null;
 }
 
 function isOptionOnlyReply(text: string): boolean {
@@ -2790,7 +2808,11 @@ export async function POST(req: Request) {
     nextMemory.recognized_returning_customer = recognizedReturningCustomer;
 
     // Strict deterministic mode: single flow, no ambiguous branches.
-    const STRICT_REBUILD_MODE = String(process.env.WHATSAPP_STRICT_REBUILD || "true").toLowerCase() !== "false";
+    const STRICT_REBUILD_MODE = String(
+      process.env.WHATSAPP_USE_V2 ||
+      process.env.WHATSAPP_STRICT_REBUILD ||
+      "true"
+    ).toLowerCase() !== "false";
     if (STRICT_REBUILD_MODE) {
       const outboundInstance = String((channel as any)?.config?.evolution_instance_name || inbound.instance || "");
       if (!outboundInstance) return NextResponse.json({ ok: true, ignored: true, reason: "instance_missing" });
@@ -2821,6 +2843,8 @@ export async function POST(req: Request) {
       const rememberedCategory = String(previousMemory?.last_category_intent || strictMemory.last_category_intent || "").trim();
       const baseScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
       const prevSpecQuery = String(previousMemory?.strict_spec_query || "").trim();
+      let strictReply = "";
+      const strictDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }> = [];
 
       let selectedProduct: any = null;
       if (explicitModel) {
@@ -2904,9 +2928,6 @@ export async function POST(req: Request) {
         }
         return true;
       };
-
-      let strictReply = "";
-      const strictDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }> = [];
 
       // Hard guardrail: never answer outside OHAUS scope.
       const outOfScope = /\b(autos?|carros?|vehiculos?|motos?|bicicletas?|inmueble|casa|apartamento|hipoteca)\b/.test(textNorm);
