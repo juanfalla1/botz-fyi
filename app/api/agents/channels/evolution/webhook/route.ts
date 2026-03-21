@@ -2908,6 +2908,12 @@ export async function POST(req: Request) {
       let strictReply = "";
       const strictDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }> = [];
 
+      // Hard guardrail: never answer outside OHAUS scope.
+      const outOfScope = /\b(autos?|carros?|vehiculos?|motos?|bicicletas?|inmueble|casa|apartamento|hipoteca)\b/.test(textNorm);
+      if (outOfScope) {
+        strictReply = "Solo te puedo ayudar con productos OHAUS del catálogo (balanzas, basculas, analizador de humedad y electroquímica). Si quieres, te muestro opciones.";
+      }
+
       if (!String(strictReply || "").trim() && isGreeting && !explicitModel && !categoryIntent && !wantsQuote && !wantsSheet) {
         strictReply = knownCustomerName
           ? `Hola ${knownCustomerName}, soy Ava de Avanza Group. ¿Qué producto necesitas hoy?`
@@ -3217,56 +3223,7 @@ export async function POST(req: Request) {
           "Responde con letra o número (ej.: A o 1).",
         ].join("\n");
       } else {
-        const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
-        const pendingModels = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
-        const inProgressState = String(previousMemory?.awaiting_action || "none");
-
-        const conversationalContext = [
-          `Estado actual: ${inProgressState}`,
-          rememberedCategory ? `Categoria en contexto: ${rememberedCategory}` : "",
-          strictMemory.last_selected_product_name ? `Producto en contexto: ${String(strictMemory.last_selected_product_name)}` : "",
-          pendingFamilies.length
-            ? `Familias disponibles: ${pendingFamilies.map((f: any) => `${String(f?.code || "").toUpperCase()}) ${String(f?.label || "")}`).join(" | ")}`
-            : "",
-          pendingModels.length
-            ? `Modelos visibles: ${pendingModels.map((m: any) => `${String(m?.code || "").toUpperCase()}) ${String(m?.name || "")}`).join(" | ")}`
-            : "",
-        ]
-          .filter(Boolean)
-          .join("\n");
-
-        try {
-          const openai = new OpenAI({ apiKey });
-          const llm = await openai.chat.completions.create({
-            model: String(process.env.WHATSAPP_STRICT_MODEL || "gpt-4.1"),
-            temperature: 0.2,
-            max_tokens: 180,
-            messages: [
-              {
-                role: "system",
-                content:
-                  [
-                    "Eres Ava de Avanza Group por WhatsApp.",
-                    "Objetivo: mantener la conversación natural sin perder el estado actual.",
-                    "No inventes productos. Solo usa el catálogo cargado y opciones visibles.",
-                    "Si el usuario está en flujo de elección (familia/modelo/acción), responde guiando en lenguaje natural y conserva el contexto.",
-                    "Si no hay suficiente información, haz una sola pregunta corta para avanzar.",
-                    "Responde en 2-5 líneas, tono humano y directo.",
-                  ].join("\n"),
-              },
-              { role: "system", content: conversationalContext },
-              ...historyMessages.slice(-6),
-              { role: "user", content: text },
-            ],
-          });
-          strictReply = String(llm.choices?.[0]?.message?.content || "").trim();
-        } catch {
-          strictReply = "Entiendo. Te acompaño paso a paso para no perder el hilo. Si quieres, te muestro opciones y avanzamos con una sola respuesta tuya.";
-        }
-
-        if (!strictReply) {
-          strictReply = "Entiendo. Dime el modelo exacto o la categoría y seguimos en esta misma conversación.";
-        }
+        strictReply = "Te ayudo con catálogo OHAUS. Dime modelo exacto (ej.: AX12001/E, MB120, R31P15) o categoría (balanzas, basculas, analizador humedad) y seguimos.";
       }
 
       const sentOk = await sendTextAndDocs(strictReply, strictDocs);
