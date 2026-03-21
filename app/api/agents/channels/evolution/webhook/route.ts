@@ -2932,8 +2932,10 @@ export async function POST(req: Request) {
         strictMemory.pending_product_options = [];
 
         if (wantsQuote || /^1\b/.test(textNorm)) {
+          const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
+          strictMemory.quote_quantity = qtyRequested;
           strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = "Perfecto. Para formalizar la cotización necesito: Ciudad, Empresa, NIT, Contacto, Correo y Celular (en un solo mensaje).";
+          strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Para formalizar la cotización necesito: Ciudad, Empresa, NIT, Contacto, Correo y Celular (en un solo mensaje).`;
         } else if (wantsSheet || /^2\b/.test(textNorm)) {
           const datasheetUrl = pickBestProductPdfUrl(selectedProduct, text) || "";
           const localPdfPath = pickBestLocalPdfPath(selectedProduct, text);
@@ -3015,9 +3017,96 @@ export async function POST(req: Request) {
         if (missing.length) {
           strictReply = `Perfecto, ya guardé datos. Solo me faltan: ${missing.join(", ")}.`;
         } else {
-          strictMemory.awaiting_action = "none";
-          strictMemory.quote_data = {};
-          strictReply = "Gracias. En breve, uno de nuestros asesores se pondrá en contacto para entregarte la cotización ajustada a tu necesidad. ¡Estamos para ayudarte!";
+          const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || strictMemory.last_selected_product_id || strictMemory.last_product_id || "").trim();
+          const selectedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
+          const selected = selectedId
+            ? (ownerRows.find((r: any) => String(r?.id || "").trim() === selectedId) || null)
+            : (selectedName ? (findCatalogProductByName(ownerRows as any[], selectedName) || null) : null);
+
+          const qty = Math.max(1, Number(previousMemory?.quote_quantity || strictMemory.quote_quantity || 1));
+          const trm = await getOrFetchTrm(supabase, ownerId, (agent as any)?.tenant_id || null);
+          const trmRate = Number(trm?.rate || 0);
+
+          if (!selected || !(trmRate > 0)) {
+            strictMemory.awaiting_action = "none";
+            strictMemory.quote_data = {};
+            strictReply = "Recibí tus datos. No pude cerrar la cotización automática en este intento, pero ya quedó registrado y te la envío enseguida por este mismo WhatsApp.";
+          } else {
+            const cityKey = normalizeCityLabel(customerCity);
+            const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
+            const cityCop = Number(cityPrices?.[cityKey] || 0);
+            const bogotaCop = Number(cityPrices?.bogota || 0);
+            const unitPriceCop = cityCop > 0 ? cityCop : bogotaCop;
+            const baseUsdRaw = Number((selected as any)?.base_price_usd || 0);
+            const basePriceUsd = baseUsdRaw > 0
+              ? baseUsdRaw
+              : (unitPriceCop > 0 ? Number((unitPriceCop / trmRate).toFixed(6)) : 0);
+            const totalCop = unitPriceCop > 0
+              ? Number((unitPriceCop * qty).toFixed(2))
+              : Number((basePriceUsd * trmRate * qty).toFixed(2));
+
+            const draftPayload = {
+              tenant_id: (agent as any)?.tenant_id || null,
+              created_by: ownerId,
+              agent_id: String(agent.id),
+              customer_name: customerContact || null,
+              customer_email: customerEmail || null,
+              customer_phone: customerPhone || null,
+              company_name: customerCompany || null,
+              location: customerCity || null,
+              product_catalog_id: (selected as any)?.id || null,
+              product_name: String((selected as any)?.name || ""),
+              base_price_usd: basePriceUsd,
+              trm_rate: trmRate,
+              total_cop: totalCop,
+              notes: "Cotizacion automatica WhatsApp (flujo estricto)",
+              payload: {
+                quantity: qty,
+                trm_date: trm?.rate_date || null,
+                trm_source: trm?.source || null,
+                customer_city: customerCity || null,
+                customer_nit: customerNit || null,
+                customer_company: customerCompany || null,
+                customer_contact: customerContact || null,
+                unit_price_cop: unitPriceCop > 0 ? unitPriceCop : null,
+              },
+              status: "draft",
+            };
+
+            const { data: insertedDraft, error: draftErr } = await supabase
+              .from("agent_quote_drafts")
+              .insert(draftPayload)
+              .select("id")
+              .single();
+
+            if (draftErr) {
+              strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Ya quedó registrado para reenviarla por este WhatsApp.";
+            } else {
+              const pdfBase64 = buildQuotePdf({
+                draftId: String((insertedDraft as any)?.id || ""),
+                customerName: customerContact,
+                customerEmail,
+                customerPhone,
+                companyName: customerCompany,
+                productName: String((selected as any)?.name || ""),
+                quantity: qty,
+                basePriceUsd,
+                trmRate,
+                totalCop,
+                notes: `Ciudad: ${customerCity} | NIT: ${customerNit}`,
+              });
+              strictDocs.push({
+                base64: pdfBase64,
+                fileName: safeFileName(`cotizacion-${String((selected as any)?.name || "producto")}-${Date.now()}.pdf`, "cotizacion", "pdf"),
+                mimetype: "application/pdf",
+                caption: `Cotización - ${String((selected as any)?.name || "producto")}`,
+              });
+              strictReply = `Listo. Ya generé la cotización de ${String((selected as any)?.name || "producto")} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
+            }
+            strictMemory.awaiting_action = "none";
+            strictMemory.quote_data = {};
+            strictMemory.quote_quantity = 1;
+          }
         }
       } else if (awaiting === "strict_choose_model") {
         const familyLabel = String(previousMemory?.strict_family_label || "").trim();
