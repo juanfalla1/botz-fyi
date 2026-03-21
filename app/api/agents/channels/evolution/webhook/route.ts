@@ -3199,10 +3199,14 @@ export async function POST(req: Request) {
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_family") {
         const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
+        if (!pendingFamilies.length) {
+          strictMemory.awaiting_action = "none";
+          strictReply = "En este momento no tengo familias disponibles en esa categoría. Si quieres, dime el modelo exacto (ej.: MB120) y te ayudo.";
+        }
         const selectedFamily = resolvePendingFamilyOption(text, pendingFamilies);
-        if (!selectedFamily) {
+        if (!String(strictReply || "").trim() && !selectedFamily) {
           strictReply = "Elige una familia con letra o número (ej.: A o 1).";
-        } else {
+        } else if (!String(strictReply || "").trim()) {
           const familyRows = baseScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamily.key || "")));
           const allOptions = buildNumberedProductOptions(familyRows as any[], 60);
           const options = allOptions.slice(0, 8);
@@ -3234,15 +3238,42 @@ export async function POST(req: Request) {
         const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
         strictMemory.pending_family_options = familyOptions;
         strictMemory.pending_product_options = [];
-        strictMemory.awaiting_action = "strict_choose_family";
         strictMemory.last_category_intent = String(categoryIntent || "");
-        strictReply = [
-          `Sí, tenemos ${scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
-          "Primero elige la familia:",
-          ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
-          "",
-          "Responde con letra o número (ej.: A o 1).",
-        ].join("\n");
+        if (!familyOptions.length) {
+          strictMemory.awaiting_action = "none";
+          strictReply = `Ahora mismo no tengo referencias activas para ${String((categoryIntent || "esa categoría").replace(/_/g, " "))}. Si quieres, dime el modelo exacto y te confirmo ficha o cotización.`;
+        } else {
+          strictMemory.awaiting_action = "strict_choose_family";
+          strictReply = [
+            `Sí, tenemos ${scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
+            "Primero elige la familia:",
+            ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
+            "",
+            "Responde con letra o número (ej.: A o 1).",
+          ].join("\n");
+        }
+      } else if (!String(strictReply || "").trim() && isTechnicalSpecQuery(text) && !selectedProduct) {
+        const parsed = parseTechnicalSpecQuery(text);
+        const ranked = parsed
+          ? rankCatalogByTechnicalSpec(ownerRows as any[], { capacityG: parsed.capacityG, readabilityG: parsed.readabilityG })
+          : [];
+        const rankedRows = ranked.length ? ranked.map((r: any) => r.row) : ownerRows;
+        const options = buildNumberedProductOptions(rankedRows as any[], 8);
+        if (options.length) {
+          strictMemory.pending_product_options = options;
+          strictMemory.pending_family_options = [];
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictMemory.strict_model_offset = 0;
+          strictReply = [
+            `Sí, tengo opciones para ${text.trim()}.`,
+            ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
+            "",
+            "Responde con letra o número (A/1) y te envío ficha técnica o cotización.",
+          ].join("\n");
+        } else {
+          strictMemory.awaiting_action = "strict_need_spec";
+          strictReply = "No encontré coincidencia exacta para esa capacidad/resolución. ¿Quieres que busquemos una resolución cercana?";
+        }
       } else {
         strictReply = "Te ayudo con catálogo OHAUS. Dime modelo exacto (ej.: AX12001/E, MB120, R31P15) o categoría (balanzas, basculas, analizador humedad) y seguimos.";
       }
