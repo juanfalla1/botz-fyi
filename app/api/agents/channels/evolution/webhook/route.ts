@@ -1494,9 +1494,12 @@ function pickBestCatalogProduct(text: string, rows: any[]): any | null {
     const hay = normalizeText(`${row?.name || ""} ${row?.brand || ""} ${row?.category || ""}`);
     const inboundCompact = inbound.replace(/\s+/g, "");
     const nameCompact = rowName.replace(/\s+/g, "");
+    const inboundAlphaNum = inbound.replace(/[^a-z0-9]+/g, "");
+    const nameAlphaNum = rowName.replace(/[^a-z0-9]+/g, "");
     let score = 0;
     if (rowName && inbound.includes(rowName)) score += 10;
     if (nameCompact && inboundCompact.includes(nameCompact)) score += 8;
+    if (nameAlphaNum && inboundAlphaNum.includes(nameAlphaNum)) score += 14;
     for (const token of modelTokens) {
       if (hay.includes(token)) score += 10;
     }
@@ -1740,6 +1743,8 @@ function detectTechResendIntent(text: string): "sheet" | "image" | "both" | null
 
 function normalizeCatalogQueryText(text: string): string {
   return normalizeText(text || "")
+    .replace(/\b([a-z]{1,4})\s*['’`´]\s*(\d{2,6})\b/g, "$11$2")
+    .replace(/\b([a-z]{1,4})\s+(\d{2,6})\b/g, "$1$2")
     .replace(/\baventura\b/g, "adventurer")
     .replace(/\badventure\b/g, "adventurer")
     .replace(/\bpioner\b/g, "pioneer")
