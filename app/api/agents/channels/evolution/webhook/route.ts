@@ -1517,11 +1517,40 @@ function findExactModelProduct(text: string, rows: any[]): any | null {
   const inbound = normalizeCatalogQueryText(text || "");
   const tokens = extractModelLikeTokens(inbound);
   if (!tokens.length) return null;
+  const inboundCompact = inbound.replace(/[^a-z0-9]+/g, "");
+
+  let best: { row: any; score: number } | null = null;
   for (const row of rows || []) {
+    const rowName = normalizeCatalogQueryText(String(row?.name || ""));
     const hay = normalizeCatalogQueryText(`${row?.name || ""} ${row?.brand || ""} ${row?.category || ""} ${catalogSubcategory(row)}`);
-    if (tokens.every((t) => hay.includes(normalizeCatalogQueryText(t)))) return row;
+    const rowCompact = rowName.replace(/[^a-z0-9]+/g, "");
+    let score = 0;
+
+    if (rowCompact && inboundCompact.includes(rowCompact)) score += 18;
+    if (rowName && inbound.includes(rowName)) score += 12;
+
+    const rowModelTokens = extractModelLikeTokens(rowName);
+    for (const t of tokens) {
+      const nt = normalizeCatalogQueryText(t);
+      if (hay.includes(nt)) {
+        score += 10;
+        continue;
+      }
+      const tt = splitModelToken(nt);
+      for (const rtRaw of rowModelTokens) {
+        const rt = splitModelToken(rtRaw);
+        if (!tt.letters || !rt.letters) continue;
+        if (tt.letters === rt.letters && tt.digits && rt.digits && rt.digits.includes(tt.digits)) {
+          score += 8;
+          break;
+        }
+      }
+    }
+
+    if (!best || score > best.score) best = { row, score };
   }
-  return null;
+  if (!best || best.score < 8) return null;
+  return best.row;
 }
 
 function extractCatalogTerms(text: string): string[] {
@@ -1790,6 +1819,13 @@ function extractModelLikeTokens(text: string): string[] {
         .filter((x) => /\d/.test(x))
     )
   );
+}
+
+function splitModelToken(token: string): { letters: string; digits: string } {
+  const t = normalizeCatalogQueryText(String(token || "")).replace(/[^a-z0-9]/g, "");
+  const letters = (t.match(/^[a-z]+/) || [""])[0];
+  const digits = (t.match(/\d+/g) || []).join("");
+  return { letters, digits };
 }
 
 function categoryMatchesIntent(row: any, categoryIntent: string): boolean {
