@@ -1051,7 +1051,7 @@ function hasBareQuantity(text: string): boolean {
 function isTechnicalSpecQuery(text: string): boolean {
   const t = normalizeCatalogQueryText(String(text || ""));
   if (!t) return false;
-  return /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*[x×]\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b/.test(t);
+  return /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*[x×]\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b/i.test(t);
 }
 
 function toGrams(valueRaw: string, unitRaw: string): number {
@@ -1065,7 +1065,7 @@ function toGrams(valueRaw: string, unitRaw: string): number {
 
 function parseTechnicalSpecQuery(text: string): { capacityG: number; readabilityG: number } | null {
   const t = normalizeCatalogQueryText(String(text || ""));
-  const m = t.match(/\b(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b\s*[x×]\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b/);
+  const m = t.match(/\b(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b\s*[x×]\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b/i);
   if (!m) return null;
   const capacityG = toGrams(m[1], m[2] || "g");
   const readabilityG = toGrams(m[3], m[4] || "g");
@@ -2830,6 +2830,7 @@ export async function POST(req: Request) {
       const isGreeting = isGreetingIntent(text);
       const explicitModel = hasConcreteProductHint(text) && !isOptionOnlyReply(text);
       const categoryIntent = detectCatalogCategoryIntent(text);
+      const technicalSpecIntent = isTechnicalSpecQuery(text);
 
       const { data: ownerRowsRaw } = await supabase
         .from("agent_product_catalog")
@@ -3161,7 +3162,7 @@ export async function POST(req: Request) {
             strictMemory.quote_quantity = 1;
           }
         }
-      } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model") {
+      } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model" && !technicalSpecIntent) {
         const familyLabel = String(previousMemory?.strict_family_label || "").trim();
         const askMore = /\b(mas|más|siguiente|siguientes|resto|todas|todos)\b/.test(textNorm);
         const askCount = /\b(cuantas|cuantos|total|tienen\s+\d+|\d+)\b/.test(textNorm);
@@ -3197,7 +3198,7 @@ export async function POST(req: Request) {
             ...page.map((o) => `${o.code}) ${o.name}`),
           ].join("\n");
         }
-      } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_family") {
+      } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_family" && !technicalSpecIntent) {
         const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
         if (!pendingFamilies.length) {
           strictMemory.awaiting_action = "none";
@@ -3206,17 +3207,18 @@ export async function POST(req: Request) {
         const selectedFamily = resolvePendingFamilyOption(text, pendingFamilies);
         if (!String(strictReply || "").trim() && !selectedFamily) {
           strictReply = "Elige una familia con letra o número (ej.: A o 1).";
-        } else if (!String(strictReply || "").trim()) {
-          const familyRows = baseScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamily.key || "")));
+        } else if (!String(strictReply || "").trim() && selectedFamily) {
+          const selectedFamilyResolved = selectedFamily as { key?: string; label?: string };
+          const familyRows = baseScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamilyResolved.key || "")));
           const allOptions = buildNumberedProductOptions(familyRows as any[], 60);
           const options = allOptions.slice(0, 8);
           strictMemory.pending_product_options = options;
           strictMemory.pending_family_options = [];
           strictMemory.awaiting_action = "strict_choose_model";
-          strictMemory.strict_family_label = String(selectedFamily.label || "");
+          strictMemory.strict_family_label = String(selectedFamilyResolved.label || "");
           strictMemory.strict_model_offset = 0;
           strictReply = [
-            `Perfecto. Modelos de ${String(selectedFamily.label || "familia")} (${allOptions.length}):`,
+            `Perfecto. Modelos de ${String(selectedFamilyResolved.label || "familia")} (${allOptions.length}):`,
             ...options.map((o) => `${o.code}) ${o.name}`),
             "",
             (allOptions.length > options.length)
