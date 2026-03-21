@@ -1805,8 +1805,8 @@ function hasConcreteProductHint(text: string): boolean {
 }
 
 function prefersWebTechPageOnly(category: string): boolean {
-  const c = normalizeText(String(category || ""));
-  return c === "analizador_humedad";
+  void category;
+  return false;
 }
 
 function extractModelLikeTokens(text: string): string[] {
