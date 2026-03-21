@@ -1049,9 +1049,7 @@ function hasBareQuantity(text: string): boolean {
 }
 
 function isTechnicalSpecQuery(text: string): boolean {
-  const t = normalizeCatalogQueryText(String(text || ""));
-  if (!t) return false;
-  return /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*[x×]\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b/i.test(t);
+  return Boolean(parseTechnicalSpecQuery(text));
 }
 
 function toGrams(valueRaw: string, unitRaw: string): number {
@@ -1064,9 +1062,17 @@ function toGrams(valueRaw: string, unitRaw: string): number {
 }
 
 function parseTechnicalSpecQuery(text: string): { capacityG: number; readabilityG: number } | null {
-  const t = normalizeCatalogQueryText(String(text || ""));
-  const m = t.match(/\b(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b\s*[x×]\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b/i);
+  const t = normalizeCatalogQueryText(String(text || ""))
+    .replace(/(\d)\s*[\.,]\s*(\d)/g, "$1.$2")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return null;
+
+  const primary = t.match(/\b(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b\s*(?:x|×|✕|✖|\*|por)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b/i);
+  const byKeywords = t.match(/(?:capacidad|cap|max)\D{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b.{0,80}(?:resolucion|resolucion\s+minima|precision|lectura\s+minima|readability)\D{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b/i);
+  const m = primary || byKeywords;
   if (!m) return null;
+
   const capacityG = toGrams(m[1], m[2] || "g");
   const readabilityG = toGrams(m[3], m[4] || "g");
   if (!(capacityG > 0) || !(readabilityG > 0)) return null;
@@ -2830,7 +2836,9 @@ export async function POST(req: Request) {
       const isGreeting = isGreetingIntent(text);
       const explicitModel = hasConcreteProductHint(text) && !isOptionOnlyReply(text);
       const categoryIntent = detectCatalogCategoryIntent(text);
-      const technicalSpecIntent = isTechnicalSpecQuery(text);
+      const technicalSpecIntent =
+        isTechnicalSpecQuery(text) ||
+        /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*(?:x|×|✕|✖|\*|por)\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b/i.test(String(text || ""));
 
       const { data: ownerRowsRaw } = await supabase
         .from("agent_product_catalog")
@@ -3231,10 +3239,35 @@ export async function POST(req: Request) {
         strictMemory.pending_product_options = [];
         strictMemory.pending_family_options = [];
         strictReply = "Claro. Para cotizarte bien, dime capacidad y resolución (ej.: 2 kg x 0.01 g).";
-      } else if (!String(strictReply || "").trim() && !selectedProduct && isTechnicalSpecQuery(text)) {
-        strictMemory.strict_spec_query = text;
-        strictMemory.awaiting_action = "strict_need_industry";
-        strictReply = "Perfecto. ¿Para qué industria o uso la necesitas?";
+      } else if (!String(strictReply || "").trim() && !selectedProduct && technicalSpecIntent) {
+        const parsed = parseTechnicalSpecQuery(text);
+        if (!parsed) {
+          strictMemory.awaiting_action = "strict_need_spec";
+          strictReply = "Te entendí como consulta técnica. Para responder exacto, envíame capacidad y resolución en formato 220 g x 0.0001 g.";
+        } else {
+          strictMemory.strict_spec_query = text;
+          const ranked = rankCatalogByTechnicalSpec(ownerRows as any[], {
+            capacityG: parsed.capacityG,
+            readabilityG: parsed.readabilityG,
+          });
+          const rankedRows = ranked.length ? ranked.map((r: any) => r.row) : ownerRows;
+          const options = buildNumberedProductOptions(rankedRows as any[], 8);
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              `Sí, tengo opciones para ${text.trim()}.`,
+              ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Responde con letra o número (A/1) y te envío ficha técnica o cotización.",
+            ].join("\n");
+          } else {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = "No encontré coincidencia exacta para esa capacidad/resolución. ¿Quieres que busquemos una resolución cercana?";
+          }
+        }
       } else if (!String(strictReply || "").trim() && (categoryIntent || isInventoryInfoIntent(text))) {
         const scoped = categoryIntent ? scopeCatalogRows(ownerRows as any, categoryIntent) : ownerRows;
         const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
