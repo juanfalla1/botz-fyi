@@ -1062,13 +1062,14 @@ function toGrams(valueRaw: string, unitRaw: string): number {
 }
 
 function parseTechnicalSpecQuery(text: string): { capacityG: number; readabilityG: number } | null {
-  const t = normalizeCatalogQueryText(String(text || ""))
+  const t = normalizeText(String(text || ""))
     .replace(/(\d)\s*[\.,]\s*(\d)/g, "$1.$2")
+    .replace(/[×✕✖*]/g, "x")
     .replace(/\s+/g, " ")
     .trim();
   if (!t) return null;
 
-  const primary = t.match(/\b(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b\s*(?:x|×|✕|✖|\*|por)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b/i);
+  const primary = t.match(/(?:^|\s)(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\s*(?:x|por)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b/i);
   const byKeywords = t.match(/(?:capacidad|cap|max)\D{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b.{0,80}(?:resolucion|resolucion\s+minima|precision|lectura\s+minima|readability)\D{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b/i);
   const m = primary || byKeywords;
   if (!m) return null;
