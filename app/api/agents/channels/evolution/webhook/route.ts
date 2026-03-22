@@ -2317,17 +2317,17 @@ function buildQuotePdf(args: {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(8.2);
   doc.text("Item", 12, 83.8);
-  doc.text("Producto", 25, 83.8);
-  doc.text("Descripcion", 58, 83.8);
-  doc.text("Garantia", 137, 83.8);
-  doc.text("Cantidad", 154, 83.8);
-  doc.text("Valor unitario", 170, 83.8);
-  doc.text("Valor total", 192, 83.8, { align: "right" });
+  doc.text("Producto", 24, 83.8);
+  doc.text("Descripcion", 54, 83.8);
+  doc.text("Garantia", 136, 83.8);
+  doc.text("Cantidad", 149.5, 83.8);
+  doc.text("Valor unitario", 181, 83.8, { align: "right" });
+  doc.text("Valor total", 198, 83.8, { align: "right" });
 
   doc.setTextColor(dark[0], dark[1], dark[2]);
   doc.setDrawColor(180, 196, 210);
   doc.rect(10, 86, 190, 108, "S");
-  [20, 52, 132, 149, 166, 184].forEach((x) => doc.line(x, 86, x, 194));
+  [20, 52, 134, 148, 160, 182].forEach((x) => doc.line(x, 86, x, 194));
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.8);
@@ -2347,10 +2347,11 @@ function buildQuotePdf(args: {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.4);
   doc.text(doc.splitTextToSize(productDescBase, 72), 54, 92);
-  doc.text("NA", 139.5, 92, { align: "center" });
-  doc.text(String(quantity), 157.5, 92, { align: "center" });
-  doc.text(`$ ${formatMoney(subtotal / quantity)}`, 175, 92, { align: "center" });
-  doc.text(`$ ${formatMoney(total)}`, 192, 92, { align: "right" });
+  doc.text("NA", 141, 92, { align: "center" });
+  doc.text(String(quantity), 154, 92, { align: "center" });
+  doc.setFontSize(7.8);
+  doc.text(`$ ${formatMoney(subtotal / quantity)}`, 180.5, 92, { align: "right" });
+  doc.text(`$ ${formatMoney(total)}`, 198, 92, { align: "right" });
 
   doc.setFillColor(blue[0], blue[1], blue[2]);
   doc.rect(143, 196, 41, 21, "F");
@@ -3015,6 +3016,7 @@ export async function POST(req: Request) {
         }
       } else if (!String(strictReply || "").trim() && selectedProduct) {
         const selectedName = String(selectedProduct?.name || "").trim();
+        const hasSheetCandidate = Boolean(pickBestProductPdfUrl(selectedProduct, text) || pickBestLocalPdfPath(selectedProduct, text));
         strictMemory.last_product_name = selectedName;
         strictMemory.last_product_id = String(selectedProduct?.id || "").trim();
         strictMemory.last_selected_product_name = selectedName;
@@ -3062,12 +3064,20 @@ export async function POST(req: Request) {
             ? `Perfecto. Te envío por este WhatsApp la ficha técnica en PDF de ${selectedName}.`
             : `No tengo un PDF válido para ${selectedName} en este momento. Si quieres, te genero la cotización ahora.`;
         } else {
-          strictReply = [
-            `Perfecto, encontré el modelo ${selectedName}.`,
-            "Ahora dime qué deseas con ese modelo:",
-            "1) Cotización con TRM y PDF",
-            "2) Ficha técnica",
-          ].join("\n");
+          strictReply = hasSheetCandidate
+            ? [
+              `Perfecto, encontré el modelo ${selectedName}.`,
+              "Ahora dime qué deseas con ese modelo:",
+              "1) Cotización con TRM y PDF",
+              "2) Ficha técnica",
+            ].join("\n")
+            : [
+              `Perfecto, encontré el modelo ${selectedName}.`,
+              "Ahora dime qué deseas con ese modelo:",
+              "1) Cotización con TRM y PDF",
+              "",
+              "Nota: este modelo no tiene ficha técnica PDF cargada en este momento.",
+            ].join("\n");
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_quote_data") {
         const pickBounded = (label: string) => {
