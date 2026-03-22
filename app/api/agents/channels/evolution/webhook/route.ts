@@ -2652,12 +2652,17 @@ export async function POST(req: Request) {
     const prevTextNorm = normalizeText(String((previousMemory as any)?.last_user_text || ""));
     const currTextNorm = normalizeText(String(inbound.text || ""));
     const prevUserAtMs = Date.parse(String((previousMemory as any)?.last_user_at || ""));
+    const awaitingForDedup = String((previousMemory as any)?.awaiting_action || "");
+    const isStrictSelectionStep = /^(strict_choose_family|strict_choose_model|strict_choose_action|strict_quote_data|strict_need_spec|strict_need_industry)$/i.test(awaitingForDedup);
+    const isShortOptionReply = isOptionOnlyReply(currTextNorm);
     if (
       prevTextNorm &&
       currTextNorm &&
       prevTextNorm === currTextNorm &&
       Number.isFinite(prevUserAtMs) &&
-      Date.now() - prevUserAtMs < 45_000
+      Date.now() - prevUserAtMs < 45_000 &&
+      !isStrictSelectionStep &&
+      !isShortOptionReply
     ) {
       console.log("[evolution-webhook] ignored: duplicate_recent_text", {
         from: inbound.from,
