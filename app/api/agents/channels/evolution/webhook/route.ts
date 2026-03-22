@@ -3060,9 +3060,19 @@ export async function POST(req: Request) {
               attached = true;
             }
           }
-          strictReply = attached
-            ? `Perfecto. Te envío por este WhatsApp la ficha técnica en PDF de ${selectedName}.`
-            : `No tengo un PDF válido para ${selectedName} en este momento. Si quieres, te genero la cotización ahora.`;
+          if (attached) {
+            strictReply = `Perfecto. Te envío por este WhatsApp la ficha técnica en PDF de ${selectedName}.`;
+          } else {
+            const technicalSummary = buildTechnicalSummary(selectedProduct, 6);
+            strictReply = technicalSummary
+              ? [
+                `No tengo un PDF válido para ${selectedName} en este momento, pero sí te comparto las especificaciones disponibles en catálogo:`,
+                technicalSummary,
+                "",
+                "Si quieres, te genero la cotización ahora.",
+              ].join("\n")
+              : `No tengo un PDF válido para ${selectedName} en este momento y tampoco tengo especificaciones completas cargadas para este modelo. Si quieres, te genero la cotización ahora.`;
+          }
         } else {
           strictReply = hasSheetCandidate
             ? [
