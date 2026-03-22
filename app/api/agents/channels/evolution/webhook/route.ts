@@ -1281,6 +1281,23 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
   const files = getLocalPdfIndex();
   if (!files.length) return "";
 
+  const pickByKeywordPriority = (keywords: string[]): string => {
+    const wanted = (keywords || []).map((k) => normalizeCatalogQueryText(String(k || ""))).filter(Boolean);
+    if (!wanted.length) return "";
+    let best: { filePath: string; score: number } | null = null;
+    for (const f of files) {
+      const hay = normalizeCatalogQueryText(f.normalized || f.fileName || "");
+      let score = 0;
+      for (const kw of wanted) {
+        if (hay.includes(kw)) score += 3;
+      }
+      if (/datasheet|data sheet|ficha/.test(hay)) score += 2;
+      if (/manual|brochure|catalogo|catalog/.test(hay)) score -= 2;
+      if (!best || score > best.score) best = { filePath: f.filePath, score };
+    }
+    return best && best.score >= 3 ? best.filePath : "";
+  };
+
   const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const familyHints = uniqueNormalizedStrings([
     String(source?.family || ""),
@@ -1332,11 +1349,21 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
 
   if (!best) return "";
   const hasStrongFamilyHint = familyHints.some((h) => /explorer|pioneer|adventurer|mb|basculas|electroquimica/.test(normalizeCatalogQueryText(h)));
+  const modelNorm = normalizeCatalogQueryText(String(row?.name || queryText || ""));
+  const familyFallback = (() => {
+    if (/\bmb\d{2,5}\b/.test(modelNorm) || /analizador_humedad|humedad/.test(modelNorm)) return pickByKeywordPriority([modelNorm, "mb120", "mb92", "mb62", "datasheet"]);
+    if (/\b(ax|ad)\d{2,6}/.test(modelNorm) || /adventurer/.test(modelNorm)) return pickByKeywordPriority(["adventurer", "ax", "datasheet"]);
+    if (/\b(px|pr)\d{2,6}/.test(modelNorm) || /pioneer/.test(modelNorm)) return pickByKeywordPriority(["pioneer", "px", "pr", "datasheet"]);
+    if (/\b(exr|exp|ex)\d{2,6}/.test(modelNorm) || /explorer|semi/.test(modelNorm)) return pickByKeywordPriority(["explorer", "semi micro", "datasheet"]);
+    if (/\b(r31|r71|rc31)\w*/.test(modelNorm) || /ranger/.test(modelNorm)) return pickByKeywordPriority(["ranger", "ranger 3000", "ranger 4000", "ranger 7000", "datasheet"]);
+    if (/\b(sjx|spx|stx)\w*/.test(modelNorm) || /scout/.test(modelNorm)) return pickByKeywordPriority(["scout", "datasheet"]);
+    return "";
+  })();
   if (modelTokens.length && best.modelHits === 0) {
     if (hasStrongFamilyHint && best.termHits >= 1 && best.score >= 4) return best.filePath;
-    if (!(best.termHits >= 2 && best.score >= 8)) return "";
+    if (!(best.termHits >= 2 && best.score >= 8)) return familyFallback;
   }
-  return best.filePath;
+  return best.filePath || familyFallback;
 }
 
 function fetchLocalFileAsBase64(filePath: string): { base64: string; mimetype: string; fileName: string; byteSize: number } | null {
