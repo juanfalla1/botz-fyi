@@ -2906,10 +2906,29 @@ export async function POST(req: Request) {
         }
       }
 
+      const selfHints = [
+        agentPhone,
+        normalizePhone(String(payload?.destination || "")),
+        normalizePhone(String(payload?.data?.destination || "")),
+        normalizePhone(String(payload?.sender || "")),
+        normalizePhone(String(payload?.data?.sender || "")),
+      ]
+        .filter((n) => n.length >= 10 && n.length <= 15)
+        .filter((n, i, arr) => arr.indexOf(n) === i);
+      const selfSet = new Set(selfHints);
+
       const toCandidates = [inbound.from, ...(inbound.alternates || [])]
         .map((n) => normalizePhone(String(n || "")))
         .filter((n, i, arr) => n && arr.indexOf(n) === i)
+        .filter((n) => !(Boolean(inbound.fromIsLid) && n === inbound.from))
+        .filter((n) => !selfSet.has(n))
         .filter((n) => n.length >= 10 && n.length <= 15);
+
+      const jidCandidates = (inbound.jidCandidates || [])
+        .map((v) => String(v || "").trim())
+        .filter((v, i, arr) => v && arr.indexOf(v) === i)
+        .filter((v) => /@(lid|s\.whatsapp\.net|c\.us)$/i.test(v))
+        .filter((v) => !selfSet.has(normalizePhone(v)));
 
       const sendTextAndDocs = async (replyText: string, docs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }>) => {
         let sentTo = "";
@@ -2920,6 +2939,17 @@ export async function POST(req: Request) {
             break;
           } catch {
             continue;
+          }
+        }
+        if (!sentTo) {
+          for (const jid of jidCandidates) {
+            try {
+              await evolutionService.sendMessageToJid(outboundInstance, jid, withAvaSignature(enforceWhatsAppDelivery(replyText, text)));
+              sentTo = jid;
+              break;
+            } catch {
+              continue;
+            }
           }
         }
         if (!sentTo) return false;
