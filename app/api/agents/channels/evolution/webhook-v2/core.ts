@@ -3574,10 +3574,60 @@ export async function POST(req: Request) {
         return true;
       };
 
+      const mutedUntilIso = String(previousMemory?.offtopic_muted_until || "").trim();
+      const mutedUntilMs = Date.parse(mutedUntilIso);
+      if (Number.isFinite(mutedUntilMs) && mutedUntilMs > Date.now()) {
+        strictMemory.offtopic_muted_until = mutedUntilIso;
+        strictMemory.offtopic_count = Math.max(3, Number(previousMemory?.offtopic_count || 3));
+        try {
+          await persistConversationTurn(supabase as any, {
+            agentId: String(agent.id),
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            from: inbound.from,
+            pushName: inbound.pushName,
+            contactName: knownCustomerName || inbound.pushName || inbound.from,
+            inboundText: inbound.text,
+            outboundText: "",
+            messageId: inbound.messageId,
+            memory: strictMemory,
+          });
+        } catch {}
+        await supabase
+          .from("incoming_messages")
+          .update({ status: "processed", processed_at: new Date().toISOString() })
+          .eq("provider", "evolution")
+          .eq("provider_message_id", incomingDedupKey);
+        return NextResponse.json({ ok: true, ignored: true, reason: "muted_offtopic" });
+      }
+
       // Hard guardrail: never answer outside OHAUS scope.
-      const outOfScope = /\b(autos?|carros?|vehiculos?|motos?|bicicletas?|inmueble|casa|apartamento|hipoteca)\b/.test(textNorm);
-      if (outOfScope) {
-        strictReply = "Solo te puedo ayudar con productos OHAUS del catálogo (balanzas, basculas, analizador de humedad y electroquímica). Si quieres, te muestro opciones.";
+      const outOfScope = /\b(autos?|carros?|vehiculos?|motos?|bicicletas?|inmueble|casa|apartamento|hipoteca|pan|leche|carne|fruta|verdura|comida|almuerzo|cena|desayuno|restaurante|pizza|hamburguesa|helado)\b/.test(textNorm);
+      const offTopicCandidate =
+        outOfScope &&
+        !explicitModel &&
+        !categoryIntent &&
+        !technicalSpecIntent &&
+        !wantsQuote &&
+        !wantsSheet &&
+        !isGreeting &&
+        !isOptionOnlyReply(text);
+      if (offTopicCandidate) {
+        const count = Math.min(10, Number(previousMemory?.offtopic_count || 0) + 1);
+        strictMemory.offtopic_count = count;
+        strictMemory.awaiting_action = "none";
+        if (count >= 3) {
+          const mutedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+          strictMemory.offtopic_muted_until = mutedUntil;
+          strictReply = "Este canal es solo para cotizar balanzas y analizadores de humedad OHAUS. Pauso este chat 15 minutos por mensajes fuera de catálogo.";
+        } else if (count === 2) {
+          strictReply = "Solo manejo catálogo OHAUS de balanzas y analizadores de humedad. Responde 1) Balanzas 2) Humedad o escribe modelo (PX85, AX85, MB120).";
+        } else {
+          strictReply = "No manejo ese tipo de producto. Solo te ayudo con balanzas y analizadores de humedad OHAUS. Responde 1) Balanzas 2) Humedad.";
+        }
+      } else {
+        strictMemory.offtopic_count = 0;
+        strictMemory.offtopic_muted_until = "";
       }
 
       if (!String(strictReply || "").trim() && isGreeting && !explicitModel && !categoryIntent && !wantsQuote && !wantsSheet) {
@@ -3971,7 +4021,7 @@ export async function POST(req: Request) {
           strictReply = "No encontré coincidencia exacta para esa capacidad/resolución. ¿Quieres que busquemos una resolución cercana?";
         }
       } else {
-        strictReply = "Te ayudo con catálogo OHAUS. Dime modelo exacto (ej.: AX12001/E, MB120, R31P15) o categoría (balanzas, basculas, analizador humedad) y seguimos.";
+        strictReply = "Te ayudo con catálogo OHAUS. Dime modelo exacto (ej.: AX12001/E, MB120, PX85) o categoría (balanzas, analizador humedad) y seguimos.";
       }
 
       const sentOk = await sendTextAndDocs(strictReply, strictDocs);
