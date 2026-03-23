@@ -632,6 +632,14 @@ function normalizeText(v: string) {
     .toLowerCase();
 }
 
+function appendQuoteClosurePrompt(text: string): string {
+  const base = String(text || "").trim();
+  if (!base) return "¿Deseas agregar otro modelo a la cotización o cerramos por ahora?";
+  const t = normalizeText(base);
+  if (/(agregar otro modelo|cerramos por ahora|deseas agregar|eso es todo|finalizamos)/.test(t)) return base;
+  return `${base}\n\n¿Deseas agregar otro modelo a la cotización o cerramos por ahora?`;
+}
+
 function extractEmail(text: string): string {
   const m = String(text || "").match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
   return m ? String(m[0] || "").toLowerCase() : "";
@@ -4394,6 +4402,18 @@ export async function POST(req: Request) {
         strictReply = "Te ayudo con catálogo OHAUS. Dime modelo exacto (ej.: AX12001/E, MB120, PX85) o categoría (balanzas, analizador humedad) y seguimos.";
       }
 
+      const strictQuoteDelivered = strictDocs.some((d) => /cotiz/i.test(`${String(d.caption || "")} ${String(d.fileName || "")}`));
+      if (!String(strictReply || "").trim() && strictQuoteDelivered) {
+        strictReply = "Listo. Te envié la cotización por este WhatsApp.";
+      }
+      if (strictQuoteDelivered && String(strictReply || "").trim()) {
+        strictReply = appendQuoteClosurePrompt(strictReply);
+        strictMemory.awaiting_action = "conversation_followup";
+        strictMemory.conversation_status = "open";
+        strictMemory.last_intent = "quote_generated";
+        strictMemory.quote_feedback_due_at = isoAfterHours(24);
+      }
+
       if (!strictBypassAutoQuote) {
         const sentOk = await sendTextAndDocs(strictReply, strictDocs);
         if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
@@ -7007,6 +7027,14 @@ export async function POST(req: Request) {
         "Si prefieres, te muestro opciones y eliges con letra o número (A/1, B/2, C/3).",
       ].join("\n");
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+    }
+
+    const quoteDeliveryPlanned = Boolean(autoQuoteDocs.length || autoQuoteBundle || resendPdf);
+    if (quoteDeliveryPlanned && String(reply || "").trim()) {
+      reply = appendQuoteClosurePrompt(reply);
+      nextMemory.awaiting_action = "conversation_followup";
+      if (String(nextMemory.conversation_status || "") !== "closed") nextMemory.conversation_status = "open";
+      nextMemory.quote_feedback_due_at = isoAfterHours(24);
     }
 
     reply = enforceWhatsAppDelivery(reply, inbound.text);
