@@ -2986,15 +2986,30 @@ export async function POST(req: Request) {
           }
         }
         if (!sentTo) return false;
+        const docDestinations = [
+          sentTo,
+          ...toCandidates,
+          ...jidCandidates,
+        ]
+          .map((v) => String(v || "").trim())
+          .filter((v, i, arr) => v && arr.indexOf(v) === i);
         for (const d of docs) {
-          try {
-            await evolutionService.sendDocument(outboundInstance, sentTo, {
-              base64: d.base64,
-              fileName: safeFileName(d.fileName, "ficha-tecnica", "pdf"),
-              caption: d.caption || "Ficha técnica",
-              mimetype: d.mimetype || "application/pdf",
-            });
-          } catch {
+          let deliveredDoc = false;
+          for (const dst of docDestinations) {
+            try {
+              await evolutionService.sendDocument(outboundInstance, dst, {
+                base64: d.base64,
+                fileName: safeFileName(d.fileName, "ficha-tecnica", "pdf"),
+                caption: d.caption || "Ficha técnica",
+                mimetype: d.mimetype || "application/pdf",
+              });
+              deliveredDoc = true;
+              break;
+            } catch {
+              continue;
+            }
+          }
+          if (!deliveredDoc) {
             await evolutionService.sendMessage(outboundInstance, sentTo, "Intenté enviarte la ficha técnica, pero falló en este intento. Escribe 'reenviar ficha' y lo reintento ahora mismo.");
             break;
           }
