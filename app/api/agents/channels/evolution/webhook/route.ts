@@ -2524,7 +2524,13 @@ const LOCAL_QUOTE_BANNER_PATH = String(
   process.env.WHATSAPP_QUOTE_BANNER_LOCAL_PATH ||
   path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "banner_cotizacion_avanza_ohaus.png")
 ).trim();
+const QUOTE_PERKS_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_PERKS_IMAGE_URL || "").trim();
+const LOCAL_QUOTE_PERKS_PATH = String(
+  process.env.WHATSAPP_QUOTE_PERKS_LOCAL_PATH ||
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "ee3062f7-f286-4d62-b63b-29c796a8799f.png")
+).trim();
 let quoteBannerImageCache: { at: number; dataUrl: string } | null = null;
+let quotePerksImageCache: { at: number; dataUrl: string } | null = null;
 
 function imageDataUrlFromRemote(remote: { base64: string; mimetype: string } | null): string {
   if (!remote) return "";
@@ -2568,6 +2574,42 @@ async function resolveQuoteBannerImageDataUrl(): Promise<string> {
   }
 
   quoteBannerImageCache = { at: now, dataUrl };
+  return dataUrl;
+}
+
+async function resolveQuotePerksImageDataUrl(): Promise<string> {
+  const now = Date.now();
+  if (quotePerksImageCache && (now - quotePerksImageCache.at) < 30 * 60 * 1000) {
+    return quotePerksImageCache.dataUrl;
+  }
+  let dataUrl = "";
+
+  const localPath = String(LOCAL_QUOTE_PERKS_PATH || "").trim();
+  if (localPath && fs.existsSync(localPath)) {
+    try {
+      const ext = String(path.extname(localPath || "")).toLowerCase();
+      const mime = ext === ".png"
+        ? "image/png"
+        : (ext === ".jpg" || ext === ".jpeg")
+          ? "image/jpeg"
+          : ext === ".webp"
+            ? "image/webp"
+            : "";
+      if (mime) {
+        const base64 = fs.readFileSync(localPath).toString("base64");
+        if (base64) dataUrl = `data:${mime};base64,${base64}`;
+      }
+    } catch {
+      dataUrl = "";
+    }
+  }
+
+  if (!dataUrl && QUOTE_PERKS_IMAGE_URL) {
+    const remote = await fetchRemoteFileAsBase64(QUOTE_PERKS_IMAGE_URL);
+    dataUrl = imageDataUrlFromRemote(remote);
+  }
+
+  quotePerksImageCache = { at: now, dataUrl };
   return dataUrl;
 }
 
@@ -2670,6 +2712,8 @@ async function buildStandardQuotePdf(args: {
 
   const bannerDataUrl = await resolveQuoteBannerImageDataUrl();
   const hasBanner = Boolean(String(bannerDataUrl || "").trim());
+  const perksDataUrl = await resolveQuotePerksImageDataUrl();
+  const hasPerksStrip = Boolean(String(perksDataUrl || "").trim());
 
   const drawHeader = (compact = false) => {
     doc.setFillColor(245, 248, 251);
@@ -2777,6 +2821,8 @@ async function buildStandardQuotePdf(args: {
   let y = currentTableHeaderY + 11;
   let index = 1;
   let subtotal = 0;
+  const lineHeight = 3.8;
+  const rowPadding = 4;
   for (const item of args.items || []) {
     const qty = Math.max(1, Number(item.quantity || 1));
     const lineTotal = Number(item.totalCop || 0) > 0
@@ -2792,78 +2838,112 @@ async function buildStandardQuotePdf(args: {
     );
     const hasImage = ENABLE_QUOTE_PRODUCT_IMAGE && Boolean(String(item.imageDataUrl || "").trim());
     const descTextWidth = 74;
-    const descLines = truncateLines(
-      doc.splitTextToSize(baseDesc, descTextWidth),
-      hasImage ? 8 : 10,
-    );
-    const lineCount = Math.max(productLines.length, descLines.length, 1);
-    const rowH = Math.max(hasImage ? 46 : 14, lineCount * 3.8 + 4);
+    const descLinesAll = doc.splitTextToSize(baseDesc, descTextWidth);
+    let descCursor = 0;
+    let isFirstSegment = true;
+    while (isFirstSegment || descCursor < descLinesAll.length) {
+      const descRemaining = descLinesAll.slice(descCursor);
+      const minDescLines = descRemaining.length > 0 ? 1 : (isFirstSegment ? 1 : 0);
+      const maxDescLines = Math.max(minDescLines, descRemaining.length || (isFirstSegment ? 1 : 0));
+      const rowHeightFor = (descCount: number) => {
+        const lineCount = Math.max(
+          isFirstSegment ? productLines.length : 1,
+          Math.max(descCount, 1),
+          1,
+        );
+        return Math.max(isFirstSegment && hasImage ? 46 : 14, lineCount * lineHeight + rowPadding);
+      };
+      const minRowH = rowHeightFor(minDescLines);
 
-    if (!tableHeaderDrawn) {
-      if (y + rowH > 235) {
-        if (doc.getNumberOfPages() === 1) {
-          // Repaint first page with compact header to avoid an empty first sheet.
-          drawHeader(true);
-          currentTableHeaderY = 33;
-          y = 42;
-        } else {
-          doc.addPage();
-          drawHeader(true);
-          currentTableHeaderY = 33;
-          y = 42;
+      if (!tableHeaderDrawn) {
+        if (y + minRowH > 235) {
+          if (doc.getNumberOfPages() === 1) {
+            // Repaint first page with compact header to avoid an empty first sheet.
+            drawHeader(true);
+            currentTableHeaderY = 33;
+            y = 42;
+          } else {
+            doc.addPage();
+            drawHeader(true);
+            currentTableHeaderY = 33;
+            y = 42;
+          }
+        }
+        drawTableHeader(currentTableHeaderY);
+        tableHeaderDrawn = true;
+      }
+
+      if (y + minRowH > 235) {
+        doc.addPage();
+        drawHeader(true);
+        currentTableHeaderY = 33;
+        drawTableHeader(currentTableHeaderY);
+        y = 42;
+      }
+
+      let descCount = maxDescLines;
+      while (descCount > minDescLines && y + rowHeightFor(descCount) > 235) {
+        descCount -= 1;
+      }
+      const rowH = rowHeightFor(descCount);
+      const descChunk = descRemaining.length > 0
+        ? descRemaining.slice(0, descCount)
+        : (isFirstSegment ? [baseDesc] : []);
+
+      doc.setDrawColor(180, 196, 210);
+      doc.rect(10, y - 4, 190, rowH, "S");
+      for (let i = 1; i < col.length - 1; i += 1) {
+        doc.line(col[i], y - 4, col[i], y - 4 + rowH);
+      }
+
+      const bodyY = y + 1.8;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.2);
+      if (isFirstSegment) {
+        doc.text(String(index), 12, bodyY);
+        doc.setFont("helvetica", "bold");
+        doc.text(productLines, 22, bodyY);
+        doc.setFont("helvetica", "normal");
+      } else {
+        doc.setFont("helvetica", "italic");
+        doc.text("cont.", 22, bodyY);
+        doc.setFont("helvetica", "normal");
+      }
+
+      if (isFirstSegment && hasImage) {
+        try {
+          const imgX = 22;
+          const imgY = bodyY + 2;
+          const imgW = 24;
+          const imgH = Math.min(30, Math.max(22, rowH - 16));
+          const dataUrl = String(item.imageDataUrl || "");
+          const fmt = /^data:image\/png/i.test(dataUrl)
+            ? "PNG"
+            : /^data:image\/webp/i.test(dataUrl)
+              ? "WEBP"
+              : "JPEG";
+          doc.addImage(dataUrl, fmt as any, imgX, imgY, imgW, imgH);
+        } catch {
+          // ignore image rendering failure
         }
       }
-      drawTableHeader(currentTableHeaderY);
-      tableHeaderDrawn = true;
-    }
 
-    if (y + rowH > 235) {
-      doc.addPage();
-      drawHeader(true);
-      currentTableHeaderY = 33;
-      drawTableHeader(currentTableHeaderY);
-      y = 42;
-    }
-
-    doc.setDrawColor(180, 196, 210);
-    doc.rect(10, y - 4, 190, rowH, "S");
-    for (let i = 1; i < col.length - 1; i += 1) {
-      doc.line(col[i], y - 4, col[i], y - 4 + rowH);
-    }
-
-    const bodyY = y + 1.8;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.2);
-    doc.text(String(index), 12, bodyY);
-    doc.setFont("helvetica", "bold");
-    doc.text(productLines, 22, bodyY);
-    doc.setFont("helvetica", "normal");
-    if (hasImage) {
-      try {
-        const imgX = 22;
-        const imgY = bodyY + 2;
-        const imgW = 24;
-        const imgH = Math.min(30, Math.max(22, rowH - 16));
-        const dataUrl = String(item.imageDataUrl || "");
-        const fmt = /^data:image\/png/i.test(dataUrl)
-          ? "PNG"
-          : /^data:image\/webp/i.test(dataUrl)
-            ? "WEBP"
-            : "JPEG";
-        doc.addImage(dataUrl, fmt as any, imgX, imgY, imgW, imgH);
-      } catch {
-        // ignore image rendering failure
+      if (descChunk.length > 0) doc.text(descChunk, 52, bodyY);
+      if (isFirstSegment) {
+        doc.text(String(item.warranty || "1 AÑO POR\nDEFECTO DE\nFABRICA"), 128.8, bodyY);
+        doc.text(String(qty), 155, bodyY, { align: "right" });
+        doc.setFontSize(7.8);
+        doc.text(`$ ${formatMoney(lineTotal / qty)}`, 176.5, bodyY, { align: "right" });
+        doc.text(`$ ${formatMoney(lineTotal)}`, 196.8, bodyY, { align: "right" });
+        doc.setFontSize(8.2);
       }
-    }
-    doc.text(descLines, 52, bodyY);
-    doc.text(String(item.warranty || "1 AÑO POR\nDEFECTO DE\nFABRICA"), 128.8, bodyY);
-    doc.text(String(qty), 155, bodyY, { align: "right" });
-    doc.setFontSize(7.8);
-    doc.text(`$ ${formatMoney(lineTotal / qty)}`, 176.5, bodyY, { align: "right" });
-    doc.text(`$ ${formatMoney(lineTotal)}`, 196.8, bodyY, { align: "right" });
-    doc.setFontSize(8.2);
 
-    y += rowH + 1.2;
+      y += rowH + 1.2;
+      descCursor += descChunk.length;
+      isFirstSegment = false;
+      if (descLinesAll.length === 0) break;
+    }
+
     index += 1;
   }
 
@@ -2929,7 +3009,7 @@ async function buildStandardQuotePdf(args: {
   if (yFooter > 255) {
     doc.addPage();
     drawHeader(true);
-    yFooter = 40;
+    yFooter = 166;
   }
 
   doc.setFont("helvetica", "bold");
@@ -2955,40 +3035,53 @@ async function buildStandardQuotePdf(args: {
   if (perksY >= 236) {
     doc.addPage();
     drawHeader(true);
-    perksY = 52;
+    perksY = 222;
   }
   {
-    const drawBadge = (x: number, color: [number, number, number], labelTop: string, labelBottom: string, symbol: string) => {
-      doc.setDrawColor(color[0], color[1], color[2]);
-      doc.setLineWidth(0.8);
-      doc.circle(x, perksY, 5.5, "S");
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(color[0], color[1], color[2]);
-      doc.setFontSize(8.2);
-      doc.text(symbol, x, perksY + 1.2, { align: "center" });
-      doc.setTextColor(dark[0], dark[1], dark[2]);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.4);
-      doc.text(labelTop, x, perksY + 10, { align: "center" });
-      doc.text(labelBottom, x, perksY + 14, { align: "center" });
-    };
+    if (hasPerksStrip) {
+      try {
+        const fmt = /^data:image\/png/i.test(perksDataUrl)
+          ? "PNG"
+          : /^data:image\/webp/i.test(perksDataUrl)
+            ? "WEBP"
+            : "JPEG";
+        doc.addImage(perksDataUrl, fmt as any, 14, perksY - 10, 172, 24);
+      } catch {
+        // ignore perks image rendering failure
+      }
+    } else {
+      const drawBadge = (x: number, color: [number, number, number], labelTop: string, labelBottom: string, symbol: string) => {
+        doc.setDrawColor(color[0], color[1], color[2]);
+        doc.setLineWidth(0.8);
+        doc.circle(x, perksY, 5.5, "S");
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(color[0], color[1], color[2]);
+        doc.setFontSize(8.2);
+        doc.text(symbol, x, perksY + 1.2, { align: "center" });
+        doc.setTextColor(dark[0], dark[1], dark[2]);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.4);
+        doc.text(labelTop, x, perksY + 10, { align: "center" });
+        doc.text(labelBottom, x, perksY + 14, { align: "center" });
+      };
 
-    drawBadge(20, [52, 168, 83], "Garantía por", "desperfectos", "OK");
-    drawBadge(45, [30, 136, 229], "Envío a sus", "instalaciones", "TR");
-    drawBadge(70, [245, 124, 0], "Asistencia", "Técnica 24/7", "AT");
+      drawBadge(20, [52, 168, 83], "Garantía por", "desperfectos", "OK");
+      drawBadge(45, [30, 136, 229], "Envío a sus", "instalaciones", "TR");
+      drawBadge(70, [245, 124, 0], "Asistencia", "Técnica 24/7", "AT");
 
-    const drawSocial = (x: number, label: string, rgb: [number, number, number]) => {
-      doc.setFillColor(rgb[0], rgb[1], rgb[2]);
-      doc.circle(x, perksY, 4.8, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8.5);
-      doc.text(label, x, perksY + 1.5, { align: "center" });
-      doc.setTextColor(dark[0], dark[1], dark[2]);
-    };
-    drawSocial(160, "f", [24, 119, 242]);
-    drawSocial(170, "ig", [214, 41, 118]);
-    drawSocial(180, "in", [10, 102, 194]);
+      const drawSocial = (x: number, label: string, rgb: [number, number, number]) => {
+        doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+        doc.circle(x, perksY, 4.8, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.text(label, x, perksY + 1.5, { align: "center" });
+        doc.setTextColor(dark[0], dark[1], dark[2]);
+      };
+      drawSocial(160, "f", [24, 119, 242]);
+      drawSocial(170, "ig", [214, 41, 118]);
+      drawSocial(180, "in", [10, 102, 194]);
+    }
   }
 
   const companyFooter = [
