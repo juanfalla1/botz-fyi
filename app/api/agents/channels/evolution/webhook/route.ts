@@ -1827,7 +1827,7 @@ function buildTechnicalSummary(row: any, maxLines = 4): string {
   const summaryText = String(row?.summary || "").replace(/\s+/g, " ").trim();
   const descriptionText = String(row?.description || "").replace(/\s+/g, " ").trim();
 
-  const primary = specsText || summaryText || descriptionText;
+  const primary = [specsText, summaryText, descriptionText].filter(Boolean).join("; ");
   let lines = primary
     .split(/[.;]\s+|\n+/)
     .map((s) => s.trim())
@@ -1838,9 +1838,9 @@ function buildTechnicalSummary(row: any, maxLines = 4): string {
       return Boolean(n) && n !== "especificaciones" && n !== "specifications" && n.length > 8;
     });
 
-  lines = uniqueNormalizedStrings(lines, maxLines);
+  lines = uniqueNormalizedStrings(lines, Math.max(maxLines, 60));
   if (!lines.length) {
-    lines = extractSpecsFromJson(row?.specs_json, maxLines);
+    lines = extractSpecsFromJson(row?.specs_json, Math.max(maxLines, 60));
   }
   if (!lines.length) return "";
   return lines.slice(0, maxLines).map((l) => `- ${l}`).join("\n");
@@ -1861,7 +1861,7 @@ function buildQuoteItemDescription(row: any, fallbackName: string): string {
   if (capacity) lines.push(`Capacidad maxima: ${capacity}`);
   if (resolution) lines.push(`Lectura minima: ${resolution}`);
 
-  const summary = buildTechnicalSummary(row, 18)
+  const summary = buildTechnicalSummary(row, 48)
     .split("\n")
     .map((l) => String(l || "").replace(/^[-*]\s*/, "").trim())
     .filter(Boolean);
@@ -1871,7 +1871,7 @@ function buildQuoteItemDescription(row: any, fallbackName: string): string {
     if (!normalized) continue;
     if (lines.some((x) => normalizeText(x) === normalized)) continue;
     lines.push(s);
-    if (lines.length >= 22) break;
+    if (lines.length >= 56) break;
   }
 
   if (!lines.length) lines.push(`Producto: ${String(fallbackName || row?.name || "-")}`);
@@ -2417,50 +2417,57 @@ async function buildStandardQuotePdf(args: {
   const dark = [20, 20, 20] as const;
   const phoneSafe = normalizePhone(args.customerPhone || "");
   const ivaRate = quoteIvaRate();
-  const col = [10, 20, 52, 132, 150, 162, 182, 200];
+  const col = [10, 20, 50, 128, 146, 158, 179, 200];
 
   const bannerDataUrl = await resolveQuoteBannerImageDataUrl();
+  const hasBanner = Boolean(String(bannerDataUrl || "").trim());
 
   const drawHeader = (compact = false) => {
     doc.setFillColor(245, 248, 251);
     doc.rect(0, 0, 210, 297, "F");
+    const boxHeight = compact ? 20 : (hasBanner ? 82 : 28);
+    const titleBarY = compact ? 20 : (hasBanner ? 82 : 28);
     doc.setFillColor(255, 255, 255);
-    doc.rect(8, 8, 194, compact ? 20 : 28, "F");
+    doc.rect(8, 8, 194, boxHeight, "F");
     doc.setDrawColor(210, 220, 228);
-    doc.rect(8, 8, 194, compact ? 20 : 28, "S");
+    doc.rect(8, 8, 194, boxHeight, "S");
 
-    if (bannerDataUrl && !compact) {
+    if (hasBanner && !compact) {
       try {
-        doc.addImage(bannerDataUrl, "JPEG", 8.5, 8.5, 193, 19.2);
+        doc.addImage(bannerDataUrl, "PNG", 8.5, 8.5, 193, 72);
       } catch {
         // ignore banner rendering failure
       }
     }
 
     doc.setFillColor(blue[0], blue[1], blue[2]);
-    doc.rect(8, compact ? 20 : 28, 194, 8, "F");
+    doc.rect(8, titleBarY, 194, 8, "F");
 
     doc.setFont("helvetica", "bold");
     doc.setTextColor(237, 106, 47);
     doc.setFontSize(compact ? 22 : 28);
-    if (!bannerDataUrl || compact) doc.text("Avanza", 12, compact ? 19 : 20);
+    if (!hasBanner || compact) doc.text("Avanza", 12, compact ? 19 : 20);
     doc.setTextColor(220, 23, 55);
     doc.setFontSize(compact ? 16 : 20);
-    if (!bannerDataUrl || compact) doc.text("OHAUS", compact ? 50 : 60, compact ? 19 : 20);
+    if (!hasBanner || compact) doc.text("OHAUS", compact ? 50 : 60, compact ? 19 : 20);
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);
-    doc.text("AVANZA INTERNACIONAL GROUP S.A.S. - Cotizacion Comercial", 12, compact ? 25.2 : 33.2);
+    doc.text("AVANZA INTERNACIONAL GROUP S.A.S. - Cotizacion Comercial", 12, titleBarY + 5.2);
     doc.setTextColor(dark[0], dark[1], dark[2]);
   };
 
   drawHeader(false);
 
+  const infoTitleY = hasBanner ? 101 : 44;
+  const infoTopY = hasBanner ? 104 : 47;
+  const tableHeaderY = hasBanner ? 136 : 79;
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.text("Informacion general", 12, 44);
+  doc.text("Informacion general", 12, infoTitleY);
   doc.setDrawColor(180, 196, 210);
-  doc.rect(10, 47, 190, 28, "S");
-  doc.line(105, 47, 105, 75);
+  doc.rect(10, infoTopY, 190, 28, "S");
+  doc.line(105, infoTopY, 105, infoTopY + 28);
 
   const leftRows: Array<[string, string]> = [
     ["Cliente", args.companyName || args.customerName || "-"],
@@ -2477,7 +2484,7 @@ async function buildStandardQuotePdf(args: {
     ["Fecha de Entrega", "45 dias habiles"],
   ];
 
-  let yRow = 52;
+  let yRow = infoTopY + 5;
   for (let i = 0; i < leftRows.length; i += 1) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.3);
@@ -2499,17 +2506,17 @@ async function buildStandardQuotePdf(args: {
     doc.setFontSize(8.2);
     doc.text("Item", 12, yTop + 4.8);
     doc.text("Producto", 24, yTop + 4.8);
-    doc.text("Descripcion", 54, yTop + 4.8);
-    doc.text("Garantia", 134, yTop + 4.8);
+    doc.text("Descripcion", 52, yTop + 4.8);
+    doc.text("Garantia", 129.5, yTop + 4.8);
     doc.text("Cant.", 156, yTop + 4.8, { align: "right" });
-    doc.text("Valor unit.", 181, yTop + 4.8, { align: "right" });
+    doc.text("Valor unit.", 177.5, yTop + 4.8, { align: "right" });
     doc.text("Valor total", 198, yTop + 4.8, { align: "right" });
     doc.setTextColor(dark[0], dark[1], dark[2]);
   };
 
-  drawTableHeader(79);
+  drawTableHeader(tableHeaderY);
 
-  let y = 88;
+  let y = tableHeaderY + 9;
   let index = 1;
   let subtotal = 0;
   for (const item of args.items || []) {
@@ -2519,18 +2526,14 @@ async function buildStandardQuotePdf(args: {
       : Number(item.basePriceUsd || 0) * Number(item.trmRate || 0) * qty;
     subtotal += lineTotal;
 
-    const baseDesc = String(item.description || "").trim() || [
-      `Producto: ${String(item.productName || "-")}`,
-      `Precio base USD: ${item.basePriceUsd > 0 ? formatMoney(item.basePriceUsd) : "-"}`,
-      `TRM: ${item.trmRate > 0 ? formatMoney(item.trmRate) : "-"}`,
-    ].join("\n");
+    const baseDesc = String(item.description || "").trim() || `Producto: ${String(item.productName || "-")}`;
 
     const productLines = doc.splitTextToSize(String(item.productName || "-").slice(0, 40), 28);
     const hasImage = Boolean(String(item.imageDataUrl || "").trim());
-    const descTextWidth = hasImage ? 48 : 76;
+    const descTextWidth = 74;
     const descLines = doc.splitTextToSize(baseDesc, descTextWidth);
     const lineCount = Math.max(productLines.length, descLines.length, 1);
-    const rowH = Math.max(hasImage ? 38 : 14, lineCount * 3.8 + 4);
+    const rowH = Math.max(hasImage ? 46 : 14, lineCount * 3.8 + 4);
 
     if (y + rowH > 235) {
       doc.addPage();
@@ -2553,22 +2556,22 @@ async function buildStandardQuotePdf(args: {
     doc.setFont("helvetica", "normal");
     if (hasImage) {
       try {
-        const imgX = 55;
-        const imgY = y - 2.5;
+        const imgX = 22;
+        const imgY = y + 2;
         const imgW = 24;
-        const imgH = Math.min(28, Math.max(20, rowH - 6));
+        const imgH = Math.min(30, Math.max(22, rowH - 16));
         doc.addImage(String(item.imageDataUrl || ""), "JPEG", imgX, imgY, imgW, imgH);
       } catch {
         // ignore image rendering failure
       }
-      doc.text(descLines, 81.5, y);
-    } else {
-      doc.text(descLines, 54, y);
     }
-    doc.text(String(item.warranty || "1 AÑO POR\nDEFECTO DE\nFABRICA"), 133.5, y);
+    doc.text(descLines, 52, y);
+    doc.text(String(item.warranty || "1 AÑO POR\nDEFECTO DE\nFABRICA"), 129.5, y);
     doc.text(String(qty), 156, y, { align: "right" });
-    doc.text(`$ ${formatMoney(lineTotal / qty)}`, 181, y, { align: "right" });
+    doc.setFontSize(7.8);
+    doc.text(`$ ${formatMoney(lineTotal / qty)}`, 177.5, y, { align: "right" });
     doc.text(`$ ${formatMoney(lineTotal)}`, 198, y, { align: "right" });
+    doc.setFontSize(8.2);
 
     y += rowH + 1.2;
     index += 1;
@@ -2620,6 +2623,7 @@ async function buildStandardQuotePdf(args: {
   doc.text("cotizaciones@avanzagroup.com.co", 10, yFooter + 16);
 
   const legal = [
+    "Observaciones generales de la cotización",
     "- Todos los distribuidores asumen el valor del flete. En el caso de clientes, el flete sera asumido unicamente si el envio es fuera de Bogota.",
     "- No realizamos devoluciones de dinero, excepto cuando se confirme un error de asesoramiento por parte de nuestro equipo.",
     "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
@@ -2627,6 +2631,16 @@ async function buildStandardQuotePdf(args: {
   ].join("\n");
   doc.setFontSize(8.2);
   doc.text(doc.splitTextToSize(legal, 188), 10, yFooter + 24);
+
+  const companyFooter = [
+    "AVANZA INTERNACIONAL GROUP S.A.S",
+    "Autopista Medellin k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a.",
+    "NIT 900505419",
+    "CELULAR 321 2165 771",
+    "www.balanzasybasculas.com.co - www.avanzagroup.com.co",
+  ].join("\n");
+  doc.setFontSize(7.6);
+  doc.text(doc.splitTextToSize(companyFooter, 188), 10, 285);
 
   return Buffer.from(doc.output("arraybuffer")).toString("base64");
 }
@@ -2674,13 +2688,7 @@ async function buildQuotePdf(args: {
         basePriceUsd: Number(args.basePriceUsd || 0),
         trmRate: Number(args.trmRate || 0),
         totalCop,
-        description: [
-          String(args.itemDescription || "").trim(),
-          `Cantidad: ${quantity}`,
-          `Precio base USD: ${Number(args.basePriceUsd || 0) > 0 ? formatMoney(Number(args.basePriceUsd || 0)) : "-"}`,
-          `TRM: ${Number(args.trmRate || 0) > 0 ? formatMoney(Number(args.trmRate || 0)) : "-"}`,
-          String(args.notes || "").trim() ? `Detalle: ${String(args.notes || "").trim()}` : "",
-        ].filter(Boolean).join("\n"),
+        description: String(args.itemDescription || "").trim() || `Producto: ${String(args.productName || "-")}`,
         imageDataUrl: String(args.imageDataUrl || "").trim(),
       },
     ],
@@ -2719,11 +2727,7 @@ async function buildBundleQuotePdf(args: {
         basePriceUsd: Number(item.basePriceUsd || 0),
         trmRate: Number(item.trmRate || 0),
         totalCop,
-        description: [
-          `Producto: ${String(item.productName || "-")}`,
-          `Precio base USD: ${Number(item.basePriceUsd || 0) > 0 ? formatMoney(Number(item.basePriceUsd || 0)) : "-"}`,
-          `TRM: ${Number(item.trmRate || 0) > 0 ? formatMoney(Number(item.trmRate || 0)) : "-"}`,
-        ].join("\n"),
+        description: String(item.description || "").trim() || `Producto: ${String(item.productName || "-")}`,
         imageDataUrl: String(item.imageDataUrl || "").trim(),
       };
     }),
