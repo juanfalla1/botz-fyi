@@ -2316,6 +2316,73 @@ function asDateYmd(input: Date | string) {
   return new Date(ts).toISOString().slice(0, 10);
 }
 
+const QUOTE_BANNER_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_BANNER_IMAGE_URL || "").trim();
+const LOCAL_QUOTE_BANNER_PATH = String(
+  process.env.WHATSAPP_QUOTE_BANNER_LOCAL_PATH ||
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "banner_cotizacion_avanza_ohaus.png")
+).trim();
+let quoteBannerImageCache: { at: number; dataUrl: string } | null = null;
+
+function imageDataUrlFromRemote(remote: { base64: string; mimetype: string } | null): string {
+  if (!remote) return "";
+  const mime = String(remote.mimetype || "").toLowerCase();
+  if (!/^image\//.test(mime)) return "";
+  const b64 = String(remote.base64 || "").trim();
+  if (!b64) return "";
+  return `data:${mime};base64,${b64}`;
+}
+
+async function resolveQuoteBannerImageDataUrl(): Promise<string> {
+  const now = Date.now();
+  if (quoteBannerImageCache && (now - quoteBannerImageCache.at) < 30 * 60 * 1000) {
+    return quoteBannerImageCache.dataUrl;
+  }
+  let dataUrl = "";
+
+  const localPath = String(LOCAL_QUOTE_BANNER_PATH || "").trim();
+  if (localPath && fs.existsSync(localPath)) {
+    try {
+      const ext = String(path.extname(localPath || "")).toLowerCase();
+      const mime = ext === ".png"
+        ? "image/png"
+        : (ext === ".jpg" || ext === ".jpeg")
+          ? "image/jpeg"
+          : ext === ".webp"
+            ? "image/webp"
+            : "";
+      if (mime) {
+        const base64 = fs.readFileSync(localPath).toString("base64");
+        if (base64) dataUrl = `data:${mime};base64,${base64}`;
+      }
+    } catch {
+      dataUrl = "";
+    }
+  }
+
+  if (!dataUrl && QUOTE_BANNER_IMAGE_URL) {
+    const remote = await fetchRemoteFileAsBase64(QUOTE_BANNER_IMAGE_URL);
+    dataUrl = imageDataUrlFromRemote(remote);
+  }
+
+  quoteBannerImageCache = { at: now, dataUrl };
+  return dataUrl;
+}
+
+async function resolveProductImageDataUrl(row: any): Promise<string> {
+  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const candidates = uniqueNormalizedStrings([
+    String(row?.image_url || "").trim(),
+    String((source as any)?.image_url || "").trim(),
+    String((source as any)?.image || "").trim(),
+  ]).filter((u) => /^https?:\/\//i.test(u));
+  for (const u of candidates) {
+    const remote = await fetchRemoteFileAsBase64(u);
+    const dataUrl = imageDataUrlFromRemote(remote);
+    if (dataUrl) return dataUrl;
+  }
+  return "";
+}
+
 type QuotePdfLineItem = {
   productName: string;
   quantity: number;
@@ -2324,6 +2391,7 @@ type QuotePdfLineItem = {
   totalCop: number;
   description?: string;
   warranty?: string;
+  imageDataUrl?: string;
 };
 
 function quoteIvaRate(): number {
@@ -2332,7 +2400,7 @@ function quoteIvaRate(): number {
   return raw;
 }
 
-function buildStandardQuotePdf(args: {
+async function buildStandardQuotePdf(args: {
   quoteNumber: string;
   issueDate: string;
   validUntil: string;
@@ -2351,6 +2419,8 @@ function buildStandardQuotePdf(args: {
   const ivaRate = quoteIvaRate();
   const col = [10, 20, 52, 132, 150, 162, 182, 200];
 
+  const bannerDataUrl = await resolveQuoteBannerImageDataUrl();
+
   const drawHeader = (compact = false) => {
     doc.setFillColor(245, 248, 251);
     doc.rect(0, 0, 210, 297, "F");
@@ -2358,16 +2428,25 @@ function buildStandardQuotePdf(args: {
     doc.rect(8, 8, 194, compact ? 20 : 28, "F");
     doc.setDrawColor(210, 220, 228);
     doc.rect(8, 8, 194, compact ? 20 : 28, "S");
+
+    if (bannerDataUrl && !compact) {
+      try {
+        doc.addImage(bannerDataUrl, "JPEG", 8.5, 8.5, 193, 19.2);
+      } catch {
+        // ignore banner rendering failure
+      }
+    }
+
     doc.setFillColor(blue[0], blue[1], blue[2]);
     doc.rect(8, compact ? 20 : 28, 194, 8, "F");
 
     doc.setFont("helvetica", "bold");
     doc.setTextColor(237, 106, 47);
     doc.setFontSize(compact ? 22 : 28);
-    doc.text("Avanza", 12, compact ? 19 : 20);
+    if (!bannerDataUrl || compact) doc.text("Avanza", 12, compact ? 19 : 20);
     doc.setTextColor(220, 23, 55);
     doc.setFontSize(compact ? 16 : 20);
-    doc.text("OHAUS", compact ? 50 : 60, compact ? 19 : 20);
+    if (!bannerDataUrl || compact) doc.text("OHAUS", compact ? 50 : 60, compact ? 19 : 20);
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);
     doc.text("AVANZA INTERNACIONAL GROUP S.A.S. - Cotizacion Comercial", 12, compact ? 25.2 : 33.2);
@@ -2421,8 +2500,8 @@ function buildStandardQuotePdf(args: {
     doc.text("Item", 12, yTop + 4.8);
     doc.text("Producto", 24, yTop + 4.8);
     doc.text("Descripcion", 54, yTop + 4.8);
-    doc.text("Garantia", 136, yTop + 4.8);
-    doc.text("Cant.", 151, yTop + 4.8, { align: "center" });
+    doc.text("Garantia", 134, yTop + 4.8);
+    doc.text("Cant.", 156, yTop + 4.8, { align: "right" });
     doc.text("Valor unit.", 181, yTop + 4.8, { align: "right" });
     doc.text("Valor total", 198, yTop + 4.8, { align: "right" });
     doc.setTextColor(dark[0], dark[1], dark[2]);
@@ -2447,9 +2526,11 @@ function buildStandardQuotePdf(args: {
     ].join("\n");
 
     const productLines = doc.splitTextToSize(String(item.productName || "-").slice(0, 40), 28);
-    const descLines = doc.splitTextToSize(baseDesc, 77);
+    const hasImage = Boolean(String(item.imageDataUrl || "").trim());
+    const descTextWidth = hasImage ? 48 : 76;
+    const descLines = doc.splitTextToSize(baseDesc, descTextWidth);
     const lineCount = Math.max(productLines.length, descLines.length, 1);
-    const rowH = Math.max(12, lineCount * 3.8 + 3);
+    const rowH = Math.max(hasImage ? 38 : 14, lineCount * 3.8 + 4);
 
     if (y + rowH > 235) {
       doc.addPage();
@@ -2470,7 +2551,20 @@ function buildStandardQuotePdf(args: {
     doc.setFont("helvetica", "bold");
     doc.text(productLines, 22, y);
     doc.setFont("helvetica", "normal");
-    doc.text(descLines, 54, y);
+    if (hasImage) {
+      try {
+        const imgX = 55;
+        const imgY = y - 2.5;
+        const imgW = 24;
+        const imgH = Math.min(28, Math.max(20, rowH - 6));
+        doc.addImage(String(item.imageDataUrl || ""), "JPEG", imgX, imgY, imgW, imgH);
+      } catch {
+        // ignore image rendering failure
+      }
+      doc.text(descLines, 81.5, y);
+    } else {
+      doc.text(descLines, 54, y);
+    }
     doc.text(String(item.warranty || "1 AÑO POR\nDEFECTO DE\nFABRICA"), 133.5, y);
     doc.text(String(qty), 156, y, { align: "right" });
     doc.text(`$ ${formatMoney(lineTotal / qty)}`, 181, y, { align: "right" });
@@ -2490,24 +2584,24 @@ function buildStandardQuotePdf(args: {
   }
 
   doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(143, y, 41, 21, "F");
+  doc.rect(143, y, 41, 24, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.text("Subtotal:", 145, y + 6);
-  doc.text("Descuento:", 145, y + 11.5);
-  doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, 145, y + 17);
-  doc.text("Valor total:", 145, y + 22.5);
+  doc.text("Descuento:", 145, y + 12.2);
+  doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, 145, y + 18.4);
+  doc.text("Valor total:", 145, y + 24.2);
 
   doc.setTextColor(dark[0], dark[1], dark[2]);
-  doc.rect(184, y, 16, 21, "S");
+  doc.rect(184, y, 16, 24, "S");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
   doc.text(`$ ${formatMoney(subtotal)}`, 198.5, y + 6, { align: "right" });
-  doc.text(`$ ${formatMoney(0)}`, 198.5, y + 11.5, { align: "right" });
-  doc.text(`$ ${formatMoney(iva)}`, 198.5, y + 17, { align: "right" });
+  doc.text(`$ ${formatMoney(0)}`, 198.5, y + 12.2, { align: "right" });
+  doc.text(`$ ${formatMoney(iva)}`, 198.5, y + 18.4, { align: "right" });
   doc.setFont("helvetica", "bold");
-  doc.text(`$ ${formatMoney(total)}`, 198.5, y + 22.5, { align: "right" });
+  doc.text(`$ ${formatMoney(total)}`, 198.5, y + 24.2, { align: "right" });
 
   let yFooter = y + 30;
   if (yFooter > 255) {
@@ -2537,7 +2631,7 @@ function buildStandardQuotePdf(args: {
   return Buffer.from(doc.output("arraybuffer")).toString("base64");
 }
 
-function buildQuotePdf(args: {
+async function buildQuotePdf(args: {
   draftId: string;
   companyName: string;
   customerName: string;
@@ -2551,6 +2645,7 @@ function buildQuotePdf(args: {
   city?: string;
   nit?: string;
   itemDescription?: string;
+  imageDataUrl?: string;
   notes?: string;
 }) {
   const now = new Date();
@@ -2562,7 +2657,7 @@ function buildQuotePdf(args: {
     ? Number(args.totalCop || 0)
     : Number(args.basePriceUsd || 0) * Number(args.trmRate || 0) * quantity;
 
-  return buildStandardQuotePdf({
+  return await buildStandardQuotePdf({
     quoteNumber,
     issueDate,
     validUntil,
@@ -2586,12 +2681,13 @@ function buildQuotePdf(args: {
           `TRM: ${Number(args.trmRate || 0) > 0 ? formatMoney(Number(args.trmRate || 0)) : "-"}`,
           String(args.notes || "").trim() ? `Detalle: ${String(args.notes || "").trim()}` : "",
         ].filter(Boolean).join("\n"),
+        imageDataUrl: String(args.imageDataUrl || "").trim(),
       },
     ],
   });
 }
 
-function buildBundleQuotePdf(args: {
+async function buildBundleQuotePdf(args: {
   bundleId: string;
   companyName: string;
   customerName: string;
@@ -2604,7 +2700,7 @@ function buildBundleQuotePdf(args: {
   const issueDate = asDateYmd(now);
   const validUntil = asDateYmd(new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000));
 
-  return buildStandardQuotePdf({
+  return await buildStandardQuotePdf({
     quoteNumber,
     issueDate,
     validUntil,
@@ -2612,7 +2708,7 @@ function buildBundleQuotePdf(args: {
     customerName: args.customerName,
     customerEmail: args.customerEmail,
     customerPhone: args.customerPhone,
-    items: (args.items || []).map((item) => {
+    items: (args.items || []).map((item: any) => {
       const qty = Math.max(1, Number(item.quantity || 1));
       const totalCop = Number(item.totalCop || 0) > 0
         ? Number(item.totalCop || 0)
@@ -2628,6 +2724,7 @@ function buildBundleQuotePdf(args: {
           `Precio base USD: ${Number(item.basePriceUsd || 0) > 0 ? formatMoney(Number(item.basePriceUsd || 0)) : "-"}`,
           `TRM: ${Number(item.trmRate || 0) > 0 ? formatMoney(Number(item.trmRate || 0)) : "-"}`,
         ].join("\n"),
+        imageDataUrl: String(item.imageDataUrl || "").trim(),
       };
     }),
   });
@@ -2889,6 +2986,7 @@ export async function POST(req: Request) {
       quantity: number;
       productName: string;
       itemDescription: string;
+      imageDataUrl: string;
       basePriceUsd: number;
       trmRate: number;
       totalCop: number;
@@ -3363,7 +3461,8 @@ export async function POST(req: Request) {
             if (draftErr) {
               strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Ya quedó registrado para reenviarla por este WhatsApp.";
             } else {
-              const pdfBase64 = buildQuotePdf({
+              const productImageDataUrl = await resolveProductImageDataUrl(selected);
+              const pdfBase64 = await buildQuotePdf({
                 draftId: String((insertedDraft as any)?.id || ""),
                 customerName: customerContact,
                 customerEmail,
@@ -3377,6 +3476,7 @@ export async function POST(req: Request) {
                 city: customerCity,
                 nit: customerNit,
                 itemDescription: buildQuoteItemDescription(selected, String((selected as any)?.name || "")),
+                imageDataUrl: productImageDataUrl,
                 notes: `Ciudad: ${customerCity} | NIT: ${customerNit}`,
               });
               strictDocs.push({
@@ -5258,7 +5358,7 @@ export async function POST(req: Request) {
                 reply = "Ocurrió un error al actualizar la cotización por cantidad. Inténtalo de nuevo y te la envío por este WhatsApp.";
               } else {
                 const draftId = String(newDraft.id);
-                const pdfBase64 = buildQuotePdf({
+                const pdfBase64 = await buildQuotePdf({
                   draftId,
                   companyName: String((baseDraft as any)?.company_name || "Avanza Balanzas"),
                   customerName: String((baseDraft as any)?.customer_name || nextMemory.customer_name || inbound.pushName || ""),
@@ -5382,7 +5482,7 @@ export async function POST(req: Request) {
               }
             }
 
-            const pdfBase64 = buildQuotePdf({
+            const pdfBase64 = await buildQuotePdf({
               draftId: draftIdForSend,
               companyName: String((lastDraft as any).company_name || "Avanza Balanzas"),
               customerName: String((lastDraft as any).customer_name || nextMemory.customer_name || inbound.pushName || ""),
@@ -5624,7 +5724,8 @@ export async function POST(req: Request) {
                   nextMemory.last_quote_draft_id = String(draft.id);
                   nextMemory.last_quote_product_name = String((selected as any).name || "");
                   nextMemory.awaiting_action = "none";
-                  const pdfBase64 = buildQuotePdf({
+                  const productImageDataUrl = await resolveProductImageDataUrl(selected);
+                  const pdfBase64 = await buildQuotePdf({
                     draftId: String(draft.id),
                     companyName: String(draftPayload.company_name || "Avanza Balanzas"),
                     customerName: customerName || "",
@@ -5638,6 +5739,7 @@ export async function POST(req: Request) {
                     city: customerCity,
                     nit: customerNit,
                     itemDescription: buildQuoteItemDescription(selected, String((selected as any).name || "")),
+                    imageDataUrl: productImageDataUrl,
                     notes: String(draftPayload.notes || ""),
                   });
 
@@ -5648,6 +5750,7 @@ export async function POST(req: Request) {
                     quantity,
                     productName: String((selected as any).name || ""),
                     itemDescription: buildQuoteItemDescription(selected, String((selected as any).name || "")),
+                    imageDataUrl: productImageDataUrl,
                     basePriceUsd,
                     trmRate,
                     totalCop,
@@ -5659,7 +5762,7 @@ export async function POST(req: Request) {
                 const q1 = autoQuoteDocs[0]?.quantity || 1;
                 reply = `Confirmo ${q1} unidades de ${String((selectedProducts[0] as any)?.name || "el producto")}. Ya generé tu cotización con la TRM de hoy y te envío el PDF por este chat ahora mismo.`;
               } else if (autoQuoteDocs.length > 1) {
-                const bundlePdfBase64 = buildBundleQuotePdf({
+                const bundlePdfBase64 = await buildBundleQuotePdf({
                   bundleId: `B-${new Date().toISOString().slice(0, 10)}-${String(autoQuoteDocs[0].draftId).slice(0, 6)}`,
                   companyName: String(cfg?.company_name || cfg?.company_desc || "Avanza Balanzas").slice(0, 120) || "Avanza Balanzas",
                   customerName: customerName || "",
@@ -5672,6 +5775,7 @@ export async function POST(req: Request) {
                     trmRate: d.trmRate,
                     totalCop: d.totalCop,
                     description: d.itemDescription,
+                    imageDataUrl: d.imageDataUrl,
                   })),
                 });
                 autoQuoteBundle = {
