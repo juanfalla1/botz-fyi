@@ -2664,6 +2664,9 @@ async function buildStandardQuotePdf(args: {
   const phoneSafe = normalizePhone(args.customerPhone || "");
   const ivaRate = quoteIvaRate();
   const col = [10, 20, 50, 127, 145, 157, 178, 200];
+  const footerBlockTop = 258;
+  const footerMetaTop = 275;
+  const footerPageTop = 284;
 
   const bannerDataUrl = await resolveQuoteBannerImageDataUrl();
   const hasBanner = Boolean(String(bannerDataUrl || "").trim());
@@ -2762,6 +2765,13 @@ async function buildStandardQuotePdf(args: {
     doc.setTextColor(dark[0], dark[1], dark[2]);
   };
 
+  const truncateLines = (lines: string[], maxLines: number): string[] => {
+    if (lines.length <= maxLines) return lines;
+    const next = lines.slice(0, maxLines);
+    next[maxLines - 1] = `${String(next[maxLines - 1] || "").trimEnd()}...`;
+    return next;
+  };
+
   let currentTableHeaderY = tableHeaderY;
   let tableHeaderDrawn = false;
   let y = currentTableHeaderY + 11;
@@ -2776,19 +2786,32 @@ async function buildStandardQuotePdf(args: {
 
     const baseDesc = String(item.description || "").trim() || `Producto: ${String(item.productName || "-")}`;
 
-    const productLines = doc.splitTextToSize(String(item.productName || "-").slice(0, 40), 28);
+    const productLines = truncateLines(
+      doc.splitTextToSize(String(item.productName || "-").slice(0, 40), 28),
+      2,
+    );
     const hasImage = ENABLE_QUOTE_PRODUCT_IMAGE && Boolean(String(item.imageDataUrl || "").trim());
     const descTextWidth = 74;
-    const descLines = doc.splitTextToSize(baseDesc, descTextWidth);
+    const descLines = truncateLines(
+      doc.splitTextToSize(baseDesc, descTextWidth),
+      hasImage ? 8 : 10,
+    );
     const lineCount = Math.max(productLines.length, descLines.length, 1);
     const rowH = Math.max(hasImage ? 46 : 14, lineCount * 3.8 + 4);
 
     if (!tableHeaderDrawn) {
       if (y + rowH > 235) {
-        doc.addPage();
-        drawHeader(true);
-        currentTableHeaderY = 33;
-        y = 42;
+        if (doc.getNumberOfPages() === 1) {
+          // Repaint first page with compact header to avoid an empty first sheet.
+          drawHeader(true);
+          currentTableHeaderY = 33;
+          y = 42;
+        } else {
+          doc.addPage();
+          drawHeader(true);
+          currentTableHeaderY = 33;
+          y = 42;
+        }
       }
       drawTableHeader(currentTableHeaderY);
       tableHeaderDrawn = true;
@@ -2876,25 +2899,31 @@ async function buildStandardQuotePdf(args: {
     y = 40;
   }
 
+  const totalsLabelX = 128;
+  const totalsLabelW = 42;
+  const totalsValueX = totalsLabelX + totalsLabelW;
+  const totalsValueW = 30;
+  const totalsValueRight = totalsValueX + totalsValueW - 1;
+
   doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(130, y, 46, 24, "F");
+  doc.rect(totalsLabelX, y, totalsLabelW, 24, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.text("Subtotal:", 132, y + 6);
-  doc.text("Descuento:", 132, y + 12.2);
-  doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, 132, y + 18.4);
-  doc.text("Valor total:", 132, y + 22.8);
+  doc.text("Subtotal:", totalsLabelX + 2, y + 6);
+  doc.text("Descuento:", totalsLabelX + 2, y + 12.2);
+  doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, totalsLabelX + 2, y + 18.4);
+  doc.text("Valor total:", totalsLabelX + 2, y + 22.8);
 
   doc.setTextColor(dark[0], dark[1], dark[2]);
-  doc.rect(176, y, 24, 24, "S");
+  doc.rect(totalsValueX, y, totalsValueW, 24, "S");
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.8);
-  doc.text(`$ ${formatMoney(subtotal)}`, 199, y + 6, { align: "right" });
-  doc.text(`$ ${formatMoney(0)}`, 199, y + 12.2, { align: "right" });
-  doc.text(`$ ${formatMoney(iva)}`, 199, y + 18.4, { align: "right" });
+  doc.setFontSize(7.4);
+  doc.text(`$ ${formatMoney(subtotal)}`, totalsValueRight, y + 6, { align: "right" });
+  doc.text(`$ ${formatMoney(0)}`, totalsValueRight, y + 12.2, { align: "right" });
+  doc.text(`$ ${formatMoney(iva)}`, totalsValueRight, y + 18.4, { align: "right" });
   doc.setFont("helvetica", "bold");
-  doc.text(`$ ${formatMoney(total)}`, 199, y + 22.8, { align: "right" });
+  doc.text(`$ ${formatMoney(total)}`, totalsValueRight, y + 22.8, { align: "right" });
 
   let yFooter = y + 30;
   if (yFooter > 255) {
@@ -2923,7 +2952,7 @@ async function buildStandardQuotePdf(args: {
   doc.text(doc.splitTextToSize(legal, 188), 10, yFooter + 24);
 
   let perksY = yFooter + 58;
-  if (perksY >= 268) {
+  if (perksY >= 236) {
     doc.addPage();
     drawHeader(true);
     perksY = 52;
@@ -2969,24 +2998,22 @@ async function buildStandardQuotePdf(args: {
     "CELULAR 321 2165 771",
     "www.balanzasybasculas.com.co - www.avanzagroup.com.co",
   ].join("\n");
-  const footerStartY = 281;
-  doc.setFontSize(7.6);
-  doc.text(doc.splitTextToSize(companyFooter, 188), 10, footerStartY);
+  doc.setFontSize(7.2);
+  doc.text(doc.splitTextToSize(companyFooter, 188), 10, footerBlockTop);
 
   const nowStamp = new Date();
   const createdAt = `${asDateYmd(nowStamp)}`;
   const modifiedAt = `${asDateYmd(nowStamp)} ${String(nowStamp.toTimeString() || "").slice(0, 8)}`;
-  const metaY = Math.min(272, perksY + 28);
   doc.setFontSize(7.8);
-  doc.text(`Fecha de creación ${createdAt}`, 10, metaY);
-  doc.text(`Fecha de modificación ${modifiedAt}`, 10, metaY + 5);
+  doc.text(`Fecha de creación ${createdAt}`, 10, footerMetaTop);
+  doc.text(`Fecha de modificación ${modifiedAt}`, 10, footerMetaTop + 5);
 
   const totalPages = doc.getNumberOfPages();
   for (let p = 1; p <= totalPages; p += 1) {
     doc.setPage(p);
     doc.setFontSize(8.2);
     doc.setFont("helvetica", "bold");
-    doc.text(`Pág ${p} de ${totalPages}`, 10, Math.min(278, metaY + 10));
+    doc.text(`Pág ${p} de ${totalPages}`, 10, footerPageTop);
   }
 
   return Buffer.from(doc.output("arraybuffer")).toString("base64");
