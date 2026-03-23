@@ -1878,14 +1878,15 @@ function buildQuoteItemDescription(row: any, fallbackName: string): string {
   return lines.join("\n");
 }
 
-let pdfParseFnCache: any = null;
+let pdfParseModuleCache: any = null;
 const localQuotePdfTextCache = new Map<string, { at: number; lines: string[] }>();
+const localQuotePdfImageCache = new Map<string, { at: number; dataUrl: string }>();
 
-async function getPdfParseFn(): Promise<any> {
-  if (pdfParseFnCache) return pdfParseFnCache;
+async function getPdfParseModule(): Promise<any> {
+  if (pdfParseModuleCache) return pdfParseModuleCache;
   const mod: any = await import("pdf-parse");
-  pdfParseFnCache = mod?.default || mod;
-  return pdfParseFnCache;
+  pdfParseModuleCache = mod || {};
+  return pdfParseModuleCache;
 }
 
 function cleanPdfSpecLines(raw: string): string[] {
@@ -1914,10 +1915,14 @@ async function extractPdfTechnicalLines(row: any): Promise<string[]> {
   const cache = localQuotePdfTextCache.get(localPath);
   if (cache && (Date.now() - cache.at) < 6 * 60 * 60 * 1000) return cache.lines;
   try {
-    const pdfParse = await getPdfParseFn();
+    const pdfMod = await getPdfParseModule();
+    const PDFParse = (pdfMod as any)?.PDFParse || (pdfMod as any)?.default?.PDFParse;
+    if (!PDFParse) return [];
     const buff = fs.readFileSync(localPath);
-    const parsed: any = await pdfParse(buff);
-    const lines = uniqueNormalizedStrings(cleanPdfSpecLines(String(parsed?.text || "")), 80);
+    const parser: any = new PDFParse({ data: buff });
+    const parsed: any = await parser.getText();
+    await parser.destroy?.();
+    const lines = uniqueNormalizedStrings(cleanPdfSpecLines(String(parsed?.text || "")), 120);
     localQuotePdfTextCache.set(localPath, { at: Date.now(), lines });
     return lines;
   } catch {
@@ -2444,6 +2449,38 @@ async function resolveProductImageDataUrl(row: any): Promise<string> {
     const dataUrl = imageDataUrlFromRemote(remote);
     if (dataUrl) return dataUrl;
   }
+
+  const localPath = pickBestLocalPdfPath(row, String(row?.name || ""));
+  if (localPath && fs.existsSync(localPath)) {
+    const cached = localQuotePdfImageCache.get(localPath);
+    if (cached && (Date.now() - cached.at) < 6 * 60 * 60 * 1000) return cached.dataUrl;
+    try {
+      const pdfMod = await getPdfParseModule();
+      const PDFParse = (pdfMod as any)?.PDFParse || (pdfMod as any)?.default?.PDFParse;
+      if (PDFParse) {
+        const parser: any = new PDFParse({ data: fs.readFileSync(localPath) });
+        const imgRes: any = await parser.getImage({ max: 1 });
+        await parser.destroy?.();
+        const imgs = Array.isArray(imgRes?.pages?.[0]?.images) ? imgRes.pages[0].images : [];
+        const picked = imgs
+          .filter((img: any) => String(img?.dataUrl || "").startsWith("data:image/"))
+          .map((img: any) => ({
+            dataUrl: String(img.dataUrl || ""),
+            w: Number(img.width || 0),
+            h: Number(img.height || 0),
+          }))
+          .filter((img: any) => img.w > 80 && img.h > 80)
+          .sort((a: any, b: any) => (b.w * b.h) - (a.w * a.h))[0];
+        if (picked?.dataUrl) {
+          localQuotePdfImageCache.set(localPath, { at: Date.now(), dataUrl: picked.dataUrl });
+          return picked.dataUrl;
+        }
+      }
+    } catch {
+      // ignore local pdf image extraction errors
+    }
+  }
+
   return "";
 }
 
@@ -2624,7 +2661,13 @@ async function buildStandardQuotePdf(args: {
         const imgY = y + 2;
         const imgW = 24;
         const imgH = Math.min(30, Math.max(22, rowH - 16));
-        doc.addImage(String(item.imageDataUrl || ""), "JPEG", imgX, imgY, imgW, imgH);
+        const dataUrl = String(item.imageDataUrl || "");
+        const fmt = /^data:image\/png/i.test(dataUrl)
+          ? "PNG"
+          : /^data:image\/webp/i.test(dataUrl)
+            ? "WEBP"
+            : "JPEG";
+        doc.addImage(dataUrl, fmt as any, imgX, imgY, imgW, imgH);
       } catch {
         // ignore image rendering failure
       }
@@ -3223,6 +3266,17 @@ export async function POST(req: Request) {
         const selected = resolvePendingProductOption(text, pending);
         if (selected?.id) {
           selectedProduct = ownerRows.find((r: any) => String(r?.id || "") === String(selected.id || "")) || null;
+        }
+      }
+
+      if (!selectedProduct && (wantsSheet || wantsQuote || /\b(ficha|cotizacion|cotización|precio)\b/.test(textNorm))) {
+        const rememberedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || strictMemory.last_selected_product_id || strictMemory.last_product_id || "").trim();
+        const rememberedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
+        if (rememberedId) {
+          selectedProduct = ownerRows.find((r: any) => String(r?.id || "").trim() === rememberedId) || null;
+        }
+        if (!selectedProduct && rememberedName) {
+          selectedProduct = findCatalogProductByName(ownerRows as any[], rememberedName) || null;
         }
       }
 
