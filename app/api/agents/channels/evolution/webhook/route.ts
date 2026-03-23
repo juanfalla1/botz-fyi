@@ -1149,7 +1149,12 @@ function isPriceIntent(text: string): boolean {
 
 function isMultiProductQuoteIntent(text: string): boolean {
   const t = normalizeText(text);
-  return /(los\s*3|los\s*tres|todos\s+los\s+productos|todos\s+los\s+que\s+tienen\s+precio|de\s+los\s+3)/.test(t);
+  return /(los\s*3|los\s*tres|todos\s+los\s+productos|todos\s+los\s+que\s+tienen\s+precio|de\s+los\s+3|dos\s+mas|tres\s+mas|agrega|agregar|incluye|incluir|suma|sumar|adiciona|adicionar|misma\s+cotizacion|misma\s+cotización)/.test(t);
+}
+
+function isSameQuoteContinuationIntent(text: string): boolean {
+  const t = normalizeText(text);
+  return /(misma\s+cotizacion|misma\s+cotización|en\s+la\s+misma\s+cotizacion|en\s+la\s+misma\s+cotización|agrega|agregar|incluye|incluir|suma|sumar|adiciona|adicionar|dos\s+mas|tres\s+mas)/.test(t);
 }
 
 function shouldResendPdf(text: string): boolean {
@@ -1645,6 +1650,24 @@ function findExactModelProduct(text: string, rows: any[]): any | null {
   }
   if (!best || best.score < 8) return null;
   return best.row;
+}
+
+function findExplicitModelProducts(text: string, rows: any[]): any[] {
+  const inbound = normalizeCatalogQueryText(String(text || ""));
+  const modelTokens = extractModelLikeTokens(inbound);
+  if (!modelTokens.length) return [];
+  const found: any[] = [];
+  const seenIds = new Set<string>();
+  for (const token of modelTokens) {
+    const candidate =
+      findExactModelProduct(token, rows || []) ||
+      pickBestCatalogProduct(token, rows || []);
+    const id = String(candidate?.id || "").trim();
+    if (!candidate || !id || seenIds.has(id)) continue;
+    seenIds.add(id);
+    found.push(candidate);
+  }
+  return found;
 }
 
 function extractCatalogTerms(text: string): string[] {
@@ -6130,14 +6153,34 @@ export async function POST(req: Request) {
         const selectedProduct = selectedById
           ? (commercialProducts.find((p: any) => String(p?.id || "").trim() === selectedById) || null)
           : (selectedByName ? findCatalogProductByName(commercialProducts || [], selectedByName) : null);
+        const continuationIntent = isSameQuoteContinuationIntent(quoteSourceText);
+        const explicitModelProducts = findExplicitModelProducts(quoteSourceText, commercialProducts || []);
         const explicitModelProduct = findExactModelProduct(quoteSourceText, commercialProducts || []);
         const matchedProduct = explicitModelProduct || ((quoteProceedFromMemory && selectedProduct)
           ? selectedProduct
           : pickBestCatalogProduct(quoteSourceText, quoteMatchPool || []));
         const rememberedProduct = findCatalogProductByName(commercialProducts || [], String(nextMemory.last_product_name || ""));
         const wantsMulti = isMultiProductQuoteIntent(quoteSourceText);
-        const selectedProducts = wantsMulti
-          ? pricedProducts.slice(0, 3)
+        const rememberedQuoteProductName = String(
+          nextMemory.last_quote_product_name ||
+          previousMemory?.last_quote_product_name ||
+          nextMemory.last_selected_product_name ||
+          previousMemory?.last_selected_product_name ||
+          ""
+        ).trim();
+        const rememberedQuoteProduct = rememberedQuoteProductName
+          ? findCatalogProductByName(commercialProducts || [], rememberedQuoteProductName)
+          : null;
+        const selectedProducts = explicitModelProducts.length
+          ? (
+              continuationIntent && rememberedQuoteProduct
+                ? [rememberedQuoteProduct, ...explicitModelProducts].filter((row: any, idx: number, arr: any[]) => {
+                    const id = String(row?.id || "").trim();
+                    if (!id) return false;
+                    return arr.findIndex((x: any) => String(x?.id || "").trim() === id) === idx;
+                  })
+                : explicitModelProducts
+            )
           : matchedProduct || rememberedProduct
             ? [matchedProduct || rememberedProduct]
             : [];
@@ -6160,25 +6203,64 @@ export async function POST(req: Request) {
           );
           const uniformHint = hasUniformQuantityHint(quoteSourceText);
 
+          let previousDraftForCustomer: any = null;
+          const shouldRecoverCustomerFromDraft =
+            continuationIntent || explicitModelProducts.length > 0 || wantsMulti || quoteProceedFromMemory;
+          if (shouldRecoverCustomerFromDraft) {
+            const { data: recentDrafts } = await supabase
+              .from("agent_quote_drafts")
+              .select("id,customer_phone,customer_name,customer_email,company_name,location,payload,created_at")
+              .eq("created_by", ownerId)
+              .eq("agent_id", String(agent.id))
+              .order("created_at", { ascending: false })
+              .limit(40);
+            const inboundPhone = normalizePhone(inbound.from || "");
+            const inboundTail = phoneTail10(inbound.from || "");
+            const draftList = Array.isArray(recentDrafts) ? recentDrafts : [];
+            previousDraftForCustomer =
+              draftList.find((d: any) => normalizePhone(String(d?.customer_phone || "")) === inboundPhone) ||
+              draftList.find((d: any) => phoneTail10(String(d?.customer_phone || "")) === inboundTail) ||
+              null;
+          }
+          const previousDraftPayload =
+            previousDraftForCustomer?.payload && typeof previousDraftForCustomer.payload === "object"
+              ? previousDraftForCustomer.payload
+              : {};
+
           if (wantsMulti && Object.keys(perProductQty).length < selectedProducts.length && !uniformHint) {
             const listNames = selectedProducts.map((p: any) => String(p?.name || "")).filter(Boolean);
-            reply = `Para cotizar los 3 productos, confirmame la cantidad de cada uno. Ejemplo: ${listNames[0] || "Producto 1"}: 2; ${listNames[1] || "Producto 2"}: 1; ${listNames[2] || "Producto 3"}: 3. Si es la misma cantidad para todos, escribe: cantidad ${defaultQuantity || 1} para todos.`;
+            reply = `Para cotizar los ${selectedProducts.length} productos, confirmame la cantidad de cada uno. Ejemplo: ${listNames[0] || "Producto 1"}: 2; ${listNames[1] || "Producto 2"}: 1; ${listNames[2] || "Producto 3"}: 3. Si es la misma cantidad para todos, escribe: cantidad ${defaultQuantity || 1} para todos.`;
             handledByQuoteIntake = true;
             billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
           }
 
-          const customerEmail = extractEmail(combinedUserContext) || String(nextMemory.customer_email || "");
-          const customerName = extractCustomerName(combinedUserContext, inbound.pushName || "") || String(nextMemory.customer_name || "");
+          const customerEmail =
+            extractEmail(combinedUserContext) ||
+            String(nextMemory.customer_email || "") ||
+            String(previousDraftForCustomer?.customer_email || "");
+          const customerName =
+            extractCustomerName(combinedUserContext, inbound.pushName || "") ||
+            String(nextMemory.customer_name || "") ||
+            String(previousDraftForCustomer?.customer_name || "");
           const inboundPhoneFallback = normalizePhone(String(inbound.from || ""));
           const customerPhone =
             extractCustomerPhone(combinedUserContext, inbound.from) ||
             String(nextMemory.customer_phone || "") ||
+            String(previousDraftForCustomer?.customer_phone || "") ||
             inboundPhoneFallback;
-          const customerCityRaw = extractLabeledValue(combinedUserContext, ["ciudad", "city"]);
+          const customerCityRaw =
+            extractLabeledValue(combinedUserContext, ["ciudad", "city"]) ||
+            String(previousDraftForCustomer?.location || (previousDraftPayload as any)?.customer_city || "");
           const customerCity = normalizeCityLabel(customerCityRaw);
-          const customerCompany = extractLabeledValue(combinedUserContext, ["empresa", "company", "razon social"]);
-          const customerNit = extractLabeledValue(combinedUserContext, ["nit"]);
-          const customerContact = extractLabeledValue(combinedUserContext, ["contacto"]);
+          const customerCompany =
+            extractLabeledValue(combinedUserContext, ["empresa", "company", "razon social"]) ||
+            String((previousDraftPayload as any)?.customer_company || previousDraftForCustomer?.company_name || "");
+          const customerNit =
+            extractLabeledValue(combinedUserContext, ["nit"]) ||
+            String((previousDraftPayload as any)?.customer_nit || "");
+          const customerContact =
+            extractLabeledValue(combinedUserContext, ["contacto"]) ||
+            String((previousDraftPayload as any)?.customer_contact || previousDraftForCustomer?.customer_name || "");
 
           const missingFields: string[] = [];
           if (!isPresent(customerCity)) missingFields.push("ciudad");
