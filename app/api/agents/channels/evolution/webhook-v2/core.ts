@@ -6262,13 +6262,47 @@ export async function POST(req: Request) {
             extractLabeledValue(combinedUserContext, ["contacto"]) ||
             String((previousDraftPayload as any)?.customer_contact || previousDraftForCustomer?.customer_name || "");
 
+          const canReusePriorQuoteIdentity =
+            continuationIntent &&
+            explicitModelProducts.length > 0 &&
+            Boolean(previousDraftForCustomer?.id);
+
+          const effectiveCustomerCity = normalizeCityLabel(
+            String(customerCity || previousDraftForCustomer?.location || (previousDraftPayload as any)?.customer_city || "Bogota")
+          );
+          const effectiveCustomerCompany = String(
+            customerCompany ||
+            (previousDraftPayload as any)?.customer_company ||
+            previousDraftForCustomer?.company_name ||
+            cfg?.company_name ||
+            "Cliente WhatsApp"
+          ).trim();
+          const effectiveCustomerNit = String(
+            customerNit ||
+            (previousDraftPayload as any)?.customer_nit ||
+            "N/A"
+          ).trim();
+          const effectiveCustomerContact = String(
+            customerContact || customerName || (previousDraftPayload as any)?.customer_contact || previousDraftForCustomer?.customer_name || "Contacto"
+          ).trim();
+          const effectiveCustomerEmail = String(customerEmail || previousDraftForCustomer?.customer_email || "").trim();
+          const effectiveCustomerPhone = String(customerPhone || previousDraftForCustomer?.customer_phone || inboundPhoneFallback).trim();
+
           const missingFields: string[] = [];
-          if (!isPresent(customerCity)) missingFields.push("ciudad");
-          if (!isPresent(customerCompany)) missingFields.push("empresa");
-          if (!isPresent(customerNit)) missingFields.push("NIT");
-          if (!isPresent(customerContact) && !isPresent(customerName)) missingFields.push("contacto");
-          if (!isPresent(customerEmail)) missingFields.push("correo");
-          if (!isPresent(customerPhone)) missingFields.push("celular");
+          if (!isPresent(effectiveCustomerCity)) missingFields.push("ciudad");
+          if (!isPresent(effectiveCustomerCompany)) missingFields.push("empresa");
+          if (!isPresent(effectiveCustomerNit)) missingFields.push("NIT");
+          if (!isPresent(effectiveCustomerContact)) missingFields.push("contacto");
+          if (!isPresent(effectiveCustomerEmail)) missingFields.push("correo");
+          if (!isPresent(effectiveCustomerPhone)) missingFields.push("celular");
+
+          if (canReusePriorQuoteIdentity) {
+            missingFields.length = 0;
+          }
+
+          nextMemory.customer_name = effectiveCustomerContact || nextMemory.customer_name;
+          nextMemory.customer_phone = effectiveCustomerPhone || nextMemory.customer_phone;
+          nextMemory.customer_email = effectiveCustomerEmail || nextMemory.customer_email;
 
           if (missingFields.length) {
             reply = `Para formalizar la cotizacion me faltan: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Ciudad: Bogota, Empresa: ..., NIT: ..., Contacto: ..., Correo: ..., Celular: ...).`;
@@ -6285,7 +6319,7 @@ export async function POST(req: Request) {
               extractQuoteRequestedQuantity(quoteSourceText)
             );
             const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
-            const cityPriceCop = Number(cityPrices?.[customerCity] || 0);
+            const cityPriceCop = Number(cityPrices?.[effectiveCustomerCity] || 0);
             const basePrice = Number(selected?.base_price_usd || 0);
             if (!(basePrice > 0) && !(cityPriceCop > 0)) {
               reply = `Confirmo ${requestedQty} unidades de ${String(selected?.name || "ese producto")}. Este modelo no tiene precio base USD cargado todavía, por eso no puedo generar el PDF de cotización en este momento. Si me compartes precio base o autorizas cargarlo, te la genero de inmediato.`;
@@ -6318,7 +6352,7 @@ export async function POST(req: Request) {
                   if (explicitQty > 1) quantity = explicitQty;
                 }
                 const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
-                const cityPriceCop = Number(cityPrices?.[customerCity] || 0);
+                const cityPriceCop = Number(cityPrices?.[effectiveCustomerCity] || 0);
                 const bogotaPriceCop = Number(cityPrices?.bogota || 0);
                 const selectedUnitCop = cityPriceCop > 0 ? cityPriceCop : bogotaPriceCop;
                 const basePriceUsdRaw = Number((selected as any)?.base_price_usd || 0);
@@ -6334,28 +6368,28 @@ export async function POST(req: Request) {
                   tenant_id: (agent as any)?.tenant_id || null,
                   created_by: ownerId,
                   agent_id: String(agent.id),
-                  customer_name: (customerContact || customerName) || null,
-                  customer_email: customerEmail || null,
-                  customer_phone: customerPhone || null,
-                  company_name: String(customerCompany || cfg?.company_name || cfg?.company_desc || "Avanza Balanzas").slice(0, 120) || "Avanza Balanzas",
-                  location: customerCity || null,
+                  customer_name: effectiveCustomerContact || null,
+                  customer_email: effectiveCustomerEmail || null,
+                  customer_phone: effectiveCustomerPhone || null,
+                  company_name: String(effectiveCustomerCompany || cfg?.company_name || cfg?.company_desc || "Avanza Balanzas").slice(0, 120) || "Avanza Balanzas",
+                  location: effectiveCustomerCity || null,
                   product_catalog_id: (selected as any).id,
                   product_name: String((selected as any).name || ""),
                   base_price_usd: basePriceUsd,
                   trm_rate: trmRate,
                   total_cop: totalCop,
                   notes: selectedUnitCop > 0
-                    ? `Cotizacion automatica por WhatsApp - precio ciudad ${customerCity}`
+                    ? `Cotizacion automatica por WhatsApp - precio ciudad ${effectiveCustomerCity}`
                     : "Cotizacion automatica por WhatsApp",
                   payload: {
                     quantity,
                     trm_date: trm.rate_date,
                     trm_source: trm.source,
                     price_currency: String((selected as any)?.price_currency || "USD"),
-                    customer_city: customerCity || null,
-                    customer_nit: customerNit || null,
-                    customer_company: customerCompany || null,
-                    customer_contact: customerContact || customerName || null,
+                    customer_city: effectiveCustomerCity || null,
+                    customer_nit: effectiveCustomerNit || null,
+                    customer_company: effectiveCustomerCompany || null,
+                    customer_contact: effectiveCustomerContact || null,
                     unit_price_cop: selectedUnitCop > 0 ? selectedUnitCop : null,
                     automation: "evolution_webhook",
                   },
@@ -6377,16 +6411,16 @@ export async function POST(req: Request) {
                   const pdfBase64 = await buildQuotePdf({
                     draftId: String(draft.id),
                     companyName: String(draftPayload.company_name || "Avanza Balanzas"),
-                    customerName: customerName || "",
-                    customerEmail: customerEmail || "",
-                    customerPhone: customerPhone || "",
+                    customerName: effectiveCustomerContact || "",
+                    customerEmail: effectiveCustomerEmail || "",
+                    customerPhone: effectiveCustomerPhone || "",
                     productName: String((selected as any).name || ""),
                     quantity,
                     basePriceUsd,
                     trmRate,
                     totalCop,
-                    city: customerCity,
-                    nit: customerNit,
+                    city: effectiveCustomerCity,
+                    nit: effectiveCustomerNit,
                     itemDescription: quoteDescription,
                     imageDataUrl: productImageDataUrl,
                     notes: String(draftPayload.notes || ""),
@@ -6414,9 +6448,9 @@ export async function POST(req: Request) {
                 const bundlePdfBase64 = await buildBundleQuotePdf({
                   bundleId: `B-${new Date().toISOString().slice(0, 10)}-${String(autoQuoteDocs[0].draftId).slice(0, 6)}`,
                   companyName: String(cfg?.company_name || cfg?.company_desc || "Avanza Balanzas").slice(0, 120) || "Avanza Balanzas",
-                  customerName: customerName || "",
-                  customerEmail: customerEmail || "",
-                  customerPhone: customerPhone || "",
+                  customerName: effectiveCustomerContact || "",
+                  customerEmail: effectiveCustomerEmail || "",
+                  customerPhone: effectiveCustomerPhone || "",
                   items: autoQuoteDocs.map((d) => ({
                     productName: d.productName,
                     quantity: d.quantity,
