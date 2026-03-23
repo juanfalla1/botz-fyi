@@ -2643,7 +2643,7 @@ async function buildStandardQuotePdf(args: {
   const dark = [20, 20, 20] as const;
   const phoneSafe = normalizePhone(args.customerPhone || "");
   const ivaRate = quoteIvaRate();
-  const col = [10, 20, 50, 128, 146, 158, 179, 200];
+  const col = [10, 20, 50, 127, 145, 157, 178, 200];
 
   const bannerDataUrl = await resolveQuoteBannerImageDataUrl();
   const hasBanner = Boolean(String(bannerDataUrl || "").trim());
@@ -2736,9 +2736,9 @@ async function buildStandardQuotePdf(args: {
     doc.text("Producto", 24, yTop + 4.8);
     doc.text("Descripcion", 52, yTop + 4.8);
     doc.text("Garantia", 129.5, yTop + 4.8);
-    doc.text("Cant.", 156, yTop + 4.8, { align: "right" });
-    doc.text("Valor unit.", 177.5, yTop + 4.8, { align: "right" });
-    doc.text("Valor total", 198, yTop + 4.8, { align: "right" });
+    doc.text("Cant.", 155, yTop + 4.8, { align: "right" });
+    doc.text("Valor unit.", 176.5, yTop + 4.8, { align: "right" });
+    doc.text("Valor total", 196.8, yTop + 4.8, { align: "right" });
     doc.setTextColor(dark[0], dark[1], dark[2]);
   };
 
@@ -2800,11 +2800,11 @@ async function buildStandardQuotePdf(args: {
       }
     }
     doc.text(descLines, 52, y);
-    doc.text(String(item.warranty || "1 AÑO POR\nDEFECTO DE\nFABRICA"), 129.5, y);
-    doc.text(String(qty), 156, y, { align: "right" });
+    doc.text(String(item.warranty || "1 AÑO POR\nDEFECTO DE\nFABRICA"), 128.8, y);
+    doc.text(String(qty), 155, y, { align: "right" });
     doc.setFontSize(7.8);
-    doc.text(`$ ${formatMoney(lineTotal / qty)}`, 177.5, y, { align: "right" });
-    doc.text(`$ ${formatMoney(lineTotal)}`, 198, y, { align: "right" });
+    doc.text(`$ ${formatMoney(lineTotal / qty)}`, 176.5, y, { align: "right" });
+    doc.text(`$ ${formatMoney(lineTotal)}`, 196.8, y, { align: "right" });
     doc.setFontSize(8.2);
 
     y += rowH + 1.2;
@@ -2834,11 +2834,11 @@ async function buildStandardQuotePdf(args: {
   doc.rect(184, y, 16, 24, "S");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
-  doc.text(`$ ${formatMoney(subtotal)}`, 198.5, y + 6, { align: "right" });
-  doc.text(`$ ${formatMoney(0)}`, 198.5, y + 12.2, { align: "right" });
-  doc.text(`$ ${formatMoney(iva)}`, 198.5, y + 18.4, { align: "right" });
+  doc.text(`$ ${formatMoney(subtotal)}`, 197.6, y + 6, { align: "right" });
+  doc.text(`$ ${formatMoney(0)}`, 197.6, y + 12.2, { align: "right" });
+  doc.text(`$ ${formatMoney(iva)}`, 197.6, y + 18.4, { align: "right" });
   doc.setFont("helvetica", "bold");
-  doc.text(`$ ${formatMoney(total)}`, 198.5, y + 22.8, { align: "right" });
+  doc.text(`$ ${formatMoney(total)}`, 197.6, y + 22.8, { align: "right" });
 
   let yFooter = y + 30;
   if (yFooter > 255) {
@@ -2865,6 +2865,41 @@ async function buildStandardQuotePdf(args: {
   ].join("\n");
   doc.setFontSize(8.2);
   doc.text(doc.splitTextToSize(legal, 188), 10, yFooter + 24);
+
+  const perksY = yFooter + 58;
+  if (perksY < 268) {
+    const drawBadge = (x: number, color: [number, number, number], labelTop: string, labelBottom: string, symbol: string) => {
+      doc.setDrawColor(color[0], color[1], color[2]);
+      doc.setLineWidth(0.8);
+      doc.circle(x, perksY, 5.5, "S");
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(color[0], color[1], color[2]);
+      doc.setFontSize(8.2);
+      doc.text(symbol, x, perksY + 1.2, { align: "center" });
+      doc.setTextColor(dark[0], dark[1], dark[2]);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.4);
+      doc.text(labelTop, x, perksY + 10, { align: "center" });
+      doc.text(labelBottom, x, perksY + 14, { align: "center" });
+    };
+
+    drawBadge(20, [52, 168, 83], "Garantía por", "desperfectos", "OK");
+    drawBadge(45, [30, 136, 229], "Envío a sus", "instalaciones", "TR");
+    drawBadge(70, [245, 124, 0], "Asistencia", "Técnica 24/7", "AT");
+
+    const drawSocial = (x: number, label: string, rgb: [number, number, number]) => {
+      doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+      doc.circle(x, perksY, 4.8, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.text(label, x, perksY + 1.5, { align: "center" });
+      doc.setTextColor(dark[0], dark[1], dark[2]);
+    };
+    drawSocial(160, "f", [24, 119, 242]);
+    drawSocial(170, "ig", [214, 41, 118]);
+    drawSocial(180, "in", [10, 102, 194]);
+  }
 
   const companyFooter = [
     "AVANZA INTERNACIONAL GROUP S.A.S",
