@@ -2039,7 +2039,10 @@ async function extractPdfTechnicalLines(row: any): Promise<string[]> {
 
 async function buildQuoteItemDescriptionAsync(row: any, fallbackName: string): Promise<string> {
   const staticProfile = resolveStaticQuoteProfile(row, fallbackName);
-  if (staticProfile?.description) return staticProfile.description;
+  if (staticProfile?.description) {
+    console.log("[evolution-webhook] quote_description_static_ok", { model: String(row?.name || fallbackName || "") });
+    return staticProfile.description;
+  }
 
   const base = buildQuoteItemDescription(row, fallbackName)
     .split("\n")
@@ -2551,7 +2554,10 @@ async function resolveProductImageDataUrl(row: any): Promise<string> {
   const staticProfile = resolveStaticQuoteProfile(row, String(row?.name || ""));
   if (staticProfile?.imageFile) {
     const local = localImageFileToDataUrl(staticProfile.imageFile);
-    if (local) return local;
+    if (local) {
+      console.log("[evolution-webhook] quote_image_static_ok", { model: String(row?.name || ""), imageFile: staticProfile.imageFile });
+      return local;
+    }
   }
 
   const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
@@ -3461,13 +3467,16 @@ export async function POST(req: Request) {
           .map((v) => String(v || "").trim())
           .filter((v, i, arr) => v && arr.indexOf(v) === i);
         for (const d of docs) {
+          const docFile = String(d.fileName || "").toLowerCase();
+          const docCaption = String(d.caption || "").toLowerCase();
+          const isQuoteDoc = /cotiz|quote/.test(docFile) || /cotiz|quote/.test(docCaption);
           let deliveredDoc = false;
           for (const dst of docDestinations) {
             try {
               await evolutionService.sendDocument(outboundInstance, dst, {
                 base64: d.base64,
-                fileName: safeFileName(d.fileName, "ficha-tecnica", "pdf"),
-                caption: d.caption || "Ficha técnica",
+                fileName: safeFileName(d.fileName, isQuoteDoc ? "cotizacion" : "ficha-tecnica", "pdf"),
+                caption: d.caption || (isQuoteDoc ? "Cotización" : "Ficha técnica"),
                 mimetype: d.mimetype || "application/pdf",
               });
               deliveredDoc = true;
@@ -3477,7 +3486,13 @@ export async function POST(req: Request) {
             }
           }
           if (!deliveredDoc) {
-            await evolutionService.sendMessage(outboundInstance, sentTo, "Intenté enviarte la ficha técnica, pero falló en este intento. Escribe 'reenviar ficha' y lo reintento ahora mismo.");
+            await evolutionService.sendMessage(
+              outboundInstance,
+              sentTo,
+              isQuoteDoc
+                ? "Intenté enviarte la cotización PDF, pero falló en este intento. Si escribes 'reenviar cotizacion', la reintento ahora mismo."
+                : "Intenté enviarte la ficha técnica, pero falló en este intento. Escribe 'reenviar ficha' y lo reintento ahora mismo."
+            );
             break;
           }
         }
