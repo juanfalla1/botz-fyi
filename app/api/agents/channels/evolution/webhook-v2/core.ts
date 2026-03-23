@@ -25,7 +25,7 @@ const QUOTE_LOCAL_IMAGE_DIR = String(
   path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "assets")
 ).trim();
 const ENABLE_RUNTIME_PDF_PARSE_FOR_QUOTE = String(process.env.WHATSAPP_QUOTE_PARSE_PDF_RUNTIME || "false").toLowerCase() === "true";
-const ENABLE_QUOTE_PRODUCT_IMAGE = String(process.env.WHATSAPP_QUOTE_EMBED_PRODUCT_IMAGE || "false").toLowerCase() === "true";
+const ENABLE_QUOTE_PRODUCT_IMAGE = String(process.env.WHATSAPP_QUOTE_EMBED_PRODUCT_IMAGE || "true").toLowerCase() === "true";
 const STRICT_WHATSAPP_MODE = String(process.env.WHATSAPP_STRICT_MODE || "true").toLowerCase() !== "false";
 const MAX_WHATSAPP_DOC_BYTES = Number(process.env.WHATSAPP_DOC_MAX_BYTES || 8 * 1024 * 1024);
 const ALLOWED_BRAND_KEYS = ["ohaus"];
