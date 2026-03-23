@@ -34,6 +34,7 @@ const ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE = String(
 const ENABLE_QUOTE_PRODUCT_IMAGE = String(process.env.WHATSAPP_QUOTE_EMBED_PRODUCT_IMAGE || "true").toLowerCase() === "true";
 const STRICT_WHATSAPP_MODE = String(process.env.WHATSAPP_STRICT_MODE || "true").toLowerCase() !== "false";
 const MAX_WHATSAPP_DOC_BYTES = Number(process.env.WHATSAPP_DOC_MAX_BYTES || 8 * 1024 * 1024);
+const QUOTE_FLOW_VERSION = "quote-flow-2026-03-23-2148";
 const ALLOWED_BRAND_KEYS = ["ohaus"];
 const ALLOWED_NAME_KEYS = ["explorer", "adventurer", "pioneer", "ranger", "defender", "valor", "scout", "mb120", "mb90", "mb27", "mb23", "aquasearcher", "frontier"];
 const ALLOWED_CATEGORY_KEYS = ["balanzas", "basculas", "analizador_humedad", "electroquimica", "equipos_laboratorio", "documentos"];
@@ -2002,6 +2003,12 @@ function resolveStaticQuoteProfile(row: any, fallbackName: string): StaticQuoteP
         "Pantalla: tactil a color",
         "Comunicacion: USB; RS232",
         "Calibracion interna: Automatica",
+        "Gestion de usuarios con perfiles y registro de eventos",
+        "Aplicaciones: pesaje, conteo, chequeo, formulacion y densidad",
+        "Rango de temperatura de funcionamiento: 10 C a 30 C",
+        "Humedad relativa de trabajo: 15 % a 80 % sin condensacion",
+        "Tiempo de estabilizacion: hasta 2 s segun modelo",
+        "Plato de pesaje en acero inoxidable",
       ].join("\n"),
     };
   }
@@ -2091,9 +2098,11 @@ async function extractPdfTechnicalLines(row: any): Promise<string[]> {
     const parsed: any = await parser.getText();
     await parser.destroy?.();
     const lines = uniqueNormalizedStrings(cleanPdfSpecLines(String(parsed?.text || "")), 120);
+    console.log("[evolution-webhook] quote_pdf_text_lines", { model: String(row?.name || ""), count: lines.length, localPath });
     localQuotePdfTextCache.set(localPath, { at: Date.now(), lines });
     return lines;
-  } catch {
+  } catch (err: any) {
+    console.warn("[evolution-webhook] quote_pdf_text_parse_failed", { model: String(row?.name || ""), localPath, error: err?.message || String(err || "") });
     return [];
   }
 }
@@ -3266,7 +3275,7 @@ async function buildBundleQuotePdf(args: {
 
 export async function POST(req: Request) {
   try {
-    console.log("[evolution-webhook] --- WEBHOOK ENTRY ---", { time: new Date().toISOString() });
+    console.log("[evolution-webhook] --- WEBHOOK ENTRY ---", { time: new Date().toISOString(), version: QUOTE_FLOW_VERSION });
 
     const payload = await req.json().catch(() => ({}));
     const payloadFromMe = boolish(
@@ -3641,6 +3650,7 @@ export async function POST(req: Request) {
       const prevSpecQuery = String(previousMemory?.strict_spec_query || "").trim();
       let strictReply = "";
       const strictDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }> = [];
+      let strictBypassAutoQuote = false;
 
       let selectedProduct: any = null;
       if (explicitModel) {
@@ -3903,10 +3913,28 @@ export async function POST(req: Request) {
         strictMemory.pending_product_options = [];
 
         if (wantsQuote || /^1\b/.test(textNorm)) {
-          const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
-          strictMemory.quote_quantity = qtyRequested;
-          strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Para formalizar la cotización necesito: Ciudad, Empresa, NIT, Contacto, Correo y Celular (en un solo mensaje).`;
+          const continuationIntentStrict = isSameQuoteContinuationIntent(text) && extractModelLikeTokens(text).length >= 1;
+          if (continuationIntentStrict) {
+            console.log("[evolution-webhook] strict_quote_continuation_bypass", {
+              selectedName,
+              tokens: extractModelLikeTokens(text),
+              text,
+            });
+            strictBypassAutoQuote = true;
+            inbound.text = `cotizar ${selectedName} ${text}`.trim();
+            nextMemory.awaiting_action = "quote_product_selection";
+            nextMemory.last_product_name = selectedName;
+            nextMemory.last_product_id = String(selectedProduct?.id || "").trim();
+            nextMemory.last_selected_product_name = selectedName;
+            nextMemory.last_selected_product_id = String(selectedProduct?.id || "").trim();
+            nextMemory.last_selection_at = new Date().toISOString();
+            strictMemory.awaiting_action = "none";
+          } else {
+            const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
+            strictMemory.quote_quantity = qtyRequested;
+            strictMemory.awaiting_action = "strict_quote_data";
+            strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Para formalizar la cotización necesito: Ciudad, Empresa, NIT, Contacto, Correo y Celular (en un solo mensaje).`;
+          }
         } else if (wantsSheet || /^2\b/.test(textNorm)) {
           const datasheetUrl = pickBestProductPdfUrl(selectedProduct, text) || "";
           const localPdfPath = pickBestLocalPdfPath(selectedProduct, text);
@@ -4246,31 +4274,33 @@ export async function POST(req: Request) {
         strictReply = "Te ayudo con catálogo OHAUS. Dime modelo exacto (ej.: AX12001/E, MB120, PX85) o categoría (balanzas, analizador humedad) y seguimos.";
       }
 
-      const sentOk = await sendTextAndDocs(strictReply, strictDocs);
-      if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+      if (!strictBypassAutoQuote) {
+        const sentOk = await sendTextAndDocs(strictReply, strictDocs);
+        if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
 
-      try {
-        await persistConversationTurn(supabase as any, {
-          agentId: String(agent.id),
-          ownerId,
-          tenantId: (agent as any)?.tenant_id || null,
-          from: inbound.from,
-          pushName: inbound.pushName,
-          contactName: knownCustomerName || inbound.pushName || inbound.from,
-          inboundText: inbound.text,
-          outboundText: strictReply,
-          messageId: inbound.messageId,
-          memory: strictMemory,
-        });
-      } catch {}
+        try {
+          await persistConversationTurn(supabase as any, {
+            agentId: String(agent.id),
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            from: inbound.from,
+            pushName: inbound.pushName,
+            contactName: knownCustomerName || inbound.pushName || inbound.from,
+            inboundText: inbound.text,
+            outboundText: strictReply,
+            messageId: inbound.messageId,
+            memory: strictMemory,
+          });
+        } catch {}
 
-      await supabase
-        .from("incoming_messages")
-        .update({ status: "processed", processed_at: new Date().toISOString() })
-        .eq("provider", "evolution")
-        .eq("provider_message_id", incomingDedupKey);
+        await supabase
+          .from("incoming_messages")
+          .update({ status: "processed", processed_at: new Date().toISOString() })
+          .eq("provider", "evolution")
+          .eq("provider_message_id", incomingDedupKey);
 
-      return NextResponse.json({ ok: true, sent: true, strict: true });
+        return NextResponse.json({ ok: true, sent: true, strict: true });
+      }
     }
 
     const awaitingAction = String(previousMemory?.awaiting_action || "");
