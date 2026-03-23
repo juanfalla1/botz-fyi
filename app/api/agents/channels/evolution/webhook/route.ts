@@ -2054,12 +2054,6 @@ async function extractPdfTechnicalLines(row: any): Promise<string[]> {
 }
 
 async function buildQuoteItemDescriptionAsync(row: any, fallbackName: string): Promise<string> {
-  const staticProfile = resolveStaticQuoteProfile(row, fallbackName);
-  if (staticProfile?.description) {
-    console.log("[evolution-webhook] quote_description_static_ok", { model: String(row?.name || fallbackName || "") });
-    return staticProfile.description;
-  }
-
   const base = buildQuoteItemDescription(row, fallbackName)
     .split("\n")
     .map((l) => String(l || "").trim())
@@ -2073,7 +2067,16 @@ async function buildQuoteItemDescriptionAsync(row: any, fallbackName: string): P
     merged.push(line);
     if (merged.length >= 34) break;
   }
-  return merged.join("\n") || buildQuoteItemDescription(row, fallbackName);
+
+  if (merged.length) return merged.join("\n");
+
+  const staticProfile = resolveStaticQuoteProfile(row, fallbackName);
+  if (staticProfile?.description) {
+    console.log("[evolution-webhook] quote_description_static_fallback", { model: String(row?.name || fallbackName || "") });
+    return staticProfile.description;
+  }
+
+  return buildQuoteItemDescription(row, fallbackName);
 }
 
 function detectTechResendIntent(text: string): "sheet" | "image" | "both" | null {
