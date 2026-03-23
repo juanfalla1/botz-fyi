@@ -1846,6 +1846,38 @@ function buildTechnicalSummary(row: any, maxLines = 4): string {
   return lines.slice(0, maxLines).map((l) => `- ${l}`).join("\n");
 }
 
+function buildQuoteItemDescription(row: any, fallbackName: string): string {
+  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const specs = row?.specs_json && typeof row.specs_json === "object" ? row.specs_json : {};
+  const brand = String(row?.brand || "OHAUS").trim() || "OHAUS";
+  const family = String((source as any)?.family || (specs as any)?.familia || "").trim();
+  const sap = String((source as any)?.sap || (source as any)?.product_code || (source as any)?.codigo || "").trim();
+  const capacity = String((source as any)?.capacity || (specs as any)?.capacidad || "").trim();
+  const resolution = String((source as any)?.resolution || (specs as any)?.resolucion || "").trim();
+
+  const lines: string[] = [];
+  lines.push(family ? `${family} marca ${brand}` : `Producto marca ${brand}`);
+  if (sap) lines.push(`SAP: ${sap}`);
+  if (capacity) lines.push(`Capacidad maxima: ${capacity}`);
+  if (resolution) lines.push(`Lectura minima: ${resolution}`);
+
+  const summary = buildTechnicalSummary(row, 18)
+    .split("\n")
+    .map((l) => String(l || "").replace(/^[-*]\s*/, "").trim())
+    .filter(Boolean);
+
+  for (const s of summary) {
+    const normalized = normalizeText(s);
+    if (!normalized) continue;
+    if (lines.some((x) => normalizeText(x) === normalized)) continue;
+    lines.push(s);
+    if (lines.length >= 22) break;
+  }
+
+  if (!lines.length) lines.push(`Producto: ${String(fallbackName || row?.name || "-")}`);
+  return lines.join("\n");
+}
+
 function detectTechResendIntent(text: string): "sheet" | "image" | "both" | null {
   const t = normalizeText(text || "");
   if (!t) return null;
@@ -2516,6 +2548,9 @@ function buildQuotePdf(args: {
   basePriceUsd: number;
   trmRate: number;
   totalCop: number;
+  city?: string;
+  nit?: string;
+  itemDescription?: string;
   notes?: string;
 }) {
   const now = new Date();
@@ -2535,6 +2570,8 @@ function buildQuotePdf(args: {
     customerName: args.customerName,
     customerEmail: args.customerEmail,
     customerPhone: args.customerPhone,
+    city: String(args.city || "").trim() || "Bogota D.C",
+    nit: String(args.nit || "").trim() || "-",
     items: [
       {
         productName: args.productName,
@@ -2543,7 +2580,7 @@ function buildQuotePdf(args: {
         trmRate: Number(args.trmRate || 0),
         totalCop,
         description: [
-          `Producto: ${String(args.productName || "-")}`,
+          String(args.itemDescription || "").trim(),
           `Cantidad: ${quantity}`,
           `Precio base USD: ${Number(args.basePriceUsd || 0) > 0 ? formatMoney(Number(args.basePriceUsd || 0)) : "-"}`,
           `TRM: ${Number(args.trmRate || 0) > 0 ? formatMoney(Number(args.trmRate || 0)) : "-"}`,
@@ -2851,6 +2888,7 @@ export async function POST(req: Request) {
       pdfBase64: string;
       quantity: number;
       productName: string;
+      itemDescription: string;
       basePriceUsd: number;
       trmRate: number;
       totalCop: number;
@@ -3336,6 +3374,9 @@ export async function POST(req: Request) {
                 basePriceUsd,
                 trmRate,
                 totalCop,
+                city: customerCity,
+                nit: customerNit,
+                itemDescription: buildQuoteItemDescription(selected, String((selected as any)?.name || "")),
                 notes: `Ciudad: ${customerCity} | NIT: ${customerNit}`,
               });
               strictDocs.push({
@@ -5594,6 +5635,9 @@ export async function POST(req: Request) {
                     basePriceUsd,
                     trmRate,
                     totalCop,
+                    city: customerCity,
+                    nit: customerNit,
+                    itemDescription: buildQuoteItemDescription(selected, String((selected as any).name || "")),
                     notes: String(draftPayload.notes || ""),
                   });
 
@@ -5603,6 +5647,7 @@ export async function POST(req: Request) {
                     pdfBase64,
                     quantity,
                     productName: String((selected as any).name || ""),
+                    itemDescription: buildQuoteItemDescription(selected, String((selected as any).name || "")),
                     basePriceUsd,
                     trmRate,
                     totalCop,
@@ -5626,6 +5671,7 @@ export async function POST(req: Request) {
                     basePriceUsd: d.basePriceUsd,
                     trmRate: d.trmRate,
                     totalCop: d.totalCop,
+                    description: d.itemDescription,
                   })),
                 });
                 autoQuoteBundle = {
