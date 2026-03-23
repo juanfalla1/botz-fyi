@@ -2070,7 +2070,7 @@ async function buildQuoteItemDescriptionAsync(row: any, fallbackName: string): P
     if (merged.length >= 34) break;
   }
 
-  if (merged.length >= 8) return merged.join("\n");
+  if (merged.length >= 4) return merged.join("\n");
 
   if (staticProfile?.description) {
     console.log("[evolution-webhook] quote_description_static_fallback", { model: String(row?.name || fallbackName || "") });
@@ -3009,7 +3009,23 @@ async function buildStandardQuotePdf(args: {
   if (yFooter > 255) {
     doc.addPage();
     drawHeader(true);
-    yFooter = 166;
+    yFooter = 150;
+  }
+
+  const legal = [
+    "Observaciones generales de la cotización",
+    "- Todos los distribuidores asumen el valor del flete. En el caso de clientes, el flete sera asumido unicamente si el envio es fuera de Bogota.",
+    "- No realizamos devoluciones de dinero, excepto cuando se confirme un error de asesoramiento por parte de nuestro equipo.",
+    "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
+    `${String(args.city || "Bogota D.C")}, ${args.issueDate}`,
+  ].join("\n");
+  const legalLines = doc.splitTextToSize(legal, 188);
+  const legalBottomEstimate = yFooter + 24 + Math.max(0, legalLines.length - 1) * 3.3;
+  const reservedPerksTop = 222;
+  if (legalBottomEstimate > reservedPerksTop - 4) {
+    doc.addPage();
+    drawHeader(true);
+    yFooter = 150;
   }
 
   doc.setFont("helvetica", "bold");
@@ -3021,22 +3037,10 @@ async function buildStandardQuotePdf(args: {
   doc.text("CEL 3183731171", 10, yFooter + 11);
   doc.text("cotizaciones@avanzagroup.com.co", 10, yFooter + 16);
 
-  const legal = [
-    "Observaciones generales de la cotización",
-    "- Todos los distribuidores asumen el valor del flete. En el caso de clientes, el flete sera asumido unicamente si el envio es fuera de Bogota.",
-    "- No realizamos devoluciones de dinero, excepto cuando se confirme un error de asesoramiento por parte de nuestro equipo.",
-    "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
-    `${String(args.city || "Bogota D.C")}, ${args.issueDate}`,
-  ].join("\n");
   doc.setFontSize(8.2);
   doc.text(doc.splitTextToSize(legal, 188), 10, yFooter + 24);
 
-  let perksY = yFooter + 58;
-  if (perksY >= 236) {
-    doc.addPage();
-    drawHeader(true);
-    perksY = 222;
-  }
+  const perksY = 223;
   {
     if (hasPerksStrip) {
       try {
@@ -3045,7 +3049,21 @@ async function buildStandardQuotePdf(args: {
           : /^data:image\/webp/i.test(perksDataUrl)
             ? "WEBP"
             : "JPEG";
-        doc.addImage(perksDataUrl, fmt as any, 14, perksY - 10, 172, 24);
+        const props = (doc as any).getImageProperties?.(perksDataUrl) || null;
+        let stripW = 172;
+        let stripH = 24;
+        if (props?.width && props?.height) {
+          stripH = 20;
+          stripW = (stripH * Number(props.width || 0)) / Math.max(1, Number(props.height || 1));
+          if (stripW > 176) {
+            const ratio = 176 / stripW;
+            stripW *= ratio;
+            stripH *= ratio;
+          }
+        }
+        const stripX = (210 - stripW) / 2;
+        const stripY = perksY - stripH / 2;
+        doc.addImage(perksDataUrl, fmt as any, stripX, stripY, stripW, stripH);
       } catch {
         // ignore perks image rendering failure
       }
