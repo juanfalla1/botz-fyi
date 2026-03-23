@@ -765,6 +765,83 @@ async function persistKnownNameInCrm(
   }
 }
 
+function isoAfterHours(hours: number): string {
+  return new Date(Date.now() + Math.max(1, hours) * 60 * 60 * 1000).toISOString();
+}
+
+async function upsertCrmLifecycleState(
+  supabase: any,
+  args: {
+    ownerId: string;
+    tenantId?: string | null;
+    phone: string;
+    name?: string;
+    status?: string;
+    nextAction?: string;
+    nextActionAt?: string;
+    metadata?: Record<string, any>;
+  }
+) {
+  const ownerId = String(args.ownerId || "").trim();
+  const phone = normalizePhone(args.phone || "");
+  const tail = phoneTail10(phone);
+  if (!ownerId || !tail) return;
+
+  try {
+    const { data: existing } = await supabase
+      .from("agent_crm_contacts")
+      .select("id,status,next_action,next_action_at,metadata")
+      .eq("created_by", ownerId)
+      .or(`phone.eq.${phone},phone.like.%${tail}`)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const nextStatus = String(args.status || existing?.status || "new").trim() || "new";
+    const nextAction = args.nextAction === undefined
+      ? (existing?.next_action ?? null)
+      : (String(args.nextAction || "").trim() || null);
+    const nextActionAt = args.nextActionAt === undefined
+      ? (existing?.next_action_at ?? null)
+      : (String(args.nextActionAt || "").trim() || null);
+    const mergedMetadata = {
+      ...(existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
+      ...(args.metadata && typeof args.metadata === "object" ? args.metadata : {}),
+      whatsapp_lifecycle_at: new Date().toISOString(),
+    };
+
+    if (existing?.id) {
+      const updatePayload: Record<string, any> = {
+        status: nextStatus,
+        next_action: nextAction,
+        next_action_at: nextActionAt,
+        metadata: mergedMetadata,
+      };
+      const safeName = sanitizeCustomerDisplayName(String(args.name || ""));
+      if (safeName) updatePayload.name = safeName;
+      await supabase
+        .from("agent_crm_contacts")
+        .update(updatePayload)
+        .eq("id", String(existing.id))
+        .eq("created_by", ownerId);
+      return;
+    }
+
+    await supabase.from("agent_crm_contacts").insert({
+      tenant_id: args.tenantId || null,
+      created_by: ownerId,
+      name: sanitizeCustomerDisplayName(String(args.name || "")) || null,
+      phone,
+      status: nextStatus,
+      next_action: nextAction,
+      next_action_at: nextActionAt,
+      metadata: mergedMetadata,
+    });
+  } catch {
+    // best effort
+  }
+}
+
 function extractQuantity(text: string): number {
   const t = String(text || "");
   const m1 = [...t.matchAll(/(?:\bcantidad\b|\bqty\b|\bx\b)\s*[:=]?\s*(\d{1,5})/gi)];
@@ -3652,13 +3729,27 @@ export async function POST(req: Request) {
       const strictDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }> = [];
       let strictBypassAutoQuote = false;
 
+      const strictCloseIntent = isConversationCloseIntent(text) && normalizeText(text).length <= 48;
+      if (strictCloseIntent) {
+        const hadQuoteContext =
+          Boolean(previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
+          /(quote_generated|quote_recall|price_request)/.test(String(previousMemory?.last_intent || ""));
+        strictReply = hadQuoteContext
+          ? "Perfecto, cerramos por ahora. Gracias por tu tiempo. Te estaremos enviando un recordatorio breve para saber como te parecio la cotizacion."
+          : "Perfecto, cerramos por ahora. Gracias por tu tiempo. Si despues quieres retomar, te ayudo por este mismo WhatsApp.";
+        strictMemory.awaiting_action = "none";
+        strictMemory.conversation_status = "closed";
+        strictMemory.last_intent = "conversation_closed";
+        if (hadQuoteContext) strictMemory.quote_feedback_due_at = isoAfterHours(24);
+      }
+
       let selectedProduct: any = null;
-      if (explicitModel) {
+      if (!String(strictReply || "").trim() && explicitModel) {
         selectedProduct = findExactModelProduct(text, ownerRows as any[]) || pickBestCatalogProduct(text, ownerRows as any[]);
       }
 
       const directTechnicalSpec = parseTechnicalSpecQuery(text);
-      if (!selectedProduct && directTechnicalSpec) {
+      if (!String(strictReply || "").trim() && !selectedProduct && directTechnicalSpec) {
         strictMemory.strict_spec_query = text;
         const ranked = rankCatalogByTechnicalSpec(ownerRows as any[], {
           capacityG: directTechnicalSpec.capacityG,
@@ -3812,6 +3903,32 @@ export async function POST(req: Request) {
         strictMemory.offtopic_muted_until = mutedUntilIso;
         strictMemory.offtopic_count = Math.max(3, Number(previousMemory?.offtopic_count || 3));
         try {
+          const strictClosed = String(strictMemory.conversation_status || "") === "closed";
+          const strictQuoteContext =
+            Boolean(strictMemory.last_quote_draft_id || previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
+            /(quote_generated|quote_recall|price_request)/.test(String(strictMemory.last_intent || previousMemory?.last_intent || ""));
+          const strictNextAction = strictClosed
+            ? (strictQuoteContext ? "Recordatorio feedback cotizacion" : "Seguimiento WhatsApp")
+            : (strictQuoteContext ? "Seguimiento cotizacion" : "");
+          const strictNextActionAt = strictClosed
+            ? (strictQuoteContext ? isoAfterHours(24) : isoAfterHours(48))
+            : (strictQuoteContext ? isoAfterHours(24) : "");
+          await upsertCrmLifecycleState(supabase as any, {
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            phone: inbound.from,
+            name: knownCustomerName || inbound.pushName || "",
+            status: strictQuoteContext ? "sent" : undefined,
+            nextAction: strictNextAction || undefined,
+            nextActionAt: strictNextActionAt || undefined,
+            metadata: {
+              source: "evolution_strict_webhook",
+              conversation_status: String(strictMemory.conversation_status || "open"),
+              last_intent: String(strictMemory.last_intent || ""),
+              quote_feedback_due_at: String(strictMemory.quote_feedback_due_at || ""),
+            },
+          });
+
           await persistConversationTurn(supabase as any, {
             agentId: String(agent.id),
             ownerId,
@@ -4126,9 +4243,12 @@ export async function POST(req: Request) {
               });
               strictReply = `Listo. Ya generé la cotización de ${String((selected as any)?.name || "producto")} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
             }
-            strictMemory.awaiting_action = "none";
+            strictMemory.awaiting_action = "conversation_followup";
             strictMemory.quote_data = {};
             strictMemory.quote_quantity = 1;
+            strictMemory.last_intent = "quote_generated";
+            strictMemory.conversation_status = "open";
+            strictMemory.quote_feedback_due_at = isoAfterHours(24);
           }
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model" && !technicalSpecIntent) {
@@ -4482,10 +4602,16 @@ export async function POST(req: Request) {
       }
     }
     if (awaitingAction === "conversation_followup" && isConversationCloseIntent(inbound.text)) {
-      reply = "Perfecto, finalizamos este chat por ahora. Cuando quieras, me escribes y retomamos con gusto.";
+      const hadQuoteContext =
+        Boolean(previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
+        /(quote_generated|quote_recall|price_request)/.test(String(previousMemory?.last_intent || ""));
+      reply = hadQuoteContext
+        ? "Perfecto, cerramos por ahora. Gracias por tu tiempo. Te estaremos enviando un recordatorio breve para saber como te parecio la cotizacion."
+        : "Perfecto, cerramos por ahora. Gracias por tu tiempo. Si despues quieres retomar, te ayudo por este mismo WhatsApp.";
       nextMemory.awaiting_action = "none";
       nextMemory.conversation_status = "closed";
       nextMemory.last_intent = "conversation_closed";
+      if (hadQuoteContext) nextMemory.quote_feedback_due_at = isoAfterHours(24);
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
@@ -4512,10 +4638,16 @@ export async function POST(req: Request) {
       }
     }
     if (!handledByGreeting && isConversationCloseIntent(inbound.text) && normalizeText(inbound.text).length <= 32) {
-      reply = "Perfecto, finalizamos este chat por ahora. Cuando quieras, me escribes y retomamos con gusto.";
+      const hadQuoteContext =
+        Boolean(previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
+        /(quote_generated|quote_recall|price_request)/.test(String(previousMemory?.last_intent || ""));
+      reply = hadQuoteContext
+        ? "Perfecto, cerramos por ahora. Gracias por tu tiempo. Te estaremos enviando un recordatorio breve para saber como te parecio la cotizacion."
+        : "Perfecto, cerramos por ahora. Gracias por tu tiempo. Si despues quieres retomar, te ayudo por este mismo WhatsApp.";
       nextMemory.awaiting_action = "none";
       nextMemory.conversation_status = "closed";
       nextMemory.last_intent = "conversation_closed";
+      if (hadQuoteContext) nextMemory.quote_feedback_due_at = isoAfterHours(24);
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
@@ -7129,7 +7261,13 @@ export async function POST(req: Request) {
       if (String(nextMemory.awaiting_action || "") === "product_option_selection") nextMemory.awaiting_action = "none";
     }
 
-    if (autoQuoteDocs.length || autoQuoteBundle) nextMemory.last_intent = "quote_generated";
+    if (autoQuoteDocs.length || autoQuoteBundle) {
+      nextMemory.last_intent = "quote_generated";
+      if (String(nextMemory.conversation_status || "") !== "closed") {
+        nextMemory.awaiting_action = "conversation_followup";
+        nextMemory.quote_feedback_due_at = isoAfterHours(24);
+      }
+    }
     else if (handledByRecall) nextMemory.last_intent = "quote_recall";
     else if (handledByTechSheet && isProductImageIntent(inbound.text)) nextMemory.last_intent = "image_request";
     else if (handledByTechSheet) nextMemory.last_intent = "tech_sheet_request";
@@ -7170,6 +7308,32 @@ export async function POST(req: Request) {
           name: knownCustomerName,
         });
       }
+
+      const finalClosed = String(nextMemory.conversation_status || "") === "closed";
+      const finalQuoteContext =
+        Boolean(nextMemory.last_quote_draft_id || nextMemory.last_quote_pdf_sent_at || previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
+        /(quote_generated|quote_recall|price_request)/.test(String(nextMemory.last_intent || previousMemory?.last_intent || ""));
+      const finalNextAction = finalClosed
+        ? (finalQuoteContext ? "Recordatorio feedback cotizacion" : "Seguimiento WhatsApp")
+        : (finalQuoteContext ? "Seguimiento cotizacion" : "");
+      const finalNextActionAt = finalClosed
+        ? (finalQuoteContext ? isoAfterHours(24) : isoAfterHours(48))
+        : (finalQuoteContext ? isoAfterHours(24) : "");
+      await upsertCrmLifecycleState(supabase as any, {
+        ownerId,
+        tenantId: (agent as any)?.tenant_id || null,
+        phone: inbound.from,
+        name: knownCustomerName || inbound.pushName || "",
+        status: finalQuoteContext ? "sent" : undefined,
+        nextAction: finalNextAction || undefined,
+        nextActionAt: finalNextActionAt || undefined,
+        metadata: {
+          source: "evolution_webhook",
+          conversation_status: String(nextMemory.conversation_status || "open"),
+          last_intent: String(nextMemory.last_intent || ""),
+          quote_feedback_due_at: String(nextMemory.quote_feedback_due_at || ""),
+        },
+      });
 
       await persistConversationTurn(supabase as any, {
         agentId: String(agent.id),
