@@ -2671,8 +2671,8 @@ async function buildStandardQuotePdf(args: {
   const drawHeader = (compact = false) => {
     doc.setFillColor(245, 248, 251);
     doc.rect(0, 0, 210, 297, "F");
-    const boxHeight = compact ? 20 : (hasBanner ? 82 : 28);
-    const titleBarY = compact ? 20 : (hasBanner ? 82 : 28);
+    const boxHeight = compact ? 20 : (hasBanner ? 62 : 28);
+    const titleBarY = compact ? 20 : (hasBanner ? 66 : 28);
     doc.setFillColor(255, 255, 255);
     doc.rect(8, 8, 194, boxHeight, "F");
     doc.setDrawColor(210, 220, 228);
@@ -2680,7 +2680,7 @@ async function buildStandardQuotePdf(args: {
 
     if (hasBanner && !compact) {
       try {
-        doc.addImage(bannerDataUrl, "PNG", 8.5, 8.5, 193, 72);
+        doc.addImage(bannerDataUrl, "PNG", 8.5, 8.5, 193, 55);
       } catch {
         // ignore banner rendering failure
       }
@@ -2704,9 +2704,9 @@ async function buildStandardQuotePdf(args: {
 
   drawHeader(false);
 
-  const infoTitleY = hasBanner ? 101 : 44;
-  const infoTopY = hasBanner ? 104 : 47;
-  const tableHeaderY = hasBanner ? 136 : 79;
+  const infoTitleY = hasBanner ? 82 : 44;
+  const infoTopY = hasBanner ? 85 : 47;
+  const tableHeaderY = hasBanner ? 117 : 79;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
@@ -2877,7 +2877,7 @@ async function buildStandardQuotePdf(args: {
   }
 
   doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(130, y, 50, 24, "F");
+  doc.rect(130, y, 46, 24, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
@@ -2887,14 +2887,14 @@ async function buildStandardQuotePdf(args: {
   doc.text("Valor total:", 132, y + 22.8);
 
   doc.setTextColor(dark[0], dark[1], dark[2]);
-  doc.rect(178, y, 22, 24, "S");
+  doc.rect(176, y, 24, 24, "S");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.8);
-  doc.text(`$ ${formatMoney(subtotal)}`, 198.4, y + 6, { align: "right" });
-  doc.text(`$ ${formatMoney(0)}`, 198.4, y + 12.2, { align: "right" });
-  doc.text(`$ ${formatMoney(iva)}`, 198.4, y + 18.4, { align: "right" });
+  doc.text(`$ ${formatMoney(subtotal)}`, 199, y + 6, { align: "right" });
+  doc.text(`$ ${formatMoney(0)}`, 199, y + 12.2, { align: "right" });
+  doc.text(`$ ${formatMoney(iva)}`, 199, y + 18.4, { align: "right" });
   doc.setFont("helvetica", "bold");
-  doc.text(`$ ${formatMoney(total)}`, 198.4, y + 22.8, { align: "right" });
+  doc.text(`$ ${formatMoney(total)}`, 199, y + 22.8, { align: "right" });
 
   let yFooter = y + 30;
   if (yFooter > 255) {
