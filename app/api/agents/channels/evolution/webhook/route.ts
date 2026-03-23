@@ -24,7 +24,13 @@ const QUOTE_LOCAL_IMAGE_DIR = String(
   process.env.WHATSAPP_QUOTE_LOCAL_IMAGE_DIR ||
   path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "assets")
 ).trim();
-const ENABLE_RUNTIME_PDF_PARSE_FOR_QUOTE = String(process.env.WHATSAPP_QUOTE_PARSE_PDF_RUNTIME || "false").toLowerCase() === "true";
+const LEGACY_ENABLE_RUNTIME_PDF_PARSE_FOR_QUOTE = process.env.WHATSAPP_QUOTE_PARSE_PDF_RUNTIME;
+const ENABLE_RUNTIME_PDF_IMAGE_PARSE_FOR_QUOTE = String(
+  process.env.WHATSAPP_QUOTE_PARSE_PDF_IMAGE_RUNTIME ?? LEGACY_ENABLE_RUNTIME_PDF_PARSE_FOR_QUOTE ?? "false"
+).toLowerCase() === "true";
+const ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE = String(
+  process.env.WHATSAPP_QUOTE_PARSE_PDF_TEXT_RUNTIME ?? LEGACY_ENABLE_RUNTIME_PDF_PARSE_FOR_QUOTE ?? "true"
+).toLowerCase() === "true";
 const ENABLE_QUOTE_PRODUCT_IMAGE = String(process.env.WHATSAPP_QUOTE_EMBED_PRODUCT_IMAGE || "true").toLowerCase() === "true";
 const STRICT_WHATSAPP_MODE = String(process.env.WHATSAPP_STRICT_MODE || "true").toLowerCase() !== "false";
 const MAX_WHATSAPP_DOC_BYTES = Number(process.env.WHATSAPP_DOC_MAX_BYTES || 8 * 1024 * 1024);
@@ -1659,9 +1665,25 @@ function findExplicitModelProducts(text: string, rows: any[]): any[] {
   const found: any[] = [];
   const seenIds = new Set<string>();
   for (const token of modelTokens) {
+    const nt = normalizeCatalogQueryText(String(token || "")).replace(/[^a-z0-9]+/g, "");
+    const strict = (rows || []).filter((row: any) => {
+      const base = `${String(row?.name || "")} ${String(row?.slug || "")}`;
+      const rowTokens = extractModelLikeTokens(base);
+      if (!rowTokens.length) return false;
+      return rowTokens.some((rtRaw) => {
+        const rt = normalizeCatalogQueryText(String(rtRaw || "")).replace(/[^a-z0-9]+/g, "");
+        if (!rt || !nt) return false;
+        if (rt === nt) return true;
+        const a = splitModelToken(rt);
+        const b = splitModelToken(nt);
+        return Boolean(a.letters && b.letters && a.letters === b.letters && a.digits && b.digits && (a.digits === b.digits || a.digits.startsWith(b.digits)));
+      });
+    });
+
     const candidate =
-      findExactModelProduct(token, rows || []) ||
-      pickBestCatalogProduct(token, rows || []);
+      (strict.length === 1 ? strict[0] : null) ||
+      findExactModelProduct(token, strict.length ? strict : (rows || [])) ||
+      pickBestCatalogProduct(token, strict.length ? strict : (rows || []));
     const id = String(candidate?.id || "").trim();
     if (!candidate || !id || seenIds.has(id)) continue;
     seenIds.add(id);
@@ -2055,7 +2077,7 @@ function cleanPdfSpecLines(raw: string): string[] {
 }
 
 async function extractPdfTechnicalLines(row: any): Promise<string[]> {
-  if (!ENABLE_RUNTIME_PDF_PARSE_FOR_QUOTE) return [];
+  if (!ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE) return [];
   const localPath = pickBestLocalPdfPath(row, String(row?.name || ""));
   if (!localPath || !fs.existsSync(localPath)) return [];
   const cache = localQuotePdfTextCache.get(localPath);
@@ -2093,7 +2115,7 @@ async function buildQuoteItemDescriptionAsync(row: any, fallbackName: string): P
     if (merged.length >= 34) break;
   }
 
-  if (merged.length >= 4) return merged.join("\n");
+  if (merged.length >= 8) return merged.join("\n");
 
   if (staticProfile?.description) {
     console.log("[evolution-webhook] quote_description_static_fallback", { model: String(row?.name || fallbackName || "") });
@@ -2658,7 +2680,7 @@ async function resolveProductImageDataUrl(row: any): Promise<string> {
     if (dataUrl) return dataUrl;
   }
 
-  if (!ENABLE_RUNTIME_PDF_PARSE_FOR_QUOTE) return "";
+  if (!ENABLE_RUNTIME_PDF_IMAGE_PARSE_FOR_QUOTE) return "";
 
   const localPath = pickBestLocalPdfPath(row, String(row?.name || ""));
   if (localPath && fs.existsSync(localPath)) {
@@ -6154,6 +6176,7 @@ export async function POST(req: Request) {
           ? (commercialProducts.find((p: any) => String(p?.id || "").trim() === selectedById) || null)
           : (selectedByName ? findCatalogProductByName(commercialProducts || [], selectedByName) : null);
         const continuationIntent = isSameQuoteContinuationIntent(quoteSourceText);
+        const explicitModelTokens = extractModelLikeTokens(quoteSourceText);
         const explicitModelProducts = findExplicitModelProducts(quoteSourceText, commercialProducts || []);
         const explicitModelProduct = findExactModelProduct(quoteSourceText, commercialProducts || []);
         const matchedProduct = explicitModelProduct || ((quoteProceedFromMemory && selectedProduct)
@@ -6184,6 +6207,15 @@ export async function POST(req: Request) {
           : matchedProduct || rememberedProduct
             ? [matchedProduct || rememberedProduct]
             : [];
+
+        if (!handledByQuoteIntake && continuationIntent && explicitModelTokens.length >= 2 && explicitModelProducts.length < explicitModelTokens.length) {
+          const foundNames = explicitModelProducts.map((p: any) => String(p?.name || "").trim()).filter(Boolean);
+          reply = foundNames.length
+            ? `Entendí que quieres agregar más productos a la misma cotización, pero solo identifiqué: ${foundNames.join(", ")}. Reenvíame los modelos exactos separados por coma (ej: RC31P3, RC31P30).`
+            : "Entendí que quieres agregar más productos a la misma cotización, pero no pude identificar esos modelos. Reenvíamelos exactos separados por coma (ej: RC31P3, RC31P30).";
+          handledByQuoteIntake = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
 
         if (selectedProducts.length) {
           const transcript = Array.isArray(existingConv?.transcript) ? existingConv.transcript : [];
