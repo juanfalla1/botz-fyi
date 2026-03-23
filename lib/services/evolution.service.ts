@@ -75,6 +75,18 @@ async function evolutionFetch(path: string, init: RequestInit = {}) {
 }
 
 export class EvolutionService {
+  private typingDelayMs(): number {
+    const raw = Number(process.env.WHATSAPP_TYPING_HINT_MS || 900);
+    if (!Number.isFinite(raw) || raw < 0) return 0;
+    return Math.min(2500, Math.round(raw));
+  }
+
+  private async waitTypingWindow(): Promise<void> {
+    const ms = this.typingDelayMs();
+    if (ms <= 0) return;
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   async sendTypingPresence(instanceName: string, destination: string): Promise<void> {
     const raw = String(destination || "").trim();
     if (!raw) return;
@@ -202,6 +214,8 @@ export class EvolutionService {
   async sendMessage(instanceName: string, phone: string, message: string): Promise<any> {
     const number = String(phone || "").replace(/\D/g, "");
     console.log("[evolutionService] sendMessage", { instanceName, number, messageLength: message.length });
+    void this.sendTypingPresence(instanceName, number);
+    await this.waitTypingWindow();
 
     try {
       const result = await evolutionFetch(`/message/sendText/${instanceName}`, {
@@ -223,6 +237,8 @@ export class EvolutionService {
       throw new Error("Invalid JID destination");
     }
     console.log("[evolutionService] sendMessageToJid", { instanceName, jid: destination, messageLength: message.length });
+    void this.sendTypingPresence(instanceName, destination);
+    await this.waitTypingWindow();
 
     try {
       const result = await evolutionFetch(`/message/sendText/${instanceName}`, {
