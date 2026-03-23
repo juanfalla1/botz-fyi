@@ -1925,8 +1925,23 @@ function resolveStaticQuoteProfile(row: any, fallbackName: string): StaticQuoteP
         "Tamano del plato: 80 mm",
         "Calibracion interna AutoCal: Automatica",
         "Proteccion contra corrientes de aire: Incluido",
+        "Autorizada para comercio: No aplica",
+        "Modelo de pantalla auxiliar: Disponible como accesorio",
+        "Dimensiones: 354 mm x 340 mm x 230 mm (LxAxA)",
+        "Puerta automatica: No aplica",
+        "Entorno de trabajo: 10 C - 30 C, 80 % HR, sin condensacion",
+        "Peso neto: 5,1 kg",
+        "Funda de proteccion: Incluido",
         "Comunicacion: USB; RS232",
+        "Host USB: Incluido",
+        "Alimentacion: Adaptador de CA (incluido)",
+        "Unidades de medida: Tael de Singapur; Onza Troy; Pennyweight; Grano; Tical; Personalizado; Miligramo; Momme; Newton; Baht; Tael de Taiwan; Gramo; Tael de Hong Kong; Libra; Tola; Mesghal; Quilates; Onza",
         "Pantalla: Pantalla tactil a color WQVGA de 4.3\"",
+        "Material del plato: Acero inoxidable",
+        "Ionizador incorporado: No",
+        "Tiempo de estabilizacion: 8 s",
+        "Repetibilidad, tipica: 0,00002 g",
+        "Peso minimo (USP, 0.1%, tipico): 20 mg",
         "Linealidad: 0,1 mg",
       ].join("\n"),
     };
@@ -2867,8 +2882,13 @@ async function buildStandardQuotePdf(args: {
   doc.setFontSize(8.2);
   doc.text(doc.splitTextToSize(legal, 188), 10, yFooter + 24);
 
-  const perksY = yFooter + 58;
-  if (perksY < 268) {
+  let perksY = yFooter + 58;
+  if (perksY >= 268) {
+    doc.addPage();
+    drawHeader(true);
+    perksY = 52;
+  }
+  {
     const drawBadge = (x: number, color: [number, number, number], labelTop: string, labelBottom: string, symbol: string) => {
       doc.setDrawColor(color[0], color[1], color[2]);
       doc.setLineWidth(0.8);
@@ -2911,6 +2931,21 @@ async function buildStandardQuotePdf(args: {
   ].join("\n");
   doc.setFontSize(7.6);
   doc.text(doc.splitTextToSize(companyFooter, 188), 10, 285);
+
+  const nowStamp = new Date();
+  const createdAt = `${asDateYmd(nowStamp)}`;
+  const modifiedAt = `${asDateYmd(nowStamp)} ${String(nowStamp.toTimeString() || "").slice(0, 8)}`;
+  doc.setFontSize(7.8);
+  doc.text(`Fecha de creación ${createdAt}`, 10, 262);
+  doc.text(`Fecha de modificación ${modifiedAt}`, 10, 267);
+
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p += 1) {
+    doc.setPage(p);
+    doc.setFontSize(8.2);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Pág ${p} de ${totalPages}`, 10, 272);
+  }
 
   return Buffer.from(doc.output("arraybuffer")).toString("base64");
 }
