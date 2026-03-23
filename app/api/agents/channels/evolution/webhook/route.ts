@@ -2054,6 +2054,8 @@ async function extractPdfTechnicalLines(row: any): Promise<string[]> {
 }
 
 async function buildQuoteItemDescriptionAsync(row: any, fallbackName: string): Promise<string> {
+  const staticProfile = resolveStaticQuoteProfile(row, fallbackName);
+
   const base = buildQuoteItemDescription(row, fallbackName)
     .split("\n")
     .map((l) => String(l || "").trim())
@@ -2068,14 +2070,14 @@ async function buildQuoteItemDescriptionAsync(row: any, fallbackName: string): P
     if (merged.length >= 34) break;
   }
 
-  if (merged.length) return merged.join("\n");
+  if (merged.length >= 8) return merged.join("\n");
 
-  const staticProfile = resolveStaticQuoteProfile(row, fallbackName);
   if (staticProfile?.description) {
     console.log("[evolution-webhook] quote_description_static_fallback", { model: String(row?.name || fallbackName || "") });
     return staticProfile.description;
   }
 
+  if (merged.length) return merged.join("\n");
   return buildQuoteItemDescription(row, fallbackName);
 }
 
@@ -2853,11 +2855,11 @@ async function buildStandardQuotePdf(args: {
   doc.rect(180, y, 20, 24, "S");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.8);
-  doc.text(`$ ${formatMoney(subtotal)}`, 198.4, y + 6, { align: "right" });
-  doc.text(`$ ${formatMoney(0)}`, 198.4, y + 12.2, { align: "right" });
-  doc.text(`$ ${formatMoney(iva)}`, 198.4, y + 18.4, { align: "right" });
+  doc.text(`$ ${formatMoney(subtotal)}`, 197.2, y + 6, { align: "right" });
+  doc.text(`$ ${formatMoney(0)}`, 197.2, y + 12.2, { align: "right" });
+  doc.text(`$ ${formatMoney(iva)}`, 197.2, y + 18.4, { align: "right" });
   doc.setFont("helvetica", "bold");
-  doc.text(`$ ${formatMoney(total)}`, 198.4, y + 22.8, { align: "right" });
+  doc.text(`$ ${formatMoney(total)}`, 197.2, y + 22.8, { align: "right" });
 
   let yFooter = y + 30;
   if (yFooter > 255) {
