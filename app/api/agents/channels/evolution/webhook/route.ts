@@ -20,6 +20,11 @@ const LOCAL_DATASHEET_DIR = String(
   process.env.OHAUS_LOCAL_DATASHEET_DIR ||
   path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook", "Ohaus", "data sheet")
 ).trim();
+const QUOTE_LOCAL_IMAGE_DIR = String(
+  process.env.WHATSAPP_QUOTE_LOCAL_IMAGE_DIR ||
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "assets")
+).trim();
+const ENABLE_RUNTIME_PDF_PARSE_FOR_QUOTE = String(process.env.WHATSAPP_QUOTE_PARSE_PDF_RUNTIME || "false").toLowerCase() === "true";
 const STRICT_WHATSAPP_MODE = String(process.env.WHATSAPP_STRICT_MODE || "true").toLowerCase() !== "false";
 const MAX_WHATSAPP_DOC_BYTES = Number(process.env.WHATSAPP_DOC_MAX_BYTES || 8 * 1024 * 1024);
 const ALLOWED_BRAND_KEYS = ["ohaus"];
@@ -1878,6 +1883,112 @@ function buildQuoteItemDescription(row: any, fallbackName: string): string {
   return lines.join("\n");
 }
 
+type StaticQuoteProfile = { description: string; imageFile: string };
+
+function resolveStaticQuoteProfile(row: any, fallbackName: string): StaticQuoteProfile | null {
+  const model = normalizeText(String(row?.name || fallbackName || ""));
+  if (!model) return null;
+
+  if (/^px\d+/.test(model)) {
+    return {
+      imageFile: "px.png",
+      description: [
+        "Balanza semi micro marca Ohaus",
+        "SAP: 30475733",
+        "Capacidad maxima: 82 g",
+        "Lectura minima: 0,01 mg",
+        "Tamano del plato: 80 mm",
+        "Calibracion interna AutoCal: Automatica",
+        "Proteccion contra corrientes de aire: Incluido",
+        "Comunicacion: USB; RS232",
+        "Pantalla: LCD de 2 lineas con luz de fondo",
+        "Linealidad: 0,0001 g",
+        "Material del plato: Acero inoxidable",
+        "Alimentacion: Adaptador de CA (incluido)",
+        "Repetibilidad, tipica: 0,02 mg",
+        "Tiempo de estabilizacion: 10 s",
+        "Rango de tara: Capacidad total por sustraccion",
+        "Unidades de medida: Tael de Singapur; Onza Troy; Pennyweight; Grano; Kilogramo; Tical; Personalizado; Miligramo; Momme; Newton; Tael de Taiwan; Gramo; Tael de Hong Kong; Libra; Tola; Mesghal; Quilates; Onza",
+      ].join("\n"),
+    };
+  }
+
+  if (/^ax\d+/.test(model) || /^ad\d+/.test(model)) {
+    return {
+      imageFile: "ax.png",
+      description: [
+        "Balanza Semi micro marca Ohaus",
+        "SAP: 30852314",
+        "Capacidad maxima: 82 g",
+        "Lectura minima: 0,00001 g",
+        "Tamano del plato: 80 mm",
+        "Calibracion interna AutoCal: Automatica",
+        "Proteccion contra corrientes de aire: Incluido",
+        "Comunicacion: USB; RS232",
+        "Pantalla: Pantalla tactil a color WQVGA de 4.3\"",
+        "Linealidad: 0,1 mg",
+      ].join("\n"),
+    };
+  }
+
+  if (/^(exr|exp|ex)\d+/.test(model)) {
+    return {
+      imageFile: "exr.png",
+      description: [
+        "Balanza Semi - Micro marca Ohaus",
+        "Capacidad maxima: 82 g/120 g",
+        "Lectura minima: 0,00001 g",
+        "Pantalla: tactil a color",
+        "Comunicacion: USB; RS232",
+        "Calibracion interna: Automatica",
+      ].join("\n"),
+    };
+  }
+
+  if (/^mb\d+/.test(model)) {
+    return {
+      imageFile: "mb.png",
+      description: [
+        "Analizador de humedad Ohaus",
+        "Pantalla tactil a color",
+        "Halogeno de alto rendimiento",
+        "Programas de secado rapidos y estables",
+        "Interfaz USB y RS232",
+      ].join("\n"),
+    };
+  }
+
+  if (/^(r31|r71|rc31)/.test(model)) {
+    return {
+      imageFile: "ranger.png",
+      description: [
+        "Bascula industrial Ranger marca Ohaus",
+        "Operacion para ambientes industriales",
+        "Pantalla robusta y rapida",
+        "Construccion durable para uso continuo",
+      ].join("\n"),
+    };
+  }
+
+  return null;
+}
+
+function localImageFileToDataUrl(fileName: string): string {
+  const safe = String(fileName || "").trim();
+  if (!safe) return "";
+  const p = path.join(QUOTE_LOCAL_IMAGE_DIR, safe);
+  if (!fs.existsSync(p)) return "";
+  const ext = String(path.extname(p || "")).toLowerCase();
+  const mime = ext === ".png" ? "image/png" : (ext === ".jpg" || ext === ".jpeg") ? "image/jpeg" : ext === ".webp" ? "image/webp" : "";
+  if (!mime) return "";
+  try {
+    const base64 = fs.readFileSync(p).toString("base64");
+    return base64 ? `data:${mime};base64,${base64}` : "";
+  } catch {
+    return "";
+  }
+}
+
 let pdfParseModuleCache: any = null;
 const localQuotePdfTextCache = new Map<string, { at: number; lines: string[] }>();
 const localQuotePdfImageCache = new Map<string, { at: number; dataUrl: string }>();
@@ -1905,6 +2016,7 @@ function cleanPdfSpecLines(raw: string): string[] {
 }
 
 async function extractPdfTechnicalLines(row: any): Promise<string[]> {
+  if (!ENABLE_RUNTIME_PDF_PARSE_FOR_QUOTE) return [];
   const localPath = pickBestLocalPdfPath(row, String(row?.name || ""));
   if (!localPath || !fs.existsSync(localPath)) return [];
   const cache = localQuotePdfTextCache.get(localPath);
@@ -1926,6 +2038,9 @@ async function extractPdfTechnicalLines(row: any): Promise<string[]> {
 }
 
 async function buildQuoteItemDescriptionAsync(row: any, fallbackName: string): Promise<string> {
+  const staticProfile = resolveStaticQuoteProfile(row, fallbackName);
+  if (staticProfile?.description) return staticProfile.description;
+
   const base = buildQuoteItemDescription(row, fallbackName)
     .split("\n")
     .map((l) => String(l || "").trim())
@@ -2433,6 +2548,12 @@ async function resolveQuoteBannerImageDataUrl(): Promise<string> {
 }
 
 async function resolveProductImageDataUrl(row: any): Promise<string> {
+  const staticProfile = resolveStaticQuoteProfile(row, String(row?.name || ""));
+  if (staticProfile?.imageFile) {
+    const local = localImageFileToDataUrl(staticProfile.imageFile);
+    if (local) return local;
+  }
+
   const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const candidates = uniqueNormalizedStrings([
     String(row?.image_url || "").trim(),
@@ -2444,6 +2565,8 @@ async function resolveProductImageDataUrl(row: any): Promise<string> {
     const dataUrl = imageDataUrlFromRemote(remote);
     if (dataUrl) return dataUrl;
   }
+
+  if (!ENABLE_RUNTIME_PDF_PARSE_FOR_QUOTE) return "";
 
   const localPath = pickBestLocalPdfPath(row, String(row?.name || ""));
   if (localPath && fs.existsSync(localPath)) {
