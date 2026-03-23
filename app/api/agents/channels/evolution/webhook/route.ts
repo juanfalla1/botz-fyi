@@ -2284,6 +2284,227 @@ function asDateYmd(input: Date | string) {
   return new Date(ts).toISOString().slice(0, 10);
 }
 
+type QuotePdfLineItem = {
+  productName: string;
+  quantity: number;
+  basePriceUsd: number;
+  trmRate: number;
+  totalCop: number;
+  description?: string;
+  warranty?: string;
+};
+
+function quoteIvaRate(): number {
+  const raw = Number(process.env.WHATSAPP_QUOTE_IVA_RATE || 0.19);
+  if (!Number.isFinite(raw) || raw < 0 || raw > 1) return 0.19;
+  return raw;
+}
+
+function buildStandardQuotePdf(args: {
+  quoteNumber: string;
+  issueDate: string;
+  validUntil: string;
+  companyName: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  city?: string;
+  nit?: string;
+  items: QuotePdfLineItem[];
+}) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const blue = [9, 137, 189] as const;
+  const dark = [20, 20, 20] as const;
+  const phoneSafe = normalizePhone(args.customerPhone || "");
+  const ivaRate = quoteIvaRate();
+  const col = [10, 20, 52, 132, 150, 162, 182, 200];
+
+  const drawHeader = (compact = false) => {
+    doc.setFillColor(245, 248, 251);
+    doc.rect(0, 0, 210, 297, "F");
+    doc.setFillColor(255, 255, 255);
+    doc.rect(8, 8, 194, compact ? 20 : 28, "F");
+    doc.setDrawColor(210, 220, 228);
+    doc.rect(8, 8, 194, compact ? 20 : 28, "S");
+    doc.setFillColor(blue[0], blue[1], blue[2]);
+    doc.rect(8, compact ? 20 : 28, 194, 8, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(237, 106, 47);
+    doc.setFontSize(compact ? 22 : 28);
+    doc.text("Avanza", 12, compact ? 19 : 20);
+    doc.setTextColor(220, 23, 55);
+    doc.setFontSize(compact ? 16 : 20);
+    doc.text("OHAUS", compact ? 50 : 60, compact ? 19 : 20);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.text("AVANZA INTERNACIONAL GROUP S.A.S. - Cotizacion Comercial", 12, compact ? 25.2 : 33.2);
+    doc.setTextColor(dark[0], dark[1], dark[2]);
+  };
+
+  drawHeader(false);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("Informacion general", 12, 44);
+  doc.setDrawColor(180, 196, 210);
+  doc.rect(10, 47, 190, 28, "S");
+  doc.line(105, 47, 105, 75);
+
+  const leftRows: Array<[string, string]> = [
+    ["Cliente", args.companyName || args.customerName || "-"],
+    ["Contacto", args.customerName || "-"],
+    ["Direccion", String(args.city || "Bogota D.C")],
+    ["Numero de Cotizacion", args.quoteNumber],
+    ["Forma de Pago", "Contado"],
+  ];
+  const rightRows: Array<[string, string]> = [
+    ["NIT", String(args.nit || "-")],
+    ["Celular", phoneSafe.length >= 10 && phoneSafe.length <= 15 ? phoneSafe : "-"],
+    ["Correo", args.customerEmail || "-"],
+    ["Fecha de Validez", args.validUntil],
+    ["Fecha de Entrega", "45 dias habiles"],
+  ];
+
+  let yRow = 52;
+  for (let i = 0; i < leftRows.length; i += 1) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.3);
+    doc.text(`${leftRows[i][0]}:`, 12, yRow);
+    doc.setFont("helvetica", "normal");
+    doc.text(String(leftRows[i][1] || "-").slice(0, 37), 38, yRow);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${rightRows[i][0]}:`, 108, yRow);
+    doc.setFont("helvetica", "normal");
+    doc.text(String(rightRows[i][1] || "-").slice(0, 36), 134, yRow);
+    yRow += 5;
+  }
+
+  const drawTableHeader = (yTop: number) => {
+    doc.setFillColor(blue[0], blue[1], blue[2]);
+    doc.rect(10, yTop, 190, 7, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8.2);
+    doc.text("Item", 12, yTop + 4.8);
+    doc.text("Producto", 24, yTop + 4.8);
+    doc.text("Descripcion", 54, yTop + 4.8);
+    doc.text("Garantia", 136, yTop + 4.8);
+    doc.text("Cant.", 151, yTop + 4.8, { align: "center" });
+    doc.text("Valor unit.", 181, yTop + 4.8, { align: "right" });
+    doc.text("Valor total", 198, yTop + 4.8, { align: "right" });
+    doc.setTextColor(dark[0], dark[1], dark[2]);
+  };
+
+  drawTableHeader(79);
+
+  let y = 88;
+  let index = 1;
+  let subtotal = 0;
+  for (const item of args.items || []) {
+    const qty = Math.max(1, Number(item.quantity || 1));
+    const lineTotal = Number(item.totalCop || 0) > 0
+      ? Number(item.totalCop || 0)
+      : Number(item.basePriceUsd || 0) * Number(item.trmRate || 0) * qty;
+    subtotal += lineTotal;
+
+    const baseDesc = String(item.description || "").trim() || [
+      `Producto: ${String(item.productName || "-")}`,
+      `Precio base USD: ${item.basePriceUsd > 0 ? formatMoney(item.basePriceUsd) : "-"}`,
+      `TRM: ${item.trmRate > 0 ? formatMoney(item.trmRate) : "-"}`,
+    ].join("\n");
+
+    const productLines = doc.splitTextToSize(String(item.productName || "-").slice(0, 40), 28);
+    const descLines = doc.splitTextToSize(baseDesc, 77);
+    const lineCount = Math.max(productLines.length, descLines.length, 1);
+    const rowH = Math.max(12, lineCount * 3.8 + 3);
+
+    if (y + rowH > 235) {
+      doc.addPage();
+      drawHeader(true);
+      drawTableHeader(33);
+      y = 42;
+    }
+
+    doc.setDrawColor(180, 196, 210);
+    doc.rect(10, y - 4, 190, rowH, "S");
+    for (let i = 1; i < col.length - 1; i += 1) {
+      doc.line(col[i], y - 4, col[i], y - 4 + rowH);
+    }
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.2);
+    doc.text(String(index), 12, y);
+    doc.setFont("helvetica", "bold");
+    doc.text(productLines, 22, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(descLines, 54, y);
+    doc.text(String(item.warranty || "1 AÑO POR\nDEFECTO DE\nFABRICA"), 133.5, y);
+    doc.text(String(qty), 156, y, { align: "right" });
+    doc.text(`$ ${formatMoney(lineTotal / qty)}`, 181, y, { align: "right" });
+    doc.text(`$ ${formatMoney(lineTotal)}`, 198, y, { align: "right" });
+
+    y += rowH + 1.2;
+    index += 1;
+  }
+
+  const iva = subtotal * ivaRate;
+  const total = subtotal + iva;
+
+  if (y > 240) {
+    doc.addPage();
+    drawHeader(true);
+    y = 40;
+  }
+
+  doc.setFillColor(blue[0], blue[1], blue[2]);
+  doc.rect(143, y, 41, 21, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text("Subtotal:", 145, y + 6);
+  doc.text("Descuento:", 145, y + 11.5);
+  doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, 145, y + 17);
+  doc.text("Valor total:", 145, y + 22.5);
+
+  doc.setTextColor(dark[0], dark[1], dark[2]);
+  doc.rect(184, y, 16, 21, "S");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.text(`$ ${formatMoney(subtotal)}`, 198.5, y + 6, { align: "right" });
+  doc.text(`$ ${formatMoney(0)}`, 198.5, y + 11.5, { align: "right" });
+  doc.text(`$ ${formatMoney(iva)}`, 198.5, y + 17, { align: "right" });
+  doc.setFont("helvetica", "bold");
+  doc.text(`$ ${formatMoney(total)}`, 198.5, y + 22.5, { align: "right" });
+
+  let yFooter = y + 30;
+  if (yFooter > 255) {
+    doc.addPage();
+    drawHeader(true);
+    yFooter = 40;
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("Contacto Comercial", 10, yFooter);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text("Mariana Rodriguez", 10, yFooter + 6);
+  doc.text("CEL 3183731171", 10, yFooter + 11);
+  doc.text("cotizaciones@avanzagroup.com.co", 10, yFooter + 16);
+
+  const legal = [
+    "- Todos los distribuidores asumen el valor del flete. En el caso de clientes, el flete sera asumido unicamente si el envio es fuera de Bogota.",
+    "- No realizamos devoluciones de dinero, excepto cuando se confirme un error de asesoramiento por parte de nuestro equipo.",
+    "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
+    `${String(args.city || "Bogota D.C")}, ${args.issueDate}`,
+  ].join("\n");
+  doc.setFontSize(8.2);
+  doc.text(doc.splitTextToSize(legal, 188), 10, yFooter + 24);
+
+  return Buffer.from(doc.output("arraybuffer")).toString("base64");
+}
+
 function buildQuotePdf(args: {
   draftId: string;
   companyName: string;
@@ -2297,163 +2518,40 @@ function buildQuotePdf(args: {
   totalCop: number;
   notes?: string;
 }) {
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
   const now = new Date();
   const quoteNumber = quoteCodeFromDraftId(args.draftId);
   const issueDate = asDateYmd(now);
   const validUntil = asDateYmd(new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000));
-  const phoneSafe = normalizePhone(args.customerPhone || "");
   const quantity = Math.max(1, Number(args.quantity || 1));
-  const subtotal = Number(args.totalCop || 0) > 0 ? Number(args.totalCop || 0) : Number(args.basePriceUsd || 0) * Number(args.trmRate || 0) * quantity;
-  const iva = 0;
-  const total = subtotal + iva;
+  const totalCop = Number(args.totalCop || 0) > 0
+    ? Number(args.totalCop || 0)
+    : Number(args.basePriceUsd || 0) * Number(args.trmRate || 0) * quantity;
 
-  const blue = [9, 137, 189] as const;
-  const dark = [20, 20, 20] as const;
-
-  doc.setFillColor(245, 248, 251);
-  doc.rect(0, 0, 210, 297, "F");
-
-  doc.setFillColor(255, 255, 255);
-  doc.rect(8, 8, 194, 28, "F");
-  doc.setDrawColor(210, 220, 228);
-  doc.rect(8, 8, 194, 28, "S");
-  doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(8, 28, 194, 8, "F");
-
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(237, 106, 47);
-  doc.setFontSize(28);
-  doc.text("Avanza", 12, 20);
-  doc.setTextColor(220, 23, 55);
-  doc.setFontSize(20);
-  doc.text("OHAUS", 60, 20);
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  doc.text("AVANZA INTERNACIONAL GROUP S.A.S. - Cotizacion Comercial", 12, 33.2);
-
-  doc.setTextColor(dark[0], dark[1], dark[2]);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("Informacion general", 12, 44);
-
-  doc.setDrawColor(180, 196, 210);
-  doc.rect(10, 47, 190, 28, "S");
-  doc.line(105, 47, 105, 75);
-
-  const leftRows: Array<[string, string]> = [
-    ["Cliente", args.companyName || args.customerName || "-"],
-    ["Contacto", args.customerName || "-"],
-    ["Direccion", "Bogota D.C"],
-    ["Numero de Cotizacion", quoteNumber],
-    ["Forma de Pago", "Contado"],
-  ];
-  const rightRows: Array<[string, string]> = [
-    ["NIT", "-"],
-    ["Celular", phoneSafe.length >= 10 && phoneSafe.length <= 12 ? phoneSafe : "-"],
-    ["Correo", args.customerEmail || "-"],
-    ["Fecha de Validez", validUntil],
-    ["Fecha de Entrega", "45 a 60 dias habiles"],
-  ];
-
-  let yRow = 52;
-  for (let i = 0; i < leftRows.length; i += 1) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.text(`${leftRows[i][0]}:`, 12, yRow);
-    doc.setFont("helvetica", "normal");
-    doc.text(String(leftRows[i][1] || "-").slice(0, 38), 38, yRow);
-
-    doc.setFont("helvetica", "bold");
-    doc.text(`${rightRows[i][0]}:`, 108, yRow);
-    doc.setFont("helvetica", "normal");
-    doc.text(String(rightRows[i][1] || "-").slice(0, 36), 134, yRow);
-    yRow += 5;
-  }
-
-  doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(10, 79, 190, 7, "F");
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(8.2);
-  doc.text("Item", 12, 83.8);
-  doc.text("Producto", 24, 83.8);
-  doc.text("Descripcion", 54, 83.8);
-  doc.text("Garantia", 136, 83.8);
-  doc.text("Cantidad", 149.5, 83.8);
-  doc.text("Valor unitario", 181, 83.8, { align: "right" });
-  doc.text("Valor total", 198, 83.8, { align: "right" });
-
-  doc.setTextColor(dark[0], dark[1], dark[2]);
-  doc.setDrawColor(180, 196, 210);
-  doc.rect(10, 86, 190, 108, "S");
-  [20, 52, 134, 148, 160, 182].forEach((x) => doc.line(x, 86, x, 194));
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.8);
-  doc.text("1", 12, 92);
-  doc.setFont("helvetica", "bold");
-  doc.text(String(args.productName || "-").slice(0, 30), 22, 92);
-
-  const productDescBase = [
-    `Producto: ${String(args.productName || "-")}`,
-    `Cantidad: ${quantity}`,
-    `Precio base USD: ${args.basePriceUsd > 0 ? formatMoney(args.basePriceUsd) : "-"}`,
-    `TRM: ${args.trmRate > 0 ? formatMoney(args.trmRate) : "-"}`,
-    args.notes ? `Detalle: ${String(args.notes)}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.4);
-  doc.text(doc.splitTextToSize(productDescBase, 72), 54, 92);
-  doc.text("NA", 141, 92, { align: "center" });
-  doc.text(String(quantity), 154, 92, { align: "center" });
-  doc.setFontSize(7.8);
-  doc.text(`$ ${formatMoney(subtotal / quantity)}`, 180.5, 92, { align: "right" });
-  doc.text(`$ ${formatMoney(total)}`, 198, 92, { align: "right" });
-
-  doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(143, 196, 41, 21, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.text("Subtotal:", 145, 202);
-  doc.text("Descuento:", 145, 208);
-  doc.text("IVA (19%):", 145, 214);
-  doc.text("Valor total:", 145, 220);
-
-  doc.setTextColor(dark[0], dark[1], dark[2]);
-  doc.setDrawColor(180, 196, 210);
-  doc.rect(184, 196, 16, 21, "S");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.8);
-  doc.text(`$ ${formatMoney(subtotal)}`, 198.5, 202, { align: "right" });
-  doc.text(`$ ${formatMoney(0)}`, 198.5, 208, { align: "right" });
-  doc.text(`$ ${formatMoney(iva)}`, 198.5, 214, { align: "right" });
-  doc.setFont("helvetica", "bold");
-  doc.text(`$ ${formatMoney(total)}`, 198.5, 220, { align: "right" });
-
-  doc.setTextColor(dark[0], dark[1], dark[2]);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("Contacto Comercial", 10, 230);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9.2);
-  doc.text("Mariana Rodriguez", 10, 236);
-  doc.text("CEL 3183731171", 10, 241);
-  doc.text("cotizaciones@avanzagroup.com.co", 10, 246);
-
-  const legal = [
-    "- Todos los distribuidores asumen el valor del flete. En el caso de clientes, el flete sera asumido unicamente si el envio es fuera de Bogota.",
-    "- No realizamos devoluciones de dinero, excepto cuando se confirme un error de asesoramiento por parte de nuestro equipo.",
-    "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
-    `Bogota D.C., ${issueDate}`,
-  ].join("\n");
-  doc.setFontSize(8.4);
-  doc.text(doc.splitTextToSize(legal, 188), 10, 255);
-
-  return Buffer.from(doc.output("arraybuffer")).toString("base64");
+  return buildStandardQuotePdf({
+    quoteNumber,
+    issueDate,
+    validUntil,
+    companyName: args.companyName,
+    customerName: args.customerName,
+    customerEmail: args.customerEmail,
+    customerPhone: args.customerPhone,
+    items: [
+      {
+        productName: args.productName,
+        quantity,
+        basePriceUsd: Number(args.basePriceUsd || 0),
+        trmRate: Number(args.trmRate || 0),
+        totalCop,
+        description: [
+          `Producto: ${String(args.productName || "-")}`,
+          `Cantidad: ${quantity}`,
+          `Precio base USD: ${Number(args.basePriceUsd || 0) > 0 ? formatMoney(Number(args.basePriceUsd || 0)) : "-"}`,
+          `TRM: ${Number(args.trmRate || 0) > 0 ? formatMoney(Number(args.trmRate || 0)) : "-"}`,
+          String(args.notes || "").trim() ? `Detalle: ${String(args.notes || "").trim()}` : "",
+        ].filter(Boolean).join("\n"),
+      },
+    ],
+  });
 }
 
 function buildBundleQuotePdf(args: {
@@ -2464,86 +2562,38 @@ function buildBundleQuotePdf(args: {
   customerPhone: string;
   items: Array<{ productName: string; quantity: number; basePriceUsd: number; trmRate: number; totalCop: number }>;
 }) {
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
   const now = new Date();
   const quoteNumber = `CO-B-${String(args.bundleId || "").replace(/[^a-z0-9]/gi, "").slice(-8).toUpperCase()}`;
-  const phoneSafe = normalizePhone(args.customerPhone || "");
-  const blue = [9, 137, 189] as const;
+  const issueDate = asDateYmd(now);
+  const validUntil = asDateYmd(new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000));
 
-  doc.setFillColor(245, 248, 251);
-  doc.rect(0, 0, 210, 297, "F");
-  doc.setFillColor(255, 255, 255);
-  doc.rect(8, 8, 194, 20, "F");
-  doc.setDrawColor(210, 220, 228);
-  doc.rect(8, 8, 194, 20, "S");
-  doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(8, 28, 194, 8, "F");
-  doc.setTextColor(237, 106, 47);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(24);
-  doc.text("Avanza", 12, 21);
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  doc.text("Cotizacion consolidada", 12, 33.2);
-
-  doc.setTextColor(20, 20, 20);
-  doc.setFontSize(9.2);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Numero: ${quoteNumber}`, 12, 43);
-  doc.text(`Fecha: ${asDateYmd(now)}`, 72, 43);
-  doc.text(`Cliente: ${String(args.customerName || args.companyName || "-").slice(0, 45)}`, 12, 48);
-  doc.text(`Contacto: ${phoneSafe || "-"}  ${String(args.customerEmail || "").slice(0, 34)}`, 12, 53);
-
-  let y = 60;
-  doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(10, y, 190, 7, "F");
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(8.4);
-  doc.text("Item", 12, y + 4.8);
-  doc.text("Producto", 24, y + 4.8);
-  doc.text("Cant.", 122, y + 4.8, { align: "right" });
-  doc.text("USD", 146, y + 4.8, { align: "right" });
-  doc.text("TRM", 170, y + 4.8, { align: "right" });
-  doc.text("Total COP", 198, y + 4.8, { align: "right" });
-  y += 9;
-  doc.setTextColor(20, 20, 20);
-  doc.setFont("helvetica", "normal");
-
-  let grandTotal = 0;
-  let itemN = 1;
-  for (const item of args.items || []) {
-    if (y > 268) {
-      doc.addPage();
-      y = 18;
-    }
-    const productLines = doc.splitTextToSize(String(item.productName || "-"), 92);
-    const lineH = Math.max(8, productLines.length * 4 + 2);
-    doc.setDrawColor(205, 215, 225);
-    doc.rect(10, y - 4.5, 190, lineH, "S");
-    grandTotal += Number(item.totalCop || 0);
-    doc.text(String(itemN), 12, y);
-    doc.text(productLines, 24, y);
-    doc.text(String(item.quantity || 1), 122, y, { align: "right" });
-    doc.text(formatMoney(Number(item.basePriceUsd || 0)), 146, y, { align: "right" });
-    doc.text(formatMoney(Number(item.trmRate || 0)), 170, y, { align: "right" });
-    doc.text(formatMoney(Number(item.totalCop || 0)), 198, y, { align: "right" });
-    y += lineH + 1;
-    itemN += 1;
-  }
-
-  y += 3;
-  doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(140, y, 44, 8, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10.5);
-  doc.text("Total consolidado", 142, y + 5.4);
-  doc.setTextColor(20, 20, 20);
-  doc.rect(184, y, 16, 8, "S");
-  doc.text(`$ ${formatMoney(grandTotal)}`, 198.5, y + 5.4, { align: "right" });
-
-  return Buffer.from(doc.output("arraybuffer")).toString("base64");
+  return buildStandardQuotePdf({
+    quoteNumber,
+    issueDate,
+    validUntil,
+    companyName: args.companyName,
+    customerName: args.customerName,
+    customerEmail: args.customerEmail,
+    customerPhone: args.customerPhone,
+    items: (args.items || []).map((item) => {
+      const qty = Math.max(1, Number(item.quantity || 1));
+      const totalCop = Number(item.totalCop || 0) > 0
+        ? Number(item.totalCop || 0)
+        : Number(item.basePriceUsd || 0) * Number(item.trmRate || 0) * qty;
+      return {
+        productName: String(item.productName || "-"),
+        quantity: qty,
+        basePriceUsd: Number(item.basePriceUsd || 0),
+        trmRate: Number(item.trmRate || 0),
+        totalCop,
+        description: [
+          `Producto: ${String(item.productName || "-")}`,
+          `Precio base USD: ${Number(item.basePriceUsd || 0) > 0 ? formatMoney(Number(item.basePriceUsd || 0)) : "-"}`,
+          `TRM: ${Number(item.trmRate || 0) > 0 ? formatMoney(Number(item.trmRate || 0)) : "-"}`,
+        ].join("\n"),
+      };
+    }),
+  });
 }
 
 export async function POST(req: Request) {
