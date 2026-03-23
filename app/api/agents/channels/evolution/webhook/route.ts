@@ -3304,6 +3304,12 @@ export async function POST(req: Request) {
         .filter((v) => /@(lid|s\.whatsapp\.net|c\.us)$/i.test(v))
         .filter((v) => !selfSet.has(normalizePhone(v)));
 
+      void evolutionService.sendTypingPresenceBatch(outboundInstance, [
+        ...toCandidates,
+        ...jidCandidates,
+        String(inbound.from || ""),
+      ]);
+
       const sendTextAndDocs = async (replyText: string, docs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }>) => {
         let sentTo = "";
         for (const to of toCandidates) {

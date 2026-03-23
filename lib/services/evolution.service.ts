@@ -75,6 +75,59 @@ async function evolutionFetch(path: string, init: RequestInit = {}) {
 }
 
 export class EvolutionService {
+  async sendTypingPresence(instanceName: string, destination: string): Promise<void> {
+    const raw = String(destination || "").trim();
+    if (!raw) return;
+    const number = raw.includes("@") ? raw : raw.replace(/\D/g, "");
+    if (!number) return;
+
+    const bodies = [
+      { number, status: "composing" },
+      { number, presence: "composing" },
+      { number, type: "composing" },
+      { jid: number, status: "composing" },
+      { jid: number, presence: "composing" },
+    ];
+    const paths = [
+      `/chat/sendPresence/${instanceName}`,
+      `/chat/presence/${instanceName}`,
+      `/message/sendPresence/${instanceName}`,
+      `/message/presence/${instanceName}`,
+    ];
+
+    let ok = false;
+    for (const p of paths) {
+      for (const b of bodies) {
+        try {
+          await evolutionFetch(p, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(b),
+          });
+          ok = true;
+          break;
+        } catch {
+          continue;
+        }
+      }
+      if (ok) break;
+    }
+  }
+
+  async sendTypingPresenceBatch(instanceName: string, destinations: string[]): Promise<void> {
+    const unique = (destinations || [])
+      .map((d) => String(d || "").trim())
+      .filter((d, i, arr) => d && arr.indexOf(d) === i)
+      .slice(0, 3);
+    for (const d of unique) {
+      try {
+        await this.sendTypingPresence(instanceName, d);
+      } catch {
+        continue;
+      }
+    }
+  }
+
   async fetchInstances(): Promise<any[]> {
     const data = await evolutionFetch("/instance/fetchInstances", { method: "GET" });
 
