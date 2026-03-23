@@ -1292,14 +1292,16 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
       for (const kw of wanted) {
         if (hay.includes(kw)) score += 3;
       }
-      if (/datasheet|data sheet|ficha/.test(hay)) score += 2;
-      if (/manual|brochure|catalogo|catalog/.test(hay)) score -= 2;
       let byteSize = Number.MAX_SAFE_INTEGER;
       try {
         byteSize = Number(fs.statSync(f.filePath).size || 0);
       } catch {
         byteSize = Number.MAX_SAFE_INTEGER;
       }
+      if (byteSize > 5 * 1024 * 1024) score -= 4;
+      if (byteSize > 8 * 1024 * 1024) score -= 12;
+      if (/datasheet|data sheet|ficha/.test(hay)) score += 2;
+      if (/manual|brochure|catalogo|catalog/.test(hay)) score -= 2;
       if (!best || score > best.score || (score === best.score && byteSize < best.byteSize)) {
         best = { filePath: f.filePath, score, byteSize };
       }
