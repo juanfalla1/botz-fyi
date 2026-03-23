@@ -1878,6 +1878,70 @@ function buildQuoteItemDescription(row: any, fallbackName: string): string {
   return lines.join("\n");
 }
 
+let pdfParseFnCache: any = null;
+const localQuotePdfTextCache = new Map<string, { at: number; lines: string[] }>();
+
+async function getPdfParseFn(): Promise<any> {
+  if (pdfParseFnCache) return pdfParseFnCache;
+  const mod: any = await import("pdf-parse");
+  pdfParseFnCache = mod?.default || mod;
+  return pdfParseFnCache;
+}
+
+function cleanPdfSpecLines(raw: string): string[] {
+  return String(raw || "")
+    .split(/\r?\n+/)
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .filter((l) => l.length >= 4)
+    .filter((l) => !/^pag\s*\d+/i.test(l))
+    .filter((l) => !/^fecha de /i.test(l))
+    .filter((l) => !/^item\s+producto/i.test(l))
+    .filter((l) => !/^contacto comercial$/i.test(l))
+    .filter((l) => !/^subtotal|^descuento|^iva|^valor total/i.test(l))
+    .filter((l) => !/^avanza internacional/i.test(l))
+    .filter((l) => {
+      const n = normalizeText(l);
+      if (!n) return false;
+      if (/(capacidad|lectura|linealidad|repetibilidad|comunicacion|pantalla|alimentacion|estabilizacion|unidad|sap|material|dimensiones|entorno|peso|calibracion|proteccion|rango|tael|onza|kilogramo|gramo|mg|g\b)/.test(n)) return true;
+      return /:\s*/.test(l);
+    });
+}
+
+async function extractPdfTechnicalLines(row: any): Promise<string[]> {
+  const localPath = pickBestLocalPdfPath(row, String(row?.name || ""));
+  if (!localPath || !fs.existsSync(localPath)) return [];
+  const cache = localQuotePdfTextCache.get(localPath);
+  if (cache && (Date.now() - cache.at) < 6 * 60 * 60 * 1000) return cache.lines;
+  try {
+    const pdfParse = await getPdfParseFn();
+    const buff = fs.readFileSync(localPath);
+    const parsed: any = await pdfParse(buff);
+    const lines = uniqueNormalizedStrings(cleanPdfSpecLines(String(parsed?.text || "")), 80);
+    localQuotePdfTextCache.set(localPath, { at: Date.now(), lines });
+    return lines;
+  } catch {
+    return [];
+  }
+}
+
+async function buildQuoteItemDescriptionAsync(row: any, fallbackName: string): Promise<string> {
+  const base = buildQuoteItemDescription(row, fallbackName)
+    .split("\n")
+    .map((l) => String(l || "").trim())
+    .filter(Boolean);
+  const pdfLines = await extractPdfTechnicalLines(row);
+  const merged: string[] = [];
+  for (const line of [...base, ...pdfLines]) {
+    const n = normalizeText(line);
+    if (!n) continue;
+    if (merged.some((x) => normalizeText(x) === n)) continue;
+    merged.push(line);
+    if (merged.length >= 34) break;
+  }
+  return merged.join("\n") || buildQuoteItemDescription(row, fallbackName);
+}
+
 function detectTechResendIntent(text: string): "sheet" | "image" | "both" | null {
   const t = normalizeText(text || "");
   if (!t) return null;
@@ -2490,11 +2554,11 @@ async function buildStandardQuotePdf(args: {
     doc.setFontSize(8.3);
     doc.text(`${leftRows[i][0]}:`, 12, yRow);
     doc.setFont("helvetica", "normal");
-    doc.text(String(leftRows[i][1] || "-").slice(0, 37), 38, yRow);
+    doc.text(String(leftRows[i][1] || "-").slice(0, 34), 44, yRow);
     doc.setFont("helvetica", "bold");
     doc.text(`${rightRows[i][0]}:`, 108, yRow);
     doc.setFont("helvetica", "normal");
-    doc.text(String(rightRows[i][1] || "-").slice(0, 36), 134, yRow);
+    doc.text(String(rightRows[i][1] || "-").slice(0, 32), 132, yRow);
     yRow += 5;
   }
 
@@ -2587,14 +2651,14 @@ async function buildStandardQuotePdf(args: {
   }
 
   doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(143, y, 41, 24, "F");
+  doc.rect(138, y, 46, 24, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.text("Subtotal:", 145, y + 6);
-  doc.text("Descuento:", 145, y + 12.2);
-  doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, 145, y + 18.4);
-  doc.text("Valor total:", 145, y + 24.2);
+  doc.text("Subtotal:", 140, y + 6);
+  doc.text("Descuento:", 140, y + 12.2);
+  doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, 140, y + 18.4);
+  doc.text("Valor total:", 140, y + 24.2);
 
   doc.setTextColor(dark[0], dark[1], dark[2]);
   doc.rect(184, y, 16, 24, "S");
@@ -3466,6 +3530,7 @@ export async function POST(req: Request) {
               strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Ya quedó registrado para reenviarla por este WhatsApp.";
             } else {
               const productImageDataUrl = await resolveProductImageDataUrl(selected);
+              const quoteDescription = await buildQuoteItemDescriptionAsync(selected, String((selected as any)?.name || ""));
               const pdfBase64 = await buildQuotePdf({
                 draftId: String((insertedDraft as any)?.id || ""),
                 customerName: customerContact,
@@ -3479,7 +3544,7 @@ export async function POST(req: Request) {
                 totalCop,
                 city: customerCity,
                 nit: customerNit,
-                itemDescription: buildQuoteItemDescription(selected, String((selected as any)?.name || "")),
+                itemDescription: quoteDescription,
                 imageDataUrl: productImageDataUrl,
                 notes: `Ciudad: ${customerCity} | NIT: ${customerNit}`,
               });
@@ -5729,6 +5794,7 @@ export async function POST(req: Request) {
                   nextMemory.last_quote_product_name = String((selected as any).name || "");
                   nextMemory.awaiting_action = "none";
                   const productImageDataUrl = await resolveProductImageDataUrl(selected);
+                  const quoteDescription = await buildQuoteItemDescriptionAsync(selected, String((selected as any).name || ""));
                   const pdfBase64 = await buildQuotePdf({
                     draftId: String(draft.id),
                     companyName: String(draftPayload.company_name || "Avanza Balanzas"),
@@ -5742,7 +5808,7 @@ export async function POST(req: Request) {
                     totalCop,
                     city: customerCity,
                     nit: customerNit,
-                    itemDescription: buildQuoteItemDescription(selected, String((selected as any).name || "")),
+                    itemDescription: quoteDescription,
                     imageDataUrl: productImageDataUrl,
                     notes: String(draftPayload.notes || ""),
                   });
@@ -5753,7 +5819,7 @@ export async function POST(req: Request) {
                     pdfBase64,
                     quantity,
                     productName: String((selected as any).name || ""),
-                    itemDescription: buildQuoteItemDescription(selected, String((selected as any).name || "")),
+                    itemDescription: quoteDescription,
                     imageDataUrl: productImageDataUrl,
                     basePriceUsd,
                     trmRate,
