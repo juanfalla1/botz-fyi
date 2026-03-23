@@ -1901,12 +1901,7 @@ function cleanPdfSpecLines(raw: string): string[] {
     .filter((l) => !/^contacto comercial$/i.test(l))
     .filter((l) => !/^subtotal|^descuento|^iva|^valor total/i.test(l))
     .filter((l) => !/^avanza internacional/i.test(l))
-    .filter((l) => {
-      const n = normalizeText(l);
-      if (!n) return false;
-      if (/(capacidad|lectura|linealidad|repetibilidad|comunicacion|pantalla|alimentacion|estabilizacion|unidad|sap|material|dimensiones|entorno|peso|calibracion|proteccion|rango|tael|onza|kilogramo|gramo|mg|g\b)/.test(n)) return true;
-      return /:\s*/.test(l);
-    });
+    .filter((l) => normalizeText(l).length >= 4);
 }
 
 async function extractPdfTechnicalLines(row: any): Promise<string[]> {
@@ -2589,13 +2584,15 @@ async function buildStandardQuotePdf(args: {
   for (let i = 0; i < leftRows.length; i += 1) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.3);
-    doc.text(`${leftRows[i][0]}:`, 12, yRow);
+    const leftLabel = `${leftRows[i][0]}:`;
+    doc.text(leftLabel, 12, yRow);
     doc.setFont("helvetica", "normal");
-    doc.text(String(leftRows[i][1] || "-").slice(0, 34), 44, yRow);
+    doc.text(String(leftRows[i][1] || "-").slice(0, 32), 12 + doc.getTextWidth(leftLabel) + 3, yRow);
     doc.setFont("helvetica", "bold");
-    doc.text(`${rightRows[i][0]}:`, 108, yRow);
+    const rightLabel = `${rightRows[i][0]}:`;
+    doc.text(rightLabel, 108, yRow);
     doc.setFont("helvetica", "normal");
-    doc.text(String(rightRows[i][1] || "-").slice(0, 32), 132, yRow);
+    doc.text(String(rightRows[i][1] || "-").slice(0, 30), 108 + doc.getTextWidth(rightLabel) + 3, yRow);
     yRow += 5;
   }
 
@@ -2701,7 +2698,7 @@ async function buildStandardQuotePdf(args: {
   doc.text("Subtotal:", 140, y + 6);
   doc.text("Descuento:", 140, y + 12.2);
   doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, 140, y + 18.4);
-  doc.text("Valor total:", 140, y + 24.2);
+  doc.text("Valor total:", 140, y + 22.8);
 
   doc.setTextColor(dark[0], dark[1], dark[2]);
   doc.rect(184, y, 16, 24, "S");
@@ -2711,7 +2708,7 @@ async function buildStandardQuotePdf(args: {
   doc.text(`$ ${formatMoney(0)}`, 198.5, y + 12.2, { align: "right" });
   doc.text(`$ ${formatMoney(iva)}`, 198.5, y + 18.4, { align: "right" });
   doc.setFont("helvetica", "bold");
-  doc.text(`$ ${formatMoney(total)}`, 198.5, y + 24.2, { align: "right" });
+  doc.text(`$ ${formatMoney(total)}`, 198.5, y + 22.8, { align: "right" });
 
   let yFooter = y + 30;
   if (yFooter > 255) {

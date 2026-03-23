@@ -108,6 +108,7 @@ export class EvolutionService {
     ];
 
     let ok = false;
+    let okPath = "";
     for (const p of paths) {
       for (const b of bodies) {
         try {
@@ -117,12 +118,18 @@ export class EvolutionService {
             body: JSON.stringify(b),
           });
           ok = true;
+          okPath = p;
           break;
         } catch {
           continue;
         }
       }
       if (ok) break;
+    }
+    if (!ok) {
+      console.warn("[evolutionService] typing_presence_not_supported", { instanceName, destination: number });
+    } else {
+      console.log("[evolutionService] typing_presence_ok", { instanceName, destination: number, path: okPath });
     }
   }
 
