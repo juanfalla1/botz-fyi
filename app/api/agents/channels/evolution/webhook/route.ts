@@ -1280,11 +1280,12 @@ function getLocalPdfIndex(): LocalPdfIndexEntry[] {
 function pickBestLocalPdfPath(row: any, queryText: string): string {
   const files = getLocalPdfIndex();
   if (!files.length) return "";
+  const modelNorm = normalizeCatalogQueryText(String(row?.name || queryText || ""));
 
   const pickByKeywordPriority = (keywords: string[]): string => {
     const wanted = (keywords || []).map((k) => normalizeCatalogQueryText(String(k || ""))).filter(Boolean);
     if (!wanted.length) return "";
-    let best: { filePath: string; score: number } | null = null;
+    let best: { filePath: string; score: number; byteSize: number } | null = null;
     for (const f of files) {
       const hay = normalizeCatalogQueryText(f.normalized || f.fileName || "");
       let score = 0;
@@ -1293,10 +1294,41 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
       }
       if (/datasheet|data sheet|ficha/.test(hay)) score += 2;
       if (/manual|brochure|catalogo|catalog/.test(hay)) score -= 2;
-      if (!best || score > best.score) best = { filePath: f.filePath, score };
+      let byteSize = Number.MAX_SAFE_INTEGER;
+      try {
+        byteSize = Number(fs.statSync(f.filePath).size || 0);
+      } catch {
+        byteSize = Number.MAX_SAFE_INTEGER;
+      }
+      if (!best || score > best.score || (score === best.score && byteSize < best.byteSize)) {
+        best = { filePath: f.filePath, score, byteSize };
+      }
     }
     return best && best.score >= 3 ? best.filePath : "";
   };
+
+  const directByModelFamily = (() => {
+    if (/\b(ax|ad)\d{2,6}/.test(modelNorm) || /adventurer/.test(modelNorm)) {
+      return pickByKeywordPriority(["adventurer", "ax", "data sheet"]);
+    }
+    if (/\b(exr|exp|ex)\d{2,6}/.test(modelNorm) || /explorer|semi/.test(modelNorm)) {
+      return pickByKeywordPriority(["explorer", "semi", "data sheet"]);
+    }
+    if (/\b(px|pr)\d{2,6}/.test(modelNorm) || /pioneer/.test(modelNorm)) {
+      return pickByKeywordPriority(["pioneer", "px", "pr", "datasheet"]);
+    }
+    if (/\bmb\d{2,5}\b/.test(modelNorm) || /analizador_humedad|humedad/.test(modelNorm)) {
+      return pickByKeywordPriority([modelNorm, "mb", "datasheet"]);
+    }
+    if (/\b(r31|r71|rc31)\w*/.test(modelNorm) || /ranger/.test(modelNorm)) {
+      return pickByKeywordPriority(["ranger", "data", "sheet"]);
+    }
+    if (/\b(sjx|spx|stx)\w*/.test(modelNorm) || /scout/.test(modelNorm)) {
+      return pickByKeywordPriority(["scout", "datasheet"]);
+    }
+    return "";
+  })();
+  if (directByModelFamily) return directByModelFamily;
 
   const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const familyHints = uniqueNormalizedStrings([
@@ -1349,7 +1381,6 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
 
   if (!best) return "";
   const hasStrongFamilyHint = familyHints.some((h) => /explorer|pioneer|adventurer|mb|basculas|electroquimica/.test(normalizeCatalogQueryText(h)));
-  const modelNorm = normalizeCatalogQueryText(String(row?.name || queryText || ""));
   const familyFallback = (() => {
     if (/\bmb\d{2,5}\b/.test(modelNorm) || /analizador_humedad|humedad/.test(modelNorm)) return pickByKeywordPriority([modelNorm, "mb120", "mb92", "mb62", "datasheet"]);
     if (/\b(ax|ad)\d{2,6}/.test(modelNorm) || /adventurer/.test(modelNorm)) return pickByKeywordPriority(["adventurer", "ax", "datasheet"]);
