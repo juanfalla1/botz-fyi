@@ -25,6 +25,7 @@ const QUOTE_LOCAL_IMAGE_DIR = String(
   path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "assets")
 ).trim();
 const ENABLE_RUNTIME_PDF_PARSE_FOR_QUOTE = String(process.env.WHATSAPP_QUOTE_PARSE_PDF_RUNTIME || "false").toLowerCase() === "true";
+const ENABLE_QUOTE_PRODUCT_IMAGE = String(process.env.WHATSAPP_QUOTE_EMBED_PRODUCT_IMAGE || "false").toLowerCase() === "true";
 const STRICT_WHATSAPP_MODE = String(process.env.WHATSAPP_STRICT_MODE || "true").toLowerCase() !== "false";
 const MAX_WHATSAPP_DOC_BYTES = Number(process.env.WHATSAPP_DOC_MAX_BYTES || 8 * 1024 * 1024);
 const ALLOWED_BRAND_KEYS = ["ohaus"];
@@ -2637,7 +2638,7 @@ async function buildStandardQuotePdf(args: {
   nit?: string;
   items: QuotePdfLineItem[];
 }) {
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
   const blue = [9, 137, 189] as const;
   const dark = [20, 20, 20] as const;
   const phoneSafe = normalizePhone(args.customerPhone || "");
@@ -2756,7 +2757,7 @@ async function buildStandardQuotePdf(args: {
     const baseDesc = String(item.description || "").trim() || `Producto: ${String(item.productName || "-")}`;
 
     const productLines = doc.splitTextToSize(String(item.productName || "-").slice(0, 40), 28);
-    const hasImage = Boolean(String(item.imageDataUrl || "").trim());
+    const hasImage = ENABLE_QUOTE_PRODUCT_IMAGE && Boolean(String(item.imageDataUrl || "").trim());
     const descTextWidth = 74;
     const descLines = doc.splitTextToSize(baseDesc, descTextWidth);
     const lineCount = Math.max(productLines.length, descLines.length, 1);
