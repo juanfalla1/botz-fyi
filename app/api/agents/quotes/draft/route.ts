@@ -187,7 +187,7 @@ export async function POST(req: Request) {
         trm_source: trm.source,
         price_currency: String(product?.price_currency || "USD"),
       },
-      status: "draft",
+      status: "analysis",
     };
 
     const { data: draft, error: draftError } = await supabase

@@ -763,7 +763,7 @@ async function persistKnownNameInCrm(
       created_by: ownerId,
       name,
       phone,
-      status: "new",
+      status: "analysis",
       next_action: null,
       next_action_at: null,
       metadata: { source: "whatsapp_name_capture" },
@@ -805,7 +805,7 @@ async function upsertCrmLifecycleState(
       .limit(1)
       .maybeSingle();
 
-    const nextStatus = String(args.status || existing?.status || "new").trim() || "new";
+    const nextStatus = String(args.status || existing?.status || "analysis").trim() || "analysis";
     const nextAction = args.nextAction === undefined
       ? (existing?.next_action ?? null)
       : (String(args.nextAction || "").trim() || null);
@@ -3926,7 +3926,7 @@ export async function POST(req: Request) {
             tenantId: (agent as any)?.tenant_id || null,
             phone: inbound.from,
             name: knownCustomerName || inbound.pushName || "",
-            status: strictQuoteContext ? "sent" : undefined,
+            status: strictQuoteContext ? "quote" : undefined,
             nextAction: strictNextAction || undefined,
             nextActionAt: strictNextActionAt || undefined,
             metadata: {
@@ -4212,7 +4212,7 @@ export async function POST(req: Request) {
                 customer_contact: customerContact || null,
                 unit_price_cop: unitPriceCop > 0 ? unitPriceCop : null,
               },
-              status: "draft",
+              status: "analysis",
             };
 
             const { data: insertedDraft, error: draftErr } = await supabase
@@ -6142,7 +6142,7 @@ export async function POST(req: Request) {
                   total_cop: totalCop,
                   notes: "Cotizacion ajustada por cantidad solicitada por cliente",
                   payload,
-                  status: "draft",
+                  status: "analysis",
                 })
                 .select("id")
                 .single();
@@ -6267,7 +6267,7 @@ export async function POST(req: Request) {
                     total_cop: totalForSend,
                     notes: "Ajuste de cantidad por solicitud del cliente",
                     payload,
-                    status: "draft",
+                    status: "analysis",
                   })
                   .select("id")
                   .single();
@@ -6607,7 +6607,7 @@ export async function POST(req: Request) {
                     unit_price_cop: selectedUnitCop > 0 ? selectedUnitCop : null,
                     automation: "evolution_webhook",
                   },
-                  status: "draft",
+                  status: "analysis",
                 };
 
                 const { data: draft, error: draftError } = await supabase
@@ -7190,7 +7190,7 @@ export async function POST(req: Request) {
           for (const id of autoQuoteBundle.draftIds) {
             await supabase
               .from("agent_quote_drafts")
-              .update({ status: "sent" })
+              .update({ status: "quote" })
               .eq("id", id)
               .eq("created_by", ownerId);
           }
@@ -7206,7 +7206,7 @@ export async function POST(req: Request) {
 
             await supabase
               .from("agent_quote_drafts")
-              .update({ status: "sent" })
+              .update({ status: "quote" })
               .eq("id", doc.draftId)
               .eq("created_by", ownerId);
           }
@@ -7352,7 +7352,7 @@ export async function POST(req: Request) {
         tenantId: (agent as any)?.tenant_id || null,
         phone: inbound.from,
         name: knownCustomerName || inbound.pushName || "",
-        status: finalQuoteContext ? "sent" : undefined,
+        status: finalQuoteContext ? "quote" : undefined,
         nextAction: finalNextAction || undefined,
         nextActionAt: finalNextActionAt || undefined,
         metadata: {

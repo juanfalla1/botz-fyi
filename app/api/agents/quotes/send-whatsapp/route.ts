@@ -158,7 +158,7 @@ export async function POST(req: Request) {
 
     await supabase
       .from("agent_quote_drafts")
-      .update({ status: "sent", payload: mergedPayload } as any)
+      .update({ status: "quote", payload: mergedPayload } as any)
       .eq("id", draftId)
       .eq("created_by", guard.user.id);
 
