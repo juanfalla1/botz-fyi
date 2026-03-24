@@ -4719,9 +4719,39 @@ export async function POST(req: Request) {
         strictMemory.pending_family_options = familyOptions;
         strictMemory.pending_product_options = [];
         strictMemory.last_category_intent = String(categoryIntent || "");
+        const useCaseDrivenRequest = isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text) || /joyeria|joyería|oro/.test(normalizeText(text));
         if (!familyOptions.length) {
           strictMemory.awaiting_action = "none";
           strictReply = `Ahora mismo no tengo referencias activas para ${String((categoryIntent || "esa categoría").replace(/_/g, " "))}. Si quieres, dime el modelo exacto y te confirmo ficha o cotización.`;
+        } else if (useCaseDrivenRequest) {
+          const inferred = inferFamilyFromUseCase(text, familyOptions);
+          if (inferred) {
+            const familyRows = scoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String((inferred as any)?.key || "")));
+            const allOptions = buildNumberedProductOptions(familyRows as any[], 60);
+            const options = allOptions.slice(0, 8);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_family_label = String((inferred as any)?.label || "");
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              `Para ese uso te recomiendo empezar con ${String((inferred as any)?.label || "esa familia")}. Modelos sugeridos (${allOptions.length}):`,
+              ...options.map((o) => `${o.code}) ${o.name}`),
+              "",
+              (allOptions.length > options.length)
+                ? "Responde con letra o número (ej.: A o 1), o escribe 'más' para ver siguientes."
+                : "Responde con letra o número (ej.: A o 1).",
+            ].join("\n");
+          } else {
+            strictMemory.awaiting_action = "strict_choose_family";
+            strictReply = [
+              `Sí, tenemos ${scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
+              "Primero elige la familia:",
+              ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
+              "",
+              "Responde con letra o número (ej.: A o 1).",
+            ].join("\n");
+          }
         } else {
           strictMemory.awaiting_action = "strict_choose_family";
           strictReply = [
