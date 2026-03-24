@@ -1277,6 +1277,15 @@ function isRecommendationIntent(text: string): boolean {
   return /(recomiend|modelo ideal|que modelo|cual modelo|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza)/.test(t);
 }
 
+function isUseCaseApplicabilityIntent(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  return (
+    /(sirve\s+para|me\s+sirve\s+para|funciona\s+para|aplica\s+para|se\s+puede\s+usar\s+para|puede\s+pesar|pesa\s+\w+|pesar\s+\w+)/.test(t) ||
+    (/(tornillo|tornillos|tuerca|tuercas|perno|pernos|maquina|maquinas|equipo|equipos|pieza|piezas|muestra|muestras)/.test(t) && /(producto|modelo|balanza|bascula|este|esta)/.test(t))
+  );
+}
+
 function isCatalogBreadthQuestion(text: string): boolean {
   const t = normalizeCatalogQueryText(String(text || ""));
   if (!t) return false;
@@ -1291,7 +1300,7 @@ function isOutOfCatalogDomainQuery(text: string): boolean {
   if (!t) return false;
   const outTerms = /(tornillo|tornillos|herramienta|herramientas|taladro|martillo|llave inglesa|destornillador|broca|ferreteria|ferreteria|tuerca|perno|clavo|soldadura|silicona|pintura)/.test(t);
   if (!outTerms) return false;
-  const inDomain = /(balanza|balanzas|bascula|basculas|ohaus|analitica|analitica|precision|precision|trm|cotizacion|ficha tecnica|humedad|electroquimica|laboratorio|centrifuga|mezclador|agitador)/.test(t);
+  const inDomain = /(balanza|balanzas|bascula|basculas|ohaus|analitica|precision|trm|cotizacion|ficha tecnica|humedad|electroquimica|laboratorio|centrifuga|mezclador|agitador|modelo|producto|referencia|sirve para|me sirve|puede pesar|pesar)/.test(t);
   return outTerms && !inDomain;
 }
 
@@ -4042,7 +4051,21 @@ export async function POST(req: Request) {
         strictMemory.pending_family_options = [];
         strictMemory.pending_product_options = [];
 
-        if (wantsQuote || /^1\b/.test(textNorm)) {
+        if (isUseCaseApplicabilityIntent(text) && !wantsQuote && !wantsSheet) {
+          const technicalSummary = buildTechnicalSummary(selectedProduct, 6);
+          strictReply = technicalSummary
+            ? [
+              `Con base en el catálogo/ficha de ${selectedName}, esto es lo que sí tengo confirmado:`,
+              technicalSummary,
+              "",
+              "Para confirmarte si te sirve para ese uso exacto, dime el peso aproximado (mínimo y máximo) y te valido el modelo sin inventar.",
+              hasSheetCandidate ? "¿Quieres que te envíe la ficha técnica ahora por este WhatsApp?" : "¿Quieres que te comparta la ficha técnica/disponibilidad por este WhatsApp?",
+            ].join("\n")
+            : [
+              `Puedo ayudarte con ${selectedName}, pero para no inventar necesito validar el uso con el peso aproximado (mínimo y máximo).`,
+              hasSheetCandidate ? "¿Quieres que te envíe la ficha técnica ahora por este WhatsApp?" : "¿Quieres que te comparta la información técnica disponible por este WhatsApp?",
+            ].join("\n");
+        } else if (wantsQuote || /^1\b/.test(textNorm)) {
           const continuationIntentStrict = isSameQuoteContinuationIntent(text) && extractModelLikeTokens(text).length >= 1;
           if (continuationIntentStrict) {
             console.log("[evolution-webhook] strict_quote_continuation_bypass", {

@@ -1221,6 +1221,17 @@ export default function AgentsCrmPage() {
           <div style={{ background: C.card, padding: "10px 12px", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>{tr("Contactos", "Contacts")}</span>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ color: C.muted, fontSize: 12, fontWeight: 700 }}>{tr("Estado", "Status")}</span>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  style={{ minWidth: 180, padding: "6px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0b0e14", color: C.white, fontSize: 12 }}
+                >
+                  <option value="all">{tr("Todos los estados", "All statuses")}</option>
+                  {stageOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
               <button
                 onClick={openDeleteSelectedModal}
                 disabled={!selectedContactKeys.length || Boolean(updatingContactKey)}
