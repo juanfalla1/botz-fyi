@@ -1401,6 +1401,30 @@ function parseLooseTechnicalHint(text: string): { capacityG?: number; readabilit
   return { capacityG: only };
 }
 
+function mergeLooseSpecWithMemory(
+  prev: { capacityG?: number; readabilityG?: number },
+  hint: { capacityG?: number; readabilityG?: number } | null
+): { capacityG: number; readabilityG: number } {
+  const prevCap = Number(prev?.capacityG || 0);
+  const prevRead = Number(prev?.readabilityG || 0);
+  let cap = Number(hint?.capacityG || 0);
+  let read = Number(hint?.readabilityG || 0);
+
+  if (prevCap > 0 && !(prevRead > 0) && cap > 0 && !(read > 0)) {
+    read = cap;
+    cap = 0;
+  }
+  if (prevRead > 0 && !(prevCap > 0) && read > 0 && !(cap > 0) && read >= 1) {
+    cap = read;
+    read = 0;
+  }
+
+  return {
+    capacityG: cap > 0 ? cap : prevCap,
+    readabilityG: read > 0 ? read : prevRead,
+  };
+}
+
 function formatSpecNumber(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "0";
   if (n >= 1) return String(Number(n.toFixed(3))).replace(/\.0+$/, "");
@@ -4484,10 +4508,15 @@ export async function POST(req: Request) {
           : "Hola, soy Ava de Avanza Group. ¿Qué producto necesitas hoy?";
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
         const parsed = parseLooseTechnicalHint(text);
-        const prevCap = Number(previousMemory?.strict_partial_capacity_g || 0);
-        const prevRead = Number(previousMemory?.strict_partial_readability_g || 0);
-        const cap = Number(parsed?.capacityG || prevCap || 0);
-        const read = Number(parsed?.readabilityG || prevRead || 0);
+        const merged = mergeLooseSpecWithMemory(
+          {
+            capacityG: Number(previousMemory?.strict_partial_capacity_g || 0),
+            readabilityG: Number(previousMemory?.strict_partial_readability_g || 0),
+          },
+          parsed
+        );
+        const cap = Number(merged.capacityG || 0);
+        const read = Number(merged.readabilityG || 0);
         strictMemory.strict_partial_capacity_g = cap > 0 ? cap : "";
         strictMemory.strict_partial_readability_g = read > 0 ? read : "";
 
@@ -4817,10 +4846,15 @@ export async function POST(req: Request) {
         const looseSpecHint = parseLooseTechnicalHint(text);
 
         if (looseSpecHint && (looseSpecHint.capacityG || looseSpecHint.readabilityG)) {
-          const rememberedCap = Number(previousMemory?.strict_partial_capacity_g || 0);
-          const rememberedRead = Number(previousMemory?.strict_partial_readability_g || 0);
-          const effectiveCap = Number(looseSpecHint.capacityG || rememberedCap || 0);
-          const effectiveRead = Number(looseSpecHint.readabilityG || rememberedRead || 0);
+          const merged = mergeLooseSpecWithMemory(
+            {
+              capacityG: Number(previousMemory?.strict_partial_capacity_g || 0),
+              readabilityG: Number(previousMemory?.strict_partial_readability_g || 0),
+            },
+            looseSpecHint
+          );
+          const effectiveCap = Number(merged.capacityG || 0);
+          const effectiveRead = Number(merged.readabilityG || 0);
           strictMemory.strict_partial_capacity_g = effectiveCap > 0 ? effectiveCap : "";
           strictMemory.strict_partial_readability_g = effectiveRead > 0 ? effectiveRead : "";
 
@@ -4935,10 +4969,15 @@ export async function POST(req: Request) {
 
         const looseSpecHintInFamilyStep = parseLooseTechnicalHint(text);
         if (!String(strictReply || "").trim() && looseSpecHintInFamilyStep && (looseSpecHintInFamilyStep.capacityG || looseSpecHintInFamilyStep.readabilityG)) {
-          const rememberedCap = Number(previousMemory?.strict_partial_capacity_g || 0);
-          const rememberedRead = Number(previousMemory?.strict_partial_readability_g || 0);
-          const effectiveCap = Number(looseSpecHintInFamilyStep.capacityG || rememberedCap || 0);
-          const effectiveRead = Number(looseSpecHintInFamilyStep.readabilityG || rememberedRead || 0);
+          const merged = mergeLooseSpecWithMemory(
+            {
+              capacityG: Number(previousMemory?.strict_partial_capacity_g || 0),
+              readabilityG: Number(previousMemory?.strict_partial_readability_g || 0),
+            },
+            looseSpecHintInFamilyStep
+          );
+          const effectiveCap = Number(merged.capacityG || 0);
+          const effectiveRead = Number(merged.readabilityG || 0);
           strictMemory.strict_partial_capacity_g = effectiveCap > 0 ? effectiveCap : "";
           strictMemory.strict_partial_readability_g = effectiveRead > 0 ? effectiveRead : "";
 
