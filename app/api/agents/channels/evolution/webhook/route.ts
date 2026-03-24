@@ -93,6 +93,15 @@ function normalizePhone(raw: string) {
   return digits;
 }
 
+function normalizeRealCustomerPhone(raw: string): string {
+  const n = normalizePhone(raw || "");
+  if (!n) return "";
+  if (n.length === 10) return n;
+  if (n.length === 12 && n.startsWith("57")) return n;
+  if (n.length === 11 && n.startsWith("1")) return n;
+  return "";
+}
+
 function isLidCandidate(raw: string): boolean {
   const value = String(raw || "").toLowerCase();
   return value.includes("@lid") || value.endsWith(":lid");
@@ -838,7 +847,7 @@ async function persistKnownNameInCrm(
   try {
     const { data: existing, error: readErr } = await supabase
       .from("agent_crm_contacts")
-      .select("id,name")
+      .select("id,name,metadata")
       .eq("created_by", ownerId)
       .or(`phone.eq.${phone},phone.like.%${tail}`)
       .order("updated_at", { ascending: false })
@@ -847,9 +856,13 @@ async function persistKnownNameInCrm(
     if (readErr) return;
 
     if (existing?.id) {
+      const mergedMeta = {
+        ...(existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
+        whatsapp_transport_id: phone,
+      };
       await supabase
         .from("agent_crm_contacts")
-        .update({ name })
+        .update({ name, metadata: mergedMeta })
         .eq("id", String(existing.id))
         .eq("created_by", ownerId);
       return;
@@ -863,7 +876,7 @@ async function persistKnownNameInCrm(
       status: "analysis",
       next_action: null,
       next_action_at: null,
-      metadata: { source: "whatsapp_name_capture" },
+      metadata: { source: "whatsapp_name_capture", whatsapp_transport_id: phone },
     });
   } catch {
     // best effort
@@ -880,6 +893,7 @@ async function upsertCrmLifecycleState(
     ownerId: string;
     tenantId?: string | null;
     phone: string;
+    realPhone?: string;
     name?: string;
     status?: string;
     nextAction?: string;
@@ -889,6 +903,7 @@ async function upsertCrmLifecycleState(
 ) {
   const ownerId = String(args.ownerId || "").trim();
   const phone = normalizePhone(args.phone || "");
+  const realPhone = normalizeRealCustomerPhone(String(args.realPhone || ""));
   const tail = phoneTail10(phone);
   if (!ownerId || !tail) return;
 
@@ -912,6 +927,8 @@ async function upsertCrmLifecycleState(
     const mergedMetadata = {
       ...(existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
       ...(args.metadata && typeof args.metadata === "object" ? args.metadata : {}),
+      whatsapp_transport_id: phone,
+      whatsapp_real_phone: realPhone || String((existing?.metadata as any)?.whatsapp_real_phone || ""),
       whatsapp_lifecycle_at: new Date().toISOString(),
     };
 
@@ -1323,6 +1340,41 @@ function parseTechnicalSpecQuery(text: string): { capacityG: number; readability
   return { capacityG, readabilityG };
 }
 
+function parseLooseTechnicalHint(text: string): { capacityG?: number; readabilityG?: number } | null {
+  const t = normalizeText(String(text || ""))
+    .replace(/(\d)\s*[\.,]\s*(\d)/g, "$1.$2")
+    .replace(/[×✕✖*]/g, "x")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return null;
+
+  const strictPair = parseTechnicalSpecQuery(t);
+  if (strictPair) return strictPair;
+
+  const values = Array.from(t.matchAll(/(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)\b/gi))
+    .map((m: any) => toGrams(String(m?.[1] || ""), String(m?.[2] || "g")))
+    .filter((n: number) => Number.isFinite(n) && n > 0);
+  if (!values.length) return null;
+
+  const hasReadabilityKeyword = /(resolucion|precision|lectura\s*minima|division|divisiones|readability)/.test(t);
+  const hasCapacityKeyword = /(capacidad|max|hasta|rango|alcance|de\s*\d+(?:[\.,]\d+)?\s*(mg|g|kg))/.test(t);
+
+  if (values.length >= 2) {
+    const sorted = [...values].sort((a, b) => a - b);
+    const maybeRead = sorted[0];
+    const maybeCap = sorted[sorted.length - 1];
+    if (maybeCap >= 1 && maybeRead > 0 && (maybeCap / maybeRead) >= 10) {
+      return { capacityG: maybeCap, readabilityG: maybeRead };
+    }
+  }
+
+  const only = values[0];
+  if (hasReadabilityKeyword) return { readabilityG: only };
+  if (hasCapacityKeyword && only >= 1) return { capacityG: only };
+  if (only < 1) return { readabilityG: only };
+  return { capacityG: only };
+}
+
 function formatSpecNumber(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "0";
   if (n >= 1) return String(Number(n.toFixed(3))).replace(/\.0+$/, "");
@@ -1356,6 +1408,38 @@ function rankCatalogByTechnicalSpec(rows: any[], spec: { capacityG: number; read
       const readPenalty = readabilityRatio <= 1 ? readabilityRatio * 0.2 : readabilityRatio;
       const score = capacityDeltaPct + readPenalty * 100;
       return { row, capacityDeltaPct, readabilityRatio, score };
+    })
+    .filter(Boolean)
+    .sort((a: any, b: any) => a.score - b.score) as any;
+}
+
+function rankCatalogByCapacityOnly(rows: any[], capacityG: number): Array<{ row: any; capacityDeltaPct: number; score: number }> {
+  const targetCap = Math.max(0.000001, Number(capacityG || 0));
+  if (!(targetCap > 0)) return [];
+  return (rows || [])
+    .map((row: any) => {
+      const rs = extractRowTechnicalSpec(row);
+      if (!(rs.capacityG > 0)) return null;
+      const capacityDeltaPct = Math.abs(rs.capacityG - targetCap) / targetCap * 100;
+      const score = capacityDeltaPct + (rs.readabilityG > 0 ? 0 : 15);
+      return { row, capacityDeltaPct, score };
+    })
+    .filter(Boolean)
+    .sort((a: any, b: any) => a.score - b.score) as any;
+}
+
+function rankCatalogByReadabilityOnly(rows: any[], readabilityG: number): Array<{ row: any; readabilityRatio: number; score: number }> {
+  const targetRead = Math.max(0.000000001, Number(readabilityG || 0));
+  if (!(targetRead > 0)) return [];
+  return (rows || [])
+    .map((row: any) => {
+      const rs = extractRowTechnicalSpec(row);
+      if (!(rs.readabilityG > 0)) return null;
+      const readabilityRatio = rs.readabilityG / targetRead;
+      const logDelta = Math.abs(Math.log10(Math.max(readabilityRatio, 0.000000001)));
+      const worsePenalty = readabilityRatio > 1 ? readabilityRatio * 2 : 0;
+      const score = logDelta * 100 + worsePenalty;
+      return { row, readabilityRatio, score };
     })
     .filter(Boolean)
     .sort((a: any, b: any) => a.score - b.score) as any;
@@ -3951,6 +4035,7 @@ export async function POST(req: Request) {
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
             phone: inbound.from,
+            realPhone: String(strictMemory.customer_phone || previousMemory?.customer_phone || ""),
             name: knownCustomerName || inbound.pushName || "",
             status: "quote",
             nextAction: strictMeetingAt ? "Llamar cliente (cita WhatsApp)" : "Seguimiento cotizacion",
@@ -4300,6 +4385,7 @@ export async function POST(req: Request) {
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
             phone: inbound.from,
+            realPhone: String(strictMemory.customer_phone || previousMemory?.customer_phone || ""),
             name: knownCustomerName || inbound.pushName || "",
             status: strictQuoteContext ? "quote" : undefined,
             nextAction: strictMeetingAt ? "Llamar cliente (cita WhatsApp)" : (strictNextAction || undefined),
@@ -4677,6 +4763,53 @@ export async function POST(req: Request) {
         const familyRows = familyLabel
           ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
           : categoryScoped;
+        const looseSpecHint = parseLooseTechnicalHint(text);
+
+        if (looseSpecHint && (looseSpecHint.capacityG || looseSpecHint.readabilityG)) {
+          let rankedRows: any[] = [];
+          if (looseSpecHint.capacityG && looseSpecHint.readabilityG) {
+            rankedRows = rankCatalogByTechnicalSpec(familyRows as any[], {
+              capacityG: looseSpecHint.capacityG,
+              readabilityG: looseSpecHint.readabilityG,
+            }).map((x: any) => x.row);
+          } else if (looseSpecHint.capacityG) {
+            rankedRows = rankCatalogByCapacityOnly(familyRows as any[], looseSpecHint.capacityG)
+              .filter((x: any) => x.capacityDeltaPct <= 60)
+              .map((x: any) => x.row);
+          } else if (looseSpecHint.readabilityG) {
+            rankedRows = rankCatalogByReadabilityOnly(familyRows as any[], looseSpecHint.readabilityG)
+              .filter((x: any) => x.readabilityRatio <= 3)
+              .map((x: any) => x.row);
+          }
+
+          const filteredOptions = buildNumberedProductOptions((rankedRows.length ? rankedRows : familyRows) as any[], 60);
+          const filteredPage = filteredOptions.slice(0, 8);
+          strictMemory.pending_product_options = filteredPage;
+          strictMemory.strict_model_offset = 0;
+          strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
+
+          if (!filteredPage.length) {
+            strictReply = "Gracias por el dato. En el catálogo actual no veo una coincidencia clara con esa característica en esta familia. Si quieres, te ayudo a buscarla por capacidad y resolución exacta (ej.: 4200 g x 0.01 g) para recomendarte la opción más segura.";
+          } else {
+            const criterionLabel =
+              looseSpecHint.capacityG && looseSpecHint.readabilityG
+                ? `${formatSpecNumber(looseSpecHint.capacityG)} g x ${formatSpecNumber(looseSpecHint.readabilityG)} g`
+                : (looseSpecHint.capacityG
+                    ? `${formatSpecNumber(looseSpecHint.capacityG)} g`
+                    : `${formatSpecNumber(Number(looseSpecHint.readabilityG || 0))} g`);
+            strictReply = [
+              `¡Excelente! Sí tenemos referencias con esa característica en nuestro catálogo${familyLabel ? ` de ${familyLabel}` : ""}.`,
+              `Te comparto las opciones más cercanas para ${criterionLabel} y así comparas rápido:`,
+              ...filteredPage.map((o) => `${o.code}) ${o.name}`),
+              "",
+              (filteredOptions.length > filteredPage.length)
+                ? "Responde con letra/número (A/1), o escribe 'más' para ver siguientes."
+                : "Responde con letra o número (A/1), y si quieres también te recomiendo la mejor según tu uso.",
+            ].join("\n");
+          }
+        }
+
+        if (!String(strictReply || "").trim()) {
         const allOptions = buildNumberedProductOptions(familyRows as any[], 60);
         const total = allOptions.length;
         const prevOffset = Math.max(0, Number(previousMemory?.strict_model_offset || 0));
@@ -4704,6 +4837,7 @@ export async function POST(req: Request) {
             "Elige un modelo del listado con letra o número (A/1), o escribe 'más' para ver siguientes.",
             ...page.map((o) => `${o.code}) ${o.name}`),
           ].join("\n");
+        }
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_family" && !technicalSpecIntent) {
         const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
@@ -4893,6 +5027,7 @@ export async function POST(req: Request) {
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
             phone: inbound.from,
+            realPhone: String(strictMemory.customer_phone || previousMemory?.customer_phone || ""),
             name: knownCustomerName || inbound.pushName || "",
             status: strictQuoteContext ? "quote" : undefined,
             nextAction: strictMeetingAt ? "Llamar cliente (cita WhatsApp)" : (strictNextAction || undefined),
@@ -7874,6 +8009,7 @@ export async function POST(req: Request) {
         ownerId,
         tenantId: (agent as any)?.tenant_id || null,
         phone: inbound.from,
+        realPhone: String(nextMemory.customer_phone || previousMemory?.customer_phone || ""),
         name: knownCustomerName || inbound.pushName || "",
         status: finalQuoteContext ? "quote" : undefined,
         nextAction: finalMeetingAt ? "Llamar cliente (cita WhatsApp)" : (finalNextAction || undefined),

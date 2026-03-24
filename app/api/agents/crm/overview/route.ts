@@ -541,12 +541,13 @@ export async function GET(req: Request) {
 
   const contacts = Array.from(contactsMap.values())
     .map((c: any) => {
-      const phone = phoneTail10(String(c.phone || ""));
+      const metadata = c.metadata && typeof c.metadata === "object" ? c.metadata : {};
+      const preferredRealPhone = normalizePhone(String(metadata.whatsapp_real_phone || ""));
+      const phone = phoneTail10(preferredRealPhone || String(c.phone || ""));
       const hasName = Boolean(String(c.name || "").trim());
       const status = normalizeCrmStage(String(c.status || "analysis"));
       const nextAction = String(c.next_action || "").trim() || suggestNextAction(status);
       const nextActionAt = c.next_action_at || suggestNextActionAt(status, String(c.last_activity_at || ""));
-      const metadata = c.metadata && typeof c.metadata === "object" ? c.metadata : {};
       const agendaAt = String(metadata.advisor_meeting_at || "").trim();
       const agendaLabel = String(metadata.advisor_meeting_label || "").trim();
       const agenda = agendaAt
