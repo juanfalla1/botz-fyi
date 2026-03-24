@@ -3816,10 +3816,7 @@ export async function POST(req: Request) {
       }
 
       const strictAwaiting = String(previousMemory?.awaiting_action || "");
-      const strictHadQuoteContext =
-        Boolean(previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
-        /(quote_generated|quote_recall|price_request)/.test(String(previousMemory?.last_intent || ""));
-      if (!String(strictReply || "").trim() && isAdvisorAppointmentIntent(text) && (strictAwaiting === "conversation_followup" || strictHadQuoteContext)) {
+      if (!String(strictReply || "").trim() && isAdvisorAppointmentIntent(text)) {
         strictReply = buildAdvisorMiniAgendaPrompt();
         strictMemory.awaiting_action = "advisor_meeting_slot";
         strictMemory.conversation_status = "open";
@@ -4545,6 +4542,35 @@ export async function POST(req: Request) {
         if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
 
         try {
+          const strictClosed = String(strictMemory.conversation_status || "") === "closed";
+          const strictQuoteContext =
+            Boolean(strictMemory.last_quote_draft_id || previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
+            /(quote_generated|quote_recall|price_request)/.test(String(strictMemory.last_intent || previousMemory?.last_intent || ""));
+          const strictNextAction = strictClosed
+            ? (strictQuoteContext ? "Recordatorio feedback cotizacion" : "Seguimiento WhatsApp")
+            : (strictQuoteContext ? "Seguimiento cotizacion" : "");
+          const strictNextActionAt = strictClosed
+            ? (strictQuoteContext ? isoAfterHours(24) : isoAfterHours(48))
+            : (strictQuoteContext ? isoAfterHours(24) : "");
+          const strictMeetingAt = String(strictMemory.advisor_meeting_at || "").trim();
+          await upsertCrmLifecycleState(supabase as any, {
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            phone: inbound.from,
+            name: knownCustomerName || inbound.pushName || "",
+            status: strictQuoteContext ? "quote" : undefined,
+            nextAction: strictMeetingAt ? "Llamar cliente (cita WhatsApp)" : (strictNextAction || undefined),
+            nextActionAt: strictMeetingAt || strictNextActionAt || undefined,
+            metadata: {
+              source: "evolution_strict_webhook",
+              conversation_status: String(strictMemory.conversation_status || "open"),
+              last_intent: String(strictMemory.last_intent || ""),
+              quote_feedback_due_at: String(strictMemory.quote_feedback_due_at || ""),
+              advisor_meeting_at: strictMeetingAt,
+              advisor_meeting_label: String(strictMemory.advisor_meeting_label || ""),
+            },
+          });
+
           await persistConversationTurn(supabase as any, {
             agentId: String(agent.id),
             ownerId,
