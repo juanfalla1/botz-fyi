@@ -1443,11 +1443,31 @@ function extractRowTechnicalSpec(row: any): { capacityG: number; readabilityG: n
   const specsJsonText = row?.specs_json ? JSON.stringify(row.specs_json) : "";
   const payloadText = row?.source_payload ? JSON.stringify(row.source_payload) : "";
   const hay = normalizeCatalogQueryText(`${specsText} ${specsJsonText} ${payloadText}`);
-  const cap = hay.match(/capacidad[^0-9]{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/);
-  const read = hay.match(/(?:resolucion|lectura minima)[^0-9]{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/);
+  const cap =
+    hay.match(/(?:capacidad|max(?:ima)?|maximum|max\.|weighing\s*capacity|peso\s*max(?:imo)?)[^0-9]{0,24}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/) ||
+    hay.match(/(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)\s*(?:x|por|\*)\s*\d+(?:[\.,]\d+)?\s*(mg|g|kg)/);
+  const read =
+    hay.match(/(?:resolucion|lectura\s*minima|readability|division|d=|incremento)[^0-9]{0,24}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/) ||
+    hay.match(/\d+(?:[\.,]\d+)?\s*(mg|g|kg)\s*(?:x|por|\*)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/);
+
+  if (cap && read) {
+    const capVal = cap[1] ? toGrams(cap[1], cap[2] || "g") : toGrams(cap[1], cap[2] || "g");
+    const readVal = read[2] && read[3] ? toGrams(read[2], read[3]) : toGrams(read[1], read[2] || "g");
+    if (capVal > 0 && readVal > 0) return { capacityG: capVal, readabilityG: readVal };
+  }
+
+  const unitPairs = Array.from(hay.matchAll(/(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/g))
+    .map((m: any) => toGrams(String(m?.[1] || ""), String(m?.[2] || "g")))
+    .filter((n: number) => Number.isFinite(n) && n > 0)
+    .sort((a, b) => a - b);
+  const fallbackRead = unitPairs.length ? unitPairs[0] : 0;
+  const fallbackCap = unitPairs.length ? unitPairs[unitPairs.length - 1] : 0;
+
   return {
-    capacityG: cap ? toGrams(cap[1], cap[2]) : 0,
-    readabilityG: read ? toGrams(read[1], read[2]) : 0,
+    capacityG: cap ? toGrams(cap[1], cap[2] || "g") : fallbackCap,
+    readabilityG: read
+      ? (read[2] && read[3] ? toGrams(read[2], read[3]) : toGrams(read[1], read[2] || "g"))
+      : (fallbackRead > 0 && fallbackCap / Math.max(fallbackRead, 0.000000001) >= 10 ? fallbackRead : 0),
   };
 }
 
