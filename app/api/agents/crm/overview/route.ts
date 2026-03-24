@@ -230,7 +230,7 @@ export async function GET(req: Request) {
       : Promise.resolve({ data: [], error: null } as any),
     supabase
       .from("agent_crm_contacts")
-      .select("id,contact_key,name,email,phone,company,assigned_agent_id,status,next_action,next_action_at,updated_at")
+      .select("id,contact_key,name,email,phone,company,assigned_agent_id,status,next_action,next_action_at,metadata,updated_at")
       .eq("created_by", ownerId)
       .order("updated_at", { ascending: false })
       .limit(1200),
@@ -474,10 +474,11 @@ export async function GET(req: Request) {
       last_intent: "",
       lead_temperature: "cold",
       last_quote_sent_at: null,
-      next_action: String((cc as any)?.next_action || ""),
-      next_action_at: (cc as any)?.next_action_at || null,
-      contact_id: (cc as any)?.id || null,
-    };
+       next_action: String((cc as any)?.next_action || ""),
+       next_action_at: (cc as any)?.next_action_at || null,
+       metadata: (cc as any)?.metadata && typeof (cc as any)?.metadata === "object" ? (cc as any).metadata : {},
+       contact_id: (cc as any)?.id || null,
+     };
 
     prev.name = cleanContactName((cc as any)?.name) || prev.name || "";
     prev.email = String((cc as any)?.email || prev.email || "");
@@ -488,6 +489,9 @@ export async function GET(req: Request) {
     prev.assigned_agent_name = prev.assigned_agent_id ? (agentNameMap.get(String(prev.assigned_agent_id)) || prev.assigned_agent_name || "") : "";
     prev.next_action = String((cc as any)?.next_action || prev.next_action || "");
     prev.next_action_at = (cc as any)?.next_action_at || prev.next_action_at || null;
+    prev.metadata = (cc as any)?.metadata && typeof (cc as any)?.metadata === "object"
+      ? { ...(prev.metadata || {}), ...(cc as any).metadata }
+      : (prev.metadata || {});
     prev.contact_id = (cc as any)?.id || prev.contact_id || null;
     contactsMap.set(key, prev);
   }
@@ -542,6 +546,12 @@ export async function GET(req: Request) {
       const status = normalizeCrmStage(String(c.status || "analysis"));
       const nextAction = String(c.next_action || "").trim() || suggestNextAction(status);
       const nextActionAt = c.next_action_at || suggestNextActionAt(status, String(c.last_activity_at || ""));
+      const metadata = c.metadata && typeof c.metadata === "object" ? c.metadata : {};
+      const agendaAt = String(metadata.advisor_meeting_at || "").trim();
+      const agendaLabel = String(metadata.advisor_meeting_label || "").trim();
+      const agenda = agendaAt
+        ? `${agendaLabel || "Cita con asesor"} · ${new Date(agendaAt).toLocaleString()}`
+        : "";
       return {
         ...c,
         phone,
@@ -549,6 +559,7 @@ export async function GET(req: Request) {
         name: hasName ? c.name : (phone ? `Contacto ${phone.slice(-4)}` : ""),
         next_action: nextAction,
         next_action_at: nextActionAt,
+        agenda,
         last_intent: String(c.last_intent || "Sin clasificar"),
         lead_temperature: String(c.lead_temperature || "cold"),
         last_quote_sent_at: c.last_quote_sent_at || null,

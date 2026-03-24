@@ -639,10 +639,60 @@ function isQuoteDraftStatusConstraintError(err: any): boolean {
 
 function appendQuoteClosurePrompt(text: string): string {
   const base = String(text || "").trim();
-  if (!base) return "¿Deseas agregar otro modelo a la cotización o cerramos por ahora?";
+  const prompt = "¿Deseas agregar otro modelo a la cotización, ficha técnica, alguna pregunta o cerramos por ahora?";
+  if (!base) return prompt;
   const t = normalizeText(base);
-  if (/(agregar otro modelo|cerramos por ahora|deseas agregar|eso es todo|finalizamos)/.test(t)) return base;
-  return `${base}\n\n¿Deseas agregar otro modelo a la cotización o cerramos por ahora?`;
+  if (/(agregar otro modelo|cerramos por ahora|deseas agregar|eso es todo|finalizamos|ficha tecnica|alguna pregunta)/.test(t)) return base;
+  return `${base}\n\n${prompt}`;
+}
+
+function appendAdvisorAppointmentPrompt(text: string): string {
+  const base = String(text || "").trim();
+  if (!base) return "Si prefieres, también puedo agendar una cita con un asesor humano para cerrar la compra. Escribe: cita.";
+  const t = normalizeText(base);
+  if (/(agendar una cita|asesor humano|cerrar la compra|escribe:\s*cita)/.test(t)) return base;
+  return `${base}\nSi prefieres, también puedo agendar una cita con un asesor humano para cerrar la compra. Escribe: cita.`;
+}
+
+function isAdvisorAppointmentIntent(text: string): boolean {
+  const t = normalizeText(text || "");
+  return /(\bcita\b|asesor humano|asesor comercial|agendar|agenda|llamada con asesor|quiero hablar con asesor)/.test(t);
+}
+
+function buildAdvisorMiniAgendaPrompt(): string {
+  return [
+    "Perfecto. Agendemos una llamada con asesor humano.",
+    "Elige horario:",
+    "1) Hoy (en las próximas horas)",
+    "2) Mañana 9:00 am",
+    "3) Esta semana (próximo disponible)",
+    "",
+    "Responde 1, 2 o 3.",
+  ].join("\n");
+}
+
+function parseAdvisorMiniAgendaChoice(text: string): { iso: string; label: string } | null {
+  const t = normalizeText(text || "");
+  const now = new Date();
+  const mk = (d: Date, label: string) => ({ iso: d.toISOString(), label });
+
+  if (/\b1\b|hoy|ahora|mas tarde/.test(t)) {
+    const d = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    return mk(d, "Hoy (próximas horas)");
+  }
+  if (/\b2\b|manana|mañana/.test(t)) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+    return mk(d, "Mañana 9:00 am");
+  }
+  if (/\b3\b|esta semana|proximo disponible|próximo disponible/.test(t)) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 2);
+    d.setHours(10, 0, 0, 0);
+    return mk(d, "Esta semana (próximo disponible)");
+  }
+  return null;
 }
 
 function extractEmail(text: string): string {
@@ -3935,19 +3985,22 @@ export async function POST(req: Request) {
           const strictNextActionAt = strictClosed
             ? (strictQuoteContext ? isoAfterHours(24) : isoAfterHours(48))
             : (strictQuoteContext ? isoAfterHours(24) : "");
+          const strictMeetingAt = String(strictMemory.advisor_meeting_at || "").trim();
           await upsertCrmLifecycleState(supabase as any, {
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
             phone: inbound.from,
             name: knownCustomerName || inbound.pushName || "",
             status: strictQuoteContext ? "quote" : undefined,
-            nextAction: strictNextAction || undefined,
-            nextActionAt: strictNextActionAt || undefined,
+            nextAction: strictMeetingAt ? "Llamar cliente (cita WhatsApp)" : (strictNextAction || undefined),
+            nextActionAt: strictMeetingAt || strictNextActionAt || undefined,
             metadata: {
               source: "evolution_strict_webhook",
               conversation_status: String(strictMemory.conversation_status || "open"),
               last_intent: String(strictMemory.last_intent || ""),
               quote_feedback_due_at: String(strictMemory.quote_feedback_due_at || ""),
+              advisor_meeting_at: strictMeetingAt,
+              advisor_meeting_label: String(strictMemory.advisor_meeting_label || ""),
             },
           });
 
@@ -4449,16 +4502,20 @@ export async function POST(req: Request) {
         strictReply = "Te ayudo con catálogo OHAUS. Dime modelo exacto (ej.: AX12001/E, MB120, PX85) o categoría (balanzas, analizador humedad) y seguimos.";
       }
 
+      const strictAssetDelivered = strictDocs.length > 0;
       const strictQuoteDelivered = strictDocs.some((d) => /cotiz/i.test(`${String(d.caption || "")} ${String(d.fileName || "")}`));
-      if (!String(strictReply || "").trim() && strictQuoteDelivered) {
-        strictReply = "Listo. Te envié la cotización por este WhatsApp.";
+      if (!String(strictReply || "").trim() && strictAssetDelivered) {
+        strictReply = strictQuoteDelivered
+          ? "Listo. Te envié la cotización por este WhatsApp."
+          : "Listo. Te envié la ficha técnica por este WhatsApp.";
       }
-      if (strictQuoteDelivered && String(strictReply || "").trim()) {
+      if (strictAssetDelivered && String(strictReply || "").trim()) {
+        if (strictQuoteDelivered) strictReply = appendAdvisorAppointmentPrompt(strictReply);
         strictReply = appendQuoteClosurePrompt(strictReply);
         strictMemory.awaiting_action = "conversation_followup";
         strictMemory.conversation_status = "open";
-        strictMemory.last_intent = "quote_generated";
-        strictMemory.quote_feedback_due_at = isoAfterHours(24);
+        strictMemory.last_intent = strictQuoteDelivered ? "quote_generated" : "tech_sheet_request";
+        if (strictQuoteDelivered) strictMemory.quote_feedback_due_at = isoAfterHours(24);
       }
 
       if (!strictBypassAutoQuote) {
@@ -4682,6 +4739,28 @@ export async function POST(req: Request) {
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
+    if (!handledByGreeting && awaitingAction === "conversation_followup" && isAdvisorAppointmentIntent(inbound.text)) {
+      reply = buildAdvisorMiniAgendaPrompt();
+      nextMemory.awaiting_action = "advisor_meeting_slot";
+      nextMemory.conversation_status = "open";
+      handledByGreeting = true;
+      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+    }
+    if (!handledByGreeting && awaitingAction === "advisor_meeting_slot") {
+      const slot = parseAdvisorMiniAgendaChoice(inbound.text);
+      if (!slot) {
+        reply = "Para agendar con asesor, responde 1, 2 o 3 según el horario.";
+        nextMemory.awaiting_action = "advisor_meeting_slot";
+      } else {
+        reply = `Perfecto. Agendé la gestión con asesor para ${slot.label}. Te contactaremos en ese horario por WhatsApp o llamada.`;
+        nextMemory.awaiting_action = "conversation_followup";
+        nextMemory.advisor_meeting_at = slot.iso;
+        nextMemory.advisor_meeting_label = slot.label;
+        reply = appendQuoteClosurePrompt(reply);
+      }
+      handledByGreeting = true;
+      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+    }
     if (!handledByGreeting && awaitingAction === "conversation_followup" && !isConversationCloseIntent(inbound.text)) {
       const rememberedProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
       if (rememberedProduct) {
@@ -4702,6 +4781,12 @@ export async function POST(req: Request) {
           inbound.text = `imagen de ${rememberedProduct}`;
           nextMemory.awaiting_action = "none";
         }
+      }
+
+      if (!String(reply || "").trim()) {
+        reply = appendQuoteClosurePrompt("Con gusto.");
+        handledByGreeting = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       }
     }
     if (!handledByGreeting && isConversationCloseIntent(inbound.text) && normalizeText(inbound.text).length <= 32) {
@@ -7064,7 +7149,6 @@ export async function POST(req: Request) {
     const deliveredSalesAsset = Boolean(autoQuoteDocs.length || autoQuoteBundle || resendPdf || technicalDocs.length || sentQuotePdf || sentTechSheet || sentImage);
     if (!handledByGreeting && deliveredSalesAsset) {
       nextMemory.conversation_status = "open";
-      if (String(nextMemory.awaiting_action || "") === "conversation_followup") nextMemory.awaiting_action = "none";
     }
 
     if (!String(reply || "").trim()) {
@@ -7077,11 +7161,17 @@ export async function POST(req: Request) {
     }
 
     const quoteDeliveryPlanned = Boolean(autoQuoteDocs.length || autoQuoteBundle || resendPdf);
+    const techDeliveryPlanned = Boolean(technicalDocs.length);
     if (quoteDeliveryPlanned && String(reply || "").trim()) {
+      reply = appendAdvisorAppointmentPrompt(reply);
       reply = appendQuoteClosurePrompt(reply);
       nextMemory.awaiting_action = "conversation_followup";
       if (String(nextMemory.conversation_status || "") !== "closed") nextMemory.conversation_status = "open";
       nextMemory.quote_feedback_due_at = isoAfterHours(24);
+    } else if (techDeliveryPlanned && String(reply || "").trim()) {
+      reply = appendQuoteClosurePrompt(reply);
+      nextMemory.awaiting_action = "conversation_followup";
+      if (String(nextMemory.conversation_status || "") !== "closed") nextMemory.conversation_status = "open";
     }
 
     reply = enforceWhatsAppDelivery(reply, inbound.text);
@@ -7394,19 +7484,22 @@ export async function POST(req: Request) {
       const finalNextActionAt = finalClosed
         ? (finalQuoteContext ? isoAfterHours(24) : isoAfterHours(48))
         : (finalQuoteContext ? isoAfterHours(24) : "");
+      const finalMeetingAt = String(nextMemory.advisor_meeting_at || previousMemory?.advisor_meeting_at || "").trim();
       await upsertCrmLifecycleState(supabase as any, {
         ownerId,
         tenantId: (agent as any)?.tenant_id || null,
         phone: inbound.from,
         name: knownCustomerName || inbound.pushName || "",
         status: finalQuoteContext ? "quote" : undefined,
-        nextAction: finalNextAction || undefined,
-        nextActionAt: finalNextActionAt || undefined,
+        nextAction: finalMeetingAt ? "Llamar cliente (cita WhatsApp)" : (finalNextAction || undefined),
+        nextActionAt: finalMeetingAt || finalNextActionAt || undefined,
         metadata: {
           source: "evolution_webhook",
           conversation_status: String(nextMemory.conversation_status || "open"),
           last_intent: String(nextMemory.last_intent || ""),
           quote_feedback_due_at: String(nextMemory.quote_feedback_due_at || ""),
+          advisor_meeting_at: finalMeetingAt,
+          advisor_meeting_label: String(nextMemory.advisor_meeting_label || previousMemory?.advisor_meeting_label || ""),
         },
       });
 

@@ -77,6 +77,7 @@ const CONTACT_FIELD_DEFAULTS = [
   { key: "total_quoted_cop", label: "Valor total cotizado", visible: true, required: false },
   { key: "last_intent", label: "Ultima intencion", visible: true, required: false },
   { key: "lead_temperature", label: "Temperatura", visible: true, required: false },
+  { key: "agenda", label: "Agenda", visible: true, required: false },
   { key: "last_quote_sent_at", label: "Ultima cotizacion enviada", visible: true, required: false },
   { key: "tech_sheet_requests_count", label: "Solicitudes ficha/imagen", visible: true, required: false },
   { key: "next_action", label: "Proxima accion", visible: false, required: false },
@@ -162,6 +163,7 @@ export default function AgentsCrmPage() {
     if (key === "company") return 160;
     if (key === "status") return 150;
     if (key === "next_action") return 220;
+    if (key === "agenda") return 230;
     if (key === "next_action_at") return 210;
     if (key === "last_intent") return 220;
     if (key === "last_product") return 260;
@@ -654,6 +656,7 @@ export default function AgentsCrmPage() {
   const renderContactValue = (c: Contact, key: string) => {
     if (key === "last_activity_at") return c.last_activity_at ? new Date(c.last_activity_at).toLocaleString() : "-";
     if (key === "next_action_at") return c.next_action_at ? new Date(c.next_action_at).toLocaleString() : "-";
+    if (key === "agenda") return String(c.agenda || "").trim() || "-";
     if (key === "last_quote_sent_at") return c.last_quote_sent_at ? new Date(c.last_quote_sent_at).toLocaleString() : "-";
     if (key === "last_quote_at") return c.last_quote_at ? new Date(c.last_quote_at).toLocaleString() : "-";
     if (key === "status") return stageLabel(String(c.status || ""));
