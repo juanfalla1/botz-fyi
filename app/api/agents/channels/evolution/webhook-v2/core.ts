@@ -1117,6 +1117,47 @@ function resolvePendingFamilyOption(text: string, optionsRaw: any): { code: stri
   return best && best.hits > 0 ? best.o : null;
 }
 
+function inferFamilyFromUseCase(
+  text: string,
+  optionsRaw: any,
+): { code: string; rank: number; key: string; label: string; count: number } | null {
+  const options = (Array.isArray(optionsRaw) ? optionsRaw : [])
+    .map((o: any) => ({
+      code: String(o?.code || "").toUpperCase(),
+      rank: Number(o?.rank || 0),
+      key: String(o?.key || "").trim(),
+      label: String(o?.label || "").trim(),
+      count: Number(o?.count || 0),
+    }))
+    .filter((o: any) => o.code && o.rank > 0 && o.key);
+  if (!options.length) return null;
+  const t = normalizeText(String(text || ""));
+  if (!t) return null;
+
+  const wantsJewelryPrecision = /(oro|joyeria|joyeria|anillo|arete|cadena|gramos|gramo|mg|miligram)/.test(t);
+  const wantsIndustrial = /(maquina|maquinas|bodega|industrial|plataforma|carga pesada)/.test(t);
+
+  const rankByHints = (o: any) => {
+    const l = normalizeText(String(o?.label || ""));
+    let score = 0;
+    if (wantsJewelryPrecision) {
+      if (/joyeria|jewelry/.test(l)) score += 8;
+      if (/analitica|semi\s*analitica|semi\s*micro/.test(l)) score += 6;
+      if (/precision/.test(l)) score += 4;
+    }
+    if (wantsIndustrial) {
+      if (/industrial|plataforma|basculas/.test(l)) score += 8;
+    }
+    return score;
+  };
+
+  const best = options
+    .map((o: any) => ({ o, score: rankByHints(o) }))
+    .sort((a: any, b: any) => b.score - a.score || a.o.rank - b.o.rank)[0];
+
+  return best && best.score > 0 ? best.o : null;
+}
+
 function isOptionOnlyReply(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
@@ -4610,7 +4651,11 @@ export async function POST(req: Request) {
           strictMemory.awaiting_action = "none";
           strictReply = "En este momento no tengo familias disponibles en esa categoría. Si quieres, dime el modelo exacto (ej.: MB120) y te ayudo.";
         }
-        const selectedFamily = resolvePendingFamilyOption(text, pendingFamilies);
+        const selectedFamily =
+          resolvePendingFamilyOption(text, pendingFamilies) ||
+          ((isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text))
+            ? inferFamilyFromUseCase(text, pendingFamilies)
+            : null);
         if (!String(strictReply || "").trim() && !selectedFamily) {
           strictReply = "Elige una familia con letra o número (ej.: A o 1).";
         } else if (!String(strictReply || "").trim() && selectedFamily) {
@@ -4624,7 +4669,9 @@ export async function POST(req: Request) {
           strictMemory.strict_family_label = String(selectedFamilyResolved.label || "");
           strictMemory.strict_model_offset = 0;
           strictReply = [
-            `Perfecto. Modelos de ${String(selectedFamilyResolved.label || "familia")} (${allOptions.length}):`,
+            (isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text))
+              ? `Para ese uso te recomiendo empezar con ${String(selectedFamilyResolved.label || "esa familia")}. Modelos sugeridos (${allOptions.length}):`
+              : `Perfecto. Modelos de ${String(selectedFamilyResolved.label || "familia")} (${allOptions.length}):`,
             ...options.map((o) => `${o.code}) ${o.name}`),
             "",
             (allOptions.length > options.length)
