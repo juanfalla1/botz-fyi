@@ -46,6 +46,13 @@ type Contact = {
   [k: string]: any;
 };
 
+type CatalogOption = {
+  id: string;
+  name: string;
+  brand?: string | null;
+  category?: string | null;
+};
+
 type CrmSettings = {
   enabled: boolean;
   stage_labels: { analysis: string; study: string; quote: string; purchase_order: string; invoicing: string };
@@ -125,6 +132,20 @@ export default function AgentsCrmPage() {
   const [showContactFieldsConfig, setShowContactFieldsConfig] = useState(false);
   const [dashboardHoverKey, setDashboardHoverKey] = useState("");
   const [flowHoverKey, setFlowHoverKey] = useState("");
+  const [manualCreateOpen, setManualCreateOpen] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualEmail, setManualEmail] = useState("");
+  const [manualPhone, setManualPhone] = useState("");
+  const [manualCompany, setManualCompany] = useState("");
+  const [manualSaving, setManualSaving] = useState(false);
+  const [quotePanelOpen, setQuotePanelOpen] = useState(false);
+  const [quoteProductQuery, setQuoteProductQuery] = useState("");
+  const [quoteProductOptions, setQuoteProductOptions] = useState<CatalogOption[]>([]);
+  const [quoteProductId, setQuoteProductId] = useState("");
+  const [quoteQty, setQuoteQty] = useState(1);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteMessage, setQuoteMessage] = useState("");
+  const [quoteActionId, setQuoteActionId] = useState("");
 
   const tr = (es: string, en: string) => (language === "en" ? en : es);
 
@@ -154,6 +175,22 @@ export default function AgentsCrmPage() {
     if (!Number.isFinite(d.getTime())) return "";
     const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
     return local.toISOString().slice(0, 16);
+  };
+
+  const normalizePhoneLocal = (raw: any) => String(raw || "").replace(/\D/g, "");
+
+  const localContactKey = (phoneRaw: any, emailRaw: any) => {
+    const phone = normalizePhoneLocal(phoneRaw);
+    const tail = phone.length > 10 ? phone.slice(-10) : phone;
+    const email = String(emailRaw || "").trim().toLowerCase();
+    return tail || email;
+  };
+
+  const normalizeWhatsappDestination = (raw: any) => {
+    const digits = normalizePhoneLocal(raw);
+    if (!digits) return "";
+    if (digits.length === 10) return `57${digits}`;
+    return digits;
   };
 
   const colMinWidth = (key: string) => {
@@ -545,6 +582,220 @@ export default function AgentsCrmPage() {
       setError(String(e?.message || "Error guardando bitacora"));
     } finally {
       setSavingContact(false);
+    }
+  };
+
+  const createManualContact = async () => {
+    const name = manualName.trim();
+    const email = manualEmail.trim().toLowerCase();
+    const phone = manualPhone.trim();
+    const company = manualCompany.trim();
+
+    if (!phone && !email) {
+      setError(tr("Ingresa al menos teléfono o email para crear el cliente.", "Enter at least phone or email to create the customer."));
+      return;
+    }
+
+    setManualSaving(true);
+    setError(null);
+    setQuoteMessage("");
+    try {
+      const res = await authedFetch("/api/agents/crm/contact", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone,
+          email,
+          name,
+          company,
+          status: "analysis",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo crear contacto manual");
+
+      const created = json?.data || {};
+      const key = localContactKey(created?.phone || phone, created?.email || email);
+      const createdContact: Contact = {
+        key,
+        name: String(created?.name || name || "").trim(),
+        email: String(created?.email || email || "").trim(),
+        phone: String(created?.phone || phone || "").trim(),
+        company: String(created?.company || company || "").trim(),
+        quotes_count: 0,
+        total_quoted_cop: 0,
+        last_activity_at: new Date().toISOString(),
+        status: String(created?.status || "analysis"),
+        assigned_agent_id: created?.assigned_agent_id || null,
+      };
+
+      setManualName("");
+      setManualEmail("");
+      setManualPhone("");
+      setManualCompany("");
+      setManualCreateOpen(false);
+      await fetchData();
+      await openContactDetail(createdContact);
+      setQuotePanelOpen(true);
+      setQuoteMessage(tr("Cliente creado. Ya puedes generar cotización abajo.", "Customer created. You can now generate a quote below."));
+    } catch (e: any) {
+      setError(String(e?.message || "Error creando cliente manual"));
+    } finally {
+      setManualSaving(false);
+    }
+  };
+
+  const searchCatalogForQuote = async () => {
+    const q = quoteProductQuery.trim();
+    if (!q) {
+      setQuoteProductOptions([]);
+      setQuoteProductId("");
+      return;
+    }
+    setQuoteLoading(true);
+    setError(null);
+    setQuoteMessage("");
+    try {
+      const res = await authedFetch(`/api/agents/catalog/search?q=${encodeURIComponent(q)}&limit=20`);
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo buscar catálogo");
+      const rows = (Array.isArray(json?.data) ? json.data : []).map((r: any) => ({
+        id: String(r?.id || "").trim(),
+        name: String(r?.name || "").trim(),
+        brand: String(r?.brand || "").trim(),
+        category: String(r?.category || "").trim(),
+      })).filter((r: CatalogOption) => r.id && r.name);
+      setQuoteProductOptions(rows);
+      setQuoteProductId(rows[0]?.id || "");
+      if (!rows.length) {
+        setQuoteMessage(tr("No encontré productos con ese texto. Prueba con modelo exacto.", "No products found for that text. Try exact model."));
+      }
+    } catch (e: any) {
+      setError(String(e?.message || "Error buscando catálogo"));
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
+
+  const createQuoteForSelectedContact = async () => {
+    if (!selectedContact) return;
+    if (!quoteProductId && !quoteProductQuery.trim()) {
+      setError(tr("Busca y selecciona un producto para cotizar.", "Search and select a product to quote."));
+      return;
+    }
+
+    setQuoteLoading(true);
+    setError(null);
+    setQuoteMessage("");
+    try {
+      const qty = Math.max(1, Math.min(100000, Number(quoteQty || 1)));
+      const selectedProduct = quoteProductOptions.find((p) => p.id === quoteProductId);
+      const res = await authedFetch("/api/agents/quotes/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productCatalogId: quoteProductId || undefined,
+          productQuery: !quoteProductId ? quoteProductQuery.trim() : undefined,
+          quantity: qty,
+          customerName: String(selectedContact.name || "").trim() || undefined,
+          customerEmail: String(selectedContact.email || "").trim() || undefined,
+          customerPhone: String(selectedContact.phone || "").trim() || undefined,
+          companyName: String(selectedContact.company || "").trim() || undefined,
+          agentId: String(selectedContact.assigned_agent_id || "").trim() || undefined,
+          notes: tr("Generada manualmente desde CRM", "Manually generated from CRM"),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo generar cotización");
+
+      const totalCop = Number(json?.data?.total_cop || 0);
+      setQuoteMessage(
+        tr(
+          `Cotización creada${selectedProduct?.name ? ` para ${selectedProduct.name}` : ""} por COP ${money(totalCop)}.`,
+          `Quote created${selectedProduct?.name ? ` for ${selectedProduct.name}` : ""} for COP ${money(totalCop)}.`
+        )
+      );
+      await fetchData();
+      await openContactDetail(selectedContact);
+    } catch (e: any) {
+      setError(String(e?.message || "Error generando cotización"));
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
+
+  const downloadQuotePdf = async (draftId: string) => {
+    const id = String(draftId || "").trim();
+    if (!id) return;
+    setQuoteActionId(`download:${id}`);
+    setError(null);
+    setQuoteMessage("");
+    try {
+      const res = await authedFetch("/api/agents/quotes/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId: id }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo generar PDF");
+
+      const base64 = String(json?.data?.pdfBase64 || "").trim();
+      const fileName = String(json?.data?.fileName || `cotizacion-${id.slice(0, 8)}.pdf`);
+      if (!base64) throw new Error("PDF vacio");
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      setQuoteMessage(tr("PDF generado y descargado.", "PDF generated and downloaded."));
+    } catch (e: any) {
+      setError(String(e?.message || "Error generando PDF"));
+    } finally {
+      setQuoteActionId("");
+    }
+  };
+
+  const sendQuoteByWhatsapp = async (draft: any) => {
+    const draftId = String(draft?.id || "").trim();
+    if (!draftId) return;
+    const toRaw = String(selectedContact?.phone || draft?.customer_phone || "").trim();
+    const to = normalizeWhatsappDestination(toRaw);
+    if (!to) {
+      setError(tr("Este contacto no tiene teléfono válido para WhatsApp.", "This contact has no valid WhatsApp phone."));
+      return;
+    }
+
+    setQuoteActionId(`send:${draftId}`);
+    setError(null);
+    setQuoteMessage("");
+    try {
+      const statusRes = await authedFetch("/api/agents/channels/evolution/status");
+      const statusJson = await statusRes.json();
+      if (!statusRes.ok || !statusJson?.ok) throw new Error(statusJson?.error || "No se pudo validar canal WhatsApp");
+      const connected = Boolean(statusJson?.data?.connected);
+      const instanceName = String(statusJson?.data?.instance_name || "").trim();
+      if (!connected || !instanceName) {
+        throw new Error(tr("WhatsApp Evolution no está conectado. Conéctalo en Canales.", "WhatsApp Evolution is not connected. Connect it in Channels."));
+      }
+
+      const sendRes = await authedFetch("/api/agents/quotes/send-whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId, to, instanceName }),
+      });
+      const sendJson = await sendRes.json();
+      if (!sendRes.ok || !sendJson?.ok) throw new Error(sendJson?.error || "No se pudo enviar cotización por WhatsApp");
+
+      setQuoteMessage(tr("Cotización enviada por WhatsApp y estado actualizado a Cotización.", "Quote sent via WhatsApp and status updated to Quote."));
+      await fetchData();
+      if (selectedContact) await openContactDetail(selectedContact);
+    } catch (e: any) {
+      setError(String(e?.message || "Error enviando cotización por WhatsApp"));
+    } finally {
+      setQuoteActionId("");
     }
   };
 
@@ -1224,6 +1475,12 @@ export default function AgentsCrmPage() {
           <div style={{ background: C.card, padding: "10px 12px", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>{tr("Contactos", "Contacts")}</span>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button
+                onClick={() => setManualCreateOpen((prev) => !prev)}
+                style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: manualCreateOpen ? "rgba(163,230,53,0.14)" : C.dark, color: manualCreateOpen ? C.lime : C.white, padding: "6px 10px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}
+              >
+                {manualCreateOpen ? tr("Cerrar alta manual", "Close manual create") : tr("Crear cliente manual", "Create customer manually")}
+              </button>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ color: C.muted, fontSize: 12, fontWeight: 700 }}>{tr("Estado", "Status")}</span>
                 <select
@@ -1247,6 +1504,46 @@ export default function AgentsCrmPage() {
               </button>
             </div>
           </div>
+          {manualCreateOpen && (
+            <div style={{ borderTop: `1px solid ${C.border}`, background: "rgba(11,14,20,0.85)", padding: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5,minmax(140px,1fr)) auto", gap: 8 }}>
+                <input
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  placeholder={tr("Nombre del cliente", "Customer name")}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}
+                />
+                <input
+                  value={manualPhone}
+                  onChange={(e) => setManualPhone(e.target.value)}
+                  placeholder={tr("Teléfono (oblig. o email)", "Phone (or email)")}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}
+                />
+                <input
+                  value={manualEmail}
+                  onChange={(e) => setManualEmail(e.target.value)}
+                  placeholder={tr("Email (oblig. o teléfono)", "Email (or phone)")}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}
+                />
+                <input
+                  value={manualCompany}
+                  onChange={(e) => setManualCompany(e.target.value)}
+                  placeholder={tr("Empresa", "Company")}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}
+                />
+                <div style={{ border: `1px dashed ${C.border}`, borderRadius: 8, background: C.dark, color: C.muted, padding: "8px 10px", fontSize: 12, display: "flex", alignItems: "center" }}>
+                  {tr("Se crea en estado: Análisis", "Will be created in status: Analysis")}
+                </div>
+                <button
+                  onClick={() => void createManualContact()}
+                  disabled={manualSaving}
+                  style={{ border: "none", borderRadius: 8, background: C.lime, color: "#0b0e14", fontWeight: 800, padding: "0 12px", cursor: manualSaving ? "not-allowed" : "pointer", opacity: manualSaving ? 0.7 : 1 }}
+                >
+                  {manualSaving ? tr("Creando...", "Creating...") : tr("Crear", "Create")}
+                </button>
+              </div>
+            </div>
+          )}
           <div style={{ overflowX: "auto", overflowY: "hidden" }}>
           <table style={{ width: "max-content", minWidth: "100%", borderCollapse: "collapse" }}>
             <thead style={{ background: C.dark }}>
@@ -1342,8 +1639,67 @@ export default function AgentsCrmPage() {
           <div style={{ marginTop: 14, border: `1px solid ${C.border}`, borderRadius: 14, background: C.card, padding: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <div style={{ fontWeight: 800 }}>{selectedContact.name || selectedContact.email || selectedContact.phone || tr("Detalle de contacto", "Contact detail")}</div>
-              <button onClick={() => { setSelectedContact(null); setContactDetail(null); }} style={{ border: `1px solid ${C.border}`, background: C.dark, color: C.white, borderRadius: 8, padding: "6px 10px", cursor: "pointer" }}>{tr("Cerrar", "Close")}</button>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button
+                  onClick={() => {
+                    setQuotePanelOpen((prev) => !prev);
+                    setQuoteMessage("");
+                  }}
+                  style={{ border: `1px solid ${C.border}`, background: quotePanelOpen ? "rgba(163,230,53,0.14)" : C.dark, color: quotePanelOpen ? C.lime : C.white, borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontWeight: 700 }}
+                >
+                  {quotePanelOpen ? tr("Cerrar cotización", "Close quote") : tr("Generar cotización", "Generate quote")}
+                </button>
+                <button onClick={() => { setSelectedContact(null); setContactDetail(null); }} style={{ border: `1px solid ${C.border}`, background: C.dark, color: C.white, borderRadius: 8, padding: "6px 10px", cursor: "pointer" }}>{tr("Cerrar", "Close")}</button>
+              </div>
             </div>
+
+            {quotePanelOpen && (
+              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: 10, marginBottom: 10 }}>
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>{tr("Nueva cotización manual", "New manual quote")}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1.3fr auto", gap: 8, marginBottom: 8 }}>
+                  <input
+                    value={quoteProductQuery}
+                    onChange={(e) => setQuoteProductQuery(e.target.value)}
+                    placeholder={tr("Buscar producto por modelo o nombre (ej: AX4202)", "Search product by model or name (e.g. AX4202)")}
+                    style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white }}
+                  />
+                  <button
+                    onClick={() => void searchCatalogForQuote()}
+                    disabled={quoteLoading || !quoteProductQuery.trim()}
+                    style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: C.card, color: C.white, fontWeight: 700, padding: "0 12px", cursor: quoteLoading ? "not-allowed" : "pointer", opacity: quoteLoading ? 0.7 : 1 }}
+                  >
+                    {quoteLoading ? tr("Buscando...", "Searching...") : tr("Buscar", "Search")}
+                  </button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.35fr auto", gap: 8, alignItems: "center" }}>
+                  <select
+                    value={quoteProductId}
+                    onChange={(e) => setQuoteProductId(e.target.value)}
+                    style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white }}
+                  >
+                    <option value="">{tr("Selecciona un producto", "Select a product")}</option>
+                    {quoteProductOptions.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}{p.category ? ` · ${p.category}` : ""}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min={1}
+                    value={quoteQty}
+                    onChange={(e) => setQuoteQty(Math.max(1, Number(e.target.value || 1)))}
+                    style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white }}
+                  />
+                  <button
+                    onClick={() => void createQuoteForSelectedContact()}
+                    disabled={quoteLoading || (!quoteProductId && !quoteProductQuery.trim())}
+                    style={{ border: "none", borderRadius: 8, background: C.lime, color: "#0b0e14", fontWeight: 800, padding: "8px 12px", cursor: quoteLoading ? "not-allowed" : "pointer", opacity: quoteLoading ? 0.7 : 1 }}
+                  >
+                    {quoteLoading ? tr("Generando...", "Generating...") : tr("Generar", "Generate")}
+                  </button>
+                </div>
+                {!!quoteMessage && <div style={{ marginTop: 8, color: C.blue, fontSize: 12 }}>{quoteMessage}</div>}
+              </div>
+            )}
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(180px,1fr))", gap: 8, marginBottom: 10 }}>
               <select
@@ -1406,6 +1762,22 @@ export default function AgentsCrmPage() {
                         <div style={{ fontSize: 13, fontWeight: 700 }}>{d.product_name || "-"}</div>
                         <div style={{ color: C.muted, fontSize: 12 }}>{new Date(d.created_at).toLocaleString()} · {stageLabel(d.status)}</div>
                         <div style={{ color: C.blue, fontSize: 12 }}>COP {money(Number(d.total_cop || 0))}</div>
+                        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                          <button
+                            onClick={() => void downloadQuotePdf(String(d.id || ""))}
+                            disabled={!!quoteActionId}
+                            style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: C.bg, color: C.white, fontSize: 11, padding: "5px 8px", cursor: quoteActionId ? "not-allowed" : "pointer", opacity: quoteActionId ? 0.65 : 1 }}
+                          >
+                            {quoteActionId === `download:${String(d.id || "")}` ? tr("Generando...", "Generating...") : tr("PDF", "PDF")}
+                          </button>
+                          <button
+                            onClick={() => void sendQuoteByWhatsapp(d)}
+                            disabled={!!quoteActionId}
+                            style={{ border: "none", borderRadius: 8, background: C.lime, color: "#0b0e14", fontSize: 11, fontWeight: 800, padding: "5px 8px", cursor: quoteActionId ? "not-allowed" : "pointer", opacity: quoteActionId ? 0.65 : 1 }}
+                          >
+                            {quoteActionId === `send:${String(d.id || "")}` ? tr("Enviando...", "Sending...") : tr("Enviar WhatsApp", "Send WhatsApp")}
+                          </button>
+                        </div>
                       </div>
                     ))}
                     {!(contactDetail?.drafts || []).length && <div style={{ color: C.muted, fontSize: 12 }}>{tr("Sin cotizaciones", "No quotes")}</div>}
