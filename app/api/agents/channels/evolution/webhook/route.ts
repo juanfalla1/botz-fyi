@@ -1049,7 +1049,13 @@ function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: s
   const out: Array<{ code: string; rank: number; id: string; name: string; raw_name: string; category: string; base_price_usd: number }> = [];
   const seen = new Set<string>();
   for (const row of list) {
-    const name = optionDisplayName(row);
+    const baseName = optionDisplayName(row);
+    const spec = extractRowTechnicalSpec(row);
+    const hasUnitInName = /\b\d+(?:[\.,]\d+)?\s*(mg|g|kg)\b/i.test(baseName);
+    const capSuffix = (!hasUnitInName && spec.capacityG > 0)
+      ? ` | Cap: ${formatSpecNumber(spec.capacityG)} g`
+      : "";
+    const name = `${baseName}${capSuffix}`;
     if (!name) continue;
     const key = String(row?.id || "").trim() || normalizeText(name);
     if (!key || seen.has(key)) continue;
@@ -4841,7 +4847,7 @@ export async function POST(req: Request) {
             strictMemory.quote_feedback_due_at = isoAfterHours(24);
           }
         }
-      } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model" && !technicalSpecIntent) {
+      } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model") {
         const familyLabel = String(previousMemory?.strict_family_label || "").trim();
         const askMore = /\b(mas|más|siguiente|siguientes|resto|todas|todos)\b/.test(textNorm);
         const askCount = /\b(cuantas|cuantos|total|tienen\s+\d+|\d+)\b/.test(textNorm);
@@ -4966,7 +4972,7 @@ export async function POST(req: Request) {
           ].join("\n");
         }
         }
-      } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_family" && !technicalSpecIntent) {
+      } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_family") {
         const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
         if (!pendingFamilies.length) {
           strictMemory.awaiting_action = "none";
