@@ -632,6 +632,11 @@ function normalizeText(v: string) {
     .toLowerCase();
 }
 
+function isQuoteDraftStatusConstraintError(err: any): boolean {
+  const msg = String(err?.message || "").toLowerCase();
+  return msg.includes("agent_quote_drafts_status_check") || (msg.includes("check constraint") && msg.includes("agent_quote_drafts"));
+}
+
 function appendQuoteClosurePrompt(text: string): string {
   const base = String(text || "").trim();
   if (!base) return "¿Deseas agregar otro modelo a la cotización o cerramos por ahora?";
@@ -4215,14 +4220,33 @@ export async function POST(req: Request) {
               status: "analysis",
             };
 
-            const { data: insertedDraft, error: draftErr } = await supabase
+            let { data: insertedDraft, error: draftErr } = await supabase
               .from("agent_quote_drafts")
               .insert(draftPayload)
               .select("id")
               .single();
 
+            if (draftErr && isQuoteDraftStatusConstraintError(draftErr)) {
+              const legacyPayload = {
+                ...draftPayload,
+                status: "draft",
+                payload: {
+                  ...(draftPayload.payload || {}),
+                  crm_stage: "analysis",
+                  crm_stage_updated_at: new Date().toISOString(),
+                },
+              } as any;
+              const retry = await supabase
+                .from("agent_quote_drafts")
+                .insert(legacyPayload)
+                .select("id")
+                .single();
+              insertedDraft = retry.data as any;
+              draftErr = retry.error as any;
+            }
+
             if (draftErr) {
-              strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Ya quedó registrado para reenviarla por este WhatsApp.";
+              strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
             } else {
               const productImageDataUrl = await resolveProductImageDataUrl(selected);
               const quoteDescription = await buildQuoteItemDescriptionAsync(selected, String((selected as any)?.name || ""));
