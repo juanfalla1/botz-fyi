@@ -5,16 +5,29 @@ import { getServiceSupabase } from "@/app/api/_utils/supabase";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED = new Set(["analysis", "study", "quote", "purchase_order", "invoicing", "draft", "sent", "won", "lost"]);
+const ALLOWED = new Set([
+  "analysis", "study", "quote", "purchase_order", "invoicing",
+  "analisis", "analisis_de_necesidad", "estudio", "cotizacion", "orden_de_compra", "orden de compra", "facturacion",
+  "draft", "sent", "won", "lost",
+]);
 
 function normalizeCrmStage(raw: string) {
-  const s = String(raw || "").toLowerCase();
+  const s = String(raw || "").toLowerCase().trim();
   if (s === "analysis" || s === "study" || s === "quote" || s === "purchase_order" || s === "invoicing") return s;
+  if (s === "analisis" || s === "analisis_de_necesidad") return "analysis";
+  if (s === "estudio") return "study";
+  if (s === "cotizacion") return "quote";
+  if (s === "orden_de_compra" || s === "orden de compra") return "purchase_order";
+  if (s === "facturacion") return "invoicing";
   if (s === "draft") return "analysis";
   if (s === "sent") return "quote";
   if (s === "won") return "purchase_order";
   if (s === "lost") return "invoicing";
   return "analysis";
+}
+
+function isCanonicalCrmStage(raw: string): raw is "analysis" | "study" | "quote" | "purchase_order" | "invoicing" {
+  return raw === "analysis" || raw === "study" || raw === "quote" || raw === "purchase_order" || raw === "invoicing";
 }
 
 function normalizePhone(raw: string | null | undefined) {
@@ -36,6 +49,21 @@ function isMissingTableError(err: any, tableName: string) {
   ) && msg.includes(t);
 }
 
+function isQuoteDraftStatusConstraintError(err: any) {
+  const msg = String(err?.message || "").toLowerCase();
+  return msg.includes("agent_quote_drafts_status_check") || (msg.includes("check constraint") && msg.includes("agent_quote_drafts"));
+}
+
+function mapToLegacyQuoteDraftStatus(stage: string) {
+  const s = normalizeCrmStage(stage);
+  if (s === "analysis") return "draft";
+  if (s === "study") return "draft";
+  if (s === "quote") return "sent";
+  if (s === "purchase_order") return "won";
+  if (s === "invoicing") return "lost";
+  return "draft";
+}
+
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const guard = await getRequestUser(req);
   if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
@@ -55,22 +83,48 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   const { data: draftRow, error: draftErr } = await supabase
     .from("agent_quote_drafts")
-    .select("id,created_by,customer_name,customer_email,customer_phone,company_name")
+    .select("id,created_by,customer_name,customer_email,customer_phone,company_name,payload")
     .eq("id", id)
     .eq("created_by", guard.user.id)
     .maybeSingle();
   if (draftErr) return NextResponse.json({ ok: false, error: draftErr.message }, { status: 400 });
   if (!draftRow) return NextResponse.json({ ok: false, error: "Opportunity not found" }, { status: 404 });
 
-  const { data, error } = await supabase
+  const payloadBase = (draftRow as any)?.payload && typeof (draftRow as any).payload === "object"
+    ? (draftRow as any).payload
+    : {};
+  const payloadWithStage = {
+    ...payloadBase,
+    crm_stage: nextStatus,
+    crm_stage_updated_at: new Date().toISOString(),
+  };
+
+  let { data, error } = await supabase
     .from("agent_quote_drafts")
-    .update({ status: nextStatus, updated_at: new Date().toISOString() })
+    .update({ status: nextStatus, payload: payloadWithStage, updated_at: new Date().toISOString() })
     .eq("id", id)
     .eq("created_by", guard.user.id)
     .select("id,status,updated_at")
     .single();
 
+  if (error && isQuoteDraftStatusConstraintError(error)) {
+    const legacyStatus = mapToLegacyQuoteDraftStatus(nextStatus);
+    const retry = await supabase
+      .from("agent_quote_drafts")
+      .update({ status: legacyStatus, payload: payloadWithStage, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("created_by", guard.user.id)
+      .select("id,status,updated_at")
+      .single();
+    data = retry.data as any;
+    error = retry.error as any;
+  }
+
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+
+  if (data && !isCanonicalCrmStage(String((data as any)?.status || ""))) {
+    (data as any).status = nextStatus;
+  }
 
   try {
     const email = String((draftRow as any)?.customer_email || "").trim().toLowerCase();

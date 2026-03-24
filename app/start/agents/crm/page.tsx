@@ -1167,7 +1167,20 @@ export default function AgentsCrmPage() {
 
         {activeTab === "pipeline" && (
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 14, background: C.card, padding: 12, marginBottom: 16 }}>
-          <div style={{ fontWeight: 800, marginBottom: 10 }}>{tr("Negocios", "Deals")}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+            <div style={{ fontWeight: 800 }}>{tr("Negocios", "Deals")}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: C.muted, fontSize: 12, fontWeight: 700 }}>{tr("Estado", "Status")}</span>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                style={{ minWidth: 210, padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0b0e14", color: C.white, fontSize: 13 }}
+              >
+                <option value="all">{tr("Todos los estados", "All statuses")}</option>
+                {stageOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns.length},minmax(250px,1fr))`, gap: 10, overflowX: "auto" }}>
             {columns.map((col) => (
               <div key={col.key} style={{ minHeight: 230, border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: 8 }}>

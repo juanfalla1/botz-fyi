@@ -30,16 +30,47 @@ function isMissingTableError(err: any, tableName: string) {
   ) && msg.includes(t);
 }
 
-const ALLOWED_STATUS = new Set(["analysis", "study", "quote", "purchase_order", "invoicing", "draft", "sent", "won", "lost"]);
+function isQuoteDraftStatusConstraintError(err: any) {
+  const msg = String(err?.message || "").toLowerCase();
+  return msg.includes("agent_quote_drafts_status_check") || (msg.includes("check constraint") && msg.includes("agent_quote_drafts"));
+}
+
+const ALLOWED_STATUS = new Set([
+  "analysis", "study", "quote", "purchase_order", "invoicing",
+  "analisis", "analisis_de_necesidad", "estudio", "cotizacion", "orden_de_compra", "orden de compra", "facturacion",
+  "draft", "sent", "won", "lost",
+]);
 
 function normalizeCrmStage(raw: string) {
-  const s = String(raw || "").toLowerCase();
+  const s = String(raw || "").toLowerCase().trim();
   if (s === "analysis" || s === "study" || s === "quote" || s === "purchase_order" || s === "invoicing") return s;
+  if (s === "analisis" || s === "analisis_de_necesidad") return "analysis";
+  if (s === "estudio") return "study";
+  if (s === "cotizacion") return "quote";
+  if (s === "orden_de_compra" || s === "orden de compra") return "purchase_order";
+  if (s === "facturacion") return "invoicing";
   if (s === "draft") return "analysis";
   if (s === "sent") return "quote";
   if (s === "won") return "purchase_order";
   if (s === "lost") return "invoicing";
   return "analysis";
+}
+
+function resolveDraftStage(draft: any): string {
+  const payload = draft?.payload && typeof draft.payload === "object" ? draft.payload : {};
+  const payloadStageRaw = String((payload as any)?.crm_stage || "").trim();
+  if (payloadStageRaw) return normalizeCrmStage(payloadStageRaw);
+  return normalizeCrmStage(String(draft?.status || ""));
+}
+
+function mapToLegacyQuoteDraftStatus(stage: string) {
+  const s = normalizeCrmStage(stage);
+  if (s === "analysis") return "draft";
+  if (s === "study") return "draft";
+  if (s === "quote") return "sent";
+  if (s === "purchase_order") return "won";
+  if (s === "invoicing") return "lost";
+  return "draft";
 }
 
 async function resolveOrCreateContact(supabase: any, ownerId: string, args: { phone?: string; email?: string; name?: string; company?: string }) {
@@ -166,7 +197,7 @@ export async function GET(req: Request) {
     timeline.push({
       at: String((d as any).created_at || ""),
       kind: "quote",
-      text: `Cotización ${String((d as any).product_name || "producto")}: COP ${Number((d as any).total_cop || 0).toLocaleString("es-CO")} (${normalizeCrmStage(String((d as any).status || "analysis"))})`,
+      text: `Cotización ${String((d as any).product_name || "producto")}: COP ${Number((d as any).total_cop || 0).toLocaleString("es-CO")} (${resolveDraftStage(d as any)})`,
     });
   }
 
@@ -280,7 +311,28 @@ export async function PATCH(req: Request) {
 
         const { error: draftsStatusErr } = await draftsStatusQuery;
         if (draftsStatusErr) {
-          return NextResponse.json({ ok: false, error: draftsStatusErr.message }, { status: 400 });
+          if (isQuoteDraftStatusConstraintError(draftsStatusErr)) {
+            const legacyStatus = mapToLegacyQuoteDraftStatus(nextStatus);
+            let legacyQuery = supabase
+              .from("agent_quote_drafts")
+              .update({ status: legacyStatus, updated_at: new Date().toISOString() })
+              .eq("created_by", ownerId);
+
+            if (phoneKey && emailKey) {
+              legacyQuery = legacyQuery.or(`customer_phone.like.%${phoneKey},customer_email.eq.${emailKey}`);
+            } else if (phoneKey) {
+              legacyQuery = legacyQuery.like("customer_phone", `%${phoneKey}`);
+            } else {
+              legacyQuery = legacyQuery.eq("customer_email", emailKey);
+            }
+
+            const { error: legacyErr } = await legacyQuery;
+            if (legacyErr) {
+              return NextResponse.json({ ok: false, error: legacyErr.message }, { status: 400 });
+            }
+          } else {
+            return NextResponse.json({ ok: false, error: draftsStatusErr.message }, { status: 400 });
+          }
         }
       }
     }

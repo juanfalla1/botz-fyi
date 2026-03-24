@@ -15,6 +15,7 @@ type Draft = {
   product_name: string | null;
   total_cop: number | null;
   status: "analysis" | "study" | "quote" | "purchase_order" | "invoicing";
+  payload?: Record<string, any> | null;
   created_at: string;
   updated_at: string;
 };
@@ -27,6 +28,13 @@ function normalizeCrmStage(raw: string | null | undefined): Draft["status"] {
   if (s === "won") return "purchase_order";
   if (s === "lost") return "invoicing";
   return "analysis";
+}
+
+function resolveDraftStage(draft: any): Draft["status"] {
+  const payload = draft?.payload && typeof draft.payload === "object" ? draft.payload : {};
+  const payloadStage = normalizeCrmStage(String((payload as any)?.crm_stage || ""));
+  if (String((payload as any)?.crm_stage || "").trim()) return payloadStage;
+  return normalizeCrmStage(String(draft?.status || ""));
 }
 
 function normalizePhone(raw: string | null | undefined) {
@@ -208,7 +216,7 @@ export async function GET(req: Request) {
   const [{ data: drafts, error: draftsErr }, { data: conversations, error: convErr }, { data: crmContacts, error: crmContactsErr }] = await Promise.all([
     supabase
       .from("agent_quote_drafts")
-      .select("id,agent_id,customer_name,customer_email,customer_phone,company_name,product_name,total_cop,status,created_at,updated_at")
+      .select("id,agent_id,customer_name,customer_email,customer_phone,company_name,product_name,total_cop,status,payload,created_at,updated_at")
       .eq("created_by", ownerId)
       .order("created_at", { ascending: false })
       .limit(800),
@@ -261,7 +269,7 @@ export async function GET(req: Request) {
   };
 
   for (const d of safeDrafts) {
-    const st = normalizeCrmStage(d.status) as keyof typeof byStatus;
+    const st = resolveDraftStage(d) as keyof typeof byStatus;
     const normalizedDraft = { ...d, status: st } as Draft;
     if (st in byStatus) {
       byStatus[st] += 1;
