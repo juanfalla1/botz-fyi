@@ -4697,6 +4697,18 @@ export async function POST(req: Request) {
       } else if (!String(strictReply || "").trim() && selectedProduct) {
         const selectedName = String(selectedProduct?.name || "").trim();
         const hasSheetCandidate = Boolean(pickBestProductPdfUrl(selectedProduct, text) || pickBestLocalPdfPath(selectedProduct, text));
+        const lastRecommendedOptions = (Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+          .slice(0, 8)
+          .map((o: any) => ({
+            code: String(o?.code || "").trim(),
+            rank: Number(o?.rank || 0),
+            id: String(o?.id || "").trim(),
+            name: String(o?.name || "").trim(),
+            raw_name: String(o?.raw_name || o?.name || "").trim(),
+            category: String(o?.category || "").trim(),
+          }))
+          .filter((o: any) => o.name);
+        if (lastRecommendedOptions.length) strictMemory.last_recommended_options = lastRecommendedOptions;
         strictMemory.last_product_name = selectedName;
         strictMemory.last_product_id = String(selectedProduct?.id || "").trim();
         strictMemory.last_selected_product_name = selectedName;
@@ -4721,6 +4733,30 @@ export async function POST(req: Request) {
               hasSheetCandidate ? "¿Quieres que te envíe la ficha técnica ahora por este WhatsApp?" : "¿Quieres que te comparta la información técnica disponible por este WhatsApp?",
             ].join("\n");
         } else if (wantsQuote || /^1\b/.test(textNorm)) {
+          const bundleQuoteAskFromAction = asksQuoteIntent(text) && /\b(las|los|todas|todos|opciones|referencias|3|tres)\b/.test(textNorm);
+          const bundlePool = (Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : lastRecommendedOptions)
+            .filter((o: any) => String(o?.raw_name || o?.name || "").trim())
+            .slice(0, 8);
+          if (bundleQuoteAskFromAction && bundlePool.length >= 2) {
+            const countMatch = textNorm.match(/\b(\d{1,2}|dos|tres|cuatro|cinco)\b/);
+            const nWord = String(countMatch?.[1] || "").trim();
+            const nMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5 };
+            const requested = /\b(todas|todos)\b/.test(textNorm)
+              ? bundlePool.length
+              : Math.max(2, Number(nWord ? (Number(nWord) || nMap[nWord] || 3) : 3));
+            const chosen = bundlePool.slice(0, Math.max(2, Math.min(requested, bundlePool.length)));
+            const names = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+            if (names.length >= 2) {
+              strictBypassAutoQuote = true;
+              inbound.text = `cotizar ${names.join(" ; ")}`;
+              strictMemory.awaiting_action = "none";
+              strictMemory.pending_product_options = chosen;
+              strictMemory.last_intent = "quote_bundle_request";
+              strictReply = `Perfecto. Voy a generar una cotización consolidada para esas ${names.length} opciones y te la envío en PDF por este WhatsApp.`;
+            }
+          }
+
+          if (!strictBypassAutoQuote) {
           const continuationIntentStrict = isSameQuoteContinuationIntent(text) && extractModelLikeTokens(text).length >= 1;
           if (continuationIntentStrict) {
             console.log("[evolution-webhook] strict_quote_continuation_bypass", {
@@ -4741,7 +4777,8 @@ export async function POST(req: Request) {
             const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
             strictMemory.quote_quantity = qtyRequested;
             strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Para formalizar la cotización necesito: Ciudad, Empresa, NIT, Contacto, Correo y Celular (en un solo mensaje).`;
+            strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular) compártelos en un solo mensaje; si no, avanzo con los datos disponibles.`;
+          }
           }
         } else if (wantsSheet || /^2\b/.test(textNorm)) {
           const datasheetUrl = pickBestProductPdfUrl(selectedProduct, text) || "";
@@ -4843,12 +4880,7 @@ export async function POST(req: Request) {
         const customerContact = String(quoteData.contact || "").trim();
         const customerEmail = String(quoteData.email || "").trim();
         const customerPhone = String(quoteData.phone || "").trim();
-        const missing: string[] = [];
-        if (!customerContact) missing.push("contacto");
-        if (!customerEmail && !customerPhone) missing.push("correo o celular");
-        if (missing.length) {
-          strictReply = `Perfecto, ya guardé datos. Solo me faltan: ${missing.join(", ")}.`;
-        } else {
+        {
           const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || strictMemory.last_selected_product_id || strictMemory.last_product_id || "").trim();
           const selectedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
           const selected = selectedId
