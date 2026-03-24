@@ -4332,6 +4332,35 @@ export async function POST(req: Request) {
         }
       }
 
+      const askMoreOptionsNow =
+        !wantsQuote &&
+        !wantsSheet &&
+        /\b(mas|más|opciones|alternativas|otros|otras|rango|que\s+tienes|tienes\s+mas|tienes\s+m[aá]s|retomar|reanudar|continuar)\b/.test(textNorm);
+      if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && askMoreOptionsNow) {
+        const familyLabel = String(previousMemory?.strict_family_label || "").trim();
+        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+        const familyRows = familyLabel
+          ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
+          : categoryScoped;
+        const sourceRows = (familyRows.length ? familyRows : categoryScoped) as any[];
+        const allOptions = buildNumberedProductOptions(sourceRows, 60);
+        const options = allOptions.slice(0, 8);
+        strictMemory.pending_product_options = options;
+        strictMemory.awaiting_action = "strict_choose_model";
+        strictMemory.strict_model_offset = 0;
+        strictMemory.strict_family_label = familyLabel;
+        strictReply = options.length
+          ? [
+              "Claro, te muestro más opciones disponibles:",
+              ...options.map((o) => `${o.code}) ${o.name}`),
+              "",
+              (allOptions.length > options.length)
+                ? "Escribe 'más' para ver siguientes, o elige con letra/número (A/1)."
+                : "Elige con letra/número (A/1), o dime otra capacidad para filtrar.",
+            ].join("\n")
+          : "No tengo más opciones en este grupo en este momento. Si quieres, dime otra capacidad/resolución y te filtro de nuevo.";
+      }
+
       let selectedProduct: any = null;
       if (!String(strictReply || "").trim() && explicitModel) {
         selectedProduct = findExactModelProduct(text, ownerRows as any[]) || pickBestCatalogProduct(text, ownerRows as any[]);
