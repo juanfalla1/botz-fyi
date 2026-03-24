@@ -965,6 +965,13 @@ function extractQuantity(text: string): number {
 function extractQuoteRequestedQuantity(text: string): number {
   const t = normalizeText(String(text || ""));
   if (!t) return 1;
+  const hasTechnicalSpecPattern = Boolean(parseTechnicalSpecQuery(String(text || ""))) ||
+    /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)\s*(?:x|×|\*|por)\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)\b/i.test(String(text || ""));
+  if (hasTechnicalSpecPattern) {
+    const hasExplicitUnitQty = /\b(?:cantidad|qty)\s*[:=]?\s*\d{1,5}\b/.test(t) ||
+      /\b\d{1,4}\s*(?:unidad|unidades|equipo|equipos|balanza|balanzas|bascula|basculas|pieza|piezas)\b/.test(t);
+    if (!hasExplicitUnitQty) return 1;
+  }
   const m1 = t.match(/\b(?:de|por|para)\s*(\d{1,4})\s*(?:unidad|unidades|equipo|equipos|balanza|balanzas|bascula|basculas|pieza|piezas)?\b/);
   if (m1?.[1]) {
     const n = Number(m1[1]);
