@@ -1525,8 +1525,8 @@ function prioritizeTechnicalRows(rows: any[], spec: { capacityG: number; readabi
   const ranked = rankCatalogByTechnicalSpec(rows, spec);
   if (!ranked.length) return { orderedRows: [], exactCount: 0 };
 
-  const exact = ranked.filter((x: any) => x.capacityDeltaPct <= 3 && x.readabilityRatio >= 0.9 && x.readabilityRatio <= 1.1);
-  const near = ranked.filter((x: any) => !(x.capacityDeltaPct <= 3 && x.readabilityRatio >= 0.9 && x.readabilityRatio <= 1.1));
+  const exact = ranked.filter((x: any) => x.capacityDeltaPct <= 8 && x.readabilityRatio >= 0.8 && x.readabilityRatio <= 1.25);
+  const near = ranked.filter((x: any) => !(x.capacityDeltaPct <= 8 && x.readabilityRatio >= 0.8 && x.readabilityRatio <= 1.25));
   const out: any[] = [];
   const seen = new Set<string>();
 
@@ -4894,11 +4894,31 @@ export async function POST(req: Request) {
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model") {
         const familyLabel = String(previousMemory?.strict_family_label || "").trim();
         const askMore = /\b(mas|más|siguiente|siguientes|resto|todas|todos)\b/.test(textNorm);
-        const askCount = /\b(cuantas|cuantos|total|tienen\s+\d+|\d+)\b/.test(textNorm);
+        const askCount = /\b(cuantas|cuantos|total|tienen\s+\d+|\d+)\b/.test(textNorm) && !asksQuoteIntent(text);
         const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
         const familyRows = familyLabel
           ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
           : categoryScoped;
+
+        const bundleQuoteAsk = asksQuoteIntent(text) && /\b(las|los|todas|todos|opciones|referencias)\b/.test(textNorm);
+        if (bundleQuoteAsk) {
+          const pendingOptions = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+          const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5 };
+          const numMatch = textNorm.match(/\b(?:las|los)\s*(\d{1,2}|dos|tres|cuatro|cinco)\b/);
+          const rawNum = String(numMatch?.[1] || "").trim();
+          const selectedCount = /\b(todas|todos)\b/.test(textNorm)
+            ? pendingOptions.length
+            : Math.max(2, Number(rawNum ? (Number(rawNum) || numberWordMap[rawNum] || 3) : 3));
+          const chosen = pendingOptions.slice(0, Math.max(1, Math.min(selectedCount, pendingOptions.length || selectedCount)));
+          if (chosen.length >= 2) {
+            const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+            strictBypassAutoQuote = true;
+            inbound.text = `cotizar ${modelNames.join(" ; ")}`;
+            strictMemory.awaiting_action = "none";
+            strictMemory.pending_product_options = chosen;
+            strictMemory.last_intent = "quote_bundle_request";
+          }
+        }
         const looseSpecHint = parseLooseTechnicalHint(text);
 
         if (looseSpecHint && (looseSpecHint.capacityG || looseSpecHint.readabilityG)) {
@@ -4927,10 +4947,21 @@ export async function POST(req: Request) {
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
           } else {
-            const prioritized = prioritizeTechnicalRows(familyRows as any[], {
+            let prioritized = prioritizeTechnicalRows(familyRows as any[], {
               capacityG: effectiveCap,
               readabilityG: effectiveRead,
             });
+            let switchedFromFamily = false;
+            if (prioritized.exactCount === 0) {
+              const categoryWide = prioritizeTechnicalRows(categoryScoped as any[], {
+                capacityG: effectiveCap,
+                readabilityG: effectiveRead,
+              });
+              if (categoryWide.exactCount > 0) {
+                prioritized = categoryWide;
+                switchedFromFamily = true;
+              }
+            }
             const filteredOptions = buildNumberedProductOptions((prioritized.orderedRows.length ? prioritized.orderedRows : familyRows) as any[], 60);
             const filteredPage = filteredOptions.slice(0, 8);
             strictMemory.pending_product_options = filteredPage;
@@ -4945,7 +4976,7 @@ export async function POST(req: Request) {
               const criterionLabel = `${formatSpecNumber(effectiveCap)} g x ${formatSpecNumber(effectiveRead)} g`;
               const top = filteredPage.slice(0, 3);
               const exactIntro = prioritized.exactCount > 0
-                ? `¡Excelente! Para ${criterionLabel} sí tenemos coincidencia en catálogo${familyLabel ? ` de ${familyLabel}` : ""}.`
+                ? `¡Excelente! Para ${criterionLabel} sí tenemos coincidencia en catálogo${switchedFromFamily ? " (en otra familia más adecuada)" : (familyLabel ? ` de ${familyLabel}` : "")}.`
                 : `Para ${criterionLabel}, en ${familyLabel || "esta familia"} no veo coincidencia exacta, pero sí alternativas cercanas.`;
               strictReply = [
                 exactIntro,
