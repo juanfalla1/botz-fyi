@@ -684,7 +684,7 @@ function buildGuidedRecoveryMessage(args: {
   if (awaiting === "strict_choose_model" || hasPendingModels) {
     return [
       "No pasa nada si hubo un typo.",
-      "Responde con la letra/número del modelo (A/1), o escribe el modelo aproximado y te ayudo a identificarlo.",
+      "Responde con la letra/número del modelo (A/1), o escribe el modelo aproximado. También puedes escribir capacidad x resolución (ej.: 4000 g x 0.01 g).",
     ].join("\n");
   }
 
@@ -705,6 +705,29 @@ function buildGuidedRecoveryMessage(args: {
     "También puedes ver el catálogo aquí: https://balanzasybasculas.com.co/",
     "Si quieres, te dejo más referencias aquí: https://share.google/cE6wPPEGCH3vytJMm",
   ].join("\n");
+}
+
+function deriveStrictAwaitingAction(previousMemory: any, strictPrevAwaiting: string): string {
+  const fromMemory = String(strictPrevAwaiting || "").trim();
+  const lastValid = String(previousMemory?.last_valid_state || "").trim();
+  const hasPendingModels = Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0;
+  const hasPendingFamilies = Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0;
+  if (fromMemory) return fromMemory;
+  if (hasPendingModels) return "strict_choose_model";
+  if (hasPendingFamilies) return "strict_choose_family";
+  return lastValid;
+}
+
+function logStrictTransition(meta: { before: string; after: string; text: string; intent: string }) {
+  try {
+    console.log("[strict-state] transition", {
+      before: String(meta.before || "none"),
+      after: String(meta.after || "none"),
+      intent: String(meta.intent || "unknown"),
+      text: String(meta.text || "").slice(0, 120),
+      at: new Date().toISOString(),
+    });
+  } catch {}
 }
 
 function isAdvisorAppointmentIntent(text: string): boolean {
@@ -4240,11 +4263,7 @@ export async function POST(req: Request) {
       }
 
       const textNorm = normalizeCatalogQueryText(text);
-      let awaiting = strictPrevAwaiting;
-      const hasPendingModels = Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0;
-      const hasPendingFamilies = Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0;
-      if (!awaiting && hasPendingModels) awaiting = "strict_choose_model";
-      if (!awaiting && hasPendingFamilies) awaiting = "strict_choose_family";
+      const awaiting = deriveStrictAwaitingAction(previousMemory, strictPrevAwaiting);
       const wantsSheet = isTechnicalSheetIntent(text);
       const wantsQuote = asksQuoteIntent(text) || isPriceIntent(text);
       const isGreeting = isGreetingIntent(text);
@@ -4335,6 +4354,46 @@ export async function POST(req: Request) {
         } else {
           strictMemory.awaiting_action = "strict_need_spec";
           strictReply = "No encontré una coincidencia exacta para esa capacidad/resolución. ¿Quieres que busquemos con una resolución cercana?";
+        }
+      }
+
+      const askMoreFromAction =
+        awaiting === "strict_choose_action" &&
+        !wantsQuote &&
+        !wantsSheet &&
+        (/\b(mas|más|opciones|alternativas|otros|otras|rango|que\s+tienes|de\s+\d+)/.test(textNorm) || technicalSpecIntent || isRecommendationIntent(text));
+      if (!String(strictReply || "").trim() && askMoreFromAction) {
+        const familyLabel = String(previousMemory?.strict_family_label || "").trim();
+        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+        const familyRows = familyLabel
+          ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
+          : categoryScoped;
+        let sourceRows: any[] = familyRows as any[];
+        const specHint = parseLooseTechnicalHint(text);
+        if (specHint?.capacityG && specHint?.readabilityG) {
+          const prioritized = prioritizeTechnicalRows(categoryScoped as any[], {
+            capacityG: Number(specHint.capacityG),
+            readabilityG: Number(specHint.readabilityG),
+          });
+          if (prioritized.orderedRows.length) sourceRows = prioritized.orderedRows;
+        }
+        const allOptions = buildNumberedProductOptions(sourceRows as any[], 60);
+        const options = allOptions.slice(0, 8);
+        strictMemory.pending_product_options = options;
+        strictMemory.awaiting_action = "strict_choose_model";
+        strictMemory.strict_model_offset = 0;
+        strictMemory.strict_family_label = familyLabel;
+        if (!options.length) {
+          strictReply = "No tengo más modelos en ese grupo con ese criterio. Si quieres, dime capacidad y resolución (ej.: 4200 g x 0.01 g) y te busco la mejor alternativa.";
+        } else {
+          strictReply = [
+            "Claro, te muestro más opciones.",
+            ...options.map((o) => `${o.code}) ${o.name}`),
+            "",
+            (allOptions.length > options.length)
+              ? "Escribe 'más' para ver siguientes, o elige con letra/número (A/1)."
+              : "Elige con letra/número (A/1), o dime otra capacidad para filtrar.",
+          ].join("\n");
         }
       }
 
@@ -4533,6 +4592,7 @@ export async function POST(req: Request) {
       const outOfScope = /\b(autos?|carros?|vehiculos?|motos?|bicicletas?|inmueble|casa|apartamento|hipoteca|pan|leche|carne|fruta|verdura|comida|almuerzo|cena|desayuno|restaurante|pizza|hamburguesa|helado)\b/.test(textNorm);
       const offTopicCandidate =
         outOfScope &&
+        !awaiting &&
         !explicitModel &&
         !categoryIntent &&
         !technicalSpecIntent &&
@@ -4738,12 +4798,23 @@ export async function POST(req: Request) {
           return m?.[1] ? String(m[1]).trim() : "";
         };
 
-        const cityNow = normalizeCityLabel(pickBounded("ciudad|city") || extractLabeledValue(text, ["ciudad", "city"]));
-        const companyNow = pickBounded("empresa|company|razon social") || extractLabeledValue(text, ["empresa", "company", "razon social"]);
-        const nitNow = (String(text || "").match(/\bnit\s*[:=]?\s*([0-9\.\-]{5,20})/i)?.[1] || extractLabeledValue(text, ["nit"]).replace(/[^0-9.\-]/g, "")).trim();
-        const contactNow = pickBounded("contacto") || extractLabeledValue(text, ["contacto"]) || extractCustomerName(text, inbound.pushName || "");
-        const emailNow = extractEmail(text);
-        const phoneNow = extractCustomerPhone(text, inbound.from);
+        const looseLines = String(text || "")
+          .split(/\n|;|,/)
+          .map((x) => String(x || "").trim())
+          .filter(Boolean);
+        const firstEmailLine = looseLines.find((ln) => /@/.test(ln)) || "";
+        const firstPhoneLine = looseLines.find((ln) => /\b(?:\+?57\s*)?3\d{9}\b/.test(ln.replace(/\s+/g, ""))) || "";
+        const firstNitLine = looseLines.find((ln) => /^\d{6,14}$/.test(ln.replace(/\D/g, ""))) || "";
+        const firstCityLine = looseLines.find((ln) => /^[a-zA-Záéíóúüñ\s]{3,40}$/.test(ln) && !/@/.test(ln) && !/persona\s+natural|sas|s\.a\.s|ltda|nit/i.test(ln)) || "";
+        const firstCompanyLine = looseLines.find((ln) => /persona\s+natural|sas|s\.a\.s|ltda|empresa|razon\s+social/i.test(ln)) || "";
+        const firstContactLine = looseLines.find((ln) => /^[a-zA-Záéíóúüñ\s]{6,60}$/.test(ln) && ln !== firstCityLine && ln !== firstCompanyLine && !/@/.test(ln)) || "";
+
+        const cityNow = normalizeCityLabel(pickBounded("ciudad|city") || extractLabeledValue(text, ["ciudad", "city"]) || firstCityLine);
+        const companyNow = pickBounded("empresa|company|razon social") || extractLabeledValue(text, ["empresa", "company", "razon social"]) || firstCompanyLine;
+        const nitNow = (String(text || "").match(/\bnit\s*[:=]?\s*([0-9\.\-]{5,20})/i)?.[1] || extractLabeledValue(text, ["nit"]).replace(/[^0-9.\-]/g, "") || firstNitLine.replace(/[^0-9.\-]/g, "")).trim();
+        const contactNow = pickBounded("contacto") || extractLabeledValue(text, ["contacto"]) || firstContactLine || extractCustomerName(text, inbound.pushName || "");
+        const emailNow = extractEmail(text) || String(firstEmailLine || "").trim();
+        const phoneNow = extractCustomerPhone(text, inbound.from) || String(firstPhoneLine || "").replace(/\D/g, "");
 
         const prevQuoteData = previousMemory?.quote_data && typeof previousMemory.quote_data === "object" ? previousMemory.quote_data : {};
         const quoteData = {
@@ -4763,12 +4834,8 @@ export async function POST(req: Request) {
         const customerEmail = String(quoteData.email || "").trim();
         const customerPhone = String(quoteData.phone || "").trim();
         const missing: string[] = [];
-        if (!customerCity) missing.push("ciudad");
-        if (!customerCompany) missing.push("empresa");
-        if (!customerNit) missing.push("NIT");
         if (!customerContact) missing.push("contacto");
-        if (!customerEmail) missing.push("correo");
-        if (!customerPhone) missing.push("celular");
+        if (!customerEmail && !customerPhone) missing.push("correo o celular");
         if (missing.length) {
           strictReply = `Perfecto, ya guardé datos. Solo me faltan: ${missing.join(", ")}.`;
         } else {
@@ -4787,7 +4854,11 @@ export async function POST(req: Request) {
             strictMemory.quote_data = {};
             strictReply = "Recibí tus datos. No pude cerrar la cotización automática en este intento, pero ya quedó registrado y te la envío enseguida por este mismo WhatsApp.";
           } else {
-            const cityKey = normalizeCityLabel(customerCity);
+            const effectiveCity = normalizeCityLabel(customerCity || "Bogota");
+            const effectiveCompany = customerCompany || "Persona natural";
+            const effectiveNit = customerNit || "N/A";
+            const effectiveContact = customerContact || (knownCustomerName || inbound.pushName || "Cliente");
+            const cityKey = normalizeCityLabel(effectiveCity);
             const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
             const cityCop = Number(cityPrices?.[cityKey] || 0);
             const bogotaCop = Number(cityPrices?.bogota || 0);
@@ -4804,11 +4875,11 @@ export async function POST(req: Request) {
               tenant_id: (agent as any)?.tenant_id || null,
               created_by: ownerId,
               agent_id: String(agent.id),
-              customer_name: customerContact || null,
+              customer_name: effectiveContact || null,
               customer_email: customerEmail || null,
               customer_phone: customerPhone || null,
-              company_name: customerCompany || null,
-              location: customerCity || null,
+              company_name: effectiveCompany || null,
+              location: effectiveCity || null,
               product_catalog_id: (selected as any)?.id || null,
               product_name: String((selected as any)?.name || ""),
               base_price_usd: basePriceUsd,
@@ -4819,10 +4890,10 @@ export async function POST(req: Request) {
                 quantity: qty,
                 trm_date: trm?.rate_date || null,
                 trm_source: trm?.source || null,
-                customer_city: customerCity || null,
-                customer_nit: customerNit || null,
-                customer_company: customerCompany || null,
-                customer_contact: customerContact || null,
+                customer_city: effectiveCity || null,
+                customer_nit: effectiveNit || null,
+                customer_company: effectiveCompany || null,
+                customer_contact: effectiveContact || null,
                 unit_price_cop: unitPriceCop > 0 ? unitPriceCop : null,
               },
               status: "analysis",
@@ -4860,20 +4931,20 @@ export async function POST(req: Request) {
               const quoteDescription = await buildQuoteItemDescriptionAsync(selected, String((selected as any)?.name || ""));
               const pdfBase64 = await buildQuotePdf({
                 draftId: String((insertedDraft as any)?.id || ""),
-                customerName: customerContact,
+                customerName: effectiveContact,
                 customerEmail,
                 customerPhone,
-                companyName: customerCompany,
+                companyName: effectiveCompany,
                 productName: String((selected as any)?.name || ""),
                 quantity: qty,
                 basePriceUsd,
                 trmRate,
                 totalCop,
-                city: customerCity,
-                nit: customerNit,
+                city: effectiveCity,
+                nit: effectiveNit,
                 itemDescription: quoteDescription,
                 imageDataUrl: productImageDataUrl,
-                notes: `Ciudad: ${customerCity} | NIT: ${customerNit}`,
+                notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
               });
               strictDocs.push({
                 base64: pdfBase64,
@@ -4893,7 +4964,7 @@ export async function POST(req: Request) {
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model") {
         const familyLabel = String(previousMemory?.strict_family_label || "").trim();
-        const askMore = /\b(mas|más|siguiente|siguientes|resto|todas|todos)\b/.test(textNorm);
+        const askMore = /\b(mas|más|siguiente|siguientes|resto|todas|todos|retomar|reanudar|continuar)\b/.test(textNorm);
         const askCount = /\b(cuantas|cuantos|total|tienen\s+\d+|\d+)\b/.test(textNorm) && !asksQuoteIntent(text);
         const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
         const familyRows = familyLabel
@@ -5282,6 +5353,14 @@ export async function POST(req: Request) {
         strictMemory.last_intent = strictQuoteDelivered ? "quote_generated" : "tech_sheet_request";
         if (strictQuoteDelivered) strictMemory.quote_feedback_due_at = isoAfterHours(24);
       }
+
+      strictMemory.last_valid_state = String(strictMemory.awaiting_action || awaiting || "none");
+      logStrictTransition({
+        before: awaiting,
+        after: String(strictMemory.awaiting_action || "none"),
+        text,
+        intent: String(strictMemory.last_intent || previousMemory?.last_intent || "strict_router"),
+      });
 
       if (!strictBypassAutoQuote) {
         const sentOk = await sendTextAndDocs(strictReply, strictDocs);
