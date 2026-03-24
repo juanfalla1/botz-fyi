@@ -120,6 +120,10 @@ export async function POST(req: Request) {
     const productQuery = String(body?.productQuery || "").trim();
     const quantity = Math.max(1, Math.min(100000, Number(body?.quantity || 1)));
     const basePriceOverride = Number(body?.basePriceUsd || 0);
+    const customerCity = String(body?.customerCity || body?.location || "").trim();
+    const customerNit = String(body?.customerNit || "").trim();
+    const customerContact = String(body?.customerContact || body?.customerName || "").trim();
+    const itemDescription = String(body?.itemDescription || "").trim();
 
     let product: any = null;
 
@@ -179,7 +183,7 @@ export async function POST(req: Request) {
       customer_email: String(body?.customerEmail || "").trim().toLowerCase() || null,
       customer_phone: String(body?.customerPhone || "").trim() || null,
       company_name: String(body?.companyName || "").trim() || null,
-      location: String(body?.location || "").trim() || null,
+      location: customerCity || null,
       product_catalog_id: product.id,
       product_name: String(product.name || ""),
       base_price_usd: basePriceUsd,
@@ -192,6 +196,10 @@ export async function POST(req: Request) {
         trm_source: trm.source,
         price_currency: String(product?.price_currency || "USD"),
         crm_stage: "analysis",
+        customer_city: customerCity || null,
+        customer_nit: customerNit || null,
+        customer_contact: customerContact || null,
+        item_description: itemDescription || null,
       },
       status: "analysis",
     };

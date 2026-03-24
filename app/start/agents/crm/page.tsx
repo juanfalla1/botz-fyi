@@ -143,6 +143,11 @@ export default function AgentsCrmPage() {
   const [quoteProductOptions, setQuoteProductOptions] = useState<CatalogOption[]>([]);
   const [quoteProductId, setQuoteProductId] = useState("");
   const [quoteQty, setQuoteQty] = useState(1);
+  const [quoteCity, setQuoteCity] = useState("");
+  const [quoteNit, setQuoteNit] = useState("");
+  const [quoteContact, setQuoteContact] = useState("");
+  const [quoteDescription, setQuoteDescription] = useState("");
+  const [quoteWhatsappTo, setQuoteWhatsappTo] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteMessage, setQuoteMessage] = useState("");
   const [quoteActionId, setQuoteActionId] = useState("");
@@ -701,6 +706,10 @@ export default function AgentsCrmPage() {
           customerEmail: String(selectedContact.email || "").trim() || undefined,
           customerPhone: String(selectedContact.phone || "").trim() || undefined,
           companyName: String(selectedContact.company || "").trim() || undefined,
+          customerCity: String(quoteCity || "").trim() || undefined,
+          customerNit: String(quoteNit || "").trim() || undefined,
+          customerContact: String(quoteContact || selectedContact.name || "").trim() || undefined,
+          itemDescription: String(quoteDescription || "").trim() || undefined,
           agentId: String(selectedContact.assigned_agent_id || "").trim() || undefined,
           notes: tr("Generada manualmente desde CRM", "Manually generated from CRM"),
         }),
@@ -761,7 +770,7 @@ export default function AgentsCrmPage() {
   const sendQuoteByWhatsapp = async (draft: any) => {
     const draftId = String(draft?.id || "").trim();
     if (!draftId) return;
-    const toRaw = String(selectedContact?.phone || draft?.customer_phone || "").trim();
+    const toRaw = String(quoteWhatsappTo || selectedContact?.phone || draft?.customer_phone || "").trim();
     const to = normalizeWhatsappDestination(toRaw);
     if (!to) {
       setError(tr("Este contacto no tiene teléfono válido para WhatsApp.", "This contact has no valid WhatsApp phone."));
@@ -793,7 +802,8 @@ export default function AgentsCrmPage() {
       await fetchData();
       if (selectedContact) await openContactDetail(selectedContact);
     } catch (e: any) {
-      setError(String(e?.message || "Error enviando cotización por WhatsApp"));
+      const msg = String(e?.message || "Error enviando cotización por WhatsApp");
+      setError(msg);
     } finally {
       setQuoteActionId("");
     }
@@ -835,6 +845,14 @@ export default function AgentsCrmPage() {
     const valid = new Set(contacts.map((c) => String(c.key || "")));
     setSelectedContactKeys((prev) => prev.filter((k) => valid.has(k)));
   }, [contacts]);
+
+  useEffect(() => {
+    if (!selectedContact || !quotePanelOpen) return;
+    if (!quoteContact.trim()) setQuoteContact(String(selectedContact.name || "").trim());
+    if (!quoteWhatsappTo.trim()) setQuoteWhatsappTo(String(selectedContact.phone || "").trim());
+    if (!quoteCity.trim()) setQuoteCity("");
+    if (!quoteNit.trim()) setQuoteNit("");
+  }, [selectedContact, quotePanelOpen]);
 
   const isSelected = (c: Contact) => selectedContactKeys.includes(String(c.key || ""));
 
@@ -1696,6 +1714,40 @@ export default function AgentsCrmPage() {
                   >
                     {quoteLoading ? tr("Generando...", "Generating...") : tr("Generar", "Generate")}
                   </button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 8 }}>
+                  <input
+                    value={quoteContact}
+                    onChange={(e) => setQuoteContact(e.target.value)}
+                    placeholder={tr("Contacto (quien recibe)", "Contact person")}
+                    style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white }}
+                  />
+                  <input
+                    value={quoteCity}
+                    onChange={(e) => setQuoteCity(e.target.value)}
+                    placeholder={tr("Ciudad", "City")}
+                    style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white }}
+                  />
+                  <input
+                    value={quoteNit}
+                    onChange={(e) => setQuoteNit(e.target.value)}
+                    placeholder={tr("NIT", "Tax ID")}
+                    style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white }}
+                  />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 0.45fr", gap: 8, marginTop: 8 }}>
+                  <input
+                    value={quoteDescription}
+                    onChange={(e) => setQuoteDescription(e.target.value)}
+                    placeholder={tr("Descripción manual del ítem (opcional)", "Manual item description (optional)")}
+                    style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white }}
+                  />
+                  <input
+                    value={quoteWhatsappTo}
+                    onChange={(e) => setQuoteWhatsappTo(e.target.value)}
+                    placeholder={tr("WhatsApp destino (+57...)", "Destination WhatsApp (+57...)")}
+                    style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white }}
+                  />
                 </div>
                 {!!quoteMessage && <div style={{ marginTop: 8, color: C.blue, fontSize: 12 }}>{quoteMessage}</div>}
               </div>
