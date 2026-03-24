@@ -34,7 +34,7 @@ const ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE = String(
 const ENABLE_QUOTE_PRODUCT_IMAGE = String(process.env.WHATSAPP_QUOTE_EMBED_PRODUCT_IMAGE || "true").toLowerCase() === "true";
 const STRICT_WHATSAPP_MODE = String(process.env.WHATSAPP_STRICT_MODE || "true").toLowerCase() !== "false";
 const MAX_WHATSAPP_DOC_BYTES = Number(process.env.WHATSAPP_DOC_MAX_BYTES || 8 * 1024 * 1024);
-const QUOTE_FLOW_VERSION = "quote-flow-2026-03-23-2148";
+const QUOTE_FLOW_VERSION = "quote-flow-2026-03-24-agenda-hotfix-01";
 const ALLOWED_BRAND_KEYS = ["ohaus"];
 const ALLOWED_NAME_KEYS = ["explorer", "adventurer", "pioneer", "ranger", "defender", "valor", "scout", "mb120", "mb90", "mb27", "mb23", "aquasearcher", "frontier"];
 const ALLOWED_CATEGORY_KEYS = ["balanzas", "basculas", "analizador_humedad", "electroquimica", "equipos_laboratorio", "documentos"];
@@ -3774,8 +3774,100 @@ export async function POST(req: Request) {
         last_user_at: new Date().toISOString(),
       };
       const text = String(inbound.text || "").trim();
+      const strictPrevAwaiting = String(previousMemory?.awaiting_action || "");
+
+      if (strictPrevAwaiting === "advisor_meeting_slot") {
+        const slot = parseAdvisorMiniAgendaChoice(text);
+        const strictReply = !slot
+          ? "Para agendar con asesor, responde 1, 2 o 3 según el horario."
+          : appendQuoteClosurePrompt(`Perfecto. Agendé la gestión con asesor para ${slot.label}. Te contactaremos en ese horario por WhatsApp o llamada.`);
+        if (!slot) {
+          strictMemory.awaiting_action = "advisor_meeting_slot";
+        } else {
+          strictMemory.awaiting_action = "conversation_followup";
+          strictMemory.conversation_status = "open";
+          strictMemory.advisor_meeting_at = slot.iso;
+          strictMemory.advisor_meeting_label = slot.label;
+          console.log("[evolution-webhook] advisor_meeting_slot_saved", { at: slot.iso, label: slot.label });
+        }
+
+        const sentOk = await sendTextAndDocs(strictReply, []);
+        if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+
+        try {
+          const strictMeetingAt = String(strictMemory.advisor_meeting_at || "").trim();
+          await upsertCrmLifecycleState(supabase as any, {
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            phone: inbound.from,
+            name: knownCustomerName || inbound.pushName || "",
+            status: "quote",
+            nextAction: strictMeetingAt ? "Llamar cliente (cita WhatsApp)" : "Seguimiento cotizacion",
+            nextActionAt: strictMeetingAt || isoAfterHours(24),
+            metadata: {
+              source: "evolution_strict_webhook",
+              advisor_meeting_at: strictMeetingAt,
+              advisor_meeting_label: String(strictMemory.advisor_meeting_label || ""),
+            },
+          });
+          await persistConversationTurn(supabase as any, {
+            agentId: String(agent.id),
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            from: inbound.from,
+            pushName: inbound.pushName,
+            contactName: knownCustomerName || inbound.pushName || inbound.from,
+            inboundText: inbound.text,
+            outboundText: strictReply,
+            messageId: inbound.messageId,
+            memory: strictMemory,
+          });
+        } catch {}
+
+        await supabase
+          .from("incoming_messages")
+          .update({ status: "processed", processed_at: new Date().toISOString() })
+          .eq("provider", "evolution")
+          .eq("provider_message_id", incomingDedupKey);
+
+        return NextResponse.json({ ok: true, sent: true, strict: true, advisor: true });
+      }
+
+      if (isAdvisorAppointmentIntent(text)) {
+        const strictReply = buildAdvisorMiniAgendaPrompt();
+        strictMemory.awaiting_action = "advisor_meeting_slot";
+        strictMemory.conversation_status = "open";
+        console.log("[evolution-webhook] advisor_meeting_prompt", { text });
+
+        const sentOk = await sendTextAndDocs(strictReply, []);
+        if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+
+        try {
+          await persistConversationTurn(supabase as any, {
+            agentId: String(agent.id),
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            from: inbound.from,
+            pushName: inbound.pushName,
+            contactName: knownCustomerName || inbound.pushName || inbound.from,
+            inboundText: inbound.text,
+            outboundText: strictReply,
+            messageId: inbound.messageId,
+            memory: strictMemory,
+          });
+        } catch {}
+
+        await supabase
+          .from("incoming_messages")
+          .update({ status: "processed", processed_at: new Date().toISOString() })
+          .eq("provider", "evolution")
+          .eq("provider_message_id", incomingDedupKey);
+
+        return NextResponse.json({ ok: true, sent: true, strict: true, advisor: true });
+      }
+
       const textNorm = normalizeCatalogQueryText(text);
-      const awaiting = String(previousMemory?.awaiting_action || "");
+      const awaiting = strictPrevAwaiting;
       const wantsSheet = isTechnicalSheetIntent(text);
       const wantsQuote = asksQuoteIntent(text) || isPriceIntent(text);
       const isGreeting = isGreetingIntent(text);
