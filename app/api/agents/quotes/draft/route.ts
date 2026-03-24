@@ -39,6 +39,11 @@ function isLikelyTrm(rate: number) {
   return Number.isFinite(rate) && rate >= 1000 && rate <= 10000;
 }
 
+function isQuoteDraftStatusConstraintError(err: any) {
+  const msg = String(err?.message || "").toLowerCase();
+  return msg.includes("agent_quote_drafts_status_check") || (msg.includes("check constraint") && msg.includes("agent_quote_drafts"));
+}
+
 async function fetchTrmFromSocrata() {
   const url = "https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde%20desc";
   const res = await fetch(url, { headers: { Accept: "application/json" } });
@@ -186,15 +191,30 @@ export async function POST(req: Request) {
         trm_date: trm.rate_date,
         trm_source: trm.source,
         price_currency: String(product?.price_currency || "USD"),
+        crm_stage: "analysis",
       },
       status: "analysis",
     };
 
-    const { data: draft, error: draftError } = await supabase
+    let { data: draft, error: draftError } = await supabase
       .from("agent_quote_drafts")
       .insert(draftPayload)
       .select("id,product_name,base_price_usd,trm_rate,total_cop,status,created_at")
       .single();
+
+    if (draftError && isQuoteDraftStatusConstraintError(draftError)) {
+      const legacyPayload = {
+        ...draftPayload,
+        status: "draft",
+      };
+      const retry = await supabase
+        .from("agent_quote_drafts")
+        .insert(legacyPayload)
+        .select("id,product_name,base_price_usd,trm_rate,total_cop,status,created_at")
+        .single();
+      draft = retry.data as any;
+      draftError = retry.error as any;
+    }
 
     if (draftError) {
       return NextResponse.json({ ok: false, error: draftError.message }, { status: 400 });

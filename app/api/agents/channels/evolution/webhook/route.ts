@@ -1353,6 +1353,26 @@ function parseLooseTechnicalHint(text: string): { capacityG?: number; readabilit
   const strictPair = parseTechnicalSpecQuery(t);
   if (strictPair) return strictPair;
 
+  const sigMap: Record<string, number> = {
+    "1": 1,
+    "2": 2,
+    "3": 3,
+    "4": 4,
+    "un": 1,
+    "una": 1,
+    "uno": 1,
+    "dos": 2,
+    "tres": 3,
+    "cuatro": 4,
+  };
+  const sig = t.match(/\b(1|2|3|4|un|una|uno|dos|tres|cuatro)\s*(cifra|cifras|decimal|decimales)\s*(significativa|significativas)?\b/i);
+  if (sig) {
+    const n = Number(sigMap[String(sig[1] || "").toLowerCase()] || 0);
+    if (n >= 1 && n <= 4) {
+      return { readabilityG: Number(Math.pow(10, -n).toFixed(8)) };
+    }
+  }
+
   const valuesForward = Array.from(t.matchAll(/(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)\b/gi))
     .map((m: any) => toGrams(String(m?.[1] || ""), String(m?.[2] || "g")))
     .filter((n: number) => Number.isFinite(n) && n > 0);
@@ -1504,7 +1524,7 @@ function isInventoryInfoIntent(text: string): boolean {
 
 function isRecommendationIntent(text: string): boolean {
   const t = normalizeText(text);
-  return /(recomiend|modelo ideal|que modelo|cual modelo|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza)/.test(t);
+  return /(recomiend|que me puedes recomendar|que me recomiendas|modelo ideal|que modelo|cual modelo|no se que modelo|no se cual|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza)/.test(t);
 }
 
 function isUseCaseApplicabilityIntent(text: string): boolean {
@@ -1866,7 +1886,7 @@ function isAffirmativeIntent(text: string): boolean {
 function isConversationCloseIntent(text: string): boolean {
   const t = normalizeCatalogQueryText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
   if (!t) return false;
-  return /\b(no|no gracias|gracias|eso es todo|nada mas|finaliza|finalizar|finalicemos|finalizamos|termina|terminar|cerrar|cerramos|listo gracias|ok gracias|perfecto gracias|hasta luego|adios|chao)\b/.test(t);
+  return /\b(no gracias|gracias|eso es todo|nada mas|finaliza|finalizar|finalicemos|finalizamos|termina|terminar|cerrar|cerramos|listo gracias|ok gracias|perfecto gracias|hasta luego|adios|chao)\b/.test(t);
 }
 
 function withAvaSignature(text: string): string {
@@ -4841,6 +4861,35 @@ export async function POST(req: Request) {
                   : "Responde con letra o número (A/1), y si quieres también te recomiendo la mejor según tu uso.",
               ].join("\n");
             }
+          }
+        }
+
+        const recommendationAsk = isRecommendationIntent(text) || /\b(no\s+se|no\s+sé)\b.*\b(modelo|cual|cu[aá]l|ofrecer|ofrecerme|elegir)\b/.test(normalizeText(text));
+        if (!String(strictReply || "").trim() && recommendationAsk) {
+          const allOptions = buildNumberedProductOptions(familyRows as any[], 60);
+          const recommended = allOptions.slice(0, 3);
+          const page = allOptions.slice(0, 8);
+          strictMemory.pending_product_options = page;
+          strictMemory.strict_model_offset = 0;
+          strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
+
+          if (!recommended.length) {
+            strictReply = "Claro, te ayudo a elegir. En este grupo no veo modelos disponibles ahora. Si quieres, te recomiendo otra familia según tu uso (laboratorio, joyería o industrial).";
+          } else {
+            const lines = recommended.map((o, idx) => {
+              const pos = idx + 1;
+              const hint = pos === 1
+                ? "opción equilibrada para iniciar"
+                : (pos === 2 ? "alternativa para comparar costo/beneficio" : "alternativa para mayor capacidad/robustez");
+              return `${o.code}) ${o.name} - ${hint}`;
+            });
+            strictReply = [
+              "¡Claro! Te recomiendo estas opciones para empezar, sin complicarte:",
+              ...lines,
+              "",
+              "Si me dices el uso (ej.: laboratorio, joyería o industrial), te digo cuál elegir primero.",
+              "También puedes responder con letra o número (A/1) y te envío ficha o cotización.",
+            ].join("\n");
           }
         }
 

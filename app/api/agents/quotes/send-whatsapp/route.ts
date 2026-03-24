@@ -19,6 +19,11 @@ function formatMoney(n: number) {
   return new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 }).format(Number(n || 0));
 }
 
+function isQuoteDraftStatusConstraintError(err: any) {
+  const msg = String(err?.message || "").toLowerCase();
+  return msg.includes("agent_quote_drafts_status_check") || (msg.includes("check constraint") && msg.includes("agent_quote_drafts"));
+}
+
 function buildQuotePdf(args: {
   draftId: string;
   companyName: string;
@@ -156,11 +161,19 @@ export async function POST(req: Request) {
       },
     };
 
-    await supabase
+    const updateResult = await supabase
       .from("agent_quote_drafts")
       .update({ status: "quote", payload: mergedPayload } as any)
       .eq("id", draftId)
       .eq("created_by", guard.user.id);
+
+    if (updateResult.error && isQuoteDraftStatusConstraintError(updateResult.error)) {
+      await supabase
+        .from("agent_quote_drafts")
+        .update({ status: "sent", payload: mergedPayload } as any)
+        .eq("id", draftId)
+        .eq("created_by", guard.user.id);
+    }
 
     return NextResponse.json({ ok: true, data: { draftId, to, instanceName, fileName, sendResult } });
   } catch (e: any) {
