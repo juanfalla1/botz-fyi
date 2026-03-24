@@ -1560,6 +1560,12 @@ function isUseCaseApplicabilityIntent(text: string): boolean {
   );
 }
 
+function isUseCaseFamilyHint(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  return /(joyeria|joyería|oro|laboratorio|farmacia|industrial|produccion|producción|bodega|maquina|máquina)/.test(t);
+}
+
 function isCatalogBreadthQuestion(text: string): boolean {
   const t = normalizeCatalogQueryText(String(text || ""));
   if (!t) return false;
@@ -5030,7 +5036,7 @@ export async function POST(req: Request) {
 
         const selectedFamily =
           resolvePendingFamilyOption(text, pendingFamilies) ||
-          ((isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text))
+          ((isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text) || isUseCaseFamilyHint(text))
             ? inferFamilyFromUseCase(text, pendingFamilies)
             : null);
         if (!String(strictReply || "").trim() && !selectedFamily) {
