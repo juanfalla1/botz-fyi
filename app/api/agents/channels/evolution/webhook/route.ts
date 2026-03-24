@@ -702,6 +702,8 @@ function buildGuidedRecoveryMessage(args: {
   return [
     "No te entendí del todo, pero te ayudo de una.",
     "Puedes escribir: modelo exacto (ej.: AX12001/E), categoría (balanzas o analizador humedad), o acción (1 cotización / 2 ficha técnica).",
+    "También puedes ver el catálogo aquí: https://balanzasybasculas.com.co/",
+    "Si quieres, te dejo más referencias aquí: https://share.google/cE6wPPEGCH3vytJMm",
   ].join("\n");
 }
 
