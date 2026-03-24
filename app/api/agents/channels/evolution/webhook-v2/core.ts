@@ -3806,9 +3806,41 @@ export async function POST(req: Request) {
       };
 
       if (strictPrevAwaiting === "advisor_meeting_slot") {
+        if (isAdvisorAppointmentIntent(text)) {
+          const strictReply = buildAdvisorMiniAgendaPrompt();
+          strictMemory.awaiting_action = "advisor_meeting_slot";
+          const sentOk = await sendStrictQuickText(strictReply);
+          if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+          try {
+            await persistConversationTurn(supabase as any, {
+              agentId: String(agent.id),
+              ownerId,
+              tenantId: (agent as any)?.tenant_id || null,
+              from: inbound.from,
+              pushName: inbound.pushName,
+              contactName: knownCustomerName || inbound.pushName || inbound.from,
+              inboundText: inbound.text,
+              outboundText: strictReply,
+              messageId: inbound.messageId,
+              memory: strictMemory,
+            });
+          } catch {}
+          await supabase
+            .from("incoming_messages")
+            .update({ status: "processed", processed_at: new Date().toISOString() })
+            .eq("provider", "evolution")
+            .eq("provider_message_id", incomingDedupKey);
+          return NextResponse.json({ ok: true, sent: true, strict: true, advisor: true });
+        }
+
         const slot = parseAdvisorMiniAgendaChoice(text);
         const strictReply = !slot
-          ? "Para agendar con asesor, responde 1, 2 o 3 según el horario."
+          ? [
+              "Para agendar con asesor, responde 1, 2 o 3 según el horario.",
+              "1) Hoy (en las próximas horas)",
+              "2) Mañana 9:00 am",
+              "3) Esta semana (próximo disponible)",
+            ].join("\n")
           : appendQuoteClosurePrompt(`Perfecto. Agendé la gestión con asesor para ${slot.label}. Te contactaremos en ese horario por WhatsApp o llamada.`);
         if (!slot) {
           strictMemory.awaiting_action = "advisor_meeting_slot";
@@ -3893,6 +3925,43 @@ export async function POST(req: Request) {
           .eq("provider_message_id", incomingDedupKey);
 
         return NextResponse.json({ ok: true, sent: true, strict: true, advisor: true });
+      }
+
+      const strictCloseIntentEarly = isConversationCloseIntent(text) && normalizeText(text).length <= 48;
+      if (strictCloseIntentEarly) {
+        const hadQuoteContext =
+          Boolean(previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
+          /(quote_generated|quote_recall|price_request)/.test(String(previousMemory?.last_intent || ""));
+        const strictReply = hadQuoteContext
+          ? "Perfecto, cerramos por ahora. Gracias por tu tiempo. Te estaremos enviando un recordatorio breve para saber como te parecio la cotizacion."
+          : "Perfecto, cerramos por ahora. Gracias por tu tiempo. Si despues quieres retomar, te ayudo por este mismo WhatsApp.";
+        strictMemory.awaiting_action = "none";
+        strictMemory.conversation_status = "closed";
+        strictMemory.last_intent = "conversation_closed";
+        if (hadQuoteContext) strictMemory.quote_feedback_due_at = isoAfterHours(24);
+
+        const sentOk = await sendStrictQuickText(strictReply);
+        if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+        try {
+          await persistConversationTurn(supabase as any, {
+            agentId: String(agent.id),
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            from: inbound.from,
+            pushName: inbound.pushName,
+            contactName: knownCustomerName || inbound.pushName || inbound.from,
+            inboundText: inbound.text,
+            outboundText: strictReply,
+            messageId: inbound.messageId,
+            memory: strictMemory,
+          });
+        } catch {}
+        await supabase
+          .from("incoming_messages")
+          .update({ status: "processed", processed_at: new Date().toISOString() })
+          .eq("provider", "evolution")
+          .eq("provider_message_id", incomingDedupKey);
+        return NextResponse.json({ ok: true, sent: true, strict: true });
       }
 
       const textNorm = normalizeCatalogQueryText(text);
