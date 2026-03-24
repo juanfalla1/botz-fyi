@@ -3776,6 +3776,35 @@ export async function POST(req: Request) {
       const text = String(inbound.text || "").trim();
       const strictPrevAwaiting = String(previousMemory?.awaiting_action || "");
 
+      const sendStrictQuickText = async (replyText: string): Promise<boolean> => {
+        const msg = withAvaSignature(enforceWhatsAppDelivery(replyText, text));
+        const quickTo = [inbound.from, ...(inbound.alternates || [])]
+          .map((n) => normalizePhone(String(n || "")))
+          .filter((n, i, arr) => n && arr.indexOf(n) === i)
+          .filter((n) => n.length >= 10 && n.length <= 15);
+        for (const to of quickTo) {
+          try {
+            await evolutionService.sendMessage(outboundInstance, to, msg);
+            return true;
+          } catch {
+            continue;
+          }
+        }
+        const quickJids = (inbound.jidCandidates || [])
+          .map((v) => String(v || "").trim())
+          .filter((v, i, arr) => v && arr.indexOf(v) === i)
+          .filter((v) => /@(lid|s\.whatsapp\.net|c\.us)$/i.test(v));
+        for (const jid of quickJids) {
+          try {
+            await evolutionService.sendMessageToJid(outboundInstance, jid, msg);
+            return true;
+          } catch {
+            continue;
+          }
+        }
+        return false;
+      };
+
       if (strictPrevAwaiting === "advisor_meeting_slot") {
         const slot = parseAdvisorMiniAgendaChoice(text);
         const strictReply = !slot
@@ -3791,7 +3820,7 @@ export async function POST(req: Request) {
           console.log("[evolution-webhook] advisor_meeting_slot_saved", { at: slot.iso, label: slot.label });
         }
 
-        const sentOk = await sendTextAndDocs(strictReply, []);
+        const sentOk = await sendStrictQuickText(strictReply);
         if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
 
         try {
@@ -3839,7 +3868,7 @@ export async function POST(req: Request) {
         strictMemory.conversation_status = "open";
         console.log("[evolution-webhook] advisor_meeting_prompt", { text });
 
-        const sentOk = await sendTextAndDocs(strictReply, []);
+        const sentOk = await sendStrictQuickText(strictReply);
         if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
 
         try {
