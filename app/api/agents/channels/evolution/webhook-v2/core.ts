@@ -34,7 +34,7 @@ const ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE = String(
 const ENABLE_QUOTE_PRODUCT_IMAGE = String(process.env.WHATSAPP_QUOTE_EMBED_PRODUCT_IMAGE || "true").toLowerCase() === "true";
 const STRICT_WHATSAPP_MODE = String(process.env.WHATSAPP_STRICT_MODE || "true").toLowerCase() !== "false";
 const MAX_WHATSAPP_DOC_BYTES = Number(process.env.WHATSAPP_DOC_MAX_BYTES || 8 * 1024 * 1024);
-const QUOTE_FLOW_VERSION = "quote-flow-2026-03-24-agenda-hotfix-01";
+const QUOTE_FLOW_VERSION = "quote-flow-2026-03-24-agenda-hotfix-02";
 const ALLOWED_BRAND_KEYS = ["ohaus"];
 const ALLOWED_NAME_KEYS = ["explorer", "adventurer", "pioneer", "ranger", "defender", "valor", "scout", "mb120", "mb90", "mb27", "mb23", "aquasearcher", "frontier"];
 const ALLOWED_CATEGORY_KEYS = ["balanzas", "basculas", "analizador_humedad", "electroquimica", "equipos_laboratorio", "documentos"];
@@ -652,6 +652,48 @@ function appendAdvisorAppointmentPrompt(text: string): string {
   const t = normalizeText(base);
   if (/(agendar una cita|asesor humano|cerrar la compra|escribe:\s*cita)/.test(t)) return base;
   return `${base}\nSi prefieres, también puedo agendar una cita con un asesor humano para cerrar la compra. Escribe: cita.`;
+}
+
+function buildGuidedRecoveryMessage(args: {
+  awaiting: string;
+  rememberedProduct?: string;
+  hasPendingFamilies?: boolean;
+  hasPendingModels?: boolean;
+}): string {
+  const awaiting = String(args.awaiting || "").trim();
+  const rememberedProduct = String(args.rememberedProduct || "").trim();
+  const hasPendingFamilies = Boolean(args.hasPendingFamilies);
+  const hasPendingModels = Boolean(args.hasPendingModels);
+
+  if (awaiting === "strict_choose_family" || hasPendingFamilies) {
+    return [
+      "No te preocupes si hubo un error de escritura, te guío de una.",
+      "Responde con la letra/número de la familia (A/1), o escribe el uso (ej.: joyería, laboratorio, industrial) y te sugiero la mejor opción.",
+    ].join("\n");
+  }
+
+  if (awaiting === "strict_choose_model" || hasPendingModels) {
+    return [
+      "No pasa nada si hubo un typo.",
+      "Responde con la letra/número del modelo (A/1), o escribe el modelo aproximado y te ayudo a identificarlo.",
+    ].join("\n");
+  }
+
+  if (rememberedProduct) {
+    return [
+      `Te ayudo de una con ${rememberedProduct}.`,
+      "Puedes responder:",
+      "1) Cotización",
+      "2) Ficha técnica",
+      "3) Otra pregunta técnica",
+      "4) Cerrar conversación",
+    ].join("\n");
+  }
+
+  return [
+    "No te entendí del todo, pero te ayudo de una.",
+    "Puedes escribir: modelo exacto (ej.: AX12001/E), categoría (balanzas o analizador humedad), o acción (1 cotización / 2 ficha técnica).",
+  ].join("\n");
 }
 
 function isAdvisorAppointmentIntent(text: string): boolean {
@@ -4107,6 +4149,17 @@ export async function POST(req: Request) {
         }
       }
 
+      if (!selectedProduct && awaiting === "conversation_followup" && (/^1\b/.test(textNorm) || /^2\b/.test(textNorm))) {
+        const rememberedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || "").trim();
+        const rememberedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || "").trim();
+        if (rememberedId) {
+          selectedProduct = ownerRows.find((r: any) => String(r?.id || "").trim() === rememberedId) || null;
+        }
+        if (!selectedProduct && rememberedName) {
+          selectedProduct = findCatalogProductByName(ownerRows as any[], rememberedName) || null;
+        }
+      }
+
       if (!selectedProduct && awaiting === "strict_choose_model") {
         const pending = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
         const selected = resolvePendingProductOption(text, pending);
@@ -4657,7 +4710,11 @@ export async function POST(req: Request) {
             ? inferFamilyFromUseCase(text, pendingFamilies)
             : null);
         if (!String(strictReply || "").trim() && !selectedFamily) {
-          strictReply = "Elige una familia con letra o número (ej.: A o 1).";
+          strictReply = buildGuidedRecoveryMessage({
+            awaiting,
+            rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
+            hasPendingFamilies: pendingFamilies.length > 0,
+          });
         } else if (!String(strictReply || "").trim() && selectedFamily) {
           const selectedFamilyResolved = selectedFamily as { key?: string; label?: string };
           const familyRows = baseScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamilyResolved.key || "")));
@@ -4785,7 +4842,12 @@ export async function POST(req: Request) {
           strictReply = "No encontré coincidencia exacta para esa capacidad/resolución. ¿Quieres que busquemos una resolución cercana?";
         }
       } else {
-        strictReply = "Te ayudo con catálogo OHAUS. Dime modelo exacto (ej.: AX12001/E, MB120, PX85) o categoría (balanzas, analizador humedad) y seguimos.";
+        strictReply = buildGuidedRecoveryMessage({
+          awaiting,
+          rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
+          hasPendingFamilies: Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0,
+          hasPendingModels: Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0,
+        });
       }
 
       const strictAssetDelivered = strictDocs.length > 0;
@@ -7467,11 +7529,12 @@ export async function POST(req: Request) {
     }
 
     if (!String(reply || "").trim()) {
-      reply = [
-        "Te ayudo con productos del catálogo OHAUS.",
-        "Puedes escribir modelo/referencia (ej.: PR224/E o SAP 30430062), capacidad y resolución (ej.: 220g x 0.0001g) o categoría (balanzas, basculas, electroquimica).",
-        "Si prefieres, te muestro opciones y eliges con letra o número (A/1, B/2, C/3).",
-      ].join("\n");
+      reply = buildGuidedRecoveryMessage({
+        awaiting: String(nextMemory.awaiting_action || previousMemory?.awaiting_action || ""),
+        rememberedProduct: String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || ""),
+        hasPendingFamilies: Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0,
+        hasPendingModels: Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0,
+      });
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
 
