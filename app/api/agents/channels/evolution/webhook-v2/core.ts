@@ -4244,11 +4244,13 @@ export async function POST(req: Request) {
           strictMemory.pending_family_options = [];
           strictMemory.awaiting_action = "strict_choose_model";
           strictMemory.strict_model_offset = 0;
+          const top = options.slice(0, 3);
           strictReply = [
             `Sí, para ${text.trim()} tengo opciones disponibles en catálogo.`,
-            ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
+            "Para facilitarte la elección, te recomiendo empezar por estas 3:",
+            ...top.map((o, idx) => `${o.code}) ${o.name}${idx === 0 ? " (recomendada para iniciar)" : ""}`),
             "",
-            "Si quieres, te envío ficha técnica de una opción. Responde con letra o número (A/1).",
+            "Si quieres ver más referencias, escribe 'más'. También puedes responder con letra o número (A/1) y te envío ficha o cotización.",
           ].join("\n");
         } else {
           strictMemory.awaiting_action = "strict_need_spec";
@@ -4851,14 +4853,15 @@ export async function POST(req: Request) {
               strictReply = "Gracias por el dato. En el catálogo actual no veo una coincidencia clara con esa característica en esta familia. Si quieres, te ayudo a buscarla por capacidad y resolución exacta (ej.: 4200 g x 0.01 g) para recomendarte la opción más segura.";
             } else {
               const criterionLabel = `${formatSpecNumber(effectiveCap)} g x ${formatSpecNumber(effectiveRead)} g`;
+              const top = filteredPage.slice(0, 3);
               strictReply = [
                 `¡Excelente! Sí tenemos referencias con esa característica en nuestro catálogo${familyLabel ? ` de ${familyLabel}` : ""}.`,
-                `Te comparto las opciones más cercanas para ${criterionLabel} y así comparas rápido:`,
-                ...filteredPage.map((o) => `${o.code}) ${o.name}`),
+                `Para ${criterionLabel}, te sugiero empezar con estas 3 opciones:`,
+                ...top.map((o, idx) => `${o.code}) ${o.name}${idx === 0 ? " (recomendada para iniciar)" : ""}`),
                 "",
                 (filteredOptions.length > filteredPage.length)
-                  ? "Responde con letra/número (A/1), o escribe 'más' para ver siguientes."
-                  : "Responde con letra o número (A/1), y si quieres también te recomiendo la mejor según tu uso.",
+                  ? "Si quieres, escribe 'más' y te muestro otras alternativas. También puedes elegir A/1 para continuar."
+                  : "Si quieres, te explico cuál conviene más según tu uso (laboratorio, joyería o industrial). También puedes elegir A/1.",
               ].join("\n");
             }
           }
@@ -4972,14 +4975,15 @@ export async function POST(req: Request) {
               strictReply = "Gracias por el dato. No encontré coincidencias claras con esa característica en el catálogo activo. Si quieres, envíame capacidad y resolución exacta (ej.: 4200 g x 0.01 g) y lo ajusto mejor.";
             } else {
               const criterionLabel = `${formatSpecNumber(effectiveCap)} g x ${formatSpecNumber(effectiveRead)} g`;
+              const top = options.slice(0, 3);
               strictReply = [
                 `¡Excelente! Con base en ${criterionLabel}, sí tenemos opciones en el catálogo.`,
-                "Te comparto las más cercanas para que compares rápido:",
-                ...options.map((o) => `${o.code}) ${o.name}`),
+                "Para facilitarte la elección, te recomiendo estas 3 primero:",
+                ...top.map((o, idx) => `${o.code}) ${o.name}${idx === 0 ? " (recomendada para iniciar)" : ""}`),
                 "",
                 (allOptions.length > options.length)
-                  ? "Responde con letra o número (A/1), o escribe 'más' para ver siguientes."
-                  : "Responde con letra o número (A/1), y si quieres te recomiendo la más adecuada según tu uso.",
+                  ? "Si quieres más alternativas, escribe 'más'. También puedes elegir A/1 para continuar."
+                  : "También puedo recomendarte la mejor según tu uso. Si prefieres, elige A/1 para continuar.",
               ].join("\n");
             }
           }
