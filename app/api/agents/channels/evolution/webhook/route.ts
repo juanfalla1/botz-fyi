@@ -1382,6 +1382,16 @@ function parseLooseTechnicalHint(text: string): { capacityG?: number; readabilit
   const strictPair = parseTechnicalSpecQuery(t);
   if (strictPair) return strictPair;
 
+  const explicitReadToken =
+    t.match(/(?:^|\s)(0(?:[\.,]\d+))\s*(mg|g|kg)\b/i) ||
+    t.match(/(?:^|\s)([\.,]\d+)\s*(mg|g|kg)\b/i);
+  if (explicitReadToken) {
+    const raw = String(explicitReadToken[1] || "").replace(/^\./, "0.").replace(/^,/, "0.");
+    const unit = String(explicitReadToken[2] || "g");
+    const read = toGrams(raw, unit);
+    if (read > 0 && read < 1) return { readabilityG: read };
+  }
+
   const sigMap: Record<string, number> = {
     "1": 1,
     "2": 2,
