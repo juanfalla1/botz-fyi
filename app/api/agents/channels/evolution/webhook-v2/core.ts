@@ -1521,6 +1521,24 @@ function rankCatalogByReadabilityOnly(rows: any[], readabilityG: number): Array<
     .sort((a: any, b: any) => a.score - b.score) as any;
 }
 
+function prioritizeTechnicalRows(rows: any[], spec: { capacityG: number; readabilityG: number }): { orderedRows: any[]; exactCount: number } {
+  const ranked = rankCatalogByTechnicalSpec(rows, spec);
+  if (!ranked.length) return { orderedRows: [], exactCount: 0 };
+
+  const exact = ranked.filter((x: any) => x.capacityDeltaPct <= 3 && x.readabilityRatio >= 0.9 && x.readabilityRatio <= 1.1);
+  const near = ranked.filter((x: any) => !(x.capacityDeltaPct <= 3 && x.readabilityRatio >= 0.9 && x.readabilityRatio <= 1.1));
+  const out: any[] = [];
+  const seen = new Set<string>();
+
+  for (const x of [...exact, ...near]) {
+    const id = String(x?.row?.id || "").trim() || normalizeText(String(x?.row?.name || ""));
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(x.row);
+  }
+  return { orderedRows: out, exactCount: exact.length };
+}
+
 function isQuoteProceedIntent(text: string): boolean {
   const t = normalizeText(text);
   return /(damela|dámela|enviamela|enviamela|hazla|generala|genérala|cotizala|cotízala|adelante|si por favor|si, por favor|dale|de una)/.test(t);
@@ -4222,7 +4240,11 @@ export async function POST(req: Request) {
       }
 
       const textNorm = normalizeCatalogQueryText(text);
-      const awaiting = strictPrevAwaiting;
+      let awaiting = strictPrevAwaiting;
+      const hasPendingModels = Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0;
+      const hasPendingFamilies = Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0;
+      if (!awaiting && hasPendingModels) awaiting = "strict_choose_model";
+      if (!awaiting && hasPendingFamilies) awaiting = "strict_choose_family";
       const wantsSheet = isTechnicalSheetIntent(text);
       const wantsQuote = asksQuoteIntent(text) || isPriceIntent(text);
       const isGreeting = isGreetingIntent(text);
@@ -4289,21 +4311,23 @@ export async function POST(req: Request) {
       const directTechnicalSpec = parseTechnicalSpecQuery(text);
       if (!String(strictReply || "").trim() && !selectedProduct && directTechnicalSpec) {
         strictMemory.strict_spec_query = text;
-        const ranked = rankCatalogByTechnicalSpec(ownerRows as any[], {
+        const prioritized = prioritizeTechnicalRows(ownerRows as any[], {
           capacityG: directTechnicalSpec.capacityG,
           readabilityG: directTechnicalSpec.readabilityG,
         });
-        const rankedRows = ranked.map((r: any) => r.row);
-        const options = buildNumberedProductOptions((rankedRows.length ? rankedRows : ownerRows) as any[], 8);
+        const options = buildNumberedProductOptions((prioritized.orderedRows.length ? prioritized.orderedRows : ownerRows) as any[], 8);
         if (options.length) {
           strictMemory.pending_product_options = options;
           strictMemory.pending_family_options = [];
           strictMemory.awaiting_action = "strict_choose_model";
           strictMemory.strict_model_offset = 0;
           const top = options.slice(0, 3);
+          const exactLabel = prioritized.exactCount > 0
+            ? `Sí, para ${text.trim()} encontré ${prioritized.exactCount} referencia(s) que coinciden con esa especificación.`
+            : `Sí, para ${text.trim()} no veo coincidencia exacta, pero sí alternativas muy cercanas en catálogo.`;
           strictReply = [
-            `Sí, para ${text.trim()} tengo opciones disponibles en catálogo.`,
-            "Para facilitarte la elección, te recomiendo empezar por estas 3:",
+            exactLabel,
+            "Te comparto la coincidencia solicitada y alternativas cercanas:",
             ...top.map((o, idx) => `${o.code}) ${o.name}${idx === 0 ? " (recomendada para iniciar)" : ""}`),
             "",
             "Si quieres ver más referencias, escribe 'más'. También puedes responder con letra o número (A/1) y te envío ficha o cotización.",
@@ -4903,11 +4927,11 @@ export async function POST(req: Request) {
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
           } else {
-            const rankedRows = rankCatalogByTechnicalSpec(familyRows as any[], {
+            const prioritized = prioritizeTechnicalRows(familyRows as any[], {
               capacityG: effectiveCap,
               readabilityG: effectiveRead,
-            }).map((x: any) => x.row);
-            const filteredOptions = buildNumberedProductOptions((rankedRows.length ? rankedRows : familyRows) as any[], 60);
+            });
+            const filteredOptions = buildNumberedProductOptions((prioritized.orderedRows.length ? prioritized.orderedRows : familyRows) as any[], 60);
             const filteredPage = filteredOptions.slice(0, 8);
             strictMemory.pending_product_options = filteredPage;
             strictMemory.strict_model_offset = 0;
@@ -4920,8 +4944,11 @@ export async function POST(req: Request) {
             } else {
               const criterionLabel = `${formatSpecNumber(effectiveCap)} g x ${formatSpecNumber(effectiveRead)} g`;
               const top = filteredPage.slice(0, 3);
+              const exactIntro = prioritized.exactCount > 0
+                ? `¡Excelente! Para ${criterionLabel} sí tenemos coincidencia en catálogo${familyLabel ? ` de ${familyLabel}` : ""}.`
+                : `Para ${criterionLabel}, en ${familyLabel || "esta familia"} no veo coincidencia exacta, pero sí alternativas cercanas.`;
               strictReply = [
-                `¡Excelente! Sí tenemos referencias con esa característica en nuestro catálogo${familyLabel ? ` de ${familyLabel}` : ""}.`,
+                exactIntro,
                 `Para ${criterionLabel}, te sugiero empezar con estas 3 opciones:`,
                 ...top.map((o, idx) => `${o.code}) ${o.name}${idx === 0 ? " (recomendada para iniciar)" : ""}`),
                 "",
@@ -5026,12 +5053,12 @@ export async function POST(req: Request) {
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
           } else {
-            const rankedRows = rankCatalogByTechnicalSpec(baseScoped as any[], {
+            const prioritized = prioritizeTechnicalRows(baseScoped as any[], {
               capacityG: effectiveCap,
               readabilityG: effectiveRead,
-            }).map((x: any) => x.row);
+            });
 
-            const sourceRows = rankedRows.length ? rankedRows : (baseScoped as any[]);
+            const sourceRows = prioritized.orderedRows.length ? prioritized.orderedRows : (baseScoped as any[]);
             const allOptions = buildNumberedProductOptions(sourceRows, 60);
             const options = allOptions.slice(0, 8);
             strictMemory.pending_product_options = options;
@@ -5047,8 +5074,11 @@ export async function POST(req: Request) {
             } else {
               const criterionLabel = `${formatSpecNumber(effectiveCap)} g x ${formatSpecNumber(effectiveRead)} g`;
               const top = options.slice(0, 3);
+              const exactIntro = prioritized.exactCount > 0
+                ? `¡Excelente! Con base en ${criterionLabel}, sí tenemos coincidencia en el catálogo.`
+                : `Con base en ${criterionLabel}, no veo coincidencia exacta en este grupo, pero sí opciones cercanas.`;
               strictReply = [
-                `¡Excelente! Con base en ${criterionLabel}, sí tenemos opciones en el catálogo.`,
+                exactIntro,
                 "Para facilitarte la elección, te recomiendo estas 3 primero:",
                 ...top.map((o, idx) => `${o.code}) ${o.name}${idx === 0 ? " (recomendada para iniciar)" : ""}`),
                 "",
@@ -5214,7 +5244,7 @@ export async function POST(req: Request) {
           : "Listo. Te envié la ficha técnica por este WhatsApp.";
       }
       if (strictAssetDelivered && String(strictReply || "").trim()) {
-        if (strictQuoteDelivered) strictReply = appendAdvisorAppointmentPrompt(strictReply);
+        strictReply = appendAdvisorAppointmentPrompt(strictReply);
         strictReply = appendQuoteClosurePrompt(strictReply);
         strictMemory.awaiting_action = "conversation_followup";
         strictMemory.conversation_status = "open";
