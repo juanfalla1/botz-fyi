@@ -1351,9 +1351,13 @@ function parseLooseTechnicalHint(text: string): { capacityG?: number; readabilit
   const strictPair = parseTechnicalSpecQuery(t);
   if (strictPair) return strictPair;
 
-  const values = Array.from(t.matchAll(/(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)\b/gi))
+  const valuesForward = Array.from(t.matchAll(/(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)\b/gi))
     .map((m: any) => toGrams(String(m?.[1] || ""), String(m?.[2] || "g")))
     .filter((n: number) => Number.isFinite(n) && n > 0);
+  const valuesReverse = Array.from(t.matchAll(/\b(mg|g|kg)\s*[,:\- ]+\s*(\d+(?:[\.,]\d+)?)/gi))
+    .map((m: any) => toGrams(String(m?.[2] || ""), String(m?.[1] || "g")))
+    .filter((n: number) => Number.isFinite(n) && n > 0);
+  const values = [...valuesForward, ...valuesReverse];
   if (!values.length) return null;
 
   const hasReadabilityKeyword = /(resolucion|precision|lectura\s*minima|division|divisiones|readability)/.test(t);
@@ -4455,12 +4459,35 @@ export async function POST(req: Request) {
           ? `Hola ${knownCustomerName}, soy Ava de Avanza Group. ¿Qué producto necesitas hoy?`
           : "Hola, soy Ava de Avanza Group. ¿Qué producto necesitas hoy?";
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
-        const parsed = parseTechnicalSpecQuery(text);
-        if (!parsed) {
+        const parsed = parseLooseTechnicalHint(text);
+        const prevCap = Number(previousMemory?.strict_partial_capacity_g || 0);
+        const prevRead = Number(previousMemory?.strict_partial_readability_g || 0);
+        const cap = Number(parsed?.capacityG || prevCap || 0);
+        const read = Number(parsed?.readabilityG || prevRead || 0);
+        strictMemory.strict_partial_capacity_g = cap > 0 ? cap : "";
+        strictMemory.strict_partial_readability_g = read > 0 ? read : "";
+
+        if (!(cap > 0) && !(read > 0)) {
           strictReply = "Perfecto. Para cotizar bien, dime capacidad y resolución objetivo (ej.: 2 kg x 0.01 g o 220 g x 0.001 g).";
           strictMemory.awaiting_action = "strict_need_spec";
+        } else if (read > 0 && !(cap > 0)) {
+          strictReply = [
+            `Perfecto, ya tengo la precisión (${formatSpecNumber(read)} g).`,
+            "Para recomendarte bien, ¿qué capacidad aproximada necesitas?",
+            "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
+          ].join("\n");
+          strictMemory.awaiting_action = "strict_need_spec";
+        } else if (cap > 0 && !(read > 0)) {
+          strictReply = [
+            `Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g).`,
+            "Ahora dime la resolución/precisión objetivo.",
+            "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
+          ].join("\n");
+          strictMemory.awaiting_action = "strict_need_spec";
         } else {
-          strictMemory.strict_spec_query = text;
+          strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
+          strictMemory.strict_partial_capacity_g = "";
+          strictMemory.strict_partial_readability_g = "";
           strictMemory.awaiting_action = "strict_need_industry";
           strictReply = "Gracias. ¿Para qué industria o uso la necesitas? (ej.: laboratorio de alimentos, farmacia, producción).";
         }
@@ -4766,46 +4793,52 @@ export async function POST(req: Request) {
         const looseSpecHint = parseLooseTechnicalHint(text);
 
         if (looseSpecHint && (looseSpecHint.capacityG || looseSpecHint.readabilityG)) {
-          let rankedRows: any[] = [];
-          if (looseSpecHint.capacityG && looseSpecHint.readabilityG) {
-            rankedRows = rankCatalogByTechnicalSpec(familyRows as any[], {
-              capacityG: looseSpecHint.capacityG,
-              readabilityG: looseSpecHint.readabilityG,
-            }).map((x: any) => x.row);
-          } else if (looseSpecHint.capacityG) {
-            rankedRows = rankCatalogByCapacityOnly(familyRows as any[], looseSpecHint.capacityG)
-              .filter((x: any) => x.capacityDeltaPct <= 60)
-              .map((x: any) => x.row);
-          } else if (looseSpecHint.readabilityG) {
-            rankedRows = rankCatalogByReadabilityOnly(familyRows as any[], looseSpecHint.readabilityG)
-              .filter((x: any) => x.readabilityRatio <= 3)
-              .map((x: any) => x.row);
-          }
+          const rememberedCap = Number(previousMemory?.strict_partial_capacity_g || 0);
+          const rememberedRead = Number(previousMemory?.strict_partial_readability_g || 0);
+          const effectiveCap = Number(looseSpecHint.capacityG || rememberedCap || 0);
+          const effectiveRead = Number(looseSpecHint.readabilityG || rememberedRead || 0);
+          strictMemory.strict_partial_capacity_g = effectiveCap > 0 ? effectiveCap : "";
+          strictMemory.strict_partial_readability_g = effectiveRead > 0 ? effectiveRead : "";
 
-          const filteredOptions = buildNumberedProductOptions((rankedRows.length ? rankedRows : familyRows) as any[], 60);
-          const filteredPage = filteredOptions.slice(0, 8);
-          strictMemory.pending_product_options = filteredPage;
-          strictMemory.strict_model_offset = 0;
-          strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
-
-          if (!filteredPage.length) {
-            strictReply = "Gracias por el dato. En el catálogo actual no veo una coincidencia clara con esa característica en esta familia. Si quieres, te ayudo a buscarla por capacidad y resolución exacta (ej.: 4200 g x 0.01 g) para recomendarte la opción más segura.";
-          } else {
-            const criterionLabel =
-              looseSpecHint.capacityG && looseSpecHint.readabilityG
-                ? `${formatSpecNumber(looseSpecHint.capacityG)} g x ${formatSpecNumber(looseSpecHint.readabilityG)} g`
-                : (looseSpecHint.capacityG
-                    ? `${formatSpecNumber(looseSpecHint.capacityG)} g`
-                    : `${formatSpecNumber(Number(looseSpecHint.readabilityG || 0))} g`);
+          if (effectiveRead > 0 && !(effectiveCap > 0)) {
             strictReply = [
-              `¡Excelente! Sí tenemos referencias con esa característica en nuestro catálogo${familyLabel ? ` de ${familyLabel}` : ""}.`,
-              `Te comparto las opciones más cercanas para ${criterionLabel} y así comparas rápido:`,
-              ...filteredPage.map((o) => `${o.code}) ${o.name}`),
-              "",
-              (filteredOptions.length > filteredPage.length)
-                ? "Responde con letra/número (A/1), o escribe 'más' para ver siguientes."
-                : "Responde con letra o número (A/1), y si quieres también te recomiendo la mejor según tu uso.",
+              `Perfecto, ya tengo la precisión (${formatSpecNumber(effectiveRead)} g).`,
+              "Para recomendarte mejor en esta familia, dime capacidad aproximada.",
+              "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
             ].join("\n");
+          } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
+            strictReply = [
+              `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
+              "Ahora dime la resolución/precisión objetivo.",
+              "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
+            ].join("\n");
+          } else {
+            const rankedRows = rankCatalogByTechnicalSpec(familyRows as any[], {
+              capacityG: effectiveCap,
+              readabilityG: effectiveRead,
+            }).map((x: any) => x.row);
+            const filteredOptions = buildNumberedProductOptions((rankedRows.length ? rankedRows : familyRows) as any[], 60);
+            const filteredPage = filteredOptions.slice(0, 8);
+            strictMemory.pending_product_options = filteredPage;
+            strictMemory.strict_model_offset = 0;
+            strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
+            strictMemory.strict_partial_capacity_g = "";
+            strictMemory.strict_partial_readability_g = "";
+
+            if (!filteredPage.length) {
+              strictReply = "Gracias por el dato. En el catálogo actual no veo una coincidencia clara con esa característica en esta familia. Si quieres, te ayudo a buscarla por capacidad y resolución exacta (ej.: 4200 g x 0.01 g) para recomendarte la opción más segura.";
+            } else {
+              const criterionLabel = `${formatSpecNumber(effectiveCap)} g x ${formatSpecNumber(effectiveRead)} g`;
+              strictReply = [
+                `¡Excelente! Sí tenemos referencias con esa característica en nuestro catálogo${familyLabel ? ` de ${familyLabel}` : ""}.`,
+                `Te comparto las opciones más cercanas para ${criterionLabel} y así comparas rápido:`,
+                ...filteredPage.map((o) => `${o.code}) ${o.name}`),
+                "",
+                (filteredOptions.length > filteredPage.length)
+                  ? "Responde con letra/número (A/1), o escribe 'más' para ver siguientes."
+                  : "Responde con letra o número (A/1), y si quieres también te recomiendo la mejor según tu uso.",
+              ].join("\n");
+            }
           }
         }
 
@@ -4848,49 +4881,56 @@ export async function POST(req: Request) {
 
         const looseSpecHintInFamilyStep = parseLooseTechnicalHint(text);
         if (!String(strictReply || "").trim() && looseSpecHintInFamilyStep && (looseSpecHintInFamilyStep.capacityG || looseSpecHintInFamilyStep.readabilityG)) {
-          let rankedRows: any[] = [];
-          if (looseSpecHintInFamilyStep.capacityG && looseSpecHintInFamilyStep.readabilityG) {
-            rankedRows = rankCatalogByTechnicalSpec(baseScoped as any[], {
-              capacityG: looseSpecHintInFamilyStep.capacityG,
-              readabilityG: looseSpecHintInFamilyStep.readabilityG,
-            }).map((x: any) => x.row);
-          } else if (looseSpecHintInFamilyStep.capacityG) {
-            rankedRows = rankCatalogByCapacityOnly(baseScoped as any[], looseSpecHintInFamilyStep.capacityG)
-              .filter((x: any) => x.capacityDeltaPct <= 60)
-              .map((x: any) => x.row);
-          } else if (looseSpecHintInFamilyStep.readabilityG) {
-            rankedRows = rankCatalogByReadabilityOnly(baseScoped as any[], looseSpecHintInFamilyStep.readabilityG)
-              .filter((x: any) => x.readabilityRatio <= 3)
-              .map((x: any) => x.row);
-          }
+          const rememberedCap = Number(previousMemory?.strict_partial_capacity_g || 0);
+          const rememberedRead = Number(previousMemory?.strict_partial_readability_g || 0);
+          const effectiveCap = Number(looseSpecHintInFamilyStep.capacityG || rememberedCap || 0);
+          const effectiveRead = Number(looseSpecHintInFamilyStep.readabilityG || rememberedRead || 0);
+          strictMemory.strict_partial_capacity_g = effectiveCap > 0 ? effectiveCap : "";
+          strictMemory.strict_partial_readability_g = effectiveRead > 0 ? effectiveRead : "";
 
-          const sourceRows = rankedRows.length ? rankedRows : (baseScoped as any[]);
-          const allOptions = buildNumberedProductOptions(sourceRows, 60);
-          const options = allOptions.slice(0, 8);
-          strictMemory.pending_product_options = options;
-          strictMemory.pending_family_options = [];
-          strictMemory.awaiting_action = "strict_choose_model";
-          strictMemory.strict_model_offset = 0;
-          strictMemory.strict_family_label = "";
-
-          if (!options.length) {
-            strictReply = "Gracias por el dato. No encontré coincidencias claras con esa característica en el catálogo activo. Si quieres, envíame capacidad y resolución exacta (ej.: 4200 g x 0.01 g) y lo ajusto mejor.";
-          } else {
-            const criterionLabel =
-              looseSpecHintInFamilyStep.capacityG && looseSpecHintInFamilyStep.readabilityG
-                ? `${formatSpecNumber(looseSpecHintInFamilyStep.capacityG)} g x ${formatSpecNumber(looseSpecHintInFamilyStep.readabilityG)} g`
-                : (looseSpecHintInFamilyStep.capacityG
-                    ? `${formatSpecNumber(looseSpecHintInFamilyStep.capacityG)} g`
-                    : `${formatSpecNumber(Number(looseSpecHintInFamilyStep.readabilityG || 0))} g`);
+          if (effectiveRead > 0 && !(effectiveCap > 0)) {
             strictReply = [
-              `¡Excelente! Con base en ${criterionLabel}, sí tenemos opciones en el catálogo.`,
-              "Te comparto las más cercanas para que compares rápido:",
-              ...options.map((o) => `${o.code}) ${o.name}`),
-              "",
-              (allOptions.length > options.length)
-                ? "Responde con letra o número (A/1), o escribe 'más' para ver siguientes."
-                : "Responde con letra o número (A/1), y si quieres te recomiendo la más adecuada según tu uso.",
+              `Perfecto, ya tengo la precisión (${formatSpecNumber(effectiveRead)} g).`,
+              "Para recomendarte mejor, dime la capacidad aproximada.",
+              "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
             ].join("\n");
+          } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
+            strictReply = [
+              `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
+              "Ahora dime la resolución/precisión objetivo.",
+              "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
+            ].join("\n");
+          } else {
+            const rankedRows = rankCatalogByTechnicalSpec(baseScoped as any[], {
+              capacityG: effectiveCap,
+              readabilityG: effectiveRead,
+            }).map((x: any) => x.row);
+
+            const sourceRows = rankedRows.length ? rankedRows : (baseScoped as any[]);
+            const allOptions = buildNumberedProductOptions(sourceRows, 60);
+            const options = allOptions.slice(0, 8);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictMemory.strict_family_label = "";
+            strictMemory.strict_partial_capacity_g = "";
+            strictMemory.strict_partial_readability_g = "";
+
+            if (!options.length) {
+              strictReply = "Gracias por el dato. No encontré coincidencias claras con esa característica en el catálogo activo. Si quieres, envíame capacidad y resolución exacta (ej.: 4200 g x 0.01 g) y lo ajusto mejor.";
+            } else {
+              const criterionLabel = `${formatSpecNumber(effectiveCap)} g x ${formatSpecNumber(effectiveRead)} g`;
+              strictReply = [
+                `¡Excelente! Con base en ${criterionLabel}, sí tenemos opciones en el catálogo.`,
+                "Te comparto las más cercanas para que compares rápido:",
+                ...options.map((o) => `${o.code}) ${o.name}`),
+                "",
+                (allOptions.length > options.length)
+                  ? "Responde con letra o número (A/1), o escribe 'más' para ver siguientes."
+                  : "Responde con letra o número (A/1), y si quieres te recomiendo la más adecuada según tu uso.",
+              ].join("\n");
+            }
           }
         }
 
