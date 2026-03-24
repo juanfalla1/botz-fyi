@@ -3815,6 +3815,28 @@ export async function POST(req: Request) {
         if (hadQuoteContext) strictMemory.quote_feedback_due_at = isoAfterHours(24);
       }
 
+      const strictAwaiting = String(previousMemory?.awaiting_action || "");
+      const strictHadQuoteContext =
+        Boolean(previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
+        /(quote_generated|quote_recall|price_request)/.test(String(previousMemory?.last_intent || ""));
+      if (!String(strictReply || "").trim() && isAdvisorAppointmentIntent(text) && (strictAwaiting === "conversation_followup" || strictHadQuoteContext)) {
+        strictReply = buildAdvisorMiniAgendaPrompt();
+        strictMemory.awaiting_action = "advisor_meeting_slot";
+        strictMemory.conversation_status = "open";
+      } else if (!String(strictReply || "").trim() && strictAwaiting === "advisor_meeting_slot") {
+        const slot = parseAdvisorMiniAgendaChoice(text);
+        if (!slot) {
+          strictReply = "Para agendar con asesor, responde 1, 2 o 3 según el horario.";
+          strictMemory.awaiting_action = "advisor_meeting_slot";
+        } else {
+          strictReply = `Perfecto. Agendé la gestión con asesor para ${slot.label}. Te contactaremos en ese horario por WhatsApp o llamada.`;
+          strictMemory.awaiting_action = "conversation_followup";
+          strictMemory.advisor_meeting_at = slot.iso;
+          strictMemory.advisor_meeting_label = slot.label;
+          strictReply = appendQuoteClosurePrompt(strictReply);
+        }
+      }
+
       let selectedProduct: any = null;
       if (!String(strictReply || "").trim() && explicitModel) {
         selectedProduct = findExactModelProduct(text, ownerRows as any[]) || pickBestCatalogProduct(text, ownerRows as any[]);
