@@ -7964,11 +7964,14 @@ export async function POST(req: Request) {
           nextMemory.customer_phone = effectiveCustomerPhone || nextMemory.customer_phone;
           nextMemory.customer_email = effectiveCustomerEmail || nextMemory.customer_email;
 
-          if (!handledByQuoteIntake && missingFields.length) {
+          const requireQuoteContactBundle = String(process.env.WHATSAPP_REQUIRE_QUOTE_CONTACT_BUNDLE || "false").toLowerCase() === "true";
+          if (!handledByQuoteIntake && missingFields.length && requireQuoteContactBundle) {
             reply = `Para formalizar la cotizacion me faltan: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Ciudad: Bogota, Empresa: ..., NIT: ..., Contacto: ..., Correo: ..., Celular: ...). Si prefieres no compartir datos personales, escribe: continuar cotizacion sin datos personales.`;
             nextMemory.awaiting_action = "quote_contact_bundle";
             handledByQuoteIntake = true;
             billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+          } else if (missingFields.length) {
+            missingFields.length = 0;
           }
 
           if (!missingFields.length && !handledByQuoteIntake && selectedProducts.length === 1) {
