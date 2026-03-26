@@ -4186,6 +4186,44 @@ export async function POST(req: Request) {
         return false;
       };
 
+      if (isContextResetIntent(text)) {
+        const keepCustomerName = String(strictMemory.customer_name || previousMemory?.customer_name || "").trim();
+        const keepCustomerPhone = String(strictMemory.customer_phone || previousMemory?.customer_phone || "").trim();
+        const keepCustomerEmail = String(strictMemory.customer_email || previousMemory?.customer_email || "").trim();
+        Object.keys(strictMemory).forEach((k) => delete strictMemory[k]);
+        if (keepCustomerName) strictMemory.customer_name = keepCustomerName;
+        if (keepCustomerPhone) strictMemory.customer_phone = keepCustomerPhone;
+        if (keepCustomerEmail) strictMemory.customer_email = keepCustomerEmail;
+        strictMemory.awaiting_action = "none";
+        strictMemory.last_intent = "reset_context";
+        strictMemory.last_user_text = text;
+        strictMemory.last_user_at = new Date().toISOString();
+
+        const strictReply = "Listo, reinicié el contexto de esta conversación. Ahora dime capacidad y resolución (ej.: 220 g x 0.00001 g) o el modelo exacto.";
+        const sentOk = await sendStrictQuickText(strictReply);
+        if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+        try {
+          await persistConversationTurn(supabase as any, {
+            agentId: String(agent.id),
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            from: inbound.from,
+            pushName: inbound.pushName,
+            contactName: knownCustomerName || inbound.pushName || inbound.from,
+            inboundText: inbound.text,
+            outboundText: strictReply,
+            messageId: inbound.messageId,
+            memory: strictMemory,
+          });
+        } catch {}
+        await supabase
+          .from("incoming_messages")
+          .update({ status: "processed", processed_at: new Date().toISOString() })
+          .eq("provider", "evolution")
+          .eq("provider_message_id", incomingDedupKey);
+        return NextResponse.json({ ok: true, sent: true, strict: true, reset: true });
+      }
+
       if (strictPrevAwaiting === "advisor_meeting_slot") {
         if (isAdvisorAppointmentIntent(text)) {
           const strictReply = buildAdvisorMiniAgendaPrompt();
@@ -5699,7 +5737,7 @@ export async function POST(req: Request) {
       const strictQuoteDelivered = strictDocs.some((d) => /cotiz/i.test(`${String(d.caption || "")} ${String(d.fileName || "")}`));
       if (
         preParsedSpec &&
-        /no te entendi del todo/i.test(normalizeText(String(strictReply || "")))
+        /(no te entendi del todo|no pasa nada si hubo un typo)/i.test(normalizeText(String(strictReply || "")))
       ) {
         const cap = Number((preParsedSpec as any)?.capacityG || 0);
         const read = Number((preParsedSpec as any)?.readabilityG || 0);
