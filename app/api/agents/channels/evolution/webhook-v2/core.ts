@@ -34,7 +34,7 @@ const ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE = String(
 const ENABLE_QUOTE_PRODUCT_IMAGE = String(process.env.WHATSAPP_QUOTE_EMBED_PRODUCT_IMAGE || "true").toLowerCase() === "true";
 const STRICT_WHATSAPP_MODE = String(process.env.WHATSAPP_STRICT_MODE || "true").toLowerCase() !== "false";
 const MAX_WHATSAPP_DOC_BYTES = Number(process.env.WHATSAPP_DOC_MAX_BYTES || 8 * 1024 * 1024);
-const QUOTE_FLOW_VERSION = "quote-flow-2026-03-24-agenda-hotfix-02";
+const QUOTE_FLOW_VERSION = "quote-flow-2026-03-26-stability-hotfix-03";
 const ALLOWED_BRAND_KEYS = ["ohaus"];
 const ALLOWED_NAME_KEYS = ["explorer", "adventurer", "pioneer", "ranger", "defender", "valor", "scout", "mb120", "mb90", "mb27", "mb23", "aquasearcher", "frontier"];
 const ALLOWED_CATEGORY_KEYS = ["balanzas", "basculas", "analizador_humedad", "electroquimica", "equipos_laboratorio", "documentos"];
@@ -4148,6 +4148,14 @@ export async function POST(req: Request) {
       };
       const text = String(inbound.text || "").trim();
       const strictPrevAwaiting = String(previousMemory?.awaiting_action || "");
+      const preParsedSpec = parseTechnicalSpecQuery(text);
+      console.log("[strict-inbound]", {
+        version: QUOTE_FLOW_VERSION,
+        text,
+        awaiting: strictPrevAwaiting,
+        hasSpec: Boolean(preParsedSpec),
+        spec: preParsedSpec,
+      });
 
       const sendStrictQuickText = async (replyText: string): Promise<boolean> => {
         const msg = withAvaSignature(enforceWhatsAppDelivery(replyText, text));
@@ -4464,7 +4472,7 @@ export async function POST(req: Request) {
         selectedProduct = findExactModelProduct(text, ownerRows as any[]) || pickBestCatalogProduct(text, ownerRows as any[]);
       }
 
-      const directTechnicalSpec = parseTechnicalSpecQuery(text);
+      const directTechnicalSpec = preParsedSpec;
       if (!String(strictReply || "").trim() && directTechnicalSpec) {
         strictMemory.strict_spec_query = text;
         strictMemory.strict_filter_capacity_g = Number(directTechnicalSpec.capacityG || 0);
