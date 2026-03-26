@@ -5328,10 +5328,22 @@ export async function POST(req: Request) {
         const looseSpecHint = parseLooseTechnicalHint(text);
 
         if (looseSpecHint && (looseSpecHint.capacityG || looseSpecHint.readabilityG)) {
+          const rememberedCap = Number(
+            previousMemory?.strict_partial_capacity_g ||
+            previousMemory?.strict_filter_capacity_g ||
+            strictMemory?.strict_filter_capacity_g ||
+            0
+          );
+          const rememberedRead = Number(
+            previousMemory?.strict_partial_readability_g ||
+            previousMemory?.strict_filter_readability_g ||
+            strictMemory?.strict_filter_readability_g ||
+            0
+          );
           const merged = mergeLooseSpecWithMemory(
             {
-              capacityG: Number(previousMemory?.strict_partial_capacity_g || 0),
-              readabilityG: Number(previousMemory?.strict_partial_readability_g || 0),
+              capacityG: rememberedCap,
+              readabilityG: rememberedRead,
             },
             looseSpecHint
           );
