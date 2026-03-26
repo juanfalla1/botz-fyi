@@ -7926,8 +7926,11 @@ export async function POST(req: Request) {
     const resumeQuoteFromContext =
       isContactInfoBundle(inbound.text) &&
       shouldAutoQuote(`${recentUserContext}\n${inbound.text}`);
+    const forceBundleQuoteIntake =
+      String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" &&
+      shouldAutoQuote(inbound.text);
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory || concreteQuoteIntent)) {
+    if ((forceBundleQuoteIntake || (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && !handledByRecall)) && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory || concreteQuoteIntent)) {
       try {
         const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url", 120, false);
 
