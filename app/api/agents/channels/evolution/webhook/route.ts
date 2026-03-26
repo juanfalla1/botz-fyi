@@ -5306,11 +5306,18 @@ export async function POST(req: Request) {
           ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
           : categoryScoped;
 
-        const bundleQuoteAsk = asksQuoteIntent(text) && /\b(las|los|todas|todos|opciones|referencias)\b/.test(textNorm);
+        const bundleQuoteAsk =
+          asksQuoteIntent(text) &&
+          (
+            /\b(las|los|todas|todos|opciones|referencias)\b/.test(textNorm) ||
+            /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(textNorm)
+          );
         if (bundleQuoteAsk) {
           const pendingOptions = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
-          const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5 };
-          const numMatch = textNorm.match(/\b(?:las|los)\s*(\d{1,2}|dos|tres|cuatro|cinco)\b/);
+          const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+          const numMatch =
+            textNorm.match(/\b(?:las|los)\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/) ||
+            textNorm.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/);
           const rawNum = String(numMatch?.[1] || "").trim();
           const selectedCount = /\b(todas|todos)\b/.test(textNorm)
             ? pendingOptions.length
@@ -5620,6 +5627,14 @@ export async function POST(req: Request) {
             recommendationIntro,
             ...options.map((o) => `${o.code}) ${o.name}`),
             "",
+            ...(options.length >= 3
+              ? [
+                  (options.length >= 4)
+                    ? `Si quieres cotizar varias de una vez, escribe: cotizar 3 o cotizar ${options.length}.`
+                    : "Si quieres cotizar varias de una vez, escribe: cotizar 3.",
+                  "",
+                ]
+              : []),
             ...(needsReadabilityForQuote
               ? ["Si quieres cotización exacta, compárteme también la resolución (ej.: 4000 g x 0.01 g).", ""]
               : []),
@@ -5706,6 +5721,14 @@ export async function POST(req: Request) {
               `Para ese uso te recomiendo empezar con ${String((inferred as any)?.label || "esa familia")}. Modelos sugeridos (${options.length} mostrados${allOptions.length > options.length ? ` de ${allOptions.length}` : ""}):`,
               ...options.map((o) => `${o.code}) ${o.name}`),
               "",
+              ...(options.length >= 3
+                ? [
+                    (options.length >= 4)
+                      ? `Si quieres cotizar varias de una vez, escribe: cotizar 3 o cotizar ${options.length}.`
+                      : "Si quieres cotizar varias de una vez, escribe: cotizar 3.",
+                    "",
+                  ]
+                : []),
               (allOptions.length > options.length)
                 ? "Responde con letra o número (ej.: A o 1), o escribe 'más' para ver siguientes."
                 : "Responde con letra o número (ej.: A o 1).",
