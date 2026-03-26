@@ -5612,9 +5612,9 @@ export async function POST(req: Request) {
           if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
           const needsReadabilityForQuote = hintedCap > 0 && !(hintedRead > 0);
           const recommendationIntro = (isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text))
-            ? (capacityOutOfFamilyRange
-              ? `Para ese uso y capacidad (${formatSpecNumber(hintedCap)} g), te muestro opciones más cercanas en catálogo (${allOptions.length}):`
-              : `Para ese uso te recomiendo empezar con ${String(selectedFamilyResolved.label || "esa familia")}. Modelos sugeridos (${allOptions.length}):`)
+              ? (capacityOutOfFamilyRange
+                ? `Para ese uso y capacidad (${formatSpecNumber(hintedCap)} g), te muestro ${options.length} opción(es)${allOptions.length > options.length ? ` de ${allOptions.length}` : ""} más cercanas en catálogo:`
+                : `Para ese uso te recomiendo empezar con ${String(selectedFamilyResolved.label || "esa familia")}. Modelos sugeridos (${options.length} mostrados${allOptions.length > options.length ? ` de ${allOptions.length}` : ""}):`)
             : `Perfecto. Modelos de ${String(selectedFamilyResolved.label || "familia")} (${allOptions.length}):`;
           strictReply = [
             recommendationIntro,
@@ -5703,7 +5703,7 @@ export async function POST(req: Request) {
             if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
             if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
             strictReply = [
-              `Para ese uso te recomiendo empezar con ${String((inferred as any)?.label || "esa familia")}. Modelos sugeridos (${allOptions.length}):`,
+              `Para ese uso te recomiendo empezar con ${String((inferred as any)?.label || "esa familia")}. Modelos sugeridos (${options.length} mostrados${allOptions.length > options.length ? ` de ${allOptions.length}` : ""}):`,
               ...options.map((o) => `${o.code}) ${o.name}`),
               "",
               (allOptions.length > options.length)
