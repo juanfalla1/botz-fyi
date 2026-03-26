@@ -1349,6 +1349,7 @@ function toGrams(valueRaw: string, unitRaw: string): number {
   const u = normalizeText(String(unitRaw || "g"));
   if (u === "mg") return n / 1000;
   if (u === "kg") return n * 1000;
+  if (u === "gr" || u === "gramo" || u === "gramos") return n;
   return n;
 }
 
@@ -1360,8 +1361,8 @@ function parseTechnicalSpecQuery(text: string): { capacityG: number; readability
     .trim();
   if (!t) return null;
 
-  const primary = t.match(/(?:^|\s)(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\s*(?:x|por)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b/i);
-  const byKeywords = t.match(/(?:capacidad|cap|max)\D{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b.{0,80}(?:resolucion|resolucion\s+minima|precision|lectura\s+minima|readability)\D{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)?\b/i);
+  const primary = t.match(/(?:^|\s)(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\s*(?:x|por)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\b/i);
+  const byKeywords = t.match(/(?:capacidad|cap|max)\D{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\b.{0,80}(?:resolucion|resolucion\s+minima|precision|lectura\s+minima|readability)\D{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\b/i);
   const m = primary || byKeywords;
   if (!m) return null;
 
@@ -1383,8 +1384,8 @@ function parseLooseTechnicalHint(text: string): { capacityG?: number; readabilit
   if (strictPair) return strictPair;
 
   const explicitReadToken =
-    t.match(/(?:^|\s)(0(?:[\.,]\d+))\s*(mg|g|kg)\b/i) ||
-    t.match(/(?:^|\s)([\.,]\d+)\s*(mg|g|kg)\b/i);
+    t.match(/(?:^|\s)(0(?:[\.,]\d+))\s*(mg|g|kg|gr|gramo|gramos)\b/i) ||
+    t.match(/(?:^|\s)([\.,]\d+)\s*(mg|g|kg|gr|gramo|gramos)\b/i);
   if (explicitReadToken) {
     const raw = String(explicitReadToken[1] || "").replace(/^\./, "0.").replace(/^,/, "0.");
     const unit = String(explicitReadToken[2] || "g");
@@ -1412,17 +1413,17 @@ function parseLooseTechnicalHint(text: string): { capacityG?: number; readabilit
     }
   }
 
-  const valuesForward = Array.from(t.matchAll(/(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)\b/gi))
+  const valuesForward = Array.from(t.matchAll(/(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)\b/gi))
     .map((m: any) => toGrams(String(m?.[1] || ""), String(m?.[2] || "g")))
     .filter((n: number) => Number.isFinite(n) && n > 0);
-  const valuesReverse = Array.from(t.matchAll(/\b(mg|g|kg)\s*[,:\- ]+\s*(\d+(?:[\.,]\d+)?)/gi))
+  const valuesReverse = Array.from(t.matchAll(/\b(mg|g|kg|gr|gramo|gramos)\s*[,:\- ]+\s*(\d+(?:[\.,]\d+)?)/gi))
     .map((m: any) => toGrams(String(m?.[2] || ""), String(m?.[1] || "g")))
     .filter((n: number) => Number.isFinite(n) && n > 0);
   const values = [...valuesForward, ...valuesReverse];
   if (!values.length) return null;
 
   const hasReadabilityKeyword = /(resolucion|precision|lectura\s*minima|division|divisiones|readability)/.test(t);
-  const hasCapacityKeyword = /(capacidad|max|hasta|rango|alcance|de\s*\d+(?:[\.,]\d+)?\s*(mg|g|kg))/.test(t);
+  const hasCapacityKeyword = /(capacidad|max|hasta|rango|alcance|de\s*\d+(?:[\.,]\d+)?\s*(mg|g|kg|gr|gramo|gramos))/.test(t);
 
   if (values.length >= 2) {
     const sorted = [...values].sort((a, b) => a - b);
@@ -1977,6 +1978,12 @@ function isContactInfoBundle(text: string): boolean {
   return (hasPhone && hasNameLike) || (hasEmail && hasNameLike);
 }
 
+function isContinueQuoteWithoutPersonalDataIntent(text: string): boolean {
+  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return false;
+  return /(continuar\s+cotizacion\s+sin\s+datos\s+personales|continuar\s+sin\s+datos|sin\s+datos\s+personales|sin\s+datos)/.test(t);
+}
+
 function isGreetingIntent(text: string): boolean {
   const t = normalizeText(text).replace(/[^a-z0-9\s]/g, " ").trim();
   if (!t) return false;
@@ -1994,6 +2001,65 @@ function isConversationCloseIntent(text: string): boolean {
   const t = normalizeCatalogQueryText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
   if (!t) return false;
   return /\b(no gracias|gracias|eso es todo|nada mas|finaliza|finalizar|finalicemos|finalizamos|termina|terminar|cerrar|cerramos|listo gracias|ok gracias|perfecto gracias|hasta luego|adios|chao)\b/.test(t);
+}
+
+function isCorrectionIntent(text: string): boolean {
+  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return false;
+  return /(no entend|entendiste mal|esta mal|esta incorrect|no era eso|no me sirve|no coincide|equivoc|mal seleccionado|corrige)/.test(t);
+}
+
+function normalizeNumber(value: any): number {
+  const n = Number(String(value ?? "").replace(/,/g, ".").trim());
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getRowCapacityG(row: any): number {
+  const s = extractRowTechnicalSpec(row);
+  return normalizeNumber(s?.capacityG || row?.capacity_g || row?.capacity || row?.capacidad_g || row?.capacidad || row?.max_g || row?.max);
+}
+
+function getRowReadabilityG(row: any): number {
+  const s = extractRowTechnicalSpec(row);
+  return normalizeNumber(s?.readabilityG || row?.readability_g || row?.readability || row?.resolution_g || row?.resolution || row?.resolucion_g || row?.resolucion || row?.precision_g || row?.precision);
+}
+
+function isExactTechnicalMatch(row: any, requirement: { capacityG: number; readabilityG: number }): boolean {
+  const cap = getRowCapacityG(row);
+  const read = getRowReadabilityG(row);
+  return cap > 0 && read > 0 && cap === Number(requirement.capacityG || 0) && read === Number(requirement.readabilityG || 0);
+}
+
+function getExactTechnicalMatches(rows: any[], requirement: { capacityG: number; readabilityG: number }): any[] {
+  return (Array.isArray(rows) ? rows : []).filter((row) => isExactTechnicalMatch(row, requirement));
+}
+
+function hasActiveTechnicalRequirement(memory: any): boolean {
+  const cap = Number(memory?.strict_filter_capacity_g || 0);
+  const read = Number(memory?.strict_filter_readability_g || 0);
+  return cap > 0 && read > 0;
+}
+
+function resetStrictRecommendationState(memory: any) {
+  memory.pending_product_options = [];
+  memory.pending_family_options = [];
+  memory.awaiting_action = "none";
+  memory.strict_family_label = "";
+  memory.strict_model_offset = 0;
+}
+
+function isAmbiguousTechnicalMessage(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  if (parseTechnicalSpecQuery(t)) return false;
+  return /\brango\s*\d+\b/.test(t) || /^\d{2,5}$/.test(t.trim()) || /\bla de\s+\d+\b/.test(t) || /\bla normal\b/.test(t) || /\bla industrial\b/.test(t) || /\bla de laboratorio\b/.test(t);
+}
+
+function buildAmbiguityQuestion(text: string): string {
+  const t = normalizeText(text || "");
+  if (/rango\s*\d+/.test(t)) return "Para no equivocarme: cuando dices ese rango, ¿te refieres a capacidad, presupuesto o referencia específica?";
+  if (/^\d{2,5}$/.test(t.trim())) return "Para no equivocarme, ese número corresponde a capacidad, modelo o presupuesto?";
+  return "Para no equivocarme, ¿puedes confirmarme exactamente capacidad y resolución, por ejemplo 200 g x 0.001 g?";
 }
 
 function withAvaSignature(text: string): string {
@@ -4332,6 +4398,38 @@ export async function POST(req: Request) {
         }
       }
 
+      if (!String(strictReply || "").trim() && isAmbiguousTechnicalMessage(text) && !wantsQuote && !wantsSheet) {
+        strictMemory.awaiting_action = "strict_need_spec";
+        strictReply = buildAmbiguityQuestion(text);
+      }
+
+      if (!String(strictReply || "").trim() && isCorrectionIntent(text)) {
+        resetStrictRecommendationState(strictMemory);
+        const cap = Number(previousMemory?.strict_filter_capacity_g || 0);
+        const read = Number(previousMemory?.strict_filter_readability_g || 0);
+        if (cap > 0 && read > 0) {
+          strictMemory.strict_filter_capacity_g = cap;
+          strictMemory.strict_filter_readability_g = read;
+          strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
+          const exactRows = getExactTechnicalMatches(ownerRows as any[], { capacityG: cap, readabilityG: read });
+          const options = buildNumberedProductOptions((exactRows.length ? exactRows : ownerRows) as any[], 8);
+          strictMemory.pending_product_options = options;
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictReply = exactRows.length
+            ? [
+                `Entendí mal, corrijo. Buscas ${strictMemory.strict_spec_query}.`,
+                "Te muestro solo coincidencias exactas:",
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Responde con letra o número (A/1).",
+              ].join("\n")
+            : `Entendí mal, corrijo. No tengo coincidencia exacta para ${strictMemory.strict_spec_query}. Si quieres, te muestro opciones cercanas.`;
+        } else {
+          strictMemory.awaiting_action = "strict_need_spec";
+          strictReply = "Entendí mal, corrijo. Envíame capacidad y resolución exacta en formato 200 g x 0.001 g y te muestro solo opciones correctas.";
+        }
+      }
+
       const askMoreOptionsNow =
         !wantsQuote &&
         !wantsSheet &&
@@ -4369,19 +4467,26 @@ export async function POST(req: Request) {
       const directTechnicalSpec = parseTechnicalSpecQuery(text);
       if (!String(strictReply || "").trim() && !selectedProduct && directTechnicalSpec) {
         strictMemory.strict_spec_query = text;
+        strictMemory.strict_filter_capacity_g = Number(directTechnicalSpec.capacityG || 0);
+        strictMemory.strict_filter_readability_g = Number(directTechnicalSpec.readabilityG || 0);
+        const exactRows = getExactTechnicalMatches(ownerRows as any[], {
+          capacityG: directTechnicalSpec.capacityG,
+          readabilityG: directTechnicalSpec.readabilityG,
+        });
         const prioritized = prioritizeTechnicalRows(ownerRows as any[], {
           capacityG: directTechnicalSpec.capacityG,
           readabilityG: directTechnicalSpec.readabilityG,
         });
-        const options = buildNumberedProductOptions((prioritized.orderedRows.length ? prioritized.orderedRows : ownerRows) as any[], 8);
+        const sourceRows = exactRows.length ? exactRows : (prioritized.orderedRows.length ? prioritized.orderedRows : ownerRows);
+        const options = buildNumberedProductOptions(sourceRows as any[], 8);
         if (options.length) {
           strictMemory.pending_product_options = options;
           strictMemory.pending_family_options = [];
           strictMemory.awaiting_action = "strict_choose_model";
           strictMemory.strict_model_offset = 0;
           const top = options.slice(0, 3);
-          const exactLabel = prioritized.exactCount > 0
-            ? `Sí, para ${text.trim()} encontré ${prioritized.exactCount} referencia(s) que coinciden con esa especificación.`
+          const exactLabel = exactRows.length > 0
+            ? `Sí, para ${text.trim()} encontré ${exactRows.length} referencia(s) que coinciden exactamente con esa especificación.`
             : `Sí, para ${text.trim()} no veo coincidencia exacta, pero sí alternativas muy cercanas en catálogo.`;
           strictReply = [
             exactLabel,
@@ -4694,10 +4799,38 @@ export async function POST(req: Request) {
           strictMemory.awaiting_action = "strict_need_spec";
         } else {
           strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
+          strictMemory.strict_filter_capacity_g = Number(cap || 0);
+          strictMemory.strict_filter_readability_g = Number(read || 0);
           strictMemory.strict_partial_capacity_g = "";
           strictMemory.strict_partial_readability_g = "";
-          strictMemory.awaiting_action = "strict_need_industry";
-          strictReply = "Gracias. ¿Para qué industria o uso la necesitas? (ej.: laboratorio de alimentos, farmacia, producción).";
+          const exactRows = getExactTechnicalMatches(baseScoped as any[], { capacityG: cap, readabilityG: read });
+          if (exactRows.length) {
+            const options = buildNumberedProductOptions(exactRows.slice(0, 8) as any[], 8);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              `Sí, tengo coincidencias exactas para ${strictMemory.strict_spec_query}.`,
+              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Responde con letra o número y te envío ficha técnica o cotización.",
+            ].join("\n");
+          } else {
+            const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: cap, readabilityG: read });
+            const options = buildNumberedProductOptions((prioritized.orderedRows || []).slice(0, 8) as any[], 8);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              `No encontré coincidencia exacta para ${strictMemory.strict_spec_query}.`,
+              "Sí tengo estas opciones cercanas:",
+              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Si quieres, elige una opción o te ayudo a ajustar la especificación.",
+            ].join("\n");
+          }
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_industry") {
         const industry = String(text || "").trim();
@@ -4786,6 +4919,21 @@ export async function POST(req: Request) {
           }
 
           if (!strictBypassAutoQuote) {
+          const lockedCap = Number(previousMemory?.strict_filter_capacity_g || 0);
+          const lockedRead = Number(previousMemory?.strict_filter_readability_g || 0);
+          if (lockedCap > 0 && lockedRead > 0) {
+            const rs = extractRowTechnicalSpec(selectedProduct);
+            const capDeltaPct = rs.capacityG > 0 ? (Math.abs(rs.capacityG - lockedCap) / lockedCap) * 100 : 999;
+            const readRatio = rs.readabilityG > 0 ? (rs.readabilityG / lockedRead) : 999;
+            const compatible = capDeltaPct <= 12 && readRatio >= 0.8 && readRatio <= 1.35;
+            if (!compatible) {
+              strictReply = `Antes de cotizar, confirmo que ${selectedName} no coincide con tu filtro activo (${formatSpecNumber(lockedCap)} g x ${formatSpecNumber(lockedRead)} g). Elige una opción del listado filtrado (A/1) o escribe 'más'.`;
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictBypassAutoQuote = false;
+            }
+          }
+
+          if (!String(strictReply || "").trim()) {
           const continuationIntentStrict = isSameQuoteContinuationIntent(text) && extractModelLikeTokens(text).length >= 1;
           if (continuationIntentStrict) {
             console.log("[evolution-webhook] strict_quote_continuation_bypass", {
@@ -4807,6 +4955,7 @@ export async function POST(req: Request) {
             strictMemory.quote_quantity = qtyRequested;
             strictMemory.awaiting_action = "strict_quote_data";
             strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular) compártelos en un solo mensaje; si no, avanzo con los datos disponibles.`;
+          }
           }
           }
         } else if (wantsSheet || /^2\b/.test(textNorm)) {
@@ -5106,6 +5255,8 @@ export async function POST(req: Request) {
             }
             const filteredOptions = buildNumberedProductOptions((prioritized.orderedRows.length ? prioritized.orderedRows : familyRows) as any[], 60);
             const filteredPage = filteredOptions.slice(0, 8);
+            strictMemory.strict_filter_capacity_g = Number(effectiveCap || 0);
+            strictMemory.strict_filter_readability_g = Number(effectiveRead || 0);
             strictMemory.pending_product_options = filteredPage;
             strictMemory.strict_model_offset = 0;
             strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
@@ -5159,6 +5310,33 @@ export async function POST(req: Request) {
               "Si me dices el uso (ej.: laboratorio, joyería o industrial), te digo cuál elegir primero.",
               "También puedes responder con letra o número (A/1) y te envío ficha o cotización.",
             ].join("\n");
+          }
+        }
+
+        const correctionAsk = isCorrectionIntent(text);
+        if (!String(strictReply || "").trim() && correctionAsk) {
+          const rememberedCap = Number(previousMemory?.strict_filter_capacity_g || previousMemory?.strict_partial_capacity_g || 0);
+          const rememberedRead = Number(previousMemory?.strict_filter_readability_g || previousMemory?.strict_partial_readability_g || 0);
+          if (rememberedCap > 0 && rememberedRead > 0) {
+            const prioritized = prioritizeTechnicalRows(categoryScoped as any[], {
+              capacityG: rememberedCap,
+              readabilityG: rememberedRead,
+            });
+            const options = buildNumberedProductOptions((prioritized.orderedRows.length ? prioritized.orderedRows : familyRows) as any[], 60);
+            const top = options.slice(0, 3);
+            strictMemory.pending_product_options = options.slice(0, 8);
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictMemory.strict_filter_capacity_g = rememberedCap;
+            strictMemory.strict_filter_readability_g = rememberedRead;
+            strictReply = top.length
+              ? [
+                  `Gracias por corregirme. Reenfoqué la búsqueda a ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g y estas son las opciones más compatibles:`,
+                  ...top.map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Si quieres más, escribe 'más'. También puedes elegir A/1 para continuar.",
+                ].join("\n")
+              : "Gracias por corregirme. No veo coincidencias con ese criterio en el catálogo activo. Si quieres, te muestro alternativas por capacidad cercana.";
           }
         }
 
@@ -5234,6 +5412,8 @@ export async function POST(req: Request) {
             const sourceRows = prioritized.orderedRows.length ? prioritized.orderedRows : (baseScoped as any[]);
             const allOptions = buildNumberedProductOptions(sourceRows, 60);
             const options = allOptions.slice(0, 8);
+            strictMemory.strict_filter_capacity_g = Number(effectiveCap || 0);
+            strictMemory.strict_filter_readability_g = Number(effectiveRead || 0);
             strictMemory.pending_product_options = options;
             strictMemory.pending_family_options = [];
             strictMemory.awaiting_action = "strict_choose_model";
@@ -5757,7 +5937,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (awaitingAction === "quote_contact_bundle" && isContactInfoBundle(inbound.text)) {
+    if (awaitingAction === "quote_contact_bundle" && (isContactInfoBundle(inbound.text) || isContinueQuoteWithoutPersonalDataIntent(inbound.text))) {
       const rememberedForQuote = String(
         nextMemory.last_selected_product_name ||
         previousMemory?.last_selected_product_name ||
@@ -7596,7 +7776,7 @@ export async function POST(req: Request) {
           nextMemory.customer_email = effectiveCustomerEmail || nextMemory.customer_email;
 
           if (!handledByQuoteIntake && missingFields.length) {
-            reply = `Para formalizar la cotizacion me faltan: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Ciudad: Bogota, Empresa: ..., NIT: ..., Contacto: ..., Correo: ..., Celular: ...).`;
+            reply = `Para formalizar la cotizacion me faltan: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Ciudad: Bogota, Empresa: ..., NIT: ..., Contacto: ..., Correo: ..., Celular: ...). Si prefieres no compartir datos personales, escribe: continuar cotizacion sin datos personales.`;
             nextMemory.awaiting_action = "quote_contact_bundle";
             handledByQuoteIntake = true;
             billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
