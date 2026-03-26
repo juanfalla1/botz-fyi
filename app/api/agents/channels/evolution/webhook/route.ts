@@ -2682,7 +2682,7 @@ function normalizeCatalogQueryText(text: string): string {
 function isContextResetIntent(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
-  return /(reiniciar contexto|resetear contexto|reset context|limpiar contexto|borrar contexto|olvida contexto|olvida todo|empecemos de nuevo|empezar de nuevo)/.test(t);
+  return /(reinicia(?:r)?\s+contexto|reset(?:ear)?\s+contexto|reset\s+context|limpiar\s+contexto|borrar\s+contexto|olvida\s+contexto|olvida\s+todo|empecemos\s+de\s+nuevo|empezar\s+de\s+nuevo)/.test(t);
 }
 
 function hasConcreteProductHint(text: string): boolean {
