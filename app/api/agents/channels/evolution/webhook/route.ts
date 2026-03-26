@@ -6217,6 +6217,32 @@ export async function POST(req: Request) {
     const selectedPendingFamily = String(previousMemory?.awaiting_action || "") === "family_option_selection"
       ? resolvePendingFamilyOption(originalInboundText, pendingFamilyOptions)
       : null;
+
+    if (!handledByGreeting && pendingProductOptions.length >= 2) {
+      const bulkText = normalizeText(originalInboundText);
+      const asksBulkByCount = /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(bulkText);
+      const asksBulkAll = asksQuoteIntent(bulkText) && /\b(todas|todos|todas\s+las|todos\s+los)\b/.test(bulkText);
+      if (asksBulkByCount || asksBulkAll) {
+        const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+        const m = bulkText.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/);
+        const raw = String(m?.[1] || "").trim();
+        const requested = asksBulkAll
+          ? pendingProductOptions.length
+          : Math.max(2, Number(raw ? (Number(raw) || numberWordMap[raw] || 3) : 3));
+        const chosen = pendingProductOptions.slice(0, Math.max(2, Math.min(requested, pendingProductOptions.length)));
+        const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+        if (modelNames.length >= 2) {
+          inbound.text = `cotizar ${modelNames.join(" ; ")}`;
+          nextMemory.awaiting_action = "none";
+          nextMemory.pending_product_options = chosen;
+          nextMemory.last_intent = "quote_bundle_request";
+          nextMemory.last_selected_product_name = "";
+          nextMemory.last_selected_product_id = "";
+          nextMemory.last_selection_at = "";
+        }
+      }
+    }
+
     if (!handledByGreeting && selectedPendingFamily) {
       const rememberedCategory = String(previousMemory?.last_category_intent || nextMemory?.last_category_intent || "").trim();
       const { data: ownerFamilyRows } = await supabase
