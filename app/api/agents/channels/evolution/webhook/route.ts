@@ -6389,6 +6389,20 @@ export async function POST(req: Request) {
           nextMemory.awaiting_action = "none";
           nextMemory.pending_product_options = [];
         } else {
+        const numberWordMapBulk: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+        const bulkCountMatch = optText.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/);
+        const rawBulkCount = String(bulkCountMatch?.[1] || "").trim();
+        const parsedBulkCount = Number(rawBulkCount ? (Number(rawBulkCount) || numberWordMapBulk[rawBulkCount] || 0) : 0);
+        const asksBulkQuoteByCount = parsedBulkCount >= 2 && pendingProductOptions.length >= 2;
+        if (asksBulkQuoteByCount) {
+          const chosen = pendingProductOptions.slice(0, Math.max(2, Math.min(parsedBulkCount, pendingProductOptions.length)));
+          const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+          if (modelNames.length >= 2) {
+            inbound.text = `cotizar ${modelNames.join(" ; ")}`;
+            nextMemory.awaiting_action = "quote_product_selection";
+            nextMemory.pending_product_options = chosen;
+          }
+        } else {
         const confirmsDefaultFromOption = isAffirmativeIntent(optText) || /^(ok|vale|listo|de una)$/i.test(String(originalInboundText || "").trim());
         const asksQuoteByOption = /^(1|a)\b/.test(optText) || /\b(cotiz|cotizacion|precio|la cotizacion)\b/.test(optText);
         const asksSheetByOption = /^(2|b)\b/.test(optText) || isTechnicalSheetIntent(optText);
@@ -6418,6 +6432,7 @@ export async function POST(req: Request) {
           handledByInventory = true;
           handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
         }
         }
       }
