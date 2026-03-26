@@ -4465,10 +4465,11 @@ export async function POST(req: Request) {
       }
 
       const directTechnicalSpec = parseTechnicalSpecQuery(text);
-      if (!String(strictReply || "").trim() && !selectedProduct && directTechnicalSpec) {
+      if (!String(strictReply || "").trim() && directTechnicalSpec) {
         strictMemory.strict_spec_query = text;
         strictMemory.strict_filter_capacity_g = Number(directTechnicalSpec.capacityG || 0);
         strictMemory.strict_filter_readability_g = Number(directTechnicalSpec.readabilityG || 0);
+        selectedProduct = null;
         const exactRows = getExactTechnicalMatches(ownerRows as any[], {
           capacityG: directTechnicalSpec.capacityG,
           readabilityG: directTechnicalSpec.readabilityG,
