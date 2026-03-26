@@ -5652,13 +5652,29 @@ export async function POST(req: Request) {
           }
         }
       } else {
+        const recoveryAwaiting = String(strictMemory.awaiting_action || awaiting || "");
+        const recoveryHasPendingFamilies =
+          (Array.isArray(strictMemory.pending_family_options) && strictMemory.pending_family_options.length > 0) ||
+          (Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0);
+        const recoveryHasPendingModels =
+          (Array.isArray(strictMemory.pending_product_options) && strictMemory.pending_product_options.length > 0) ||
+          (Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0);
         strictReply = buildGuidedRecoveryMessage({
-          awaiting,
+          awaiting: recoveryAwaiting,
           rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
-          hasPendingFamilies: Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0,
-          hasPendingModels: Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0,
+          hasPendingFamilies: recoveryHasPendingFamilies,
+          hasPendingModels: recoveryHasPendingModels,
         });
       }
+
+      console.log("[strict-reply-debug]", {
+        awaiting_before: awaiting,
+        awaiting_after: String(strictMemory.awaiting_action || "none"),
+        pending_models_after: Array.isArray(strictMemory.pending_product_options) ? strictMemory.pending_product_options.length : 0,
+        pending_families_after: Array.isArray(strictMemory.pending_family_options) ? strictMemory.pending_family_options.length : 0,
+        reply_len: String(strictReply || "").length,
+        reply_preview: String(strictReply || "").slice(0, 180),
+      });
 
       const strictAssetDelivered = strictDocs.length > 0;
       const strictQuoteDelivered = strictDocs.some((d) => /cotiz/i.test(`${String(d.caption || "")} ${String(d.fileName || "")}`));
