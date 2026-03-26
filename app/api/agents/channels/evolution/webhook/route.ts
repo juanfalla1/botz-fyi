@@ -8300,7 +8300,8 @@ export async function POST(req: Request) {
       const selectedProductForGuide = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || "").trim();
       const selectedAtMs = Date.parse(String(nextMemory.last_selection_at || previousMemory?.last_selection_at || ""));
       const selectedStillActive = Boolean(selectedProductForGuide) && Number.isFinite(selectedAtMs) && (Date.now() - selectedAtMs) <= 30 * 60 * 1000;
-      if (selectedStillActive && !inboundTechnicalSpec) {
+      const inboundBulkQuoteCommand = /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(normalizeText(originalInboundText));
+      if (selectedStillActive && !inboundTechnicalSpec && !inboundBulkQuoteCommand) {
           reply = `¿Quieres ficha técnica o cotización de ${selectedProductForGuide}?`;
           nextMemory.awaiting_action = "product_action";
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
