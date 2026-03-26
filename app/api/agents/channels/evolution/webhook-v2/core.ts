@@ -4468,7 +4468,7 @@ export async function POST(req: Request) {
       }
 
       let selectedProduct: any = null;
-      if (!String(strictReply || "").trim() && explicitModel) {
+      if (!String(strictReply || "").trim() && explicitModel && !technicalSpecIntent) {
         selectedProduct = findExactModelProduct(text, ownerRows as any[]) || pickBestCatalogProduct(text, ownerRows as any[]);
       }
 
@@ -4507,6 +4507,39 @@ export async function POST(req: Request) {
         } else {
           strictMemory.awaiting_action = "strict_need_spec";
           strictReply = "No encontré una coincidencia exacta para esa capacidad/resolución. ¿Quieres que busquemos con una resolución cercana?";
+        }
+      }
+
+      if (!String(strictReply || "").trim() && technicalSpecIntent && !directTechnicalSpec) {
+        const loose = parseLooseTechnicalHint(text);
+        const cap = Number(loose?.capacityG || 0);
+        const read = Number(loose?.readabilityG || 0);
+        if (cap > 0 && read > 0) {
+          strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
+          strictMemory.strict_filter_capacity_g = cap;
+          strictMemory.strict_filter_readability_g = read;
+          selectedProduct = null;
+          const exactRows = getExactTechnicalMatches(ownerRows as any[], { capacityG: cap, readabilityG: read });
+          const prioritized = prioritizeTechnicalRows(ownerRows as any[], { capacityG: cap, readabilityG: read });
+          const sourceRows = exactRows.length ? exactRows : (prioritized.orderedRows.length ? prioritized.orderedRows : ownerRows);
+          const options = buildNumberedProductOptions(sourceRows as any[], 8);
+          strictMemory.pending_product_options = options;
+          strictMemory.pending_family_options = [];
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictMemory.strict_model_offset = 0;
+          strictReply = options.length
+            ? [
+                exactRows.length
+                  ? `Sí, tengo coincidencias exactas para ${strictMemory.strict_spec_query}.`
+                  : `No encontré coincidencia exacta para ${strictMemory.strict_spec_query}, pero sí opciones cercanas:`,
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Responde con letra o número (A/1), o escribe 'más'.",
+              ].join("\n")
+            : "No encontré productos compatibles con ese criterio técnico en este momento.";
+        } else {
+          strictMemory.awaiting_action = "strict_need_spec";
+          strictReply = "Entendido. Para no equivocarme, confirma capacidad y resolución en formato 200 g x 0.001 g.";
         }
       }
 
