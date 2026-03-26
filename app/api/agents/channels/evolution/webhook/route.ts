@@ -6419,9 +6419,37 @@ export async function POST(req: Request) {
         const bulkCountMatch = optText.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/);
         const rawBulkCount = String(bulkCountMatch?.[1] || "").trim();
         const parsedBulkCount = Number(rawBulkCount ? (Number(rawBulkCount) || numberWordMapBulk[rawBulkCount] || 0) : 0);
-        const asksBulkQuoteByCount = parsedBulkCount >= 2 && pendingProductOptions.length >= 2;
+        const asksBulkQuoteByCount = parsedBulkCount >= 2;
         if (asksBulkQuoteByCount) {
-          const chosen = pendingProductOptions.slice(0, Math.max(2, Math.min(parsedBulkCount, pendingProductOptions.length)));
+          let bulkPool = Array.isArray(pendingProductOptions) ? pendingProductOptions : [];
+          if (bulkPool.length < 2) {
+            const { data: ownerRowsRaw } = await supabase
+              .from("agent_product_catalog")
+              .select("id,name,category,brand,base_price_usd,source_payload,is_active")
+              .eq("created_by", ownerId)
+              .eq("is_active", true)
+              .order("updated_at", { ascending: false })
+              .limit(240);
+            const ownerRows = (Array.isArray(ownerRowsRaw) ? ownerRowsRaw : []).filter((r: any) => isCommercialCatalogRow(r));
+            const rememberedCategory = String(previousMemory?.last_category_intent || "").trim();
+            const scoped = rememberedCategory ? scopeCatalogRows(ownerRows as any[], rememberedCategory) : ownerRows;
+            const familyLabel = String(previousMemory?.strict_family_label || "").trim();
+            const familyScoped = familyLabel
+              ? scoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
+              : scoped;
+            const rememberedCap = Number(previousMemory?.strict_filter_capacity_g || 0);
+            const rememberedRead = Number(previousMemory?.strict_filter_readability_g || 0);
+            let rankedRows = familyScoped as any[];
+            if (rememberedCap > 0 && rememberedRead > 0) {
+              const prioritized = prioritizeTechnicalRows(familyScoped as any[], { capacityG: rememberedCap, readabilityG: rememberedRead });
+              if (prioritized.orderedRows.length) rankedRows = prioritized.orderedRows as any[];
+            } else if (rememberedCap > 0) {
+              const rankedCap = rankCatalogByCapacityOnly(familyScoped as any[], rememberedCap);
+              if (rankedCap.length) rankedRows = rankedCap.map((x: any) => x.row);
+            }
+            bulkPool = buildNumberedProductOptions(rankedRows as any[], 60);
+          }
+          const chosen = bulkPool.slice(0, Math.max(2, Math.min(parsedBulkCount, bulkPool.length)));
           const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
           if (modelNames.length >= 2) {
             inbound.text = `cotizar ${modelNames.join(" ; ")}`;
