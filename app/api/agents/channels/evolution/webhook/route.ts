@@ -5584,19 +5584,45 @@ export async function POST(req: Request) {
         } else if (!String(strictReply || "").trim() && selectedFamily) {
           const selectedFamilyResolved = selectedFamily as { key?: string; label?: string };
           const familyRows = baseScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamilyResolved.key || "")));
-          const allOptions = buildNumberedProductOptions(familyRows as any[], 60);
+          const hinted = parseLooseTechnicalHint(text);
+          const hintedCap = Number(hinted?.capacityG || 0);
+          const hintedRead = Number(hinted?.readabilityG || 0);
+          const familyMaxCap = familyRows.reduce((mx: number, r: any) => Math.max(mx, Number(getRowCapacityG(r) || 0)), 0);
+          const capacityOutOfFamilyRange = hintedCap > 0 && familyMaxCap > 0 && familyMaxCap < (hintedCap * 0.7);
+          const baseRowsForRanking = capacityOutOfFamilyRange ? (baseScoped as any[]) : (familyRows as any[]);
+          let recommendedRows = baseRowsForRanking as any[];
+          if (hintedCap > 0 && hintedRead > 0) {
+            const prioritized = prioritizeTechnicalRows(baseRowsForRanking as any[], { capacityG: hintedCap, readabilityG: hintedRead });
+            if (prioritized.orderedRows.length) recommendedRows = prioritized.orderedRows as any[];
+          } else if (hintedCap > 0) {
+            const rankedCap = rankCatalogByCapacityOnly(baseRowsForRanking as any[], hintedCap);
+            if (rankedCap.length) recommendedRows = rankedCap.map((x: any) => x.row);
+          } else if (hintedRead > 0) {
+            const rankedRead = rankCatalogByReadabilityOnly(baseRowsForRanking as any[], hintedRead);
+            if (rankedRead.length) recommendedRows = rankedRead.map((x: any) => x.row);
+          }
+          const allOptions = buildNumberedProductOptions(recommendedRows as any[], 60);
           const options = allOptions.slice(0, 8);
           strictMemory.pending_product_options = options;
           strictMemory.pending_family_options = [];
           strictMemory.awaiting_action = "strict_choose_model";
-          strictMemory.strict_family_label = String(selectedFamilyResolved.label || "");
+          strictMemory.strict_family_label = capacityOutOfFamilyRange ? "" : String(selectedFamilyResolved.label || "");
           strictMemory.strict_model_offset = 0;
+          if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
+          if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
+          const needsReadabilityForQuote = hintedCap > 0 && !(hintedRead > 0);
+          const recommendationIntro = (isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text))
+            ? (capacityOutOfFamilyRange
+              ? `Para ese uso y capacidad (${formatSpecNumber(hintedCap)} g), te muestro opciones más cercanas en catálogo (${allOptions.length}):`
+              : `Para ese uso te recomiendo empezar con ${String(selectedFamilyResolved.label || "esa familia")}. Modelos sugeridos (${allOptions.length}):`)
+            : `Perfecto. Modelos de ${String(selectedFamilyResolved.label || "familia")} (${allOptions.length}):`;
           strictReply = [
-            (isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text))
-              ? `Para ese uso te recomiendo empezar con ${String(selectedFamilyResolved.label || "esa familia")}. Modelos sugeridos (${allOptions.length}):`
-              : `Perfecto. Modelos de ${String(selectedFamilyResolved.label || "familia")} (${allOptions.length}):`,
+            recommendationIntro,
             ...options.map((o) => `${o.code}) ${o.name}`),
             "",
+            ...(needsReadabilityForQuote
+              ? ["Si quieres cotización exacta, compárteme también la resolución (ej.: 4000 g x 0.01 g).", ""]
+              : []),
             (allOptions.length > options.length)
               ? "Responde con letra o número (ej.: A o 1), o escribe 'más' para ver siguientes."
               : "Responde con letra o número (ej.: A o 1).",
@@ -5653,15 +5679,18 @@ export async function POST(req: Request) {
             const hinted = parseLooseTechnicalHint(text);
             const hintedCap = Number(hinted?.capacityG || 0);
             const hintedRead = Number(hinted?.readabilityG || 0);
-            let recommendedRows = familyRows as any[];
+            const familyMaxCap = familyRows.reduce((mx: number, r: any) => Math.max(mx, Number(getRowCapacityG(r) || 0)), 0);
+            const capacityOutOfFamilyRange = hintedCap > 0 && familyMaxCap > 0 && familyMaxCap < (hintedCap * 0.7);
+            const baseRowsForRanking = capacityOutOfFamilyRange ? (scoped as any[]) : (familyRows as any[]);
+            let recommendedRows = baseRowsForRanking as any[];
             if (hintedCap > 0 && hintedRead > 0) {
-              const prioritized = prioritizeTechnicalRows(familyRows as any[], { capacityG: hintedCap, readabilityG: hintedRead });
+              const prioritized = prioritizeTechnicalRows(baseRowsForRanking as any[], { capacityG: hintedCap, readabilityG: hintedRead });
               if (prioritized.orderedRows.length) recommendedRows = prioritized.orderedRows as any[];
             } else if (hintedCap > 0) {
-              const rankedCap = rankCatalogByCapacityOnly(familyRows as any[], hintedCap);
+              const rankedCap = rankCatalogByCapacityOnly(baseRowsForRanking as any[], hintedCap);
               if (rankedCap.length) recommendedRows = rankedCap.map((x: any) => x.row);
             } else if (hintedRead > 0) {
-              const rankedRead = rankCatalogByReadabilityOnly(familyRows as any[], hintedRead);
+              const rankedRead = rankCatalogByReadabilityOnly(baseRowsForRanking as any[], hintedRead);
               if (rankedRead.length) recommendedRows = rankedRead.map((x: any) => x.row);
             }
             const allOptions = buildNumberedProductOptions(recommendedRows as any[], 60);
@@ -5669,7 +5698,7 @@ export async function POST(req: Request) {
             strictMemory.pending_product_options = options;
             strictMemory.pending_family_options = [];
             strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_family_label = String((inferred as any)?.label || "");
+            strictMemory.strict_family_label = capacityOutOfFamilyRange ? "" : String((inferred as any)?.label || "");
             strictMemory.strict_model_offset = 0;
             if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
             if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
