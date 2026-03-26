@@ -6399,8 +6399,12 @@ export async function POST(req: Request) {
           const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
           if (modelNames.length >= 2) {
             inbound.text = `cotizar ${modelNames.join(" ; ")}`;
-            nextMemory.awaiting_action = "quote_product_selection";
+            nextMemory.awaiting_action = "none";
             nextMemory.pending_product_options = chosen;
+            nextMemory.last_intent = "quote_bundle_request";
+            nextMemory.last_selected_product_name = "";
+            nextMemory.last_selected_product_id = "";
+            nextMemory.last_selection_at = "";
           }
         } else {
         const confirmsDefaultFromOption = isAffirmativeIntent(optText) || /^(ok|vale|listo|de una)$/i.test(String(originalInboundText || "").trim());
