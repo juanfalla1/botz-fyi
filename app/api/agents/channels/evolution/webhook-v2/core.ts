@@ -5650,13 +5650,29 @@ export async function POST(req: Request) {
           const inferred = inferFamilyFromUseCase(text, familyOptions);
           if (inferred) {
             const familyRows = scoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String((inferred as any)?.key || "")));
-            const allOptions = buildNumberedProductOptions(familyRows as any[], 60);
+            const hinted = parseLooseTechnicalHint(text);
+            const hintedCap = Number(hinted?.capacityG || 0);
+            const hintedRead = Number(hinted?.readabilityG || 0);
+            let recommendedRows = familyRows as any[];
+            if (hintedCap > 0 && hintedRead > 0) {
+              const prioritized = prioritizeTechnicalRows(familyRows as any[], { capacityG: hintedCap, readabilityG: hintedRead });
+              if (prioritized.orderedRows.length) recommendedRows = prioritized.orderedRows as any[];
+            } else if (hintedCap > 0) {
+              const rankedCap = rankCatalogByCapacityOnly(familyRows as any[], hintedCap);
+              if (rankedCap.length) recommendedRows = rankedCap.map((x: any) => x.row);
+            } else if (hintedRead > 0) {
+              const rankedRead = rankCatalogByReadabilityOnly(familyRows as any[], hintedRead);
+              if (rankedRead.length) recommendedRows = rankedRead.map((x: any) => x.row);
+            }
+            const allOptions = buildNumberedProductOptions(recommendedRows as any[], 60);
             const options = allOptions.slice(0, 8);
             strictMemory.pending_product_options = options;
             strictMemory.pending_family_options = [];
             strictMemory.awaiting_action = "strict_choose_model";
             strictMemory.strict_family_label = String((inferred as any)?.label || "");
             strictMemory.strict_model_offset = 0;
+            if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
+            if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
             strictReply = [
               `Para ese uso te recomiendo empezar con ${String((inferred as any)?.label || "esa familia")}. Modelos sugeridos (${allOptions.length}):`,
               ...options.map((o) => `${o.code}) ${o.name}`),
