@@ -6208,9 +6208,13 @@ export async function POST(req: Request) {
       nextMemory.awaiting_action = "quote_product_selection";
     }
 
-    const pendingProductOptions = Array.isArray((previousMemory as any)?.pending_product_options)
+    const pendingProductOptionsRaw = Array.isArray((previousMemory as any)?.pending_product_options)
       ? (previousMemory as any).pending_product_options
       : [];
+    const recommendedOptionsRaw = Array.isArray((previousMemory as any)?.last_recommended_options)
+      ? (previousMemory as any).last_recommended_options
+      : [];
+    const pendingProductOptions = pendingProductOptionsRaw.length ? pendingProductOptionsRaw : recommendedOptionsRaw;
     const pendingFamilyOptions = Array.isArray((previousMemory as any)?.pending_family_options)
       ? (previousMemory as any).pending_family_options
       : [];
