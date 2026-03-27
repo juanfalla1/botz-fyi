@@ -8128,6 +8128,9 @@ export async function POST(req: Request) {
       )
     ) {
       try {
+        if (forceBundleQuoteIntake) {
+          console.log("[quote-bundle] start", { inbound: String(originalInboundText || ""), intent: String(nextMemory.last_intent || "") });
+        }
         const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url", 120, false);
 
         const quoteSourceText = resumeQuoteFromContext
@@ -8216,6 +8219,14 @@ export async function POST(req: Request) {
             if (rebuilt.length) selectedProducts = rebuilt;
           }
         }
+        if (forceBundleQuoteIntake) {
+          console.log("[quote-bundle] selected options", {
+            pending_options: pendingBundleOptions.length,
+            selected_products: selectedProducts.length,
+            sample_pending: pendingBundleOptions.slice(0, 3).map((o: any) => String(o?.raw_name || o?.name || "")).filter(Boolean),
+            sample_selected: selectedProducts.slice(0, 3).map((p: any) => String(p?.name || "")).filter(Boolean),
+          });
+        }
 
         if (!handledByQuoteIntake && continuationIntent && explicitModelTokens.length >= 2 && explicitModelProducts.length < explicitModelTokens.length) {
           const foundNames = explicitModelProducts.map((p: any) => String(p?.name || "").trim()).filter(Boolean);
@@ -8227,6 +8238,7 @@ export async function POST(req: Request) {
         }
 
         if (selectedProducts.length) {
+          if (forceBundleQuoteIntake) console.log("[quote-bundle] build quote start", { selected: selectedProducts.length });
           const transcript = Array.isArray(existingConv?.transcript) ? existingConv.transcript : [];
           const latestUserLines = transcript
             .filter((m: any) => m?.role === "user" && m?.content)
@@ -8516,6 +8528,12 @@ export async function POST(req: Request) {
                   ? `Listo. Ya genere la cotizacion consolidada de ${autoQuoteDocs.length} productos (cantidad ${autoQuoteDocs[0].quantity} cada una) con la TRM de hoy. Te envio un solo PDF por este chat ahora mismo.`
                   : `Listo. Ya genere la cotizacion consolidada de ${autoQuoteDocs.length} productos con las cantidades que me indicaste y la TRM de hoy. Te envio un solo PDF por este chat ahora mismo.`;
               }
+              if (forceBundleQuoteIntake) {
+                console.log("[quote-bundle] build quote done", {
+                  docs: autoQuoteDocs.length,
+                  bundle: Boolean(autoQuoteBundle),
+                });
+              }
               if (reply) billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
             } else {
               reply = "No pude consultar la TRM de hoy en este momento. Intenta de nuevo en 1 minuto y te genero el PDF por este WhatsApp.";
@@ -8532,6 +8550,7 @@ export async function POST(req: Request) {
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
       } catch (autoErr: any) {
+        if (forceBundleQuoteIntake) console.warn("[quote-bundle] error", autoErr?.message || autoErr);
         console.warn("[evolution-webhook] auto_quote_failed", autoErr?.message || autoErr);
       }
     }
@@ -9063,6 +9082,9 @@ export async function POST(req: Request) {
     if (autoQuoteDocs.length || resendPdf || autoQuoteBundle) {
       try {
         if (autoQuoteBundle) {
+          console.log("[quote-bundle] send final start", { drafts: autoQuoteBundle.draftIds?.length || 0, fileName: autoQuoteBundle.fileName });
+        }
+        if (autoQuoteBundle) {
           await evolutionService.sendDocument(outboundInstance, sentTo, {
             base64: autoQuoteBundle.pdfBase64,
             fileName: autoQuoteBundle.fileName,
@@ -9078,6 +9100,7 @@ export async function POST(req: Request) {
               .eq("created_by", ownerId);
           }
           sentQuotePdf = true;
+          console.log("[quote-bundle] send final done", { mode: "bundle", to: sentTo });
         } else if (autoQuoteDocs.length) {
           for (const doc of autoQuoteDocs) {
             await evolutionService.sendDocument(outboundInstance, sentTo, {
