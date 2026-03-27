@@ -5355,15 +5355,19 @@ export async function POST(req: Request) {
           const chosen = pendingOptions.slice(0, Math.max(1, Math.min(selectedCount, pendingOptions.length || selectedCount)));
           if (chosen.length >= 2) {
             const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+            strictBypassAutoQuote = true;
+            inbound.text = `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`;
             strictMemory.pending_product_options = chosen;
             strictMemory.last_recommended_options = chosen;
             strictMemory.quote_bundle_options = chosen;
             strictMemory.quote_quantity = 1;
-            strictMemory.awaiting_action = "strict_quote_data";
+            strictMemory.awaiting_action = "none";
             strictMemory.last_intent = "quote_bundle_request";
             strictMemory.bundle_quote_mode = true;
             strictMemory.bundle_quote_count = chosen.length;
-            strictReply = `Perfecto. Voy a cotizar ${chosen.length} referencias. Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular), compártelos en un solo mensaje. Si no, escribe: avanza sin datos.`;
+            strictMemory.last_selected_product_name = "";
+            strictMemory.last_selected_product_id = "";
+            strictMemory.last_selection_at = "";
           }
         }
         const looseSpecHint = parseLooseTechnicalHint(text);
