@@ -8040,7 +8040,11 @@ export async function POST(req: Request) {
       isContactInfoBundle(inbound.text) &&
       shouldAutoQuote(`${recentUserContext}\n${inbound.text}`);
     const forceBundleQuoteIntake =
-      String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request";
+      String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" ||
+      (
+        String(awaitingAction || previousMemory?.awaiting_action || "") === "strict_quote_data" &&
+        isContinueQuoteWithoutPersonalDataIntent(originalInboundText)
+      );
 
     if (
       forceBundleQuoteIntake ||
@@ -8589,7 +8593,10 @@ export async function POST(req: Request) {
         if (!String(reply || "").trim()) {
         const continueWithoutDataInBundle =
           isContinueQuoteWithoutPersonalDataIntent(originalInboundText) &&
-          String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request";
+          (
+            String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" ||
+            String(awaitingAction || previousMemory?.awaiting_action || "") === "strict_quote_data"
+          );
         if (continueWithoutDataInBundle) {
           reply = "Perfecto. Para avanzar sin datos, confirma los modelos a cotizar en una sola línea (ej.: cotizar A,B,C,D,E,F,G,H o cotizar 8 cantidad 1 para todos).";
           nextMemory.awaiting_action = "strict_choose_model";
