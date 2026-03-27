@@ -8163,11 +8163,16 @@ export async function POST(req: Request) {
             .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
             .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [])
             .filter((o: any, idx: number, arr: any[]) => {
-              const key = String(o?.raw_name || o?.name || "").trim();
+              const key = String(o?.id || o?.product_id || o?.raw_name || o?.name || "").trim();
               if (!key) return false;
-              return arr.findIndex((x: any) => String(x?.raw_name || x?.name || "").trim() === key) === idx;
+              return arr.findIndex((x: any) => String(x?.id || x?.product_id || x?.raw_name || x?.name || "").trim() === key) === idx;
             });
         const resolvePendingOptionToProduct = (opt: any): any => {
+          const byId = String(opt?.id || opt?.product_id || "").trim();
+          if (byId) {
+            const idHit = (commercialProducts || []).find((p: any) => String(p?.id || "").trim() === byId);
+            if (idHit) return idHit;
+          }
           const label = String(opt?.raw_name || opt?.name || "").trim();
           if (!label) return null;
           const direct = findCatalogProductByName(commercialProducts || [], label);
