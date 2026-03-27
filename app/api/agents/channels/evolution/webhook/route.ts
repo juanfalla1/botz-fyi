@@ -5343,7 +5343,15 @@ export async function POST(req: Request) {
             /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(textNorm)
           );
         if (bundleQuoteAsk) {
-          const pendingOptions = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+          const pendingOptions =
+            (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
+              .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+              .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [])
+              .filter((o: any, idx: number, arr: any[]) => {
+                const key = String(o?.raw_name || o?.name || "").trim();
+                if (!key) return false;
+                return arr.findIndex((x: any) => String(x?.raw_name || x?.name || "").trim() === key) === idx;
+              });
           const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
           const numMatch =
             textNorm.match(/\b(?:las|los)\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/) ||
