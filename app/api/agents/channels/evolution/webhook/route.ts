@@ -7927,8 +7927,7 @@ export async function POST(req: Request) {
       isContactInfoBundle(inbound.text) &&
       shouldAutoQuote(`${recentUserContext}\n${inbound.text}`);
     const forceBundleQuoteIntake =
-      String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" &&
-      shouldAutoQuote(inbound.text);
+      String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request";
 
     if ((forceBundleQuoteIntake || (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && !handledByRecall)) && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory || concreteQuoteIntent)) {
       try {
@@ -7955,7 +7954,13 @@ export async function POST(req: Request) {
           ? selectedProduct
           : pickBestCatalogProduct(quoteSourceText, quoteMatchPool || []));
         const rememberedProduct = findCatalogProductByName(commercialProducts || [], String(nextMemory.last_product_name || ""));
-        const wantsMulti = isMultiProductQuoteIntent(quoteSourceText);
+        const wantsMulti = forceBundleQuoteIntake || isMultiProductQuoteIntent(quoteSourceText);
+        const pendingBundleOptions = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+        const selectedProductsFromPending = forceBundleQuoteIntake
+          ? pendingBundleOptions
+              .map((o: any) => findCatalogProductByName(commercialProducts || [], String(o?.raw_name || o?.name || "")))
+              .filter(Boolean)
+          : [];
         const rememberedQuoteProductName = String(
           nextMemory.last_quote_product_name ||
           previousMemory?.last_quote_product_name ||
@@ -7966,7 +7971,9 @@ export async function POST(req: Request) {
         const rememberedQuoteProduct = rememberedQuoteProductName
           ? findCatalogProductByName(commercialProducts || [], rememberedQuoteProductName)
           : null;
-        const selectedProducts = explicitModelProducts.length
+        const selectedProducts = selectedProductsFromPending.length
+          ? selectedProductsFromPending
+          : explicitModelProducts.length
           ? (
               continuationIntent && rememberedQuoteProduct
                 ? [rememberedQuoteProduct, ...explicitModelProducts].filter((row: any, idx: number, arr: any[]) => {
