@@ -5979,7 +5979,7 @@ export async function POST(req: Request) {
       Object.assign(nextMemory, strictMemory);
     }
 
-    const awaitingAction = String(previousMemory?.awaiting_action || "");
+    let awaitingAction = String(nextMemory?.awaiting_action || previousMemory?.awaiting_action || "");
     const originalInboundText = String(inbound.text || "").trim();
     const explicitModelGlobal = hasConcreteProductHint(originalInboundText) && !isOptionOnlyReply(originalInboundText);
     if (explicitModelGlobal) {
@@ -6277,6 +6277,63 @@ export async function POST(req: Request) {
     const selectedPendingFamily = String(previousMemory?.awaiting_action || "") === "family_option_selection"
       ? resolvePendingFamilyOption(originalInboundText, pendingFamilyOptions)
       : null;
+
+    let bundleOverrideApplied = false;
+    let ignoredAwaitingActionForBundle = "";
+    {
+      const inboundTextNorm = normalizeText(originalInboundText);
+      const inboundBundleByCount = /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(inboundTextNorm);
+      const inboundBundleAll = asksQuoteIntent(inboundTextNorm) && /\b(todas|todos|todas\s+las|todos\s+los)\b/.test(inboundTextNorm);
+      const inboundIntent = String(nextMemory.last_intent || previousMemory?.last_intent || "");
+      const continueWithoutData = isContinueQuoteWithoutPersonalDataIntent(originalInboundText);
+      const shouldBundleOverride =
+        inboundIntent === "quote_bundle_request" ||
+        inboundBundleByCount ||
+        inboundBundleAll ||
+        (continueWithoutData && String(awaitingAction || "") === "strict_quote_data");
+
+      if (shouldBundleOverride) {
+        const bundlePool =
+          (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
+            .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+            .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []);
+        const dedup = new Map<string, any>();
+        for (const o of bundlePool) {
+          const key = String(o?.raw_name || o?.name || "").trim();
+          if (key && !dedup.has(key)) dedup.set(key, o);
+        }
+        const options = Array.from(dedup.values());
+        if (options.length >= 2) {
+          const numMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+          const m = inboundTextNorm.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/);
+          const raw = String(m?.[1] || "").trim();
+          const requested = inboundBundleAll
+            ? options.length
+            : Math.max(2, Number(raw ? (Number(raw) || numMap[raw] || options.length) : options.length));
+          const chosen = options.slice(0, Math.max(2, Math.min(requested, options.length)));
+          const names = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+          if (names.length >= 2) {
+            ignoredAwaitingActionForBundle = String(awaitingAction || "");
+            inbound.text = `cotizar ${names.join(" ; ")} cantidad 1 para todos`;
+            nextMemory.awaiting_action = "quote_bundle_request";
+            nextMemory.last_intent = "quote_bundle_request";
+            nextMemory.pending_product_options = chosen;
+            nextMemory.quote_bundle_options = chosen;
+            nextMemory.last_recommended_options = chosen;
+            nextMemory.bundle_quote_mode = true;
+            nextMemory.bundle_quote_count = names.length;
+            nextMemory.last_selected_product_name = "";
+            nextMemory.last_selected_product_id = "";
+            nextMemory.last_selection_at = "";
+            delete (nextMemory as any).tech_product_selection;
+            delete (nextMemory as any).pending_technical_selection;
+            delete (nextMemory as any).technical_guidance_mode;
+            awaitingAction = String(nextMemory.awaiting_action || "");
+            bundleOverrideApplied = true;
+          }
+        }
+      }
+    }
 
     if (!handledByGreeting && pendingProductOptions.length >= 2) {
       const bulkText = normalizeText(originalInboundText);
@@ -8766,6 +8823,8 @@ export async function POST(req: Request) {
     console.log("[evolution-webhook] route_decision", {
       route: resolvedRoute,
       awaitingAction: effectiveAwaitingAction,
+      bundle_override_applied: bundleOverrideApplied,
+      ignoredAwaitingAction: ignoredAwaitingActionForBundle,
       inboundCategoryIntent: inboundCategoryIntent || null,
       inboundInventoryIntent,
       inboundTechnicalSpec,
