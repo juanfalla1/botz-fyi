@@ -5029,6 +5029,8 @@ export async function POST(req: Request) {
               strictMemory.awaiting_action = "none";
               strictMemory.pending_product_options = chosen;
               strictMemory.last_intent = "quote_bundle_request";
+              strictMemory.bundle_quote_mode = true;
+              strictMemory.bundle_quote_count = names.length;
               strictReply = `Perfecto. Voy a generar una cotización consolidada para esas ${names.length} opciones y te la envío en PDF por este WhatsApp.`;
             }
           }
@@ -5148,6 +5150,8 @@ export async function POST(req: Request) {
             strictMemory.pending_product_options = bundleOptions;
             strictMemory.last_recommended_options = bundleOptions;
             strictMemory.last_intent = "quote_bundle_request";
+            strictMemory.bundle_quote_mode = true;
+            strictMemory.bundle_quote_count = modelNames.length;
             strictMemory.quote_data = {};
           }
         }
@@ -5354,6 +5358,8 @@ export async function POST(req: Request) {
             strictMemory.quote_quantity = 1;
             strictMemory.awaiting_action = "strict_quote_data";
             strictMemory.last_intent = "quote_bundle_request";
+            strictMemory.bundle_quote_mode = true;
+            strictMemory.bundle_quote_count = chosen.length;
             strictReply = `Perfecto. Voy a cotizar ${chosen.length} referencias. Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular), compártelos en un solo mensaje. Si no, escribe: avanza sin datos.`;
           }
         }
@@ -6278,6 +6284,8 @@ export async function POST(req: Request) {
           nextMemory.awaiting_action = "none";
           nextMemory.pending_product_options = chosen;
           nextMemory.last_intent = "quote_bundle_request";
+          nextMemory.bundle_quote_mode = true;
+          nextMemory.bundle_quote_count = chosen.length;
           nextMemory.last_selected_product_name = "";
           nextMemory.last_selected_product_id = "";
           nextMemory.last_selection_at = "";
@@ -6469,6 +6477,8 @@ export async function POST(req: Request) {
         nextMemory.quote_bundle_options = bundleContinueOptions.slice(0, 8);
         nextMemory.last_recommended_options = bundleContinueOptions.slice(0, 8);
         nextMemory.last_intent = "quote_bundle_request";
+        nextMemory.bundle_quote_mode = true;
+        nextMemory.bundle_quote_count = names.length;
         nextMemory.last_selected_product_name = "";
         nextMemory.last_selected_product_id = "";
         nextMemory.last_selection_at = "";
@@ -6505,6 +6515,8 @@ export async function POST(req: Request) {
             nextMemory.quote_bundle_options = chosen;
             nextMemory.last_recommended_options = chosen;
             nextMemory.last_intent = "quote_bundle_request";
+            nextMemory.bundle_quote_mode = true;
+            nextMemory.bundle_quote_count = modelNames.length;
             nextMemory.last_selected_product_name = "";
             nextMemory.last_selected_product_id = "";
             nextMemory.last_selection_at = "";
@@ -6551,6 +6563,8 @@ export async function POST(req: Request) {
             nextMemory.awaiting_action = "none";
             nextMemory.pending_product_options = chosen;
             nextMemory.last_intent = "quote_bundle_request";
+            nextMemory.bundle_quote_mode = true;
+            nextMemory.bundle_quote_count = modelNames.length;
             nextMemory.last_selected_product_name = "";
             nextMemory.last_selected_product_id = "";
             nextMemory.last_selection_at = "";
@@ -8407,10 +8421,10 @@ export async function POST(req: Request) {
       const selectedAtMs = Date.parse(String(nextMemory.last_selection_at || previousMemory?.last_selection_at || ""));
       const selectedStillActive = Boolean(selectedProductForGuide) && Number.isFinite(selectedAtMs) && (Date.now() - selectedAtMs) <= 30 * 60 * 1000;
       const inboundBulkQuoteCommand = /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(normalizeText(originalInboundText));
-      const continueWithoutDataOnBundle =
-        isContinueQuoteWithoutPersonalDataIntent(originalInboundText) &&
-        String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request";
-      if (selectedStillActive && !inboundTechnicalSpec && !inboundBulkQuoteCommand && !continueWithoutDataOnBundle) {
+      const skipSingleProductFallback =
+        String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" ||
+        isContinueQuoteWithoutPersonalDataIntent(originalInboundText);
+      if (selectedStillActive && !inboundTechnicalSpec && !inboundBulkQuoteCommand && !skipSingleProductFallback) {
           reply = `¿Quieres ficha técnica o cotización de ${selectedProductForGuide}?`;
           nextMemory.awaiting_action = "product_action";
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
