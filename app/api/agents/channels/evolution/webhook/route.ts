@@ -8039,7 +8039,13 @@ export async function POST(req: Request) {
     const forceBundleQuoteIntake =
       String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request";
 
-    if ((forceBundleQuoteIntake || (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && !handledByRecall)) && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory || concreteQuoteIntent)) {
+    if (
+      forceBundleQuoteIntake ||
+      (
+        !handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && !handledByRecall &&
+        (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory || concreteQuoteIntent)
+      )
+    ) {
       try {
         const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url", 120, false);
 
