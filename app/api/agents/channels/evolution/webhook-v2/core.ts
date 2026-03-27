@@ -8587,6 +8587,15 @@ export async function POST(req: Request) {
         }
 
         if (!String(reply || "").trim()) {
+        const continueWithoutDataInBundle =
+          isContinueQuoteWithoutPersonalDataIntent(originalInboundText) &&
+          String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request";
+        if (continueWithoutDataInBundle) {
+          reply = "Perfecto. Para avanzar sin datos, confirma los modelos a cotizar en una sola línea (ej.: cotizar A,B,C,D,E,F,G,H o cotizar 8 cantidad 1 para todos).";
+          nextMemory.awaiting_action = "strict_choose_model";
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
+        if (!String(reply || "").trim()) {
         const narrowed = filterCatalogByTerms(inbound.text, baseSource as any, requestedCategory);
         const sampleSource = narrowed.length ? narrowed : baseSource;
         const directModelMatch = hasConcreteProductHint(inbound.text)
@@ -8624,6 +8633,7 @@ export async function POST(req: Request) {
         if (requestedCategory) nextMemory.last_category_intent = requestedCategory;
         nextMemory.awaiting_action = "tech_product_selection";
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
         }
         }
       } else {
