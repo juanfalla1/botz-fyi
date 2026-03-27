@@ -5973,6 +5973,10 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ ok: true, sent: true, strict: true });
       }
+
+      // If strict flow rewrote inbound/intents for auto-quote, propagate updated strict memory
+      // so downstream router does not read stale previousMemory state.
+      Object.assign(nextMemory, strictMemory);
     }
 
     const awaitingAction = String(previousMemory?.awaiting_action || "");
@@ -8054,7 +8058,7 @@ export async function POST(req: Request) {
     const forceBundleQuoteIntake =
       String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" ||
       (
-        String(awaitingAction || previousMemory?.awaiting_action || "") === "strict_quote_data" &&
+        String(nextMemory.awaiting_action || previousMemory?.awaiting_action || "") === "strict_quote_data" &&
         isContinueQuoteWithoutPersonalDataIntent(originalInboundText)
       );
 
@@ -8607,7 +8611,7 @@ export async function POST(req: Request) {
           isContinueQuoteWithoutPersonalDataIntent(originalInboundText) &&
           (
             String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" ||
-            String(awaitingAction || previousMemory?.awaiting_action || "") === "strict_quote_data"
+            String(nextMemory.awaiting_action || previousMemory?.awaiting_action || "") === "strict_quote_data"
           );
         if (continueWithoutDataInBundle) {
           reply = "Perfecto. Para avanzar sin datos, confirma los modelos a cotizar en una sola línea (ej.: cotizar A,B,C,D,E,F,G,H o cotizar 8 cantidad 1 para todos).";
@@ -8758,9 +8762,10 @@ export async function POST(req: Request) {
                               : "fallback";
     nextMemory.last_route = resolvedRoute;
     nextMemory.last_route_at = new Date().toISOString();
+    const effectiveAwaitingAction = String(nextMemory.awaiting_action || "");
     console.log("[evolution-webhook] route_decision", {
       route: resolvedRoute,
-      awaitingAction,
+      awaitingAction: effectiveAwaitingAction,
       inboundCategoryIntent: inboundCategoryIntent || null,
       inboundInventoryIntent,
       inboundTechnicalSpec,
