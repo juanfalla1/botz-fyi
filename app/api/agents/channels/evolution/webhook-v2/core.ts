@@ -1981,7 +1981,7 @@ function isContactInfoBundle(text: string): boolean {
 function isContinueQuoteWithoutPersonalDataIntent(text: string): boolean {
   const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
   if (!t) return false;
-  return /(continuar\s+cotizacion\s+sin\s+datos\s+personales|continuar\s+sin\s+datos|sin\s+datos\s+personales|sin\s+datos)/.test(t);
+  return /(continuar\s+cotizacion\s+sin\s+datos\s+personales|continuar\s+sin\s+datos|sin\s+datos\s+personales|sin\s+datos|avanza(?:r)?\b|continua(?:r)?\b|seguir\b)/.test(t);
 }
 
 function isGreetingIntent(text: string): boolean {
@@ -5132,6 +5132,26 @@ export async function POST(req: Request) {
             ].join("\n");
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_quote_data") {
+        const bundleOptions = Array.isArray(previousMemory?.quote_bundle_options)
+          ? previousMemory.quote_bundle_options
+          : (Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : []);
+        if (bundleOptions.length >= 2 && isContinueQuoteWithoutPersonalDataIntent(text)) {
+          const modelNames = bundleOptions
+            .map((o: any) => String(o?.raw_name || o?.name || "").trim())
+            .filter(Boolean);
+          if (modelNames.length >= 2) {
+            strictBypassAutoQuote = true;
+            inbound.text = `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`;
+            strictMemory.awaiting_action = "none";
+            strictMemory.pending_product_options = bundleOptions;
+            strictMemory.last_recommended_options = bundleOptions;
+            strictMemory.last_intent = "quote_bundle_request";
+            strictMemory.quote_data = {};
+          }
+        }
+        if (strictBypassAutoQuote) {
+          // bypass strict single-product quote_data parsing and continue with auto quote intake
+        } else {
         const pickBounded = (label: string) => {
           const rx = new RegExp(`${label}\\s*[:=]?\\s*([^\\n,;]+?)(?=\\s+(ciudad|empresa|company|nit|contacto|correo|email|celular|telefono)\\b|$)`, "i");
           const m = String(text || "").match(rx);
@@ -5297,6 +5317,7 @@ export async function POST(req: Request) {
             strictMemory.quote_feedback_due_at = isoAfterHours(24);
           }
         }
+        }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model") {
         const familyLabel = String(previousMemory?.strict_family_label || "").trim();
         const askMore = /\b(mas|más|siguiente|siguientes|resto|todas|todos|retomar|reanudar|continuar)\b/.test(textNorm);
@@ -5325,11 +5346,13 @@ export async function POST(req: Request) {
           const chosen = pendingOptions.slice(0, Math.max(1, Math.min(selectedCount, pendingOptions.length || selectedCount)));
           if (chosen.length >= 2) {
             const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
-            strictBypassAutoQuote = true;
-            inbound.text = `cotizar ${modelNames.join(" ; ")}`;
-            strictMemory.awaiting_action = "none";
             strictMemory.pending_product_options = chosen;
+            strictMemory.last_recommended_options = chosen;
+            strictMemory.quote_bundle_options = chosen;
+            strictMemory.quote_quantity = 1;
+            strictMemory.awaiting_action = "strict_quote_data";
             strictMemory.last_intent = "quote_bundle_request";
+            strictReply = `Perfecto. Voy a cotizar ${chosen.length} referencias. Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular), compártelos en un solo mensaje. Si no, escribe: avanza sin datos.`;
           }
         }
         const looseSpecHint = parseLooseTechnicalHint(text);
