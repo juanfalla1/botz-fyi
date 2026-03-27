@@ -1074,11 +1074,11 @@ function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: s
   for (const row of list) {
     const baseName = optionDisplayName(row);
     const spec = extractRowTechnicalSpec(row);
-    const hasUnitInName = /\b\d+(?:[\.,]\d+)?\s*(mg|g|kg)\b/i.test(baseName);
-    const capSuffix = (!hasUnitInName && spec.capacityG > 0)
-      ? ` | Cap: ${formatSpecNumber(spec.capacityG)} g`
-      : "";
-    const name = `${baseName}${capSuffix}`;
+    const specParts: string[] = [];
+    if (spec.capacityG > 0) specParts.push(`Cap: ${formatSpecNumber(spec.capacityG)} g`);
+    if (spec.readabilityG > 0) specParts.push(`Res: ${formatSpecNumber(spec.readabilityG)} g`);
+    const suffix = specParts.length ? ` | ${specParts.join(" | ")}` : "";
+    const name = `${baseName}${suffix}`.slice(0, 140);
     if (!name) continue;
     const key = String(row?.id || "").trim() || normalizeText(name);
     if (!key || seen.has(key)) continue;
@@ -1231,8 +1231,9 @@ function inferFamilyFromUseCase(
   const t = normalizeText(String(text || ""));
   if (!t) return null;
 
-  const wantsJewelryPrecision = /(oro|joyeria|joyeria|anillo|arete|cadena|gramos|gramo|mg|miligram)/.test(t);
+  const wantsJewelryPrecision = /(oro|joyeria|joyeria|ley\s+de\s+oro|quilat|kilat|gramera|anillo|arete|cadena|gramos|gramo|mg|miligram)/.test(t);
   const wantsIndustrial = /(maquina|maquinas|bodega|industrial|plataforma|carga pesada)/.test(t);
+  const wantsLab = /(laboratorio|farmacia|control de calidad|formulacion|formulación|microbiologia|analis|investigacion)/.test(t);
 
   const rankByHints = (o: any) => {
     const l = normalizeText(String(o?.label || ""));
@@ -1244,6 +1245,10 @@ function inferFamilyFromUseCase(
     }
     if (wantsIndustrial) {
       if (/industrial|plataforma|basculas/.test(l)) score += 8;
+    }
+    if (wantsLab) {
+      if (/analitica|semi\s*analitica|precision|laboratorio/.test(l)) score += 8;
+      if (/micro|semi\s*micro/.test(l)) score += 4;
     }
     return score;
   };
@@ -1441,6 +1446,57 @@ function parseLooseTechnicalHint(text: string): { capacityG?: number; readabilit
   return { capacityG: only };
 }
 
+function parseCapacityRangeHint(text: string): { minG: number; maxG: number } | null {
+  const t = normalizeText(String(text || ""))
+    .replace(/(\d)\s*[\.,]\s*(\d)/g, "$1.$2")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return null;
+
+  const pairPatterns = [
+    /(?:entre|rango|de)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\s*(?:a|y|-|hasta)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\b/i,
+    /desde\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\s*hasta\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\b/i,
+  ];
+  for (const rx of pairPatterns) {
+    const m = t.match(rx);
+    if (!m) continue;
+    const a = toGrams(m[1], m[2] || "g");
+    const b = toGrams(m[3], m[4] || m[2] || "g");
+    if (!(a > 0) || !(b > 0)) continue;
+    const minG = Math.min(a, b);
+    const maxG = Math.max(a, b);
+    if (maxG > 0) return { minG, maxG };
+  }
+
+  let minG = 0;
+  let maxG = 0;
+  const minOnly = t.match(/(?:capacidad\s*)?(?:minima|minimo|desde|mayor\s+que|mas\s+de)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)\b/i);
+  const maxOnly = t.match(/(?:capacidad\s*)?(?:maxima|maximo|hasta|menor\s+que|no\s+mas\s+de)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)\b/i);
+  if (minOnly) minG = toGrams(minOnly[1], minOnly[2] || "g");
+  if (maxOnly) maxG = toGrams(maxOnly[1], maxOnly[2] || "g");
+  if (minG > 0 && maxG > 0) {
+    const minV = Math.min(minG, maxG);
+    const maxV = Math.max(minG, maxG);
+    return { minG: minV, maxG: maxV };
+  }
+  if (minG > 0) return { minG, maxG: Number.POSITIVE_INFINITY };
+  if (maxG > 0) return { minG: 0, maxG };
+  return null;
+}
+
+function filterRowsByCapacityRange(rows: any[], range: { minG: number; maxG: number } | null): any[] {
+  if (!range || !Array.isArray(rows) || !rows.length) return Array.isArray(rows) ? rows : [];
+  const minG = Math.max(0, Number(range.minG || 0));
+  const maxG = Number(range.maxG || 0);
+  return rows.filter((row: any) => {
+    const cap = Number(extractRowTechnicalSpec(row)?.capacityG || 0);
+    if (!(cap > 0)) return false;
+    if (minG > 0 && cap < minG) return false;
+    if (Number.isFinite(maxG) && maxG > 0 && cap > maxG) return false;
+    return true;
+  });
+}
+
 function mergeLooseSpecWithMemory(
   prev: { capacityG?: number; readabilityG?: number },
   hint: { capacityG?: number; readabilityG?: number } | null
@@ -1626,7 +1682,7 @@ function isInventoryInfoIntent(text: string): boolean {
 
 function isRecommendationIntent(text: string): boolean {
   const t = normalizeText(text);
-  return /(recomiend|que me puedes recomendar|que me recomiendas|modelo ideal|que modelo|cual modelo|no se que modelo|no se cual|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza)/.test(t);
+  return /(recomiend|que me puedes recomendar|que me recomiendas|modelo ideal|que modelo|cual modelo|no se que modelo|no se cual|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza|gramera|ley\s+de\s+oro|quilat|kilat|joyeria|control\s+de\s+calidad|laboratorio)/.test(t);
 }
 
 function isUseCaseApplicabilityIntent(text: string): boolean {
@@ -1641,7 +1697,7 @@ function isUseCaseApplicabilityIntent(text: string): boolean {
 function isUseCaseFamilyHint(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
-  return /(joyeria|joyería|oro|laboratorio|farmacia|industrial|produccion|producción|bodega|maquina|máquina)/.test(t);
+  return /(joyeria|joyería|oro|ley\s+de\s+oro|quilat|kilat|gramera|laboratorio|farmacia|industrial|produccion|producción|bodega|maquina|máquina|control\s+de\s+calidad|formulacion|formulación)/.test(t);
 }
 
 function isCatalogBreadthQuestion(text: string): boolean {
@@ -2239,9 +2295,26 @@ function isFeatureQuestionIntent(text: string): boolean {
   const hasMeasurementSpec = /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)\b/.test(t);
   return (
     /(que tenga|que tengan|tiene|tienen|incluye|incluyan|debe tener|caracteristic|especificacion|especificaciones)/.test(t) ||
-    /(con\s+(calibracion|precision|resolucion|capacidad|bateria|usb|bluetooth|wifi|rs\s*232|ip\d{2}|pantalla|sensor|humedad|analitic|semi|micro))/.test(t) ||
+    /(con\s+(calibracion|precision|resolucion|capacidad|bateria|usb|bluetooth|wifi|rs\s*232|ip\d{2}|pantalla|sensor|humedad|analitic|semi|micro|calibracion\s+externa|calibracion\s+interna))/.test(t) ||
     hasMeasurementSpec
   );
+}
+
+function detectCalibrationPreference(text: string): "external" | "internal" | null {
+  const t = normalizeText(text || "");
+  if (!t) return null;
+  if (/(calibracion\s+externa|externa\s+calibracion|pesa\s+patron|masa\s+patron|external\s+calibration)/.test(t)) return "external";
+  if (/(calibracion\s+interna|interna\s+calibracion|autocal|ajuste\s+interno|internal\s+calibration)/.test(t)) return "internal";
+  return null;
+}
+
+function rowMatchesCalibrationPreference(row: any, preference: "external" | "internal" | null): boolean {
+  if (!preference) return true;
+  const hay = catalogFeatureSearchBlob(row);
+  if (preference === "external") {
+    return /(calibr\w*\s*(extern|manual)|external\s+calibration|pesa\s+patron|masa\s+patron)/.test(hay);
+  }
+  return /(calibr\w*\s*(intern|auto|ajuste\s+interno)|internal\s+calibration|autocal)/.test(hay);
 }
 
 function extractFeatureTerms(text: string): string[] {
@@ -3397,8 +3470,8 @@ async function buildStandardQuotePdf(args: {
   let y = currentTableHeaderY + 11;
   let index = 1;
   let subtotal = 0;
-  const lineHeight = 3.8;
-  const rowPadding = 4;
+  const lineHeight = 3.5;
+  const rowPadding = 3;
   for (const item of args.items || []) {
     const qty = Math.max(1, Number(item.quantity || 1));
     const lineTotal = Number(item.totalCop || 0) > 0
@@ -3427,7 +3500,7 @@ async function buildStandardQuotePdf(args: {
           Math.max(descCount, 1),
           1,
         );
-        return Math.max(isFirstSegment && hasImage ? 46 : 14, lineCount * lineHeight + rowPadding);
+        return Math.max(isFirstSegment && hasImage ? 40 : 12, lineCount * lineHeight + rowPadding);
       };
       const minRowH = rowHeightFor(minDescLines);
 
@@ -3514,7 +3587,7 @@ async function buildStandardQuotePdf(args: {
         doc.setFontSize(8.2);
       }
 
-      y += rowH + 1.2;
+      y += rowH + 0.9;
       descCursor += descChunk.length;
       isFirstSegment = false;
       if (descLinesAll.length === 0) break;
@@ -4883,6 +4956,7 @@ export async function POST(req: Request) {
           : "Hola, soy Ava de Avanza Group. ¿Qué producto necesitas hoy?";
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
         const parsed = parseLooseTechnicalHint(text);
+        const capacityRange = parseCapacityRangeHint(text);
         const merged = mergeLooseSpecWithMemory(
           {
             capacityG: Number(previousMemory?.strict_partial_capacity_g || 0),
@@ -4896,8 +4970,28 @@ export async function POST(req: Request) {
         strictMemory.strict_partial_readability_g = read > 0 ? read : "";
 
         if (!(cap > 0) && !(read > 0)) {
-          strictReply = "Perfecto. Para cotizar bien, dime capacidad y resolución objetivo (ej.: 2 kg x 0.01 g o 220 g x 0.001 g).";
-          strictMemory.awaiting_action = "strict_need_spec";
+          if (capacityRange) {
+            const rangedRows = filterRowsByCapacityRange(baseScoped as any[], capacityRange);
+            const options = buildNumberedProductOptions(rangedRows.slice(0, 8) as any[], 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictReply = [
+                `Perfecto, te entendí un rango de capacidad (${formatSpecNumber(capacityRange.minG)} g a ${Number.isFinite(capacityRange.maxG) ? `${formatSpecNumber(capacityRange.maxG)} g` : "en adelante"}).`,
+                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Responde con letra o número (A/1), o envíame también la resolución objetivo para afinar más.",
+              ].join("\n");
+            } else {
+              strictReply = "No encontré referencias activas para ese rango de capacidad en el catálogo actual. Si quieres, te muestro alternativas cercanas.";
+              strictMemory.awaiting_action = "strict_need_spec";
+            }
+          } else {
+            strictReply = "Perfecto. Para cotizar bien, dime capacidad y resolución objetivo (ej.: 2 kg x 0.01 g o 220 g x 0.001 g).";
+            strictMemory.awaiting_action = "strict_need_spec";
+          }
         } else if (read > 0 && !(cap > 0)) {
           strictReply = [
             `Perfecto, ya tengo la precisión (${formatSpecNumber(read)} g).`,
@@ -5379,6 +5473,7 @@ export async function POST(req: Request) {
           }
         }
         const looseSpecHint = parseLooseTechnicalHint(text);
+        const rangeHint = parseCapacityRangeHint(text);
 
         if (looseSpecHint && (looseSpecHint.capacityG || looseSpecHint.readabilityG)) {
           const rememberedCap = Number(
@@ -5461,6 +5556,26 @@ export async function POST(req: Request) {
                   : "Si quieres, te explico cuál conviene más según tu uso (laboratorio, joyería o industrial). También puedes elegir A/1.",
               ].join("\n");
             }
+          }
+        }
+
+        if (!String(strictReply || "").trim() && rangeHint) {
+          const rangedOptionsAll = buildNumberedProductOptions(filterRowsByCapacityRange(familyRows as any[], rangeHint), 60);
+          const rangedPage = rangedOptionsAll.slice(0, 8);
+          if (rangedPage.length) {
+            strictMemory.pending_product_options = rangedPage;
+            strictMemory.strict_model_offset = 0;
+            strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
+            strictReply = [
+              `Perfecto. Te filtro por capacidad entre ${formatSpecNumber(rangeHint.minG)} g y ${Number.isFinite(rangeHint.maxG) ? `${formatSpecNumber(rangeHint.maxG)} g` : "más"}.`,
+              ...rangedPage.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+              "",
+              (rangedOptionsAll.length > rangedPage.length)
+                ? "Responde con letra o número (A/1), o escribe 'más' para ver siguientes."
+                : "Responde con letra o número (A/1), o dime la resolución objetivo para afinar más.",
+            ].join("\n");
+          } else {
+            strictReply = "No encontré modelos activos para ese rango de capacidad en esta familia. Si quieres, te muestro alternativas de otra familia.";
           }
         }
 
@@ -5638,6 +5753,7 @@ export async function POST(req: Request) {
           const selectedFamilyResolved = selectedFamily as { key?: string; label?: string };
           const familyRows = baseScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamilyResolved.key || "")));
           const hinted = parseLooseTechnicalHint(text);
+          const rangeHint = parseCapacityRangeHint(text);
           const hintedCap = Number(hinted?.capacityG || 0);
           const hintedRead = Number(hinted?.readabilityG || 0);
           const familyMaxCap = familyRows.reduce((mx: number, r: any) => Math.max(mx, Number(getRowCapacityG(r) || 0)), 0);
@@ -5653,6 +5769,10 @@ export async function POST(req: Request) {
           } else if (hintedRead > 0) {
             const rankedRead = rankCatalogByReadabilityOnly(baseRowsForRanking as any[], hintedRead);
             if (rankedRead.length) recommendedRows = rankedRead.map((x: any) => x.row);
+          }
+          if (rangeHint) {
+            const ranged = filterRowsByCapacityRange(recommendedRows as any[], rangeHint);
+            if (ranged.length) recommendedRows = ranged;
           }
           const allOptions = buildNumberedProductOptions(recommendedRows as any[], 60);
           const options = allOptions.slice(0, 8);
@@ -5738,6 +5858,7 @@ export async function POST(req: Request) {
           if (inferred) {
             const familyRows = scoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String((inferred as any)?.key || "")));
             const hinted = parseLooseTechnicalHint(text);
+            const rangeHint = parseCapacityRangeHint(text);
             const hintedCap = Number(hinted?.capacityG || 0);
             const hintedRead = Number(hinted?.readabilityG || 0);
             const familyMaxCap = familyRows.reduce((mx: number, r: any) => Math.max(mx, Number(getRowCapacityG(r) || 0)), 0);
@@ -5753,6 +5874,10 @@ export async function POST(req: Request) {
             } else if (hintedRead > 0) {
               const rankedRead = rankCatalogByReadabilityOnly(baseRowsForRanking as any[], hintedRead);
               if (rankedRead.length) recommendedRows = rankedRead.map((x: any) => x.row);
+            }
+            if (rangeHint) {
+              const ranged = filterRowsByCapacityRange(recommendedRows as any[], rangeHint);
+              if (ranged.length) recommendedRows = ranged;
             }
             const allOptions = buildNumberedProductOptions(recommendedRows as any[], 60);
             const options = allOptions.slice(0, 8);
@@ -7263,9 +7388,13 @@ export async function POST(req: Request) {
         let matched = pickBestCatalogProduct(inbound.text, scopedList);
         if (matched?.name && !isCatalogMatchConsistent(inbound.text, matched, scopedCategory)) matched = null;
         const sourceList = scopedList.length ? scopedList : list;
+        const calibrationPref = detectCalibrationPreference(inbound.text);
+        const sourceListByCalibration = calibrationPref
+          ? sourceList.filter((row: any) => rowMatchesCalibrationPreference(row, calibrationPref))
+          : sourceList;
         const suggestions = [
           matched,
-          ...sourceList.filter((p: any) => !matched || String(p.id) !== String(matched.id)),
+          ...sourceListByCalibration.filter((p: any) => !matched || String(p.id) !== String(matched.id)),
         ]
           .filter(Boolean)
           .slice(0, 3)
@@ -7273,7 +7402,7 @@ export async function POST(req: Request) {
           .filter(Boolean);
 
         if (wantsFeatureAnswer) {
-          const rankedByFeature = rankCatalogByFeature(sourceList as any[], featureTerms).slice(0, 5);
+          const rankedByFeature = rankCatalogByFeature(sourceListByCalibration as any[], featureTerms).slice(0, 5);
           if (rankedByFeature.length) {
             const top = rankedByFeature.slice(0, 3);
             const options = buildNumberedProductOptions(top.map((x) => x.row), 3);
@@ -7297,7 +7426,7 @@ export async function POST(req: Request) {
           } else if (suggestions.length) {
             reply = `No encontré coincidencia exacta para esa característica (${featureTerms.join(", ")}). Te propongo alternativas cercanas: ${suggestions.join("; ")}.`;
           } else {
-            reply = "No encontré coincidencias para esa característica en este momento. Si quieres, te filtro por capacidad, resolución o calibración interna.";
+            reply = "No encontré coincidencias para esa característica en este momento. Si quieres, te filtro por capacidad, resolución o calibración externa/interna.";
           }
         } else if (suggestions.length) {
           if (matched?.name) {
@@ -8660,9 +8789,13 @@ export async function POST(req: Request) {
             const strictNumeric = technicalSpecQuery
               ? (ranked as any[]).filter((x: any) => x.capacityDeltaPct <= 40 && x.readabilityRatio <= 1)
               : [];
-            const sourceRows = technicalSpecQuery
+            const calibrationPref = detectCalibrationPreference(inbound.text);
+            const sourceRowsUnfiltered = technicalSpecQuery
               ? strictNumeric.map((x: any) => x.row)
               : (ranked as any[]).map((x: any) => x.row);
+            const sourceRows = calibrationPref
+              ? sourceRowsUnfiltered.filter((row: any) => rowMatchesCalibrationPreference(row, calibrationPref))
+              : sourceRowsUnfiltered;
             const options = buildNumberedProductOptions(sourceRows, technicalSpecQuery ? 10 : 4);
             if (options.length) {
               const shown = technicalSpecQuery ? options.slice(0, 10) : options;
