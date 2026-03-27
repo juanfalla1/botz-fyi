@@ -6247,19 +6247,26 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && pendingProductOptions.length >= 2) {
       const bulkText = normalizeText(originalInboundText);
+      const continueBundleWithoutData =
+        isContinueQuoteWithoutPersonalDataIntent(originalInboundText) &&
+        String(previousMemory?.last_intent || nextMemory.last_intent || "") === "quote_bundle_request";
       const asksBulkByCount = /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(bulkText);
       const asksBulkAll = asksQuoteIntent(bulkText) && /\b(todas|todos|todas\s+las|todos\s+los)\b/.test(bulkText);
-      if (asksBulkByCount || asksBulkAll) {
+      if (continueBundleWithoutData || asksBulkByCount || asksBulkAll) {
         const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
         const m = bulkText.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/);
         const raw = String(m?.[1] || "").trim();
-        const requested = asksBulkAll
+        const requested = continueBundleWithoutData
+          ? pendingProductOptions.length
+          : asksBulkAll
           ? pendingProductOptions.length
           : Math.max(2, Number(raw ? (Number(raw) || numberWordMap[raw] || 3) : 3));
         const chosen = pendingProductOptions.slice(0, Math.max(2, Math.min(requested, pendingProductOptions.length)));
         const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
         if (modelNames.length >= 2) {
-          inbound.text = `cotizar ${modelNames.join(" ; ")}`;
+          inbound.text = continueBundleWithoutData
+            ? `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`
+            : `cotizar ${modelNames.join(" ; ")}`;
           nextMemory.awaiting_action = "none";
           nextMemory.pending_product_options = chosen;
           nextMemory.last_intent = "quote_bundle_request";
