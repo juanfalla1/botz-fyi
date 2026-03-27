@@ -8705,7 +8705,7 @@ export async function POST(req: Request) {
           }
         }
 
-        if (!String(reply || "").trim()) {
+        if (!String(reply || "").trim() && !bundleOverrideApplied) {
         const continueWithoutDataInBundle =
           isContinueQuoteWithoutPersonalDataIntent(originalInboundText) &&
           (
@@ -8757,6 +8757,13 @@ export async function POST(req: Request) {
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
         }
+        }
+        if (!String(reply || "").trim() && bundleOverrideApplied) {
+          reply = "Perfecto. Estoy procesando la cotización múltiple con las referencias seleccionadas. Te la envío enseguida por este WhatsApp.";
+          nextMemory.awaiting_action = "quote_bundle_request";
+          nextMemory.last_intent = "quote_bundle_request";
+          handledByQuoteIntake = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
       } else {
 
