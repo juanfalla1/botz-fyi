@@ -8151,7 +8151,18 @@ export async function POST(req: Request) {
           : pickBestCatalogProduct(quoteSourceText, quoteMatchPool || []));
         const rememberedProduct = findCatalogProductByName(commercialProducts || [], String(nextMemory.last_product_name || ""));
         const wantsMulti = forceBundleQuoteIntake || isMultiProductQuoteIntent(quoteSourceText);
-        const pendingBundleOptions = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+        const pendingBundleOptions =
+          (Array.isArray(nextMemory?.quote_bundle_options) ? nextMemory.quote_bundle_options : [])
+            .concat(Array.isArray(nextMemory?.pending_product_options) ? nextMemory.pending_product_options : [])
+            .concat(Array.isArray(nextMemory?.last_recommended_options) ? nextMemory.last_recommended_options : [])
+            .concat(Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
+            .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+            .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [])
+            .filter((o: any, idx: number, arr: any[]) => {
+              const key = String(o?.raw_name || o?.name || "").trim();
+              if (!key) return false;
+              return arr.findIndex((x: any) => String(x?.raw_name || x?.name || "").trim() === key) === idx;
+            });
         const selectedProductsFromPending = forceBundleQuoteIntake
           ? pendingBundleOptions
               .map((o: any) => findCatalogProductByName(commercialProducts || [], String(o?.raw_name || o?.name || "")))
@@ -8820,6 +8831,12 @@ export async function POST(req: Request) {
     nextMemory.last_route = resolvedRoute;
     nextMemory.last_route_at = new Date().toISOString();
     const effectiveAwaitingAction = String(nextMemory.awaiting_action || "");
+    if (bundleOverrideApplied) {
+      console.log("[evolution-webhook] post_bundle_override_route", {
+        effectiveAwaitingAction,
+        resolvedRoute,
+      });
+    }
     console.log("[evolution-webhook] route_decision", {
       route: resolvedRoute,
       awaitingAction: effectiveAwaitingAction,
