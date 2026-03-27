@@ -8113,6 +8113,7 @@ export async function POST(req: Request) {
       isContactInfoBundle(inbound.text) &&
       shouldAutoQuote(`${recentUserContext}\n${inbound.text}`);
     const forceBundleQuoteIntake =
+      bundleOverrideApplied ||
       String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" ||
       (
         String(nextMemory.awaiting_action || previousMemory?.awaiting_action || "") === "strict_quote_data" &&
@@ -8535,6 +8536,14 @@ export async function POST(req: Request) {
       }
     }
 
+    if (bundleOverrideApplied && !handledByQuoteIntake && !autoQuoteDocs.length && !String(reply || "").trim()) {
+      reply = "Perfecto. Estoy procesando la cotización múltiple con las referencias seleccionadas. Te la envío enseguida por este WhatsApp.";
+      nextMemory.awaiting_action = "quote_bundle_request";
+      nextMemory.last_intent = "quote_bundle_request";
+      handledByQuoteIntake = true;
+      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+    }
+
     if (!autoQuoteDocs.length && !handledByGreeting && !handledByRecall && !handledByTechSheet && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteStarter && !handledByQuoteIntake) {
       const selectedProductForGuide = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || "").trim();
       const selectedAtMs = Date.parse(String(nextMemory.last_selection_at || previousMemory?.last_selection_at || ""));
@@ -8824,7 +8833,7 @@ export async function POST(req: Request) {
       nextMemory.awaiting_action = "capture_name";
     }
 
-    const resolvedRoute =
+    let resolvedRoute =
       autoQuoteDocs.length || autoQuoteBundle || resendPdf
         ? "quote_delivery"
         : technicalDocs.length || sentTechSheet || sentImage
@@ -8850,9 +8859,15 @@ export async function POST(req: Request) {
                             : handledByGreeting
                               ? (isConversationCloseIntent(originalInboundText) ? "conversation_close" : "greeting")
                               : "fallback";
+    let effectiveAwaitingAction = String(nextMemory.awaiting_action || "");
+    if (bundleOverrideApplied) {
+      effectiveAwaitingAction = "quote_bundle_request";
+      resolvedRoute = "quote_bundle";
+      nextMemory.awaiting_action = "quote_bundle_request";
+      nextMemory.last_intent = "quote_bundle_request";
+    }
     nextMemory.last_route = resolvedRoute;
     nextMemory.last_route_at = new Date().toISOString();
-    const effectiveAwaitingAction = String(nextMemory.awaiting_action || "");
     if (bundleOverrideApplied) {
       console.log("[evolution-webhook] post_bundle_override_route", {
         effectiveAwaitingAction,
