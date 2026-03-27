@@ -5134,7 +5134,9 @@ export async function POST(req: Request) {
       } else if (!String(strictReply || "").trim() && awaiting === "strict_quote_data") {
         const bundleOptions = Array.isArray(previousMemory?.quote_bundle_options)
           ? previousMemory.quote_bundle_options
-          : (Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : []);
+          : (Array.isArray(previousMemory?.pending_product_options)
+              ? previousMemory.pending_product_options
+              : (Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []));
         if (bundleOptions.length >= 2 && isContinueQuoteWithoutPersonalDataIntent(text)) {
           const modelNames = bundleOptions
             .map((o: any) => String(o?.raw_name || o?.name || "").trim())
@@ -6442,6 +6444,33 @@ export async function POST(req: Request) {
           nextMemory.awaiting_action = "none";
           nextMemory.pending_product_options = [];
         } else {
+        const continueWithoutDataOnBundle =
+          String(previousMemory?.last_intent || nextMemory.last_intent || "") === "quote_bundle_request" &&
+          isContinueQuoteWithoutPersonalDataIntent(originalInboundText);
+        if (continueWithoutDataOnBundle) {
+          const bundlePool =
+            (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
+              .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+              .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []);
+          const dedup = new Map<string, any>();
+          for (const o of bundlePool) {
+            const key = String(o?.raw_name || o?.name || "").trim();
+            if (key && !dedup.has(key)) dedup.set(key, o);
+          }
+          const chosen = Array.from(dedup.values()).slice(0, 8);
+          const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+          if (modelNames.length >= 2) {
+            inbound.text = `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`;
+            nextMemory.awaiting_action = "none";
+            nextMemory.pending_product_options = chosen;
+            nextMemory.quote_bundle_options = chosen;
+            nextMemory.last_recommended_options = chosen;
+            nextMemory.last_intent = "quote_bundle_request";
+            nextMemory.last_selected_product_name = "";
+            nextMemory.last_selected_product_id = "";
+            nextMemory.last_selection_at = "";
+          }
+        } else {
         const numberWordMapBulk: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
         const bulkCountMatch = optText.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/);
         const rawBulkCount = String(bulkCountMatch?.[1] || "").trim();
@@ -6517,6 +6546,7 @@ export async function POST(req: Request) {
           handledByInventory = true;
           handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
         }
         }
         }
