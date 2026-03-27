@@ -8163,10 +8163,22 @@ export async function POST(req: Request) {
               if (!key) return false;
               return arr.findIndex((x: any) => String(x?.raw_name || x?.name || "").trim() === key) === idx;
             });
+        const resolvePendingOptionToProduct = (opt: any): any => {
+          const label = String(opt?.raw_name || opt?.name || "").trim();
+          if (!label) return null;
+          const direct = findCatalogProductByName(commercialProducts || [], label);
+          if (direct) return direct;
+          const modelCandidate = String(label.match(/[A-Z0-9][A-Z0-9\/-]{2,}/i)?.[0] || "").trim();
+          if (modelCandidate) {
+            const byExact = findExactModelProduct(modelCandidate, commercialProducts || []);
+            if (byExact) return byExact;
+            const byBest = pickBestCatalogProduct(modelCandidate, commercialProducts || []);
+            if (byBest) return byBest;
+          }
+          return null;
+        };
         const selectedProductsFromPending = forceBundleQuoteIntake
-          ? pendingBundleOptions
-              .map((o: any) => findCatalogProductByName(commercialProducts || [], String(o?.raw_name || o?.name || "")))
-              .filter(Boolean)
+          ? pendingBundleOptions.map((o: any) => resolvePendingOptionToProduct(o)).filter(Boolean)
           : [];
         const rememberedQuoteProductName = String(
           nextMemory.last_quote_product_name ||
@@ -8178,7 +8190,7 @@ export async function POST(req: Request) {
         const rememberedQuoteProduct = rememberedQuoteProductName
           ? findCatalogProductByName(commercialProducts || [], rememberedQuoteProductName)
           : null;
-        const selectedProducts = selectedProductsFromPending.length
+        let selectedProducts = selectedProductsFromPending.length
           ? selectedProductsFromPending
           : explicitModelProducts.length
           ? (
@@ -8193,6 +8205,16 @@ export async function POST(req: Request) {
           : matchedProduct || rememberedProduct
             ? [matchedProduct || rememberedProduct]
             : [];
+
+        if (forceBundleQuoteIntake && !selectedProducts.length && pendingBundleOptions.length >= 2) {
+          const pendingNames = pendingBundleOptions
+            .map((o: any) => String(o?.raw_name || o?.name || "").trim())
+            .filter(Boolean);
+          if (pendingNames.length >= 2) {
+            const rebuilt = findExplicitModelProducts(`cotizar ${pendingNames.join(" ; ")}`, commercialProducts || []);
+            if (rebuilt.length) selectedProducts = rebuilt;
+          }
+        }
 
         if (!handledByQuoteIntake && continuationIntent && explicitModelTokens.length >= 2 && explicitModelProducts.length < explicitModelTokens.length) {
           const foundNames = explicitModelProducts.map((p: any) => String(p?.name || "").trim()).filter(Boolean);
