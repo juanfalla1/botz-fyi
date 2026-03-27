@@ -6233,13 +6233,19 @@ export async function POST(req: Request) {
       nextMemory.awaiting_action = "quote_product_selection";
     }
 
+    const quoteBundleOptionsRaw = Array.isArray((previousMemory as any)?.quote_bundle_options)
+      ? (previousMemory as any).quote_bundle_options
+      : [];
     const pendingProductOptionsRaw = Array.isArray((previousMemory as any)?.pending_product_options)
       ? (previousMemory as any).pending_product_options
       : [];
     const recommendedOptionsRaw = Array.isArray((previousMemory as any)?.last_recommended_options)
       ? (previousMemory as any).last_recommended_options
       : [];
-    const pendingProductOptions = pendingProductOptionsRaw.length ? pendingProductOptionsRaw : recommendedOptionsRaw;
+    const pendingProductOptions =
+      quoteBundleOptionsRaw.length
+        ? quoteBundleOptionsRaw
+        : (pendingProductOptionsRaw.length ? pendingProductOptionsRaw : recommendedOptionsRaw);
     const pendingFamilyOptions = Array.isArray((previousMemory as any)?.pending_family_options)
       ? (previousMemory as any).pending_family_options
       : [];
@@ -8375,7 +8381,10 @@ export async function POST(req: Request) {
       const selectedAtMs = Date.parse(String(nextMemory.last_selection_at || previousMemory?.last_selection_at || ""));
       const selectedStillActive = Boolean(selectedProductForGuide) && Number.isFinite(selectedAtMs) && (Date.now() - selectedAtMs) <= 30 * 60 * 1000;
       const inboundBulkQuoteCommand = /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(normalizeText(originalInboundText));
-      if (selectedStillActive && !inboundTechnicalSpec && !inboundBulkQuoteCommand) {
+      const continueWithoutDataOnBundle =
+        isContinueQuoteWithoutPersonalDataIntent(originalInboundText) &&
+        String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request";
+      if (selectedStillActive && !inboundTechnicalSpec && !inboundBulkQuoteCommand && !continueWithoutDataOnBundle) {
           reply = `¿Quieres ficha técnica o cotización de ${selectedProductForGuide}?`;
           nextMemory.awaiting_action = "product_action";
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
