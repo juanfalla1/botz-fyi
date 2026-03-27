@@ -5154,6 +5154,9 @@ export async function POST(req: Request) {
             strictMemory.bundle_quote_count = modelNames.length;
             strictMemory.quote_data = {};
           }
+        } else if (isContinueQuoteWithoutPersonalDataIntent(text)) {
+          strictReply = "Perfecto. Para avanzar sin datos, primero confirma el lote a cotizar (ej.: cotizar 8 o cotizar A,B,C).";
+          strictMemory.awaiting_action = "strict_choose_model";
         }
         if (strictBypassAutoQuote) {
           // bypass strict single-product quote_data parsing and continue with auto quote intake

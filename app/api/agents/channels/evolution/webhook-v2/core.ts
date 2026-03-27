@@ -5136,7 +5136,9 @@ export async function POST(req: Request) {
       } else if (!String(strictReply || "").trim() && awaiting === "strict_quote_data") {
         const bundleOptions = Array.isArray(previousMemory?.quote_bundle_options)
           ? previousMemory.quote_bundle_options
-          : (Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : []);
+          : (Array.isArray(previousMemory?.pending_product_options)
+              ? previousMemory.pending_product_options
+              : (Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []));
         if (bundleOptions.length >= 2 && isContinueQuoteWithoutPersonalDataIntent(text)) {
           const modelNames = bundleOptions
             .map((o: any) => String(o?.raw_name || o?.name || "").trim())
@@ -5152,6 +5154,9 @@ export async function POST(req: Request) {
             strictMemory.bundle_quote_count = modelNames.length;
             strictMemory.quote_data = {};
           }
+        } else if (isContinueQuoteWithoutPersonalDataIntent(text)) {
+          strictReply = "Perfecto. Para avanzar sin datos, primero confirma el lote a cotizar (ej.: cotizar 8 o cotizar A,B,C).";
+          strictMemory.awaiting_action = "strict_choose_model";
         }
         if (strictBypassAutoQuote) {
           // bypass strict single-product quote_data parsing and continue with auto quote intake
