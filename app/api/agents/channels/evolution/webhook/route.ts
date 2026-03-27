@@ -8460,11 +8460,30 @@ export async function POST(req: Request) {
                   status: "analysis",
                 };
 
-                const { data: draft, error: draftError } = await supabase
+                let { data: draft, error: draftError } = await supabase
                   .from("agent_quote_drafts")
                   .insert(draftPayload)
                   .select("id")
                   .single();
+
+                if (draftError && isQuoteDraftStatusConstraintError(draftError)) {
+                  const legacyPayload = {
+                    ...draftPayload,
+                    status: "draft",
+                    payload: {
+                      ...(draftPayload.payload || {}),
+                      crm_stage: "analysis",
+                      crm_stage_updated_at: new Date().toISOString(),
+                    },
+                  } as any;
+                  const retry = await supabase
+                    .from("agent_quote_drafts")
+                    .insert(legacyPayload)
+                    .select("id")
+                    .single();
+                  draft = retry.data as any;
+                  draftError = retry.error as any;
+                }
 
                 if (draftError && forceBundleQuoteIntake) {
                   bundleDiscarded.push({ product: String((selected as any)?.name || ""), reason: `draft_insert_failed:${String(draftError?.message || "unknown")}` });
@@ -8551,7 +8570,10 @@ export async function POST(req: Request) {
                 });
               }
               if (forceBundleQuoteIntake && selectedProducts.length >= 2 && autoQuoteDocs.length === 0 && !autoQuoteBundle && !String(reply || "").trim()) {
-                reply = "No pude generar la cotización múltiple con esas referencias porque faltan datos de catálogo/precio para una o más referencias.";
+                const hasDraftInsertFailure = bundleDiscarded.some((d) => String(d?.reason || "").startsWith("draft_insert_failed:"));
+                reply = hasDraftInsertFailure
+                  ? "No pude generar la cotización múltiple por un error interno al guardar la cotización. Intenta nuevamente en unos segundos."
+                  : "No pude generar la cotización múltiple con esas referencias porque faltan datos de catálogo/precio para una o más referencias.";
                 handledByQuoteIntake = true;
                 billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
               }
