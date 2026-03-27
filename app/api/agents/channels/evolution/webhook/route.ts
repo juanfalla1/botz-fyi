@@ -6449,7 +6449,33 @@ export async function POST(req: Request) {
       Number.isFinite(selectionAtMs) &&
       (Date.now() - selectionAtMs) <= activeSelectionWindowMs;
 
-    if (String(previousMemory?.awaiting_action || "") === "product_action" && hasActiveSelectedProduct) {
+    const bundlePoolForContinue =
+      (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
+        .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+        .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []);
+    const bundleContinueDedup = new Map<string, any>();
+    for (const o of bundlePoolForContinue) {
+      const key = String(o?.raw_name || o?.name || "").trim();
+      if (key && !bundleContinueDedup.has(key)) bundleContinueDedup.set(key, o);
+    }
+    const bundleContinueOptions = Array.from(bundleContinueDedup.values());
+    const continueWithoutDataGlobal = isContinueQuoteWithoutPersonalDataIntent(originalInboundText) && bundleContinueOptions.length >= 2;
+    if (continueWithoutDataGlobal) {
+      const names = bundleContinueOptions.slice(0, 8).map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+      if (names.length >= 2) {
+        inbound.text = `cotizar ${names.join(" ; ")} cantidad 1 para todos`;
+        nextMemory.awaiting_action = "none";
+        nextMemory.pending_product_options = bundleContinueOptions.slice(0, 8);
+        nextMemory.quote_bundle_options = bundleContinueOptions.slice(0, 8);
+        nextMemory.last_recommended_options = bundleContinueOptions.slice(0, 8);
+        nextMemory.last_intent = "quote_bundle_request";
+        nextMemory.last_selected_product_name = "";
+        nextMemory.last_selected_product_id = "";
+        nextMemory.last_selection_at = "";
+      }
+    }
+
+    if (String(previousMemory?.awaiting_action || "") === "product_action" && hasActiveSelectedProduct && !continueWithoutDataGlobal) {
       const rememberedOptionProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
       const optText = normalizeText(originalInboundText);
       if (rememberedOptionProduct) {
