@@ -8239,6 +8239,8 @@ export async function POST(req: Request) {
 
         if (selectedProducts.length) {
           if (forceBundleQuoteIntake) console.log("[quote-bundle] build quote start", { selected: selectedProducts.length });
+          const bundleDiscarded: Array<{ product: string; reason: string }> = [];
+          let bundleValidCount = 0;
           const transcript = Array.isArray(existingConv?.transcript) ? existingConv.transcript : [];
           const latestUserLines = transcript
             .filter((m: any) => m?.role === "user" && m?.content)
@@ -8415,7 +8417,13 @@ export async function POST(req: Request) {
                 const basePriceUsd = basePriceUsdRaw > 0
                   ? basePriceUsdRaw
                   : (selectedUnitCop > 0 && trmRate > 0 ? Number((selectedUnitCop / trmRate).toFixed(6)) : 0);
-                if (!(basePriceUsd > 0) && !(selectedUnitCop > 0)) continue;
+                if (!(basePriceUsd > 0) && !(selectedUnitCop > 0)) {
+                  if (forceBundleQuoteIntake) {
+                    bundleDiscarded.push({ product: String((selected as any)?.name || ""), reason: "missing_price_usd_and_city_price" });
+                  }
+                  continue;
+                }
+                if (forceBundleQuoteIntake) bundleValidCount += 1;
 
                 const totalCop = selectedUnitCop > 0
                   ? Number((selectedUnitCop * quantity).toFixed(2))
@@ -8457,6 +8465,10 @@ export async function POST(req: Request) {
                   .insert(draftPayload)
                   .select("id")
                   .single();
+
+                if (draftError && forceBundleQuoteIntake) {
+                  bundleDiscarded.push({ product: String((selected as any)?.name || ""), reason: `draft_insert_failed:${String(draftError?.message || "unknown")}` });
+                }
 
                 if (!draftError && draft?.id) {
                   nextMemory.last_quote_draft_id = String(draft.id);
@@ -8530,9 +8542,18 @@ export async function POST(req: Request) {
               }
               if (forceBundleQuoteIntake) {
                 console.log("[quote-bundle] build quote done", {
+                  received_products: selectedProducts.length,
+                  valid_products: bundleValidCount,
+                  discarded_products: bundleDiscarded.length,
+                  discarded_reasons: bundleDiscarded,
                   docs: autoQuoteDocs.length,
                   bundle: Boolean(autoQuoteBundle),
                 });
+              }
+              if (forceBundleQuoteIntake && selectedProducts.length >= 2 && autoQuoteDocs.length === 0 && !autoQuoteBundle && !String(reply || "").trim()) {
+                reply = "No pude generar la cotización múltiple con esas referencias porque faltan datos de catálogo/precio para una o más referencias.";
+                handledByQuoteIntake = true;
+                billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
               }
               if (reply) billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
             } else {
