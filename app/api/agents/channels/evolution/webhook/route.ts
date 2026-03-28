@@ -6126,7 +6126,7 @@ export async function POST(req: Request) {
       const strictQuoteDelivered = strictDocs.some((d) => /cotiz/i.test(`${String(d.caption || "")} ${String(d.fileName || "")}`));
       if (
         preParsedSpec &&
-        /(no te entendi del todo|no pasa nada si hubo un typo)/i.test(normalizeText(String(strictReply || "")))
+        /(no te entendi del todo|no pasa nada si hubo un typo|no te preocupes si hubo un error de escritura)/i.test(normalizeText(String(strictReply || "")))
       ) {
         const cap = Number((preParsedSpec as any)?.capacityG || 0);
         const read = Number((preParsedSpec as any)?.readabilityG || 0);
