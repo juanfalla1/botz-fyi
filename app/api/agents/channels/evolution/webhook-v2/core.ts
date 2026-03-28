@@ -1152,6 +1152,42 @@ function resolvePendingProductOption(text: string, optionsRaw: any): { code: str
   return null;
 }
 
+function resolvePendingProductOptionStrict(text: string, optionsRaw: any): { code: string; rank: number; id: string; name: string; raw_name: string; category: string; base_price_usd: number } | null {
+  const tRaw = String(text || "").trim();
+  if (!tRaw) return null;
+  const options = (Array.isArray(optionsRaw) ? optionsRaw : [])
+    .map((o: any) => ({
+      code: String(o?.code || "").trim().toUpperCase(),
+      rank: Number(o?.rank || 0),
+      id: String(o?.id || "").trim(),
+      name: String(o?.name || "").trim(),
+      raw_name: String(o?.raw_name || o?.name || "").trim(),
+      category: String(o?.category || "").trim(),
+      base_price_usd: Number(o?.base_price_usd || 0),
+    }))
+    .filter((o: any) => o.name);
+  if (!options.length) return null;
+
+  const codeMatch =
+    tRaw.match(/^\s*([a-z])\s*$/i) ||
+    tRaw.match(/^\s*(?:opcion|opción|letra|codigo|código)\s*[:\-]?\s*([a-z])\s*$/i);
+  const numMatch =
+    tRaw.match(/^\s*([1-9])\s*$/i) ||
+    tRaw.match(/^\s*(?:opcion|opción|numero|número|#)\s*[:\-]?\s*([1-9])\s*$/i);
+  const code = String(codeMatch?.[1] || "").toUpperCase();
+  const rank = Number(numMatch?.[1] || 0);
+
+  if (code) {
+    const byCode = options.find((o: any) => o.code === code);
+    if (byCode) return byCode;
+  }
+  if (rank > 0) {
+    const byRank = options.find((o: any) => o.rank === rank);
+    if (byRank) return byRank;
+  }
+  return null;
+}
+
 function familyLabelFromRow(row: any): string {
   const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const family = String(source?.family || source?.familia || "").trim();
@@ -4753,7 +4789,7 @@ export async function POST(req: Request) {
 
       if (!selectedProduct && awaiting === "strict_choose_model") {
         const pending = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
-        const selected = resolvePendingProductOption(text, pending);
+        const selected = resolvePendingProductOptionStrict(text, pending);
         if (selected?.id) {
           selectedProduct = ownerRows.find((r: any) => String(r?.id || "") === String(selected.id || "")) || null;
         }
@@ -5423,7 +5459,18 @@ export async function POST(req: Request) {
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model") {
         const familyLabel = String(previousMemory?.strict_family_label || "").trim();
-        const askMore = /\b(mas|más|siguiente|siguientes|resto|todas|todos|retomar|reanudar|continuar)\b/.test(textNorm);
+        const pendingStrictOptions = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+        const strictSelection = resolvePendingProductOptionStrict(text, pendingStrictOptions);
+        const strictCommand = String(text || "").trim();
+        const askMore = /^(mas|más)$/i.test(strictCommand);
+        const askBack = /^volver$/i.test(strictCommand);
+        const askCancel = /^cancelar$/i.test(strictCommand);
+        if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel) {
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictMemory.pending_product_options = pendingStrictOptions;
+          strictMemory.strict_model_offset = Math.max(0, Number(previousMemory?.strict_model_offset || 0));
+          strictReply = "Por favor elige una opción válida del listado actual. Responde solo con la letra o número disponible (por ejemplo: A, B, 1 o 2), o escribe \"más\" para ver más opciones.";
+        }
         const askCount = /\b(cuantas|cuantos|total|tienen\s+\d+|\d+)\b/.test(textNorm) && !asksQuoteIntent(text);
         const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
         const familyRows = familyLabel
@@ -5436,7 +5483,7 @@ export async function POST(req: Request) {
             /\b(las|los|todas|todos|opciones|referencias)\b/.test(textNorm) ||
             /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(textNorm)
           );
-        if (bundleQuoteAsk) {
+        if (!String(strictReply || "").trim() && bundleQuoteAsk) {
           const pendingOptions =
             (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
               .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
