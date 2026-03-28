@@ -2755,12 +2755,34 @@ async function buildQuoteItemDescriptionAsync(row: any, fallbackName: string): P
     if (merged.length >= 34) break;
   }
 
-  if (merged.length) return merged.join("\n");
+  if (merged.length >= 8) return merged.join("\n");
 
   if (staticProfile?.description) {
+    const enriched = [...merged];
+    const staticLines = String(staticProfile.description || "")
+      .split(/\r?\n/)
+      .map((l) => String(l || "").trim())
+      .filter(Boolean)
+      .filter((l) => {
+        const n = normalizeText(l);
+        return !/(^sap:|capacidad maxima|lectura minima)/.test(n);
+      });
+    for (const line of staticLines) {
+      const n = normalizeText(line);
+      if (!n) continue;
+      if (enriched.some((x) => normalizeText(x) === n)) continue;
+      enriched.push(line);
+      if (enriched.length >= 26) break;
+    }
+    if (enriched.length > merged.length && enriched.length >= 8) {
+      console.log("[evolution-webhook] quote_description_static_enriched", { model: String(row?.name || fallbackName || "") });
+      return enriched.join("\n");
+    }
     console.log("[evolution-webhook] quote_description_static_fallback", { model: String(row?.name || fallbackName || "") });
     return staticProfile.description;
   }
+
+  if (merged.length) return merged.join("\n");
 
   return buildQuoteItemDescription(row, fallbackName);
 }
