@@ -5168,7 +5168,18 @@ export async function POST(req: Request) {
           if (!strictBypassAutoQuote) {
           const lockedCap = Number(previousMemory?.strict_filter_capacity_g || 0);
           const lockedRead = Number(previousMemory?.strict_filter_readability_g || 0);
-          if (lockedCap > 0 && lockedRead > 0) {
+          const recommendedPool = Array.isArray(previousMemory?.last_recommended_options)
+            ? previousMemory.last_recommended_options
+            : [];
+          const selectedFromSuggestedList = recommendedPool.some((o: any) => {
+            const oid = String(o?.id || "").trim();
+            const oraw = normalizeText(String(o?.raw_name || o?.name || ""));
+            return (
+              (oid && oid === String(selectedProduct?.id || "").trim()) ||
+              (oraw && oraw === normalizeText(selectedName))
+            );
+          });
+          if (lockedCap > 0 && lockedRead > 0 && !selectedFromSuggestedList) {
             const rs = extractRowTechnicalSpec(selectedProduct);
             const capDeltaPct = rs.capacityG > 0 ? (Math.abs(rs.capacityG - lockedCap) / lockedCap) * 100 : 999;
             const readRatio = rs.readabilityG > 0 ? (rs.readabilityG / lockedRead) : 999;
