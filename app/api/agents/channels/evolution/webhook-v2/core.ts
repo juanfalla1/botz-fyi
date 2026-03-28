@@ -5139,7 +5139,13 @@ export async function POST(req: Request) {
             ].join("\n");
         } else if (wantsQuote || /^1\b/.test(textNorm)) {
           const bundleQuoteAskFromAction = asksQuoteIntent(text) && /\b(las|los|todas|todos|opciones|referencias|3|tres)\b/.test(textNorm);
-          const bundlePool = (Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : lastRecommendedOptions)
+          const effectiveRecommendedPool =
+            (Array.isArray(strictMemory?.last_recommended_options) && strictMemory.last_recommended_options.length)
+              ? strictMemory.last_recommended_options
+              : (lastRecommendedOptions.length
+                ? lastRecommendedOptions
+                : (Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []));
+          const bundlePool = effectiveRecommendedPool
             .filter((o: any) => String(o?.raw_name || o?.name || "").trim())
             .slice(0, 8);
           if (bundleQuoteAskFromAction && bundlePool.length >= 2) {
@@ -5166,9 +5172,7 @@ export async function POST(req: Request) {
           if (!strictBypassAutoQuote) {
           const lockedCap = Number(previousMemory?.strict_filter_capacity_g || 0);
           const lockedRead = Number(previousMemory?.strict_filter_readability_g || 0);
-          const recommendedPool = Array.isArray(previousMemory?.last_recommended_options)
-            ? previousMemory.last_recommended_options
-            : [];
+          const recommendedPool = effectiveRecommendedPool;
           const selectedFromSuggestedList = recommendedPool.some((o: any) => {
             const oid = String(o?.id || "").trim();
             const oraw = normalizeText(String(o?.raw_name || o?.name || ""));
