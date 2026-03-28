@@ -3690,7 +3690,9 @@ async function buildStandardQuotePdf(args: {
   doc.setFont("helvetica", "bold");
   doc.text(`$ ${formatMoney(total)}`, totalsValueRight, y + 22.8, { align: "right" });
 
+  const isSingleItemQuote = (Array.isArray(args.items) ? args.items.length : 0) <= 1;
   let yFooter = y + 30;
+  if (isSingleItemQuote) yFooter = Math.min(yFooter, 165);
   if (yFooter > 255) {
     doc.addPage();
     drawHeader(true);
@@ -3707,7 +3709,7 @@ async function buildStandardQuotePdf(args: {
   const legalLines = doc.splitTextToSize(legal, 188);
   const legalBottomEstimate = yFooter + 24 + Math.max(0, legalLines.length - 1) * 3.3;
   const reservedPerksTop = 222;
-  if (legalBottomEstimate > reservedPerksTop - 4) {
+  if (legalBottomEstimate > reservedPerksTop - 4 && !isSingleItemQuote) {
     doc.addPage();
     drawHeader(true);
     yFooter = 150;
