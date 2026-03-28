@@ -5162,6 +5162,7 @@ export async function POST(req: Request) {
               inbound.text = `cotizar ${names.join(" ; ")}`;
               strictMemory.awaiting_action = "none";
               strictMemory.pending_product_options = chosen;
+              strictMemory.quote_bundle_options_current = chosen;
               strictMemory.last_intent = "quote_bundle_request";
               strictMemory.bundle_quote_mode = true;
               strictMemory.bundle_quote_count = names.length;
@@ -5529,6 +5530,7 @@ export async function POST(req: Request) {
             inbound.text = `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`;
             strictMemory.pending_product_options = chosen;
             strictMemory.last_recommended_options = chosen;
+            strictMemory.quote_bundle_options_current = chosen;
             strictMemory.quote_bundle_options = chosen;
             strictMemory.quote_quantity = 1;
             strictMemory.awaiting_action = "none";
@@ -8435,8 +8437,17 @@ export async function POST(req: Request) {
           : pickBestCatalogProduct(quoteSourceText, quoteMatchPool || []));
         const rememberedProduct = findCatalogProductByName(commercialProducts || [], String(nextMemory.last_product_name || ""));
         const wantsMulti = forceBundleQuoteIntake || isMultiProductQuoteIntent(quoteSourceText);
+        const bundleOptionsCurrent =
+          (Array.isArray(nextMemory?.quote_bundle_options_current) ? nextMemory.quote_bundle_options_current : [])
+            .concat(Array.isArray(previousMemory?.quote_bundle_options_current) ? previousMemory.quote_bundle_options_current : [])
+            .filter((o: any, idx: number, arr: any[]) => {
+              const key = String(o?.id || o?.product_id || o?.raw_name || o?.name || "").trim();
+              if (!key) return false;
+              return arr.findIndex((x: any) => String(x?.id || x?.product_id || x?.raw_name || x?.name || "").trim() === key) === idx;
+            });
         const pendingBundleOptions =
-          (Array.isArray(nextMemory?.quote_bundle_options) ? nextMemory.quote_bundle_options : [])
+          bundleOptionsCurrent
+            .concat(Array.isArray(nextMemory?.quote_bundle_options) ? nextMemory.quote_bundle_options : [])
             .concat(Array.isArray(nextMemory?.pending_product_options) ? nextMemory.pending_product_options : [])
             .concat(Array.isArray(nextMemory?.last_recommended_options) ? nextMemory.last_recommended_options : [])
             .concat(Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
@@ -8470,7 +8481,10 @@ export async function POST(req: Request) {
           ? (
               (extractModelLikeTokens(quoteSourceText).length >= 2)
                 ? []
-                : pendingBundleOptions.map((o: any) => resolvePendingOptionToProduct(o)).filter(Boolean)
+                : (bundleOptionsCurrent.length
+                    ? bundleOptionsCurrent
+                    : pendingBundleOptions
+                  ).map((o: any) => resolvePendingOptionToProduct(o)).filter(Boolean)
             )
           : [];
         const rememberedQuoteProductName = String(
@@ -8509,6 +8523,10 @@ export async function POST(req: Request) {
           }
         }
         if (forceBundleQuoteIntake) {
+          const forcedBundleCount = Number(nextMemory?.bundle_quote_count || previousMemory?.bundle_quote_count || 0);
+          if (forcedBundleCount >= 2 && Array.isArray(selectedProducts) && selectedProducts.length > forcedBundleCount) {
+            selectedProducts = selectedProducts.slice(0, forcedBundleCount);
+          }
           console.log("[quote-bundle] selected options", {
             pending_options: pendingBundleOptions.length,
             selected_products: selectedProducts.length,
