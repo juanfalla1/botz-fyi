@@ -5212,7 +5212,7 @@ export async function POST(req: Request) {
             const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
             strictMemory.quote_quantity = qtyRequested;
             strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular) compártelos en un solo mensaje; si no, avanzo con los datos disponibles.`;
+            strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular), compártelos en un solo mensaje. Si quieres continuar sin datos, escribe exactamente: avanza.`;
           }
           }
           }
