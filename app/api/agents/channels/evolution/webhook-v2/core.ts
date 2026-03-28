@@ -2755,14 +2755,13 @@ async function buildQuoteItemDescriptionAsync(row: any, fallbackName: string): P
     if (merged.length >= 34) break;
   }
 
-  if (merged.length >= 8) return merged.join("\n");
+  if (merged.length) return merged.join("\n");
 
   if (staticProfile?.description) {
     console.log("[evolution-webhook] quote_description_static_fallback", { model: String(row?.name || fallbackName || "") });
     return staticProfile.description;
   }
 
-  if (merged.length) return merged.join("\n");
   return buildQuoteItemDescription(row, fallbackName);
 }
 
