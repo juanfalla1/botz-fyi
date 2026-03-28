@@ -5465,7 +5465,15 @@ export async function POST(req: Request) {
         const askMore = /^(mas|más)$/i.test(strictCommand);
         const askBack = /^volver$/i.test(strictCommand);
         const askCancel = /^cancelar$/i.test(strictCommand);
-        if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel) {
+        const technicalBypassInSelection = Boolean(
+          parseTechnicalSpecQuery(text) ||
+          parseCapacityRangeHint(text) ||
+          parseLooseTechnicalHint(text) ||
+          isUseCaseApplicabilityIntent(text) ||
+          isUseCaseFamilyHint(text) ||
+          isRecommendationIntent(text)
+        );
+        if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel && !technicalBypassInSelection) {
           strictMemory.awaiting_action = "strict_choose_model";
           strictMemory.pending_product_options = pendingStrictOptions;
           strictMemory.strict_model_offset = Math.max(0, Number(previousMemory?.strict_model_offset || 0));
