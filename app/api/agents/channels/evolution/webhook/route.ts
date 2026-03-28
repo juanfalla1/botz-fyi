@@ -3391,8 +3391,6 @@ async function buildStandardQuotePdf(args: {
   const phoneSafe = normalizePhone(args.customerPhone || "");
   const ivaRate = quoteIvaRate();
   const col = [10, 20, 50, 127, 145, 157, 178, 200];
-  const footerBlockTop = 258;
-  const footerMetaTop = 275;
   const footerPageTop = 284;
 
   const bannerDataUrl = await resolveQuoteBannerImageDataUrl();
@@ -3690,12 +3688,7 @@ async function buildStandardQuotePdf(args: {
   doc.setFont("helvetica", "bold");
   doc.text(`$ ${formatMoney(total)}`, totalsValueRight, y + 22.8, { align: "right" });
 
-  let yFooter = y + 16;
-  if (yFooter > 255) {
-    doc.addPage();
-    drawHeader(true);
-    yFooter = 150;
-  }
+  let yFooter = y + 8;
 
   const legal = [
     "Observaciones generales de la cotización",
@@ -3704,13 +3697,22 @@ async function buildStandardQuotePdf(args: {
     "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
     `${String(args.city || "Bogota D.C")}, ${args.issueDate}`,
   ].join("\n");
-  const legalLines = doc.splitTextToSize(legal, 112);
-  const legalBottomEstimate = yFooter + 24 + Math.max(0, legalLines.length - 1) * 3.3;
-  const reservedPerksTop = 236;
-  if (legalBottomEstimate > reservedPerksTop - 4) {
+  const legalLines = doc.splitTextToSize(legal, 188);
+  const companyFooter = [
+    "AVANZA INTERNACIONAL GROUP S.A.S",
+    "Autopista Medellin k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a.",
+    "NIT 900505419",
+    "CELULAR 321 2165 771",
+    "www.balanzasybasculas.com.co - www.avanzagroup.com.co",
+  ].join("\n");
+  const companyFooterLines = doc.splitTextToSize(companyFooter, 188);
+  const legalHeight = Math.max(10, legalLines.length * 3.3);
+  const companyHeight = Math.max(10, companyFooterLines.length * 3.2);
+  const closingEstimate = 18 + 24 + legalHeight + 16 + 10 + 12 + companyHeight + 14;
+  if (yFooter + closingEstimate > 272) {
     doc.addPage();
     drawHeader(true);
-    yFooter = 150;
+    yFooter = 40;
   }
 
   doc.setFont("helvetica", "bold");
@@ -3723,9 +3725,10 @@ async function buildStandardQuotePdf(args: {
   doc.text("cotizaciones@avanzagroup.com.co", 10, yFooter + 16);
 
   doc.setFontSize(8.2);
-  doc.text(doc.splitTextToSize(legal, 112), 10, yFooter + 24);
+  doc.text(legalLines, 10, yFooter + 24);
 
-  const perksY = 223;
+  const legalBottomY = yFooter + 24 + legalHeight;
+  const perksY = legalBottomY + 10;
   {
     if (hasPerksStrip) {
       try {
@@ -3787,19 +3790,14 @@ async function buildStandardQuotePdf(args: {
     }
   }
 
-  const companyFooter = [
-    "AVANZA INTERNACIONAL GROUP S.A.S",
-    "Autopista Medellin k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a.",
-    "NIT 900505419",
-    "CELULAR 321 2165 771",
-    "www.balanzasybasculas.com.co - www.avanzagroup.com.co",
-  ].join("\n");
+  const footerBlockTop = perksY + 18;
   doc.setFontSize(7.2);
-  doc.text(doc.splitTextToSize(companyFooter, 188), 10, footerBlockTop);
+  doc.text(companyFooterLines, 10, footerBlockTop);
 
   const nowStamp = new Date();
   const createdAt = `${asDateYmd(nowStamp)}`;
   const modifiedAt = `${asDateYmd(nowStamp)} ${String(nowStamp.toTimeString() || "").slice(0, 8)}`;
+  const footerMetaTop = footerBlockTop + companyHeight + 6;
   doc.setFontSize(7.8);
   doc.text(`Fecha de creación ${createdAt}`, 10, footerMetaTop);
   doc.text(`Fecha de modificación ${modifiedAt}`, 10, footerMetaTop + 5);
