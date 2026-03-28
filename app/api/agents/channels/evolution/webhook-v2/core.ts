@@ -5790,11 +5790,13 @@ export async function POST(req: Request) {
           ((isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text) || isUseCaseFamilyHint(text))
             ? inferFamilyFromUseCase(text, pendingFamilies)
             : null);
+        let handledTechnicalGuidedInFamilyStep = false;
         if (!String(strictReply || "").trim() && !selectedFamily) {
           const looseHintWithoutFamily = parseLooseTechnicalHint(text);
           const hintedCap = Number(looseHintWithoutFamily?.capacityG || 0);
           const hintedRead = Number(looseHintWithoutFamily?.readabilityG || 0);
           if (hintedCap > 0 || hintedRead > 0) {
+            handledTechnicalGuidedInFamilyStep = true;
             let recommendedRows = baseScoped as any[];
             if (hintedCap > 0 && hintedRead > 0) {
               const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: hintedCap, readabilityG: hintedRead });
@@ -5807,17 +5809,19 @@ export async function POST(req: Request) {
               if (rankedRead.length) recommendedRows = rankedRead.map((x: any) => x.row);
             }
 
-            const allOptions = buildNumberedProductOptions(recommendedRows as any[], 60);
+            const sourceRows = (Array.isArray(recommendedRows) && recommendedRows.length)
+              ? recommendedRows
+              : (ownerRows as any[]);
+            const allOptions = buildNumberedProductOptions(sourceRows as any[], 60);
             const options = allOptions.slice(0, 8);
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_family_label = "";
-            strictMemory.strict_model_offset = 0;
-            if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
-            if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
-
             if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_family_label = "";
+              strictMemory.strict_model_offset = 0;
+              if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
+              if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
               const criterionLabel = (hintedCap > 0 && hintedRead > 0)
                 ? `${formatSpecNumber(hintedCap)} g x ${formatSpecNumber(hintedRead)} g`
                 : (hintedCap > 0 ? `${formatSpecNumber(hintedCap)} g` : `${formatSpecNumber(hintedRead)} g`);
@@ -5829,10 +5833,12 @@ export async function POST(req: Request) {
                   ? "Responde con letra o número (A/1), o escribe 'más' para ver siguientes."
                   : "Responde con letra o número (A/1).",
               ].join("\n");
+            } else {
+              strictReply = "Entendí tu necesidad técnica, pero no encontré coincidencias activas en este momento. Si quieres, escribe 'volver' para elegir familia o ajusta capacidad/resolución.";
             }
           }
         }
-        if (!String(strictReply || "").trim() && !selectedFamily) {
+        if (!String(strictReply || "").trim() && !selectedFamily && !handledTechnicalGuidedInFamilyStep) {
           strictReply = buildGuidedRecoveryMessage({
             awaiting,
             rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
