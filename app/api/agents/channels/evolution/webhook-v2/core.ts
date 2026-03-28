@@ -4561,7 +4561,7 @@ export async function POST(req: Request) {
       const shouldShortcutTechnicalSpec =
         !String(strictReply || "").trim() &&
         preParsedSpec &&
-        /^(strict_need_spec|strict_choose_model)$/i.test(String(awaiting || ""));
+        /^(strict_need_spec|strict_choose_model|strict_choose_family)$/i.test(String(awaiting || ""));
       if (shouldShortcutTechnicalSpec) {
         const cap = Number((preParsedSpec as any)?.capacityG || 0);
         const read = Number((preParsedSpec as any)?.readabilityG || 0);
