@@ -5791,6 +5791,48 @@ export async function POST(req: Request) {
             ? inferFamilyFromUseCase(text, pendingFamilies)
             : null);
         if (!String(strictReply || "").trim() && !selectedFamily) {
+          const looseHintWithoutFamily = parseLooseTechnicalHint(text);
+          const hintedCap = Number(looseHintWithoutFamily?.capacityG || 0);
+          const hintedRead = Number(looseHintWithoutFamily?.readabilityG || 0);
+          if (hintedCap > 0 || hintedRead > 0) {
+            let recommendedRows = baseScoped as any[];
+            if (hintedCap > 0 && hintedRead > 0) {
+              const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: hintedCap, readabilityG: hintedRead });
+              if (prioritized.orderedRows.length) recommendedRows = prioritized.orderedRows as any[];
+            } else if (hintedCap > 0) {
+              const rankedCap = rankCatalogByCapacityOnly(baseScoped as any[], hintedCap);
+              if (rankedCap.length) recommendedRows = rankedCap.map((x: any) => x.row);
+            } else if (hintedRead > 0) {
+              const rankedRead = rankCatalogByReadabilityOnly(baseScoped as any[], hintedRead);
+              if (rankedRead.length) recommendedRows = rankedRead.map((x: any) => x.row);
+            }
+
+            const allOptions = buildNumberedProductOptions(recommendedRows as any[], 60);
+            const options = allOptions.slice(0, 8);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_family_label = "";
+            strictMemory.strict_model_offset = 0;
+            if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
+            if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
+
+            if (options.length) {
+              const criterionLabel = (hintedCap > 0 && hintedRead > 0)
+                ? `${formatSpecNumber(hintedCap)} g x ${formatSpecNumber(hintedRead)} g`
+                : (hintedCap > 0 ? `${formatSpecNumber(hintedCap)} g` : `${formatSpecNumber(hintedRead)} g`);
+              strictReply = [
+                `Perfecto. Para ${criterionLabel}, te muestro opciones cercanas en catálogo:`,
+                ...options.map((o) => `${o.code}) ${o.name}`),
+                "",
+                (allOptions.length > options.length)
+                  ? "Responde con letra o número (A/1), o escribe 'más' para ver siguientes."
+                  : "Responde con letra o número (A/1).",
+              ].join("\n");
+            }
+          }
+        }
+        if (!String(strictReply || "").trim() && !selectedFamily) {
           strictReply = buildGuidedRecoveryMessage({
             awaiting,
             rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
