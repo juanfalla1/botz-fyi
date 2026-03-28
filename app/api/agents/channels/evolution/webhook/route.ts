@@ -3704,7 +3704,7 @@ async function buildStandardQuotePdf(args: {
     "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
     `${String(args.city || "Bogota D.C")}, ${args.issueDate}`,
   ].join("\n");
-  const legalLines = doc.splitTextToSize(legal, 188);
+  const legalLines = doc.splitTextToSize(legal, 112);
   const legalBottomEstimate = yFooter + 24 + Math.max(0, legalLines.length - 1) * 3.3;
   const reservedPerksTop = 222;
   if (legalBottomEstimate > reservedPerksTop - 4) {
@@ -3723,7 +3723,7 @@ async function buildStandardQuotePdf(args: {
   doc.text("cotizaciones@avanzagroup.com.co", 10, yFooter + 16);
 
   doc.setFontSize(8.2);
-  doc.text(doc.splitTextToSize(legal, 188), 10, yFooter + 24);
+  doc.text(doc.splitTextToSize(legal, 112), 10, yFooter + 24);
 
   const perksY = 223;
   {
