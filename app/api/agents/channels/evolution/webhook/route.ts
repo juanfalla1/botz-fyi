@@ -8437,6 +8437,19 @@ export async function POST(req: Request) {
           : pickBestCatalogProduct(quoteSourceText, quoteMatchPool || []));
         const rememberedProduct = findCatalogProductByName(commercialProducts || [], String(nextMemory.last_product_name || ""));
         const wantsMulti = forceBundleQuoteIntake || isMultiProductQuoteIntent(quoteSourceText);
+        const requestedBundleModels = String(quoteSourceText || "")
+          .replace(/^\s*cotiz(?:ar|a|acion|ación)?\s*/i, "")
+          .split(/[;,\n|]+/)
+          .map((seg) => String(seg || "").trim())
+          .map((seg) => String(seg.match(/[A-Z0-9][A-Z0-9\/-]{2,}/i)?.[0] || "").trim())
+          .filter((tok) => /\d/.test(tok))
+          .filter((tok, idx, arr) => {
+            const key = normalizeCatalogQueryText(tok).replace(/[^a-z0-9]/g, "");
+            return key && arr.findIndex((x) => normalizeCatalogQueryText(x).replace(/[^a-z0-9]/g, "") === key) === idx;
+          });
+        const requestedBundleModelKeys = new Set(
+          requestedBundleModels.map((tok) => normalizeCatalogQueryText(tok).replace(/[^a-z0-9]/g, "")).filter(Boolean)
+        );
         const bundleOptionsCurrent =
           (Array.isArray(nextMemory?.quote_bundle_options_current) ? nextMemory.quote_bundle_options_current : [])
             .concat(Array.isArray(previousMemory?.quote_bundle_options_current) ? previousMemory.quote_bundle_options_current : [])
@@ -8479,12 +8492,22 @@ export async function POST(req: Request) {
         };
         const selectedProductsFromPending = forceBundleQuoteIntake
           ? (
-              (extractModelLikeTokens(quoteSourceText).length >= 2)
-                ? []
-                : (bundleOptionsCurrent.length
-                    ? bundleOptionsCurrent
-                    : pendingBundleOptions
-                  ).map((o: any) => resolvePendingOptionToProduct(o)).filter(Boolean)
+              (requestedBundleModelKeys.size > 0)
+                ? (bundleOptionsCurrent.length ? bundleOptionsCurrent : pendingBundleOptions)
+                    .filter((o: any) => {
+                      const raw = String(o?.raw_name || o?.name || "").trim();
+                      const modelToken = String(raw.match(/[A-Z0-9][A-Z0-9\/-]{2,}/i)?.[0] || raw).trim();
+                      const key = normalizeCatalogQueryText(modelToken).replace(/[^a-z0-9]/g, "");
+                      return key && requestedBundleModelKeys.has(key);
+                    })
+                    .map((o: any) => resolvePendingOptionToProduct(o))
+                    .filter(Boolean)
+                : ((extractModelLikeTokens(quoteSourceText).length >= 2)
+                    ? []
+                    : (bundleOptionsCurrent.length
+                        ? bundleOptionsCurrent
+                        : pendingBundleOptions
+                      ).map((o: any) => resolvePendingOptionToProduct(o)).filter(Boolean))
             )
           : [];
         const rememberedQuoteProductName = String(
@@ -8527,6 +8550,11 @@ export async function POST(req: Request) {
           if (forcedBundleCount >= 2 && Array.isArray(selectedProducts) && selectedProducts.length > forcedBundleCount) {
             selectedProducts = selectedProducts.slice(0, forcedBundleCount);
           }
+          console.log("[quote-bundle] requested vs selected", {
+            requested_models: requestedBundleModels,
+            selected_models: (selectedProducts || []).map((p: any) => String(p?.name || "")).filter(Boolean),
+            selected_count: Array.isArray(selectedProducts) ? selectedProducts.length : 0,
+          });
           console.log("[quote-bundle] selected options", {
             pending_options: pendingBundleOptions.length,
             selected_products: selectedProducts.length,
