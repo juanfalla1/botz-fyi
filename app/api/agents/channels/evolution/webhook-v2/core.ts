@@ -5727,6 +5727,41 @@ export async function POST(req: Request) {
           strictReply = "En este momento no tengo familias disponibles en esa categoría. Si quieres, dime el modelo exacto (ej.: MB120) y te ayudo.";
         }
 
+        if (!String(strictReply || "").trim() && preParsedSpec) {
+          const cap = Number((preParsedSpec as any)?.capacityG || 0);
+          const read = Number((preParsedSpec as any)?.readabilityG || 0);
+          if (cap > 0 && read > 0) {
+            strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
+            strictMemory.strict_filter_capacity_g = cap;
+            strictMemory.strict_filter_readability_g = read;
+            const exactRows = getExactTechnicalMatches(ownerRows as any[], { capacityG: cap, readabilityG: read });
+            const prioritized = prioritizeTechnicalRows(ownerRows as any[], { capacityG: cap, readabilityG: read });
+            const sourceRows = exactRows.length ? exactRows : (prioritized.orderedRows.length ? prioritized.orderedRows : ownerRows);
+            const allOptions = buildNumberedProductOptions(sourceRows as any[], 60);
+            const options = allOptions.slice(0, 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictMemory.strict_family_label = "";
+              strictReply = [
+                exactRows.length
+                  ? `Sí, para ${strictMemory.strict_spec_query} tengo coincidencias exactas.`
+                  : `Para ${strictMemory.strict_spec_query} no veo coincidencia exacta, pero sí opciones cercanas:`,
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                (allOptions.length > options.length)
+                  ? "Responde con letra o número (A/1), o escribe 'más' para ver siguientes."
+                  : "Responde con letra o número (A/1).",
+              ].join("\n");
+            } else {
+              strictMemory.awaiting_action = "strict_need_spec";
+              strictReply = "No encontré coincidencias para esa capacidad/resolución en el catálogo activo. Si quieres, te muestro alternativas cercanas.";
+            }
+          }
+        }
+
         const looseSpecHintInFamilyStep = parseLooseTechnicalHint(text);
         if (!String(strictReply || "").trim() && looseSpecHintInFamilyStep && (looseSpecHintInFamilyStep.capacityG || looseSpecHintInFamilyStep.readabilityG)) {
           const merged = mergeLooseSpecWithMemory(
