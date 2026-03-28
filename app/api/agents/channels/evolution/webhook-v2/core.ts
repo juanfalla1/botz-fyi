@@ -8467,7 +8467,11 @@ export async function POST(req: Request) {
           return null;
         };
         const selectedProductsFromPending = forceBundleQuoteIntake
-          ? pendingBundleOptions.map((o: any) => resolvePendingOptionToProduct(o)).filter(Boolean)
+          ? (
+              (extractModelLikeTokens(quoteSourceText).length >= 2)
+                ? []
+                : pendingBundleOptions.map((o: any) => resolvePendingOptionToProduct(o)).filter(Boolean)
+            )
           : [];
         const rememberedQuoteProductName = String(
           nextMemory.last_quote_product_name ||
