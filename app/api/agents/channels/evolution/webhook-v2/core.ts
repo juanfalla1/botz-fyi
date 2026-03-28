@@ -4539,6 +4539,40 @@ export async function POST(req: Request) {
       const strictDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }> = [];
       let strictBypassAutoQuote = false;
 
+      if (!String(strictReply || "").trim()) {
+        const bundleCountMatch = textNorm.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/i);
+        const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+        const bundleCountRaw = String(bundleCountMatch?.[1] || "").trim().toLowerCase();
+        const requestedBundleCount = Number(bundleCountRaw ? (Number(bundleCountRaw) || numberWordMap[bundleCountRaw] || 0) : 0);
+        const pendingForBundle =
+          (Array.isArray(previousMemory?.quote_bundle_options_current) ? previousMemory.quote_bundle_options_current : [])
+            .concat(Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
+            .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+            .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [])
+            .filter((o: any, idx: number, arr: any[]) => {
+              const key = String(o?.id || o?.product_id || o?.raw_name || o?.name || "").trim();
+              if (!key) return false;
+              return arr.findIndex((x: any) => String(x?.id || x?.product_id || x?.raw_name || x?.name || "").trim() === key) === idx;
+            });
+        if (requestedBundleCount >= 2 && pendingForBundle.length >= 2 && asksQuoteIntent(text)) {
+          const chosen = pendingForBundle.slice(0, Math.min(requestedBundleCount, pendingForBundle.length));
+          const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+          if (modelNames.length >= 2) {
+            strictBypassAutoQuote = true;
+            inbound.text = `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`;
+            strictMemory.pending_product_options = chosen;
+            strictMemory.quote_bundle_options_current = chosen;
+            strictMemory.quote_bundle_options = chosen;
+            strictMemory.last_recommended_options = chosen;
+            strictMemory.last_intent = "quote_bundle_request";
+            strictMemory.bundle_quote_mode = true;
+            strictMemory.bundle_quote_count = chosen.length;
+            strictMemory.awaiting_action = "none";
+            strictReply = `Perfecto. Voy a generar una cotización consolidada para esas ${chosen.length} opciones y te la envío en PDF por este WhatsApp.`;
+          }
+        }
+      }
+
       const strictCloseIntent = isConversationCloseIntent(text) && normalizeText(text).length <= 48;
       if (strictCloseIntent) {
         const hadQuoteContext =
