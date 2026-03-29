@@ -4668,6 +4668,87 @@ export async function POST(req: Request) {
         }
       }
 
+      if (!String(strictReply || "").trim() && awaiting === "followup_quote_disambiguation") {
+        const choice = parseAnotherQuoteChoice(text);
+        const rememberedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || "").trim();
+        const rememberedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || "").trim();
+        const selectedFromMemory = rememberedId
+          ? (ownerRows.find((r: any) => String(r?.id || "").trim() === rememberedId) || null)
+          : (rememberedName ? (findCatalogProductByName(ownerRows as any[], rememberedName) || null) : null);
+
+        if (!choice) {
+          strictReply = buildAnotherQuotePrompt();
+          strictMemory.awaiting_action = "followup_quote_disambiguation";
+          strictMemory.last_intent = "followup_quote_disambiguation";
+        } else if (choice === "advisor") {
+          strictReply = buildAdvisorMiniAgendaPrompt();
+          strictMemory.awaiting_action = "advisor_meeting_slot";
+        } else if (choice === "same_model") {
+          if (!selectedFromMemory) {
+            strictReply = "Perfecto. Indícame el modelo exacto que quieres recotizar y te ayudo enseguida.";
+            strictMemory.awaiting_action = "strict_need_spec";
+          } else {
+            const selectedName = String((selectedFromMemory as any)?.name || rememberedName || "producto");
+            const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
+            strictMemory.last_selected_product_id = String((selectedFromMemory as any)?.id || "").trim();
+            strictMemory.last_selected_product_name = selectedName;
+            strictMemory.quote_quantity = qtyRequested;
+            strictMemory.awaiting_action = "strict_quote_data";
+            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular), compártelos en un solo mensaje. Si quieres continuar sin datos, escribe exactamente: avanza.`;
+          }
+        } else {
+          const selectedId = String((selectedFromMemory as any)?.id || "").trim();
+          const selectedNorm = normalizeText(String((selectedFromMemory as any)?.name || rememberedName || ""));
+          const selectedPrice = Number((selectedFromMemory as any)?.base_price_usd || 0);
+          const familyLabel = String(previousMemory?.strict_family_label || familyLabelFromRow(selectedFromMemory) || "").trim();
+          const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+          const familyScoped = familyLabel
+            ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
+            : categoryScoped;
+          const basePoolRaw = (familyScoped.length >= 3 ? familyScoped : categoryScoped) as any[];
+          const basePool = basePoolRaw.filter((r: any) => {
+            const rid = String(r?.id || "").trim();
+            const rname = normalizeText(String(r?.name || ""));
+            if (selectedId && rid && selectedId === rid) return false;
+            if (!selectedId && selectedNorm && rname && selectedNorm === rname) return false;
+            return true;
+          });
+
+          const byPriceAsc = (rows: any[]) => [...rows]
+            .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
+            .sort((a: any, b: any) => Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
+
+          let intro = "Perfecto. Aquí tienes alternativas de otro modelo:";
+          let rankedRows = [...basePool];
+          if (choice === "cheaper") {
+            const priced = byPriceAsc(basePool);
+            const cheaper = selectedPrice > 0 ? priced.filter((r: any) => Number(r?.base_price_usd || 0) < selectedPrice) : [];
+            rankedRows = cheaper.length ? cheaper : priced;
+            intro = cheaper.length
+              ? "Perfecto. Sí, tengo opciones más económicas en base de datos:"
+              : "No encontré opciones más económicas con precio activo frente al modelo actual; te comparto las de menor precio disponibles:";
+          }
+
+          const options = buildNumberedProductOptions(rankedRows as any[], 5);
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.last_recommended_options = options;
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictMemory.strict_family_label = familyLabel;
+            strictReply = [
+              intro,
+              ...options.map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige con letra o número (A/1), o escribe 'más'.",
+            ].join("\n");
+          } else {
+            strictReply = "No encontré alternativas con precio activo para ese criterio en este momento. Si quieres, te muestro opciones por capacidad/resolución.";
+            strictMemory.awaiting_action = "strict_need_spec";
+          }
+        }
+      }
+
       if (!String(strictReply || "").trim() && isConversationFollowupAmbiguousQuote) {
         strictReply = buildAnotherQuotePrompt();
         strictMemory.awaiting_action = "followup_quote_disambiguation";
