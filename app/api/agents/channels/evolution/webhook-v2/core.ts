@@ -4577,6 +4577,7 @@ export async function POST(req: Request) {
       const awaiting = deriveStrictAwaitingAction(previousMemory, strictPrevAwaiting);
       const wantsSheet = isTechnicalSheetIntent(text);
       const wantsQuote = asksQuoteIntent(text) || isPriceIntent(text);
+      const isConversationFollowupAmbiguousQuote = awaiting === "conversation_followup" && isAnotherQuoteAmbiguousIntent(text);
       const isGreeting = isGreetingIntent(text);
       const explicitModel = hasConcreteProductHint(text) && !isOptionOnlyReply(text);
       const categoryIntent = detectCatalogCategoryIntent(text);
@@ -4665,6 +4666,12 @@ export async function POST(req: Request) {
           strictMemory.advisor_meeting_label = slot.label;
           strictReply = appendQuoteClosurePrompt(strictReply);
         }
+      }
+
+      if (!String(strictReply || "").trim() && isConversationFollowupAmbiguousQuote) {
+        strictReply = buildAnotherQuotePrompt();
+        strictMemory.awaiting_action = "followup_quote_disambiguation";
+        strictMemory.last_intent = "followup_quote_disambiguation";
       }
 
       if (!String(strictReply || "").trim() && isAmbiguousTechnicalMessage(text) && !wantsQuote && !wantsSheet) {
@@ -4909,7 +4916,7 @@ export async function POST(req: Request) {
         }
       }
 
-      if (!selectedProduct && (wantsSheet || wantsQuote || /\b(ficha|cotizacion|cotización|precio)\b/.test(textNorm))) {
+      if (!selectedProduct && !isConversationFollowupAmbiguousQuote && (wantsSheet || wantsQuote || /\b(ficha|cotizacion|cotización|precio)\b/.test(textNorm))) {
         const rememberedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || strictMemory.last_selected_product_id || strictMemory.last_product_id || "").trim();
         const rememberedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
         if (rememberedId) {
