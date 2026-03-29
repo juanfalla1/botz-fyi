@@ -6403,7 +6403,7 @@ export async function POST(req: Request) {
             strictReply = "No encontré una coincidencia clara para esa capacidad/resolución. Si quieres, te ayudo a ajustar el criterio.";
           }
         }
-      } else {
+      } else if (!String(strictReply || "").trim()) {
         strictReply = buildGuidedRecoveryMessage({
           awaiting,
           rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
