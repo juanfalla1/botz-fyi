@@ -5202,7 +5202,7 @@ export async function POST(req: Request) {
         const followupIntent = awaiting === "strict_choose_action" ? detectAlternativeFollowupIntent(text) : null;
         const asksAnotherQuote = awaiting === "strict_choose_action" && /(otra\s+cotiz|otra\s+cotizacion|nueva\s+cotizacion|re\s*cotiz)/.test(textNorm);
 
-        if (awaiting === "strict_choose_action" && asksAnotherQuote && !followupIntent && !wantsQuote && !wantsSheet) {
+        if (awaiting === "strict_choose_action" && asksAnotherQuote && !followupIntent && !wantsSheet) {
           strictReply = [
             "Perfecto. ¿Te refieres a otra cotización del mismo modelo o a alternativas?",
             "1) Mismo modelo",
