@@ -1352,6 +1352,27 @@ function asksQuoteIntent(text: string): boolean {
   return /(cotiz|cotizacion|cotizar|presupuesto)/.test(t);
 }
 
+type AlternativeFollowupIntent =
+  | "alternative_lower_price"
+  | "alternative_same_need"
+  | "alternative_other_brand"
+  | "alternative_higher_capacity"
+  | "alternative_lower_capacity"
+  | "requote_same_model";
+
+function detectAlternativeFollowupIntent(text: string): AlternativeFollowupIntent | null {
+  const t = normalizeText(String(text || ""));
+  if (!t) return null;
+  if (/(otra\s+marca|otras\s+marcas|marca\s+diferente|de\s+otra\s+marca)/.test(t)) return "alternative_other_brand";
+  if (/(muy\s+costos|mas\s+barat|más\s+barat|mas\s+econom|más\s+econom|economic)/.test(t)) return "alternative_lower_price";
+  if (/(mayor\s+capacidad|mas\s+capacidad|más\s+capacidad)/.test(t)) return "alternative_higher_capacity";
+  if (/(menor\s+capacidad|menos\s+capacidad)/.test(t)) return "alternative_lower_capacity";
+  if (/(alternativ|otra\s+opcion|otro\s+modelo|similar|parecid|equivalent)/.test(t)) return "alternative_same_need";
+  if (/(mismo\s+modelo|misma\s+referencia|esta\s+misma|este\s+mismo|la\s+misma\s+cotizacion|misma\s+cotizacion)/.test(t)) return "requote_same_model";
+  if (/(otra\s+cotiz|otra\s+cotizacion|nueva\s+cotizacion|re\s*cotiz)/.test(t)) return null;
+  return null;
+}
+
 function isQuoteStarterIntent(text: string): boolean {
   const t = normalizeText(text);
   const asksQuote = asksQuoteIntent(t);
@@ -5178,7 +5199,129 @@ export async function POST(req: Request) {
         strictMemory.pending_family_options = [];
         strictMemory.pending_product_options = [];
 
-        if (isUseCaseApplicabilityIntent(text) && !wantsQuote && !wantsSheet) {
+        const followupIntent = awaiting === "strict_choose_action" ? detectAlternativeFollowupIntent(text) : null;
+        const asksAnotherQuote = awaiting === "strict_choose_action" && /(otra\s+cotiz|otra\s+cotizacion|nueva\s+cotizacion|re\s*cotiz)/.test(textNorm);
+
+        if (awaiting === "strict_choose_action" && asksAnotherQuote && !followupIntent && !wantsQuote && !wantsSheet) {
+          strictReply = [
+            "Perfecto. ¿Te refieres a otra cotización del mismo modelo o a alternativas?",
+            "1) Mismo modelo",
+            "2) Alternativas similares",
+            "3) Más económicas",
+            "4) Otra marca",
+          ].join("\n");
+        } else if (awaiting === "strict_choose_action" && followupIntent && !wantsSheet) {
+          if (followupIntent === "requote_same_model") {
+            const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
+            strictMemory.quote_quantity = qtyRequested;
+            strictMemory.awaiting_action = "strict_quote_data";
+            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular), compártelos en un solo mensaje. Si quieres continuar sin datos, escribe exactamente: avanza.`;
+          } else {
+            const selectedId = String(selectedProduct?.id || "").trim();
+            const selectedNorm = normalizeText(selectedName);
+            const selectedSpec = extractRowTechnicalSpec(selectedProduct);
+            const selectedBrand = normalizeText(String(selectedProduct?.brand || ""));
+            const familyLabel = String(previousMemory?.strict_family_label || familyLabelFromRow(selectedProduct) || "").trim();
+            const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+            const familyScoped = familyLabel
+              ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
+              : categoryScoped;
+            const basePoolRaw = (familyScoped.length >= 3 ? familyScoped : categoryScoped) as any[];
+            const basePool = basePoolRaw.filter((r: any) => {
+              const rid = String(r?.id || "").trim();
+              const rname = normalizeText(String(r?.name || ""));
+              if (selectedId && rid && selectedId === rid) return false;
+              if (!selectedId && selectedNorm && rname && selectedNorm === rname) return false;
+              return true;
+            });
+
+            const byPriceAsc = (rows: any[]) => {
+              return [...rows].sort((a: any, b: any) => {
+                const aPrice = Number(a?.base_price_usd || 0);
+                const bPrice = Number(b?.base_price_usd || 0);
+                if (!(aPrice > 0) && !(bPrice > 0)) return 0;
+                if (!(aPrice > 0)) return 1;
+                if (!(bPrice > 0)) return -1;
+                return aPrice - bPrice;
+              });
+            };
+
+            let rankedRows = [...basePool];
+            let intro = "Claro, aquí tienes alternativas para el mismo uso:";
+
+            if (followupIntent === "alternative_lower_price") {
+              intro = "Perfecto, aquí tienes opciones más económicas:";
+              const selectedPrice = Number(selectedProduct?.base_price_usd || 0);
+              const priced = byPriceAsc(basePool).filter((r: any) => Number(r?.base_price_usd || 0) > 0);
+              const cheaper = selectedPrice > 0 ? priced.filter((r: any) => Number(r?.base_price_usd || 0) < selectedPrice) : [];
+              rankedRows = cheaper.length ? cheaper : priced;
+            } else if (followupIntent === "alternative_higher_capacity" || followupIntent === "alternative_lower_capacity") {
+              const capTarget = Number(selectedSpec?.capacityG || 0);
+              intro = followupIntent === "alternative_higher_capacity"
+                ? "Perfecto, aquí tienes opciones de mayor capacidad:"
+                : "Perfecto, aquí tienes opciones de menor capacidad:";
+              if (capTarget > 0) {
+                const capRows = basePool
+                  .map((r: any) => ({ row: r, cap: Number(extractRowTechnicalSpec(r)?.capacityG || 0) }))
+                  .filter((x: any) => x.cap > 0)
+                  .filter((x: any) => followupIntent === "alternative_higher_capacity" ? x.cap > capTarget : x.cap < capTarget)
+                  .sort((a: any, b: any) => Math.abs(a.cap - capTarget) - Math.abs(b.cap - capTarget));
+                rankedRows = capRows.map((x: any) => x.row);
+              }
+            } else if (followupIntent === "alternative_other_brand") {
+              const otherBrands = basePool.filter((r: any) => {
+                const brand = normalizeText(String(r?.brand || ""));
+                return brand && selectedBrand && brand !== selectedBrand;
+              });
+              if (otherBrands.length) {
+                rankedRows = otherBrands;
+                intro = "Perfecto, aquí tienes alternativas de otra marca:";
+              } else {
+                intro = "En este canal solo cotizo catálogo OHAUS. Igual te comparto alternativas similares dentro de OHAUS:";
+                if (selectedSpec.capacityG > 0 && selectedSpec.readabilityG > 0) {
+                  rankedRows = prioritizeTechnicalRows(basePool, {
+                    capacityG: selectedSpec.capacityG,
+                    readabilityG: selectedSpec.readabilityG,
+                  }).orderedRows;
+                }
+              }
+            } else if (selectedSpec.capacityG > 0 && selectedSpec.readabilityG > 0) {
+              rankedRows = prioritizeTechnicalRows(basePool, {
+                capacityG: selectedSpec.capacityG,
+                readabilityG: selectedSpec.readabilityG,
+              }).orderedRows;
+            }
+
+            const mergedRows: any[] = [];
+            const seen = new Set<string>();
+            for (const row of [...rankedRows, ...basePool]) {
+              const key = String(row?.id || "").trim() || normalizeText(String(row?.name || ""));
+              if (!key || seen.has(key)) continue;
+              seen.add(key);
+              mergedRows.push(row);
+              if (mergedRows.length >= 5) break;
+            }
+
+            const options = buildNumberedProductOptions(mergedRows as any[], 5);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.last_recommended_options = options;
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictMemory.strict_family_label = familyLabel;
+              strictReply = [
+                intro,
+                ...options.map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra o número (A/1), o escribe 'más'.",
+              ].join("\n");
+            } else {
+              strictReply = "No encontré alternativas con precio activo en este momento para ese criterio. Si quieres, te muestro el listado completo del grupo.";
+            }
+          }
+        }
+
+        if (!String(strictReply || "").trim() && isUseCaseApplicabilityIntent(text) && !wantsQuote && !wantsSheet) {
           const technicalSummary = buildTechnicalSummary(selectedProduct, 6);
           strictReply = technicalSummary
             ? [
@@ -5192,7 +5335,7 @@ export async function POST(req: Request) {
               `Puedo ayudarte con ${selectedName}, pero para no inventar necesito validar el uso con el peso aproximado (mínimo y máximo).`,
               hasSheetCandidate ? "¿Quieres que te envíe la ficha técnica ahora por este WhatsApp?" : "¿Quieres que te comparta la información técnica disponible por este WhatsApp?",
             ].join("\n");
-        } else if (wantsQuote || /^1\b/.test(textNorm)) {
+        } else if (!String(strictReply || "").trim() && (wantsQuote || /^1\b/.test(textNorm))) {
           const bundleQuoteAskFromAction = asksQuoteIntent(text) && /\b(las|los|todas|todos|opciones|referencias|3|tres)\b/.test(textNorm);
           const effectiveRecommendedPool =
             (Array.isArray(strictMemory?.last_recommended_options) && strictMemory.last_recommended_options.length)
@@ -5274,7 +5417,7 @@ export async function POST(req: Request) {
           }
           }
           }
-        } else if (wantsSheet || /^2\b/.test(textNorm)) {
+        } else if (!String(strictReply || "").trim() && (wantsSheet || /^2\b/.test(textNorm))) {
           const datasheetUrl = pickBestProductPdfUrl(selectedProduct, text) || "";
           const localPdfPath = pickBestLocalPdfPath(selectedProduct, text);
           let attached = false;
@@ -5316,7 +5459,7 @@ export async function POST(req: Request) {
               ].join("\n")
               : `No tengo un PDF válido para ${selectedName} en este momento y tampoco tengo especificaciones completas cargadas para este modelo. Si quieres, te genero la cotización ahora.`;
           }
-        } else {
+        } else if (!String(strictReply || "").trim()) {
           strictReply = hasSheetCandidate
             ? [
               `Perfecto, encontré el modelo ${selectedName}.`,
