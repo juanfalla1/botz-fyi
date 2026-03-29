@@ -6739,19 +6739,45 @@ export async function POST(req: Request) {
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
-    if (!handledByGreeting && awaitingAction === "conversation_followup" && !isConversationCloseIntent(inbound.text)) {
+    if (!handledByGreeting && awaitingAction === "followup_quote_disambiguation") {
+      const choice = parseAnotherQuoteChoice(originalInboundText);
       const rememberedProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
-      if (rememberedProduct) {
+      if (!choice) {
+        reply = buildAnotherQuotePrompt();
+        nextMemory.awaiting_action = "followup_quote_disambiguation";
+        nextMemory.last_intent = "followup_quote_disambiguation";
+      } else if (choice === "advisor") {
+        reply = buildAdvisorMiniAgendaPrompt();
+        nextMemory.awaiting_action = "advisor_meeting_slot";
+      } else if (choice === "same_model" && rememberedProduct) {
+        inbound.text = `cotizar ${rememberedProduct}`.trim();
+        nextMemory.awaiting_action = "quote_product_selection";
+      } else if (choice === "same_model") {
+        reply = "Perfecto. Dime el modelo exacto que quieres recotizar y te ayudo enseguida.";
+        nextMemory.awaiting_action = "strict_need_spec";
+      } else if (choice === "other_model") {
+        reply = "Perfecto. Para cotizar otro modelo, dime capacidad y resolución objetivo (ej.: 200 g x 0.001 g).";
+        nextMemory.awaiting_action = "strict_need_spec";
+      } else {
+        reply = "Perfecto. Para opciones más económicas, dime capacidad/resolución objetivo o el uso y te propongo alternativas.";
+        nextMemory.awaiting_action = "strict_need_spec";
+      }
+      handledByGreeting = true;
+      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+    }
+    if (!handledByGreeting && awaitingAction === "conversation_followup" && !isConversationCloseIntent(inbound.text)) {
+      if (isAnotherQuoteAmbiguousIntent(originalInboundText)) {
+        reply = buildAnotherQuotePrompt();
+        nextMemory.awaiting_action = "followup_quote_disambiguation";
+        nextMemory.last_intent = "followup_quote_disambiguation";
+        handledByGreeting = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      }
+      const rememberedProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
+      if (!handledByGreeting && rememberedProduct) {
         const t = normalizeText(originalInboundText);
-        const followupIntentConversation = detectAlternativeFollowupIntent(originalInboundText);
-        const asksAnotherQuoteConversation = isAnotherQuoteAmbiguousIntent(originalInboundText);
         const anotherQuoteChoiceConversation = parseAnotherQuoteChoice(originalInboundText);
-        if (asksAnotherQuoteConversation && !anotherQuoteChoiceConversation && !followupIntentConversation) {
-          reply = buildAnotherQuotePrompt();
-          nextMemory.awaiting_action = "conversation_followup";
-          handledByGreeting = true;
-          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
-        } else if (anotherQuoteChoiceConversation === "advisor") {
+        if (anotherQuoteChoiceConversation === "advisor") {
           reply = buildAdvisorMiniAgendaPrompt();
           nextMemory.awaiting_action = "advisor_meeting_slot";
           handledByGreeting = true;
@@ -9879,6 +9905,7 @@ export async function POST(req: Request) {
       }
     }
     else if (handledByRecall) nextMemory.last_intent = "quote_recall";
+    else if (String(nextMemory.awaiting_action || "") === "followup_quote_disambiguation") nextMemory.last_intent = "followup_quote_disambiguation";
     else if (handledByTechSheet && isProductImageIntent(inbound.text)) nextMemory.last_intent = "image_request";
     else if (handledByTechSheet) nextMemory.last_intent = "tech_sheet_request";
     else if (handledByPricing) nextMemory.last_intent = "price_request";
