@@ -2097,6 +2097,46 @@ function isContinueQuoteWithoutPersonalDataIntent(text: string): boolean {
   return /(continuar\s+cotizacion\s+sin\s+datos\s+personales|continuar\s+sin\s+datos|sin\s+datos\s+personales|sin\s+datos|avanza(?:r)?\b|continua(?:r)?\b|seguir\b)/.test(t);
 }
 
+function looksLikeBillingData(text: string): boolean {
+  const raw = String(text || "").trim();
+  if (!raw) return false;
+  if (isContactInfoBundle(raw)) return true;
+  const hasEmail = Boolean(extractEmail(raw));
+  const hasPhone = Boolean(extractCustomerPhone(raw, ""));
+  const hasNit = /\bnit\s*[:=]?\s*[0-9\.\-]{5,20}\b/i.test(raw);
+  const hasLabeledFields = /\b(ciudad|empresa|razon\s+social|contacto|correo|email|celular|telefono)\s*[:=]/i.test(raw);
+  return hasNit || hasLabeledFields || (hasEmail && hasPhone);
+}
+
+type AnotherQuoteChoice = "same_model" | "other_model" | "cheaper" | "advisor";
+
+function isAnotherQuoteAmbiguousIntent(text: string): boolean {
+  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return false;
+  if (/^(otra|otro)$/.test(t)) return true;
+  return /(otra\s+cotiz|otra\s+cotizacion|nueva\s+cotizacion|nueva\s+cotiz)/.test(t);
+}
+
+function parseAnotherQuoteChoice(text: string): AnotherQuoteChoice | null {
+  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return null;
+  if (/^(1|del\s+mismo\s+modelo|mismo\s+modelo|misma\s+referencia|la\s+misma)$/.test(t)) return "same_model";
+  if (/^(2|de\s+otro\s+modelo|otro\s+modelo|otro\s+equipo)$/.test(t)) return "other_model";
+  if (/^(3|mas\s+economic|mas\s+barat|muy\s+costos|mas\s+economicas?)$/.test(t)) return "cheaper";
+  if (/^(4|hablar\s+con\s+asesor|asesor|cita)$/.test(t)) return "advisor";
+  return null;
+}
+
+function buildAnotherQuotePrompt(): string {
+  return [
+    "Claro. ¿Qué tipo de cotización quieres?",
+    "1) Del mismo modelo",
+    "2) De otro modelo",
+    "3) Ver opciones más económicas",
+    "4) Hablar con asesor",
+  ].join("\n");
+}
+
 function isGreetingIntent(text: string): boolean {
   const t = normalizeText(text).replace(/[^a-z0-9\s]/g, " ").trim();
   if (!t) return false;
@@ -5199,18 +5239,27 @@ export async function POST(req: Request) {
         strictMemory.pending_family_options = [];
         strictMemory.pending_product_options = [];
 
-        const followupIntent = awaiting === "strict_choose_action" ? detectAlternativeFollowupIntent(text) : null;
-        const asksAnotherQuote = awaiting === "strict_choose_action" && /(otra\s+cotiz|otra\s+cotizacion|nueva\s+cotizacion|re\s*cotiz)/.test(textNorm);
+        const anotherQuoteChoice = awaiting === "strict_choose_action" ? parseAnotherQuoteChoice(text) : null;
+        let followupIntent = awaiting === "strict_choose_action" ? detectAlternativeFollowupIntent(text) : null;
+        const asksAnotherQuote = awaiting === "strict_choose_action" && isAnotherQuoteAmbiguousIntent(text);
 
-        if (awaiting === "strict_choose_action" && asksAnotherQuote && !followupIntent && !wantsSheet) {
-          strictReply = [
-            "Perfecto. ¿Te refieres a otra cotización del mismo modelo o a alternativas?",
-            "1) Mismo modelo",
-            "2) Alternativas similares",
-            "3) Más económicas",
-            "4) Otra marca",
-          ].join("\n");
-        } else if (awaiting === "strict_choose_action" && followupIntent && !wantsSheet) {
+        if (awaiting === "strict_choose_action" && asksAnotherQuote && !anotherQuoteChoice && !followupIntent && !wantsSheet) {
+          strictReply = buildAnotherQuotePrompt();
+        } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "advisor") {
+          strictReply = buildAdvisorMiniAgendaPrompt();
+          strictMemory.awaiting_action = "advisor_meeting_slot";
+        } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "same_model") {
+          const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
+          strictMemory.quote_quantity = qtyRequested;
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular), compártelos en un solo mensaje. Si quieres continuar sin datos, escribe exactamente: avanza.`;
+        } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "other_model") {
+          followupIntent = "alternative_same_need";
+        } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "cheaper") {
+          followupIntent = "alternative_lower_price";
+        }
+
+        if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && followupIntent && !wantsSheet) {
           if (followupIntent === "requote_same_model") {
             const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
             strictMemory.quote_quantity = qtyRequested;
@@ -5476,6 +5525,26 @@ export async function POST(req: Request) {
             ].join("\n");
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_quote_data") {
+        const followupIntentInQuoteData = detectAlternativeFollowupIntent(text);
+        const asksAnotherQuoteInQuoteData = isAnotherQuoteAmbiguousIntent(text);
+        const normalizedQuoteData = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+        const isAdvanceInQuoteData = normalizedQuoteData === "avanza";
+        const hasBillingDataInQuoteData = looksLikeBillingData(text);
+        const isCommercialAlternativeInQuoteData =
+          asksAnotherQuoteInQuoteData ||
+          (followupIntentInQuoteData && followupIntentInQuoteData !== "requote_same_model");
+
+        if (isCommercialAlternativeInQuoteData) {
+          strictMemory.awaiting_action = "conversation_followup";
+          strictMemory.last_intent = String(followupIntentInQuoteData || "alternative_same_need");
+          strictReply = asksAnotherQuoteInQuoteData
+            ? buildAnotherQuotePrompt()
+            : "Entendido. Para alternativas, dime si prefieres: otro modelo, más económico, mayor capacidad, menor capacidad u otra marca.";
+        } else if (!isAdvanceInQuoteData && !hasBillingDataInQuoteData) {
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = "Para continuar esta cotización, envíame los datos de facturación en un solo mensaje (ciudad, empresa, NIT, contacto, correo, celular) o escribe exactamente: avanza.";
+        }
+        if (!String(strictReply || "").trim()) {
         const bundleOptions = Array.isArray(previousMemory?.quote_bundle_options)
           ? previousMemory.quote_bundle_options
           : (Array.isArray(previousMemory?.pending_product_options)
@@ -5666,6 +5735,7 @@ export async function POST(req: Request) {
             strictMemory.last_intent = "quote_generated";
             strictMemory.conversation_status = "open";
             strictMemory.quote_feedback_due_at = isoAfterHours(24);
+            }
           }
         }
         }
@@ -6673,19 +6743,45 @@ export async function POST(req: Request) {
       const rememberedProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
       if (rememberedProduct) {
         const t = normalizeText(originalInboundText);
-        const asksQuoteNow = asksQuoteIntent(t) || isPriceIntent(t) || isQuoteProceedIntent(t) || /\b(cotiza|cotizacion|precio)\b/.test(t);
+        const followupIntentConversation = detectAlternativeFollowupIntent(originalInboundText);
+        const asksAnotherQuoteConversation = isAnotherQuoteAmbiguousIntent(originalInboundText);
+        const anotherQuoteChoiceConversation = parseAnotherQuoteChoice(originalInboundText);
+        if (asksAnotherQuoteConversation && !anotherQuoteChoiceConversation && !followupIntentConversation) {
+          reply = buildAnotherQuotePrompt();
+          nextMemory.awaiting_action = "conversation_followup";
+          handledByGreeting = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        } else if (anotherQuoteChoiceConversation === "advisor") {
+          reply = buildAdvisorMiniAgendaPrompt();
+          nextMemory.awaiting_action = "advisor_meeting_slot";
+          handledByGreeting = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        } else if (anotherQuoteChoiceConversation === "other_model") {
+          reply = "Perfecto. Para otra cotización de otro modelo, dime capacidad y resolución objetivo (ej.: 200 g x 0.001 g) y te muestro opciones.";
+          nextMemory.awaiting_action = "strict_need_spec";
+          handledByGreeting = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        } else if (anotherQuoteChoiceConversation === "cheaper") {
+          reply = "Perfecto. Te ayudo con opciones más económicas. Dime capacidad/resolución objetivo o el uso y te propongo alternativas.";
+          nextMemory.awaiting_action = "strict_need_spec";
+          handledByGreeting = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
+        const asksQuoteNow =
+          anotherQuoteChoiceConversation === "same_model" ||
+          asksQuoteIntent(t) || isPriceIntent(t) || isQuoteProceedIntent(t) || /\b(cotiza|cotizacion|precio)\b/.test(t);
         const asksSheetNow = isTechnicalSheetIntent(t);
         const asksImageNow = isProductImageIntent(t);
-        if (asksQuoteNow) {
+        if (!handledByGreeting && asksQuoteNow) {
           inbound.text = `cotizar ${rememberedProduct} ${originalInboundText}`.trim();
           nextMemory.awaiting_action = "quote_product_selection";
-        } else if (asksSheetNow && asksImageNow) {
+        } else if (!handledByGreeting && asksSheetNow && asksImageNow) {
           inbound.text = `ficha tecnica e imagen de ${rememberedProduct}`;
           nextMemory.awaiting_action = "none";
-        } else if (asksSheetNow) {
+        } else if (!handledByGreeting && asksSheetNow) {
           inbound.text = `ficha tecnica de ${rememberedProduct}`;
           nextMemory.awaiting_action = "none";
-        } else if (asksImageNow) {
+        } else if (!handledByGreeting && asksImageNow) {
           inbound.text = `imagen de ${rememberedProduct}`;
           nextMemory.awaiting_action = "none";
         }
