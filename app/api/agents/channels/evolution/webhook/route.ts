@@ -6002,6 +6002,12 @@ export async function POST(req: Request) {
         const askMore = /^(mas|más)$/i.test(strictCommand);
         const askBack = /^volver$/i.test(strictCommand);
         const askCancel = /^cancelar$/i.test(strictCommand);
+        const requestedCategoryIntentInModelStep = detectCatalogCategoryIntent(text);
+        const currentCategoryIntentInModelStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
+        const isCategorySwitchInModelStep = Boolean(
+          requestedCategoryIntentInModelStep &&
+          normalizeText(String(requestedCategoryIntentInModelStep || "")) !== currentCategoryIntentInModelStep
+        );
         const technicalBypassInSelection = Boolean(
           parseTechnicalSpecQuery(text) ||
           parseCapacityRangeHint(text) ||
@@ -6010,11 +6016,35 @@ export async function POST(req: Request) {
           isUseCaseFamilyHint(text) ||
           isRecommendationIntent(text)
         );
-        if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel && !technicalBypassInSelection) {
+        if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel && !technicalBypassInSelection && !isCategorySwitchInModelStep) {
           strictMemory.awaiting_action = "strict_choose_model";
           strictMemory.pending_product_options = pendingStrictOptions;
           strictMemory.strict_model_offset = Math.max(0, Number(previousMemory?.strict_model_offset || 0));
           strictReply = "Por favor elige una opción válida del listado actual. Responde solo con la letra o número disponible (por ejemplo: A, B, 1 o 2), o escribe \"más\" para ver más opciones.";
+        }
+        if (!String(strictReply || "").trim() && isCategorySwitchInModelStep) {
+          const scoped = scopeCatalogRows(ownerRows as any, String(requestedCategoryIntentInModelStep || ""));
+          const families = buildNumberedFamilyOptions(scoped as any[], 8);
+          strictMemory.last_category_intent = String(requestedCategoryIntentInModelStep || "");
+          strictMemory.pending_product_options = [];
+          strictMemory.pending_family_options = families;
+          strictMemory.strict_filter_capacity_g = "";
+          strictMemory.strict_filter_readability_g = "";
+          strictMemory.strict_partial_capacity_g = "";
+          strictMemory.strict_partial_readability_g = "";
+          if (!families.length) {
+            strictMemory.awaiting_action = "none";
+            strictReply = `Entiendo el cambio. Ahora mismo no tengo referencias activas para ${String(requestedCategoryIntentInModelStep || "esa categoría").replace(/_/g, " ")}. Si quieres, te ayudo con balanzas y básculas disponibles.`;
+          } else {
+            strictMemory.awaiting_action = "strict_choose_family";
+            strictReply = [
+              `Perfecto, cambio la búsqueda a ${String(requestedCategoryIntentInModelStep || "catalogo").replace(/_/g, " ")}.`,
+              "Primero elige familia:",
+              ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
+              "",
+              "Responde con letra o número (A/1).",
+            ].join("\n");
+          }
         }
         const askCount = /\b(cuantas|cuantos|total|tienen\s+\d+|\d+)\b/.test(textNorm) && !asksQuoteIntent(text);
         const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
@@ -6135,6 +6165,18 @@ export async function POST(req: Request) {
               strictReply = "Gracias por el dato. En el catálogo actual no veo una coincidencia clara con esa característica en esta familia. Si quieres, te ayudo a buscarla por capacidad y resolución exacta (ej.: 4200 g x 0.01 g) para recomendarte la opción más segura.";
             } else {
               const criterionLabel = `${formatSpecNumber(effectiveCap)} g x ${formatSpecNumber(effectiveRead)} g`;
+              const bestRow = (prioritized.orderedRows.length ? prioritized.orderedRows[0] : null) as any;
+              const bestSpec = bestRow ? extractRowTechnicalSpec(bestRow) : { capacityG: 0, readabilityG: 0 };
+              const bestCap = Number(bestSpec?.capacityG || 0);
+              const bestRead = Number(bestSpec?.readabilityG || 0);
+              const capDeltaPct = bestCap > 0 ? (Math.abs(bestCap - effectiveCap) / Math.max(1, effectiveCap)) * 100 : 9999;
+              const readRatio = (bestRead > 0 && effectiveRead > 0) ? (Math.max(bestRead, effectiveRead) / Math.max(1e-9, Math.min(bestRead, effectiveRead))) : 9999;
+              const tooFar = prioritized.exactCount === 0 && (capDeltaPct > 500 || readRatio > 20);
+              if (tooFar) {
+                strictMemory.pending_product_options = [];
+                strictMemory.awaiting_action = "strict_need_spec";
+                strictReply = `Para ${criterionLabel} no tengo opciones realmente compatibles en el catálogo activo de ${familyLabel || "esta familia"}. Si quieres, te propongo alternativas en otra categoría o ajustamos capacidad/resolución.`;
+              } else {
               const top = filteredPage.slice(0, 3);
               const exactIntro = prioritized.exactCount > 0
                 ? `¡Excelente! Para ${criterionLabel} sí tenemos coincidencia en catálogo${switchedFromFamily ? " (en otra familia más adecuada)" : (familyLabel ? ` de ${familyLabel}` : "")}.`
@@ -6148,6 +6190,7 @@ export async function POST(req: Request) {
                   ? "Si quieres, escribe 'más' y te muestro otras alternativas. También puedes elegir A/1 para continuar."
                   : "Si quieres, te explico cuál conviene más según tu uso (laboratorio, joyería o industrial). También puedes elegir A/1.",
               ].join("\n");
+              }
             }
           }
         }
