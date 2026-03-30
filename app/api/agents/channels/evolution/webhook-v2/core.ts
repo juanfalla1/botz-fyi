@@ -5378,8 +5378,35 @@ export async function POST(req: Request) {
         const anotherQuoteChoice = awaiting === "strict_choose_action" ? parseAnotherQuoteChoice(text) : null;
         let followupIntent = awaiting === "strict_choose_action" ? detectAlternativeFollowupIntent(text) : null;
         const asksAnotherQuote = awaiting === "strict_choose_action" && isAnotherQuoteAmbiguousIntent(text);
+        const categoryIntentInAction = awaiting === "strict_choose_action" ? detectCatalogCategoryIntent(text) : null;
+        const currentCategoryInAction = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || ""));
+        const isCategorySwitchInAction = Boolean(
+          categoryIntentInAction && normalizeText(String(categoryIntentInAction || "")) !== currentCategoryInAction
+        );
 
-        if (awaiting === "strict_choose_action" && asksAnotherQuote && !anotherQuoteChoice && !followupIntent && !wantsSheet) {
+        if (awaiting === "strict_choose_action" && !followupIntent && !wantsQuote && !wantsSheet) {
+          if (/(no\s+me\s+sirve|no\s+quiero\s+este|otra\s+opcion|otra\s+opción|que\s+otra|qué\s+otra|recomiendame\s+otra|recomiéndame\s+otra|me\s+ofreces\s+otra|me\s+puedes\s+ofrecer\s+otra)/.test(textNorm)) {
+            followupIntent = "alternative_same_need";
+          }
+        }
+
+        if (awaiting === "strict_choose_action" && isCategorySwitchInAction) {
+          const scoped = scopeCatalogRows(ownerRows as any, String(categoryIntentInAction || ""));
+          const families = buildNumberedFamilyOptions(scoped as any[], 8);
+          strictMemory.last_category_intent = String(categoryIntentInAction || "");
+          strictMemory.pending_product_options = [];
+          strictMemory.pending_family_options = families;
+          strictMemory.awaiting_action = "strict_choose_family";
+          strictReply = families.length
+            ? [
+              `Perfecto, cambiamos la búsqueda a ${String(categoryIntentInAction || "catálogo").replace(/_/g, " ")}.`,
+              "Elige familia:",
+              ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
+              "",
+              "Responde con letra o número (A/1).",
+            ].join("\n")
+            : `Entiendo el cambio. En base de datos no tengo referencias activas para ${String(categoryIntentInAction || "esa categoría").replace(/_/g, " ")} en este momento.`;
+        } else if (awaiting === "strict_choose_action" && asksAnotherQuote && !anotherQuoteChoice && !followupIntent && !wantsSheet) {
           strictReply = buildAnotherQuotePrompt();
         } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "advisor") {
           strictReply = buildAdvisorMiniAgendaPrompt();
@@ -5661,6 +5688,15 @@ export async function POST(req: Request) {
               : `No tengo un PDF válido para ${selectedName} en este momento y tampoco tengo especificaciones completas cargadas para este modelo. Si quieres, te genero la cotización ahora.`;
           }
         } else if (!String(strictReply || "").trim()) {
+          if (awaiting === "strict_choose_action" && !wantsQuote && !wantsSheet && !/^\s*[12]\b/.test(textNorm)) {
+            strictReply = [
+              `Entiendo. Si ${selectedName} no te sirve, te puedo proponer alternativas reales del catálogo por:`,
+              "- mayor/menor capacidad",
+              "- mayor/menor resolución",
+              "- más económicas",
+              "También puedes escribir 1 para cotizar o 2 para ficha técnica.",
+            ].join("\n");
+          } else {
           strictReply = hasSheetCandidate
             ? [
               `Perfecto, encontré el modelo ${selectedName}.`,
@@ -5675,6 +5711,7 @@ export async function POST(req: Request) {
               "",
               "Nota: este modelo no tiene ficha técnica PDF cargada en este momento.",
             ].join("\n");
+          }
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_quote_data") {
         const followupIntentInQuoteData = detectAlternativeFollowupIntent(text);
