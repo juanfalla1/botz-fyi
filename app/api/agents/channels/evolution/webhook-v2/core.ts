@@ -6013,9 +6013,6 @@ export async function POST(req: Request) {
         const askMore = /^(mas|más)$/i.test(strictCommand);
         const askBack = /^volver$/i.test(strictCommand);
         const askCancel = /^cancelar$/i.test(strictCommand);
-        const modelTokensInModelStep = extractModelLikeTokens(text);
-        const asksConcreteModelInModelStep = modelTokensInModelStep.length > 0 || hasConcreteProductHint(text);
-        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
         const freeCatalogAskInModelStep =
           isCatalogBreadthQuestion(text) ||
           /(que\s+mas|que\s+otros?|que\s+tienes|que\s+manejas|que\s+ofrec|catalogo|otro\s+tipo|otra\s+categoria|otra\s+categoría)/.test(normalizeText(text));
@@ -6063,18 +6060,6 @@ export async function POST(req: Request) {
             ].join("\n");
           }
         }
-        if (!String(strictReply || "").trim() && asksConcreteModelInModelStep && !strictSelection && !askMore && !askBack && !askCancel && !isCategorySwitchInModelStep) {
-          const haystackRows = categoryScoped.length ? categoryScoped : ownerRows;
-          const hay = haystackRows.filter((r: any) => {
-            const rtxt = normalizeText(`${String(r?.name || "")} ${String(r?.summary || "")} ${String(r?.description || "")} ${String(r?.specs_text || "")}`);
-            return modelTokensInModelStep.some((tk) => normalizeText(tk) && rtxt.includes(normalizeText(tk)));
-          });
-          if (!hay.length && modelTokensInModelStep.length > 0) {
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.pending_product_options = pendingStrictOptions;
-            strictReply = "En base de datos no tengo esa referencia/modelo activo en esta categoría. Si quieres, te muestro opciones disponibles aquí mismo (responde: más) o cambiamos de categoría.";
-          }
-        }
         if (!String(strictReply || "").trim() && freeCatalogAskInModelStep && !isCategorySwitchInModelStep) {
           const families = buildNumberedFamilyOptions(categoryScoped as any[], 8);
           if (!families.length) {
@@ -6094,6 +6079,7 @@ export async function POST(req: Request) {
           }
         }
         const askCount = /\b(cuantas|cuantos|total|tienen\s+\d+|\d+)\b/.test(textNorm) && !asksQuoteIntent(text);
+        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
         const familyRows = familyLabel
           ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
           : categoryScoped;
