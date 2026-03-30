@@ -2105,7 +2105,9 @@ function looksLikeBillingData(text: string): boolean {
   const hasPhone = Boolean(extractCustomerPhone(raw, ""));
   const hasNit = /\bnit\s*[:=]?\s*[0-9\.\-]{5,20}\b/i.test(raw);
   const hasLabeledFields = /\b(ciudad|empresa|razon\s+social|contacto|correo|email|celular|telefono)\s*[:=]/i.test(raw);
-  return hasNit || hasLabeledFields || (hasEmail && hasPhone);
+  const hasCityLike = /^[a-zA-Záéíóúüñ\s]{3,40}$/.test(raw) && !/@/.test(raw) && !/^\+?\d[\d\s\-]{6,}$/.test(raw);
+  const hasNameLike = /^[a-zA-Záéíóúüñ\s]{6,60}$/.test(raw) && !/\b(cotiz|modelo|ficha|precio|marca|opcion|opciones|asesor)\b/i.test(raw);
+  return hasNit || hasLabeledFields || hasEmail || hasPhone || hasCityLike || hasNameLike;
 }
 
 type AnotherQuoteChoice = "same_model" | "other_model" | "cheaper" | "advisor";
@@ -5701,6 +5703,23 @@ export async function POST(req: Request) {
         const customerContact = String(quoteData.contact || "").trim();
         const customerEmail = String(quoteData.email || "").trim();
         const customerPhone = String(quoteData.phone || "").trim();
+        const hasAnyQuoteData = Boolean(customerCity || customerCompany || customerNit || customerContact || customerEmail || customerPhone);
+        const hasContactCore = customerContact.length >= 3;
+        const hasCityCore = customerCity.length >= 3;
+        const hasBusinessOrReachability =
+          customerCompany.length >= 3 ||
+          customerNit.length >= 5 ||
+          customerEmail.includes("@") ||
+          customerPhone.replace(/\D/g, "").length >= 7;
+        if (!isAdvanceInQuoteData && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachability)) {
+          const missing: string[] = [];
+          if (!hasContactCore) missing.push("contacto");
+          if (!hasCityCore) missing.push("ciudad");
+          if (!hasBusinessOrReachability) missing.push("empresa/NIT/correo/celular");
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = `Perfecto, ya registré parte de tus datos. Para continuar me falta: ${missing.join(", ")}. Puedes enviarlo en un solo mensaje o escribir exactamente: avanza.`;
+        }
+        if (!String(strictReply || "").trim()) {
         {
           const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || strictMemory.last_selected_product_id || strictMemory.last_product_id || "").trim();
           const selectedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
@@ -5825,6 +5844,7 @@ export async function POST(req: Request) {
             strictMemory.quote_feedback_due_at = isoAfterHours(24);
             }
           }
+        }
         }
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model") {
