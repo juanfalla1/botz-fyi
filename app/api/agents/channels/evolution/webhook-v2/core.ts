@@ -2724,7 +2724,7 @@ function resolveStaticQuoteProfile(row: any, fallbackName: string): StaticQuoteP
     return {
       imageFile: "ranger.png",
       description: [
-        "Bascula industrial Ranger marca Ohaus",
+        "Balanza industrial Ranger marca Ohaus",
         "Operacion para ambientes industriales",
         "Pantalla robusta y rapida",
         "Construccion durable para uso continuo",
