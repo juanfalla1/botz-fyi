@@ -2597,6 +2597,17 @@ function buildQuoteItemDescription(row: any, fallbackName: string): string {
   const specs = row?.specs_json && typeof row.specs_json === "object" ? row.specs_json : {};
   const brand = String(row?.brand || "OHAUS").trim() || "OHAUS";
   const family = String((source as any)?.family || (specs as any)?.familia || "").trim();
+  const templateDescription = String((source as any)?.descripcion_comercial_larga || (source as any)?.quote_description || row?.description || "").trim();
+  if (templateDescription) {
+    const normalizedLines = uniqueNormalizedStrings(
+      templateDescription
+        .split(/\r?\n+|;\s*/)
+        .map((l) => String(l || "").trim())
+        .filter(Boolean),
+      56
+    );
+    if (normalizedLines.length >= 3) return normalizedLines.join("\n");
+  }
   const sap = String((source as any)?.sap || (source as any)?.product_code || (source as any)?.codigo || "").trim();
   const capacity = String((source as any)?.capacity || (specs as any)?.capacidad || "").trim();
   const resolution = String((source as any)?.resolution || (specs as any)?.resolucion || "").trim();
