@@ -1367,6 +1367,7 @@ function detectAlternativeFollowupIntent(text: string): AlternativeFollowupInten
   if (/(muy\s+costos|mas\s+barat|más\s+barat|mas\s+econom|más\s+econom|economic)/.test(t)) return "alternative_lower_price";
   if (/(mayor\s+capacidad|mas\s+capacidad|más\s+capacidad)/.test(t)) return "alternative_higher_capacity";
   if (/(menor\s+capacidad|menos\s+capacidad)/.test(t)) return "alternative_lower_capacity";
+  if (/(mayor\s+resolucion|mejor\s+resolucion|mas\s+resolucion|más\s+resolucion|mas\s+precision|más\s+precision|mejor\s+precision)/.test(t)) return "alternative_same_need";
   if (/(alternativ|otra\s+opcion|otro\s+modelo|similar|parecid|equivalent)/.test(t)) return "alternative_same_need";
   if (/(mismo\s+modelo|misma\s+referencia|esta\s+misma|este\s+mismo|la\s+misma\s+cotizacion|misma\s+cotizacion)/.test(t)) return "requote_same_model";
   if (/(otra\s+cotiz|otra\s+cotizacion|nueva\s+cotizacion|re\s*cotiz)/.test(t)) return null;
@@ -4842,7 +4843,7 @@ export async function POST(req: Request) {
         }
       }
 
-      if (!String(strictReply || "").trim() && isCorrectionIntent(text)) {
+      if (!String(strictReply || "").trim() && isCorrectionIntent(text) && awaiting !== "strict_choose_action") {
         resetStrictRecommendationState(strictMemory);
         const cap = Number(previousMemory?.strict_filter_capacity_g || 0);
         const read = Number(previousMemory?.strict_filter_readability_g || 0);
@@ -6013,6 +6014,7 @@ export async function POST(req: Request) {
         const askMore = /^(mas|más)$/i.test(strictCommand);
         const askBack = /^volver$/i.test(strictCommand);
         const askCancel = /^cancelar$/i.test(strictCommand);
+        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
         const freeCatalogAskInModelStep =
           isCatalogBreadthQuestion(text) ||
           /(que\s+mas|que\s+otros?|que\s+tienes|que\s+manejas|que\s+ofrec|catalogo|otro\s+tipo|otra\s+categoria|otra\s+categoría)/.test(normalizeText(text));
@@ -6079,7 +6081,6 @@ export async function POST(req: Request) {
           }
         }
         const askCount = /\b(cuantas|cuantos|total|tienen\s+\d+|\d+)\b/.test(textNorm) && !asksQuoteIntent(text);
-        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
         const familyRows = familyLabel
           ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
           : categoryScoped;
