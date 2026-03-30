@@ -5645,8 +5645,12 @@ export async function POST(req: Request) {
         const isCommercialAlternativeInQuoteData =
           asksAnotherQuoteInQuoteData ||
           (followupIntentInQuoteData && followupIntentInQuoteData !== "requote_same_model");
+        const crmKnownForQuoteDataGate = Boolean(previousMemory?.crm_contact_found || strictMemory.crm_contact_found);
 
-        if (isCommercialAlternativeInQuoteData) {
+        if (!crmKnownForQuoteDataGate && isCommercialAlternativeInQuoteData) {
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = "Para cliente nuevo primero debo registrar datos obligatorios de facturación: ciudad, empresa, NIT, contacto, correo y celular. Luego continúo con la cotización.";
+        } else if (isCommercialAlternativeInQuoteData) {
           strictMemory.awaiting_action = "conversation_followup";
           strictMemory.last_intent = String(followupIntentInQuoteData || "alternative_same_need");
           strictReply = asksAnotherQuoteInQuoteData
