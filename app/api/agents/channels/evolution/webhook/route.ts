@@ -2732,6 +2732,18 @@ function resolveStaticQuoteProfile(row: any, fallbackName: string): StaticQuoteP
     };
   }
 
+  if (/^(sjx|spx|stx|px\d+)/.test(model)) {
+    return {
+      imageFile: "px.png",
+      description: [
+        "Balanza de precision marca OHAUS",
+        "Operacion estable para laboratorio y control de calidad",
+        "Pantalla de alta visibilidad y respuesta rapida",
+        "Construccion robusta para uso diario",
+      ].join("\n"),
+    };
+  }
+
   return null;
 }
 
