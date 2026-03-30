@@ -5792,18 +5792,43 @@ export async function POST(req: Request) {
           customerNit.length >= 5 ||
           customerEmail.includes("@") ||
           customerPhone.replace(/\D/g, "").length >= 7;
+        const missingAttemptsPrev = Number(previousMemory?.strict_quote_data_missing_attempts || strictMemory.strict_quote_data_missing_attempts || 0);
+        const isDistributorCustomer = crmTierForQuote === "distribuidor" || crmTypeForQuote === "distributor";
+        const isExistingCustomer = !isDistributorCustomer && crmContactFoundForQuote && Boolean(recognizedReturningCustomer);
+        const customerSegment = isDistributorCustomer ? "distributor" : (isExistingCustomer ? "existing" : "new");
+        strictMemory.customer_segment = customerSegment;
+
         if (!crmContactFoundForQuote && isAdvanceInQuoteData) {
+          const missingAttempts = missingAttemptsPrev + 1;
+          strictMemory.strict_quote_data_missing_attempts = missingAttempts;
           strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = "Para cliente nuevo sí necesito datos de facturación antes de cotizar: ciudad, empresa, NIT, contacto, correo y celular.";
+          if (missingAttempts >= 3) {
+            strictMemory.awaiting_action = "none";
+            strictMemory.conversation_status = "closed";
+            strictMemory.last_intent = "quote_rejected_missing_data";
+            strictReply = "No puedo generar cotización sin datos obligatorios. Cierro esta solicitud por seguridad. Si deseas retomarla, escribe: cotización y comparte ciudad, empresa, NIT, contacto, correo y celular.";
+          } else {
+            strictReply = "Para cliente nuevo sí necesito datos de facturación antes de cotizar: ciudad, empresa, NIT, contacto, correo y celular.";
+          }
         } else if (!isAdvanceInQuoteData && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachability)) {
+          const missingAttempts = missingAttemptsPrev + 1;
+          strictMemory.strict_quote_data_missing_attempts = missingAttempts;
           const missing: string[] = [];
           if (!hasContactCore) missing.push("contacto");
           if (!hasCityCore) missing.push("ciudad");
           if (!hasBusinessOrReachability) missing.push("empresa/NIT/correo/celular");
-          strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = `Perfecto, ya registré parte de tus datos. Para continuar me falta: ${missing.join(", ")}. Puedes enviarlo en un solo mensaje o escribir exactamente: avanza.`;
+          if (!crmContactFoundForQuote && missingAttempts >= 3) {
+            strictMemory.awaiting_action = "none";
+            strictMemory.conversation_status = "closed";
+            strictMemory.last_intent = "quote_rejected_missing_data";
+            strictReply = "No puedo generar cotización sin datos obligatorios. Cierro esta solicitud por seguridad. Si deseas retomarla, escribe: cotización y comparte ciudad, empresa, NIT, contacto, correo y celular.";
+          } else {
+            strictMemory.awaiting_action = "strict_quote_data";
+            strictReply = `Perfecto, ya registré parte de tus datos. Para continuar me falta: ${missing.join(", ")}. Puedes enviarlo en un solo mensaje o escribir exactamente: avanza.`;
+          }
         }
         if (!String(strictReply || "").trim()) {
+        strictMemory.strict_quote_data_missing_attempts = 0;
         {
           const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || strictMemory.last_selected_product_id || strictMemory.last_product_id || "").trim();
           const selectedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
@@ -5830,7 +5855,17 @@ export async function POST(req: Request) {
             const bogotaCop = Number(cityPrices?.bogota || 0);
             const distributorCop = Number(cityPrices?.distribuidor || 0);
             const useDistributorPrice = crmTierForQuote === "distribuidor" || crmTypeForQuote === "distributor";
-            const unitPriceCop = useDistributorPrice && distributorCop > 0 ? distributorCop : (cityCop > 0 ? cityCop : bogotaCop);
+            const existingCop = Number(cityPrices?.cliente_antiguo || cityPrices?.cliente_recurrente || cityPrices?.recurrente || cityPrices?.existing || 0);
+            const newCop = Number(cityPrices?.cliente_nuevo || cityPrices?.new || 0);
+            const useExistingPrice = customerSegment === "existing" && existingCop > 0;
+            const useNewPrice = customerSegment === "new" && newCop > 0;
+            const unitPriceCop = useDistributorPrice && distributorCop > 0
+              ? distributorCop
+              : useExistingPrice
+                ? existingCop
+                : useNewPrice
+                  ? newCop
+                  : (cityCop > 0 ? cityCop : bogotaCop);
             const baseUsdRaw = Number((selected as any)?.base_price_usd || 0);
             const basePriceUsd = baseUsdRaw > 0
               ? baseUsdRaw
