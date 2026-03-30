@@ -668,11 +668,13 @@ function buildGuidedRecoveryMessage(args: {
   rememberedProduct?: string;
   hasPendingFamilies?: boolean;
   hasPendingModels?: boolean;
+  inboundText?: string;
 }): string {
   const awaiting = String(args.awaiting || "").trim();
   const rememberedProduct = String(args.rememberedProduct || "").trim();
   const hasPendingFamilies = Boolean(args.hasPendingFamilies);
   const hasPendingModels = Boolean(args.hasPendingModels);
+  const inboundText = normalizeText(String(args.inboundText || ""));
 
   if (awaiting === "strict_choose_family" || hasPendingFamilies) {
     return [
@@ -689,6 +691,12 @@ function buildGuidedRecoveryMessage(args: {
   }
 
   if (rememberedProduct) {
+    if (/(sirve|aplica|funciona|precision|precisi[oó]n|resolucion|resoluci[oó]n|capacidad|pesar|menos de|mayor|menor)/.test(inboundText)) {
+      return [
+        `Claro. Tomo ${rememberedProduct} como referencia.`,
+        "Para responder bien según catálogo, dime capacidad y resolución objetivo (ej.: 200 g x 0.001 g), o escribe: mayor resolución / más económica.",
+      ].join("\n");
+    }
     return [
       `Te ayudo de una con ${rememberedProduct}.`,
       "Puedes responder:",
@@ -6597,6 +6605,7 @@ export async function POST(req: Request) {
             awaiting,
             rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
             hasPendingFamilies: pendingFamilies.length > 0,
+            inboundText: text,
           });
         } else if (!String(strictReply || "").trim() && selectedFamily) {
           const selectedFamilyResolved = selectedFamily as { key?: string; label?: string };
@@ -6830,6 +6839,7 @@ export async function POST(req: Request) {
           rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
           hasPendingFamilies: Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0,
           hasPendingModels: Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0,
+          inboundText: text,
         });
       }
 
@@ -10051,6 +10061,7 @@ export async function POST(req: Request) {
         rememberedProduct: String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || ""),
         hasPendingFamilies: Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0,
         hasPendingModels: Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0,
+        inboundText: inbound.text,
       });
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
