@@ -5796,14 +5796,21 @@ export async function POST(req: Request) {
         const customerContact = String(quoteData.contact || "").trim();
         const customerEmail = String(quoteData.email || "").trim();
         const customerPhone = String(quoteData.phone || "").trim();
+        const companyNorm = normalizeText(customerCompany);
+        const applicantNorm = normalizeText(String(text || ""));
+        const isNaturalPerson =
+          !customerCompany ||
+          /persona\s+natural/.test(companyNorm) ||
+          /persona\s+natural/.test(applicantNorm);
         const hasAnyQuoteData = Boolean(customerCity || customerCompany || customerNit || customerContact || customerEmail || customerPhone);
         const hasContactCore = customerContact.length >= 3;
         const hasCityCore = customerCity.length >= 3;
-        const hasBusinessOrReachability =
-          customerCompany.length >= 3 ||
-          customerNit.length >= 5 ||
-          customerEmail.includes("@") ||
-          customerPhone.replace(/\D/g, "").length >= 7;
+        const hasIdentityCore = customerNit.length >= 5;
+        const hasReachability = customerEmail.includes("@") || customerPhone.replace(/\D/g, "").length >= 7;
+        const hasBusinessCore = customerCompany.length >= 3;
+        const hasBusinessOrReachability = isNaturalPerson
+          ? (hasIdentityCore && hasReachability)
+          : (hasBusinessCore && hasIdentityCore && hasReachability);
         const missingAttemptsPrev = Number(previousMemory?.strict_quote_data_missing_attempts || strictMemory.strict_quote_data_missing_attempts || 0);
         const isDistributorCustomer = crmTierForQuote === "distribuidor" || crmTypeForQuote === "distributor";
         const isExistingCustomer = !isDistributorCustomer && crmContactFoundForQuote && Boolean(recognizedReturningCustomer);
@@ -5828,7 +5835,14 @@ export async function POST(req: Request) {
           const missing: string[] = [];
           if (!hasContactCore) missing.push("contacto");
           if (!hasCityCore) missing.push("ciudad");
-          if (!hasBusinessOrReachability) missing.push("empresa/NIT/correo/celular");
+          if (isNaturalPerson) {
+            if (!hasIdentityCore) missing.push("cédula o NIT");
+            if (!hasReachability) missing.push("correo o celular");
+          } else {
+            if (!hasBusinessCore) missing.push("empresa");
+            if (!hasIdentityCore) missing.push("NIT");
+            if (!hasReachability) missing.push("correo o celular");
+          }
           if (!crmContactFoundForQuote && missingAttempts >= 3) {
             strictMemory.awaiting_action = "none";
             strictMemory.conversation_status = "closed";
