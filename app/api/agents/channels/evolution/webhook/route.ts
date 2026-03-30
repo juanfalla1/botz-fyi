@@ -1367,7 +1367,7 @@ function detectAlternativeFollowupIntent(text: string): AlternativeFollowupInten
   if (/(muy\s+costos|mas\s+barat|más\s+barat|mas\s+econom|más\s+econom|economic)/.test(t)) return "alternative_lower_price";
   if (/(mayor\s+capacidad|mas\s+capacidad|más\s+capacidad)/.test(t)) return "alternative_higher_capacity";
   if (/(menor\s+capacidad|menos\s+capacidad)/.test(t)) return "alternative_lower_capacity";
-  if (/(mayor\s+resolucion|mejor\s+resolucion|mas\s+resolucion|más\s+resolucion|mas\s+precision|más\s+precision|mejor\s+precision)/.test(t)) return "alternative_same_need";
+  if (/(mayor\s+resolucion|mejor\s+resolucion|mas\s+resolucion|más\s+resolucion|mas\s+precision|más\s+precision|mejor\s+precision|menor\s+resolucion|menos\s+precision|menor\s+precision)/.test(t)) return "alternative_same_need";
   if (/(alternativ|otra\s+opcion|otro\s+modelo|similar|parecid|equivalent)/.test(t)) return "alternative_same_need";
   if (/(mismo\s+modelo|misma\s+referencia|esta\s+misma|este\s+mismo|la\s+misma\s+cotizacion|misma\s+cotizacion)/.test(t)) return "requote_same_model";
   if (/(otra\s+cotiz|otra\s+cotizacion|nueva\s+cotizacion|re\s*cotiz)/.test(t)) return null;
@@ -5433,8 +5433,24 @@ export async function POST(req: Request) {
 
             let rankedRows = [...basePool];
             let intro = "Claro, aquí tienes alternativas para el mismo uso:";
+            const textFollow = normalizeText(String(text || ""));
+            const wantsBetterResolution = /(mayor\s+resolucion|mejor\s+resolucion|mas\s+resolucion|más\s+resolucion|mas\s+precision|más\s+precision|mejor\s+precision)/.test(textFollow);
+            const wantsLowerResolution = /(menor\s+resolucion|menos\s+precision|menor\s+precision)/.test(textFollow);
 
-            if (followupIntent === "alternative_lower_price") {
+            if (followupIntent === "alternative_same_need" && (wantsBetterResolution || wantsLowerResolution)) {
+              const readTarget = Number(selectedSpec?.readabilityG || 0);
+              if (readTarget > 0) {
+                const readRows = basePool
+                  .map((r: any) => ({ row: r, read: Number(extractRowTechnicalSpec(r)?.readabilityG || 0) }))
+                  .filter((x: any) => x.read > 0)
+                  .filter((x: any) => wantsBetterResolution ? x.read < readTarget : x.read > readTarget)
+                  .sort((a: any, b: any) => Math.abs(a.read - readTarget) - Math.abs(b.read - readTarget));
+                rankedRows = readRows.map((x: any) => x.row);
+              }
+              intro = wantsBetterResolution
+                ? "Perfecto, aquí tienes opciones con mejor resolución (más precisión):"
+                : "Perfecto, aquí tienes opciones con menor resolución:";
+            } else if (followupIntent === "alternative_lower_price") {
               intro = "Perfecto, aquí tienes opciones más económicas:";
               const selectedPrice = Number(selectedProduct?.base_price_usd || 0);
               const priced = byPriceAsc(basePool).filter((r: any) => Number(r?.base_price_usd || 0) > 0);
