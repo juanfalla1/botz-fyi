@@ -6389,9 +6389,32 @@ export async function POST(req: Request) {
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_family") {
         const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
+        const categoryIntentInFamilyStep = detectCatalogCategoryIntent(text);
+        const currentCategoryInFamilyStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
+        const isCategorySwitchInFamilyStep = Boolean(
+          categoryIntentInFamilyStep && normalizeText(String(categoryIntentInFamilyStep || "")) !== currentCategoryInFamilyStep
+        );
         if (!pendingFamilies.length) {
           strictMemory.awaiting_action = "none";
           strictReply = "En este momento no tengo familias disponibles en esa categoría. Si quieres, dime el modelo exacto (ej.: MB120) y te ayudo.";
+        }
+
+        if (!String(strictReply || "").trim() && isCategorySwitchInFamilyStep) {
+          const scoped = scopeCatalogRows(ownerRows as any, String(categoryIntentInFamilyStep || ""));
+          const families = buildNumberedFamilyOptions(scoped as any[], 8);
+          strictMemory.last_category_intent = String(categoryIntentInFamilyStep || "");
+          strictMemory.pending_product_options = [];
+          strictMemory.pending_family_options = families;
+          strictMemory.awaiting_action = "strict_choose_family";
+          strictReply = families.length
+            ? [
+              `Perfecto, cambio la búsqueda a ${String(categoryIntentInFamilyStep || "catálogo").replace(/_/g, " ")}.`,
+              "Elige familia:",
+              ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
+              "",
+              "Responde con letra o número (A/1).",
+            ].join("\n")
+            : `En base de datos no tengo referencias activas para ${String(categoryIntentInFamilyStep || "esa categoría").replace(/_/g, " ")} en este momento.`;
         }
 
         if (!String(strictReply || "").trim() && preParsedSpec) {
@@ -6500,7 +6523,28 @@ export async function POST(req: Request) {
           ((isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text) || isUseCaseFamilyHint(text))
             ? inferFamilyFromUseCase(text, pendingFamilies)
             : null);
+        const followupIntentInFamilyStep = detectAlternativeFollowupIntent(text);
+        const conversationalReformulationInFamilyStep = Boolean(
+          /(no\s+me\s+sirve|otra\s+opcion|otra\s+opción|me\s+puedes\s+ofrecer|que\s+me\s+recomiendas|qué\s+me\s+recomiendas)/.test(textNorm) ||
+          followupIntentInFamilyStep
+        );
         let handledTechnicalGuidedInFamilyStep = false;
+        if (!String(strictReply || "").trim() && !selectedFamily && conversationalReformulationInFamilyStep) {
+          const quick = buildNumberedProductOptions(baseScoped as any[], 60).slice(0, 3);
+          if (quick.length) {
+            strictMemory.pending_product_options = quick;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictMemory.strict_family_label = String(familyLabelFromRow((baseScoped as any[])[0] || "") || "");
+            strictReply = [
+              "Claro. Para no perder el hilo, te propongo estas opciones reales del catálogo y luego afinamos según capacidad/resolución:",
+              ...quick.map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Si prefieres, dime capacidad y resolución objetivo (ej.: 200 g x 0.001 g).",
+            ].join("\n");
+          }
+        }
         if (!String(strictReply || "").trim() && !selectedFamily) {
           const looseHintWithoutFamily = parseLooseTechnicalHint(text);
           const hintedCap = Number(looseHintWithoutFamily?.capacityG || 0);
