@@ -4253,6 +4253,7 @@ export async function POST(req: Request) {
 
     const inboundName = sanitizeCustomerDisplayName(inbound.pushName || "");
     let recognizedReturningCustomer = false;
+    let crmContactProfile: any = null;
     let knownCustomerName = sanitizeCustomerDisplayName(String(nextMemory.customer_name || ""))
       || sanitizeCustomerDisplayName(String((existingConv as any)?.contact_name || ""))
       || inboundName;
@@ -4261,12 +4262,13 @@ export async function POST(req: Request) {
       try {
         const { data: crmContact } = await supabase
           .from("agent_crm_contacts")
-          .select("name,status,quote_requests_count")
+          .select("id,name,email,phone,company,status,quote_requests_count,metadata")
           .eq("created_by", ownerId)
           .or(inboundFilter.replace(/contact_phone/g, "phone"))
           .order("updated_at", { ascending: false })
           .limit(1)
           .maybeSingle();
+        crmContactProfile = crmContact as any;
         knownCustomerName = sanitizeCustomerDisplayName(String((crmContact as any)?.name || ""));
         const crmStatus = normalizeText(String((crmContact as any)?.status || ""));
         const crmQuotes = Number((crmContact as any)?.quote_requests_count || 0);
@@ -4277,6 +4279,26 @@ export async function POST(req: Request) {
       } catch {
         // ignore missing table or transient query errors
       }
+    }
+
+    if (crmContactProfile && typeof crmContactProfile === "object") {
+      const crmMeta = crmContactProfile?.metadata && typeof crmContactProfile.metadata === "object" ? crmContactProfile.metadata : {};
+      const crmNit = String(crmMeta?.nit || "").trim();
+      const crmCity = normalizeCityLabel(String(crmMeta?.billing_city || "").trim());
+      const crmTier = normalizeText(String(crmMeta?.price_tier || "").trim());
+      const crmType = normalizeText(String(crmMeta?.customer_type || "").trim());
+      nextMemory.crm_contact_found = true;
+      nextMemory.crm_contact_id = String((crmContactProfile as any)?.id || "").trim();
+      nextMemory.crm_contact_name = String((crmContactProfile as any)?.name || "").trim();
+      nextMemory.crm_contact_email = String((crmContactProfile as any)?.email || "").trim();
+      nextMemory.crm_contact_phone = String((crmContactProfile as any)?.phone || "").trim();
+      nextMemory.crm_company = String((crmContactProfile as any)?.company || "").trim();
+      nextMemory.crm_nit = crmNit;
+      nextMemory.crm_billing_city = crmCity;
+      nextMemory.crm_price_tier = crmTier;
+      nextMemory.crm_customer_type = crmType;
+    } else {
+      nextMemory.crm_contact_found = Boolean(previousMemory?.crm_contact_found);
     }
 
     if (!knownCustomerName) {
@@ -5687,13 +5709,68 @@ export async function POST(req: Request) {
         const phoneNow = extractCustomerPhone(text, inbound.from) || String(firstPhoneLine || "").replace(/\D/g, "");
 
         const prevQuoteData = previousMemory?.quote_data && typeof previousMemory.quote_data === "object" ? previousMemory.quote_data : {};
+        let crmContactFoundForQuote = Boolean(previousMemory?.crm_contact_found || strictMemory.crm_contact_found);
+        let crmNameForQuote = String(previousMemory?.crm_contact_name || strictMemory.crm_contact_name || "").trim();
+        let crmEmailForQuote = String(previousMemory?.crm_contact_email || strictMemory.crm_contact_email || "").trim();
+        let crmPhoneForQuote = String(previousMemory?.crm_contact_phone || strictMemory.crm_contact_phone || "").trim();
+        let crmCompanyForQuote = String(previousMemory?.crm_company || strictMemory.crm_company || "").trim();
+        let crmNitForQuote = String(previousMemory?.crm_nit || strictMemory.crm_nit || "").trim();
+        let crmCityForQuote = normalizeCityLabel(String(previousMemory?.crm_billing_city || strictMemory.crm_billing_city || "").trim());
+        let crmTierForQuote = normalizeText(String(previousMemory?.crm_price_tier || strictMemory.crm_price_tier || "").trim());
+        let crmTypeForQuote = normalizeText(String(previousMemory?.crm_customer_type || strictMemory.crm_customer_type || "").trim());
+
+        if (!crmContactFoundForQuote) {
+          try {
+            const candidatePhone = normalizePhone(phoneNow || inbound.from || "");
+            const candidateNit = String(nitNow || "").replace(/[^0-9\-]/g, "").trim();
+            const candidateEmail = String(emailNow || "").trim().toLowerCase();
+            const candidateKeys = [
+              candidatePhone,
+              candidateNit ? `nit:${candidateNit}` : "",
+              candidateEmail ? `email:${candidateEmail}` : "",
+            ].filter(Boolean);
+            if (candidateKeys.length) {
+              const { data: crmMatch } = await supabase
+                .from("agent_crm_contacts")
+                .select("id,name,email,phone,company,metadata")
+                .eq("created_by", ownerId)
+                .in("contact_key", candidateKeys)
+                .order("updated_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (crmMatch && typeof crmMatch === "object") {
+                const m = (crmMatch as any)?.metadata && typeof (crmMatch as any).metadata === "object" ? (crmMatch as any).metadata : {};
+                crmContactFoundForQuote = true;
+                crmNameForQuote = String((crmMatch as any)?.name || "").trim();
+                crmEmailForQuote = String((crmMatch as any)?.email || "").trim();
+                crmPhoneForQuote = String((crmMatch as any)?.phone || "").trim();
+                crmCompanyForQuote = String((crmMatch as any)?.company || "").trim();
+                crmNitForQuote = String(m?.nit || "").trim();
+                crmCityForQuote = normalizeCityLabel(String(m?.billing_city || "").trim());
+                crmTierForQuote = normalizeText(String(m?.price_tier || "").trim());
+                crmTypeForQuote = normalizeText(String(m?.customer_type || "").trim());
+                strictMemory.crm_contact_found = true;
+                strictMemory.crm_contact_id = String((crmMatch as any)?.id || "").trim();
+                strictMemory.crm_contact_name = crmNameForQuote;
+                strictMemory.crm_contact_email = crmEmailForQuote;
+                strictMemory.crm_contact_phone = crmPhoneForQuote;
+                strictMemory.crm_company = crmCompanyForQuote;
+                strictMemory.crm_nit = crmNitForQuote;
+                strictMemory.crm_billing_city = crmCityForQuote;
+                strictMemory.crm_price_tier = crmTierForQuote;
+                strictMemory.crm_customer_type = crmTypeForQuote;
+              }
+            }
+          } catch {}
+        }
+
         const quoteData = {
-          city: cityNow || String(prevQuoteData.city || ""),
-          company: companyNow || String(prevQuoteData.company || ""),
-          nit: nitNow || String(prevQuoteData.nit || ""),
-          contact: contactNow || String(prevQuoteData.contact || ""),
-          email: emailNow || String(prevQuoteData.email || ""),
-          phone: phoneNow || String(prevQuoteData.phone || ""),
+          city: cityNow || String(prevQuoteData.city || "") || crmCityForQuote,
+          company: companyNow || String(prevQuoteData.company || "") || crmCompanyForQuote,
+          nit: nitNow || String(prevQuoteData.nit || "") || crmNitForQuote,
+          contact: contactNow || String(prevQuoteData.contact || "") || crmNameForQuote,
+          email: emailNow || String(prevQuoteData.email || "") || crmEmailForQuote,
+          phone: phoneNow || String(prevQuoteData.phone || "") || crmPhoneForQuote,
         };
         strictMemory.quote_data = quoteData;
 
@@ -5711,7 +5788,10 @@ export async function POST(req: Request) {
           customerNit.length >= 5 ||
           customerEmail.includes("@") ||
           customerPhone.replace(/\D/g, "").length >= 7;
-        if (!isAdvanceInQuoteData && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachability)) {
+        if (!crmContactFoundForQuote && isAdvanceInQuoteData) {
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = "Para cliente nuevo sí necesito datos de facturación antes de cotizar: ciudad, empresa, NIT, contacto, correo y celular.";
+        } else if (!isAdvanceInQuoteData && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachability)) {
           const missing: string[] = [];
           if (!hasContactCore) missing.push("contacto");
           if (!hasCityCore) missing.push("ciudad");
@@ -5744,7 +5824,9 @@ export async function POST(req: Request) {
             const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
             const cityCop = Number(cityPrices?.[cityKey] || 0);
             const bogotaCop = Number(cityPrices?.bogota || 0);
-            const unitPriceCop = cityCop > 0 ? cityCop : bogotaCop;
+            const distributorCop = Number(cityPrices?.distribuidor || 0);
+            const useDistributorPrice = crmTierForQuote === "distribuidor" || crmTypeForQuote === "distributor";
+            const unitPriceCop = useDistributorPrice && distributorCop > 0 ? distributorCop : (cityCop > 0 ? cityCop : bogotaCop);
             const baseUsdRaw = Number((selected as any)?.base_price_usd || 0);
             const basePriceUsd = baseUsdRaw > 0
               ? baseUsdRaw
