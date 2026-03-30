@@ -6013,6 +6013,9 @@ export async function POST(req: Request) {
         const askMore = /^(mas|más)$/i.test(strictCommand);
         const askBack = /^volver$/i.test(strictCommand);
         const askCancel = /^cancelar$/i.test(strictCommand);
+        const freeCatalogAskInModelStep =
+          isCatalogBreadthQuestion(text) ||
+          /(que\s+mas|que\s+otros?|que\s+tienes|que\s+manejas|que\s+ofrec|catalogo|otro\s+tipo|otra\s+categoria|otra\s+categoría)/.test(normalizeText(text));
         const requestedCategoryIntentInModelStep = detectCatalogCategoryIntent(text);
         const currentCategoryIntentInModelStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
         const isCategorySwitchInModelStep = Boolean(
@@ -6027,7 +6030,7 @@ export async function POST(req: Request) {
           isUseCaseFamilyHint(text) ||
           isRecommendationIntent(text)
         );
-        if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel && !technicalBypassInSelection && !isCategorySwitchInModelStep) {
+        if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel && !technicalBypassInSelection && !isCategorySwitchInModelStep && !freeCatalogAskInModelStep) {
           strictMemory.awaiting_action = "strict_choose_model";
           strictMemory.pending_product_options = pendingStrictOptions;
           strictMemory.strict_model_offset = Math.max(0, Number(previousMemory?.strict_model_offset || 0));
@@ -6051,6 +6054,24 @@ export async function POST(req: Request) {
             strictReply = [
               `Perfecto, cambio la búsqueda a ${String(requestedCategoryIntentInModelStep || "catalogo").replace(/_/g, " ")}.`,
               "Primero elige familia:",
+              ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
+              "",
+              "Responde con letra o número (A/1).",
+            ].join("\n");
+          }
+        }
+        if (!String(strictReply || "").trim() && freeCatalogAskInModelStep && !isCategorySwitchInModelStep) {
+          const families = buildNumberedFamilyOptions(categoryScoped as any[], 8);
+          if (!families.length) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = "En base de datos no tengo más referencias activas en este grupo por ahora. Si quieres, dime capacidad y resolución y te busco alternativas exactas.";
+          } else {
+            strictMemory.awaiting_action = "strict_choose_family";
+            strictMemory.pending_family_options = families;
+            strictMemory.pending_product_options = [];
+            strictReply = [
+              `Claro. En base de datos tengo ${categoryScoped.length} referencia(s) activas para esta categoría.`,
+              "Elige familia para no perder el hilo:",
               ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
               "",
               "Responde con letra o número (A/1).",
