@@ -1919,6 +1919,37 @@ function maxReadabilityForApplication(app: string): number {
   return 1;
 }
 
+function getApplicationRecommendedOptions(args: {
+  rows: any[];
+  application: string;
+  capTargetG: number;
+  excludeId?: string;
+}): any[] {
+  const rows = Array.isArray(args.rows) ? args.rows : [];
+  const app = String(args.application || "").trim();
+  const maxRead = maxReadabilityForApplication(app);
+  const capTarget = Number(args.capTargetG || 0);
+  const excludeId = String(args.excludeId || "").trim();
+  const filtered = rows
+    .filter((r: any) => {
+      const id = String(r?.id || "").trim();
+      if (excludeId && id && id === excludeId) return false;
+      const rs = extractRowTechnicalSpec(r);
+      const read = Number(rs?.readabilityG || 0);
+      return read > 0 && read <= maxRead;
+    })
+    .sort((a: any, b: any) => {
+      const ar = Number(extractRowTechnicalSpec(a)?.readabilityG || 999);
+      const br = Number(extractRowTechnicalSpec(b)?.readabilityG || 999);
+      const ac = Number(extractRowTechnicalSpec(a)?.capacityG || 0);
+      const bc = Number(extractRowTechnicalSpec(b)?.capacityG || 0);
+      const ad = capTarget > 0 ? Math.abs(ac - capTarget) : 0;
+      const bd = capTarget > 0 ? Math.abs(bc - capTarget) : 0;
+      return ad - bd || ar - br;
+    });
+  return buildNumberedProductOptions(filtered.slice(0, 8) as any[], 8);
+}
+
 function buildActiveMenuState(args: {
   awaiting: string;
   pendingOptions: any[];
@@ -4979,11 +5010,47 @@ export async function POST(req: Request) {
       });
 
       if (!String(strictReply || "").trim() && pipelineIntent === "compatibility_question") {
-        strictReply = buildCompatibilityAnswer({
-          text,
-          slots: slotPack.slots,
-          pendingOptions: pendingForSlots,
+        const app = detectTargetApplication(text) || String(slotPack.slots.target_application || "");
+        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+        const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || "").trim();
+        const selectedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || "").trim();
+        const selected = selectedId
+          ? (ownerRows as any[]).find((r: any) => String(r?.id || "").trim() === selectedId)
+          : (selectedName ? findCatalogProductByName(ownerRows as any[], selectedName) : null);
+        const selectedSpec = extractRowTechnicalSpec(selected);
+        const selectedRead = Number(selectedSpec?.readabilityG || 0);
+        const capTarget = Number(slotPack.slots.target_capacity_g || previousMemory?.strict_filter_capacity_g || 0);
+        const options = getApplicationRecommendedOptions({
+          rows: categoryScoped as any[],
+          application: app,
+          capTargetG: capTarget,
+          excludeId: String(selected?.id || ""),
         });
+        strictMemory.target_application = app;
+        strictMemory.target_industry = app === "joyeria_oro" ? "joyeria" : app;
+        if (options.length) {
+          strictMemory.pending_product_options = options;
+          strictMemory.pending_family_options = [];
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictMemory.strict_model_offset = 0;
+          const maxRead = maxReadabilityForApplication(app);
+          const selectedCompatible = selectedRead > 0 && selectedRead <= maxRead;
+          strictReply = [
+            selected && selectedCompatible
+              ? `Sí, ${String((selected as any)?.name || selectedName)} puede servir para ${app.replace(/_/g, " ")}.`
+              : `No del todo: para ${app.replace(/_/g, " ")} conviene una precisión más fina que la opción actual.`,
+            "Estas opciones de catálogo sí te sirven mejor:",
+            ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+            "",
+            "Elige una con letra/número (A/1), o escribe 'más'.",
+          ].join("\n");
+        } else {
+          strictReply = buildCompatibilityAnswer({
+            text,
+            slots: slotPack.slots,
+            pendingOptions: pendingForSlots,
+          });
+        }
       }
 
       if (!String(strictReply || "").trim()) {
@@ -5804,22 +5871,24 @@ export async function POST(req: Request) {
         const technicalReadInAction = Number((technicalHintInAction as any)?.readabilityG || 0);
         const categoryIntentInAction = awaiting === "strict_choose_action" ? detectCatalogCategoryIntent(text) : null;
         const appHintInAction = awaiting === "strict_choose_action" ? detectTargetApplication(text) : "";
+        const asksApplicationRecommendationsNow = awaiting === "strict_choose_action" && /^(si|sí|si\s+por\s+favor|sí\s+por\s+favor|por\s+favor|dale|ok|de\s+una)$/.test(textNorm);
         const currentCategoryInAction = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || ""));
         const isCategorySwitchInAction = Boolean(
           categoryIntentInAction && normalizeText(String(categoryIntentInAction || "")) !== currentCategoryInAction
         );
 
-        if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && appHintInAction && !wantsQuote && !wantsSheet && !(technicalCapInAction > 0 || technicalReadInAction > 0)) {
-          strictMemory.target_application = appHintInAction;
-          strictMemory.target_industry = appHintInAction === "joyeria_oro" ? "joyeria" : appHintInAction;
+        if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && (appHintInAction || (asksApplicationRecommendationsNow && String(previousMemory?.target_application || "").trim())) && !wantsQuote && !wantsSheet && !(technicalCapInAction > 0 || technicalReadInAction > 0)) {
+          const effectiveApp = appHintInAction || String(previousMemory?.target_application || "").trim();
+          strictMemory.target_application = effectiveApp;
+          strictMemory.target_industry = effectiveApp === "joyeria_oro" ? "joyeria" : effectiveApp;
           const selectedSpec = extractRowTechnicalSpec(selectedProduct);
           const selectedRead = Number(selectedSpec?.readabilityG || 0);
-          const maxRead = maxReadabilityForApplication(appHintInAction);
+          const maxRead = maxReadabilityForApplication(effectiveApp);
           const selectedIsCompatible = selectedRead > 0 && selectedRead <= maxRead;
 
           if (selectedIsCompatible) {
             strictReply = [
-              `Sí, ${selectedName} puede servir para ${appHintInAction.replace(/_/g, " ")} por precisión (${formatSpecNumber(selectedRead)} g).`,
+              `Sí, ${selectedName} puede servir para ${effectiveApp.replace(/_/g, " ")} por precisión (${formatSpecNumber(selectedRead)} g).`,
               "Si quieres, seguimos con 1) cotización o 2) ficha técnica.",
             ].join("\n");
           } else {
@@ -5847,14 +5916,14 @@ export async function POST(req: Request) {
               strictMemory.awaiting_action = "strict_choose_model";
               strictMemory.strict_model_offset = 0;
               strictReply = [
-                `No del todo: ${selectedName} no es ideal para ${appHintInAction.replace(/_/g, " ")} por su precisión (${formatSpecNumber(selectedRead || 0)} g).`,
+                `No del todo: ${selectedName} no es ideal para ${effectiveApp.replace(/_/g, " ")} por su precisión (${formatSpecNumber(selectedRead || 0)} g).`,
                 "Estas opciones sí son más adecuadas para ese uso:",
                 ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
                 "",
                 "Elige una con letra/número (A/1), o escribe 'más'.",
               ].join("\n");
             } else {
-              strictReply = `No del todo: ${selectedName} no es ideal para ${appHintInAction.replace(/_/g, " ")} y no veo opciones activas con esa precisión en este grupo. Si quieres, ajustamos capacidad/resolución.`;
+              strictReply = `No del todo: ${selectedName} no es ideal para ${effectiveApp.replace(/_/g, " ")} y no veo opciones activas con esa precisión en este grupo. Si quieres, ajustamos capacidad/resolución.`;
             }
           }
         }
