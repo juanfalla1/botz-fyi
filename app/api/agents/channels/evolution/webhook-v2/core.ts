@@ -5253,6 +5253,29 @@ export async function POST(req: Request) {
           }
 
           if (cap > 0 && !(read > 0)) {
+            const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
+            const scopedForFast = currentCategory ? scopeCatalogRows(ownerRows as any[], currentCategory) : ownerRows;
+            if (currentCategory === "basculas" && Array.isArray(scopedForFast) && scopedForFast.length > 0 && scopedForFast.length <= 4) {
+              const rankedCap = rankCatalogByCapacityOnly(scopedForFast as any[], cap);
+              const rankedRows = rankedCap.length ? rankedCap.map((x: any) => x.row) : scopedForFast;
+              const options = buildNumberedProductOptions((rankedRows || []).slice(0, 8) as any[], 8);
+              if (options.length) {
+                strictMemory.strict_partial_capacity_g = cap;
+                strictMemory.strict_filter_capacity_g = cap;
+                strictMemory.pending_product_options = options;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                const total = options.length;
+                const reply = [
+                  `Perfecto. Para básculas activas, en este momento manejo ${total} modelo(s).`,
+                  ...options.map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Elige una con letra/número (A/1) y te envío ficha o cotización.",
+                ].join("\n");
+                return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+              }
+            }
             strictMemory.awaiting_action = "strict_need_spec";
             return finalizeStrictTurn(`Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g). Ahora dime la resolución objetivo (ej.: 0.1 g, 0.01 g, 0.001 g).`, strictMemory, { pipeline: true, intent: pipelineIntent });
           }
@@ -6100,12 +6123,32 @@ export async function POST(req: Request) {
           ].join("\n");
           strictMemory.awaiting_action = "strict_need_spec";
         } else if (cap > 0 && !(read > 0)) {
-          strictReply = [
-            `Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g).`,
-            "Ahora dime la resolución/precisión objetivo.",
-            "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
-          ].join("\n");
-          strictMemory.awaiting_action = "strict_need_spec";
+          const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
+          const scopedForFast = currentCategory ? scopeCatalogRows(ownerRows as any[], currentCategory) : ownerRows;
+          if (currentCategory === "basculas" && Array.isArray(scopedForFast) && scopedForFast.length > 0 && scopedForFast.length <= 4) {
+            const rankedCap = rankCatalogByCapacityOnly(scopedForFast as any[], cap);
+            const rankedRows = rankedCap.length ? rankedCap.map((x: any) => x.row) : scopedForFast;
+            const options = buildNumberedProductOptions((rankedRows || []).slice(0, 8) as any[], 8);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictMemory.strict_partial_capacity_g = cap;
+            strictMemory.strict_filter_capacity_g = cap;
+            strictReply = [
+              `Perfecto. Para básculas activas, en este momento manejo ${options.length} modelo(s).`,
+              ...options.map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige una con letra/número (A/1) y te envío ficha o cotización.",
+            ].join("\n");
+          } else {
+            strictReply = [
+              `Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g).`,
+              "Ahora dime la resolución/precisión objetivo.",
+              "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
+            ].join("\n");
+            strictMemory.awaiting_action = "strict_need_spec";
+          }
         } else {
           strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
           strictMemory.strict_filter_capacity_g = Number(cap || 0);
