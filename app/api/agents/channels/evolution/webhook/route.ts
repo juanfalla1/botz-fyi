@@ -1945,11 +1945,14 @@ function getApplicationRecommendedOptions(args: {
       const rs = extractRowTechnicalSpec(r);
       const cap = Number(rs?.capacityG || 0);
       const read = Number(rs?.readabilityG || 0);
+      const appText = normalizeText([String(r?.name || ""), String(r?.category || ""), familyLabelFromRow(r)].join(" "));
       if (!(read > 0) || !(cap > 0)) return false;
       if (read > maxRead) return false;
       if (targetRead > 0 && strictPrecision && read > targetRead) return false;
       if (capTarget > 0 && (cap < minCap || cap > maxCap)) return false;
       if (isJewelry && cap > 6000) return false;
+      if (normalizeText(app) === "laboratorio" && /(industrial|plataforma|ranger|defender|valor|rc31|r71|ckw|td52p)/.test(appText)) return false;
+      if (isJewelry && /(industrial|plataforma|ranger|defender|valor|rc31|r71|ckw|td52p)/.test(appText)) return false;
       return true;
     })
     .sort((a: any, b: any) => {
@@ -2010,7 +2013,7 @@ function classifyMessageIntent(args: {
   const hasTechnical = Number((technical as any)?.capacityG || 0) > 0 || Number((technical as any)?.readabilityG || 0) > 0 || Boolean(parseTechnicalSpecQuery(text));
   const categoryIntent = detectCatalogCategoryIntent(text);
   const compatibilityQ = /(sirve|sirven|me sirve|funciona|funcionan|aplica|aplican|para\s+oro|para\s+joyeria|para\s+joyería|para\s+laboratorio|para\s+alimentos|si\s+o\s+no)/.test(t) && /\?/.test(text);
-  const appUpdate = /(para\s+oro|para\s+joyeria|para\s+joyería|para\s+laboratorio|para\s+alimentos|es\s+para\s+)/.test(t);
+  const appUpdate = /(para\s+oro|para\s+joyeria|para\s+joyería|para\s+laboratorio|para\s+alimentos|es\s+para\s+|de\s+laboratorio|de\s+joyeria|de\s+joyería|cuales?\s+de\s+laboratorio|cu[aá]les?\s+de\s+laboratorio|laboratorio\s+tienes|de\s+oro)/.test(t);
   const alternativeReq = /(otra\s+opcion|otra\s+opción|otro\s+modelo|mas\s+econom|más\s+econ|mas\s+resol|más\s+resol|mas\s+capacidad|más\s+capacidad|alternativ|mas\s+opcion|más\s+opción|mas\s+opciones|más\s+opciones)/.test(t);
 
   if (args.activeMenuType && isMenuSelectionInput(text)) return "menu_selection";
@@ -5058,7 +5061,7 @@ export async function POST(req: Request) {
           : (selectedName ? findCatalogProductByName(ownerRows as any[], selectedName) : null);
         const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
 
-        if (pipelineIntent === "compatibility_question") {
+        if (pipelineIntent === "compatibility_question" || pipelineIntent === "application_update") {
           const app = detectTargetApplication(text) || String(slotPack.slots.target_application || "");
           const targetRead = Number(slotPack.slots.target_readability_g || previousMemory?.strict_filter_readability_g || 0);
           const strictPrecisionAsk = /(menos\s+de|maxima\s+precision|maxima\s+precisi[oó]n|alta\s+precision|m[aá]xima\s+precision)/.test(textNorm);
@@ -5081,10 +5084,13 @@ export async function POST(req: Request) {
             const selectedRead = Number(extractRowTechnicalSpec(selected)?.readabilityG || 0);
             const maxRead = maxReadabilityForApplication(app);
             const selectedCompatible = selectedRead > 0 && selectedRead <= maxRead;
-            const reply = [
-              selected && selectedCompatible
+            const intro = pipelineIntent === "application_update"
+              ? `Perfecto. Para ${app.replace(/_/g, " ")}, estas son opciones activas de catálogo:`
+              : (selected && selectedCompatible
                 ? `Sí, ${String((selected as any)?.name || selectedName)} puede servir para ${app.replace(/_/g, " ")}.`
-                : `No del todo: para ${app.replace(/_/g, " ")} conviene una precisión más fina que la opción actual.`,
+                : `No del todo: para ${app.replace(/_/g, " ")} conviene una precisión más fina que la opción actual.`);
+            const reply = [
+              intro,
               "Te comparto 3 recomendaciones de catálogo para seguir:",
               ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
               "",
