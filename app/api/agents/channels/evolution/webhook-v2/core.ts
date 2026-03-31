@@ -5557,6 +5557,7 @@ export async function POST(req: Request) {
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
         const parsed = parseLooseTechnicalHint(text);
         const capacityRange = parseCapacityRangeHint(text);
+        const asksCategoryMenuNow = /(categorias|categorías|que\s+categorias|que\s+categorías|familias|que\s+familias|grupos)/.test(textNorm);
         const merged = mergeLooseSpecWithMemory(
           {
             capacityG: Number(previousMemory?.strict_partial_capacity_g || previousMemory?.strict_filter_capacity_g || 0),
@@ -5570,6 +5571,22 @@ export async function POST(req: Request) {
         strictMemory.strict_partial_readability_g = read > 0 ? read : "";
 
         if (!(cap > 0) && !(read > 0)) {
+          if (asksCategoryMenuNow) {
+            const families = buildNumberedFamilyOptions(ownerRows as any[], 8);
+            strictMemory.pending_family_options = families;
+            strictMemory.pending_product_options = [];
+            strictMemory.awaiting_action = "strict_choose_family";
+            strictMemory.strict_family_label = "";
+            strictReply = families.length
+              ? [
+                  "Claro. Estas son las familias/categorías activas que sí tengo en catálogo:",
+                  ...families.map((f) => `${f.code}) ${f.label} (${f.count})`),
+                  "",
+                  "Elige una con letra o número (A/1) y te muestro opciones compatibles.",
+                ].join("\n")
+              : "En este momento no tengo familias activas para mostrar en el catálogo.";
+          }
+          if (!String(strictReply || "").trim()) {
           const asksAlternativesNow = /\b(alternativas?|opciones?)\b/.test(textNorm) || /(dame|muestrame|mu[eé]strame|quiero)\s+.*(alternativas?|opciones?)/.test(textNorm);
           const rememberedCap = Number(previousMemory?.strict_filter_capacity_g || previousMemory?.strict_partial_capacity_g || 0);
           const rememberedRead = Number(previousMemory?.strict_filter_readability_g || previousMemory?.strict_partial_readability_g || 0);
@@ -5603,6 +5620,7 @@ export async function POST(req: Request) {
               strictMemory.strict_filter_readability_g = rememberedRead;
               strictReply = `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
             }
+          }
           }
           if (!String(strictReply || "").trim()) {
           if (capacityRange) {
@@ -6694,9 +6712,20 @@ export async function POST(req: Request) {
               const readRatio = (bestRead > 0 && effectiveRead > 0) ? (Math.max(bestRead, effectiveRead) / Math.max(1e-9, Math.min(bestRead, effectiveRead))) : 9999;
               const tooFar = prioritized.exactCount === 0 && (capDeltaPct > 500 || readRatio > 20);
               if (tooFar) {
+                const familyAlternatives = buildNumberedFamilyOptions(categoryScoped as any[], 8)
+                  .filter((f) => normalizeText(String(f.label || "")) !== normalizeText(String(familyLabel || "")));
                 strictMemory.pending_product_options = [];
-                strictMemory.awaiting_action = "strict_need_spec";
-                strictReply = `Para ${criterionLabel} no tengo opciones realmente compatibles en el catálogo activo de ${familyLabel || "esta familia"}. Si quieres, te propongo alternativas en otra categoría o ajustamos capacidad/resolución.`;
+                strictMemory.pending_family_options = familyAlternatives;
+                strictMemory.awaiting_action = familyAlternatives.length ? "strict_choose_family" : "strict_need_spec";
+                strictReply = familyAlternatives.length
+                  ? [
+                      `Para ${criterionLabel} no tengo opciones realmente compatibles en ${familyLabel || "esta familia"}.`,
+                      "Sí puedo proponerte alternativas en otras familias:",
+                      ...familyAlternatives.map((f) => `${f.code}) ${f.label} (${f.count})`),
+                      "",
+                      "Elige una con letra o número (A/1), o ajustamos capacidad/resolución.",
+                    ].join("\n")
+                  : `Para ${criterionLabel} no tengo opciones realmente compatibles en el catálogo activo de ${familyLabel || "esta familia"}. Si quieres, ajustamos capacidad/resolución.`;
               } else {
               const top = filteredPage.slice(0, 3);
               const exactIntro = prioritized.exactCount > 0
@@ -6824,6 +6853,7 @@ export async function POST(req: Request) {
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_family") {
         const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
+        const asksCategoryMenuInFamilyStep = /(categorias|categorías|que\s+categorias|que\s+categorías|familias|que\s+familias|grupos)/.test(textNorm);
         const categoryIntentInFamilyStep = detectCatalogCategoryIntent(text);
         const currentCategoryInFamilyStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
         const isCategorySwitchInFamilyStep = Boolean(
@@ -6832,6 +6862,21 @@ export async function POST(req: Request) {
         if (!pendingFamilies.length) {
           strictMemory.awaiting_action = "none";
           strictReply = "En este momento no tengo familias disponibles en esa categoría. Si quieres, dime el modelo exacto (ej.: MB120) y te ayudo.";
+        }
+
+        if (!String(strictReply || "").trim() && asksCategoryMenuInFamilyStep) {
+          const families = pendingFamilies.length ? pendingFamilies : buildNumberedFamilyOptions(ownerRows as any[], 8);
+          strictMemory.pending_family_options = families;
+          strictMemory.pending_product_options = [];
+          strictMemory.awaiting_action = "strict_choose_family";
+          strictReply = families.length
+            ? [
+                "Claro. Estas son las familias/categorías activas:",
+                ...families.map((f: any) => `${f.code}) ${f.label} (${f.count})`),
+                "",
+                "Elige una con letra o número (A/1).",
+              ].join("\n")
+            : "En este momento no tengo familias activas para mostrar en catálogo.";
         }
 
         if (!String(strictReply || "").trim() && isCategorySwitchInFamilyStep) {
