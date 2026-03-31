@@ -5082,7 +5082,7 @@ export async function POST(req: Request) {
 
       const { data: ownerRowsRaw } = await supabase
         .from("agent_product_catalog")
-        .select("id,name,category,brand,base_price_usd,price_currency,source_payload,product_url,image_url,datasheet_url,is_active")
+        .select("id,name,category,brand,base_price_usd,price_currency,source_payload,product_url,image_url,datasheet_url,specs_text,summary,description,specs_json,is_active")
         .eq("created_by", ownerId)
         .eq("is_active", true)
         .order("updated_at", { ascending: false })
