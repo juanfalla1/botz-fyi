@@ -3338,10 +3338,34 @@ function passesStrictCategoryGuard(row: any, categoryIntent: string): boolean {
 function scopeCatalogRows(rows: any[], categoryIntent: string): any[] {
   const wanted = normalizeText(String(categoryIntent || ""));
   if (!wanted) return rows || [];
-  return (rows || []).filter((row: any) => {
+  const strict = (rows || []).filter((row: any) => {
     if (!categoryMatchesIntent(row, wanted)) return false;
     return passesStrictCategoryGuard(row, wanted);
   });
+  if (wanted !== "basculas" || strict.length >= 3) return strict;
+
+  const relaxed = (rows || []).filter((row: any) => {
+    const rowCat = normalizeText(String(row?.category || ""));
+    const rowSub = catalogSubcategory(row);
+    const rowName = normalizeText(String(row?.name || ""));
+    if (rowCat === "basculas" || rowCat.startsWith("basculas_") || rowSub.startsWith("basculas") || rowSub.startsWith("plataformas") || rowSub.startsWith("indicadores")) {
+      return true;
+    }
+    if (/(ranger|defender|valor|plataforma|control de peso|ckw|td52p|bascula|basculas|industrial)/.test(rowName)) {
+      return true;
+    }
+    return false;
+  });
+
+  const out: any[] = [];
+  const seen = new Set<string>();
+  for (const row of [...strict, ...relaxed]) {
+    const key = String(row?.id || "").trim() || normalizeText(String(row?.name || ""));
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
 }
 
 function isCatalogMatchConsistent(text: string, row: any, forcedCategory?: string): boolean {
