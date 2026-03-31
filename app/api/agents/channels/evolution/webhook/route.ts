@@ -7111,7 +7111,19 @@ export async function POST(req: Request) {
           }
         }
         if (!String(strictReply || "").trim() && !selectedFamily && !handledTechnicalGuidedInFamilyStep) {
-          strictReply = buildGuidedRecoveryMessage({
+          const familyHints = pendingFamilies
+            .slice(0, 6)
+            .map((f: any) => ({ code: String(f?.code || ""), name: String(f?.label || "") }))
+            .filter((f: any) => f.code && f.name);
+          const softReply = await buildStrictConversationalReply({
+            apiKey,
+            inboundText: text,
+            awaiting,
+            selectedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
+            categoryHint: rememberedCategory,
+            pendingOptions: familyHints,
+          });
+          strictReply = String(softReply || "").trim() || buildGuidedRecoveryMessage({
             awaiting,
             rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
             hasPendingFamilies: pendingFamilies.length > 0,
