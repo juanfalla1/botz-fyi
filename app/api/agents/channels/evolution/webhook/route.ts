@@ -738,6 +738,63 @@ function logStrictTransition(meta: { before: string; after: string; text: string
   } catch {}
 }
 
+async function buildStrictConversationalReply(args: {
+  apiKey?: string;
+  inboundText: string;
+  awaiting?: string;
+  selectedProduct?: string;
+  categoryHint?: string;
+  pendingOptions?: Array<{ code?: string; name?: string }>;
+}): Promise<string> {
+  const apiKey = String(args.apiKey || "").trim();
+  const inboundText = String(args.inboundText || "").trim();
+  if (!apiKey || !inboundText) return "";
+
+  const textNorm = normalizeText(inboundText);
+  const outOfCatalog =
+    isOutOfCatalogDomainQuery(inboundText) ||
+    /\b(carro|carros|vehiculo|vehiculos|moto|motos|leche|comida|alimento|alimentos)\b/.test(textNorm);
+  const pending = Array.isArray(args.pendingOptions) ? args.pendingOptions : [];
+  const optionsHint = pending.length
+    ? pending
+        .slice(0, 4)
+        .map((o) => `${String(o?.code || "").trim()}) ${String(o?.name || "").trim()}`)
+        .filter((x) => /\w/.test(x))
+        .join(" | ")
+    : "";
+
+  const systemPrompt = [
+    "Eres Ava, asesora comercial por WhatsApp.",
+    "Responde SIEMPRE en español, tono natural y útil, en 2-4 líneas.",
+    "No inventes productos, precios ni disponibilidad fuera de catálogo activo.",
+    outOfCatalog
+      ? "Si el cliente pide algo fuera del catálogo, dilo directo en una línea y redirige a balanzas/analizador de humedad."
+      : "Si hay contexto técnico/comercial, aprovéchalo y guía al siguiente paso sin forzar menú.",
+    args.selectedProduct ? `Producto de referencia actual: ${String(args.selectedProduct || "")}.` : "",
+    args.categoryHint ? `Categoría activa: ${String(args.categoryHint || "").replace(/_/g, " ")}.` : "",
+    optionsHint ? `Opciones activas: ${optionsHint}.` : "",
+    "Si existe lista de opciones activa, sugiere que también puede elegir con letra/número o escribir 'más', pero sin bloquear la conversación.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    const openai = new OpenAI({ apiKey });
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.2,
+      max_tokens: 140,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: inboundText },
+      ] as any,
+    });
+    return String(completion.choices?.[0]?.message?.content || "").trim();
+  } catch {
+    return "";
+  }
+}
+
 function isAdvisorAppointmentIntent(text: string): boolean {
   const t = normalizeText(text || "");
   return /(\bcita\b|asesor humano|asesor comercial|agendar|agenda|llamada con asesor|quiero hablar con asesor)/.test(t);
@@ -5786,7 +5843,15 @@ export async function POST(req: Request) {
           }
         } else if (!String(strictReply || "").trim()) {
           if (awaiting === "strict_choose_action" && !wantsQuote && !wantsSheet && !/^\s*[12]\b/.test(textNorm)) {
-            strictReply = [
+            const softReply = await buildStrictConversationalReply({
+              apiKey,
+              inboundText: text,
+              awaiting,
+              selectedProduct: selectedName,
+              categoryHint: rememberedCategory,
+              pendingOptions: Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [],
+            });
+            strictReply = String(softReply || "").trim() || [
               `Entiendo. Si ${selectedName} no te sirve, te puedo proponer alternativas reales del catálogo por:`,
               "- mayor/menor capacidad",
               "- mayor/menor resolución",
@@ -6186,10 +6251,18 @@ export async function POST(req: Request) {
           isRecommendationIntent(text)
         );
         if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel && !technicalBypassInSelection && !isCategorySwitchInModelStep && !freeCatalogAskInModelStep && !asksHotplate) {
+          const softReply = await buildStrictConversationalReply({
+            apiKey,
+            inboundText: text,
+            awaiting,
+            selectedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
+            categoryHint: rememberedCategory,
+            pendingOptions: pendingStrictOptions,
+          });
           strictMemory.awaiting_action = "strict_choose_model";
           strictMemory.pending_product_options = pendingStrictOptions;
           strictMemory.strict_model_offset = Math.max(0, Number(previousMemory?.strict_model_offset || 0));
-          strictReply = "Por favor elige una opción válida del listado actual. Responde solo con la letra o número disponible (por ejemplo: A, B, 1 o 2), o escribe \"más\" para ver más opciones.";
+          strictReply = String(softReply || "").trim() || "Por favor elige una opción válida del listado actual. Responde solo con la letra o número disponible (por ejemplo: A, B, 1 o 2), o escribe \"más\" para ver más opciones.";
         }
         if (!String(strictReply || "").trim() && isCategorySwitchInModelStep) {
           const scoped = scopeCatalogRows(ownerRows as any, String(requestedCategoryIntentInModelStep || ""));
