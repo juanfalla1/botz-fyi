@@ -5009,7 +5009,7 @@ export async function POST(req: Request) {
         activeMenuType: slotPack.slots.active_menu_type,
       });
 
-      if (!String(strictReply || "").trim() && pipelineIntent === "compatibility_question") {
+        if (!String(strictReply || "").trim() && pipelineIntent === "compatibility_question") {
         const app = detectTargetApplication(text) || String(slotPack.slots.target_application || "");
         const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
         const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || "").trim();
@@ -5050,6 +5050,15 @@ export async function POST(req: Request) {
             slots: slotPack.slots,
             pendingOptions: pendingForSlots,
           });
+          strictMemory.awaiting_action = "compatibility_followup";
+          strictMemory.compatibility_application = app;
+          strictReply = [
+            String(strictReply || "").trim(),
+            "",
+            "Para continuar, responde:",
+            "1) Ver 3 opciones recomendadas",
+            "2) Ajustar capacidad/resolución",
+          ].join("\n");
         }
       }
 
@@ -5102,6 +5111,48 @@ export async function POST(req: Request) {
       }
 
       const strictAwaiting = String(previousMemory?.awaiting_action || "");
+      if (!String(strictReply || "").trim() && strictAwaiting === "compatibility_followup") {
+        const app = String(previousMemory?.target_application || previousMemory?.compatibility_application || "").trim();
+        const capTarget = Number(previousMemory?.target_capacity_g || previousMemory?.strict_filter_capacity_g || 0);
+        const rememberedCategoryCompat = String(previousMemory?.last_category_intent || rememberedCategory || "").trim();
+        const scoped = rememberedCategoryCompat ? scopeCatalogRows(ownerRows as any, rememberedCategoryCompat) : ownerRows;
+        const askOptions = isAffirmativeIntent(text) || /^\s*1\s*$/.test(textNorm) || /\b(opciones|recomendadas|muestrame|mu[eé]strame|dame)\b/.test(textNorm);
+        const askAdjust = /^\s*2\s*$/.test(textNorm) || /\b(ajust|capacidad|resolucion|resolución|precision|precisión)\b/.test(textNorm);
+
+        if (askOptions) {
+          const options = getApplicationRecommendedOptions({
+            rows: scoped as any[],
+            application: app,
+            capTargetG: capTarget,
+            excludeId: String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || ""),
+          });
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              `Perfecto. Estas son 3 opciones recomendadas para ${String(app || "tu uso").replace(/_/g, " ")}:`,
+              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige con letra/número (A/1), o escribe 'más'.",
+            ].join("\n");
+          } else {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = "En este momento no veo 3 opciones adecuadas para ese uso con la info actual. Ajustemos capacidad y resolución para proponerte alternativas reales.";
+          }
+        } else if (askAdjust) {
+          strictMemory.awaiting_action = "strict_need_spec";
+          strictReply = "Perfecto. Ajustemos el requerimiento: dime capacidad y resolución objetivo (ej.: 220 g x 0.001 g).";
+        } else {
+          strictMemory.awaiting_action = "compatibility_followup";
+          strictReply = [
+            "Para seguir sin perder el contexto, responde:",
+            "1) Ver 3 opciones recomendadas",
+            "2) Ajustar capacidad/resolución",
+          ].join("\n");
+        }
+      }
       if (!String(strictReply || "").trim() && isAdvisorAppointmentIntent(text)) {
         strictReply = buildAdvisorMiniAgendaPrompt();
         strictMemory.awaiting_action = "advisor_meeting_slot";
