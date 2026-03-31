@@ -1933,6 +1933,7 @@ function listActiveCatalogCategories(rows: any[]): string {
 type ConversationIntent =
   | "menu_selection"
   | "technical_spec_input"
+  | "use_explanation_question"
   | "compatibility_question"
   | "application_update"
   | "alternative_request"
@@ -2067,10 +2068,12 @@ function classifyMessageIntent(args: {
   const hasTechnical = Number((technical as any)?.capacityG || 0) > 0 || Number((technical as any)?.readabilityG || 0) > 0 || Boolean(parseTechnicalSpecQuery(text));
   const categoryIntent = detectCatalogCategoryIntent(text);
   const compatibilityQ = /(sirve|sirven|me sirve|funciona|funcionan|aplica|aplican|para\s+oro|para\s+joyeria|para\s+joyería|para\s+laboratorio|para\s+alimentos|si\s+o\s+no)/.test(t) && /\?/.test(text);
+  const useExplanationQ = /(para\s+que\s+sirven?|que\s+uso\s+tienen|para\s+que\s+se\s+usan)/.test(t) && /(balanza|balanzas|bascula|basculas)/.test(t);
   const appUpdate = /(para\s+oro|para\s+joyeria|para\s+joyería|para\s+laboratorio|para\s+alimentos|es\s+para\s+|de\s+laboratorio|de\s+joyeria|de\s+joyería|cuales?\s+de\s+laboratorio|cu[aá]les?\s+de\s+laboratorio|laboratorio\s+tienes|de\s+oro)/.test(t);
   const alternativeReq = /(otra\s+opcion|otra\s+opción|otro\s+modelo|mas\s+econom|más\s+econ|mas\s+resol|más\s+resol|mas\s+capacidad|más\s+capacidad|alternativ|mas\s+opcion|más\s+opción|mas\s+opciones|más\s+opciones)/.test(t);
 
   if (args.activeMenuType && isMenuSelectionInput(text)) return "menu_selection";
+  if (useExplanationQ) return "use_explanation_question";
   if (compatibilityQ) return "compatibility_question";
   if (hasTechnical) return "technical_spec_input";
   if (alternativeReq) return "alternative_request";
@@ -5125,6 +5128,16 @@ export async function POST(req: Request) {
             "Si quieres, te recomiendo opciones segun capacidad, precision y aplicacion.",
           ].join("\n");
           return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "out_of_catalog" });
+        }
+
+        if (pipelineIntent === "use_explanation_question") {
+          strictMemory.awaiting_action = "strict_need_spec";
+          const reply = [
+            "Buena pregunta: las balanzas/básculas se usan para pesar con precisión en procesos como laboratorio, joyería, alimentos e industria.",
+            "Para recomendarte bien según catálogo activo, dime: 1) uso/aplicación, 2) capacidad aproximada, 3) resolución objetivo.",
+            "Ejemplo: laboratorio, 1000 g, 0.1 g.",
+          ].join("\n");
+          return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
         }
 
         const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || "").trim();
