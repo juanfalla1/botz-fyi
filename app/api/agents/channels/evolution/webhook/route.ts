@@ -1923,20 +1923,34 @@ function getApplicationRecommendedOptions(args: {
   rows: any[];
   application: string;
   capTargetG: number;
+  targetReadabilityG?: number;
+  strictPrecision?: boolean;
   excludeId?: string;
 }): any[] {
   const rows = Array.isArray(args.rows) ? args.rows : [];
   const app = String(args.application || "").trim();
-  const maxRead = maxReadabilityForApplication(app);
+  const appMaxRead = maxReadabilityForApplication(app);
+  const targetRead = Number(args.targetReadabilityG || 0);
+  const strictPrecision = Boolean(args.strictPrecision);
+  const maxRead = targetRead > 0 && strictPrecision ? Math.min(appMaxRead, targetRead) : appMaxRead;
   const capTarget = Number(args.capTargetG || 0);
   const excludeId = String(args.excludeId || "").trim();
+  const isJewelry = normalizeText(app) === "joyeria_oro";
+  const minCap = capTarget > 0 ? (isJewelry ? capTarget * 0.5 : capTarget * 0.25) : 0;
+  const maxCap = capTarget > 0 ? (isJewelry ? capTarget * 2.5 : capTarget * 4.0) : Number.POSITIVE_INFINITY;
   const filtered = rows
     .filter((r: any) => {
       const id = String(r?.id || "").trim();
       if (excludeId && id && id === excludeId) return false;
       const rs = extractRowTechnicalSpec(r);
+      const cap = Number(rs?.capacityG || 0);
       const read = Number(rs?.readabilityG || 0);
-      return read > 0 && read <= maxRead;
+      if (!(read > 0) || !(cap > 0)) return false;
+      if (read > maxRead) return false;
+      if (targetRead > 0 && strictPrecision && read > targetRead) return false;
+      if (capTarget > 0 && (cap < minCap || cap > maxCap)) return false;
+      if (isJewelry && cap > 6000) return false;
+      return true;
     })
     .sort((a: any, b: any) => {
       const ar = Number(extractRowTechnicalSpec(a)?.readabilityG || 999);
@@ -4763,6 +4777,31 @@ export async function POST(req: Request) {
         return false;
       };
 
+      const finalizeStrictTurn = async (replyText: string, memory: Record<string, any>, extra: Record<string, any> = {}) => {
+        const sentOk = await sendStrictQuickText(replyText);
+        if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+        try {
+          await persistConversationTurn(supabase as any, {
+            agentId: String(agent.id),
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            from: inbound.from,
+            pushName: inbound.pushName,
+            contactName: knownCustomerName || inbound.pushName || inbound.from,
+            inboundText: inbound.text,
+            outboundText: replyText,
+            messageId: inbound.messageId,
+            memory,
+          });
+        } catch {}
+        await supabase
+          .from("incoming_messages")
+          .update({ status: "processed", processed_at: new Date().toISOString() })
+          .eq("provider", "evolution")
+          .eq("provider_message_id", incomingDedupKey);
+        return NextResponse.json({ ok: true, sent: true, strict: true, ...extra });
+      };
+
       if (isContextResetIntent(text)) {
         const keepCustomerName = String(strictMemory.customer_name || previousMemory?.customer_name || "").trim();
         const keepCustomerPhone = String(strictMemory.customer_phone || previousMemory?.customer_phone || "").trim();
@@ -5009,58 +5048,185 @@ export async function POST(req: Request) {
         activeMenuType: slotPack.slots.active_menu_type,
       });
 
-        if (!String(strictReply || "").trim() && pipelineIntent === "compatibility_question") {
-        const app = detectTargetApplication(text) || String(slotPack.slots.target_application || "");
-        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+      const pipelineGate = async (): Promise<Response | null> => {
         const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || "").trim();
         const selectedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || "").trim();
         const selected = selectedId
           ? (ownerRows as any[]).find((r: any) => String(r?.id || "").trim() === selectedId)
           : (selectedName ? findCatalogProductByName(ownerRows as any[], selectedName) : null);
-        const selectedSpec = extractRowTechnicalSpec(selected);
-        const selectedRead = Number(selectedSpec?.readabilityG || 0);
-        const capTarget = Number(slotPack.slots.target_capacity_g || previousMemory?.strict_filter_capacity_g || 0);
-        const options = getApplicationRecommendedOptions({
-          rows: categoryScoped as any[],
-          application: app,
-          capTargetG: capTarget,
-          excludeId: String(selected?.id || ""),
-        });
-        strictMemory.target_application = app;
-        strictMemory.target_industry = app === "joyeria_oro" ? "joyeria" : app;
-        if (options.length) {
-          strictMemory.pending_product_options = options;
-          strictMemory.pending_family_options = [];
-          strictMemory.awaiting_action = "strict_choose_model";
-          strictMemory.strict_model_offset = 0;
-          const maxRead = maxReadabilityForApplication(app);
-          const selectedCompatible = selectedRead > 0 && selectedRead <= maxRead;
-          strictReply = [
-            selected && selectedCompatible
-              ? `Sí, ${String((selected as any)?.name || selectedName)} puede servir para ${app.replace(/_/g, " ")}.`
-              : `No del todo: para ${app.replace(/_/g, " ")} conviene una precisión más fina que la opción actual.`,
-            "Estas opciones de catálogo sí te sirven mejor:",
-            ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-            "",
-            "Elige una con letra/número (A/1), o escribe 'más'.",
-          ].join("\n");
-        } else {
-          strictReply = buildCompatibilityAnswer({
-            text,
-            slots: slotPack.slots,
-            pendingOptions: pendingForSlots,
+        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+
+        if (pipelineIntent === "compatibility_question") {
+          const app = detectTargetApplication(text) || String(slotPack.slots.target_application || "");
+          const targetRead = Number(slotPack.slots.target_readability_g || previousMemory?.strict_filter_readability_g || 0);
+          const strictPrecisionAsk = /(menos\s+de|maxima\s+precision|maxima\s+precisi[oó]n|alta\s+precision|m[aá]xima\s+precision)/.test(textNorm);
+          const capTarget = Number(slotPack.slots.target_capacity_g || previousMemory?.strict_filter_capacity_g || 0);
+          const options = getApplicationRecommendedOptions({
+            rows: categoryScoped as any[],
+            application: app,
+            capTargetG: capTarget,
+            targetReadabilityG: targetRead,
+            strictPrecision: strictPrecisionAsk,
+            excludeId: String(selected?.id || ""),
           });
+          strictMemory.target_application = app;
+          strictMemory.target_industry = app === "joyeria_oro" ? "joyeria" : app;
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            const selectedRead = Number(extractRowTechnicalSpec(selected)?.readabilityG || 0);
+            const maxRead = maxReadabilityForApplication(app);
+            const selectedCompatible = selectedRead > 0 && selectedRead <= maxRead;
+            const reply = [
+              selected && selectedCompatible
+                ? `Sí, ${String((selected as any)?.name || selectedName)} puede servir para ${app.replace(/_/g, " ")}.`
+                : `No del todo: para ${app.replace(/_/g, " ")} conviene una precisión más fina que la opción actual.`,
+              "Te comparto 3 recomendaciones de catálogo para seguir:",
+              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige una con letra/número (A/1), o escribe 'más'.",
+            ].join("\n");
+            return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
+          const fallback = buildCompatibilityAnswer({ text, slots: slotPack.slots, pendingOptions: pendingForSlots });
           strictMemory.awaiting_action = "compatibility_followup";
           strictMemory.compatibility_application = app;
-          strictReply = [
-            String(strictReply || "").trim(),
+          const reply = [
+            String(fallback || "").trim(),
             "",
             "Para continuar, responde:",
             "1) Ver 3 opciones recomendadas",
             "2) Ajustar capacidad/resolución",
           ].join("\n");
+          return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
         }
-      }
+
+        if (pipelineIntent === "technical_spec_input") {
+          const merged = mergeLooseSpecWithMemory(
+            {
+              capacityG: Number(previousMemory?.strict_filter_capacity_g || previousMemory?.target_capacity_g || 0),
+              readabilityG: Number(previousMemory?.strict_filter_readability_g || previousMemory?.target_readability_g || 0),
+            },
+            parseLooseTechnicalHint(text)
+          );
+          const cap = Number(merged.capacityG || 0);
+          const read = Number(merged.readabilityG || 0);
+          strictMemory.strict_partial_capacity_g = cap > 0 ? cap : "";
+          strictMemory.strict_partial_readability_g = read > 0 ? read : "";
+
+          if (cap > 0 && read > 0) {
+            strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
+            strictMemory.strict_filter_capacity_g = cap;
+            strictMemory.strict_filter_readability_g = read;
+            const exactRows = getExactTechnicalMatches(baseScoped as any[], { capacityG: cap, readabilityG: read });
+            const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: cap, readabilityG: read });
+            const sourceRows = exactRows.length ? exactRows : prioritized.orderedRows;
+            const options = buildNumberedProductOptions((sourceRows || []).slice(0, 8) as any[], 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              const reply = [
+                exactRows.length ? `Sí, tengo coincidencias exactas para ${strictMemory.strict_spec_query}.` : `Para ${strictMemory.strict_spec_query} no veo exacta, pero sí cercanas de BD:`,
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra/número (A/1), o escribe 'más'.",
+              ].join("\n");
+              return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
+            strictMemory.awaiting_action = "strict_need_spec";
+            return finalizeStrictTurn(`Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD. Si quieres, ajustamos capacidad/resolución.`, strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
+
+          if (cap > 0 && !(read > 0)) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            return finalizeStrictTurn(`Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g). Ahora dime la resolución objetivo (ej.: 0.1 g, 0.01 g, 0.001 g).`, strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
+          if (read > 0 && !(cap > 0)) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            return finalizeStrictTurn(`Perfecto, ya tengo la precisión (${formatSpecNumber(read)} g). Ahora dime la capacidad aproximada (ej.: 200 g, 1000 g, 2 kg).`, strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
+        }
+
+        if (pipelineIntent === "alternative_request") {
+          const cap = Number(previousMemory?.strict_filter_capacity_g || slotPack.slots.target_capacity_g || 0);
+          const read = Number(previousMemory?.strict_filter_readability_g || slotPack.slots.target_readability_g || 0);
+          if (cap > 0 && read > 0) {
+            const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: cap, readabilityG: read });
+            const nearRows = filterNearbyTechnicalRows((prioritized.orderedRows || baseScoped) as any[], { capacityG: cap, readabilityG: read });
+            const options = buildNumberedProductOptions((nearRows || []).slice(0, 8) as any[], 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              const reply = [
+                `Claro, aquí tienes alternativas cercanas a ${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g:`,
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra/número (A/1), o escribe 'más'.",
+              ].join("\n");
+              return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
+          }
+          strictMemory.awaiting_action = "strict_need_spec";
+          return finalizeStrictTurn("Para darte alternativas coherentes de BD, confirma capacidad y resolución objetivo (ej.: 200 g x 0.001 g).", strictMemory, { pipeline: true, intent: pipelineIntent });
+        }
+
+        if (pipelineIntent === "menu_selection") {
+          const menuType = String(slotPack.slots.active_menu_type || "");
+          if (menuType === "model_action_menu") {
+            if (/^\s*1\s*$/.test(textNorm)) {
+              strictMemory.awaiting_action = "strict_quote_data";
+              strictMemory.quote_quantity = Math.max(1, Number(previousMemory?.quote_quantity || 1));
+              return finalizeStrictTurn("Perfecto. Para cotizar, compárteme en un solo mensaje: ciudad, empresa, NIT, contacto, correo y celular. Si quieres seguir sin esos datos, escribe: avanza.", strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
+            if (/^\s*2\s*$/.test(textNorm)) {
+              const summary = selected ? buildTechnicalSummary(selected, 6) : "";
+              strictMemory.awaiting_action = "strict_choose_action";
+              const reply = summary
+                ? [
+                    `Ficha técnica resumida de ${String((selected as any)?.name || selectedName || "modelo seleccionado")}:`,
+                    summary,
+                    "",
+                    "Si quieres, escribe 1 para cotización o pregunta técnica adicional.",
+                  ].join("\n")
+                : "No tengo ficha técnica completa para ese modelo ahora. Si quieres, escriba 1 para cotización o te propongo alternativa.";
+              return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
+            return finalizeStrictTurn("Responde 1 para cotización o 2 para ficha técnica.", strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
+
+          if (menuType === "model_selection_menu") {
+            const selectedOption = resolvePendingProductOptionStrict(text, pendingForSlots);
+            if (selectedOption) {
+              strictMemory.last_selected_product_id = String(selectedOption.id || "");
+              strictMemory.last_selected_product_name = String(selectedOption.raw_name || selectedOption.name || "");
+              strictMemory.last_product_id = String(selectedOption.id || "");
+              strictMemory.last_product_name = String(selectedOption.raw_name || selectedOption.name || "");
+              strictMemory.awaiting_action = "strict_choose_action";
+              strictMemory.pending_product_options = [];
+              const modelName = String(selectedOption.raw_name || selectedOption.name || "modelo");
+              const reply = [
+                `Perfecto, tomé ${modelName}.`,
+                "¿Qué deseas ahora?",
+                "1) Cotización",
+                "2) Ficha técnica",
+              ].join("\n");
+              return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
+            return finalizeStrictTurn("Elige una opción válida del menú con letra/número (A/1), o escribe 'más'.", strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
+        }
+
+        return null;
+      };
+
+      const pipelineResponse = await pipelineGate();
+      if (pipelineResponse) return pipelineResponse;
 
       if (!String(strictReply || "").trim()) {
         const bundleCountMatch = textNorm.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/i);
