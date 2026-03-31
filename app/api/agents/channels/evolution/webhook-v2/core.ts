@@ -2952,6 +2952,15 @@ function splitModelToken(token: string): { letters: string; digits: string } {
   return { letters, digits };
 }
 
+function isLikelyModelCodeToken(token: string): boolean {
+  const t = normalizeCatalogQueryText(String(token || "")).replace(/[^a-z0-9]/g, "");
+  if (!t || t.length < 4) return false;
+  if (/^(\d+)(g|kg|mg)$/.test(t)) return false;
+  const letters = (t.match(/[a-z]/g) || []).length;
+  const digits = (t.match(/\d/g) || []).length;
+  return letters >= 2 && digits >= 2;
+}
+
 function categoryMatchesIntent(row: any, categoryIntent: string): boolean {
   const wanted = normalizeText(String(categoryIntent || ""));
   if (!wanted) return true;
@@ -4909,7 +4918,7 @@ export async function POST(req: Request) {
 
       let selectedProduct: any = null;
       const modelTokenHint = extractModelLikeTokens(text);
-      const looksLikeModelCode = modelTokenHint.some((tk) => /[a-z]/i.test(tk) && /\d/.test(tk) && String(tk).length >= 4);
+      const looksLikeModelCode = modelTokenHint.some((tk) => isLikelyModelCodeToken(tk));
       if (!String(strictReply || "").trim() && explicitModel && looksLikeModelCode && !technicalSpecIntent) {
         selectedProduct = findExactModelProduct(text, ownerRows as any[]) || pickBestCatalogProduct(text, ownerRows as any[]);
       }
