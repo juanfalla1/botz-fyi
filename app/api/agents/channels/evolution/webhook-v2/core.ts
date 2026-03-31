@@ -4908,7 +4908,9 @@ export async function POST(req: Request) {
       }
 
       let selectedProduct: any = null;
-      if (!String(strictReply || "").trim() && explicitModel && !technicalSpecIntent) {
+      const modelTokenHint = extractModelLikeTokens(text);
+      const looksLikeModelCode = modelTokenHint.some((tk) => /[a-z]/i.test(tk) && /\d/.test(tk) && String(tk).length >= 4);
+      if (!String(strictReply || "").trim() && explicitModel && looksLikeModelCode && !technicalSpecIntent) {
         selectedProduct = findExactModelProduct(text, ownerRows as any[]) || pickBestCatalogProduct(text, ownerRows as any[]);
       }
 
@@ -4994,7 +4996,7 @@ export async function POST(req: Request) {
         const familyRows = familyLabel
           ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
           : categoryScoped;
-        let sourceRows: any[] = familyRows as any[];
+        let sourceRows: any[] = (familyRows.length >= 3 ? familyRows : categoryScoped) as any[];
         const specHint = parseLooseTechnicalHint(text);
         if (specHint?.capacityG && specHint?.readabilityG) {
           const prioritized = prioritizeTechnicalRows(categoryScoped as any[], {
