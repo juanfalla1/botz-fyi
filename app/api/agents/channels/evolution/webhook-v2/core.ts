@@ -1752,6 +1752,24 @@ function prioritizeTechnicalRows(rows: any[], spec: { capacityG: number; readabi
   return { orderedRows: out, exactCount: exact.length };
 }
 
+function filterReasonableTechnicalRows(rows: any[], spec: { capacityG: number; readabilityG: number }): any[] {
+  const targetCap = Number(spec.capacityG || 0);
+  const targetRead = Number(spec.readabilityG || 0);
+  if (!(targetCap > 0) || !(targetRead > 0)) return Array.isArray(rows) ? rows : [];
+  const strictRead = targetRead <= 0.1;
+  const maxCapDeltaPct = strictRead ? 80 : 180;
+  const maxReadRatio = strictRead ? 3 : 8;
+  return (Array.isArray(rows) ? rows : []).filter((row: any) => {
+    const rs = extractRowTechnicalSpec(row);
+    const cap = Number(rs.capacityG || 0);
+    const read = Number(rs.readabilityG || 0);
+    if (!(cap > 0) || !(read > 0)) return false;
+    const capDeltaPct = (Math.abs(cap - targetCap) / Math.max(1, targetCap)) * 100;
+    const readRatio = Math.max(read, targetRead) / Math.max(1e-9, Math.min(read, targetRead));
+    return capDeltaPct <= maxCapDeltaPct && readRatio <= maxReadRatio;
+  });
+}
+
 function isQuoteProceedIntent(text: string): boolean {
   const t = normalizeText(text);
   return /(damela|dámela|enviamela|enviamela|hazla|generala|genérala|cotizala|cotízala|adelante|si por favor|si, por favor|dale|de una)/.test(t);
@@ -5560,7 +5578,11 @@ export async function POST(req: Request) {
               capacityG: rememberedCap,
               readabilityG: rememberedRead,
             });
-            const options = buildNumberedProductOptions((prioritized.orderedRows.length ? prioritized.orderedRows : baseScoped as any[]) as any[], 8);
+            const compatibleRows = filterReasonableTechnicalRows((prioritized.orderedRows.length ? prioritized.orderedRows : baseScoped as any[]) as any[], {
+              capacityG: rememberedCap,
+              readabilityG: rememberedRead,
+            });
+            const options = buildNumberedProductOptions((compatibleRows || []) as any[], 8);
             if (options.length) {
               strictMemory.pending_product_options = options;
               strictMemory.pending_family_options = [];
@@ -5574,6 +5596,12 @@ export async function POST(req: Request) {
                 "",
                 "Elige con letra o número (A/1), o escribe 'más'.",
               ].join("\n");
+            } else {
+              strictMemory.pending_product_options = [];
+              strictMemory.awaiting_action = "strict_need_spec";
+              strictMemory.strict_filter_capacity_g = rememberedCap;
+              strictMemory.strict_filter_readability_g = rememberedRead;
+              strictReply = `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
             }
           }
           if (!String(strictReply || "").trim()) {
@@ -5635,18 +5663,25 @@ export async function POST(req: Request) {
             ].join("\n");
           } else {
             const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: cap, readabilityG: read });
-            const options = buildNumberedProductOptions((prioritized.orderedRows || []).slice(0, 8) as any[], 8);
+            const compatibleRows = filterReasonableTechnicalRows((prioritized.orderedRows || []) as any[], { capacityG: cap, readabilityG: read });
+            const options = buildNumberedProductOptions((compatibleRows || []).slice(0, 8) as any[], 8);
             strictMemory.pending_product_options = options;
             strictMemory.pending_family_options = [];
             strictMemory.awaiting_action = "strict_choose_model";
             strictMemory.strict_model_offset = 0;
-            strictReply = [
-              `No encontré coincidencia exacta para ${strictMemory.strict_spec_query}.`,
-              "Sí tengo estas opciones cercanas:",
-              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Si quieres, elige una opción o te ayudo a ajustar la especificación.",
-            ].join("\n");
+            if (!options.length) {
+              strictMemory.pending_product_options = [];
+              strictMemory.awaiting_action = "strict_need_spec";
+              strictReply = `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
+            } else {
+              strictReply = [
+                `No encontré coincidencia exacta para ${strictMemory.strict_spec_query}.`,
+                "Sí tengo estas opciones cercanas:",
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Si quieres, elige una opción o te ayudo a ajustar la especificación.",
+              ].join("\n");
+            }
           }
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_industry") {
