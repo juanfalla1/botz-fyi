@@ -6113,9 +6113,12 @@ export async function POST(req: Request) {
         const askBack = /^volver$/i.test(strictCommand);
         const askCancel = /^cancelar$/i.test(strictCommand);
         const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+        const asksMoreOptionsDirect = /\b(tienes?\s+mas\s+opciones?|hay\s+mas\s+opciones?|mas\s+opciones?)\b/.test(textNorm);
+        const asksHotplate = /\b(plancha|calentamiento|agitaci[oó]n|agitacion)\b/.test(textNorm);
         const freeCatalogAskInModelStep =
+          asksMoreOptionsDirect ||
           isCatalogBreadthQuestion(text) ||
-          /(que\s+mas|que\s+otros?|que\s+tienes|que\s+manejas|que\s+ofrec|catalogo|otro\s+tipo|otra\s+categoria|otra\s+categoría)/.test(normalizeText(text));
+          /(que\s+mas|que\s+otros?|que\s+tienes|que\s+manejas|que\s+ofrec|catalogo|otro\s+tipo|otra\s+categoria|otra\s+categoría|opciones)/.test(normalizeText(text));
         const requestedCategoryIntentInModelStep = detectCatalogCategoryIntent(text);
         const currentCategoryIntentInModelStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
         const isCategorySwitchInModelStep = Boolean(
@@ -6158,6 +6161,13 @@ export async function POST(req: Request) {
               "",
               "Responde con letra o número (A/1).",
             ].join("\n");
+          }
+        }
+        if (!String(strictReply || "").trim() && asksHotplate && !isCategorySwitchInModelStep) {
+          const labRows = scopeCatalogRows(ownerRows as any, "equipos_laboratorio");
+          if (!labRows.length) {
+            strictReply = "En base de datos no tengo planchas de calentamiento/agitación activas en este momento. Solo puedo ofrecer referencias activas del catálogo cargado (balanzas y analizador de humedad).";
+            strictMemory.awaiting_action = "strict_choose_family";
           }
         }
         if (!String(strictReply || "").trim() && freeCatalogAskInModelStep && !isCategorySwitchInModelStep) {
