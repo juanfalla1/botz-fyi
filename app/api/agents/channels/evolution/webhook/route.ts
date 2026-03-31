@@ -691,6 +691,12 @@ function buildGuidedRecoveryMessage(args: {
   }
 
   if (rememberedProduct) {
+    if (/(opciones?|alternativas?|categoria|categorias|familia|familias|balanza|balanzas|bascula|basculas|laboratorio|joyeria|joyería|industrial)/.test(inboundText)) {
+      return [
+        "Perfecto, mantengo el contexto y abrimos opciones según tu necesidad.",
+        "Dime uso + capacidad + resolución (ej.: laboratorio, 1000 g, 0.1 g), o escribe solo la categoría y te muestro opciones activas.",
+      ].join("\n");
+    }
     if (/(sirve|aplica|funciona|precision|precisi[oó]n|resolucion|resoluci[oó]n|capacidad|pesar|menos de|mayor|menor)/.test(inboundText)) {
       return [
         `Claro. Tomo ${rememberedProduct} como referencia.`,
