@@ -5264,6 +5264,31 @@ export async function POST(req: Request) {
         strictMemory.strict_partial_readability_g = read > 0 ? read : "";
 
         if (!(cap > 0) && !(read > 0)) {
+          const asksAlternativesNow = /\b(alternativas?|opciones?)\b/.test(textNorm) || /(dame|muestrame|mu[eé]strame|quiero)\s+.*(alternativas?|opciones?)/.test(textNorm);
+          const rememberedCap = Number(previousMemory?.strict_filter_capacity_g || previousMemory?.strict_partial_capacity_g || 0);
+          const rememberedRead = Number(previousMemory?.strict_filter_readability_g || previousMemory?.strict_partial_readability_g || 0);
+          if (asksAlternativesNow && rememberedCap > 0 && rememberedRead > 0) {
+            const prioritized = prioritizeTechnicalRows(baseScoped as any[], {
+              capacityG: rememberedCap,
+              readabilityG: rememberedRead,
+            });
+            const options = buildNumberedProductOptions((prioritized.orderedRows.length ? prioritized.orderedRows : baseScoped as any[]) as any[], 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictMemory.strict_filter_capacity_g = rememberedCap;
+              strictMemory.strict_filter_readability_g = rememberedRead;
+              strictReply = [
+                `Perfecto. Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g, estas son alternativas reales del catálogo:`,
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra o número (A/1), o escribe 'más'.",
+              ].join("\n");
+            }
+          }
+          if (!String(strictReply || "").trim()) {
           if (capacityRange) {
             const rangedRows = filterRowsByCapacityRange(baseScoped as any[], capacityRange);
             const options = buildNumberedProductOptions(rangedRows.slice(0, 8) as any[], 8);
@@ -5285,6 +5310,7 @@ export async function POST(req: Request) {
           } else {
             strictReply = "Perfecto. Para cotizar bien, dime capacidad y resolución objetivo (ej.: 2 kg x 0.01 g o 220 g x 0.001 g).";
             strictMemory.awaiting_action = "strict_need_spec";
+          }
           }
         } else if (read > 0 && !(cap > 0)) {
           strictReply = [
