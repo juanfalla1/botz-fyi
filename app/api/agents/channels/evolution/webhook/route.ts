@@ -1911,6 +1911,14 @@ function detectTargetApplication(text: string): string {
   return "";
 }
 
+function maxReadabilityForApplication(app: string): number {
+  const a = normalizeText(String(app || ""));
+  if (a === "joyeria_oro") return 0.01;
+  if (a === "laboratorio") return 0.1;
+  if (a === "alimentos") return 1;
+  return 1;
+}
+
 function buildActiveMenuState(args: {
   awaiting: string;
   pendingOptions: any[];
@@ -5795,10 +5803,61 @@ export async function POST(req: Request) {
         const technicalCapInAction = Number((technicalHintInAction as any)?.capacityG || 0);
         const technicalReadInAction = Number((technicalHintInAction as any)?.readabilityG || 0);
         const categoryIntentInAction = awaiting === "strict_choose_action" ? detectCatalogCategoryIntent(text) : null;
+        const appHintInAction = awaiting === "strict_choose_action" ? detectTargetApplication(text) : "";
         const currentCategoryInAction = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || ""));
         const isCategorySwitchInAction = Boolean(
           categoryIntentInAction && normalizeText(String(categoryIntentInAction || "")) !== currentCategoryInAction
         );
+
+        if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && appHintInAction && !wantsQuote && !wantsSheet && !(technicalCapInAction > 0 || technicalReadInAction > 0)) {
+          strictMemory.target_application = appHintInAction;
+          strictMemory.target_industry = appHintInAction === "joyeria_oro" ? "joyeria" : appHintInAction;
+          const selectedSpec = extractRowTechnicalSpec(selectedProduct);
+          const selectedRead = Number(selectedSpec?.readabilityG || 0);
+          const maxRead = maxReadabilityForApplication(appHintInAction);
+          const selectedIsCompatible = selectedRead > 0 && selectedRead <= maxRead;
+
+          if (selectedIsCompatible) {
+            strictReply = [
+              `Sí, ${selectedName} puede servir para ${appHintInAction.replace(/_/g, " ")} por precisión (${formatSpecNumber(selectedRead)} g).`,
+              "Si quieres, seguimos con 1) cotización o 2) ficha técnica.",
+            ].join("\n");
+          } else {
+            const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+            const capTarget = Number(previousMemory?.strict_filter_capacity_g || selectedSpec?.capacityG || 0);
+            const rowsByRead = categoryScoped
+              .filter((r: any) => {
+                const rs = extractRowTechnicalSpec(r);
+                const rr = Number(rs?.readabilityG || 0);
+                return rr > 0 && rr <= maxRead;
+              })
+              .sort((a: any, b: any) => {
+                const ar = Number(extractRowTechnicalSpec(a)?.readabilityG || 999);
+                const br = Number(extractRowTechnicalSpec(b)?.readabilityG || 999);
+                const ac = Number(extractRowTechnicalSpec(a)?.capacityG || 0);
+                const bc = Number(extractRowTechnicalSpec(b)?.capacityG || 0);
+                const ad = capTarget > 0 ? Math.abs(ac - capTarget) : 0;
+                const bd = capTarget > 0 ? Math.abs(bc - capTarget) : 0;
+                return ad - bd || ar - br;
+              });
+            const options = buildNumberedProductOptions(rowsByRead.slice(0, 8) as any[], 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictReply = [
+                `No del todo: ${selectedName} no es ideal para ${appHintInAction.replace(/_/g, " ")} por su precisión (${formatSpecNumber(selectedRead || 0)} g).`,
+                "Estas opciones sí son más adecuadas para ese uso:",
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige una con letra/número (A/1), o escribe 'más'.",
+              ].join("\n");
+            } else {
+              strictReply = `No del todo: ${selectedName} no es ideal para ${appHintInAction.replace(/_/g, " ")} y no veo opciones activas con esa precisión en este grupo. Si quieres, ajustamos capacidad/resolución.`;
+            }
+          }
+        }
 
         if (awaiting === "strict_choose_action" && !followupIntent && !wantsQuote && !wantsSheet) {
           if (/(no\s+me\s+sirve|no\s+quiero\s+este|otra\s+opcion|otra\s+opción|que\s+otra|qué\s+otra|recomiendame\s+otra|recomiéndame\s+otra|me\s+ofreces\s+otra|me\s+puedes\s+ofrecer\s+otra)/.test(textNorm)) {
