@@ -3317,21 +3317,6 @@ function categoryMatchesIntent(row: any, categoryIntent: string): boolean {
 }
 
 function passesStrictCategoryGuard(row: any, categoryIntent: string): boolean {
-  const wanted = normalizeText(String(categoryIntent || ""));
-  if (!wanted) return true;
-  const rowName = normalizeText(String(row?.name || ""));
-  const rowSub = catalogSubcategory(row);
-
-  if (wanted === "balanzas") {
-    if (/(bascul|bscul|plataform|indicador)/.test(rowName)) return false;
-    if (rowSub.startsWith("basculas") || rowSub.startsWith("plataformas") || rowSub.startsWith("indicadores")) return false;
-  }
-
-  if (wanted === "basculas") {
-    if (/\b(balanz)\b/.test(rowName)) return false;
-    if (rowSub.startsWith("balanzas")) return false;
-  }
-
   return true;
 }
 
