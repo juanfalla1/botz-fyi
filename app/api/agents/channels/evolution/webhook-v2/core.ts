@@ -6185,7 +6185,7 @@ export async function POST(req: Request) {
           isUseCaseFamilyHint(text) ||
           isRecommendationIntent(text)
         );
-        if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel && !technicalBypassInSelection && !isCategorySwitchInModelStep && !freeCatalogAskInModelStep) {
+        if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel && !technicalBypassInSelection && !isCategorySwitchInModelStep && !freeCatalogAskInModelStep && !asksHotplate) {
           strictMemory.awaiting_action = "strict_choose_model";
           strictMemory.pending_product_options = pendingStrictOptions;
           strictMemory.strict_model_offset = Math.max(0, Number(previousMemory?.strict_model_offset || 0));
