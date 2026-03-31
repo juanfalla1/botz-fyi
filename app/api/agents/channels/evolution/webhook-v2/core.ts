@@ -5055,7 +5055,7 @@ export async function POST(req: Request) {
         awaiting === "strict_choose_action" &&
         !wantsQuote &&
         !wantsSheet &&
-        (/\b(mas|más|opciones|alternativas|otros|otras|rango|que\s+tienes|de\s+\d+)/.test(textNorm) || technicalSpecIntent || isRecommendationIntent(text));
+        (/\b(mas|más|opciones|alternativas|otros|otras|rango|que\s+tienes|de\s+\d+)/.test(textNorm) || technicalSpecIntent);
       if (!String(strictReply || "").trim() && askMoreFromAction) {
         const familyLabel = String(previousMemory?.strict_family_label || "").trim();
         const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
