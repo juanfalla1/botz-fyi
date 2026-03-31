@@ -1905,10 +1905,29 @@ function isCatalogBreadthQuestion(text: string): boolean {
 function isOutOfCatalogDomainQuery(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
-  const outTerms = /(tornillo|tornillos|herramienta|herramientas|taladro|martillo|llave inglesa|destornillador|broca|ferreteria|ferreteria|tuerca|perno|clavo|soldadura|silicona|pintura)/.test(t);
+  const outTerms = /(tornillo|tornillos|herramienta|herramientas|taladro|martillo|llave inglesa|destornillador|broca|ferreteria|ferreteria|tuerca|perno|clavo|soldadura|silicona|pintura|tenedor|tenedores|cuchillo|cuchillos|cuchara|cucharas|plato|platos|vaso|vasos|carro|carros|vehiculo|vehiculos)/.test(t);
   if (!outTerms) return false;
   const inDomain = /(balanza|balanzas|bascula|basculas|ohaus|analitica|precision|trm|cotizacion|ficha tecnica|humedad|electroquimica|laboratorio|centrifuga|mezclador|agitador|modelo|producto|referencia|sirve para|me sirve|puede pesar|pesar)/.test(t);
   return outTerms && !inDomain;
+}
+
+function listActiveCatalogCategories(rows: any[]): string {
+  const list = Array.isArray(rows) ? rows : [];
+  const counts = new Map<string, number>();
+  for (const row of list) {
+    const cat = normalizeText(String(row?.category || ""));
+    if (!cat) continue;
+    counts.set(cat, (counts.get(cat) || 0) + 1);
+  }
+  const labels: Array<{ key: string; label: string; count: number }> = [
+    { key: "balanzas", label: "balanzas", count: counts.get("balanzas") || 0 },
+    { key: "basculas", label: "basculas", count: counts.get("basculas") || 0 },
+    { key: "analizador_humedad", label: "analizador de humedad", count: counts.get("analizador_humedad") || 0 },
+    { key: "electroquimica", label: "electroquimica", count: counts.get("electroquimica") || 0 },
+    { key: "equipos_laboratorio", label: "equipos de laboratorio", count: counts.get("equipos_laboratorio") || 0 },
+  ].filter((x) => x.count > 0);
+  if (!labels.length) return "catalogo activo limitado";
+  return labels.map((x) => `${x.label} (${x.count})`).join(", ");
 }
 
 type ConversationIntent =
@@ -5098,6 +5117,16 @@ export async function POST(req: Request) {
       });
 
       const pipelineGate = async (): Promise<Response | null> => {
+        if (isOutOfCatalogDomainQuery(text)) {
+          const available = listActiveCatalogCategories(ownerRows as any[]);
+          const reply = [
+            "En base de datos no tengo ese tipo de producto en catalogo activo.",
+            `Actualmente si manejo: ${available}.`,
+            "Si quieres, te recomiendo opciones segun capacidad, precision y aplicacion.",
+          ].join("\n");
+          return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "out_of_catalog" });
+        }
+
         const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || "").trim();
         const selectedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || "").trim();
         const selected = selectedId
