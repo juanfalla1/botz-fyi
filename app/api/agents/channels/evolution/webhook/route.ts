@@ -5148,6 +5148,16 @@ export async function POST(req: Request) {
         const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
 
         if (pipelineIntent === "compatibility_question" || pipelineIntent === "application_update") {
+          const asksUseExplanationNow = /(para\s+que\s+sirven?|que\s+uso\s+tienen|para\s+que\s+se\s+usan)/.test(textNorm) && /(balanza|balanzas|bascula|basculas)/.test(textNorm);
+          if (asksUseExplanationNow) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            const reply = [
+              "Las balanzas/básculas se usan para pesar con precisión en laboratorio, joyería, alimentos e industria.",
+              "Para recomendarte una opción exacta de catálogo, dime uso, capacidad y resolución objetivo.",
+              "Ejemplo: laboratorio, 1000 g, 0.1 g.",
+            ].join("\n");
+            return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "use_explanation_question" });
+          }
           const app = detectTargetApplication(text) || String(slotPack.slots.target_application || "");
           const asksLabCatalog = /(cuales?|cu[aá]les?|que|qué).*(de\s+laboratorio|laboratorio).*(tienes|hay|manejas|ofreces)/.test(textNorm) || /tienes.*laboratorio/.test(textNorm);
           const explicitLabEquipmentAsk = /(plancha|planchas|calentamiento|agitacion|agitación|agitador|mezclador|homogeneizador|centrifuga)/.test(textNorm);
