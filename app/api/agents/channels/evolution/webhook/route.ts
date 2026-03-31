@@ -1787,6 +1787,41 @@ function filterNearbyTechnicalRows(rows: any[], spec: { capacityG: number; reada
   });
 }
 
+function applyApplicationProfile(rows: any[], args: { application?: string; targetCapacityG?: number; targetReadabilityG?: number }): any[] {
+  const list = Array.isArray(rows) ? rows : [];
+  const app = normalizeText(String(args.application || ""));
+  const targetCap = Number(args.targetCapacityG || 0);
+  const targetRead = Number(args.targetReadabilityG || 0);
+  if (!app && !(targetCap > 0) && !(targetRead > 0)) return list;
+
+  const out = list.filter((row: any) => {
+    const spec = extractRowTechnicalSpec(row);
+    const cap = Number(spec.capacityG || 0);
+    const read = Number(spec.readabilityG || 0);
+    const txt = normalizeText(`${String(row?.name || "")} ${String(row?.category || "")} ${familyLabelFromRow(row)}`);
+    if (!(cap > 0) || !(read > 0)) return false;
+    if (targetCap > 0) {
+      const minCap = targetCap * 0.2;
+      const maxCap = targetCap * 5;
+      if (cap < minCap || cap > maxCap) return false;
+    }
+    if (targetRead > 0 && read > targetRead * 2) return false;
+
+    if (app === "joyeria_oro") {
+      if (read > 0.01) return false;
+      if (cap > 6000) return false;
+      if (/(industrial|plataforma|ranger|defender|valor|rc31|r71|ckw|td52p)/.test(txt)) return false;
+    }
+    if (app === "laboratorio") {
+      if (read > 0.1) return false;
+      if (/(industrial|plataforma|ranger|defender|valor|rc31|r71|ckw|td52p)/.test(txt)) return false;
+    }
+    return true;
+  });
+
+  return out.length ? out : list;
+}
+
 function isQuoteProceedIntent(text: string): boolean {
   const t = normalizeText(text);
   return /(damela|dámela|enviamela|enviamela|hazla|generala|genérala|cotizala|cotízala|adelante|si por favor|si, por favor|dale|de una)/.test(t);
@@ -7540,7 +7575,13 @@ export async function POST(req: Request) {
             const ranged = filterRowsByCapacityRange(recommendedRows as any[], rangeHint);
             if (ranged.length) recommendedRows = ranged;
           }
-          const allOptions = buildNumberedProductOptions(recommendedRows as any[], 60);
+          const appProfile = String(strictMemory.target_application || previousMemory?.target_application || "").trim();
+          const profiledRows = applyApplicationProfile(recommendedRows as any[], {
+            application: appProfile,
+            targetCapacityG: hintedCap || Number(previousMemory?.strict_filter_capacity_g || 0),
+            targetReadabilityG: hintedRead || Number(previousMemory?.strict_filter_readability_g || 0),
+          });
+          const allOptions = buildNumberedProductOptions(profiledRows as any[], 60);
           const options = allOptions.slice(0, 8);
           strictMemory.pending_product_options = options;
           strictMemory.pending_family_options = [];
@@ -7591,7 +7632,13 @@ export async function POST(req: Request) {
             capacityG: parsed.capacityG,
             readabilityG: parsed.readabilityG,
           });
-          const rankedRows = ranked.length ? ranked.map((r: any) => r.row) : ownerRows;
+          const rankedRowsRaw = ranked.length ? ranked.map((r: any) => r.row) : ownerRows;
+          const appProfile = String(strictMemory.target_application || previousMemory?.target_application || "").trim();
+          const rankedRows = applyApplicationProfile(rankedRowsRaw as any[], {
+            application: appProfile,
+            targetCapacityG: Number(parsed.capacityG || 0),
+            targetReadabilityG: Number(parsed.readabilityG || 0),
+          });
           const options = buildNumberedProductOptions(rankedRows as any[], 8);
           if (options.length) {
             strictMemory.pending_product_options = options;
@@ -7645,7 +7692,13 @@ export async function POST(req: Request) {
               const ranged = filterRowsByCapacityRange(recommendedRows as any[], rangeHint);
               if (ranged.length) recommendedRows = ranged;
             }
-            const allOptions = buildNumberedProductOptions(recommendedRows as any[], 60);
+            const appProfile = String(strictMemory.target_application || previousMemory?.target_application || detectTargetApplication(text) || "").trim();
+            const profiledRows = applyApplicationProfile(recommendedRows as any[], {
+              application: appProfile,
+              targetCapacityG: hintedCap || Number(previousMemory?.strict_filter_capacity_g || 0),
+              targetReadabilityG: hintedRead || Number(previousMemory?.strict_filter_readability_g || 0),
+            });
+            const allOptions = buildNumberedProductOptions(profiledRows as any[], 60);
             const options = allOptions.slice(0, 8);
             strictMemory.pending_product_options = options;
             strictMemory.pending_family_options = [];
