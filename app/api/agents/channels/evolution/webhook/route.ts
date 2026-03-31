@@ -5063,6 +5063,10 @@ export async function POST(req: Request) {
 
         if (pipelineIntent === "compatibility_question" || pipelineIntent === "application_update") {
           const app = detectTargetApplication(text) || String(slotPack.slots.target_application || "");
+          const asksLabCatalog = /(cuales?|cu[aá]les?|que|qué).*(de\s+laboratorio|laboratorio).*(tienes|hay|manejas|ofreces)/.test(textNorm) || /tienes.*laboratorio/.test(textNorm);
+          const explicitLabEquipmentAsk = /(plancha|planchas|calentamiento|agitacion|agitación|agitador|mezclador|homogeneizador|centrifuga)/.test(textNorm);
+          const labRows = app === "laboratorio" ? scopeCatalogRows(ownerRows as any, "equipos_laboratorio") : [];
+          const hasActiveLabEquipment = Array.isArray(labRows) && labRows.length > 0;
           const targetRead = Number(slotPack.slots.target_readability_g || previousMemory?.strict_filter_readability_g || 0);
           const strictPrecisionAsk = /(menos\s+de|maxima\s+precision|maxima\s+precisi[oó]n|alta\s+precision|m[aá]xima\s+precision)/.test(textNorm);
           const capTarget = Number(slotPack.slots.target_capacity_g || previousMemory?.strict_filter_capacity_g || 0);
@@ -5076,6 +5080,24 @@ export async function POST(req: Request) {
           });
           strictMemory.target_application = app;
           strictMemory.target_industry = app === "joyeria_oro" ? "joyeria" : app;
+          if (app === "laboratorio" && !hasActiveLabEquipment && (asksLabCatalog || explicitLabEquipmentAsk)) {
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              const reply = [
+                "En base de datos no tengo equipos de laboratorio activos (ej. planchas/agitadores) en este momento.",
+                "Sí tengo estas balanzas recomendadas para uso de laboratorio:",
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige una con letra/número (A/1), o escribe 'más'.",
+              ].join("\n");
+              return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
+            strictMemory.awaiting_action = "strict_need_spec";
+            return finalizeStrictTurn("En base de datos no tengo equipos de laboratorio activos en este momento. Si quieres, te recomiendo balanzas para uso de laboratorio según capacidad y precisión.", strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
           if (options.length) {
             strictMemory.pending_product_options = options;
             strictMemory.pending_family_options = [];
