@@ -5264,8 +5264,8 @@ export async function POST(req: Request) {
         const capacityRange = parseCapacityRangeHint(text);
         const merged = mergeLooseSpecWithMemory(
           {
-            capacityG: Number(previousMemory?.strict_partial_capacity_g || 0),
-            readabilityG: Number(previousMemory?.strict_partial_readability_g || 0),
+            capacityG: Number(previousMemory?.strict_partial_capacity_g || previousMemory?.strict_filter_capacity_g || 0),
+            readabilityG: Number(previousMemory?.strict_partial_readability_g || previousMemory?.strict_filter_readability_g || 0),
           },
           parsed
         );
@@ -10103,11 +10103,13 @@ export async function POST(req: Request) {
     }
 
     if (!String(reply || "").trim()) {
+      const pendingFamiliesNow = Array.isArray(nextMemory?.pending_family_options) && nextMemory.pending_family_options.length > 0;
+      const pendingModelsNow = Array.isArray(nextMemory?.pending_product_options) && nextMemory.pending_product_options.length > 0;
       reply = buildGuidedRecoveryMessage({
         awaiting: String(nextMemory.awaiting_action || previousMemory?.awaiting_action || ""),
         rememberedProduct: String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || ""),
-        hasPendingFamilies: Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0,
-        hasPendingModels: Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0,
+        hasPendingFamilies: pendingFamiliesNow || (Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0),
+        hasPendingModels: pendingModelsNow || (Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0),
         inboundText: inbound.text,
       });
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
