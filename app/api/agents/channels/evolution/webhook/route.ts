@@ -3389,11 +3389,16 @@ function scopeCatalogRows(rows: any[], categoryIntent: string): any[] {
   const relaxed = (rows || []).filter((row: any) => {
     const rowCat = normalizeText(String(row?.category || ""));
     const rowSub = catalogSubcategory(row);
+    const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+    const rowFamily = normalizeText(String((payload as any)?.family || ""));
     const rowName = normalizeText(String(row?.name || ""));
     if (rowCat === "basculas" || rowCat.startsWith("basculas_") || rowSub.startsWith("basculas") || rowSub.startsWith("plataformas") || rowSub.startsWith("indicadores")) {
       return true;
     }
-    if (/(ranger|defender|valor|plataforma|control de peso|ckw|td52p|bascula|basculas|industrial)/.test(rowName)) {
+    if (/(ranger|defender|valor|plataforma|control de peso|ckw|td52p|r31|rc31|r71|bascula|basculas|industrial)/.test(rowName)) {
+      return true;
+    }
+    if (/(bascula|basculas|plataforma|industrial|ranger|defender|valor)/.test(rowFamily)) {
       return true;
     }
     return false;
