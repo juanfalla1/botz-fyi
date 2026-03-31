@@ -5117,9 +5117,11 @@ export async function POST(req: Request) {
             const selectedCompatible = selectedRead > 0 && selectedRead <= maxRead;
             const intro = pipelineIntent === "application_update"
               ? `Perfecto. Para ${app.replace(/_/g, " ")}, estas son opciones activas de catálogo:`
-              : (selected && selectedCompatible
-                ? `Sí, ${String((selected as any)?.name || selectedName)} puede servir para ${app.replace(/_/g, " ")}.`
-                : `No del todo: para ${app.replace(/_/g, " ")} conviene una precisión más fina que la opción actual.`);
+              : (selected
+                ? (selectedCompatible
+                    ? `Sí, ${String((selected as any)?.name || selectedName)} puede servir para ${app.replace(/_/g, " ")}.`
+                    : `No del todo: ${String((selected as any)?.name || selectedName)} no es la mejor para ${app.replace(/_/g, " ")}; estas alternativas sí son más adecuadas.`)
+                : `Sí, para ${app.replace(/_/g, " ")} estas opciones sí son adecuadas.`);
             const reply = [
               intro,
               "Te comparto 3 recomendaciones de catálogo para seguir:",
