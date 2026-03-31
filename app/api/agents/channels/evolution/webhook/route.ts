@@ -5290,17 +5290,10 @@ export async function POST(req: Request) {
               return finalizeStrictTurn("Perfecto. Para cotizar, compárteme en un solo mensaje: ciudad, empresa, NIT, contacto, correo y celular. Si quieres seguir sin esos datos, escribe: avanza.", strictMemory, { pipeline: true, intent: pipelineIntent });
             }
             if (/^\s*2\s*$/.test(textNorm)) {
-              const summary = selected ? buildTechnicalSummary(selected, 6) : "";
               strictMemory.awaiting_action = "strict_choose_action";
-              const reply = summary
-                ? [
-                    `Ficha técnica resumida de ${String((selected as any)?.name || selectedName || "modelo seleccionado")}:`,
-                    summary,
-                    "",
-                    "Si quieres, escribe 1 para cotización o pregunta técnica adicional.",
-                  ].join("\n")
-                : "No tengo ficha técnica completa para ese modelo ahora. Si quieres, escriba 1 para cotización o te propongo alternativa.";
-              return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+              strictMemory.last_intent = "datasheet_request";
+              // Deja que el flujo legacy maneje PDF de ficha (remoto/local) antes del resumen.
+              return null;
             }
             return finalizeStrictTurn("Responde 1 para cotización o 2 para ficha técnica.", strictMemory, { pipeline: true, intent: pipelineIntent });
           }
