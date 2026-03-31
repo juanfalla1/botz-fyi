@@ -5257,6 +5257,12 @@ export async function POST(req: Request) {
         }
 
         if (pipelineIntent === "alternative_request") {
+          const asksMoreOnly = /\b(mas|más|siguientes|mas\s+opciones|más\s+opciones|otras\s+opciones)\b/.test(textNorm);
+          const pendingNow = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+          if (asksMoreOnly && awaiting === "strict_choose_model" && pendingNow.length > 0) {
+            // Mantiene el flujo original de paginación del menú de modelos.
+            return null;
+          }
           const cap = Number(previousMemory?.strict_filter_capacity_g || slotPack.slots.target_capacity_g || 0);
           const read = Number(previousMemory?.strict_filter_readability_g || slotPack.slots.target_readability_g || 0);
           if (cap > 0 && read > 0) {
