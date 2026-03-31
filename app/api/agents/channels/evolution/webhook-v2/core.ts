@@ -7914,6 +7914,36 @@ export async function POST(req: Request) {
           }
         }
       } else if (!String(strictReply || "").trim()) {
+        const asksOptionsNow = /\b(dame|muestrame|mu[eé]strame|quiero|opciones?|alternativas?)\b/.test(textNorm);
+        const appNow = detectTargetApplication(text);
+        if (asksOptionsNow && appNow) {
+          const capTarget = Number(previousMemory?.strict_filter_capacity_g || previousMemory?.target_capacity_g || 0);
+          const readTarget = Number(previousMemory?.strict_filter_readability_g || previousMemory?.target_readability_g || 0);
+          const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+          const options = getApplicationRecommendedOptions({
+            rows: categoryScoped as any[],
+            application: appNow,
+            capTargetG: capTarget,
+            targetReadabilityG: readTarget,
+            strictPrecision: /(menos\s+de|maxima\s+precision|maxima\s+precisi[oó]n|alta\s+precision)/.test(textNorm),
+            excludeId: String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || ""),
+          });
+          if (options.length) {
+            strictMemory.target_application = appNow;
+            strictMemory.target_industry = appNow === "joyeria_oro" ? "joyeria" : appNow;
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              `Perfecto. Para ${appNow.replace(/_/g, " ")}, estas son opciones activas:`,
+              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige una con letra/número (A/1), o escribe 'más'.",
+            ].join("\n");
+          }
+        }
+        if (!String(strictReply || "").trim()) {
         strictReply = buildGuidedRecoveryMessage({
           awaiting,
           rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
@@ -7921,6 +7951,7 @@ export async function POST(req: Request) {
           hasPendingModels: Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0,
           inboundText: text,
         });
+        }
       }
 
       const strictAssetDelivered = strictDocs.length > 0;
