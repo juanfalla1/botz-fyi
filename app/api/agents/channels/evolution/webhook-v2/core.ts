@@ -1797,7 +1797,7 @@ function detectCatalogCategoryIntent(text: string): string | null {
   if (/(analizador de humedad|humedad|mb120|mb90|mb27|mb23)/.test(t)) return "analizador_humedad";
   if (/(bascula|basculas|bscula|bsculas|ranger|defender|valor|plataforma|control de peso|ckw|td52p)/.test(t)) return "basculas";
   if (/(impresora)/.test(t)) return "impresoras";
-  if (/(centrifuga|agitador|mezclador|homogeneizador|planchas|laboratorio)/.test(t)) return "equipos_laboratorio";
+  if (/(centrifuga|agitador|mezclador|homogeneizador|planchas)/.test(t)) return "equipos_laboratorio";
   if (/(balanza|balanzas|blanza|blanzas|explorer|adventurer|pioneer|pr\b|scout|analitica|semi analitica|precision)/.test(t)) return "balanzas";
   if (/(documento|brochure|manual|guia|catalogo pdf)/.test(t)) return "documentos";
   return null;
@@ -5423,6 +5423,9 @@ export async function POST(req: Request) {
         const anotherQuoteChoice = awaiting === "strict_choose_action" ? parseAnotherQuoteChoice(text) : null;
         let followupIntent = awaiting === "strict_choose_action" ? detectAlternativeFollowupIntent(text) : null;
         const asksAnotherQuote = awaiting === "strict_choose_action" && isAnotherQuoteAmbiguousIntent(text);
+        const technicalHintInAction = awaiting === "strict_choose_action" ? parseLooseTechnicalHint(text) : null;
+        const technicalCapInAction = Number((technicalHintInAction as any)?.capacityG || 0);
+        const technicalReadInAction = Number((technicalHintInAction as any)?.readabilityG || 0);
         const categoryIntentInAction = awaiting === "strict_choose_action" ? detectCatalogCategoryIntent(text) : null;
         const currentCategoryInAction = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || ""));
         const isCategorySwitchInAction = Boolean(
@@ -5435,7 +5438,56 @@ export async function POST(req: Request) {
           }
         }
 
-        if (awaiting === "strict_choose_action" && isCategorySwitchInAction) {
+        if (awaiting === "strict_choose_action" && (technicalCapInAction > 0 || technicalReadInAction > 0) && !wantsQuote && !wantsSheet) {
+          const mergedTechnical = mergeLooseSpecWithMemory(
+            {
+              capacityG: Number(previousMemory?.strict_filter_capacity_g || previousMemory?.strict_partial_capacity_g || 0),
+              readabilityG: Number(previousMemory?.strict_filter_readability_g || previousMemory?.strict_partial_readability_g || 0),
+            },
+            technicalHintInAction
+          );
+          const mergedCap = Number(mergedTechnical.capacityG || 0);
+          const mergedRead = Number(mergedTechnical.readabilityG || 0);
+          strictMemory.strict_partial_capacity_g = mergedCap > 0 ? mergedCap : "";
+          strictMemory.strict_partial_readability_g = mergedRead > 0 ? mergedRead : "";
+          if (mergedCap > 0 && !(mergedRead > 0)) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = [
+              `Perfecto, ya tengo la capacidad (${formatSpecNumber(mergedCap)} g).`,
+              "Ahora dime la resolución/precisión objetivo.",
+              "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
+            ].join("\n");
+          } else if (mergedRead > 0 && !(mergedCap > 0)) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = [
+              `Perfecto, ya tengo la precisión (${formatSpecNumber(mergedRead)} g).`,
+              "Para recomendarte bien, ¿qué capacidad aproximada necesitas?",
+              "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
+            ].join("\n");
+          } else if (mergedCap > 0 && mergedRead > 0) {
+            strictMemory.strict_spec_query = `${formatSpecNumber(mergedCap)} g x ${formatSpecNumber(mergedRead)} g`;
+            strictMemory.strict_filter_capacity_g = mergedCap;
+            strictMemory.strict_filter_readability_g = mergedRead;
+            strictMemory.strict_partial_capacity_g = "";
+            strictMemory.strict_partial_readability_g = "";
+            const exactRows = getExactTechnicalMatches(baseScoped as any[], { capacityG: mergedCap, readabilityG: mergedRead });
+            const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: mergedCap, readabilityG: mergedRead });
+            const options = buildNumberedProductOptions((exactRows.length ? exactRows : (prioritized.orderedRows || [])).slice(0, 8) as any[], 8);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              exactRows.length
+                ? `Sí, tengo coincidencias exactas para ${strictMemory.strict_spec_query}.`
+                : `No encontré coincidencia exacta para ${strictMemory.strict_spec_query}.`,
+              exactRows.length ? "Te comparto las opciones exactas:" : "Sí tengo estas opciones cercanas:",
+              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige con letra o número (A/1), o escribe 'más'.",
+            ].join("\n");
+          }
+        } else if (awaiting === "strict_choose_action" && isCategorySwitchInAction) {
           const scoped = scopeCatalogRows(ownerRows as any, String(categoryIntentInAction || ""));
           const families = buildNumberedFamilyOptions(scoped as any[], 8);
           strictMemory.last_category_intent = String(categoryIntentInAction || "");
