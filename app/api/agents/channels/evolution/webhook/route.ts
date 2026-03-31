@@ -2124,6 +2124,8 @@ function buildCompatibilityAnswer(args: {
 function detectCatalogCategoryIntent(text: string): string | null {
   const t = normalizeText(text || "");
   if (!t) return null;
+  const asksLabEquipment = /(plancha|planchas|calentamiento|agitacion|agitación|agitador|mezclador|homogeneizador|centrifuga)/.test(t);
+  const negatesBasculas = /\bno\s+quiero\s+(una\s+)?bascula|\bno\s+quiero\s+(una\s+)?bscula|\bno\s+basculas?\b|\bno\s+bsculas?\b/.test(t);
   if (/(electroquim|ph|orp|conductividad|tds|salinidad|aquasearcher|electrodo|medidor)/.test(t)) {
     if (/(mesa|sobremesa)/.test(t)) return "electroquimica_medidores_mesa";
     if (/(portatil|portatiles)/.test(t)) return "electroquimica_medidores_portatiles";
@@ -2132,9 +2134,9 @@ function detectCatalogCategoryIntent(text: string): string | null {
     return "electroquimica";
   }
   if (/(analizador de humedad|humedad|mb120|mb90|mb27|mb23)/.test(t)) return "analizador_humedad";
-  if (/(bascula|basculas|bscula|bsculas|ranger|defender|valor|plataforma|control de peso|ckw|td52p)/.test(t)) return "basculas";
+  if (asksLabEquipment) return "equipos_laboratorio";
+  if (/(bascula|basculas|bscula|bsculas|ranger|defender|valor|plataforma|control de peso|ckw|td52p)/.test(t) && !negatesBasculas) return "basculas";
   if (/(impresora)/.test(t)) return "impresoras";
-  if (/(centrifuga|agitador|mezclador|homogeneizador|planchas)/.test(t)) return "equipos_laboratorio";
   if (/(balanza|balanzas|blanza|blanzas|explorer|adventurer|pioneer|pr\b|scout|analitica|semi analitica|precision)/.test(t)) return "balanzas";
   if (/(documento|brochure|manual|guia|catalogo pdf)/.test(t)) return "documentos";
   return null;
