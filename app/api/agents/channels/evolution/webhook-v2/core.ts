@@ -6190,9 +6190,11 @@ export async function POST(req: Request) {
         strictMemory.pending_family_options = [];
         strictMemory.pending_product_options = [];
 
-        const anotherQuoteChoice = awaiting === "strict_choose_action" ? parseAnotherQuoteChoice(text) : null;
+        const rawAnotherQuoteChoice = awaiting === "strict_choose_action" ? parseAnotherQuoteChoice(text) : null;
         let followupIntent = awaiting === "strict_choose_action" ? detectAlternativeFollowupIntent(text) : null;
         const asksAnotherQuote = awaiting === "strict_choose_action" && isAnotherQuoteAmbiguousIntent(text);
+        const anotherQuoteContext = asksAnotherQuote || /\b(otra\s+cotiz|nueva\s+cotiz|recotiz|re\s*cotiz|otra\s+propuesta)\b/.test(textNorm);
+        const anotherQuoteChoice = anotherQuoteContext ? rawAnotherQuoteChoice : null;
         const technicalHintInAction = awaiting === "strict_choose_action" ? parseLooseTechnicalHint(text) : null;
         const technicalCapInAction = Number((technicalHintInAction as any)?.capacityG || 0);
         const technicalReadInAction = Number((technicalHintInAction as any)?.readabilityG || 0);
