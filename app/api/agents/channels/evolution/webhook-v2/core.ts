@@ -9094,6 +9094,8 @@ export async function POST(req: Request) {
             nextMemory.awaiting_action = options.length ? "product_option_selection" : "family_option_selection";
             nextMemory.last_category_intent = inboundCategoryIntent;
             nextMemory.strict_use_case = String(originalInboundText || "").trim();
+            handledByInventory = true;
+            billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
           } else if (familyOptions.length > 1) {
             reply = [
               `Si, tenemos ${scoped.length} referencias en la categoria ${categoryLabel}.`,
