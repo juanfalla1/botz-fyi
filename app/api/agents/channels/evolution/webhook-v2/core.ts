@@ -6046,8 +6046,8 @@ export async function POST(req: Request) {
         strictMemory.strict_model_offset = 0;
         strictMemory.strict_family_label = "";
         strictReply = knownCustomerName
-          ? `Hola, ${knownCustomerName} 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\nSerá un placer ayudarte. Cuéntanos, ¿en qué podemos apoyarte hoy? ¿Qué producto necesitas hoy?`
-          : "Hola 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\nSerá un placer ayudarte. Cuéntanos, ¿en qué podemos apoyarte hoy? ¿Qué producto necesitas hoy?";
+          ? `Hola, ${knownCustomerName} 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?`
+          : "Hola 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?";
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
         const parsed = parseLooseTechnicalHint(text);
         const capacityRange = parseCapacityRangeHint(text);
@@ -9043,8 +9043,8 @@ export async function POST(req: Request) {
       nextMemory.strict_model_offset = 0;
       nextMemory.strict_family_label = "";
       reply = knownCustomerName
-        ? `Hola, ${knownCustomerName} 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\nSerá un placer ayudarte. Cuéntanos, ¿en qué podemos apoyarte hoy? ¿Qué producto necesitas hoy?`
-        : "Hola 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\nSerá un placer ayudarte. Cuéntanos, ¿en qué podemos apoyarte hoy? ¿Qué producto necesitas hoy?";
+        ? `Hola, ${knownCustomerName} 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?`
+        : "Hola 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?";
       if (!knownCustomerName) nextMemory.awaiting_action = "capture_name";
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
