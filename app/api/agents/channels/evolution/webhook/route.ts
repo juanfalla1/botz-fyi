@@ -7242,11 +7242,46 @@ export async function POST(req: Request) {
           strictMemory.strict_partial_readability_g = effectiveRead > 0 ? effectiveRead : "";
 
           if (effectiveRead > 0 && !(effectiveCap > 0)) {
-            strictReply = [
-              `Perfecto, ya tengo la precisión (${formatSpecNumber(effectiveRead)} g).`,
-              "Para recomendarte mejor en esta familia, dime capacidad aproximada.",
-              "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
-            ].join("\n");
+            const tNormNeed = normalizeText(String(text || ""));
+            const hasReadabilityConstraint = /(menos\s+de|menor\s+que|hasta|maximo|maximo\s+de|no\s+mas\s+de|no\s+m[aá]s\s+de)/.test(tNormNeed);
+            const asksRecommendationNow = /(cual|cu[aá]l|recomiend|seria\s+buena|ser[ií]a\s+buena|me\s+sirve)/.test(tNormNeed);
+            if (hasReadabilityConstraint || asksRecommendationNow) {
+              const byFamily = (familyRows as any[]).filter((r: any) => {
+                const rs = extractRowTechnicalSpec(r);
+                const rr = Number(rs.readabilityG || 0);
+                return rr > 0 && rr <= effectiveRead;
+              });
+              const byCategory = (categoryScoped as any[]).filter((r: any) => {
+                const rs = extractRowTechnicalSpec(r);
+                const rr = Number(rs.readabilityG || 0);
+                return rr > 0 && rr <= effectiveRead;
+              });
+              const pool = byFamily.length ? byFamily : byCategory;
+              const rankedRead = rankCatalogByReadabilityOnly(pool as any[], effectiveRead);
+              const rankedRows = rankedRead.length ? rankedRead.map((x: any) => x.row) : pool;
+              const options = buildNumberedProductOptions((rankedRows || []).slice(0, 8) as any[], 8);
+              if (options.length) {
+                strictMemory.pending_product_options = options;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                strictMemory.strict_filter_readability_g = effectiveRead;
+                strictReply = [
+                  `Perfecto. Para precisión menor o igual a ${formatSpecNumber(effectiveRead)} g, estas son las mejores opciones disponibles:`,
+                  ...options.map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Elige con letra o número (A/1). Si quieres, luego afinamos por capacidad.",
+                ].join("\n");
+              } else {
+                strictReply = `Entiendo. Para precisión <= ${formatSpecNumber(effectiveRead)} g no veo opciones activas en esta categoría. Si quieres, te propongo alternativas cercanas.`;
+              }
+            } else {
+              strictReply = [
+                `Perfecto, ya tengo la precisión (${formatSpecNumber(effectiveRead)} g).`,
+                "Para recomendarte mejor en esta familia, dime capacidad aproximada.",
+                "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
+              ].join("\n");
+            }
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
