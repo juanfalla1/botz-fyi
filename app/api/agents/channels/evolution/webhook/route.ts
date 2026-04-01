@@ -5348,7 +5348,7 @@ export async function POST(req: Request) {
             if (/^\s*1\s*$/.test(textNorm)) {
               strictMemory.awaiting_action = "strict_quote_data";
               strictMemory.quote_quantity = Math.max(1, Number(previousMemory?.quote_quantity || 1));
-              return finalizeStrictTurn("Perfecto. Para cotizar, compárteme en un solo mensaje: ciudad, empresa, NIT, contacto, correo y celular. Si quieres seguir sin esos datos, escribe: avanza.", strictMemory, { pipeline: true, intent: pipelineIntent });
+              return finalizeStrictTurn("Perfecto. Para cotizar, compárteme en un solo mensaje: ciudad, empresa, NIT, contacto, correo y celular.", strictMemory, { pipeline: true, intent: pipelineIntent });
             }
             if (/^\s*2\s*$/.test(textNorm)) {
               strictMemory.awaiting_action = "strict_choose_action";
