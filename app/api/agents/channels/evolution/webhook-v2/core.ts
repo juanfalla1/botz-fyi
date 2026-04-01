@@ -4479,6 +4479,7 @@ export async function POST(req: Request) {
       });
       return NextResponse.json({ ok: true, ignored: true });
     }
+    const inboundTextAtEntry = String(inbound.text || "").trim();
 
     const supabase = getServiceSupabase();
     if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
@@ -8154,7 +8155,7 @@ export async function POST(req: Request) {
     }
 
     let awaitingAction = String(nextMemory?.awaiting_action || previousMemory?.awaiting_action || "");
-    const originalInboundText = String(inbound.text || "").trim();
+    const originalInboundText = String(inboundTextAtEntry || inbound.text || "").trim();
     const explicitModelGlobal = hasConcreteProductHint(originalInboundText) && !isOptionOnlyReply(originalInboundText);
     if (explicitModelGlobal) {
       nextMemory.awaiting_action = "none";
