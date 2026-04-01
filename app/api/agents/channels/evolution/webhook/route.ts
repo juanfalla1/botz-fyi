@@ -6028,6 +6028,11 @@ export async function POST(req: Request) {
       }
 
       if (!String(strictReply || "").trim() && isGreeting && !explicitModel && !categoryIntent && !wantsQuote && !wantsSheet) {
+        strictMemory.awaiting_action = "none";
+        strictMemory.pending_product_options = [];
+        strictMemory.pending_family_options = [];
+        strictMemory.strict_model_offset = 0;
+        strictMemory.strict_family_label = "";
         strictReply = knownCustomerName
           ? `Hola, ${knownCustomerName} 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\nSerá un placer ayudarte. Cuéntanos, ¿en qué podemos apoyarte hoy? ¿Qué producto necesitas hoy?`
           : "Hola 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\nSerá un placer ayudarte. Cuéntanos, ¿en qué podemos apoyarte hoy? ¿Qué producto necesitas hoy?";
@@ -8998,6 +9003,11 @@ export async function POST(req: Request) {
     }
 
     if (!handledByGreeting && isGreetingIntent(inbound.text)) {
+      nextMemory.awaiting_action = "none";
+      nextMemory.pending_product_options = [];
+      nextMemory.pending_family_options = [];
+      nextMemory.strict_model_offset = 0;
+      nextMemory.strict_family_label = "";
       reply = knownCustomerName
         ? `Hola, ${knownCustomerName} 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\nSerá un placer ayudarte. Cuéntanos, ¿en qué podemos apoyarte hoy? ¿Qué producto necesitas hoy?`
         : "Hola 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\nSerá un placer ayudarte. Cuéntanos, ¿en qué podemos apoyarte hoy? ¿Qué producto necesitas hoy?";
