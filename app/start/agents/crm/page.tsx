@@ -19,6 +19,9 @@ const C = {
   blue: "#60a5fa",
 };
 
+const SLA_LEAD_NO_RESPONSE_HOURS = 2;
+const SLA_QUOTE_NO_FOLLOWUP_DAYS = 3;
+
 type Draft = {
   id: string;
   agent_id?: string | null;
@@ -92,7 +95,7 @@ async function readJsonSafe(res: Response): Promise<any> {
   }
 }
 
-type CrmTab = "dashboard" | "pipeline" | "contacts";
+type CrmTab = "dashboard" | "pipeline" | "contacts" | "database";
 
 const CONTACT_FIELD_DEFAULTS = [
   { key: "name", label: "Nombre", visible: true, required: true },
@@ -131,13 +134,24 @@ export default function AgentsCrmPage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [agentOptions, setAgentOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [channelSummary, setChannelSummary] = useState<Array<{ channel: string; count: number }>>([]);
-  const [byAgent, setByAgent] = useState<Array<{ agent_id: string; agent_name: string; total: number; quote: number; purchase_order: number; invoicing: number; pipeline_cop: number }>>([]);
+  const [byAgent, setByAgent] = useState<Array<{
+    agent_id: string;
+    agent_name: string;
+    total: number;
+    quote: number;
+    purchase_order: number;
+    invoicing: number;
+    pipeline_cop: number;
+    contacted_today?: number;
+    first_response_minutes_avg?: number;
+  }>>([]);
   const [funnel, setFunnel] = useState<Array<{ key: string; label: string; value: number }>>([]);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [contactsTopTab, setContactsTopTab] = useState<"database" | "bot">("database");
   const [contactsPage, setContactsPage] = useState(1);
   const [contactsPageSize, setContactsPageSize] = useState(100);
+  const [contactOpsFilter, setContactOpsFilter] = useState<"all" | "overdue" | "unassigned" | "quote_stale">("all");
   const [filterAgent, setFilterAgent] = useState("all");
   const [filterChannel, setFilterChannel] = useState("all");
   const [filterQuoteDemand, setFilterQuoteDemand] = useState("all");
@@ -175,6 +189,7 @@ export default function AgentsCrmPage() {
   const [quoteNit, setQuoteNit] = useState("");
   const [quoteContact, setQuoteContact] = useState("");
   const [quoteDescription, setQuoteDescription] = useState("");
+  const [quoteTemplateKey, setQuoteTemplateKey] = useState("general");
   const [quoteWhatsappTo, setQuoteWhatsappTo] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteMessage, setQuoteMessage] = useState("");
@@ -189,6 +204,12 @@ export default function AgentsCrmPage() {
   const docFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const tr = (es: string, en: string) => (language === "en" ? en : es);
+  const quoteTemplates = [
+    { key: "general", label: tr("General laboratorio", "General lab"), text: tr("Incluye equipo principal, accesorios estándar y soporte de puesta en marcha.", "Includes main equipment, standard accessories and startup support.") },
+    { key: "balanzas", label: tr("Balanzas", "Balances"), text: tr("Incluye calibración inicial, verificación metrológica y capacitación de uso.", "Includes initial calibration, metrological verification and usage training.") },
+    { key: "humedad", label: tr("Analizador de humedad", "Moisture analyzer"), text: tr("Incluye método base recomendado, instalación y acompañamiento técnico inicial.", "Includes recommended base method, installation and initial technical support.") },
+    { key: "servicio", label: tr("Servicio técnico", "Technical service"), text: tr("Incluye diagnóstico, informe técnico y plan de mantenimiento sugerido.", "Includes diagnostics, technical report and suggested maintenance plan.") },
+  ];
 
   const normalizeStage = (raw: string): CrmStage => {
     const s = String(raw || "").toLowerCase();
@@ -774,6 +795,52 @@ export default function AgentsCrmPage() {
     }
   };
 
+  const mergeDuplicateIntoSelected = async (dup: Contact) => {
+    if (!selectedContact) return;
+    const ok = window.confirm(tr("Se fusionará este posible duplicado en el contacto actual y luego se eliminará el duplicado. ¿Continuar?", "This possible duplicate will be merged into current contact and then removed. Continue?"));
+    if (!ok) return;
+    setSavingContact(true);
+    setError(null);
+    try {
+      const patch: any = {};
+      if (!String(selectedContact.name || "").trim() && String(dup.name || "").trim()) patch.name = String(dup.name || "").trim();
+      if (!String(selectedContact.email || "").trim() && String(dup.email || "").trim()) patch.email = String(dup.email || "").trim();
+      if (!String(selectedContact.phone || "").trim() && String(dup.phone || "").trim()) patch.phone = String(dup.phone || "").trim();
+      if (!String(selectedContact.company || "").trim() && String(dup.company || "").trim()) patch.company = String(dup.company || "").trim();
+      if (Object.keys(patch).length) {
+        const saveRes = await authedFetch("/api/agents/crm/contact", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: selectedContact.phone,
+            email: selectedContact.email,
+            name: selectedContact.name,
+            company: selectedContact.company,
+            ...patch,
+          }),
+        });
+        const saveJson = await readJsonSafe(saveRes);
+        if (!saveRes.ok || !saveJson?.ok) throw new Error(saveJson?.error || "No se pudo fusionar datos del duplicado");
+      }
+
+      const delRes = await authedFetch("/api/agents/crm/contact", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: dup.phone, email: dup.email, contact_key: dup.key }),
+      });
+      const delJson = await readJsonSafe(delRes);
+      if (!delRes.ok || !delJson?.ok) throw new Error(delJson?.error || "No se pudo eliminar duplicado");
+
+      await fetchData();
+      await openContactDetail(selectedContact);
+      setQuoteMessage(tr("Duplicado fusionado correctamente.", "Duplicate merged successfully."));
+    } catch (e: any) {
+      setError(String(e?.message || "Error fusionando duplicado"));
+    } finally {
+      setSavingContact(false);
+    }
+  };
+
   const searchCatalogForQuote = async () => {
     const q = quoteProductQuery.trim();
     if (!q) {
@@ -974,6 +1041,7 @@ export default function AgentsCrmPage() {
 
   const filteredContacts = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const nowMs = Date.now();
     return contacts.filter((c) => {
       const segment = String((c as any).contact_segment || "bot");
       if (contactsTopTab === "database" && !(segment === "client" || segment === "distributor" || segment === "mixed")) return false;
@@ -985,11 +1053,42 @@ export default function AgentsCrmPage() {
         const has = Number((c as any).quote_requests_count || c.quotes_count || 0) > 0;
         if (!has) return false;
       }
+      if (contactOpsFilter === "overdue") {
+        const st = normalizeStage(String(c.status || "analysis"));
+        const lastActivityMs = new Date(String(c.last_activity_at || "")).getTime();
+        const isEarlyStage = st === "analysis" || st === "study";
+        if (!isEarlyStage || !Number.isFinite(lastActivityMs) || (nowMs - lastActivityMs) < SLA_LEAD_NO_RESPONSE_HOURS * 60 * 60 * 1000) return false;
+      }
+      if (contactOpsFilter === "unassigned") {
+        if (String(c.assigned_agent_id || "").trim()) return false;
+      }
+      if (contactOpsFilter === "quote_stale") {
+        const st = normalizeStage(String(c.status || "analysis"));
+        const sentMs = new Date(String((c as any).last_quote_sent_at || (c as any).last_quote_at || "")).getTime();
+        if (st !== "quote") return false;
+        if (!Number.isFinite(sentMs) || (nowMs - sentMs) < SLA_QUOTE_NO_FOLLOWUP_DAYS * 24 * 60 * 60 * 1000) return false;
+      }
       if (!q) return true;
       const hay = `${c.name || ""} ${c.email || ""} ${c.phone || ""} ${c.company || ""} ${c.last_product || ""}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [contacts, search, filterStatus, contactsTopTab, filterAgent, filterChannel, filterQuoteDemand]);
+  }, [contacts, search, filterStatus, contactsTopTab, filterAgent, filterChannel, filterQuoteDemand, contactOpsFilter]);
+
+  const opsCounters = useMemo(() => {
+    const nowMs = Date.now();
+    let overdue = 0;
+    let unassigned = 0;
+    let quoteStale = 0;
+    for (const c of contacts) {
+      const st = normalizeStage(String(c.status || "analysis"));
+      const lastActivityMs = new Date(String(c.last_activity_at || "")).getTime();
+      if ((st === "analysis" || st === "study") && Number.isFinite(lastActivityMs) && (nowMs - lastActivityMs) >= SLA_LEAD_NO_RESPONSE_HOURS * 60 * 60 * 1000) overdue += 1;
+      if (!String(c.assigned_agent_id || "").trim()) unassigned += 1;
+      const sentMs = new Date(String((c as any).last_quote_sent_at || (c as any).last_quote_at || "")).getTime();
+      if (st === "quote" && Number.isFinite(sentMs) && (nowMs - sentMs) >= SLA_QUOTE_NO_FOLLOWUP_DAYS * 24 * 60 * 60 * 1000) quoteStale += 1;
+    }
+    return { overdue, unassigned, quoteStale };
+  }, [contacts]);
 
   const contactsTotalPages = useMemo(
     () => Math.max(1, Math.ceil(filteredContacts.length / Math.max(1, contactsPageSize))),
@@ -998,11 +1097,17 @@ export default function AgentsCrmPage() {
 
   useEffect(() => {
     setContactsPage(1);
-  }, [search, filterStatus, contactsTopTab, filterAgent, filterChannel, filterQuoteDemand, contactsPageSize]);
+  }, [search, filterStatus, contactsTopTab, filterAgent, filterChannel, filterQuoteDemand, contactOpsFilter, contactsPageSize]);
 
   useEffect(() => {
     if (contactsPage > contactsTotalPages) setContactsPage(contactsTotalPages);
   }, [contactsPage, contactsTotalPages]);
+
+  useEffect(() => {
+    if (activeTab === "database") setContactsTopTab("database");
+    if (activeTab === "contacts") setContactsTopTab("bot");
+    if (activeTab !== "contacts") setContactOpsFilter("all");
+  }, [activeTab]);
 
   useEffect(() => {
     const msg = String(error || "");
@@ -1179,6 +1284,50 @@ export default function AgentsCrmPage() {
     { key: "closed", label: tr("Valor cerrado", "Closed value"), value: closedValue, color: "#34d399" },
   ];
   const maxValueBar = Math.max(1, ...valueBars.map((item) => Number(item.value || 0)));
+  const commercialPipeline = [
+    { key: "nuevo", label: tr("Nuevo", "New"), value: Number(summary?.analysis || 0), color: "#64748b" },
+    { key: "contactado", label: tr("Contactado", "Contacted"), value: Number(summary?.study || 0), color: "#0ea5e9" },
+    { key: "cotizado", label: tr("Cotizado", "Quoted"), value: Number(summary?.quote || 0), color: "#60a5fa" },
+    { key: "negociacion", label: tr("Negociación", "Negotiation"), value: Number(summary?.purchase_order || 0), color: "#f59e0b" },
+    { key: "cierre", label: tr("Cierre", "Close"), value: Number(summary?.invoicing || 0), color: "#34d399" },
+  ];
+
+  const unifiedTimeline = useMemo(() => {
+    const rows: Array<{ at: string; kind: string; text: string }> = [];
+    for (const t of contactDetail?.timeline || []) {
+      rows.push({ at: String(t.at || ""), kind: String(t.kind || "timeline"), text: String(t.text || "") });
+    }
+    for (const n of contactDetail?.notes || []) {
+      rows.push({ at: String(n.created_at || ""), kind: "note", text: String(n.note || "") });
+    }
+    for (const d of contactDetail?.drafts || []) {
+      rows.push({ at: String(d.updated_at || d.created_at || ""), kind: "quote", text: `${String(d.product_name || "-")} · COP ${money(Number(d.total_cop || 0))}` });
+    }
+    for (const doc of crmDocuments || []) {
+      rows.push({ at: String(doc.created_at || ""), kind: "document", text: `${String(doc.doc_type || "doc")}: ${String(doc.file_name || "-")}` });
+    }
+    rows.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+    return rows.slice(0, 140);
+  }, [contactDetail, crmDocuments]);
+
+  const duplicateCandidates = useMemo(() => {
+    if (!selectedContact) return [] as Contact[];
+    const selfKey = String(selectedContact.key || "");
+    const selfPhone = String(selectedContact.phone || "").replace(/\D/g, "");
+    const selfEmail = String(selectedContact.email || "").trim().toLowerCase();
+    const selfNit = String((selectedContact as any)?.metadata?.nit || "").replace(/[^0-9-]/g, "");
+    return contacts.filter((c) => {
+      const key = String(c.key || "");
+      if (!key || key === selfKey) return false;
+      const phone = String(c.phone || "").replace(/\D/g, "");
+      const email = String(c.email || "").trim().toLowerCase();
+      const nit = String((c as any)?.metadata?.nit || "").replace(/[^0-9-]/g, "");
+      const samePhone = !!selfPhone && !!phone && phone.endsWith(selfPhone.slice(-10));
+      const sameEmail = !!selfEmail && !!email && email === selfEmail;
+      const sameNit = !!selfNit && !!nit && nit === selfNit;
+      return samePhone || sameEmail || sameNit;
+    }).slice(0, 8);
+  }, [selectedContact, contacts]);
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: C.bg, color: C.white, fontFamily: "Inter,-apple-system,sans-serif" }}>
@@ -1200,6 +1349,7 @@ export default function AgentsCrmPage() {
               { key: "dashboard", label: tr("Dashboard", "Dashboard") },
               { key: "pipeline", label: tr("Negocios", "Deals") },
               { key: "contacts", label: tr("Contactos", "Contacts") },
+              { key: "database", label: tr("Base de datos", "Database") },
             ] as Array<{ key: CrmTab; label: string }>).map((tab) => {
               const active = activeTab === tab.key;
               return (
@@ -1609,9 +1759,61 @@ export default function AgentsCrmPage() {
           <Metric label={tr("Facturación", "Invoicing")} value={summary?.invoicing ?? 0} />
           <Metric label={tr("Contactos con cotización", "Contacts with quotes")} value={summary?.contacts_with_quote_requests ?? 0} />
           <Metric label={tr("Contactos con ficha/imagen", "Contacts with spec/image")} value={summary?.contacts_with_tech_sheet_requests ?? 0} />
+          <Metric label={tr(`Seguimiento vencido > ${SLA_LEAD_NO_RESPONSE_HOURS}h`, `Overdue follow-up > ${SLA_LEAD_NO_RESPONSE_HOURS}h`)} value={opsCounters.overdue} accent="#f59e0b" />
+          <Metric label={tr("Sin asesor asignado", "Unassigned contacts")} value={opsCounters.unassigned} accent="#f97316" />
+          <Metric label={tr(`Cotización sin gestión +${SLA_QUOTE_NO_FOLLOWUP_DAYS}d`, `Stale quote +${SLA_QUOTE_NO_FOLLOWUP_DAYS}d`)} value={opsCounters.quoteStale} accent="#fb7185" />
           <Metric label={tr("Valor total cotizado", "Total quoted value")} value={`COP ${money(summary?.total_quotes_requested_cop ?? 0)}`} accent={C.blue} />
           <Metric label={tr("Valor en gestión COP", "Value in process COP")} value={money(summary?.total_pipeline_cop ?? 0)} accent={C.blue} />
         </div>
+
+        {activeTab === "dashboard" && (
+          <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: C.card, padding: 12, marginBottom: 14 }}>
+            <div style={{ fontWeight: 800, marginBottom: 8 }}>{tr("Pipeline comercial", "Commercial pipeline")}</div>
+            <div style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>
+              {tr("Embudo ejecutivo: nuevo → contactado → cotizado → negociación → cierre.", "Executive funnel: new → contacted → quoted → negotiation → close.")}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 8 }}>
+              {commercialPipeline.map((s) => (
+                <div key={s.key} style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: "#0f1117", padding: 10 }}>
+                  <div style={{ color: C.muted, fontSize: 12 }}>{s.label}</div>
+                  <div style={{ marginTop: 4, fontWeight: 900, fontSize: 20, color: s.color }}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "dashboard" && (
+          <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: C.card, padding: 12, marginBottom: 14 }}>
+            <div style={{ fontWeight: 800, marginBottom: 8 }}>{tr("Rendimiento por asesor", "Advisor performance")}</div>
+            <div style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>
+              {tr("Controla carga, avance a cotización y cierres por cada asesor.", "Track workload, quote progression and closes by advisor.")}
+            </div>
+            <div style={{ display: "grid", gap: 8 }}>
+              {(byAgent || []).slice(0, 8).map((a: any, idx: number) => {
+                const total = Math.max(0, Number(a.total || 0));
+                const quoteCount = Math.max(0, Number(a.quote || 0));
+                const closeCount = Math.max(0, Number(a.purchase_order || 0) + Number(a.invoicing || 0));
+                const quoteRate = total > 0 ? Math.round((quoteCount / total) * 100) : 0;
+                const closeRate = total > 0 ? Math.round((closeCount / total) * 100) : 0;
+                return (
+                  <div key={String(a.agent_id || a.agent_name || idx)} style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: "#0f1117", padding: 10, display: "grid", gridTemplateColumns: "1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr", gap: 8, alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontWeight: 800 }}>{String(a.agent_name || a.agent_id || "-")}</div>
+                      <div style={{ color: C.muted, fontSize: 12 }}>COP {money(Number(a.pipeline_cop || 0))}</div>
+                    </div>
+                    <div style={{ fontSize: 12 }}><span style={{ color: C.muted }}>{tr("Asignados", "Assigned")}: </span><b>{total}</b></div>
+                    <div style={{ fontSize: 12 }}><span style={{ color: C.muted }}>{tr("Contactados hoy", "Contacted today")}: </span><b>{Number(a.contacted_today || 0)}</b></div>
+                    <div style={{ fontSize: 12 }}><span style={{ color: C.muted }}>{tr("A cotización", "To quote")}: </span><b>{quoteRate}%</b></div>
+                    <div style={{ fontSize: 12 }}><span style={{ color: C.muted }}>{tr("Cierre", "Close")}: </span><b>{closeRate}%</b></div>
+                    <div style={{ fontSize: 12 }}><span style={{ color: C.muted }}>{tr("Resp. prom.", "Avg response")}: </span><b>{Number(a.first_response_minutes_avg || 0)} min</b></div>
+                  </div>
+                );
+              })}
+              {!byAgent?.length && <div style={{ color: C.muted, fontSize: 12 }}>{tr("Aún no hay datos por asesor.", "No advisor data yet.")}</div>}
+            </div>
+          </div>
+        )}
 
           </>
         )}
@@ -1666,26 +1868,12 @@ export default function AgentsCrmPage() {
         </div>
         )}
 
-        {activeTab === "contacts" && (
+        {(activeTab === "contacts" || activeTab === "database") && (
           <>
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
           <div style={{ background: C.card, padding: "10px 12px", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span>{tr("Contactos", "Contacts")}</span>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, border: `1px solid ${C.border}`, borderRadius: 999, padding: 3, background: "#111318" }}>
-                <button
-                  onClick={() => setContactsTopTab("database")}
-                  style={{ border: "none", borderRadius: 999, background: contactsTopTab === "database" ? "rgba(163,230,53,0.22)" : "transparent", color: contactsTopTab === "database" ? C.lime : C.muted, padding: "5px 10px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}
-                >
-                  {tr("Base de datos", "Database")}
-                </button>
-                <button
-                  onClick={() => setContactsTopTab("bot")}
-                  style={{ border: "none", borderRadius: 999, background: contactsTopTab === "bot" ? "rgba(163,230,53,0.22)" : "transparent", color: contactsTopTab === "bot" ? C.lime : C.muted, padding: "5px 10px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}
-                >
-                  {tr("Entrantes bot", "Bot inbound")}
-                </button>
-              </div>
+              <span>{activeTab === "database" ? tr("Base de datos", "Database") : tr("Contactos en gestión", "Managed contacts")}</span>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input
@@ -1694,7 +1882,7 @@ export default function AgentsCrmPage() {
                 placeholder={tr("Buscar contacto, correo, producto...", "Search contact, email, product...")}
                 style={{ width: 260, maxWidth: "40vw", minWidth: 170, padding: "6px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0b0e14", color: C.white, fontSize: 12 }}
               />
-              {contactsTopTab === "database" && (
+              {activeTab === "contacts" && (
                 <button
                   onClick={() => setManualCreateOpen((prev) => !prev)}
                   style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: manualCreateOpen ? "rgba(163,230,53,0.14)" : C.dark, color: manualCreateOpen ? C.lime : C.white, padding: "6px 10px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}
@@ -1713,6 +1901,34 @@ export default function AgentsCrmPage() {
                   {stageOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
               </div>
+              {activeTab === "contacts" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <button
+                    onClick={() => setContactOpsFilter("all")}
+                    style={{ border: `1px solid ${C.border}`, borderRadius: 999, background: contactOpsFilter === "all" ? "rgba(96,165,250,0.18)" : C.dark, color: contactOpsFilter === "all" ? C.white : C.muted, padding: "5px 9px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}
+                  >
+                    {tr("Todos", "All")}
+                  </button>
+                  <button
+                    onClick={() => setContactOpsFilter("overdue")}
+                    style={{ border: `1px solid ${C.border}`, borderRadius: 999, background: contactOpsFilter === "overdue" ? "rgba(245,158,11,0.18)" : C.dark, color: contactOpsFilter === "overdue" ? "#fbbf24" : C.muted, padding: "5px 9px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}
+                  >
+                    {tr(`Vencidos >${SLA_LEAD_NO_RESPONSE_HOURS}h`, `Overdue >${SLA_LEAD_NO_RESPONSE_HOURS}h`)} ({opsCounters.overdue})
+                  </button>
+                  <button
+                    onClick={() => setContactOpsFilter("unassigned")}
+                    style={{ border: `1px solid ${C.border}`, borderRadius: 999, background: contactOpsFilter === "unassigned" ? "rgba(249,115,22,0.18)" : C.dark, color: contactOpsFilter === "unassigned" ? "#fb923c" : C.muted, padding: "5px 9px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}
+                  >
+                    {tr("Sin asesor", "Unassigned")} ({opsCounters.unassigned})
+                  </button>
+                  <button
+                    onClick={() => setContactOpsFilter("quote_stale")}
+                    style={{ border: `1px solid ${C.border}`, borderRadius: 999, background: contactOpsFilter === "quote_stale" ? "rgba(244,63,94,0.18)" : C.dark, color: contactOpsFilter === "quote_stale" ? "#fb7185" : C.muted, padding: "5px 9px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}
+                  >
+                    {tr(`Cotiz +${SLA_QUOTE_NO_FOLLOWUP_DAYS}d`, `Quote +${SLA_QUOTE_NO_FOLLOWUP_DAYS}d`)} ({opsCounters.quoteStale})
+                  </button>
+                </div>
+              )}
               <button
                 onClick={openDeleteSelectedModal}
                 disabled={!selectedContactKeys.length || Boolean(updatingContactKey)}
@@ -1725,7 +1941,7 @@ export default function AgentsCrmPage() {
               </button>
             </div>
           </div>
-          {manualCreateOpen && contactsTopTab === "database" && (
+          {manualCreateOpen && activeTab === "contacts" && (
             <div style={{ borderTop: `1px solid ${C.border}`, background: "rgba(11,14,20,0.85)", padding: 10 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(5,minmax(140px,1fr)) auto", gap: 8 }}>
                 <input
@@ -1982,6 +2198,24 @@ export default function AgentsCrmPage() {
                     style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white }}
                   />
                 </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+                  <select
+                    value={quoteTemplateKey}
+                    onChange={(e) => setQuoteTemplateKey(e.target.value)}
+                    style={{ minWidth: 220, padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white, fontSize: 12 }}
+                  >
+                    {quoteTemplates.map((tpl) => <option key={tpl.key} value={tpl.key}>{tpl.label}</option>)}
+                  </select>
+                  <button
+                    onClick={() => {
+                      const tpl = quoteTemplates.find((t) => t.key === quoteTemplateKey);
+                      if (tpl) setQuoteDescription(tpl.text);
+                    }}
+                    style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: C.card, color: C.white, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontWeight: 700 }}
+                  >
+                    {tr("Aplicar plantilla", "Apply template")}
+                  </button>
+                </div>
                 {!!quoteMessage && <div style={{ marginTop: 8, color: C.blue, fontSize: 12 }}>{quoteMessage}</div>}
               </div>
             )}
@@ -2069,15 +2303,15 @@ export default function AgentsCrmPage() {
                   </div>
                 </div>
                 <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: 10 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 6 }}>{tr("Timeline", "Timeline")}</div>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>{tr("Historial unificado", "Unified timeline")}</div>
                   <div style={{ display: "grid", gap: 6, maxHeight: 240, overflow: "auto" }}>
-                    {(contactDetail?.timeline || []).map((t, idx) => (
-                      <div key={`${t.at}-${idx}`} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: 8, background: "#0f1117" }}>
-                        <div style={{ color: C.muted, fontSize: 11 }}>{new Date(t.at).toLocaleString()} · {t.kind === "assistant" ? tr("Bot", "Bot") : t.kind === "user" ? tr("Cliente", "Customer") : t.kind}</div>
-                        <div style={{ fontSize: 13 }}>{t.text}</div>
+                    {unifiedTimeline.map((t, idx) => (
+                      <div key={`${t.at}-${idx}-${t.kind}`} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: 8, background: "#0f1117" }}>
+                        <div style={{ color: C.muted, fontSize: 11 }}>{new Date(t.at).toLocaleString()} · {t.kind === "assistant" ? tr("Bot", "Bot") : t.kind === "user" ? tr("Cliente", "Customer") : t.kind === "quote" ? tr("Cotización", "Quote") : t.kind === "note" ? tr("Nota", "Note") : t.kind === "document" ? tr("Documento", "Document") : t.kind}</div>
+                        <div style={{ fontSize: 13 }}>{t.text || "-"}</div>
                       </div>
                     ))}
-                    {!(contactDetail?.timeline || []).length && <div style={{ color: C.muted, fontSize: 12 }}>{tr("Sin actividad", "No activity")}</div>}
+                    {!unifiedTimeline.length && <div style={{ color: C.muted, fontSize: 12 }}>{tr("Sin actividad", "No activity")}</div>}
                   </div>
                 </div>
                 <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: 10 }}>
@@ -2102,6 +2336,21 @@ export default function AgentsCrmPage() {
                   </div>
                 </div>
                 <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: 10 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>{tr("Duplicados sugeridos", "Suggested duplicates")}</div>
+                  <div style={{ display: "grid", gap: 6, maxHeight: 170, overflow: "auto", marginBottom: 10 }}>
+                    {duplicateCandidates.map((d) => (
+                      <div key={String(d.key || "")} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: 8, background: "#0f1117", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700 }}>{String(d.name || d.email || d.phone || "-")}</div>
+                          <div style={{ color: C.muted, fontSize: 11 }}>{String(d.phone || "-")} · {String(d.email || "-")}</div>
+                        </div>
+                        <button onClick={() => void mergeDuplicateIntoSelected(d)} disabled={savingContact} style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: C.bg, color: C.white, fontSize: 11, padding: "5px 8px", cursor: "pointer" }}>
+                          {tr("Fusionar", "Merge")}
+                        </button>
+                      </div>
+                    ))}
+                    {!duplicateCandidates.length && <div style={{ color: C.muted, fontSize: 12 }}>{tr("Sin duplicados detectados", "No duplicates detected")}</div>}
+                  </div>
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>{tr("Documentos CRM", "CRM documents")}</div>
                   <div style={{ color: C.muted, fontSize: 11, marginBottom: 8 }}>
                     {tr("Los PDF quedan guardados en Supabase Storage (bucket crm-documents) y registrados en CRM.", "PDF files are stored in Supabase Storage (crm-documents bucket) and registered in CRM.")}
@@ -2252,8 +2501,10 @@ export default function AgentsCrmPage() {
 }
 
 function Metric({ label, value, accent }: { label: string; value: any; accent?: string }) {
+  const glow = accent || "#60a5fa";
   return (
-    <div style={{ border: "1px solid rgba(255,255,255,0.10)", borderRadius: 12, background: "#22262d", padding: "12px 14px" }}>
+    <div style={{ border: "1px solid rgba(255,255,255,0.10)", borderRadius: 14, background: "linear-gradient(180deg,#20252e,#1a1f28)", padding: "12px 14px", position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: glow, opacity: 0.85 }} />
       <div style={{ color: "#9ca3af", fontSize: 12 }}>{label}</div>
       <div style={{ marginTop: 6, fontWeight: 900, fontSize: 20, color: accent || "#ffffff" }}>{String(value)}</div>
     </div>

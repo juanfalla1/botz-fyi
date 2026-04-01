@@ -35,6 +35,11 @@ function isQuoteDraftStatusConstraintError(err: any) {
   return msg.includes("agent_quote_drafts_status_check") || (msg.includes("check constraint") && msg.includes("agent_quote_drafts"));
 }
 
+function isCrmContactStatusConstraintError(err: any) {
+  const msg = String(err?.message || "").toLowerCase();
+  return msg.includes("agent_crm_contacts_status_check") || (msg.includes("check constraint") && msg.includes("agent_crm_contacts"));
+}
+
 const ALLOWED_STATUS = new Set([
   "analysis", "study", "quote", "purchase_order", "invoicing",
   "analisis", "analisis_de_necesidad", "estudio", "cotizacion", "orden_de_compra", "orden de compra", "facturacion",
@@ -64,6 +69,16 @@ function resolveDraftStage(draft: any): string {
 }
 
 function mapToLegacyQuoteDraftStatus(stage: string) {
+  const s = normalizeCrmStage(stage);
+  if (s === "analysis") return "draft";
+  if (s === "study") return "draft";
+  if (s === "quote") return "sent";
+  if (s === "purchase_order") return "won";
+  if (s === "invoicing") return "lost";
+  return "draft";
+}
+
+function mapToLegacyContactStatus(stage: string) {
   const s = normalizeCrmStage(stage);
   if (s === "analysis") return "draft";
   if (s === "study") return "draft";
@@ -119,7 +134,18 @@ async function resolveOrCreateContact(supabase: any, ownerId: string, args: { ph
     .insert(payload)
     .select("id,contact_key,name,email,phone,company,assigned_agent_id,status,next_action,next_action_at,updated_at")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isCrmContactStatusConstraintError(error)) {
+      const { data: insertedLegacy, error: legacyErr } = await supabase
+        .from("agent_crm_contacts")
+        .insert({ ...payload, status: mapToLegacyContactStatus("analysis") })
+        .select("id,contact_key,name,email,phone,company,assigned_agent_id,status,next_action,next_action_at,updated_at")
+        .single();
+      if (legacyErr) throw new Error(legacyErr.message);
+      return insertedLegacy;
+    }
+    throw new Error(error.message);
+  }
   return inserted;
 }
 
@@ -283,13 +309,27 @@ export async function PATCH(req: Request) {
     if (body?.next_action !== undefined) patch.next_action = String(body.next_action || "").trim() || null;
     if (body?.next_action_at !== undefined) patch.next_action_at = body.next_action_at ? String(body.next_action_at) : null;
 
-    const { data, error } = await supabase
+    let updateResult = await supabase
       .from("agent_crm_contacts")
       .update(patch)
       .eq("id", contact.id)
       .eq("created_by", ownerId)
       .select("id,contact_key,name,email,phone,company,assigned_agent_id,status,next_action,next_action_at,updated_at")
       .single();
+
+    if (updateResult.error && isCrmContactStatusConstraintError(updateResult.error) && patch.status) {
+      const legacyPatch = { ...patch, status: mapToLegacyContactStatus(String(patch.status || "analysis")) };
+      updateResult = await supabase
+        .from("agent_crm_contacts")
+        .update(legacyPatch)
+        .eq("id", contact.id)
+        .eq("created_by", ownerId)
+        .select("id,contact_key,name,email,phone,company,assigned_agent_id,status,next_action,next_action_at,updated_at")
+        .single();
+    }
+
+    const data = updateResult.data;
+    const error = updateResult.error;
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
 
     if (nextStatus !== undefined) {

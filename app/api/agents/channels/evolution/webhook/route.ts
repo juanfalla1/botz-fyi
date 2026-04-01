@@ -6629,10 +6629,16 @@ export async function POST(req: Request) {
             nextMemory.last_selection_at = new Date().toISOString();
             strictMemory.awaiting_action = "none";
           } else {
-            const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
-            strictMemory.quote_quantity = qtyRequested;
-            strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
+            const asksMultiModelNoList = /\b(mas de un modelo|m[aá]s de un modelo|varios modelos|dos modelos|multiples modelos|m[uú]ltiples modelos)\b/i.test(text) && extractModelLikeTokens(text).length === 0;
+            if (asksMultiModelNoList) {
+              strictMemory.awaiting_action = "strict_choose_action";
+              strictReply = "Perfecto. Para cotizar varios modelos, envíame en un solo mensaje los modelos y cantidades (ej: PX85 x1, PX223 x2).";
+            } else {
+              const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
+              strictMemory.quote_quantity = qtyRequested;
+              strictMemory.awaiting_action = "strict_quote_data";
+              strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
+            }
           }
           }
           }

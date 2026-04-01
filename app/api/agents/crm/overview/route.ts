@@ -275,7 +275,21 @@ export async function GET(req: Request) {
     purchase_order: 0,
     invoicing: 0,
   };
-  const byAgentMap = new Map<string, { agent_id: string; agent_name: string; total: number; quote: number; purchase_order: number; invoicing: number; pipeline_cop: number }>();
+  const byAgentMap = new Map<string, {
+    agent_id: string;
+    agent_name: string;
+    total: number;
+    quote: number;
+    purchase_order: number;
+    invoicing: number;
+    pipeline_cop: number;
+    contacted_today: number;
+    first_response_count: number;
+    first_response_minutes_sum: number;
+    first_response_minutes_avg: number;
+  }>();
+  const today = new Date();
+  const dayStartMs = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
 
   const pipeline = {
     analysis: [] as Draft[],
@@ -303,6 +317,10 @@ export async function GET(req: Request) {
         purchase_order: 0,
         invoicing: 0,
         pipeline_cop: 0,
+        contacted_today: 0,
+        first_response_count: 0,
+        first_response_minutes_sum: 0,
+        first_response_minutes_avg: 0,
       };
       prev.total += 1;
       if (st === "quote") prev.quote += 1;
@@ -359,6 +377,42 @@ export async function GET(req: Request) {
       }
     }
     intentMetricsByPhone.set(phone, metric);
+
+    const aid = String(c?.agent_id || "");
+    if (aid) {
+      const prev = byAgentMap.get(aid) || {
+        agent_id: aid,
+        agent_name: agentNameMap.get(aid) || aid,
+        total: 0,
+        quote: 0,
+        purchase_order: 0,
+        invoicing: 0,
+        pipeline_cop: 0,
+        contacted_today: 0,
+        first_response_count: 0,
+        first_response_minutes_sum: 0,
+        first_response_minutes_avg: 0,
+      };
+      const convAtMs = new Date(String(c?.created_at || "")).getTime();
+      if (Number.isFinite(convAtMs) && convAtMs >= dayStartMs) {
+        prev.contacted_today += 1;
+      }
+      const firstUser = transcript.find((m: any) => String(m?.role || "") === "user");
+      const firstAssistant = transcript.find((m: any) => String(m?.role || "") === "assistant");
+      const userMs = new Date(String(firstUser?.timestamp || c?.created_at || "")).getTime();
+      const assistantMs = new Date(String(firstAssistant?.timestamp || "")).getTime();
+      if (Number.isFinite(userMs) && Number.isFinite(assistantMs) && assistantMs >= userMs) {
+        const mins = Math.round((assistantMs - userMs) / 60000);
+        if (mins >= 0 && mins <= 24 * 60) {
+          prev.first_response_count += 1;
+          prev.first_response_minutes_sum += mins;
+        }
+      }
+      prev.first_response_minutes_avg = prev.first_response_count > 0
+        ? Math.round(prev.first_response_minutes_sum / prev.first_response_count)
+        : 0;
+      byAgentMap.set(aid, prev);
+    }
   }
 
   const channelSummaryMap = new Map<string, number>();
