@@ -9049,13 +9049,14 @@ export async function POST(req: Request) {
           const needText = normalizeText(`${String(originalInboundText || "")} ${String(inbound.text || "")}`);
           const isGuidedCategory = /balanza|balanzas|bascula|basculas|humedad|analizador de humedad/.test(categoryLabel);
           const hasModelHintNow = hasConcreteProductHint(originalInboundText) || extractModelLikeTokens(originalInboundText).length > 0;
-          const asksNeedGuidanceDirect = /(quiero|necesito|busco).*(balanza|balanzas|bascula|basculas|humedad|analizador de humedad)|para\s+pesar/.test(needText);
+          const asksNeedGuidanceDirect = /(quiero|necesito|busco|requiero|me\s+sirve|cual\s+me\s+sirve|cu[aá]l\s+me\s+sirve|recomiend|orienta).*(balanza|balanzas|bascula|basculas|humedad|analizador\s+de\s+humedad)|para\s+pesar|para\s+usar|para\s+medir/.test(needText);
           const useCaseDrivenIntent =
             isRecommendationIntent(originalInboundText) ||
             isUseCaseApplicabilityIntent(originalInboundText) ||
             isUseCaseFamilyHint(originalInboundText) ||
             /(quiero|necesito|busco).*(balanza|balanzas|bascula|basculas|humedad)|para\s+pesar|peso\s+aproximado|tornillo|tornillos|tuerca|tuercas|perno|pernos|pieza|piezas|muestra|muestras/.test(needText);
-          if (isGuidedCategory && familyOptions.length && !hasModelHintNow && (asksNeedGuidanceDirect || useCaseDrivenIntent)) {
+          const shouldForceNeedGuidance = isGuidedCategory && !hasModelHintNow && (asksNeedGuidanceDirect || useCaseDrivenIntent);
+          if (shouldForceNeedGuidance && familyOptions.length) {
             const inferred = inferFamilyFromUseCase(originalInboundText, familyOptions);
             const inferredKey = String((inferred as any)?.key || "").trim();
             const familyRows = inferredKey
