@@ -6029,8 +6029,8 @@ export async function POST(req: Request) {
 
       if (!String(strictReply || "").trim() && isGreeting && !explicitModel && !categoryIntent && !wantsQuote && !wantsSheet) {
         strictReply = knownCustomerName
-          ? `Hola ${knownCustomerName}, soy Ava de Avanza Group. ¿Qué producto necesitas hoy?`
-          : "Hola, soy Ava de Avanza Group. ¿Qué producto necesitas hoy?";
+          ? `Hola, ${knownCustomerName} 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\nSerá un placer ayudarte. Cuéntanos, ¿en qué podemos apoyarte hoy? ¿Qué producto necesitas hoy?`
+          : "Hola 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\nSerá un placer ayudarte. Cuéntanos, ¿en qué podemos apoyarte hoy? ¿Qué producto necesitas hoy?";
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
         const parsed = parseLooseTechnicalHint(text);
         const capacityRange = parseCapacityRangeHint(text);
@@ -8999,10 +8999,8 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && isGreetingIntent(inbound.text)) {
       reply = knownCustomerName
-        ? (recognizedReturningCustomer
-            ? `Hola ${knownCustomerName}, que bueno tenerte nuevamente con nosotros. Soy Ava, tu asistente virtual de Avanza Group. ¿Que producto necesitas hoy?`
-            : `Hola ${knownCustomerName}, soy Ava, tu asistente virtual de Avanza Group. ¿Qué necesitas hoy?`)
-        : "Hola, soy Ava, tu asistente virtual de Avanza Group. ¿Con quién tengo el gusto?";
+        ? `Hola, ${knownCustomerName} 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\nSerá un placer ayudarte. Cuéntanos, ¿en qué podemos apoyarte hoy? ¿Qué producto necesitas hoy?`
+        : "Hola 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\nSerá un placer ayudarte. Cuéntanos, ¿en qué podemos apoyarte hoy? ¿Qué producto necesitas hoy?";
       if (!knownCustomerName) nextMemory.awaiting_action = "capture_name";
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
