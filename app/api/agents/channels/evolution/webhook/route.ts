@@ -8977,12 +8977,14 @@ export async function POST(req: Request) {
           const scoped = scopeCatalogRows(categoryRowsCommercial as any, inboundCategoryIntent);
           const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
           const categoryLabel = inboundCategoryIntent.replace(/_/g, " ");
+          const needText = normalizeText(`${String(originalInboundText || "")} ${String(inbound.text || "")}`);
+          const isGuidedCategory = /balanza|balanzas|bascula|basculas|humedad|analizador de humedad/.test(categoryLabel);
           const useCaseDrivenIntent =
             isRecommendationIntent(originalInboundText) ||
             isUseCaseApplicabilityIntent(originalInboundText) ||
             isUseCaseFamilyHint(originalInboundText) ||
-            /(para\s+pesar|peso\s+aproximado|tornillo|tornillos|tuerca|tuercas|perno|pernos|pieza|piezas|muestra|muestras)/.test(normalizeText(originalInboundText));
-          if (useCaseDrivenIntent && familyOptions.length) {
+            /(quiero|necesito|busco).*(balanza|balanzas|bascula|basculas|humedad)|para\s+pesar|peso\s+aproximado|tornillo|tornillos|tuerca|tuercas|perno|pernos|pieza|piezas|muestra|muestras/.test(needText);
+          if (isGuidedCategory && useCaseDrivenIntent && familyOptions.length) {
             const inferred = inferFamilyFromUseCase(originalInboundText, familyOptions);
             const inferredKey = String((inferred as any)?.key || "").trim();
             const familyRows = inferredKey
