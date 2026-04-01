@@ -7153,19 +7153,41 @@ export async function POST(req: Request) {
           }
         }
         if (!String(strictReply || "").trim() && freeCatalogAskInModelStep && !isCategorySwitchInModelStep) {
-          const families = buildNumberedFamilyOptions(categoryScoped as any[], 8);
-          if (!families.length) {
+          const asksMoreCapacityInModelStep = /(mas\s+capacidad|m[aá]s\s+capacidad|mayor\s+capacidad|de\s+mas\s+capacidad|de\s+m[aá]s\s+capacidad|mas\s+peso|m[aá]s\s+peso)/.test(textNorm);
+          if (!categoryScoped.length) {
             strictMemory.awaiting_action = "strict_need_spec";
             strictReply = "En base de datos no tengo más referencias activas en este grupo por ahora. Si quieres, dime capacidad y resolución y te busco alternativas exactas.";
+          } else if (asksMoreCapacityInModelStep) {
+            const byCapacity = [...categoryScoped]
+              .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
+              .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
+            const options = buildNumberedProductOptions((byCapacity.length ? byCapacity : categoryScoped) as any[], 8);
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.strict_model_offset = 0;
+            strictReply = options.length
+              ? [
+                  "Sí, claro. Te comparto opciones de mayor capacidad que tengo activas en base de datos:",
+                  ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Si quieres, después de elegir una te ayudo a validar la resolución ideal para tu uso.",
+                  "Puedes responder con letra o número (A/1).",
+                ].join("\n")
+              : "Ahora mismo no veo opciones de mayor capacidad activas en esta categoría. Si quieres, te propongo alternativas por disponibilidad.";
           } else {
-            strictMemory.awaiting_action = "strict_choose_family";
-            strictMemory.pending_family_options = families;
-            strictMemory.pending_product_options = [];
+            const options = buildNumberedProductOptions(categoryScoped as any[], 60);
+            const page = options.slice(0, 8);
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.pending_family_options = [];
+            strictMemory.pending_product_options = page;
+            strictMemory.strict_model_offset = 0;
             strictReply = [
               `Claro. En base de datos tengo ${categoryScoped.length} referencia(s) activas para esta categoría.`,
-              "Elige familia para no perder el hilo:",
-              ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
+              "Te guío con opciones directas para no frenarte:",
+              ...page.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
               "",
+              "Si prefieres, también te puedo filtrar por mayor capacidad o mejor precisión.",
               "Responde con letra o número (A/1).",
             ].join("\n");
           }
