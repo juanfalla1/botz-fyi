@@ -8989,7 +8989,33 @@ export async function POST(req: Request) {
           const scoped = scopeCatalogRows(categoryRowsCommercial as any, inboundCategoryIntent);
           const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
           const categoryLabel = inboundCategoryIntent.replace(/_/g, " ");
-          if (familyOptions.length > 1) {
+          const useCaseDrivenIntent =
+            isRecommendationIntent(originalInboundText) ||
+            isUseCaseApplicabilityIntent(originalInboundText) ||
+            isUseCaseFamilyHint(originalInboundText);
+          if (useCaseDrivenIntent && familyOptions.length) {
+            const inferred = inferFamilyFromUseCase(originalInboundText, familyOptions);
+            const inferredKey = String((inferred as any)?.key || "").trim();
+            const familyRows = inferredKey
+              ? scoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(inferredKey))
+              : [];
+            const options = buildNumberedProductOptions((familyRows.length ? familyRows : scoped) as any[], 8).slice(0, 5);
+            reply = [
+              inferred
+                ? `Entiendo tu necesidad. Para ese uso te recomiendo iniciar con ${String((inferred as any)?.label || "esa familia")}.`
+                : "Entiendo tu necesidad. Te oriento con opciones recomendadas según uso.",
+              "Para afinar sin inventar, dime peso mínimo y máximo de la pieza (y peso por unidad si lo tienes).",
+              ...(options.length ? ["", "Modelos sugeridos para empezar:", ...options.map((o) => `${o.code}) ${o.name}`)] : []),
+              "",
+              options.length
+                ? "Elige con letra/número (A/1) y te envío ficha o cotización."
+                : "Si prefieres, elige una familia y te doy modelos exactos.",
+            ].join("\n");
+            nextMemory.pending_product_options = options;
+            nextMemory.pending_family_options = options.length ? [] : familyOptions;
+            nextMemory.awaiting_action = options.length ? "product_option_selection" : "family_option_selection";
+            nextMemory.last_category_intent = inboundCategoryIntent;
+          } else if (familyOptions.length > 1) {
             reply = [
               `Si, tenemos ${scoped.length} referencias en la categoria ${categoryLabel}.`,
               "Primero elige la familia:",
