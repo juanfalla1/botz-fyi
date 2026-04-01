@@ -9051,6 +9051,42 @@ export async function POST(req: Request) {
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
 
+    if (!handledByGreeting) {
+      const entryNeedText = normalizeText(String(originalInboundText || ""));
+      const isEntryNeedGuidance = /(quiero|necesito|busco|requiero).*(balanza|balanzas|bascula|basculas|humedad)|para\s+pesar/.test(entryNeedText);
+      if (isEntryNeedGuidance) {
+        const forcedCategory = detectCatalogCategoryIntent(originalInboundText) || (/humedad|analizador\s+de\s+humedad/.test(entryNeedText) ? "humedad" : "balanzas");
+        const rawRows = await fetchCatalogRows("id,name,category,brand,base_price_usd,source_payload,product_url", 220, false);
+        const commercialRows = (Array.isArray(rawRows) ? rawRows : []).filter((r: any) => isCommercialCatalogRow(r));
+        const scoped = scopeCatalogRows(commercialRows as any, forcedCategory);
+        const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
+        const inferred = inferFamilyFromUseCase(originalInboundText, familyOptions);
+        const inferredKey = String((inferred as any)?.key || "").trim();
+        const familyRows = inferredKey
+          ? scoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(inferredKey))
+          : [];
+        const options = buildNumberedProductOptions((familyRows.length ? familyRows : scoped) as any[], 8).slice(0, 5);
+        reply = [
+          inferred
+            ? `Entiendo tu necesidad. Para ese uso te recomiendo iniciar con ${String((inferred as any)?.label || "esa familia")}.`
+            : "Entiendo tu necesidad y te guío con opciones recomendadas según uso.",
+          "Para afinar sin inventar, dime peso mínimo y máximo de la pieza (y peso por unidad si lo tienes).",
+          ...(options.length ? ["", "Modelos sugeridos para empezar:", ...options.map((o) => `${o.code}) ${o.name}`)] : []),
+          "",
+          options.length
+            ? "Elige con letra/número (A/1) y te envío ficha o cotización."
+            : "Si quieres, te muestro familias disponibles para orientarte mejor.",
+        ].join("\n");
+        nextMemory.pending_product_options = options;
+        nextMemory.pending_family_options = options.length ? [] : familyOptions;
+        nextMemory.awaiting_action = options.length ? "product_option_selection" : "family_option_selection";
+        nextMemory.last_category_intent = String(forcedCategory || "");
+        nextMemory.strict_use_case = String(originalInboundText || "").trim();
+        handledByInventory = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      }
+    }
+
     if (!handledByGreeting && (inboundInventoryIntent || Boolean(inboundCategoryIntent))) {
       try {
         if (inboundCategoryIntent) {
