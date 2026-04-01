@@ -9059,15 +9059,17 @@ export async function POST(req: Request) {
           const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
           const categoryLabel = inboundCategoryIntent.replace(/_/g, " ");
           const needText = normalizeText(`${String(originalInboundText || "")} ${String(inbound.text || "")}`);
+          const rawNeedText = String(inbound.text || originalInboundText || "");
           const isGuidedCategory = /balanza|balanzas|bascula|basculas|humedad|analizador de humedad/.test(categoryLabel);
           const hasModelHintNow = hasConcreteProductHint(originalInboundText) || extractModelLikeTokens(originalInboundText).length > 0;
           const asksNeedGuidanceDirect = /(quiero|necesito|busco|requiero|me\s+sirve|cual\s+me\s+sirve|cu[aá]l\s+me\s+sirve|recomiend|orienta).*(balanza|balanzas|bascula|basculas|humedad|analizador\s+de\s+humedad)|para\s+pesar|para\s+usar|para\s+medir/.test(needText);
+          const asksNeedGuidanceRaw = /\b(quiero|necesito|busco|requiero|recomiend|orienta)\b/i.test(rawNeedText) || /para\s+pesar/i.test(rawNeedText);
           const useCaseDrivenIntent =
             isRecommendationIntent(originalInboundText) ||
             isUseCaseApplicabilityIntent(originalInboundText) ||
             isUseCaseFamilyHint(originalInboundText) ||
             /(quiero|necesito|busco).*(balanza|balanzas|bascula|basculas|humedad)|para\s+pesar|peso\s+aproximado|tornillo|tornillos|tuerca|tuercas|perno|pernos|pieza|piezas|muestra|muestras/.test(needText);
-          const shouldForceNeedGuidance = isGuidedCategory && !hasModelHintNow && (asksNeedGuidanceDirect || useCaseDrivenIntent);
+          const shouldForceNeedGuidance = isGuidedCategory && !hasModelHintNow && (asksNeedGuidanceDirect || asksNeedGuidanceRaw || useCaseDrivenIntent);
           if (shouldForceNeedGuidance && familyOptions.length) {
             const inferred = inferFamilyFromUseCase(originalInboundText, familyOptions);
             const inferredKey = String((inferred as any)?.key || "").trim();
