@@ -1861,6 +1861,15 @@ function isSameQuoteContinuationIntent(text: string): boolean {
   return /(misma\s+cotizacion|misma\s+cotización|en\s+la\s+misma\s+cotizacion|en\s+la\s+misma\s+cotización|agrega|agregar|incluye|incluir|suma|sumar|adiciona|adicionar|dos\s+mas|tres\s+mas)/.test(t);
 }
 
+function isFlowChangeWithoutModelDetailsIntent(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  const hasModelTokens = extractModelLikeTokens(text).length >= 1;
+  const hasQtyHint = /(\d{1,4})\s*(x|por|unidad|unidades)/.test(t);
+  if (hasModelTokens || hasQtyHint) return false;
+  return /(mas\s+de\s+un\s+modelo|m[aá]s\s+de\s+un\s+modelo|varios\s+modelos|multiples\s+modelos|m[uú]ltiples\s+modelos|otro\s+modelo|otra\s+referencia|otra\s+opcion|otro\s+equipo|cambiar\s+modelo|cambiar\s+referencia|quiero\s+otro|quiero\s+otras|agregar\s+otro|agregar\s+mas|incluir\s+otro|incluir\s+mas)/.test(t);
+}
+
 function shouldResendPdf(text: string): boolean {
   const t = normalizeText(text);
   return /(reenviar|reenvia|reenvie|volver a enviar|mandame otra vez|otra vez el pdf|reenvio|enviala por aqui|mandala por aqui|dame por aqui|pasala por aqui|donde esta la cotizacion|donde va la cotizacion|estado de la cotizacion|no la veo|no llego el pdf|no me llego el pdf|aun no llega el pdf)/.test(t);
@@ -6629,10 +6638,10 @@ export async function POST(req: Request) {
             nextMemory.last_selection_at = new Date().toISOString();
             strictMemory.awaiting_action = "none";
           } else {
-            const asksMultiModelNoList = /\b(mas de un modelo|m[aá]s de un modelo|varios modelos|dos modelos|multiples modelos|m[uú]ltiples modelos)\b/i.test(text) && extractModelLikeTokens(text).length === 0;
-            if (asksMultiModelNoList) {
+            const asksFlowChangeNoDetails = isFlowChangeWithoutModelDetailsIntent(text);
+            if (asksFlowChangeNoDetails) {
               strictMemory.awaiting_action = "strict_choose_action";
-              strictReply = "Perfecto. Para cotizar varios modelos, envíame en un solo mensaje los modelos y cantidades (ej: PX85 x1, PX223 x2).";
+              strictReply = "Perfecto. Para evitar ambigüedad, indícame primero qué familia o referencias quieres cotizar y la cantidad por cada una (ej: PX85 x1, PX223 x2).";
             } else {
               const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
               strictMemory.quote_quantity = qtyRequested;
