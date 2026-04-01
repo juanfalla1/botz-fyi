@@ -7410,11 +7410,15 @@ export async function POST(req: Request) {
                 : (pos === 2 ? "alternativa para comparar costo/beneficio" : "alternativa para mayor capacidad/robustez");
               return `${o.code}) ${o.name} - ${hint}`;
             });
+            const rememberedUseCase = String(previousMemory?.strict_use_case || strictMemory?.strict_use_case || "").trim();
+            const hasUseCaseContext = /(para\s+pesar|tornillo|tornillos|tuerca|tuercas|perno|pernos|muestra|muestras|laboratorio|joyeria|joyería|industrial)/.test(normalizeText(`${rememberedUseCase} ${text}`));
             strictReply = [
               "¡Claro! Te recomiendo estas opciones para empezar, sin complicarte:",
               ...lines,
               "",
-              "Si me dices el uso (ej.: laboratorio, joyería o industrial), te digo cuál elegir primero.",
+              hasUseCaseContext
+                ? "Con ese uso, para afinarte una recomendación final dime el rango de peso por unidad o capacidad aproximada."
+                : "Si me dices el uso (ej.: laboratorio, joyería o industrial), te digo cuál elegir primero.",
               "También puedes responder con letra o número (A/1) y te envío ficha o cotización.",
             ].join("\n");
           }
@@ -9026,12 +9030,14 @@ export async function POST(req: Request) {
           const categoryLabel = inboundCategoryIntent.replace(/_/g, " ");
           const needText = normalizeText(`${String(originalInboundText || "")} ${String(inbound.text || "")}`);
           const isGuidedCategory = /balanza|balanzas|bascula|basculas|humedad|analizador de humedad/.test(categoryLabel);
+          const hasModelHintNow = hasConcreteProductHint(originalInboundText) || extractModelLikeTokens(originalInboundText).length > 0;
+          const asksNeedGuidanceDirect = /(quiero|necesito|busco).*(balanza|balanzas|bascula|basculas|humedad|analizador de humedad)|para\s+pesar/.test(needText);
           const useCaseDrivenIntent =
             isRecommendationIntent(originalInboundText) ||
             isUseCaseApplicabilityIntent(originalInboundText) ||
             isUseCaseFamilyHint(originalInboundText) ||
             /(quiero|necesito|busco).*(balanza|balanzas|bascula|basculas|humedad)|para\s+pesar|peso\s+aproximado|tornillo|tornillos|tuerca|tuercas|perno|pernos|pieza|piezas|muestra|muestras/.test(needText);
-          if (isGuidedCategory && useCaseDrivenIntent && familyOptions.length) {
+          if (isGuidedCategory && familyOptions.length && !hasModelHintNow && (asksNeedGuidanceDirect || useCaseDrivenIntent)) {
             const inferred = inferFamilyFromUseCase(originalInboundText, familyOptions);
             const inferredKey = String((inferred as any)?.key || "").trim();
             const familyRows = inferredKey
@@ -9053,6 +9059,7 @@ export async function POST(req: Request) {
             nextMemory.pending_family_options = options.length ? [] : familyOptions;
             nextMemory.awaiting_action = options.length ? "product_option_selection" : "family_option_selection";
             nextMemory.last_category_intent = inboundCategoryIntent;
+            nextMemory.strict_use_case = String(originalInboundText || "").trim();
           } else if (familyOptions.length > 1) {
             reply = [
               `Si, tenemos ${scoped.length} referencias en la categoria ${categoryLabel}.`,
