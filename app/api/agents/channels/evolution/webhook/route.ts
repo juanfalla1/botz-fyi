@@ -8980,7 +8980,8 @@ export async function POST(req: Request) {
           const useCaseDrivenIntent =
             isRecommendationIntent(originalInboundText) ||
             isUseCaseApplicabilityIntent(originalInboundText) ||
-            isUseCaseFamilyHint(originalInboundText);
+            isUseCaseFamilyHint(originalInboundText) ||
+            /(para\s+pesar|peso\s+aproximado|tornillo|tornillos|tuerca|tuercas|perno|pernos|pieza|piezas|muestra|muestras)/.test(normalizeText(originalInboundText));
           if (useCaseDrivenIntent && familyOptions.length) {
             const inferred = inferFamilyFromUseCase(originalInboundText, familyOptions);
             const inferredKey = String((inferred as any)?.key || "").trim();
