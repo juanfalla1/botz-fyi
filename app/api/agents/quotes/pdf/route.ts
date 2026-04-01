@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
     if (!draft) return NextResponse.json({ ok: false, error: "Draft no encontrado" }, { status: 404 });
 
-    const { pdfBase64, fileName } = buildQuotePdfFromDraft(draftId, draft);
+    const { pdfBase64, fileName } = await buildQuotePdfFromDraft(draftId, draft);
     return NextResponse.json({ ok: true, data: { draftId, fileName, pdfBase64 } });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Unknown error" }, { status: 500 });

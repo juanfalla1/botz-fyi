@@ -108,6 +108,21 @@ function classifyIntent(rawText: string | null | undefined) {
   return "Sin clasificar";
 }
 
+function classifyContactSegment(contact: any): "bot" | "client" | "distributor" | "mixed" {
+  const metadata = contact?.metadata && typeof contact.metadata === "object" ? contact.metadata : {};
+  const customerType = normalizeText(String((metadata as any)?.customer_type || ""));
+  const source = normalizeText(String((metadata as any)?.source || (metadata as any)?.origin || ""));
+  const hasQuotes = Number(contact?.quotes_count || 0) > 0;
+  const hasBotSignals = /whatsapp|evolution|webhook|bot/.test(source) || String(contact?.last_channel || "").toLowerCase() === "whatsapp";
+  const hasMasterSignals = /crm|manual|xlsx|import|commercial|comercial|sales|zoho/.test(source) || Boolean(String(contact?.company || "").trim());
+
+  if (customerType === "distributor") return "distributor";
+  if (customerType === "client") return "client";
+  if ((hasBotSignals && hasMasterSignals) || (hasBotSignals && hasQuotes)) return "mixed";
+  if (hasMasterSignals) return "client";
+  return "bot";
+}
+
 function isQuoteRequestMessage(rawText: string | null | undefined) {
   const t = normalizeText(rawText);
   return /(cotiz|cotizacion|presupuesto|precio|trm|pdf|propuesta|valor final|cuanto queda)/.test(t);
@@ -193,6 +208,8 @@ export async function GET(req: Request) {
           contacts: 0,
           opportunities: 0,
           quotes_sent: 0,
+          contacts_clients: 0,
+          contacts_distributors: 0,
           analysis: 0,
           study: 0,
           quote: 0,
@@ -233,7 +250,7 @@ export async function GET(req: Request) {
       .select("id,contact_key,name,email,phone,company,assigned_agent_id,status,next_action,next_action_at,metadata,updated_at")
       .eq("created_by", ownerId)
       .order("updated_at", { ascending: false })
-      .limit(1200),
+      .limit(10000),
   ]);
 
   if (draftsErr) return NextResponse.json({ ok: false, error: draftsErr.message }, { status: 400 });
@@ -569,6 +586,7 @@ export async function GET(req: Request) {
         total_quoted_cop: Number(c.total_quoted_cop || 0),
         last_quote_value_cop: Number(c.last_quote_value_cop || 0),
         last_quote_at: c.last_quote_at || null,
+        contact_segment: classifyContactSegment(c),
       };
     })
     .filter((c: any) => {
@@ -582,6 +600,9 @@ export async function GET(req: Request) {
 
   const summary = {
     contacts: contacts.length,
+    contacts_bot: contacts.filter((c: any) => c.contact_segment === "bot").length,
+    contacts_clients: contacts.filter((c: any) => c.contact_segment === "client" || c.contact_segment === "mixed").length,
+    contacts_distributors: contacts.filter((c: any) => c.contact_segment === "distributor").length,
     opportunities: safeDrafts.length,
     quotes_sent: byStatus.quote + byStatus.purchase_order + byStatus.invoicing,
     analysis: byStatus.analysis,

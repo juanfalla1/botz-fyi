@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authedFetch } from "@/app/start/agents/authedFetchAgents";
 import { AuthRequiredError } from "@/app/start/agents/authedFetchAgents";
@@ -46,6 +46,21 @@ type Contact = {
   [k: string]: any;
 };
 
+type CrmDocument = {
+  id: string;
+  contact_id: string | null;
+  quote_draft_id: string | null;
+  doc_type: string;
+  bucket_name: string;
+  file_path: string;
+  file_name: string;
+  mime_type: string | null;
+  file_size_bytes: number | null;
+  metadata?: Record<string, any> | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type CatalogOption = {
   id: string;
   name: string;
@@ -66,6 +81,16 @@ type IntegrationAccessState = {
   self_enabled: boolean;
   self_enabled_updated_at: string | null;
 };
+
+async function readJsonSafe(res: Response): Promise<any> {
+  const raw = await res.text().catch(() => "");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { ok: false, error: raw.slice(0, 240) || "Respuesta inválida del servidor" };
+  }
+}
 
 type CrmTab = "dashboard" | "pipeline" | "contacts";
 
@@ -110,6 +135,9 @@ export default function AgentsCrmPage() {
   const [funnel, setFunnel] = useState<Array<{ key: string; label: string; value: number }>>([]);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [contactsTopTab, setContactsTopTab] = useState<"database" | "bot">("database");
+  const [contactsPage, setContactsPage] = useState(1);
+  const [contactsPageSize, setContactsPageSize] = useState(100);
   const [filterAgent, setFilterAgent] = useState("all");
   const [filterChannel, setFilterChannel] = useState("all");
   const [filterQuoteDemand, setFilterQuoteDemand] = useState("all");
@@ -151,6 +179,14 @@ export default function AgentsCrmPage() {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteMessage, setQuoteMessage] = useState("");
   const [quoteActionId, setQuoteActionId] = useState("");
+  const [crmDocuments, setCrmDocuments] = useState<CrmDocument[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [documentsSaving, setDocumentsSaving] = useState(false);
+  const [docType, setDocType] = useState("quote_pdf");
+  const [docBucket, setDocBucket] = useState("crm-documents");
+  const [docQuoteDraftId, setDocQuoteDraftId] = useState("");
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const docFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const tr = (es: string, en: string) => (language === "en" ? en : es);
 
@@ -218,7 +254,7 @@ export default function AgentsCrmPage() {
     try {
       setIntegrationLoading(true);
       const integrationRes = await authedFetch("/api/agents/crm/integration-access");
-      const integrationJson = await integrationRes.json();
+      const integrationJson = await readJsonSafe(integrationRes);
       if (integrationRes.ok && integrationJson?.ok) {
         setIntegrationAccess(integrationJson?.data || null);
       } else {
@@ -226,12 +262,12 @@ export default function AgentsCrmPage() {
       }
 
       const settingsRes = await authedFetch("/api/agents/crm/settings");
-      const settingsJson = await settingsRes.json();
+      const settingsJson = await readJsonSafe(settingsRes);
       if (!settingsRes.ok || !settingsJson?.ok) throw new Error(settingsJson?.error || "No se pudo cargar configuración CRM");
       setSettings(settingsJson?.data || null);
 
       const res = await authedFetch("/api/agents/crm/overview");
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo cargar CRM");
       setSummary(json?.data?.summary || null);
       setPipeline(json?.data?.pipeline || { analysis: [], study: [], quote: [], purchase_order: [], invoicing: [] });
@@ -277,7 +313,7 @@ export default function AgentsCrmPage() {
           notes: integrationNotes.trim() || null,
         }),
       });
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo actualizar autorización CRM");
       await fetchData();
       setIntegrationNotes("");
@@ -308,7 +344,7 @@ export default function AgentsCrmPage() {
           notes: "Auto habilitado por owner desde CRM",
         }),
       });
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo habilitar CRM");
       await fetchData();
     } catch (e: any) {
@@ -328,7 +364,7 @@ export default function AgentsCrmPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
       });
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo guardar configuración CRM");
       setSettings(json?.data || settings);
       await fetchData();
@@ -356,7 +392,7 @@ export default function AgentsCrmPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo actualizar etapa");
       await fetchData();
     } catch (e: any) {
@@ -406,7 +442,7 @@ export default function AgentsCrmPage() {
           ...patch,
         }),
       });
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || fallbackError);
       await fetchData();
       if (selectedContact && String(selectedContact.key || "") === String(c.key || "")) {
@@ -440,7 +476,7 @@ export default function AgentsCrmPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: c.phone, email: c.email, contact_key: c.key }),
       });
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo eliminar contacto");
       if (selectedContact && String(selectedContact.key || "") === String(c.key || "")) {
         setSelectedContact(null);
@@ -496,7 +532,7 @@ export default function AgentsCrmPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ phone: c.phone, email: c.email, contact_key: c.key }),
         });
-        const json = await res.json();
+        const json = await readJsonSafe(res);
         if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo eliminar todos los contactos");
       }
       if (selectedContact) {
@@ -518,22 +554,110 @@ export default function AgentsCrmPage() {
     setSelectedContact(c);
     setContactLoading(true);
     setContactDetail(null);
+    setCrmDocuments([]);
+    setDocFile(null);
+    if (docFileInputRef.current) docFileInputRef.current.value = "";
     try {
       const q = new URLSearchParams();
       if (c.phone) q.set("phone", c.phone);
       if (c.email) q.set("email", c.email);
       const res = await authedFetch(`/api/agents/crm/contact?${q.toString()}`);
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo cargar detalle de contacto");
       const data = json?.data || { drafts: [], conversations: [], timeline: [], notes: [] };
       setContactDetail(data);
       if (data?.contact) {
         setSelectedContact((prev) => ({ ...(prev || c), ...(data.contact || {}) } as Contact));
+        await loadContactDocuments(String(data.contact.id || ""));
+      } else {
+        setCrmDocuments([]);
       }
     } catch (e: any) {
       setError(String(e?.message || "Error cargando detalle de contacto"));
     } finally {
       setContactLoading(false);
+    }
+  };
+
+  const loadContactDocuments = async (contactId: string) => {
+    const id = String(contactId || "").trim();
+    if (!id) {
+      setCrmDocuments([]);
+      return;
+    }
+    setDocumentsLoading(true);
+    try {
+      const res = await authedFetch(`/api/agents/crm/documents?contact_id=${encodeURIComponent(id)}&limit=120`);
+      const json = await readJsonSafe(res);
+      if (!res.ok || !json?.ok) {
+        if (json?.code === "missing_table") {
+          setCrmDocuments([]);
+          return;
+        }
+        throw new Error(json?.error || "No se pudo cargar documentos CRM");
+      }
+      setCrmDocuments(Array.isArray(json?.data) ? json.data : []);
+    } catch (e: any) {
+      setError(String(e?.message || "Error cargando documentos CRM"));
+      setCrmDocuments([]);
+    } finally {
+      setDocumentsLoading(false);
+    }
+  };
+
+  const registerCrmDocument = async () => {
+    const contactId = String((contactDetail as any)?.contact?.id || "").trim();
+    if (!contactId) {
+      setError(tr("Selecciona un contacto valido para registrar documento.", "Select a valid contact to register a document."));
+      return;
+    }
+    if (!docFile) {
+      setError(tr("Selecciona un PDF para registrar.", "Select a PDF to register."));
+      return;
+    }
+    const fileName = String(docFile.name || "documento.pdf").trim() || "documento.pdf";
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || "");
+        const payload = result.includes(",") ? result.split(",").pop() || "" : result;
+        resolve(payload);
+      };
+      reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+      reader.readAsDataURL(docFile);
+    }).catch((e: any) => {
+      throw new Error(String(e?.message || "No se pudo leer el archivo"));
+    });
+
+    setDocumentsSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        contact_id: contactId,
+        quote_draft_id: docQuoteDraftId.trim() || null,
+        doc_type: docType.trim() || "other",
+        bucket_name: docBucket.trim() || "crm-documents",
+        file_name: fileName,
+        mime_type: "application/pdf",
+        pdf_base64: base64,
+      };
+      const res = await authedFetch("/api/agents/crm/documents/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await readJsonSafe(res);
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo registrar documento CRM");
+
+      setDocQuoteDraftId("");
+      setDocFile(null);
+      if (docFileInputRef.current) docFileInputRef.current.value = "";
+      await loadContactDocuments(contactId);
+      setQuoteMessage(tr("PDF registrado en CRM correctamente.", "PDF registered in CRM successfully."));
+    } catch (e: any) {
+      setError(String(e?.message || "Error registrando documento CRM"));
+    } finally {
+      setDocumentsSaving(false);
     }
   };
 
@@ -552,7 +676,7 @@ export default function AgentsCrmPage() {
           ...patch,
         }),
       });
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo guardar contacto");
       await fetchData();
       await openContactDetail(selectedContact);
@@ -578,7 +702,7 @@ export default function AgentsCrmPage() {
           note: noteDraft.trim(),
         }),
       });
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo guardar bitacora");
       setNoteDraft("");
       await openContactDetail(selectedContact);
@@ -616,7 +740,7 @@ export default function AgentsCrmPage() {
           status: "analysis",
         }),
       });
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo crear contacto manual");
 
       const created = json?.data || {};
@@ -662,7 +786,7 @@ export default function AgentsCrmPage() {
     setQuoteMessage("");
     try {
       const res = await authedFetch(`/api/agents/catalog/search?q=${encodeURIComponent(q)}&limit=20`);
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo buscar catálogo");
       const rows = (Array.isArray(json?.data) ? json.data : []).map((r: any) => ({
         id: String(r?.id || "").trim(),
@@ -714,7 +838,7 @@ export default function AgentsCrmPage() {
           notes: tr("Generada manualmente desde CRM", "Manually generated from CRM"),
         }),
       });
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo generar cotización");
 
       const totalCop = Number(json?.data?.total_cop || 0);
@@ -745,7 +869,7 @@ export default function AgentsCrmPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ draftId: id }),
       });
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo generar PDF");
 
       const base64 = String(json?.data?.pdfBase64 || "").trim();
@@ -759,7 +883,32 @@ export default function AgentsCrmPage() {
       a.download = fileName;
       a.click();
       URL.revokeObjectURL(url);
-      setQuoteMessage(tr("PDF generado y descargado.", "PDF generated and downloaded."));
+
+      const contactId = String((contactDetail as any)?.contact?.id || "").trim();
+      if (contactId) {
+        const uploadRes = await authedFetch("/api/agents/crm/documents/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contact_id: contactId,
+            quote_draft_id: id,
+            doc_type: "quote_pdf",
+            bucket_name: docBucket || "crm-documents",
+            file_name: fileName,
+            mime_type: "application/pdf",
+            pdf_base64: base64,
+          }),
+        });
+        const uploadJson = await readJsonSafe(uploadRes);
+        if (uploadRes.ok && uploadJson?.ok) {
+          await loadContactDocuments(contactId);
+          setQuoteMessage(tr("PDF generado, descargado y guardado en Documentos CRM.", "PDF generated, downloaded and saved in CRM documents."));
+        } else {
+          setQuoteMessage(tr("PDF generado y descargado. No se pudo guardar en CRM Documentos.", "PDF generated and downloaded. Could not save in CRM documents."));
+        }
+      } else {
+        setQuoteMessage(tr("PDF generado y descargado.", "PDF generated and downloaded."));
+      }
     } catch (e: any) {
       setError(String(e?.message || "Error generando PDF"));
     } finally {
@@ -782,7 +931,7 @@ export default function AgentsCrmPage() {
     setQuoteMessage("");
     try {
       const statusRes = await authedFetch("/api/agents/channels/evolution/status");
-      const statusJson = await statusRes.json();
+      const statusJson = await readJsonSafe(statusRes);
       if (!statusRes.ok || !statusJson?.ok) throw new Error(statusJson?.error || "No se pudo validar canal WhatsApp");
       const connected = Boolean(statusJson?.data?.connected);
       const instanceName = String(statusJson?.data?.instance_name || "").trim();
@@ -795,7 +944,7 @@ export default function AgentsCrmPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ draftId, to, instanceName }),
       });
-      const sendJson = await sendRes.json();
+      const sendJson = await readJsonSafe(sendRes);
       if (!sendRes.ok || !sendJson?.ok) throw new Error(sendJson?.error || "No se pudo enviar cotización por WhatsApp");
 
       setQuoteMessage(tr("Cotización enviada por WhatsApp y estado actualizado a Cotización.", "Quote sent via WhatsApp and status updated to Quote."));
@@ -826,6 +975,9 @@ export default function AgentsCrmPage() {
   const filteredContacts = useMemo(() => {
     const q = search.trim().toLowerCase();
     return contacts.filter((c) => {
+      const segment = String((c as any).contact_segment || "bot");
+      if (contactsTopTab === "database" && !(segment === "client" || segment === "distributor" || segment === "mixed")) return false;
+      if (contactsTopTab === "bot" && !(segment === "bot" || segment === "mixed")) return false;
       if (filterStatus !== "all" && normalizeStage(String(c.status || "analysis")) !== normalizeStage(filterStatus)) return false;
       if (filterAgent !== "all" && String(c.assigned_agent_id || "") !== filterAgent) return false;
       if (filterChannel !== "all" && String(c.last_channel || "") !== filterChannel) return false;
@@ -837,9 +989,33 @@ export default function AgentsCrmPage() {
       const hay = `${c.name || ""} ${c.email || ""} ${c.phone || ""} ${c.company || ""} ${c.last_product || ""}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [contacts, search, filterStatus, filterAgent, filterChannel, filterQuoteDemand]);
+  }, [contacts, search, filterStatus, contactsTopTab, filterAgent, filterChannel, filterQuoteDemand]);
 
-  const visibleContacts = useMemo(() => filteredContacts.slice(0, 200), [filteredContacts]);
+  const contactsTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredContacts.length / Math.max(1, contactsPageSize))),
+    [filteredContacts.length, contactsPageSize]
+  );
+
+  useEffect(() => {
+    setContactsPage(1);
+  }, [search, filterStatus, contactsTopTab, filterAgent, filterChannel, filterQuoteDemand, contactsPageSize]);
+
+  useEffect(() => {
+    if (contactsPage > contactsTotalPages) setContactsPage(contactsTotalPages);
+  }, [contactsPage, contactsTotalPages]);
+
+  useEffect(() => {
+    const msg = String(error || "");
+    const isIntegrationValidation = /correo valido para autorizar crm|correo válido para autorizar crm|valid email to authorize crm/i.test(msg);
+    if (activeTab !== "dashboard" && isIntegrationValidation) {
+      setError(null);
+    }
+  }, [activeTab, error]);
+
+  const visibleContacts = useMemo(() => {
+    const start = (Math.max(1, contactsPage) - 1) * Math.max(1, contactsPageSize);
+    return filteredContacts.slice(start, start + Math.max(1, contactsPageSize));
+  }, [filteredContacts, contactsPage, contactsPageSize]);
 
   useEffect(() => {
     const valid = new Set(contacts.map((c) => String(c.key || "")));
@@ -1048,7 +1224,7 @@ export default function AgentsCrmPage() {
           </div>
         )}
 
-        {!!settings?.enabled && (activeTab === "pipeline" || activeTab === "contacts") && (
+        {!!settings?.enabled && activeTab === "pipeline" && (
           <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: C.card, padding: 12, marginBottom: 14 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1.2fr repeat(4,minmax(160px,1fr))", gap: 10 }}>
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("Buscar contacto, correo, producto...", "Search contact, email, product...")} style={{ padding: "9px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }} />
@@ -1421,6 +1597,9 @@ export default function AgentsCrmPage() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 10, marginBottom: 14 }}>
           <Metric label={tr("Contactos", "Contacts")} value={summary?.contacts ?? 0} />
+          <Metric label={tr("Base clientes", "Client base")} value={summary?.contacts_clients ?? 0} />
+          <Metric label={tr("Distribuidores", "Distributors")} value={summary?.contacts_distributors ?? 0} />
+          <Metric label={tr("Entrantes bot", "Bot inbound")} value={summary?.contacts_bot ?? 0} />
           <Metric label={tr("Oportunidades", "Opportunities")} value={summary?.opportunities ?? 0} />
           <Metric label={tr("Solicitudes cotización", "Quote requests")} value={summary?.quotes_requested ?? 0} />
           <Metric label={tr("Análisis", "Analysis")} value={summary?.analysis ?? 0} />
@@ -1490,15 +1669,39 @@ export default function AgentsCrmPage() {
         {activeTab === "contacts" && (
           <>
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
-          <div style={{ background: C.card, padding: "10px 12px", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>{tr("Contactos", "Contacts")}</span>
+          <div style={{ background: C.card, padding: "10px 12px", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span>{tr("Contactos", "Contacts")}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, border: `1px solid ${C.border}`, borderRadius: 999, padding: 3, background: "#111318" }}>
+                <button
+                  onClick={() => setContactsTopTab("database")}
+                  style={{ border: "none", borderRadius: 999, background: contactsTopTab === "database" ? "rgba(163,230,53,0.22)" : "transparent", color: contactsTopTab === "database" ? C.lime : C.muted, padding: "5px 10px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}
+                >
+                  {tr("Base de datos", "Database")}
+                </button>
+                <button
+                  onClick={() => setContactsTopTab("bot")}
+                  style={{ border: "none", borderRadius: 999, background: contactsTopTab === "bot" ? "rgba(163,230,53,0.22)" : "transparent", color: contactsTopTab === "bot" ? C.lime : C.muted, padding: "5px 10px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}
+                >
+                  {tr("Entrantes bot", "Bot inbound")}
+                </button>
+              </div>
+            </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button
-                onClick={() => setManualCreateOpen((prev) => !prev)}
-                style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: manualCreateOpen ? "rgba(163,230,53,0.14)" : C.dark, color: manualCreateOpen ? C.lime : C.white, padding: "6px 10px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}
-              >
-                {manualCreateOpen ? tr("Cerrar alta manual", "Close manual create") : tr("Crear cliente manual", "Create customer manually")}
-              </button>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={tr("Buscar contacto, correo, producto...", "Search contact, email, product...")}
+                style={{ width: 260, maxWidth: "40vw", minWidth: 170, padding: "6px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0b0e14", color: C.white, fontSize: 12 }}
+              />
+              {contactsTopTab === "database" && (
+                <button
+                  onClick={() => setManualCreateOpen((prev) => !prev)}
+                  style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: manualCreateOpen ? "rgba(163,230,53,0.14)" : C.dark, color: manualCreateOpen ? C.lime : C.white, padding: "6px 10px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}
+                >
+                  {manualCreateOpen ? tr("Cerrar alta manual", "Close manual create") : tr("Crear cliente manual", "Create customer manually")}
+                </button>
+              )}
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ color: C.muted, fontSize: 12, fontWeight: 700 }}>{tr("Estado", "Status")}</span>
                 <select
@@ -1522,7 +1725,7 @@ export default function AgentsCrmPage() {
               </button>
             </div>
           </div>
-          {manualCreateOpen && (
+          {manualCreateOpen && contactsTopTab === "database" && (
             <div style={{ borderTop: `1px solid ${C.border}`, background: "rgba(11,14,20,0.85)", padding: 10 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(5,minmax(140px,1fr)) auto", gap: 8 }}>
                 <input
@@ -1562,6 +1765,36 @@ export default function AgentsCrmPage() {
               </div>
             </div>
           )}
+          <div style={{ borderTop: `1px solid ${C.border}`, padding: "8px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", background: "rgba(11,14,20,0.5)" }}>
+            <div style={{ color: C.muted, fontSize: 12 }}>
+              {tr("Mostrando", "Showing")} {visibleContacts.length} / {filteredContacts.length} · {tr("Página", "Page")} {contactsPage}/{contactsTotalPages}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <select
+                value={String(contactsPageSize)}
+                onChange={(e) => setContactsPageSize(Math.max(25, Number(e.target.value) || 100))}
+                style={{ padding: "6px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0b0e14", color: C.white, fontSize: 12 }}
+              >
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="250">250</option>
+              </select>
+              <button
+                onClick={() => setContactsPage((p) => Math.max(1, p - 1))}
+                disabled={contactsPage <= 1}
+                style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: C.dark, color: contactsPage <= 1 ? C.muted : C.white, padding: "6px 10px", cursor: contactsPage <= 1 ? "not-allowed" : "pointer", fontSize: 12 }}
+              >
+                {tr("Anterior", "Prev")}
+              </button>
+              <button
+                onClick={() => setContactsPage((p) => Math.min(contactsTotalPages, p + 1))}
+                disabled={contactsPage >= contactsTotalPages}
+                style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: C.dark, color: contactsPage >= contactsTotalPages ? C.muted : C.white, padding: "6px 10px", cursor: contactsPage >= contactsTotalPages ? "not-allowed" : "pointer", fontSize: 12 }}
+              >
+                {tr("Siguiente", "Next")}
+              </button>
+            </div>
+          </div>
           <div style={{ overflowX: "auto", overflowY: "hidden" }}>
           <table style={{ width: "max-content", minWidth: "100%", borderCollapse: "collapse" }}>
             <thead style={{ background: C.dark }}>
@@ -1805,7 +2038,7 @@ export default function AgentsCrmPage() {
 
             {contactLoading && <div style={{ color: C.muted }}>{tr("Cargando detalle...", "Loading detail...")}</div>}
             {!contactLoading && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 10 }}>
                 <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: 10 }}>
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>{tr("Cotizaciones", "Quotes")}</div>
                   <div style={{ display: "grid", gap: 6, maxHeight: 240, overflow: "auto" }}>
@@ -1866,6 +2099,76 @@ export default function AgentsCrmPage() {
                       </div>
                     ))}
                     {!(contactDetail?.notes || []).length && <div style={{ color: C.muted, fontSize: 12 }}>{tr("Sin notas", "No notes")}</div>}
+                  </div>
+                </div>
+                <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: C.dark, padding: 10 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>{tr("Documentos CRM", "CRM documents")}</div>
+                  <div style={{ color: C.muted, fontSize: 11, marginBottom: 8 }}>
+                    {tr("Los PDF quedan guardados en Supabase Storage (bucket crm-documents) y registrados en CRM.", "PDF files are stored in Supabase Storage (crm-documents bucket) and registered in CRM.")}
+                  </div>
+                  <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 6 }}>
+                      <select
+                        value={docType}
+                        onChange={(e) => setDocType(e.target.value)}
+                        style={{ width: "100%", minWidth: 0, padding: "7px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white, fontSize: 12 }}
+                      >
+                        <option value="quote_pdf">{tr("PDF cotización", "Quote PDF")}</option>
+                        <option value="datasheet_pdf">{tr("PDF ficha técnica", "Datasheet PDF")}</option>
+                        <option value="purchase_order">{tr("Orden de compra", "Purchase order")}</option>
+                        <option value="invoice">{tr("Factura", "Invoice")}</option>
+                        <option value="other">{tr("Otro", "Other")}</option>
+                      </select>
+                      <select
+                        value={docQuoteDraftId}
+                        onChange={(e) => setDocQuoteDraftId(e.target.value)}
+                        style={{ width: "100%", minWidth: 0, padding: "7px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white, fontSize: 12 }}
+                      >
+                        <option value="">{tr("Sin cotización asociada", "No linked quote")}</option>
+                        {(contactDetail?.drafts || []).map((d: any) => (
+                          <option key={d.id} value={String(d.id || "")}>{String(d.product_name || d.id || "-")}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <input
+                      ref={docFileInputRef}
+                      type="file"
+                      accept="application/pdf"
+                      onChange={(e) => setDocFile(e.target.files?.[0] || null)}
+                      style={{ display: "none" }}
+                    />
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                      <button
+                        onClick={() => docFileInputRef.current?.click()}
+                        style={{ border: `1px solid ${C.border}`, borderRadius: 8, background: "#0f1117", color: C.white, fontWeight: 700, fontSize: 12, padding: "7px 10px", cursor: "pointer" }}
+                      >
+                        {tr("Seleccionar PDF", "Select PDF")}
+                      </button>
+                      <div style={{ color: docFile ? C.white : C.muted, fontSize: 12, minWidth: 0, flex: 1, overflowWrap: "anywhere" }}>
+                        {docFile ? String(docFile.name || "") : tr("Ningún archivo seleccionado", "No file selected")}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => void registerCrmDocument()}
+                      disabled={documentsSaving || !docFile}
+                      style={{ border: "none", borderRadius: 8, background: C.lime, color: "#111", fontWeight: 800, fontSize: 12, padding: "7px 10px", cursor: documentsSaving ? "not-allowed" : "pointer", opacity: documentsSaving ? 0.7 : 1 }}
+                    >
+                      {documentsSaving ? tr("Registrando...", "Registering...") : tr("Registrar documento", "Register document")}
+                    </button>
+                  </div>
+                  <div style={{ display: "grid", gap: 6, maxHeight: 240, overflow: "auto" }}>
+                    {documentsLoading && <div style={{ color: C.muted, fontSize: 12 }}>{tr("Cargando documentos...", "Loading documents...")}</div>}
+                    {!documentsLoading && crmDocuments.map((doc) => (
+                      <div key={doc.id} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: 8, background: "#0f1117" }}>
+                        <div style={{ fontSize: 12, color: C.blue }}>{doc.doc_type || "other"}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{doc.file_name || "-"}</div>
+                        <div style={{ color: C.muted, fontSize: 11 }}>{doc.bucket_name}/{doc.file_path}</div>
+                        <div style={{ color: C.muted, fontSize: 11 }}>
+                          {new Date(doc.created_at).toLocaleString()} · {doc.file_size_bytes ? `${Number(doc.file_size_bytes).toLocaleString("es-CO")} bytes` : tr("sin tamaño", "no size")}
+                        </div>
+                      </div>
+                    ))}
+                    {!documentsLoading && !crmDocuments.length && <div style={{ color: C.muted, fontSize: 12 }}>{tr("Sin documentos registrados", "No registered documents")}</div>}
                   </div>
                 </div>
               </div>

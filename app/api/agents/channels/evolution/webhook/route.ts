@@ -2506,9 +2506,7 @@ function isContactInfoBundle(text: string): boolean {
 }
 
 function isContinueQuoteWithoutPersonalDataIntent(text: string): boolean {
-  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (!t) return false;
-  return /(continuar\s+cotizacion\s+sin\s+datos\s+personales|continuar\s+sin\s+datos|sin\s+datos\s+personales|sin\s+datos|avanza(?:r)?\b|continua(?:r)?\b|seguir\b)/.test(t);
+  return false;
 }
 
 function looksLikeBillingData(text: string): boolean {
@@ -5524,7 +5522,7 @@ export async function POST(req: Request) {
             strictMemory.last_selected_product_name = selectedName;
             strictMemory.quote_quantity = qtyRequested;
             strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular), compártelos en un solo mensaje. Si quieres continuar sin datos, escribe exactamente: avanza.`;
+            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
           }
         } else {
           const selectedId = String((selectedFromMemory as any)?.id || "").trim();
@@ -6408,7 +6406,7 @@ export async function POST(req: Request) {
           const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
           strictMemory.quote_quantity = qtyRequested;
           strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular), compártelos en un solo mensaje. Si quieres continuar sin datos, escribe exactamente: avanza.`;
+          strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
         } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "other_model") {
           followupIntent = "alternative_same_need";
         } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "cheaper") {
@@ -6420,7 +6418,7 @@ export async function POST(req: Request) {
             const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
             strictMemory.quote_quantity = qtyRequested;
             strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular), compártelos en un solo mensaje. Si quieres continuar sin datos, escribe exactamente: avanza.`;
+            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
           } else {
             const selectedId = String(selectedProduct?.id || "").trim();
             const selectedNorm = normalizeText(selectedName);
@@ -6634,7 +6632,7 @@ export async function POST(req: Request) {
             const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
             strictMemory.quote_quantity = qtyRequested;
             strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular), compártelos en un solo mensaje. Si quieres continuar sin datos, escribe exactamente: avanza.`;
+            strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
           }
           }
           }
@@ -6736,7 +6734,7 @@ export async function POST(req: Request) {
             : "Entendido. Para alternativas, dime si prefieres: otro modelo, más económico, mayor capacidad, menor capacidad u otra marca.";
         } else if (!isAdvanceInQuoteData && !hasBillingDataInQuoteData) {
           strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = "Para continuar esta cotización, envíame los datos de facturación en un solo mensaje (ciudad, empresa, NIT, contacto, correo, celular) o escribe exactamente: avanza.";
+          strictReply = "Para continuar esta cotización, envíame los datos de facturación en un solo mensaje (ciudad, empresa, NIT, contacto, correo, celular).";
         }
         if (!String(strictReply || "").trim()) {
         const bundleOptions = Array.isArray(previousMemory?.quote_bundle_options)
@@ -10553,7 +10551,7 @@ export async function POST(req: Request) {
 
           const requireQuoteContactBundle = String(process.env.WHATSAPP_REQUIRE_QUOTE_CONTACT_BUNDLE || "false").toLowerCase() === "true";
           if (!handledByQuoteIntake && missingFields.length && requireQuoteContactBundle) {
-            reply = `Para formalizar la cotizacion me faltan: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Ciudad: Bogota, Empresa: ..., NIT: ..., Contacto: ..., Correo: ..., Celular: ...). Si prefieres no compartir datos personales, escribe: continuar cotizacion sin datos personales.`;
+            reply = `Para formalizar la cotizacion me faltan: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Ciudad: Bogota, Empresa: ..., NIT: ..., Contacto: ..., Correo: ..., Celular: ...).`;
             nextMemory.awaiting_action = "quote_contact_bundle";
             handledByQuoteIntake = true;
             billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
