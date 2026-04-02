@@ -31,7 +31,20 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text }}>
-      <header style={{ background: C.top, color: C.white, borderBottom: `3px solid ${C.line}` }}>
+      <header
+        style={{
+          background: C.top,
+          color: C.white,
+          borderBottom: `3px solid ${C.line}`,
+          position: "static",
+          top: "auto",
+          width: "auto",
+          padding: 0,
+          boxShadow: "none",
+          backdropFilter: "none",
+          display: "block",
+        }}
+      >
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontWeight: 900, fontSize: 18 }}>Avanza CRM</div>
           <div style={{ marginLeft: "auto", fontSize: 12, color: "#c4cbd5" }}>OHAUS · Comercial</div>
