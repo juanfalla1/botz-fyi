@@ -251,6 +251,7 @@ type InboundEvent = {
 type ClassifiedIntent = {
   intent:
     | "greeting"
+    | "guided_need_discovery"
     | "consultar_categoria"
     | "consultar_producto"
     | "solicitar_ficha"
@@ -1946,6 +1947,7 @@ function listActiveCatalogCategories(rows: any[]): string {
 }
 
 type ConversationIntent =
+  | "guided_need_discovery"
   | "menu_selection"
   | "technical_spec_input"
   | "use_explanation_question"
@@ -2071,6 +2073,14 @@ function isMenuSelectionInput(text: string): boolean {
   return /^([a-z]|\d{1,2})$/.test(t);
 }
 
+function isGuidedNeedDiscoveryText(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!t) return false;
+  const asksNeed = /\b(quiero|necesito|busco|requiero|recomiend|orienta)\b/.test(t) || /para\s+pesar/.test(t);
+  const inDomain = /(balanza|balanzas|bascula|basculas|humedad|analizador|alimentos|laboratorio|oro|joyeria|joyería|repuesto|repuestos|cajas|papa|papas|tornillo|tornillos)/.test(t);
+  return asksNeed && inDomain;
+}
+
 function classifyMessageIntent(args: {
   text: string;
   awaiting: string;
@@ -2082,12 +2092,14 @@ function classifyMessageIntent(args: {
   const technical = parseLooseTechnicalHint(text);
   const hasTechnical = Number((technical as any)?.capacityG || 0) > 0 || Number((technical as any)?.readabilityG || 0) > 0 || Boolean(parseTechnicalSpecQuery(text));
   const categoryIntent = detectCatalogCategoryIntent(text);
+  const guidedNeed = isGuidedNeedDiscoveryText(text);
   const compatibilityQ = /(sirve|sirven|me sirve|funciona|funcionan|aplica|aplican|para\s+oro|para\s+joyeria|para\s+joyería|para\s+laboratorio|para\s+alimentos|si\s+o\s+no)/.test(t) && /\?/.test(text);
   const useExplanationQ = /(para\s+que\s+sirven?|que\s+uso\s+tienen|para\s+que\s+se\s+usan)/.test(t) && /(balanza|balanzas|bascula|basculas)/.test(t);
   const appUpdate = /(para\s+oro|para\s+joyeria|para\s+joyería|para\s+laboratorio|para\s+alimentos|es\s+para\s+|de\s+laboratorio|de\s+joyeria|de\s+joyería|cuales?\s+de\s+laboratorio|cu[aá]les?\s+de\s+laboratorio|laboratorio\s+tienes|de\s+oro)/.test(t);
   const alternativeReq = /(otra\s+opcion|otra\s+opción|otro\s+modelo|mas\s+econom|más\s+econ|mas\s+resol|más\s+resol|mas\s+capacidad|más\s+capacidad|alternativ|mas\s+opcion|más\s+opción|mas\s+opciones|más\s+opciones)/.test(t);
 
   if (args.activeMenuType && isMenuSelectionInput(text)) return "menu_selection";
+  if (guidedNeed) return "guided_need_discovery";
   if (useExplanationQ) return "use_explanation_question";
   if (compatibilityQ) return "compatibility_question";
   if (hasTechnical) return "technical_spec_input";
@@ -3617,6 +3629,7 @@ function classifyIntent(text: string, memory?: Record<string, any>): ClassifiedI
   else if (requestQuote) intent = "solicitar_cotizacion";
   else if (requestDatasheet) intent = "solicitar_ficha";
   else if (requestTrm) intent = "consultar_trm";
+  else if (isGuidedNeedDiscoveryText(t)) intent = "guided_need_discovery";
   else if (category) intent = "consultar_categoria";
   else if (isProductLookupIntent(t) || isPriceIntent(t) || isRecommendationIntent(t)) intent = "consultar_producto";
   else if (/(gracias|ok gracias|listo gracias|chao|adios|hasta luego)/.test(t)) intent = "despedida";
@@ -5147,6 +5160,37 @@ export async function POST(req: Request) {
             "Si quieres, te recomiendo opciones segun capacidad, precision y aplicacion.",
           ].join("\n");
           return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "out_of_catalog" });
+        }
+
+        if (pipelineIntent === "guided_need_discovery") {
+          const app = detectTargetApplication(text) || "";
+          const productKind = /(bascula|basculas)/.test(textNorm) ? "báscula" : "balanza";
+          const guidance = /(tornillo|tornillos|tuerca|tuercas|perno|pernos|repuesto|repuestos)/.test(textNorm)
+            ? "Claro, para ese uso sí tenemos opciones. ¿La necesitas para conteo de piezas o para peso total, y qué rango de peso manejas?"
+            : /(papa|papas|alimento|alimentos)/.test(textNorm)
+              ? "Claro, para ese uso sí tenemos opciones. ¿Qué capacidad aproximada necesitas y si buscas uso general o más precisión?"
+              : /(laboratorio)/.test(textNorm)
+                ? "Perfecto, para laboratorio sí tenemos opciones. Para orientarte bien, dime peso aproximado y precisión objetivo."
+                : /(oro|joyeria|joyería)/.test(textNorm)
+                  ? "Claro, para oro/joyería sí hay opciones. Para recomendarte bien, dime rango de peso y precisión que necesitas."
+                  : `Sí, para esa necesidad tenemos opciones de ${productKind}. Para orientarte bien, dime qué vas a pesar, rango de peso aproximado y nivel de precisión que necesitas.`;
+          const appOptions = getApplicationRecommendedOptions({
+            rows: ownerRows as any[],
+            application: app,
+            capTargetG: Number(slotPack.slots.target_capacity_g || 0),
+            targetReadabilityG: Number(slotPack.slots.target_readability_g || 0),
+            strictPrecision: /(alta\s+precision|m[aá]xima\s+precision|menos\s+de)/.test(textNorm),
+          });
+          const top = appOptions.slice(0, 3);
+          strictMemory.pending_product_options = appOptions.slice(0, 8);
+          strictMemory.pending_family_options = [];
+          strictMemory.awaiting_action = appOptions.length ? "strict_choose_model" : "strict_need_spec";
+          strictMemory.strict_use_case = String(text || "").trim();
+          const reply = [
+            guidance,
+            ...(top.length ? ["", "Opciones sugeridas para empezar:", ...top.map((o) => `${o.code}) ${o.name}`), "", "Si quieres, elige A/1 y te envío ficha o cotización."] : []),
+          ].join("\n");
+          return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
         }
 
         if (pipelineIntent === "use_explanation_question") {
