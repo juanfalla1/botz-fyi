@@ -103,7 +103,7 @@ export default function AvanzaInicioPage() {
           <button onClick={() => setShowStageManager(true)} style={{ background: "#ffffff", color: "#334155", border: "1px solid #cbd5e1", borderRadius: 10, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>
             Columnas
           </button>
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Escribe la palabra" style={{ minWidth: 260, flex: "1 1 360px", borderRadius: 20, border: "1px solid #d8dee6", padding: "9px 14px" }} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Escribe la palabra" style={{ width: "min(340px, 100%)", borderRadius: 20, border: "1px solid #d8dee6", padding: "9px 14px" }} />
           <div style={{ marginLeft: "auto", color: "#374151", fontWeight: 800 }}>{money(totals.totalAmount)} | {totals.totalDeals} Negocios</div>
         </div>
       </section>
