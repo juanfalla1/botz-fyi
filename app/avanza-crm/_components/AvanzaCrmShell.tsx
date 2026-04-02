@@ -46,7 +46,11 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
         }}
       >
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ fontWeight: 900, fontSize: 18 }}>Avanza CRM</div>
+          <img
+            src="/avanza-crm/avanza-ohaus-logo.png"
+            alt="Avanza y OHAUS"
+            style={{ height: 34, width: "auto", display: "block" }}
+          />
           <div style={{ marginLeft: "auto", fontSize: 12, color: "#c4cbd5" }}>OHAUS · Comercial</div>
         </div>
         <nav style={{ maxWidth: 1400, margin: "0 auto", padding: "0 8px 8px", display: "flex", gap: 6, flexWrap: "wrap" }}>
