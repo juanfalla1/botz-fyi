@@ -25,6 +25,7 @@ export default function AvanzaInicioPage() {
   const [allDeals, setAllDeals] = useState<Deal[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [query, setQuery] = useState("");
+  const [openQuickMenuDealId, setOpenQuickMenuDealId] = useState<string | null>(null);
   const [dragDealId, setDragDealId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
   const [showStageManager, setShowStageManager] = useState(false);
@@ -118,7 +119,7 @@ export default function AvanzaInicioPage() {
         </div>
       </section>
 
-      <div style={{ display: "flex", gap: 12, alignItems: "stretch", overflowX: "auto", paddingBottom: 4 }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, stages.length)}, minmax(250px, 1fr))`, gap: 12, alignItems: "start" }}>
         {columns.map(({ stage, deals }) => (
           <section
             key={stage.id}
@@ -175,13 +176,101 @@ export default function AvanzaInicioPage() {
                   cursor: "pointer",
                   textAlign: "left",
                   opacity: dragDealId === deal.id ? 0.65 : 1,
+                  position: "relative",
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                   <strong style={{ fontSize: 13, color: "#2d3748" }}>{deal.businessName}</strong>
-                  <span style={{ fontSize: 12, color: "#4b5563", whiteSpace: "nowrap" }}>{money(deal.totalOrderAmount)}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 12, color: "#4b5563", whiteSpace: "nowrap" }}>{money(deal.totalOrderAmount)}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenQuickMenuDealId((prev) => (prev === deal.id ? null : deal.id));
+                      }}
+                      style={{
+                        border: "1px solid #f87171",
+                        background: "#fff",
+                        color: "#ef4444",
+                        borderRadius: 4,
+                        width: 22,
+                        height: 22,
+                        lineHeight: "20px",
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
                 <div style={{ fontSize: 12, color: "#6b7280" }}>{deal.contactName || deal.company || "Sin contacto"}</div>
+
+                {openQuickMenuDealId === deal.id ? (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      position: "absolute",
+                      top: 34,
+                      right: 10,
+                      width: 200,
+                      background: "#fff",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 8,
+                      boxShadow: "0 8px 24px rgba(15,23,42,0.18)",
+                      padding: 8,
+                      zIndex: 10,
+                      display: "grid",
+                      gap: 6,
+                    }}
+                  >
+                    {[
+                      { label: "Actividad", active: true },
+                      { label: "WhatsApp", active: true },
+                      { label: "Comentario", active: false },
+                      { label: "Correo", active: false },
+                      { label: "Documento", active: false },
+                      { label: "Cotizacion", active: false },
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        onClick={() => {
+                          setOpenQuickMenuDealId(null);
+                          router.push(`/avanza-crm/negocios?deal=${deal.id}`);
+                        }}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          textAlign: "left",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "4px 2px",
+                          color: "#111827",
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: 4,
+                            border: `1px solid ${item.active ? "#f87171" : "#d1d5db"}`,
+                            color: item.active ? "#ef4444" : "#9ca3af",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: 800,
+                            fontSize: 12,
+                          }}
+                        >
+                          +
+                        </span>
+                        <span style={{ fontSize: 13 }}>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </article>
             ))}
 
