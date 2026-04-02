@@ -5346,6 +5346,7 @@ export async function POST(req: Request) {
             const capOptionsGeneric = buildNumberedProductOptions((capRowsGeneric || []).slice(0, 8) as any[], 8);
             if (capOptionsGeneric.length) {
               const first = capOptionsGeneric[0];
+              const alternatives = capOptionsGeneric.slice(1, 4);
               const appHint = /(industrial|repuesto|repuestos|cajas|bodega|planta)/.test(textNorm) ? "industrial" : "general";
               strictMemory.strict_partial_capacity_g = cap;
               strictMemory.strict_filter_capacity_g = cap;
@@ -5356,7 +5357,7 @@ export async function POST(req: Request) {
               const reply = [
                 `Perfecto. Para ~${formatSpecNumber(cap)} g, te recomiendo empezar con ${String(first?.name || "esta opción")} (${appHint}).`,
                 "También te dejo alternativas cercanas por capacidad:",
-                ...capOptionsGeneric.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                ...alternatives.map((o) => `${o.code}) ${o.name}`),
                 "",
                 "Si quieres mayor precisión, te filtro por resolución objetivo (ej.: 1 g, 0.1 g, 0.01 g).",
               ].join("\n");
