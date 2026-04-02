@@ -7967,6 +7967,39 @@ export async function POST(req: Request) {
                 : "Responde con letra o número (ej.: A o 1).",
             ].join("\n");
           } else {
+            if (isGuidedNeedDiscoveryText(text)) {
+              const options = buildNumberedProductOptions(scoped as any[], 8).slice(0, 4);
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
+              strictReply = [
+                "Sí, para esa necesidad sí tenemos opciones y te guío para recomendarte bien.",
+                "Para afinar, dime qué peso aproximado manejas y si buscas alta precisión o uso general.",
+                ...(options.length ? ["", "Opciones para empezar:", ...options.map((o) => `${o.code}) ${o.name}`), "", "Si quieres, elige A/1 y te envío ficha o cotización."] : []),
+              ].join("\n");
+            } else {
+              strictMemory.awaiting_action = "strict_choose_family";
+              strictReply = [
+                `Sí, tenemos ${scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
+                "Primero elige la familia:",
+                ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
+                "",
+                "Responde con letra o número (ej.: A o 1).",
+              ].join("\n");
+            }
+          }
+        } else {
+          if (isGuidedNeedDiscoveryText(text)) {
+            const options = buildNumberedProductOptions(scoped as any[], 8).slice(0, 4);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
+            strictReply = [
+              "Sí, para esa necesidad sí tenemos opciones y te guío para recomendarte bien.",
+              "Para afinar, dime qué peso aproximado manejas y si buscas alta precisión o uso general.",
+              ...(options.length ? ["", "Opciones para empezar:", ...options.map((o) => `${o.code}) ${o.name}`), "", "Si quieres, elige A/1 y te envío ficha o cotización."] : []),
+            ].join("\n");
+          } else {
             strictMemory.awaiting_action = "strict_choose_family";
             strictReply = [
               `Sí, tenemos ${scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
@@ -7976,15 +8009,6 @@ export async function POST(req: Request) {
               "Responde con letra o número (ej.: A o 1).",
             ].join("\n");
           }
-        } else {
-          strictMemory.awaiting_action = "strict_choose_family";
-          strictReply = [
-            `Sí, tenemos ${scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
-            "Primero elige la familia:",
-            ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
-            "",
-            "Responde con letra o número (ej.: A o 1).",
-          ].join("\n");
         }
       } else if (!String(strictReply || "").trim() && isTechnicalSpecQuery(text) && !selectedProduct) {
         const parsed = parseTechnicalSpecQuery(text);
