@@ -50,10 +50,10 @@ export default function AvanzaInicioPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 10, alignItems: "start" }}>
         {STAGES.map((stage) => (
           <section key={stage.title} style={{ background: "#eef1f6", border: "1px solid #d8dee6", borderRadius: 10, padding: 8, display: "grid", gap: 8 }}>
-            <header style={{ borderRadius: 8, background: "#e7ebf3", padding: "10px 10px", border: "1px solid #d8dee6" }}>
+            <div style={{ borderRadius: 8, background: "#e7ebf3", padding: "10px 10px", border: "1px solid #d8dee6" }}>
               <div style={{ fontWeight: 800, color: "#2d3748", fontSize: 14 }}>{stage.title}</div>
               <div style={{ color: "#6b7280", fontSize: 12 }}>{stage.amount}</div>
-            </header>
+            </div>
 
             {stage.deals.map((deal) => (
               <article key={`${stage.title}-${deal.name}`} style={{ background: "#ffffff", border: "1px solid #d8dee6", borderRadius: 8, padding: "8px 10px", display: "grid", gap: 4 }}>

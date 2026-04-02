@@ -40,7 +40,18 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: C.bg,
+        backgroundImage:
+          "linear-gradient(rgba(242,244,248,0.94), rgba(242,244,248,0.94)), url('/avanza-crm/login-bg-v3.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        color: C.text,
+      }}
+    >
       <header
         style={{
           background: C.top,
