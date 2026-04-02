@@ -105,7 +105,8 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
           backgroundPosition: "center",
           color: C.white,
           borderBottom: `3px solid ${C.line}`,
-          position: "static",
+          position: "relative",
+          zIndex: 20,
           top: "auto",
           width: "auto",
           padding: 0,
@@ -116,23 +117,7 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
       >
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontWeight: 900, fontSize: 18 }}>Avanza CRM</div>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-            <button
-              onClick={() => setShowCreate(true)}
-              style={{
-                background: "#ff7a00",
-                color: "#fff",
-                border: "none",
-                borderRadius: 10,
-                padding: "8px 14px",
-                fontWeight: 800,
-                cursor: "pointer",
-              }}
-            >
-              Crear negocio
-            </button>
-            <div style={{ fontSize: 12, color: "#c4cbd5" }}>OHAUS · Comercial</div>
-          </div>
+          <div style={{ marginLeft: "auto", fontSize: 12, color: "#c4cbd5" }}>OHAUS · Comercial</div>
         </div>
         <nav style={{ maxWidth: 1400, margin: "0 auto", padding: "0 8px 8px", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           <button
@@ -171,10 +156,25 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+          <button
+            onClick={() => setShowCreate(true)}
+            style={{
+              marginLeft: "auto",
+              background: "#ff7a00",
+              color: "#fff",
+              border: "none",
+              borderRadius: 10,
+              padding: "8px 14px",
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            Crear negocio
+          </button>
         </nav>
       </header>
 
-      <main style={{ width: "100%", padding: "10px 16px 16px", overflow: "auto", flex: 1 }}>
+      <main style={{ width: "100%", padding: "10px 16px 16px", overflow: "auto", flex: 1, position: "relative", zIndex: 1 }}>
         <div style={{ maxWidth: 1400, margin: "0 auto", display: "grid", gap: 10 }}>
           {children}
         </div>
