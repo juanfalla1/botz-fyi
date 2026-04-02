@@ -9133,17 +9133,44 @@ export async function POST(req: Request) {
             handledByInventory = true;
             billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
           } else if (familyOptions.length > 1) {
-            reply = [
-              `Si, tenemos ${scoped.length} referencias en la categoria ${categoryLabel}.`,
-              "Primero elige la familia:",
-              ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
-              "",
-              "Responde con letra o numero (ej.: A o 1).",
-            ].join("\n");
-            nextMemory.pending_family_options = familyOptions;
-            nextMemory.pending_product_options = [];
-            nextMemory.awaiting_action = "family_option_selection";
-            nextMemory.last_category_intent = inboundCategoryIntent;
+            const entryNeed = normalizeText(String(originalInboundText || ""));
+            const forceNeed = /(quiero|necesito|busco|requiero).*(balanza|balanzas|bascula|basculas|humedad)|para\s+pesar/.test(entryNeed);
+            if (forceNeed) {
+              const inferred = inferFamilyFromUseCase(originalInboundText, familyOptions);
+              const inferredKey = String((inferred as any)?.key || "").trim();
+              const familyRows = inferredKey
+                ? scoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(inferredKey))
+                : [];
+              const options = buildNumberedProductOptions((familyRows.length ? familyRows : scoped) as any[], 8).slice(0, 5);
+              reply = [
+                inferred
+                  ? `Entiendo tu necesidad. Para ese uso te recomiendo iniciar con ${String((inferred as any)?.label || "esa familia")}.`
+                  : "Entiendo tu necesidad y te guío con opciones recomendadas según uso.",
+                "Para afinar sin inventar, dime peso mínimo y máximo de la pieza (y peso por unidad si lo tienes).",
+                ...(options.length ? ["", "Modelos sugeridos para empezar:", ...options.map((o) => `${o.code}) ${o.name}`)] : []),
+                "",
+                options.length
+                  ? "Elige con letra/número (A/1) y te envío ficha o cotización."
+                  : "Si prefieres, te muestro familias disponibles para orientarte mejor.",
+              ].join("\n");
+              nextMemory.pending_product_options = options;
+              nextMemory.pending_family_options = options.length ? [] : familyOptions;
+              nextMemory.awaiting_action = options.length ? "product_option_selection" : "family_option_selection";
+              nextMemory.last_category_intent = inboundCategoryIntent;
+              nextMemory.strict_use_case = String(originalInboundText || "").trim();
+            } else {
+              reply = [
+                `Si, tenemos ${scoped.length} referencias en la categoria ${categoryLabel}.`,
+                "Primero elige la familia:",
+                ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
+                "",
+                "Responde con letra o numero (ej.: A o 1).",
+              ].join("\n");
+              nextMemory.pending_family_options = familyOptions;
+              nextMemory.pending_product_options = [];
+              nextMemory.awaiting_action = "family_option_selection";
+              nextMemory.last_category_intent = inboundCategoryIntent;
+            }
           } else {
             const options = buildNumberedProductOptions(scoped, 10);
             const shown = options.slice(0, 8);
