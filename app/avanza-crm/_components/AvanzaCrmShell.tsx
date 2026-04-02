@@ -42,19 +42,21 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        height: "100dvh",
         backgroundColor: C.bg,
-        backgroundImage:
-          "linear-gradient(rgba(242,244,248,0.94), rgba(242,244,248,0.94)), url('/avanza-crm/login-bg-v3.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
         color: C.text,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
       }}
     >
       <header
         style={{
           background: C.top,
+          backgroundImage:
+            "linear-gradient(rgba(47,55,66,0.92), rgba(47,55,66,0.92)), url('/avanza-crm/login-bg-v3.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
           color: C.white,
           borderBottom: `3px solid ${C.line}`,
           position: "static",
@@ -96,7 +98,7 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
         </nav>
       </header>
 
-      <main style={{ maxWidth: 1400, margin: "0 auto", padding: 16, display: "grid", gap: 10 }}>
+      <main style={{ maxWidth: 1400, width: "100%", margin: "0 auto", padding: 16, display: "grid", gap: 10, overflow: "auto", flex: 1 }}>
         <div>
           <button
             onClick={goBack}
