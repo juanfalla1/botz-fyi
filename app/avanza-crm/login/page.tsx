@@ -2,7 +2,18 @@ import Link from "next/link";
 
 export default function AvanzaCrmLoginPage() {
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(180deg,#2f3742,#1e252f)", display: "grid", placeItems: "center", padding: 16 }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundImage:
+          "linear-gradient(rgba(12,20,31,0.24), rgba(12,20,31,0.24)), url('/avanza-crm/login-bg.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        display: "grid",
+        placeItems: "center",
+        padding: 16,
+      }}
+    >
       <section style={{ width: "100%", maxWidth: 440, background: "#ffffff", borderRadius: 12, border: "1px solid #d8dee6", padding: 20 }}>
         <div style={{ fontWeight: 900, fontSize: 24, color: "#2f3742" }}>Avanza CRM</div>
         <div style={{ marginTop: 6, color: "#6b7280", fontSize: 14 }}>Acceso comercial privado</div>
