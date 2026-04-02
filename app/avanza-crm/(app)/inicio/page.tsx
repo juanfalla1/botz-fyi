@@ -2,28 +2,58 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Deal, STAGES, createId, emptyDeal, loadDeals, money, saveDeals } from "../../_lib/deals";
+import { Deal, Stage, createId, emptyDeal, loadDeals, loadStages, money, saveDeals, saveStages } from "../../_lib/deals";
+
+function makeStageId(label: string, existingIds: string[]): string {
+  const base =
+    label
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "_") || "etapa";
+  let next = base;
+  let i = 2;
+  while (existingIds.includes(next)) {
+    next = `${base}_${i}`;
+    i += 1;
+  }
+  return next;
+}
 
 export default function AvanzaInicioPage() {
   const router = useRouter();
   const [allDeals, setAllDeals] = useState<Deal[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
   const [query, setQuery] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [showStageManager, setShowStageManager] = useState(false);
+  const [newStageName, setNewStageName] = useState("");
   const [form, setForm] = useState(emptyDeal());
   const [errors, setErrors] = useState<{ contactName?: string; businessName?: string; estimatedCloseDate?: string }>({});
 
   useEffect(() => {
-    setAllDeals(loadDeals());
+    const loadedStages = loadStages();
+    const loadedDeals = loadDeals();
+    const validIds = new Set(loadedStages.map((s) => s.id));
+    const firstStage = loadedStages[0]?.id || "sin_contactar";
+    const normalizedDeals = loadedDeals.map((deal) => ({
+      ...deal,
+      stage: validIds.has(deal.stage) ? deal.stage : firstStage,
+    }));
+
+    setStages(loadedStages);
+    setAllDeals(normalizedDeals);
+    setForm((prev) => ({ ...prev, stage: firstStage }));
+    if (normalizedDeals.length !== loadedDeals.length || normalizedDeals.some((d, i) => d.stage !== loadedDeals[i]?.stage)) {
+      saveDeals(normalizedDeals);
+    }
   }, []);
 
   const filteredDeals = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!term) return allDeals;
-    return allDeals.filter((d) => {
-      const text = `${d.businessName} ${d.contactName} ${d.company}`.toLowerCase();
-      return text.includes(term);
-    });
+    return allDeals.filter((d) => `${d.businessName} ${d.contactName} ${d.company}`.toLowerCase().includes(term));
   }, [allDeals, query]);
 
   const totals = useMemo(() => {
@@ -33,15 +63,47 @@ export default function AvanzaInicioPage() {
 
   const columns = useMemo(
     () =>
-      STAGES.map((stage) => ({
+      stages.map((stage) => ({
         stage,
         deals: filteredDeals.filter((deal) => deal.stage === stage.id),
       })),
-    [filteredDeals]
+    [filteredDeals, stages]
   );
 
   const onChange = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updateStages = (nextStages: Stage[], nextDeals?: Deal[]) => {
+    setStages(nextStages);
+    saveStages(nextStages);
+    if (nextDeals) {
+      setAllDeals(nextDeals);
+      saveDeals(nextDeals);
+    }
+  };
+
+  const addStage = () => {
+    const label = newStageName.trim();
+    if (!label) return;
+    const id = makeStageId(label, stages.map((s) => s.id));
+    const next = [...stages, { id, label }];
+    updateStages(next);
+    setNewStageName("");
+  };
+
+  const renameStage = (stageId: string, label: string) => {
+    const next = stages.map((s) => (s.id === stageId ? { ...s, label } : s));
+    updateStages(next);
+  };
+
+  const removeStage = (stageId: string) => {
+    if (stages.length <= 1) return;
+    const remaining = stages.filter((s) => s.id !== stageId);
+    const fallback = remaining[0].id;
+    const nextDeals = allDeals.map((deal) => (deal.stage === stageId ? { ...deal, stage: fallback } : deal));
+    updateStages(remaining, nextDeals);
+    setForm((prev) => ({ ...prev, stage: prev.stage === stageId ? fallback : prev.stage }));
   };
 
   const onSaveDeal = () => {
@@ -52,8 +114,11 @@ export default function AvanzaInicioPage() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
+    const selectedStage = stages.find((s) => s.id === form.stage)?.id || stages[0]?.id || "sin_contactar";
+
     const created: Deal = {
       ...form,
+      stage: selectedStage,
       id: createId("deal"),
       activities: [],
       createdAt: new Date().toISOString(),
@@ -66,7 +131,7 @@ export default function AvanzaInicioPage() {
     saveDeals(updated);
     setShowCreate(false);
     setShowMore(false);
-    setForm(emptyDeal());
+    setForm({ ...emptyDeal(), stage: stages[0]?.id || "sin_contactar" });
     setErrors({});
   };
 
@@ -74,18 +139,13 @@ export default function AvanzaInicioPage() {
     <div style={{ display: "grid", gap: 12 }}>
       <section style={{ background: "#ffffff", border: "1px solid #d8dee6", borderRadius: 10, padding: 12, display: "grid", gap: 10 }}>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <button
-            onClick={() => setShowCreate(true)}
-            style={{ background: "#ff7a00", color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontWeight: 800, cursor: "pointer" }}
-          >
+          <button onClick={() => setShowCreate(true)} style={{ background: "#ff7a00", color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontWeight: 800, cursor: "pointer" }}>
             Crear negocio
           </button>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Escribe la palabra"
-            style={{ minWidth: 260, flex: "1 1 360px", borderRadius: 20, border: "1px solid #d8dee6", padding: "9px 14px" }}
-          />
+          <button onClick={() => setShowStageManager(true)} style={{ background: "#ffffff", color: "#334155", border: "1px solid #cbd5e1", borderRadius: 10, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>
+            Columnas
+          </button>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Escribe la palabra" style={{ minWidth: 260, flex: "1 1 360px", borderRadius: 20, border: "1px solid #d8dee6", padding: "9px 14px" }} />
           <div style={{ marginLeft: "auto", color: "#374151", fontWeight: 800 }}>{money(totals.totalAmount)} | {totals.totalDeals} Negocios</div>
         </div>
       </section>
@@ -99,11 +159,7 @@ export default function AvanzaInicioPage() {
             </div>
 
             {deals.map((deal) => (
-              <button
-                key={deal.id}
-                onClick={() => router.push(`/avanza-crm/negocios?deal=${deal.id}`)}
-                style={{ background: "#ffffff", border: "1px solid #d8dee6", borderRadius: 8, padding: "9px 10px", display: "grid", gap: 4, cursor: "pointer", textAlign: "left" }}
-              >
+              <button key={deal.id} onClick={() => router.push(`/avanza-crm/negocios?deal=${deal.id}`)} style={{ background: "#ffffff", border: "1px solid #d8dee6", borderRadius: 8, padding: "9px 10px", display: "grid", gap: 4, cursor: "pointer", textAlign: "left" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                   <strong style={{ fontSize: 13, color: "#2d3748" }}>{deal.businessName}</strong>
                   <span style={{ fontSize: 12, color: "#4b5563", whiteSpace: "nowrap" }}>{money(deal.totalOrderAmount)}</span>
@@ -149,21 +205,15 @@ export default function AvanzaInicioPage() {
                 <div style={{ color: "#6b7280", fontSize: 13 }}>Completa la informacion para guardar tu contacto</div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <label style={{ display: "grid", gap: 6 }}>
-                    <span style={{ fontSize: 13 }}>Correo</span>
-                    <input value={form.email} onChange={(e) => onChange("email", e.target.value)} placeholder="correo@empresa.com" style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
-                  </label>
-                  <label style={{ display: "grid", gap: 6 }}>
-                    <span style={{ fontSize: 13 }}>Celular</span>
-                    <input value={form.phone} onChange={(e) => onChange("phone", e.target.value)} placeholder="3001234567" style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
-                  </label>
+                  <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 13 }}>Correo</span><input value={form.email} onChange={(e) => onChange("email", e.target.value)} placeholder="correo@empresa.com" style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} /></label>
+                  <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 13 }}>Celular</span><input value={form.phone} onChange={(e) => onChange("phone", e.target.value)} placeholder="3001234567" style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} /></label>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <label style={{ display: "grid", gap: 6 }}>
                     <span style={{ fontSize: 13 }}>* Fase de venta</span>
-                    <select value={form.stage} onChange={(e) => onChange("stage", e.target.value as Deal["stage"])} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }}>
-                      {STAGES.map((s) => (
+                    <select value={form.stage} onChange={(e) => onChange("stage", e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }}>
+                      {stages.map((s) => (
                         <option key={s.id} value={s.id}>{s.label}</option>
                       ))}
                     </select>
@@ -176,80 +226,71 @@ export default function AvanzaInicioPage() {
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <label style={{ display: "grid", gap: 6 }}>
-                    <span style={{ fontSize: 13 }}>Asignado a</span>
-                    <input value={form.assignedTo} onChange={(e) => onChange("assignedTo", e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
-                  </label>
-                  <label style={{ display: "grid", gap: 6 }}>
-                    <span style={{ fontSize: 13 }}>Pais</span>
-                    <input value={form.country} onChange={(e) => onChange("country", e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
-                  </label>
+                  <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 13 }}>Asignado a</span><input value={form.assignedTo} onChange={(e) => onChange("assignedTo", e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} /></label>
+                  <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 13 }}>Pais</span><input value={form.country} onChange={(e) => onChange("country", e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} /></label>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <label style={{ display: "grid", gap: 6 }}>
                     <span style={{ fontSize: 13 }}>Origen de contacto</span>
                     <select value={form.contactOrigin} onChange={(e) => onChange("contactOrigin", e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }}>
-                      <option value="">Seleccione una opcion</option>
-                      <option>Feria comercial</option>
-                      <option>Llamada en frio</option>
-                      <option>WhatsApp</option>
-                      <option>Correo</option>
+                      <option value="">Seleccione una opcion</option><option>Feria comercial</option><option>Llamada en frio</option><option>WhatsApp</option><option>Correo</option>
                     </select>
                   </label>
                   <label style={{ display: "grid", gap: 6 }}>
                     <span style={{ fontSize: 13 }}>Origen del negocio</span>
                     <select value={form.businessOrigin} onChange={(e) => onChange("businessOrigin", e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }}>
-                      <option value="">Seleccione una opcion</option>
-                      <option>Inbound</option>
-                      <option>Outbound</option>
-                      <option>Referido</option>
+                      <option value="">Seleccione una opcion</option><option>Inbound</option><option>Outbound</option><option>Referido</option>
                     </select>
                   </label>
                 </div>
 
-                <button onClick={() => setShowMore((v) => !v)} style={{ border: "none", background: "transparent", color: "#ea580c", fontWeight: 700, width: "fit-content", cursor: "pointer", padding: 0 }}>
-                  {showMore ? "Ver menos campos ▲" : "Ver mas campos ▼"}
-                </button>
+                <button onClick={() => setShowMore((v) => !v)} style={{ border: "none", background: "transparent", color: "#ea580c", fontWeight: 700, width: "fit-content", cursor: "pointer", padding: 0 }}>{showMore ? "Ver menos campos ▲" : "Ver mas campos ▼"}</button>
 
                 {showMore ? (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                    <label style={{ display: "grid", gap: 6 }}>
-                      <span style={{ fontSize: 13 }}>Campana origen</span>
-                      <input value={form.campaignOrigin} onChange={(e) => onChange("campaignOrigin", e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
-                    </label>
-                    <label style={{ display: "grid", gap: 6 }}>
-                      <span style={{ fontSize: 13 }}>Descripcion</span>
-                      <textarea value={form.description} onChange={(e) => onChange("description", e.target.value)} rows={2} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px", resize: "vertical" }} />
-                    </label>
-                    <label style={{ display: "grid", gap: 6 }}>
-                      <span style={{ fontSize: 13 }}>Motivo de perdida</span>
-                      <input value={form.lossReason} onChange={(e) => onChange("lossReason", e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
-                    </label>
-                    <label style={{ display: "grid", gap: 6 }}>
-                      <span style={{ fontSize: 13 }}>Monto total pedidos</span>
-                      <input type="number" value={form.totalOrderAmount || ""} onChange={(e) => onChange("totalOrderAmount", Number(e.target.value || 0))} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
-                    </label>
-                    <label style={{ display: "grid", gap: 6 }}>
-                      <span style={{ fontSize: 13 }}>Monto total cotizaciones</span>
-                      <input type="number" value={form.totalQuoteAmount || ""} onChange={(e) => onChange("totalQuoteAmount", Number(e.target.value || 0))} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
-                    </label>
-                    <label style={{ display: "grid", gap: 6 }}>
-                      <span style={{ fontSize: 13 }}>Link anuncio</span>
-                      <input value={form.adLink} onChange={(e) => onChange("adLink", e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
-                    </label>
+                    <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 13 }}>Campana origen</span><input value={form.campaignOrigin} onChange={(e) => onChange("campaignOrigin", e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} /></label>
+                    <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 13 }}>Descripcion</span><textarea value={form.description} onChange={(e) => onChange("description", e.target.value)} rows={2} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px", resize: "vertical" }} /></label>
+                    <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 13 }}>Motivo de perdida</span><input value={form.lossReason} onChange={(e) => onChange("lossReason", e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} /></label>
+                    <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 13 }}>Monto total pedidos</span><input type="number" value={form.totalOrderAmount || ""} onChange={(e) => onChange("totalOrderAmount", Number(e.target.value || 0))} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} /></label>
+                    <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 13 }}>Monto total cotizaciones</span><input type="number" value={form.totalQuoteAmount || ""} onChange={(e) => onChange("totalQuoteAmount", Number(e.target.value || 0))} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} /></label>
+                    <label style={{ display: "grid", gap: 6 }}><span style={{ fontSize: 13 }}>Link anuncio</span><input value={form.adLink} onChange={(e) => onChange("adLink", e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} /></label>
                   </div>
                 ) : null}
               </div>
             </div>
 
             <div style={{ borderTop: "1px solid #d1d5db", padding: 12, display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button onClick={() => setShowCreate(false)} style={{ border: "none", background: "transparent", color: "#b91c1c", fontWeight: 700, cursor: "pointer" }}>
-                CANCELAR
-              </button>
-              <button onClick={onSaveDeal} style={{ border: "none", background: "#ff7a00", color: "#ffffff", borderRadius: 6, padding: "8px 16px", fontWeight: 800, cursor: "pointer" }}>
-                GUARDAR
-              </button>
+              <button onClick={() => setShowCreate(false)} style={{ border: "none", background: "transparent", color: "#b91c1c", fontWeight: 700, cursor: "pointer" }}>CANCELAR</button>
+              <button onClick={onSaveDeal} style={{ border: "none", background: "#ff7a00", color: "#ffffff", borderRadius: 6, padding: "8px 16px", fontWeight: 800, cursor: "pointer" }}>GUARDAR</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {showStageManager ? (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 3100, display: "grid", placeItems: "center", padding: 16 }}>
+          <section style={{ width: "min(680px, 96vw)", background: "#ffffff", border: "1px solid #d8dee6", borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ padding: "10px 14px", background: "#334155", color: "#ffffff", fontWeight: 800, display: "flex", alignItems: "center" }}>
+              Configurar columnas del kanban
+              <button onClick={() => setShowStageManager(false)} style={{ marginLeft: "auto", border: "none", background: "transparent", color: "#fff", fontSize: 16, cursor: "pointer" }}>x</button>
+            </div>
+            <div style={{ padding: 14, display: "grid", gap: 10 }}>
+              {stages.map((stage) => (
+                <div key={stage.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" }}>
+                  <input value={stage.label} onChange={(e) => renameStage(stage.id, e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
+                  <button onClick={() => removeStage(stage.id)} disabled={stages.length <= 1} style={{ border: "1px solid #fecaca", color: "#b91c1c", background: "#fff", borderRadius: 6, padding: "8px 10px", cursor: stages.length <= 1 ? "not-allowed" : "pointer", opacity: stages.length <= 1 ? 0.5 : 1 }}>
+                    Quitar
+                  </button>
+                </div>
+              ))}
+
+              <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 10, display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+                <input value={newStageName} onChange={(e) => setNewStageName(e.target.value)} placeholder="Nueva columna" style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
+                <button onClick={addStage} style={{ border: "none", background: "#22b8aa", color: "#fff", borderRadius: 6, padding: "8px 12px", fontWeight: 700, cursor: "pointer" }}>
+                  Agregar
+                </button>
+              </div>
             </div>
           </section>
         </div>

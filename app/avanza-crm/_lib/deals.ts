@@ -1,4 +1,5 @@
-export type StageId = "sin_contactar" | "calificado" | "propuesta_comercial" | "confirmacion_pago";
+export type StageId = string;
+export type Stage = { id: StageId; label: string };
 
 export type DealActivity = {
   id: string;
@@ -35,13 +36,34 @@ export type Deal = {
 };
 
 export const DEALS_STORAGE_KEY = "avanza-crm-deals-v1";
+export const STAGES_STORAGE_KEY = "avanza-crm-stages-v1";
 
-export const STAGES: Array<{ id: StageId; label: string }> = [
+export const DEFAULT_STAGES: Stage[] = [
   { id: "sin_contactar", label: "Sin contactar" },
   { id: "calificado", label: "Calificado" },
   { id: "propuesta_comercial", label: "Propuesta comercial" },
   { id: "confirmacion_pago", label: "Confirmacion pago" },
 ];
+
+export function loadStages(): Stage[] {
+  if (typeof window === "undefined") return DEFAULT_STAGES;
+  try {
+    const raw = window.localStorage.getItem(STAGES_STORAGE_KEY);
+    if (!raw) return DEFAULT_STAGES;
+    const parsed = JSON.parse(raw) as Stage[];
+    if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_STAGES;
+    return parsed
+      .filter((item) => item && typeof item.id === "string" && typeof item.label === "string")
+      .map((item) => ({ id: item.id, label: item.label || item.id }));
+  } catch {
+    return DEFAULT_STAGES;
+  }
+}
+
+export function saveStages(stages: Stage[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(STAGES_STORAGE_KEY, JSON.stringify(stages));
+}
 
 export function loadDeals(): Deal[] {
   if (typeof window === "undefined") return [];
@@ -66,7 +88,7 @@ export function money(value: number): string {
 
 export function emptyDeal(): Omit<Deal, "id" | "activities" | "createdAt"> {
   return {
-    stage: "sin_contactar",
+    stage: DEFAULT_STAGES[0].id,
     businessName: "",
     company: "",
     contactName: "",

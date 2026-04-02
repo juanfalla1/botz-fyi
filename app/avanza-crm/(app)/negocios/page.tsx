@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Deal, DealActivity, STAGES, createId, loadDeals, money, saveDeals } from "../../_lib/deals";
+import { Deal, DealActivity, Stage, createId, loadDeals, loadStages, money, saveDeals } from "../../_lib/deals";
 
 const QUICK_TYPES: DealActivity["type"][] = ["Actividad", "WhatsApp", "Comentario", "Correo", "Documento", "Cotizacion"];
 
@@ -11,6 +11,7 @@ export default function AvanzaNegociosPage() {
   const selectedId = params.get("deal") || "";
 
   const [allDeals, setAllDeals] = useState<Deal[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
   const [activeDealId, setActiveDealId] = useState("");
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [activityType, setActivityType] = useState<DealActivity["type"]>("Actividad");
@@ -21,6 +22,8 @@ export default function AvanzaNegociosPage() {
 
   useEffect(() => {
     const deals = loadDeals();
+    const currentStages = loadStages();
+    setStages(currentStages);
     setAllDeals(deals);
     setActiveDealId(selectedId || deals[0]?.id || "");
   }, [selectedId]);
@@ -75,8 +78,8 @@ export default function AvanzaNegociosPage() {
         </div>
       </section>
 
-      <section style={{ background: "#ffffff", border: "1px solid #d8dee6", borderRadius: 10, padding: 8, display: "grid", gridTemplateColumns: `repeat(${STAGES.length},1fr)`, gap: 6 }}>
-        {STAGES.map((s) => {
+      <section style={{ background: "#ffffff", border: "1px solid #d8dee6", borderRadius: 10, padding: 8, display: "grid", gridTemplateColumns: `repeat(${Math.max(1, stages.length)},1fr)`, gap: 6 }}>
+        {stages.map((s) => {
           const active = s.id === activeDeal.stage;
           return (
             <div key={s.id} style={{ borderRadius: 4, padding: "10px 12px", fontWeight: 700, background: active ? "#38c6b5" : "#eceef2", color: active ? "#fff" : "#374151" }}>
