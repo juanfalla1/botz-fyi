@@ -1,0 +1,75 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
+
+const NAV_ITEMS = [
+  { href: "/avanza-crm/dashboard", label: "Indicadores gerenciales" },
+  { href: "/avanza-crm/empresas", label: "Empresas" },
+  { href: "/avanza-crm/contactos", label: "Contactos" },
+  { href: "/avanza-crm/negocios", label: "Negocios" },
+  { href: "/avanza-crm/calendario", label: "Calendario" },
+  { href: "/avanza-crm/informes", label: "Informes" },
+  { href: "/avanza-crm/configuracion", label: "Configuración" },
+];
+
+const C = {
+  bg: "#f2f4f8",
+  top: "#2f3742",
+  line: "#22b8aa",
+  white: "#ffffff",
+  text: "#293241",
+  muted: "#6b7280",
+  panel: "#ffffff",
+  border: "#d8dee6",
+  active: "#22b8aa",
+};
+
+export function AvanzaCrmShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text }}>
+      <header style={{ background: C.top, color: C.white, borderBottom: `3px solid ${C.line}` }}>
+        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ fontWeight: 900, fontSize: 18 }}>Avanza CRM</div>
+          <div style={{ marginLeft: "auto", fontSize: 12, color: "#c4cbd5" }}>OHAUS · Comercial</div>
+        </div>
+        <nav style={{ maxWidth: 1400, margin: "0 auto", padding: "0 8px 8px", display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {NAV_ITEMS.map((item) => {
+            const active = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                style={{
+                  textDecoration: "none",
+                  color: active ? "#0e4f49" : C.white,
+                  background: active ? "#7fe1d7" : "rgba(255,255,255,0.08)",
+                  padding: "7px 11px",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </header>
+
+      <main style={{ maxWidth: 1400, margin: "0 auto", padding: 16 }}>{children}</main>
+    </div>
+  );
+}
+
+export function AvanzaModuleCard({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ padding: "10px 14px", borderBottom: `2px solid ${C.line}`, fontWeight: 800 }}>{title}</div>
+      <div style={{ padding: 14, color: C.muted, fontSize: 14 }}>{subtitle}</div>
+    </section>
+  );
+}

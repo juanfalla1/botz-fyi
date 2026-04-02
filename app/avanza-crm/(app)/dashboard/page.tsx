@@ -1,0 +1,15 @@
+import { AvanzaModuleCard } from "../../_components/AvanzaCrmShell";
+
+export default function AvanzaDashboardPage() {
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <AvanzaModuleCard title="Indicadores gerenciales" subtitle="Vista ejecutiva: pipeline, conversión por asesor, valor proyectado y SLA." />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
+        <AvanzaModuleCard title="Negocios activos" subtitle="0" />
+        <AvanzaModuleCard title="En cotización" subtitle="0" />
+        <AvanzaModuleCard title="Orden de compra" subtitle="0" />
+        <AvanzaModuleCard title="Facturación" subtitle="0" />
+      </div>
+    </div>
+  );
+}
