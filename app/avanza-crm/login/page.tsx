@@ -5,7 +5,7 @@ export default function AvanzaCrmLoginPage() {
     <div
       style={{
         minHeight: "100vh",
-        backgroundImage: "url('/avanza-crm/login-bg-v2.png')",
+        backgroundImage: "url('/avanza-crm/login-bg-v3.png')",
         backgroundSize: "115% 115%",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
