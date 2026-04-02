@@ -1,7 +1,6 @@
 import "./styles/globals.css";
 import ClientProvider from "./start/client-provider";
-import CookieBanner from "./components/CookieBanner";
-import Header from "./components/Header";
+import GlobalChrome from "./components/GlobalChrome";
 import type { Metadata } from "next";
 
 
@@ -216,11 +215,10 @@ export default function RootLayout({
           }}
         />
 
-        <Header />
+        <GlobalChrome />
         <ClientProvider>
           {children}
         </ClientProvider>
-        <CookieBanner />
       </body>
     </html>
   );
