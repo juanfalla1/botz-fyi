@@ -5,10 +5,10 @@ export default function AvanzaCrmLoginPage() {
     <div
       style={{
         minHeight: "100vh",
-        backgroundImage:
-          "linear-gradient(rgba(12,20,31,0.24), rgba(12,20,31,0.24)), url('/avanza-crm/login-bg.png')",
+        backgroundImage: "url('/avanza-crm/login-bg.png')",
         backgroundSize: "cover",
         backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
         display: "grid",
         placeItems: "center",
         padding: 16,
