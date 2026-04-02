@@ -4,7 +4,7 @@ export default function AvanzaCrmLoginPage() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         backgroundImage: "url('/avanza-crm/login-bg-v3.png')",
         backgroundSize: "115% 115%",
         backgroundPosition: "center",
@@ -12,6 +12,8 @@ export default function AvanzaCrmLoginPage() {
         display: "grid",
         placeItems: "center",
         padding: 16,
+        boxSizing: "border-box",
+        overflow: "hidden",
       }}
     >
       <section style={{ width: "100%", maxWidth: 440, background: "#ffffff", borderRadius: 12, border: "1px solid #d8dee6", padding: 20 }}>
