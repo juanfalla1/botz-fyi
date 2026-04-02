@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Deal, Stage, loadDeals, loadStages, money, saveDeals, saveStages } from "../../_lib/deals";
+import { Deal, DealActivity, Stage, loadDeals, loadStages, money, saveDeals, saveStages } from "../../_lib/deals";
+
+const QUICK_ACTIONS: Array<{ label: DealActivity["type"]; active: boolean }> = [
+  { label: "Actividad", active: true },
+  { label: "WhatsApp", active: true },
+  { label: "Comentario", active: false },
+  { label: "Correo", active: false },
+  { label: "Documento", active: false },
+  { label: "Cotizacion", active: false },
+];
 
 function makeStageId(label: string, existingIds: string[]): string {
   const base =
@@ -26,6 +35,13 @@ export default function AvanzaInicioPage() {
   const [stages, setStages] = useState<Stage[]>([]);
   const [query, setQuery] = useState("");
   const [openQuickMenuDealId, setOpenQuickMenuDealId] = useState<string | null>(null);
+  const [quickActionDealId, setQuickActionDealId] = useState<string | null>(null);
+  const [quickActionType, setQuickActionType] = useState<DealActivity["type"] | null>(null);
+  const [actionSubject, setActionSubject] = useState("");
+  const [actionDate, setActionDate] = useState("");
+  const [actionTime, setActionTime] = useState("");
+  const [actionNotes, setActionNotes] = useState("");
+  const [actionAmount, setActionAmount] = useState("");
   const [dragDealId, setDragDealId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
   const [showStageManager, setShowStageManager] = useState(false);
@@ -97,6 +113,54 @@ export default function AvanzaInicioPage() {
     const fallback = remaining[0].id;
     const nextDeals = allDeals.map((deal) => (deal.stage === stageId ? { ...deal, stage: fallback } : deal));
     updateStages(remaining, nextDeals);
+  };
+
+  const openQuickAction = (dealId: string, type: DealActivity["type"]) => {
+    setQuickActionDealId(dealId);
+    setQuickActionType(type);
+    setActionSubject(type);
+    setActionDate(new Date().toISOString().slice(0, 10));
+    setActionTime("");
+    setActionNotes("");
+    setActionAmount("");
+  };
+
+  const closeQuickAction = () => {
+    setQuickActionDealId(null);
+    setQuickActionType(null);
+  };
+
+  const saveQuickAction = () => {
+    if (!quickActionDealId || !quickActionType) return;
+    const subject = actionSubject.trim() || quickActionType;
+    const date = actionDate || new Date().toISOString().slice(0, 10);
+    const note = quickActionType === "Cotizacion" && actionAmount ? `${actionNotes}\nMonto: ${money(Number(actionAmount || 0))}`.trim() : actionNotes;
+
+    const activity: DealActivity = {
+      id: `act-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      type: quickActionType,
+      subject,
+      date,
+      time: actionTime,
+      notes: note,
+    };
+
+    const updated = allDeals.map((deal) =>
+      deal.id === quickActionDealId ? { ...deal, activities: [activity, ...(deal.activities || [])] } : deal
+    );
+    setAllDeals(updated);
+    saveDeals(updated);
+
+    const target = updated.find((d) => d.id === quickActionDealId);
+    if (target && quickActionType === "WhatsApp" && target.phone) {
+      const phone = target.phone.replace(/\D/g, "");
+      if (phone) window.open(`https://wa.me/${phone}`, "_blank", "noopener,noreferrer");
+    }
+    if (target && quickActionType === "Correo" && target.email) {
+      window.open(`mailto:${target.email}?subject=${encodeURIComponent(subject)}`, "_self");
+    }
+
+    closeQuickAction();
   };
 
   const moveDealToStage = (dealId: string, stageId: string) => {
@@ -224,19 +288,12 @@ export default function AvanzaInicioPage() {
                       gap: 6,
                     }}
                   >
-                    {[
-                      { label: "Actividad", active: true },
-                      { label: "WhatsApp", active: true },
-                      { label: "Comentario", active: false },
-                      { label: "Correo", active: false },
-                      { label: "Documento", active: false },
-                      { label: "Cotizacion", active: false },
-                    ].map((item) => (
+                    {QUICK_ACTIONS.map((item) => (
                       <button
                         key={item.label}
                         onClick={() => {
                           setOpenQuickMenuDealId(null);
-                          router.push(`/avanza-crm/negocios?deal=${deal.id}`);
+                          openQuickAction(deal.id, item.label);
                         }}
                         style={{
                           border: "none",
@@ -302,6 +359,53 @@ export default function AvanzaInicioPage() {
                   Agregar
                 </button>
               </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {quickActionDealId && quickActionType ? (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 3200, display: "grid", placeItems: "center", padding: 16 }}>
+          <section style={{ width: "min(760px, 96vw)", background: "#ffffff", border: "1px solid #d8dee6", borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ padding: "10px 14px", background: "#334155", color: "#ffffff", fontWeight: 800, display: "flex", alignItems: "center" }}>
+              Nueva {quickActionType}
+              <button onClick={closeQuickAction} style={{ marginLeft: "auto", border: "none", background: "transparent", color: "#fff", fontSize: 16, cursor: "pointer" }}>x</button>
+            </div>
+            <div style={{ padding: 14, display: "grid", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: 13 }}>Asunto</span>
+                  <input value={actionSubject} onChange={(e) => setActionSubject(e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
+                </label>
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: 13 }}>Fecha</span>
+                  <input type="date" value={actionDate} onChange={(e) => setActionDate(e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
+                </label>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: 13 }}>Hora</span>
+                  <input type="time" value={actionTime} onChange={(e) => setActionTime(e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
+                </label>
+                {quickActionType === "Cotizacion" ? (
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 13 }}>Monto</span>
+                    <input type="number" value={actionAmount} onChange={(e) => setActionAmount(e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
+                  </label>
+                ) : <div />}
+              </div>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13 }}>Notas</span>
+                <textarea value={actionNotes} onChange={(e) => setActionNotes(e.target.value)} rows={4} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px", resize: "vertical" }} />
+              </label>
+            </div>
+            <div style={{ borderTop: "1px solid #e5e7eb", padding: 12, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button onClick={closeQuickAction} style={{ border: "none", background: "transparent", color: "#b91c1c", fontWeight: 700, cursor: "pointer" }}>
+                Cancelar
+              </button>
+              <button onClick={saveQuickAction} style={{ border: "none", background: "#22b8aa", color: "#fff", borderRadius: 6, padding: "8px 14px", fontWeight: 800, cursor: "pointer" }}>
+                Guardar
+              </button>
             </div>
           </section>
         </div>
