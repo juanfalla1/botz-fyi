@@ -11,7 +11,7 @@ export default function AvanzaCrmLoginPage() {
           <input placeholder="Correo" style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #d8dee6" }} />
           <input placeholder="Contraseña" type="password" style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #d8dee6" }} />
           <Link
-            href="/avanza-crm/dashboard"
+            href="/avanza-crm/inicio"
             style={{ textDecoration: "none", textAlign: "center", padding: "10px 12px", borderRadius: 8, background: "#22b8aa", color: "#073b37", fontWeight: 800 }}
           >
             Ingresar

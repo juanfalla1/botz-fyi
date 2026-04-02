@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 const NAV_ITEMS = [
+  { href: "/avanza-crm/inicio", label: "⌂" },
   { href: "/avanza-crm/dashboard", label: "Indicadores gerenciales" },
   { href: "/avanza-crm/empresas", label: "Empresas" },
   { href: "/avanza-crm/contactos", label: "Contactos" },
@@ -61,6 +62,8 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
                   color: active ? "#0e4f49" : C.white,
                   background: active ? "#7fe1d7" : "rgba(255,255,255,0.08)",
                   padding: "7px 11px",
+                  minWidth: item.label === "⌂" ? 40 : undefined,
+                  textAlign: "center",
                   borderRadius: 6,
                   fontSize: 13,
                   fontWeight: 700,
