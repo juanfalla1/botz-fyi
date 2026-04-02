@@ -25,6 +25,8 @@ export default function AvanzaInicioPage() {
   const [allDeals, setAllDeals] = useState<Deal[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [query, setQuery] = useState("");
+  const [dragDealId, setDragDealId] = useState<string | null>(null);
+  const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
   const [showStageManager, setShowStageManager] = useState(false);
   const [newStageName, setNewStageName] = useState("");
 
@@ -96,6 +98,14 @@ export default function AvanzaInicioPage() {
     updateStages(remaining, nextDeals);
   };
 
+  const moveDealToStage = (dealId: string, stageId: string) => {
+    const source = allDeals.find((d) => d.id === dealId);
+    if (!source || source.stage === stageId) return;
+    const updated = allDeals.map((d) => (d.id === dealId ? { ...d, stage: stageId } : d));
+    setAllDeals(updated);
+    saveDeals(updated);
+  };
+
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <section style={{ background: "#ffffff", border: "1px solid #d8dee6", borderRadius: 10, padding: 12, display: "grid", gap: 10 }}>
@@ -108,22 +118,71 @@ export default function AvanzaInicioPage() {
         </div>
       </section>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 12, alignItems: "start" }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "stretch", overflowX: "auto", paddingBottom: 4 }}>
         {columns.map(({ stage, deals }) => (
-          <section key={stage.id} style={{ background: "#eef1f6", border: "1px solid #d8dee6", borderRadius: 10, padding: 10, display: "grid", gap: 8 }}>
+          <section
+            key={stage.id}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (dragOverStageId !== stage.id) setDragOverStageId(stage.id);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (dragDealId) moveDealToStage(dragDealId, stage.id);
+              setDragDealId(null);
+              setDragOverStageId(null);
+            }}
+            onDragLeave={() => {
+              if (dragOverStageId === stage.id) setDragOverStageId(null);
+            }}
+            style={{
+              flex: "0 0 320px",
+              background: dragOverStageId === stage.id ? "#e0f5f2" : "#eef1f6",
+              border: dragOverStageId === stage.id ? "1px solid #38c6b5" : "1px solid #d8dee6",
+              borderRadius: 10,
+              padding: 10,
+              display: "grid",
+              gap: 8,
+              minHeight: 220,
+            }}
+          >
             <div style={{ borderRadius: 8, background: "#e7ebf3", padding: "10px 10px", border: "1px solid #d8dee6" }}>
               <div style={{ fontWeight: 800, color: "#2d3748", fontSize: 15 }}>{stage.label}</div>
               <div style={{ color: "#6b7280", fontSize: 12 }}>{money(deals.reduce((sum, d) => sum + Number(d.totalOrderAmount || 0), 0))} - {deals.length} Negocios</div>
             </div>
 
             {deals.map((deal) => (
-              <button key={deal.id} onClick={() => router.push(`/avanza-crm/negocios?deal=${deal.id}`)} style={{ background: "#ffffff", border: "1px solid #d8dee6", borderRadius: 8, padding: "9px 10px", display: "grid", gap: 4, cursor: "pointer", textAlign: "left" }}>
+              <article
+                key={deal.id}
+                draggable
+                onDragStart={(e) => {
+                  setDragDealId(deal.id);
+                  e.dataTransfer.setData("text/plain", deal.id);
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+                onDragEnd={() => {
+                  setDragDealId(null);
+                  setDragOverStageId(null);
+                }}
+                onClick={() => router.push(`/avanza-crm/negocios?deal=${deal.id}`)}
+                style={{
+                  background: "#ffffff",
+                  border: "1px solid #d8dee6",
+                  borderRadius: 8,
+                  padding: "9px 10px",
+                  display: "grid",
+                  gap: 4,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  opacity: dragDealId === deal.id ? 0.65 : 1,
+                }}
+              >
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                   <strong style={{ fontSize: 13, color: "#2d3748" }}>{deal.businessName}</strong>
                   <span style={{ fontSize: 12, color: "#4b5563", whiteSpace: "nowrap" }}>{money(deal.totalOrderAmount)}</span>
                 </div>
                 <div style={{ fontSize: 12, color: "#6b7280" }}>{deal.contactName || deal.company || "Sin contacto"}</div>
-              </button>
+              </article>
             ))}
 
             {deals.length === 0 ? <div style={{ fontSize: 12, color: "#9ca3af", padding: "4px 2px" }}>Sin negocios en esta etapa.</div> : null}
