@@ -42,7 +42,10 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        height: "100dvh",
+        position: "fixed",
+        inset: 0,
+        width: "100%",
+        height: "100%",
         backgroundColor: C.bg,
         color: C.text,
         display: "flex",
@@ -72,7 +75,21 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
           <div style={{ fontWeight: 900, fontSize: 18 }}>Avanza CRM</div>
           <div style={{ marginLeft: "auto", fontSize: 12, color: "#c4cbd5" }}>OHAUS · Comercial</div>
         </div>
-        <nav style={{ maxWidth: 1400, margin: "0 auto", padding: "0 8px 8px", display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <nav style={{ maxWidth: 1400, margin: "0 auto", padding: "0 8px 8px", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <button
+            onClick={goBack}
+            style={{
+              border: "1px solid rgba(255,255,255,0.25)",
+              background: "rgba(255,255,255,0.08)",
+              color: C.white,
+              borderRadius: 6,
+              padding: "7px 10px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            ←
+          </button>
           {NAV_ITEMS.map((item) => {
             const active = pathname === item.href;
             return (
@@ -98,24 +115,10 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
         </nav>
       </header>
 
-      <main style={{ maxWidth: 1400, width: "100%", margin: "0 auto", padding: 16, display: "grid", gap: 10, overflow: "auto", flex: 1 }}>
-        <div>
-          <button
-            onClick={goBack}
-            style={{
-              border: `1px solid ${C.border}`,
-              background: "#ffffff",
-              color: C.text,
-              borderRadius: 6,
-              padding: "6px 10px",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            ← Volver
-          </button>
+      <main style={{ width: "100%", padding: "10px 16px 16px", overflow: "auto", flex: 1 }}>
+        <div style={{ maxWidth: 1400, margin: "0 auto", display: "grid", gap: 10 }}>
+          {children}
         </div>
-        {children}
       </main>
     </div>
   );
