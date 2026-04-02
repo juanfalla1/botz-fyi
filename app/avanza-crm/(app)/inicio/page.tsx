@@ -151,15 +151,6 @@ export default function AvanzaInicioPage() {
     setAllDeals(updated);
     saveDeals(updated);
 
-    const target = updated.find((d) => d.id === quickActionDealId);
-    if (target && quickActionType === "WhatsApp" && target.phone) {
-      const phone = target.phone.replace(/\D/g, "");
-      if (phone) window.open(`https://wa.me/${phone}`, "_blank", "noopener,noreferrer");
-    }
-    if (target && quickActionType === "Correo" && target.email) {
-      window.open(`mailto:${target.email}?subject=${encodeURIComponent(subject)}`, "_self");
-    }
-
     closeQuickAction();
   };
 
