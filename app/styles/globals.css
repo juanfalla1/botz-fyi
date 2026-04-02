@@ -1036,6 +1036,9 @@ section[id]{ scroll-margin-top:72px; }
 html, body{ margin:0; }
 body{ padding-top: var(--header-h); }
 
+/* Avanza CRM runs without the global Botz header */
+body.avanza-crm-no-header{ padding-top: 0 !important; }
+
 /* Anclas: que no queden ocultas bajo el header fijo */
 section[id]{ scroll-margin-top: calc(var(--header-h) + 8px); }
 
