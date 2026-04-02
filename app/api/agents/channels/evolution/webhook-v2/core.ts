@@ -9087,7 +9087,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && (inboundInventoryIntent || Boolean(inboundCategoryIntent))) {
+    if (!handledByGreeting && !handledByInventory && (inboundInventoryIntent || Boolean(inboundCategoryIntent))) {
       try {
         if (inboundCategoryIntent) {
           const categoryRowsRaw = await fetchCatalogRows("id,name,category,brand,base_price_usd,source_payload,product_url", 220, false);
