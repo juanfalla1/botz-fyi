@@ -31,14 +31,6 @@ const STAGES = [
       { name: "Suministro electrodos", company: "Merieux", value: "$ 0" },
     ],
   },
-  {
-    title: "Facturacion",
-    amount: "$ 0",
-    deals: [
-      { name: "Suministro masas patron", company: "Yamit Rivera", value: "$ 0" },
-      { name: "Servicio correctivo", company: "Henkel", value: "$ 0" },
-    ],
-  },
 ];
 
 export default function AvanzaInicioPage() {

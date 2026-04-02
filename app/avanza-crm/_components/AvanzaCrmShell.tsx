@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 const NAV_ITEMS = [
@@ -29,6 +29,15 @@ const C = {
 
 export function AvanzaCrmShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const goBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push("/avanza-crm/inicio");
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text }}>
@@ -76,7 +85,25 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
         </nav>
       </header>
 
-      <main style={{ maxWidth: 1400, margin: "0 auto", padding: 16 }}>{children}</main>
+      <main style={{ maxWidth: 1400, margin: "0 auto", padding: 16, display: "grid", gap: 10 }}>
+        <div>
+          <button
+            onClick={goBack}
+            style={{
+              border: `1px solid ${C.border}`,
+              background: "#ffffff",
+              color: C.text,
+              borderRadius: 6,
+              padding: "6px 10px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            ← Volver
+          </button>
+        </div>
+        {children}
+      </main>
     </div>
   );
 }
