@@ -1658,11 +1658,42 @@ function formatSpecNumber(n: number): string {
   return String(Number(n.toFixed(6))).replace(/\.0+$/, "");
 }
 
+function inferFamilyFromReadability(readabilityG: number): { family: string; capacityHint: string } {
+  const r = Number(readabilityG || 0);
+  if (!(r > 0)) return { family: "balanzas", capacityHint: "200 g, 620 g o 3200 g" };
+  if (r <= 0.0001) return { family: "Balanza Analítica", capacityHint: "120 g, 220 g o 320 g" };
+  if (r <= 0.001) return { family: "Balanza Semi - Micro", capacityHint: "120 g, 220 g o 520 g" };
+  if (r <= 0.01) return { family: "Balanza Precisión", capacityHint: "620 g, 1600 g, 3200 g o 6200 g" };
+  if (r <= 0.1) return { family: "Balanzas Contadoras", capacityHint: "3 kg, 6 kg o 15 kg" };
+  return { family: "Balanzas industriales", capacityHint: "15 kg, 30 kg o 60 kg" };
+}
+
 function extractRowTechnicalSpec(row: any): { capacityG: number; readabilityG: number } {
   const specsText = String(row?.specs_text || "");
   const specsJsonText = row?.specs_json ? JSON.stringify(row.specs_json) : "";
-  const payloadText = row?.source_payload ? JSON.stringify(row.source_payload) : "";
-  const hay = normalizeCatalogQueryText(`${specsText} ${specsJsonText} ${payloadText}`);
+  const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const payloadSpecText = [
+    (payload as any)?.capacity,
+    (payload as any)?.capacidad,
+    (payload as any)?.capacity_g,
+    (payload as any)?.capacidad_g,
+    (payload as any)?.max,
+    (payload as any)?.max_g,
+    (payload as any)?.resolution,
+    (payload as any)?.resolucion,
+    (payload as any)?.resolution_g,
+    (payload as any)?.resolucion_g,
+    (payload as any)?.readability,
+    (payload as any)?.readability_g,
+    (payload as any)?.precision,
+    (payload as any)?.precision_g,
+    (payload as any)?.family,
+    (payload as any)?.quote_model,
+  ]
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+  const hay = normalizeCatalogQueryText(`${specsText} ${specsJsonText} ${payloadSpecText}`);
   const cap =
     hay.match(/(?:capacidad|max(?:ima)?|maximum|max\.|weighing\s*capacity|peso\s*max(?:imo)?)[^0-9]{0,24}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/) ||
     hay.match(/(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)\s*(?:x|por|\*)\s*\d+(?:[\.,]\d+)?\s*(mg|g|kg)/);
@@ -1745,8 +1776,15 @@ function prioritizeTechnicalRows(rows: any[], spec: { capacityG: number; readabi
   const ranked = rankCatalogByTechnicalSpec(rows, spec);
   if (!ranked.length) return { orderedRows: [], exactCount: 0 };
 
-  const exact = ranked.filter((x: any) => x.capacityDeltaPct <= 8 && x.readabilityRatio >= 0.8 && x.readabilityRatio <= 1.25);
-  const near = ranked.filter((x: any) => !(x.capacityDeltaPct <= 8 && x.readabilityRatio >= 0.8 && x.readabilityRatio <= 1.25));
+  const reasonable = ranked.filter((x: any) => {
+    const capOk = x.capacityDeltaPct <= 280;
+    const readOk = x.readabilityRatio >= 0.5 && x.readabilityRatio <= 2.5;
+    return capOk && readOk;
+  });
+  const pool = reasonable.length ? reasonable : ranked;
+
+  const exact = pool.filter((x: any) => x.capacityDeltaPct <= 8 && x.readabilityRatio >= 0.8 && x.readabilityRatio <= 1.25);
+  const near = pool.filter((x: any) => !(x.capacityDeltaPct <= 8 && x.readabilityRatio >= 0.8 && x.readabilityRatio <= 1.25));
   const out: any[] = [];
   const seen = new Set<string>();
 
@@ -2222,6 +2260,9 @@ function detectCatalogCategoryIntent(text: string): string | null {
   }
   if (/(analizador de humedad|humedad|mb120|mb90|mb27|mb23)/.test(t)) return "analizador_humedad";
   if (asksLabEquipment) return "equipos_laboratorio";
+  if (/(balanza|balanzas|analitica|semi analitica|semi-micro|precision|resolucion|lectura minima)/.test(t) && /(precision|resolucion|lectura minima)/.test(t)) {
+    return "balanzas_precision";
+  }
   if (/(bascula|basculas|bscula|bsculas|ranger|defender|valor|plataforma|control de peso|ckw|td52p)/.test(t) && !negatesBasculas) return "basculas";
   if (/(impresora)/.test(t)) return "impresoras";
   if (/(balanza|balanzas|blanza|blanzas|explorer|adventurer|pioneer|pr\b|scout|analitica|semi analitica|precision)/.test(t)) return "balanzas";
@@ -3495,6 +3536,20 @@ function passesStrictCategoryGuard(row: any, categoryIntent: string): boolean {
 function scopeCatalogRows(rows: any[], categoryIntent: string): any[] {
   const wanted = normalizeText(String(categoryIntent || ""));
   if (!wanted) return rows || [];
+  if (wanted === "balanzas_precision") {
+    const precisionRows = (rows || []).filter((row: any) => {
+      const rowCat = normalizeText(String(row?.category || ""));
+      if (!(rowCat === "balanzas" || rowCat.startsWith("balanzas_"))) return false;
+      const sub = catalogSubcategory(row);
+      const fam = normalizeText(familyLabelFromRow(row));
+      const name = normalizeText(String(row?.name || ""));
+      if (/(basculas|ranger|defender|valor|industrial|plataforma)/.test(`${sub} ${fam} ${name}`)) return false;
+      const read = Number(getRowReadabilityG(row) || 0);
+      if (read > 0 && read <= 0.01) return true;
+      return /(precision|analitica|semi micro|semimicro|semi analitica|explorer|adventurer|pioneer|scout|exr|exp|ax|px)/.test(`${sub} ${fam} ${name}`);
+    });
+    return precisionRows;
+  }
   const strict = (rows || []).filter((row: any) => {
     if (!categoryMatchesIntent(row, wanted)) return false;
     return passesStrictCategoryGuard(row, wanted);
@@ -7375,6 +7430,36 @@ export async function POST(req: Request) {
           ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
           : categoryScoped;
 
+        const asksPrecisionInventory =
+          /(balanzas?\s+de\s+precision|balanzas?\s+de\s+precisi[oó]n|tienes?\s+de\s+precision|tienen\s+de\s+precision|hay\s+de\s+precision|manejan\s+de\s+precision)/.test(textNorm) &&
+          !parseLooseTechnicalHint(text) &&
+          !parseTechnicalSpecQuery(text);
+        if (!String(strictReply || "").trim() && asksPrecisionInventory) {
+          const precisionRows = scopeCatalogRows(ownerRows as any[], "balanzas_precision");
+          const options = buildNumberedProductOptions(precisionRows as any[], 8);
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictMemory.last_category_intent = "balanzas_precision";
+            strictReply = [
+              `Sí. En base de datos tengo ${precisionRows.length} balanza(s) de precisión activas.`,
+              "Estas son 4 opciones recomendadas para iniciar:",
+              ...options.slice(0, 4).map((o) => {
+                const row = (precisionRows as any[]).find((r: any) => String(r?.id || "") === String(o.id || ""));
+                const cap = Number(getRowCapacityG(row) || 0);
+                const read = Number(getRowReadabilityG(row) || 0);
+                return `${o.code}) ${o.name} | Cap: ${formatSpecNumber(cap)} g | Res: ${formatSpecNumber(read)} g`;
+              }),
+              "",
+              "Elige con letra o número (A/1), o dime la resolución exacta (ej.: 0.01 g).",
+            ].join("\n");
+          } else {
+            strictReply = "Ahora mismo no tengo balanzas de precisión activas en base de datos. Si quieres, reviso alternativas cercanas por resolución.";
+          }
+        }
+
         const bundleQuoteAsk =
           asksQuoteIntent(text) &&
           (
@@ -7455,16 +7540,23 @@ export async function POST(req: Request) {
             const tNormNeed = normalizeText(String(text || ""));
             const hasReadabilityConstraint = /(menos\s+de|menor\s+que|hasta|maximo|maximo\s+de|no\s+mas\s+de|no\s+m[aá]s\s+de)/.test(tNormNeed);
             const asksRecommendationNow = /(cual|cu[aá]l|recomiend|seria\s+buena|ser[ií]a\s+buena|me\s+sirve)/.test(tNormNeed);
-            if (hasReadabilityConstraint || asksRecommendationNow) {
+            const asksDirectOptions = /(necesito|quiero|busco|tienen|tienes|opciones|cuales|cu[aá]les|muestrame|mu[eé]strame)/.test(tNormNeed);
+            const shouldGuideCapacityFirst = effectiveRead <= 0.0001 && !hasReadabilityConstraint;
+            if (!shouldGuideCapacityFirst && (hasReadabilityConstraint || asksRecommendationNow || asksDirectOptions)) {
+              const isPointZeroOne = Math.abs(effectiveRead - 0.01) <= 0.000001;
               const byFamily = (familyRows as any[]).filter((r: any) => {
                 const rs = extractRowTechnicalSpec(r);
                 const rr = Number(rs.readabilityG || 0);
-                return rr > 0 && rr <= effectiveRead;
+                if (!(rr > 0)) return false;
+                if (isPointZeroOne) return Math.abs(rr - 0.01) <= 0.000001;
+                return rr <= effectiveRead;
               });
               const byCategory = (categoryScoped as any[]).filter((r: any) => {
                 const rs = extractRowTechnicalSpec(r);
                 const rr = Number(rs.readabilityG || 0);
-                return rr > 0 && rr <= effectiveRead;
+                if (!(rr > 0)) return false;
+                if (isPointZeroOne) return Math.abs(rr - 0.01) <= 0.000001;
+                return rr <= effectiveRead;
               });
               const pool = byFamily.length ? byFamily : byCategory;
               const rankedRead = rankCatalogByReadabilityOnly(pool as any[], effectiveRead);
@@ -7477,8 +7569,14 @@ export async function POST(req: Request) {
                 strictMemory.strict_model_offset = 0;
                 strictMemory.strict_filter_readability_g = effectiveRead;
                 strictReply = [
-                  `Perfecto. Para precisión menor o igual a ${formatSpecNumber(effectiveRead)} g, estas son las mejores opciones disponibles:`,
-                  ...options.map((o) => `${o.code}) ${o.name}`),
+                  isPointZeroOne
+                    ? "Perfecto. Para 0.01 g (balanzas de precisión), estas son 4 opciones disponibles en base de datos:"
+                    : `Perfecto. Para precisión menor o igual a ${formatSpecNumber(effectiveRead)} g, estas son 4 opciones disponibles:`,
+                  ...options.slice(0, 4).map((o) => {
+                    const row = (rankedRows || []).find((r: any) => String(r?.id || "") === String(o.id || ""));
+                    const cap = Number(getRowCapacityG(row) || 0);
+                    return `${o.code}) ${o.name} | Cap: ${formatSpecNumber(cap)} g`;
+                  }),
                   "",
                   "Elige con letra o número (A/1). Si quieres, luego afinamos por capacidad.",
                 ].join("\n");
@@ -7486,10 +7584,11 @@ export async function POST(req: Request) {
                 strictReply = `Entiendo. Para precisión <= ${formatSpecNumber(effectiveRead)} g no veo opciones activas en esta categoría. Si quieres, te propongo alternativas cercanas.`;
               }
             } else {
+              const inferred = inferFamilyFromReadability(effectiveRead);
               strictReply = [
-                `Perfecto, ya tengo la precisión (${formatSpecNumber(effectiveRead)} g).`,
-                "Para recomendarte mejor en esta familia, dime capacidad aproximada.",
-                "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
+                `Perfecto. ${formatSpecNumber(effectiveRead)} g normalmente corresponde a ${inferred.family}.`,
+                `¿Qué capacidad necesitas para afinarte la recomendación?`,
+                `Opciones rápidas: ${inferred.capacityHint}.`,
               ].join("\n");
             }
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
@@ -7586,6 +7685,35 @@ export async function POST(req: Request) {
             ].join("\n");
           } else {
             strictReply = "No encontré modelos activos para ese rango de capacidad en esta familia. Si quieres, te muestro alternativas de otra familia.";
+          }
+        }
+
+        const asksCheapest = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|precio\s+bajo)\b/.test(normalizeText(text));
+        if (!String(strictReply || "").trim() && asksCheapest) {
+          const priced = (familyRows as any[])
+            .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
+            .sort((a: any, b: any) => Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
+          const pricedSource = priced.length ? priced : (categoryScoped as any[])
+            .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
+            .sort((a: any, b: any) => Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
+          const options = buildNumberedProductOptions(pricedSource as any[], 8);
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.strict_model_offset = 0;
+            strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
+            const topRow = pricedSource[0];
+            const topFamily = normalizeText(familyLabelFromRow(topRow)) || normalizeText(String(topRow?.source_payload?.family || ""));
+            const familyLabelHuman = topFamily ? String(familyLabelFromRow(topRow) || topFamily) : "N/A";
+            strictReply = [
+              `Perfecto. Según base de datos, la familia más económica aquí es: ${familyLabelHuman}.`,
+              "Estas son 4 opciones más económicas:",
+              ...options.slice(0, 4).map((o) => {
+                const p = Number(o.base_price_usd || 0);
+                return `${o.code}) ${o.name}${p > 0 ? ` (USD ${formatMoney(p)})` : ""}`;
+              }),
+              "",
+              "Elige con letra o número (A/1), o escribe 'más'.",
+            ].join("\n");
           }
         }
 
