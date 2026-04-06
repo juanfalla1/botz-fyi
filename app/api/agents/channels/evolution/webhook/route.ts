@@ -3299,7 +3299,7 @@ function resolveModelSpecificLocalImageDataUrl(row: any): string {
 
 let pdfParseModuleCache: any = null;
 const localQuotePdfTextCache = new Map<string, { at: number; lines: string[] }>();
-const localQuotePdfImageCache = new Map<string, { at: number; dataUrl: string }>();
+const localQuotePdfImageCache = new Map<string, { at: number; dataUrl: string; mtimeMs: number; byteSize: number }>();
 
 async function getPdfParseModule(): Promise<any> {
   if (pdfParseModuleCache) return pdfParseModuleCache;
@@ -3970,8 +3970,25 @@ async function resolveProductImageDataUrl(row: any): Promise<string> {
 
   const localPath = pickBestLocalPdfPath(row, String(row?.name || ""));
   if (localPath && fs.existsSync(localPath)) {
+    let fileMtimeMs = 0;
+    let fileByteSize = 0;
+    try {
+      const st = fs.statSync(localPath);
+      fileMtimeMs = Number(st.mtimeMs || 0);
+      fileByteSize = Number(st.size || 0);
+    } catch {
+      fileMtimeMs = 0;
+      fileByteSize = 0;
+    }
     const cached = localQuotePdfImageCache.get(localPath);
-    if (cached && (Date.now() - cached.at) < 6 * 60 * 60 * 1000) return cached.dataUrl;
+    if (
+      cached &&
+      (Date.now() - cached.at) < 6 * 60 * 60 * 1000 &&
+      cached.mtimeMs === fileMtimeMs &&
+      cached.byteSize === fileByteSize
+    ) {
+      return cached.dataUrl;
+    }
     try {
       const pdfMod = await getPdfParseModule();
       const PDFParse = (pdfMod as any)?.PDFParse || (pdfMod as any)?.default?.PDFParse;
@@ -3990,7 +4007,12 @@ async function resolveProductImageDataUrl(row: any): Promise<string> {
           .filter((img: any) => img.w > 80 && img.h > 80)
           .sort((a: any, b: any) => (b.w * b.h) - (a.w * a.h))[0];
         if (picked?.dataUrl) {
-          localQuotePdfImageCache.set(localPath, { at: Date.now(), dataUrl: picked.dataUrl });
+          localQuotePdfImageCache.set(localPath, {
+            at: Date.now(),
+            dataUrl: picked.dataUrl,
+            mtimeMs: fileMtimeMs,
+            byteSize: fileByteSize,
+          });
           return picked.dataUrl;
         }
       }
