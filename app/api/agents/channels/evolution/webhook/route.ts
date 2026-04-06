@@ -1264,8 +1264,34 @@ function familyLabelFromRow(row: any): string {
   const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const family = String(source?.family || source?.familia || "").trim();
   if (family) return family;
-  const cat = String(row?.category || "").trim().replace(/_/g, " ");
-  return cat || "General";
+  const sub = normalizeText(String(source?.subcategory || "").trim());
+  if (sub) {
+    const mapped: Record<string, string> = {
+      balanzas_semimicro: "Balanza Semi - Micro",
+      balanzas_analiticas: "Balanza Analitica",
+      balanzas_semianaliticas: "Balanza Semi - Analitica",
+      balanzas_precision: "Balanza Precisión",
+      balanzas_conteo: "Balanzas Contadoras",
+      balanzas_mesa: "Balanzas industriales",
+      basculas_mesa: "Bascula industriales",
+      basculas_piso: "Bascula industriales",
+      basculas_lavables: "Bascula industriales",
+      plataformas: "Bascula industriales",
+      plataformas_lavables: "Bascula industriales",
+      indicadores: "Bascula industriales",
+      indicadores_lavables: "Bascula industriales",
+      analizador_humedad: "Analizador de humedad",
+    };
+    if (mapped[sub]) return mapped[sub];
+  }
+  const read = Number(getRowReadabilityG(row) || 0);
+  if (read > 0) {
+    if (read <= 0.0001) return "Balanza Analitica";
+    if (read <= 0.001) return "Balanza Semi - Micro";
+    if (read <= 0.01) return "Balanza Precisión";
+    if (read <= 0.1) return "Balanzas Contadoras";
+  }
+  return "";
 }
 
 function buildNumberedFamilyOptions(rows: any[], maxItems = 8): Array<{ code: string; rank: number; key: string; label: string; count: number }> {
@@ -1274,6 +1300,7 @@ function buildNumberedFamilyOptions(rows: any[], maxItems = 8): Array<{ code: st
     const label = familyLabelFromRow(row);
     const key = normalizeText(label);
     if (!key) continue;
+    if (["balanzas", "basculas", "general"].includes(key)) continue;
     const prev = map.get(key) || { key, label, count: 0 };
     prev.count += 1;
     if (!prev.label || prev.label.length > label.length) prev.label = label;
@@ -7340,6 +7367,40 @@ export async function POST(req: Request) {
           isUseCaseFamilyHint(text) ||
           isRecommendationIntent(text)
         );
+        const familySwitchMentionInModelStep = (() => {
+          const families = buildNumberedFamilyOptions(categoryScoped as any[], 12);
+          if (!families.length) return null;
+          const chosen = resolvePendingFamilyOption(text, families);
+          if (!chosen) return null;
+          const currentKey = normalizeText(String(familyLabel || ""));
+          if (currentKey && normalizeText(String(chosen.key || "")) === currentKey) return null;
+          return { families, chosen };
+        })();
+        if (!String(strictReply || "").trim() && familySwitchMentionInModelStep) {
+          const chosen = familySwitchMentionInModelStep.chosen;
+          const familyRowsSwitch = (categoryScoped as any[]).filter(
+            (r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(chosen.key || ""))
+          );
+          const optionsSwitch = buildNumberedProductOptions(familyRowsSwitch as any[], 8);
+          strictMemory.pending_family_options = familySwitchMentionInModelStep.families;
+          strictMemory.strict_family_label = String(chosen.label || "");
+          strictMemory.strict_model_offset = 0;
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictMemory.pending_product_options = optionsSwitch;
+          strictReply = optionsSwitch.length
+            ? [
+                `Perfecto, cambio la búsqueda a ${String(chosen.label || "esa familia")}.`,
+                ...optionsSwitch.slice(0, 8).map((o) => {
+                  const row = familyRowsSwitch.find((r: any) => String(r?.id || "") === String(o.id || ""));
+                  const cap = Number(getRowCapacityG(row) || 0);
+                  const read = Number(getRowReadabilityG(row) || 0);
+                  return `${o.code}) ${o.name} | Cap: ${formatSpecNumber(cap)} g | Res: ${formatSpecNumber(read)} g`;
+                }),
+                "",
+                "Responde con letra o número (A/1), o escribe 'más' para ver siguientes.",
+              ].join("\n")
+            : `Perfecto, cambio la búsqueda a ${String(chosen.label || "esa familia")}, pero ahora no veo modelos activos en esa familia.`;
+        }
         if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel && !technicalBypassInSelection && !isCategorySwitchInModelStep && !freeCatalogAskInModelStep && !asksHotplate) {
           const softReply = await buildStrictConversationalReply({
             apiKey,
