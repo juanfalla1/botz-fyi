@@ -1979,8 +1979,8 @@ function isInventoryInfoIntent(text: string): boolean {
   return (
     /(cuantos|cuantas|numero de|cantidad de).*(productos|equipos|referencias|items)/.test(t) ||
     /(catalogo|inventario).*(productos|equipos|referencias)/.test(t) ||
-    /(que|cuales).*(productos|equipos).*(tienen|manejan|venden|ofrecen)/.test(t) ||
-    /(productos|producto|equipos|equipo).*(tienen|tiene|manejan|maneja|venden|vende|ofrecen|ofrece)/.test(t) ||
+    /(que|cuales).*(productos|prodcutos|equipos).*(tienen|manejan|venden|ofrecen)/.test(t) ||
+    /(productos|prodcutos|producto|prodcuto|equipos|equipo).*(tienen|tiene|manejan|maneja|venden|vende|ofrecen|ofrece)/.test(t) ||
     /(que mas producto|que mas productos|que otros productos|que otras referencias|que mas tienes|que otro tienes)/.test(t) ||
     /(tiene|tienen|tinen|hay).*(balanza|balanzas|blanza|blanzas|bascula|basculas|bscula|bsculas)/.test(t)
   );
@@ -2011,7 +2011,7 @@ function isCatalogBreadthQuestion(text: string): boolean {
   if (!t) return false;
   return (
     /(que\s+mas|que\s+otros?|otras\s+referencias|mas\s+referencias|catalogo\s+completo)/.test(t) ||
-    /(?:producto|productos|productod|referencia|referencias).*(tien|manej|ofrec|hay)/.test(t)
+    /(?:producto|productos|prodcutos|productod|referencia|referencias).*(tien|manej|ofrec|hay)/.test(t)
   );
 }
 
@@ -2019,8 +2019,8 @@ function isGlobalCatalogAsk(text: string): boolean {
   const t = normalizeCatalogQueryText(String(text || ""));
   if (!t) return false;
   return (
-    /(dame|muestrame|mu[eé]strame|quiero|ver).*(todo\s+el\s+catalogo|catalogo\s+completo|catalogo)/.test(t) ||
-    /(dame|muestrame|mu[eé]strame|quiero|ver).*(todos\s+los\s+productos|todas\s+las\s+referencias|todos\s+los\s+equipos)/.test(t) ||
+    /(dame|muestrame|mu[eé]strame|quiero|ver).*(todo\s+el\s+catalogo|catalogo\s+completo|dame\s+el\s+catalogo|catalogo)/.test(t) ||
+    /(dame|muestrame|mu[eé]strame|quiero|ver).*(todos\s+los\s+productos|todos\s+los\s+prodcutos|todas\s+las\s+referencias|todos\s+los\s+equipos)/.test(t) ||
     /^catalogo$/.test(t)
   );
 }
@@ -7423,6 +7423,18 @@ export async function POST(req: Request) {
           isUseCaseFamilyHint(text) ||
           isRecommendationIntent(text)
         );
+        const inventoryOverrideInSelection =
+          isGlobalCatalogAsk(text) ||
+          isInventoryInfoIntent(text) ||
+          isCatalogBreadthQuestion(text);
+        if (inventoryOverrideInSelection) {
+          strictMemory.awaiting_action = "none";
+          strictMemory.pending_product_options = [];
+          strictMemory.pending_family_options = [];
+          strictMemory.strict_model_offset = 0;
+          strictMemory.strict_family_label = "";
+          if (isGlobalCatalogAsk(text)) strictMemory.last_category_intent = "";
+        }
         const familySwitchMentionInModelStep = (() => {
           const families = buildNumberedFamilyOptions(categoryScoped as any[], 12);
           if (!families.length) return null;
@@ -7457,7 +7469,7 @@ export async function POST(req: Request) {
               ].join("\n")
             : `Perfecto, cambio la búsqueda a ${String(chosen.label || "esa familia")}, pero ahora no veo modelos activos en esa familia.`;
         }
-        if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel && !technicalBypassInSelection && !isCategorySwitchInModelStep && !freeCatalogAskInModelStep && !asksHotplate) {
+        if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel && !technicalBypassInSelection && !inventoryOverrideInSelection && !isCategorySwitchInModelStep && !freeCatalogAskInModelStep && !asksHotplate) {
           const softReply = await buildStrictConversationalReply({
             apiKey,
             inboundText: text,
