@@ -1301,6 +1301,11 @@ function familyLabelFromRow(row: any): string {
 
 function buildNumberedFamilyOptions(rows: any[], maxItems = 8): Array<{ code: string; rank: number; key: string; label: string; count: number }> {
   const map = new Map<string, { key: string; label: string; count: number }>();
+  const rowList = Array.isArray(rows) ? rows : [];
+  const balanzasOnly = rowList.length > 0 && rowList.every((row: any) => {
+    const c = normalizeText(String(row?.category || ""));
+    return c === "balanzas" || c.startsWith("balanzas_");
+  });
   for (const row of Array.isArray(rows) ? rows : []) {
     const label = familyLabelFromRow(row);
     const key = normalizeText(label);
@@ -1311,8 +1316,30 @@ function buildNumberedFamilyOptions(rows: any[], maxItems = 8): Array<{ code: st
     if (!prev.label || prev.label.length > label.length) prev.label = label;
     map.set(key, prev);
   }
+  const preferredBalanzasOrder = [
+    "balanza semi - micro",
+    "balanza analitica",
+    "balanza semi - analitica",
+    "balanza precision",
+    "balanza precision",
+    "balanzas industriales",
+    "balanza industriales",
+    "balanzas contadoras",
+  ].map((x) => normalizeText(x));
+  const orderIndex = (label: string) => {
+    const idx = preferredBalanzasOrder.indexOf(normalizeText(label));
+    return idx >= 0 ? idx : 999;
+  };
+
   return Array.from(map.values())
-    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .sort((a, b) => {
+      if (balanzasOnly) {
+        const ai = orderIndex(a.label);
+        const bi = orderIndex(b.label);
+        if (ai !== bi) return ai - bi;
+      }
+      return b.count - a.count || a.label.localeCompare(b.label);
+    })
     .slice(0, maxItems)
     .map((x, i) => ({ code: String.fromCharCode(65 + i), rank: i + 1, key: x.key, label: x.label, count: x.count }));
 }
@@ -7475,6 +7502,27 @@ export async function POST(req: Request) {
           if (!labRows.length) {
             strictReply = "En base de datos no tengo planchas de calentamiento/agitación activas en este momento. Solo puedo ofrecer referencias activas del catálogo cargado (balanzas y analizador de humedad).";
             strictMemory.awaiting_action = "strict_choose_family";
+          }
+        }
+        if (!String(strictReply || "").trim() && freeCatalogAskInModelStep && !isCategorySwitchInModelStep) {
+          const asksAllProductsGlobal = /(dame|muestrame|mu[eé]strame|quiero|ver)\s*(todos|todas)\s*(los|las)?\s*(productos|equipos|referencias)|\btodo\s+el\s+catalogo|\bcatalogo\s+completo/.test(textNorm);
+          if (asksAllProductsGlobal) {
+            const globalFamilies = buildNumberedFamilyOptions(ownerRows as any[], 10);
+            const globalTotal = globalFamilies.reduce((acc: number, o: any) => acc + Number(o?.count || 0), 0);
+            strictMemory.last_category_intent = "";
+            strictMemory.strict_family_label = "";
+            strictMemory.pending_product_options = [];
+            strictMemory.pending_family_options = globalFamilies;
+            strictMemory.awaiting_action = "strict_choose_family";
+            strictReply = globalFamilies.length
+              ? [
+                  `Perfecto. En total tengo ${globalTotal} referencias activas en base de datos.`,
+                  "Elige una familia para mostrarte opciones:",
+                  ...globalFamilies.map((o) => `${o.code}) ${o.label} (${o.count})`),
+                  "",
+                  "Responde con letra o número (A/1).",
+                ].join("\n")
+              : "Ahora mismo no veo familias activas en catálogo para mostrarte.";
           }
         }
         if (!String(strictReply || "").trim() && freeCatalogAskInModelStep && !isCategorySwitchInModelStep) {
