@@ -1294,13 +1294,8 @@ function familyLabelFromRow(row: any): string {
     };
     if (mapped[sub]) return mapped[sub];
   }
-  const read = Number(getRowReadabilityG(row) || 0);
-  if (read > 0) {
-    if (read <= 0.0001) return "Balanza Analitica";
-    if (read <= 0.001) return "Balanza Semi - Micro";
-    if (read <= 0.01) return "Balanza Precisión";
-    if (read <= 0.1) return "Balanzas Contadoras";
-  }
+  // Do not infer family from technical specs here.
+  // Family menus must reflect DB taxonomy (family/subcategory) only.
   return "";
 }
 
@@ -5756,8 +5751,22 @@ export async function POST(req: Request) {
               "Elige con letra/número (A/1), o escribe 'más'.",
             ].join("\n");
           } else {
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = "En este momento no veo 3 opciones adecuadas para ese uso con la info actual. Ajustemos capacidad y resolución para proponerte alternativas reales.";
+            const fallbackRows = buildNumberedProductOptions(scoped as any[], 8);
+            if (fallbackRows.length) {
+              strictMemory.pending_product_options = fallbackRows;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictReply = [
+                "No veo 3 opciones exactas con ese uso, pero sí estas alternativas cercanas de catálogo:",
+                ...fallbackRows.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra/número (A/1), o escribe 'más'.",
+              ].join("\n");
+            } else {
+              strictMemory.awaiting_action = "strict_need_spec";
+              strictReply = "En este momento no veo 3 opciones adecuadas para ese uso con la info actual. Ajustemos capacidad y resolución para proponerte alternativas reales.";
+            }
           }
         } else if (askAdjust) {
           strictMemory.awaiting_action = "strict_need_spec";
@@ -8316,8 +8325,9 @@ export async function POST(req: Request) {
               ].join("\n");
             } else {
               strictMemory.awaiting_action = "strict_choose_family";
+              const familyScopedTotal = familyOptions.reduce((acc: number, o: any) => acc + Number(o?.count || 0), 0);
               strictReply = [
-                `Sí, tenemos ${scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
+                `Sí, tenemos ${familyScopedTotal || scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
                 "Primero elige la familia:",
                 ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
                 "",
@@ -8338,8 +8348,9 @@ export async function POST(req: Request) {
             ].join("\n");
           } else {
             strictMemory.awaiting_action = "strict_choose_family";
+            const familyScopedTotal = familyOptions.reduce((acc: number, o: any) => acc + Number(o?.count || 0), 0);
             strictReply = [
-              `Sí, tenemos ${scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
+              `Sí, tenemos ${familyScopedTotal || scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
               "Primero elige la familia:",
               ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
               "",
@@ -9562,8 +9573,9 @@ export async function POST(req: Request) {
               nextMemory.last_category_intent = inboundCategoryIntent;
               nextMemory.strict_use_case = String(originalInboundText || "").trim();
             } else {
+              const familyScopedTotal = familyOptions.reduce((acc: number, o: any) => acc + Number(o?.count || 0), 0);
               reply = [
-                `Si, tenemos ${scoped.length} referencias en la categoria ${categoryLabel}.`,
+                `Si, tenemos ${familyScopedTotal || scoped.length} referencias en la categoria ${categoryLabel}.`,
                 "Primero elige la familia:",
                 ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
                 "",
