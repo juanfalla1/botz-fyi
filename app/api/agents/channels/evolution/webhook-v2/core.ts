@@ -7989,12 +7989,12 @@ export async function POST(req: Request) {
           }
         }
 
-        const asksGlobalCatalogInModelStep = isGlobalCatalogAsk(text);
+        const asksGlobalCatalogInModelStepTail = isGlobalCatalogAsk(text);
         const asksInventoryInModelStep = isInventoryInfoIntent(text) || isCatalogBreadthQuestion(text);
-        if (!String(strictReply || "").trim() && (asksGlobalCatalogInModelStep || asksInventoryInModelStep)) {
+        if (!String(strictReply || "").trim() && (asksGlobalCatalogInModelStepTail || asksInventoryInModelStep)) {
           const families = buildNumberedFamilyOptions(ownerRows as any[], 10);
           const total = families.reduce((acc: number, f: any) => acc + Number(f?.count || 0), 0);
-          strictMemory.last_category_intent = asksGlobalCatalogInModelStep ? "" : String(previousMemory?.last_category_intent || "");
+          strictMemory.last_category_intent = asksGlobalCatalogInModelStepTail ? "" : String(previousMemory?.last_category_intent || "");
           strictMemory.strict_family_label = "";
           strictMemory.pending_product_options = [];
           strictMemory.pending_family_options = families;
