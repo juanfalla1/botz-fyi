@@ -7394,6 +7394,46 @@ export async function POST(req: Request) {
         }
         }
         }
+      } else if (!String(strictReply || "").trim() && awaiting === "strict_catalog_scope_disambiguation") {
+        const t = normalizeText(text);
+        const chooseGlobal = /^\s*(1|a)\s*$/.test(t) || /catalogo\s+completo|todas\s+las\s+categorias|todos\s+los\s+productos/.test(t);
+        const chooseCurrent = /^\s*(2|b)\s*$/.test(t) || /solo\s+esta|solo\s+categoria|solo\s+familia|de\s+balanzas|de\s+basculas/.test(t);
+        if (chooseGlobal) {
+          const families = buildNumberedFamilyOptions(ownerRows as any[], 10);
+          const total = families.reduce((acc: number, f: any) => acc + Number(f?.count || 0), 0);
+          strictMemory.last_category_intent = "";
+          strictMemory.strict_family_label = "";
+          strictMemory.pending_product_options = [];
+          strictMemory.pending_family_options = families;
+          strictMemory.strict_model_offset = 0;
+          strictMemory.awaiting_action = "strict_choose_family";
+          strictReply = families.length
+            ? [
+                `Perfecto. Te muestro el catálogo completo (${total} referencias activas).`,
+                "Elige una familia:",
+                ...families.map((f: any) => `${f.code}) ${f.label} (${f.count})`),
+                "",
+                "Responde con letra o número (A/1).",
+              ].join("\n")
+            : "Ahora mismo no tengo familias activas para mostrarte en catálogo.";
+        } else if (chooseCurrent) {
+          const pending = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+          const familyLabel = String(previousMemory?.strict_family_label || "").trim();
+          strictMemory.awaiting_action = pending.length ? "strict_choose_model" : "strict_choose_family";
+          strictMemory.pending_product_options = pending;
+          strictMemory.pending_family_options = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
+          strictReply = pending.length
+            ? [
+                `Perfecto, seguimos solo en ${familyLabel || "esta categoría"}.`,
+                ...pending.map((o: any) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra o número (A/1), o escribe 'más'.",
+              ].join("\n")
+            : `Perfecto, seguimos solo en ${familyLabel || "esta categoría"}. Elige una familia con letra o número.`;
+        } else {
+          strictMemory.awaiting_action = "strict_catalog_scope_disambiguation";
+          strictReply = "Para evitar ambigüedad, responde: 1) Catálogo completo 2) Solo esta categoría.";
+        }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model") {
         const familyLabel = String(previousMemory?.strict_family_label || "").trim();
         const pendingStrictOptions = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
@@ -7423,8 +7463,18 @@ export async function POST(req: Request) {
           isUseCaseFamilyHint(text) ||
           isRecommendationIntent(text)
         );
+        const asksGlobalCatalogInModelStep = isGlobalCatalogAsk(text);
+        const hasScopedContextInModelStep = Boolean(currentCategoryIntentInModelStep || familyLabel || pendingStrictOptions.length);
+        if (!String(strictReply || "").trim() && asksGlobalCatalogInModelStep && hasScopedContextInModelStep) {
+          strictMemory.awaiting_action = "strict_catalog_scope_disambiguation";
+          strictReply = [
+            "Perfecto. Para no mezclar, ¿te refieres a:",
+            "1) Catálogo completo (todas las categorías)",
+            `2) Solo ${familyLabel || String(currentCategoryIntentInModelStep || "esta categoría").replace(/_/g, " ")}`,
+          ].join("\n");
+        }
         const inventoryOverrideInSelection =
-          isGlobalCatalogAsk(text) ||
+          (!asksGlobalCatalogInModelStep && isGlobalCatalogAsk(text)) ||
           isInventoryInfoIntent(text) ||
           isCatalogBreadthQuestion(text);
         if (inventoryOverrideInSelection) {
@@ -7925,6 +7975,28 @@ export async function POST(req: Request) {
                 ].join("\n")
               : "Gracias por corregirme. No veo coincidencias con ese criterio en el catálogo activo. Si quieres, te muestro alternativas por capacidad cercana.";
           }
+        }
+
+        const asksGlobalCatalogInModelStep = isGlobalCatalogAsk(text);
+        const asksInventoryInModelStep = isInventoryInfoIntent(text) || isCatalogBreadthQuestion(text);
+        if (!String(strictReply || "").trim() && (asksGlobalCatalogInModelStep || asksInventoryInModelStep)) {
+          const families = buildNumberedFamilyOptions(ownerRows as any[], 10);
+          const total = families.reduce((acc: number, f: any) => acc + Number(f?.count || 0), 0);
+          strictMemory.last_category_intent = asksGlobalCatalogInModelStep ? "" : String(previousMemory?.last_category_intent || "");
+          strictMemory.strict_family_label = "";
+          strictMemory.pending_product_options = [];
+          strictMemory.pending_family_options = families;
+          strictMemory.strict_model_offset = 0;
+          strictMemory.awaiting_action = "strict_choose_family";
+          strictReply = families.length
+            ? [
+                `Perfecto. En total tengo ${total} referencias activas en base de datos.`,
+                "Elige una familia para mostrarte modelos:",
+                ...families.map((f: any) => `${f.code}) ${f.label} (${f.count})`),
+                "",
+                "Responde con letra o número (A/1).",
+              ].join("\n")
+            : "Ahora mismo no tengo familias activas para mostrarte en catálogo.";
         }
 
         if (!String(strictReply || "").trim()) {
