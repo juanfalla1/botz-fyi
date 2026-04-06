@@ -8692,10 +8692,17 @@ export async function POST(req: Request) {
     }
     const inboundCategoryIntent = normalizeText(String(detectCatalogCategoryIntent(originalInboundText) || ""));
     const inboundInventoryIntent = Boolean(
+      isGlobalCatalogAsk(originalInboundText) ||
       isInventoryInfoIntent(originalInboundText) ||
       isCatalogBreadthQuestion(originalInboundText) ||
       isBalanceTypeQuestion(originalInboundText)
     );
+    if (isGlobalCatalogAsk(originalInboundText)) {
+      nextMemory.last_category_intent = "";
+      nextMemory.strict_family_label = "";
+      nextMemory.pending_family_options = [];
+      nextMemory.pending_product_options = [];
+    }
     const inboundCategoryOrInventoryIntent = Boolean(inboundCategoryIntent) || inboundInventoryIntent;
     const inboundTechnicalSpec = isTechnicalSpecQuery(originalInboundText);
     const interruptsRefineFlow = Boolean(
