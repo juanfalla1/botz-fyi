@@ -18,7 +18,7 @@ const DATASHEET_REPOSITORY_URL = String(
 ).trim();
 const LOCAL_DATASHEET_DIR = String(
   process.env.OHAUS_LOCAL_DATASHEET_DIR ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook", "Ohaus", "data sheet")
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook", "Ohaus", "Cotizaciones")
 ).trim();
 const QUOTE_LOCAL_IMAGE_DIR = String(
   process.env.WHATSAPP_QUOTE_LOCAL_IMAGE_DIR ||
@@ -2578,6 +2578,50 @@ function isGreetingIntent(text: string): boolean {
   const hasGreeting = /^(hola|buenas|buenos dias|buen dia|buenas tardes|buenas noches|hey|hi)\b/.test(t);
   const hasBusinessIntent = /(cotiz|producto|pdf|trm|historial|recomiend|precio|catalogo)/.test(t);
   return hasGreeting && !hasBusinessIntent && t.length <= 40;
+}
+
+function shouldUseFullGreeting(memory: any): boolean {
+  const lastIntent = normalizeText(String(memory?.last_intent || ""));
+  const lastUserAt = Date.parse(String(memory?.last_user_at || ""));
+  if (lastIntent !== "greeting") return true;
+  if (!Number.isFinite(lastUserAt)) return true;
+  const elapsed = Date.now() - lastUserAt;
+  return elapsed > 12 * 60 * 60 * 1000;
+}
+
+function buildGreetingReply(knownCustomerName: string, memory: any): string {
+  const hasName = Boolean(String(knownCustomerName || "").trim());
+  const hasHistory = Boolean(
+    String(memory?.last_user_at || "").trim() ||
+    String(memory?.last_intent || "").trim() ||
+    String(memory?.customer_name || "").trim() ||
+    String(memory?.last_quote_draft_id || "").trim()
+  );
+  const hasQuoteContext =
+    Boolean(String(memory?.last_quote_draft_id || "").trim() || String(memory?.last_quote_pdf_sent_at || "").trim()) ||
+    /(quote_generated|quote_recall|price_request)/.test(String(memory?.last_intent || ""));
+
+  if (!hasHistory) {
+    return hasName
+      ? `Hola, ${knownCustomerName} 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?`
+      : "Hola 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?";
+  }
+
+  if (hasQuoteContext) {
+    return hasName
+      ? `Hola de nuevo, ${knownCustomerName} 👋 ¿Continuamos con tu cotización o te cotizo otro modelo?`
+      : "Hola de nuevo 👋 ¿Continuamos con tu cotización o te cotizo otro modelo?";
+  }
+
+  if (shouldUseFullGreeting(memory)) {
+    return hasName
+      ? `Hola, ${knownCustomerName} 👋 Qué bueno tenerte de nuevo. Dime el modelo exacto y te envío ficha o cotización.`
+      : "Hola 👋 Qué bueno tenerte de nuevo. Dime el modelo exacto y te envío ficha o cotización.";
+  }
+
+  return hasName
+    ? `Hola de nuevo, ${knownCustomerName} 👋 Dime modelo exacto y te envío ficha o cotización.`
+    : "Hola de nuevo 👋 Dime modelo exacto y te envío ficha o cotización.";
 }
 
 function isAffirmativeIntent(text: string): boolean {
@@ -6112,9 +6156,7 @@ export async function POST(req: Request) {
         strictMemory.pending_family_options = [];
         strictMemory.strict_model_offset = 0;
         strictMemory.strict_family_label = "";
-        strictReply = knownCustomerName
-          ? `Hola, ${knownCustomerName} 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?`
-          : "Hola 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?";
+        strictReply = buildGreetingReply(knownCustomerName, previousMemory);
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
         const parsed = parseLooseTechnicalHint(text);
         const capacityRange = parseCapacityRangeHint(text);
@@ -9133,9 +9175,7 @@ export async function POST(req: Request) {
       nextMemory.pending_family_options = [];
       nextMemory.strict_model_offset = 0;
       nextMemory.strict_family_label = "";
-      reply = knownCustomerName
-        ? `Hola, ${knownCustomerName} 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?`
-        : "Hola 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?";
+      reply = buildGreetingReply(knownCustomerName, nextMemory);
       if (!knownCustomerName) nextMemory.awaiting_action = "capture_name";
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));

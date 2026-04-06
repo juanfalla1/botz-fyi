@@ -3,7 +3,9 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
-    "catalog:datasheets": "node scripts/import-datasheets.mjs"
+    "catalog:datasheets": "node scripts/import-datasheets.mjs",
+    "catalog:ohaus:cotizaciones:sync": "python scripts/sync-ohaus-cotizaciones-folder.py",
+    "catalog:ohaus:prices:sync": "python scripts/sync-ohaus-prices-from-list.py"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
