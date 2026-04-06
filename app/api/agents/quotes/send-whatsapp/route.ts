@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     }
 
     const instanceName = requestedInstance || userInstanceName(guard.user.id);
-    const { pdfBase64, fileName } = buildQuotePdfFromDraft(draftId, draft);
+    const { pdfBase64, fileName } = await buildQuotePdfFromDraft(draftId, draft);
     const caption = `Cotizacion preliminar ${fileName}`;
     const sendResult = await evolutionService.sendDocument(instanceName, to, {
       base64: pdfBase64,

@@ -18,7 +18,7 @@ const DATASHEET_REPOSITORY_URL = String(
 ).trim();
 const LOCAL_DATASHEET_DIR = String(
   process.env.OHAUS_LOCAL_DATASHEET_DIR ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook", "Ohaus", "data sheet")
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook", "Ohaus", "Cotizaciones")
 ).trim();
 const QUOTE_LOCAL_IMAGE_DIR = String(
   process.env.WHATSAPP_QUOTE_LOCAL_IMAGE_DIR ||
@@ -251,6 +251,7 @@ type InboundEvent = {
 type ClassifiedIntent = {
   intent:
     | "greeting"
+    | "guided_need_discovery"
     | "consultar_categoria"
     | "consultar_producto"
     | "solicitar_ficha"
@@ -668,11 +669,13 @@ function buildGuidedRecoveryMessage(args: {
   rememberedProduct?: string;
   hasPendingFamilies?: boolean;
   hasPendingModels?: boolean;
+  inboundText?: string;
 }): string {
   const awaiting = String(args.awaiting || "").trim();
   const rememberedProduct = String(args.rememberedProduct || "").trim();
   const hasPendingFamilies = Boolean(args.hasPendingFamilies);
   const hasPendingModels = Boolean(args.hasPendingModels);
+  const inboundText = normalizeText(String(args.inboundText || ""));
 
   if (awaiting === "strict_choose_family" || hasPendingFamilies) {
     return [
@@ -689,6 +692,18 @@ function buildGuidedRecoveryMessage(args: {
   }
 
   if (rememberedProduct) {
+    if (/(opciones?|alternativas?|categoria|categorias|familia|familias|balanza|balanzas|bascula|basculas|laboratorio|joyeria|joyería|industrial)/.test(inboundText)) {
+      return [
+        "Perfecto, mantengo el contexto y abrimos opciones según tu necesidad.",
+        "Dime uso + capacidad + resolución (ej.: laboratorio, 1000 g, 0.1 g), o escribe solo la categoría y te muestro opciones activas.",
+      ].join("\n");
+    }
+    if (/(sirve|aplica|funciona|precision|precisi[oó]n|resolucion|resoluci[oó]n|capacidad|pesar|menos de|mayor|menor)/.test(inboundText)) {
+      return [
+        `Claro. Tomo ${rememberedProduct} como referencia.`,
+        "Para responder bien según catálogo, dime capacidad y resolución objetivo (ej.: 200 g x 0.001 g), o escribe: mayor resolución / más económica.",
+      ].join("\n");
+    }
     return [
       `Te ayudo de una con ${rememberedProduct}.`,
       "Puedes responder:",
@@ -728,6 +743,63 @@ function logStrictTransition(meta: { before: string; after: string; text: string
       at: new Date().toISOString(),
     });
   } catch {}
+}
+
+async function buildStrictConversationalReply(args: {
+  apiKey?: string;
+  inboundText: string;
+  awaiting?: string;
+  selectedProduct?: string;
+  categoryHint?: string;
+  pendingOptions?: Array<{ code?: string; name?: string }>;
+}): Promise<string> {
+  const apiKey = String(args.apiKey || "").trim();
+  const inboundText = String(args.inboundText || "").trim();
+  if (!apiKey || !inboundText) return "";
+
+  const textNorm = normalizeText(inboundText);
+  const outOfCatalog =
+    isOutOfCatalogDomainQuery(inboundText) ||
+    /\b(carro|carros|vehiculo|vehiculos|moto|motos|leche|comida|alimento|alimentos)\b/.test(textNorm);
+  const pending = Array.isArray(args.pendingOptions) ? args.pendingOptions : [];
+  const optionsHint = pending.length
+    ? pending
+        .slice(0, 4)
+        .map((o) => `${String(o?.code || "").trim()}) ${String(o?.name || "").trim()}`)
+        .filter((x) => /\w/.test(x))
+        .join(" | ")
+    : "";
+
+  const systemPrompt = [
+    "Eres Ava, asesora comercial por WhatsApp.",
+    "Responde SIEMPRE en español, tono natural y útil, en 2-4 líneas.",
+    "No inventes productos, precios ni disponibilidad fuera de catálogo activo.",
+    outOfCatalog
+      ? "Si el cliente pide algo fuera del catálogo, dilo directo en una línea y redirige a balanzas/analizador de humedad."
+      : "Si hay contexto técnico/comercial, aprovéchalo y guía al siguiente paso sin forzar menú.",
+    args.selectedProduct ? `Producto de referencia actual: ${String(args.selectedProduct || "")}.` : "",
+    args.categoryHint ? `Categoría activa: ${String(args.categoryHint || "").replace(/_/g, " ")}.` : "",
+    optionsHint ? `Opciones activas: ${optionsHint}.` : "",
+    "Si existe lista de opciones activa, sugiere que también puede elegir con letra/número o escribir 'más', pero sin bloquear la conversación.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    const openai = new OpenAI({ apiKey });
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.2,
+      max_tokens: 140,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: inboundText },
+      ] as any,
+    });
+    return String(completion.choices?.[0]?.message?.content || "").trim();
+  } catch {
+    return "";
+  }
 }
 
 function isAdvisorAppointmentIntent(text: string): boolean {
@@ -1074,11 +1146,11 @@ function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: s
   for (const row of list) {
     const baseName = optionDisplayName(row);
     const spec = extractRowTechnicalSpec(row);
-    const hasUnitInName = /\b\d+(?:[\.,]\d+)?\s*(mg|g|kg)\b/i.test(baseName);
-    const capSuffix = (!hasUnitInName && spec.capacityG > 0)
-      ? ` | Cap: ${formatSpecNumber(spec.capacityG)} g`
-      : "";
-    const name = `${baseName}${capSuffix}`;
+    const specParts: string[] = [];
+    if (spec.capacityG > 0) specParts.push(`Cap: ${formatSpecNumber(spec.capacityG)} g`);
+    if (spec.readabilityG > 0) specParts.push(`Res: ${formatSpecNumber(spec.readabilityG)} g`);
+    const suffix = specParts.length ? ` | ${specParts.join(" | ")}` : "";
+    const name = `${baseName}${suffix}`.slice(0, 140);
     if (!name) continue;
     const key = String(row?.id || "").trim() || normalizeText(name);
     if (!key || seen.has(key)) continue;
@@ -1149,6 +1221,42 @@ function resolvePendingProductOption(text: string, optionsRaw: any): { code: str
     if (hits >= Math.min(2, Math.max(1, terms.length))) return option;
   }
 
+  return null;
+}
+
+function resolvePendingProductOptionStrict(text: string, optionsRaw: any): { code: string; rank: number; id: string; name: string; raw_name: string; category: string; base_price_usd: number } | null {
+  const tRaw = String(text || "").trim();
+  if (!tRaw) return null;
+  const options = (Array.isArray(optionsRaw) ? optionsRaw : [])
+    .map((o: any) => ({
+      code: String(o?.code || "").trim().toUpperCase(),
+      rank: Number(o?.rank || 0),
+      id: String(o?.id || "").trim(),
+      name: String(o?.name || "").trim(),
+      raw_name: String(o?.raw_name || o?.name || "").trim(),
+      category: String(o?.category || "").trim(),
+      base_price_usd: Number(o?.base_price_usd || 0),
+    }))
+    .filter((o: any) => o.name);
+  if (!options.length) return null;
+
+  const codeMatch =
+    tRaw.match(/^\s*([a-z])\s*$/i) ||
+    tRaw.match(/^\s*(?:opcion|opción|letra|codigo|código)\s*[:\-]?\s*([a-z])\s*$/i);
+  const numMatch =
+    tRaw.match(/^\s*([1-9])\s*$/i) ||
+    tRaw.match(/^\s*(?:opcion|opción|numero|número|#)\s*[:\-]?\s*([1-9])\s*$/i);
+  const code = String(codeMatch?.[1] || "").toUpperCase();
+  const rank = Number(numMatch?.[1] || 0);
+
+  if (code) {
+    const byCode = options.find((o: any) => o.code === code);
+    if (byCode) return byCode;
+  }
+  if (rank > 0) {
+    const byRank = options.find((o: any) => o.rank === rank);
+    if (byRank) return byRank;
+  }
   return null;
 }
 
@@ -1231,8 +1339,9 @@ function inferFamilyFromUseCase(
   const t = normalizeText(String(text || ""));
   if (!t) return null;
 
-  const wantsJewelryPrecision = /(oro|joyeria|joyeria|anillo|arete|cadena|gramos|gramo|mg|miligram)/.test(t);
+  const wantsJewelryPrecision = /(oro|joyeria|joyeria|ley\s+de\s+oro|quilat|kilat|gramera|anillo|arete|cadena|gramos|gramo|mg|miligram)/.test(t);
   const wantsIndustrial = /(maquina|maquinas|bodega|industrial|plataforma|carga pesada)/.test(t);
+  const wantsLab = /(laboratorio|farmacia|control de calidad|formulacion|formulación|microbiologia|analis|investigacion)/.test(t);
 
   const rankByHints = (o: any) => {
     const l = normalizeText(String(o?.label || ""));
@@ -1244,6 +1353,10 @@ function inferFamilyFromUseCase(
     }
     if (wantsIndustrial) {
       if (/industrial|plataforma|basculas/.test(l)) score += 8;
+    }
+    if (wantsLab) {
+      if (/analitica|semi\s*analitica|precision|laboratorio/.test(l)) score += 8;
+      if (/micro|semi\s*micro/.test(l)) score += 4;
     }
     return score;
   };
@@ -1309,6 +1422,28 @@ function asksQuoteIntent(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
   return /(cotiz|cotizacion|cotizar|presupuesto)/.test(t);
+}
+
+type AlternativeFollowupIntent =
+  | "alternative_lower_price"
+  | "alternative_same_need"
+  | "alternative_other_brand"
+  | "alternative_higher_capacity"
+  | "alternative_lower_capacity"
+  | "requote_same_model";
+
+function detectAlternativeFollowupIntent(text: string): AlternativeFollowupIntent | null {
+  const t = normalizeText(String(text || ""));
+  if (!t) return null;
+  if (/(otra\s+marca|otras\s+marcas|marca\s+diferente|de\s+otra\s+marca)/.test(t)) return "alternative_other_brand";
+  if (/(muy\s+costos|mas\s+barat|más\s+barat|mas\s+econom|más\s+econom|economic)/.test(t)) return "alternative_lower_price";
+  if (/(mayor\s+capacidad|mas\s+capacidad|más\s+capacidad)/.test(t)) return "alternative_higher_capacity";
+  if (/(menor\s+capacidad|menos\s+capacidad)/.test(t)) return "alternative_lower_capacity";
+  if (/(mayor\s+resolucion|mejor\s+resolucion|mas\s+resolucion|más\s+resolucion|mas\s+precision|más\s+precision|mejor\s+precision|menor\s+resolucion|menos\s+precision|menor\s+precision)/.test(t)) return "alternative_same_need";
+  if (/(alternativ|otra\s+opcion|otro\s+modelo|similar|parecid|equivalent)/.test(t)) return "alternative_same_need";
+  if (/(mismo\s+modelo|misma\s+referencia|esta\s+misma|este\s+mismo|la\s+misma\s+cotizacion|misma\s+cotizacion)/.test(t)) return "requote_same_model";
+  if (/(otra\s+cotiz|otra\s+cotizacion|nueva\s+cotizacion|re\s*cotiz)/.test(t)) return null;
+  return null;
 }
 
 function isQuoteStarterIntent(text: string): boolean {
@@ -1441,6 +1576,57 @@ function parseLooseTechnicalHint(text: string): { capacityG?: number; readabilit
   return { capacityG: only };
 }
 
+function parseCapacityRangeHint(text: string): { minG: number; maxG: number } | null {
+  const t = normalizeText(String(text || ""))
+    .replace(/(\d)\s*[\.,]\s*(\d)/g, "$1.$2")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return null;
+
+  const pairPatterns = [
+    /(?:entre|rango|de)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\s*(?:a|y|-|hasta)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\b/i,
+    /desde\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\s*hasta\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\b/i,
+  ];
+  for (const rx of pairPatterns) {
+    const m = t.match(rx);
+    if (!m) continue;
+    const a = toGrams(m[1], m[2] || "g");
+    const b = toGrams(m[3], m[4] || m[2] || "g");
+    if (!(a > 0) || !(b > 0)) continue;
+    const minG = Math.min(a, b);
+    const maxG = Math.max(a, b);
+    if (maxG > 0) return { minG, maxG };
+  }
+
+  let minG = 0;
+  let maxG = 0;
+  const minOnly = t.match(/(?:capacidad\s*)?(?:minima|minimo|desde|mayor\s+que|mas\s+de)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)\b/i);
+  const maxOnly = t.match(/(?:capacidad\s*)?(?:maxima|maximo|hasta|menor\s+que|no\s+mas\s+de)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)\b/i);
+  if (minOnly) minG = toGrams(minOnly[1], minOnly[2] || "g");
+  if (maxOnly) maxG = toGrams(maxOnly[1], maxOnly[2] || "g");
+  if (minG > 0 && maxG > 0) {
+    const minV = Math.min(minG, maxG);
+    const maxV = Math.max(minG, maxG);
+    return { minG: minV, maxG: maxV };
+  }
+  if (minG > 0) return { minG, maxG: Number.POSITIVE_INFINITY };
+  if (maxG > 0) return { minG: 0, maxG };
+  return null;
+}
+
+function filterRowsByCapacityRange(rows: any[], range: { minG: number; maxG: number } | null): any[] {
+  if (!range || !Array.isArray(rows) || !rows.length) return Array.isArray(rows) ? rows : [];
+  const minG = Math.max(0, Number(range.minG || 0));
+  const maxG = Number(range.maxG || 0);
+  return rows.filter((row: any) => {
+    const cap = Number(extractRowTechnicalSpec(row)?.capacityG || 0);
+    if (!(cap > 0)) return false;
+    if (minG > 0 && cap < minG) return false;
+    if (Number.isFinite(maxG) && maxG > 0 && cap > maxG) return false;
+    return true;
+  });
+}
+
 function mergeLooseSpecWithMemory(
   prev: { capacityG?: number; readabilityG?: number },
   hint: { capacityG?: number; readabilityG?: number } | null
@@ -1450,7 +1636,7 @@ function mergeLooseSpecWithMemory(
   let cap = Number(hint?.capacityG || 0);
   let read = Number(hint?.readabilityG || 0);
 
-  if (prevCap > 0 && !(prevRead > 0) && cap > 0 && !(read > 0)) {
+  if (prevCap > 0 && !(prevRead > 0) && cap > 0 && cap <= 1 && !(read > 0)) {
     read = cap;
     cap = 0;
   }
@@ -1573,6 +1759,76 @@ function prioritizeTechnicalRows(rows: any[], spec: { capacityG: number; readabi
   return { orderedRows: out, exactCount: exact.length };
 }
 
+function filterReasonableTechnicalRows(rows: any[], spec: { capacityG: number; readabilityG: number }): any[] {
+  const targetCap = Number(spec.capacityG || 0);
+  const targetRead = Number(spec.readabilityG || 0);
+  if (!(targetCap > 0) || !(targetRead > 0)) return Array.isArray(rows) ? rows : [];
+  const strictRead = targetRead <= 0.1;
+  const maxCapDeltaPct = strictRead ? 80 : 180;
+  const maxReadRatio = strictRead ? 3 : 8;
+  return (Array.isArray(rows) ? rows : []).filter((row: any) => {
+    const rs = extractRowTechnicalSpec(row);
+    const cap = Number(rs.capacityG || 0);
+    const read = Number(rs.readabilityG || 0);
+    if (!(cap > 0) || !(read > 0)) return false;
+    const capDeltaPct = (Math.abs(cap - targetCap) / Math.max(1, targetCap)) * 100;
+    const readRatio = Math.max(read, targetRead) / Math.max(1e-9, Math.min(read, targetRead));
+    return capDeltaPct <= maxCapDeltaPct && readRatio <= maxReadRatio;
+  });
+}
+
+function filterNearbyTechnicalRows(rows: any[], spec: { capacityG: number; readabilityG: number }): any[] {
+  const targetCap = Number(spec.capacityG || 0);
+  const targetRead = Number(spec.readabilityG || 0);
+  if (!(targetCap > 0) || !(targetRead > 0)) return Array.isArray(rows) ? rows : [];
+  const maxCapDeltaPct = 1200;
+  const maxReadRatio = 25;
+  return (Array.isArray(rows) ? rows : []).filter((row: any) => {
+    const rs = extractRowTechnicalSpec(row);
+    const cap = Number(rs.capacityG || 0);
+    const read = Number(rs.readabilityG || 0);
+    if (!(cap > 0) || !(read > 0)) return false;
+    const capDeltaPct = (Math.abs(cap - targetCap) / Math.max(1, targetCap)) * 100;
+    const readRatio = Math.max(read, targetRead) / Math.max(1e-9, Math.min(read, targetRead));
+    return capDeltaPct <= maxCapDeltaPct && readRatio <= maxReadRatio;
+  });
+}
+
+function applyApplicationProfile(rows: any[], args: { application?: string; targetCapacityG?: number; targetReadabilityG?: number }): any[] {
+  const list = Array.isArray(rows) ? rows : [];
+  const app = normalizeText(String(args.application || ""));
+  const targetCap = Number(args.targetCapacityG || 0);
+  const targetRead = Number(args.targetReadabilityG || 0);
+  if (!app && !(targetCap > 0) && !(targetRead > 0)) return list;
+
+  const out = list.filter((row: any) => {
+    const spec = extractRowTechnicalSpec(row);
+    const cap = Number(spec.capacityG || 0);
+    const read = Number(spec.readabilityG || 0);
+    const txt = normalizeText(`${String(row?.name || "")} ${String(row?.category || "")} ${familyLabelFromRow(row)}`);
+    if (!(cap > 0) || !(read > 0)) return false;
+    if (targetCap > 0) {
+      const minCap = targetCap * 0.2;
+      const maxCap = targetCap * 5;
+      if (cap < minCap || cap > maxCap) return false;
+    }
+    if (targetRead > 0 && read > targetRead * 2) return false;
+
+    if (app === "joyeria_oro") {
+      if (read > 0.01) return false;
+      if (cap > 6000) return false;
+      if (/(industrial|plataforma|ranger|defender|valor|rc31|r71|ckw|td52p)/.test(txt)) return false;
+    }
+    if (app === "laboratorio") {
+      if (read > 0.1) return false;
+      if (/(industrial|plataforma|ranger|defender|valor|rc31|r71|ckw|td52p)/.test(txt)) return false;
+    }
+    return true;
+  });
+
+  return out.length ? out : list;
+}
+
 function isQuoteProceedIntent(text: string): boolean {
   const t = normalizeText(text);
   return /(damela|dámela|enviamela|enviamela|hazla|generala|genérala|cotizala|cotízala|adelante|si por favor|si, por favor|dale|de una)/.test(t);
@@ -1606,6 +1862,15 @@ function isSameQuoteContinuationIntent(text: string): boolean {
   return /(misma\s+cotizacion|misma\s+cotización|en\s+la\s+misma\s+cotizacion|en\s+la\s+misma\s+cotización|agrega|agregar|incluye|incluir|suma|sumar|adiciona|adicionar|dos\s+mas|tres\s+mas)/.test(t);
 }
 
+function isFlowChangeWithoutModelDetailsIntent(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  const hasModelTokens = extractModelLikeTokens(text).length >= 1;
+  const hasQtyHint = /(\d{1,4})\s*(x|por|unidad|unidades)/.test(t);
+  if (hasModelTokens || hasQtyHint) return false;
+  return /(mas\s+de\s+un\s+modelo|m[aá]s\s+de\s+un\s+modelo|varios\s+modelos|multiples\s+modelos|m[uú]ltiples\s+modelos|otro\s+modelo|otra\s+referencia|otra\s+opcion|otro\s+equipo|cambiar\s+modelo|cambiar\s+referencia|quiero\s+otro|quiero\s+otras|agregar\s+otro|agregar\s+mas|incluir\s+otro|incluir\s+mas)/.test(t);
+}
+
 function shouldResendPdf(text: string): boolean {
   const t = normalizeText(text);
   return /(reenviar|reenvia|reenvie|volver a enviar|mandame otra vez|otra vez el pdf|reenvio|enviala por aqui|mandala por aqui|dame por aqui|pasala por aqui|donde esta la cotizacion|donde va la cotizacion|estado de la cotizacion|no la veo|no llego el pdf|no me llego el pdf|aun no llega el pdf)/.test(t);
@@ -1626,7 +1891,7 @@ function isInventoryInfoIntent(text: string): boolean {
 
 function isRecommendationIntent(text: string): boolean {
   const t = normalizeText(text);
-  return /(recomiend|que me puedes recomendar|que me recomiendas|modelo ideal|que modelo|cual modelo|no se que modelo|no se cual|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza)/.test(t);
+  return /(recomiend|que me puedes recomendar|que me recomiendas|modelo ideal|que modelo|cual modelo|no se que modelo|no se cual|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza|gramera|ley\s+de\s+oro|quilat|kilat|joyeria|control\s+de\s+calidad|laboratorio)/.test(t);
 }
 
 function isUseCaseApplicabilityIntent(text: string): boolean {
@@ -1641,7 +1906,7 @@ function isUseCaseApplicabilityIntent(text: string): boolean {
 function isUseCaseFamilyHint(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
-  return /(joyeria|joyería|oro|laboratorio|farmacia|industrial|produccion|producción|bodega|maquina|máquina)/.test(t);
+  return /(joyeria|joyería|oro|ley\s+de\s+oro|quilat|kilat|gramera|laboratorio|farmacia|industrial|produccion|producción|bodega|maquina|máquina|control\s+de\s+calidad|formulacion|formulación)/.test(t);
 }
 
 function isCatalogBreadthQuestion(text: string): boolean {
@@ -1656,15 +1921,298 @@ function isCatalogBreadthQuestion(text: string): boolean {
 function isOutOfCatalogDomainQuery(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
-  const outTerms = /(tornillo|tornillos|herramienta|herramientas|taladro|martillo|llave inglesa|destornillador|broca|ferreteria|ferreteria|tuerca|perno|clavo|soldadura|silicona|pintura)/.test(t);
+  const outTerms = /(tornillo|tornillos|herramienta|herramientas|taladro|martillo|llave inglesa|destornillador|broca|ferreteria|ferreteria|tuerca|perno|clavo|soldadura|silicona|pintura|tenedor|tenedores|cuchillo|cuchillos|cuchara|cucharas|plato|platos|vaso|vasos|carro|carros|vehiculo|vehiculos)/.test(t);
   if (!outTerms) return false;
   const inDomain = /(balanza|balanzas|bascula|basculas|ohaus|analitica|precision|trm|cotizacion|ficha tecnica|humedad|electroquimica|laboratorio|centrifuga|mezclador|agitador|modelo|producto|referencia|sirve para|me sirve|puede pesar|pesar)/.test(t);
   return outTerms && !inDomain;
 }
 
+function listActiveCatalogCategories(rows: any[]): string {
+  const list = Array.isArray(rows) ? rows : [];
+  const counts = new Map<string, number>();
+  for (const row of list) {
+    const cat = normalizeText(String(row?.category || ""));
+    if (!cat) continue;
+    counts.set(cat, (counts.get(cat) || 0) + 1);
+  }
+  const labels: Array<{ key: string; label: string; count: number }> = [
+    { key: "balanzas", label: "balanzas", count: counts.get("balanzas") || 0 },
+    { key: "basculas", label: "basculas", count: counts.get("basculas") || 0 },
+    { key: "analizador_humedad", label: "analizador de humedad", count: counts.get("analizador_humedad") || 0 },
+    { key: "electroquimica", label: "electroquimica", count: counts.get("electroquimica") || 0 },
+    { key: "equipos_laboratorio", label: "equipos de laboratorio", count: counts.get("equipos_laboratorio") || 0 },
+  ].filter((x) => x.count > 0);
+  if (!labels.length) return "catalogo activo limitado";
+  return labels.map((x) => `${x.label} (${x.count})`).join(", ");
+}
+
+type ConversationIntent =
+  | "guided_need_discovery"
+  | "menu_selection"
+  | "technical_spec_input"
+  | "use_explanation_question"
+  | "compatibility_question"
+  | "application_update"
+  | "alternative_request"
+  | "pricing_request"
+  | "quote_confirmation"
+  | "billing_data_input"
+  | "category_switch"
+  | "fallback_unclear";
+
+type ConversationSlots = {
+  product_type: string;
+  target_capacity_g: number;
+  target_readability_g: number;
+  target_application: string;
+  target_industry: string;
+  current_model: string;
+  current_stage: string;
+  active_menu_type: string;
+  active_menu_options: Record<string, string>;
+  active_menu_context: Record<string, string>;
+  last_recommended_models: string[];
+};
+
+function detectTargetApplication(text: string): string {
+  const t = normalizeText(text || "");
+  if (/(oro|joyeria|joyería|quilat|kilat)/.test(t)) return "joyeria_oro";
+  if (/(laboratorio|lab\b|analitica|analítica|farmacia)/.test(t)) return "laboratorio";
+  if (/(alimento|alimentos|comida|restaurante|cocina|leche)/.test(t)) return "alimentos";
+  if (/(industrial|produccion|producción|bodega|planta)/.test(t)) return "industrial";
+  return "";
+}
+
+function maxReadabilityForApplication(app: string): number {
+  const a = normalizeText(String(app || ""));
+  if (a === "joyeria_oro") return 0.01;
+  if (a === "laboratorio") return 0.1;
+  if (a === "alimentos") return 1;
+  return 1;
+}
+
+function getApplicationRecommendedOptions(args: {
+  rows: any[];
+  application: string;
+  capTargetG: number;
+  targetReadabilityG?: number;
+  strictPrecision?: boolean;
+  excludeId?: string;
+}): any[] {
+  const rows = Array.isArray(args.rows) ? args.rows : [];
+  const app = String(args.application || "").trim();
+  const appMaxRead = maxReadabilityForApplication(app);
+  const targetRead = Number(args.targetReadabilityG || 0);
+  const strictPrecision = Boolean(args.strictPrecision);
+  const maxRead = targetRead > 0 && strictPrecision ? Math.min(appMaxRead, targetRead) : appMaxRead;
+  const capTarget = Number(args.capTargetG || 0);
+  const excludeId = String(args.excludeId || "").trim();
+  const isJewelry = normalizeText(app) === "joyeria_oro";
+  const minCap = capTarget > 0 ? (isJewelry ? capTarget * 0.5 : capTarget * 0.25) : 0;
+  const maxCap = capTarget > 0 ? (isJewelry ? capTarget * 2.5 : capTarget * 4.0) : Number.POSITIVE_INFINITY;
+  const filtered = rows
+    .filter((r: any) => {
+      const id = String(r?.id || "").trim();
+      if (excludeId && id && id === excludeId) return false;
+      const rs = extractRowTechnicalSpec(r);
+      const cap = Number(rs?.capacityG || 0);
+      const read = Number(rs?.readabilityG || 0);
+      const appText = normalizeText([String(r?.name || ""), String(r?.category || ""), familyLabelFromRow(r)].join(" "));
+      if (!(read > 0) || !(cap > 0)) return false;
+      if (read > maxRead) return false;
+      if (targetRead > 0 && strictPrecision && read > targetRead) return false;
+      if (capTarget > 0 && (cap < minCap || cap > maxCap)) return false;
+      if (isJewelry && cap > 6000) return false;
+      if (normalizeText(app) === "laboratorio" && /(industrial|plataforma|ranger|defender|valor|rc31|r71|ckw|td52p)/.test(appText)) return false;
+      if (isJewelry && /(industrial|plataforma|ranger|defender|valor|rc31|r71|ckw|td52p)/.test(appText)) return false;
+      return true;
+    })
+    .sort((a: any, b: any) => {
+      const ar = Number(extractRowTechnicalSpec(a)?.readabilityG || 999);
+      const br = Number(extractRowTechnicalSpec(b)?.readabilityG || 999);
+      const ac = Number(extractRowTechnicalSpec(a)?.capacityG || 0);
+      const bc = Number(extractRowTechnicalSpec(b)?.capacityG || 0);
+      const ad = capTarget > 0 ? Math.abs(ac - capTarget) : 0;
+      const bd = capTarget > 0 ? Math.abs(bc - capTarget) : 0;
+      return ad - bd || ar - br;
+    });
+  return buildNumberedProductOptions(filtered.slice(0, 8) as any[], 8);
+}
+
+function buildActiveMenuState(args: {
+  awaiting: string;
+  pendingOptions: any[];
+  selectedModel: string;
+}): { type: string; options: Record<string, string>; context: Record<string, string> } {
+  const awaiting = String(args.awaiting || "");
+  if (awaiting === "strict_choose_action") {
+    return {
+      type: "model_action_menu",
+      options: { "1": "quote", "2": "datasheet" },
+      context: args.selectedModel ? { model: args.selectedModel } : {},
+    };
+  }
+  if (awaiting === "strict_choose_model" && Array.isArray(args.pendingOptions) && args.pendingOptions.length > 0) {
+    const options: Record<string, string> = {};
+    for (const o of args.pendingOptions.slice(0, 40)) {
+      const key = String(o?.code || "").trim();
+      const val = String(o?.name || o?.raw_name || "").trim();
+      if (key && val) options[key] = val;
+    }
+    return {
+      type: "model_selection_menu",
+      options,
+      context: {},
+    };
+  }
+  return { type: "", options: {}, context: {} };
+}
+
+function isMenuSelectionInput(text: string): boolean {
+  const t = normalizeText(String(text || "")).trim();
+  return /^([a-z]|\d{1,2})$/.test(t);
+}
+
+function isGuidedNeedDiscoveryText(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!t) return false;
+  const asksNeed = /\b(quiero|necesito|busco|requiero|recomiend|orienta)\b/.test(t) || /para\s+pesar/.test(t);
+  const inDomain = /(balanza|balanzas|bascula|basculas|humedad|analizador|alimentos|laboratorio|oro|joyeria|joyería|repuesto|repuestos|cajas|papa|papas|tornillo|tornillos)/.test(t);
+  return asksNeed && inDomain;
+}
+
+function classifyMessageIntent(args: {
+  text: string;
+  awaiting: string;
+  rememberedCategory: string;
+  activeMenuType: string;
+}): ConversationIntent {
+  const text = String(args.text || "");
+  const t = normalizeText(text);
+  const technical = parseLooseTechnicalHint(text);
+  const hasTechnical = Number((technical as any)?.capacityG || 0) > 0 || Number((technical as any)?.readabilityG || 0) > 0 || Boolean(parseTechnicalSpecQuery(text));
+  const categoryIntent = detectCatalogCategoryIntent(text);
+  const guidedNeed = isGuidedNeedDiscoveryText(text);
+  const compatibilityQ = /(sirve|sirven|me sirve|funciona|funcionan|aplica|aplican|para\s+oro|para\s+joyeria|para\s+joyería|para\s+laboratorio|para\s+alimentos|si\s+o\s+no)/.test(t) && /\?/.test(text);
+  const useExplanationQ = /(para\s+que\s+sirven?|que\s+uso\s+tienen|para\s+que\s+se\s+usan)/.test(t) && /(balanza|balanzas|bascula|basculas)/.test(t);
+  const appUpdate = /(para\s+oro|para\s+joyeria|para\s+joyería|para\s+laboratorio|para\s+alimentos|es\s+para\s+|de\s+laboratorio|de\s+joyeria|de\s+joyería|cuales?\s+de\s+laboratorio|cu[aá]les?\s+de\s+laboratorio|laboratorio\s+tienes|de\s+oro)/.test(t);
+  const alternativeReq = /(otra\s+opcion|otra\s+opción|otro\s+modelo|mas\s+econom|más\s+econ|mas\s+resol|más\s+resol|mas\s+capacidad|más\s+capacidad|alternativ|mas\s+opcion|más\s+opción|mas\s+opciones|más\s+opciones)/.test(t);
+
+  if (args.activeMenuType && isMenuSelectionInput(text)) return "menu_selection";
+  if (guidedNeed) return "guided_need_discovery";
+  if (useExplanationQ) return "use_explanation_question";
+  if (compatibilityQ) return "compatibility_question";
+  if (hasTechnical) return "technical_spec_input";
+  if (alternativeReq) return "alternative_request";
+  if (asksQuoteIntent(text) || isPriceIntent(text)) return "pricing_request";
+  if (/^(si|sí|dale|ok|de\s+una|cotizar|cotizacion|cotización|1)$/.test(t)) return "quote_confirmation";
+  if (looksLikeBillingData(text)) return "billing_data_input";
+  if (categoryIntent && normalizeText(String(categoryIntent || "")) !== normalizeText(String(args.rememberedCategory || ""))) return "category_switch";
+  if (appUpdate) return "application_update";
+  return "fallback_unclear";
+}
+
+function updateConversationSlots(args: {
+  previousMemory: Record<string, any>;
+  text: string;
+  awaiting: string;
+  pendingOptions: any[];
+  selectedModel: string;
+}): { slots: ConversationSlots; patch: Record<string, any> } {
+  const prev = args.previousMemory || {};
+  const parsed = parseLooseTechnicalHint(args.text);
+  const merged = mergeLooseSpecWithMemory(
+    {
+      capacityG: Number(prev.strict_filter_capacity_g || prev.strict_partial_capacity_g || prev.target_capacity_g || 0),
+      readabilityG: Number(prev.strict_filter_readability_g || prev.strict_partial_readability_g || prev.target_readability_g || 0),
+    },
+    parsed
+  );
+  const application = detectTargetApplication(args.text) || String(prev.target_application || "");
+  const industry = application === "joyeria_oro" ? "joyeria" : application;
+  const activeMenu = buildActiveMenuState({ awaiting: args.awaiting, pendingOptions: args.pendingOptions, selectedModel: args.selectedModel });
+  const lastRecommended = (Array.isArray(args.pendingOptions) ? args.pendingOptions : [])
+    .map((o: any) => String(o?.name || o?.raw_name || "").trim())
+    .filter(Boolean)
+    .slice(0, 20);
+
+  const slots: ConversationSlots = {
+    product_type: String(prev.product_type || prev.last_category_intent || "balanza").trim(),
+    target_capacity_g: Number(merged.capacityG || 0),
+    target_readability_g: Number(merged.readabilityG || 0),
+    target_application: application,
+    target_industry: String(industry || prev.target_industry || "").trim(),
+    current_model: String(args.selectedModel || prev.current_model || prev.last_selected_product_name || "").trim(),
+    current_stage: String(args.awaiting || prev.current_stage || "").trim(),
+    active_menu_type: activeMenu.type,
+    active_menu_options: activeMenu.options,
+    active_menu_context: activeMenu.context,
+    last_recommended_models: lastRecommended.length ? lastRecommended : (Array.isArray(prev.last_recommended_models) ? prev.last_recommended_models : []),
+  };
+
+  const patch: Record<string, any> = {
+    product_type: slots.product_type,
+    target_capacity_g: slots.target_capacity_g > 0 ? slots.target_capacity_g : (Number(prev.target_capacity_g || 0) || ""),
+    target_readability_g: slots.target_readability_g > 0 ? slots.target_readability_g : (Number(prev.target_readability_g || 0) || ""),
+    target_application: slots.target_application || prev.target_application || "",
+    target_industry: slots.target_industry || prev.target_industry || "",
+    current_model: slots.current_model || "",
+    current_stage: slots.current_stage || "",
+    active_menu_type: slots.active_menu_type || "",
+    active_menu_options: slots.active_menu_options,
+    active_menu_context: slots.active_menu_context,
+    last_recommended_models: slots.last_recommended_models,
+  };
+
+  return { slots, patch };
+}
+
+function buildCompatibilityAnswer(args: {
+  text: string;
+  slots: ConversationSlots;
+  pendingOptions: any[];
+}): string {
+  const app = detectTargetApplication(args.text) || args.slots.target_application || "uso indicado";
+  const options = Array.isArray(args.pendingOptions) ? args.pendingOptions : [];
+  const readable = options.map((o: any) => {
+    const name = String(o?.name || o?.raw_name || "");
+    const m = name.match(/res\s*:?\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/i);
+    const value = m ? Number(String(m[1] || "").replace(",", ".")) : 0;
+    const unit = String(m?.[2] || "g").toLowerCase();
+    const g = unit === "kg" ? value * 1000 : unit === "mg" ? value / 1000 : value;
+    return { option: o, readabilityG: g > 0 ? g : 999 };
+  });
+  const suitable = readable.filter((x) => {
+    if (app === "joyeria_oro") return x.readabilityG <= 0.01;
+    if (app === "laboratorio") return x.readabilityG <= 0.1;
+    if (app === "alimentos") return x.readabilityG <= 1;
+    return x.readabilityG <= 0.1;
+  });
+
+  if (!options.length) {
+    return "Sí, depende del modelo y de la precisión que necesites para ese uso. Si me confirmas capacidad y resolución objetivo, te digo exactamente cuál te sirve.";
+  }
+
+  if (suitable.length) {
+    return [
+      `Sí, para ${app.replace(/_/g, " ")} sí hay opciones que pueden servir en el listado actual.`,
+      `Las más adecuadas por precisión son: ${suitable.slice(0, 3).map((x) => String(x.option?.code || "")).filter(Boolean).join(", ") || "las de mayor precisión"}.`,
+      "Si quieres, te indico la mejor y luego seguimos con ficha técnica o cotización.",
+    ].join("\n");
+  }
+
+  return [
+    `No del todo: para ${app.replace(/_/g, " ")} las opciones actuales no son las ideales por precisión.`,
+    "Te puedo proponer alternativas más finas sin perder tu contexto técnico.",
+    "Si quieres, te muestro 3 recomendadas ahora.",
+  ].join("\n");
+}
+
 function detectCatalogCategoryIntent(text: string): string | null {
   const t = normalizeText(text || "");
   if (!t) return null;
+  const asksLabEquipment = /(plancha|planchas|calentamiento|agitacion|agitación|agitador|mezclador|homogeneizador|centrifuga)/.test(t);
+  const negatesBasculas = /\bno\s+quiero\s+(una\s+)?bascula|\bno\s+quiero\s+(una\s+)?bscula|\bno\s+basculas?\b|\bno\s+bsculas?\b/.test(t);
   if (/(electroquim|ph|orp|conductividad|tds|salinidad|aquasearcher|electrodo|medidor)/.test(t)) {
     if (/(mesa|sobremesa)/.test(t)) return "electroquimica_medidores_mesa";
     if (/(portatil|portatiles)/.test(t)) return "electroquimica_medidores_portatiles";
@@ -1673,9 +2221,9 @@ function detectCatalogCategoryIntent(text: string): string | null {
     return "electroquimica";
   }
   if (/(analizador de humedad|humedad|mb120|mb90|mb27|mb23)/.test(t)) return "analizador_humedad";
-  if (/(bascula|basculas|bscula|bsculas|ranger|defender|valor|plataforma|control de peso|ckw|td52p)/.test(t)) return "basculas";
+  if (asksLabEquipment) return "equipos_laboratorio";
+  if (/(bascula|basculas|bscula|bsculas|ranger|defender|valor|plataforma|control de peso|ckw|td52p)/.test(t) && !negatesBasculas) return "basculas";
   if (/(impresora)/.test(t)) return "impresoras";
-  if (/(centrifuga|agitador|mezclador|homogeneizador|planchas|laboratorio)/.test(t)) return "equipos_laboratorio";
   if (/(balanza|balanzas|blanza|blanzas|explorer|adventurer|pioneer|pr\b|scout|analitica|semi analitica|precision)/.test(t)) return "balanzas";
   if (/(documento|brochure|manual|guia|catalogo pdf)/.test(t)) return "documentos";
   return null;
@@ -1783,6 +2331,29 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
     }
     return best && best.score >= 3 ? best.filePath : "";
   };
+
+  const canonical = (v: string) => normalizeCatalogQueryText(String(v || "")).replace(/[^a-z0-9]/g, "");
+  const strictModelTokens = uniqueNormalizedStrings([
+    ...extractModelLikeTokens(String(row?.name || "")),
+    ...extractModelLikeTokens(String(queryText || "")),
+    String(row?.name || ""),
+  ])
+    .map((t) => canonical(t))
+    .filter((t) => t.length >= 5);
+  if (strictModelTokens.length) {
+    let strictBest: { filePath: string; score: number } | null = null;
+    for (const f of files) {
+      const hay = normalizeCatalogQueryText(f.normalized || f.fileName || "");
+      const hayCanon = canonical(hay);
+      let score = 0;
+      for (const token of strictModelTokens) {
+        if (hayCanon.includes(token)) score += 20;
+      }
+      if (/ficha|datasheet|data sheet/.test(hay)) score += 3;
+      if (score > 0 && (!strictBest || score > strictBest.score)) strictBest = { filePath: f.filePath, score };
+    }
+    if (strictBest) return strictBest.filePath;
+  }
 
   const directByModelFamily = (() => {
     if (/\b(ax|ad)\d{2,6}/.test(modelNorm) || /adventurer/.test(modelNorm)) {
@@ -1979,9 +2550,49 @@ function isContactInfoBundle(text: string): boolean {
 }
 
 function isContinueQuoteWithoutPersonalDataIntent(text: string): boolean {
+  return false;
+}
+
+function looksLikeBillingData(text: string): boolean {
+  const raw = String(text || "").trim();
+  if (!raw) return false;
+  if (isContactInfoBundle(raw)) return true;
+  const hasEmail = Boolean(extractEmail(raw));
+  const hasPhone = Boolean(extractCustomerPhone(raw, ""));
+  const hasNit = /\bnit\s*[:=]?\s*[0-9\.\-]{5,20}\b/i.test(raw);
+  const hasLabeledFields = /\b(ciudad|empresa|razon\s+social|contacto|correo|email|celular|telefono)\s*[:=]/i.test(raw);
+  const hasCityLike = /^[a-zA-Záéíóúüñ\s]{3,40}$/.test(raw) && !/@/.test(raw) && !/^\+?\d[\d\s\-]{6,}$/.test(raw);
+  const hasNameLike = /^[a-zA-Záéíóúüñ\s]{6,60}$/.test(raw) && !/\b(cotiz|modelo|ficha|precio|marca|opcion|opciones|asesor)\b/i.test(raw);
+  return hasNit || hasLabeledFields || hasEmail || hasPhone || hasCityLike || hasNameLike;
+}
+
+type AnotherQuoteChoice = "same_model" | "other_model" | "cheaper" | "advisor";
+
+function isAnotherQuoteAmbiguousIntent(text: string): boolean {
   const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
   if (!t) return false;
-  return /(continuar\s+cotizacion\s+sin\s+datos\s+personales|continuar\s+sin\s+datos|sin\s+datos\s+personales|sin\s+datos)/.test(t);
+  if (/^(otra|otro)$/.test(t)) return true;
+  return /(otra\s+cotiz|otra\s+cotizacion|nueva\s+cotizacion|nueva\s+cotiz)/.test(t);
+}
+
+function parseAnotherQuoteChoice(text: string): AnotherQuoteChoice | null {
+  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return null;
+  if (/^(1|del\s+mismo\s+modelo|mismo\s+modelo|misma\s+referencia|la\s+misma)$/.test(t)) return "same_model";
+  if (/^(2|de\s+otro\s+modelo|otro\s+modelo|otro\s+equipo)$/.test(t)) return "other_model";
+  if (/^(3|mas\s+economic|mas\s+barat|muy\s+costos|mas\s+economicas?)$/.test(t)) return "cheaper";
+  if (/^(4|hablar\s+con\s+asesor|asesor|cita)$/.test(t)) return "advisor";
+  return null;
+}
+
+function buildAnotherQuotePrompt(): string {
+  return [
+    "Claro. ¿Qué tipo de cotización quieres?",
+    "1) Del mismo modelo",
+    "2) De otro modelo",
+    "3) Ver opciones más económicas",
+    "4) Hablar con asesor",
+  ].join("\n");
 }
 
 function isGreetingIntent(text: string): boolean {
@@ -1990,6 +2601,50 @@ function isGreetingIntent(text: string): boolean {
   const hasGreeting = /^(hola|buenas|buenos dias|buen dia|buenas tardes|buenas noches|hey|hi)\b/.test(t);
   const hasBusinessIntent = /(cotiz|producto|pdf|trm|historial|recomiend|precio|catalogo)/.test(t);
   return hasGreeting && !hasBusinessIntent && t.length <= 40;
+}
+
+function shouldUseFullGreeting(memory: any): boolean {
+  const lastIntent = normalizeText(String(memory?.last_intent || ""));
+  const lastUserAt = Date.parse(String(memory?.last_user_at || ""));
+  if (lastIntent !== "greeting") return true;
+  if (!Number.isFinite(lastUserAt)) return true;
+  const elapsed = Date.now() - lastUserAt;
+  return elapsed > 12 * 60 * 60 * 1000;
+}
+
+function buildGreetingReply(knownCustomerName: string, memory: any): string {
+  const hasName = Boolean(String(knownCustomerName || "").trim());
+  const hasHistory = Boolean(
+    String(memory?.last_user_at || "").trim() ||
+    String(memory?.last_intent || "").trim() ||
+    String(memory?.customer_name || "").trim() ||
+    String(memory?.last_quote_draft_id || "").trim()
+  );
+  const hasQuoteContext =
+    Boolean(String(memory?.last_quote_draft_id || "").trim() || String(memory?.last_quote_pdf_sent_at || "").trim()) ||
+    /(quote_generated|quote_recall|price_request)/.test(String(memory?.last_intent || ""));
+
+  if (!hasHistory) {
+    return hasName
+      ? `Hola, ${knownCustomerName} 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?`
+      : "Hola 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?";
+  }
+
+  if (hasQuoteContext) {
+    return hasName
+      ? `Hola de nuevo, ${knownCustomerName} 👋 ¿Continuamos con tu cotización o te cotizo otro modelo?`
+      : "Hola de nuevo 👋 ¿Continuamos con tu cotización o te cotizo otro modelo?";
+  }
+
+  if (shouldUseFullGreeting(memory)) {
+    return hasName
+      ? `Hola, ${knownCustomerName} 👋 Qué bueno tenerte de nuevo. Dime el modelo exacto y te envío ficha o cotización.`
+      : "Hola 👋 Qué bueno tenerte de nuevo. Dime el modelo exacto y te envío ficha o cotización.";
+  }
+
+  return hasName
+    ? `Hola de nuevo, ${knownCustomerName} 👋 Dime modelo exacto y te envío ficha o cotización.`
+    : "Hola de nuevo 👋 Dime modelo exacto y te envío ficha o cotización.";
 }
 
 function isAffirmativeIntent(text: string): boolean {
@@ -2239,9 +2894,26 @@ function isFeatureQuestionIntent(text: string): boolean {
   const hasMeasurementSpec = /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)\b/.test(t);
   return (
     /(que tenga|que tengan|tiene|tienen|incluye|incluyan|debe tener|caracteristic|especificacion|especificaciones)/.test(t) ||
-    /(con\s+(calibracion|precision|resolucion|capacidad|bateria|usb|bluetooth|wifi|rs\s*232|ip\d{2}|pantalla|sensor|humedad|analitic|semi|micro))/.test(t) ||
+    /(con\s+(calibracion|precision|resolucion|capacidad|bateria|usb|bluetooth|wifi|rs\s*232|ip\d{2}|pantalla|sensor|humedad|analitic|semi|micro|calibracion\s+externa|calibracion\s+interna))/.test(t) ||
     hasMeasurementSpec
   );
+}
+
+function detectCalibrationPreference(text: string): "external" | "internal" | null {
+  const t = normalizeText(text || "");
+  if (!t) return null;
+  if (/(calibracion\s+externa|externa\s+calibracion|pesa\s+patron|masa\s+patron|external\s+calibration)/.test(t)) return "external";
+  if (/(calibracion\s+interna|interna\s+calibracion|autocal|ajuste\s+interno|internal\s+calibration)/.test(t)) return "internal";
+  return null;
+}
+
+function rowMatchesCalibrationPreference(row: any, preference: "external" | "internal" | null): boolean {
+  if (!preference) return true;
+  const hay = catalogFeatureSearchBlob(row);
+  if (preference === "external") {
+    return /(calibr\w*\s*(extern|manual)|external\s+calibration|pesa\s+patron|masa\s+patron)/.test(hay);
+  }
+  return /(calibr\w*\s*(intern|auto|ajuste\s+interno)|internal\s+calibration|autocal)/.test(hay);
 }
 
 function extractFeatureTerms(text: string): string[] {
@@ -2425,6 +3097,17 @@ function buildQuoteItemDescription(row: any, fallbackName: string): string {
   const specs = row?.specs_json && typeof row.specs_json === "object" ? row.specs_json : {};
   const brand = String(row?.brand || "OHAUS").trim() || "OHAUS";
   const family = String((source as any)?.family || (specs as any)?.familia || "").trim();
+  const templateDescription = String((source as any)?.descripcion_comercial_larga || (source as any)?.quote_description || row?.description || "").trim();
+  if (templateDescription) {
+    const normalizedLines = uniqueNormalizedStrings(
+      templateDescription
+        .split(/\r?\n+|;\s*/)
+        .map((l) => String(l || "").trim())
+        .filter(Boolean),
+      56
+    );
+    if (normalizedLines.length >= 3) return normalizedLines.join("\n");
+  }
   const sap = String((source as any)?.sap || (source as any)?.product_code || (source as any)?.codigo || "").trim();
   const capacity = String((source as any)?.capacity || (specs as any)?.capacidad || "").trim();
   const resolution = String((source as any)?.resolution || (specs as any)?.resolucion || "").trim();
@@ -2552,10 +3235,22 @@ function resolveStaticQuoteProfile(row: any, fallbackName: string): StaticQuoteP
     return {
       imageFile: "ranger.png",
       description: [
-        "Bascula industrial Ranger marca Ohaus",
+        "Balanza industrial Ranger marca Ohaus",
         "Operacion para ambientes industriales",
         "Pantalla robusta y rapida",
         "Construccion durable para uso continuo",
+      ].join("\n"),
+    };
+  }
+
+  if (/^(sjx|spx|stx|px\d+)/.test(model)) {
+    return {
+      imageFile: "px.png",
+      description: [
+        "Balanza de precision marca OHAUS",
+        "Operacion estable para laboratorio y control de calidad",
+        "Pantalla de alta visibilidad y respuesta rapida",
+        "Construccion robusta para uso diario",
       ].join("\n"),
     };
   }
@@ -2577,6 +3272,29 @@ function localImageFileToDataUrl(fileName: string): string {
   } catch {
     return "";
   }
+}
+
+function resolveModelSpecificLocalImageDataUrl(row: any): string {
+  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const canonical = (v: string) => normalizeCatalogQueryText(String(v || "")).replace(/[^a-z0-9]/g, "");
+  const modelHints = uniqueNormalizedStrings([
+    String(row?.name || ""),
+    String((source as any)?.quote_model || ""),
+    String((source as any)?.numero_modelo || ""),
+    ...extractModelLikeTokens(String(row?.name || "")),
+  ])
+    .map((x) => canonical(x))
+    .filter((x) => x.length >= 5);
+  if (!modelHints.length) return "";
+
+  const exts = [".png", ".jpg", ".jpeg", ".webp"];
+  for (const key of modelHints) {
+    for (const ext of exts) {
+      const local = localImageFileToDataUrl(`${key}${ext}`);
+      if (local) return local;
+    }
+  }
+  return "";
 }
 
 let pdfParseModuleCache: any = null;
@@ -2649,11 +3367,32 @@ async function buildQuoteItemDescriptionAsync(row: any, fallbackName: string): P
   if (merged.length >= 8) return merged.join("\n");
 
   if (staticProfile?.description) {
+    const enriched = [...merged];
+    const staticLines = String(staticProfile.description || "")
+      .split(/\r?\n/)
+      .map((l) => String(l || "").trim())
+      .filter(Boolean)
+      .filter((l) => {
+        const n = normalizeText(l);
+        return !/(^sap:|capacidad maxima|lectura minima)/.test(n);
+      });
+    for (const line of staticLines) {
+      const n = normalizeText(line);
+      if (!n) continue;
+      if (enriched.some((x) => normalizeText(x) === n)) continue;
+      enriched.push(line);
+      if (enriched.length >= 26) break;
+    }
+    if (enriched.length > merged.length && enriched.length >= 8) {
+      console.log("[evolution-webhook] quote_description_static_enriched", { model: String(row?.name || fallbackName || "") });
+      return enriched.join("\n");
+    }
     console.log("[evolution-webhook] quote_description_static_fallback", { model: String(row?.name || fallbackName || "") });
     return staticProfile.description;
   }
 
   if (merged.length) return merged.join("\n");
+
   return buildQuoteItemDescription(row, fallbackName);
 }
 
@@ -2682,7 +3421,7 @@ function normalizeCatalogQueryText(text: string): string {
 function isContextResetIntent(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
-  return /(reiniciar contexto|resetear contexto|reset context|limpiar contexto|borrar contexto|olvida contexto|olvida todo|empecemos de nuevo|empezar de nuevo)/.test(t);
+  return /(reinicia(?:r)?\s+contexto|reset(?:ear)?\s+contexto|reset\s+context|limpiar\s+contexto|borrar\s+contexto|olvida\s+contexto|olvida\s+todo|empecemos\s+de\s+nuevo|empezar\s+de\s+nuevo)/.test(t);
 }
 
 function hasConcreteProductHint(text: string): boolean {
@@ -2727,6 +3466,15 @@ function splitModelToken(token: string): { letters: string; digits: string } {
   return { letters, digits };
 }
 
+function isLikelyModelCodeToken(token: string): boolean {
+  const t = normalizeCatalogQueryText(String(token || "")).replace(/[^a-z0-9]/g, "");
+  if (!t || t.length < 4) return false;
+  if (/^(\d+)(g|kg|mg)$/.test(t)) return false;
+  const letters = (t.match(/[a-z]/g) || []).length;
+  const digits = (t.match(/\d/g) || []).length;
+  return letters >= 2 && digits >= 2;
+}
+
 function categoryMatchesIntent(row: any, categoryIntent: string): boolean {
   const wanted = normalizeText(String(categoryIntent || ""));
   if (!wanted) return true;
@@ -2741,31 +3489,45 @@ function categoryMatchesIntent(row: any, categoryIntent: string): boolean {
 }
 
 function passesStrictCategoryGuard(row: any, categoryIntent: string): boolean {
-  const wanted = normalizeText(String(categoryIntent || ""));
-  if (!wanted) return true;
-  const rowName = normalizeText(String(row?.name || ""));
-  const rowSub = catalogSubcategory(row);
-
-  if (wanted === "balanzas") {
-    if (/(bascul|bscul|plataform|indicador)/.test(rowName)) return false;
-    if (rowSub.startsWith("basculas") || rowSub.startsWith("plataformas") || rowSub.startsWith("indicadores")) return false;
-  }
-
-  if (wanted === "basculas") {
-    if (/\b(balanz)\b/.test(rowName)) return false;
-    if (rowSub.startsWith("balanzas")) return false;
-  }
-
   return true;
 }
 
 function scopeCatalogRows(rows: any[], categoryIntent: string): any[] {
   const wanted = normalizeText(String(categoryIntent || ""));
   if (!wanted) return rows || [];
-  return (rows || []).filter((row: any) => {
+  const strict = (rows || []).filter((row: any) => {
     if (!categoryMatchesIntent(row, wanted)) return false;
     return passesStrictCategoryGuard(row, wanted);
   });
+  if (wanted !== "basculas" || strict.length >= 3) return strict;
+
+  const relaxed = (rows || []).filter((row: any) => {
+    const rowCat = normalizeText(String(row?.category || ""));
+    const rowSub = catalogSubcategory(row);
+    const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+    const rowFamily = normalizeText(String((payload as any)?.family || ""));
+    const rowName = normalizeText(String(row?.name || ""));
+    if (rowCat === "basculas" || rowCat.startsWith("basculas_") || rowSub.startsWith("basculas") || rowSub.startsWith("plataformas") || rowSub.startsWith("indicadores")) {
+      return true;
+    }
+    if (/(ranger|defender|valor|plataforma|control de peso|ckw|td52p|r31|rc31|r71|bascula|basculas|industrial)/.test(rowName)) {
+      return true;
+    }
+    if (/(bascula|basculas|plataforma|industrial|ranger|defender|valor)/.test(rowFamily)) {
+      return true;
+    }
+    return false;
+  });
+
+  const out: any[] = [];
+  const seen = new Set<string>();
+  for (const row of [...strict, ...relaxed]) {
+    const key = String(row?.id || "").trim() || normalizeText(String(row?.name || ""));
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
 }
 
 function isCatalogMatchConsistent(text: string, row: any, forcedCategory?: string): boolean {
@@ -2957,6 +3719,7 @@ function classifyIntent(text: string, memory?: Record<string, any>): ClassifiedI
   else if (requestQuote) intent = "solicitar_cotizacion";
   else if (requestDatasheet) intent = "solicitar_ficha";
   else if (requestTrm) intent = "consultar_trm";
+  else if (isGuidedNeedDiscoveryText(t)) intent = "guided_need_discovery";
   else if (category) intent = "consultar_categoria";
   else if (isProductLookupIntent(t) || isPriceIntent(t) || isRecommendationIntent(t)) intent = "consultar_producto";
   else if (/(gracias|ok gracias|listo gracias|chao|adios|hasta luego)/.test(t)) intent = "despedida";
@@ -3190,14 +3953,8 @@ async function resolveQuotePerksImageDataUrl(): Promise<string> {
 }
 
 async function resolveProductImageDataUrl(row: any): Promise<string> {
-  const staticProfile = resolveStaticQuoteProfile(row, String(row?.name || ""));
-  if (staticProfile?.imageFile) {
-    const local = localImageFileToDataUrl(staticProfile.imageFile);
-    if (local) {
-      console.log("[evolution-webhook] quote_image_static_ok", { model: String(row?.name || ""), imageFile: staticProfile.imageFile });
-      return local;
-    }
-  }
+  const localModelSpecific = resolveModelSpecificLocalImageDataUrl(row);
+  if (localModelSpecific) return localModelSpecific;
 
   const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const candidates = uniqueNormalizedStrings([
@@ -3210,8 +3967,6 @@ async function resolveProductImageDataUrl(row: any): Promise<string> {
     const dataUrl = imageDataUrlFromRemote(remote);
     if (dataUrl) return dataUrl;
   }
-
-  if (!ENABLE_RUNTIME_PDF_IMAGE_PARSE_FOR_QUOTE) return "";
 
   const localPath = pickBestLocalPdfPath(row, String(row?.name || ""));
   if (localPath && fs.existsSync(localPath)) {
@@ -3241,6 +3996,15 @@ async function resolveProductImageDataUrl(row: any): Promise<string> {
       }
     } catch {
       // ignore local pdf image extraction errors
+    }
+  }
+
+  const staticProfile = resolveStaticQuoteProfile(row, String(row?.name || ""));
+  if (staticProfile?.imageFile) {
+    const local = localImageFileToDataUrl(staticProfile.imageFile);
+    if (local) {
+      console.log("[evolution-webhook] quote_image_static_ok", { model: String(row?.name || ""), imageFile: staticProfile.imageFile });
+      return local;
     }
   }
 
@@ -3282,8 +4046,6 @@ async function buildStandardQuotePdf(args: {
   const phoneSafe = normalizePhone(args.customerPhone || "");
   const ivaRate = quoteIvaRate();
   const col = [10, 20, 50, 127, 145, 157, 178, 200];
-  const footerBlockTop = 258;
-  const footerMetaTop = 275;
   const footerPageTop = 284;
 
   const bannerDataUrl = await resolveQuoteBannerImageDataUrl();
@@ -3397,8 +4159,8 @@ async function buildStandardQuotePdf(args: {
   let y = currentTableHeaderY + 11;
   let index = 1;
   let subtotal = 0;
-  const lineHeight = 3.8;
-  const rowPadding = 4;
+  const lineHeight = 3.5;
+  const rowPadding = 3;
   for (const item of args.items || []) {
     const qty = Math.max(1, Number(item.quantity || 1));
     const lineTotal = Number(item.totalCop || 0) > 0
@@ -3427,7 +4189,7 @@ async function buildStandardQuotePdf(args: {
           Math.max(descCount, 1),
           1,
         );
-        return Math.max(isFirstSegment && hasImage ? 46 : 14, lineCount * lineHeight + rowPadding);
+        return Math.max(isFirstSegment && hasImage ? 40 : 12, lineCount * lineHeight + rowPadding);
       };
       const minRowH = rowHeightFor(minDescLines);
 
@@ -3514,7 +4276,7 @@ async function buildStandardQuotePdf(args: {
         doc.setFontSize(8.2);
       }
 
-      y += rowH + 1.2;
+      y += rowH + 0.9;
       descCursor += descChunk.length;
       isFirstSegment = false;
       if (descLinesAll.length === 0) break;
@@ -3581,12 +4343,7 @@ async function buildStandardQuotePdf(args: {
   doc.setFont("helvetica", "bold");
   doc.text(`$ ${formatMoney(total)}`, totalsValueRight, y + 22.8, { align: "right" });
 
-  let yFooter = y + 30;
-  if (yFooter > 255) {
-    doc.addPage();
-    drawHeader(true);
-    yFooter = 150;
-  }
+  let yFooter = y + 8;
 
   const legal = [
     "Observaciones generales de la cotización",
@@ -3596,12 +4353,21 @@ async function buildStandardQuotePdf(args: {
     `${String(args.city || "Bogota D.C")}, ${args.issueDate}`,
   ].join("\n");
   const legalLines = doc.splitTextToSize(legal, 188);
-  const legalBottomEstimate = yFooter + 24 + Math.max(0, legalLines.length - 1) * 3.3;
-  const reservedPerksTop = 222;
-  if (legalBottomEstimate > reservedPerksTop - 4) {
+  const companyFooter = [
+    "AVANZA INTERNACIONAL GROUP S.A.S",
+    "Autopista Medellin k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a.",
+    "NIT 900505419",
+    "CELULAR 321 2165 771",
+    "www.balanzasybasculas.com.co - www.avanzagroup.com.co",
+  ].join("\n");
+  const companyFooterLines = doc.splitTextToSize(companyFooter, 188);
+  const legalHeight = Math.max(10, legalLines.length * 3.3);
+  const companyHeight = Math.max(10, companyFooterLines.length * 3.2);
+  const closingEstimate = 18 + 24 + legalHeight + 16 + 10 + 12 + companyHeight + 14;
+  if (yFooter + closingEstimate > 272) {
     doc.addPage();
     drawHeader(true);
-    yFooter = 150;
+    yFooter = 40;
   }
 
   doc.setFont("helvetica", "bold");
@@ -3614,9 +4380,10 @@ async function buildStandardQuotePdf(args: {
   doc.text("cotizaciones@avanzagroup.com.co", 10, yFooter + 16);
 
   doc.setFontSize(8.2);
-  doc.text(doc.splitTextToSize(legal, 188), 10, yFooter + 24);
+  doc.text(legalLines, 10, yFooter + 24);
 
-  const perksY = 223;
+  const legalBottomY = yFooter + 24 + legalHeight;
+  const perksY = legalBottomY + 10;
   {
     if (hasPerksStrip) {
       try {
@@ -3678,19 +4445,14 @@ async function buildStandardQuotePdf(args: {
     }
   }
 
-  const companyFooter = [
-    "AVANZA INTERNACIONAL GROUP S.A.S",
-    "Autopista Medellin k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a.",
-    "NIT 900505419",
-    "CELULAR 321 2165 771",
-    "www.balanzasybasculas.com.co - www.avanzagroup.com.co",
-  ].join("\n");
+  const footerBlockTop = perksY + 18;
   doc.setFontSize(7.2);
-  doc.text(doc.splitTextToSize(companyFooter, 188), 10, footerBlockTop);
+  doc.text(companyFooterLines, 10, footerBlockTop);
 
   const nowStamp = new Date();
   const createdAt = `${asDateYmd(nowStamp)}`;
   const modifiedAt = `${asDateYmd(nowStamp)} ${String(nowStamp.toTimeString() || "").slice(0, 8)}`;
+  const footerMetaTop = footerBlockTop + companyHeight + 6;
   doc.setFontSize(7.8);
   doc.text(`Fecha de creación ${createdAt}`, 10, footerMetaTop);
   doc.text(`Fecha de modificación ${modifiedAt}`, 10, footerMetaTop + 5);
@@ -3821,6 +4583,7 @@ export async function POST(req: Request) {
       });
       return NextResponse.json({ ok: true, ignored: true });
     }
+    const inboundTextAtEntry = String(inbound.text || "").trim();
 
     const supabase = getServiceSupabase();
     if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
@@ -4062,6 +4825,7 @@ export async function POST(req: Request) {
 
     const inboundName = sanitizeCustomerDisplayName(inbound.pushName || "");
     let recognizedReturningCustomer = false;
+    let crmContactProfile: any = null;
     let knownCustomerName = sanitizeCustomerDisplayName(String(nextMemory.customer_name || ""))
       || sanitizeCustomerDisplayName(String((existingConv as any)?.contact_name || ""))
       || inboundName;
@@ -4070,12 +4834,13 @@ export async function POST(req: Request) {
       try {
         const { data: crmContact } = await supabase
           .from("agent_crm_contacts")
-          .select("name,status,quote_requests_count")
+          .select("id,name,email,phone,company,status,quote_requests_count,metadata")
           .eq("created_by", ownerId)
           .or(inboundFilter.replace(/contact_phone/g, "phone"))
           .order("updated_at", { ascending: false })
           .limit(1)
           .maybeSingle();
+        crmContactProfile = crmContact as any;
         knownCustomerName = sanitizeCustomerDisplayName(String((crmContact as any)?.name || ""));
         const crmStatus = normalizeText(String((crmContact as any)?.status || ""));
         const crmQuotes = Number((crmContact as any)?.quote_requests_count || 0);
@@ -4086,6 +4851,26 @@ export async function POST(req: Request) {
       } catch {
         // ignore missing table or transient query errors
       }
+    }
+
+    if (crmContactProfile && typeof crmContactProfile === "object") {
+      const crmMeta = crmContactProfile?.metadata && typeof crmContactProfile.metadata === "object" ? crmContactProfile.metadata : {};
+      const crmNit = String(crmMeta?.nit || "").trim();
+      const crmCity = normalizeCityLabel(String(crmMeta?.billing_city || "").trim());
+      const crmTier = normalizeText(String(crmMeta?.price_tier || "").trim());
+      const crmType = normalizeText(String(crmMeta?.customer_type || "").trim());
+      nextMemory.crm_contact_found = true;
+      nextMemory.crm_contact_id = String((crmContactProfile as any)?.id || "").trim();
+      nextMemory.crm_contact_name = String((crmContactProfile as any)?.name || "").trim();
+      nextMemory.crm_contact_email = String((crmContactProfile as any)?.email || "").trim();
+      nextMemory.crm_contact_phone = String((crmContactProfile as any)?.phone || "").trim();
+      nextMemory.crm_company = String((crmContactProfile as any)?.company || "").trim();
+      nextMemory.crm_nit = crmNit;
+      nextMemory.crm_billing_city = crmCity;
+      nextMemory.crm_price_tier = crmTier;
+      nextMemory.crm_customer_type = crmType;
+    } else {
+      nextMemory.crm_contact_found = Boolean(previousMemory?.crm_contact_found);
     }
 
     if (!knownCustomerName) {
@@ -4185,6 +4970,69 @@ export async function POST(req: Request) {
         }
         return false;
       };
+
+      const finalizeStrictTurn = async (replyText: string, memory: Record<string, any>, extra: Record<string, any> = {}) => {
+        const sentOk = await sendStrictQuickText(replyText);
+        if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+        try {
+          await persistConversationTurn(supabase as any, {
+            agentId: String(agent.id),
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            from: inbound.from,
+            pushName: inbound.pushName,
+            contactName: knownCustomerName || inbound.pushName || inbound.from,
+            inboundText: inbound.text,
+            outboundText: replyText,
+            messageId: inbound.messageId,
+            memory,
+          });
+        } catch {}
+        await supabase
+          .from("incoming_messages")
+          .update({ status: "processed", processed_at: new Date().toISOString() })
+          .eq("provider", "evolution")
+          .eq("provider_message_id", incomingDedupKey);
+        return NextResponse.json({ ok: true, sent: true, strict: true, ...extra });
+      };
+
+      if (isContextResetIntent(text)) {
+        const keepCustomerName = String(strictMemory.customer_name || previousMemory?.customer_name || "").trim();
+        const keepCustomerPhone = String(strictMemory.customer_phone || previousMemory?.customer_phone || "").trim();
+        const keepCustomerEmail = String(strictMemory.customer_email || previousMemory?.customer_email || "").trim();
+        Object.keys(strictMemory).forEach((k) => delete strictMemory[k]);
+        if (keepCustomerName) strictMemory.customer_name = keepCustomerName;
+        if (keepCustomerPhone) strictMemory.customer_phone = keepCustomerPhone;
+        if (keepCustomerEmail) strictMemory.customer_email = keepCustomerEmail;
+        strictMemory.awaiting_action = "none";
+        strictMemory.last_intent = "reset_context";
+        strictMemory.last_user_text = text;
+        strictMemory.last_user_at = new Date().toISOString();
+
+        const strictReply = "Listo, reinicié el contexto de esta conversación. Ahora dime capacidad y resolución (ej.: 220 g x 0.00001 g) o el modelo exacto.";
+        const sentOk = await sendStrictQuickText(strictReply);
+        if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+        try {
+          await persistConversationTurn(supabase as any, {
+            agentId: String(agent.id),
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            from: inbound.from,
+            pushName: inbound.pushName,
+            contactName: knownCustomerName || inbound.pushName || inbound.from,
+            inboundText: inbound.text,
+            outboundText: strictReply,
+            messageId: inbound.messageId,
+            memory: strictMemory,
+          });
+        } catch {}
+        await supabase
+          .from("incoming_messages")
+          .update({ status: "processed", processed_at: new Date().toISOString() })
+          .eq("provider", "evolution")
+          .eq("provider_message_id", incomingDedupKey);
+        return NextResponse.json({ ok: true, sent: true, strict: true, reset: true });
+      }
 
       if (strictPrevAwaiting === "advisor_meeting_slot") {
         if (isAdvisorAppointmentIntent(text)) {
@@ -4350,6 +5198,7 @@ export async function POST(req: Request) {
       const awaiting = deriveStrictAwaitingAction(previousMemory, strictPrevAwaiting);
       const wantsSheet = isTechnicalSheetIntent(text);
       const wantsQuote = asksQuoteIntent(text) || isPriceIntent(text);
+      const isConversationFollowupAmbiguousQuote = awaiting === "conversation_followup" && isAnotherQuoteAmbiguousIntent(text);
       const isGreeting = isGreetingIntent(text);
       const explicitModel = hasConcreteProductHint(text) && !isOptionOnlyReply(text);
       const categoryIntent = detectCatalogCategoryIntent(text);
@@ -4359,7 +5208,7 @@ export async function POST(req: Request) {
 
       const { data: ownerRowsRaw } = await supabase
         .from("agent_product_catalog")
-        .select("id,name,category,brand,base_price_usd,price_currency,source_payload,product_url,image_url,datasheet_url,is_active")
+        .select("id,name,category,brand,base_price_usd,price_currency,source_payload,product_url,image_url,datasheet_url,specs_text,summary,description,specs_json,is_active")
         .eq("created_by", ownerId)
         .eq("is_active", true)
         .order("updated_at", { ascending: false })
@@ -4372,6 +5221,372 @@ export async function POST(req: Request) {
       let strictReply = "";
       const strictDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }> = [];
       let strictBypassAutoQuote = false;
+      const selectedModelForSlots = String(
+        previousMemory?.last_selected_product_name ||
+        previousMemory?.last_product_name ||
+        ""
+      ).trim();
+      const pendingForSlots = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+      const slotPack = updateConversationSlots({
+        previousMemory,
+        text,
+        awaiting,
+        pendingOptions: pendingForSlots,
+        selectedModel: selectedModelForSlots,
+      });
+      Object.assign(strictMemory, slotPack.patch);
+      const pipelineIntent = classifyMessageIntent({
+        text,
+        awaiting,
+        rememberedCategory,
+        activeMenuType: slotPack.slots.active_menu_type,
+      });
+
+      const pipelineGate = async (): Promise<Response | null> => {
+        if (isOutOfCatalogDomainQuery(text)) {
+          const available = listActiveCatalogCategories(ownerRows as any[]);
+          const reply = [
+            "En base de datos no tengo ese tipo de producto en catalogo activo.",
+            `Actualmente si manejo: ${available}.`,
+            "Si quieres, te recomiendo opciones segun capacidad, precision y aplicacion.",
+          ].join("\n");
+          return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "out_of_catalog" });
+        }
+
+        if (pipelineIntent === "guided_need_discovery") {
+          const app = detectTargetApplication(text) || "";
+          const productKind = /(bascula|basculas)/.test(textNorm) ? "báscula" : "balanza";
+          const guidance = /(tornillo|tornillos|tuerca|tuercas|perno|pernos|repuesto|repuestos)/.test(textNorm)
+            ? "Claro, para ese uso sí tenemos opciones. ¿La necesitas para conteo de piezas o para peso total, y qué rango de peso manejas?"
+            : /(papa|papas|alimento|alimentos)/.test(textNorm)
+              ? "Claro, para ese uso sí tenemos opciones. ¿Qué capacidad aproximada necesitas y si buscas uso general o más precisión?"
+              : /(laboratorio)/.test(textNorm)
+                ? "Perfecto, para laboratorio sí tenemos opciones. Para orientarte bien, dime peso aproximado y precisión objetivo."
+                : /(oro|joyeria|joyería)/.test(textNorm)
+                  ? "Claro, para oro/joyería sí hay opciones. Para recomendarte bien, dime rango de peso y precisión que necesitas."
+                  : `Sí, para esa necesidad tenemos opciones de ${productKind}. Para orientarte bien, dime qué vas a pesar, rango de peso aproximado y nivel de precisión que necesitas.`;
+          const appOptions = getApplicationRecommendedOptions({
+            rows: ownerRows as any[],
+            application: app,
+            capTargetG: Number(slotPack.slots.target_capacity_g || 0),
+            targetReadabilityG: Number(slotPack.slots.target_readability_g || 0),
+            strictPrecision: /(alta\s+precision|m[aá]xima\s+precision|menos\s+de)/.test(textNorm),
+          });
+          const top = appOptions.slice(0, 3);
+          strictMemory.pending_product_options = appOptions.slice(0, 8);
+          strictMemory.pending_family_options = [];
+          strictMemory.awaiting_action = appOptions.length ? "strict_choose_model" : "strict_need_spec";
+          strictMemory.strict_use_case = String(text || "").trim();
+          const reply = [
+            guidance,
+            ...(top.length ? ["", "Opciones sugeridas para empezar:", ...top.map((o) => `${o.code}) ${o.name}`), "", "Si quieres, elige A/1 y te envío ficha o cotización."] : []),
+          ].join("\n");
+          return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+        }
+
+        if (pipelineIntent === "use_explanation_question") {
+          strictMemory.awaiting_action = "strict_need_spec";
+          const reply = [
+            "Buena pregunta: las balanzas/básculas se usan para pesar con precisión en procesos como laboratorio, joyería, alimentos e industria.",
+            "Para recomendarte bien según catálogo activo, dime: 1) uso/aplicación, 2) capacidad aproximada, 3) resolución objetivo.",
+            "Ejemplo: laboratorio, 1000 g, 0.1 g.",
+          ].join("\n");
+          return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+        }
+
+        const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || "").trim();
+        const selectedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || "").trim();
+        const selected = selectedId
+          ? (ownerRows as any[]).find((r: any) => String(r?.id || "").trim() === selectedId)
+          : (selectedName ? findCatalogProductByName(ownerRows as any[], selectedName) : null);
+        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+
+        if (pipelineIntent === "compatibility_question" || pipelineIntent === "application_update") {
+          const asksUseExplanationNow = /(para\s+que\s+sirven?|que\s+uso\s+tienen|para\s+que\s+se\s+usan)/.test(textNorm) && /(balanza|balanzas|bascula|basculas)/.test(textNorm);
+          if (asksUseExplanationNow) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            const reply = [
+              "Las balanzas/básculas se usan para pesar con precisión en laboratorio, joyería, alimentos e industria.",
+              "Para recomendarte una opción exacta de catálogo, dime uso, capacidad y resolución objetivo.",
+              "Ejemplo: laboratorio, 1000 g, 0.1 g.",
+            ].join("\n");
+            return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "use_explanation_question" });
+          }
+          const app = detectTargetApplication(text) || String(slotPack.slots.target_application || "");
+          const asksLabCatalog = /(cuales?|cu[aá]les?|que|qué).*(de\s+laboratorio|laboratorio).*(tienes|hay|manejas|ofreces)/.test(textNorm) || /tienes.*laboratorio/.test(textNorm);
+          const explicitLabEquipmentAsk = /(plancha|planchas|calentamiento|agitacion|agitación|agitador|mezclador|homogeneizador|centrifuga)/.test(textNorm);
+          const labRows = app === "laboratorio" ? scopeCatalogRows(ownerRows as any, "equipos_laboratorio") : [];
+          const hasActiveLabEquipment = Array.isArray(labRows) && labRows.length > 0;
+          const targetRead = Number(slotPack.slots.target_readability_g || previousMemory?.strict_filter_readability_g || 0);
+          const strictPrecisionAsk = /(menos\s+de|maxima\s+precision|maxima\s+precisi[oó]n|alta\s+precision|m[aá]xima\s+precision)/.test(textNorm);
+          const capTarget = Number(slotPack.slots.target_capacity_g || previousMemory?.strict_filter_capacity_g || 0);
+          const options = getApplicationRecommendedOptions({
+            rows: categoryScoped as any[],
+            application: app,
+            capTargetG: capTarget,
+            targetReadabilityG: targetRead,
+            strictPrecision: strictPrecisionAsk,
+            excludeId: String(selected?.id || ""),
+          });
+          strictMemory.target_application = app;
+          strictMemory.target_industry = app === "joyeria_oro" ? "joyeria" : app;
+          if (app === "laboratorio" && !hasActiveLabEquipment && (asksLabCatalog || explicitLabEquipmentAsk)) {
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              const reply = [
+                "En base de datos no tengo equipos de laboratorio activos (ej. planchas/agitadores) en este momento.",
+                "Sí tengo estas balanzas recomendadas para uso de laboratorio:",
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige una con letra/número (A/1), o escribe 'más'.",
+              ].join("\n");
+              return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
+            strictMemory.awaiting_action = "strict_need_spec";
+            return finalizeStrictTurn("En base de datos no tengo equipos de laboratorio activos en este momento. Si quieres, te recomiendo balanzas para uso de laboratorio según capacidad y precisión.", strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            const selectedRead = Number(extractRowTechnicalSpec(selected)?.readabilityG || 0);
+            const maxRead = maxReadabilityForApplication(app);
+            const selectedCompatible = selectedRead > 0 && selectedRead <= maxRead;
+            const intro = pipelineIntent === "application_update"
+              ? `Perfecto. Para ${app.replace(/_/g, " ")}, estas son opciones activas de catálogo:`
+              : (selected
+                ? (selectedCompatible
+                    ? `Sí, ${String((selected as any)?.name || selectedName)} puede servir para ${app.replace(/_/g, " ")}.`
+                    : `No del todo: ${String((selected as any)?.name || selectedName)} no es la mejor para ${app.replace(/_/g, " ")}; estas alternativas sí son más adecuadas.`)
+                : `Sí, para ${app.replace(/_/g, " ")} estas opciones sí son adecuadas.`);
+            const reply = [
+              intro,
+              "Te comparto 3 recomendaciones de catálogo para seguir:",
+              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige una con letra/número (A/1), o escribe 'más'.",
+            ].join("\n");
+            return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
+          const fallback = buildCompatibilityAnswer({ text, slots: slotPack.slots, pendingOptions: pendingForSlots });
+          strictMemory.awaiting_action = "compatibility_followup";
+          strictMemory.compatibility_application = app;
+          const reply = [
+            String(fallback || "").trim(),
+            "",
+            "Para continuar, responde:",
+            "1) Ver 3 opciones recomendadas",
+            "2) Ajustar capacidad/resolución",
+          ].join("\n");
+          return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+        }
+
+        if (pipelineIntent === "technical_spec_input") {
+          const merged = mergeLooseSpecWithMemory(
+            {
+              capacityG: Number(previousMemory?.strict_filter_capacity_g || previousMemory?.target_capacity_g || 0),
+              readabilityG: Number(previousMemory?.strict_filter_readability_g || previousMemory?.target_readability_g || 0),
+            },
+            parseLooseTechnicalHint(text)
+          );
+          const cap = Number(merged.capacityG || 0);
+          const read = Number(merged.readabilityG || 0);
+          strictMemory.strict_partial_capacity_g = cap > 0 ? cap : "";
+          strictMemory.strict_partial_readability_g = read > 0 ? read : "";
+
+          if (cap > 0 && read > 0) {
+            strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
+            strictMemory.strict_filter_capacity_g = cap;
+            strictMemory.strict_filter_readability_g = read;
+            const exactRows = getExactTechnicalMatches(baseScoped as any[], { capacityG: cap, readabilityG: read });
+            const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: cap, readabilityG: read });
+            const sourceRows = exactRows.length ? exactRows : prioritized.orderedRows;
+            const options = buildNumberedProductOptions((sourceRows || []).slice(0, 8) as any[], 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              const reply = [
+                exactRows.length ? `Sí, tengo coincidencias exactas para ${strictMemory.strict_spec_query}.` : `Para ${strictMemory.strict_spec_query} no veo exacta, pero sí cercanas de BD:`,
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra/número (A/1), o escribe 'más'.",
+              ].join("\n");
+              return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
+            strictMemory.awaiting_action = "strict_need_spec";
+            return finalizeStrictTurn(`Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD. Si quieres, ajustamos capacidad/resolución.`, strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
+
+          if (cap > 0 && !(read > 0)) {
+            const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
+            const scopedForFast = currentCategory ? scopeCatalogRows(ownerRows as any[], currentCategory) : ownerRows;
+            const rankedCapGeneric = rankCatalogByCapacityOnly(scopedForFast as any[], cap);
+            const capRowsGeneric = rankedCapGeneric.length ? rankedCapGeneric.map((x: any) => x.row) : scopedForFast;
+            const capOptionsGeneric = buildNumberedProductOptions((capRowsGeneric || []).slice(0, 8) as any[], 8);
+            if (capOptionsGeneric.length) {
+              const first = capOptionsGeneric[0];
+              const alternatives = capOptionsGeneric.slice(1, 4);
+              const appHint = /(industrial|repuesto|repuestos|cajas|bodega|planta)/.test(textNorm) ? "industrial" : "general";
+              strictMemory.strict_partial_capacity_g = cap;
+              strictMemory.strict_filter_capacity_g = cap;
+              strictMemory.pending_product_options = capOptionsGeneric;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              const reply = [
+                `Perfecto. Para ~${formatSpecNumber(cap)} g, te recomiendo empezar con ${String(first?.name || "esta opción")} (${appHint}).`,
+                "También te dejo alternativas cercanas por capacidad:",
+                ...alternatives.map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Si quieres mayor precisión, te filtro por resolución objetivo (ej.: 1 g, 0.1 g, 0.01 g).",
+              ].join("\n");
+              return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
+            if (currentCategory === "basculas" && Array.isArray(scopedForFast) && scopedForFast.length > 0 && scopedForFast.length <= 4) {
+              const rankedCap = rankCatalogByCapacityOnly(scopedForFast as any[], cap);
+              const rankedRows = rankedCap.length ? rankedCap.map((x: any) => x.row) : scopedForFast;
+              const options = buildNumberedProductOptions((rankedRows || []).slice(0, 8) as any[], 8);
+              if (options.length) {
+                strictMemory.strict_partial_capacity_g = cap;
+                strictMemory.strict_filter_capacity_g = cap;
+                strictMemory.pending_product_options = options;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                const total = options.length;
+                const reply = [
+                  `Perfecto. Para básculas activas, en este momento manejo ${total} modelo(s).`,
+                  ...options.map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Elige una con letra/número (A/1) y te envío ficha o cotización.",
+                ].join("\n");
+                return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+              }
+            }
+            strictMemory.awaiting_action = "strict_need_spec";
+            return finalizeStrictTurn(`Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g). Ahora dime la resolución objetivo (ej.: 0.1 g, 0.01 g, 0.001 g).`, strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
+          if (read > 0 && !(cap > 0)) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            return finalizeStrictTurn(`Perfecto, ya tengo la precisión (${formatSpecNumber(read)} g). Ahora dime la capacidad aproximada (ej.: 200 g, 1000 g, 2 kg).`, strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
+        }
+
+        if (pipelineIntent === "alternative_request") {
+          const asksMoreOnly = /\b(mas|más|siguientes|mas\s+opciones|más\s+opciones|otras\s+opciones)\b/.test(textNorm);
+          const pendingNow = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+          if (asksMoreOnly && awaiting === "strict_choose_model" && pendingNow.length > 0) {
+            // Mantiene el flujo original de paginación del menú de modelos.
+            return null;
+          }
+          const cap = Number(previousMemory?.strict_filter_capacity_g || slotPack.slots.target_capacity_g || 0);
+          const read = Number(previousMemory?.strict_filter_readability_g || slotPack.slots.target_readability_g || 0);
+          if (cap > 0 && read > 0) {
+            const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: cap, readabilityG: read });
+            const nearRows = filterNearbyTechnicalRows((prioritized.orderedRows || baseScoped) as any[], { capacityG: cap, readabilityG: read });
+            const options = buildNumberedProductOptions((nearRows || []).slice(0, 8) as any[], 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              const reply = [
+                `Claro, aquí tienes alternativas cercanas a ${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g:`,
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra/número (A/1), o escribe 'más'.",
+              ].join("\n");
+              return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
+          }
+          strictMemory.awaiting_action = "strict_need_spec";
+          return finalizeStrictTurn("Para darte alternativas coherentes de BD, confirma capacidad y resolución objetivo (ej.: 200 g x 0.001 g).", strictMemory, { pipeline: true, intent: pipelineIntent });
+        }
+
+        if (pipelineIntent === "menu_selection") {
+          const menuType = String(slotPack.slots.active_menu_type || "");
+          if (menuType === "model_action_menu") {
+            if (/^\s*1\s*$/.test(textNorm)) {
+              strictMemory.awaiting_action = "strict_quote_data";
+              strictMemory.quote_quantity = Math.max(1, Number(previousMemory?.quote_quantity || 1));
+              return finalizeStrictTurn("Perfecto. Para cotizar, compárteme en un solo mensaje: ciudad, empresa, NIT, contacto, correo y celular.", strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
+            if (/^\s*2\s*$/.test(textNorm)) {
+              strictMemory.awaiting_action = "strict_choose_action";
+              strictMemory.last_intent = "datasheet_request";
+              // Deja que el flujo legacy maneje PDF de ficha (remoto/local) antes del resumen.
+              return null;
+            }
+            return finalizeStrictTurn("Responde 1 para cotización o 2 para ficha técnica.", strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
+
+          if (menuType === "model_selection_menu") {
+            const selectedOption = resolvePendingProductOptionStrict(text, pendingForSlots);
+            if (selectedOption) {
+              strictMemory.last_selected_product_id = String(selectedOption.id || "");
+              strictMemory.last_selected_product_name = String(selectedOption.raw_name || selectedOption.name || "");
+              strictMemory.last_product_id = String(selectedOption.id || "");
+              strictMemory.last_product_name = String(selectedOption.raw_name || selectedOption.name || "");
+              strictMemory.awaiting_action = "strict_choose_action";
+              strictMemory.pending_product_options = [];
+              const modelName = String(selectedOption.raw_name || selectedOption.name || "modelo");
+              const reply = [
+                `Perfecto, tomé ${modelName}.`,
+                "¿Qué deseas ahora?",
+                "1) Cotización",
+                "2) Ficha técnica",
+              ].join("\n");
+              return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
+            return finalizeStrictTurn("Elige una opción válida del menú con letra/número (A/1), o escribe 'más'.", strictMemory, { pipeline: true, intent: pipelineIntent });
+          }
+        }
+
+        return null;
+      };
+
+      const pipelineResponse = await pipelineGate();
+      if (pipelineResponse) return pipelineResponse;
+
+      if (!String(strictReply || "").trim()) {
+        const bundleCountMatch = textNorm.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/i);
+        const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+        const bundleCountRaw = String(bundleCountMatch?.[1] || "").trim().toLowerCase();
+        const requestedBundleCount = Number(bundleCountRaw ? (Number(bundleCountRaw) || numberWordMap[bundleCountRaw] || 0) : 0);
+        const pendingForBundle =
+          (Array.isArray(previousMemory?.quote_bundle_options_current) ? previousMemory.quote_bundle_options_current : [])
+            .concat(Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
+            .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+            .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [])
+            .filter((o: any, idx: number, arr: any[]) => {
+              const key = String(o?.id || o?.product_id || o?.raw_name || o?.name || "").trim();
+              if (!key) return false;
+              return arr.findIndex((x: any) => String(x?.id || x?.product_id || x?.raw_name || x?.name || "").trim() === key) === idx;
+            });
+        if (requestedBundleCount >= 2 && pendingForBundle.length >= 2 && asksQuoteIntent(text)) {
+          const chosen = pendingForBundle.slice(0, Math.min(requestedBundleCount, pendingForBundle.length));
+          const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+          if (modelNames.length >= 2) {
+            strictBypassAutoQuote = true;
+            inbound.text = `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`;
+            strictMemory.pending_product_options = chosen;
+            strictMemory.quote_bundle_options_current = chosen;
+            strictMemory.quote_bundle_options = chosen;
+            strictMemory.last_recommended_options = chosen;
+            strictMemory.last_intent = "quote_bundle_request";
+            strictMemory.bundle_quote_mode = true;
+            strictMemory.bundle_quote_count = chosen.length;
+            strictMemory.awaiting_action = "none";
+            strictReply = `Perfecto. Voy a generar una cotización consolidada para esas ${chosen.length} opciones y te la envío en PDF por este WhatsApp.`;
+          }
+        }
+      }
 
       const strictCloseIntent = isConversationCloseIntent(text) && normalizeText(text).length <= 48;
       if (strictCloseIntent) {
@@ -4388,6 +5603,48 @@ export async function POST(req: Request) {
       }
 
       const strictAwaiting = String(previousMemory?.awaiting_action || "");
+      if (!String(strictReply || "").trim() && strictAwaiting === "compatibility_followup") {
+        const app = String(previousMemory?.target_application || previousMemory?.compatibility_application || "").trim();
+        const capTarget = Number(previousMemory?.target_capacity_g || previousMemory?.strict_filter_capacity_g || 0);
+        const rememberedCategoryCompat = String(previousMemory?.last_category_intent || rememberedCategory || "").trim();
+        const scoped = rememberedCategoryCompat ? scopeCatalogRows(ownerRows as any, rememberedCategoryCompat) : ownerRows;
+        const askOptions = isAffirmativeIntent(text) || /^\s*1\s*$/.test(textNorm) || /\b(opciones|recomendadas|muestrame|mu[eé]strame|dame)\b/.test(textNorm);
+        const askAdjust = /^\s*2\s*$/.test(textNorm) || /\b(ajust|capacidad|resolucion|resolución|precision|precisión)\b/.test(textNorm);
+
+        if (askOptions) {
+          const options = getApplicationRecommendedOptions({
+            rows: scoped as any[],
+            application: app,
+            capTargetG: capTarget,
+            excludeId: String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || ""),
+          });
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              `Perfecto. Estas son 3 opciones recomendadas para ${String(app || "tu uso").replace(/_/g, " ")}:`,
+              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige con letra/número (A/1), o escribe 'más'.",
+            ].join("\n");
+          } else {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = "En este momento no veo 3 opciones adecuadas para ese uso con la info actual. Ajustemos capacidad y resolución para proponerte alternativas reales.";
+          }
+        } else if (askAdjust) {
+          strictMemory.awaiting_action = "strict_need_spec";
+          strictReply = "Perfecto. Ajustemos el requerimiento: dime capacidad y resolución objetivo (ej.: 220 g x 0.001 g).";
+        } else {
+          strictMemory.awaiting_action = "compatibility_followup";
+          strictReply = [
+            "Para seguir sin perder el contexto, responde:",
+            "1) Ver 3 opciones recomendadas",
+            "2) Ajustar capacidad/resolución",
+          ].join("\n");
+        }
+      }
       if (!String(strictReply || "").trim() && isAdvisorAppointmentIntent(text)) {
         strictReply = buildAdvisorMiniAgendaPrompt();
         strictMemory.awaiting_action = "advisor_meeting_slot";
@@ -4406,12 +5663,134 @@ export async function POST(req: Request) {
         }
       }
 
+      if (!String(strictReply || "").trim() && awaiting === "followup_quote_disambiguation") {
+        const choice = parseAnotherQuoteChoice(text);
+        const rememberedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || "").trim();
+        const rememberedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || "").trim();
+        const selectedFromMemory = rememberedId
+          ? (ownerRows.find((r: any) => String(r?.id || "").trim() === rememberedId) || null)
+          : (rememberedName ? (findCatalogProductByName(ownerRows as any[], rememberedName) || null) : null);
+
+        if (!choice) {
+          strictReply = buildAnotherQuotePrompt();
+          strictMemory.awaiting_action = "followup_quote_disambiguation";
+          strictMemory.last_intent = "followup_quote_disambiguation";
+        } else if (choice === "advisor") {
+          strictReply = buildAdvisorMiniAgendaPrompt();
+          strictMemory.awaiting_action = "advisor_meeting_slot";
+        } else if (choice === "same_model") {
+          if (!selectedFromMemory) {
+            strictReply = "Perfecto. Indícame el modelo exacto que quieres recotizar y te ayudo enseguida.";
+            strictMemory.awaiting_action = "strict_need_spec";
+          } else {
+            const selectedName = String((selectedFromMemory as any)?.name || rememberedName || "producto");
+            const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
+            strictMemory.last_selected_product_id = String((selectedFromMemory as any)?.id || "").trim();
+            strictMemory.last_selected_product_name = selectedName;
+            strictMemory.quote_quantity = qtyRequested;
+            strictMemory.awaiting_action = "strict_quote_data";
+            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
+          }
+        } else {
+          const selectedId = String((selectedFromMemory as any)?.id || "").trim();
+          const selectedNorm = normalizeText(String((selectedFromMemory as any)?.name || rememberedName || ""));
+          const selectedPrice = Number((selectedFromMemory as any)?.base_price_usd || 0);
+          const familyLabel = String(previousMemory?.strict_family_label || familyLabelFromRow(selectedFromMemory) || "").trim();
+          const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+          const familyScoped = familyLabel
+            ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
+            : categoryScoped;
+          const basePoolRaw = (familyScoped.length >= 3 ? familyScoped : categoryScoped) as any[];
+          const basePool = basePoolRaw.filter((r: any) => {
+            const rid = String(r?.id || "").trim();
+            const rname = normalizeText(String(r?.name || ""));
+            if (selectedId && rid && selectedId === rid) return false;
+            if (!selectedId && selectedNorm && rname && selectedNorm === rname) return false;
+            return true;
+          });
+
+          const byPriceAsc = (rows: any[]) => [...rows]
+            .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
+            .sort((a: any, b: any) => Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
+
+          let intro = "Perfecto. Aquí tienes alternativas de otro modelo:";
+          let rankedRows = [...basePool];
+          if (choice === "cheaper") {
+            const priced = byPriceAsc(basePool);
+            const cheaper = selectedPrice > 0 ? priced.filter((r: any) => Number(r?.base_price_usd || 0) < selectedPrice) : [];
+            rankedRows = cheaper.length ? cheaper : priced;
+            intro = cheaper.length
+              ? "Perfecto. Sí, tengo opciones más económicas en base de datos:"
+              : "No encontré opciones más económicas con precio activo frente al modelo actual; te comparto las de menor precio disponibles:";
+          }
+
+          const options = buildNumberedProductOptions(rankedRows as any[], 5);
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.last_recommended_options = options;
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictMemory.strict_family_label = familyLabel;
+            strictReply = [
+              intro,
+              ...options.map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige con letra o número (A/1), o escribe 'más'.",
+            ].join("\n");
+          } else {
+            strictReply = "No encontré alternativas con precio activo para ese criterio en este momento. Si quieres, te muestro opciones por capacidad/resolución.";
+            strictMemory.awaiting_action = "strict_need_spec";
+          }
+        }
+      }
+
+      if (!String(strictReply || "").trim() && isConversationFollowupAmbiguousQuote) {
+        strictReply = buildAnotherQuotePrompt();
+        strictMemory.awaiting_action = "followup_quote_disambiguation";
+        strictMemory.last_intent = "followup_quote_disambiguation";
+      }
+
       if (!String(strictReply || "").trim() && isAmbiguousTechnicalMessage(text) && !wantsQuote && !wantsSheet) {
         strictMemory.awaiting_action = "strict_need_spec";
         strictReply = buildAmbiguityQuestion(text);
       }
 
-      if (!String(strictReply || "").trim() && isCorrectionIntent(text)) {
+      const shouldShortcutTechnicalSpec =
+        !String(strictReply || "").trim() &&
+        preParsedSpec &&
+        /^(strict_need_spec|strict_choose_model|strict_choose_family)$/i.test(String(awaiting || ""));
+      if (shouldShortcutTechnicalSpec) {
+        const cap = Number((preParsedSpec as any)?.capacityG || 0);
+        const read = Number((preParsedSpec as any)?.readabilityG || 0);
+        if (cap > 0 && read > 0) {
+          strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
+          strictMemory.strict_filter_capacity_g = cap;
+          strictMemory.strict_filter_readability_g = read;
+          const exactRows = getExactTechnicalMatches(ownerRows as any[], { capacityG: cap, readabilityG: read });
+          const prioritized = prioritizeTechnicalRows(ownerRows as any[], { capacityG: cap, readabilityG: read });
+          const sourceRows = exactRows.length ? exactRows : (prioritized.orderedRows.length ? prioritized.orderedRows : ownerRows);
+          const options = buildNumberedProductOptions(sourceRows as any[], 8);
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              exactRows.length
+                ? `Sí, para ${strictMemory.strict_spec_query} tengo coincidencias exactas.`
+                : `Para ${strictMemory.strict_spec_query} no veo coincidencia exacta, pero sí opciones cercanas:`,
+              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Responde con letra o número (A/1), o escribe 'más'.",
+            ].join("\n");
+          } else {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = "No encontré coincidencias para esa capacidad/resolución en el catálogo activo. Si quieres, te muestro alternativas cercanas.";
+          }
+        }
+      }
+
+      if (!String(strictReply || "").trim() && isCorrectionIntent(text) && awaiting !== "strict_choose_action") {
         resetStrictRecommendationState(strictMemory);
         const cap = Number(previousMemory?.strict_filter_capacity_g || 0);
         const read = Number(previousMemory?.strict_filter_readability_g || 0);
@@ -4468,7 +5847,9 @@ export async function POST(req: Request) {
       }
 
       let selectedProduct: any = null;
-      if (!String(strictReply || "").trim() && explicitModel && !technicalSpecIntent) {
+      const modelTokenHint = extractModelLikeTokens(text);
+      const looksLikeModelCode = modelTokenHint.some((tk) => isLikelyModelCodeToken(tk));
+      if (!String(strictReply || "").trim() && explicitModel && looksLikeModelCode && !technicalSpecIntent) {
         selectedProduct = findExactModelProduct(text, ownerRows as any[]) || pickBestCatalogProduct(text, ownerRows as any[]);
       }
 
@@ -4547,14 +5928,14 @@ export async function POST(req: Request) {
         awaiting === "strict_choose_action" &&
         !wantsQuote &&
         !wantsSheet &&
-        (/\b(mas|más|opciones|alternativas|otros|otras|rango|que\s+tienes|de\s+\d+)/.test(textNorm) || technicalSpecIntent || isRecommendationIntent(text));
+        (/\b(mas|más|opciones|alternativas|otros|otras|rango|que\s+tienes|de\s+\d+)/.test(textNorm) || technicalSpecIntent);
       if (!String(strictReply || "").trim() && askMoreFromAction) {
         const familyLabel = String(previousMemory?.strict_family_label || "").trim();
         const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
         const familyRows = familyLabel
           ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
           : categoryScoped;
-        let sourceRows: any[] = familyRows as any[];
+        let sourceRows: any[] = (familyRows.length >= 3 ? familyRows : categoryScoped) as any[];
         const specHint = parseLooseTechnicalHint(text);
         if (specHint?.capacityG && specHint?.readabilityG) {
           const prioritized = prioritizeTechnicalRows(categoryScoped as any[], {
@@ -4607,13 +5988,13 @@ export async function POST(req: Request) {
 
       if (!selectedProduct && awaiting === "strict_choose_model") {
         const pending = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
-        const selected = resolvePendingProductOption(text, pending);
+        const selected = resolvePendingProductOptionStrict(text, pending);
         if (selected?.id) {
           selectedProduct = ownerRows.find((r: any) => String(r?.id || "") === String(selected.id || "")) || null;
         }
       }
 
-      if (!selectedProduct && (wantsSheet || wantsQuote || /\b(ficha|cotizacion|cotización|precio)\b/.test(textNorm))) {
+      if (!selectedProduct && !isConversationFollowupAmbiguousQuote && (wantsSheet || wantsQuote || /\b(ficha|cotizacion|cotización|precio)\b/.test(textNorm))) {
         const rememberedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || strictMemory.last_selected_product_id || strictMemory.last_product_id || "").trim();
         const rememberedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
         if (rememberedId) {
@@ -4805,15 +6186,20 @@ export async function POST(req: Request) {
       }
 
       if (!String(strictReply || "").trim() && isGreeting && !explicitModel && !categoryIntent && !wantsQuote && !wantsSheet) {
-        strictReply = knownCustomerName
-          ? `Hola ${knownCustomerName}, soy Ava de Avanza Group. ¿Qué producto necesitas hoy?`
-          : "Hola, soy Ava de Avanza Group. ¿Qué producto necesitas hoy?";
+        strictMemory.awaiting_action = "none";
+        strictMemory.pending_product_options = [];
+        strictMemory.pending_family_options = [];
+        strictMemory.strict_model_offset = 0;
+        strictMemory.strict_family_label = "";
+        strictReply = buildGreetingReply(knownCustomerName, previousMemory);
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
         const parsed = parseLooseTechnicalHint(text);
+        const capacityRange = parseCapacityRangeHint(text);
+        const asksCategoryMenuNow = /(categorias|categorías|que\s+categorias|que\s+categorías|familias|que\s+familias|grupos)/.test(textNorm);
         const merged = mergeLooseSpecWithMemory(
           {
-            capacityG: Number(previousMemory?.strict_partial_capacity_g || 0),
-            readabilityG: Number(previousMemory?.strict_partial_readability_g || 0),
+            capacityG: Number(previousMemory?.strict_partial_capacity_g || previousMemory?.strict_filter_capacity_g || 0),
+            readabilityG: Number(previousMemory?.strict_partial_readability_g || previousMemory?.strict_filter_readability_g || 0),
           },
           parsed
         );
@@ -4823,8 +6209,102 @@ export async function POST(req: Request) {
         strictMemory.strict_partial_readability_g = read > 0 ? read : "";
 
         if (!(cap > 0) && !(read > 0)) {
-          strictReply = "Perfecto. Para cotizar bien, dime capacidad y resolución objetivo (ej.: 2 kg x 0.01 g o 220 g x 0.001 g).";
-          strictMemory.awaiting_action = "strict_need_spec";
+          if (asksCategoryMenuNow) {
+            const families = buildNumberedFamilyOptions(ownerRows as any[], 8);
+            strictMemory.pending_family_options = families;
+            strictMemory.pending_product_options = [];
+            strictMemory.awaiting_action = "strict_choose_family";
+            strictMemory.strict_family_label = "";
+            strictReply = families.length
+              ? [
+                  "Claro. Estas son las familias/categorías activas que sí tengo en catálogo:",
+                  ...families.map((f) => `${f.code}) ${f.label} (${f.count})`),
+                  "",
+                  "Elige una con letra o número (A/1) y te muestro opciones compatibles.",
+                ].join("\n")
+              : "En este momento no tengo familias activas para mostrar en el catálogo.";
+          }
+          if (!String(strictReply || "").trim()) {
+          const asksAlternativesNow = /\b(alternativas?|opciones?)\b/.test(textNorm) || /(dame|muestrame|mu[eé]strame|quiero)\s+.*(alternativas?|opciones?)/.test(textNorm);
+          const rememberedCap = Number(previousMemory?.strict_filter_capacity_g || previousMemory?.strict_partial_capacity_g || 0);
+          const rememberedRead = Number(previousMemory?.strict_filter_readability_g || previousMemory?.strict_partial_readability_g || 0);
+          if (asksAlternativesNow && rememberedCap > 0 && rememberedRead > 0) {
+            const prioritized = prioritizeTechnicalRows(baseScoped as any[], {
+              capacityG: rememberedCap,
+              readabilityG: rememberedRead,
+            });
+            const compatibleRows = filterReasonableTechnicalRows((prioritized.orderedRows.length ? prioritized.orderedRows : baseScoped as any[]) as any[], {
+              capacityG: rememberedCap,
+              readabilityG: rememberedRead,
+            });
+            const options = buildNumberedProductOptions((compatibleRows || []) as any[], 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictMemory.strict_filter_capacity_g = rememberedCap;
+              strictMemory.strict_filter_readability_g = rememberedRead;
+              strictReply = [
+                `Perfecto. Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g, estas son alternativas reales del catálogo:`,
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra o número (A/1), o escribe 'más'.",
+              ].join("\n");
+            } else {
+              const nearbyRows = filterNearbyTechnicalRows((prioritized.orderedRows.length ? prioritized.orderedRows : baseScoped as any[]) as any[], {
+                capacityG: rememberedCap,
+                readabilityG: rememberedRead,
+              });
+              const nearbyOptions = buildNumberedProductOptions((nearbyRows || []).slice(0, 8) as any[], 8);
+              if (nearbyOptions.length) {
+                strictMemory.pending_product_options = nearbyOptions;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                strictMemory.strict_filter_capacity_g = rememberedCap;
+                strictMemory.strict_filter_readability_g = rememberedRead;
+                strictReply = [
+                  `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo coincidencia realmente compatible.`,
+                  "Te comparto las más cercanas disponibles para que compares:",
+                  ...nearbyOptions.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Elige una opción (A/1), o ajustamos capacidad/resolución.",
+                ].join("\n");
+              } else {
+                strictMemory.pending_product_options = [];
+                strictMemory.awaiting_action = "strict_need_spec";
+                strictMemory.strict_filter_capacity_g = rememberedCap;
+                strictMemory.strict_filter_readability_g = rememberedRead;
+                strictReply = `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
+              }
+            }
+          }
+          }
+          if (!String(strictReply || "").trim()) {
+          if (capacityRange) {
+            const rangedRows = filterRowsByCapacityRange(baseScoped as any[], capacityRange);
+            const options = buildNumberedProductOptions(rangedRows.slice(0, 8) as any[], 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictReply = [
+                `Perfecto, te entendí un rango de capacidad (${formatSpecNumber(capacityRange.minG)} g a ${Number.isFinite(capacityRange.maxG) ? `${formatSpecNumber(capacityRange.maxG)} g` : "en adelante"}).`,
+                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Responde con letra o número (A/1), o envíame también la resolución objetivo para afinar más.",
+              ].join("\n");
+            } else {
+              strictReply = "No encontré referencias activas para ese rango de capacidad en el catálogo actual. Si quieres, te muestro alternativas cercanas.";
+              strictMemory.awaiting_action = "strict_need_spec";
+            }
+          } else {
+            strictReply = "Perfecto. Para cotizar bien, dime capacidad y resolución objetivo (ej.: 2 kg x 0.01 g o 220 g x 0.001 g).";
+            strictMemory.awaiting_action = "strict_need_spec";
+          }
+          }
         } else if (read > 0 && !(cap > 0)) {
           strictReply = [
             `Perfecto, ya tengo la precisión (${formatSpecNumber(read)} g).`,
@@ -4833,12 +6313,32 @@ export async function POST(req: Request) {
           ].join("\n");
           strictMemory.awaiting_action = "strict_need_spec";
         } else if (cap > 0 && !(read > 0)) {
-          strictReply = [
-            `Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g).`,
-            "Ahora dime la resolución/precisión objetivo.",
-            "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
-          ].join("\n");
-          strictMemory.awaiting_action = "strict_need_spec";
+          const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
+          const scopedForFast = currentCategory ? scopeCatalogRows(ownerRows as any[], currentCategory) : ownerRows;
+          if (currentCategory === "basculas" && Array.isArray(scopedForFast) && scopedForFast.length > 0 && scopedForFast.length <= 4) {
+            const rankedCap = rankCatalogByCapacityOnly(scopedForFast as any[], cap);
+            const rankedRows = rankedCap.length ? rankedCap.map((x: any) => x.row) : scopedForFast;
+            const options = buildNumberedProductOptions((rankedRows || []).slice(0, 8) as any[], 8);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictMemory.strict_partial_capacity_g = cap;
+            strictMemory.strict_filter_capacity_g = cap;
+            strictReply = [
+              `Perfecto. Para básculas activas, en este momento manejo ${options.length} modelo(s).`,
+              ...options.map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige una con letra/número (A/1) y te envío ficha o cotización.",
+            ].join("\n");
+          } else {
+            strictReply = [
+              `Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g).`,
+              "Ahora dime la resolución/precisión objetivo.",
+              "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
+            ].join("\n");
+            strictMemory.awaiting_action = "strict_need_spec";
+          }
         } else {
           strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
           strictMemory.strict_filter_capacity_g = Number(cap || 0);
@@ -4860,18 +6360,25 @@ export async function POST(req: Request) {
             ].join("\n");
           } else {
             const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: cap, readabilityG: read });
-            const options = buildNumberedProductOptions((prioritized.orderedRows || []).slice(0, 8) as any[], 8);
+            const compatibleRows = filterReasonableTechnicalRows((prioritized.orderedRows || []) as any[], { capacityG: cap, readabilityG: read });
+            const options = buildNumberedProductOptions((compatibleRows || []).slice(0, 8) as any[], 8);
             strictMemory.pending_product_options = options;
             strictMemory.pending_family_options = [];
             strictMemory.awaiting_action = "strict_choose_model";
             strictMemory.strict_model_offset = 0;
-            strictReply = [
-              `No encontré coincidencia exacta para ${strictMemory.strict_spec_query}.`,
-              "Sí tengo estas opciones cercanas:",
-              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Si quieres, elige una opción o te ayudo a ajustar la especificación.",
-            ].join("\n");
+            if (!options.length) {
+              strictMemory.pending_product_options = [];
+              strictMemory.awaiting_action = "strict_need_spec";
+              strictReply = `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
+            } else {
+              strictReply = [
+                `No encontré coincidencia exacta para ${strictMemory.strict_spec_query}.`,
+                "Sí tengo estas opciones cercanas:",
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Si quieres, elige una opción o te ayudo a ajustar la especificación.",
+              ].join("\n");
+            }
           }
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_industry") {
@@ -4922,7 +6429,288 @@ export async function POST(req: Request) {
         strictMemory.pending_family_options = [];
         strictMemory.pending_product_options = [];
 
-        if (isUseCaseApplicabilityIntent(text) && !wantsQuote && !wantsSheet) {
+        const rawAnotherQuoteChoice = awaiting === "strict_choose_action" ? parseAnotherQuoteChoice(text) : null;
+        let followupIntent = awaiting === "strict_choose_action" ? detectAlternativeFollowupIntent(text) : null;
+        const asksAnotherQuote = awaiting === "strict_choose_action" && isAnotherQuoteAmbiguousIntent(text);
+        const anotherQuoteContext = asksAnotherQuote || /\b(otra\s+cotiz|nueva\s+cotiz|recotiz|re\s*cotiz|otra\s+propuesta)\b/.test(textNorm);
+        const anotherQuoteChoice = anotherQuoteContext ? rawAnotherQuoteChoice : null;
+        const technicalHintInAction = awaiting === "strict_choose_action" ? parseLooseTechnicalHint(text) : null;
+        const technicalCapInAction = Number((technicalHintInAction as any)?.capacityG || 0);
+        const technicalReadInAction = Number((technicalHintInAction as any)?.readabilityG || 0);
+        const categoryIntentInAction = awaiting === "strict_choose_action" ? detectCatalogCategoryIntent(text) : null;
+        const appHintInAction = awaiting === "strict_choose_action" ? detectTargetApplication(text) : "";
+        const asksApplicationRecommendationsNow = awaiting === "strict_choose_action" && /^(si|sí|si\s+por\s+favor|sí\s+por\s+favor|por\s+favor|dale|ok|de\s+una)$/.test(textNorm);
+        const currentCategoryInAction = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || ""));
+        const isCategorySwitchInAction = Boolean(
+          categoryIntentInAction && normalizeText(String(categoryIntentInAction || "")) !== currentCategoryInAction
+        );
+
+        if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && (appHintInAction || (asksApplicationRecommendationsNow && String(previousMemory?.target_application || "").trim())) && !wantsQuote && !wantsSheet && !(technicalCapInAction > 0 || technicalReadInAction > 0)) {
+          const effectiveApp = appHintInAction || String(previousMemory?.target_application || "").trim();
+          strictMemory.target_application = effectiveApp;
+          strictMemory.target_industry = effectiveApp === "joyeria_oro" ? "joyeria" : effectiveApp;
+          const selectedSpec = extractRowTechnicalSpec(selectedProduct);
+          const selectedRead = Number(selectedSpec?.readabilityG || 0);
+          const maxRead = maxReadabilityForApplication(effectiveApp);
+          const selectedIsCompatible = selectedRead > 0 && selectedRead <= maxRead;
+
+          if (selectedIsCompatible) {
+            strictReply = [
+              `Sí, ${selectedName} puede servir para ${effectiveApp.replace(/_/g, " ")} por precisión (${formatSpecNumber(selectedRead)} g).`,
+              "Si quieres, seguimos con 1) cotización o 2) ficha técnica.",
+            ].join("\n");
+          } else {
+            const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+            const capTarget = Number(previousMemory?.strict_filter_capacity_g || selectedSpec?.capacityG || 0);
+            const rowsByRead = categoryScoped
+              .filter((r: any) => {
+                const rs = extractRowTechnicalSpec(r);
+                const rr = Number(rs?.readabilityG || 0);
+                return rr > 0 && rr <= maxRead;
+              })
+              .sort((a: any, b: any) => {
+                const ar = Number(extractRowTechnicalSpec(a)?.readabilityG || 999);
+                const br = Number(extractRowTechnicalSpec(b)?.readabilityG || 999);
+                const ac = Number(extractRowTechnicalSpec(a)?.capacityG || 0);
+                const bc = Number(extractRowTechnicalSpec(b)?.capacityG || 0);
+                const ad = capTarget > 0 ? Math.abs(ac - capTarget) : 0;
+                const bd = capTarget > 0 ? Math.abs(bc - capTarget) : 0;
+                return ad - bd || ar - br;
+              });
+            const options = buildNumberedProductOptions(rowsByRead.slice(0, 8) as any[], 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictReply = [
+                `No del todo: ${selectedName} no es ideal para ${effectiveApp.replace(/_/g, " ")} por su precisión (${formatSpecNumber(selectedRead || 0)} g).`,
+                "Estas opciones sí son más adecuadas para ese uso:",
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige una con letra/número (A/1), o escribe 'más'.",
+              ].join("\n");
+            } else {
+              strictReply = `No del todo: ${selectedName} no es ideal para ${effectiveApp.replace(/_/g, " ")} y no veo opciones activas con esa precisión en este grupo. Si quieres, ajustamos capacidad/resolución.`;
+            }
+          }
+        }
+
+        if (awaiting === "strict_choose_action" && !followupIntent && !wantsQuote && !wantsSheet) {
+          if (/(no\s+me\s+sirve|no\s+quiero\s+este|otra\s+opcion|otra\s+opción|que\s+otra|qué\s+otra|recomiendame\s+otra|recomiéndame\s+otra|me\s+ofreces\s+otra|me\s+puedes\s+ofrecer\s+otra)/.test(textNorm)) {
+            followupIntent = "alternative_same_need";
+          }
+        }
+
+        if (awaiting === "strict_choose_action" && (technicalCapInAction > 0 || technicalReadInAction > 0) && !wantsQuote && !wantsSheet) {
+          const mergedTechnical = mergeLooseSpecWithMemory(
+            {
+              capacityG: Number(previousMemory?.strict_filter_capacity_g || previousMemory?.strict_partial_capacity_g || 0),
+              readabilityG: Number(previousMemory?.strict_filter_readability_g || previousMemory?.strict_partial_readability_g || 0),
+            },
+            technicalHintInAction
+          );
+          const mergedCap = Number(mergedTechnical.capacityG || 0);
+          const mergedRead = Number(mergedTechnical.readabilityG || 0);
+          strictMemory.strict_partial_capacity_g = mergedCap > 0 ? mergedCap : "";
+          strictMemory.strict_partial_readability_g = mergedRead > 0 ? mergedRead : "";
+          if (mergedCap > 0 && !(mergedRead > 0)) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = [
+              `Perfecto, ya tengo la capacidad (${formatSpecNumber(mergedCap)} g).`,
+              "Ahora dime la resolución/precisión objetivo.",
+              "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
+            ].join("\n");
+          } else if (mergedRead > 0 && !(mergedCap > 0)) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = [
+              `Perfecto, ya tengo la precisión (${formatSpecNumber(mergedRead)} g).`,
+              "Para recomendarte bien, ¿qué capacidad aproximada necesitas?",
+              "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
+            ].join("\n");
+          } else if (mergedCap > 0 && mergedRead > 0) {
+            strictMemory.strict_spec_query = `${formatSpecNumber(mergedCap)} g x ${formatSpecNumber(mergedRead)} g`;
+            strictMemory.strict_filter_capacity_g = mergedCap;
+            strictMemory.strict_filter_readability_g = mergedRead;
+            strictMemory.strict_partial_capacity_g = "";
+            strictMemory.strict_partial_readability_g = "";
+            const exactRows = getExactTechnicalMatches(baseScoped as any[], { capacityG: mergedCap, readabilityG: mergedRead });
+            const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: mergedCap, readabilityG: mergedRead });
+            const options = buildNumberedProductOptions((exactRows.length ? exactRows : (prioritized.orderedRows || [])).slice(0, 8) as any[], 8);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              exactRows.length
+                ? `Sí, tengo coincidencias exactas para ${strictMemory.strict_spec_query}.`
+                : `No encontré coincidencia exacta para ${strictMemory.strict_spec_query}.`,
+              exactRows.length ? "Te comparto las opciones exactas:" : "Sí tengo estas opciones cercanas:",
+              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige con letra o número (A/1), o escribe 'más'.",
+            ].join("\n");
+          }
+        } else if (awaiting === "strict_choose_action" && isCategorySwitchInAction) {
+          const scoped = scopeCatalogRows(ownerRows as any, String(categoryIntentInAction || ""));
+          const families = buildNumberedFamilyOptions(scoped as any[], 8);
+          strictMemory.last_category_intent = String(categoryIntentInAction || "");
+          strictMemory.pending_product_options = [];
+          strictMemory.pending_family_options = families;
+          strictMemory.awaiting_action = "strict_choose_family";
+          strictReply = families.length
+            ? [
+              `Perfecto, cambiamos la búsqueda a ${String(categoryIntentInAction || "catálogo").replace(/_/g, " ")}.`,
+              "Elige familia:",
+              ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
+              "",
+              "Responde con letra o número (A/1).",
+            ].join("\n")
+            : `Entiendo el cambio. En base de datos no tengo referencias activas para ${String(categoryIntentInAction || "esa categoría").replace(/_/g, " ")} en este momento.`;
+        } else if (awaiting === "strict_choose_action" && asksAnotherQuote && !anotherQuoteChoice && !followupIntent && !wantsSheet) {
+          strictReply = buildAnotherQuotePrompt();
+        } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "advisor") {
+          strictReply = buildAdvisorMiniAgendaPrompt();
+          strictMemory.awaiting_action = "advisor_meeting_slot";
+        } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "same_model") {
+          const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
+          strictMemory.quote_quantity = qtyRequested;
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
+        } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "other_model") {
+          followupIntent = "alternative_same_need";
+        } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "cheaper") {
+          followupIntent = "alternative_lower_price";
+        }
+
+        if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && followupIntent && !wantsSheet) {
+          if (followupIntent === "requote_same_model") {
+            const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
+            strictMemory.quote_quantity = qtyRequested;
+            strictMemory.awaiting_action = "strict_quote_data";
+            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
+          } else {
+            const selectedId = String(selectedProduct?.id || "").trim();
+            const selectedNorm = normalizeText(selectedName);
+            const selectedSpec = extractRowTechnicalSpec(selectedProduct);
+            const selectedBrand = normalizeText(String(selectedProduct?.brand || ""));
+            const familyLabel = String(previousMemory?.strict_family_label || familyLabelFromRow(selectedProduct) || "").trim();
+            const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+            const familyScoped = familyLabel
+              ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
+              : categoryScoped;
+            const basePoolRaw = (familyScoped.length >= 3 ? familyScoped : categoryScoped) as any[];
+            const basePool = basePoolRaw.filter((r: any) => {
+              const rid = String(r?.id || "").trim();
+              const rname = normalizeText(String(r?.name || ""));
+              if (selectedId && rid && selectedId === rid) return false;
+              if (!selectedId && selectedNorm && rname && selectedNorm === rname) return false;
+              return true;
+            });
+
+            const byPriceAsc = (rows: any[]) => {
+              return [...rows].sort((a: any, b: any) => {
+                const aPrice = Number(a?.base_price_usd || 0);
+                const bPrice = Number(b?.base_price_usd || 0);
+                if (!(aPrice > 0) && !(bPrice > 0)) return 0;
+                if (!(aPrice > 0)) return 1;
+                if (!(bPrice > 0)) return -1;
+                return aPrice - bPrice;
+              });
+            };
+
+            let rankedRows = [...basePool];
+            let intro = "Claro, aquí tienes alternativas para el mismo uso:";
+            const textFollow = normalizeText(String(text || ""));
+            const wantsBetterResolution = /(mayor\s+resolucion|mejor\s+resolucion|mas\s+resolucion|más\s+resolucion|mas\s+precision|más\s+precision|mejor\s+precision)/.test(textFollow);
+            const wantsLowerResolution = /(menor\s+resolucion|menos\s+precision|menor\s+precision)/.test(textFollow);
+
+            if (followupIntent === "alternative_same_need" && (wantsBetterResolution || wantsLowerResolution)) {
+              const readTarget = Number(selectedSpec?.readabilityG || 0);
+              if (readTarget > 0) {
+                const readRows = basePool
+                  .map((r: any) => ({ row: r, read: Number(extractRowTechnicalSpec(r)?.readabilityG || 0) }))
+                  .filter((x: any) => x.read > 0)
+                  .filter((x: any) => wantsBetterResolution ? x.read < readTarget : x.read > readTarget)
+                  .sort((a: any, b: any) => Math.abs(a.read - readTarget) - Math.abs(b.read - readTarget));
+                rankedRows = readRows.map((x: any) => x.row);
+              }
+              intro = wantsBetterResolution
+                ? "Perfecto, aquí tienes opciones con mejor resolución (más precisión):"
+                : "Perfecto, aquí tienes opciones con menor resolución:";
+            } else if (followupIntent === "alternative_lower_price") {
+              intro = "Perfecto, aquí tienes opciones más económicas:";
+              const selectedPrice = Number(selectedProduct?.base_price_usd || 0);
+              const priced = byPriceAsc(basePool).filter((r: any) => Number(r?.base_price_usd || 0) > 0);
+              const cheaper = selectedPrice > 0 ? priced.filter((r: any) => Number(r?.base_price_usd || 0) < selectedPrice) : [];
+              rankedRows = cheaper.length ? cheaper : priced;
+            } else if (followupIntent === "alternative_higher_capacity" || followupIntent === "alternative_lower_capacity") {
+              const capTarget = Number(selectedSpec?.capacityG || 0);
+              intro = followupIntent === "alternative_higher_capacity"
+                ? "Perfecto, aquí tienes opciones de mayor capacidad:"
+                : "Perfecto, aquí tienes opciones de menor capacidad:";
+              if (capTarget > 0) {
+                const capRows = basePool
+                  .map((r: any) => ({ row: r, cap: Number(extractRowTechnicalSpec(r)?.capacityG || 0) }))
+                  .filter((x: any) => x.cap > 0)
+                  .filter((x: any) => followupIntent === "alternative_higher_capacity" ? x.cap > capTarget : x.cap < capTarget)
+                  .sort((a: any, b: any) => Math.abs(a.cap - capTarget) - Math.abs(b.cap - capTarget));
+                rankedRows = capRows.map((x: any) => x.row);
+              }
+            } else if (followupIntent === "alternative_other_brand") {
+              const otherBrands = basePool.filter((r: any) => {
+                const brand = normalizeText(String(r?.brand || ""));
+                return brand && selectedBrand && brand !== selectedBrand;
+              });
+              if (otherBrands.length) {
+                rankedRows = otherBrands;
+                intro = "Perfecto, aquí tienes alternativas de otra marca:";
+              } else {
+                intro = "En este canal solo cotizo catálogo OHAUS. Igual te comparto alternativas similares dentro de OHAUS:";
+                if (selectedSpec.capacityG > 0 && selectedSpec.readabilityG > 0) {
+                  rankedRows = prioritizeTechnicalRows(basePool, {
+                    capacityG: selectedSpec.capacityG,
+                    readabilityG: selectedSpec.readabilityG,
+                  }).orderedRows;
+                }
+              }
+            } else if (selectedSpec.capacityG > 0 && selectedSpec.readabilityG > 0) {
+              rankedRows = prioritizeTechnicalRows(basePool, {
+                capacityG: selectedSpec.capacityG,
+                readabilityG: selectedSpec.readabilityG,
+              }).orderedRows;
+            }
+
+            const mergedRows: any[] = [];
+            const seen = new Set<string>();
+            for (const row of [...rankedRows, ...basePool]) {
+              const key = String(row?.id || "").trim() || normalizeText(String(row?.name || ""));
+              if (!key || seen.has(key)) continue;
+              seen.add(key);
+              mergedRows.push(row);
+              if (mergedRows.length >= 5) break;
+            }
+
+            const options = buildNumberedProductOptions(mergedRows as any[], 5);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.last_recommended_options = options;
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictMemory.strict_family_label = familyLabel;
+              strictReply = [
+                intro,
+                ...options.map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra o número (A/1), o escribe 'más'.",
+              ].join("\n");
+            } else {
+              strictReply = "No encontré alternativas con precio activo en este momento para ese criterio. Si quieres, te muestro el listado completo del grupo.";
+            }
+          }
+        }
+
+        if (!String(strictReply || "").trim() && isUseCaseApplicabilityIntent(text) && !wantsQuote && !wantsSheet) {
           const technicalSummary = buildTechnicalSummary(selectedProduct, 6);
           strictReply = technicalSummary
             ? [
@@ -4936,9 +6724,15 @@ export async function POST(req: Request) {
               `Puedo ayudarte con ${selectedName}, pero para no inventar necesito validar el uso con el peso aproximado (mínimo y máximo).`,
               hasSheetCandidate ? "¿Quieres que te envíe la ficha técnica ahora por este WhatsApp?" : "¿Quieres que te comparta la información técnica disponible por este WhatsApp?",
             ].join("\n");
-        } else if (wantsQuote || /^1\b/.test(textNorm)) {
+        } else if (!String(strictReply || "").trim() && (wantsQuote || /^1\b/.test(textNorm))) {
           const bundleQuoteAskFromAction = asksQuoteIntent(text) && /\b(las|los|todas|todos|opciones|referencias|3|tres)\b/.test(textNorm);
-          const bundlePool = (Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : lastRecommendedOptions)
+          const effectiveRecommendedPool =
+            (Array.isArray(strictMemory?.last_recommended_options) && strictMemory.last_recommended_options.length)
+              ? strictMemory.last_recommended_options
+              : (lastRecommendedOptions.length
+                ? lastRecommendedOptions
+                : (Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []));
+          const bundlePool = effectiveRecommendedPool
             .filter((o: any) => String(o?.raw_name || o?.name || "").trim())
             .slice(0, 8);
           if (bundleQuoteAskFromAction && bundlePool.length >= 2) {
@@ -4955,7 +6749,10 @@ export async function POST(req: Request) {
               inbound.text = `cotizar ${names.join(" ; ")}`;
               strictMemory.awaiting_action = "none";
               strictMemory.pending_product_options = chosen;
+              strictMemory.quote_bundle_options_current = chosen;
               strictMemory.last_intent = "quote_bundle_request";
+              strictMemory.bundle_quote_mode = true;
+              strictMemory.bundle_quote_count = names.length;
               strictReply = `Perfecto. Voy a generar una cotización consolidada para esas ${names.length} opciones y te la envío en PDF por este WhatsApp.`;
             }
           }
@@ -4963,7 +6760,16 @@ export async function POST(req: Request) {
           if (!strictBypassAutoQuote) {
           const lockedCap = Number(previousMemory?.strict_filter_capacity_g || 0);
           const lockedRead = Number(previousMemory?.strict_filter_readability_g || 0);
-          if (lockedCap > 0 && lockedRead > 0) {
+          const recommendedPool = effectiveRecommendedPool;
+          const selectedFromSuggestedList = recommendedPool.some((o: any) => {
+            const oid = String(o?.id || "").trim();
+            const oraw = normalizeText(String(o?.raw_name || o?.name || ""));
+            return (
+              (oid && oid === String(selectedProduct?.id || "").trim()) ||
+              (oraw && oraw === normalizeText(selectedName))
+            );
+          });
+          if (lockedCap > 0 && lockedRead > 0 && !selectedFromSuggestedList) {
             const rs = extractRowTechnicalSpec(selectedProduct);
             const capDeltaPct = rs.capacityG > 0 ? (Math.abs(rs.capacityG - lockedCap) / lockedCap) * 100 : 999;
             const readRatio = rs.readabilityG > 0 ? (rs.readabilityG / lockedRead) : 999;
@@ -4993,14 +6799,20 @@ export async function POST(req: Request) {
             nextMemory.last_selection_at = new Date().toISOString();
             strictMemory.awaiting_action = "none";
           } else {
-            const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
-            strictMemory.quote_quantity = qtyRequested;
-            strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Si tienes datos de facturación (ciudad, empresa, NIT, contacto, correo, celular) compártelos en un solo mensaje; si no, avanzo con los datos disponibles.`;
+            const asksFlowChangeNoDetails = isFlowChangeWithoutModelDetailsIntent(text);
+            if (asksFlowChangeNoDetails) {
+              strictMemory.awaiting_action = "strict_choose_action";
+              strictReply = "Perfecto. Para evitar ambigüedad, indícame primero qué familia o referencias quieres cotizar y la cantidad por cada una (ej: PX85 x1, PX223 x2).";
+            } else {
+              const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
+              strictMemory.quote_quantity = qtyRequested;
+              strictMemory.awaiting_action = "strict_quote_data";
+              strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
+            }
           }
           }
           }
-        } else if (wantsSheet || /^2\b/.test(textNorm)) {
+        } else if (!String(strictReply || "").trim() && (wantsSheet || /^2\b/.test(textNorm))) {
           const datasheetUrl = pickBestProductPdfUrl(selectedProduct, text) || "";
           const localPdfPath = pickBestLocalPdfPath(selectedProduct, text);
           let attached = false;
@@ -5042,7 +6854,24 @@ export async function POST(req: Request) {
               ].join("\n")
               : `No tengo un PDF válido para ${selectedName} en este momento y tampoco tengo especificaciones completas cargadas para este modelo. Si quieres, te genero la cotización ahora.`;
           }
-        } else {
+        } else if (!String(strictReply || "").trim()) {
+          if (awaiting === "strict_choose_action" && !wantsQuote && !wantsSheet && !/^\s*[12]\b/.test(textNorm)) {
+            const softReply = await buildStrictConversationalReply({
+              apiKey,
+              inboundText: text,
+              awaiting,
+              selectedProduct: selectedName,
+              categoryHint: rememberedCategory,
+              pendingOptions: Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [],
+            });
+            strictReply = String(softReply || "").trim() || [
+              `Entiendo. Si ${selectedName} no te sirve, te puedo proponer alternativas reales del catálogo por:`,
+              "- mayor/menor capacidad",
+              "- mayor/menor resolución",
+              "- más económicas",
+              "También puedes escribir 1 para cotizar o 2 para ficha técnica.",
+            ].join("\n");
+          } else {
           strictReply = hasSheetCandidate
             ? [
               `Perfecto, encontré el modelo ${selectedName}.`,
@@ -5057,8 +6886,60 @@ export async function POST(req: Request) {
               "",
               "Nota: este modelo no tiene ficha técnica PDF cargada en este momento.",
             ].join("\n");
+          }
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_quote_data") {
+        const followupIntentInQuoteData = detectAlternativeFollowupIntent(text);
+        const asksAnotherQuoteInQuoteData = isAnotherQuoteAmbiguousIntent(text);
+        const normalizedQuoteData = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+        const isAdvanceInQuoteData = normalizedQuoteData === "avanza";
+        const hasBillingDataInQuoteData = looksLikeBillingData(text);
+        const isCommercialAlternativeInQuoteData =
+          asksAnotherQuoteInQuoteData ||
+          (followupIntentInQuoteData && followupIntentInQuoteData !== "requote_same_model");
+        const crmKnownForQuoteDataGate = Boolean(previousMemory?.crm_contact_found || strictMemory.crm_contact_found);
+
+        if (!crmKnownForQuoteDataGate && isCommercialAlternativeInQuoteData) {
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = "Para cliente nuevo primero debo registrar datos obligatorios de facturación: ciudad, empresa, NIT, contacto, correo y celular. Luego continúo con la cotización.";
+        } else if (isCommercialAlternativeInQuoteData) {
+          strictMemory.awaiting_action = "conversation_followup";
+          strictMemory.last_intent = String(followupIntentInQuoteData || "alternative_same_need");
+          strictReply = asksAnotherQuoteInQuoteData
+            ? buildAnotherQuotePrompt()
+            : "Entendido. Para alternativas, dime si prefieres: otro modelo, más económico, mayor capacidad, menor capacidad u otra marca.";
+        } else if (!isAdvanceInQuoteData && !hasBillingDataInQuoteData) {
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = "Para continuar esta cotización, envíame los datos de facturación en un solo mensaje (ciudad, empresa, NIT, contacto, correo, celular).";
+        }
+        if (!String(strictReply || "").trim()) {
+        const bundleOptions = Array.isArray(previousMemory?.quote_bundle_options)
+          ? previousMemory.quote_bundle_options
+          : (Array.isArray(previousMemory?.pending_product_options)
+              ? previousMemory.pending_product_options
+              : (Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []));
+        if (bundleOptions.length >= 2 && isContinueQuoteWithoutPersonalDataIntent(text)) {
+          const modelNames = bundleOptions
+            .map((o: any) => String(o?.raw_name || o?.name || "").trim())
+            .filter(Boolean);
+          if (modelNames.length >= 2) {
+            strictBypassAutoQuote = true;
+            inbound.text = `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`;
+            strictMemory.awaiting_action = "none";
+            strictMemory.pending_product_options = bundleOptions;
+            strictMemory.last_recommended_options = bundleOptions;
+            strictMemory.last_intent = "quote_bundle_request";
+            strictMemory.bundle_quote_mode = true;
+            strictMemory.bundle_quote_count = modelNames.length;
+            strictMemory.quote_data = {};
+          }
+        } else if (isContinueQuoteWithoutPersonalDataIntent(text)) {
+          strictReply = "Perfecto. Para avanzar sin datos, primero confirma el lote a cotizar (ej.: cotizar 8 o cotizar A,B,C).";
+          strictMemory.awaiting_action = "strict_choose_model";
+        }
+        if (strictBypassAutoQuote) {
+          // bypass strict single-product quote_data parsing and continue with auto quote intake
+        } else {
         const pickBounded = (label: string) => {
           const rx = new RegExp(`${label}\\s*[:=]?\\s*([^\\n,;]+?)(?=\\s+(ciudad|empresa|company|nit|contacto|correo|email|celular|telefono)\\b|$)`, "i");
           const m = String(text || "").match(rx);
@@ -5084,13 +6965,68 @@ export async function POST(req: Request) {
         const phoneNow = extractCustomerPhone(text, inbound.from) || String(firstPhoneLine || "").replace(/\D/g, "");
 
         const prevQuoteData = previousMemory?.quote_data && typeof previousMemory.quote_data === "object" ? previousMemory.quote_data : {};
+        let crmContactFoundForQuote = Boolean(previousMemory?.crm_contact_found || strictMemory.crm_contact_found);
+        let crmNameForQuote = String(previousMemory?.crm_contact_name || strictMemory.crm_contact_name || "").trim();
+        let crmEmailForQuote = String(previousMemory?.crm_contact_email || strictMemory.crm_contact_email || "").trim();
+        let crmPhoneForQuote = String(previousMemory?.crm_contact_phone || strictMemory.crm_contact_phone || "").trim();
+        let crmCompanyForQuote = String(previousMemory?.crm_company || strictMemory.crm_company || "").trim();
+        let crmNitForQuote = String(previousMemory?.crm_nit || strictMemory.crm_nit || "").trim();
+        let crmCityForQuote = normalizeCityLabel(String(previousMemory?.crm_billing_city || strictMemory.crm_billing_city || "").trim());
+        let crmTierForQuote = normalizeText(String(previousMemory?.crm_price_tier || strictMemory.crm_price_tier || "").trim());
+        let crmTypeForQuote = normalizeText(String(previousMemory?.crm_customer_type || strictMemory.crm_customer_type || "").trim());
+
+        if (!crmContactFoundForQuote) {
+          try {
+            const candidatePhone = normalizePhone(phoneNow || inbound.from || "");
+            const candidateNit = String(nitNow || "").replace(/[^0-9\-]/g, "").trim();
+            const candidateEmail = String(emailNow || "").trim().toLowerCase();
+            const candidateKeys = [
+              candidatePhone,
+              candidateNit ? `nit:${candidateNit}` : "",
+              candidateEmail ? `email:${candidateEmail}` : "",
+            ].filter(Boolean);
+            if (candidateKeys.length) {
+              const { data: crmMatch } = await supabase
+                .from("agent_crm_contacts")
+                .select("id,name,email,phone,company,metadata")
+                .eq("created_by", ownerId)
+                .in("contact_key", candidateKeys)
+                .order("updated_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (crmMatch && typeof crmMatch === "object") {
+                const m = (crmMatch as any)?.metadata && typeof (crmMatch as any).metadata === "object" ? (crmMatch as any).metadata : {};
+                crmContactFoundForQuote = true;
+                crmNameForQuote = String((crmMatch as any)?.name || "").trim();
+                crmEmailForQuote = String((crmMatch as any)?.email || "").trim();
+                crmPhoneForQuote = String((crmMatch as any)?.phone || "").trim();
+                crmCompanyForQuote = String((crmMatch as any)?.company || "").trim();
+                crmNitForQuote = String(m?.nit || "").trim();
+                crmCityForQuote = normalizeCityLabel(String(m?.billing_city || "").trim());
+                crmTierForQuote = normalizeText(String(m?.price_tier || "").trim());
+                crmTypeForQuote = normalizeText(String(m?.customer_type || "").trim());
+                strictMemory.crm_contact_found = true;
+                strictMemory.crm_contact_id = String((crmMatch as any)?.id || "").trim();
+                strictMemory.crm_contact_name = crmNameForQuote;
+                strictMemory.crm_contact_email = crmEmailForQuote;
+                strictMemory.crm_contact_phone = crmPhoneForQuote;
+                strictMemory.crm_company = crmCompanyForQuote;
+                strictMemory.crm_nit = crmNitForQuote;
+                strictMemory.crm_billing_city = crmCityForQuote;
+                strictMemory.crm_price_tier = crmTierForQuote;
+                strictMemory.crm_customer_type = crmTypeForQuote;
+              }
+            }
+          } catch {}
+        }
+
         const quoteData = {
-          city: cityNow || String(prevQuoteData.city || ""),
-          company: companyNow || String(prevQuoteData.company || ""),
-          nit: nitNow || String(prevQuoteData.nit || ""),
-          contact: contactNow || String(prevQuoteData.contact || ""),
-          email: emailNow || String(prevQuoteData.email || ""),
-          phone: phoneNow || String(prevQuoteData.phone || ""),
+          city: cityNow || String(prevQuoteData.city || "") || crmCityForQuote,
+          company: companyNow || String(prevQuoteData.company || "") || crmCompanyForQuote,
+          nit: nitNow || String(prevQuoteData.nit || "") || crmNitForQuote,
+          contact: contactNow || String(prevQuoteData.contact || "") || crmNameForQuote,
+          email: emailNow || String(prevQuoteData.email || "") || crmEmailForQuote,
+          phone: phoneNow || String(prevQuoteData.phone || "") || crmPhoneForQuote,
         };
         strictMemory.quote_data = quoteData;
 
@@ -5100,6 +7036,65 @@ export async function POST(req: Request) {
         const customerContact = String(quoteData.contact || "").trim();
         const customerEmail = String(quoteData.email || "").trim();
         const customerPhone = String(quoteData.phone || "").trim();
+        const companyNorm = normalizeText(customerCompany);
+        const applicantNorm = normalizeText(String(text || ""));
+        const isNaturalPerson =
+          !customerCompany ||
+          /persona\s+natural/.test(companyNorm) ||
+          /persona\s+natural/.test(applicantNorm);
+        const hasAnyQuoteData = Boolean(customerCity || customerCompany || customerNit || customerContact || customerEmail || customerPhone);
+        const hasContactCore = customerContact.length >= 3;
+        const hasCityCore = customerCity.length >= 3;
+        const hasIdentityCore = customerNit.length >= 5;
+        const hasReachability = customerEmail.includes("@") || customerPhone.replace(/\D/g, "").length >= 7;
+        const hasBusinessCore = customerCompany.length >= 3;
+        const hasBusinessOrReachability = isNaturalPerson
+          ? (hasIdentityCore && hasReachability)
+          : (hasBusinessCore && hasIdentityCore && hasReachability);
+        const missingAttemptsPrev = Number(previousMemory?.strict_quote_data_missing_attempts || strictMemory.strict_quote_data_missing_attempts || 0);
+        const isDistributorCustomer = crmTierForQuote === "distribuidor" || crmTypeForQuote === "distributor";
+        const isExistingCustomer = !isDistributorCustomer && crmContactFoundForQuote && Boolean(recognizedReturningCustomer);
+        const customerSegment = isDistributorCustomer ? "distributor" : (isExistingCustomer ? "existing" : "new");
+        strictMemory.customer_segment = customerSegment;
+
+        if (!crmContactFoundForQuote && isAdvanceInQuoteData) {
+          const missingAttempts = missingAttemptsPrev + 1;
+          strictMemory.strict_quote_data_missing_attempts = missingAttempts;
+          strictMemory.awaiting_action = "strict_quote_data";
+          if (missingAttempts >= 3) {
+            strictMemory.awaiting_action = "none";
+            strictMemory.conversation_status = "closed";
+            strictMemory.last_intent = "quote_rejected_missing_data";
+            strictReply = "No puedo generar cotización sin datos obligatorios. Cierro esta solicitud por seguridad. Si deseas retomarla, escribe: cotización y comparte ciudad, empresa, NIT, contacto, correo y celular.";
+          } else {
+            strictReply = "Para cliente nuevo sí necesito datos de facturación antes de cotizar: ciudad, empresa, NIT, contacto, correo y celular.";
+          }
+        } else if (!isAdvanceInQuoteData && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachability)) {
+          const missingAttempts = missingAttemptsPrev + 1;
+          strictMemory.strict_quote_data_missing_attempts = missingAttempts;
+          const missing: string[] = [];
+          if (!hasContactCore) missing.push("contacto");
+          if (!hasCityCore) missing.push("ciudad");
+          if (isNaturalPerson) {
+            if (!hasIdentityCore) missing.push("cédula o NIT");
+            if (!hasReachability) missing.push("correo o celular");
+          } else {
+            if (!hasBusinessCore) missing.push("empresa");
+            if (!hasIdentityCore) missing.push("NIT");
+            if (!hasReachability) missing.push("correo o celular");
+          }
+          if (!crmContactFoundForQuote && missingAttempts >= 3) {
+            strictMemory.awaiting_action = "none";
+            strictMemory.conversation_status = "closed";
+            strictMemory.last_intent = "quote_rejected_missing_data";
+            strictReply = "No puedo generar cotización sin datos obligatorios. Cierro esta solicitud por seguridad. Si deseas retomarla, escribe: cotización y comparte ciudad, empresa, NIT, contacto, correo y celular.";
+          } else {
+            strictMemory.awaiting_action = "strict_quote_data";
+            strictReply = `Perfecto, ya registré parte de tus datos. Para continuar me falta: ${missing.join(", ")}. Puedes enviarlo en un solo mensaje o escribir exactamente: avanza.`;
+          }
+        }
+        if (!String(strictReply || "").trim()) {
+        strictMemory.strict_quote_data_missing_attempts = 0;
         {
           const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || strictMemory.last_selected_product_id || strictMemory.last_product_id || "").trim();
           const selectedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
@@ -5124,7 +7119,19 @@ export async function POST(req: Request) {
             const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
             const cityCop = Number(cityPrices?.[cityKey] || 0);
             const bogotaCop = Number(cityPrices?.bogota || 0);
-            const unitPriceCop = cityCop > 0 ? cityCop : bogotaCop;
+            const distributorCop = Number(cityPrices?.distribuidor || 0);
+            const useDistributorPrice = crmTierForQuote === "distribuidor" || crmTypeForQuote === "distributor";
+            const existingCop = Number(cityPrices?.cliente_antiguo || cityPrices?.cliente_recurrente || cityPrices?.recurrente || cityPrices?.existing || 0);
+            const newCop = Number(cityPrices?.cliente_nuevo || cityPrices?.new || 0);
+            const useExistingPrice = customerSegment === "existing" && existingCop > 0;
+            const useNewPrice = customerSegment === "new" && newCop > 0;
+            const unitPriceCop = useDistributorPrice && distributorCop > 0
+              ? distributorCop
+              : useExistingPrice
+                ? existingCop
+                : useNewPrice
+                  ? newCop
+                  : (cityCop > 0 ? cityCop : bogotaCop);
             const baseUsdRaw = Number((selected as any)?.base_price_usd || 0);
             const basePriceUsd = baseUsdRaw > 0
               ? baseUsdRaw
@@ -5222,22 +7229,150 @@ export async function POST(req: Request) {
             strictMemory.last_intent = "quote_generated";
             strictMemory.conversation_status = "open";
             strictMemory.quote_feedback_due_at = isoAfterHours(24);
+            }
           }
+        }
+        }
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model") {
         const familyLabel = String(previousMemory?.strict_family_label || "").trim();
-        const askMore = /\b(mas|más|siguiente|siguientes|resto|todas|todos|retomar|reanudar|continuar)\b/.test(textNorm);
-        const askCount = /\b(cuantas|cuantos|total|tienen\s+\d+|\d+)\b/.test(textNorm) && !asksQuoteIntent(text);
+        const pendingStrictOptions = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+        const strictSelection = resolvePendingProductOptionStrict(text, pendingStrictOptions);
+        const strictCommand = String(text || "").trim();
+        const askMore = /^(mas|más)$/i.test(strictCommand);
+        const askBack = /^volver$/i.test(strictCommand);
+        const askCancel = /^cancelar$/i.test(strictCommand);
         const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+        const asksMoreOptionsDirect = /\b(tienes?\s+mas\s+opciones?|hay\s+mas\s+opciones?|mas\s+opciones?)\b/.test(textNorm);
+        const asksHotplate = /\b(plancha|calentamiento|agitaci[oó]n|agitacion)\b/.test(textNorm);
+        const freeCatalogAskInModelStep =
+          asksMoreOptionsDirect ||
+          isCatalogBreadthQuestion(text) ||
+          /(que\s+mas|que\s+otros?|que\s+tienes|que\s+manejas|que\s+ofrec|catalogo|otro\s+tipo|otra\s+categoria|otra\s+categoría|opciones)/.test(normalizeText(text));
+        const requestedCategoryIntentInModelStep = detectCatalogCategoryIntent(text);
+        const currentCategoryIntentInModelStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
+        const isCategorySwitchInModelStep = Boolean(
+          requestedCategoryIntentInModelStep &&
+          normalizeText(String(requestedCategoryIntentInModelStep || "")) !== currentCategoryIntentInModelStep
+        );
+        const technicalBypassInSelection = Boolean(
+          parseTechnicalSpecQuery(text) ||
+          parseCapacityRangeHint(text) ||
+          parseLooseTechnicalHint(text) ||
+          isUseCaseApplicabilityIntent(text) ||
+          isUseCaseFamilyHint(text) ||
+          isRecommendationIntent(text)
+        );
+        if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel && !technicalBypassInSelection && !isCategorySwitchInModelStep && !freeCatalogAskInModelStep && !asksHotplate) {
+          const softReply = await buildStrictConversationalReply({
+            apiKey,
+            inboundText: text,
+            awaiting,
+            selectedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
+            categoryHint: rememberedCategory,
+            pendingOptions: pendingStrictOptions,
+          });
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictMemory.pending_product_options = pendingStrictOptions;
+          strictMemory.strict_model_offset = Math.max(0, Number(previousMemory?.strict_model_offset || 0));
+          strictReply = String(softReply || "").trim() || "Por favor elige una opción válida del listado actual. Responde solo con la letra o número disponible (por ejemplo: A, B, 1 o 2), o escribe \"más\" para ver más opciones.";
+        }
+        if (!String(strictReply || "").trim() && isCategorySwitchInModelStep) {
+          const scoped = scopeCatalogRows(ownerRows as any, String(requestedCategoryIntentInModelStep || ""));
+          const families = buildNumberedFamilyOptions(scoped as any[], 8);
+          strictMemory.last_category_intent = String(requestedCategoryIntentInModelStep || "");
+          strictMemory.pending_product_options = [];
+          strictMemory.pending_family_options = families;
+          strictMemory.strict_filter_capacity_g = "";
+          strictMemory.strict_filter_readability_g = "";
+          strictMemory.strict_partial_capacity_g = "";
+          strictMemory.strict_partial_readability_g = "";
+          if (!families.length) {
+            strictMemory.awaiting_action = "none";
+            strictReply = `Entiendo el cambio. Ahora mismo no tengo referencias activas para ${String(requestedCategoryIntentInModelStep || "esa categoría").replace(/_/g, " ")}. Si quieres, te ayudo con balanzas y básculas disponibles.`;
+          } else {
+            strictMemory.awaiting_action = "strict_choose_family";
+            strictReply = [
+              `Perfecto, cambio la búsqueda a ${String(requestedCategoryIntentInModelStep || "catalogo").replace(/_/g, " ")}.`,
+              "Primero elige familia:",
+              ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
+              "",
+              "Responde con letra o número (A/1).",
+            ].join("\n");
+          }
+        }
+        if (!String(strictReply || "").trim() && asksHotplate && !isCategorySwitchInModelStep) {
+          const labRows = scopeCatalogRows(ownerRows as any, "equipos_laboratorio");
+          if (!labRows.length) {
+            strictReply = "En base de datos no tengo planchas de calentamiento/agitación activas en este momento. Solo puedo ofrecer referencias activas del catálogo cargado (balanzas y analizador de humedad).";
+            strictMemory.awaiting_action = "strict_choose_family";
+          }
+        }
+        if (!String(strictReply || "").trim() && freeCatalogAskInModelStep && !isCategorySwitchInModelStep) {
+          const asksMoreCapacityInModelStep = /(mas\s+capacidad|m[aá]s\s+capacidad|mayor\s+capacidad|de\s+mas\s+capacidad|de\s+m[aá]s\s+capacidad|mas\s+peso|m[aá]s\s+peso)/.test(textNorm);
+          if (!categoryScoped.length) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = "En base de datos no tengo más referencias activas en este grupo por ahora. Si quieres, dime capacidad y resolución y te busco alternativas exactas.";
+          } else if (asksMoreCapacityInModelStep) {
+            const byCapacity = [...categoryScoped]
+              .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
+              .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
+            const options = buildNumberedProductOptions((byCapacity.length ? byCapacity : categoryScoped) as any[], 8);
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.strict_model_offset = 0;
+            strictReply = options.length
+              ? [
+                  "Sí, claro. Te comparto opciones de mayor capacidad que tengo activas en base de datos:",
+                  ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Si quieres, después de elegir una te ayudo a validar la resolución ideal para tu uso.",
+                  "Puedes responder con letra o número (A/1).",
+                ].join("\n")
+              : "Ahora mismo no veo opciones de mayor capacidad activas en esta categoría. Si quieres, te propongo alternativas por disponibilidad.";
+          } else {
+            const options = buildNumberedProductOptions(categoryScoped as any[], 60);
+            const page = options.slice(0, 8);
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.pending_family_options = [];
+            strictMemory.pending_product_options = page;
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              `Claro. En base de datos tengo ${categoryScoped.length} referencia(s) activas para esta categoría.`,
+              "Te guío con opciones directas para no frenarte:",
+              ...page.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Si prefieres, también te puedo filtrar por mayor capacidad o mejor precisión.",
+              "Responde con letra o número (A/1).",
+            ].join("\n");
+          }
+        }
+        const askCount = /\b(cuantas|cuantos|total|tienen\s+\d+|\d+)\b/.test(textNorm) && !asksQuoteIntent(text);
         const familyRows = familyLabel
           ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
           : categoryScoped;
 
-        const bundleQuoteAsk = asksQuoteIntent(text) && /\b(las|los|todas|todos|opciones|referencias)\b/.test(textNorm);
-        if (bundleQuoteAsk) {
-          const pendingOptions = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
-          const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5 };
-          const numMatch = textNorm.match(/\b(?:las|los)\s*(\d{1,2}|dos|tres|cuatro|cinco)\b/);
+        const bundleQuoteAsk =
+          asksQuoteIntent(text) &&
+          (
+            /\b(las|los|todas|todos|opciones|referencias)\b/.test(textNorm) ||
+            /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(textNorm)
+          );
+        if (!String(strictReply || "").trim() && bundleQuoteAsk) {
+          const pendingOptions =
+            (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
+              .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+              .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [])
+              .filter((o: any, idx: number, arr: any[]) => {
+                const key = String(o?.raw_name || o?.name || "").trim();
+                if (!key) return false;
+                return arr.findIndex((x: any) => String(x?.raw_name || x?.name || "").trim() === key) === idx;
+              });
+          const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+          const numMatch =
+            textNorm.match(/\b(?:las|los)\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/) ||
+            textNorm.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/);
           const rawNum = String(numMatch?.[1] || "").trim();
           const selectedCount = /\b(todas|todos)\b/.test(textNorm)
             ? pendingOptions.length
@@ -5246,10 +7381,19 @@ export async function POST(req: Request) {
           if (chosen.length >= 2) {
             const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
             strictBypassAutoQuote = true;
-            inbound.text = `cotizar ${modelNames.join(" ; ")}`;
-            strictMemory.awaiting_action = "none";
+            inbound.text = `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`;
             strictMemory.pending_product_options = chosen;
+            strictMemory.last_recommended_options = chosen;
+            strictMemory.quote_bundle_options_current = chosen;
+            strictMemory.quote_bundle_options = chosen;
+            strictMemory.quote_quantity = 1;
+            strictMemory.awaiting_action = "none";
             strictMemory.last_intent = "quote_bundle_request";
+            strictMemory.bundle_quote_mode = true;
+            strictMemory.bundle_quote_count = chosen.length;
+            strictMemory.last_selected_product_name = "";
+            strictMemory.last_selected_product_id = "";
+            strictMemory.last_selection_at = "";
           }
         }
         const looseSpecHint = preParsedSpec
@@ -5258,12 +7402,25 @@ export async function POST(req: Request) {
               readabilityG: Number((preParsedSpec as any)?.readabilityG || 0),
             }
           : parseLooseTechnicalHint(text);
+        const rangeHint = parseCapacityRangeHint(text);
 
         if (looseSpecHint && (looseSpecHint.capacityG || looseSpecHint.readabilityG)) {
+          const rememberedCap = Number(
+            previousMemory?.strict_partial_capacity_g ||
+            previousMemory?.strict_filter_capacity_g ||
+            strictMemory?.strict_filter_capacity_g ||
+            0
+          );
+          const rememberedRead = Number(
+            previousMemory?.strict_partial_readability_g ||
+            previousMemory?.strict_filter_readability_g ||
+            strictMemory?.strict_filter_readability_g ||
+            0
+          );
           const merged = mergeLooseSpecWithMemory(
             {
-              capacityG: Number(previousMemory?.strict_partial_capacity_g || 0),
-              readabilityG: Number(previousMemory?.strict_partial_readability_g || 0),
+              capacityG: rememberedCap,
+              readabilityG: rememberedRead,
             },
             looseSpecHint
           );
@@ -5273,11 +7430,46 @@ export async function POST(req: Request) {
           strictMemory.strict_partial_readability_g = effectiveRead > 0 ? effectiveRead : "";
 
           if (effectiveRead > 0 && !(effectiveCap > 0)) {
-            strictReply = [
-              `Perfecto, ya tengo la precisión (${formatSpecNumber(effectiveRead)} g).`,
-              "Para recomendarte mejor en esta familia, dime capacidad aproximada.",
-              "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
-            ].join("\n");
+            const tNormNeed = normalizeText(String(text || ""));
+            const hasReadabilityConstraint = /(menos\s+de|menor\s+que|hasta|maximo|maximo\s+de|no\s+mas\s+de|no\s+m[aá]s\s+de)/.test(tNormNeed);
+            const asksRecommendationNow = /(cual|cu[aá]l|recomiend|seria\s+buena|ser[ií]a\s+buena|me\s+sirve)/.test(tNormNeed);
+            if (hasReadabilityConstraint || asksRecommendationNow) {
+              const byFamily = (familyRows as any[]).filter((r: any) => {
+                const rs = extractRowTechnicalSpec(r);
+                const rr = Number(rs.readabilityG || 0);
+                return rr > 0 && rr <= effectiveRead;
+              });
+              const byCategory = (categoryScoped as any[]).filter((r: any) => {
+                const rs = extractRowTechnicalSpec(r);
+                const rr = Number(rs.readabilityG || 0);
+                return rr > 0 && rr <= effectiveRead;
+              });
+              const pool = byFamily.length ? byFamily : byCategory;
+              const rankedRead = rankCatalogByReadabilityOnly(pool as any[], effectiveRead);
+              const rankedRows = rankedRead.length ? rankedRead.map((x: any) => x.row) : pool;
+              const options = buildNumberedProductOptions((rankedRows || []).slice(0, 8) as any[], 8);
+              if (options.length) {
+                strictMemory.pending_product_options = options;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                strictMemory.strict_filter_readability_g = effectiveRead;
+                strictReply = [
+                  `Perfecto. Para precisión menor o igual a ${formatSpecNumber(effectiveRead)} g, estas son las mejores opciones disponibles:`,
+                  ...options.map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Elige con letra o número (A/1). Si quieres, luego afinamos por capacidad.",
+                ].join("\n");
+              } else {
+                strictReply = `Entiendo. Para precisión <= ${formatSpecNumber(effectiveRead)} g no veo opciones activas en esta categoría. Si quieres, te propongo alternativas cercanas.`;
+              }
+            } else {
+              strictReply = [
+                `Perfecto, ya tengo la precisión (${formatSpecNumber(effectiveRead)} g).`,
+                "Para recomendarte mejor en esta familia, dime capacidad aproximada.",
+                "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
+              ].join("\n");
+            }
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
@@ -5314,6 +7506,29 @@ export async function POST(req: Request) {
               strictReply = "Gracias por el dato. En el catálogo actual no veo una coincidencia clara con esa característica en esta familia. Si quieres, te ayudo a buscarla por capacidad y resolución exacta (ej.: 4200 g x 0.01 g) para recomendarte la opción más segura.";
             } else {
               const criterionLabel = `${formatSpecNumber(effectiveCap)} g x ${formatSpecNumber(effectiveRead)} g`;
+              const bestRow = (prioritized.orderedRows.length ? prioritized.orderedRows[0] : null) as any;
+              const bestSpec = bestRow ? extractRowTechnicalSpec(bestRow) : { capacityG: 0, readabilityG: 0 };
+              const bestCap = Number(bestSpec?.capacityG || 0);
+              const bestRead = Number(bestSpec?.readabilityG || 0);
+              const capDeltaPct = bestCap > 0 ? (Math.abs(bestCap - effectiveCap) / Math.max(1, effectiveCap)) * 100 : 9999;
+              const readRatio = (bestRead > 0 && effectiveRead > 0) ? (Math.max(bestRead, effectiveRead) / Math.max(1e-9, Math.min(bestRead, effectiveRead))) : 9999;
+              const tooFar = prioritized.exactCount === 0 && (capDeltaPct > 500 || readRatio > 20);
+              if (tooFar) {
+                const familyAlternatives = buildNumberedFamilyOptions(categoryScoped as any[], 8)
+                  .filter((f) => normalizeText(String(f.label || "")) !== normalizeText(String(familyLabel || "")));
+                strictMemory.pending_product_options = [];
+                strictMemory.pending_family_options = familyAlternatives;
+                strictMemory.awaiting_action = familyAlternatives.length ? "strict_choose_family" : "strict_need_spec";
+                strictReply = familyAlternatives.length
+                  ? [
+                      `Para ${criterionLabel} no tengo opciones realmente compatibles en ${familyLabel || "esta familia"}.`,
+                      "Sí puedo proponerte alternativas en otras familias:",
+                      ...familyAlternatives.map((f) => `${f.code}) ${f.label} (${f.count})`),
+                      "",
+                      "Elige una con letra o número (A/1), o ajustamos capacidad/resolución.",
+                    ].join("\n")
+                  : `Para ${criterionLabel} no tengo opciones realmente compatibles en el catálogo activo de ${familyLabel || "esta familia"}. Si quieres, ajustamos capacidad/resolución.`;
+              } else {
               const top = filteredPage.slice(0, 3);
               const exactIntro = prioritized.exactCount > 0
                 ? `¡Excelente! Para ${criterionLabel} sí tenemos coincidencia en catálogo${switchedFromFamily ? " (en otra familia más adecuada)" : (familyLabel ? ` de ${familyLabel}` : "")}.`
@@ -5327,7 +7542,28 @@ export async function POST(req: Request) {
                   ? "Si quieres, escribe 'más' y te muestro otras alternativas. También puedes elegir A/1 para continuar."
                   : "Si quieres, te explico cuál conviene más según tu uso (laboratorio, joyería o industrial). También puedes elegir A/1.",
               ].join("\n");
+              }
             }
+          }
+        }
+
+        if (!String(strictReply || "").trim() && rangeHint) {
+          const rangedOptionsAll = buildNumberedProductOptions(filterRowsByCapacityRange(familyRows as any[], rangeHint), 60);
+          const rangedPage = rangedOptionsAll.slice(0, 8);
+          if (rangedPage.length) {
+            strictMemory.pending_product_options = rangedPage;
+            strictMemory.strict_model_offset = 0;
+            strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
+            strictReply = [
+              `Perfecto. Te filtro por capacidad entre ${formatSpecNumber(rangeHint.minG)} g y ${Number.isFinite(rangeHint.maxG) ? `${formatSpecNumber(rangeHint.maxG)} g` : "más"}.`,
+              ...rangedPage.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+              "",
+              (rangedOptionsAll.length > rangedPage.length)
+                ? "Responde con letra o número (A/1), o escribe 'más' para ver siguientes."
+                : "Responde con letra o número (A/1), o dime la resolución objetivo para afinar más.",
+            ].join("\n");
+          } else {
+            strictReply = "No encontré modelos activos para ese rango de capacidad en esta familia. Si quieres, te muestro alternativas de otra familia.";
           }
         }
 
@@ -5350,11 +7586,15 @@ export async function POST(req: Request) {
                 : (pos === 2 ? "alternativa para comparar costo/beneficio" : "alternativa para mayor capacidad/robustez");
               return `${o.code}) ${o.name} - ${hint}`;
             });
+            const rememberedUseCase = String(previousMemory?.strict_use_case || strictMemory?.strict_use_case || "").trim();
+            const hasUseCaseContext = /(para\s+pesar|tornillo|tornillos|tuerca|tuercas|perno|pernos|muestra|muestras|laboratorio|joyeria|joyería|industrial)/.test(normalizeText(`${rememberedUseCase} ${text}`));
             strictReply = [
               "¡Claro! Te recomiendo estas opciones para empezar, sin complicarte:",
               ...lines,
               "",
-              "Si me dices el uso (ej.: laboratorio, joyería o industrial), te digo cuál elegir primero.",
+              hasUseCaseContext
+                ? "Con ese uso, para afinarte una recomendación final dime el rango de peso por unidad o capacidad aproximada."
+                : "Si me dices el uso (ej.: laboratorio, joyería o industrial), te digo cuál elegir primero.",
               "También puedes responder con letra o número (A/1) y te envío ficha o cotización.",
             ].join("\n");
           }
@@ -5419,9 +7659,83 @@ export async function POST(req: Request) {
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_family") {
         const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
+        const asksCategoryMenuInFamilyStep = /(categorias|categorías|que\s+categorias|que\s+categorías|familias|que\s+familias|grupos)/.test(textNorm);
+        const categoryIntentInFamilyStep = detectCatalogCategoryIntent(text);
+        const currentCategoryInFamilyStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
+        const isCategorySwitchInFamilyStep = Boolean(
+          categoryIntentInFamilyStep && normalizeText(String(categoryIntentInFamilyStep || "")) !== currentCategoryInFamilyStep
+        );
         if (!pendingFamilies.length) {
           strictMemory.awaiting_action = "none";
           strictReply = "En este momento no tengo familias disponibles en esa categoría. Si quieres, dime el modelo exacto (ej.: MB120) y te ayudo.";
+        }
+
+        if (!String(strictReply || "").trim() && asksCategoryMenuInFamilyStep) {
+          const families = pendingFamilies.length ? pendingFamilies : buildNumberedFamilyOptions(ownerRows as any[], 8);
+          strictMemory.pending_family_options = families;
+          strictMemory.pending_product_options = [];
+          strictMemory.awaiting_action = "strict_choose_family";
+          strictReply = families.length
+            ? [
+                "Claro. Estas son las familias/categorías activas:",
+                ...families.map((f: any) => `${f.code}) ${f.label} (${f.count})`),
+                "",
+                "Elige una con letra o número (A/1).",
+              ].join("\n")
+            : "En este momento no tengo familias activas para mostrar en catálogo.";
+        }
+
+        if (!String(strictReply || "").trim() && isCategorySwitchInFamilyStep) {
+          const scoped = scopeCatalogRows(ownerRows as any, String(categoryIntentInFamilyStep || ""));
+          const families = buildNumberedFamilyOptions(scoped as any[], 8);
+          strictMemory.last_category_intent = String(categoryIntentInFamilyStep || "");
+          strictMemory.pending_product_options = [];
+          strictMemory.pending_family_options = families;
+          strictMemory.awaiting_action = "strict_choose_family";
+          strictReply = families.length
+            ? [
+              `Perfecto, cambio la búsqueda a ${String(categoryIntentInFamilyStep || "catálogo").replace(/_/g, " ")}.`,
+              "Elige familia:",
+              ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
+              "",
+              "Responde con letra o número (A/1).",
+            ].join("\n")
+            : `En base de datos no tengo referencias activas para ${String(categoryIntentInFamilyStep || "esa categoría").replace(/_/g, " ")} en este momento.`;
+        }
+
+        if (!String(strictReply || "").trim() && preParsedSpec) {
+          const cap = Number((preParsedSpec as any)?.capacityG || 0);
+          const read = Number((preParsedSpec as any)?.readabilityG || 0);
+          if (cap > 0 && read > 0) {
+            strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
+            strictMemory.strict_filter_capacity_g = cap;
+            strictMemory.strict_filter_readability_g = read;
+            const exactRows = getExactTechnicalMatches(ownerRows as any[], { capacityG: cap, readabilityG: read });
+            const prioritized = prioritizeTechnicalRows(ownerRows as any[], { capacityG: cap, readabilityG: read });
+            const sourceRows = exactRows.length ? exactRows : (prioritized.orderedRows.length ? prioritized.orderedRows : ownerRows);
+            const allOptions = buildNumberedProductOptions(sourceRows as any[], 60);
+            const options = allOptions.slice(0, 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictMemory.strict_family_label = "";
+              strictReply = [
+                exactRows.length
+                  ? `Sí, para ${strictMemory.strict_spec_query} tengo coincidencias exactas.`
+                  : `Para ${strictMemory.strict_spec_query} no veo coincidencia exacta, pero sí opciones cercanas:`,
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                (allOptions.length > options.length)
+                  ? "Responde con letra o número (A/1), o escribe 'más' para ver siguientes."
+                  : "Responde con letra o número (A/1).",
+              ].join("\n");
+            } else {
+              strictMemory.awaiting_action = "strict_need_spec";
+              strictReply = "No encontré coincidencias para esa capacidad/resolución en el catálogo activo. Si quieres, te muestro alternativas cercanas.";
+            }
+          }
         }
 
         const looseSpecHintInFamilyStep = parseLooseTechnicalHint(text);
@@ -5495,28 +7809,155 @@ export async function POST(req: Request) {
           ((isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text) || isUseCaseFamilyHint(text))
             ? inferFamilyFromUseCase(text, pendingFamilies)
             : null);
+        const followupIntentInFamilyStep = detectAlternativeFollowupIntent(text);
+        const conversationalReformulationInFamilyStep = Boolean(
+          /(no\s+me\s+sirve|otra\s+opcion|otra\s+opción|me\s+puedes\s+ofrecer|que\s+me\s+recomiendas|qué\s+me\s+recomiendas)/.test(textNorm) ||
+          followupIntentInFamilyStep
+        );
+        let handledTechnicalGuidedInFamilyStep = false;
+        if (!String(strictReply || "").trim() && !selectedFamily && conversationalReformulationInFamilyStep) {
+          const quick = buildNumberedProductOptions(baseScoped as any[], 60).slice(0, 3);
+          if (quick.length) {
+            strictMemory.pending_product_options = quick;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictMemory.strict_family_label = String(familyLabelFromRow((baseScoped as any[])[0] || "") || "");
+            strictReply = [
+              "Claro. Para no perder el hilo, te propongo estas opciones reales del catálogo y luego afinamos según capacidad/resolución:",
+              ...quick.map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Si prefieres, dime capacidad y resolución objetivo (ej.: 200 g x 0.001 g).",
+            ].join("\n");
+          }
+        }
         if (!String(strictReply || "").trim() && !selectedFamily) {
-          strictReply = buildGuidedRecoveryMessage({
+          const looseHintWithoutFamily = parseLooseTechnicalHint(text);
+          const hintedCap = Number(looseHintWithoutFamily?.capacityG || 0);
+          const hintedRead = Number(looseHintWithoutFamily?.readabilityG || 0);
+          if (hintedCap > 0 || hintedRead > 0) {
+            handledTechnicalGuidedInFamilyStep = true;
+            let recommendedRows = baseScoped as any[];
+            if (hintedCap > 0 && hintedRead > 0) {
+              const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: hintedCap, readabilityG: hintedRead });
+              if (prioritized.orderedRows.length) recommendedRows = prioritized.orderedRows as any[];
+            } else if (hintedCap > 0) {
+              const rankedCap = rankCatalogByCapacityOnly(baseScoped as any[], hintedCap);
+              if (rankedCap.length) recommendedRows = rankedCap.map((x: any) => x.row);
+            } else if (hintedRead > 0) {
+              const rankedRead = rankCatalogByReadabilityOnly(baseScoped as any[], hintedRead);
+              if (rankedRead.length) recommendedRows = rankedRead.map((x: any) => x.row);
+            }
+
+            const sourceRows = (Array.isArray(recommendedRows) && recommendedRows.length)
+              ? recommendedRows
+              : (ownerRows as any[]);
+            const allOptions = buildNumberedProductOptions(sourceRows as any[], 60);
+            const options = allOptions.slice(0, 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_family_label = "";
+              strictMemory.strict_model_offset = 0;
+              if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
+              if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
+              const criterionLabel = (hintedCap > 0 && hintedRead > 0)
+                ? `${formatSpecNumber(hintedCap)} g x ${formatSpecNumber(hintedRead)} g`
+                : (hintedCap > 0 ? `${formatSpecNumber(hintedCap)} g` : `${formatSpecNumber(hintedRead)} g`);
+              strictReply = [
+                `Perfecto. Para ${criterionLabel}, te muestro opciones cercanas en catálogo:`,
+                ...options.map((o) => `${o.code}) ${o.name}`),
+                "",
+                (allOptions.length > options.length)
+                  ? "Responde con letra o número (A/1), o escribe 'más' para ver siguientes."
+                  : "Responde con letra o número (A/1).",
+              ].join("\n");
+            } else {
+              strictReply = "Entendí tu necesidad técnica, pero no encontré coincidencias activas en este momento. Si quieres, escribe 'volver' para elegir familia o ajusta capacidad/resolución.";
+            }
+          }
+        }
+        if (!String(strictReply || "").trim() && !selectedFamily && !handledTechnicalGuidedInFamilyStep) {
+          const familyHints = pendingFamilies
+            .slice(0, 6)
+            .map((f: any) => ({ code: String(f?.code || ""), name: String(f?.label || "") }))
+            .filter((f: any) => f.code && f.name);
+          const softReply = await buildStrictConversationalReply({
+            apiKey,
+            inboundText: text,
+            awaiting,
+            selectedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
+            categoryHint: rememberedCategory,
+            pendingOptions: familyHints,
+          });
+          strictReply = String(softReply || "").trim() || buildGuidedRecoveryMessage({
             awaiting,
             rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
             hasPendingFamilies: pendingFamilies.length > 0,
+            inboundText: text,
           });
         } else if (!String(strictReply || "").trim() && selectedFamily) {
           const selectedFamilyResolved = selectedFamily as { key?: string; label?: string };
           const familyRows = baseScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamilyResolved.key || "")));
-          const allOptions = buildNumberedProductOptions(familyRows as any[], 60);
+          const hinted = parseLooseTechnicalHint(text);
+          const rangeHint = parseCapacityRangeHint(text);
+          const hintedCap = Number(hinted?.capacityG || 0);
+          const hintedRead = Number(hinted?.readabilityG || 0);
+          const familyMaxCap = familyRows.reduce((mx: number, r: any) => Math.max(mx, Number(getRowCapacityG(r) || 0)), 0);
+          const capacityOutOfFamilyRange = hintedCap > 0 && familyMaxCap > 0 && familyMaxCap < (hintedCap * 0.7);
+          const baseRowsForRanking = capacityOutOfFamilyRange ? (baseScoped as any[]) : (familyRows as any[]);
+          let recommendedRows = baseRowsForRanking as any[];
+          if (hintedCap > 0 && hintedRead > 0) {
+            const prioritized = prioritizeTechnicalRows(baseRowsForRanking as any[], { capacityG: hintedCap, readabilityG: hintedRead });
+            if (prioritized.orderedRows.length) recommendedRows = prioritized.orderedRows as any[];
+          } else if (hintedCap > 0) {
+            const rankedCap = rankCatalogByCapacityOnly(baseRowsForRanking as any[], hintedCap);
+            if (rankedCap.length) recommendedRows = rankedCap.map((x: any) => x.row);
+          } else if (hintedRead > 0) {
+            const rankedRead = rankCatalogByReadabilityOnly(baseRowsForRanking as any[], hintedRead);
+            if (rankedRead.length) recommendedRows = rankedRead.map((x: any) => x.row);
+          }
+          if (rangeHint) {
+            const ranged = filterRowsByCapacityRange(recommendedRows as any[], rangeHint);
+            if (ranged.length) recommendedRows = ranged;
+          }
+          const appProfile = String(strictMemory.target_application || previousMemory?.target_application || "").trim();
+          const profiledRows = applyApplicationProfile(recommendedRows as any[], {
+            application: appProfile,
+            targetCapacityG: hintedCap || Number(previousMemory?.strict_filter_capacity_g || 0),
+            targetReadabilityG: hintedRead || Number(previousMemory?.strict_filter_readability_g || 0),
+          });
+          const allOptions = buildNumberedProductOptions(profiledRows as any[], 60);
           const options = allOptions.slice(0, 8);
           strictMemory.pending_product_options = options;
           strictMemory.pending_family_options = [];
           strictMemory.awaiting_action = "strict_choose_model";
-          strictMemory.strict_family_label = String(selectedFamilyResolved.label || "");
+          strictMemory.strict_family_label = capacityOutOfFamilyRange ? "" : String(selectedFamilyResolved.label || "");
           strictMemory.strict_model_offset = 0;
+          if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
+          if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
+          const needsReadabilityForQuote = hintedCap > 0 && !(hintedRead > 0);
+          const recommendationIntro = (isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text))
+              ? (capacityOutOfFamilyRange
+                ? `Para ese uso y capacidad (${formatSpecNumber(hintedCap)} g), te muestro ${options.length} opción(es)${allOptions.length > options.length ? ` de ${allOptions.length}` : ""} más cercanas en catálogo:`
+                : `Para ese uso te recomiendo empezar con ${String(selectedFamilyResolved.label || "esa familia")}. Modelos sugeridos (${options.length} mostrados${allOptions.length > options.length ? ` de ${allOptions.length}` : ""}):`)
+            : `Perfecto. Modelos de ${String(selectedFamilyResolved.label || "familia")} (${allOptions.length}):`;
           strictReply = [
-            (isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text))
-              ? `Para ese uso te recomiendo empezar con ${String(selectedFamilyResolved.label || "esa familia")}. Modelos sugeridos (${allOptions.length}):`
-              : `Perfecto. Modelos de ${String(selectedFamilyResolved.label || "familia")} (${allOptions.length}):`,
+            recommendationIntro,
             ...options.map((o) => `${o.code}) ${o.name}`),
             "",
+            ...(options.length >= 3
+              ? [
+                  (options.length >= 4)
+                    ? `Si quieres cotizar varias de una vez, escribe: cotizar 3 o cotizar ${options.length}.`
+                    : "Si quieres cotizar varias de una vez, escribe: cotizar 3.",
+                  "",
+                ]
+              : []),
+            ...(needsReadabilityForQuote
+              ? ["Si quieres cotización exacta, compárteme también la resolución (ej.: 4000 g x 0.01 g).", ""]
+              : []),
             (allOptions.length > options.length)
               ? "Responde con letra o número (ej.: A o 1), o escribe 'más' para ver siguientes."
               : "Responde con letra o número (ej.: A o 1).",
@@ -5538,7 +7979,13 @@ export async function POST(req: Request) {
             capacityG: parsed.capacityG,
             readabilityG: parsed.readabilityG,
           });
-          const rankedRows = ranked.length ? ranked.map((r: any) => r.row) : ownerRows;
+          const rankedRowsRaw = ranked.length ? ranked.map((r: any) => r.row) : ownerRows;
+          const appProfile = String(strictMemory.target_application || previousMemory?.target_application || "").trim();
+          const rankedRows = applyApplicationProfile(rankedRowsRaw as any[], {
+            application: appProfile,
+            targetCapacityG: Number(parsed.capacityG || 0),
+            targetReadabilityG: Number(parsed.readabilityG || 0),
+          });
           const options = buildNumberedProductOptions(rankedRows as any[], 8);
           if (options.length) {
             strictMemory.pending_product_options = options;
@@ -5570,20 +8017,91 @@ export async function POST(req: Request) {
           const inferred = inferFamilyFromUseCase(text, familyOptions);
           if (inferred) {
             const familyRows = scoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String((inferred as any)?.key || "")));
-            const allOptions = buildNumberedProductOptions(familyRows as any[], 60);
+            const hinted = parseLooseTechnicalHint(text);
+            const rangeHint = parseCapacityRangeHint(text);
+            const hintedCap = Number(hinted?.capacityG || 0);
+            const hintedRead = Number(hinted?.readabilityG || 0);
+            const familyMaxCap = familyRows.reduce((mx: number, r: any) => Math.max(mx, Number(getRowCapacityG(r) || 0)), 0);
+            const capacityOutOfFamilyRange = hintedCap > 0 && familyMaxCap > 0 && familyMaxCap < (hintedCap * 0.7);
+            const baseRowsForRanking = capacityOutOfFamilyRange ? (scoped as any[]) : (familyRows as any[]);
+            let recommendedRows = baseRowsForRanking as any[];
+            if (hintedCap > 0 && hintedRead > 0) {
+              const prioritized = prioritizeTechnicalRows(baseRowsForRanking as any[], { capacityG: hintedCap, readabilityG: hintedRead });
+              if (prioritized.orderedRows.length) recommendedRows = prioritized.orderedRows as any[];
+            } else if (hintedCap > 0) {
+              const rankedCap = rankCatalogByCapacityOnly(baseRowsForRanking as any[], hintedCap);
+              if (rankedCap.length) recommendedRows = rankedCap.map((x: any) => x.row);
+            } else if (hintedRead > 0) {
+              const rankedRead = rankCatalogByReadabilityOnly(baseRowsForRanking as any[], hintedRead);
+              if (rankedRead.length) recommendedRows = rankedRead.map((x: any) => x.row);
+            }
+            if (rangeHint) {
+              const ranged = filterRowsByCapacityRange(recommendedRows as any[], rangeHint);
+              if (ranged.length) recommendedRows = ranged;
+            }
+            const appProfile = String(strictMemory.target_application || previousMemory?.target_application || detectTargetApplication(text) || "").trim();
+            const profiledRows = applyApplicationProfile(recommendedRows as any[], {
+              application: appProfile,
+              targetCapacityG: hintedCap || Number(previousMemory?.strict_filter_capacity_g || 0),
+              targetReadabilityG: hintedRead || Number(previousMemory?.strict_filter_readability_g || 0),
+            });
+            const allOptions = buildNumberedProductOptions(profiledRows as any[], 60);
             const options = allOptions.slice(0, 8);
             strictMemory.pending_product_options = options;
             strictMemory.pending_family_options = [];
             strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_family_label = String((inferred as any)?.label || "");
+            strictMemory.strict_family_label = capacityOutOfFamilyRange ? "" : String((inferred as any)?.label || "");
             strictMemory.strict_model_offset = 0;
+            if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
+            if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
             strictReply = [
-              `Para ese uso te recomiendo empezar con ${String((inferred as any)?.label || "esa familia")}. Modelos sugeridos (${allOptions.length}):`,
+              `Para ese uso te recomiendo empezar con ${String((inferred as any)?.label || "esa familia")}. Modelos sugeridos (${options.length} mostrados${allOptions.length > options.length ? ` de ${allOptions.length}` : ""}):`,
               ...options.map((o) => `${o.code}) ${o.name}`),
               "",
+              ...(options.length >= 3
+                ? [
+                    (options.length >= 4)
+                      ? `Si quieres cotizar varias de una vez, escribe: cotizar 3 o cotizar ${options.length}.`
+                      : "Si quieres cotizar varias de una vez, escribe: cotizar 3.",
+                    "",
+                  ]
+                : []),
               (allOptions.length > options.length)
                 ? "Responde con letra o número (ej.: A o 1), o escribe 'más' para ver siguientes."
                 : "Responde con letra o número (ej.: A o 1).",
+            ].join("\n");
+          } else {
+            if (isGuidedNeedDiscoveryText(text)) {
+              const options = buildNumberedProductOptions(scoped as any[], 8).slice(0, 4);
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
+              strictReply = [
+                "Sí, para esa necesidad sí tenemos opciones y te guío para recomendarte bien.",
+                "Para afinar, dime qué peso aproximado manejas y si buscas alta precisión o uso general.",
+                ...(options.length ? ["", "Opciones para empezar:", ...options.map((o) => `${o.code}) ${o.name}`), "", "Si quieres, elige A/1 y te envío ficha o cotización."] : []),
+              ].join("\n");
+            } else {
+              strictMemory.awaiting_action = "strict_choose_family";
+              strictReply = [
+                `Sí, tenemos ${scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
+                "Primero elige la familia:",
+                ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
+                "",
+                "Responde con letra o número (ej.: A o 1).",
+              ].join("\n");
+            }
+          }
+        } else {
+          if (isGuidedNeedDiscoveryText(text)) {
+            const options = buildNumberedProductOptions(scoped as any[], 8).slice(0, 4);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
+            strictReply = [
+              "Sí, para esa necesidad sí tenemos opciones y te guío para recomendarte bien.",
+              "Para afinar, dime qué peso aproximado manejas y si buscas alta precisión o uso general.",
+              ...(options.length ? ["", "Opciones para empezar:", ...options.map((o) => `${o.code}) ${o.name}`), "", "Si quieres, elige A/1 y te envío ficha o cotización."] : []),
             ].join("\n");
           } else {
             strictMemory.awaiting_action = "strict_choose_family";
@@ -5595,15 +8113,6 @@ export async function POST(req: Request) {
               "Responde con letra o número (ej.: A o 1).",
             ].join("\n");
           }
-        } else {
-          strictMemory.awaiting_action = "strict_choose_family";
-          strictReply = [
-            `Sí, tenemos ${scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
-            "Primero elige la familia:",
-            ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
-            "",
-            "Responde con letra o número (ej.: A o 1).",
-          ].join("\n");
         }
       } else if (!String(strictReply || "").trim() && isTechnicalSpecQuery(text) && !selectedProduct) {
         const parsed = parseTechnicalSpecQuery(text);
@@ -5656,17 +8165,82 @@ export async function POST(req: Request) {
             strictReply = "No encontré una coincidencia clara para esa capacidad/resolución. Si quieres, te ayudo a ajustar el criterio.";
           }
         }
-      } else {
+      } else if (!String(strictReply || "").trim()) {
+        const asksOptionsNow = /\b(dame|muestrame|mu[eé]strame|quiero|opciones?|alternativas?)\b/.test(textNorm);
+        const appNow = detectTargetApplication(text);
+        if (asksOptionsNow && appNow) {
+          const capTarget = Number(previousMemory?.strict_filter_capacity_g || previousMemory?.target_capacity_g || 0);
+          const readTarget = Number(previousMemory?.strict_filter_readability_g || previousMemory?.target_readability_g || 0);
+          const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
+          const options = getApplicationRecommendedOptions({
+            rows: categoryScoped as any[],
+            application: appNow,
+            capTargetG: capTarget,
+            targetReadabilityG: readTarget,
+            strictPrecision: /(menos\s+de|maxima\s+precision|maxima\s+precisi[oó]n|alta\s+precision)/.test(textNorm),
+            excludeId: String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || ""),
+          });
+          if (options.length) {
+            strictMemory.target_application = appNow;
+            strictMemory.target_industry = appNow === "joyeria_oro" ? "joyeria" : appNow;
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              `Perfecto. Para ${appNow.replace(/_/g, " ")}, estas son opciones activas:`,
+              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige una con letra/número (A/1), o escribe 'más'.",
+            ].join("\n");
+          }
+        }
+        if (!String(strictReply || "").trim()) {
         strictReply = buildGuidedRecoveryMessage({
           awaiting,
           rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
           hasPendingFamilies: Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0,
           hasPendingModels: Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0,
+          inboundText: text,
         });
+        }
       }
 
       const strictAssetDelivered = strictDocs.length > 0;
       const strictQuoteDelivered = strictDocs.some((d) => /cotiz/i.test(`${String(d.caption || "")} ${String(d.fileName || "")}`));
+      if (
+        preParsedSpec &&
+        /(no te entendi del todo|no pasa nada si hubo un typo|no te preocupes si hubo un error de escritura)/i.test(normalizeText(String(strictReply || "")))
+      ) {
+        const cap = Number((preParsedSpec as any)?.capacityG || 0);
+        const read = Number((preParsedSpec as any)?.readabilityG || 0);
+        if (cap > 0 && read > 0) {
+          strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
+          strictMemory.strict_filter_capacity_g = cap;
+          strictMemory.strict_filter_readability_g = read;
+          const exactRows = getExactTechnicalMatches(ownerRows as any[], { capacityG: cap, readabilityG: read });
+          const prioritized = prioritizeTechnicalRows(ownerRows as any[], { capacityG: cap, readabilityG: read });
+          const sourceRows = exactRows.length ? exactRows : (prioritized.orderedRows.length ? prioritized.orderedRows : ownerRows);
+          const options = buildNumberedProductOptions(sourceRows as any[], 8);
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              exactRows.length
+                ? `Sí, para ${strictMemory.strict_spec_query} tengo coincidencias exactas.`
+                : `Para ${strictMemory.strict_spec_query} no veo coincidencia exacta, pero sí opciones cercanas:`,
+              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Responde con letra o número (A/1), o escribe 'más'.",
+            ].join("\n");
+          } else {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = "No encontré coincidencias para esa capacidad/resolución en el catálogo activo. Si quieres, te muestro alternativas cercanas.";
+          }
+        }
+      }
       if (!String(strictReply || "").trim() && strictAssetDelivered) {
         strictReply = strictQuoteDelivered
           ? "Listo. Te envié la cotización por este WhatsApp."
@@ -5746,10 +8320,14 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ ok: true, sent: true, strict: true });
       }
+
+      // If strict flow rewrote inbound/intents for auto-quote, propagate updated strict memory
+      // so downstream router does not read stale previousMemory state.
+      Object.assign(nextMemory, strictMemory);
     }
 
-    const awaitingAction = String(previousMemory?.awaiting_action || "");
-    const originalInboundText = String(inbound.text || "").trim();
+    let awaitingAction = String(nextMemory?.awaiting_action || previousMemory?.awaiting_action || "");
+    const originalInboundText = String(inboundTextAtEntry || inbound.text || "").trim();
     const explicitModelGlobal = hasConcreteProductHint(originalInboundText) && !isOptionOnlyReply(originalInboundText);
     if (explicitModelGlobal) {
       nextMemory.awaiting_action = "none";
@@ -5962,23 +8540,75 @@ export async function POST(req: Request) {
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
-    if (!handledByGreeting && awaitingAction === "conversation_followup" && !isConversationCloseIntent(inbound.text)) {
+    if (!handledByGreeting && awaitingAction === "followup_quote_disambiguation") {
+      const choice = parseAnotherQuoteChoice(originalInboundText);
       const rememberedProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
-      if (rememberedProduct) {
+      if (!choice) {
+        reply = buildAnotherQuotePrompt();
+        nextMemory.awaiting_action = "followup_quote_disambiguation";
+        nextMemory.last_intent = "followup_quote_disambiguation";
+      } else if (choice === "advisor") {
+        reply = buildAdvisorMiniAgendaPrompt();
+        nextMemory.awaiting_action = "advisor_meeting_slot";
+      } else if (choice === "same_model" && rememberedProduct) {
+        inbound.text = `cotizar ${rememberedProduct}`.trim();
+        nextMemory.awaiting_action = "quote_product_selection";
+      } else if (choice === "same_model") {
+        reply = "Perfecto. Dime el modelo exacto que quieres recotizar y te ayudo enseguida.";
+        nextMemory.awaiting_action = "strict_need_spec";
+      } else if (choice === "other_model") {
+        reply = "Perfecto. Para cotizar otro modelo, dime capacidad y resolución objetivo (ej.: 200 g x 0.001 g).";
+        nextMemory.awaiting_action = "strict_need_spec";
+      } else {
+        reply = "Perfecto. Para opciones más económicas, dime capacidad/resolución objetivo o el uso y te propongo alternativas.";
+        nextMemory.awaiting_action = "strict_need_spec";
+      }
+      handledByGreeting = true;
+      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+    }
+    if (!handledByGreeting && awaitingAction === "conversation_followup" && !isConversationCloseIntent(inbound.text)) {
+      if (isAnotherQuoteAmbiguousIntent(originalInboundText)) {
+        reply = buildAnotherQuotePrompt();
+        nextMemory.awaiting_action = "followup_quote_disambiguation";
+        nextMemory.last_intent = "followup_quote_disambiguation";
+        handledByGreeting = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      }
+      const rememberedProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
+      if (!handledByGreeting && rememberedProduct) {
         const t = normalizeText(originalInboundText);
-        const asksQuoteNow = asksQuoteIntent(t) || isPriceIntent(t) || isQuoteProceedIntent(t) || /\b(cotiza|cotizacion|precio)\b/.test(t);
+        const anotherQuoteChoiceConversation = parseAnotherQuoteChoice(originalInboundText);
+        if (anotherQuoteChoiceConversation === "advisor") {
+          reply = buildAdvisorMiniAgendaPrompt();
+          nextMemory.awaiting_action = "advisor_meeting_slot";
+          handledByGreeting = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        } else if (anotherQuoteChoiceConversation === "other_model") {
+          reply = "Perfecto. Para otra cotización de otro modelo, dime capacidad y resolución objetivo (ej.: 200 g x 0.001 g) y te muestro opciones.";
+          nextMemory.awaiting_action = "strict_need_spec";
+          handledByGreeting = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        } else if (anotherQuoteChoiceConversation === "cheaper") {
+          reply = "Perfecto. Te ayudo con opciones más económicas. Dime capacidad/resolución objetivo o el uso y te propongo alternativas.";
+          nextMemory.awaiting_action = "strict_need_spec";
+          handledByGreeting = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
+        const asksQuoteNow =
+          anotherQuoteChoiceConversation === "same_model" ||
+          asksQuoteIntent(t) || isPriceIntent(t) || isQuoteProceedIntent(t) || /\b(cotiza|cotizacion|precio)\b/.test(t);
         const asksSheetNow = isTechnicalSheetIntent(t);
         const asksImageNow = isProductImageIntent(t);
-        if (asksQuoteNow) {
+        if (!handledByGreeting && asksQuoteNow) {
           inbound.text = `cotizar ${rememberedProduct} ${originalInboundText}`.trim();
           nextMemory.awaiting_action = "quote_product_selection";
-        } else if (asksSheetNow && asksImageNow) {
+        } else if (!handledByGreeting && asksSheetNow && asksImageNow) {
           inbound.text = `ficha tecnica e imagen de ${rememberedProduct}`;
           nextMemory.awaiting_action = "none";
-        } else if (asksSheetNow) {
+        } else if (!handledByGreeting && asksSheetNow) {
           inbound.text = `ficha tecnica de ${rememberedProduct}`;
           nextMemory.awaiting_action = "none";
-        } else if (asksImageNow) {
+        } else if (!handledByGreeting && asksImageNow) {
           inbound.text = `imagen de ${rememberedProduct}`;
           nextMemory.awaiting_action = "none";
         }
@@ -6027,15 +8657,117 @@ export async function POST(req: Request) {
       nextMemory.awaiting_action = "quote_product_selection";
     }
 
-    const pendingProductOptions = Array.isArray((previousMemory as any)?.pending_product_options)
+    const quoteBundleOptionsRaw = Array.isArray((previousMemory as any)?.quote_bundle_options)
+      ? (previousMemory as any).quote_bundle_options
+      : [];
+    const pendingProductOptionsRaw = Array.isArray((previousMemory as any)?.pending_product_options)
       ? (previousMemory as any).pending_product_options
       : [];
+    const recommendedOptionsRaw = Array.isArray((previousMemory as any)?.last_recommended_options)
+      ? (previousMemory as any).last_recommended_options
+      : [];
+    const pendingProductOptions =
+      quoteBundleOptionsRaw.length
+        ? quoteBundleOptionsRaw
+        : (pendingProductOptionsRaw.length ? pendingProductOptionsRaw : recommendedOptionsRaw);
     const pendingFamilyOptions = Array.isArray((previousMemory as any)?.pending_family_options)
       ? (previousMemory as any).pending_family_options
       : [];
     const selectedPendingFamily = String(previousMemory?.awaiting_action || "") === "family_option_selection"
       ? resolvePendingFamilyOption(originalInboundText, pendingFamilyOptions)
       : null;
+
+    let bundleOverrideApplied = false;
+    let ignoredAwaitingActionForBundle = "";
+    {
+      const inboundTextNorm = normalizeText(originalInboundText);
+      const inboundBundleByCount = /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(inboundTextNorm);
+      const inboundBundleAll = asksQuoteIntent(inboundTextNorm) && /\b(todas|todos|todas\s+las|todos\s+los)\b/.test(inboundTextNorm);
+      const inboundIntent = String(nextMemory.last_intent || previousMemory?.last_intent || "");
+      const continueWithoutData = isContinueQuoteWithoutPersonalDataIntent(originalInboundText);
+      const shouldBundleOverride =
+        inboundIntent === "quote_bundle_request" ||
+        inboundBundleByCount ||
+        inboundBundleAll ||
+        (continueWithoutData && String(awaitingAction || "") === "strict_quote_data");
+
+      if (shouldBundleOverride) {
+        const bundlePool =
+          (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
+            .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+            .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []);
+        const dedup = new Map<string, any>();
+        for (const o of bundlePool) {
+          const key = String(o?.raw_name || o?.name || "").trim();
+          if (key && !dedup.has(key)) dedup.set(key, o);
+        }
+        const options = Array.from(dedup.values());
+        if (options.length >= 2) {
+          const numMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+          const m = inboundTextNorm.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/);
+          const raw = String(m?.[1] || "").trim();
+          const requested = inboundBundleAll
+            ? options.length
+            : Math.max(2, Number(raw ? (Number(raw) || numMap[raw] || options.length) : options.length));
+          const chosen = options.slice(0, Math.max(2, Math.min(requested, options.length)));
+          const names = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+          if (names.length >= 2) {
+            ignoredAwaitingActionForBundle = String(awaitingAction || "");
+            inbound.text = `cotizar ${names.join(" ; ")} cantidad 1 para todos`;
+            nextMemory.awaiting_action = "quote_bundle_request";
+            nextMemory.last_intent = "quote_bundle_request";
+            nextMemory.pending_product_options = chosen;
+            nextMemory.quote_bundle_options = chosen;
+            nextMemory.last_recommended_options = chosen;
+            nextMemory.bundle_quote_mode = true;
+            nextMemory.bundle_quote_count = names.length;
+            nextMemory.last_selected_product_name = "";
+            nextMemory.last_selected_product_id = "";
+            nextMemory.last_selection_at = "";
+            delete (nextMemory as any).tech_product_selection;
+            delete (nextMemory as any).pending_technical_selection;
+            delete (nextMemory as any).technical_guidance_mode;
+            awaitingAction = String(nextMemory.awaiting_action || "");
+            bundleOverrideApplied = true;
+          }
+        }
+      }
+    }
+
+    if (!handledByGreeting && pendingProductOptions.length >= 2) {
+      const bulkText = normalizeText(originalInboundText);
+      const continueBundleWithoutData =
+        isContinueQuoteWithoutPersonalDataIntent(originalInboundText) &&
+        String(previousMemory?.last_intent || nextMemory.last_intent || "") === "quote_bundle_request";
+      const asksBulkByCount = /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(bulkText);
+      const asksBulkAll = asksQuoteIntent(bulkText) && /\b(todas|todos|todas\s+las|todos\s+los)\b/.test(bulkText);
+      if (continueBundleWithoutData || asksBulkByCount || asksBulkAll) {
+        const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+        const m = bulkText.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/);
+        const raw = String(m?.[1] || "").trim();
+        const requested = continueBundleWithoutData
+          ? pendingProductOptions.length
+          : asksBulkAll
+          ? pendingProductOptions.length
+          : Math.max(2, Number(raw ? (Number(raw) || numberWordMap[raw] || 3) : 3));
+        const chosen = pendingProductOptions.slice(0, Math.max(2, Math.min(requested, pendingProductOptions.length)));
+        const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+        if (modelNames.length >= 2) {
+          inbound.text = continueBundleWithoutData
+            ? `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`
+            : `cotizar ${modelNames.join(" ; ")}`;
+          nextMemory.awaiting_action = "none";
+          nextMemory.pending_product_options = chosen;
+          nextMemory.last_intent = "quote_bundle_request";
+          nextMemory.bundle_quote_mode = true;
+          nextMemory.bundle_quote_count = chosen.length;
+          nextMemory.last_selected_product_name = "";
+          nextMemory.last_selected_product_id = "";
+          nextMemory.last_selection_at = "";
+        }
+      }
+    }
+
     if (!handledByGreeting && selectedPendingFamily) {
       const rememberedCategory = String(previousMemory?.last_category_intent || nextMemory?.last_category_intent || "").trim();
       const { data: ownerFamilyRows } = await supabase
@@ -6200,13 +8932,118 @@ export async function POST(req: Request) {
       Number.isFinite(selectionAtMs) &&
       (Date.now() - selectionAtMs) <= activeSelectionWindowMs;
 
-    if (String(previousMemory?.awaiting_action || "") === "product_action" && hasActiveSelectedProduct) {
+    const bundlePoolForContinue =
+      (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
+        .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+        .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []);
+    const bundleContinueDedup = new Map<string, any>();
+    for (const o of bundlePoolForContinue) {
+      const key = String(o?.raw_name || o?.name || "").trim();
+      if (key && !bundleContinueDedup.has(key)) bundleContinueDedup.set(key, o);
+    }
+    const bundleContinueOptions = Array.from(bundleContinueDedup.values());
+    const continueWithoutDataGlobal = isContinueQuoteWithoutPersonalDataIntent(originalInboundText) && bundleContinueOptions.length >= 2;
+    if (continueWithoutDataGlobal) {
+      const names = bundleContinueOptions.slice(0, 8).map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+      if (names.length >= 2) {
+        inbound.text = `cotizar ${names.join(" ; ")} cantidad 1 para todos`;
+        nextMemory.awaiting_action = "none";
+        nextMemory.pending_product_options = bundleContinueOptions.slice(0, 8);
+        nextMemory.quote_bundle_options = bundleContinueOptions.slice(0, 8);
+        nextMemory.last_recommended_options = bundleContinueOptions.slice(0, 8);
+        nextMemory.last_intent = "quote_bundle_request";
+        nextMemory.bundle_quote_mode = true;
+        nextMemory.bundle_quote_count = names.length;
+        nextMemory.last_selected_product_name = "";
+        nextMemory.last_selected_product_id = "";
+        nextMemory.last_selection_at = "";
+      }
+    }
+
+    if (String(previousMemory?.awaiting_action || "") === "product_action" && hasActiveSelectedProduct && !continueWithoutDataGlobal) {
       const rememberedOptionProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
       const optText = normalizeText(originalInboundText);
       if (rememberedOptionProduct) {
         if (inboundTechnicalSpec || inboundCategoryOrInventoryIntent) {
           nextMemory.awaiting_action = "none";
           nextMemory.pending_product_options = [];
+        } else {
+        const continueWithoutDataOnBundle =
+          String(previousMemory?.last_intent || nextMemory.last_intent || "") === "quote_bundle_request" &&
+          isContinueQuoteWithoutPersonalDataIntent(originalInboundText);
+        if (continueWithoutDataOnBundle) {
+          const bundlePool =
+            (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
+              .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+              .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []);
+          const dedup = new Map<string, any>();
+          for (const o of bundlePool) {
+            const key = String(o?.raw_name || o?.name || "").trim();
+            if (key && !dedup.has(key)) dedup.set(key, o);
+          }
+          const chosen = Array.from(dedup.values()).slice(0, 8);
+          const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+          if (modelNames.length >= 2) {
+            inbound.text = `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`;
+            nextMemory.awaiting_action = "none";
+            nextMemory.pending_product_options = chosen;
+            nextMemory.quote_bundle_options = chosen;
+            nextMemory.last_recommended_options = chosen;
+            nextMemory.last_intent = "quote_bundle_request";
+            nextMemory.bundle_quote_mode = true;
+            nextMemory.bundle_quote_count = modelNames.length;
+            nextMemory.last_selected_product_name = "";
+            nextMemory.last_selected_product_id = "";
+            nextMemory.last_selection_at = "";
+          }
+        } else {
+        const numberWordMapBulk: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+        const bulkCountMatch = optText.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/);
+        const rawBulkCount = String(bulkCountMatch?.[1] || "").trim();
+        const parsedBulkCount = Number(rawBulkCount ? (Number(rawBulkCount) || numberWordMapBulk[rawBulkCount] || 0) : 0);
+        const asksBulkQuoteByCount = parsedBulkCount >= 2;
+        if (asksBulkQuoteByCount) {
+          let bulkPool = Array.isArray(pendingProductOptions) ? pendingProductOptions : [];
+          if (bulkPool.length < 2) {
+            const { data: ownerRowsRaw } = await supabase
+              .from("agent_product_catalog")
+              .select("id,name,category,brand,base_price_usd,source_payload,is_active")
+              .eq("created_by", ownerId)
+              .eq("is_active", true)
+              .order("updated_at", { ascending: false })
+              .limit(240);
+            const ownerRows = (Array.isArray(ownerRowsRaw) ? ownerRowsRaw : []).filter((r: any) => isCommercialCatalogRow(r));
+            const rememberedCategory = String(previousMemory?.last_category_intent || "").trim();
+            const scoped = rememberedCategory ? scopeCatalogRows(ownerRows as any[], rememberedCategory) : ownerRows;
+            const familyLabel = String(previousMemory?.strict_family_label || "").trim();
+            const familyScoped = familyLabel
+              ? scoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
+              : scoped;
+            const rememberedCap = Number(previousMemory?.strict_filter_capacity_g || 0);
+            const rememberedRead = Number(previousMemory?.strict_filter_readability_g || 0);
+            let rankedRows = familyScoped as any[];
+            if (rememberedCap > 0 && rememberedRead > 0) {
+              const prioritized = prioritizeTechnicalRows(familyScoped as any[], { capacityG: rememberedCap, readabilityG: rememberedRead });
+              if (prioritized.orderedRows.length) rankedRows = prioritized.orderedRows as any[];
+            } else if (rememberedCap > 0) {
+              const rankedCap = rankCatalogByCapacityOnly(familyScoped as any[], rememberedCap);
+              if (rankedCap.length) rankedRows = rankedCap.map((x: any) => x.row);
+            }
+            bulkPool = buildNumberedProductOptions(rankedRows as any[], 60);
+          }
+          const chosen = bulkPool.slice(0, Math.max(2, Math.min(parsedBulkCount, bulkPool.length)));
+          const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
+          if (modelNames.length >= 2) {
+            inbound.text = `cotizar ${modelNames.join(" ; ")}`;
+            nextMemory.awaiting_action = "none";
+            nextMemory.pending_product_options = chosen;
+            nextMemory.last_intent = "quote_bundle_request";
+            nextMemory.bundle_quote_mode = true;
+            nextMemory.bundle_quote_count = modelNames.length;
+            nextMemory.last_selected_product_name = "";
+            nextMemory.last_selected_product_id = "";
+            nextMemory.last_selection_at = "";
+          }
         } else {
         const confirmsDefaultFromOption = isAffirmativeIntent(optText) || /^(ok|vale|listo|de una)$/i.test(String(originalInboundText || "").trim());
         const asksQuoteByOption = /^(1|a)\b/.test(optText) || /\b(cotiz|cotizacion|precio|la cotizacion)\b/.test(optText);
@@ -6237,6 +9074,8 @@ export async function POST(req: Request) {
           handledByInventory = true;
           handledByTechSheet = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
+        }
         }
         }
       }
@@ -6371,17 +9210,54 @@ export async function POST(req: Request) {
     }
 
     if (!handledByGreeting && isGreetingIntent(inbound.text)) {
-      reply = knownCustomerName
-        ? (recognizedReturningCustomer
-            ? `Hola ${knownCustomerName}, que bueno tenerte nuevamente con nosotros. Soy Ava, tu asistente virtual de Avanza Group. ¿Que producto necesitas hoy?`
-            : `Hola ${knownCustomerName}, soy Ava, tu asistente virtual de Avanza Group. ¿Qué necesitas hoy?`)
-        : "Hola, soy Ava, tu asistente virtual de Avanza Group. ¿Con quién tengo el gusto?";
+      nextMemory.awaiting_action = "none";
+      nextMemory.pending_product_options = [];
+      nextMemory.pending_family_options = [];
+      nextMemory.strict_model_offset = 0;
+      nextMemory.strict_family_label = "";
+      reply = buildGreetingReply(knownCustomerName, nextMemory);
       if (!knownCustomerName) nextMemory.awaiting_action = "capture_name";
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
 
-    if (!handledByGreeting && (inboundInventoryIntent || Boolean(inboundCategoryIntent))) {
+    if (!handledByGreeting) {
+      const entryNeedText = normalizeText(String(originalInboundText || ""));
+      const isEntryNeedGuidance = /(quiero|necesito|busco|requiero).*(balanza|balanzas|bascula|basculas|humedad)|para\s+pesar/.test(entryNeedText);
+      if (isEntryNeedGuidance) {
+        const forcedCategory = detectCatalogCategoryIntent(originalInboundText) || (/humedad|analizador\s+de\s+humedad/.test(entryNeedText) ? "humedad" : "balanzas");
+        const rawRows = await fetchCatalogRows("id,name,category,brand,base_price_usd,source_payload,product_url", 220, false);
+        const commercialRows = (Array.isArray(rawRows) ? rawRows : []).filter((r: any) => isCommercialCatalogRow(r));
+        const scoped = scopeCatalogRows(commercialRows as any, forcedCategory);
+        const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
+        const inferred = inferFamilyFromUseCase(originalInboundText, familyOptions);
+        const inferredKey = String((inferred as any)?.key || "").trim();
+        const familyRows = inferredKey
+          ? scoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(inferredKey))
+          : [];
+        const options = buildNumberedProductOptions((familyRows.length ? familyRows : scoped) as any[], 8).slice(0, 5);
+        reply = [
+          inferred
+            ? `Entiendo tu necesidad. Para ese uso te recomiendo iniciar con ${String((inferred as any)?.label || "esa familia")}.`
+            : "Entiendo tu necesidad y te guío con opciones recomendadas según uso.",
+          "Para afinar sin inventar, dime peso mínimo y máximo de la pieza (y peso por unidad si lo tienes).",
+          ...(options.length ? ["", "Modelos sugeridos para empezar:", ...options.map((o) => `${o.code}) ${o.name}`)] : []),
+          "",
+          options.length
+            ? "Elige con letra/número (A/1) y te envío ficha o cotización."
+            : "Si quieres, te muestro familias disponibles para orientarte mejor.",
+        ].join("\n");
+        nextMemory.pending_product_options = options;
+        nextMemory.pending_family_options = options.length ? [] : familyOptions;
+        nextMemory.awaiting_action = options.length ? "product_option_selection" : "family_option_selection";
+        nextMemory.last_category_intent = String(forcedCategory || "");
+        nextMemory.strict_use_case = String(originalInboundText || "").trim();
+        handledByInventory = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      }
+    }
+
+    if (!handledByGreeting && !handledByInventory && (inboundInventoryIntent || Boolean(inboundCategoryIntent))) {
       try {
         if (inboundCategoryIntent) {
           const categoryRowsRaw = await fetchCatalogRows("id,name,category,brand,base_price_usd,source_payload,product_url", 220, false);
@@ -6389,18 +9265,82 @@ export async function POST(req: Request) {
           const scoped = scopeCatalogRows(categoryRowsCommercial as any, inboundCategoryIntent);
           const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
           const categoryLabel = inboundCategoryIntent.replace(/_/g, " ");
-          if (familyOptions.length > 1) {
+          const needText = normalizeText(`${String(originalInboundText || "")} ${String(inbound.text || "")}`);
+          const rawNeedText = String(inbound.text || originalInboundText || "");
+          const isGuidedCategory = /balanza|balanzas|bascula|basculas|humedad|analizador de humedad/.test(categoryLabel);
+          const hasModelHintNow = hasConcreteProductHint(originalInboundText) || extractModelLikeTokens(originalInboundText).length > 0;
+          const asksNeedGuidanceDirect = /(quiero|necesito|busco|requiero|me\s+sirve|cual\s+me\s+sirve|cu[aá]l\s+me\s+sirve|recomiend|orienta).*(balanza|balanzas|bascula|basculas|humedad|analizador\s+de\s+humedad)|para\s+pesar|para\s+usar|para\s+medir/.test(needText);
+          const asksNeedGuidanceRaw = /\b(quiero|necesito|busco|requiero|recomiend|orienta)\b/i.test(rawNeedText) || /para\s+pesar/i.test(rawNeedText);
+          const useCaseDrivenIntent =
+            isRecommendationIntent(originalInboundText) ||
+            isUseCaseApplicabilityIntent(originalInboundText) ||
+            isUseCaseFamilyHint(originalInboundText) ||
+            /(quiero|necesito|busco).*(balanza|balanzas|bascula|basculas|humedad)|para\s+pesar|peso\s+aproximado|tornillo|tornillos|tuerca|tuercas|perno|pernos|pieza|piezas|muestra|muestras/.test(needText);
+          const shouldForceNeedGuidance = isGuidedCategory && !hasModelHintNow && (asksNeedGuidanceDirect || asksNeedGuidanceRaw || useCaseDrivenIntent);
+          if (shouldForceNeedGuidance && familyOptions.length) {
+            const inferred = inferFamilyFromUseCase(originalInboundText, familyOptions);
+            const inferredKey = String((inferred as any)?.key || "").trim();
+            const familyRows = inferredKey
+              ? scoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(inferredKey))
+              : [];
+            const options = buildNumberedProductOptions((familyRows.length ? familyRows : scoped) as any[], 8).slice(0, 5);
             reply = [
-              `Si, tenemos ${scoped.length} referencias en la categoria ${categoryLabel}.`,
-              "Primero elige la familia:",
-              ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
+              inferred
+                ? `Entiendo tu necesidad. Para ese uso te recomiendo iniciar con ${String((inferred as any)?.label || "esa familia")}.`
+                : "Entiendo tu necesidad. Te oriento con opciones recomendadas según uso.",
+              "Para afinar sin inventar, dime peso mínimo y máximo de la pieza (y peso por unidad si lo tienes).",
+              ...(options.length ? ["", "Modelos sugeridos para empezar:", ...options.map((o) => `${o.code}) ${o.name}`)] : []),
               "",
-              "Responde con letra o numero (ej.: A o 1).",
+              options.length
+                ? "Elige con letra/número (A/1) y te envío ficha o cotización."
+                : "Si prefieres, elige una familia y te doy modelos exactos.",
             ].join("\n");
-            nextMemory.pending_family_options = familyOptions;
-            nextMemory.pending_product_options = [];
-            nextMemory.awaiting_action = "family_option_selection";
+            nextMemory.pending_product_options = options;
+            nextMemory.pending_family_options = options.length ? [] : familyOptions;
+            nextMemory.awaiting_action = options.length ? "product_option_selection" : "family_option_selection";
             nextMemory.last_category_intent = inboundCategoryIntent;
+            nextMemory.strict_use_case = String(originalInboundText || "").trim();
+            handledByInventory = true;
+            billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+          } else if (familyOptions.length > 1) {
+            const entryNeed = normalizeText(String(originalInboundText || ""));
+            const forceNeed = /(quiero|necesito|busco|requiero).*(balanza|balanzas|bascula|basculas|humedad)|para\s+pesar/.test(entryNeed);
+            if (forceNeed) {
+              const inferred = inferFamilyFromUseCase(originalInboundText, familyOptions);
+              const inferredKey = String((inferred as any)?.key || "").trim();
+              const familyRows = inferredKey
+                ? scoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(inferredKey))
+                : [];
+              const options = buildNumberedProductOptions((familyRows.length ? familyRows : scoped) as any[], 8).slice(0, 5);
+              reply = [
+                inferred
+                  ? `Entiendo tu necesidad. Para ese uso te recomiendo iniciar con ${String((inferred as any)?.label || "esa familia")}.`
+                  : "Entiendo tu necesidad y te guío con opciones recomendadas según uso.",
+                "Para afinar sin inventar, dime peso mínimo y máximo de la pieza (y peso por unidad si lo tienes).",
+                ...(options.length ? ["", "Modelos sugeridos para empezar:", ...options.map((o) => `${o.code}) ${o.name}`)] : []),
+                "",
+                options.length
+                  ? "Elige con letra/número (A/1) y te envío ficha o cotización."
+                  : "Si prefieres, te muestro familias disponibles para orientarte mejor.",
+              ].join("\n");
+              nextMemory.pending_product_options = options;
+              nextMemory.pending_family_options = options.length ? [] : familyOptions;
+              nextMemory.awaiting_action = options.length ? "product_option_selection" : "family_option_selection";
+              nextMemory.last_category_intent = inboundCategoryIntent;
+              nextMemory.strict_use_case = String(originalInboundText || "").trim();
+            } else {
+              reply = [
+                `Si, tenemos ${scoped.length} referencias en la categoria ${categoryLabel}.`,
+                "Primero elige la familia:",
+                ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
+                "",
+                "Responde con letra o numero (ej.: A o 1).",
+              ].join("\n");
+              nextMemory.pending_family_options = familyOptions;
+              nextMemory.pending_product_options = [];
+              nextMemory.awaiting_action = "family_option_selection";
+              nextMemory.last_category_intent = inboundCategoryIntent;
+            }
           } else {
             const options = buildNumberedProductOptions(scoped, 10);
             const shown = options.slice(0, 8);
@@ -6823,9 +9763,13 @@ export async function POST(req: Request) {
         let matched = pickBestCatalogProduct(inbound.text, scopedList);
         if (matched?.name && !isCatalogMatchConsistent(inbound.text, matched, scopedCategory)) matched = null;
         const sourceList = scopedList.length ? scopedList : list;
+        const calibrationPref = detectCalibrationPreference(inbound.text);
+        const sourceListByCalibration = calibrationPref
+          ? sourceList.filter((row: any) => rowMatchesCalibrationPreference(row, calibrationPref))
+          : sourceList;
         const suggestions = [
           matched,
-          ...sourceList.filter((p: any) => !matched || String(p.id) !== String(matched.id)),
+          ...sourceListByCalibration.filter((p: any) => !matched || String(p.id) !== String(matched.id)),
         ]
           .filter(Boolean)
           .slice(0, 3)
@@ -6833,7 +9777,7 @@ export async function POST(req: Request) {
           .filter(Boolean);
 
         if (wantsFeatureAnswer) {
-          const rankedByFeature = rankCatalogByFeature(sourceList as any[], featureTerms).slice(0, 5);
+          const rankedByFeature = rankCatalogByFeature(sourceListByCalibration as any[], featureTerms).slice(0, 5);
           if (rankedByFeature.length) {
             const top = rankedByFeature.slice(0, 3);
             const options = buildNumberedProductOptions(top.map((x) => x.row), 3);
@@ -6857,7 +9801,7 @@ export async function POST(req: Request) {
           } else if (suggestions.length) {
             reply = `No encontré coincidencia exacta para esa característica (${featureTerms.join(", ")}). Te propongo alternativas cercanas: ${suggestions.join("; ")}.`;
           } else {
-            reply = "No encontré coincidencias para esa característica en este momento. Si quieres, te filtro por capacidad, resolución o calibración interna.";
+            reply = "No encontré coincidencias para esa característica en este momento. Si quieres, te filtro por capacidad, resolución o calibración externa/interna.";
           }
         } else if (suggestions.length) {
           if (matched?.name) {
@@ -7672,9 +10616,25 @@ export async function POST(req: Request) {
     const resumeQuoteFromContext =
       isContactInfoBundle(inbound.text) &&
       shouldAutoQuote(`${recentUserContext}\n${inbound.text}`);
+    const forceBundleQuoteIntake =
+      bundleOverrideApplied ||
+      String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" ||
+      (
+        String(nextMemory.awaiting_action || previousMemory?.awaiting_action || "") === "strict_quote_data" &&
+        isContinueQuoteWithoutPersonalDataIntent(originalInboundText)
+      );
 
-    if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && !handledByRecall && (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory || concreteQuoteIntent)) {
+    if (
+      forceBundleQuoteIntake ||
+      (
+        !handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && !handledByRecall &&
+        (shouldAutoQuote(inbound.text) || resumeQuoteFromContext || quoteProceedFromMemory || concreteQuoteIntent)
+      )
+    ) {
       try {
+        if (forceBundleQuoteIntake) {
+          console.log("[quote-bundle] start", { inbound: String(originalInboundText || ""), intent: String(nextMemory.last_intent || "") });
+        }
         const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url", 120, false);
 
         const quoteSourceText = resumeQuoteFromContext
@@ -7698,7 +10658,80 @@ export async function POST(req: Request) {
           ? selectedProduct
           : pickBestCatalogProduct(quoteSourceText, quoteMatchPool || []));
         const rememberedProduct = findCatalogProductByName(commercialProducts || [], String(nextMemory.last_product_name || ""));
-        const wantsMulti = isMultiProductQuoteIntent(quoteSourceText);
+        const wantsMulti = forceBundleQuoteIntake || isMultiProductQuoteIntent(quoteSourceText);
+        const requestedBundleModels = String(quoteSourceText || "")
+          .replace(/^\s*cotiz(?:ar|a|acion|ación)?\s*/i, "")
+          .split(/[;,\n|]+/)
+          .map((seg) => String(seg || "").trim())
+          .map((seg) => String(seg.match(/[A-Z0-9][A-Z0-9\/-]{2,}/i)?.[0] || "").trim())
+          .filter((tok) => /\d/.test(tok))
+          .filter((tok, idx, arr) => {
+            const key = normalizeCatalogQueryText(tok).replace(/[^a-z0-9]/g, "");
+            return key && arr.findIndex((x) => normalizeCatalogQueryText(x).replace(/[^a-z0-9]/g, "") === key) === idx;
+          });
+        const requestedBundleModelKeys = new Set(
+          requestedBundleModels.map((tok) => normalizeCatalogQueryText(tok).replace(/[^a-z0-9]/g, "")).filter(Boolean)
+        );
+        const bundleOptionsCurrent =
+          (Array.isArray(nextMemory?.quote_bundle_options_current) ? nextMemory.quote_bundle_options_current : [])
+            .concat(Array.isArray(previousMemory?.quote_bundle_options_current) ? previousMemory.quote_bundle_options_current : [])
+            .filter((o: any, idx: number, arr: any[]) => {
+              const key = String(o?.id || o?.product_id || o?.raw_name || o?.name || "").trim();
+              if (!key) return false;
+              return arr.findIndex((x: any) => String(x?.id || x?.product_id || x?.raw_name || x?.name || "").trim() === key) === idx;
+            });
+        const pendingBundleOptions =
+          bundleOptionsCurrent
+            .concat(Array.isArray(nextMemory?.quote_bundle_options) ? nextMemory.quote_bundle_options : [])
+            .concat(Array.isArray(nextMemory?.pending_product_options) ? nextMemory.pending_product_options : [])
+            .concat(Array.isArray(nextMemory?.last_recommended_options) ? nextMemory.last_recommended_options : [])
+            .concat(Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
+            .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+            .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [])
+            .filter((o: any, idx: number, arr: any[]) => {
+              const key = String(o?.id || o?.product_id || o?.raw_name || o?.name || "").trim();
+              if (!key) return false;
+              return arr.findIndex((x: any) => String(x?.id || x?.product_id || x?.raw_name || x?.name || "").trim() === key) === idx;
+            });
+        const resolvePendingOptionToProduct = (opt: any): any => {
+          const byId = String(opt?.id || opt?.product_id || "").trim();
+          if (byId) {
+            const idHit = (commercialProducts || []).find((p: any) => String(p?.id || "").trim() === byId);
+            if (idHit) return idHit;
+          }
+          const label = String(opt?.raw_name || opt?.name || "").trim();
+          if (!label) return null;
+          const direct = findCatalogProductByName(commercialProducts || [], label);
+          if (direct) return direct;
+          const modelCandidate = String(label.match(/[A-Z0-9][A-Z0-9\/-]{2,}/i)?.[0] || "").trim();
+          if (modelCandidate) {
+            const byExact = findExactModelProduct(modelCandidate, commercialProducts || []);
+            if (byExact) return byExact;
+            const byBest = pickBestCatalogProduct(modelCandidate, commercialProducts || []);
+            if (byBest) return byBest;
+          }
+          return null;
+        };
+        const selectedProductsFromPending = forceBundleQuoteIntake
+          ? (
+              (requestedBundleModelKeys.size > 0)
+                ? (bundleOptionsCurrent.length ? bundleOptionsCurrent : pendingBundleOptions)
+                    .filter((o: any) => {
+                      const raw = String(o?.raw_name || o?.name || "").trim();
+                      const modelToken = String(raw.match(/[A-Z0-9][A-Z0-9\/-]{2,}/i)?.[0] || raw).trim();
+                      const key = normalizeCatalogQueryText(modelToken).replace(/[^a-z0-9]/g, "");
+                      return key && requestedBundleModelKeys.has(key);
+                    })
+                    .map((o: any) => resolvePendingOptionToProduct(o))
+                    .filter(Boolean)
+                : ((extractModelLikeTokens(quoteSourceText).length >= 2)
+                    ? []
+                    : (bundleOptionsCurrent.length
+                        ? bundleOptionsCurrent
+                        : pendingBundleOptions
+                      ).map((o: any) => resolvePendingOptionToProduct(o)).filter(Boolean))
+            )
+          : [];
         const rememberedQuoteProductName = String(
           nextMemory.last_quote_product_name ||
           previousMemory?.last_quote_product_name ||
@@ -7709,7 +10742,9 @@ export async function POST(req: Request) {
         const rememberedQuoteProduct = rememberedQuoteProductName
           ? findCatalogProductByName(commercialProducts || [], rememberedQuoteProductName)
           : null;
-        const selectedProducts = explicitModelProducts.length
+        let selectedProducts = selectedProductsFromPending.length
+          ? selectedProductsFromPending
+          : explicitModelProducts.length
           ? (
               continuationIntent && rememberedQuoteProduct
                 ? [rememberedQuoteProduct, ...explicitModelProducts].filter((row: any, idx: number, arr: any[]) => {
@@ -7723,6 +10758,33 @@ export async function POST(req: Request) {
             ? [matchedProduct || rememberedProduct]
             : [];
 
+        if (forceBundleQuoteIntake && !selectedProducts.length && pendingBundleOptions.length >= 2) {
+          const pendingNames = pendingBundleOptions
+            .map((o: any) => String(o?.raw_name || o?.name || "").trim())
+            .filter(Boolean);
+          if (pendingNames.length >= 2) {
+            const rebuilt = findExplicitModelProducts(`cotizar ${pendingNames.join(" ; ")}`, commercialProducts || []);
+            if (rebuilt.length) selectedProducts = rebuilt;
+          }
+        }
+        if (forceBundleQuoteIntake) {
+          const forcedBundleCount = Number(nextMemory?.bundle_quote_count || previousMemory?.bundle_quote_count || 0);
+          if (forcedBundleCount >= 2 && Array.isArray(selectedProducts) && selectedProducts.length > forcedBundleCount) {
+            selectedProducts = selectedProducts.slice(0, forcedBundleCount);
+          }
+          console.log("[quote-bundle] requested vs selected", {
+            requested_models: requestedBundleModels,
+            selected_models: (selectedProducts || []).map((p: any) => String(p?.name || "")).filter(Boolean),
+            selected_count: Array.isArray(selectedProducts) ? selectedProducts.length : 0,
+          });
+          console.log("[quote-bundle] selected options", {
+            pending_options: pendingBundleOptions.length,
+            selected_products: selectedProducts.length,
+            sample_pending: pendingBundleOptions.slice(0, 3).map((o: any) => String(o?.raw_name || o?.name || "")).filter(Boolean),
+            sample_selected: selectedProducts.slice(0, 3).map((p: any) => String(p?.name || "")).filter(Boolean),
+          });
+        }
+
         if (!handledByQuoteIntake && continuationIntent && explicitModelTokens.length >= 2 && explicitModelProducts.length < explicitModelTokens.length) {
           const foundNames = explicitModelProducts.map((p: any) => String(p?.name || "").trim()).filter(Boolean);
           reply = foundNames.length
@@ -7733,6 +10795,9 @@ export async function POST(req: Request) {
         }
 
         if (selectedProducts.length) {
+          if (forceBundleQuoteIntake) console.log("[quote-bundle] build quote start", { selected: selectedProducts.length });
+          const bundleDiscarded: Array<{ product: string; reason: string }> = [];
+          let bundleValidCount = 0;
           const transcript = Array.isArray(existingConv?.transcript) ? existingConv.transcript : [];
           const latestUserLines = transcript
             .filter((m: any) => m?.role === "user" && m?.content)
@@ -7851,11 +10916,14 @@ export async function POST(req: Request) {
           nextMemory.customer_phone = effectiveCustomerPhone || nextMemory.customer_phone;
           nextMemory.customer_email = effectiveCustomerEmail || nextMemory.customer_email;
 
-          if (!handledByQuoteIntake && missingFields.length) {
-            reply = `Para formalizar la cotizacion me faltan: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Ciudad: Bogota, Empresa: ..., NIT: ..., Contacto: ..., Correo: ..., Celular: ...). Si prefieres no compartir datos personales, escribe: continuar cotizacion sin datos personales.`;
+          const requireQuoteContactBundle = String(process.env.WHATSAPP_REQUIRE_QUOTE_CONTACT_BUNDLE || "false").toLowerCase() === "true";
+          if (!handledByQuoteIntake && missingFields.length && requireQuoteContactBundle) {
+            reply = `Para formalizar la cotizacion me faltan: ${missingFields.join(", ")}. Enviamelos en un solo mensaje (ejemplo: Ciudad: Bogota, Empresa: ..., NIT: ..., Contacto: ..., Correo: ..., Celular: ...).`;
             nextMemory.awaiting_action = "quote_contact_bundle";
             handledByQuoteIntake = true;
             billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+          } else if (missingFields.length) {
+            missingFields.length = 0;
           }
 
           if (!missingFields.length && !handledByQuoteIntake && selectedProducts.length === 1) {
@@ -7906,7 +10974,13 @@ export async function POST(req: Request) {
                 const basePriceUsd = basePriceUsdRaw > 0
                   ? basePriceUsdRaw
                   : (selectedUnitCop > 0 && trmRate > 0 ? Number((selectedUnitCop / trmRate).toFixed(6)) : 0);
-                if (!(basePriceUsd > 0) && !(selectedUnitCop > 0)) continue;
+                if (!(basePriceUsd > 0) && !(selectedUnitCop > 0)) {
+                  if (forceBundleQuoteIntake) {
+                    bundleDiscarded.push({ product: String((selected as any)?.name || ""), reason: "missing_price_usd_and_city_price" });
+                  }
+                  continue;
+                }
+                if (forceBundleQuoteIntake) bundleValidCount += 1;
 
                 const totalCop = selectedUnitCop > 0
                   ? Number((selectedUnitCop * quantity).toFixed(2))
@@ -7943,11 +11017,34 @@ export async function POST(req: Request) {
                   status: "analysis",
                 };
 
-                const { data: draft, error: draftError } = await supabase
+                let { data: draft, error: draftError } = await supabase
                   .from("agent_quote_drafts")
                   .insert(draftPayload)
                   .select("id")
                   .single();
+
+                if (draftError && isQuoteDraftStatusConstraintError(draftError)) {
+                  const legacyPayload = {
+                    ...draftPayload,
+                    status: "draft",
+                    payload: {
+                      ...(draftPayload.payload || {}),
+                      crm_stage: "analysis",
+                      crm_stage_updated_at: new Date().toISOString(),
+                    },
+                  } as any;
+                  const retry = await supabase
+                    .from("agent_quote_drafts")
+                    .insert(legacyPayload)
+                    .select("id")
+                    .single();
+                  draft = retry.data as any;
+                  draftError = retry.error as any;
+                }
+
+                if (draftError && forceBundleQuoteIntake) {
+                  bundleDiscarded.push({ product: String((selected as any)?.name || ""), reason: `draft_insert_failed:${String(draftError?.message || "unknown")}` });
+                }
 
                 if (!draftError && draft?.id) {
                   nextMemory.last_quote_draft_id = String(draft.id);
@@ -8019,6 +11116,24 @@ export async function POST(req: Request) {
                   ? `Listo. Ya genere la cotizacion consolidada de ${autoQuoteDocs.length} productos (cantidad ${autoQuoteDocs[0].quantity} cada una) con la TRM de hoy. Te envio un solo PDF por este chat ahora mismo.`
                   : `Listo. Ya genere la cotizacion consolidada de ${autoQuoteDocs.length} productos con las cantidades que me indicaste y la TRM de hoy. Te envio un solo PDF por este chat ahora mismo.`;
               }
+              if (forceBundleQuoteIntake) {
+                console.log("[quote-bundle] build quote done", {
+                  received_products: selectedProducts.length,
+                  valid_products: bundleValidCount,
+                  discarded_products: bundleDiscarded.length,
+                  discarded_reasons: bundleDiscarded,
+                  docs: autoQuoteDocs.length,
+                  bundle: Boolean(autoQuoteBundle),
+                });
+              }
+              if (forceBundleQuoteIntake && selectedProducts.length >= 2 && autoQuoteDocs.length === 0 && !autoQuoteBundle && !String(reply || "").trim()) {
+                const hasDraftInsertFailure = bundleDiscarded.some((d) => String(d?.reason || "").startsWith("draft_insert_failed:"));
+                reply = hasDraftInsertFailure
+                  ? "No pude generar la cotización múltiple por un error interno al guardar la cotización. Intenta nuevamente en unos segundos."
+                  : "No pude generar la cotización múltiple con esas referencias porque faltan datos de catálogo/precio para una o más referencias.";
+                handledByQuoteIntake = true;
+                billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+              }
               if (reply) billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
             } else {
               reply = "No pude consultar la TRM de hoy en este momento. Intenta de nuevo en 1 minuto y te genero el PDF por este WhatsApp.";
@@ -8035,15 +11150,28 @@ export async function POST(req: Request) {
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
       } catch (autoErr: any) {
+        if (forceBundleQuoteIntake) console.warn("[quote-bundle] error", autoErr?.message || autoErr);
         console.warn("[evolution-webhook] auto_quote_failed", autoErr?.message || autoErr);
       }
+    }
+
+    if (bundleOverrideApplied && !handledByQuoteIntake && !autoQuoteDocs.length && !String(reply || "").trim()) {
+      reply = "Perfecto. Estoy procesando la cotización múltiple con las referencias seleccionadas. Te la envío enseguida por este WhatsApp.";
+      nextMemory.awaiting_action = "quote_bundle_request";
+      nextMemory.last_intent = "quote_bundle_request";
+      handledByQuoteIntake = true;
+      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
 
     if (!autoQuoteDocs.length && !handledByGreeting && !handledByRecall && !handledByTechSheet && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByQuoteStarter && !handledByQuoteIntake) {
       const selectedProductForGuide = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || "").trim();
       const selectedAtMs = Date.parse(String(nextMemory.last_selection_at || previousMemory?.last_selection_at || ""));
       const selectedStillActive = Boolean(selectedProductForGuide) && Number.isFinite(selectedAtMs) && (Date.now() - selectedAtMs) <= 30 * 60 * 1000;
-      if (selectedStillActive && !inboundTechnicalSpec) {
+      const inboundBulkQuoteCommand = /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(normalizeText(originalInboundText));
+      const skipSingleProductFallback =
+        String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" ||
+        isContinueQuoteWithoutPersonalDataIntent(originalInboundText);
+      if (selectedStillActive && !inboundTechnicalSpec && !inboundBulkQuoteCommand && !skipSingleProductFallback) {
           reply = `¿Quieres ficha técnica o cotización de ${selectedProductForGuide}?`;
           nextMemory.awaiting_action = "product_action";
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
@@ -8084,9 +11212,13 @@ export async function POST(req: Request) {
             const strictNumeric = technicalSpecQuery
               ? (ranked as any[]).filter((x: any) => x.capacityDeltaPct <= 40 && x.readabilityRatio <= 1)
               : [];
-            const sourceRows = technicalSpecQuery
+            const calibrationPref = detectCalibrationPreference(inbound.text);
+            const sourceRowsUnfiltered = technicalSpecQuery
               ? strictNumeric.map((x: any) => x.row)
               : (ranked as any[]).map((x: any) => x.row);
+            const sourceRows = calibrationPref
+              ? sourceRowsUnfiltered.filter((row: any) => rowMatchesCalibrationPreference(row, calibrationPref))
+              : sourceRowsUnfiltered;
             const options = buildNumberedProductOptions(sourceRows, technicalSpecQuery ? 10 : 4);
             if (options.length) {
               const shown = technicalSpecQuery ? options.slice(0, 10) : options;
@@ -8196,6 +11328,18 @@ export async function POST(req: Request) {
           }
         }
 
+        if (!String(reply || "").trim() && !bundleOverrideApplied) {
+        const continueWithoutDataInBundle =
+          isContinueQuoteWithoutPersonalDataIntent(originalInboundText) &&
+          (
+            String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" ||
+            String(nextMemory.awaiting_action || previousMemory?.awaiting_action || "") === "strict_quote_data"
+          );
+        if (continueWithoutDataInBundle) {
+          reply = "Perfecto. Para avanzar sin datos, confirma los modelos a cotizar en una sola línea (ej.: cotizar A,B,C,D,E,F,G,H o cotizar 8 cantidad 1 para todos).";
+          nextMemory.awaiting_action = "strict_choose_model";
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
         if (!String(reply || "").trim()) {
         const narrowed = filterCatalogByTerms(inbound.text, baseSource as any, requestedCategory);
         const sampleSource = narrowed.length ? narrowed : baseSource;
@@ -8235,6 +11379,14 @@ export async function POST(req: Request) {
         nextMemory.awaiting_action = "tech_product_selection";
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
+        }
+        }
+        if (!String(reply || "").trim() && bundleOverrideApplied) {
+          reply = "Perfecto. Estoy procesando la cotización múltiple con las referencias seleccionadas. Te la envío enseguida por este WhatsApp.";
+          nextMemory.awaiting_action = "quote_bundle_request";
+          nextMemory.last_intent = "quote_bundle_request";
+          handledByQuoteIntake = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
       } else {
 
@@ -8311,7 +11463,7 @@ export async function POST(req: Request) {
       nextMemory.awaiting_action = "capture_name";
     }
 
-    const resolvedRoute =
+    let resolvedRoute =
       autoQuoteDocs.length || autoQuoteBundle || resendPdf
         ? "quote_delivery"
         : technicalDocs.length || sentTechSheet || sentImage
@@ -8337,11 +11489,26 @@ export async function POST(req: Request) {
                             : handledByGreeting
                               ? (isConversationCloseIntent(originalInboundText) ? "conversation_close" : "greeting")
                               : "fallback";
+    let effectiveAwaitingAction = String(nextMemory.awaiting_action || "");
+    if (bundleOverrideApplied) {
+      effectiveAwaitingAction = "quote_bundle_request";
+      resolvedRoute = "quote_bundle";
+      nextMemory.awaiting_action = "quote_bundle_request";
+      nextMemory.last_intent = "quote_bundle_request";
+    }
     nextMemory.last_route = resolvedRoute;
     nextMemory.last_route_at = new Date().toISOString();
+    if (bundleOverrideApplied) {
+      console.log("[evolution-webhook] post_bundle_override_route", {
+        effectiveAwaitingAction,
+        resolvedRoute,
+      });
+    }
     console.log("[evolution-webhook] route_decision", {
       route: resolvedRoute,
-      awaitingAction,
+      awaitingAction: effectiveAwaitingAction,
+      bundle_override_applied: bundleOverrideApplied,
+      ignoredAwaitingAction: ignoredAwaitingActionForBundle,
       inboundCategoryIntent: inboundCategoryIntent || null,
       inboundInventoryIntent,
       inboundTechnicalSpec,
@@ -8353,11 +11520,14 @@ export async function POST(req: Request) {
     }
 
     if (!String(reply || "").trim()) {
+      const pendingFamiliesNow = Array.isArray(nextMemory?.pending_family_options) && nextMemory.pending_family_options.length > 0;
+      const pendingModelsNow = Array.isArray(nextMemory?.pending_product_options) && nextMemory.pending_product_options.length > 0;
       reply = buildGuidedRecoveryMessage({
         awaiting: String(nextMemory.awaiting_action || previousMemory?.awaiting_action || ""),
         rememberedProduct: String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || ""),
-        hasPendingFamilies: Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0,
-        hasPendingModels: Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0,
+        hasPendingFamilies: pendingFamiliesNow || (Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0),
+        hasPendingModels: pendingModelsNow || (Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0),
+        inboundText: inbound.text,
       });
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
@@ -8519,6 +11689,9 @@ export async function POST(req: Request) {
     if (autoQuoteDocs.length || resendPdf || autoQuoteBundle) {
       try {
         if (autoQuoteBundle) {
+          console.log("[quote-bundle] send final start", { drafts: autoQuoteBundle.draftIds?.length || 0, fileName: autoQuoteBundle.fileName });
+        }
+        if (autoQuoteBundle) {
           await evolutionService.sendDocument(outboundInstance, sentTo, {
             base64: autoQuoteBundle.pdfBase64,
             fileName: autoQuoteBundle.fileName,
@@ -8534,6 +11707,7 @@ export async function POST(req: Request) {
               .eq("created_by", ownerId);
           }
           sentQuotePdf = true;
+          console.log("[quote-bundle] send final done", { mode: "bundle", to: sentTo });
         } else if (autoQuoteDocs.length) {
           for (const doc of autoQuoteDocs) {
             await evolutionService.sendDocument(outboundInstance, sentTo, {
@@ -8636,6 +11810,7 @@ export async function POST(req: Request) {
       }
     }
     else if (handledByRecall) nextMemory.last_intent = "quote_recall";
+    else if (String(nextMemory.awaiting_action || "") === "followup_quote_disambiguation") nextMemory.last_intent = "followup_quote_disambiguation";
     else if (handledByTechSheet && isProductImageIntent(inbound.text)) nextMemory.last_intent = "image_request";
     else if (handledByTechSheet) nextMemory.last_intent = "tech_sheet_request";
     else if (handledByPricing) nextMemory.last_intent = "price_request";
