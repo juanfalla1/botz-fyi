@@ -1263,8 +1263,18 @@ function resolvePendingProductOptionStrict(text: string, optionsRaw: any): { cod
 function familyLabelFromRow(row: any): string {
   const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const family = String(source?.family || source?.familia || "").trim();
-  if (family) return family;
-  const sub = normalizeText(String(source?.subcategory || "").trim());
+  const categoryNorm = normalizeText(String(row?.category || ""));
+  const subNorm = normalizeText(String(source?.subcategory || "").trim());
+  if (family) {
+    if (
+      (categoryNorm === "basculas" || subNorm.startsWith("basculas") || subNorm.startsWith("plataformas") || subNorm.startsWith("indicadores")) &&
+      /balanzas?/.test(normalizeText(family))
+    ) {
+      return "Bascula industriales";
+    }
+    return family;
+  }
+  const sub = subNorm;
   if (sub) {
     const mapped: Record<string, string> = {
       balanzas_semimicro: "Balanza Semi - Micro",
@@ -3592,10 +3602,10 @@ function scopeCatalogRows(rows: any[], categoryIntent: string): any[] {
     if (rowCat === "basculas" || rowCat.startsWith("basculas_") || rowSub.startsWith("basculas") || rowSub.startsWith("plataformas") || rowSub.startsWith("indicadores")) {
       return true;
     }
-    if (/(ranger|defender|valor|plataforma|control de peso|ckw|td52p|r31|rc31|r71|bascula|basculas|industrial)/.test(rowName)) {
+    if (/(plataforma|indicador|bascula|basculas|control de peso)/.test(rowName)) {
       return true;
     }
-    if (/(bascula|basculas|plataforma|industrial|ranger|defender|valor)/.test(rowFamily)) {
+    if (/(bascula|basculas|plataforma|indicador)/.test(rowFamily)) {
       return true;
     }
     return false;
