@@ -2015,6 +2015,16 @@ function isCatalogBreadthQuestion(text: string): boolean {
   );
 }
 
+function isGlobalCatalogAsk(text: string): boolean {
+  const t = normalizeCatalogQueryText(String(text || ""));
+  if (!t) return false;
+  return (
+    /(dame|muestrame|mu[eé]strame|quiero|ver).*(todo\s+el\s+catalogo|catalogo\s+completo|catalogo)/.test(t) ||
+    /(dame|muestrame|mu[eé]strame|quiero|ver).*(todos\s+los\s+productos|todas\s+las\s+referencias|todos\s+los\s+equipos)/.test(t) ||
+    /^catalogo$/.test(t)
+  );
+}
+
 function isOutOfCatalogDomainQuery(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
@@ -7505,7 +7515,7 @@ export async function POST(req: Request) {
           }
         }
         if (!String(strictReply || "").trim() && freeCatalogAskInModelStep && !isCategorySwitchInModelStep) {
-          const asksAllProductsGlobal = /(dame|muestrame|mu[eé]strame|quiero|ver)\s*(todos|todas)\s*(los|las)?\s*(productos|equipos|referencias)|\btodo\s+el\s+catalogo|\bcatalogo\s+completo/.test(textNorm);
+          const asksAllProductsGlobal = isGlobalCatalogAsk(text);
           if (asksAllProductsGlobal) {
             const globalFamilies = buildNumberedFamilyOptions(ownerRows as any[], 10);
             const globalTotal = globalFamilies.reduce((acc: number, o: any) => acc + Number(o?.count || 0), 0);
@@ -9691,7 +9701,9 @@ export async function POST(req: Request) {
       !isPriceIntent(inbound.text)
     ) {
       const rememberedCategoryIntent = String(previousMemory?.last_category_intent || "").trim();
-      const categoryIntent = detectCatalogCategoryIntent(inbound.text)
+      const categoryIntent = isGlobalCatalogAsk(inbound.text)
+        ? ""
+        : detectCatalogCategoryIntent(inbound.text)
         || (isCategoryFollowUpIntent(inbound.text) ? rememberedCategoryIntent : "");
       const featureTerms = extractFeatureTerms(inbound.text);
       const wantsFeatureAnswer = isFeatureQuestionIntent(inbound.text) && featureTerms.length > 0;
