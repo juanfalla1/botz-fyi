@@ -2290,7 +2290,7 @@ function detectCatalogCategoryIntent(text: string): string | null {
     if (/(electrodo)/.test(t)) return "electroquimica_electrodos";
     return "electroquimica";
   }
-  if (/(analizador de humedad|humedad|mb120|mb90|mb27|mb23)/.test(t)) return "analizador_humedad";
+  if (/(anali[sz]ador(?:es)?(?:\s+de)?\s+humedad|anali[sz]ador(?:es)?|humedad|mb120|mb90|mb27|mb23)/.test(t)) return "analizador_humedad";
   if (asksLabEquipment) return "equipos_laboratorio";
   if (/(balanza|balanzas|analitica|semi analitica|semi-micro|precision|resolucion|lectura minima)/.test(t) && /(precision|resolucion|lectura minima)/.test(t)) {
     return "balanzas_precision";
