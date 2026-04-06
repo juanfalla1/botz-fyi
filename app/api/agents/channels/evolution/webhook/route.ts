@@ -2332,6 +2332,29 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
     return best && best.score >= 3 ? best.filePath : "";
   };
 
+  const canonical = (v: string) => normalizeCatalogQueryText(String(v || "")).replace(/[^a-z0-9]/g, "");
+  const strictModelTokens = uniqueNormalizedStrings([
+    ...extractModelLikeTokens(String(row?.name || "")),
+    ...extractModelLikeTokens(String(queryText || "")),
+    String(row?.name || ""),
+  ])
+    .map((t) => canonical(t))
+    .filter((t) => t.length >= 5);
+  if (strictModelTokens.length) {
+    let strictBest: { filePath: string; score: number } | null = null;
+    for (const f of files) {
+      const hay = normalizeCatalogQueryText(f.normalized || f.fileName || "");
+      const hayCanon = canonical(hay);
+      let score = 0;
+      for (const token of strictModelTokens) {
+        if (hayCanon.includes(token)) score += 20;
+      }
+      if (/ficha|datasheet|data sheet/.test(hay)) score += 3;
+      if (score > 0 && (!strictBest || score > strictBest.score)) strictBest = { filePath: f.filePath, score };
+    }
+    if (strictBest) return strictBest.filePath;
+  }
+
   const directByModelFamily = (() => {
     if (/\b(ax|ad)\d{2,6}/.test(modelNorm) || /adventurer/.test(modelNorm)) {
       return pickByKeywordPriority(["adventurer", "ax", "data sheet"]);
@@ -3177,7 +3200,7 @@ function resolveStaticQuoteProfile(row: any, fallbackName: string): StaticQuoteP
 
   if (/^(exr|exp|ex)\d+/.test(model)) {
     return {
-      imageFile: "exr.png",
+      imageFile: "",
       description: [
         "Balanza Semi - Micro marca Ohaus",
         "Capacidad maxima: 82 g/120 g",
@@ -3907,15 +3930,6 @@ async function resolveQuotePerksImageDataUrl(): Promise<string> {
 }
 
 async function resolveProductImageDataUrl(row: any): Promise<string> {
-  const staticProfile = resolveStaticQuoteProfile(row, String(row?.name || ""));
-  if (staticProfile?.imageFile) {
-    const local = localImageFileToDataUrl(staticProfile.imageFile);
-    if (local) {
-      console.log("[evolution-webhook] quote_image_static_ok", { model: String(row?.name || ""), imageFile: staticProfile.imageFile });
-      return local;
-    }
-  }
-
   const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const candidates = uniqueNormalizedStrings([
     String(row?.image_url || "").trim(),
@@ -3958,6 +3972,15 @@ async function resolveProductImageDataUrl(row: any): Promise<string> {
       }
     } catch {
       // ignore local pdf image extraction errors
+    }
+  }
+
+  const staticProfile = resolveStaticQuoteProfile(row, String(row?.name || ""));
+  if (staticProfile?.imageFile) {
+    const local = localImageFileToDataUrl(staticProfile.imageFile);
+    if (local) {
+      console.log("[evolution-webhook] quote_image_static_ok", { model: String(row?.name || ""), imageFile: staticProfile.imageFile });
+      return local;
     }
   }
 
