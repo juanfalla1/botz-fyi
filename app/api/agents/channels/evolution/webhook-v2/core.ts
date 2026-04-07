@@ -4367,7 +4367,8 @@ async function buildStandardQuotePdf(args: {
       : Number(item.basePriceUsd || 0) * Number(item.trmRate || 0) * qty;
     subtotal += lineTotal;
 
-    const baseDesc = String(item.description || "").trim() || `Producto: ${String(item.productName || "-")}`;
+    const fullDesc = String(item.description || "").replace(/\s+/g, " ").trim();
+    const baseDesc = (fullDesc.length > 420 ? `${fullDesc.slice(0, 417)}...` : fullDesc) || `Producto: ${String(item.productName || "-")}`;
 
     const productLines = truncateLines(
       doc.splitTextToSize(String(item.productName || "-").slice(0, 40), 28),
@@ -4451,15 +4452,31 @@ async function buildStandardQuotePdf(args: {
         try {
           const imgX = 22;
           const imgY = bodyY + 2;
-          const imgW = 24;
-          const imgH = Math.min(30, Math.max(22, rowH - 16));
+          const boxW = 24;
+          const boxH = Math.min(30, Math.max(22, rowH - 16));
           const dataUrl = String(item.imageDataUrl || "");
           const fmt = /^data:image\/png/i.test(dataUrl)
             ? "PNG"
             : /^data:image\/webp/i.test(dataUrl)
               ? "WEBP"
               : "JPEG";
-          doc.addImage(dataUrl, fmt as any, imgX, imgY, imgW, imgH);
+          let drawW = boxW;
+          let drawH = boxH;
+          try {
+            const props: any = (doc as any).getImageProperties?.(dataUrl);
+            const pW = Number(props?.width || 0);
+            const pH = Number(props?.height || 0);
+            if (pW > 0 && pH > 0) {
+              const scale = Math.min(boxW / pW, boxH / pH);
+              drawW = Math.max(8, pW * scale);
+              drawH = Math.max(8, pH * scale);
+            }
+          } catch {
+            // keep box dimensions if image metadata is unavailable
+          }
+          const drawX = imgX + (boxW - drawW) / 2;
+          const drawY = imgY + (boxH - drawH) / 2;
+          doc.addImage(dataUrl, fmt as any, drawX, drawY, drawW, drawH);
         } catch {
           // ignore image rendering failure
         }
