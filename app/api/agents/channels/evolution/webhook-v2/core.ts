@@ -2034,6 +2034,29 @@ function isOutOfCatalogDomainQuery(text: string): boolean {
   return outTerms && !inDomain;
 }
 
+function isUnsupportedSpecificAnalyzerRequest(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  const asksMoistureAnalyzer = /(anali[sz]ador(?:es)?|humedad)/.test(t);
+  if (!asksMoistureAnalyzer) return false;
+  return /(fibra\s+de\s+carbono|fibra\s+de\s+carbon|carbon\s+fiber|carbono\s+composito|compuesto\s+de\s+carbono)/.test(t);
+}
+
+function hasCarbonAnalyzerMatch(rows: any[]): boolean {
+  const list = Array.isArray(rows) ? rows : [];
+  return list.some((row: any) => {
+    const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+    const hay = normalizeText([
+      String(row?.name || ""),
+      String(row?.summary || ""),
+      String(row?.description || ""),
+      String(row?.specs_text || ""),
+      JSON.stringify(source || {}),
+    ].join(" "));
+    return /(fibra\s+de\s+carbono|fibra\s+de\s+carbon|carbon\s+fiber|carbono\s+composito|compuesto\s+de\s+carbono)/.test(hay);
+  });
+}
+
 function listActiveCatalogCategories(rows: any[]): string {
   const list = Array.isArray(rows) ? rows : [];
   const counts = new Map<string, number>();
@@ -5389,6 +5412,41 @@ export async function POST(req: Request) {
       });
 
       const pipelineGate = async (): Promise<Response | null> => {
+        if (isUnsupportedSpecificAnalyzerRequest(text)) {
+          const humidityRows = scopeCatalogRows(ownerRows as any[], "analizador_humedad");
+          if (hasCarbonAnalyzerMatch(humidityRows as any[])) {
+            const exactOptions = buildNumberedProductOptions(humidityRows as any[], 8);
+            strictMemory.pending_product_options = exactOptions.slice(0, 8);
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = exactOptions.length ? "strict_choose_model" : "strict_need_spec";
+            strictMemory.last_category_intent = "analizador_humedad";
+            const reply = exactOptions.length
+              ? [
+                  "Sí, en base de datos tengo opción para analizador de humedad orientado a fibra de carbono.",
+                  ...exactOptions.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Elige con letra o número (A/1).",
+                ].join("\n")
+              : "Sí, manejo analizador de humedad para esa aplicación, pero no veo opciones activas para listar en este momento.";
+            return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "guided_need_discovery" });
+          }
+          const options = buildNumberedProductOptions(humidityRows as any[], 8);
+          strictMemory.pending_product_options = options.slice(0, 8);
+          strictMemory.pending_family_options = [];
+          strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
+          strictMemory.last_category_intent = "analizador_humedad";
+          const reply = options.length
+            ? [
+                "En base de datos no tengo un analizador de humedad específico para fibra de carbono.",
+                "Sí manejo analizadores de humedad OHAUS de uso general. Estas son opciones disponibles:",
+                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra o número (A/1), o dime tu muestra y rango de peso para recomendarte mejor.",
+              ].join("\n")
+            : "En base de datos no tengo un analizador de humedad específico para fibra de carbono. Si quieres, te recomiendo alternativas generales del catálogo OHAUS.";
+          return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "out_of_catalog" });
+        }
+
         if (isOutOfCatalogDomainQuery(text)) {
           const available = listActiveCatalogCategories(ownerRows as any[]);
           const reply = [
@@ -5400,6 +5458,25 @@ export async function POST(req: Request) {
         }
 
         if (pipelineIntent === "guided_need_discovery") {
+          const featureTerms = extractFeatureTerms(text);
+          const featureRanked = featureTerms.length
+            ? rankCatalogByFeature(ownerRows as any[], featureTerms).slice(0, 8)
+            : [];
+          if (featureRanked.length) {
+            const featureRows = featureRanked.map((x: any) => x.row).filter(Boolean);
+            const options = buildNumberedProductOptions(featureRows as any[], 8);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
+            strictMemory.strict_use_case = String(text || "").trim();
+            const reply = [
+              `Sí, encontré ${featureRanked.length} referencia(s) que coinciden con esa descripción (${featureTerms.join(", ")}).`,
+              ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige con letra o número (A/1) y te envío detalle técnico o cotización.",
+            ].join("\n");
+            return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "guided_need_discovery" });
+          }
           const app = detectTargetApplication(text) || "";
           const productKind = /(bascula|basculas)/.test(textNorm) ? "báscula" : "balanza";
           const guidance = /(tornillo|tornillos|tuerca|tuercas|perno|pernos|repuesto|repuestos)/.test(textNorm)
