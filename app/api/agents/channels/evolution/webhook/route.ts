@@ -2332,7 +2332,7 @@ function detectCatalogCategoryIntent(text: string): string | null {
   if (/(balanza|balanzas|analitica|semi analitica|semi-micro|precision|resolucion|lectura minima)/.test(t) && /(precision|resolucion|lectura minima)/.test(t)) {
     return "balanzas_precision";
   }
-  if (/(bascula|basculas|bscula|bsculas|ranger|defender|valor|plataforma|control de peso|ckw|td52p)/.test(t) && !negatesBasculas) return "basculas";
+  if (/(bascula|basculas|bscula|bsculas|ranger|defender|valor|control de peso|ckw|td52p|plataforma\s+de\s+pesaje|plataforma\s+de\s+peso)/.test(t) && !negatesBasculas) return "basculas";
   if (/(impresora)/.test(t)) return "impresoras";
   if (/(balanza|balanzas|blanza|blanzas|explorer|adventurer|pioneer|pr\b|scout|analitica|semi analitica|precision)/.test(t)) return "balanzas";
   if (/(documento|brochure|manual|guia|catalogo pdf)/.test(t)) return "documentos";
@@ -6659,6 +6659,11 @@ export async function POST(req: Request) {
         if (awaiting === "strict_choose_action" && !followupIntent && !wantsQuote && !wantsSheet) {
           if (/(no\s+me\s+sirve|no\s+quiero\s+este|otra\s+opcion|otra\s+opción|que\s+otra|qué\s+otra|recomiendame\s+otra|recomiéndame\s+otra|me\s+ofreces\s+otra|me\s+puedes\s+ofrecer\s+otra)/.test(textNorm)) {
             followupIntent = "alternative_same_need";
+          }
+        }
+        if (awaiting === "strict_choose_action" && !followupIntent && !wantsSheet) {
+          if (/\b(menor\s+precio|m[aá]s\s+barat|mas\s+barat|econ[oó]mic|economica|economicas)\b/.test(textNorm)) {
+            followupIntent = "alternative_lower_price";
           }
         }
 
