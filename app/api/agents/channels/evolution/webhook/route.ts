@@ -804,7 +804,7 @@ async function buildStrictConversationalReply(args: {
 
 function isAdvisorAppointmentIntent(text: string): boolean {
   const t = normalizeText(text || "");
-  return /(\bcita\b|asesor humano|asesor comercial|agendar|agenda|llamada con asesor|quiero hablar con asesor)/.test(t);
+  return /(\bcita\b|asesor humano|asesor comercial|agendar|agenda|llamada con asesor|quiero hablar con asesor|mariana|transferir\s+asesor|pasame\s+con\s+asesor)/.test(t);
 }
 
 function buildAdvisorMiniAgendaPrompt(): string {
@@ -1149,6 +1149,8 @@ function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: s
     const specParts: string[] = [];
     if (spec.capacityG > 0) specParts.push(`Cap: ${formatSpecNumber(spec.capacityG)} g`);
     if (spec.readabilityG > 0) specParts.push(`Res: ${formatSpecNumber(spec.readabilityG)} g`);
+    const delivery = deliveryLabelForRow(row);
+    if (delivery) specParts.push(`Entrega: ${delivery}`);
     const suffix = specParts.length ? ` | ${specParts.join(" | ")}` : "";
     const name = `${baseName}${suffix}`.slice(0, 140);
     if (!name) continue;
@@ -2251,8 +2253,36 @@ function updateCommercialValidation(memory: any, text: string, fallbackName: str
 function buildCommercialEscalationMessage(): string {
   return [
     "Puedo orientarte técnicamente y mostrarte opciones, pero para continuar con la cotización formal necesitamos tu nombre y NIT de empresa. Si eres persona natural, por favor compárteme tu RUT.",
-    `Si prefieres, puedes continuar directamente con nuestra asesora Mariana aquí: ${MARIANA_ESCALATION_LINK}`,
+    "Si prefieres, te transfiero con nuestra asesora Mariana (cel: +57 318 3731171).",
+    `Puedes continuar directamente aquí: ${MARIANA_ESCALATION_LINK}`,
+    "También puedes escribir: asesor.",
   ].join("\n");
+}
+
+function normalizeDeliveryLabel(raw: string): string {
+  const t = normalizeText(String(raw || ""));
+  if (!t) return "";
+  if (/(stock|inmediat|disponible\s+ya|entrega\s+inmediata)/.test(t)) return "stock";
+  if (/(4\s*seman|cuatro\s*seman|importaci)/.test(t)) return "importación a cuatro semanas";
+  return String(raw || "").trim();
+}
+
+function deliveryLabelForRow(row: any): string {
+  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const fromRow = [row?.delivery, row?.delivery_time, row?.lead_time, row?.availability, row?.disponibilidad]
+    .map((v) => String(v || "").trim())
+    .find(Boolean) || "";
+  const fromSource = [source?.delivery, source?.delivery_time, source?.lead_time, source?.availability, source?.disponibilidad, source?.entrega]
+    .map((v: any) => String(v || "").trim())
+    .find(Boolean) || "";
+  const direct = normalizeDeliveryLabel(fromRow || fromSource);
+  if (direct) return direct;
+  const modelNorm = normalizeText(catalogReferenceCode(row) || String(row?.name || ""));
+  const guided = Object.values(GUIDED_BALANZA_CATALOG)
+    .flatMap((g) => g)
+    .flatMap((g) => g.models)
+    .find((m) => modelNorm.includes(normalizeText(m.model)));
+  return guided?.delivery || "";
 }
 
 function detectGuidedBalanzaProfile(text: string): GuidedBalanzaProfile | null {
@@ -6744,6 +6774,9 @@ export async function POST(req: Request) {
         strictMemory.strict_family_label = "";
         strictReply = buildCommercialWelcomeMessage();
         strictMemory.commercial_welcome_sent = true;
+      } else if (!String(strictReply || "").trim() && !strictMemory.commercial_validation_complete && /(no\s+tengo\s+datos|no\s+tengo\s+nit|sin\s+nit|no\s+tengo\s+rut|sin\s+rut)/.test(textNorm)) {
+        strictMemory.awaiting_action = "conversation_followup";
+        strictReply = buildCommercialEscalationMessage();
       } else if (!String(strictReply || "").trim() && wantsQuote && !strictMemory.commercial_validation_complete) {
         strictMemory.awaiting_action = "conversation_followup";
         strictReply = buildCommercialEscalationMessage();
