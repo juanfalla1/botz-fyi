@@ -1309,6 +1309,7 @@ function buildNumberedFamilyOptions(rows: any[], maxItems = 8): Array<{ code: st
   const canonicalBalanzasFamilyLabel = (label: string): string => {
     const t = normalizeText(label);
     if (!t) return "";
+    if (t.includes("portatil")) return "Balanza Precisión";
     if (t.includes("semimicro") || t.includes("semi micro")) return "Balanza Semi - Micro";
     if (t.includes("semi") && t.includes("analit")) return "Balanza Semi - Analitica";
     if (t.includes("analit")) return "Balanza Analitica";
