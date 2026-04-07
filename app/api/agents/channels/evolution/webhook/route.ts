@@ -1306,8 +1306,20 @@ function buildNumberedFamilyOptions(rows: any[], maxItems = 8): Array<{ code: st
     const c = normalizeText(String(row?.category || ""));
     return c === "balanzas" || c.startsWith("balanzas_");
   });
+  const canonicalBalanzasFamilyLabel = (label: string): string => {
+    const t = normalizeText(label);
+    if (!t) return "";
+    if (t.includes("semimicro") || t.includes("semi micro")) return "Balanza Semi - Micro";
+    if (t.includes("semi") && t.includes("analit")) return "Balanza Semi - Analitica";
+    if (t.includes("analit")) return "Balanza Analitica";
+    if (t.includes("precis")) return "Balanza Precisión";
+    if (t.includes("contadora") || t.includes("conteo")) return "Balanzas Contadoras";
+    if (t.includes("industrial") || t.includes("mesa")) return "Balanzas industriales";
+    return label;
+  };
   for (const row of Array.isArray(rows) ? rows : []) {
-    const label = familyLabelFromRow(row);
+    const rawLabel = familyLabelFromRow(row);
+    const label = balanzasOnly ? canonicalBalanzasFamilyLabel(rawLabel) : rawLabel;
     const key = normalizeText(label);
     if (!key) continue;
     if (["balanzas", "basculas", "general"].includes(key)) continue;
@@ -1324,14 +1336,12 @@ function buildNumberedFamilyOptions(rows: any[], maxItems = 8): Array<{ code: st
     "balanzas industriales",
     "balanzas contadoras",
   ].map((x) => normalizeText(x));
-  const allowedBalanzasFamilies = new Set(preferredBalanzasOrder);
   const orderIndex = (label: string) => {
     const idx = preferredBalanzasOrder.indexOf(normalizeText(label));
     return idx >= 0 ? idx : 999;
   };
 
   return Array.from(map.values())
-    .filter((x) => !balanzasOnly || allowedBalanzasFamilies.has(normalizeText(x.label)))
     .sort((a, b) => {
       if (balanzasOnly) {
         const ai = orderIndex(a.label);
