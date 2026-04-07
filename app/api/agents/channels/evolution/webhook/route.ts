@@ -8036,6 +8036,7 @@ export async function POST(req: Request) {
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_family") {
         const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
         const asksCategoryMenuInFamilyStep = /(categorias|categorías|que\s+categorias|que\s+categorías|familias|que\s+familias|grupos)/.test(textNorm);
+        const asksCheapestInFamilyStep = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|precio\s+bajo)\b/.test(textNorm);
         const categoryIntentInFamilyStep = detectCatalogCategoryIntent(text);
         const currentCategoryInFamilyStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
         const isCategorySwitchInFamilyStep = Boolean(
@@ -8059,6 +8060,36 @@ export async function POST(req: Request) {
                 "Elige una con letra o número (A/1).",
               ].join("\n")
             : "En este momento no tengo familias activas para mostrar en catálogo.";
+        }
+
+        if (!String(strictReply || "").trim() && asksCheapestInFamilyStep) {
+          const scopedForPrice = currentCategoryInFamilyStep
+            ? scopeCatalogRows(ownerRows as any[], currentCategoryInFamilyStep)
+            : (ownerRows as any[]);
+          const pricedRows = (scopedForPrice as any[])
+            .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
+            .sort((a: any, b: any) => Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
+          const options = buildNumberedProductOptions(pricedRows as any[], 8);
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            const topRow = pricedRows[0];
+            const topFamily = String(familyLabelFromRow(topRow) || "N/A").trim();
+            strictReply = [
+              `Perfecto. Según base de datos, la familia más económica aquí es: ${topFamily}.`,
+              "Estas son 4 opciones de menor precio:",
+              ...options.slice(0, 4).map((o) => {
+                const p = Number(o.base_price_usd || 0);
+                return `${o.code}) ${o.name}${p > 0 ? ` (USD ${formatMoney(p)})` : ""}`;
+              }),
+              "",
+              "Responde con letra o número (A/1).",
+            ].join("\n");
+          } else {
+            strictReply = "Ahora mismo no veo productos con precio cargado para calcular las opciones más económicas.";
+          }
         }
 
         if (!String(strictReply || "").trim() && isCategorySwitchInFamilyStep) {
@@ -8706,6 +8737,15 @@ export async function POST(req: Request) {
 
     let awaitingAction = String(nextMemory?.awaiting_action || previousMemory?.awaiting_action || "");
     const originalInboundText = String(inboundTextAtEntry || inbound.text || "").trim();
+    if (isGlobalCatalogAsk(originalInboundText)) {
+      nextMemory.awaiting_action = "none";
+      nextMemory.last_category_intent = "";
+      nextMemory.strict_family_label = "";
+      nextMemory.pending_product_options = [];
+      nextMemory.pending_family_options = [];
+      inbound.text = "catalogo completo";
+      awaitingAction = "none";
+    }
     const explicitModelGlobal = hasConcreteProductHint(originalInboundText) && !isOptionOnlyReply(originalInboundText);
     if (explicitModelGlobal) {
       nextMemory.awaiting_action = "none";
