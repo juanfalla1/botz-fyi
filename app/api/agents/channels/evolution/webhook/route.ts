@@ -2087,6 +2087,223 @@ function listActiveCatalogCategories(rows: any[]): string {
   return labels.map((x) => `${x.label} (${x.count})`).join(", ");
 }
 
+type GuidedBalanzaProfile =
+  | "balanza_oro_001"
+  | "balanza_precision_001"
+  | "balanza_laboratorio_0001"
+  | "balanza_semimicro_00001"
+  | "balanza_industrial_portatil_conteo";
+
+type GuidedModelSpec = { model: string; capacity: string; resolution: string; delivery: string };
+
+const MARIANA_ESCALATION_LINK = "https://wa.me/573183731171";
+
+const GUIDED_BALANZA_CATALOG: Record<GuidedBalanzaProfile, Array<{ tier: string; models: GuidedModelSpec[] }>> = {
+  balanza_oro_001: [
+    { tier: "Gama básica (económica y confiable)", models: [
+      { model: "PX3202/E", capacity: "3200 g", resolution: "0,01 g", delivery: "stock" },
+      { model: "PX1602/E", capacity: "1600 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
+      { model: "PX4202/E", capacity: "4200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
+      { model: "PX6202/E", capacity: "6200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
+    ] },
+    { tier: "Gama media (mejor desempeño y funciones)", models: [
+      { model: "AX2202/E", capacity: "2200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
+      { model: "AX6202/E", capacity: "6200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
+    ] },
+    { tier: "Gama avanzada (mayor capacidad y versatilidad)", models: [
+      { model: "EXR2202", capacity: "2200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
+      { model: "EXR4202", capacity: "4200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
+      { model: "EXR6202", capacity: "6200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
+      { model: "EXR12202", capacity: "12200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
+    ] },
+    { tier: "Gama alta (máxima precisión y funciones avanzadas)", models: [
+      { model: "EXP2202", capacity: "2200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
+      { model: "EXP4202", capacity: "4200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
+      { model: "EXP6202", capacity: "6200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
+      { model: "EXP12202", capacity: "12200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
+    ] },
+  ],
+  balanza_precision_001: [
+    { tier: "Gama básica (económica y confiable)", models: [
+      { model: "PX323/E", capacity: "320 g", resolution: "0,001 g", delivery: "stock" },
+      { model: "PX623/E", capacity: "620 g", resolution: "0,001 g", delivery: "stock" },
+    ] },
+    { tier: "Gama media (mayor funcionalidad)", models: [
+      { model: "AX223/E", capacity: "220 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
+      { model: "AX423/E", capacity: "420 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
+      { model: "AX623/E", capacity: "620 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
+    ] },
+    { tier: "Gama avanzada (alto desempeño)", models: [
+      { model: "EXP223/AD", capacity: "220 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
+      { model: "EXP423/AD", capacity: "420 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
+      { model: "EXP623/AD", capacity: "620 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
+    ] },
+    { tier: "Gama alta (máxima capacidad y precisión)", models: [
+      { model: "EXP1203/AD", capacity: "1200 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
+    ] },
+  ],
+  balanza_laboratorio_0001: [
+    { tier: "Gama básica (económica y confiable)", models: [
+      { model: "PX224/E", capacity: "220 g", resolution: "0,001 g", delivery: "stock" },
+    ] },
+    { tier: "Gama media (mayor funcionalidad)", models: [
+      { model: "AX224/E", capacity: "220 g", resolution: "0,0001 g", delivery: "stock" },
+    ] },
+    { tier: "Gama avanzada (alto desempeño)", models: [
+      { model: "EXP224/AD", capacity: "220 g", resolution: "0,0001 g", delivery: "importación a cuatro semanas" },
+      { model: "EXP324/AD", capacity: "320 g", resolution: "0,0001 g", delivery: "importación a cuatro semanas" },
+    ] },
+  ],
+  balanza_semimicro_00001: [
+    { tier: "Gama básica (económica y confiable)", models: [
+      { model: "PX85", capacity: "82 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
+      { model: "PX225D", capacity: "220 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
+    ] },
+    { tier: "Gama media (mayor funcionalidad)", models: [
+      { model: "AX85", capacity: "82 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
+      { model: "AX125D", capacity: "82 g / 120 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
+      { model: "AX225D", capacity: "220 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
+    ] },
+    { tier: "Gama avanzada (alto desempeño)", models: [
+      { model: "EXR125D", capacity: "82 g / 120 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
+      { model: "EXR225D", capacity: "120 g / 220 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
+    ] },
+    { tier: "Gama alta (máxima precisión y tecnología)", models: [
+      { model: "EXP125D/AD", capacity: "82 g / 120 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
+      { model: "EXP225D/AD", capacity: "220 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
+    ] },
+  ],
+  balanza_industrial_portatil_conteo: [
+    { tier: "Gama básica (uso industrial estándar)", models: [
+      { model: "R31P3", capacity: "3000 g", resolution: "0,1 g", delivery: "stock" },
+      { model: "R31P6", capacity: "6000 g", resolution: "0,2 g", delivery: "stock" },
+      { model: "R31P15", capacity: "15000 g", resolution: "0,5 g", delivery: "stock" },
+      { model: "R31P30", capacity: "30000 g", resolution: "1 g", delivery: "stock" },
+    ] },
+    { tier: "Gama básica (uso industrial estándar con conteo especial)", models: [
+      { model: "RC31P3", capacity: "3000 g", resolution: "0,1 g", delivery: "stock" },
+      { model: "RC31P6", capacity: "6000 g", resolution: "0,2 g", delivery: "stock" },
+      { model: "RC31P15", capacity: "15000 g", resolution: "0,5 g", delivery: "stock" },
+      { model: "RC31P30", capacity: "30000 g", resolution: "1 g", delivery: "stock" },
+    ] },
+    { tier: "Gama media (mayor precisión)", models: [
+      { model: "R71MD3", capacity: "3000 g", resolution: "0,05 g", delivery: "importación a cuatro semanas" },
+      { model: "R71MD6", capacity: "6000 g", resolution: "0,1 g", delivery: "importación a cuatro semanas" },
+      { model: "R71MD35", capacity: "35000 g", resolution: "0,5 g", delivery: "importación a cuatro semanas" },
+      { model: "R71MD60", capacity: "60000 g", resolution: "1 g", delivery: "importación a cuatro semanas" },
+    ] },
+    { tier: "Gama alta (alta precisión industrial)", models: [
+      { model: "R71MHD3", capacity: "3000 g", resolution: "0,01 g", delivery: "stock" },
+      { model: "R71MHD6", capacity: "6000 g", resolution: "0,02 g", delivery: "importación a cuatro semanas" },
+      { model: "R71MHD35", capacity: "35000 g", resolution: "0,1 g", delivery: "stock" },
+    ] },
+  ],
+};
+
+function buildCommercialWelcomeMessage(): string {
+  return [
+    "Hola, te saluda AVA de Avanza International Group.",
+    "Somos representantes de OHAUS, con más de 100 años de experiencia en soluciones de pesaje y laboratorio.",
+    "¿En qué equipo estás interesado? Te ayudo a encontrar la mejor opción.",
+    "Por favor, compárteme tu nombre y el NIT de la empresa para continuar con el proceso.",
+  ].join("\n");
+}
+
+function extractCompanyNit(text: string): string {
+  const raw = String(text || "");
+  const labeled = raw.match(/\bnit\s*[:=]?\s*([0-9.\-]{5,20})/i)?.[1] || "";
+  const fallback = (!labeled ? raw.match(/\b([0-9]{7,14}(?:-[0-9])?)\b/)?.[1] : "") || "";
+  return String(labeled || fallback).replace(/[^0-9.-]/g, "").trim();
+}
+
+function detectPersonaNatural(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  return /persona\s+natural|soy\s+natural|no\s+tengo\s+empresa|sin\s+empresa/.test(t);
+}
+
+function extractRut(text: string): string {
+  const raw = String(text || "");
+  const labeled = raw.match(/\brut\s*[:=]?\s*([a-z0-9.\-]{5,24})/i)?.[1] || "";
+  return String(labeled || "").trim();
+}
+
+function updateCommercialValidation(memory: any, text: string, fallbackName: string) {
+  const inferredName = sanitizeCustomerDisplayName(extractCustomerName(text, fallbackName || ""));
+  const nit = extractCompanyNit(text);
+  const rut = extractRut(text);
+  const saysPersonaNatural = detectPersonaNatural(text);
+
+  if (inferredName && !String(memory?.customer_name || "").trim()) memory.customer_name = inferredName;
+  if (inferredName) memory.commercial_customer_name = inferredName;
+  if (nit) memory.commercial_company_nit = nit;
+  if (rut) memory.commercial_rut = rut;
+  if (saysPersonaNatural) memory.is_persona_natural = true;
+
+  memory.has_customer_name = Boolean(String(memory?.commercial_customer_name || memory?.customer_name || "").trim());
+  memory.has_company_nit = Boolean(String(memory?.commercial_company_nit || "").trim());
+  memory.has_rut = Boolean(String(memory?.commercial_rut || "").trim());
+  memory.is_persona_natural = Boolean(memory?.is_persona_natural);
+  memory.commercial_validation_complete = memory.is_persona_natural
+    ? Boolean(memory.has_customer_name && memory.has_rut)
+    : Boolean(memory.has_customer_name && memory.has_company_nit);
+}
+
+function buildCommercialEscalationMessage(): string {
+  return [
+    "Puedo orientarte técnicamente y mostrarte opciones, pero para continuar con la cotización formal necesitamos tu nombre y NIT de empresa. Si eres persona natural, por favor compárteme tu RUT.",
+    `Si prefieres, puedes continuar directamente con nuestra asesora Mariana aquí: ${MARIANA_ESCALATION_LINK}`,
+  ].join("\n");
+}
+
+function detectGuidedBalanzaProfile(text: string): GuidedBalanzaProfile | null {
+  const t = normalizeText(String(text || ""));
+  const hasOro = /(oro|joyeria|joyería|minero|calidad\s+del\s+oro|dos\s+cifras)/.test(t);
+  const hasThree = /(tres\s+cifras|0\s*[,.]\s*001|1\s*mg|gramera|cabina|cosmetic|menos\s+de\s+200|menos\s+de\s+300)/.test(t);
+  const hasFour = /(cuatro\s+cifras|0\s*[,.]\s*0001|0\s*[,.]\s*1\s*mg|laboratorio|laboratorio\s+de\s+alimentos)/.test(t);
+  const hasFive = /(cinco\s+cifras|0\s*[,.]\s*00001|0\s*[,.]\s*01\s*mg|semi\s*micro|semimicro|usp|microgram|migrogram)/.test(t);
+  const hasIndustrial = /(portatil|portátil|recargable|plato\s+grande|cuenta\s+piezas|tres\s+pantallas|tornillos|30\s*kg|15\s*kg)/.test(t);
+
+  if (hasFive) return "balanza_semimicro_00001";
+  if (hasFour) return "balanza_laboratorio_0001";
+  if (hasIndustrial) return "balanza_industrial_portatil_conteo";
+  if (hasOro) return "balanza_oro_001";
+  if (hasThree) return "balanza_precision_001";
+  return null;
+}
+
+function buildGuidedBalanzaReply(profile: GuidedBalanzaProfile): string {
+  const groups = GUIDED_BALANZA_CATALOG[profile] || [];
+  const intro =
+    profile === "balanza_oro_001"
+      ? "Sí, para pesar oro/joyería te recomiendo estas opciones por gama:"
+      : profile === "balanza_precision_001"
+        ? "Sí, para muestras bajas con 0,001 g te recomiendo estas opciones:"
+        : profile === "balanza_laboratorio_0001"
+          ? "Sí, para laboratorio con mayor precisión te recomiendo esta gama:"
+          : profile === "balanza_semimicro_00001"
+            ? "Sí, para semimicro (0,00001 g) estas son las opciones recomendadas:"
+            : "Sí, para uso portátil/industrial y conteo de piezas te recomiendo estas opciones:";
+  return [
+    intro,
+    ...groups.flatMap((group) => [
+      ``,
+      group.tier,
+      ...group.models.map((m) => `${m.model} | Cap: ${m.capacity} | Res: ${m.resolution} | Entrega: ${m.delivery}`),
+    ]),
+    "",
+    "Si quieres, te ayudo con 1) cotización 2) ficha técnica 3) asesor.",
+  ].join("\n");
+}
+
+function buildGuidedPendingOptions(rows: any[], profile: GuidedBalanzaProfile): any[] {
+  const models = (GUIDED_BALANZA_CATALOG[profile] || []).flatMap((g) => g.models.map((m) => normalizeText(m.model)));
+  const hits = (Array.isArray(rows) ? rows : []).filter((r: any) => {
+    const n = normalizeText(String(r?.name || ""));
+    return models.some((m) => n === m || n.includes(m));
+  });
+  return buildNumberedProductOptions(hits.slice(0, 8) as any[], 8);
+}
+
 type ConversationIntent =
   | "guided_need_discovery"
   | "menu_selection"
@@ -5179,6 +5396,7 @@ export async function POST(req: Request) {
         last_user_at: new Date().toISOString(),
       };
       const text = String(inbound.text || "").trim();
+      updateCommercialValidation(strictMemory, text, inbound.pushName || "");
       const strictPrevAwaiting = String(previousMemory?.awaiting_action || "");
       const preParsedSpec = parseTechnicalSpecQuery(text);
       console.log("[strict-inbound]", {
@@ -5536,6 +5754,22 @@ export async function POST(req: Request) {
         }
 
         if (pipelineIntent === "guided_need_discovery") {
+          const guidedProfile = detectGuidedBalanzaProfile(text);
+          if (guidedProfile) {
+            const options = buildGuidedPendingOptions(ownerRows as any[], guidedProfile);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
+            strictMemory.last_category_intent = "balanzas";
+            strictMemory.guided_balanza_profile = guidedProfile;
+            const welcomePrefix = strictMemory.commercial_welcome_sent ? "" : `${buildCommercialWelcomeMessage()}\n\n`;
+            strictMemory.commercial_welcome_sent = true;
+            const commercialTail = strictMemory.commercial_validation_complete
+              ? ""
+              : `\n\n${buildCommercialEscalationMessage()}`;
+            const reply = `${welcomePrefix}${buildGuidedBalanzaReply(guidedProfile)}${commercialTail}`;
+            return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "guided_need_discovery", guided_profile: guidedProfile });
+          }
           const featureTerms = extractFeatureTerms(text);
           const featureRanked = featureTerms.length
             ? rankCatalogByFeature(ownerRows as any[], featureTerms).slice(0, 8)
@@ -5552,6 +5786,7 @@ export async function POST(req: Request) {
               ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
               "",
               "Elige con letra o número (A/1) y te envío detalle técnico o cotización.",
+              ...(strictMemory.commercial_validation_complete ? [] : ["", buildCommercialEscalationMessage()]),
             ].join("\n");
             return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "guided_need_discovery" });
           }
@@ -5581,6 +5816,7 @@ export async function POST(req: Request) {
           const reply = [
             guidance,
             ...(top.length ? ["", "Opciones sugeridas para empezar:", ...top.map((o) => `${o.code}) ${o.name}`), "", "Si quieres, elige A/1 y te envío ficha o cotización."] : []),
+            ...(strictMemory.commercial_validation_complete ? [] : ["", buildCommercialEscalationMessage()]),
           ].join("\n");
           return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
         }
@@ -6506,7 +6742,11 @@ export async function POST(req: Request) {
         strictMemory.pending_family_options = [];
         strictMemory.strict_model_offset = 0;
         strictMemory.strict_family_label = "";
-        strictReply = buildGreetingReply(knownCustomerName, previousMemory);
+        strictReply = buildCommercialWelcomeMessage();
+        strictMemory.commercial_welcome_sent = true;
+      } else if (!String(strictReply || "").trim() && wantsQuote && !strictMemory.commercial_validation_complete) {
+        strictMemory.awaiting_action = "conversation_followup";
+        strictReply = buildCommercialEscalationMessage();
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
         const parsed = parseLooseTechnicalHint(text);
         const capacityRange = parseCapacityRangeHint(text);
