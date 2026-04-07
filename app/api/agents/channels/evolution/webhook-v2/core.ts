@@ -1321,17 +1321,17 @@ function buildNumberedFamilyOptions(rows: any[], maxItems = 8): Array<{ code: st
     "balanza analitica",
     "balanza semi - analitica",
     "balanza precision",
-    "balanza precision",
     "balanzas industriales",
-    "balanza industriales",
     "balanzas contadoras",
   ].map((x) => normalizeText(x));
+  const allowedBalanzasFamilies = new Set(preferredBalanzasOrder);
   const orderIndex = (label: string) => {
     const idx = preferredBalanzasOrder.indexOf(normalizeText(label));
     return idx >= 0 ? idx : 999;
   };
 
   return Array.from(map.values())
+    .filter((x) => !balanzasOnly || allowedBalanzasFamilies.has(normalizeText(x.label)))
     .sort((a, b) => {
       if (balanzasOnly) {
         const ai = orderIndex(a.label);
@@ -3989,6 +3989,25 @@ async function getOrFetchTrm(supabase: any, ownerId: string, tenantId: string | 
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 }).format(Number(n || 0));
+}
+
+function rowCatalogCopPrice(row: any): number {
+  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const prices = source?.prices_cop && typeof source.prices_cop === "object" ? source.prices_cop : {};
+  const parse = (v: any) => {
+    const n = Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  return parse((prices as any)?.bogota) || parse((prices as any)?.antioquia) || parse((prices as any)?.distribuidor) || 0;
+}
+
+function buildPriceRangeLine(rows: any[]): string {
+  const values = (Array.isArray(rows) ? rows : [])
+    .map((r) => rowCatalogCopPrice(r))
+    .filter((v) => Number.isFinite(v) && v > 0)
+    .sort((a, b) => a - b);
+  if (!values.length) return "";
+  return `Según base de datos, nuestras balanzas van desde COP $ ${formatMoney(values[0])}.`;
 }
 
 function quoteCodeFromDraftId(draftId: string) {
@@ -7682,7 +7701,7 @@ export async function POST(req: Request) {
               "Primero elige familia:",
               ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
               "",
-              "Si quieres, también dime qué vas a pesar y su funcionalidad para recomendarte mejor.",
+              "Si quieres, también dime qué vas a pesar y su funcionalidad para identificar cuál se adecúa a tu empresa.",
               "Responde con letra o número (A/1).",
             ].join("\n");
           }
@@ -7710,7 +7729,7 @@ export async function POST(req: Request) {
                 "Elige una familia para mostrarte opciones:",
                 ...globalFamilies.map((o) => `${o.code}) ${o.label} (${o.count})`),
                 "",
-                "Si quieres, también dime qué vas a pesar y su funcionalidad para recomendarte mejor.",
+                "Si quieres, también dime qué vas a pesar y su funcionalidad para identificar cuál se adecúa a tu empresa.",
                 "Responde con letra o número (A/1).",
               ].join("\n")
               : "Ahora mismo no veo familias activas en catálogo para mostrarte.";
@@ -8125,7 +8144,7 @@ export async function POST(req: Request) {
                 "Elige una familia para mostrarte modelos:",
                 ...families.map((f: any) => `${f.code}) ${f.label} (${f.count})`),
                 "",
-                "Si quieres, también dime qué vas a pesar y su funcionalidad para recomendarte mejor.",
+                "Si quieres, también dime qué vas a pesar y su funcionalidad para identificar cuál se adecúa a tu empresa.",
                 "Responde con letra o número (A/1).",
               ].join("\n")
             : "Ahora mismo no tengo familias activas para mostrarte en catálogo.";
@@ -8656,12 +8675,14 @@ export async function POST(req: Request) {
             } else {
               strictMemory.awaiting_action = "strict_choose_family";
               const familyScopedTotal = familyOptions.reduce((acc: number, o: any) => acc + Number(o?.count || 0), 0);
+              const priceRangeLine = normalizeText(String(categoryIntent || "")) === "balanzas" ? buildPriceRangeLine(scoped as any[]) : "";
               strictReply = [
                 `Sí, tenemos ${familyScopedTotal || scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
                 "Primero elige la familia:",
                 ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
                 "",
-                "Si quieres, también dime qué vas a pesar y su funcionalidad para recomendarte mejor.",
+                ...(priceRangeLine ? [priceRangeLine] : []),
+                "Si quieres, también dime qué vas a pesar y su funcionalidad para identificar cuál se adecúa a tu empresa.",
                 "Responde con letra o número (ej.: A o 1).",
               ].join("\n");
             }
@@ -8680,12 +8701,14 @@ export async function POST(req: Request) {
           } else {
             strictMemory.awaiting_action = "strict_choose_family";
             const familyScopedTotal = familyOptions.reduce((acc: number, o: any) => acc + Number(o?.count || 0), 0);
+            const priceRangeLine = normalizeText(String(categoryIntent || "")) === "balanzas" ? buildPriceRangeLine(scoped as any[]) : "";
             strictReply = [
               `Sí, tenemos ${familyScopedTotal || scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
               "Primero elige la familia:",
               ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
               "",
-              "Si quieres, también dime qué vas a pesar y su funcionalidad para recomendarte mejor.",
+              ...(priceRangeLine ? [priceRangeLine] : []),
+              "Si quieres, también dime qué vas a pesar y su funcionalidad para identificar cuál se adecúa a tu empresa.",
               "Responde con letra o número (ej.: A o 1).",
             ].join("\n");
           }
@@ -9934,12 +9957,14 @@ export async function POST(req: Request) {
               nextMemory.strict_use_case = String(originalInboundText || "").trim();
             } else {
               const familyScopedTotal = familyOptions.reduce((acc: number, o: any) => acc + Number(o?.count || 0), 0);
+              const priceRangeLine = normalizeText(String(inboundCategoryIntent || "")) === "balanzas" ? buildPriceRangeLine(scoped as any[]) : "";
               reply = [
                 `Si, tenemos ${familyScopedTotal || scoped.length} referencias en la categoria ${categoryLabel}.`,
                 "Primero elige la familia:",
                 ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
                 "",
-                "Si quieres, también dime qué vas a pesar y su funcionalidad para recomendarte mejor.",
+                ...(priceRangeLine ? [priceRangeLine] : []),
+                "Si quieres, también dime qué vas a pesar y su funcionalidad para identificar cuál se adecúa a tu empresa.",
                 "Responde con letra o numero (ej.: A o 1).",
               ].join("\n");
               nextMemory.pending_family_options = familyOptions;
