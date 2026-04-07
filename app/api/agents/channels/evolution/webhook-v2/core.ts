@@ -4368,7 +4368,7 @@ async function buildStandardQuotePdf(args: {
     subtotal += lineTotal;
 
     const fullDesc = String(item.description || "").replace(/\s+/g, " ").trim();
-    const baseDesc = (fullDesc.length > 420 ? `${fullDesc.slice(0, 417)}...` : fullDesc) || `Producto: ${String(item.productName || "-")}`;
+    const baseDesc = fullDesc || `Producto: ${String(item.productName || "-")}`;
 
     const productLines = truncateLines(
       doc.splitTextToSize(String(item.productName || "-").slice(0, 40), 28),
