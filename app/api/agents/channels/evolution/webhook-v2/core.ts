@@ -8162,6 +8162,7 @@ export async function POST(req: Request) {
         const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
         const asksCategoryMenuInFamilyStep = /(categorias|categorías|que\s+categorias|que\s+categorías|familias|que\s+familias|grupos)/.test(textNorm);
         const asksCheapestInFamilyStep = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|precio\s+bajo)\b/.test(textNorm);
+        const featureTermsInFamilyStep = extractFeatureTerms(text);
         const categoryIntentInFamilyStep = detectCatalogCategoryIntent(text);
         const currentCategoryInFamilyStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
         const isCategorySwitchInFamilyStep = Boolean(
@@ -8214,6 +8215,42 @@ export async function POST(req: Request) {
             ].join("\n");
           } else {
             strictReply = "Ahora mismo no veo productos con precio cargado para calcular las opciones más económicas.";
+          }
+        }
+
+        if (!String(strictReply || "").trim() && featureTermsInFamilyStep.length > 0 && !isOptionOnlyReply(text)) {
+          const scopedForFeature = currentCategoryInFamilyStep
+            ? scopeCatalogRows(ownerRows as any[], currentCategoryInFamilyStep)
+            : (ownerRows as any[]);
+          const rankedByFeature = rankCatalogByFeature(scopedForFeature as any[], featureTermsInFamilyStep).slice(0, 8);
+          if (rankedByFeature.length) {
+            const featureRows = rankedByFeature.map((x: any) => x.row).filter(Boolean);
+            const options = buildNumberedProductOptions(featureRows as any[], 8);
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              `Sí, encontré ${rankedByFeature.length} referencia(s) que coinciden con esa descripción (${featureTermsInFamilyStep.join(", ")}).`,
+              ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige con letra o número (A/1) y te envío la información técnica.",
+            ].join("\n");
+          } else {
+            const fallback = buildNumberedProductOptions(scopedForFeature as any[], 8);
+            strictMemory.pending_product_options = fallback;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = fallback.length ? "strict_choose_model" : "strict_need_spec";
+            strictMemory.strict_model_offset = 0;
+            strictReply = fallback.length
+              ? [
+                  `No encontré coincidencia exacta para (${featureTermsInFamilyStep.join(", ")}) en esta categoría.`,
+                  "Estas son las opciones activas más cercanas:",
+                  ...fallback.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Elige con letra o número (A/1), o dime otra característica exacta.",
+                ].join("\n")
+              : "No encontré coincidencias por esa descripción y no veo opciones activas en esta categoría en este momento.";
           }
         }
 

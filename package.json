@@ -5,6 +5,8 @@
     "start": "next start",
     "catalog:datasheets": "node scripts/import-datasheets.mjs",
     "catalog:ohaus:template:sync": "python scripts/import-ohaus-quote-template-xlsx.py",
+    "catalog:ohaus:template:audit": "python scripts/audit-ohaus-quote-template-sync.py",
+    "catalog:ohaus:template:sync-and-audit": "python scripts/sync-and-audit-ohaus-template.py",
     "catalog:ohaus:cotizaciones:sync": "python scripts/sync-ohaus-cotizaciones-folder.py",
     "catalog:ohaus:prices:sync": "python scripts/sync-ohaus-prices-from-list.py",
     "catalog:ohaus:assets:sync": "python scripts/sync-ohaus-cotizaciones-assets.py"
