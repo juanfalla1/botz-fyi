@@ -2710,6 +2710,37 @@ function looksLikeBillingData(text: string): boolean {
   return hasNit || hasLabeledFields || hasEmail || hasPhone || hasCityLike || hasNameLike;
 }
 
+function getReusableBillingData(memory: any): {
+  city: string;
+  company: string;
+  nit: string;
+  contact: string;
+  email: string;
+  phone: string;
+  complete: boolean;
+} {
+  const q = memory?.quote_data && typeof memory.quote_data === "object" ? memory.quote_data : {};
+  const city = normalizeCityLabel(String(q?.city || memory?.crm_billing_city || "").trim());
+  const company = String(q?.company || memory?.crm_company || "").trim();
+  const nit = String(q?.nit || memory?.crm_nit || "").replace(/[^0-9.-]/g, "").trim();
+  const contact = String(q?.contact || memory?.crm_contact_name || memory?.customer_name || "").trim();
+  const email = String(q?.email || memory?.crm_contact_email || memory?.customer_email || "").trim().toLowerCase();
+  const phone = normalizePhone(String(q?.phone || memory?.crm_contact_phone || memory?.customer_phone || "").trim());
+  const complete = Boolean(city && company && nit && contact && email && phone);
+  return { city, company, nit, contact, email, phone, complete };
+}
+
+function billingDataAsSingleMessage(data: { city: string; company: string; nit: string; contact: string; email: string; phone: string }): string {
+  return [
+    `ciudad: ${data.city}`,
+    `empresa: ${data.company}`,
+    `nit: ${data.nit}`,
+    `contacto: ${data.contact}`,
+    `correo: ${data.email}`,
+    `celular: ${data.phone}`,
+  ].join(", ");
+}
+
 type AnotherQuoteChoice = "same_model" | "other_model" | "cheaper" | "advisor";
 
 function isAnotherQuoteAmbiguousIntent(text: string): boolean {
@@ -5985,7 +6016,7 @@ export async function POST(req: Request) {
             strictMemory.last_selected_product_name = selectedName;
             strictMemory.quote_quantity = qtyRequested;
             strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
+            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular. Si deseas usar los mismos datos anteriores, responde: mismos datos.`;
           }
         } else {
           const selectedId = String((selectedFromMemory as any)?.id || "").trim();
@@ -6877,7 +6908,7 @@ export async function POST(req: Request) {
           const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
           strictMemory.quote_quantity = qtyRequested;
           strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
+          strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular. Si deseas usar los mismos datos anteriores, responde: mismos datos.`;
         } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "other_model") {
           followupIntent = "alternative_same_need";
         } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "cheaper") {
@@ -6889,7 +6920,7 @@ export async function POST(req: Request) {
             const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
             strictMemory.quote_quantity = qtyRequested;
             strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
+            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular. Si deseas usar los mismos datos anteriores, responde: mismos datos.`;
           } else {
             const selectedId = String(selectedProduct?.id || "").trim();
             const selectedNorm = normalizeText(selectedName);
@@ -7108,7 +7139,7 @@ export async function POST(req: Request) {
               const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
               strictMemory.quote_quantity = qtyRequested;
               strictMemory.awaiting_action = "strict_quote_data";
-              strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular.`;
+              strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular. Si deseas usar los mismos datos anteriores, responde: mismos datos.`;
             }
           }
           }
@@ -7224,7 +7255,22 @@ export async function POST(req: Request) {
         const asksAnotherQuoteInQuoteData = isAnotherQuoteAmbiguousIntent(text);
         const normalizedQuoteData = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
         const isAdvanceInQuoteData = normalizedQuoteData === "avanza";
-        const hasBillingDataInQuoteData = looksLikeBillingData(text);
+        const wantsReuseBillingInQuoteData =
+          /\bmismos?\s+datos\b/.test(normalizedQuoteData) ||
+          /\busar\s+los?\s+mismos?\s+datos\b/.test(normalizedQuoteData) ||
+          /\bmisma\s+informacion\b/.test(normalizedQuoteData);
+        const reusableBillingInQuoteData = getReusableBillingData({
+          ...(previousMemory && typeof previousMemory === "object" ? previousMemory : {}),
+          ...(strictMemory && typeof strictMemory === "object" ? strictMemory : {}),
+          quote_data: {
+            ...((previousMemory?.quote_data && typeof previousMemory.quote_data === "object") ? previousMemory.quote_data : {}),
+            ...((strictMemory?.quote_data && typeof strictMemory.quote_data === "object") ? strictMemory.quote_data : {}),
+          },
+        });
+        const quoteDataInputText = wantsReuseBillingInQuoteData && reusableBillingInQuoteData.complete
+          ? billingDataAsSingleMessage(reusableBillingInQuoteData)
+          : text;
+        const hasBillingDataInQuoteData = looksLikeBillingData(quoteDataInputText);
         const isCommercialAlternativeInQuoteData =
           asksAnotherQuoteInQuoteData ||
           (followupIntentInQuoteData && followupIntentInQuoteData !== "requote_same_model");
@@ -7239,6 +7285,18 @@ export async function POST(req: Request) {
           strictReply = asksAnotherQuoteInQuoteData
             ? buildAnotherQuotePrompt()
             : "Entendido. Para alternativas, dime si prefieres: otro modelo, más económico, mayor capacidad, menor capacidad u otra marca.";
+        } else if (wantsReuseBillingInQuoteData && !reusableBillingInQuoteData.complete) {
+          const missingReusable: string[] = [];
+          if (!reusableBillingInQuoteData.city) missingReusable.push("ciudad");
+          if (!reusableBillingInQuoteData.company) missingReusable.push("empresa");
+          if (!reusableBillingInQuoteData.nit) missingReusable.push("NIT");
+          if (!reusableBillingInQuoteData.contact) missingReusable.push("contacto");
+          if (!reusableBillingInQuoteData.email) missingReusable.push("correo");
+          if (!reusableBillingInQuoteData.phone) missingReusable.push("celular");
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = missingReusable.length
+            ? `Puedo reutilizar los datos anteriores, pero me falta: ${missingReusable.join(", ")}. Envíamelo en un solo mensaje para continuar.`
+            : "No encontré datos previos completos para reutilizar. Envíame ciudad, empresa, NIT, contacto, correo y celular en un solo mensaje.";
         } else if (!isAdvanceInQuoteData && !hasBillingDataInQuoteData) {
           strictMemory.awaiting_action = "strict_quote_data";
           strictReply = "Para continuar esta cotización, envíame los datos de facturación en un solo mensaje (ciudad, empresa, NIT, contacto, correo, celular).";
@@ -7273,11 +7331,11 @@ export async function POST(req: Request) {
         } else {
         const pickBounded = (label: string) => {
           const rx = new RegExp(`${label}\\s*[:=]?\\s*([^\\n,;]+?)(?=\\s+(ciudad|empresa|company|nit|contacto|correo|email|celular|telefono)\\b|$)`, "i");
-          const m = String(text || "").match(rx);
+          const m = String(quoteDataInputText || "").match(rx);
           return m?.[1] ? String(m[1]).trim() : "";
         };
 
-        const looseLines = String(text || "")
+        const looseLines = String(quoteDataInputText || "")
           .split(/\n|;|,/)
           .map((x) => String(x || "").trim())
           .filter(Boolean);
@@ -7288,12 +7346,12 @@ export async function POST(req: Request) {
         const firstCompanyLine = looseLines.find((ln) => /persona\s+natural|sas|s\.a\.s|ltda|empresa|razon\s+social/i.test(ln)) || "";
         const firstContactLine = looseLines.find((ln) => /^[a-zA-Záéíóúüñ\s]{6,60}$/.test(ln) && ln !== firstCityLine && ln !== firstCompanyLine && !/@/.test(ln)) || "";
 
-        const cityNow = normalizeCityLabel(pickBounded("ciudad|city") || extractLabeledValue(text, ["ciudad", "city"]) || firstCityLine);
-        const companyNow = pickBounded("empresa|company|razon social") || extractLabeledValue(text, ["empresa", "company", "razon social"]) || firstCompanyLine;
-        const nitNow = (String(text || "").match(/\bnit\s*[:=]?\s*([0-9\.\-]{5,20})/i)?.[1] || extractLabeledValue(text, ["nit"]).replace(/[^0-9.\-]/g, "") || firstNitLine.replace(/[^0-9.\-]/g, "")).trim();
-        const contactNow = pickBounded("contacto") || extractLabeledValue(text, ["contacto"]) || firstContactLine || extractCustomerName(text, inbound.pushName || "");
-        const emailNow = extractEmail(text) || String(firstEmailLine || "").trim();
-        const phoneNow = extractCustomerPhone(text, inbound.from) || String(firstPhoneLine || "").replace(/\D/g, "");
+        const cityNow = normalizeCityLabel(pickBounded("ciudad|city") || extractLabeledValue(quoteDataInputText, ["ciudad", "city"]) || firstCityLine);
+        const companyNow = pickBounded("empresa|company|razon social") || extractLabeledValue(quoteDataInputText, ["empresa", "company", "razon social"]) || firstCompanyLine;
+        const nitNow = (String(quoteDataInputText || "").match(/\bnit\s*[:=]?\s*([0-9\.\-]{5,20})/i)?.[1] || extractLabeledValue(quoteDataInputText, ["nit"]).replace(/[^0-9.\-]/g, "") || firstNitLine.replace(/[^0-9.\-]/g, "")).trim();
+        const contactNow = pickBounded("contacto") || extractLabeledValue(quoteDataInputText, ["contacto"]) || firstContactLine || extractCustomerName(quoteDataInputText, inbound.pushName || "");
+        const emailNow = extractEmail(quoteDataInputText) || String(firstEmailLine || "").trim();
+        const phoneNow = extractCustomerPhone(quoteDataInputText, inbound.from) || String(firstPhoneLine || "").replace(/\D/g, "");
 
         const prevQuoteData = previousMemory?.quote_data && typeof previousMemory.quote_data === "object" ? previousMemory.quote_data : {};
         let crmContactFoundForQuote = Boolean(previousMemory?.crm_contact_found || strictMemory.crm_contact_found);
@@ -7368,7 +7426,7 @@ export async function POST(req: Request) {
         const customerEmail = String(quoteData.email || "").trim();
         const customerPhone = String(quoteData.phone || "").trim();
         const companyNorm = normalizeText(customerCompany);
-        const applicantNorm = normalizeText(String(text || ""));
+        const applicantNorm = normalizeText(String(quoteDataInputText || ""));
         const isNaturalPerson =
           !customerCompany ||
           /persona\s+natural/.test(companyNorm) ||
