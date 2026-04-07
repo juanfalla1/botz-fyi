@@ -7447,6 +7447,8 @@ export async function POST(req: Request) {
         const asksHotplate = /\b(plancha|calentamiento|agitaci[oó]n|agitacion)\b/.test(textNorm);
         const freeCatalogAskInModelStep =
           asksMoreOptionsDirect ||
+          isGlobalCatalogAsk(text) ||
+          isInventoryInfoIntent(text) ||
           isCatalogBreadthQuestion(text) ||
           /(que\s+mas|que\s+otros?|que\s+tienes|que\s+manejas|que\s+ofrec|catalogo|otro\s+tipo|otra\s+categoria|otra\s+categoría|opciones)/.test(normalizeText(text));
         const requestedCategoryIntentInModelStep = detectCatalogCategoryIntent(text);
@@ -7463,7 +7465,9 @@ export async function POST(req: Request) {
           isUseCaseFamilyHint(text) ||
           isRecommendationIntent(text)
         );
-        const asksGlobalCatalogInModelStep = isGlobalCatalogAsk(text);
+        const asksGlobalCatalogInModelStep =
+          isGlobalCatalogAsk(text) ||
+          /\b(dame|muestrame|mu[eé]strame|quiero|ver)\b.*\b(todo|todos|todas)\b.*\b(prod|producto|productos|prodcutos|catalogo)\b/.test(textNorm);
         const hasScopedContextInModelStep = Boolean(currentCategoryIntentInModelStep || familyLabel || pendingStrictOptions.length);
         if (!String(strictReply || "").trim() && asksGlobalCatalogInModelStep && hasScopedContextInModelStep) {
           strictMemory.awaiting_action = "strict_catalog_scope_disambiguation";
