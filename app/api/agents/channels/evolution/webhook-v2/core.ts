@@ -680,7 +680,7 @@ function buildGuidedRecoveryMessage(args: {
   if (awaiting === "strict_choose_family" || hasPendingFamilies) {
     return [
       "No te preocupes si hubo un error de escritura, te guío de una.",
-      "Responde con la letra/número de la familia (A/1), o escribe el uso (ej.: joyería, laboratorio, industrial) y te sugiero la mejor opción.",
+      "Responde con la letra/número de la familia (A/1), o dime qué vas a pesar y su funcionalidad (ej.: laboratorio, control de calidad, producción) y te sugiero la mejor opción.",
     ].join("\n");
   }
 
@@ -716,7 +716,7 @@ function buildGuidedRecoveryMessage(args: {
 
   return [
     "No te entendí del todo, pero te ayudo de una.",
-    "Puedes escribir: modelo exacto (ej.: AX12001/E), categoría (balanzas o analizador humedad), o acción (1 cotización / 2 ficha técnica).",
+    "Puedes escribir: modelo exacto (ej.: AX12001/E), categoría (balanzas o analizador humedad), o qué vas a pesar y su funcionalidad para orientarte mejor.",
     "También puedes ver el catálogo aquí: https://balanzasybasculas.com.co/",
     "Si quieres, te dejo más referencias aquí: https://share.google/cE6wPPEGCH3vytJMm",
   ].join("\n");
@@ -7682,6 +7682,7 @@ export async function POST(req: Request) {
               "Primero elige familia:",
               ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
               "",
+              "Si quieres, también dime qué vas a pesar y su funcionalidad para recomendarte mejor.",
               "Responde con letra o número (A/1).",
             ].join("\n");
           }
@@ -7705,12 +7706,13 @@ export async function POST(req: Request) {
             strictMemory.awaiting_action = "strict_choose_family";
             strictReply = globalFamilies.length
               ? [
-                  `Perfecto. En total tengo ${globalTotal} referencias activas en base de datos.`,
-                  "Elige una familia para mostrarte opciones:",
-                  ...globalFamilies.map((o) => `${o.code}) ${o.label} (${o.count})`),
-                  "",
-                  "Responde con letra o número (A/1).",
-                ].join("\n")
+                `Perfecto. En total tengo ${globalTotal} referencias activas en base de datos.`,
+                "Elige una familia para mostrarte opciones:",
+                ...globalFamilies.map((o) => `${o.code}) ${o.label} (${o.count})`),
+                "",
+                "Si quieres, también dime qué vas a pesar y su funcionalidad para recomendarte mejor.",
+                "Responde con letra o número (A/1).",
+              ].join("\n")
               : "Ahora mismo no veo familias activas en catálogo para mostrarte.";
           }
         }
@@ -8123,6 +8125,7 @@ export async function POST(req: Request) {
                 "Elige una familia para mostrarte modelos:",
                 ...families.map((f: any) => `${f.code}) ${f.label} (${f.count})`),
                 "",
+                "Si quieres, también dime qué vas a pesar y su funcionalidad para recomendarte mejor.",
                 "Responde con letra o número (A/1).",
               ].join("\n")
             : "Ahora mismo no tengo familias activas para mostrarte en catálogo.";
@@ -8658,6 +8661,7 @@ export async function POST(req: Request) {
                 "Primero elige la familia:",
                 ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
                 "",
+                "Si quieres, también dime qué vas a pesar y su funcionalidad para recomendarte mejor.",
                 "Responde con letra o número (ej.: A o 1).",
               ].join("\n");
             }
@@ -8681,6 +8685,7 @@ export async function POST(req: Request) {
               "Primero elige la familia:",
               ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
               "",
+              "Si quieres, también dime qué vas a pesar y su funcionalidad para recomendarte mejor.",
               "Responde con letra o número (ej.: A o 1).",
             ].join("\n");
           }
@@ -9934,6 +9939,7 @@ export async function POST(req: Request) {
                 "Primero elige la familia:",
                 ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
                 "",
+                "Si quieres, también dime qué vas a pesar y su funcionalidad para recomendarte mejor.",
                 "Responde con letra o numero (ej.: A o 1).",
               ].join("\n");
               nextMemory.pending_family_options = familyOptions;
