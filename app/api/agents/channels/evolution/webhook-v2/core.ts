@@ -7061,6 +7061,36 @@ export async function POST(req: Request) {
           }
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_quote_data") {
+        const asksCheapestInQuoteData = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|precio\s+bajo)\b/.test(normalizeText(text));
+        if (asksCheapestInQuoteData) {
+          const scopedForPrice = rememberedCategory
+            ? scopeCatalogRows(ownerRows as any[], rememberedCategory)
+            : (ownerRows as any[]);
+          const pricedRows = (scopedForPrice as any[])
+            .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
+            .sort((a: any, b: any) => Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
+          const options = buildNumberedProductOptions(pricedRows as any[], 8);
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictMemory.quote_data = {};
+            const topRow = pricedRows[0];
+            const topFamily = String(familyLabelFromRow(topRow) || "N/A").trim();
+            strictReply = [
+              `Perfecto. Según base de datos, la familia más económica aquí es: ${topFamily}.`,
+              "Estas son 4 opciones de menor precio:",
+              ...options.slice(0, 4).map((o) => {
+                const p = Number(o.base_price_usd || 0);
+                return `${o.code}) ${o.name}${p > 0 ? ` (USD ${formatMoney(p)})` : ""}`;
+              }),
+              "",
+              "Responde con letra o número (A/1).",
+            ].join("\n");
+          }
+        }
+        if (!String(strictReply || "").trim()) {
         const followupIntentInQuoteData = detectAlternativeFollowupIntent(text);
         const asksAnotherQuoteInQuoteData = isAnotherQuoteAmbiguousIntent(text);
         const normalizedQuoteData = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
@@ -7403,6 +7433,7 @@ export async function POST(req: Request) {
             strictMemory.quote_feedback_due_at = isoAfterHours(24);
             }
           }
+        }
         }
         }
         }
@@ -8749,6 +8780,18 @@ export async function POST(req: Request) {
 
     let awaitingAction = String(nextMemory?.awaiting_action || previousMemory?.awaiting_action || "");
     const originalInboundText = String(inboundTextAtEntry || inbound.text || "").trim();
+    const lastUserAtMs = Date.parse(String(previousMemory?.last_user_at || ""));
+    const staleStrictState = Number.isFinite(lastUserAtMs)
+      && (Date.now() - lastUserAtMs) > 25 * 60 * 1000
+      && /^(strict_choose_family|strict_choose_model|strict_quote_data)$/i.test(String(awaitingAction || ""));
+    if (staleStrictState && !isOptionOnlyReply(originalInboundText) && !isGlobalCatalogAsk(originalInboundText)) {
+      nextMemory.awaiting_action = "none";
+      nextMemory.pending_product_options = [];
+      nextMemory.pending_family_options = [];
+      nextMemory.strict_model_offset = 0;
+      nextMemory.strict_family_label = "";
+      awaitingAction = "none";
+    }
     if (isGlobalCatalogAsk(originalInboundText)) {
       nextMemory.awaiting_action = "none";
       nextMemory.last_category_intent = "";
