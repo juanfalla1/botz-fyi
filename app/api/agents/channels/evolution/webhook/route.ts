@@ -2207,7 +2207,7 @@ function buildCommercialWelcomeMessage(): string {
     "Hola, te saluda AVA de Avanza International Group.",
     "Somos representantes de OHAUS, con más de 100 años de experiencia en soluciones de pesaje y laboratorio.",
     "¿En qué equipo estás interesado? Te ayudo a encontrar la mejor opción.",
-    "Por favor, compárteme tu nombre y el NIT de la empresa para continuar con el proceso.",
+    "Por favor, compárteme tu nombre, empresa y NIT para continuar con el proceso. Si eres persona natural, comparte nombre y RUT.",
   ].join("\n");
 }
 
@@ -2229,30 +2229,46 @@ function extractRut(text: string): string {
   return String(labeled || "").trim();
 }
 
+function extractCommercialCompanyName(text: string): string {
+  const raw = String(text || "");
+  const labeled =
+    raw.match(/\b(?:empresa|compania|compañia|razon\s+social)\s*[:=]?\s*([^\n,;]{3,120})/i)?.[1] ||
+    "";
+  const cleaned = String(labeled || "").trim();
+  if (!cleaned) return "";
+  if (/^(persona\s+natural|natural)$/i.test(cleaned)) return "";
+  return cleaned;
+}
+
 function updateCommercialValidation(memory: any, text: string, fallbackName: string) {
   const inferredName = sanitizeCustomerDisplayName(extractCustomerName(text, fallbackName || ""));
   const nit = extractCompanyNit(text);
   const rut = extractRut(text);
+  const company = extractCommercialCompanyName(text);
   const saysPersonaNatural = detectPersonaNatural(text);
 
   if (inferredName && !String(memory?.customer_name || "").trim()) memory.customer_name = inferredName;
   if (inferredName) memory.commercial_customer_name = inferredName;
+  if (company) memory.commercial_company_name = company;
   if (nit) memory.commercial_company_nit = nit;
   if (rut) memory.commercial_rut = rut;
   if (saysPersonaNatural) memory.is_persona_natural = true;
 
   memory.has_customer_name = Boolean(String(memory?.commercial_customer_name || memory?.customer_name || "").trim());
+  memory.has_company_name = Boolean(String(memory?.commercial_company_name || "").trim());
   memory.has_company_nit = Boolean(String(memory?.commercial_company_nit || "").trim());
   memory.has_rut = Boolean(String(memory?.commercial_rut || "").trim());
   memory.is_persona_natural = Boolean(memory?.is_persona_natural);
   memory.commercial_validation_complete = memory.is_persona_natural
     ? Boolean(memory.has_customer_name && memory.has_rut)
-    : Boolean(memory.has_customer_name && memory.has_company_nit);
+    : Boolean(memory.has_customer_name && memory.has_company_name && memory.has_company_nit);
 }
 
 function buildCommercialEscalationMessage(): string {
   return [
-    "Puedo orientarte técnicamente y mostrarte opciones, pero para continuar con la cotización formal necesitamos tu nombre y NIT de empresa. Si eres persona natural, por favor compárteme tu RUT.",
+    "Para continuar debes registrar datos comerciales obligatorios.",
+    "Empresa: nombre, empresa y NIT.",
+    "Persona natural: nombre y RUT.",
     "Si prefieres, te transfiero con nuestra asesora Mariana (cel: +57 318 3731171).",
     `Puedes continuar directamente aquí: ${MARIANA_ESCALATION_LINK}`,
     "También puedes escribir: asesor.",
@@ -6117,6 +6133,13 @@ export async function POST(req: Request) {
 
         return null;
       };
+
+      const strictCommercialBlocked = !Boolean(strictMemory.commercial_validation_complete);
+      if (!String(strictReply || "").trim() && strictCommercialBlocked && !isGreeting) {
+        strictMemory.awaiting_action = "conversation_followup";
+        strictReply = buildCommercialEscalationMessage();
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "commercial_validation_blocked" });
+      }
 
       const pipelineResponse = await pipelineGate();
       if (pipelineResponse) return pipelineResponse;
