@@ -6,7 +6,6 @@ import path from "node:path";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
 import { evolutionService } from "../../../../../../lib/services/evolution.service";
-import { upsertBotEvent } from "../../../../avanza-crm/_lib/bot-events-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +46,10 @@ const OFFICIAL_CATALOG_CATEGORIES = [
   "Electroquimica (medidores y electrodos)",
   "Impresoras, pesas patron y accesorios",
 ];
+
+async function upsertBotEvent(_payload: any): Promise<void> {
+  return;
+}
 
 function isAllowedCatalogRow(row: any) {
   const brand = normalizeText(String(row?.brand || ""));
