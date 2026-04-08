@@ -5898,6 +5898,19 @@ export async function POST(req: Request) {
         activeMenuType: slotPack.slots.active_menu_type,
       });
 
+      const guidedProfileGlobal = detectGuidedBalanzaProfile(text);
+      if (!String(strictReply || "").trim() && guidedProfileGlobal && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
+        const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileGlobal);
+        strictMemory.pending_product_options = guidedOptions;
+        strictMemory.pending_family_options = [];
+        strictMemory.awaiting_action = guidedOptions.length ? "strict_choose_model" : "strict_need_spec";
+        strictMemory.last_category_intent = "balanzas";
+        strictMemory.guided_balanza_profile = guidedProfileGlobal;
+        strictMemory.strict_family_label = "balanzas";
+        strictMemory.strict_model_offset = 0;
+        strictReply = buildGuidedBalanzaReply(guidedProfileGlobal);
+      }
+
       const pipelineGate = async (): Promise<Response | null> => {
         if (isUnsupportedSpecificAnalyzerRequest(text)) {
           const humidityRows = scopeCatalogRows(ownerRows as any[], "analizador_humedad");
