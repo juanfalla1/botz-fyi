@@ -4535,58 +4535,9 @@ async function resolveProductImageDataUrl(row: any): Promise<string> {
     if (dataUrl) return dataUrl;
   }
 
-  const localPath = pickBestLocalPdfPath(row, String(row?.name || ""));
-  if (localPath && fs.existsSync(localPath)) {
-    let fileMtimeMs = 0;
-    let fileByteSize = 0;
-    try {
-      const st = fs.statSync(localPath);
-      fileMtimeMs = Number(st.mtimeMs || 0);
-      fileByteSize = Number(st.size || 0);
-    } catch {
-      fileMtimeMs = 0;
-      fileByteSize = 0;
-    }
-    const cached = localQuotePdfImageCache.get(localPath);
-    if (
-      cached &&
-      (Date.now() - cached.at) < 6 * 60 * 60 * 1000 &&
-      cached.mtimeMs === fileMtimeMs &&
-      cached.byteSize === fileByteSize
-    ) {
-      return cached.dataUrl;
-    }
-    try {
-      const pdfMod = await getPdfParseModule();
-      const PDFParse = (pdfMod as any)?.PDFParse || (pdfMod as any)?.default?.PDFParse;
-      if (PDFParse) {
-        const parser: any = new PDFParse({ data: fs.readFileSync(localPath) });
-        const imgRes: any = await parser.getImage({ max: 1 });
-        await parser.destroy?.();
-        const imgs = Array.isArray(imgRes?.pages?.[0]?.images) ? imgRes.pages[0].images : [];
-        const picked = imgs
-          .filter((img: any) => String(img?.dataUrl || "").startsWith("data:image/"))
-          .map((img: any) => ({
-            dataUrl: String(img.dataUrl || ""),
-            w: Number(img.width || 0),
-            h: Number(img.height || 0),
-          }))
-          .filter((img: any) => img.w > 80 && img.h > 80)
-          .sort((a: any, b: any) => (b.w * b.h) - (a.w * a.h))[0];
-        if (picked?.dataUrl) {
-          localQuotePdfImageCache.set(localPath, {
-            at: Date.now(),
-            dataUrl: picked.dataUrl,
-            mtimeMs: fileMtimeMs,
-            byteSize: fileByteSize,
-          });
-          return picked.dataUrl;
-        }
-      }
-    } catch {
-      // ignore local pdf image extraction errors
-    }
-  }
+  // Intentionally avoid extracting image from local quote PDFs here.
+  // Those PDFs can contain a generic hero image and make multi-product
+  // quotations look like every row has the same product photo.
 
   const staticProfile = resolveStaticQuoteProfile(row, String(row?.name || ""));
   if (staticProfile?.imageFile) {
