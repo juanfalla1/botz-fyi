@@ -4587,6 +4587,7 @@ async function buildStandardQuotePdf(args: {
   const ivaRate = quoteIvaRate();
   const col = [10, 20, 50, 127, 145, 157, 178, 200];
   const footerPageTop = 284;
+  const singleItemMode = Array.isArray(args.items) && args.items.length === 1;
 
   const bannerDataUrl = await resolveQuoteBannerImageDataUrl();
   const hasBanner = Boolean(String(bannerDataUrl || "").trim());
@@ -4699,8 +4700,8 @@ async function buildStandardQuotePdf(args: {
   let y = currentTableHeaderY + 11;
   let index = 1;
   let subtotal = 0;
-  const lineHeight = 3.5;
-  const rowPadding = 3;
+  const lineHeight = singleItemMode ? 3.2 : 3.5;
+  const rowPadding = singleItemMode ? 2.4 : 3;
   for (const item of args.items || []) {
     const qty = Math.max(1, Number(item.quantity || 1));
     const lineTotal = Number(item.totalCop || 0) > 0
@@ -4717,7 +4718,8 @@ async function buildStandardQuotePdf(args: {
     );
     const hasImage = ENABLE_QUOTE_PRODUCT_IMAGE && Boolean(String(item.imageDataUrl || "").trim());
     const descTextWidth = 74;
-    const descLinesAll = doc.splitTextToSize(baseDesc, descTextWidth);
+    const descLinesRaw = doc.splitTextToSize(baseDesc, descTextWidth);
+    const descLinesAll = singleItemMode ? truncateLines(descLinesRaw, 20) : descLinesRaw;
     let descCursor = 0;
     let isFirstSegment = true;
     while (isFirstSegment || descCursor < descLinesAll.length) {
@@ -4730,7 +4732,7 @@ async function buildStandardQuotePdf(args: {
           Math.max(descCount, 1),
           1,
         );
-        return Math.max(isFirstSegment && hasImage ? 40 : 12, lineCount * lineHeight + rowPadding);
+        return Math.max(isFirstSegment && hasImage ? (singleItemMode ? 34 : 40) : 12, lineCount * lineHeight + rowPadding);
       };
       const minRowH = rowHeightFor(minDescLines);
 
@@ -4900,7 +4902,7 @@ async function buildStandardQuotePdf(args: {
   doc.setFont("helvetica", "bold");
   doc.text(`$ ${formatMoney(total)}`, totalsValueRight, y + 22.8, { align: "right" });
 
-  let yFooter = y + 8;
+  let yFooter = y + (singleItemMode ? 4 : 8);
 
   const legal = [
     "Observaciones generales de la cotización",
@@ -4909,7 +4911,7 @@ async function buildStandardQuotePdf(args: {
     "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
     `${String(args.city || "Bogota D.C")}, ${args.issueDate}`,
   ].join("\n");
-  const legalLines = doc.splitTextToSize(legal, 188);
+  let legalLines = doc.splitTextToSize(legal, 188);
   const companyFooter = [
     "AVANZA INTERNACIONAL GROUP S.A.S",
     "Autopista Medellin k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a.",
@@ -4920,7 +4922,18 @@ async function buildStandardQuotePdf(args: {
   const companyFooterLines = doc.splitTextToSize(companyFooter, 188);
   const legalHeight = Math.max(10, legalLines.length * 3.3);
   const companyHeight = Math.max(10, companyFooterLines.length * 3.2);
-  const closingEstimate = 18 + 24 + legalHeight + 16 + 10 + 12 + companyHeight + 14;
+  let closingEstimate = 18 + 24 + legalHeight + 16 + 10 + 12 + companyHeight + 14;
+  if (singleItemMode && yFooter + closingEstimate > 272) {
+    const fixedBlocks = 18 + 16 + 10 + 12 + companyHeight + 14;
+    const legalBudget = Math.max(2, Math.floor((272 - yFooter - fixedBlocks) / 3.3));
+    if (legalBudget < legalLines.length) {
+      legalLines = legalLines.slice(0, legalBudget);
+      if (legalLines.length) {
+        legalLines[legalLines.length - 1] = `${String(legalLines[legalLines.length - 1] || "").trimEnd()}...`;
+      }
+    }
+    closingEstimate = 18 + 24 + Math.max(10, legalLines.length * 3.3) + 16 + 10 + 12 + companyHeight + 14;
+  }
   if (yFooter + closingEstimate > 272) {
     doc.addPage();
     drawHeader(true);
