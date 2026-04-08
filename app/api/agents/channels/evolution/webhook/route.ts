@@ -7094,6 +7094,14 @@ export async function POST(req: Request) {
             strictMemory.awaiting_action = "strict_need_spec";
           }
         } else {
+          if (!(cap > 0) || !(read > 0)) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = [
+              "No entiendo tu solicitud técnica todavía.",
+              "Por favor repite con formato válido: capacidad x resolución (ej.: 3000 g x 0.01 g) o modelo exacto.",
+            ].join("\n");
+          }
+          if (!String(strictReply || "").trim()) {
           strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
           strictMemory.strict_filter_capacity_g = Number(cap || 0);
           strictMemory.strict_filter_readability_g = Number(read || 0);
@@ -7133,6 +7141,7 @@ export async function POST(req: Request) {
                 "Si quieres, elige una opción o te ayudo a ajustar la especificación.",
               ].join("\n");
             }
+          }
           }
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_industry") {
