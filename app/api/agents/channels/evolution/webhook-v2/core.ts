@@ -846,6 +846,8 @@ function isAdvisorAppointmentIntent(text: string): boolean {
 function buildAdvisorMiniAgendaPrompt(): string {
   return [
     "Perfecto. Agendemos una llamada con asesor humano.",
+    `Si prefieres atención inmediata, puedes escribirle a Mariana aquí: ${MARIANA_ESCALATION_LINK}`,
+    "",
     "Elige horario:",
     "1) Hoy (en las próximas horas)",
     "2) Mañana 9:00 am",
@@ -1347,7 +1349,7 @@ function buildNumberedFamilyOptions(rows: any[], maxItems = 8): Array<{ code: st
   const canonicalBalanzasFamilyLabel = (label: string): string => {
     const t = normalizeText(label);
     if (!t) return "";
-    if (t.includes("portatil")) return "Balanza Precisión";
+    if (t.includes("portatil")) return "Balanzas industriales";
     if (t.includes("semimicro") || t.includes("semi micro")) return "Balanza Semi - Micro";
     if (t.includes("semi") && t.includes("analit")) return "Balanza Semi - Analitica";
     if (t.includes("analit")) return "Balanza Analitica";
@@ -6957,11 +6959,16 @@ export async function POST(req: Request) {
 
         if (!(cap > 0) && !(read > 0)) {
           if (asksCategoryMenuNow) {
-            const families = buildNumberedFamilyOptions(ownerRows as any[], 8);
+            const requestedCategoryForMenu = detectCatalogCategoryIntent(text);
+            const rowsForMenu = requestedCategoryForMenu
+              ? scopeCatalogRows(ownerRows as any, requestedCategoryForMenu)
+              : (ownerRows as any[]);
+            const families = buildNumberedFamilyOptions(rowsForMenu as any[], 8);
             strictMemory.pending_family_options = families;
             strictMemory.pending_product_options = [];
             strictMemory.awaiting_action = "strict_choose_family";
             strictMemory.strict_family_label = "";
+            if (requestedCategoryForMenu) strictMemory.last_category_intent = requestedCategoryForMenu;
             strictReply = families.length
               ? [
                   "Claro. Estas son las familias/categorías activas que sí tengo en catálogo:",
