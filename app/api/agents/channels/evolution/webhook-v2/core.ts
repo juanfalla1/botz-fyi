@@ -4673,9 +4673,14 @@ async function buildStandardQuotePdf(args: {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.text("Información general", 12, infoTitleY);
-  doc.setDrawColor(180, 196, 210);
+  doc.setDrawColor(35, 35, 35);
+  doc.setLineWidth(0.25);
   doc.rect(10, infoTopY, 190, 28, "S");
   doc.line(105, infoTopY, 105, infoTopY + 28);
+  for (let r = 1; r <= 4; r += 1) {
+    const yLine = infoTopY + (28 / 5) * r;
+    doc.line(10, yLine, 200, yLine);
+  }
 
   const leftRows: Array<[string, string]> = [
     ["Cliente", args.companyName || args.customerName || "-"],
@@ -4736,7 +4741,7 @@ async function buildStandardQuotePdf(args: {
   let y = currentTableHeaderY + 11;
   let index = 1;
   let subtotal = 0;
-  const lineHeight = singleItemMode ? 3.2 : 3.5;
+  const lineHeight = singleItemMode ? 2.9 : 3.5;
   const rowPadding = singleItemMode ? 2.4 : 3;
   for (const item of args.items || []) {
     const qty = Math.max(1, Number(item.quantity || 1));
@@ -4755,7 +4760,7 @@ async function buildStandardQuotePdf(args: {
     const hasImage = ENABLE_QUOTE_PRODUCT_IMAGE && Boolean(String(item.imageDataUrl || "").trim());
     const descTextWidth = 74;
     const descLinesRaw = doc.splitTextToSize(baseDesc, descTextWidth);
-    const descLinesAll = singleItemMode ? truncateLines(descLinesRaw, 20) : descLinesRaw;
+    const descLinesAll = singleItemMode ? truncateLines(descLinesRaw, 14) : descLinesRaw;
     let descCursor = 0;
     let isFirstSegment = true;
     while (isFirstSegment || descCursor < descLinesAll.length) {
@@ -4768,7 +4773,7 @@ async function buildStandardQuotePdf(args: {
           Math.max(descCount, 1),
           1,
         );
-        return Math.max(isFirstSegment && hasImage ? (singleItemMode ? 34 : 40) : 12, lineCount * lineHeight + rowPadding);
+        return Math.max(isFirstSegment && hasImage ? (singleItemMode ? 32 : 40) : 12, lineCount * lineHeight + rowPadding);
       };
       const minRowH = rowHeightFor(minDescLines);
 
@@ -4807,7 +4812,8 @@ async function buildStandardQuotePdf(args: {
         ? descRemaining.slice(0, descCount)
         : (isFirstSegment ? [baseDesc] : []);
 
-      doc.setDrawColor(180, 196, 210);
+      doc.setDrawColor(35, 35, 35);
+      doc.setLineWidth(0.25);
       doc.rect(10, y - 4, 190, rowH, "S");
       for (let i = 1; i < col.length - 1; i += 1) {
         doc.line(col[i], y - 4, col[i], y - 4 + rowH);
@@ -4861,7 +4867,11 @@ async function buildStandardQuotePdf(args: {
         }
       }
 
-      if (descChunk.length > 0) doc.text(descChunk, 52, bodyY);
+      if (descChunk.length > 0) {
+        doc.setFontSize(singleItemMode ? 6.6 : 8.2);
+        doc.text(descChunk, 52, bodyY);
+        doc.setFontSize(8.2);
+      }
       if (isFirstSegment) {
         doc.text(String(item.warranty || "1 AÑO POR\nDEFECTO DE\nFÁBRICA"), 128.8, bodyY);
         doc.text(String(qty), 155, bodyY, { align: "right" });
@@ -4929,6 +4939,8 @@ async function buildStandardQuotePdf(args: {
   doc.text("Valor total:", totalsLabelX + 2, y + 22.8);
 
   doc.setTextColor(dark[0], dark[1], dark[2]);
+  doc.setDrawColor(35, 35, 35);
+  doc.setLineWidth(0.25);
   doc.rect(totalsValueX, y, totalsValueW, 24, "S");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.4);
@@ -4988,6 +5000,13 @@ async function buildStandardQuotePdf(args: {
 
   doc.setFontSize(8.2);
   doc.text(legalLines, 10, yFooter + 24);
+
+  doc.setDrawColor(35, 35, 35);
+  doc.setLineWidth(0.25);
+  const leftFooterTop = yFooter - 1;
+  const leftFooterBottom = yFooter + 24 + legalHeight + 1;
+  doc.rect(10, leftFooterTop, 117, leftFooterBottom - leftFooterTop, "S");
+  doc.line(10, yFooter + 20, 127, yFooter + 20);
 
   const legalBottomY = yFooter + 24 + legalHeight;
   const perksY = legalBottomY + 10;
@@ -5063,6 +5082,12 @@ async function buildStandardQuotePdf(args: {
   doc.setFontSize(7.8);
   doc.text(`Fecha de creación ${createdAt}`, 10, footerMetaTop);
   doc.text(`Fecha de modificación ${modifiedAt}`, 10, footerMetaTop + 5);
+
+  const companyBlockTop = legalBottomY + 3;
+  const companyBlockBottom = footerMetaTop + 8;
+  doc.setDrawColor(35, 35, 35);
+  doc.setLineWidth(0.25);
+  doc.rect(10, companyBlockTop, 190, companyBlockBottom - companyBlockTop, "S");
 
   const totalPages = doc.getNumberOfPages();
   for (let p = 1; p <= totalPages; p += 1) {
