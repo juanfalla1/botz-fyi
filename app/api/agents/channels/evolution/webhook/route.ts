@@ -6865,7 +6865,7 @@ export async function POST(req: Request) {
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
         const parsed = parseLooseTechnicalHint(text);
         const capacityRange = parseCapacityRangeHint(text);
-        const asksCategoryMenuNow = /(categorias|categorías|que\s+categorias|que\s+categorías|familias|que\s+familias|grupos)/.test(textNorm);
+        const asksCategoryMenuNow = /(categorias|categorías|que\s+categorias|que\s+categorías|familias|que\s+familias|grupos|balanza|balanzas|bascula|basculas|opciones|alternativas|que\s+opciones\s+tienes)/.test(textNorm);
         const merged = mergeLooseSpecWithMemory(
           {
             capacityG: Number(previousMemory?.strict_partial_capacity_g || previousMemory?.strict_filter_capacity_g || 0),
@@ -8611,7 +8611,7 @@ export async function POST(req: Request) {
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_family") {
         const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
-        const asksCategoryMenuInFamilyStep = /(categorias|categorías|que\s+categorias|que\s+categorías|familias|que\s+familias|grupos)/.test(textNorm);
+        const asksCategoryMenuInFamilyStep = /(categorias|categorías|que\s+categorias|que\s+categorías|familias|que\s+familias|grupos|opciones|alternativas|que\s+opciones\s+tienes)/.test(textNorm);
         const asksCheapestInFamilyStep = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|precio\s+bajo)\b/.test(textNorm);
         const featureTermsInFamilyStep = extractFeatureTerms(text);
         const categoryIntentInFamilyStep = detectCatalogCategoryIntent(text);
