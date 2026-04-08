@@ -64,6 +64,16 @@ export default function AvanzaInicioPage() {
   const [actionNotes, setActionNotes] = useState("");
   const [actionAmount, setActionAmount] = useState("");
   const [showEmailTemplates, setShowEmailTemplates] = useState(false);
+  const [activityKind, setActivityKind] = useState("Llamada");
+  const [activityStatus, setActivityStatus] = useState("Planeada");
+  const [activityAssignedTo, setActivityAssignedTo] = useState("Usuario Gerente");
+  const [activityDuration, setActivityDuration] = useState("00:15");
+  const [quoteStatus, setQuoteStatus] = useState("Creado");
+  const [quoteAssignedTo, setQuoteAssignedTo] = useState("Usuario Gerente");
+  const [quotePaymentTerm, setQuotePaymentTerm] = useState("Seleccione una opcion");
+  const [quoteItemName, setQuoteItemName] = useState("");
+  const [quoteQty, setQuoteQty] = useState("1");
+  const [quotePrice, setQuotePrice] = useState("0");
   const [dragDealId, setDragDealId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
   const [showStageManager, setShowStageManager] = useState(false);
@@ -150,6 +160,16 @@ export default function AvanzaInicioPage() {
     setActionTime("");
     setActionNotes("");
     setActionAmount("");
+    setActivityKind("Llamada");
+    setActivityStatus("Planeada");
+    setActivityAssignedTo("Usuario Gerente");
+    setActivityDuration("00:15");
+    setQuoteStatus("Creado");
+    setQuoteAssignedTo("Usuario Gerente");
+    setQuotePaymentTerm("Seleccione una opcion");
+    setQuoteItemName("");
+    setQuoteQty("1");
+    setQuotePrice("0");
   };
 
   const closeQuickAction = () => {
@@ -404,25 +424,52 @@ export default function AvanzaInicioPage() {
             </div>
 
             {quickActionType === "Actividad" ? (
-              <div style={{ padding: 14, display: "grid", gridTemplateColumns: "300px 1fr", gap: 12 }}>
-                <div style={{ border: "1px solid #d8dee6", borderRadius: 6, minHeight: 330, background: "#f8fafc", padding: 10 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 8 }}>Agenda</div>
-                  <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 8 }}>{actionDate || "Sin fecha"}</div>
-                  <div style={{ border: "1px solid #cbd5e1", borderRadius: 4, background: "#60a5fa", color: "#0f172a", padding: "6px 8px", fontSize: 12 }}>
-                    {actionTime || "--:--"} - {actionSubject || "Actividad"}
+              <div style={{ padding: 14, display: "grid", gridTemplateColumns: "320px 1fr", gap: 10 }}>
+                <div style={{ border: "1px solid #d1d5db", minHeight: 420, background: "#f8fafc", display: "grid", gridTemplateRows: "auto 1fr" }}>
+                  <div style={{ padding: 10, borderBottom: "1px solid #d1d5db", fontWeight: 700 }}>{actionDate || "Fecha"}</div>
+                  <div style={{ position: "relative", overflow: "hidden" }}>
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <div key={i} style={{ height: 48, borderBottom: "1px dotted #d1d5db", fontSize: 12, color: "#6b7280", paddingLeft: 10, display: "flex", alignItems: "center" }}>
+                        {`${i + 12}m`}
+                      </div>
+                    ))}
+                    <div style={{ position: "absolute", left: 8, top: 70, right: 8, background: "#60a5fa", padding: "4px 6px", fontSize: 12 }}>
+                      {actionTime || "--:--"} - {(actionSubject || activityKind || "Actividad").slice(0, 22)}
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: "grid", gap: 10 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                    <label style={{ display: "grid", gap: 6 }}><span>* Tipo de actividad</span><select value={quickActionType} onChange={(e) => setQuickActionType(e.target.value as DealActivity["type"])} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }}><option>Actividad</option><option>WhatsApp</option><option>Comentario</option><option>Correo</option><option>Documento</option><option>Cotizacion</option></select></label>
-                    <label style={{ display: "grid", gap: 6 }}><span>* Asunto</span><input value={actionSubject} onChange={(e) => setActionSubject(e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} /></label>
+
+                <div style={{ display: "grid", gridTemplateColumns: "170px 1fr", border: "1px solid #d1d5db", borderBottom: "none" }}>
+                  <div style={{ padding: "10px 12px", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>* Tipo de actividad</div>
+                  <div style={{ padding: "8px 10px", borderBottom: "1px solid #d1d5db" }}><select value={activityKind} onChange={(e) => setActivityKind(e.target.value)} style={{ width: "100%", border: "1px solid #b6bcc6", padding: "7px 8px" }}><option>Llamada</option><option>Reunion</option><option>Tarea</option><option>WhatsApp</option></select></div>
+
+                  <div style={{ padding: "10px 12px", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>* Asunto</div>
+                  <div style={{ padding: "8px 10px", borderBottom: "1px solid #d1d5db" }}><input value={actionSubject} onChange={(e) => setActionSubject(e.target.value)} style={{ width: "100%", border: "1px solid #b6bcc6", padding: "7px 8px" }} /></div>
+
+                  <div style={{ padding: "10px 12px", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>* Fecha</div>
+                  <div style={{ padding: "8px 10px", borderBottom: "1px solid #d1d5db", display: "grid", gridTemplateColumns: "1fr 120px 120px", gap: 6 }}>
+                    <input type="date" value={actionDate} onChange={(e) => setActionDate(e.target.value)} style={{ border: "1px solid #b6bcc6", padding: "7px 8px" }} />
+                    <input type="time" value={actionTime} onChange={(e) => setActionTime(e.target.value)} style={{ border: "1px solid #b6bcc6", padding: "7px 8px" }} />
+                    <input value={activityDuration} onChange={(e) => setActivityDuration(e.target.value)} style={{ border: "1px solid #b6bcc6", padding: "7px 8px" }} />
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                    <label style={{ display: "grid", gap: 6 }}><span>* Fecha</span><input type="date" value={actionDate} onChange={(e) => setActionDate(e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} /></label>
-                    <label style={{ display: "grid", gap: 6 }}><span>Hora</span><input type="time" value={actionTime} onChange={(e) => setActionTime(e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} /></label>
-                    <label style={{ display: "grid", gap: 6 }}><span>Asignado a</span><input value={quickDeal?.assignedTo || "Usuario Gerente"} readOnly style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px", background: "#f8fafc" }} /></label>
-                  </div>
-                  <label style={{ display: "grid", gap: 6 }}><span>Descripcion</span><textarea value={actionNotes} onChange={(e) => setActionNotes(e.target.value)} rows={5} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px", resize: "vertical" }} /></label>
+
+                  <div style={{ padding: "10px 12px", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>Descripcion</div>
+                  <div style={{ padding: "8px 10px", borderBottom: "1px solid #d1d5db" }}><textarea value={actionNotes} onChange={(e) => setActionNotes(e.target.value)} rows={4} style={{ width: "100%", border: "1px solid #b6bcc6", padding: "7px 8px", resize: "vertical" }} /></div>
+
+                  <div style={{ padding: "10px 12px", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>* Estado</div>
+                  <div style={{ padding: "8px 10px", borderBottom: "1px solid #d1d5db" }}><select value={activityStatus} onChange={(e) => setActivityStatus(e.target.value)} style={{ width: "100%", border: "1px solid #b6bcc6", padding: "7px 8px" }}><option>Planeada</option><option>Realizada</option></select></div>
+
+                  <div style={{ padding: "10px 12px", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>* Asignado a</div>
+                  <div style={{ padding: "8px 10px", borderBottom: "1px solid #d1d5db" }}><select value={activityAssignedTo} onChange={(e) => setActivityAssignedTo(e.target.value)} style={{ width: "100%", border: "1px solid #b6bcc6", padding: "7px 8px" }}><option>Usuario Gerente</option><option>Milena Bolanos</option><option>Natalia Espinoza</option><option>Carmenza Vanegas</option><option>Carolina Varon</option></select></div>
+
+                  <div style={{ padding: "10px 12px", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>Donde</div>
+                  <div style={{ padding: "8px 10px", borderBottom: "1px solid #d1d5db" }}><input style={{ width: "100%", border: "1px solid #b6bcc6", padding: "7px 8px" }} /></div>
+
+                  <div style={{ padding: "10px 12px", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>Empresa</div>
+                  <div style={{ padding: "8px 10px", borderBottom: "1px solid #d1d5db" }}><input value={quickDeal?.company || ""} readOnly style={{ width: "100%", border: "1px solid #b6bcc6", padding: "7px 8px", background: "#f8fafc" }} /></div>
+
+                  <div style={{ padding: "10px 12px", textAlign: "right" }}>Nombre de contacto</div>
+                  <div style={{ padding: "8px 10px" }}><input value={quickDeal?.contactName || ""} readOnly style={{ width: "100%", border: "1px solid #b6bcc6", padding: "7px 8px", background: "#f8fafc" }} /></div>
                 </div>
               </div>
             ) : null}
@@ -543,38 +590,61 @@ export default function AvanzaInicioPage() {
             ) : null}
 
             {quickActionType === "Cotizacion" ? (
-              <div style={{ padding: 14, display: "grid", gap: 12, maxHeight: "70vh", overflow: "auto" }}>
-                <section style={{ border: "1px solid #e5e7eb" }}>
-                  <div style={{ padding: "6px 10px", borderBottom: "1px solid #e5e7eb", fontWeight: 700, background: "#f8fafc" }}>Informacion de la cotizacion</div>
-                  <div style={{ padding: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                    <label style={{ display: "grid", gap: 6 }}><span>* Asunto</span><input value={actionSubject} onChange={(e) => setActionSubject(e.target.value)} style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} /></label>
-                    <label style={{ display: "grid", gap: 6 }}><span>Nombre de contacto</span><input value={quickDeal?.contactName || ""} readOnly style={{ border: "1px solid #d1d5db", padding: "8px 10px", background: "#f8fafc" }} /></label>
-                    <label style={{ display: "grid", gap: 6 }}><span>Empresa</span><input value={quickDeal?.company || ""} readOnly style={{ border: "1px solid #d1d5db", padding: "8px 10px", background: "#f8fafc" }} /></label>
-                    <label style={{ display: "grid", gap: 6 }}><span>Negocio</span><input value={quickDeal?.businessName || ""} readOnly style={{ border: "1px solid #d1d5db", padding: "8px 10px", background: "#f8fafc" }} /></label>
-                    <label style={{ display: "grid", gap: 6 }}><span>* Estado de la cotizacion</span><select style={{ border: "1px solid #d1d5db", padding: "8px 10px" }}><option>Creado</option><option>Enviada</option><option>Aprobada</option></select></label>
-                    <label style={{ display: "grid", gap: 6 }}><span>* Asignado a</span><input value={quickDeal?.assignedTo || "Usuario Gerente"} readOnly style={{ border: "1px solid #d1d5db", padding: "8px 10px", background: "#f8fafc" }} /></label>
-                    <label style={{ display: "grid", gap: 6 }}><span>Valido hasta</span><input type="date" value={actionDate} onChange={(e) => setActionDate(e.target.value)} style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} /></label>
-                    <label style={{ display: "grid", gap: 6 }}><span>Fecha de Entrega</span><input type="date" style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} /></label>
+              <div style={{ padding: 14, display: "grid", gap: 12, maxHeight: "74vh", overflow: "auto" }}>
+                <section style={{ border: "1px solid #d1d5db" }}>
+                  <div style={{ padding: "7px 10px", borderBottom: "1px solid #d1d5db", fontWeight: 700, background: "#f8fafc" }}>Informacion de la cotizacion</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "150px 1fr 150px 1fr", borderTop: "1px solid #d1d5db" }}>
+                    <div style={{ padding: "9px 10px", borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>* Asunto</div>
+                    <div style={{ padding: "7px 8px", borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db" }}><input value={actionSubject} onChange={(e) => setActionSubject(e.target.value)} style={{ width: "100%", border: "1px solid #b6bcc6", padding: "6px 8px" }} /></div>
+                    <div style={{ padding: "9px 10px", borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>Nombre de contacto</div>
+                    <div style={{ padding: "7px 8px", borderBottom: "1px solid #d1d5db" }}><input value={quickDeal?.contactName || ""} readOnly style={{ width: "100%", border: "1px solid #b6bcc6", padding: "6px 8px", background: "#f8fafc" }} /></div>
+
+                    <div style={{ padding: "9px 10px", borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>Empresa</div>
+                    <div style={{ padding: "7px 8px", borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db" }}><input value={quickDeal?.company || ""} readOnly style={{ width: "100%", border: "1px solid #b6bcc6", padding: "6px 8px", background: "#f8fafc" }} /></div>
+                    <div style={{ padding: "9px 10px", borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>Negocio</div>
+                    <div style={{ padding: "7px 8px", borderBottom: "1px solid #d1d5db" }}><input value={quickDeal?.businessName || ""} readOnly style={{ width: "100%", border: "1px solid #b6bcc6", padding: "6px 8px", background: "#f8fafc" }} /></div>
+
+                    <div style={{ padding: "9px 10px", borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>* Estado de la cotizacion</div>
+                    <div style={{ padding: "7px 8px", borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db" }}><select value={quoteStatus} onChange={(e) => setQuoteStatus(e.target.value)} style={{ width: "100%", border: "1px solid #b6bcc6", padding: "6px 8px" }}><option>Creado</option><option>Aceptado</option><option>Rechazado</option></select></div>
+                    <div style={{ padding: "9px 10px", borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>* Asignado a</div>
+                    <div style={{ padding: "7px 8px", borderBottom: "1px solid #d1d5db" }}><select value={quoteAssignedTo} onChange={(e) => setQuoteAssignedTo(e.target.value)} style={{ width: "100%", border: "1px solid #b6bcc6", padding: "6px 8px" }}><option>Milena Bolanos</option><option>Natalia Espinoza</option><option>Carmenza Vanegas</option><option>Carolina Varon</option></select></div>
+
+                    <div style={{ padding: "9px 10px", borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>Valido hasta</div>
+                    <div style={{ padding: "7px 8px", borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db" }}><input type="date" value={actionDate} onChange={(e) => setActionDate(e.target.value)} style={{ width: "100%", border: "1px solid #b6bcc6", padding: "6px 8px" }} /></div>
+                    <div style={{ padding: "9px 10px", borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>Cartera Corriente</div>
+                    <div style={{ padding: "7px 8px", borderBottom: "1px solid #d1d5db" }}><input value={money(Number(actionAmount || 0))} readOnly style={{ width: "100%", border: "1px solid #b6bcc6", padding: "6px 8px", background: "#f8fafc" }} /></div>
+
+                    <div style={{ padding: "9px 10px", borderRight: "1px solid #d1d5db", textAlign: "right" }}>Fecha de Entrega</div>
+                    <div style={{ padding: "7px 8px", borderRight: "1px solid #d1d5db" }}><input type="date" style={{ width: "100%", border: "1px solid #b6bcc6", padding: "6px 8px" }} /></div>
+                    <div style={{ padding: "9px 10px", borderRight: "1px solid #d1d5db", textAlign: "right" }}>Estado de Cartera</div>
+                    <div style={{ padding: "7px 8px" }}><select style={{ width: "100%", border: "1px solid #b6bcc6", padding: "6px 8px" }}><option>Seleccione una opcion</option><option>Al dia</option><option>Con mora</option></select></div>
                   </div>
                 </section>
 
-                <section style={{ border: "1px solid #e5e7eb" }}>
-                  <div style={{ padding: "6px 10px", borderBottom: "1px solid #e5e7eb", fontWeight: 700, background: "#f8fafc" }}>Detalles de la descripcion</div>
-                  <div style={{ padding: 10, display: "grid", gap: 10 }}>
-                    <textarea value={actionNotes} onChange={(e) => setActionNotes(e.target.value)} rows={4} placeholder="Descripcion" style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} />
-                    <select style={{ border: "1px solid #d1d5db", padding: "8px 10px", maxWidth: 300 }}><option>Forma de pago</option></select>
+                <section style={{ border: "1px solid #d1d5db" }}>
+                  <div style={{ padding: "7px 10px", borderBottom: "1px solid #d1d5db", fontWeight: 700, background: "#f8fafc" }}>Detalles de la descripcion</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "150px 1fr", borderTop: "1px solid #d1d5db" }}>
+                    <div style={{ padding: "9px 10px", borderRight: "1px solid #d1d5db", borderBottom: "1px solid #d1d5db", textAlign: "right" }}>Descripcion</div>
+                    <div style={{ padding: "7px 8px", borderBottom: "1px solid #d1d5db" }}><textarea value={actionNotes} onChange={(e) => setActionNotes(e.target.value)} rows={3} style={{ width: "100%", border: "1px solid #b6bcc6", padding: "6px 8px" }} /></div>
+                    <div style={{ padding: "9px 10px", borderRight: "1px solid #d1d5db", textAlign: "right" }}>Forma de pago</div>
+                    <div style={{ padding: "7px 8px" }}><select value={quotePaymentTerm} onChange={(e) => setQuotePaymentTerm(e.target.value)} style={{ width: "100%", maxWidth: 260, border: "1px solid #b6bcc6", padding: "6px 8px" }}><option>Seleccione una opcion</option><option>Contado</option><option>Anticipo del 60%</option><option>Credito a 30 dias</option><option>Credito a 45 dias</option><option>Credito a 60 dias</option></select></div>
                   </div>
                 </section>
 
-                <section style={{ border: "1px solid #e5e7eb" }}>
-                  <div style={{ padding: "6px 10px", borderBottom: "1px solid #e5e7eb", fontWeight: 700, background: "#f8fafc" }}>Detalles del elemento</div>
-                  <div style={{ padding: 10, display: "grid", gap: 10 }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10 }}>
-                      <input placeholder="Nombre elemento" style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} />
-                      <input placeholder="Cantidad" defaultValue="1" style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} />
-                      <input placeholder="Precio" value={actionAmount} onChange={(e) => setActionAmount(e.target.value)} style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} />
+                <section style={{ border: "1px solid #d1d5db" }}>
+                  <div style={{ padding: "7px 10px", borderBottom: "1px solid #d1d5db", fontWeight: 700, background: "#f8fafc" }}>Detalles del elemento</div>
+                  <div style={{ padding: 10, display: "grid", gap: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 8 }}>
+                      <input placeholder="Nombre elemento" value={quoteItemName} onChange={(e) => setQuoteItemName(e.target.value)} style={{ border: "1px solid #b6bcc6", padding: "6px 8px" }} />
+                      <input placeholder="Cantidad" value={quoteQty} onChange={(e) => setQuoteQty(e.target.value)} style={{ border: "1px solid #b6bcc6", padding: "6px 8px" }} />
+                      <input placeholder="Precio" value={quotePrice} onChange={(e) => setQuotePrice(e.target.value)} style={{ border: "1px solid #b6bcc6", padding: "6px 8px" }} />
+                      <input value={money(Number(quoteQty || 0) * Number(quotePrice || 0))} readOnly style={{ border: "1px solid #b6bcc6", padding: "6px 8px", background: "#f8fafc" }} />
                     </div>
-                    <div style={{ textAlign: "right", fontWeight: 700 }}>Total: {money(Number(actionAmount || 0))}</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button style={{ border: "1px solid #b6bcc6", background: "#fff", padding: "6px 10px", cursor: "pointer" }}>+Agregar producto</button>
+                      <button style={{ border: "1px solid #b6bcc6", background: "#fff", padding: "6px 10px", cursor: "pointer" }}>+Agregar servicio</button>
+                    </div>
+                    <div style={{ textAlign: "right", fontWeight: 700 }}>Total: {money(Number(quoteQty || 0) * Number(quotePrice || 0))}</div>
                   </div>
                 </section>
               </div>
@@ -591,6 +661,18 @@ export default function AvanzaInicioPage() {
             ) : null}
 
             <div style={{ borderTop: "1px solid #e5e7eb", padding: 12, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                style={{
+                  border: "1px solid #b6bcc6",
+                  background: "#fff",
+                  borderRadius: 6,
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                  display: quickActionType === "Actividad" || quickActionType === "Documento" ? "inline-block" : "none",
+                }}
+              >
+                Ir a forma completa
+              </button>
               <button onClick={closeQuickAction} style={{ border: "none", background: "transparent", color: "#b91c1c", fontWeight: 700, cursor: "pointer" }}>Cancelar</button>
               <button onClick={saveQuickAction} style={{ border: "none", background: "#22b8aa", color: "#fff", borderRadius: 6, padding: "8px 14px", fontWeight: 800, cursor: "pointer", display: quickActionType === "Correo" ? "none" : "inline-block" }}>
                 {quickActionType === "Correo" ? "Enviar" : quickActionType === "Comentario" ? "Guardar" : "Guardar"}
