@@ -4671,7 +4671,7 @@ async function buildStandardQuotePdf(args: {
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.text("Informacion general", 12, infoTitleY);
+  doc.text("Información general", 12, infoTitleY);
   doc.setDrawColor(180, 196, 210);
   doc.rect(10, infoTopY, 190, 28, "S");
   doc.line(105, infoTopY, 105, infoTopY + 28);
@@ -4680,7 +4680,7 @@ async function buildStandardQuotePdf(args: {
     ["Cliente", args.companyName || args.customerName || "-"],
     ["Contacto", args.customerName || "-"],
     ["Direccion", String(args.city || "Bogota D.C")],
-    ["Numero de Cotizacion", args.quoteNumber],
+    ["Número de Cotización", args.quoteNumber],
     ["Forma de Pago", "Contado"],
   ];
   const rightRows: Array<[string, string]> = [
@@ -4688,7 +4688,7 @@ async function buildStandardQuotePdf(args: {
     ["Celular", phoneSafe.length >= 10 && phoneSafe.length <= 15 ? phoneSafe : "-"],
     ["Correo", args.customerEmail || "-"],
     ["Fecha de Validez", args.validUntil],
-    ["Fecha de Entrega", "45 dias habiles"],
+    ["Fecha de Entrega", "45 días hábiles"],
   ];
 
   let yRow = infoTopY + 5;
@@ -4861,7 +4861,7 @@ async function buildStandardQuotePdf(args: {
 
       if (descChunk.length > 0) doc.text(descChunk, 52, bodyY);
       if (isFirstSegment) {
-        doc.text(String(item.warranty || "1 AÑO POR\nDEFECTO DE\nFABRICA"), 128.8, bodyY);
+        doc.text(String(item.warranty || "1 AÑO POR\nDEFECTO DE\nFÁBRICA"), 128.8, bodyY);
         doc.text(String(qty), 155, bodyY, { align: "right" });
         doc.setFontSize(7.8);
         doc.text(`$ ${formatMoney(lineTotal / qty)}`, 176.5, bodyY, { align: "right" });
