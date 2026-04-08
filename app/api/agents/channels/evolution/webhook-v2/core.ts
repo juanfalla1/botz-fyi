@@ -2350,6 +2350,20 @@ function buildCommercialEscalationMessage(): string {
   ].join("\n");
 }
 
+function looksLikeCommercialDataInput(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!t) return false;
+  return /(\bnit\b|\brut\b|\bnombre\b|\bempresa\b|\brazon\s+social\b|persona\s+natural)/.test(t);
+}
+
+function buildCommercialValidationOkMessage(): string {
+  return [
+    "Perfecto, validé tus datos comerciales.",
+    "Ahora sí, dime qué necesitas pesar y su funcionalidad para recomendarte la mejor opción.",
+    "Si prefieres, también puedes escribir capacidad y resolución (ej.: 220 g x 0.001 g).",
+  ].join("\n");
+}
+
 function normalizeDeliveryLabel(raw: string): string {
   const t = normalizeText(String(raw || ""));
   if (!t) return "";
@@ -6235,6 +6249,12 @@ export async function POST(req: Request) {
       };
 
       const strictCommercialBlocked = !Boolean(strictMemory.commercial_validation_complete);
+      const commercialDataInputNow = looksLikeCommercialDataInput(text);
+      if (!String(strictReply || "").trim() && commercialDataInputNow && strictMemory.commercial_validation_complete) {
+        strictMemory.awaiting_action = "strict_need_spec";
+        strictReply = buildCommercialValidationOkMessage();
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "commercial_validation_complete" });
+      }
       if (!String(strictReply || "").trim() && strictCommercialBlocked && !isGreeting) {
         strictMemory.awaiting_action = "conversation_followup";
         strictReply = buildCommercialEscalationMessage();
