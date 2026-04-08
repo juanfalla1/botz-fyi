@@ -2392,17 +2392,20 @@ function deliveryLabelForRow(row: any): string {
 
 function detectGuidedBalanzaProfile(text: string): GuidedBalanzaProfile | null {
   const t = normalizeText(String(text || ""));
+  const hasGrameraWord = /\bgramera\b/.test(t);
   const hasOro = /(oro|joyeria|joyería|minero|calidad\s+del\s+oro|dos\s+cifras)/.test(t);
-  const hasThree = /(tres\s+cifras|0\s*[,.]\s*001|1\s*mg|gramera|cabina|cosmetic|menos\s+de\s+200|menos\s+de\s+300)/.test(t);
+  const hasThree = /(tres\s+cifras|0\s*[,.]\s*001|1\s*mg|cabina|cosmetic|menos\s+de\s+200|menos\s+de\s+300)/.test(t);
   const hasFour = /(cuatro\s+cifras|0\s*[,.]\s*0001|0\s*[,.]\s*1\s*mg|laboratorio|laboratorio\s+de\s+alimentos)/.test(t);
   const hasFive = /(cinco\s+cifras|0\s*[,.]\s*00001|0\s*[,.]\s*01\s*mg|semi\s*micro|semimicro|usp|microgram|migrogram)/.test(t);
-  const hasIndustrial = /(portatil|portátil|recargable|plato\s+grande|cuenta\s+piezas|tres\s+pantallas|tornillos|30\s*kg|15\s*kg)/.test(t);
+  const hasIndustrial = /(portatil|portátil|recargable|plato\s+grande|cuenta\s+piezas|tres\s+pantallas|tornillos|30\s*kg|15\s*kg|gramo\s+por\s+gramo)/.test(t);
+  const hasGrameraOnly = hasGrameraWord && !hasOro && !hasThree && !hasFour && !hasFive && !hasIndustrial;
 
+  if (hasGrameraOnly) return null;
   if (hasFive) return "balanza_semimicro_00001";
   if (hasFour) return "balanza_laboratorio_0001";
   if (hasIndustrial) return "balanza_industrial_portatil_conteo";
   if (hasOro) return "balanza_oro_001";
-  if (hasThree) return "balanza_precision_001";
+  if (hasThree || hasGrameraWord) return "balanza_precision_001";
   return null;
 }
 
