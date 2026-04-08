@@ -6,6 +6,7 @@ import path from "node:path";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
 import { evolutionService } from "../../../../../../lib/services/evolution.service";
+import { upsertBotEvent } from "../../../../avanza-crm/_lib/bot-events-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -100,6 +101,38 @@ function normalizeRealCustomerPhone(raw: string): string {
   if (n.length === 12 && n.startsWith("57")) return n;
   if (n.length === 11 && n.startsWith("1")) return n;
   return "";
+}
+
+async function mirrorAdvisorMeetingToAvanza(args: {
+  ownerId: string;
+  tenantId?: string | null;
+  externalRef: string;
+  phone: string;
+  customerName: string;
+  advisor?: string;
+  meetingAt: string;
+  meetingLabel?: string;
+  source: string;
+}) {
+  const meetingAt = String(args.meetingAt || "").trim();
+  if (!meetingAt) return;
+  const phone = normalizePhone(args.phone || "");
+  if (!phone) return;
+
+  await upsertBotEvent({
+    ownerId: String(args.ownerId || ""),
+    tenantId: String(args.tenantId || ""),
+    externalKey: `evo:${args.externalRef}:${phone}:${meetingAt}`,
+    channel: "whatsapp",
+    phone,
+    customerName: String(args.customerName || ""),
+    advisor: String(args.advisor || "Asesor comercial"),
+    meetingAt,
+    meetingLabel: String(args.meetingLabel || "Cita con asesor"),
+    status: "programada",
+    source: String(args.source || "evolution_webhook"),
+    notes: "Agendada desde bot por flujo de cita con asesor.",
+  });
 }
 
 function isLidCandidate(raw: string): boolean {
@@ -2218,6 +2251,43 @@ function extractCompanyNit(text: string): string {
   return String(labeled || fallback).replace(/[^0-9.-]/g, "").trim();
 }
 
+function normalizeNitParts(rawNit: string): { base: string; dv: string } {
+  const cleaned = String(rawNit || "").replace(/\s+/g, "").replace(/\./g, "");
+  if (!cleaned) return { base: "", dv: "" };
+  if (cleaned.includes("-")) {
+    const [base, dv] = cleaned.split("-");
+    return {
+      base: String(base || "").replace(/\D/g, ""),
+      dv: String(dv || "").replace(/\D/g, "").slice(0, 1),
+    };
+  }
+  const digits = cleaned.replace(/\D/g, "");
+  if (digits.length < 8) return { base: "", dv: "" };
+  return { base: digits.slice(0, -1), dv: digits.slice(-1) };
+}
+
+function isValidColombianNit(rawNit: string): boolean {
+  const { base, dv } = normalizeNitParts(rawNit);
+  if (!base || !dv) return false;
+  if (!/^\d{6,12}$/.test(base) || !/^\d$/.test(dv)) return false;
+  const weights = [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3];
+  const digits = base.split("").map((d) => Number(d));
+  if (digits.length > weights.length) return false;
+  const offset = weights.length - digits.length;
+  let sum = 0;
+  for (let i = 0; i < digits.length; i += 1) sum += digits[i] * weights[offset + i];
+  const remainder = sum % 11;
+  const expected = remainder > 1 ? 11 - remainder : remainder;
+  return expected === Number(dv);
+}
+
+function isLikelyRutValue(rawRut: string): boolean {
+  const cleaned = String(rawRut || "").replace(/\s+/g, "").replace(/\./g, "");
+  if (!cleaned) return false;
+  const digits = cleaned.replace(/\D/g, "");
+  return digits.length >= 7;
+}
+
 function detectPersonaNatural(text: string): boolean {
   const t = normalizeText(String(text || ""));
   return /persona\s+natural|soy\s+natural|no\s+tengo\s+empresa|sin\s+empresa/.test(t);
@@ -2256,8 +2326,10 @@ function updateCommercialValidation(memory: any, text: string, fallbackName: str
 
   memory.has_customer_name = Boolean(String(memory?.commercial_customer_name || memory?.customer_name || "").trim());
   memory.has_company_name = Boolean(String(memory?.commercial_company_name || "").trim());
-  memory.has_company_nit = Boolean(String(memory?.commercial_company_nit || "").trim());
-  memory.has_rut = Boolean(String(memory?.commercial_rut || "").trim());
+  memory.has_company_nit = isValidColombianNit(String(memory?.commercial_company_nit || ""));
+  memory.has_rut = isLikelyRutValue(String(memory?.commercial_rut || ""));
+  memory.has_valid_nit = memory.has_company_nit;
+  memory.has_valid_rut = memory.has_rut;
   memory.is_persona_natural = Boolean(memory?.is_persona_natural);
   memory.commercial_validation_complete = memory.is_persona_natural
     ? Boolean(memory.has_customer_name && memory.has_rut)
@@ -2267,7 +2339,7 @@ function updateCommercialValidation(memory: any, text: string, fallbackName: str
 function buildCommercialEscalationMessage(): string {
   return [
     "Para continuar debes registrar datos comerciales obligatorios.",
-    "Empresa: nombre, empresa y NIT.",
+    "Empresa: nombre, empresa y NIT válido (con dígito de verificación).",
     "Persona natural: nombre y RUT.",
     "Si prefieres, te transfiero con nuestra asesora Mariana (cel: +57 318 3731171).",
     `Puedes continuar directamente aquí: ${MARIANA_ESCALATION_LINK}`,
@@ -5612,6 +5684,19 @@ export async function POST(req: Request) {
               advisor_meeting_label: String(strictMemory.advisor_meeting_label || ""),
             },
           });
+          if (strictMeetingAt) {
+            await mirrorAdvisorMeetingToAvanza({
+              ownerId,
+              tenantId: (agent as any)?.tenant_id || null,
+              externalRef: String(inbound.messageId || incomingDedupKey || "slot"),
+              phone: inbound.from,
+              customerName: knownCustomerName || inbound.pushName || inbound.from,
+              advisor: "Asesor comercial",
+              meetingAt: strictMeetingAt,
+              meetingLabel: String(strictMemory.advisor_meeting_label || ""),
+              source: "evolution_strict_webhook",
+            });
+          }
           await persistConversationTurn(supabase as any, {
             agentId: String(agent.id),
             ownerId,
@@ -6749,6 +6834,19 @@ export async function POST(req: Request) {
               advisor_meeting_label: String(strictMemory.advisor_meeting_label || ""),
             },
           });
+          if (strictMeetingAt) {
+            await mirrorAdvisorMeetingToAvanza({
+              ownerId,
+              tenantId: (agent as any)?.tenant_id || null,
+              externalRef: String(inbound.messageId || incomingDedupKey || "muted"),
+              phone: inbound.from,
+              customerName: knownCustomerName || inbound.pushName || inbound.from,
+              advisor: "Asesor comercial",
+              meetingAt: strictMeetingAt,
+              meetingLabel: String(strictMemory.advisor_meeting_label || ""),
+              source: "evolution_strict_webhook",
+            });
+          }
 
           await persistConversationTurn(supabase as any, {
             agentId: String(agent.id),
@@ -9278,6 +9376,19 @@ export async function POST(req: Request) {
               advisor_meeting_label: String(strictMemory.advisor_meeting_label || ""),
             },
           });
+          if (strictMeetingAt) {
+            await mirrorAdvisorMeetingToAvanza({
+              ownerId,
+              tenantId: (agent as any)?.tenant_id || null,
+              externalRef: String(inbound.messageId || incomingDedupKey || "reply"),
+              phone: inbound.from,
+              customerName: knownCustomerName || inbound.pushName || inbound.from,
+              advisor: "Asesor comercial",
+              meetingAt: strictMeetingAt,
+              meetingLabel: String(strictMemory.advisor_meeting_label || ""),
+              source: "evolution_strict_webhook",
+            });
+          }
 
           await persistConversationTurn(supabase as any, {
             agentId: String(agent.id),
@@ -12895,6 +13006,19 @@ export async function POST(req: Request) {
           advisor_meeting_label: String(nextMemory.advisor_meeting_label || previousMemory?.advisor_meeting_label || ""),
         },
       });
+      if (finalMeetingAt) {
+        await mirrorAdvisorMeetingToAvanza({
+          ownerId,
+          tenantId: (agent as any)?.tenant_id || null,
+          externalRef: String(inbound.messageId || incomingDedupKey || "final"),
+          phone: inbound.from,
+          customerName: knownCustomerName || inbound.pushName || inbound.from,
+          advisor: "Asesor comercial",
+          meetingAt: finalMeetingAt,
+          meetingLabel: String(nextMemory.advisor_meeting_label || previousMemory?.advisor_meeting_label || ""),
+          source: "evolution_webhook",
+        });
+      }
 
       await persistConversationTurn(supabase as any, {
         agentId: String(agent.id),

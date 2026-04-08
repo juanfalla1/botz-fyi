@@ -2218,6 +2218,43 @@ function extractCompanyNit(text: string): string {
   return String(labeled || fallback).replace(/[^0-9.-]/g, "").trim();
 }
 
+function normalizeNitParts(rawNit: string): { base: string; dv: string } {
+  const cleaned = String(rawNit || "").replace(/\s+/g, "").replace(/\./g, "");
+  if (!cleaned) return { base: "", dv: "" };
+  if (cleaned.includes("-")) {
+    const [base, dv] = cleaned.split("-");
+    return {
+      base: String(base || "").replace(/\D/g, ""),
+      dv: String(dv || "").replace(/\D/g, "").slice(0, 1),
+    };
+  }
+  const digits = cleaned.replace(/\D/g, "");
+  if (digits.length < 8) return { base: "", dv: "" };
+  return { base: digits.slice(0, -1), dv: digits.slice(-1) };
+}
+
+function isValidColombianNit(rawNit: string): boolean {
+  const { base, dv } = normalizeNitParts(rawNit);
+  if (!base || !dv) return false;
+  if (!/^\d{6,12}$/.test(base) || !/^\d$/.test(dv)) return false;
+  const weights = [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3];
+  const digits = base.split("").map((d) => Number(d));
+  if (digits.length > weights.length) return false;
+  const offset = weights.length - digits.length;
+  let sum = 0;
+  for (let i = 0; i < digits.length; i += 1) sum += digits[i] * weights[offset + i];
+  const remainder = sum % 11;
+  const expected = remainder > 1 ? 11 - remainder : remainder;
+  return expected === Number(dv);
+}
+
+function isLikelyRutValue(rawRut: string): boolean {
+  const cleaned = String(rawRut || "").replace(/\s+/g, "").replace(/\./g, "");
+  if (!cleaned) return false;
+  const digits = cleaned.replace(/\D/g, "");
+  return digits.length >= 7;
+}
+
 function detectPersonaNatural(text: string): boolean {
   const t = normalizeText(String(text || ""));
   return /persona\s+natural|soy\s+natural|no\s+tengo\s+empresa|sin\s+empresa/.test(t);
@@ -2256,8 +2293,10 @@ function updateCommercialValidation(memory: any, text: string, fallbackName: str
 
   memory.has_customer_name = Boolean(String(memory?.commercial_customer_name || memory?.customer_name || "").trim());
   memory.has_company_name = Boolean(String(memory?.commercial_company_name || "").trim());
-  memory.has_company_nit = Boolean(String(memory?.commercial_company_nit || "").trim());
-  memory.has_rut = Boolean(String(memory?.commercial_rut || "").trim());
+  memory.has_company_nit = isValidColombianNit(String(memory?.commercial_company_nit || ""));
+  memory.has_rut = isLikelyRutValue(String(memory?.commercial_rut || ""));
+  memory.has_valid_nit = memory.has_company_nit;
+  memory.has_valid_rut = memory.has_rut;
   memory.is_persona_natural = Boolean(memory?.is_persona_natural);
   memory.commercial_validation_complete = memory.is_persona_natural
     ? Boolean(memory.has_customer_name && memory.has_rut)
@@ -2267,7 +2306,7 @@ function updateCommercialValidation(memory: any, text: string, fallbackName: str
 function buildCommercialEscalationMessage(): string {
   return [
     "Para continuar debes registrar datos comerciales obligatorios.",
-    "Empresa: nombre, empresa y NIT.",
+    "Empresa: nombre, empresa y NIT válido (con dígito de verificación).",
     "Persona natural: nombre y RUT.",
     "Si prefieres, te transfiero con nuestra asesora Mariana (cel: +57 318 3731171).",
     `Puedes continuar directamente aquí: ${MARIANA_ESCALATION_LINK}`,
