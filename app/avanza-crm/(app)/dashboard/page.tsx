@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
+import { money } from "../../_lib/deals";
 
 const USER_FILTERS = [
   "Mariana Rodriguez",
@@ -34,7 +35,7 @@ function WidgetBox({
   title: string;
   filter: string;
   onFilter: (value: string) => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <section style={{ border: "1px solid #cfd5dd", background: "#fff" }}>
