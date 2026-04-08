@@ -2366,6 +2366,13 @@ function buildCommercialValidationOkMessage(): string {
   ].join("\n");
 }
 
+function isExplicitFamilyMenuAsk(text: string): boolean {
+  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return false;
+  if (/^(balanza|balanzas|bascula|basculas|opciones|alternativas|familias|categorias|categorias\s+activas)$/.test(t)) return true;
+  return /(que\s+opciones\s+tienes|que\s+familias\s+tienes|que\s+categorias\s+tienes|muestrame\s+familias|muestrame\s+categorias|dame\s+el\s+menu)/.test(t);
+}
+
 function normalizeDeliveryLabel(raw: string): string {
   const t = normalizeText(String(raw || ""));
   if (!t) return "";
@@ -2439,12 +2446,25 @@ function buildGuidedBalanzaReply(profile: GuidedBalanzaProfile): string {
 }
 
 function buildGuidedPendingOptions(rows: any[], profile: GuidedBalanzaProfile): any[] {
-  const models = (GUIDED_BALANZA_CATALOG[profile] || []).flatMap((g) => g.models.map((m) => normalizeText(m.model)));
-  const hits = (Array.isArray(rows) ? rows : []).filter((r: any) => {
-    const n = normalizeText(String(r?.name || ""));
-    return models.some((m) => n === m || n.includes(m));
+  const rowList = Array.isArray(rows) ? rows : [];
+  const orderedModels = (GUIDED_BALANZA_CATALOG[profile] || []).flatMap((g) => g.models);
+  const options = orderedModels.map((m, i) => {
+    const modelNorm = normalizeText(m.model);
+    const hit = rowList.find((r: any) => {
+      const n = normalizeText(String(r?.name || ""));
+      return n === modelNorm || n.includes(modelNorm);
+    });
+    return {
+      code: String(i + 1),
+      rank: i + 1,
+      id: String(hit?.id || ""),
+      name: `${m.model} | Cap: ${m.capacity} | Res: ${m.resolution} | Entrega: ${m.delivery}`,
+      raw_name: String(hit?.name || m.model),
+      category: String(hit?.category || "balanzas"),
+      base_price_usd: Number(hit?.base_price_usd || 0),
+    };
   });
-  return buildNumberedProductOptions(hits.slice(0, 8) as any[], 8);
+  return options;
 }
 
 type ConversationIntent =
@@ -6246,7 +6266,18 @@ export async function POST(req: Request) {
             if (/^\s*1\s*$/.test(textNorm)) {
               strictMemory.awaiting_action = "strict_quote_data";
               strictMemory.quote_quantity = Math.max(1, Number(previousMemory?.quote_quantity || 1));
-              return finalizeStrictTurn("Perfecto. Para cotizar, compárteme en un solo mensaje: ciudad, empresa, NIT, contacto, correo y celular.", strictMemory, { pipeline: true, intent: pipelineIntent });
+              const quotePrompt = buildQuoteDataIntakePrompt(
+                "Perfecto. Para cotizar:",
+                {
+                  ...(previousMemory && typeof previousMemory === "object" ? previousMemory : {}),
+                  ...(strictMemory && typeof strictMemory === "object" ? strictMemory : {}),
+                  quote_data: {
+                    ...((previousMemory?.quote_data && typeof previousMemory.quote_data === "object") ? previousMemory.quote_data : {}),
+                    ...((strictMemory?.quote_data && typeof strictMemory.quote_data === "object") ? strictMemory.quote_data : {}),
+                  },
+                }
+              );
+              return finalizeStrictTurn(quotePrompt, strictMemory, { pipeline: true, intent: pipelineIntent });
             }
             if (/^\s*2\s*$/.test(textNorm)) {
               strictMemory.awaiting_action = "strict_choose_action";
@@ -6976,7 +7007,7 @@ export async function POST(req: Request) {
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
         const parsed = parseLooseTechnicalHint(text);
         const capacityRange = parseCapacityRangeHint(text);
-        const asksCategoryMenuNow = /(categorias|categorías|que\s+categorias|que\s+categorías|familias|que\s+familias|grupos|balanza|balanzas|bascula|basculas|opciones|alternativas|que\s+opciones\s+tienes)/.test(textNorm);
+        const asksCategoryMenuNow = isExplicitFamilyMenuAsk(text);
         const merged = mergeLooseSpecWithMemory(
           {
             capacityG: Number(previousMemory?.strict_partial_capacity_g || previousMemory?.strict_filter_capacity_g || 0),
@@ -6989,7 +7020,18 @@ export async function POST(req: Request) {
         strictMemory.strict_partial_capacity_g = cap > 0 ? cap : "";
         strictMemory.strict_partial_readability_g = read > 0 ? read : "";
 
-        if (!(cap > 0) && !(read > 0)) {
+        const guidedProfileInNeedStep = detectGuidedBalanzaProfile(text);
+        if (guidedProfileInNeedStep) {
+          const options = buildGuidedPendingOptions(ownerRows as any[], guidedProfileInNeedStep);
+          strictMemory.pending_product_options = options;
+          strictMemory.pending_family_options = [];
+          strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
+          strictMemory.last_category_intent = "balanzas";
+          strictMemory.guided_balanza_profile = guidedProfileInNeedStep;
+          strictReply = buildGuidedBalanzaReply(guidedProfileInNeedStep);
+        }
+
+        if (!String(strictReply || "").trim() && !(cap > 0) && !(read > 0)) {
           if (asksCategoryMenuNow) {
             const requestedCategoryForMenu = detectCatalogCategoryIntent(text);
             const rowsForMenu = requestedCategoryForMenu
@@ -8749,7 +8791,7 @@ export async function POST(req: Request) {
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_family") {
         const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
-        const asksCategoryMenuInFamilyStep = /(categorias|categorías|que\s+categorias|que\s+categorías|familias|que\s+familias|grupos|opciones|alternativas|que\s+opciones\s+tienes)/.test(textNorm);
+        const asksCategoryMenuInFamilyStep = isExplicitFamilyMenuAsk(text);
         const asksCheapestInFamilyStep = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|precio\s+bajo)\b/.test(textNorm);
         const featureTermsInFamilyStep = extractFeatureTerms(text);
         const categoryIntentInFamilyStep = detectCatalogCategoryIntent(text);
