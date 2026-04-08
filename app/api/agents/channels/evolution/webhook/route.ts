@@ -8015,6 +8015,8 @@ export async function POST(req: Request) {
         const askMore = /^(mas|más)$/i.test(strictCommand);
         const askBack = /^volver$/i.test(strictCommand);
         const askCancel = /^cancelar$/i.test(strictCommand);
+        const rememberedGuidedProfile = String(previousMemory?.guided_balanza_profile || strictMemory.guided_balanza_profile || "").trim() as GuidedBalanzaProfile | "";
+        const guidedProfileInModelStep = (detectGuidedBalanzaProfile(text) || rememberedGuidedProfile || "") as GuidedBalanzaProfile | "";
         const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
         const asksMoreOptionsDirect = /\b(tienes?\s+mas\s+opciones?|hay\s+mas\s+opciones?|mas\s+opciones?)\b/.test(textNorm);
         const asksHotplate = /\b(plancha|calentamiento|agitaci[oó]n|agitacion)\b/.test(textNorm);
@@ -8042,6 +8044,17 @@ export async function POST(req: Request) {
           isGlobalCatalogAsk(text) ||
           /\b(dame|muestrame|mu[eé]strame|quiero|ver)\b.*\b(todo|todos|todas)\b.*\b(prod|producto|productos|prodcutos|catalogo)\b/.test(textNorm);
         const hasScopedContextInModelStep = Boolean(currentCategoryIntentInModelStep || familyLabel || pendingStrictOptions.length);
+        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && guidedProfileInModelStep) {
+          const optionsFromGuided = buildGuidedPendingOptions(ownerRows as any[], guidedProfileInModelStep as GuidedBalanzaProfile);
+          strictMemory.guided_balanza_profile = guidedProfileInModelStep;
+          strictMemory.last_category_intent = "balanzas";
+          strictMemory.awaiting_action = optionsFromGuided.length ? "strict_choose_model" : "strict_need_spec";
+          strictMemory.pending_product_options = optionsFromGuided;
+          strictMemory.pending_family_options = [];
+          strictMemory.strict_family_label = "balanzas";
+          strictMemory.strict_model_offset = 0;
+          strictReply = buildGuidedBalanzaReply(guidedProfileInModelStep as GuidedBalanzaProfile);
+        }
         if (!String(strictReply || "").trim() && asksGlobalCatalogInModelStep && hasScopedContextInModelStep) {
           strictMemory.awaiting_action = "strict_catalog_scope_disambiguation";
           strictReply = [
