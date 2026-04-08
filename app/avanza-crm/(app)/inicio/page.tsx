@@ -13,6 +13,27 @@ const QUICK_ACTIONS: Array<{ label: DealActivity["type"]; active: boolean }> = [
   { label: "Cotizacion", active: false },
 ];
 
+const EMAIL_TEMPLATES = [
+  {
+    id: "tpl-carmenza",
+    name: "CARTA DE PRESENTACION CARMENZA",
+    subject: "CARTA DE PRESENTACION AVANZA GROUP",
+    body: "Hola,\n\nComparto nuestra carta de presentacion comercial para apoyo de tu proceso.\n\nQuedo atenta a cualquier comentario.\n",
+  },
+  {
+    id: "tpl-natalia",
+    name: "CARTA DE PRESENTACION NATALIA",
+    subject: "CARTA DE PRESENTACION AVANZA GROUP",
+    body: "Hola,\n\nTe envio carta de presentacion y portafolio para tu validacion.\n\nSaludos,\n",
+  },
+  {
+    id: "tpl-feria",
+    name: "INVITACION A LA FERIA ANDINA PACKI VIVE LA INNOVACION",
+    subject: "INVITACION A LA FERIA ANDINA PACKI VIVE LA INNOVACION",
+    body: "Hola,\n\nQueremos invitarte a la feria Andina Packi Vive la Innovacion.\n\nTe esperamos.\n",
+  },
+];
+
 function makeStageId(label: string, existingIds: string[]): string {
   const base =
     label
@@ -42,6 +63,7 @@ export default function AvanzaInicioPage() {
   const [actionTime, setActionTime] = useState("");
   const [actionNotes, setActionNotes] = useState("");
   const [actionAmount, setActionAmount] = useState("");
+  const [showEmailTemplates, setShowEmailTemplates] = useState(false);
   const [dragDealId, setDragDealId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
   const [showStageManager, setShowStageManager] = useState(false);
@@ -133,6 +155,7 @@ export default function AvanzaInicioPage() {
   const closeQuickAction = () => {
     setQuickActionDealId(null);
     setQuickActionType(null);
+    setShowEmailTemplates(false);
   };
 
   const saveQuickAction = () => {
@@ -426,18 +449,64 @@ export default function AvanzaInicioPage() {
               <div style={{ padding: 14, display: "grid", gap: 10 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
                   <div>Para*</div>
-                  <input value={quickDeal?.email || ""} readOnly style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px", background: "#f8fafc" }} />
+                  <div style={{ border: "1px solid #d8dee6", borderRadius: 2, padding: 6, background: "#fff", minHeight: 34, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <span style={{ border: "1px solid #b6bcc6", padding: "3px 6px", borderRadius: 3, fontSize: 13 }}>{quickDeal?.email || ""}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <select style={{ border: "1px solid #b6bcc6", height: 28 }}>
+                        <option>Contactos</option>
+                      </select>
+                      <button style={{ border: "1px solid #b6bcc6", height: 28, width: 28, background: "#fff", cursor: "pointer" }}>🔍</button>
+                    </div>
+                  </div>
                 </div>
                 <div style={{ color: "#0f766e", fontSize: 13 }}>Agregar CC  Agregar CCO</div>
                 <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
                   <div>Asunto*</div>
-                  <input value={actionSubject} onChange={(e) => setActionSubject(e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
+                  <input value={actionSubject} onChange={(e) => setActionSubject(e.target.value)} style={{ border: "1px solid #b6bcc6", borderRadius: 2, padding: "8px 10px" }} />
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "center" }}>
                   <div>Adjunto</div>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}><input type="file" /><button style={{ border: "1px solid #d1d5db", background: "#f8fafc", borderRadius: 6, padding: "8px 10px", cursor: "pointer" }}>Navegar por el CRM</button></div>
                 </div>
-                <textarea value={actionNotes} onChange={(e) => setActionNotes(e.target.value)} rows={8} placeholder="Escribe el contenido del correo" style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "10px", resize: "vertical" }} />
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button onClick={saveQuickAction} style={{ border: "1px solid #16a34a", background: "#2dd4bf", color: "#fff", borderRadius: 4, padding: "6px 14px", cursor: "pointer" }}>Enviar</button>
+                  <button onClick={saveQuickAction} style={{ border: "1px solid #b6bcc6", background: "#fff", borderRadius: 4, padding: "6px 12px", cursor: "pointer" }}>Guardar como borrador</button>
+                  <button onClick={() => setShowEmailTemplates((v) => !v)} style={{ marginLeft: "auto", border: "1px solid #b6bcc6", background: "#fff", borderRadius: 4, padding: "6px 12px", cursor: "pointer" }}>Seleccione plantilla de correo</button>
+                </div>
+
+                {showEmailTemplates ? (
+                  <div style={{ border: "1px solid #d8dee6", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", background: "#f8fafc", fontWeight: 700, fontSize: 13 }}>
+                      <div style={{ padding: 8 }}>Nombre de la plantilla</div>
+                      <div style={{ padding: 8 }}>Asunto</div>
+                      <div style={{ padding: 8 }}>Descripcion</div>
+                    </div>
+                    {EMAIL_TEMPLATES.map((tpl) => (
+                      <button
+                        key={tpl.id}
+                        onClick={() => {
+                          setActionSubject(tpl.subject);
+                          setActionNotes(tpl.body);
+                          setShowEmailTemplates(false);
+                        }}
+                        style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", width: "100%", textAlign: "left", border: "none", borderTop: "1px solid #e5e7eb", background: "#fff", cursor: "pointer" }}
+                      >
+                        <div style={{ padding: 8, color: "#0f766e" }}>{tpl.name}</div>
+                        <div style={{ padding: 8, color: "#0f766e" }}>{tpl.subject}</div>
+                        <div style={{ padding: 8 }} />
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div style={{ border: "1px solid #b6bcc6", borderRadius: 2, minHeight: 240, display: "grid", gridTemplateRows: "auto 1fr" }}>
+                  <div style={{ borderBottom: "1px solid #d1d5db", padding: 8, display: "flex", gap: 8, flexWrap: "wrap", background: "#f8fafc" }}>
+                    {['↶','↷','B','I','U','•','1.','🔗','📷','⌗'].map((tool) => (
+                      <span key={tool} style={{ border: "1px solid #cbd5e1", padding: "2px 6px", borderRadius: 3, fontSize: 12 }}>{tool}</span>
+                    ))}
+                  </div>
+                  <textarea value={actionNotes} onChange={(e) => setActionNotes(e.target.value)} rows={9} placeholder="Escribe el contenido del correo" style={{ border: "none", padding: "10px", resize: "vertical", width: "100%" }} />
+                </div>
               </div>
             ) : null}
 
@@ -523,7 +592,7 @@ export default function AvanzaInicioPage() {
 
             <div style={{ borderTop: "1px solid #e5e7eb", padding: 12, display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <button onClick={closeQuickAction} style={{ border: "none", background: "transparent", color: "#b91c1c", fontWeight: 700, cursor: "pointer" }}>Cancelar</button>
-              <button onClick={saveQuickAction} style={{ border: "none", background: "#22b8aa", color: "#fff", borderRadius: 6, padding: "8px 14px", fontWeight: 800, cursor: "pointer" }}>
+              <button onClick={saveQuickAction} style={{ border: "none", background: "#22b8aa", color: "#fff", borderRadius: 6, padding: "8px 14px", fontWeight: 800, cursor: "pointer", display: quickActionType === "Correo" ? "none" : "inline-block" }}>
                 {quickActionType === "Correo" ? "Enviar" : quickActionType === "Comentario" ? "Guardar" : "Guardar"}
               </button>
             </div>
