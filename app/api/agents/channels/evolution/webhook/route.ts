@@ -5913,6 +5913,17 @@ export async function POST(req: Request) {
             return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "guided_need_discovery" });
           }
           const app = detectTargetApplication(text) || "";
+          const categoryIntentNow = detectCatalogCategoryIntent(text) || "";
+          const strictReadabilityHint = Number(slotPack?.slots?.target_readability_g || 0);
+          const hasStrongNeedSignal = Boolean(app || categoryIntentNow || strictReadabilityHint > 0 || featureTerms.length > 0);
+          if (!hasStrongNeedSignal) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            const reply = [
+              "No entiendo tu pregunta. Por favor repite tu solicitud con un formato válido de Avanza.",
+              "Puedes escribir: modelo exacto (ej.: PX3202/E), categoría (balanzas, básculas o analizador de humedad), o capacidad y resolución (ej.: 2200 g x 0.01 g).",
+            ].join("\n");
+            return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "guided_need_discovery_invalid" });
+          }
           const productKind = /(bascula|basculas)/.test(textNorm) ? "báscula" : "balanza";
           const guidance = /(tornillo|tornillos|tuerca|tuercas|perno|pernos|repuesto|repuestos)/.test(textNorm)
             ? "Claro, para ese uso sí tenemos opciones. ¿La necesitas para conteo de piezas o para peso total, y qué rango de peso manejas?"
