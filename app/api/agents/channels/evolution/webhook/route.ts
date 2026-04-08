@@ -4920,9 +4920,9 @@ async function buildStandardQuotePdf(args: {
     "www.balanzasybasculas.com.co - www.avanzagroup.com.co",
   ].join("\n");
   const companyFooterLines = doc.splitTextToSize(companyFooter, 188);
-  const legalHeight = Math.max(10, legalLines.length * 3.3);
+  let legalHeight = Math.max(10, legalLines.length * 3.3);
   const companyHeight = Math.max(10, companyFooterLines.length * 3.2);
-  let closingEstimate = 18 + 24 + legalHeight + 16 + 10 + 12 + companyHeight + 14;
+  let closingEstimate = 63 + legalHeight + companyHeight;
   if (singleItemMode && yFooter + closingEstimate > 272) {
     const fixedBlocks = 18 + 16 + 10 + 12 + companyHeight + 14;
     const legalBudget = Math.max(2, Math.floor((272 - yFooter - fixedBlocks) / 3.3));
@@ -4932,9 +4932,10 @@ async function buildStandardQuotePdf(args: {
         legalLines[legalLines.length - 1] = `${String(legalLines[legalLines.length - 1] || "").trimEnd()}...`;
       }
     }
-    closingEstimate = 18 + 24 + Math.max(10, legalLines.length * 3.3) + 16 + 10 + 12 + companyHeight + 14;
+    legalHeight = Math.max(10, legalLines.length * 3.3);
+    closingEstimate = 63 + legalHeight + companyHeight;
   }
-  if (yFooter + closingEstimate > 272) {
+  if (!singleItemMode && yFooter + closingEstimate > 272) {
     doc.addPage();
     drawHeader(true);
     yFooter = 40;
