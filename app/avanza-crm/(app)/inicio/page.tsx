@@ -364,7 +364,19 @@ export default function AvanzaInicioPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 3200, display: "grid", placeItems: "center", padding: 16 }}>
           <section style={{ width: "min(920px, 96vw)", background: "#ffffff", border: "1px solid #d8dee6", borderRadius: 10, overflow: "hidden" }}>
             <div style={{ padding: "10px 14px", background: "#334155", color: "#ffffff", fontWeight: 800, display: "flex", alignItems: "center" }}>
-              {quickActionType === "Actividad" ? "Creando nueva actividad" : quickActionType === "Documento" ? "Crear Documento" : quickActionType === "Correo" ? "Redactar correo" : `Nueva ${quickActionType}`}
+              {quickActionType === "Actividad"
+                ? "Creando nueva actividad"
+                : quickActionType === "Documento"
+                ? "Crear Documento"
+                : quickActionType === "Correo"
+                ? "Redactar correo"
+                : quickActionType === "Comentario"
+                ? "Dejar comentario"
+                : quickActionType === "Cotizacion"
+                ? "Creando nueva Cotizacion"
+                : quickActionType === "WhatsApp"
+                ? "WhatsApp"
+                : `Nueva ${quickActionType}`}
               <button onClick={closeQuickAction} style={{ marginLeft: "auto", border: "none", background: "transparent", color: "#fff", fontSize: 16, cursor: "pointer" }}>x</button>
             </div>
 
@@ -429,7 +441,77 @@ export default function AvanzaInicioPage() {
               </div>
             ) : null}
 
-            {quickActionType !== "Actividad" && quickActionType !== "Documento" && quickActionType !== "Correo" ? (
+            {quickActionType === "Comentario" ? (
+              <div style={{ padding: 14, display: "grid", gap: 10 }}>
+                <textarea
+                  value={actionNotes}
+                  onChange={(e) => setActionNotes(e.target.value)}
+                  rows={5}
+                  placeholder="Agrega tu comentario aqui..."
+                  style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "10px", resize: "vertical" }}
+                />
+              </div>
+            ) : null}
+
+            {quickActionType === "WhatsApp" ? (
+              <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", minHeight: 420 }}>
+                <div style={{ borderRight: "1px solid #e5e7eb", background: "#f8fafc", display: "grid", gridTemplateRows: "auto auto auto 1fr" }}>
+                  <div style={{ padding: 8 }}>
+                    <input value={quickDeal?.phone || ""} readOnly style={{ width: "100%", border: "1px solid #cbd5e1", borderRadius: 6, padding: "8px 10px", background: "#fff" }} />
+                  </div>
+                  <div style={{ padding: "0 8px", color: "#64748b", fontWeight: 700 }}>Archivados (0)</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", padding: "8px 0", borderTop: "1px solid #e5e7eb", borderBottom: "1px solid #e5e7eb", textAlign: "center", color: "#334155" }}>
+                    <span>Sin leer (0)</span>
+                    <span>Chats (0)</span>
+                  </div>
+                </div>
+                <div style={{ display: "grid", placeItems: "center", padding: 20 }}>
+                  <div style={{ width: 300, border: "4px solid #dbe3fb", borderRadius: 30, padding: 18, textAlign: "center", color: "#0f172a", lineHeight: 1.4 }}>
+                    No tienes conectado un numero de telefono. Contacta a un administrador para obtener un codigo QR.
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {quickActionType === "Cotizacion" ? (
+              <div style={{ padding: 14, display: "grid", gap: 12, maxHeight: "70vh", overflow: "auto" }}>
+                <section style={{ border: "1px solid #e5e7eb" }}>
+                  <div style={{ padding: "6px 10px", borderBottom: "1px solid #e5e7eb", fontWeight: 700, background: "#f8fafc" }}>Informacion de la cotizacion</div>
+                  <div style={{ padding: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <label style={{ display: "grid", gap: 6 }}><span>* Asunto</span><input value={actionSubject} onChange={(e) => setActionSubject(e.target.value)} style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} /></label>
+                    <label style={{ display: "grid", gap: 6 }}><span>Nombre de contacto</span><input value={quickDeal?.contactName || ""} readOnly style={{ border: "1px solid #d1d5db", padding: "8px 10px", background: "#f8fafc" }} /></label>
+                    <label style={{ display: "grid", gap: 6 }}><span>Empresa</span><input value={quickDeal?.company || ""} readOnly style={{ border: "1px solid #d1d5db", padding: "8px 10px", background: "#f8fafc" }} /></label>
+                    <label style={{ display: "grid", gap: 6 }}><span>Negocio</span><input value={quickDeal?.businessName || ""} readOnly style={{ border: "1px solid #d1d5db", padding: "8px 10px", background: "#f8fafc" }} /></label>
+                    <label style={{ display: "grid", gap: 6 }}><span>* Estado de la cotizacion</span><select style={{ border: "1px solid #d1d5db", padding: "8px 10px" }}><option>Creado</option><option>Enviada</option><option>Aprobada</option></select></label>
+                    <label style={{ display: "grid", gap: 6 }}><span>* Asignado a</span><input value={quickDeal?.assignedTo || "Usuario Gerente"} readOnly style={{ border: "1px solid #d1d5db", padding: "8px 10px", background: "#f8fafc" }} /></label>
+                    <label style={{ display: "grid", gap: 6 }}><span>Valido hasta</span><input type="date" value={actionDate} onChange={(e) => setActionDate(e.target.value)} style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} /></label>
+                    <label style={{ display: "grid", gap: 6 }}><span>Fecha de Entrega</span><input type="date" style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} /></label>
+                  </div>
+                </section>
+
+                <section style={{ border: "1px solid #e5e7eb" }}>
+                  <div style={{ padding: "6px 10px", borderBottom: "1px solid #e5e7eb", fontWeight: 700, background: "#f8fafc" }}>Detalles de la descripcion</div>
+                  <div style={{ padding: 10, display: "grid", gap: 10 }}>
+                    <textarea value={actionNotes} onChange={(e) => setActionNotes(e.target.value)} rows={4} placeholder="Descripcion" style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} />
+                    <select style={{ border: "1px solid #d1d5db", padding: "8px 10px", maxWidth: 300 }}><option>Forma de pago</option></select>
+                  </div>
+                </section>
+
+                <section style={{ border: "1px solid #e5e7eb" }}>
+                  <div style={{ padding: "6px 10px", borderBottom: "1px solid #e5e7eb", fontWeight: 700, background: "#f8fafc" }}>Detalles del elemento</div>
+                  <div style={{ padding: 10, display: "grid", gap: 10 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10 }}>
+                      <input placeholder="Nombre elemento" style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} />
+                      <input placeholder="Cantidad" defaultValue="1" style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} />
+                      <input placeholder="Precio" value={actionAmount} onChange={(e) => setActionAmount(e.target.value)} style={{ border: "1px solid #d1d5db", padding: "8px 10px" }} />
+                    </div>
+                    <div style={{ textAlign: "right", fontWeight: 700 }}>Total: {money(Number(actionAmount || 0))}</div>
+                  </div>
+                </section>
+              </div>
+            ) : null}
+
+            {quickActionType !== "Actividad" && quickActionType !== "Documento" && quickActionType !== "Correo" && quickActionType !== "Comentario" && quickActionType !== "WhatsApp" && quickActionType !== "Cotizacion" ? (
               <div style={{ padding: 14, display: "grid", gap: 10 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <label style={{ display: "grid", gap: 6 }}><span>Asunto</span><input value={actionSubject} onChange={(e) => setActionSubject(e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} /></label>
@@ -442,7 +524,7 @@ export default function AvanzaInicioPage() {
             <div style={{ borderTop: "1px solid #e5e7eb", padding: 12, display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <button onClick={closeQuickAction} style={{ border: "none", background: "transparent", color: "#b91c1c", fontWeight: 700, cursor: "pointer" }}>Cancelar</button>
               <button onClick={saveQuickAction} style={{ border: "none", background: "#22b8aa", color: "#fff", borderRadius: 6, padding: "8px 14px", fontWeight: 800, cursor: "pointer" }}>
-                {quickActionType === "Correo" ? "Enviar" : "Guardar"}
+                {quickActionType === "Correo" ? "Enviar" : quickActionType === "Comentario" ? "Guardar" : "Guardar"}
               </button>
             </div>
           </section>
