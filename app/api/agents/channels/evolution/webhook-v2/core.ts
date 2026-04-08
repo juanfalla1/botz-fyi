@@ -4873,7 +4873,8 @@ async function buildStandardQuotePdf(args: {
         doc.setFontSize(8.2);
       }
       if (isFirstSegment) {
-        doc.text(String(item.warranty || "1 AÑO POR\nDEFECTO DE\nFÁBRICA"), 128.8, bodyY);
+        const warrantyLines = doc.splitTextToSize(String(item.warranty || "1 AÑO POR DEFECTO DE FÁBRICA"), 15.5);
+        doc.text(warrantyLines, 130.2, bodyY);
         doc.text(String(qty), 155, bodyY, { align: "right" });
         doc.setFontSize(7.8);
         doc.text(`$ ${formatMoney(lineTotal / qty)}`, 176.5, bodyY, { align: "right" });
@@ -5003,75 +5004,13 @@ async function buildStandardQuotePdf(args: {
 
   doc.setDrawColor(35, 35, 35);
   doc.setLineWidth(0.25);
-  const leftFooterTop = yFooter - 1;
+  const leftFooterTop = yFooter + 4;
   const leftFooterBottom = yFooter + 24 + legalHeight + 1;
   doc.rect(10, leftFooterTop, 117, leftFooterBottom - leftFooterTop, "S");
-  doc.line(10, yFooter + 20, 127, yFooter + 20);
+  doc.line(10, yFooter + 22, 127, yFooter + 22);
 
   const legalBottomY = yFooter + 24 + legalHeight;
-  const perksY = legalBottomY + 10;
-  {
-    if (hasPerksStrip) {
-      try {
-        const fmt = /^data:image\/png/i.test(perksDataUrl)
-          ? "PNG"
-          : /^data:image\/webp/i.test(perksDataUrl)
-            ? "WEBP"
-            : "JPEG";
-        const props = (doc as any).getImageProperties?.(perksDataUrl) || null;
-        let stripW = 172;
-        let stripH = 24;
-        if (props?.width && props?.height) {
-          stripH = 20;
-          stripW = (stripH * Number(props.width || 0)) / Math.max(1, Number(props.height || 1));
-          if (stripW > 176) {
-            const ratio = 176 / stripW;
-            stripW *= ratio;
-            stripH *= ratio;
-          }
-        }
-        const stripX = (210 - stripW) / 2;
-        const stripY = perksY - stripH / 2;
-        doc.addImage(perksDataUrl, fmt as any, stripX, stripY, stripW, stripH);
-      } catch {
-        // ignore perks image rendering failure
-      }
-    } else {
-      const drawBadge = (x: number, color: [number, number, number], labelTop: string, labelBottom: string, symbol: string) => {
-        doc.setDrawColor(color[0], color[1], color[2]);
-        doc.setLineWidth(0.8);
-        doc.circle(x, perksY, 5.5, "S");
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(color[0], color[1], color[2]);
-        doc.setFontSize(8.2);
-        doc.text(symbol, x, perksY + 1.2, { align: "center" });
-        doc.setTextColor(dark[0], dark[1], dark[2]);
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(7.4);
-        doc.text(labelTop, x, perksY + 10, { align: "center" });
-        doc.text(labelBottom, x, perksY + 14, { align: "center" });
-      };
-
-      drawBadge(20, [52, 168, 83], "Garantía por", "desperfectos", "OK");
-      drawBadge(45, [30, 136, 229], "Envío a sus", "instalaciones", "TR");
-      drawBadge(70, [245, 124, 0], "Asistencia", "Técnica 24/7", "AT");
-
-      const drawSocial = (x: number, label: string, rgb: [number, number, number]) => {
-        doc.setFillColor(rgb[0], rgb[1], rgb[2]);
-        doc.circle(x, perksY, 4.8, "F");
-        doc.setTextColor(255, 255, 255);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(8.5);
-        doc.text(label, x, perksY + 1.5, { align: "center" });
-        doc.setTextColor(dark[0], dark[1], dark[2]);
-      };
-      drawSocial(160, "f", [24, 119, 242]);
-      drawSocial(170, "ig", [214, 41, 118]);
-      drawSocial(180, "in", [10, 102, 194]);
-    }
-  }
-
-  const footerBlockTop = perksY + 18;
+  const footerBlockTop = legalBottomY + 12;
   doc.setFontSize(7.2);
   doc.text(companyFooterLines, 10, footerBlockTop);
 
@@ -5082,6 +5021,38 @@ async function buildStandardQuotePdf(args: {
   doc.setFontSize(7.8);
   doc.text(`Fecha de creación ${createdAt}`, 10, footerMetaTop);
   doc.text(`Fecha de modificación ${modifiedAt}`, 10, footerMetaTop + 5);
+
+  const logosY = companyBlockTop + 13;
+  const drawBadge = (x: number, color: [number, number, number], labelTop: string, labelBottom: string, symbol: string) => {
+    doc.setDrawColor(color[0], color[1], color[2]);
+    doc.setLineWidth(0.8);
+    doc.circle(x, logosY, 5.5, "S");
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(color[0], color[1], color[2]);
+    doc.setFontSize(8.2);
+    doc.text(symbol, x, logosY + 1.2, { align: "center" });
+    doc.setTextColor(dark[0], dark[1], dark[2]);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.1);
+    doc.text(labelTop, x, logosY + 9.5, { align: "center" });
+    doc.text(labelBottom, x, logosY + 13.2, { align: "center" });
+  };
+  drawBadge(150, [52, 168, 83], "Garantía por", "desperfectos", "OK");
+  drawBadge(167, [30, 136, 229], "Envío a sus", "instalaciones", "TR");
+  drawBadge(184, [245, 124, 0], "Asistencia", "Técnica 24/7", "AT");
+
+  const drawSocial = (x: number, label: string, rgb: [number, number, number]) => {
+    doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+    doc.circle(x, logosY + 18.8, 4.6, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.1);
+    doc.text(label, x, logosY + 20.1, { align: "center" });
+    doc.setTextColor(dark[0], dark[1], dark[2]);
+  };
+  drawSocial(168, "f", [24, 119, 242]);
+  drawSocial(176.5, "ig", [214, 41, 118]);
+  drawSocial(185, "in", [10, 102, 194]);
 
   const companyBlockTop = legalBottomY + 3;
   const companyBlockBottom = footerMetaTop + 8;
