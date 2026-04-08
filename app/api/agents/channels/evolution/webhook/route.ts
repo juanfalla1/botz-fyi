@@ -1161,7 +1161,7 @@ function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: s
     seen.add(key);
     const rank = out.length + 1;
     if (rank > Math.max(1, maxItems)) break;
-    const code = String.fromCharCode(64 + rank);
+    const code = String(rank);
     out.push({
       code,
       rank,
@@ -2387,15 +2387,18 @@ function buildGuidedBalanzaReply(profile: GuidedBalanzaProfile): string {
           : profile === "balanza_semimicro_00001"
             ? "Sí, para semimicro (0,00001 g) estas son las opciones recomendadas:"
             : "Sí, para uso portátil/industrial y conteo de piezas te recomiendo estas opciones:";
+  let modelIndex = 1;
   return [
     intro,
     ...groups.flatMap((group) => [
-      ``,
+      "",
       group.tier,
-      ...group.models.map((m) => `${m.model} | Cap: ${m.capacity} | Res: ${m.resolution} | Entrega: ${m.delivery}`),
+      ...group.models.map((m) => `${modelIndex++}) ${m.model} | Cap: ${m.capacity} | Res: ${m.resolution} | Entrega: ${m.delivery}`),
     ]),
     "",
-    "Si quieres, te ayudo con 1) cotización 2) ficha técnica 3) asesor.",
+    "Responde con número que se encuentra al principio del modelo (ej.: 1).",
+    "Si deseas cotizar varias unidades, puedes escribir: cotizar 2 o cotizar 3 (máximo 3 equipos por solicitud).",
+    "Si tienes dudas, escribe asesor para recibir acompañamiento especializado.",
   ].join("\n");
 }
 
@@ -3042,9 +3045,9 @@ function getReusableBillingData(memory: any): {
 } {
   const q = memory?.quote_data && typeof memory.quote_data === "object" ? memory.quote_data : {};
   const city = normalizeCityLabel(String(q?.city || memory?.crm_billing_city || "").trim());
-  const company = String(q?.company || memory?.crm_company || "").trim();
-  const nit = String(q?.nit || memory?.crm_nit || "").replace(/[^0-9.-]/g, "").trim();
-  const contact = String(q?.contact || memory?.crm_contact_name || memory?.customer_name || "").trim();
+  const company = String(q?.company || memory?.crm_company || memory?.commercial_company_name || "").trim();
+  const nit = String(q?.nit || memory?.crm_nit || memory?.commercial_company_nit || "").replace(/[^0-9.-]/g, "").trim();
+  const contact = String(q?.contact || memory?.crm_contact_name || memory?.commercial_customer_name || memory?.customer_name || "").trim();
   const email = String(q?.email || memory?.crm_contact_email || memory?.customer_email || "").trim().toLowerCase();
   const phone = normalizePhone(String(q?.phone || memory?.crm_contact_phone || memory?.customer_phone || "").trim());
   const complete = Boolean(city && company && nit && contact && email && phone);
@@ -3060,6 +3063,21 @@ function billingDataAsSingleMessage(data: { city: string; company: string; nit: 
     `correo: ${data.email}`,
     `celular: ${data.phone}`,
   ].join(", ");
+}
+
+function buildQuoteDataIntakePrompt(prefix: string, memory: any): string {
+  const reusable = getReusableBillingData(memory);
+  const missing: string[] = [];
+  if (!reusable.city) missing.push("ciudad");
+  if (!reusable.company) missing.push("empresa");
+  if (!reusable.nit) missing.push("NIT");
+  if (!reusable.contact) missing.push("contacto");
+  if (!reusable.email) missing.push("correo");
+  if (!reusable.phone) missing.push("celular");
+  if (!missing.length) {
+    return `${prefix} Ya tengo tus datos de facturación. Si deseas continuar con los mismos datos, responde: mismos datos.`;
+  }
+  return `${prefix} Ya tengo parte de tus datos. Para continuar, envíame en un solo mensaje: ${missing.join(", ")}. Si deseas usar los mismos datos anteriores, responde: mismos datos.`;
 }
 
 type AnotherQuoteChoice = "same_model" | "other_model" | "cheaper" | "advisor";
@@ -6194,7 +6212,7 @@ export async function POST(req: Request) {
 
       const strictCommercialBlocked = !Boolean(strictMemory.commercial_validation_complete);
       const commercialDataInputNow = looksLikeCommercialDataInput(text);
-      if (!String(strictReply || "").trim() && commercialDataInputNow && strictMemory.commercial_validation_complete) {
+      if (!String(strictReply || "").trim() && awaiting !== "strict_quote_data" && commercialDataInputNow && strictMemory.commercial_validation_complete) {
         strictMemory.awaiting_action = "strict_need_spec";
         strictReply = buildCommercialValidationOkMessage();
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "commercial_validation_complete" });
@@ -6357,7 +6375,10 @@ export async function POST(req: Request) {
             strictMemory.last_selected_product_name = selectedName;
             strictMemory.quote_quantity = qtyRequested;
             strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular. Si deseas usar los mismos datos anteriores, responde: mismos datos.`;
+            strictReply = buildQuoteDataIntakePrompt(
+              `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)).`,
+              strictMemory
+            );
           }
         } else {
           const selectedId = String((selectedFromMemory as any)?.id || "").trim();
@@ -7261,7 +7282,10 @@ export async function POST(req: Request) {
           const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
           strictMemory.quote_quantity = qtyRequested;
           strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular. Si deseas usar los mismos datos anteriores, responde: mismos datos.`;
+          strictReply = buildQuoteDataIntakePrompt(
+            `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)).`,
+            strictMemory
+          );
         } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "other_model") {
           followupIntent = "alternative_same_need";
         } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "cheaper") {
@@ -7273,7 +7297,10 @@ export async function POST(req: Request) {
             const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
             strictMemory.quote_quantity = qtyRequested;
             strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular. Si deseas usar los mismos datos anteriores, responde: mismos datos.`;
+            strictReply = buildQuoteDataIntakePrompt(
+              `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)).`,
+              strictMemory
+            );
           } else {
             const selectedId = String(selectedProduct?.id || "").trim();
             const selectedNorm = normalizeText(selectedName);
@@ -7492,7 +7519,10 @@ export async function POST(req: Request) {
               const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
               strictMemory.quote_quantity = qtyRequested;
               strictMemory.awaiting_action = "strict_quote_data";
-              strictReply = `Perfecto. Voy a cotizar ${qtyRequested} unidad(es). Para continuar, compárteme en un solo mensaje los datos de facturación: ciudad, empresa, NIT, contacto, correo y celular. Si deseas usar los mismos datos anteriores, responde: mismos datos.`;
+              strictReply = buildQuoteDataIntakePrompt(
+                `Perfecto. Voy a cotizar ${qtyRequested} unidad(es).`,
+                strictMemory
+              );
             }
           }
           }
@@ -7764,9 +7794,9 @@ export async function POST(req: Request) {
 
         const quoteData = {
           city: cityNow || String(prevQuoteData.city || "") || crmCityForQuote,
-          company: companyNow || String(prevQuoteData.company || "") || crmCompanyForQuote,
-          nit: nitNow || String(prevQuoteData.nit || "") || crmNitForQuote,
-          contact: contactNow || String(prevQuoteData.contact || "") || crmNameForQuote,
+          company: companyNow || String(prevQuoteData.company || "") || crmCompanyForQuote || String(previousMemory?.commercial_company_name || strictMemory.commercial_company_name || ""),
+          nit: nitNow || String(prevQuoteData.nit || "") || crmNitForQuote || String(previousMemory?.commercial_company_nit || strictMemory.commercial_company_nit || ""),
+          contact: contactNow || String(prevQuoteData.contact || "") || crmNameForQuote || String(previousMemory?.commercial_customer_name || strictMemory.commercial_customer_name || ""),
           email: emailNow || String(prevQuoteData.email || "") || crmEmailForQuote,
           phone: phoneNow || String(prevQuoteData.phone || "") || crmPhoneForQuote,
         };
