@@ -804,7 +804,7 @@ async function buildStrictConversationalReply(args: {
 
 function isAdvisorAppointmentIntent(text: string): boolean {
   const t = normalizeText(text || "");
-  return /(\bcita\b|asesor humano|asesor comercial|agendar|agenda|llamada con asesor|quiero hablar con asesor|mariana|transferir\s+asesor|pasame\s+con\s+asesor)/.test(t);
+  return /(\bcita\b|\basesor\b|asesor humano|asesor comercial|agendar|agenda|llamada con asesor|quiero hablar con asesor|mariana|transferir\s+asesor|pasame\s+con\s+asesor)/.test(t);
 }
 
 function buildAdvisorMiniAgendaPrompt(): string {
