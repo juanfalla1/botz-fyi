@@ -2356,7 +2356,9 @@ function updateCommercialValidation(memory: any, text: string, fallbackName: str
 function buildCommercialEscalationMessage(): string {
   return [
     "⚠️ Si no contamos con esta información, no podremos continuar con el proceso.",
-    `Para continuar con este proceso te pondremos en contacto con nuestra asesora Mariana: ${MARIANA_ESCALATION_LINK}`,
+    "Para continuar con este proceso te pondremos en contacto con nuestra asesora Mariana.",
+    "Mariana: +57 318 3731171",
+    `https://wa.me/573183731171`,
   ].join("\n");
 }
 
