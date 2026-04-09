@@ -6440,6 +6440,33 @@ export async function POST(req: Request) {
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "new_customer_data_required" });
         }
         strictMemory.commercial_validation_complete = true;
+        const chosenEquipment = detectEquipmentChoice(text);
+        if (chosenEquipment && awaiting === "commercial_choose_equipment") {
+          strictMemory.commercial_equipment_choice = chosenEquipment;
+          if (chosenEquipment === "balanza") {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = buildBalanzaQualificationPrompt();
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_qualification_new_customer" });
+          }
+          if (chosenEquipment === "bascula") {
+            strictMemory.last_category_intent = "basculas";
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "bascula_qualification_new_customer" });
+          }
+          if (chosenEquipment === "analizador_humedad") {
+            strictMemory.last_category_intent = "analizador_humedad";
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = "Perfecto. Para analizador de humedad, dime tipo de muestra, capacidad aproximada y precisión objetivo.";
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "humidity_qualification_new_customer" });
+          }
+          strictMemory.awaiting_action = "conversation_followup";
+          strictReply = [
+            "En base de datos no tengo ese tipo de producto en catálogo activo para cotización automática.",
+            buildCommercialEscalationMessage(),
+          ].join("\n\n");
+          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "other_equipment_escalation_new_customer" });
+        }
         strictMemory.awaiting_action = "commercial_choose_equipment";
         strictReply = buildCommercialValidationOkMessage();
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "new_customer_data_completed" });
@@ -6473,7 +6500,10 @@ export async function POST(req: Request) {
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "humidity_qualification" });
         }
         strictMemory.awaiting_action = "conversation_followup";
-        strictReply = buildCommercialEscalationMessage();
+        strictReply = [
+          "En base de datos no tengo ese tipo de producto en catálogo activo para cotización automática.",
+          buildCommercialEscalationMessage(),
+        ].join("\n\n");
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "other_equipment_escalation" });
       }
 
