@@ -2458,12 +2458,43 @@ function extractSimpleLabeledValue(text: string, keys: string[]): string {
   return "";
 }
 
+function extractLooseNewCustomerFields(text: string): { city: string; company: string; nit: string; contact: string } {
+  const raw = String(text || "");
+  const lines = raw
+    .split(/\n|;|,/) 
+    .map((l) => String(l || "").trim())
+    .filter(Boolean);
+  let looseNit = "";
+  for (const line of lines) {
+    const candidate = String(line || "").replace(/\D/g, "");
+    if (/^\d{8,12}$/.test(candidate)) {
+      looseNit = candidate;
+      break;
+    }
+  }
+  const filtered = lines.filter((line) => {
+    const l = normalizeText(line);
+    if (looseNit && String(line).replace(/\D/g, "") === looseNit) return false;
+    if (/@/.test(line)) return false;
+    if (/^\+?\d[\d\s()-]{8,}$/.test(line)) return false;
+    if (/\bnit\b|\bcorreo\b|\bemail\b|\bcel\b|\bcelular\b|\btelefono\b/.test(l)) return false;
+    return true;
+  });
+  return {
+    city: String(filtered[0] || "").trim(),
+    company: String(filtered[1] || "").trim(),
+    contact: String(filtered[2] || "").trim(),
+    nit: looseNit,
+  };
+}
+
 function updateNewCustomerRegistration(memory: any, text: string, fallbackName: string) {
   const current = memory?.new_customer_data && typeof memory.new_customer_data === "object" ? memory.new_customer_data : {};
-  const city = normalizeCityLabel(extractSimpleLabeledValue(text, ["departamento", "ciudad"]) || current.city || "");
-  const company = extractSimpleLabeledValue(text, ["empresa", "razon social", "compania", "compañia"]) || current.company || "";
-  const nit = String(extractSimpleLabeledValue(text, ["nit"]) || current.nit || "").replace(/\D/g, "").trim();
-  const contact = sanitizeCustomerDisplayName(extractSimpleLabeledValue(text, ["nombre de contacto", "contacto", "nombre"]) || current.contact || extractCustomerName(text, fallbackName || ""));
+  const loose = extractLooseNewCustomerFields(text);
+  const city = normalizeCityLabel(extractSimpleLabeledValue(text, ["departamento", "ciudad"]) || loose.city || current.city || "");
+  const company = extractSimpleLabeledValue(text, ["empresa", "razon social", "compania", "compañia"]) || loose.company || current.company || "";
+  const nit = String(extractSimpleLabeledValue(text, ["nit"]) || loose.nit || current.nit || "").replace(/\D/g, "").trim();
+  const contact = sanitizeCustomerDisplayName(extractSimpleLabeledValue(text, ["nombre de contacto", "contacto", "nombre"]) || loose.contact || current.contact || extractCustomerName(text, fallbackName || ""));
   const email = String(extractEmail(text) || current.email || "").trim().toLowerCase();
   const phone = normalizePhone(String(extractCustomerPhone(text, "") || current.phone || "").trim());
 
