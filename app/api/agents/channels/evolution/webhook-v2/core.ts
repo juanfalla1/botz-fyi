@@ -685,10 +685,19 @@ function isQuoteDraftStatusConstraintError(err: any): boolean {
 
 function appendQuoteClosurePrompt(text: string): string {
   const base = String(text || "").trim();
-  const prompt = "¿Deseas agregar otro modelo a la cotización, ficha técnica, alguna pregunta o cerramos por ahora?";
+  const prompt = [
+    "Envio de cotización y ficha técnica",
+    "De acuerdo con la información suministrada, te compartimos la cotización junto con la ficha técnica del equipo para tu revisión.",
+    "",
+    "¿Deseas saber algo más o recibir asesoría adicional? Con gusto te apoyamos 😊",
+    "",
+    "Recuerda que estás cotizando con Avanza International Group, distribuidores de la marca OHAUS, líder en el mercado, lo que te garantiza un equipo con la más alta tecnología, precisión y respaldo.",
+    "",
+    "Si tu equipo es para entrega en Bogotá o Medellín, te obsequiamos la entrega, instalación y capacitación. Para otras ciudades, el envío debe ser asumido por el cliente, pero te acompañamos con instalación y capacitación virtual.",
+  ].join("\n");
   if (!base) return prompt;
   const t = normalizeText(base);
-  if (/(agregar otro modelo|cerramos por ahora|deseas agregar|eso es todo|finalizamos|ficha tecnica|alguna pregunta)/.test(t)) return base;
+  if (/(envio de cotizacion y ficha tecnica|deseas saber algo mas|marca ohaus|instalacion y capacitacion virtual)/.test(t)) return base;
   return `${base}\n\n${prompt}`;
 }
 
