@@ -6108,12 +6108,11 @@ export async function POST(req: Request) {
             strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
             strictMemory.last_category_intent = "balanzas";
             strictMemory.guided_balanza_profile = guidedProfile;
-            const welcomePrefix = strictMemory.commercial_welcome_sent ? "" : `${buildCommercialWelcomeMessage()}\n\n`;
             strictMemory.commercial_welcome_sent = true;
             const commercialTail = strictMemory.commercial_validation_complete
               ? ""
               : `\n\n${buildCommercialEscalationMessage()}`;
-            const reply = `${welcomePrefix}${buildGuidedBalanzaReply(guidedProfile)}${commercialTail}`;
+            const reply = `${buildGuidedBalanzaReply(guidedProfile)}${commercialTail}`;
             return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "guided_need_discovery", guided_profile: guidedProfile });
           }
           const featureTerms = extractFeatureTerms(text);
