@@ -683,11 +683,26 @@ function isQuoteDraftStatusConstraintError(err: any): boolean {
   return msg.includes("agent_quote_drafts_status_check") || (msg.includes("check constraint") && msg.includes("agent_quote_drafts"));
 }
 
-function appendQuoteClosurePrompt(text: string): string {
+function appendQuoteClosurePrompt(
+  text: string,
+  delivery: "quote_and_datasheet" | "quote_only" | "datasheet_only" = "quote_and_datasheet"
+): string {
   const base = String(text || "").trim();
+  const title =
+    delivery === "quote_only"
+      ? "Envio de cotización"
+      : delivery === "datasheet_only"
+        ? "Envio de ficha técnica"
+        : "Envio de cotización y ficha técnica";
+  const intro =
+    delivery === "quote_only"
+      ? "De acuerdo con la información suministrada, te compartimos la cotización del equipo para tu revisión."
+      : delivery === "datasheet_only"
+        ? "De acuerdo con la información suministrada, te compartimos la ficha técnica del equipo para tu revisión."
+        : "De acuerdo con la información suministrada, te compartimos la cotización junto con la ficha técnica del equipo para tu revisión.";
   const prompt = [
-    "Envio de cotización y ficha técnica",
-    "De acuerdo con la información suministrada, te compartimos la cotización junto con la ficha técnica del equipo para tu revisión.",
+    title,
+    intro,
     "",
     "¿Deseas saber algo más o recibir asesoría adicional? Con gusto te apoyamos 😊",
     "",
@@ -697,8 +712,48 @@ function appendQuoteClosurePrompt(text: string): string {
   ].join("\n");
   if (!base) return prompt;
   const t = normalizeText(base);
-  if (/(envio de cotizacion y ficha tecnica|deseas saber algo mas|marca ohaus|instalacion y capacitacion virtual)/.test(t)) return base;
+  if (/(envio de cotizacion y ficha tecnica|envio de cotizacion|envio de ficha tecnica|deseas saber algo mas|marca ohaus|instalacion y capacitacion virtual)/.test(t)) return base;
   return `${base}\n\n${prompt}`;
+}
+
+async function attachDatasheetPdfToStrictDocs(
+  strictDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }>,
+  selectedProduct: any,
+  selectedName: string,
+  queryText: string
+): Promise<boolean> {
+  const datasheetUrl = pickBestProductPdfUrl(selectedProduct, queryText) || "";
+  const localPdfPath = pickBestLocalPdfPath(selectedProduct, queryText);
+  let attached = false;
+
+  if (datasheetUrl) {
+    const remote = await fetchRemoteFileAsBase64(datasheetUrl);
+    const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrl));
+    if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+      strictDocs.push({
+        base64: remote.base64,
+        fileName: safeFileName(remote.fileName, `ficha-${selectedName}`, "pdf"),
+        mimetype: "application/pdf",
+        caption: `Ficha técnica - ${selectedName}`,
+      });
+      attached = true;
+    }
+  }
+
+  if (!attached && localPdfPath) {
+    const local = fetchLocalFileAsBase64(localPdfPath);
+    if (local && Number(local.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+      strictDocs.push({
+        base64: local.base64,
+        fileName: safeFileName(local.fileName, `ficha-${selectedName}`, "pdf"),
+        mimetype: "application/pdf",
+        caption: `Ficha técnica - ${selectedName}`,
+      });
+      attached = true;
+    }
+  }
+
+  return attached;
 }
 
 function appendAdvisorAppointmentPrompt(text: string): string {
@@ -7911,34 +7966,7 @@ export async function POST(req: Request) {
           }
           }
         } else if (!String(strictReply || "").trim() && (wantsSheet || /^2\b/.test(textNorm))) {
-          const datasheetUrl = pickBestProductPdfUrl(selectedProduct, text) || "";
-          const localPdfPath = pickBestLocalPdfPath(selectedProduct, text);
-          let attached = false;
-          if (datasheetUrl) {
-            const remote = await fetchRemoteFileAsBase64(datasheetUrl);
-            const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrl));
-            if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
-              strictDocs.push({
-                base64: remote.base64,
-                fileName: safeFileName(remote.fileName, `ficha-${selectedName}`, "pdf"),
-                mimetype: "application/pdf",
-                caption: `Ficha técnica - ${selectedName}`,
-              });
-              attached = true;
-            }
-          }
-          if (!attached && localPdfPath) {
-            const local = fetchLocalFileAsBase64(localPdfPath);
-            if (local && Number(local.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
-              strictDocs.push({
-                base64: local.base64,
-                fileName: safeFileName(local.fileName, `ficha-${selectedName}`, "pdf"),
-                mimetype: "application/pdf",
-                caption: `Ficha técnica - ${selectedName}`,
-              });
-              attached = true;
-            }
-          }
+          const attached = await attachDatasheetPdfToStrictDocs(strictDocs, selectedProduct, selectedName, text);
           if (attached) {
             strictReply = `Perfecto. Te envío por este WhatsApp la ficha técnica en PDF de ${selectedName}.`;
           } else {
@@ -8376,7 +8404,16 @@ export async function POST(req: Request) {
                 mimetype: "application/pdf",
                 caption: `Cotización - ${String((selected as any)?.name || "producto")}`,
               });
-              strictReply = `Listo. Ya generé la cotización de ${String((selected as any)?.name || "producto")} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
+              const selectedNameForQuote = String((selected as any)?.name || "producto");
+              const attachedSheetWithQuote = await attachDatasheetPdfToStrictDocs(
+                strictDocs,
+                selected,
+                selectedNameForQuote,
+                `ficha tecnica ${selectedNameForQuote}`
+              );
+              strictReply = attachedSheetWithQuote
+                ? `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te envío en este WhatsApp el PDF junto con la ficha técnica.`
+                : `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
             }
             strictMemory.awaiting_action = "conversation_followup";
             strictMemory.quote_data = {};
@@ -9672,6 +9709,7 @@ export async function POST(req: Request) {
 
       const strictAssetDelivered = strictDocs.length > 0;
       const strictQuoteDelivered = strictDocs.some((d) => /cotiz/i.test(`${String(d.caption || "")} ${String(d.fileName || "")}`));
+      const strictDatasheetDelivered = strictDocs.some((d) => /ficha|datasheet/i.test(`${String(d.caption || "")} ${String(d.fileName || "")}`));
       if (
         preParsedSpec &&
         /(no te entendi del todo|no pasa nada si hubo un typo|no te preocupes si hubo un error de escritura)/i.test(normalizeText(String(strictReply || "")))
@@ -9712,7 +9750,10 @@ export async function POST(req: Request) {
       }
       if (strictAssetDelivered && String(strictReply || "").trim()) {
         strictReply = appendAdvisorAppointmentPrompt(strictReply);
-        strictReply = appendQuoteClosurePrompt(strictReply);
+        const closureDelivery: "quote_and_datasheet" | "quote_only" | "datasheet_only" = strictQuoteDelivered
+          ? (strictDatasheetDelivered ? "quote_and_datasheet" : "quote_only")
+          : "datasheet_only";
+        strictReply = appendQuoteClosurePrompt(strictReply, closureDelivery);
         strictMemory.awaiting_action = "conversation_followup";
         strictMemory.conversation_status = "open";
         strictMemory.last_intent = strictQuoteDelivered ? "quote_generated" : "tech_sheet_request";
