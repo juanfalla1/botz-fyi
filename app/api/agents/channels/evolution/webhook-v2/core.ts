@@ -7878,6 +7878,34 @@ export async function POST(req: Request) {
         strictMemory.pending_family_options = [];
         strictMemory.pending_product_options = [];
 
+        if (awaiting === "strict_choose_action" && /^\s*1\b/.test(textNorm)) {
+          const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
+          strictMemory.quote_quantity = qtyRequested;
+          strictMemory.awaiting_action = "strict_quote_data";
+          const quoteMemoryMerged = {
+            ...(previousMemory && typeof previousMemory === "object" ? previousMemory : {}),
+            ...(strictMemory && typeof strictMemory === "object" ? strictMemory : {}),
+            quote_data: {
+              ...((previousMemory?.quote_data && typeof previousMemory.quote_data === "object") ? previousMemory.quote_data : {}),
+              ...((strictMemory?.quote_data && typeof strictMemory.quote_data === "object") ? strictMemory.quote_data : {}),
+            },
+          };
+          const reusableNow = getReusableBillingData(quoteMemoryMerged);
+          if (reusableNow.complete) {
+            strictMemory.quote_data = {
+              city: reusableNow.city,
+              company: reusableNow.company,
+              nit: reusableNow.nit,
+              contact: reusableNow.contact,
+              email: reusableNow.email,
+              phone: reusableNow.phone,
+            };
+            strictMemory.strict_autorun_quote_with_reuse = true;
+          } else {
+            strictReply = buildQuoteDataIntakePrompt(`Perfecto. Voy a cotizar ${qtyRequested} unidad(es).`, strictMemory);
+          }
+        }
+
         const rawAnotherQuoteChoice = awaiting === "strict_choose_action" ? parseAnotherQuoteChoice(text) : null;
         let followupIntent = awaiting === "strict_choose_action" ? detectAlternativeFollowupIntent(text) : null;
         const asksAnotherQuote = awaiting === "strict_choose_action" && isAnotherQuoteAmbiguousIntent(text);
@@ -10184,6 +10212,16 @@ export async function POST(req: Request) {
         text,
         intent: String(strictMemory.last_intent || previousMemory?.last_intent || "strict_router"),
       });
+
+      if (!String(strictReply || "").trim()) {
+        const awaitingNow = String(strictMemory.awaiting_action || awaiting || "").trim();
+        strictReply = awaitingNow === "strict_choose_action"
+          ? "Responde 1 para cotización o 2 para ficha técnica."
+          : awaitingNow === "strict_quote_data"
+            ? "Para continuar con la cotización, envíame ciudad, empresa, NIT, contacto, correo y celular en un solo mensaje."
+            : "¿En qué puedo ayudarte con tu cotización?";
+        console.warn("[evolution-webhook] strict_reply_empty_before_send", { awaiting: awaitingNow, text });
+      }
 
       if (!strictBypassAutoQuote) {
         const sentOk = await sendTextAndDocs(strictReply, strictDocs);
