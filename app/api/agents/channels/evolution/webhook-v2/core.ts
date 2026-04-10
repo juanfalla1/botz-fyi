@@ -6636,7 +6636,7 @@ export async function POST(req: Request) {
           try {
             const { data: crmCandidates } = await supabase
               .from("agent_crm_contacts")
-              .select("id,name,email,phone,company,metadata,updated_at")
+              .select("id,name,email,phone,company,contact_key,metadata,updated_at")
               .eq("created_by", ownerId)
               .order("updated_at", { ascending: false })
               .limit(400);
@@ -6645,9 +6645,14 @@ export async function POST(req: Request) {
               const cPhone = normalizePhone(String(c?.phone || ""));
               const cTail = phoneTail10(cPhone);
               const cNit = String((c?.metadata && typeof c.metadata === "object" ? c.metadata.nit : "") || "").replace(/\D/g, "").trim();
+              const cContactKey = String(c?.contact_key || "").trim().toLowerCase();
+              const cContactKeyDigits = cContactKey.replace(/\D/g, "").trim();
+              const cContactKeyTail = phoneTail10(cContactKeyDigits);
               const phoneMatch = Boolean(lookupPhoneTail) && Boolean(cTail) && cTail === lookupPhoneTail;
               const nitMatch = Boolean(lookupNit) && Boolean(cNit) && cNit === lookupNit;
-              return phoneMatch || nitMatch;
+              const nitByContactKey = Boolean(lookupNit) && cContactKey.startsWith("nit:") && cContactKeyDigits === lookupNit;
+              const phoneByContactKey = Boolean(lookupPhoneTail) && cContactKey.startsWith("cel:") && Boolean(cContactKeyTail) && cContactKeyTail === lookupPhoneTail;
+              return phoneMatch || nitMatch || nitByContactKey || phoneByContactKey;
             }) || null;
           } catch {}
 
