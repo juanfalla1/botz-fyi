@@ -5377,6 +5377,54 @@ async function buildQuotePdf(args: {
   });
 }
 
+async function buildSimpleQuotePdf(args: {
+  draftId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  companyName: string;
+  productName: string;
+  quantity: number;
+  trmRate: number;
+  totalCop: number;
+  city: string;
+  nit: string;
+}) {
+  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const today = asDateYmd(new Date());
+  let y = 16;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("Avanza Internacional Group S.A.S.", 12, y);
+  y += 8;
+  doc.setFontSize(12);
+  doc.text("Cotizacion Comercial", 12, y);
+  y += 8;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  const rows: string[] = [
+    `Numero: ${quoteCodeFromDraftId(args.draftId)}`,
+    `Fecha: ${today}`,
+    `Cliente: ${String(args.companyName || args.customerName || "-")}`,
+    `Contacto: ${String(args.customerName || "-")}`,
+    `NIT: ${String(args.nit || "-")}`,
+    `Ciudad: ${String(args.city || "Bogota")}`,
+    `Correo: ${String(args.customerEmail || "-")}`,
+    `Celular: ${String(args.customerPhone || "-")}`,
+    "",
+    `Producto: ${String(args.productName || "-")}`,
+    `Cantidad: ${Math.max(1, Number(args.quantity || 1))}`,
+    `TRM: ${formatMoney(Number(args.trmRate || 0))}`,
+    `Total COP: ${formatMoney(Number(args.totalCop || 0))}`,
+  ];
+  for (const line of rows) {
+    doc.text(line, 12, y);
+    y += 5.5;
+  }
+  const dataUri = doc.output("datauristring");
+  return String(dataUri || "").split(",")[1] || "";
+}
+
 async function buildBundleQuotePdf(args: {
   bundleId: string;
   companyName: string;
@@ -8860,7 +8908,76 @@ export async function POST(req: Request) {
                   stack: quoteDocErr?.stack || "",
                   selected: String((selected as any)?.name || ""),
                 });
-                strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
+                const selectedNameForQuote = String((selected as any)?.name || "producto");
+                let fallbackPdfAttached = false;
+                try {
+                  const fallbackPdfBase64 = await buildSimpleQuotePdf({
+                    draftId: String((insertedDraft as any)?.id || ""),
+                    customerName: effectiveContact,
+                    customerEmail,
+                    customerPhone,
+                    companyName: effectiveCompany,
+                    productName: selectedNameForQuote,
+                    quantity: qty,
+                    trmRate,
+                    totalCop,
+                    city: effectiveCity,
+                    nit: effectiveNit,
+                  });
+                  if (fallbackPdfBase64) {
+                    strictDocs.push({
+                      base64: fallbackPdfBase64,
+                      fileName: safeFileName(`cotizacion-${selectedNameForQuote}-${Date.now()}.pdf`, "cotizacion", "pdf"),
+                      mimetype: "application/pdf",
+                      caption: `Cotización - ${selectedNameForQuote}`,
+                    });
+                    fallbackPdfAttached = true;
+                  }
+                } catch (fallbackErr: any) {
+                  console.error("[evolution-webhook] strict_quote_pdf_fallback_error", {
+                    message: fallbackErr?.message || fallbackErr,
+                    stack: fallbackErr?.stack || "",
+                    selected: selectedNameForQuote,
+                  });
+                }
+
+                if (fallbackPdfAttached) {
+                  const datasheetUrlForQuote = pickBestProductPdfUrl(selected, `ficha tecnica ${selectedNameForQuote}`) || "";
+                  const localPdfPathForQuote = pickBestLocalPdfPath(selected, `ficha tecnica ${selectedNameForQuote}`);
+                  let attachedSheetWithQuote = false;
+                  if (datasheetUrlForQuote) {
+                    const remote = await fetchRemoteFileAsBase64(datasheetUrlForQuote);
+                    const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrlForQuote));
+                    if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+                      strictDocs.push({
+                        base64: remote.base64,
+                        fileName: safeFileName(remote.fileName, `ficha-${selectedNameForQuote}`, "pdf"),
+                        mimetype: "application/pdf",
+                        caption: `Ficha técnica - ${selectedNameForQuote}`,
+                      });
+                      attachedSheetWithQuote = true;
+                    }
+                  }
+                  if (!attachedSheetWithQuote && localPdfPathForQuote) {
+                    const local = fetchLocalFileAsBase64(localPdfPathForQuote);
+                    if (local && Number(local.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+                      strictDocs.push({
+                        base64: local.base64,
+                        fileName: safeFileName(local.fileName, `ficha-${selectedNameForQuote}`, "pdf"),
+                        mimetype: "application/pdf",
+                        caption: `Ficha técnica - ${selectedNameForQuote}`,
+                      });
+                      attachedSheetWithQuote = true;
+                    }
+                  }
+                  strictReply = attachedSheetWithQuote
+                    ? `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te envío en este WhatsApp el PDF junto con la ficha técnica.`
+                    : `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
+                  const youtubeLink = pickYoutubeVideoForModel(selectedNameForQuote);
+                  if (youtubeLink) strictReply += `\n\nVideo del equipo:\n${youtubeLink}`;
+                } else {
+                  strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
+                }
               }
             }
             strictMemory.awaiting_action = "conversation_followup";
