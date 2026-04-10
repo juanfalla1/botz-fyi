@@ -28,9 +28,7 @@ const LEGACY_ENABLE_RUNTIME_PDF_PARSE_FOR_QUOTE = process.env.WHATSAPP_QUOTE_PAR
 const ENABLE_RUNTIME_PDF_IMAGE_PARSE_FOR_QUOTE = String(
   process.env.WHATSAPP_QUOTE_PARSE_PDF_IMAGE_RUNTIME ?? LEGACY_ENABLE_RUNTIME_PDF_PARSE_FOR_QUOTE ?? "false"
 ).toLowerCase() === "true";
-const ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE = String(
-  process.env.WHATSAPP_QUOTE_PARSE_PDF_TEXT_RUNTIME ?? "false"
-).toLowerCase() === "true";
+const ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE = false;
 const ENABLE_QUOTE_PRODUCT_IMAGE = String(process.env.WHATSAPP_QUOTE_EMBED_PRODUCT_IMAGE || "true").toLowerCase() === "true";
 const STRICT_WHATSAPP_MODE = String(process.env.WHATSAPP_STRICT_MODE || "true").toLowerCase() !== "false";
 const MAX_WHATSAPP_DOC_BYTES = Number(process.env.WHATSAPP_DOC_MAX_BYTES || 8 * 1024 * 1024);
