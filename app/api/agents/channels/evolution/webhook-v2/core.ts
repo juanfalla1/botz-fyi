@@ -7692,7 +7692,8 @@ export async function POST(req: Request) {
         if (!String(strictReply || "").trim() && !(cap > 0) && !(read > 0)) {
           const asksPrecisionOptionsNow =
             /(balanzas?\s+de\s+precisi[oó]n|balanzas?\s+precision|de\s+precisi[oó]n|balanzas?\s+de\s+alta\s+precisi[oó]n)/.test(textNorm) ||
-            (/precisi[oó]n/.test(textNorm) && /(opciones?|alternativas?|muestrame|mu[eé]strame|dame|quiero|tienes?)/.test(textNorm));
+            (/precisi[oó]n/.test(textNorm) && /(opciones?|alternativas?|muestrame|mu[eé]strame|dame|quiero|tienes?)/.test(textNorm)) ||
+            /(cabina|con\s+cabina)/.test(textNorm);
           if (asksPrecisionOptionsNow) {
             const precisionRows = scopeCatalogRows(ownerRows as any[], "balanzas_precision");
             const options = buildNumberedProductOptions(precisionRows as any[], 8);
@@ -8322,7 +8323,7 @@ export async function POST(req: Request) {
               (oraw && oraw === normalizeText(selectedName))
             );
           });
-          if (lockedCap > 0 && lockedRead > 0 && !selectedFromSuggestedList) {
+          if (lockedCap > 0 && lockedRead > 0 && !selectedFromSuggestedList && awaiting !== "strict_choose_action") {
             const rs = extractRowTechnicalSpec(selectedProduct);
             const capDeltaPct = rs.capacityG > 0 ? (Math.abs(rs.capacityG - lockedCap) / lockedCap) * 100 : 999;
             const readRatio = rs.readabilityG > 0 ? (rs.readabilityG / lockedRead) : 999;
