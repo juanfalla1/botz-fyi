@@ -8389,7 +8389,8 @@ export async function POST(req: Request) {
             ].join("\n");
           }
         }
-      } else if (
+      }
+      if (
         !String(strictReply || "").trim() &&
         (awaiting === "strict_quote_data" || Boolean(strictMemory?.strict_autorun_quote_with_reuse))
       ) {
