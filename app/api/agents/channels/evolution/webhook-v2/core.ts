@@ -1293,8 +1293,8 @@ function resolvePendingProductOptionStrict(text: string, optionsRaw: any): { cod
     tRaw.match(/^\s*([a-z])\s*$/i) ||
     tRaw.match(/^\s*(?:opcion|opción|letra|codigo|código)\s*[:\-]?\s*([a-z])\s*$/i);
   const numMatch =
-    tRaw.match(/^\s*([1-9])\s*$/i) ||
-    tRaw.match(/^\s*(?:opcion|opción|numero|número|#)\s*[:\-]?\s*([1-9])\s*$/i);
+    tRaw.match(/^\s*([1-9]\d?)\s*$/i) ||
+    tRaw.match(/^\s*(?:opcion|opción|numero|número|#)\s*[:\-]?\s*([1-9]\d?)\s*$/i);
   const code = String(codeMatch?.[1] || "").toUpperCase();
   const rank = Number(numMatch?.[1] || 0);
 
