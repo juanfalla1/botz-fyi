@@ -7890,25 +7890,16 @@ export async function POST(req: Request) {
               ...((strictMemory?.quote_data && typeof strictMemory.quote_data === "object") ? strictMemory.quote_data : {}),
             },
           };
-              const reusableNow = getReusableBillingData(quoteMemoryMerged);
-              const crmKnownNow = Boolean(
-                previousMemory?.crm_contact_found ||
-                strictMemory.crm_contact_found ||
-                recognizedReturningCustomer
-              );
-              if (reusableNow.complete || crmKnownNow) {
-                strictMemory.quote_data = {
-                  city: reusableNow.city || String(previousMemory?.crm_billing_city || strictMemory.crm_billing_city || "") || "Bogota",
-                  company: reusableNow.company || String(previousMemory?.crm_company || strictMemory.crm_company || "") || String(previousMemory?.commercial_company_name || strictMemory.commercial_company_name || ""),
-                  nit: reusableNow.nit || String(previousMemory?.crm_nit || strictMemory.crm_nit || "") || String(previousMemory?.commercial_company_nit || strictMemory.commercial_company_nit || ""),
-                  contact: reusableNow.contact || String(previousMemory?.crm_contact_name || strictMemory.crm_contact_name || "") || String(previousMemory?.commercial_customer_name || strictMemory.commercial_customer_name || "") || String(previousMemory?.customer_name || strictMemory.customer_name || ""),
-                  email: reusableNow.email || String(previousMemory?.crm_contact_email || strictMemory.crm_contact_email || "") || String(previousMemory?.customer_email || strictMemory.customer_email || ""),
-                  phone: reusableNow.phone || String(previousMemory?.crm_contact_phone || strictMemory.crm_contact_phone || "") || normalizePhone(String(previousMemory?.customer_phone || strictMemory.customer_phone || inbound.from || "")),
-                };
-                strictMemory.strict_autorun_quote_with_reuse = true;
-              } else {
-                strictReply = buildQuoteDataIntakePrompt(`Perfecto. Voy a cotizar ${qtyRequested} unidad(es).`, strictMemory);
-              }
+          const reusableNow = getReusableBillingData(quoteMemoryMerged);
+          strictMemory.quote_data = {
+            city: reusableNow.city || String(previousMemory?.crm_billing_city || strictMemory.crm_billing_city || "") || "",
+            company: reusableNow.company || String(previousMemory?.crm_company || strictMemory.crm_company || "") || String(previousMemory?.commercial_company_name || strictMemory.commercial_company_name || ""),
+            nit: reusableNow.nit || String(previousMemory?.crm_nit || strictMemory.crm_nit || "") || String(previousMemory?.commercial_company_nit || strictMemory.commercial_company_nit || ""),
+            contact: reusableNow.contact || String(previousMemory?.crm_contact_name || strictMemory.crm_contact_name || "") || String(previousMemory?.commercial_customer_name || strictMemory.commercial_customer_name || "") || String(previousMemory?.customer_name || strictMemory.customer_name || ""),
+            email: reusableNow.email || String(previousMemory?.crm_contact_email || strictMemory.crm_contact_email || "") || String(previousMemory?.customer_email || strictMemory.customer_email || ""),
+            phone: reusableNow.phone || String(previousMemory?.crm_contact_phone || strictMemory.crm_contact_phone || "") || normalizePhone(String(previousMemory?.customer_phone || strictMemory.customer_phone || inbound.from || "")),
+          };
+          strictMemory.strict_autorun_quote_with_reuse = true;
         }
 
         const rawAnotherQuoteChoice = awaiting === "strict_choose_action" ? parseAnotherQuoteChoice(text) : null;
@@ -8309,22 +8300,15 @@ export async function POST(req: Request) {
                 },
               };
               const reusableNow = getReusableBillingData(quoteMemoryMerged);
-              if (reusableNow.complete) {
-                strictMemory.quote_data = {
-                  city: reusableNow.city,
-                  company: reusableNow.company,
-                  nit: reusableNow.nit,
-                  contact: reusableNow.contact,
-                  email: reusableNow.email,
-                  phone: reusableNow.phone,
-                };
-                strictMemory.strict_autorun_quote_with_reuse = true;
-              } else {
-                strictReply = buildQuoteDataIntakePrompt(
-                  `Perfecto. Voy a cotizar ${qtyRequested} unidad(es).`,
-                  strictMemory
-                );
-              }
+              strictMemory.quote_data = {
+                city: reusableNow.city || String(previousMemory?.crm_billing_city || strictMemory.crm_billing_city || "") || "",
+                company: reusableNow.company || String(previousMemory?.crm_company || strictMemory.crm_company || "") || String(previousMemory?.commercial_company_name || strictMemory.commercial_company_name || ""),
+                nit: reusableNow.nit || String(previousMemory?.crm_nit || strictMemory.crm_nit || "") || String(previousMemory?.commercial_company_nit || strictMemory.commercial_company_nit || ""),
+                contact: reusableNow.contact || String(previousMemory?.crm_contact_name || strictMemory.crm_contact_name || "") || String(previousMemory?.commercial_customer_name || strictMemory.commercial_customer_name || "") || String(previousMemory?.customer_name || strictMemory.customer_name || ""),
+                email: reusableNow.email || String(previousMemory?.crm_contact_email || strictMemory.crm_contact_email || "") || String(previousMemory?.customer_email || strictMemory.customer_email || ""),
+                phone: reusableNow.phone || String(previousMemory?.crm_contact_phone || strictMemory.crm_contact_phone || "") || normalizePhone(String(previousMemory?.customer_phone || strictMemory.customer_phone || inbound.from || "")),
+              };
+              strictMemory.strict_autorun_quote_with_reuse = true;
             }
           }
           }
@@ -8558,22 +8542,40 @@ export async function POST(req: Request) {
         if (!crmContactFoundForQuote) {
           try {
             const candidatePhone = normalizePhone(phoneNow || inbound.from || "");
+            const candidatePhoneTail = phoneTail10(candidatePhone);
             const candidateNit = String(nitNow || "").replace(/[^0-9\-]/g, "").trim();
             const candidateEmail = String(emailNow || "").trim().toLowerCase();
-            const candidateKeys = [
-              candidatePhone,
+            const keyVariants = [
+              candidatePhone ? `cel:${candidatePhone}` : "",
+              candidatePhoneTail ? `cel:${candidatePhoneTail}` : "",
               candidateNit ? `nit:${candidateNit}` : "",
               candidateEmail ? `email:${candidateEmail}` : "",
             ].filter(Boolean);
-            if (candidateKeys.length) {
-              const { data: crmMatch } = await supabase
+            if (keyVariants.length || candidatePhone) {
+              const orParts = [
+                ...keyVariants.map((k) => `contact_key.eq.${k}`),
+                candidatePhone ? `phone.eq.${candidatePhone}` : "",
+                candidatePhoneTail ? `phone.like.%${candidatePhoneTail}` : "",
+              ].filter(Boolean);
+              const { data: crmMatches } = await supabase
                 .from("agent_crm_contacts")
                 .select("id,name,email,phone,company,metadata")
                 .eq("created_by", ownerId)
-                .in("contact_key", candidateKeys)
+                .or(orParts.join(","))
                 .order("updated_at", { ascending: false })
-                .limit(1)
-                .maybeSingle();
+                .limit(5);
+              const crmMatch = Array.isArray(crmMatches)
+                ? (crmMatches.find((m: any) => {
+                    const p = normalizePhone(String(m?.phone || ""));
+                    const tail = phoneTail10(p);
+                    const ck = String(m?.contact_key || "").trim().toLowerCase();
+                    if (candidateNit && ck === `nit:${candidateNit}`) return true;
+                    if (candidateEmail && ck === `email:${candidateEmail}`) return true;
+                    if (candidatePhone && (p === candidatePhone || ck === `cel:${candidatePhone}`)) return true;
+                    if (candidatePhoneTail && (tail === candidatePhoneTail || ck === `cel:${candidatePhoneTail}`)) return true;
+                    return false;
+                  }) || crmMatches[0])
+                : null;
               if (crmMatch && typeof crmMatch === "object") {
                 const m = (crmMatch as any)?.metadata && typeof (crmMatch as any).metadata === "object" ? (crmMatch as any).metadata : {};
                 crmContactFoundForQuote = true;
