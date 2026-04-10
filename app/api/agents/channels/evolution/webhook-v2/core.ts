@@ -6737,6 +6737,14 @@ export async function POST(req: Request) {
           strictMemory.crm_company = matchedCompany;
           strictMemory.crm_nit = matchedNit;
           strictMemory.crm_billing_city = matchedCity;
+          strictMemory.quote_data = {
+            city: matchedCity || String(strictMemory?.quote_data?.city || ""),
+            company: matchedCompany || String(strictMemory?.quote_data?.company || ""),
+            nit: matchedNit || String(strictMemory?.quote_data?.nit || ""),
+            contact: matchedName || String(strictMemory?.quote_data?.contact || ""),
+            email: matchedEmail || String(strictMemory?.quote_data?.email || ""),
+            phone: matchedPhone || normalizePhone(String(strictMemory?.customer_phone || inbound.from || "")),
+          };
 
           strictMemory.commercial_existing_match = {
             id: String(matchedContact?.id || "").trim(),
@@ -8489,9 +8497,9 @@ export async function POST(req: Request) {
           city: cityNow || String(prevQuoteData.city || "") || crmCityForQuote,
           company: companyNow || String(prevQuoteData.company || "") || crmCompanyForQuote || String(previousMemory?.commercial_company_name || strictMemory.commercial_company_name || ""),
           nit: nitNow || String(prevQuoteData.nit || "") || crmNitForQuote || String(previousMemory?.commercial_company_nit || strictMemory.commercial_company_nit || ""),
-          contact: contactNow || String(prevQuoteData.contact || "") || crmNameForQuote || String(previousMemory?.commercial_customer_name || strictMemory.commercial_customer_name || ""),
-          email: emailNow || String(prevQuoteData.email || "") || crmEmailForQuote,
-          phone: phoneNow || String(prevQuoteData.phone || "") || crmPhoneForQuote,
+          contact: contactNow || String(prevQuoteData.contact || "") || crmNameForQuote || String(previousMemory?.commercial_customer_name || strictMemory.commercial_customer_name || "") || String(previousMemory?.customer_name || strictMemory.customer_name || ""),
+          email: emailNow || String(prevQuoteData.email || "") || crmEmailForQuote || String(previousMemory?.customer_email || strictMemory.customer_email || ""),
+          phone: phoneNow || String(prevQuoteData.phone || "") || crmPhoneForQuote || normalizePhone(String(previousMemory?.customer_phone || strictMemory.customer_phone || inbound.from || "")),
         };
         strictMemory.quote_data = quoteData;
 
