@@ -6533,6 +6533,19 @@ export async function POST(req: Request) {
       const clientType = currentClientType || recognitionChoice;
       if (clientType) strictMemory.commercial_client_type = clientType;
 
+      if (recognitionChoice === "new") {
+        strictMemory.commercial_client_type = "new";
+        strictMemory.commercial_validation_complete = false;
+        strictMemory.new_customer_data = {};
+        strictMemory.commercial_existing_match = {};
+      }
+
+      if (recognitionChoice === "existing") {
+        strictMemory.commercial_client_type = "existing";
+        strictMemory.commercial_validation_complete = false;
+        strictMemory.commercial_existing_match = {};
+      }
+
       if (!String(strictReply || "").trim() && !clientType && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
         strictMemory.awaiting_action = "commercial_client_recognition";
         strictReply = buildCommercialWelcomeMessage();
