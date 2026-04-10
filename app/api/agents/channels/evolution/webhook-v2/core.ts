@@ -8906,6 +8906,41 @@ export async function POST(req: Request) {
                   stack: quoteDocErr?.stack || "",
                   selected: String((selected as any)?.name || ""),
                 });
+                try {
+                  const retryRichPdfBase64 = await buildQuotePdf({
+                    draftId: String((insertedDraft as any)?.id || ""),
+                    customerName: effectiveContact,
+                    customerEmail,
+                    customerPhone,
+                    companyName: effectiveCompany,
+                    productName: selectedNameForQuote,
+                    quantity: qty,
+                    basePriceUsd,
+                    trmRate,
+                    totalCop,
+                    city: effectiveCity,
+                    nit: effectiveNit,
+                    itemDescription: buildQuoteItemDescription(selected, selectedNameForQuote),
+                    imageDataUrl: "",
+                    notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
+                  });
+                  if (retryRichPdfBase64) {
+                    strictDocs.push({
+                      base64: retryRichPdfBase64,
+                      fileName: safeFileName(`cotizacion-${selectedNameForQuote}-${Date.now()}.pdf`, "cotizacion", "pdf"),
+                      mimetype: "application/pdf",
+                      caption: `Cotización - ${selectedNameForQuote}`,
+                    });
+                    quotePdfAttached = true;
+                    console.warn("[evolution-webhook] strict_quote_pdf_retry_rich_ok", { selected: selectedNameForQuote });
+                  }
+                } catch (retryErr: any) {
+                  console.error("[evolution-webhook] strict_quote_pdf_retry_rich_error", {
+                    message: retryErr?.message || retryErr,
+                    stack: retryErr?.stack || "",
+                    selected: selectedNameForQuote,
+                  });
+                }
               }
 
               if (quotePdfAttached) {
