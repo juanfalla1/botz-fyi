@@ -2399,6 +2399,67 @@ function buildNewCustomerDataPrompt(): string {
   ].join("\n");
 }
 
+function buildExistingClientLookupPrompt(): string {
+  return [
+    "Perfecto. Para validar que ya eres cliente de Avanza, compárteme uno de estos datos:",
+    "- NIT de la empresa",
+    "- Celular registrado",
+    "",
+    "Puedes enviarlo en un solo mensaje (ej: NIT 900505419 o celular 3131657711).",
+  ].join("\n");
+}
+
+function buildExistingClientMatchConfirmationPrompt(args: {
+  company: string;
+  nit: string;
+  contact: string;
+  email: string;
+  phone: string;
+}): string {
+  const company = String(args.company || "").trim() || "Empresa no registrada";
+  const nit = String(args.nit || "").trim() || "NIT no registrado";
+  const contact = String(args.contact || "").trim() || "Contacto no registrado";
+  const email = String(args.email || "").trim() || "Correo no registrado";
+  const phone = String(args.phone || "").trim() || "Celular no registrado";
+  return [
+    "Perfecto, encontré estos datos en nuestra base:",
+    `- Empresa: ${company}`,
+    `- NIT: ${nit}`,
+    `- Contacto: ${contact}`,
+    `- Correo: ${email}`,
+    `- Celular: ${phone}`,
+    "",
+    "¿Eres la misma persona de contacto?",
+    "1) Sí, continuar",
+    "2) No, soy otra persona/área",
+  ].join("\n");
+}
+
+function detectExistingClientConfirmationChoice(text: string): "same" | "different" | "" {
+  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return "";
+  if (/^(1|si|sí|soy yo|misma persona|correcto|confirmo|continuar)$/.test(t) || /(misma\s+persona|soy\s+yo|si\s+continuar)/.test(t)) return "same";
+  if (/^(2|no|otra persona|otro contacto|otra area|otra área|cambio de personal)$/.test(t) || /(otra\s+persona|otro\s+contacto|otra\s+area|otra\s+área|cambio\s+de\s+personal)/.test(t)) return "different";
+  return "";
+}
+
+function parseExistingContactUpdateData(text: string, fallbackInboundPhone: string): {
+  name: string;
+  email: string;
+  phone: string;
+  area: string;
+} {
+  const raw = String(text || "");
+  const name = sanitizeCustomerDisplayName(
+    extractSimpleLabeledValue(raw, ["nombre", "contacto", "encargado", "responsable"]) ||
+    extractCustomerName(raw, "")
+  );
+  const email = String(extractEmail(raw) || "").trim().toLowerCase();
+  const phone = normalizePhone(String(extractCustomerPhone(raw, fallbackInboundPhone || "") || "").trim());
+  const area = String(extractSimpleLabeledValue(raw, ["area", "área", "cargo", "departamento"]) || "").trim();
+  return { name, email, phone, area };
+}
+
 function buildEquipmentMenuPrompt(): string {
   return [
     "¿En qué equipo estás interesado?",
@@ -6040,7 +6101,7 @@ export async function POST(req: Request) {
         guidedProfileGlobal &&
         Boolean(strictMemory.commercial_validation_complete) &&
         /^(balanza|)$/i.test(String(strictMemory.commercial_equipment_choice || "")) &&
-        !/^(strict_quote_data|advisor_meeting_slot|commercial_client_recognition|commercial_new_customer_data|commercial_choose_equipment)$/i.test(awaiting)
+        !/^(strict_quote_data|advisor_meeting_slot|commercial_client_recognition|commercial_new_customer_data|commercial_choose_equipment|commercial_existing_lookup|commercial_existing_confirm|commercial_existing_contact_update)$/i.test(awaiting)
       ) {
         const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileGlobal);
         strictMemory.pending_product_options = guidedOptions;
@@ -6537,12 +6598,191 @@ export async function POST(req: Request) {
 
       const shouldHandleExistingCommercialStep =
         clientType === "existing" &&
-        /^(commercial_client_recognition|commercial_choose_equipment|none)$/i.test(awaiting);
+        /^(commercial_client_recognition|commercial_existing_lookup|commercial_existing_confirm|commercial_existing_contact_update|commercial_choose_equipment|none)$/i.test(awaiting);
       if (!String(strictReply || "").trim() && shouldHandleExistingCommercialStep && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
         strictMemory.commercial_client_type = "existing";
+        const currentAwaiting = String(awaiting || "").trim();
+
+        if (/^(commercial_client_recognition|none)$/i.test(currentAwaiting)) {
+          strictMemory.awaiting_action = "commercial_existing_lookup";
+          strictReply = buildExistingClientLookupPrompt();
+          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_lookup_required" });
+        }
+
+        if (currentAwaiting === "commercial_existing_lookup") {
+          const lookupNit = String(extractCompanyNit(text) || "").replace(/\D/g, "").trim();
+          const lookupPhone = normalizePhone(String(extractCustomerPhone(text, inbound.from) || "").trim());
+          const lookupPhoneTail = phoneTail10(lookupPhone);
+          if (!lookupNit && !lookupPhoneTail) {
+            strictMemory.awaiting_action = "commercial_existing_lookup";
+            strictReply = "Para validar en base de datos necesito NIT o celular registrado. Ejemplo: NIT 900505419 o celular 3131657711.";
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_lookup_missing_key" });
+          }
+
+          let matchedContact: any = null;
+          try {
+            const { data: crmCandidates } = await supabase
+              .from("agent_crm_contacts")
+              .select("id,name,email,phone,company,metadata,updated_at")
+              .eq("created_by", ownerId)
+              .order("updated_at", { ascending: false })
+              .limit(400);
+            const candidates = Array.isArray(crmCandidates) ? crmCandidates : [];
+            matchedContact = candidates.find((c: any) => {
+              const cPhone = normalizePhone(String(c?.phone || ""));
+              const cTail = phoneTail10(cPhone);
+              const cNit = String((c?.metadata && typeof c.metadata === "object" ? c.metadata.nit : "") || "").replace(/\D/g, "").trim();
+              const phoneMatch = Boolean(lookupPhoneTail) && Boolean(cTail) && cTail === lookupPhoneTail;
+              const nitMatch = Boolean(lookupNit) && Boolean(cNit) && cNit === lookupNit;
+              return phoneMatch || nitMatch;
+            }) || null;
+          } catch {}
+
+          if (!matchedContact) {
+            strictMemory.commercial_client_type = "new";
+            strictMemory.awaiting_action = "commercial_new_customer_data";
+            strictReply = [
+              "No encontré ese NIT/celular en nuestra base de clientes.",
+              "Para continuar te registro como contacto nuevo.",
+              "",
+              buildNewCustomerDataPrompt(),
+            ].join("\n");
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_not_found_switch_new" });
+          }
+
+          const matchedMeta = matchedContact?.metadata && typeof matchedContact.metadata === "object"
+            ? matchedContact.metadata
+            : {};
+          const matchedNit = String(matchedMeta?.nit || "").replace(/\D/g, "").trim();
+          const matchedCity = normalizeCityLabel(String(matchedMeta?.billing_city || "").trim());
+          const matchedName = sanitizeCustomerDisplayName(String(matchedContact?.name || ""));
+          const matchedEmail = String(matchedContact?.email || "").trim().toLowerCase();
+          const matchedPhone = normalizePhone(String(matchedContact?.phone || ""));
+          const matchedCompany = String(matchedContact?.company || "").trim();
+
+          strictMemory.crm_contact_found = true;
+          strictMemory.crm_contact_id = String(matchedContact?.id || "").trim();
+          strictMemory.crm_contact_name = matchedName;
+          strictMemory.crm_contact_email = matchedEmail;
+          strictMemory.crm_contact_phone = matchedPhone;
+          strictMemory.crm_company = matchedCompany;
+          strictMemory.crm_nit = matchedNit;
+          strictMemory.crm_billing_city = matchedCity;
+
+          strictMemory.commercial_existing_match = {
+            id: String(matchedContact?.id || "").trim(),
+            company: matchedCompany,
+            nit: matchedNit,
+            contact: matchedName,
+            email: matchedEmail,
+            phone: matchedPhone,
+            city: matchedCity,
+          };
+
+          strictMemory.awaiting_action = "commercial_existing_confirm";
+          strictReply = buildExistingClientMatchConfirmationPrompt({
+            company: matchedCompany,
+            nit: matchedNit,
+            contact: matchedName,
+            email: matchedEmail,
+            phone: matchedPhone,
+          });
+          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_confirm_identity" });
+        }
+
+        if (currentAwaiting === "commercial_existing_confirm") {
+          const confirmChoice = detectExistingClientConfirmationChoice(text);
+          const matched = strictMemory?.commercial_existing_match && typeof strictMemory.commercial_existing_match === "object"
+            ? strictMemory.commercial_existing_match
+            : {};
+          if (!confirmChoice) {
+            strictMemory.awaiting_action = "commercial_existing_confirm";
+            strictReply = "Confírmame por favor: 1) Sí, soy la misma persona 2) No, soy otra persona/área.";
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_confirm_required" });
+          }
+
+          if (confirmChoice === "different") {
+            strictMemory.awaiting_action = "commercial_existing_contact_update";
+            strictReply = [
+              "Perfecto, actualicemos el contacto para esa empresa.",
+              "Compárteme en un solo mensaje:",
+              "- Nombre de contacto",
+              "- Correo",
+              "- Celular",
+              "- Área/Cargo (opcional)",
+            ].join("\n");
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_contact_update_required" });
+          }
+
+          strictMemory.commercial_validation_complete = true;
+          recognizedReturningCustomer = true;
+          strictMemory.customer_name = String(matched?.contact || strictMemory.crm_contact_name || strictMemory.customer_name || "").trim();
+          strictMemory.awaiting_action = "commercial_choose_equipment";
+          strictReply = buildEquipmentMenuPrompt();
+          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_confirmed" });
+        }
+
+        if (currentAwaiting === "commercial_existing_contact_update") {
+          const matched = strictMemory?.commercial_existing_match && typeof strictMemory.commercial_existing_match === "object"
+            ? strictMemory.commercial_existing_match
+            : {};
+          const updated = parseExistingContactUpdateData(text, inbound.from);
+          if (!updated.name || (!updated.email && !updated.phone)) {
+            strictMemory.awaiting_action = "commercial_existing_contact_update";
+            strictReply = "Para actualizar el contacto necesito al menos: nombre y (correo o celular).";
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_contact_update_missing_fields" });
+          }
+
+          let insertedContactId = "";
+          try {
+            const metadata = {
+              nit: String(matched?.nit || strictMemory.crm_nit || "").trim(),
+              billing_city: String(matched?.city || strictMemory.crm_billing_city || "").trim(),
+              customer_type: "existing",
+              source: "whatsapp_existing_customer_contact_update",
+              parent_contact_id: String(matched?.id || strictMemory.crm_contact_id || "").trim(),
+              area: String(updated.area || "").trim(),
+              whatsapp_transport_id: normalizePhone(inbound.from || ""),
+              whatsapp_lifecycle_at: new Date().toISOString(),
+            };
+            const { data: inserted } = await supabase
+              .from("agent_crm_contacts")
+              .insert({
+                tenant_id: (agent as any)?.tenant_id || null,
+                created_by: ownerId,
+                name: updated.name,
+                email: updated.email || null,
+                phone: updated.phone || null,
+                company: String(matched?.company || strictMemory.crm_company || "").trim() || null,
+                status: "analysis",
+                metadata,
+              })
+              .select("id")
+              .single();
+            insertedContactId = String((inserted as any)?.id || "").trim();
+          } catch {}
+
+          strictMemory.crm_contact_found = true;
+          strictMemory.crm_contact_id = insertedContactId || String(strictMemory.crm_contact_id || "").trim();
+          strictMemory.crm_contact_name = updated.name;
+          strictMemory.crm_contact_email = updated.email || String(strictMemory.crm_contact_email || "").trim();
+          strictMemory.crm_contact_phone = updated.phone || String(strictMemory.crm_contact_phone || "").trim();
+          strictMemory.customer_name = updated.name;
+          strictMemory.commercial_customer_name = updated.name;
+          strictMemory.commercial_validation_complete = true;
+          recognizedReturningCustomer = true;
+
+          strictMemory.awaiting_action = "commercial_choose_equipment";
+          strictReply = [
+            "Perfecto, ya actualicé el contacto y quedó registrado en CRM/base BOT.",
+            buildEquipmentMenuPrompt(),
+          ].join("\n\n");
+          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_contact_updated" });
+        }
+
         strictMemory.commercial_validation_complete = true;
         const chosenEquipment = detectEquipmentChoice(text);
-        if (!chosenEquipment || awaiting === "commercial_client_recognition") {
+        if (!chosenEquipment || /^(commercial_client_recognition|commercial_existing_lookup|commercial_existing_confirm|commercial_existing_contact_update)$/i.test(currentAwaiting)) {
           strictMemory.awaiting_action = "commercial_choose_equipment";
           strictReply = buildEquipmentMenuPrompt();
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "equipment_selection_required" });
