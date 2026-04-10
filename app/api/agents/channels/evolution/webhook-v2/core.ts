@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
+import { buildQuotePdfFromDraft } from "../../../quotes/_utils/pdf";
 import { evolutionService } from "../../../../../../lib/services/evolution.service";
 
 export const runtime = "nodejs";
@@ -8876,26 +8877,31 @@ export async function POST(req: Request) {
               let quotePdfAttached = false;
               try {
                 const quoteDescription = buildQuoteItemDescription(selected, String((selected as any)?.name || ""));
-                const pdfBase64 = await buildQuotePdf({
-                  draftId: String((insertedDraft as any)?.id || ""),
-                  customerName: effectiveContact,
-                  customerEmail,
-                  customerPhone,
-                  companyName: effectiveCompany,
-                  productName: String((selected as any)?.name || ""),
-                  quantity: qty,
-                  basePriceUsd,
-                  trmRate,
-                  totalCop,
-                  city: effectiveCity,
-                  nit: effectiveNit,
-                  itemDescription: quoteDescription,
-                  imageDataUrl: "",
-                  notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
-                });
+                const draftId = String((insertedDraft as any)?.id || "");
+                const draftForPdf = {
+                  ...(draftPayload as any),
+                  id: draftId,
+                  customer_name: effectiveContact,
+                  customer_email: customerEmail || null,
+                  customer_phone: customerPhone || null,
+                  company_name: effectiveCompany,
+                  location: effectiveCity,
+                  product_name: String((selected as any)?.name || ""),
+                  base_price_usd: basePriceUsd,
+                  trm_rate: trmRate,
+                  total_cop: totalCop,
+                  payload: {
+                    ...((draftPayload as any)?.payload || {}),
+                    quantity: qty,
+                    customer_city: effectiveCity,
+                    customer_nit: effectiveNit,
+                    item_description: quoteDescription,
+                  },
+                };
+                const { pdfBase64, fileName } = await buildQuotePdfFromDraft(draftId, draftForPdf);
                 strictDocs.push({
                   base64: pdfBase64,
-                  fileName: safeFileName(`cotizacion-${String((selected as any)?.name || "producto")}-${Date.now()}.pdf`, "cotizacion", "pdf"),
+                  fileName: safeFileName(fileName, `cotizacion-${String((selected as any)?.name || "producto")}`, "pdf"),
                   mimetype: "application/pdf",
                   caption: `Cotización - ${String((selected as any)?.name || "producto")}`,
                 });
@@ -8907,27 +8913,33 @@ export async function POST(req: Request) {
                   selected: String((selected as any)?.name || ""),
                 });
                 try {
-                  const retryRichPdfBase64 = await buildQuotePdf({
-                    draftId: String((insertedDraft as any)?.id || ""),
-                    customerName: effectiveContact,
-                    customerEmail,
-                    customerPhone,
-                    companyName: effectiveCompany,
-                    productName: selectedNameForQuote,
-                    quantity: qty,
-                    basePriceUsd,
-                    trmRate,
-                    totalCop,
-                    city: effectiveCity,
-                    nit: effectiveNit,
-                    itemDescription: buildQuoteItemDescription(selected, selectedNameForQuote),
-                    imageDataUrl: "",
-                    notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
-                  });
-                  if (retryRichPdfBase64) {
+                  const draftId = String((insertedDraft as any)?.id || "");
+                  const retryDescription = buildQuoteItemDescription(selected, selectedNameForQuote);
+                  const draftForPdfRetry = {
+                    ...(draftPayload as any),
+                    id: draftId,
+                    customer_name: effectiveContact,
+                    customer_email: customerEmail || null,
+                    customer_phone: customerPhone || null,
+                    company_name: effectiveCompany,
+                    location: effectiveCity,
+                    product_name: selectedNameForQuote,
+                    base_price_usd: basePriceUsd,
+                    trm_rate: trmRate,
+                    total_cop: totalCop,
+                    payload: {
+                      ...((draftPayload as any)?.payload || {}),
+                      quantity: qty,
+                      customer_city: effectiveCity,
+                      customer_nit: effectiveNit,
+                      item_description: retryDescription,
+                    },
+                  };
+                  const { pdfBase64: retryPdfBase64, fileName: retryFileName } = await buildQuotePdfFromDraft(draftId, draftForPdfRetry);
+                  if (retryPdfBase64) {
                     strictDocs.push({
-                      base64: retryRichPdfBase64,
-                      fileName: safeFileName(`cotizacion-${selectedNameForQuote}-${Date.now()}.pdf`, "cotizacion", "pdf"),
+                      base64: retryPdfBase64,
+                      fileName: safeFileName(retryFileName, `cotizacion-${selectedNameForQuote}`, "pdf"),
                       mimetype: "application/pdf",
                       caption: `Cotización - ${selectedNameForQuote}`,
                     });
