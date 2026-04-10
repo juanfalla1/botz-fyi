@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { jsPDF } from "jspdf";
+import { jsPDF } from "jspdf/dist/jspdf.es.min.js";
 import fs from "node:fs";
 import path from "node:path";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
