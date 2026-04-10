@@ -8872,6 +8872,8 @@ export async function POST(req: Request) {
             if (draftErr) {
               strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
             } else {
+              const selectedNameForQuote = String((selected as any)?.name || "producto");
+              let quotePdfAttached = false;
               try {
                 const quoteDescription = buildQuoteItemDescription(selected, String((selected as any)?.name || ""));
                 const pdfBase64 = await buildQuotePdf({
@@ -8897,122 +8899,20 @@ export async function POST(req: Request) {
                   mimetype: "application/pdf",
                   caption: `Cotización - ${String((selected as any)?.name || "producto")}`,
                 });
-                const selectedNameForQuote = String((selected as any)?.name || "producto");
-                const datasheetUrlForQuote = pickBestProductPdfUrl(selected, `ficha tecnica ${selectedNameForQuote}`) || "";
-                const localPdfPathForQuote = pickBestLocalPdfPath(selected, `ficha tecnica ${selectedNameForQuote}`);
-                let attachedSheetWithQuote = false;
-                if (datasheetUrlForQuote) {
-                  const remote = await fetchRemoteFileAsBase64(datasheetUrlForQuote);
-                  const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrlForQuote));
-                  if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
-                    strictDocs.push({
-                      base64: remote.base64,
-                      fileName: safeFileName(remote.fileName, `ficha-${selectedNameForQuote}`, "pdf"),
-                      mimetype: "application/pdf",
-                      caption: `Ficha técnica - ${selectedNameForQuote}`,
-                    });
-                    attachedSheetWithQuote = true;
-                  }
-                }
-                if (!attachedSheetWithQuote && localPdfPathForQuote) {
-                  const local = fetchLocalFileAsBase64(localPdfPathForQuote);
-                  if (local && Number(local.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
-                    strictDocs.push({
-                      base64: local.base64,
-                      fileName: safeFileName(local.fileName, `ficha-${selectedNameForQuote}`, "pdf"),
-                      mimetype: "application/pdf",
-                      caption: `Ficha técnica - ${selectedNameForQuote}`,
-                    });
-                    attachedSheetWithQuote = true;
-                  }
-                }
-                strictReply = attachedSheetWithQuote
-                  ? `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te envío en este WhatsApp el PDF junto con la ficha técnica.`
-                  : `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
-                const youtubeLink = pickYoutubeVideoForModel(selectedNameForQuote);
-                if (youtubeLink) {
-                  strictReply += `\n\nVideo del equipo:\n${youtubeLink}`;
-                }
+                quotePdfAttached = true;
               } catch (quoteDocErr: any) {
                 console.error("[evolution-webhook] strict_quote_pdf_error", {
                   message: quoteDocErr?.message || quoteDocErr,
                   stack: quoteDocErr?.stack || "",
                   selected: String((selected as any)?.name || ""),
                 });
-                const selectedNameForQuote = String((selected as any)?.name || "producto");
-                let fallbackPdfAttached = false;
-                try {
-                  const retryRichPdfBase64 = await buildQuotePdf({
-                    draftId: String((insertedDraft as any)?.id || ""),
-                    customerName: effectiveContact,
-                    customerEmail,
-                    customerPhone,
-                    companyName: effectiveCompany,
-                    productName: selectedNameForQuote,
-                    quantity: qty,
-                    basePriceUsd,
-                    trmRate,
-                    totalCop,
-                    city: effectiveCity,
-                    nit: effectiveNit,
-                    itemDescription: buildQuoteItemDescription(selected, selectedNameForQuote),
-                    imageDataUrl: "",
-                    notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
-                  });
-                  if (retryRichPdfBase64) {
-                    strictDocs.push({
-                      base64: retryRichPdfBase64,
-                      fileName: safeFileName(`cotizacion-${selectedNameForQuote}-${Date.now()}.pdf`, "cotizacion", "pdf"),
-                      mimetype: "application/pdf",
-                      caption: `Cotización - ${selectedNameForQuote}`,
-                    });
-                    fallbackPdfAttached = true;
-                    console.warn("[evolution-webhook] strict_quote_pdf_retry_rich_ok", { selected: selectedNameForQuote });
-                  }
-                } catch (retryRichErr: any) {
-                  console.error("[evolution-webhook] strict_quote_pdf_retry_rich_error", {
-                    message: retryRichErr?.message || retryRichErr,
-                    stack: retryRichErr?.stack || "",
-                    selected: selectedNameForQuote,
-                  });
-                }
-                try {
-                  if (!fallbackPdfAttached) {
-                    const fallbackPdfBase64 = await buildSimpleQuotePdf({
-                    draftId: String((insertedDraft as any)?.id || ""),
-                    customerName: effectiveContact,
-                    customerEmail,
-                    customerPhone,
-                    companyName: effectiveCompany,
-                    productName: selectedNameForQuote,
-                    quantity: qty,
-                    trmRate,
-                    totalCop,
-                    city: effectiveCity,
-                    nit: effectiveNit,
-                    });
-                    if (fallbackPdfBase64) {
-                      strictDocs.push({
-                        base64: fallbackPdfBase64,
-                        fileName: safeFileName(`cotizacion-${selectedNameForQuote}-${Date.now()}.pdf`, "cotizacion", "pdf"),
-                        mimetype: "application/pdf",
-                        caption: `Cotización - ${selectedNameForQuote}`,
-                      });
-                      fallbackPdfAttached = true;
-                    }
-                  }
-                } catch (fallbackErr: any) {
-                  console.error("[evolution-webhook] strict_quote_pdf_fallback_error", {
-                    message: fallbackErr?.message || fallbackErr,
-                    stack: fallbackErr?.stack || "",
-                    selected: selectedNameForQuote,
-                  });
-                }
+              }
 
-                if (fallbackPdfAttached) {
+              if (quotePdfAttached) {
+                let attachedSheetWithQuote = false;
+                try {
                   const datasheetUrlForQuote = pickBestProductPdfUrl(selected, `ficha tecnica ${selectedNameForQuote}`) || "";
                   const localPdfPathForQuote = pickBestLocalPdfPath(selected, `ficha tecnica ${selectedNameForQuote}`);
-                  let attachedSheetWithQuote = false;
                   if (datasheetUrlForQuote) {
                     const remote = await fetchRemoteFileAsBase64(datasheetUrlForQuote);
                     const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrlForQuote));
@@ -9038,14 +8938,21 @@ export async function POST(req: Request) {
                       attachedSheetWithQuote = true;
                     }
                   }
-                  strictReply = attachedSheetWithQuote
-                    ? `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te envío en este WhatsApp el PDF junto con la ficha técnica.`
-                    : `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
-                  const youtubeLink = pickYoutubeVideoForModel(selectedNameForQuote);
-                  if (youtubeLink) strictReply += `\n\nVideo del equipo:\n${youtubeLink}`;
-                } else {
-                  strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
+                } catch (sheetErr: any) {
+                  console.error("[evolution-webhook] strict_quote_datasheet_attach_error", {
+                    message: sheetErr?.message || sheetErr,
+                    stack: sheetErr?.stack || "",
+                    selected: selectedNameForQuote,
+                  });
                 }
+
+                strictReply = attachedSheetWithQuote
+                  ? `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te envío en este WhatsApp el PDF junto con la ficha técnica.`
+                  : `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
+                const youtubeLink = pickYoutubeVideoForModel(selectedNameForQuote);
+                if (youtubeLink) strictReply += `\n\nVideo del equipo:\n${youtubeLink}`;
+              } else {
+                strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
               }
             }
             strictMemory.awaiting_action = "conversation_followup";
