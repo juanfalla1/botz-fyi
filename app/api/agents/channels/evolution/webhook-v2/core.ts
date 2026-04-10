@@ -8376,7 +8376,38 @@ export async function POST(req: Request) {
                 mimetype: "application/pdf",
                 caption: `Cotización - ${String((selected as any)?.name || "producto")}`,
               });
-              strictReply = `Listo. Ya generé la cotización de ${String((selected as any)?.name || "producto")} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
+              const selectedNameForQuote = String((selected as any)?.name || "producto");
+              const datasheetUrlForQuote = pickBestProductPdfUrl(selected, `ficha tecnica ${selectedNameForQuote}`) || "";
+              const localPdfPathForQuote = pickBestLocalPdfPath(selected, `ficha tecnica ${selectedNameForQuote}`);
+              let attachedSheetWithQuote = false;
+              if (datasheetUrlForQuote) {
+                const remote = await fetchRemoteFileAsBase64(datasheetUrlForQuote);
+                const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrlForQuote));
+                if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+                  strictDocs.push({
+                    base64: remote.base64,
+                    fileName: safeFileName(remote.fileName, `ficha-${selectedNameForQuote}`, "pdf"),
+                    mimetype: "application/pdf",
+                    caption: `Ficha técnica - ${selectedNameForQuote}`,
+                  });
+                  attachedSheetWithQuote = true;
+                }
+              }
+              if (!attachedSheetWithQuote && localPdfPathForQuote) {
+                const local = fetchLocalFileAsBase64(localPdfPathForQuote);
+                if (local && Number(local.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+                  strictDocs.push({
+                    base64: local.base64,
+                    fileName: safeFileName(local.fileName, `ficha-${selectedNameForQuote}`, "pdf"),
+                    mimetype: "application/pdf",
+                    caption: `Ficha técnica - ${selectedNameForQuote}`,
+                  });
+                  attachedSheetWithQuote = true;
+                }
+              }
+              strictReply = attachedSheetWithQuote
+                ? `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te envío en este WhatsApp el PDF junto con la ficha técnica.`
+                : `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
             }
             strictMemory.awaiting_action = "conversation_followup";
             strictMemory.quote_data = {};
