@@ -6596,6 +6596,19 @@ export async function POST(req: Request) {
         if (chosenEquipment && awaiting === "commercial_choose_equipment") {
           strictMemory.commercial_equipment_choice = chosenEquipment;
           if (chosenEquipment === "balanza") {
+            const guidedProfile = detectGuidedBalanzaProfile(text);
+            if (guidedProfile) {
+              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfile);
+              strictMemory.pending_product_options = guidedOptions;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = guidedOptions.length ? "strict_choose_model" : "strict_need_spec";
+              strictMemory.last_category_intent = "balanzas";
+              strictMemory.guided_balanza_profile = guidedProfile;
+              strictMemory.strict_family_label = "balanzas";
+              strictMemory.strict_model_offset = 0;
+              strictReply = buildGuidedBalanzaReply(guidedProfile);
+              return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_guided_new_customer" });
+            }
             strictMemory.awaiting_action = "strict_need_spec";
             strictReply = buildBalanzaQualificationPrompt();
             return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_qualification_new_customer" });
@@ -6866,6 +6879,19 @@ export async function POST(req: Request) {
         }
         strictMemory.commercial_equipment_choice = chosenEquipment;
         if (chosenEquipment === "balanza") {
+          const guidedProfile = detectGuidedBalanzaProfile(text);
+          if (guidedProfile) {
+            const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfile);
+            strictMemory.pending_product_options = guidedOptions;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = guidedOptions.length ? "strict_choose_model" : "strict_need_spec";
+            strictMemory.last_category_intent = "balanzas";
+            strictMemory.guided_balanza_profile = guidedProfile;
+            strictMemory.strict_family_label = "balanzas";
+            strictMemory.strict_model_offset = 0;
+            strictReply = buildGuidedBalanzaReply(guidedProfile);
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_guided_existing_customer" });
+          }
           strictMemory.awaiting_action = "strict_need_spec";
           strictReply = buildBalanzaQualificationPrompt();
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_qualification" });
@@ -8493,14 +8519,23 @@ export async function POST(req: Request) {
           } catch {}
         }
 
-        const quoteData = {
-          city: cityNow || String(prevQuoteData.city || "") || crmCityForQuote,
-          company: companyNow || String(prevQuoteData.company || "") || crmCompanyForQuote || String(previousMemory?.commercial_company_name || strictMemory.commercial_company_name || ""),
-          nit: nitNow || String(prevQuoteData.nit || "") || crmNitForQuote || String(previousMemory?.commercial_company_nit || strictMemory.commercial_company_nit || ""),
-          contact: contactNow || String(prevQuoteData.contact || "") || crmNameForQuote || String(previousMemory?.commercial_customer_name || strictMemory.commercial_customer_name || "") || String(previousMemory?.customer_name || strictMemory.customer_name || ""),
-          email: emailNow || String(prevQuoteData.email || "") || crmEmailForQuote || String(previousMemory?.customer_email || strictMemory.customer_email || ""),
-          phone: phoneNow || String(prevQuoteData.phone || "") || crmPhoneForQuote || normalizePhone(String(previousMemory?.customer_phone || strictMemory.customer_phone || inbound.from || "")),
-        };
+        const quoteData = wantsReuseBillingInQuoteData && reusableBillingInQuoteData.complete
+          ? {
+              city: reusableBillingInQuoteData.city,
+              company: reusableBillingInQuoteData.company,
+              nit: reusableBillingInQuoteData.nit,
+              contact: reusableBillingInQuoteData.contact,
+              email: reusableBillingInQuoteData.email,
+              phone: reusableBillingInQuoteData.phone,
+            }
+          : {
+              city: cityNow || String(prevQuoteData.city || "") || crmCityForQuote,
+              company: companyNow || String(prevQuoteData.company || "") || crmCompanyForQuote || String(previousMemory?.commercial_company_name || strictMemory.commercial_company_name || ""),
+              nit: nitNow || String(prevQuoteData.nit || "") || crmNitForQuote || String(previousMemory?.commercial_company_nit || strictMemory.commercial_company_nit || ""),
+              contact: contactNow || String(prevQuoteData.contact || "") || crmNameForQuote || String(previousMemory?.commercial_customer_name || strictMemory.commercial_customer_name || "") || String(previousMemory?.customer_name || strictMemory.customer_name || ""),
+              email: emailNow || String(prevQuoteData.email || "") || crmEmailForQuote || String(previousMemory?.customer_email || strictMemory.customer_email || ""),
+              phone: phoneNow || String(prevQuoteData.phone || "") || crmPhoneForQuote || normalizePhone(String(previousMemory?.customer_phone || strictMemory.customer_phone || inbound.from || "")),
+            };
         strictMemory.quote_data = quoteData;
 
         const customerCity = String(quoteData.city || "").trim();
@@ -8669,66 +8704,70 @@ export async function POST(req: Request) {
             if (draftErr) {
               strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
             } else {
-              const productImageDataUrl = await resolveProductImageDataUrl(selected);
-              const quoteDescription = await buildQuoteItemDescriptionAsync(selected, String((selected as any)?.name || ""));
-              const pdfBase64 = await buildQuotePdf({
-                draftId: String((insertedDraft as any)?.id || ""),
-                customerName: effectiveContact,
-                customerEmail,
-                customerPhone,
-                companyName: effectiveCompany,
-                productName: String((selected as any)?.name || ""),
-                quantity: qty,
-                basePriceUsd,
-                trmRate,
-                totalCop,
-                city: effectiveCity,
-                nit: effectiveNit,
-                itemDescription: quoteDescription,
-                imageDataUrl: productImageDataUrl,
-                notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
-              });
-              strictDocs.push({
-                base64: pdfBase64,
-                fileName: safeFileName(`cotizacion-${String((selected as any)?.name || "producto")}-${Date.now()}.pdf`, "cotizacion", "pdf"),
-                mimetype: "application/pdf",
-                caption: `Cotización - ${String((selected as any)?.name || "producto")}`,
-              });
-              const selectedNameForQuote = String((selected as any)?.name || "producto");
-              const datasheetUrlForQuote = pickBestProductPdfUrl(selected, `ficha tecnica ${selectedNameForQuote}`) || "";
-              const localPdfPathForQuote = pickBestLocalPdfPath(selected, `ficha tecnica ${selectedNameForQuote}`);
-              let attachedSheetWithQuote = false;
-              if (datasheetUrlForQuote) {
-                const remote = await fetchRemoteFileAsBase64(datasheetUrlForQuote);
-                const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrlForQuote));
-                if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
-                  strictDocs.push({
-                    base64: remote.base64,
-                    fileName: safeFileName(remote.fileName, `ficha-${selectedNameForQuote}`, "pdf"),
-                    mimetype: "application/pdf",
-                    caption: `Ficha técnica - ${selectedNameForQuote}`,
-                  });
-                  attachedSheetWithQuote = true;
+              try {
+                const productImageDataUrl = await resolveProductImageDataUrl(selected);
+                const quoteDescription = await buildQuoteItemDescriptionAsync(selected, String((selected as any)?.name || ""));
+                const pdfBase64 = await buildQuotePdf({
+                  draftId: String((insertedDraft as any)?.id || ""),
+                  customerName: effectiveContact,
+                  customerEmail,
+                  customerPhone,
+                  companyName: effectiveCompany,
+                  productName: String((selected as any)?.name || ""),
+                  quantity: qty,
+                  basePriceUsd,
+                  trmRate,
+                  totalCop,
+                  city: effectiveCity,
+                  nit: effectiveNit,
+                  itemDescription: quoteDescription,
+                  imageDataUrl: productImageDataUrl,
+                  notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
+                });
+                strictDocs.push({
+                  base64: pdfBase64,
+                  fileName: safeFileName(`cotizacion-${String((selected as any)?.name || "producto")}-${Date.now()}.pdf`, "cotizacion", "pdf"),
+                  mimetype: "application/pdf",
+                  caption: `Cotización - ${String((selected as any)?.name || "producto")}`,
+                });
+                const selectedNameForQuote = String((selected as any)?.name || "producto");
+                const datasheetUrlForQuote = pickBestProductPdfUrl(selected, `ficha tecnica ${selectedNameForQuote}`) || "";
+                const localPdfPathForQuote = pickBestLocalPdfPath(selected, `ficha tecnica ${selectedNameForQuote}`);
+                let attachedSheetWithQuote = false;
+                if (datasheetUrlForQuote) {
+                  const remote = await fetchRemoteFileAsBase64(datasheetUrlForQuote);
+                  const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrlForQuote));
+                  if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+                    strictDocs.push({
+                      base64: remote.base64,
+                      fileName: safeFileName(remote.fileName, `ficha-${selectedNameForQuote}`, "pdf"),
+                      mimetype: "application/pdf",
+                      caption: `Ficha técnica - ${selectedNameForQuote}`,
+                    });
+                    attachedSheetWithQuote = true;
+                  }
                 }
-              }
-              if (!attachedSheetWithQuote && localPdfPathForQuote) {
-                const local = fetchLocalFileAsBase64(localPdfPathForQuote);
-                if (local && Number(local.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
-                  strictDocs.push({
-                    base64: local.base64,
-                    fileName: safeFileName(local.fileName, `ficha-${selectedNameForQuote}`, "pdf"),
-                    mimetype: "application/pdf",
-                    caption: `Ficha técnica - ${selectedNameForQuote}`,
-                  });
-                  attachedSheetWithQuote = true;
+                if (!attachedSheetWithQuote && localPdfPathForQuote) {
+                  const local = fetchLocalFileAsBase64(localPdfPathForQuote);
+                  if (local && Number(local.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+                    strictDocs.push({
+                      base64: local.base64,
+                      fileName: safeFileName(local.fileName, `ficha-${selectedNameForQuote}`, "pdf"),
+                      mimetype: "application/pdf",
+                      caption: `Ficha técnica - ${selectedNameForQuote}`,
+                    });
+                    attachedSheetWithQuote = true;
+                  }
                 }
-              }
-              strictReply = attachedSheetWithQuote
-                ? `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te envío en este WhatsApp el PDF junto con la ficha técnica.`
-                : `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
-              const youtubeLink = pickYoutubeVideoForModel(selectedNameForQuote);
-              if (youtubeLink) {
-                strictReply += `\n\nVideo del equipo:\n${youtubeLink}`;
+                strictReply = attachedSheetWithQuote
+                  ? `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te envío en este WhatsApp el PDF junto con la ficha técnica.`
+                  : `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
+                const youtubeLink = pickYoutubeVideoForModel(selectedNameForQuote);
+                if (youtubeLink) {
+                  strictReply += `\n\nVideo del equipo:\n${youtubeLink}`;
+                }
+              } catch {
+                strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
               }
             }
             strictMemory.awaiting_action = "conversation_followup";
