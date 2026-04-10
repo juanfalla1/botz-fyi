@@ -8256,10 +8256,31 @@ export async function POST(req: Request) {
               const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
               strictMemory.quote_quantity = qtyRequested;
               strictMemory.awaiting_action = "strict_quote_data";
-              strictReply = buildQuoteDataIntakePrompt(
-                `Perfecto. Voy a cotizar ${qtyRequested} unidad(es).`,
-                strictMemory
-              );
+              const quoteMemoryMerged = {
+                ...(previousMemory && typeof previousMemory === "object" ? previousMemory : {}),
+                ...(strictMemory && typeof strictMemory === "object" ? strictMemory : {}),
+                quote_data: {
+                  ...((previousMemory?.quote_data && typeof previousMemory.quote_data === "object") ? previousMemory.quote_data : {}),
+                  ...((strictMemory?.quote_data && typeof strictMemory.quote_data === "object") ? strictMemory.quote_data : {}),
+                },
+              };
+              const reusableNow = getReusableBillingData(quoteMemoryMerged);
+              if (reusableNow.complete) {
+                strictMemory.quote_data = {
+                  city: reusableNow.city,
+                  company: reusableNow.company,
+                  nit: reusableNow.nit,
+                  contact: reusableNow.contact,
+                  email: reusableNow.email,
+                  phone: reusableNow.phone,
+                };
+                strictMemory.strict_autorun_quote_with_reuse = true;
+              } else {
+                strictReply = buildQuoteDataIntakePrompt(
+                  `Perfecto. Voy a cotizar ${qtyRequested} unidad(es).`,
+                  strictMemory
+                );
+              }
             }
           }
           }
@@ -8572,6 +8593,10 @@ export async function POST(req: Request) {
         const hasIdentityCore = customerNit.length >= 5;
         const hasReachability = customerEmail.includes("@") || customerPhone.replace(/\D/g, "").length >= 7;
         const hasBusinessCore = customerCompany.length >= 3;
+        const isDistributorCustomer = crmTierForQuote === "distribuidor" || crmTypeForQuote === "distributor";
+        const isExistingCustomer = !isDistributorCustomer && crmContactFoundForQuote && Boolean(recognizedReturningCustomer);
+        const customerSegment = isDistributorCustomer ? "distributor" : (isExistingCustomer ? "existing" : "new");
+        strictMemory.customer_segment = customerSegment;
         const hasBusinessOrReachability = isNaturalPerson
           ? (hasIdentityCore && hasReachability)
           : (hasBusinessCore && hasIdentityCore && hasReachability);
@@ -8580,10 +8605,6 @@ export async function POST(req: Request) {
             ? (hasBusinessCore && hasReachability)
             : hasBusinessOrReachability;
         const missingAttemptsPrev = Number(previousMemory?.strict_quote_data_missing_attempts || strictMemory.strict_quote_data_missing_attempts || 0);
-        const isDistributorCustomer = crmTierForQuote === "distribuidor" || crmTypeForQuote === "distributor";
-        const isExistingCustomer = !isDistributorCustomer && crmContactFoundForQuote && Boolean(recognizedReturningCustomer);
-        const customerSegment = isDistributorCustomer ? "distributor" : (isExistingCustomer ? "existing" : "new");
-        strictMemory.customer_segment = customerSegment;
 
         if (!crmContactFoundForQuote && isAdvanceInQuoteData) {
           const missingAttempts = missingAttemptsPrev + 1;
