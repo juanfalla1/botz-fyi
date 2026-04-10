@@ -7890,20 +7890,25 @@ export async function POST(req: Request) {
               ...((strictMemory?.quote_data && typeof strictMemory.quote_data === "object") ? strictMemory.quote_data : {}),
             },
           };
-          const reusableNow = getReusableBillingData(quoteMemoryMerged);
-          if (reusableNow.complete) {
-            strictMemory.quote_data = {
-              city: reusableNow.city,
-              company: reusableNow.company,
-              nit: reusableNow.nit,
-              contact: reusableNow.contact,
-              email: reusableNow.email,
-              phone: reusableNow.phone,
-            };
-            strictMemory.strict_autorun_quote_with_reuse = true;
-          } else {
-            strictReply = buildQuoteDataIntakePrompt(`Perfecto. Voy a cotizar ${qtyRequested} unidad(es).`, strictMemory);
-          }
+              const reusableNow = getReusableBillingData(quoteMemoryMerged);
+              const crmKnownNow = Boolean(
+                previousMemory?.crm_contact_found ||
+                strictMemory.crm_contact_found ||
+                recognizedReturningCustomer
+              );
+              if (reusableNow.complete || crmKnownNow) {
+                strictMemory.quote_data = {
+                  city: reusableNow.city || String(previousMemory?.crm_billing_city || strictMemory.crm_billing_city || "") || "Bogota",
+                  company: reusableNow.company || String(previousMemory?.crm_company || strictMemory.crm_company || "") || String(previousMemory?.commercial_company_name || strictMemory.commercial_company_name || ""),
+                  nit: reusableNow.nit || String(previousMemory?.crm_nit || strictMemory.crm_nit || "") || String(previousMemory?.commercial_company_nit || strictMemory.commercial_company_nit || ""),
+                  contact: reusableNow.contact || String(previousMemory?.crm_contact_name || strictMemory.crm_contact_name || "") || String(previousMemory?.commercial_customer_name || strictMemory.commercial_customer_name || "") || String(previousMemory?.customer_name || strictMemory.customer_name || ""),
+                  email: reusableNow.email || String(previousMemory?.crm_contact_email || strictMemory.crm_contact_email || "") || String(previousMemory?.customer_email || strictMemory.customer_email || ""),
+                  phone: reusableNow.phone || String(previousMemory?.crm_contact_phone || strictMemory.crm_contact_phone || "") || normalizePhone(String(previousMemory?.customer_phone || strictMemory.customer_phone || inbound.from || "")),
+                };
+                strictMemory.strict_autorun_quote_with_reuse = true;
+              } else {
+                strictReply = buildQuoteDataIntakePrompt(`Perfecto. Voy a cotizar ${qtyRequested} unidad(es).`, strictMemory);
+              }
         }
 
         const rawAnotherQuoteChoice = awaiting === "strict_choose_action" ? parseAnotherQuoteChoice(text) : null;
