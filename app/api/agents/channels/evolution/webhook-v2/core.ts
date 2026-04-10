@@ -5832,7 +5832,18 @@ export async function POST(req: Request) {
       };
 
       const finalizeStrictTurn = async (replyText: string, memory: Record<string, any>, extra: Record<string, any> = {}) => {
-        const sentOk = await sendStrictQuickText(replyText);
+        const awaitingNow = String(memory?.awaiting_action || "").trim();
+        const safeReply = String(replyText || "").trim() || (
+          awaitingNow === "strict_choose_action"
+            ? "Responde 1 para cotización o 2 para ficha técnica."
+            : awaitingNow === "strict_quote_data"
+              ? "Para continuar con la cotización, envíame ciudad, empresa, NIT, contacto, correo y celular en un solo mensaje."
+              : "¿En qué puedo ayudarte con tu cotización?"
+        );
+        if (!String(replyText || "").trim()) {
+          console.warn("[evolution-webhook] empty_strict_reply_fallback", { awaiting: awaitingNow, inboundText: text });
+        }
+        const sentOk = await sendStrictQuickText(safeReply);
         if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
         try {
           await persistConversationTurn(supabase as any, {
@@ -5843,7 +5854,7 @@ export async function POST(req: Request) {
             pushName: inbound.pushName,
             contactName: knownCustomerName || inbound.pushName || inbound.from,
             inboundText: inbound.text,
-            outboundText: replyText,
+            outboundText: safeReply,
             messageId: inbound.messageId,
             memory,
           });
