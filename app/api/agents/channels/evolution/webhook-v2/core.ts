@@ -6479,7 +6479,10 @@ export async function POST(req: Request) {
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "commercial_recognition_required" });
       }
 
-      if (!String(strictReply || "").trim() && clientType === "new" && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
+      const shouldHandleNewCommercialStep =
+        clientType === "new" &&
+        (!Boolean(strictMemory.commercial_validation_complete) || /^(commercial_client_recognition|commercial_new_customer_data|commercial_choose_equipment|none)$/i.test(awaiting));
+      if (!String(strictReply || "").trim() && shouldHandleNewCommercialStep && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
         strictMemory.commercial_client_type = "new";
         strictMemory.awaiting_action = "commercial_new_customer_data";
         if (shouldEscalateToAdvisorByCommercialRule(strictMemory, text)) {
@@ -6533,7 +6536,10 @@ export async function POST(req: Request) {
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "new_customer_data_completed" });
       }
 
-      if (!String(strictReply || "").trim() && clientType === "existing" && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
+      const shouldHandleExistingCommercialStep =
+        clientType === "existing" &&
+        /^(commercial_client_recognition|commercial_choose_equipment|none)$/i.test(awaiting);
+      if (!String(strictReply || "").trim() && shouldHandleExistingCommercialStep && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
         strictMemory.commercial_client_type = "existing";
         strictMemory.commercial_validation_complete = true;
         const chosenEquipment = detectEquipmentChoice(text);
