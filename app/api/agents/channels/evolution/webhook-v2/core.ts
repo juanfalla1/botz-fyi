@@ -7987,6 +7987,7 @@ export async function POST(req: Request) {
           }
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_quote_data") {
+        try {
         const asksCheapestInQuoteData = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|precio\s+bajo)\b/.test(normalizeText(text));
         if (asksCheapestInQuoteData) {
           const scopedForPrice = rememberedCategory
@@ -8420,6 +8421,15 @@ export async function POST(req: Request) {
         }
         }
         }
+        }
+        } catch (quoteFlowErr: any) {
+          console.error("[evolution-webhook] strict_quote_data_error", {
+            message: quoteFlowErr?.message || quoteFlowErr,
+            stack: quoteFlowErr?.stack || "",
+            text,
+          });
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = "Tuve un error procesando esta solicitud. Para continuar, envíame en un solo mensaje: ciudad, empresa, NIT, contacto, correo y celular.";
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_catalog_scope_disambiguation") {
         const t = normalizeText(text);
