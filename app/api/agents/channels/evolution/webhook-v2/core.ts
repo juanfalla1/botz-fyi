@@ -6496,17 +6496,28 @@ export async function POST(req: Request) {
             if (/^\s*1\s*$/.test(textNorm)) {
               strictMemory.awaiting_action = "strict_quote_data";
               strictMemory.quote_quantity = Math.max(1, Number(previousMemory?.quote_quantity || 1));
-              const quotePrompt = buildQuoteDataIntakePrompt(
-                "Perfecto. Para cotizar:",
-                {
-                  ...(previousMemory && typeof previousMemory === "object" ? previousMemory : {}),
-                  ...(strictMemory && typeof strictMemory === "object" ? strictMemory : {}),
-                  quote_data: {
-                    ...((previousMemory?.quote_data && typeof previousMemory.quote_data === "object") ? previousMemory.quote_data : {}),
-                    ...((strictMemory?.quote_data && typeof strictMemory.quote_data === "object") ? strictMemory.quote_data : {}),
-                  },
-                }
-              );
+              const quoteMemoryMerged = {
+                ...(previousMemory && typeof previousMemory === "object" ? previousMemory : {}),
+                ...(strictMemory && typeof strictMemory === "object" ? strictMemory : {}),
+                quote_data: {
+                  ...((previousMemory?.quote_data && typeof previousMemory.quote_data === "object") ? previousMemory.quote_data : {}),
+                  ...((strictMemory?.quote_data && typeof strictMemory.quote_data === "object") ? strictMemory.quote_data : {}),
+                },
+              };
+              const reusableNow = getReusableBillingData(quoteMemoryMerged);
+              if (reusableNow.complete) {
+                strictMemory.quote_data = {
+                  city: reusableNow.city,
+                  company: reusableNow.company,
+                  nit: reusableNow.nit,
+                  contact: reusableNow.contact,
+                  email: reusableNow.email,
+                  phone: reusableNow.phone,
+                };
+                strictMemory.strict_autorun_quote_with_reuse = true;
+                return null;
+              }
+              const quotePrompt = buildQuoteDataIntakePrompt("Perfecto. Para cotizar:", quoteMemoryMerged);
               return finalizeStrictTurn(quotePrompt, strictMemory, { pipeline: true, intent: pipelineIntent });
             }
             if (/^\s*2\s*$/.test(textNorm)) {
@@ -6751,7 +6762,7 @@ export async function POST(req: Request) {
           strictMemory.crm_nit = matchedNit;
           strictMemory.crm_billing_city = matchedCity;
           strictMemory.quote_data = {
-            city: matchedCity || String(strictMemory?.quote_data?.city || ""),
+            city: matchedCity || String(strictMemory?.quote_data?.city || "") || "Bogota",
             company: matchedCompany || String(strictMemory?.quote_data?.company || ""),
             nit: matchedNit || String(strictMemory?.quote_data?.nit || ""),
             contact: matchedName || String(strictMemory?.quote_data?.contact || ""),
@@ -8329,9 +8340,14 @@ export async function POST(req: Request) {
             ].join("\n");
           }
         }
-      } else if (!String(strictReply || "").trim() && awaiting === "strict_quote_data") {
+      } else if (
+        !String(strictReply || "").trim() &&
+        (awaiting === "strict_quote_data" || Boolean(strictMemory?.strict_autorun_quote_with_reuse))
+      ) {
         try {
-        const asksCheapestInQuoteData = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|precio\s+bajo)\b/.test(normalizeText(text));
+        const quoteTurnText = Boolean(strictMemory?.strict_autorun_quote_with_reuse) ? "mismos datos" : text;
+        strictMemory.strict_autorun_quote_with_reuse = false;
+        const asksCheapestInQuoteData = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|precio\s+bajo)\b/.test(normalizeText(quoteTurnText));
         if (asksCheapestInQuoteData) {
           const scopedForPrice = rememberedCategory
             ? scopeCatalogRows(ownerRows as any[], rememberedCategory)
@@ -8361,9 +8377,9 @@ export async function POST(req: Request) {
           }
         }
         if (!String(strictReply || "").trim()) {
-        const followupIntentInQuoteData = detectAlternativeFollowupIntent(text);
-        const asksAnotherQuoteInQuoteData = isAnotherQuoteAmbiguousIntent(text);
-        const normalizedQuoteData = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+        const followupIntentInQuoteData = detectAlternativeFollowupIntent(quoteTurnText);
+        const asksAnotherQuoteInQuoteData = isAnotherQuoteAmbiguousIntent(quoteTurnText);
+        const normalizedQuoteData = normalizeText(String(quoteTurnText || "")).replace(/[^a-z0-9\s]/g, " ").trim();
         const isAdvanceInQuoteData = normalizedQuoteData === "avanza";
         const wantsReuseBillingInQuoteData =
           /\bmismos?\s+datos\b/.test(normalizedQuoteData) ||
@@ -8379,7 +8395,7 @@ export async function POST(req: Request) {
         });
         const quoteDataInputText = wantsReuseBillingInQuoteData && reusableBillingInQuoteData.complete
           ? billingDataAsSingleMessage(reusableBillingInQuoteData)
-          : text;
+          : quoteTurnText;
         const hasBillingDataInQuoteData = looksLikeBillingData(quoteDataInputText);
         const isCommercialAlternativeInQuoteData =
           asksAnotherQuoteInQuoteData ||
@@ -8538,7 +8554,7 @@ export async function POST(req: Request) {
             };
         strictMemory.quote_data = quoteData;
 
-        const customerCity = String(quoteData.city || "").trim();
+        const customerCity = String(quoteData.city || "").trim() || (Boolean(crmContactFoundForQuote) ? "Bogota" : "");
         const customerCompany = String(quoteData.company || "").trim();
         const customerNit = String(quoteData.nit || "").trim();
         const customerContact = String(quoteData.contact || "").trim();
@@ -8559,6 +8575,10 @@ export async function POST(req: Request) {
         const hasBusinessOrReachability = isNaturalPerson
           ? (hasIdentityCore && hasReachability)
           : (hasBusinessCore && hasIdentityCore && hasReachability);
+        const hasBusinessOrReachabilityForKnownExisting =
+          customerSegment === "existing" && crmContactFoundForQuote
+            ? (hasBusinessCore && hasReachability)
+            : hasBusinessOrReachability;
         const missingAttemptsPrev = Number(previousMemory?.strict_quote_data_missing_attempts || strictMemory.strict_quote_data_missing_attempts || 0);
         const isDistributorCustomer = crmTierForQuote === "distribuidor" || crmTypeForQuote === "distributor";
         const isExistingCustomer = !isDistributorCustomer && crmContactFoundForQuote && Boolean(recognizedReturningCustomer);
@@ -8577,7 +8597,7 @@ export async function POST(req: Request) {
           } else {
             strictReply = "Para cliente nuevo sí necesito datos de facturación antes de cotizar: ciudad, empresa, NIT, contacto, correo y celular.";
           }
-        } else if (!isAdvanceInQuoteData && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachability)) {
+        } else if (!isAdvanceInQuoteData && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachabilityForKnownExisting)) {
           const missingAttempts = missingAttemptsPrev + 1;
           strictMemory.strict_quote_data_missing_attempts = missingAttempts;
           const missing: string[] = [];
@@ -8766,7 +8786,12 @@ export async function POST(req: Request) {
                 if (youtubeLink) {
                   strictReply += `\n\nVideo del equipo:\n${youtubeLink}`;
                 }
-              } catch {
+              } catch (quoteDocErr: any) {
+                console.error("[evolution-webhook] strict_quote_pdf_error", {
+                  message: quoteDocErr?.message || quoteDocErr,
+                  stack: quoteDocErr?.stack || "",
+                  selected: String((selected as any)?.name || ""),
+                });
                 strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
               }
             }
