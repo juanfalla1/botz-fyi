@@ -8943,7 +8943,43 @@ export async function POST(req: Request) {
                 const selectedNameForQuote = String((selected as any)?.name || "producto");
                 let fallbackPdfAttached = false;
                 try {
-                  const fallbackPdfBase64 = await buildSimpleQuotePdf({
+                  const retryRichPdfBase64 = await buildQuotePdf({
+                    draftId: String((insertedDraft as any)?.id || ""),
+                    customerName: effectiveContact,
+                    customerEmail,
+                    customerPhone,
+                    companyName: effectiveCompany,
+                    productName: selectedNameForQuote,
+                    quantity: qty,
+                    basePriceUsd,
+                    trmRate,
+                    totalCop,
+                    city: effectiveCity,
+                    nit: effectiveNit,
+                    itemDescription: buildQuoteItemDescription(selected, selectedNameForQuote),
+                    imageDataUrl: "",
+                    notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
+                  });
+                  if (retryRichPdfBase64) {
+                    strictDocs.push({
+                      base64: retryRichPdfBase64,
+                      fileName: safeFileName(`cotizacion-${selectedNameForQuote}-${Date.now()}.pdf`, "cotizacion", "pdf"),
+                      mimetype: "application/pdf",
+                      caption: `Cotización - ${selectedNameForQuote}`,
+                    });
+                    fallbackPdfAttached = true;
+                    console.warn("[evolution-webhook] strict_quote_pdf_retry_rich_ok", { selected: selectedNameForQuote });
+                  }
+                } catch (retryRichErr: any) {
+                  console.error("[evolution-webhook] strict_quote_pdf_retry_rich_error", {
+                    message: retryRichErr?.message || retryRichErr,
+                    stack: retryRichErr?.stack || "",
+                    selected: selectedNameForQuote,
+                  });
+                }
+                try {
+                  if (!fallbackPdfAttached) {
+                    const fallbackPdfBase64 = await buildSimpleQuotePdf({
                     draftId: String((insertedDraft as any)?.id || ""),
                     customerName: effectiveContact,
                     customerEmail,
@@ -8955,15 +8991,16 @@ export async function POST(req: Request) {
                     totalCop,
                     city: effectiveCity,
                     nit: effectiveNit,
-                  });
-                  if (fallbackPdfBase64) {
-                    strictDocs.push({
-                      base64: fallbackPdfBase64,
-                      fileName: safeFileName(`cotizacion-${selectedNameForQuote}-${Date.now()}.pdf`, "cotizacion", "pdf"),
-                      mimetype: "application/pdf",
-                      caption: `Cotización - ${selectedNameForQuote}`,
                     });
-                    fallbackPdfAttached = true;
+                    if (fallbackPdfBase64) {
+                      strictDocs.push({
+                        base64: fallbackPdfBase64,
+                        fileName: safeFileName(`cotizacion-${selectedNameForQuote}-${Date.now()}.pdf`, "cotizacion", "pdf"),
+                        mimetype: "application/pdf",
+                        caption: `Cotización - ${selectedNameForQuote}`,
+                      });
+                      fallbackPdfAttached = true;
+                    }
                   }
                 } catch (fallbackErr: any) {
                   console.error("[evolution-webhook] strict_quote_pdf_fallback_error", {
