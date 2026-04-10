@@ -6611,7 +6611,13 @@ export async function POST(req: Request) {
         return null;
       };
 
-      const recognitionChoice = detectClientRecognitionChoice(text);
+      const recognitionChoiceCandidate = detectClientRecognitionChoice(text);
+      const recognitionNumericOnly = /^\s*[12]\s*$/.test(String(text || "").trim());
+      const recognitionStepActive = /^(commercial_client_recognition|none)$/i.test(awaiting);
+      const recognitionChoice =
+        recognitionNumericOnly && !recognitionStepActive
+          ? ""
+          : recognitionChoiceCandidate;
       const currentClientType = String(strictMemory.commercial_client_type || previousMemory?.commercial_client_type || "").trim();
       const clientType = currentClientType || recognitionChoice;
       if (clientType) strictMemory.commercial_client_type = clientType;
