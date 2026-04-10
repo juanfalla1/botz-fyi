@@ -2661,7 +2661,9 @@ function detectGuidedBalanzaProfile(text: string): GuidedBalanzaProfile | null {
 
 function buildGuidedBalanzaReply(profile: GuidedBalanzaProfile): string {
   const groups = GUIDED_BALANZA_CATALOG[profile] || [];
-  const intro = "Sí, contamos con balanzas de precisión que se ajustan a tu necesidad.";
+  const intro = profile === "balanza_industrial_portatil_conteo"
+    ? "Sí, contamos con básculas industriales portátiles para conteo que se ajustan a tu necesidad."
+    : "Sí, contamos con balanzas de precisión que se ajustan a tu necesidad.";
   const estimated = profile === "balanza_industrial_portatil_conteo"
     ? "💰 Valores estimados: desde $3.500.000 (según gama y funcionalidad). Deseas continuar con la cotización"
     : "💰 Valores estimados: desde $4.000.000 (según gama y funcionalidad). Deseas continuar con la cotización";
@@ -6170,10 +6172,7 @@ export async function POST(req: Request) {
             strictMemory.last_category_intent = "balanzas";
             strictMemory.guided_balanza_profile = guidedProfile;
             strictMemory.commercial_welcome_sent = true;
-            const commercialTail = strictMemory.commercial_validation_complete
-              ? ""
-              : `\n\n${buildCommercialEscalationMessage()}`;
-            const reply = `${buildGuidedBalanzaReply(guidedProfile)}${commercialTail}`;
+            const reply = buildGuidedBalanzaReply(guidedProfile);
             return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "guided_need_discovery", guided_profile: guidedProfile });
           }
           const featureTerms = extractFeatureTerms(text);
@@ -6192,7 +6191,6 @@ export async function POST(req: Request) {
               ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
               "",
               "Elige con letra o número (A/1) y te envío detalle técnico o cotización.",
-              ...(strictMemory.commercial_validation_complete ? [] : ["", buildCommercialEscalationMessage()]),
             ].join("\n");
             return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "guided_need_discovery" });
           }
@@ -6233,7 +6231,6 @@ export async function POST(req: Request) {
           const reply = [
             guidance,
             ...(top.length ? ["", "Opciones sugeridas para empezar:", ...top.map((o) => `${o.code}) ${o.name}`), "", "Si quieres, elige A/1 y te envío ficha o cotización."] : []),
-            ...(strictMemory.commercial_validation_complete ? [] : ["", buildCommercialEscalationMessage()]),
           ].join("\n");
           return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
         }
