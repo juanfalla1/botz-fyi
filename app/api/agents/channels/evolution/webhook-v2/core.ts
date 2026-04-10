@@ -6661,10 +6661,12 @@ export async function POST(req: Request) {
         }
         strictMemory.commercial_validation_complete = true;
         const chosenEquipment = detectEquipmentChoice(text);
-        if (chosenEquipment && awaiting === "commercial_choose_equipment") {
-          strictMemory.commercial_equipment_choice = chosenEquipment;
-          if (chosenEquipment === "balanza") {
-            const guidedProfile = detectGuidedBalanzaProfile(text);
+        const guidedProfileFromNeed = detectGuidedBalanzaProfile(text);
+        const effectiveEquipment = chosenEquipment || (guidedProfileFromNeed ? "balanza" : "");
+        if (effectiveEquipment && awaiting === "commercial_choose_equipment") {
+          strictMemory.commercial_equipment_choice = effectiveEquipment;
+          if (effectiveEquipment === "balanza") {
+            const guidedProfile = guidedProfileFromNeed;
             if (guidedProfile) {
               const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfile);
               strictMemory.pending_product_options = guidedOptions;
@@ -6681,13 +6683,13 @@ export async function POST(req: Request) {
             strictReply = buildBalanzaQualificationPrompt();
             return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_qualification_new_customer" });
           }
-          if (chosenEquipment === "bascula") {
+          if (effectiveEquipment === "bascula") {
             strictMemory.last_category_intent = "basculas";
             strictMemory.awaiting_action = "strict_need_spec";
             strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
             return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "bascula_qualification_new_customer" });
           }
-          if (chosenEquipment === "analizador_humedad") {
+          if (effectiveEquipment === "analizador_humedad") {
             strictMemory.last_category_intent = "analizador_humedad";
             strictMemory.awaiting_action = "strict_need_spec";
             strictReply = "Perfecto. Para analizador de humedad, dime tipo de muestra, capacidad aproximada y precisión objetivo.";
@@ -6940,14 +6942,16 @@ export async function POST(req: Request) {
 
         strictMemory.commercial_validation_complete = true;
         const chosenEquipment = detectEquipmentChoice(text);
-        if (!chosenEquipment || /^(commercial_client_recognition|commercial_existing_lookup|commercial_existing_confirm|commercial_existing_contact_update)$/i.test(currentAwaiting)) {
+        const guidedProfileFromNeed = detectGuidedBalanzaProfile(text);
+        const effectiveEquipment = chosenEquipment || (guidedProfileFromNeed ? "balanza" : "");
+        if (!effectiveEquipment || /^(commercial_client_recognition|commercial_existing_lookup|commercial_existing_confirm|commercial_existing_contact_update)$/i.test(currentAwaiting)) {
           strictMemory.awaiting_action = "commercial_choose_equipment";
           strictReply = buildEquipmentMenuPrompt();
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "equipment_selection_required" });
         }
-        strictMemory.commercial_equipment_choice = chosenEquipment;
-        if (chosenEquipment === "balanza") {
-          const guidedProfile = detectGuidedBalanzaProfile(text);
+        strictMemory.commercial_equipment_choice = effectiveEquipment;
+        if (effectiveEquipment === "balanza") {
+          const guidedProfile = guidedProfileFromNeed;
           if (guidedProfile) {
             const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfile);
             strictMemory.pending_product_options = guidedOptions;
@@ -6964,13 +6968,13 @@ export async function POST(req: Request) {
           strictReply = buildBalanzaQualificationPrompt();
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_qualification" });
         }
-        if (chosenEquipment === "bascula") {
+        if (effectiveEquipment === "bascula") {
           strictMemory.last_category_intent = "basculas";
           strictMemory.awaiting_action = "strict_need_spec";
           strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "bascula_qualification" });
         }
-        if (chosenEquipment === "analizador_humedad") {
+        if (effectiveEquipment === "analizador_humedad") {
           strictMemory.last_category_intent = "analizador_humedad";
           strictMemory.awaiting_action = "strict_need_spec";
           strictReply = "Perfecto. Para analizador de humedad, dime tipo de muestra, capacidad aproximada y precisión objetivo.";
