@@ -7692,6 +7692,28 @@ export async function POST(req: Request) {
         }
 
         if (!String(strictReply || "").trim() && !(cap > 0) && !(read > 0)) {
+          const asksPrecisionOptionsNow =
+            /(balanzas?\s+de\s+precisi[oó]n|balanzas?\s+precision|de\s+precisi[oó]n|balanzas?\s+de\s+alta\s+precisi[oó]n)/.test(textNorm) ||
+            (/precisi[oó]n/.test(textNorm) && /(opciones?|alternativas?|muestrame|mu[eé]strame|dame|quiero|tienes?)/.test(textNorm));
+          if (asksPrecisionOptionsNow) {
+            const precisionRows = scopeCatalogRows(ownerRows as any[], "balanzas_precision");
+            const options = buildNumberedProductOptions(precisionRows as any[], 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictMemory.last_category_intent = "balanzas_precision";
+              strictReply = [
+                `Claro. Tengo ${precisionRows.length} balanza(s) de precisión activas en base de datos.`,
+                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra o número (A/1), o escribe 'más'.",
+              ].join("\n");
+            }
+          }
+
+          if (!String(strictReply || "").trim()) {
           if (asksCategoryMenuNow) {
             const requestedCategoryForMenu = detectCatalogCategoryIntent(text);
             const rowsForMenu = requestedCategoryForMenu
@@ -7711,6 +7733,7 @@ export async function POST(req: Request) {
                   "Elige una con letra o número (A/1) y te muestro opciones compatibles.",
                 ].join("\n")
               : "En este momento no tengo familias activas para mostrar en el catálogo.";
+          }
           }
           if (!String(strictReply || "").trim()) {
           const asksAlternativesNow = /\b(alternativas?|opciones?)\b/.test(textNorm) || /(dame|muestrame|mu[eé]strame|quiero)\s+.*(alternativas?|opciones?)/.test(textNorm);
