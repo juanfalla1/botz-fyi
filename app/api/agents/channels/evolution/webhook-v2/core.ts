@@ -8873,8 +8873,7 @@ export async function POST(req: Request) {
               strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
             } else {
               try {
-                const productImageDataUrl = await resolveProductImageDataUrl(selected);
-                const quoteDescription = await buildQuoteItemDescriptionAsync(selected, String((selected as any)?.name || ""));
+                const quoteDescription = buildQuoteItemDescription(selected, String((selected as any)?.name || ""));
                 const pdfBase64 = await buildQuotePdf({
                   draftId: String((insertedDraft as any)?.id || ""),
                   customerName: effectiveContact,
@@ -8889,7 +8888,7 @@ export async function POST(req: Request) {
                   city: effectiveCity,
                   nit: effectiveNit,
                   itemDescription: quoteDescription,
-                  imageDataUrl: productImageDataUrl,
+                  imageDataUrl: "",
                   notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
                 });
                 strictDocs.push({
