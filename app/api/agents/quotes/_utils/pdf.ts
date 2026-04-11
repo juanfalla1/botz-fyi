@@ -336,8 +336,10 @@ async function buildStandardQuotePdf(args: {
   const companyFooterLines = doc.splitTextToSize(companyFooter, 188);
   const legalHeight = Math.max(10, legalLines.length * 3.3);
   const companyHeight = Math.max(10, companyFooterLines.length * 3.2);
-  const closingEstimate = 18 + 24 + legalHeight + 16 + 10 + 12 + companyHeight + 14;
-  if (yFooter + closingEstimate > 272) {
+  const closingEstimate = singleItemMode
+    ? (10 + legalHeight + 8 + companyHeight + 10)
+    : (18 + 24 + legalHeight + 16 + 10 + 12 + companyHeight + 14);
+  if (!singleItemMode && yFooter + closingEstimate > 272) {
     doc.addPage();
     drawHeader(true);
     yFooter = 40;
