@@ -4997,7 +4997,7 @@ async function buildStandardQuotePdf(args: {
   let y = currentTableHeaderY + 11;
   let index = 1;
   let subtotal = 0;
-  const lineHeight = singleItemMode ? 2.9 : 3.5;
+  const lineHeight = singleItemMode ? 2.6 : 3.5;
   const rowPadding = singleItemMode ? 2.4 : 3;
   for (const item of args.items || []) {
     const qty = Math.max(1, Number(item.quantity || 1));
@@ -5006,7 +5006,10 @@ async function buildStandardQuotePdf(args: {
       : Number(item.basePriceUsd || 0) * Number(item.trmRate || 0) * qty;
     subtotal += lineTotal;
 
-    const fullDesc = String(item.description || "").replace(/\s+/g, " ").trim();
+    const fullDesc = String(item.description || "")
+      .replace(/[^\x20-\x7EÁÉÍÓÚáéíóúÑñÜü°µ±×.,:;()\/-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
     const baseDesc = fullDesc || `Producto: ${String(item.productName || "-")}`;
 
     const productLines = truncateLines(
@@ -5016,7 +5019,7 @@ async function buildStandardQuotePdf(args: {
     const hasImage = ENABLE_QUOTE_PRODUCT_IMAGE && Boolean(String(item.imageDataUrl || "").trim());
     const descTextWidth = 74;
     const descLinesRaw = doc.splitTextToSize(baseDesc, descTextWidth);
-    const descLinesAll = singleItemMode ? truncateLines(descLinesRaw, 26) : descLinesRaw;
+    const descLinesAll = singleItemMode ? truncateLines(descLinesRaw, 18) : descLinesRaw;
     let descCursor = 0;
     let isFirstSegment = true;
     while (isFirstSegment || descCursor < descLinesAll.length) {
@@ -5280,36 +5283,22 @@ async function buildStandardQuotePdf(args: {
   doc.text(`Fecha de modificación ${modifiedAt}`, 10, footerMetaTop + 5);
 
   const logosY = companyBlockTop + 13;
-  const drawBadge = (x: number, color: [number, number, number], labelTop: string, labelBottom: string, symbol: string) => {
-    doc.setDrawColor(color[0], color[1], color[2]);
-    doc.setLineWidth(0.8);
-    doc.circle(x, logosY, 5.5, "S");
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(color[0], color[1], color[2]);
-    doc.setFontSize(8.2);
-    doc.text(symbol, x, logosY + 1.2, { align: "center" });
-    doc.setTextColor(dark[0], dark[1], dark[2]);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.1);
-    doc.text(labelTop, x, logosY + 9.5, { align: "center" });
-    doc.text(labelBottom, x, logosY + 13.2, { align: "center" });
-  };
-  drawBadge(150, [52, 168, 83], "Garantía por", "desperfectos", "OK");
-  drawBadge(167, [30, 136, 229], "Envío a sus", "instalaciones", "TR");
-  drawBadge(184, [245, 124, 0], "Asistencia", "Técnica 24/7", "AT");
-
-  const drawSocial = (x: number, label: string, rgb: [number, number, number]) => {
-    doc.setFillColor(rgb[0], rgb[1], rgb[2]);
-    doc.circle(x, logosY + 18.8, 4.6, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.1);
-    doc.text(label, x, logosY + 20.1, { align: "center" });
-    doc.setTextColor(dark[0], dark[1], dark[2]);
-  };
-  drawSocial(168, "f", [24, 119, 242]);
-  drawSocial(176.5, "ig", [214, 41, 118]);
-  drawSocial(185, "in", [10, 102, 194]);
+  if (hasPerksStrip) {
+    try {
+      const fmt = /^data:image\/png/i.test(perksDataUrl)
+        ? "PNG"
+        : /^data:image\/webp/i.test(perksDataUrl)
+          ? "WEBP"
+          : "JPEG";
+      const stripW = 56;
+      const stripH = 23;
+      const stripX = 142;
+      const stripY = logosY - 6;
+      doc.addImage(perksDataUrl, fmt as any, stripX, stripY, stripW, stripH);
+    } catch {
+      // ignore perks strip rendering failure
+    }
+  }
 
   const companyBlockBottom = footerMetaTop + 8;
   doc.setDrawColor(35, 35, 35);
