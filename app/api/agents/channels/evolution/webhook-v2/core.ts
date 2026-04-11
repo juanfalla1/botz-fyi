@@ -5219,7 +5219,7 @@ async function buildStandardQuotePdf(args: {
     "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
     `${String(args.city || "Bogota D.C")}, ${args.issueDate}`,
   ].join("\n");
-  let legalLines = doc.splitTextToSize(legal, 188);
+  let legalLines = doc.splitTextToSize(legal, 112);
   const companyFooter = [
     "AVANZA INTERNACIONAL GROUP S.A.S",
     "Autopista Medellin k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a.",
@@ -5290,10 +5290,10 @@ async function buildStandardQuotePdf(args: {
         : /^data:image\/webp/i.test(perksDataUrl)
           ? "WEBP"
           : "JPEG";
-      const stripW = 56;
-      const stripH = 23;
-      const stripX = 142;
-      const stripY = logosY - 6;
+      const stripW = 78;
+      const stripH = 31;
+      const stripX = 121;
+      const stripY = logosY - 9;
       doc.addImage(perksDataUrl, fmt as any, stripX, stripY, stripW, stripH);
     } catch {
       // ignore perks strip rendering failure
