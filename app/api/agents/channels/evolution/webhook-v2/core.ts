@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
+import { buildQuotePdfFromDraft } from "../../../quotes/_utils/pdf";
 import { evolutionService } from "../../../../../../lib/services/evolution.service";
 
 export const runtime = "nodejs";
@@ -8943,6 +8944,49 @@ export async function POST(req: Request) {
                     stack: retryErr?.stack || "",
                     selected: selectedNameForQuote,
                   });
+                  try {
+                    const draftId = String((insertedDraft as any)?.id || "");
+                    const fallbackDescription = buildQuoteItemDescription(selected, selectedNameForQuote);
+                    const fallbackImage = await resolveProductImageDataUrl(selected);
+                    const fallbackDraft = {
+                      ...(draftPayload as any),
+                      id: draftId,
+                      customer_name: effectiveContact,
+                      customer_email: customerEmail || null,
+                      customer_phone: customerPhone || null,
+                      company_name: effectiveCompany,
+                      location: effectiveCity,
+                      product_name: selectedNameForQuote,
+                      base_price_usd: basePriceUsd,
+                      trm_rate: trmRate,
+                      total_cop: totalCop,
+                      payload: {
+                        ...((draftPayload as any)?.payload || {}),
+                        quantity: qty,
+                        customer_city: effectiveCity,
+                        customer_nit: effectiveNit,
+                        item_description: fallbackDescription,
+                        item_image_data_url: fallbackImage || "",
+                      },
+                    };
+                    const { pdfBase64: fallbackPdfBase64, fileName: fallbackFileName } = await buildQuotePdfFromDraft(draftId, fallbackDraft);
+                    if (fallbackPdfBase64) {
+                      strictDocs.push({
+                        base64: fallbackPdfBase64,
+                        fileName: safeFileName(fallbackFileName, `cotizacion-${selectedNameForQuote}`, "pdf"),
+                        mimetype: "application/pdf",
+                        caption: `Cotización - ${selectedNameForQuote}`,
+                      });
+                      quotePdfAttached = true;
+                      console.warn("[evolution-webhook] strict_quote_pdf_fallback_shared_ok", { selected: selectedNameForQuote });
+                    }
+                  } catch (fallbackErr: any) {
+                    console.error("[evolution-webhook] strict_quote_pdf_fallback_shared_error", {
+                      message: fallbackErr?.message || fallbackErr,
+                      stack: fallbackErr?.stack || "",
+                      selected: selectedNameForQuote,
+                    });
+                  }
                 }
               }
 
