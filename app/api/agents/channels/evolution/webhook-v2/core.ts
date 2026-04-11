@@ -5220,7 +5220,7 @@ async function buildStandardQuotePdf(args: {
     "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
     `${String(args.city || "Bogota D.C")}, ${args.issueDate}`,
   ].join("\n");
-  let legalLines = doc.splitTextToSize(legal, 112);
+  let legalLines = doc.splitTextToSize(legal, 116);
   const companyFooter = [
     "AVANZA INTERNACIONAL GROUP S.A.S",
     "Autopista Medellin k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a.",
@@ -5231,19 +5231,7 @@ async function buildStandardQuotePdf(args: {
   const companyFooterLines = doc.splitTextToSize(companyFooter, 188);
   let legalHeight = Math.max(10, legalLines.length * 3.3);
   const companyHeight = Math.max(10, companyFooterLines.length * 3.2);
-  let closingEstimate = 63 + legalHeight + companyHeight;
-  if (singleItemMode && yFooter + closingEstimate > 272) {
-    const fixedBlocks = 18 + 16 + 10 + 12 + companyHeight + 14;
-    const legalBudget = Math.max(2, Math.floor((272 - yFooter - fixedBlocks) / 3.3));
-    if (legalBudget < legalLines.length) {
-      legalLines = legalLines.slice(0, legalBudget);
-      if (legalLines.length) {
-        legalLines[legalLines.length - 1] = `${String(legalLines[legalLines.length - 1] || "").trimEnd()}...`;
-      }
-    }
-    legalHeight = Math.max(10, legalLines.length * 3.3);
-    closingEstimate = 63 + legalHeight + companyHeight;
-  }
+  const closingEstimate = 63 + legalHeight + companyHeight;
   if (!singleItemMode && yFooter + closingEstimate > 272) {
     doc.addPage();
     drawHeader(true);
@@ -5251,20 +5239,20 @@ async function buildStandardQuotePdf(args: {
   }
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("Contacto Comercial", 10, yFooter);
+  doc.setFontSize(10);
+  doc.text("Contacto Comercial", 10, yFooter + 3);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text("Mariana Rodriguez", 10, yFooter + 6);
-  doc.text("CEL 3183731171", 10, yFooter + 11);
-  doc.text("cotizaciones@avanzagroup.com.co", 10, yFooter + 16);
+  doc.setFontSize(8.8);
+  doc.text("Mariana Rodriguez", 10, yFooter + 8);
+  doc.text("CEL 3183731171", 10, yFooter + 13);
+  doc.text("cotizaciones@avanzagroup.com.co", 10, yFooter + 18);
 
-  doc.setFontSize(8.2);
+  doc.setFontSize(7.6);
   doc.text(legalLines, 10, yFooter + 24);
 
   doc.setDrawColor(35, 35, 35);
   doc.setLineWidth(0.25);
-  const leftFooterTop = yFooter + 4;
+  const leftFooterTop = yFooter + 1;
   const leftFooterBottom = yFooter + 24 + legalHeight + 1;
   doc.rect(10, leftFooterTop, 117, leftFooterBottom - leftFooterTop, "S");
   doc.line(10, yFooter + 22, 127, yFooter + 22);
