@@ -228,7 +228,7 @@ async function buildStandardQuotePdf(args: {
     const baseDesc = String(item.description || "").trim() || `Producto: ${String(item.productName || "-")}`;
     const productLines = doc.splitTextToSize(String(item.productName || "-").slice(0, 40), 28).slice(0, 2);
     const descLinesRaw = doc.splitTextToSize(baseDesc, 74);
-    const descLinesAll = singleItemMode ? truncateLines(descLinesRaw, 16) : descLinesRaw;
+    const descLinesAll = singleItemMode ? truncateLines(descLinesRaw, 10) : descLinesRaw;
 
     const rowHeightFor = (descCount: number) => {
       const lineCount = Math.max(productLines.length, Math.max(descCount, 1), 1);
@@ -255,7 +255,7 @@ async function buildStandardQuotePdf(args: {
     }
 
     let rowH = rowHeightFor(Math.max(1, descLinesAll.length));
-    if (singleItemMode) rowH = Math.min(rowH, 76);
+    if (singleItemMode) rowH = Math.min(rowH, 58);
 
     doc.setDrawColor(180, 196, 210);
     doc.rect(10, y - 4, 190, rowH, "S");
@@ -436,6 +436,7 @@ export async function buildQuotePdfFromDraft(draftId: string, draft: any): Promi
         trmRate: Number(draft?.trm_rate || 0),
         totalCop,
         description: String(payload?.item_description || "").trim() || `Producto: ${String(draft?.product_name || "-")}`,
+        imageDataUrl: String(payload?.item_image_data_url || "").trim(),
       },
     ],
   });

@@ -8876,6 +8876,7 @@ export async function POST(req: Request) {
               const selectedNameForQuote = String((selected as any)?.name || "producto");
               let quotePdfAttached = false;
               try {
+                const productImageDataUrl = await resolveProductImageDataUrl(selected);
                 const quoteDescription = buildQuoteItemDescription(selected, String((selected as any)?.name || ""));
                 const draftId = String((insertedDraft as any)?.id || "");
                 const draftForPdf = {
@@ -8896,6 +8897,7 @@ export async function POST(req: Request) {
                     customer_city: effectiveCity,
                     customer_nit: effectiveNit,
                     item_description: quoteDescription,
+                    item_image_data_url: productImageDataUrl || "",
                   },
                 };
                 const { pdfBase64, fileName } = await buildQuotePdfFromDraft(draftId, draftForPdf);
@@ -8913,6 +8915,7 @@ export async function POST(req: Request) {
                   selected: String((selected as any)?.name || ""),
                 });
                 try {
+                  const productImageDataUrl = await resolveProductImageDataUrl(selected);
                   const draftId = String((insertedDraft as any)?.id || "");
                   const retryDescription = buildQuoteItemDescription(selected, selectedNameForQuote);
                   const draftForPdfRetry = {
@@ -8933,6 +8936,7 @@ export async function POST(req: Request) {
                       customer_city: effectiveCity,
                       customer_nit: effectiveNit,
                       item_description: retryDescription,
+                      item_image_data_url: productImageDataUrl || "",
                     },
                   };
                   const { pdfBase64: retryPdfBase64, fileName: retryFileName } = await buildQuotePdfFromDraft(draftId, draftForPdfRetry);
