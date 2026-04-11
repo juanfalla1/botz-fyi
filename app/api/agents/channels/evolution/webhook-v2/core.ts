@@ -5266,6 +5266,7 @@ async function buildStandardQuotePdf(args: {
   doc.line(10, yFooter + 22, 127, yFooter + 22);
 
   const legalBottomY = yFooter + 24 + legalHeight;
+  const companyBlockTop = legalBottomY + 3;
   const footerBlockTop = legalBottomY + 12;
   doc.setFontSize(7.2);
   doc.text(companyFooterLines, 10, footerBlockTop);
@@ -5310,7 +5311,6 @@ async function buildStandardQuotePdf(args: {
   drawSocial(176.5, "ig", [214, 41, 118]);
   drawSocial(185, "in", [10, 102, 194]);
 
-  const companyBlockTop = legalBottomY + 3;
   const companyBlockBottom = footerMetaTop + 8;
   doc.setDrawColor(35, 35, 35);
   doc.setLineWidth(0.25);
