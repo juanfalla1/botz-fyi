@@ -5016,7 +5016,7 @@ async function buildStandardQuotePdf(args: {
     const hasImage = ENABLE_QUOTE_PRODUCT_IMAGE && Boolean(String(item.imageDataUrl || "").trim());
     const descTextWidth = 74;
     const descLinesRaw = doc.splitTextToSize(baseDesc, descTextWidth);
-    const descLinesAll = singleItemMode ? truncateLines(descLinesRaw, 14) : descLinesRaw;
+    const descLinesAll = singleItemMode ? truncateLines(descLinesRaw, 26) : descLinesRaw;
     let descCursor = 0;
     let isFirstSegment = true;
     while (isFirstSegment || descCursor < descLinesAll.length) {
@@ -5068,8 +5068,8 @@ async function buildStandardQuotePdf(args: {
         ? descRemaining.slice(0, descCount)
         : (isFirstSegment ? [baseDesc] : []);
 
-      doc.setDrawColor(35, 35, 35);
-      doc.setLineWidth(0.25);
+      doc.setDrawColor(20, 20, 20);
+      doc.setLineWidth(0.35);
       doc.rect(10, y - 4, 190, rowH, "S");
       for (let i = 1; i < col.length - 1; i += 1) {
         doc.line(col[i], y - 4, col[i], y - 4 + rowH);
@@ -5124,7 +5124,7 @@ async function buildStandardQuotePdf(args: {
       }
 
       if (descChunk.length > 0) {
-        doc.setFontSize(singleItemMode ? 6.6 : 8.2);
+        doc.setFontSize(singleItemMode ? 6.0 : 8.2);
         doc.text(descChunk, 52, bodyY);
         doc.setFontSize(8.2);
       }
