@@ -83,6 +83,13 @@ function quoteIvaRate(): number {
   return raw;
 }
 
+function truncateLines(lines: string[], maxLines: number): string[] {
+  if (!Array.isArray(lines) || lines.length <= maxLines) return Array.isArray(lines) ? lines : [];
+  const next = lines.slice(0, Math.max(1, maxLines));
+  next[next.length - 1] = `${String(next[next.length - 1] || "").trimEnd()}...`;
+  return next;
+}
+
 async function buildStandardQuotePdf(args: {
   quoteNumber: string;
   issueDate: string;
@@ -102,6 +109,7 @@ async function buildStandardQuotePdf(args: {
   const ivaRate = quoteIvaRate();
   const col = [10, 20, 50, 127, 145, 157, 178, 200];
   const footerPageTop = 284;
+  const singleItemMode = Array.isArray(args.items) && args.items.length === 1;
 
   const bannerDataUrl = localImageToDataUrl(LOCAL_QUOTE_BANNER_PATH);
   const hasBanner = Boolean(String(bannerDataUrl || "").trim());
@@ -219,7 +227,8 @@ async function buildStandardQuotePdf(args: {
 
     const baseDesc = String(item.description || "").trim() || `Producto: ${String(item.productName || "-")}`;
     const productLines = doc.splitTextToSize(String(item.productName || "-").slice(0, 40), 28).slice(0, 2);
-    const descLinesAll = doc.splitTextToSize(baseDesc, 74);
+    const descLinesRaw = doc.splitTextToSize(baseDesc, 74);
+    const descLinesAll = singleItemMode ? truncateLines(descLinesRaw, 16) : descLinesRaw;
 
     const rowHeightFor = (descCount: number) => {
       const lineCount = Math.max(productLines.length, Math.max(descCount, 1), 1);
@@ -245,7 +254,8 @@ async function buildStandardQuotePdf(args: {
       y = 42;
     }
 
-    const rowH = rowHeightFor(Math.max(1, descLinesAll.length));
+    let rowH = rowHeightFor(Math.max(1, descLinesAll.length));
+    if (singleItemMode) rowH = Math.min(rowH, 76);
 
     doc.setDrawColor(180, 196, 210);
     doc.rect(10, y - 4, 190, rowH, "S");

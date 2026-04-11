@@ -8985,6 +8985,19 @@ export async function POST(req: Request) {
                       attachedSheetWithQuote = true;
                     }
                   }
+                  if (!attachedSheetWithQuote) {
+                    const fallbackSheetPath = path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "Modelo PX623.pdf");
+                    const fallbackSheet = fetchLocalFileAsBase64(fallbackSheetPath);
+                    if (fallbackSheet && Number(fallbackSheet.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
+                      strictDocs.push({
+                        base64: fallbackSheet.base64,
+                        fileName: safeFileName(fallbackSheet.fileName, `ficha-${selectedNameForQuote}`, "pdf"),
+                        mimetype: "application/pdf",
+                        caption: `Ficha técnica - ${selectedNameForQuote}`,
+                      });
+                      attachedSheetWithQuote = true;
+                    }
+                  }
                 } catch (sheetErr: any) {
                   console.error("[evolution-webhook] strict_quote_datasheet_attach_error", {
                     message: sheetErr?.message || sheetErr,
