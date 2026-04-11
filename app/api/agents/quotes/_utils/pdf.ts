@@ -227,12 +227,15 @@ async function buildStandardQuotePdf(args: {
 
     const baseDesc = String(item.description || "").trim() || `Producto: ${String(item.productName || "-")}`;
     const productLines = doc.splitTextToSize(String(item.productName || "-").slice(0, 40), 28).slice(0, 2);
+    const hasImage = Boolean(String(item.imageDataUrl || "").trim());
     const descLinesRaw = doc.splitTextToSize(baseDesc, 74);
     const descLinesAll = singleItemMode ? truncateLines(descLinesRaw, 10) : descLinesRaw;
 
     const rowHeightFor = (descCount: number) => {
       const lineCount = Math.max(productLines.length, Math.max(descCount, 1), 1);
-      return Math.max(12, lineCount * lineHeight + rowPadding);
+      const contentH = lineCount * lineHeight + rowPadding;
+      if (singleItemMode && hasImage) return Math.max(42, contentH);
+      return Math.max(12, contentH);
     };
     const minRowH = rowHeightFor(Math.max(1, descLinesAll.length));
 
@@ -270,6 +273,39 @@ async function buildStandardQuotePdf(args: {
     doc.setFont("helvetica", "bold");
     doc.text(productLines, 22, bodyY);
     doc.setFont("helvetica", "normal");
+    if (hasImage) {
+      try {
+        const dataUrl = String(item.imageDataUrl || "").trim();
+        const fmt = /^data:image\/png/i.test(dataUrl)
+          ? "PNG"
+          : /^data:image\/webp/i.test(dataUrl)
+            ? "WEBP"
+            : "JPEG";
+        const boxX = 22;
+        const boxY = bodyY + 2;
+        const boxW = 24;
+        const boxH = Math.min(30, Math.max(22, rowH - 16));
+        let drawW = boxW;
+        let drawH = boxH;
+        try {
+          const props: any = (doc as any).getImageProperties?.(dataUrl);
+          const pW = Number(props?.width || 0);
+          const pH = Number(props?.height || 0);
+          if (pW > 0 && pH > 0) {
+            const scale = Math.min(boxW / pW, boxH / pH);
+            drawW = Math.max(8, pW * scale);
+            drawH = Math.max(8, pH * scale);
+          }
+        } catch {
+          // ignore image metadata errors
+        }
+        const drawX = boxX + (boxW - drawW) / 2;
+        const drawY = boxY + (boxH - drawH) / 2;
+        doc.addImage(dataUrl, fmt as any, drawX, drawY, drawW, drawH);
+      } catch {
+        // ignore image rendering failure
+      }
+    }
     doc.text(descLinesAll, 52, bodyY);
     doc.text(String(item.warranty || "1 AÑO POR\nDEFECTO DE\nFABRICA"), 128.8, bodyY);
     doc.text(String(qty), 155, bodyY, { align: "right" });
