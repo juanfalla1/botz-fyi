@@ -9406,9 +9406,26 @@ export async function POST(req: Request) {
 
           if (effectiveRead > 0 && !(effectiveCap > 0)) {
             const tNormNeed = normalizeText(String(text || ""));
+            const semimicroCue = /(semimicro|semi\s*micro|semi\w*micro|seminicro|usp|\b\d+(?:[.,]\d+)?\s*mg\b)/.test(tNormNeed);
             const hasReadabilityConstraint = /(menos\s+de|menor\s+que|hasta|maximo|maximo\s+de|no\s+mas\s+de|no\s+m[aá]s\s+de)/.test(tNormNeed);
             const asksRecommendationNow = /(cual|cu[aá]l|recomiend|seria\s+buena|ser[ií]a\s+buena|me\s+sirve)/.test(tNormNeed);
             const asksDirectOptions = /(necesito|quiero|busco|tienen|tienes|opciones|cuales|cu[aá]les|muestrame|mu[eé]strame)/.test(tNormNeed);
+            if (semimicroCue && asksDirectOptions) {
+              const semimicroProfile: GuidedBalanzaProfile = "balanza_semimicro_00001";
+              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], semimicroProfile);
+              if (guidedOptions.length) {
+                strictMemory.pending_product_options = guidedOptions;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                strictMemory.last_category_intent = "balanzas";
+                strictMemory.guided_balanza_profile = semimicroProfile;
+                strictReply = buildGuidedBalanzaReply(semimicroProfile);
+              }
+            }
+            if (String(strictReply || "").trim()) {
+              // guided semimicro options already returned in current step
+            } else {
             const shouldGuideCapacityFirst = effectiveRead <= 0.0001 && !hasReadabilityConstraint;
             if (!shouldGuideCapacityFirst && (hasReadabilityConstraint || asksRecommendationNow || asksDirectOptions)) {
               const isPointZeroOne = Math.abs(effectiveRead - 0.01) <= 0.000001;
@@ -9458,6 +9475,7 @@ export async function POST(req: Request) {
                 `¿Qué capacidad necesitas para afinarte la recomendación?`,
                 `Opciones rápidas: ${inferred.capacityHint}.`,
               ].join("\n");
+            }
             }
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
             strictReply = [
