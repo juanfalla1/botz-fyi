@@ -2661,7 +2661,7 @@ function detectGuidedBalanzaProfile(text: string): GuidedBalanzaProfile | null {
 function buildGuidedBalanzaReply(profile: GuidedBalanzaProfile): string {
   const groups = GUIDED_BALANZA_CATALOG[profile] || [];
   const intro = profile === "balanza_industrial_portatil_conteo"
-    ? "Sí, contamos con básculas industriales portátiles para conteo que se ajustan a tu necesidad."
+    ? "Sí, contamos con balanzas industriales portátiles para conteo que se ajustan a tu necesidad."
     : "Sí, contamos con balanzas de precisión que se ajustan a tu necesidad.";
   const estimated = profile === "balanza_industrial_portatil_conteo"
     ? "💰 Valores estimados: desde $3.500.000 (según gama y funcionalidad). Deseas continuar con la cotización"
