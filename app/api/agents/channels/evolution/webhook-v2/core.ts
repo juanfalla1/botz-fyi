@@ -2645,7 +2645,7 @@ function detectGuidedBalanzaProfile(text: string): GuidedBalanzaProfile | null {
   const hasOro = /(oro|joyeria|joyería|minero|calidad\s+del\s+oro|dos\s+cifras|densidad\s+para\s+oro)/.test(t);
   const hasThree = /(tres\s+cifras|0\s*[,.]\s*001|1\s*mg|cabina|cosmetic|menos\s+de\s+200|menos\s+de\s+300)/.test(t);
   const hasFour = /(cuatro\s+cifras|0\s*[,.]\s*0001|0\s*[,.]\s*1\s*mg|laboratorio|laboratorio\s+de\s+alimentos)/.test(t);
-  const hasFive = /(cinco\s+cifras|0\s*[,.]\s*00001|0\s*[,.]\s*01\s*mg|semi\s*micro|semimicro|usp|microgram|migrogram)/.test(t);
+  const hasFive = /(cinco\s+cifras|0\s*[,.]\s*00001|0\s*[,.]\s*01\s*mg|semi\s*micro|semimicro|semi\w*micro|seminicro|usp|microgram|migrogram|\b\d+(?:[.,]\d+)?\s*mg\b)/.test(t);
   const hasIndustrial = /(portatil|portátil|recargable|plato\s+grande|cuenta\s+piezas|tres\s+pantallas|tornillos|30\s*kg|15\s*kg|gramo\s+por\s+gramo)/.test(t);
   const hasGrameraOnly = hasGrameraWord && !hasOro && !hasThree && !hasFour && !hasFive && !hasIndustrial;
 
@@ -9374,11 +9374,17 @@ export async function POST(req: Request) {
         const rangeHint = parseCapacityRangeHint(text);
 
         if (looseSpecHint && (looseSpecHint.capacityG || looseSpecHint.readabilityG)) {
+          const textNormForMerge = normalizeText(String(text || ""));
+          const semimicroCueInText = /(semimicro|semi\s*micro|semi\w*micro|seminicro|usp|\b\d+(?:[.,]\d+)?\s*mg\b)/.test(textNormForMerge);
           const rememberedCap = Number(
-            previousMemory?.strict_partial_capacity_g ||
-            previousMemory?.strict_filter_capacity_g ||
-            strictMemory?.strict_filter_capacity_g ||
-            0
+            semimicroCueInText
+              ? 0
+              : (
+                previousMemory?.strict_partial_capacity_g ||
+                previousMemory?.strict_filter_capacity_g ||
+                strictMemory?.strict_filter_capacity_g ||
+                0
+              )
           );
           const rememberedRead = Number(
             previousMemory?.strict_partial_readability_g ||
