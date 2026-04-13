@@ -4747,9 +4747,36 @@ const LOCAL_QUOTE_SOCIAL_PATH = String(
   process.env.WHATSAPP_QUOTE_SOCIAL_LOCAL_PATH ||
   path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "strip_redes_fb_ig_in.png")
 ).trim();
+const LOCAL_QUOTE_SOCIAL_FB_PATH = String(
+  process.env.WHATSAPP_QUOTE_SOCIAL_FB_LOCAL_PATH ||
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "social_fb.png")
+).trim();
+const LOCAL_QUOTE_SOCIAL_IG_PATH = String(
+  process.env.WHATSAPP_QUOTE_SOCIAL_IG_LOCAL_PATH ||
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "social_ig.png")
+).trim();
+const LOCAL_QUOTE_SOCIAL_IN_PATH = String(
+  process.env.WHATSAPP_QUOTE_SOCIAL_IN_LOCAL_PATH ||
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "social_in.png")
+).trim();
+const QUOTE_ASSET_CACHE_MS = Math.max(0, Number(process.env.WHATSAPP_QUOTE_ASSET_CACHE_MS || 300000));
 let quoteBannerImageCache: { at: number; dataUrl: string } | null = null;
 let quotePerksImageCache: { at: number; dataUrl: string } | null = null;
 let quoteSocialImageCache: { at: number; dataUrl: string } | null = null;
+
+function absoluteImageFileToDataUrl(absolutePath: string): string {
+  const p = String(absolutePath || "").trim();
+  if (!p || !fs.existsSync(p)) return "";
+  const ext = String(path.extname(p || "")).toLowerCase();
+  const mime = ext === ".png" ? "image/png" : (ext === ".jpg" || ext === ".jpeg") ? "image/jpeg" : ext === ".webp" ? "image/webp" : "";
+  if (!mime) return "";
+  try {
+    const base64 = fs.readFileSync(p).toString("base64");
+    return base64 ? `data:${mime};base64,${base64}` : "";
+  } catch {
+    return "";
+  }
+}
 
 function imageDataUrlFromRemote(remote: { base64: string; mimetype: string } | null): string {
   if (!remote) return "";
@@ -4762,7 +4789,7 @@ function imageDataUrlFromRemote(remote: { base64: string; mimetype: string } | n
 
 async function resolveQuoteBannerImageDataUrl(): Promise<string> {
   const now = Date.now();
-  if (quoteBannerImageCache && (now - quoteBannerImageCache.at) < 30 * 60 * 1000) {
+  if (quoteBannerImageCache && (now - quoteBannerImageCache.at) < QUOTE_ASSET_CACHE_MS) {
     return quoteBannerImageCache.dataUrl;
   }
   let dataUrl = "";
@@ -4801,7 +4828,7 @@ async function resolveQuoteBannerImageDataUrl(): Promise<string> {
 
 async function resolveQuotePerksImageDataUrl(): Promise<string> {
   const now = Date.now();
-  if (quotePerksImageCache && (now - quotePerksImageCache.at) < 30 * 60 * 1000) {
+  if (quotePerksImageCache && (now - quotePerksImageCache.at) < QUOTE_ASSET_CACHE_MS) {
     return quotePerksImageCache.dataUrl;
   }
   let dataUrl = "";
@@ -4840,7 +4867,7 @@ async function resolveQuotePerksImageDataUrl(): Promise<string> {
 
 async function resolveQuoteSocialImageDataUrl(): Promise<string> {
   const now = Date.now();
-  if (quoteSocialImageCache && (now - quoteSocialImageCache.at) < 30 * 60 * 1000) {
+  if (quoteSocialImageCache && (now - quoteSocialImageCache.at) < QUOTE_ASSET_CACHE_MS) {
     return quoteSocialImageCache.dataUrl;
   }
   let dataUrl = "";
@@ -4965,8 +4992,8 @@ async function buildStandardQuotePdf(args: {
 
   // Header frame
   const bannerBoxH = 27.8;
-  const inviteStripH = 8.2;
-  const titleStripH = 6.8;
+  const inviteStripH = 10.2;
+  const titleStripH = 4.8;
 
   doc.setDrawColor(35, 35, 35);
   doc.setLineWidth(0.25);
@@ -4995,22 +5022,31 @@ async function buildStandardQuotePdf(args: {
   const inviteY = y + bannerBoxH;
   doc.setFillColor(blue[0], blue[1], blue[2]);
   doc.rect(x, inviteY, contentW, inviteStripH, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.3);
+  doc.text(
+    [
+      "AVANZA INTERNACIONAL GROUP S.A.S. como representantes directo de la marca OHAUS para Colombia,",
+      "agradece su amable invitación a cotizar nuestra línea de equipos de laboratorio y nuestra línea de servicio técnico",
+      "como mantenimiento preventivo, correctivo, soporte técnico y acompañamiento.",
+    ],
+    x + contentW / 2,
+    inviteY + 3.05,
+    { align: "center" },
+  );
 
   const titleY = inviteY + inviteStripH;
   doc.setFillColor(blue[0], blue[1], blue[2]);
   doc.rect(x, titleY, contentW, titleStripH, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.6);
-  doc.text("AVANZA INTERNACIONAL GROUP S.A.S. - Cotizacion Comercial", x + 2.5, titleY + 4.8);
+  doc.setFontSize(6.8);
+  doc.text("Información general", x + contentW / 2, titleY + 3.35, { align: "center" });
   doc.setTextColor(dark[0], dark[1], dark[2]);
 
   // Info general
-  y = titleY + titleStripH + 5.5;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10.2);
-  doc.text("Información general", x + 2, y);
-  y += 2.2;
+  y = titleY + titleStripH;
 
   const infoTop = y;
   const infoH = 27.5;
@@ -5212,7 +5248,7 @@ async function buildStandardQuotePdf(args: {
   const footerTop = obsTop + OBS_H;
   doc.rect(x, footerTop, contentW, FOOTER_H, "S");
 
-  const textW = contentW - 52;
+  const textW = contentW - 44;
   const companyFooter = [
     "AVANZA INTERNACIONAL GROUP S.A.S",
     "Autopista Medellín k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a. NIT 900505419",
@@ -5226,13 +5262,28 @@ async function buildStandardQuotePdf(args: {
   if (perksDataUrl) {
     try {
       const perksFmt = /^data:image\/png/i.test(perksDataUrl) ? "PNG" : /^data:image\/webp/i.test(perksDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(perksDataUrl, perksFmt as any, x + contentW - 45, footerTop + 7, 34, 15);
+      doc.addImage(perksDataUrl, perksFmt as any, x + contentW - 39, footerTop + 5.8, 33, 15.8);
     } catch {}
   }
-  if (socialDataUrl) {
+  const fbDataUrl = absoluteImageFileToDataUrl(LOCAL_QUOTE_SOCIAL_FB_PATH);
+  const igDataUrl = absoluteImageFileToDataUrl(LOCAL_QUOTE_SOCIAL_IG_PATH);
+  const inDataUrl = absoluteImageFileToDataUrl(LOCAL_QUOTE_SOCIAL_IN_PATH);
+  const hasSplitSocialIcons = Boolean(fbDataUrl || igDataUrl || inDataUrl);
+  if (hasSplitSocialIcons) {
+    const drawIcon = (dataUrl: string, iconX: number) => {
+      if (!dataUrl) return;
+      try {
+        const iconFmt = /^data:image\/png/i.test(dataUrl) ? "PNG" : /^data:image\/webp/i.test(dataUrl) ? "WEBP" : "JPEG";
+        doc.addImage(dataUrl, iconFmt as any, iconX, footerTop + 22.0, 6.4, 6.4);
+      } catch {}
+    };
+    drawIcon(fbDataUrl, x + contentW - 30.2);
+    drawIcon(igDataUrl, x + contentW - 22.6);
+    drawIcon(inDataUrl, x + contentW - 15.0);
+  } else if (socialDataUrl) {
     try {
       const socialFmt = /^data:image\/png/i.test(socialDataUrl) ? "PNG" : /^data:image\/webp/i.test(socialDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(socialDataUrl, socialFmt as any, x + contentW - 37, footerTop + 23, 24, 7.5);
+      doc.addImage(socialDataUrl, socialFmt as any, x + contentW - 31, footerTop + 23.0, 21, 6.8);
     } catch {}
   }
 

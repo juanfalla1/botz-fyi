@@ -4603,15 +4603,48 @@ function asDateYmd(input: Date | string) {
 const QUOTE_BANNER_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_BANNER_IMAGE_URL || "").trim();
 const LOCAL_QUOTE_BANNER_PATH = String(
   process.env.WHATSAPP_QUOTE_BANNER_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "banner_cotizacion_avanza_ohaus.png")
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "header_banner_superior.png")
 ).trim();
 const QUOTE_PERKS_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_PERKS_IMAGE_URL || "").trim();
 const LOCAL_QUOTE_PERKS_PATH = String(
   process.env.WHATSAPP_QUOTE_PERKS_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "ee3062f7-f286-4d62-b63b-29c796a8799f.png")
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "strip_perks_3_iconos.png")
 ).trim();
+const QUOTE_SOCIAL_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_SOCIAL_IMAGE_URL || "").trim();
+const LOCAL_QUOTE_SOCIAL_PATH = String(
+  process.env.WHATSAPP_QUOTE_SOCIAL_LOCAL_PATH ||
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "strip_redes_fb_ig_in.png")
+).trim();
+const LOCAL_QUOTE_SOCIAL_FB_PATH = String(
+  process.env.WHATSAPP_QUOTE_SOCIAL_FB_LOCAL_PATH ||
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "social_fb.png")
+).trim();
+const LOCAL_QUOTE_SOCIAL_IG_PATH = String(
+  process.env.WHATSAPP_QUOTE_SOCIAL_IG_LOCAL_PATH ||
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "social_ig.png")
+).trim();
+const LOCAL_QUOTE_SOCIAL_IN_PATH = String(
+  process.env.WHATSAPP_QUOTE_SOCIAL_IN_LOCAL_PATH ||
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "social_in.png")
+).trim();
+const QUOTE_ASSET_CACHE_MS = Math.max(0, Number(process.env.WHATSAPP_QUOTE_ASSET_CACHE_MS || 300000));
 let quoteBannerImageCache: { at: number; dataUrl: string } | null = null;
 let quotePerksImageCache: { at: number; dataUrl: string } | null = null;
+let quoteSocialImageCache: { at: number; dataUrl: string } | null = null;
+
+function absoluteImageFileToDataUrl(absolutePath: string): string {
+  const p = String(absolutePath || "").trim();
+  if (!p || !fs.existsSync(p)) return "";
+  const ext = String(path.extname(p || "")).toLowerCase();
+  const mime = ext === ".png" ? "image/png" : (ext === ".jpg" || ext === ".jpeg") ? "image/jpeg" : ext === ".webp" ? "image/webp" : "";
+  if (!mime) return "";
+  try {
+    const base64 = fs.readFileSync(p).toString("base64");
+    return base64 ? `data:${mime};base64,${base64}` : "";
+  } catch {
+    return "";
+  }
+}
 
 function imageDataUrlFromRemote(remote: { base64: string; mimetype: string } | null): string {
   if (!remote) return "";
@@ -4624,7 +4657,7 @@ function imageDataUrlFromRemote(remote: { base64: string; mimetype: string } | n
 
 async function resolveQuoteBannerImageDataUrl(): Promise<string> {
   const now = Date.now();
-  if (quoteBannerImageCache && (now - quoteBannerImageCache.at) < 30 * 60 * 1000) {
+  if (quoteBannerImageCache && (now - quoteBannerImageCache.at) < QUOTE_ASSET_CACHE_MS) {
     return quoteBannerImageCache.dataUrl;
   }
   let dataUrl = "";
@@ -4660,7 +4693,7 @@ async function resolveQuoteBannerImageDataUrl(): Promise<string> {
 
 async function resolveQuotePerksImageDataUrl(): Promise<string> {
   const now = Date.now();
-  if (quotePerksImageCache && (now - quotePerksImageCache.at) < 30 * 60 * 1000) {
+  if (quotePerksImageCache && (now - quotePerksImageCache.at) < QUOTE_ASSET_CACHE_MS) {
     return quotePerksImageCache.dataUrl;
   }
   let dataUrl = "";
@@ -4691,6 +4724,42 @@ async function resolveQuotePerksImageDataUrl(): Promise<string> {
   }
 
   quotePerksImageCache = { at: now, dataUrl };
+  return dataUrl;
+}
+
+async function resolveQuoteSocialImageDataUrl(): Promise<string> {
+  const now = Date.now();
+  if (quoteSocialImageCache && (now - quoteSocialImageCache.at) < QUOTE_ASSET_CACHE_MS) {
+    return quoteSocialImageCache.dataUrl;
+  }
+  let dataUrl = "";
+
+  const localPath = String(LOCAL_QUOTE_SOCIAL_PATH || "").trim();
+  if (localPath && fs.existsSync(localPath)) {
+    try {
+      const ext = String(path.extname(localPath || "")).toLowerCase();
+      const mime = ext === ".png"
+        ? "image/png"
+        : (ext === ".jpg" || ext === ".jpeg")
+          ? "image/jpeg"
+          : ext === ".webp"
+            ? "image/webp"
+            : "";
+      if (mime) {
+        const base64 = fs.readFileSync(localPath).toString("base64");
+        if (base64) dataUrl = `data:${mime};base64,${base64}`;
+      }
+    } catch {
+      dataUrl = "";
+    }
+  }
+
+  if (!dataUrl && QUOTE_SOCIAL_IMAGE_URL) {
+    const remote = await fetchRemoteFileAsBase64(QUOTE_SOCIAL_IMAGE_URL);
+    dataUrl = imageDataUrlFromRemote(remote);
+  }
+
+  quoteSocialImageCache = { at: now, dataUrl };
   return dataUrl;
 }
 
@@ -4767,7 +4836,7 @@ async function buildStandardQuotePdf(args: {
   const bannerDataUrl = await resolveQuoteBannerImageDataUrl();
   const hasBanner = Boolean(String(bannerDataUrl || "").trim());
   const perksDataUrl = await resolveQuotePerksImageDataUrl();
-  const hasPerksStrip = Boolean(String(perksDataUrl || "").trim());
+  const socialDataUrl = await resolveQuoteSocialImageDataUrl();
 
   const drawHeader = (compact = false) => {
     doc.setFillColor(245, 248, 251);
@@ -4788,7 +4857,8 @@ async function buildStandardQuotePdf(args: {
     }
 
     doc.setFillColor(blue[0], blue[1], blue[2]);
-    doc.rect(8, titleBarY, 194, 8, "F");
+    doc.rect(8, titleBarY, 194, 10.5, "F");
+    doc.rect(8, titleBarY + 10.5, 194, 4.5, "F");
 
     doc.setFont("helvetica", "bold");
     doc.setTextColor(237, 106, 47);
@@ -4798,20 +4868,28 @@ async function buildStandardQuotePdf(args: {
     doc.setFontSize(compact ? 16 : 20);
     if (!hasBanner || compact) doc.text("OHAUS", compact ? 50 : 60, compact ? 19 : 20);
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(10);
-    doc.text("AVANZA INTERNACIONAL GROUP S.A.S. - Cotizacion Comercial", 12, titleBarY + 5.2);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.1);
+    doc.text(
+      [
+        "AVANZA INTERNACIONAL GROUP S.A.S. como representantes directo de la marca OHAUS para Colombia,",
+        "agradece su amable invitación a cotizar nuestra línea de equipos de laboratorio y nuestra línea de servicio técnico",
+        "como mantenimiento preventivo, correctivo, soporte técnico y acompañamiento.",
+      ],
+      105,
+      titleBarY + 3.2,
+      { align: "center" },
+    );
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.6);
+    doc.text("Información general", 105, titleBarY + 13.9, { align: "center" });
     doc.setTextColor(dark[0], dark[1], dark[2]);
   };
 
   drawHeader(false);
 
-  const infoTitleY = hasBanner ? 82 : 44;
-  const infoTopY = hasBanner ? 85 : 47;
-  const tableHeaderY = hasBanner ? 117 : 79;
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("Información general", 12, infoTitleY);
+  const infoTopY = hasBanner ? 81 : 47;
+  const tableHeaderY = hasBanner ? 113 : 79;
   doc.setDrawColor(35, 35, 35);
   doc.setLineWidth(0.25);
   doc.rect(10, infoTopY, 190, 28, "S");
@@ -5161,39 +5239,39 @@ async function buildStandardQuotePdf(args: {
   doc.text(`Fecha de creación ${createdAt}`, 10, footerMetaTop);
   doc.text(`Fecha de modificación ${modifiedAt}`, 10, footerMetaTop + 5);
 
-  const logosY = companyBlockTop + 13;
-  const drawBadge = (x: number, color: [number, number, number], labelTop: string, labelBottom: string, symbol: string) => {
-    doc.setDrawColor(color[0], color[1], color[2]);
-    doc.setLineWidth(0.8);
-    doc.circle(x, logosY, 5.5, "S");
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(color[0], color[1], color[2]);
-    doc.setFontSize(8.2);
-    doc.text(symbol, x, logosY + 1.2, { align: "center" });
-    doc.setTextColor(dark[0], dark[1], dark[2]);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.1);
-    doc.text(labelTop, x, logosY + 9.5, { align: "center" });
-    doc.text(labelBottom, x, logosY + 13.2, { align: "center" });
-  };
-  drawBadge(150, [52, 168, 83], "Garantía por", "desperfectos", "OK");
-  drawBadge(167, [30, 136, 229], "Envío a sus", "instalaciones", "TR");
-  drawBadge(184, [245, 124, 0], "Asistencia", "Técnica 24/7", "AT");
-
-  const drawSocial = (x: number, label: string, rgb: [number, number, number]) => {
-    doc.setFillColor(rgb[0], rgb[1], rgb[2]);
-    doc.circle(x, logosY + 18.8, 4.6, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.1);
-    doc.text(label, x, logosY + 20.1, { align: "center" });
-    doc.setTextColor(dark[0], dark[1], dark[2]);
-  };
-  drawSocial(168, "f", [24, 119, 242]);
-  drawSocial(176.5, "ig", [214, 41, 118]);
-  drawSocial(185, "in", [10, 102, 194]);
-
   const companyBlockTop = legalBottomY + 3;
+  if (perksDataUrl) {
+    try {
+      const perksFmt = /^data:image\/png/i.test(perksDataUrl) ? "PNG" : /^data:image\/webp/i.test(perksDataUrl) ? "WEBP" : "JPEG";
+      doc.addImage(perksDataUrl, perksFmt as any, 160, companyBlockTop + 2.8, 31, 14.8);
+    } catch {
+      // ignore footer perks rendering failure
+    }
+  }
+
+  const fbDataUrl = absoluteImageFileToDataUrl(LOCAL_QUOTE_SOCIAL_FB_PATH);
+  const igDataUrl = absoluteImageFileToDataUrl(LOCAL_QUOTE_SOCIAL_IG_PATH);
+  const inDataUrl = absoluteImageFileToDataUrl(LOCAL_QUOTE_SOCIAL_IN_PATH);
+  if (fbDataUrl || igDataUrl || inDataUrl) {
+    const drawIcon = (dataUrl: string, x: number) => {
+      if (!dataUrl) return;
+      try {
+        const iconFmt = /^data:image\/png/i.test(dataUrl) ? "PNG" : /^data:image\/webp/i.test(dataUrl) ? "WEBP" : "JPEG";
+        doc.addImage(dataUrl, iconFmt as any, x, companyBlockTop + 18.6, 5.8, 5.8);
+      } catch {}
+    };
+    drawIcon(fbDataUrl, 166.5);
+    drawIcon(igDataUrl, 174.0);
+    drawIcon(inDataUrl, 181.5);
+  } else if (socialDataUrl) {
+    try {
+      const socialFmt = /^data:image\/png/i.test(socialDataUrl) ? "PNG" : /^data:image\/webp/i.test(socialDataUrl) ? "WEBP" : "JPEG";
+      doc.addImage(socialDataUrl, socialFmt as any, 165.5, companyBlockTop + 19.0, 20.5, 6.4);
+    } catch {
+      // ignore footer social rendering failure
+    }
+  }
+
   const companyBlockBottom = footerMetaTop + 8;
   doc.setDrawColor(35, 35, 35);
   doc.setLineWidth(0.25);
