@@ -9127,15 +9127,25 @@ export async function POST(req: Request) {
           /\b(dame|muestrame|mu[eé]strame|quiero|ver)\b.*\b(todo|todos|todas)\b.*\b(prod|producto|productos|prodcutos|catalogo)\b/.test(textNorm);
         const hasScopedContextInModelStep = Boolean(currentCategoryIntentInModelStep || familyLabel || pendingStrictOptions.length);
         if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && guidedProfileInModelStep) {
-          const optionsFromGuided = buildGuidedPendingOptions(ownerRows as any[], guidedProfileInModelStep as GuidedBalanzaProfile);
-          strictMemory.guided_balanza_profile = guidedProfileInModelStep;
-          strictMemory.last_category_intent = "balanzas";
-          strictMemory.awaiting_action = optionsFromGuided.length ? "strict_choose_model" : "strict_need_spec";
-          strictMemory.pending_product_options = optionsFromGuided;
-          strictMemory.pending_family_options = [];
-          strictMemory.strict_family_label = "balanzas";
-          strictMemory.strict_model_offset = 0;
-          strictReply = buildGuidedBalanzaReply(guidedProfileInModelStep as GuidedBalanzaProfile);
+          const rememberedGuided = String(previousMemory?.guided_balanza_profile || strictMemory.guided_balanza_profile || "").trim();
+          const shouldRefreshGuidedList =
+            rememberedGuided !== String(guidedProfileInModelStep) ||
+            !Array.isArray(pendingStrictOptions) ||
+            pendingStrictOptions.length === 0;
+          if (shouldRefreshGuidedList) {
+            const optionsFromGuided = buildGuidedPendingOptions(ownerRows as any[], guidedProfileInModelStep as GuidedBalanzaProfile);
+            strictMemory.guided_balanza_profile = guidedProfileInModelStep;
+            strictMemory.last_category_intent = "balanzas";
+            strictMemory.awaiting_action = optionsFromGuided.length ? "strict_choose_model" : "strict_need_spec";
+            strictMemory.pending_product_options = optionsFromGuided;
+            strictMemory.pending_family_options = [];
+            strictMemory.strict_family_label = "balanzas";
+            strictMemory.strict_model_offset = 0;
+            strictReply = buildGuidedBalanzaReply(guidedProfileInModelStep as GuidedBalanzaProfile);
+          } else {
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictReply = "Perfecto. Seguimos en esta selección semimicro. Elige una opción con número o letra (ej.: 1 o A), o escribe 'más'.";
+          }
         }
         if (!String(strictReply || "").trim() && asksGlobalCatalogInModelStep && hasScopedContextInModelStep) {
           strictMemory.awaiting_action = "strict_catalog_scope_disambiguation";
