@@ -6485,6 +6485,18 @@ export async function POST(req: Request) {
             return finalizeStrictTurn(`Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g). Ahora dime la resolución objetivo (ej.: 0.1 g, 0.01 g, 0.001 g).`, strictMemory, { pipeline: true, intent: pipelineIntent });
           }
           if (read > 0 && !(cap > 0)) {
+            const semimicroCue = /(semimicro|semi\s*micro|semi\w*micro|seminicro|usp|\b\d+(?:[.,]\d+)?\s*mg\b)/.test(textNorm);
+            if (semimicroCue) {
+              const semimicroProfile: GuidedBalanzaProfile = "balanza_semimicro_00001";
+              const options = buildGuidedPendingOptions(ownerRows as any[], semimicroProfile);
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
+              strictMemory.strict_model_offset = 0;
+              strictMemory.last_category_intent = "balanzas";
+              strictMemory.guided_balanza_profile = semimicroProfile;
+              return finalizeStrictTurn(buildGuidedBalanzaReply(semimicroProfile), strictMemory, { pipeline: true, intent: "guided_need_discovery" });
+            }
             strictMemory.awaiting_action = "strict_need_spec";
             return finalizeStrictTurn(`Perfecto, ya tengo la precisión (${formatSpecNumber(read)} g). Ahora dime la capacidad aproximada (ej.: 200 g, 1000 g, 2 kg).`, strictMemory, { pipeline: true, intent: pipelineIntent });
           }
@@ -7805,14 +7817,14 @@ export async function POST(req: Request) {
             strictMemory.awaiting_action = "strict_need_spec";
           }
           }
-        } else if (read > 0 && !(cap > 0)) {
+        } else if (!String(strictReply || "").trim() && read > 0 && !(cap > 0)) {
           strictReply = [
             `Perfecto, ya tengo la precisión (${formatSpecNumber(read)} g).`,
             "Para recomendarte bien, ¿qué capacidad aproximada necesitas?",
             "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
           ].join("\n");
           strictMemory.awaiting_action = "strict_need_spec";
-        } else if (cap > 0 && !(read > 0)) {
+        } else if (!String(strictReply || "").trim() && cap > 0 && !(read > 0)) {
           const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
           const scopedForFast = currentCategory ? scopeCatalogRows(ownerRows as any[], currentCategory) : ownerRows;
           if (currentCategory === "basculas" && Array.isArray(scopedForFast) && scopedForFast.length > 0 && scopedForFast.length <= 4) {
@@ -7839,7 +7851,7 @@ export async function POST(req: Request) {
             ].join("\n");
             strictMemory.awaiting_action = "strict_need_spec";
           }
-        } else {
+        } else if (!String(strictReply || "").trim()) {
           if (!(cap > 0) || !(read > 0)) {
             strictMemory.awaiting_action = "strict_need_spec";
             strictReply = [
