@@ -4735,21 +4735,15 @@ function asDateYmd(input: Date | string) {
 const QUOTE_BANNER_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_BANNER_IMAGE_URL || "").trim();
 const LOCAL_QUOTE_BANNER_PATH = String(
   process.env.WHATSAPP_QUOTE_BANNER_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "header_banner_superior.png")
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "banner_cotizacion_avanza_ohaus.png")
 ).trim();
 const QUOTE_PERKS_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_PERKS_IMAGE_URL || "").trim();
 const LOCAL_QUOTE_PERKS_PATH = String(
   process.env.WHATSAPP_QUOTE_PERKS_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "strip_perks_3_iconos.png")
-).trim();
-const QUOTE_SOCIAL_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_SOCIAL_IMAGE_URL || "").trim();
-const LOCAL_QUOTE_SOCIAL_PATH = String(
-  process.env.WHATSAPP_QUOTE_SOCIAL_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "strip_redes_fb_ig_in.png")
+  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "ee3062f7-f286-4d62-b63b-29c796a8799f.png")
 ).trim();
 let quoteBannerImageCache: { at: number; dataUrl: string } | null = null;
 let quotePerksImageCache: { at: number; dataUrl: string } | null = null;
-let quoteSocialImageCache: { at: number; dataUrl: string } | null = null;
 
 function imageDataUrlFromRemote(remote: { base64: string; mimetype: string } | null): string {
   if (!remote) return "";
@@ -4767,12 +4761,8 @@ async function resolveQuoteBannerImageDataUrl(): Promise<string> {
   }
   let dataUrl = "";
 
-  const localCandidates = [
-    String(LOCAL_QUOTE_BANNER_PATH || "").trim(),
-    path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "banner_cotizacion_avanza_ohaus.png"),
-  ].filter(Boolean);
-  const localPath = localCandidates.find((p) => p && fs.existsSync(p)) || "";
-  if (localPath) {
+  const localPath = String(LOCAL_QUOTE_BANNER_PATH || "").trim();
+  if (localPath && fs.existsSync(localPath)) {
     try {
       const ext = String(path.extname(localPath || "")).toLowerCase();
       const mime = ext === ".png"
@@ -4807,12 +4797,8 @@ async function resolveQuotePerksImageDataUrl(): Promise<string> {
   }
   let dataUrl = "";
 
-  const localCandidates = [
-    String(LOCAL_QUOTE_PERKS_PATH || "").trim(),
-    path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "ee3062f7-f286-4d62-b63b-29c796a8799f.png"),
-  ].filter(Boolean);
-  const localPath = localCandidates.find((p) => p && fs.existsSync(p)) || "";
-  if (localPath) {
+  const localPath = String(LOCAL_QUOTE_PERKS_PATH || "").trim();
+  if (localPath && fs.existsSync(localPath)) {
     try {
       const ext = String(path.extname(localPath || "")).toLowerCase();
       const mime = ext === ".png"
@@ -4837,33 +4823,6 @@ async function resolveQuotePerksImageDataUrl(): Promise<string> {
   }
 
   quotePerksImageCache = { at: now, dataUrl };
-  return dataUrl;
-}
-
-async function resolveQuoteSocialImageDataUrl(): Promise<string> {
-  const now = Date.now();
-  if (quoteSocialImageCache && (now - quoteSocialImageCache.at) < 30 * 60 * 1000) {
-    return quoteSocialImageCache.dataUrl;
-  }
-  let dataUrl = "";
-  const localPath = String(LOCAL_QUOTE_SOCIAL_PATH || "").trim();
-  if (localPath && fs.existsSync(localPath)) {
-    try {
-      const ext = String(path.extname(localPath || "")).toLowerCase();
-      const mime = ext === ".png" ? "image/png" : (ext === ".jpg" || ext === ".jpeg") ? "image/jpeg" : ext === ".webp" ? "image/webp" : "";
-      if (mime) {
-        const base64 = fs.readFileSync(localPath).toString("base64");
-        if (base64) dataUrl = `data:${mime};base64,${base64}`;
-      }
-    } catch {
-      dataUrl = "";
-    }
-  }
-  if (!dataUrl && QUOTE_SOCIAL_IMAGE_URL) {
-    const remote = await fetchRemoteFileAsBase64(QUOTE_SOCIAL_IMAGE_URL);
-    dataUrl = imageDataUrlFromRemote(remote);
-  }
-  quoteSocialImageCache = { at: now, dataUrl };
   return dataUrl;
 }
 
@@ -4926,26 +4885,14 @@ async function buildStandardQuotePdf(args: {
   customerPhone: string;
   city?: string;
   nit?: string;
-  createdAt?: string;
-  updatedAt?: string;
   items: QuotePdfLineItem[];
 }) {
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
-  const ptToMm = (v: number) => (v * 25.4) / 72;
-  const marginLeft = ptToMm(32.16);
-  const marginRight = ptToMm(29.34);
-  const marginTop = ptToMm(54.0);
-  const marginBottom = ptToMm(28.14);
-  const contentW = 210 - marginLeft - marginRight;
-  const contentBottomY = 297 - marginBottom;
-  const contactH = ptToMm(54.27);
-  const legalH = ptToMm(54.24);
-  const footerH = ptToMm(108.5);
   const blue = [9, 137, 189] as const;
   const dark = [20, 20, 20] as const;
   const phoneSafe = normalizePhone(args.customerPhone || "");
   const ivaRate = quoteIvaRate();
-  const col = [marginLeft, marginLeft + 9, marginLeft + 40, marginLeft + 114, marginLeft + 139, marginLeft + 151, marginLeft + 172, marginLeft + contentW];
+  const col = [10, 20, 50, 127, 145, 157, 178, 200];
   const footerPageTop = 284;
   const singleItemMode = Array.isArray(args.items) && args.items.length === 1;
 
@@ -4958,54 +4905,52 @@ async function buildStandardQuotePdf(args: {
     doc.setFillColor(245, 248, 251);
     doc.rect(0, 0, 210, 297, "F");
     const boxHeight = compact ? 20 : (hasBanner ? 62 : 28);
-    const headerX = marginLeft;
-    const headerY = compact ? 8 : marginTop - 11;
-    const titleBarY = headerY + (compact ? 12 : (hasBanner ? 58 : 20));
+    const titleBarY = compact ? 20 : (hasBanner ? 66 : 28);
     doc.setFillColor(255, 255, 255);
-    doc.rect(headerX, headerY, contentW, boxHeight, "F");
+    doc.rect(8, 8, 194, boxHeight, "F");
     doc.setDrawColor(210, 220, 228);
-    doc.rect(headerX, headerY, contentW, boxHeight, "S");
+    doc.rect(8, 8, 194, boxHeight, "S");
 
     if (hasBanner && !compact) {
       try {
-        doc.addImage(bannerDataUrl, "PNG", headerX + 0.5, headerY + 0.5, contentW - 1, 55);
+        doc.addImage(bannerDataUrl, "PNG", 8.5, 8.5, 193, 55);
       } catch {
         // ignore banner rendering failure
       }
     }
 
     doc.setFillColor(blue[0], blue[1], blue[2]);
-    doc.rect(headerX, titleBarY, contentW, 8, "F");
+    doc.rect(8, titleBarY, 194, 8, "F");
 
     doc.setFont("helvetica", "bold");
     doc.setTextColor(237, 106, 47);
     doc.setFontSize(compact ? 22 : 28);
-    if (!hasBanner || compact) doc.text("Avanza", headerX + 4, compact ? 19 : 20);
+    if (!hasBanner || compact) doc.text("Avanza", 12, compact ? 19 : 20);
     doc.setTextColor(220, 23, 55);
     doc.setFontSize(compact ? 16 : 20);
-    if (!hasBanner || compact) doc.text("OHAUS", compact ? (headerX + 42) : (headerX + 52), compact ? 19 : 20);
+    if (!hasBanner || compact) doc.text("OHAUS", compact ? 50 : 60, compact ? 19 : 20);
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);
-    doc.text("AVANZA INTERNACIONAL GROUP S.A.S. - Cotizacion Comercial", headerX + 4, titleBarY + 5.2);
+    doc.text("AVANZA INTERNACIONAL GROUP S.A.S. - Cotizacion Comercial", 12, titleBarY + 5.2);
     doc.setTextColor(dark[0], dark[1], dark[2]);
   };
 
   drawHeader(false);
 
-  const infoTitleY = hasBanner ? (marginTop + 27) : 44;
-  const infoTopY = hasBanner ? (marginTop + 30) : 47;
-  const tableHeaderY = hasBanner ? (infoTopY + 32) : 79;
+  const infoTitleY = hasBanner ? 82 : 44;
+  const infoTopY = hasBanner ? 85 : 47;
+  const tableHeaderY = hasBanner ? 117 : 79;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.text("Información general", marginLeft + 2, infoTitleY);
+  doc.text("Información general", 12, infoTitleY);
   doc.setDrawColor(35, 35, 35);
   doc.setLineWidth(0.25);
-  doc.rect(marginLeft, infoTopY, contentW, 28, "S");
-  doc.line(marginLeft + contentW / 2, infoTopY, marginLeft + contentW / 2, infoTopY + 28);
+  doc.rect(10, infoTopY, 190, 28, "S");
+  doc.line(105, infoTopY, 105, infoTopY + 28);
   for (let r = 1; r <= 4; r += 1) {
     const yLine = infoTopY + (28 / 5) * r;
-    doc.line(marginLeft, yLine, marginLeft + contentW, yLine);
+    doc.line(10, yLine, 200, yLine);
   }
 
   const leftRows: Array<[string, string]> = [
@@ -5026,32 +4971,32 @@ async function buildStandardQuotePdf(args: {
   let yRow = infoTopY + 5;
   for (let i = 0; i < leftRows.length; i += 1) {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.04);
+    doc.setFontSize(8.3);
     const leftLabel = `${leftRows[i][0]}:`;
-    doc.text(leftLabel, marginLeft + 2, yRow);
+    doc.text(leftLabel, 12, yRow);
     doc.setFont("helvetica", "normal");
-    doc.text(String(leftRows[i][1] || "-").slice(0, 32), marginLeft + 2 + doc.getTextWidth(leftLabel) + 3, yRow);
+    doc.text(String(leftRows[i][1] || "-").slice(0, 32), 12 + doc.getTextWidth(leftLabel) + 3, yRow);
     doc.setFont("helvetica", "bold");
     const rightLabel = `${rightRows[i][0]}:`;
-    doc.text(rightLabel, marginLeft + contentW / 2 + 3, yRow);
+    doc.text(rightLabel, 108, yRow);
     doc.setFont("helvetica", "normal");
-    doc.text(String(rightRows[i][1] || "-").slice(0, 30), marginLeft + contentW / 2 + 3 + doc.getTextWidth(rightLabel) + 3, yRow);
+    doc.text(String(rightRows[i][1] || "-").slice(0, 30), 108 + doc.getTextWidth(rightLabel) + 3, yRow);
     yRow += 5;
   }
 
   const drawTableHeader = (yTop: number) => {
     doc.setFillColor(blue[0], blue[1], blue[2]);
-    doc.rect(marginLeft, yTop, contentW, 7, "F");
+    doc.rect(10, yTop, 190, 7, "F");
     doc.setFont("helvetica", "bold");
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(6.96);
-    doc.text("Item", marginLeft + 2, yTop + 5.2);
-    doc.text("Producto", marginLeft + 14, yTop + 5.2);
-    doc.text("Descripcion", marginLeft + 42, yTop + 5.2);
+    doc.setFontSize(8.2);
+    doc.text("Item", 12, yTop + 5.2);
+    doc.text("Producto", 24, yTop + 5.2);
+    doc.text("Descripcion", 52, yTop + 5.2);
     doc.text("Garantia", 129.5, yTop + 5.2);
-    doc.text("Cant.", marginLeft + 145, yTop + 5.2, { align: "right" });
-    doc.text("Valor unit.", marginLeft + 166.5, yTop + 5.2, { align: "right" });
-    doc.text("Valor total", marginLeft + contentW - 3.2, yTop + 5.2, { align: "right" });
+    doc.text("Cant.", 155, yTop + 5.2, { align: "right" });
+    doc.text("Valor unit.", 176.5, yTop + 5.2, { align: "right" });
+    doc.text("Valor total", 196.8, yTop + 5.2, { align: "right" });
     doc.setTextColor(dark[0], dark[1], dark[2]);
   };
 
@@ -5107,7 +5052,7 @@ async function buildStandardQuotePdf(args: {
       const minRowH = rowHeightFor(minDescLines);
 
       if (!tableHeaderDrawn) {
-        if (y + minRowH > (contentBottomY - (contactH + legalH + footerH + 8))) {
+        if (y + minRowH > 235) {
           if (doc.getNumberOfPages() === 1) {
             // Repaint first page with compact header to avoid an empty first sheet.
             drawHeader(true);
@@ -5124,7 +5069,7 @@ async function buildStandardQuotePdf(args: {
         tableHeaderDrawn = true;
       }
 
-      if (y + minRowH > (contentBottomY - (contactH + legalH + footerH + 8))) {
+      if (y + minRowH > 235) {
         doc.addPage();
         drawHeader(true);
         currentTableHeaderY = 33;
@@ -5143,28 +5088,28 @@ async function buildStandardQuotePdf(args: {
 
       doc.setDrawColor(20, 20, 20);
       doc.setLineWidth(0.35);
-      doc.rect(marginLeft, y - 4, contentW, rowH, "S");
+      doc.rect(10, y - 4, 190, rowH, "S");
       for (let i = 1; i < col.length - 1; i += 1) {
         doc.line(col[i], y - 4, col[i], y - 4 + rowH);
       }
 
       const bodyY = y + 1.8;
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(6.96);
+      doc.setFontSize(8.2);
       if (isFirstSegment) {
-        doc.text(String(index), marginLeft + 2, bodyY);
+        doc.text(String(index), 12, bodyY);
         doc.setFont("helvetica", "bold");
-        doc.text(productLines, marginLeft + 12, bodyY);
+        doc.text(productLines, 22, bodyY);
         doc.setFont("helvetica", "normal");
       } else {
         doc.setFont("helvetica", "italic");
-        doc.text("cont.", marginLeft + 12, bodyY);
+        doc.text("cont.", 22, bodyY);
         doc.setFont("helvetica", "normal");
       }
 
       if (isFirstSegment && hasImage) {
         try {
-          const imgX = marginLeft + 12;
+          const imgX = 22;
           const imgY = bodyY + 2;
           const boxW = 24;
           const boxH = Math.min(30, Math.max(22, rowH - 16));
@@ -5197,18 +5142,18 @@ async function buildStandardQuotePdf(args: {
       }
 
       if (descChunk.length > 0) {
-        doc.setFontSize(6.96);
-        doc.text(descChunk, marginLeft + 42, bodyY);
-        doc.setFontSize(6.96);
+        doc.setFontSize(singleItemMode ? 6.0 : 8.2);
+        doc.text(descChunk, 52, bodyY);
+        doc.setFontSize(8.2);
       }
       if (isFirstSegment) {
         const warrantyLines = doc.splitTextToSize(String(item.warranty || "1 AÑO POR DEFECTO DE FÁBRICA"), 15.5);
-        doc.text(warrantyLines, marginLeft + 120.2, bodyY);
-        doc.text(String(qty), marginLeft + 145, bodyY, { align: "right" });
-        doc.setFontSize(8.04);
-        doc.text(`$ ${formatMoney(lineTotal / qty)}`, marginLeft + 166.5, bodyY, { align: "right" });
-        doc.text(`$ ${formatMoney(lineTotal)}`, marginLeft + contentW - 3.2, bodyY, { align: "right" });
-        doc.setFontSize(6.96);
+        doc.text(warrantyLines, 130.2, bodyY);
+        doc.text(String(qty), 155, bodyY, { align: "right" });
+        doc.setFontSize(7.8);
+        doc.text(`$ ${formatMoney(lineTotal / qty)}`, 176.5, bodyY, { align: "right" });
+        doc.text(`$ ${formatMoney(lineTotal)}`, 196.8, bodyY, { align: "right" });
+        doc.setFontSize(8.2);
       }
 
       y += rowH + 0.9;
@@ -5227,42 +5172,42 @@ async function buildStandardQuotePdf(args: {
       tableHeaderDrawn = true;
     }
     doc.setDrawColor(180, 196, 210);
-    doc.rect(marginLeft, y - 4, contentW, 18, "S");
+    doc.rect(10, y - 4, 190, 18, "S");
     for (let i = 1; i < col.length - 1; i += 1) {
       doc.line(col[i], y - 4, col[i], y + 14);
     }
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.96);
-    doc.text("1", marginLeft + 2, y + 1.8);
-    doc.text("-", marginLeft + 12, y + 1.8);
-    doc.text("Producto sin detalle en esta cotización", marginLeft + 42, y + 1.8);
-    doc.text("-", marginLeft + 118.8, y + 1.8);
-    doc.text("1", marginLeft + 145, y + 1.8, { align: "right" });
-    doc.text(`$ ${formatMoney(0)}`, marginLeft + 166.5, y + 1.8, { align: "right" });
-    doc.text(`$ ${formatMoney(0)}`, marginLeft + contentW - 3.2, y + 1.8, { align: "right" });
+    doc.setFontSize(8.2);
+    doc.text("1", 12, y + 1.8);
+    doc.text("-", 22, y + 1.8);
+    doc.text("Producto sin detalle en esta cotización", 52, y + 1.8);
+    doc.text("-", 128.8, y + 1.8);
+    doc.text("1", 155, y + 1.8, { align: "right" });
+    doc.text(`$ ${formatMoney(0)}`, 176.5, y + 1.8, { align: "right" });
+    doc.text(`$ ${formatMoney(0)}`, 196.8, y + 1.8, { align: "right" });
     y += 20;
   }
 
   const iva = subtotal * ivaRate;
   const total = subtotal + iva;
 
-  if (y > (contentBottomY - (contactH + legalH + footerH + 8))) {
+  if (y > 240) {
     doc.addPage();
     drawHeader(true);
     y = 40;
   }
 
-  const totalsLabelX = marginLeft + 118;
-  const totalsLabelW = 31;
+  const totalsLabelX = 128;
+  const totalsLabelW = 42;
   const totalsValueX = totalsLabelX + totalsLabelW;
-  const totalsValueW = 41;
+  const totalsValueW = 30;
   const totalsValueRight = totalsValueX + totalsValueW - 1;
 
   doc.setFillColor(blue[0], blue[1], blue[2]);
   doc.rect(totalsLabelX, y, totalsLabelW, 24, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.04);
+  doc.setFontSize(9);
   doc.text("Subtotal:", totalsLabelX + 2, y + 6);
   doc.text("Descuento:", totalsLabelX + 2, y + 12.2);
   doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, totalsLabelX + 2, y + 18.4);
@@ -5273,14 +5218,14 @@ async function buildStandardQuotePdf(args: {
   doc.setLineWidth(0.25);
   doc.rect(totalsValueX, y, totalsValueW, 24, "S");
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.04);
+  doc.setFontSize(7.4);
   doc.text(`$ ${formatMoney(subtotal)}`, totalsValueRight, y + 6, { align: "right" });
   doc.text(`$ ${formatMoney(0)}`, totalsValueRight, y + 12.2, { align: "right" });
   doc.text(`$ ${formatMoney(iva)}`, totalsValueRight, y + 18.4, { align: "right" });
   doc.setFont("helvetica", "bold");
   doc.text(`$ ${formatMoney(total)}`, totalsValueRight, y + 22.8, { align: "right" });
 
-  let yFooter = y + 2;
+  let yFooter = y + (singleItemMode ? 4 : 8);
 
   const legal = [
     "Observaciones generales de la cotización",
@@ -5289,7 +5234,7 @@ async function buildStandardQuotePdf(args: {
     "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
     `${String(args.city || "Bogota D.C")}, ${args.issueDate}`,
   ].join("\n");
-  let legalLines = doc.splitTextToSize(legal, 112);
+  let legalLines = doc.splitTextToSize(legal, 116);
   const companyFooter = [
     "AVANZA INTERNACIONAL GROUP S.A.S",
     "Autopista Medellin k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a.",
@@ -5297,51 +5242,48 @@ async function buildStandardQuotePdf(args: {
     "CELULAR 321 2165 771",
     "www.balanzasybasculas.com.co - www.avanzagroup.com.co",
   ].join("\n");
-  const companyFooterLines = doc.splitTextToSize(companyFooter, 112);
-  let legalHeight = legalH;
-  const companyHeight = footerH;
-  const closingEstimate = contactH + legalHeight + companyHeight + 4;
-  if (yFooter + closingEstimate > contentBottomY) {
+  const companyFooterLines = doc.splitTextToSize(companyFooter, 188);
+  let legalHeight = Math.max(10, legalLines.length * 3.3);
+  const companyHeight = Math.max(10, companyFooterLines.length * 3.2);
+  const closingEstimate = 63 + legalHeight + companyHeight;
+  if (!singleItemMode && yFooter + closingEstimate > 272) {
     doc.addPage();
     drawHeader(true);
     yFooter = 40;
   }
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.04);
-  doc.text("Contacto Comercial", marginLeft, yFooter + 3);
+  doc.setFontSize(10);
+  doc.text("Contacto Comercial", 10, yFooter + 3);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.04);
-  doc.text("Mariana Rodriguez", marginLeft, yFooter + 8);
-  doc.text("CEL 3183731171", marginLeft, yFooter + 13);
-  doc.text("cotizaciones@avanzagroup.com.co", marginLeft, yFooter + 18);
+  doc.setFontSize(8.8);
+  doc.text("Mariana Rodriguez", 10, yFooter + 8);
+  doc.text("CEL 3183731171", 10, yFooter + 13);
+  doc.text("cotizaciones@avanzagroup.com.co", 10, yFooter + 18);
 
-  doc.setFontSize(6.96);
-  doc.text(legalLines, marginLeft, yFooter + 24);
+  doc.setFontSize(7.6);
+  doc.text(legalLines, 10, yFooter + 24);
 
   doc.setDrawColor(35, 35, 35);
   doc.setLineWidth(0.25);
   const leftFooterTop = yFooter + 1;
-  const leftFooterBottom = leftFooterTop + contactH + legalHeight;
-  doc.rect(marginLeft, leftFooterTop, 117, leftFooterBottom - leftFooterTop, "S");
-  doc.line(marginLeft, leftFooterTop + contactH, marginLeft + 117, leftFooterTop + contactH);
+  const leftFooterBottom = yFooter + 24 + legalHeight + 1;
+  doc.rect(10, leftFooterTop, 117, leftFooterBottom - leftFooterTop, "S");
+  doc.line(10, yFooter + 22, 127, yFooter + 22);
 
-  const legalBottomY = leftFooterBottom;
-  const companyBlockTop = legalBottomY + 1;
-  const footerBlockTop = companyBlockTop + 6;
-  doc.setFontSize(8.04);
-  doc.text(companyFooterLines, marginLeft, footerBlockTop);
+  const legalBottomY = yFooter + 24 + legalHeight;
+  const companyBlockTop = legalBottomY + 3;
+  const footerBlockTop = legalBottomY + 12;
+  doc.setFontSize(7.2);
+  doc.text(companyFooterLines, 10, footerBlockTop);
 
-  const createdStamp = String(args.createdAt || "").trim();
-  const updatedStamp = String(args.updatedAt || "").trim();
   const nowStamp = new Date();
-  const createdAt = createdStamp ? asDateYmd(createdStamp) : asDateYmd(nowStamp);
-  const updatedDate = updatedStamp ? new Date(updatedStamp) : nowStamp;
-  const modifiedAt = `${asDateYmd(updatedDate)} ${String(updatedDate.toTimeString() || "").slice(0, 8)}`;
-  const footerMetaTop = companyBlockTop + footerH - 12;
-  doc.setFontSize(6.96);
-  doc.text(`Fecha de creación ${createdAt}`, marginLeft, footerMetaTop);
-  doc.text(`Fecha de modificación ${modifiedAt}`, marginLeft, footerMetaTop + 5);
+  const createdAt = `${asDateYmd(nowStamp)}`;
+  const modifiedAt = `${asDateYmd(nowStamp)} ${String(nowStamp.toTimeString() || "").slice(0, 8)}`;
+  const footerMetaTop = footerBlockTop + companyHeight + 6;
+  doc.setFontSize(7.8);
+  doc.text(`Fecha de creación ${createdAt}`, 10, footerMetaTop);
+  doc.text(`Fecha de modificación ${modifiedAt}`, 10, footerMetaTop + 5);
 
   const logosY = companyBlockTop + 13;
   if (hasPerksStrip) {
@@ -5351,30 +5293,20 @@ async function buildStandardQuotePdf(args: {
         : /^data:image\/webp/i.test(perksDataUrl)
           ? "WEBP"
           : "JPEG";
-      const stripW = 38;
-      const stripH = 16;
-      const stripX = marginLeft + 132;
-      const stripY = companyBlockTop + 6;
+      const stripW = 78;
+      const stripH = 31;
+      const stripX = 121;
+      const stripY = logosY - 9;
       doc.addImage(perksDataUrl, fmt as any, stripX, stripY, stripW, stripH);
     } catch {
       // ignore perks strip rendering failure
     }
   }
 
-  const socialDataUrl = await resolveQuoteSocialImageDataUrl();
-  if (socialDataUrl) {
-    try {
-      const socialFmt = /^data:image\/png/i.test(socialDataUrl) ? "PNG" : /^data:image\/webp/i.test(socialDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(socialDataUrl, socialFmt as any, marginLeft + 141, companyBlockTop + 24, 25, 8);
-    } catch {
-      // ignore social strip draw failure
-    }
-  }
-
-  const companyBlockBottom = companyBlockTop + footerH;
+  const companyBlockBottom = footerMetaTop + 8;
   doc.setDrawColor(35, 35, 35);
   doc.setLineWidth(0.25);
-  doc.rect(marginLeft, companyBlockTop, contentW, companyBlockBottom - companyBlockTop, "S");
+  doc.rect(10, companyBlockTop, 190, companyBlockBottom - companyBlockTop, "S");
 
   const totalPages = doc.getNumberOfPages();
   for (let p = 1; p <= totalPages; p += 1) {
@@ -5400,8 +5332,6 @@ async function buildQuotePdf(args: {
   totalCop: number;
   city?: string;
   nit?: string;
-  createdAt?: string;
-  updatedAt?: string;
   itemDescription?: string;
   imageDataUrl?: string;
   notes?: string;
@@ -5425,8 +5355,6 @@ async function buildQuotePdf(args: {
     customerPhone: args.customerPhone,
     city: String(args.city || "").trim() || "Bogota D.C",
     nit: String(args.nit || "").trim() || "-",
-    createdAt: String(args.createdAt || "").trim(),
-    updatedAt: String(args.updatedAt || "").trim(),
     items: [
       {
         productName: args.productName,
@@ -8968,8 +8896,6 @@ export async function POST(req: Request) {
                   totalCop,
                   city: effectiveCity,
                   nit: effectiveNit,
-                  createdAt: String((insertedDraft as any)?.created_at || "").trim(),
-                  updatedAt: String((insertedDraft as any)?.updated_at || "").trim(),
                   itemDescription: quoteDescription,
                   imageDataUrl: productImageDataUrl,
                   notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
@@ -9003,8 +8929,6 @@ export async function POST(req: Request) {
                     totalCop,
                     city: effectiveCity,
                     nit: effectiveNit,
-                    createdAt: String((insertedDraft as any)?.created_at || "").trim(),
-                    updatedAt: String((insertedDraft as any)?.updated_at || "").trim(),
                     itemDescription: retryDescription,
                     imageDataUrl: productImageDataUrl,
                     notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
