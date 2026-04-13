@@ -1735,6 +1735,17 @@ function parseCapacityRangeHint(text: string): { minG: number; maxG: number } | 
   return null;
 }
 
+function parseExplicitCapacityHint(text: string): number {
+  const t = normalizeText(String(text || ""))
+    .replace(/(\d)\s*[\.,]\s*(\d)/g, "$1.$2")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return 0;
+  const m = t.match(/\bcapacidad\D{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)\b/i);
+  if (!m) return 0;
+  return toGrams(String(m[1] || ""), String(m[2] || "g"));
+}
+
 function filterRowsByCapacityRange(rows: any[], range: { minG: number; maxG: number } | null): any[] {
   if (!range || !Array.isArray(rows) || !rows.length) return Array.isArray(rows) ? rows : [];
   const minG = Math.max(0, Number(range.minG || 0));
@@ -9424,7 +9435,10 @@ export async function POST(req: Request) {
             },
             looseSpecHint
           );
-          const effectiveCap = Number(merged.capacityG || 0);
+          const explicitCapacityFromText = parseExplicitCapacityHint(text);
+          const effectiveCap = explicitCapacityFromText > 0
+            ? explicitCapacityFromText
+            : Number(merged.capacityG || 0);
           const effectiveRead = Number(merged.readabilityG || 0);
           strictMemory.strict_partial_capacity_g = effectiveCap > 0 ? effectiveCap : "";
           strictMemory.strict_partial_readability_g = effectiveRead > 0 ? effectiveRead : "";
