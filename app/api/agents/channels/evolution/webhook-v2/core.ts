@@ -1688,7 +1688,10 @@ function parseLooseTechnicalHint(text: string): { capacityG?: number; readabilit
   }
 
   const only = values[0];
-  if (hasReadabilityKeyword) return { readabilityG: only };
+  if (hasReadabilityKeyword) {
+    if (only >= 1) return { capacityG: only };
+    return { readabilityG: only };
+  }
   if (hasCapacityKeyword && only >= 1) return { capacityG: only };
   if (only < 1) return { readabilityG: only };
   return { capacityG: only };
