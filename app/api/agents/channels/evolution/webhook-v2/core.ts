@@ -5289,9 +5289,6 @@ async function buildStandardQuotePdf(args: {
   doc.text(`Fecha de creación ${createdAt}`, x + 1.5, footerTop + FOOTER_H - 8);
   doc.text(`Fecha de modificación ${modifiedAt}`, x + 1.5, footerTop + FOOTER_H - 3);
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.2);
-  doc.text("Pág 1 de 1", x, footerPageTop);
   return Buffer.from(doc.output("arraybuffer")).toString("base64");
 }
 
