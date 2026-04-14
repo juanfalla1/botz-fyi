@@ -4966,44 +4966,45 @@ async function buildStandardQuotePdf(args: {
 }) {
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
   const ptToMm = (v: number) => (v * 25.4) / 72;
-  const marginLeft = ptToMm(32.16);
-  const marginRight = ptToMm(29.34);
+  const marginLeft = ptToMm(33.12);
   const marginTop = ptToMm(54.0);
-  const marginBottom = ptToMm(28.14);
-  const contentW = 210 - marginLeft - marginRight;
-  const contentBottomY = 297 - marginBottom;
+  const contentW = ptToMm(533.64);
 
-  const CONTACT_H = ptToMm(54.27);
-  const OBS_H = ptToMm(54.24);
-  const FOOTER_H = ptToMm(108.5);
+  const CONTACT_H = ptToMm(55.23);
+  const OBS_H = ptToMm(55.2);
+  const FOOTER_H = ptToMm(109.46);
 
   const blue = [9, 137, 189] as const;
   const dark = [20, 20, 20] as const;
   const phoneSafe = normalizePhone(args.customerPhone || "");
   const ivaRate = quoteIvaRate();
-  const footerPageTop = 284;
+  const footerPageTop = ptToMm(813.54);
 
   const bannerDataUrl = await resolveQuoteBannerImageDataUrl();
   const perksDataUrl = await resolveQuotePerksImageDataUrl();
   const socialDataUrl = await resolveQuoteSocialImageDataUrl();
 
   const x = marginLeft;
-  let y = marginTop;
+  const y = marginTop;
 
   // Header frame
   const hasEmbeddedHeader = Boolean(String(bannerDataUrl || "").trim());
-  const bannerBoxH = hasEmbeddedHeader ? 71.4 : 27.8;
+  const bannerBoxH = hasEmbeddedHeader ? ptToMm(192.39) : 27.8;
   const inviteStripH = hasEmbeddedHeader ? 0 : 10.2;
   const titleStripH = hasEmbeddedHeader ? 0 : 4.8;
+  const bannerX = ptToMm(32.16);
+  const bannerY = ptToMm(54.0);
+  const bannerW = ptToMm(534.83);
+  const bannerH = ptToMm(192.39);
 
   doc.setDrawColor(35, 35, 35);
-  doc.setLineWidth(0.25);
+  doc.setLineWidth(ptToMm(0.14));
   doc.rect(x, y, contentW, bannerBoxH + inviteStripH + titleStripH, "S");
 
   if (bannerDataUrl) {
     try {
       const fmt = /^data:image\/png/i.test(bannerDataUrl) ? "PNG" : /^data:image\/webp/i.test(bannerDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(bannerDataUrl, fmt as any, x + 0.2, y + 0.2, contentW - 0.4, bannerBoxH - 0.4, undefined, "SLOW");
+      doc.addImage(bannerDataUrl, fmt as any, bannerX, bannerY, bannerW, bannerH, undefined, "SLOW");
     } catch {
       // ignore
     }
@@ -5038,16 +5039,14 @@ async function buildStandardQuotePdf(args: {
   }
 
   // Info general
-  y = y + bannerBoxH + inviteStripH + titleStripH;
-
-  const infoTop = y;
-  const infoH = 27.5;
-  doc.setLineWidth(0.25);
+  const infoTop = ptToMm(243.86);
+  const infoH = ptToMm(82.35);
+  doc.setLineWidth(ptToMm(0.14));
   doc.rect(x, infoTop, contentW, infoH, "S");
-  const halfX = x + contentW / 2;
+  const halfX = ptToMm(305.81);
   doc.line(halfX, infoTop, halfX, infoTop + infoH);
-  for (let i = 1; i <= 4; i += 1) {
-    const yy = infoTop + (infoH / 5) * i;
+  for (let i = 1; i <= 6; i += 1) {
+    const yy = infoTop + ptToMm(13.56) * i;
     doc.line(x, yy, x + contentW, yy);
   }
 
@@ -5066,7 +5065,7 @@ async function buildStandardQuotePdf(args: {
     ["Fecha de Entrega", "45 días hábiles"],
   ];
 
-  let rowY = infoTop + 4.6;
+  let rowY = infoTop + ptToMm(10.8);
   for (let i = 0; i < 5; i += 1) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.04);
@@ -5080,40 +5079,37 @@ async function buildStandardQuotePdf(args: {
     doc.text(r, halfX + 2, rowY);
     doc.setFont("helvetica", "normal");
     doc.text(String(rightRows[i][1] || "-").slice(0, 33), halfX + 2 + doc.getTextWidth(r) + 2, rowY);
-    rowY += infoH / 5;
+    rowY += ptToMm(13.56);
   }
 
   // Main table header
-  const tableHeadY = infoTop + infoH + 4;
-  const itemW = 9;
-  const productW = 31;
-  const descW = 74;
-  const warrantyW = 25;
-  const qtyW = 12;
-  const unitW = 21;
-  const totalW = contentW - (itemW + productW + descW + warrantyW + qtyW + unitW);
-
-  const c0 = x;
-  const c1 = c0 + itemW;
-  const c2 = c1 + productW;
-  const c3 = c2 + descW;
-  const c4 = c3 + warrantyW;
-  const c5 = c4 + qtyW;
-  const c6 = c5 + unitW;
-  const c7 = x + contentW;
+  const tableHeadY = ptToMm(325.73);
+  const headH = ptToMm(13.68);
+  const c0 = ptToMm(33.12);
+  const c1 = ptToMm(59.52);
+  const c2 = ptToMm(141.62);
+  const c3 = ptToMm(305.81);
+  const c4 = ptToMm(374.23);
+  const c5 = ptToMm(415.27);
+  const c6 = ptToMm(483.70);
+  const c7 = ptToMm(566.76);
+  const descW = c3 - c2;
+  const warrantyW = c4 - c3;
+  const unitW = c6 - c5;
+  const totalW = c7 - c6;
 
   doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(x, tableHeadY, contentW, 6.5, "F");
+  doc.rect(ptToMm(32.64), tableHeadY, ptToMm(533.76), headH, "F");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.96);
   doc.setTextColor(255, 255, 255);
-  doc.text("Item", c0 + 1.8, tableHeadY + 4.7);
-  doc.text("Producto", c1 + 1.5, tableHeadY + 4.7);
-  doc.text("Descripcion", c2 + 1.5, tableHeadY + 4.7);
-  doc.text("Garantía", c3 + 1.5, tableHeadY + 4.7);
-  doc.text("Cant.", c5 - 1.2, tableHeadY + 4.7, { align: "right" });
-  doc.text("Valor unit.", c6 - 1.2, tableHeadY + 4.7, { align: "right" });
-  doc.text("Valor total", c7 - 1.2, tableHeadY + 4.7, { align: "right" });
+  doc.text("Item", c0 + ptToMm(1.8), tableHeadY + ptToMm(9.4));
+  doc.text("Producto", c1 + ptToMm(1.5), tableHeadY + ptToMm(9.4));
+  doc.text("Descripcion", c2 + ptToMm(1.5), tableHeadY + ptToMm(9.4));
+  doc.text("Garantía", c3 + ptToMm(1.5), tableHeadY + ptToMm(9.4));
+  doc.text("Cant.", c5 - ptToMm(1.2), tableHeadY + ptToMm(9.4), { align: "right" });
+  doc.text("Valor unit.", c6 - ptToMm(1.2), tableHeadY + ptToMm(9.4), { align: "right" });
+  doc.text("Valor total", c7 - ptToMm(1.2), tableHeadY + ptToMm(9.4), { align: "right" });
   doc.setTextColor(dark[0], dark[1], dark[2]);
 
   // First line item only (fixed one-page approved layout)
@@ -5132,9 +5128,9 @@ async function buildStandardQuotePdf(args: {
     ? Number(item.totalCop || 0)
     : Number(item.basePriceUsd || 0) * Number(item.trmRate || 0) * qty;
 
-  const itemRowY = tableHeadY + 6.5;
-  const itemRowH = 82;
-  doc.setLineWidth(0.25);
+  const itemRowY = ptToMm(338.81);
+  const itemRowH = ptToMm(258.62);
+  doc.setLineWidth(ptToMm(0.14));
   doc.rect(x, itemRowY, contentW, itemRowH, "S");
   [c1, c2, c3, c4, c5, c6].forEach((cx) => doc.line(cx, itemRowY, cx, itemRowY + itemRowH));
 
@@ -5149,10 +5145,10 @@ async function buildStandardQuotePdf(args: {
     try {
       const img = String(item.imageDataUrl || "").trim();
       const fmt = /^data:image\/png/i.test(img) ? "PNG" : /^data:image\/webp/i.test(img) ? "WEBP" : "JPEG";
-      const boxX = c1 + 1.8;
-      const boxY = itemRowY + 12;
-      const boxW = 25;
-      const boxH = 30;
+      const boxX = ptToMm(65.87);
+      const boxY = ptToMm(350.13);
+      const boxW = ptToMm(70.36);
+      const boxH = ptToMm(90.54);
       let dw = boxW;
       let dh = boxH;
       try {
@@ -5185,10 +5181,10 @@ async function buildStandardQuotePdf(args: {
   doc.text(`$ ${formatMoney(lineTotal)}`, c7 - 1.2, itemRowY + 5, { align: "right" });
 
   // Contact + totals row
-  const contactTop = itemRowY + itemRowH;
-  const totalsW = unitW + totalW;
-  const totalsX = c5;
-  const contactLeftW = contentW - totalsW;
+  const contactTop = ptToMm(596.47);
+  const totalsX = ptToMm(415.27);
+  const totalsW = ptToMm(151.49);
+  const contactLeftW = ptToMm(415.27 - 33.12);
 
   doc.rect(x, contactTop, contactLeftW, CONTACT_H, "S");
   doc.setFont("helvetica", "normal");
@@ -5203,8 +5199,8 @@ async function buildStandardQuotePdf(args: {
   const total = subtotal + iva;
 
   doc.setFillColor(blue[0], blue[1], blue[2]);
-  const totalsLabelW = totalsW * 0.44;
-  const totalsValueW = totalsW - totalsLabelW;
+  const totalsLabelW = ptToMm(68.43);
+  const totalsValueW = ptToMm(83.06);
   doc.rect(totalsX, contactTop, totalsLabelW, CONTACT_H, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
@@ -5215,7 +5211,7 @@ async function buildStandardQuotePdf(args: {
   doc.text("Valor total:", totalsX + 1.6, contactTop + 16.8);
   doc.setTextColor(dark[0], dark[1], dark[2]);
   doc.rect(totalsX + totalsLabelW, contactTop, totalsValueW, CONTACT_H, "S");
-  const valRight = totalsX + totalsW - 3.8;
+  const valRight = ptToMm(566.76) - ptToMm(3.2);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.1);
   doc.text(`$${formatMoney(subtotal)}`, valRight, contactTop + 4.2, { align: "right" });
@@ -5225,7 +5221,7 @@ async function buildStandardQuotePdf(args: {
   doc.text(`$${formatMoney(total)}`, valRight, contactTop + 16.8, { align: "right" });
 
   // Observaciones block (full width)
-  const obsTop = contactTop + CONTACT_H;
+  const obsTop = ptToMm(650.74);
   doc.rect(x, obsTop, contentW, OBS_H, "S");
   const legal = [
     "Observaciones generales de la cotización",
@@ -5240,7 +5236,7 @@ async function buildStandardQuotePdf(args: {
   doc.text(legalLines, x + 1.5, obsTop + 4.5);
 
   // Footer company + perks/social
-  const footerTop = obsTop + OBS_H;
+  const footerTop = ptToMm(704.98);
   doc.rect(x, footerTop, contentW, FOOTER_H, "S");
 
   const textW = contentW - 44;
@@ -5257,7 +5253,7 @@ async function buildStandardQuotePdf(args: {
   if (perksDataUrl) {
     try {
       const perksFmt = /^data:image\/png/i.test(perksDataUrl) ? "PNG" : /^data:image\/webp/i.test(perksDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(perksDataUrl, perksFmt as any, x + contentW - 39, footerTop + 5.8, 33, 15.8);
+      doc.addImage(perksDataUrl, perksFmt as any, ptToMm(422.17), ptToMm(713.77), ptToMm(124.57), ptToMm(52.2));
     } catch {}
   }
   const fbDataUrl = absoluteImageFileToDataUrl(LOCAL_QUOTE_SOCIAL_FB_PATH);
@@ -5269,16 +5265,16 @@ async function buildStandardQuotePdf(args: {
       if (!dataUrl) return;
       try {
         const iconFmt = /^data:image\/png/i.test(dataUrl) ? "PNG" : /^data:image\/webp/i.test(dataUrl) ? "WEBP" : "JPEG";
-        doc.addImage(dataUrl, iconFmt as any, iconX, footerTop + 22.0, 6.4, 6.4);
+        doc.addImage(dataUrl, iconFmt as any, iconX, ptToMm(781.12), ptToMm(22.5), ptToMm(22.5));
       } catch {}
     };
-    drawIcon(fbDataUrl, x + contentW - 30.2);
-    drawIcon(igDataUrl, x + contentW - 22.6);
-    drawIcon(inDataUrl, x + contentW - 15.0);
+    drawIcon(fbDataUrl, ptToMm(444.38));
+    drawIcon(igDataUrl, ptToMm(474.37));
+    drawIcon(inDataUrl, ptToMm(503.46));
   } else if (socialDataUrl) {
     try {
       const socialFmt = /^data:image\/png/i.test(socialDataUrl) ? "PNG" : /^data:image\/webp/i.test(socialDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(socialDataUrl, socialFmt as any, x + contentW - 31, footerTop + 23.0, 21, 6.8);
+      doc.addImage(socialDataUrl, socialFmt as any, ptToMm(444.38), ptToMm(781.12), ptToMm(81.58), ptToMm(22.5));
     } catch {}
   }
 
