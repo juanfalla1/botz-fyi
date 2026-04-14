@@ -6868,15 +6868,17 @@ export async function POST(req: Request) {
           if (effectiveEquipment === "balanza") {
             const guidedProfile = guidedProfileFromNeed;
             if (guidedProfile) {
-              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfile);
+              const industrialMode = guidedProfile === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
+              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfile, industrialMode as any);
               strictMemory.pending_product_options = guidedOptions;
               strictMemory.pending_family_options = [];
               strictMemory.awaiting_action = guidedOptions.length ? "strict_choose_model" : "strict_need_spec";
               strictMemory.last_category_intent = "balanzas";
               strictMemory.guided_balanza_profile = guidedProfile;
+              strictMemory.guided_industrial_mode = industrialMode;
               strictMemory.strict_family_label = "balanzas";
               strictMemory.strict_model_offset = 0;
-              strictReply = buildGuidedBalanzaReply(guidedProfile);
+              strictReply = buildGuidedBalanzaReplyWithMode(guidedProfile, industrialMode as any);
               return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_guided_new_customer" });
             }
             strictMemory.awaiting_action = "strict_need_spec";
@@ -7153,15 +7155,17 @@ export async function POST(req: Request) {
         if (effectiveEquipment === "balanza") {
           const guidedProfile = guidedProfileFromNeed;
           if (guidedProfile) {
-            const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfile);
+            const industrialMode = guidedProfile === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
+            const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfile, industrialMode as any);
             strictMemory.pending_product_options = guidedOptions;
             strictMemory.pending_family_options = [];
             strictMemory.awaiting_action = guidedOptions.length ? "strict_choose_model" : "strict_need_spec";
             strictMemory.last_category_intent = "balanzas";
             strictMemory.guided_balanza_profile = guidedProfile;
+            strictMemory.guided_industrial_mode = industrialMode;
             strictMemory.strict_family_label = "balanzas";
             strictMemory.strict_model_offset = 0;
-            strictReply = buildGuidedBalanzaReply(guidedProfile);
+            strictReply = buildGuidedBalanzaReplyWithMode(guidedProfile, industrialMode as any);
             return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_guided_existing_customer" });
           }
           strictMemory.awaiting_action = "strict_need_spec";
