@@ -4869,7 +4869,7 @@ async function buildStandardQuotePdf(args: {
         const boxY = 8.5;
         const boxW = 193;
         const boxH = 55;
-        const overscan = Math.max(1, Number(process.env.WHATSAPP_QUOTE_BANNER_OVERSCAN || 1.9));
+        const overscan = Math.max(1, Number(process.env.WHATSAPP_QUOTE_BANNER_OVERSCAN || 4.25));
         const drawW = boxW * overscan;
         const drawH = boxH * overscan;
         const drawX = boxX - ((drawW - boxW) / 2);
@@ -5152,16 +5152,16 @@ async function buildStandardQuotePdf(args: {
   }
 
   const totalsLabelX = 157;
-  const totalsLabelW = 21;
+  const totalsLabelW = 19;
   const totalsValueX = totalsLabelX + totalsLabelW;
-  const totalsValueW = 22;
+  const totalsValueW = 24;
   const totalsValueRight = totalsValueX + totalsValueW - 1;
 
   doc.setFillColor(blue[0], blue[1], blue[2]);
   doc.rect(totalsLabelX, y, totalsLabelW, 24, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.1);
+  doc.setFontSize(7.7);
   doc.text("Subtotal:", totalsLabelX + 2, y + 6);
   doc.text("Descuento:", totalsLabelX + 2, y + 12.2);
   doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, totalsLabelX + 2, y + 18.4);
@@ -5172,12 +5172,12 @@ async function buildStandardQuotePdf(args: {
   doc.setLineWidth(0.25);
   doc.rect(totalsValueX, y, totalsValueW, 24, "S");
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.0);
-  doc.text(`$ ${formatMoney(subtotal)}`, totalsValueRight, y + 6, { align: "right" });
-  doc.text(`$ ${formatMoney(0)}`, totalsValueRight, y + 12.2, { align: "right" });
-  doc.text(`$ ${formatMoney(iva)}`, totalsValueRight, y + 18.4, { align: "right" });
+  doc.setFontSize(6.6);
+  doc.text(`$${formatMoney(subtotal)}`, totalsValueRight, y + 6, { align: "right" });
+  doc.text(`$${formatMoney(0)}`, totalsValueRight, y + 12.2, { align: "right" });
+  doc.text(`$${formatMoney(iva)}`, totalsValueRight, y + 18.4, { align: "right" });
   doc.setFont("helvetica", "bold");
-  doc.text(`$ ${formatMoney(total)}`, totalsValueRight, y + 22.8, { align: "right" });
+  doc.text(`$${formatMoney(total)}`, totalsValueRight, y + 22.8, { align: "right" });
 
   let yFooter = y + (singleItemMode ? 4 : 8);
 
