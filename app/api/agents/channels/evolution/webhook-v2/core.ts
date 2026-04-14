@@ -4744,12 +4744,15 @@ function rowCatalogCopPrice(row: any): number {
 }
 
 function buildPriceRangeLine(rows: any[]): string {
-  const values = (Array.isArray(rows) ? rows : [])
-    .map((r) => rowCatalogCopPrice(r))
-    .filter((v) => Number.isFinite(v) && v > 0)
-    .sort((a, b) => a - b);
-  if (!values.length) return "";
-  return `Según base de datos, nuestras balanzas van desde COP $ ${formatMoney(values[0])}.`;
+  const list = Array.isArray(rows) ? rows : [];
+  const industrialHits = list.filter((r: any) => {
+    const txt = normalizeText(`${String(r?.name || "")} ${String(r?.category || "")} ${familyLabelFromRow(r)}`);
+    return /(industrial|plataforma|ranger|defender|valor|rc31|r31|r71|ckw|td52p)/.test(txt);
+  }).length;
+  const isIndustrialProfile = industrialHits > 0 && industrialHits >= Math.max(1, Math.floor(list.length / 3));
+  return isIndustrialProfile
+    ? "💰 Valores estimados: desde $3.500.000 (según gama y funcionalidad). Deseas continuar con la cotizacion"
+    : "💰 Valores estimados: desde $4.000.000 (según gama y funcionalidad). Deseas continuar con la cotizacion";
 }
 
 function quoteCodeFromDraftId(draftId: string) {
