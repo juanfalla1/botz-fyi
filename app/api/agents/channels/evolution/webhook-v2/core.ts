@@ -4992,9 +4992,9 @@ async function buildStandardQuotePdf(args: {
   const bannerBoxH = hasEmbeddedHeader ? ptToMm(192.39) : 27.8;
   const inviteStripH = hasEmbeddedHeader ? 0 : 10.2;
   const titleStripH = hasEmbeddedHeader ? 0 : 4.8;
-  const bannerX = ptToMm(32.16);
-  const bannerY = ptToMm(54.0);
-  const bannerW = ptToMm(534.83);
+  const bannerX = x;
+  const bannerY = y;
+  const bannerW = contentW;
   const bannerH = ptToMm(192.39);
 
   doc.setDrawColor(35, 35, 35);
