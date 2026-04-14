@@ -4878,40 +4878,27 @@ async function buildStandardQuotePdf(args: {
       }
     }
 
-    doc.setFillColor(blue[0], blue[1], blue[2]);
-    doc.rect(8, titleBarY, 194, 10.5, "F");
-    doc.rect(8, titleBarY + 10.5, 194, 4.5, "F");
-
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(237, 106, 47);
-    doc.setFontSize(compact ? 22 : 28);
-    if (!hasBanner || compact) doc.text("Avanza", 12, compact ? 19 : 20);
-    doc.setTextColor(220, 23, 55);
-    doc.setFontSize(compact ? 16 : 20);
-    if (!hasBanner || compact) doc.text("OHAUS", compact ? 50 : 60, compact ? 19 : 20);
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.1);
-    doc.text(
-      [
-        "AVANZA INTERNACIONAL GROUP S.A.S. como representantes directo de la marca OHAUS para Colombia,",
-        "agradece su amable invitación a cotizar nuestra línea de equipos de laboratorio y nuestra línea de servicio técnico",
-        "como mantenimiento preventivo, correctivo, soporte técnico y acompañamiento.",
-      ],
-      105,
-      titleBarY + 3.2,
-      { align: "center" },
-    );
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.6);
-    doc.text("Información general", 105, titleBarY + 13.9, { align: "center" });
-    doc.setTextColor(dark[0], dark[1], dark[2]);
+    if (!hasBanner || compact) {
+      doc.setFillColor(blue[0], blue[1], blue[2]);
+      doc.rect(8, titleBarY, 194, 8, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(237, 106, 47);
+      doc.setFontSize(compact ? 22 : 28);
+      doc.text("Avanza", 12, compact ? 19 : 20);
+      doc.setTextColor(220, 23, 55);
+      doc.setFontSize(compact ? 16 : 20);
+      doc.text("OHAUS", compact ? 50 : 60, compact ? 19 : 20);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.text("AVANZA INTERNACIONAL GROUP S.A.S. - Cotizacion Comercial", 12, titleBarY + 5.2);
+      doc.setTextColor(dark[0], dark[1], dark[2]);
+    }
   };
 
   drawHeader(false);
 
-  const infoTopY = hasBanner ? 81 : 47;
-  const tableHeaderY = hasBanner ? 113 : 79;
+  const infoTopY = hasBanner ? 72.5 : 47;
+  const tableHeaderY = hasBanner ? 104.5 : 79;
   doc.setDrawColor(35, 35, 35);
   doc.setLineWidth(0.25);
   doc.rect(10, infoTopY, 190, 28, "S");
@@ -5162,17 +5149,17 @@ async function buildStandardQuotePdf(args: {
     y = 40;
   }
 
-  const totalsLabelX = 128;
-  const totalsLabelW = 42;
+  const totalsLabelX = 157;
+  const totalsLabelW = 21;
   const totalsValueX = totalsLabelX + totalsLabelW;
-  const totalsValueW = 30;
+  const totalsValueW = 22;
   const totalsValueRight = totalsValueX + totalsValueW - 1;
 
   doc.setFillColor(blue[0], blue[1], blue[2]);
   doc.rect(totalsLabelX, y, totalsLabelW, 24, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(8.1);
   doc.text("Subtotal:", totalsLabelX + 2, y + 6);
   doc.text("Descuento:", totalsLabelX + 2, y + 12.2);
   doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, totalsLabelX + 2, y + 18.4);
@@ -5183,7 +5170,7 @@ async function buildStandardQuotePdf(args: {
   doc.setLineWidth(0.25);
   doc.rect(totalsValueX, y, totalsValueW, 24, "S");
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.4);
+  doc.setFontSize(7.0);
   doc.text(`$ ${formatMoney(subtotal)}`, totalsValueRight, y + 6, { align: "right" });
   doc.text(`$ ${formatMoney(0)}`, totalsValueRight, y + 12.2, { align: "right" });
   doc.text(`$ ${formatMoney(iva)}`, totalsValueRight, y + 18.4, { align: "right" });
