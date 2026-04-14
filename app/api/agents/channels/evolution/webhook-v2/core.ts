@@ -6441,6 +6441,31 @@ export async function POST(req: Request) {
               ].join("\n");
               return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
             }
+
+            if (appProfile) {
+              const appAlternatives = getApplicationRecommendedOptions({
+                rows: baseScoped as any[],
+                application: appProfile,
+                capTargetG: cap,
+                targetReadabilityG: read,
+                strictPrecision: false,
+              });
+              const appOptions = buildNumberedProductOptions((appAlternatives || []).slice(0, 8) as any[], 8);
+              if (appOptions.length) {
+                strictMemory.pending_product_options = appOptions;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                const reply = [
+                  `Para ${strictMemory.strict_spec_query} no tengo coincidencia exacta en ${appProfile.replace(/_/g, " ")}, pero sí estas alternativas compatibles:`,
+                  ...appOptions.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Elige con letra/número (A/1), o escribe 'más'.",
+                ].join("\n");
+                return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+              }
+            }
+
             strictMemory.awaiting_action = "strict_need_spec";
             return finalizeStrictTurn(`Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD. Si quieres, ajustamos capacidad/resolución.`, strictMemory, { pipeline: true, intent: pipelineIntent });
           }
