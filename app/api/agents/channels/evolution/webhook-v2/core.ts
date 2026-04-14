@@ -6433,8 +6433,10 @@ export async function POST(req: Request) {
               strictMemory.pending_family_options = [];
               strictMemory.awaiting_action = "strict_choose_model";
               strictMemory.strict_model_offset = 0;
+              const priceLine = buildPriceRangeLine(sourceRows as any[]);
               const reply = [
                 exactRows.length ? `Sí, tengo coincidencias exactas para ${strictMemory.strict_spec_query}.` : `Para ${strictMemory.strict_spec_query} no veo exacta, pero sí cercanas de BD:`,
+                ...(priceLine ? [priceLine] : []),
                 ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
                 "",
                 "Elige con letra/número (A/1), o escribe 'más'.",
@@ -6456,8 +6458,10 @@ export async function POST(req: Request) {
                 strictMemory.pending_family_options = [];
                 strictMemory.awaiting_action = "strict_choose_model";
                 strictMemory.strict_model_offset = 0;
+                const priceLine = buildPriceRangeLine(appAlternatives as any[]);
                 const reply = [
                   `Para ${strictMemory.strict_spec_query} no tengo coincidencia exacta en ${appProfile.replace(/_/g, " ")}, pero sí estas alternativas compatibles:`,
+                  ...(priceLine ? [priceLine] : []),
                   ...appOptions.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
                   "",
                   "Elige con letra/número (A/1), o escribe 'más'.",
