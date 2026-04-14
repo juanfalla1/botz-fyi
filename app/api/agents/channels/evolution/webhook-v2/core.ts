@@ -4773,6 +4773,30 @@ function buildPriceRangeLine(rows: any[]): string {
     : "💰 Valores estimados: desde $4.000.000 (según gama y funcionalidad). Deseas continuar con la cotizacion";
 }
 
+function isLargestCapacityAsk(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!t) return false;
+  return /(mas\s+grandes|m[aá]s\s+grandes|mayor\s+capacidad|mas\s+capacidad|m[aá]s\s+capacidad|de\s+mayor\s+capacidad|mas\s+peso|m[aá]s\s+peso)/.test(t);
+}
+
+function buildLargestCapacitySuggestion(rows: any[]): { options: any[]; reply: string } {
+  const source = Array.isArray(rows) ? rows : [];
+  const byCapacity = [...source]
+    .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
+    .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
+  const topRows = byCapacity.length ? byCapacity : source;
+  const options = buildNumberedProductOptions(topRows.slice(0, 8) as any[], 8);
+  const priceLine = buildPriceRangeLine(topRows as any[]);
+  const reply = [
+    "Claro. Estas son las balanzas de mayor capacidad que tengo activas en catálogo:",
+    ...(priceLine ? [priceLine] : []),
+    ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
+    "",
+    "Elige con letra/número (A/1), o escribe 'más'.",
+  ].join("\n");
+  return { options, reply };
+}
+
 function quoteCodeFromDraftId(draftId: string) {
   const raw = String(draftId || "");
   let h = 0;
@@ -6519,6 +6543,16 @@ export async function POST(req: Request) {
           if (cap > 0 && !(read > 0)) {
             const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
             const scopedForFast = currentCategory ? scopeCatalogRows(ownerRows as any[], currentCategory) : ownerRows;
+            if (isLargestCapacityAsk(text)) {
+              const largest = buildLargestCapacitySuggestion(scopedForFast as any[]);
+              if (largest.options.length) {
+                strictMemory.pending_product_options = largest.options;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                return finalizeStrictTurn(largest.reply, strictMemory, { pipeline: true, intent: pipelineIntent });
+              }
+            }
             const rankedCapGeneric = rankCatalogByCapacityOnly(scopedForFast as any[], cap);
             const capRowsGeneric = rankedCapGeneric.length ? rankedCapGeneric.map((x: any) => x.row) : scopedForFast;
             const capOptionsGeneric = buildNumberedProductOptions((capRowsGeneric || []).slice(0, 8) as any[], 8);
@@ -7913,7 +7947,17 @@ export async function POST(req: Request) {
         } else if (!String(strictReply || "").trim() && cap > 0 && !(read > 0)) {
           const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
           const scopedForFast = currentCategory ? scopeCatalogRows(ownerRows as any[], currentCategory) : ownerRows;
-          if (currentCategory === "basculas" && Array.isArray(scopedForFast) && scopedForFast.length > 0 && scopedForFast.length <= 4) {
+          if (isLargestCapacityAsk(text)) {
+            const largest = buildLargestCapacitySuggestion(scopedForFast as any[]);
+            if (largest.options.length) {
+              strictMemory.pending_product_options = largest.options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictReply = largest.reply;
+            }
+          }
+          if (!String(strictReply || "").trim() && currentCategory === "basculas" && Array.isArray(scopedForFast) && scopedForFast.length > 0 && scopedForFast.length <= 4) {
             const rankedCap = rankCatalogByCapacityOnly(scopedForFast as any[], cap);
             const rankedRows = rankedCap.length ? rankedCap.map((x: any) => x.row) : scopedForFast;
             const options = buildNumberedProductOptions((rankedRows || []).slice(0, 8) as any[], 8);
@@ -7929,7 +7973,7 @@ export async function POST(req: Request) {
               "",
               "Elige una con letra/número (A/1) y te envío ficha o cotización.",
             ].join("\n");
-          } else {
+          } else if (!String(strictReply || "").trim()) {
             const priceLine = buildPriceRangeLine(scopedForFast as any[]);
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g).`,
@@ -8153,14 +8197,26 @@ export async function POST(req: Request) {
           strictMemory.strict_partial_capacity_g = mergedCap > 0 ? mergedCap : "";
           strictMemory.strict_partial_readability_g = mergedRead > 0 ? mergedRead : "";
           if (mergedCap > 0 && !(mergedRead > 0)) {
-            const priceLine = buildPriceRangeLine(baseScoped as any[]);
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = [
-              `Perfecto, ya tengo la capacidad (${formatSpecNumber(mergedCap)} g).`,
-              ...(priceLine ? [priceLine] : []),
-              "Ahora dime la resolución/precisión objetivo.",
-              "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
-            ].join("\n");
+            if (isLargestCapacityAsk(text)) {
+              const largest = buildLargestCapacitySuggestion(baseScoped as any[]);
+              if (largest.options.length) {
+                strictMemory.pending_product_options = largest.options;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                strictReply = largest.reply;
+              }
+            }
+            if (!String(strictReply || "").trim()) {
+              const priceLine = buildPriceRangeLine(baseScoped as any[]);
+              strictMemory.awaiting_action = "strict_need_spec";
+              strictReply = [
+                `Perfecto, ya tengo la capacidad (${formatSpecNumber(mergedCap)} g).`,
+                ...(priceLine ? [priceLine] : []),
+                "Ahora dime la resolución/precisión objetivo.",
+                "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
+              ].join("\n");
+            }
           } else if (mergedRead > 0 && !(mergedCap > 0)) {
             strictMemory.awaiting_action = "strict_need_spec";
             strictReply = [
@@ -9658,13 +9714,25 @@ export async function POST(req: Request) {
             }
             }
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
-            const priceLine = buildPriceRangeLine(familyRows as any[]);
-            strictReply = [
-              `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
-              ...(priceLine ? [priceLine] : []),
-              "Ahora dime la resolución/precisión objetivo.",
-              "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
-            ].join("\n");
+            if (isLargestCapacityAsk(text)) {
+              const largest = buildLargestCapacitySuggestion(categoryScoped as any[]);
+              if (largest.options.length) {
+                strictMemory.pending_product_options = largest.options;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                strictReply = largest.reply;
+              }
+            }
+            if (!String(strictReply || "").trim()) {
+              const priceLine = buildPriceRangeLine(familyRows as any[]);
+              strictReply = [
+                `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
+                ...(priceLine ? [priceLine] : []),
+                "Ahora dime la resolución/precisión objetivo.",
+                "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
+              ].join("\n");
+            }
           } else {
             let prioritized = prioritizeTechnicalRows(familyRows as any[], {
               capacityG: effectiveCap,
@@ -10068,13 +10136,25 @@ export async function POST(req: Request) {
               "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
             ].join("\n");
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
-            const priceLine = buildPriceRangeLine(baseScoped as any[]);
-            strictReply = [
-              `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
-              ...(priceLine ? [priceLine] : []),
-              "Ahora dime la resolución/precisión objetivo.",
-              "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
-            ].join("\n");
+            if (isLargestCapacityAsk(text)) {
+              const largest = buildLargestCapacitySuggestion(baseScoped as any[]);
+              if (largest.options.length) {
+                strictMemory.pending_product_options = largest.options;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                strictReply = largest.reply;
+              }
+            }
+            if (!String(strictReply || "").trim()) {
+              const priceLine = buildPriceRangeLine(baseScoped as any[]);
+              strictReply = [
+                `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
+                ...(priceLine ? [priceLine] : []),
+                "Ahora dime la resolución/precisión objetivo.",
+                "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
+              ].join("\n");
+            }
           } else {
             const prioritized = prioritizeTechnicalRows(baseScoped as any[], {
               capacityG: effectiveCap,
