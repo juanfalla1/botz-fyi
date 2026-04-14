@@ -4592,6 +4592,52 @@ function buildPriceRangeLine(rows: any[]): string {
     : "💰 Valores estimados: desde $4.000.000 (según gama y funcionalidad). Deseas continuar con la cotizacion";
 }
 
+function buildLargestCapacitySuggestion(rows: any[]): { options: any[]; reply: string } {
+  const source = Array.isArray(rows) ? rows : [];
+  const byCapacity = [...source]
+    .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
+    .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
+  const topRows = byCapacity.length ? byCapacity : source;
+  const options = buildNumberedProductOptions(topRows.slice(0, 8) as any[], 8);
+  const priceLine = buildPriceRangeLine(topRows as any[]);
+  const gamaLabelMap: Record<string, string> = {
+    basica: "Línea básica (uso industrial estándar)",
+    media: "Línea media (mayor precisión)",
+    alta: "Línea alta (alta precisión industrial)",
+    esencial: "Línea esencial: soluciones confiables para empresas en crecimiento",
+    intermedia: "Línea intermedia: mayor desempeño y funciones para empresas en expansión",
+    avanzada: "Línea avanzada: mayor rendimiento para empresas con alta demanda",
+    premium: "Línea premium: soluciones de alto nivel para empresas de gran escala",
+  };
+  const order = ["basica", "media", "alta", "esencial", "intermedia", "avanzada", "premium"];
+  const bucket = new Map<string, string[]>();
+  for (const key of order) bucket.set(key, []);
+  bucket.set("", []);
+  for (const o of options.slice(0, 6)) {
+    const m = String(o?.name || "").match(/\bGama:\s*([^|]+)/i);
+    const key = normalizeText(String(m?.[1] || "")).replace(/[^a-z]/g, "");
+    if (!bucket.has(key)) bucket.set(key, []);
+    bucket.get(key)!.push(`${o.code}) ${o.name}`);
+  }
+  const groupedLines: string[] = [];
+  for (const key of order) {
+    const items = bucket.get(key) || [];
+    if (!items.length) continue;
+    groupedLines.push(gamaLabelMap[key] || `Línea ${key}`);
+    groupedLines.push(...items);
+    groupedLines.push("");
+  }
+  const others = bucket.get("") || [];
+  if (others.length) groupedLines.push(...others, "");
+  const reply = [
+    "Claro. Estas son las balanzas de mayor capacidad que tengo activas en catálogo:",
+    ...(priceLine ? [priceLine] : []),
+    ...groupedLines,
+    "Elige con letra/número (A/1), o escribe 'más'.",
+  ].join("\n");
+  return { options, reply };
+}
+
 function quoteCodeFromDraftId(draftId: string) {
   const raw = String(draftId || "");
   let h = 0;
@@ -7425,24 +7471,13 @@ export async function POST(req: Request) {
           } else {
             const asksLargestCapacity = /(mas\s+grandes|m[aá]s\s+grandes|mayor\s+capacidad|mas\s+capacidad|m[aá]s\s+capacidad|de\s+mayor\s+capacidad|mas\s+peso|m[aá]s\s+peso)/.test(textNorm);
             if (asksLargestCapacity) {
-              const byCapacity = [...(scopedForFast as any[])]
-                .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
-                .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
-              const topRows = byCapacity.length ? byCapacity : (scopedForFast as any[]);
-              const options = buildNumberedProductOptions(topRows.slice(0, 8) as any[], 8);
-              if (options.length) {
-                strictMemory.pending_product_options = options;
+              const largest = buildLargestCapacitySuggestion(scopedForFast as any[]);
+              if (largest.options.length) {
+                strictMemory.pending_product_options = largest.options;
                 strictMemory.pending_family_options = [];
                 strictMemory.awaiting_action = "strict_choose_model";
                 strictMemory.strict_model_offset = 0;
-                const priceLine = buildPriceRangeLine(topRows as any[]);
-                return finalizeStrictTurn([
-                  "Claro. Estas son las balanzas de mayor capacidad que tengo activas en catálogo:",
-                  ...(priceLine ? [priceLine] : []),
-                  ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
-                  "",
-                  "Elige con letra/número (A/1), o escribe 'más'.",
-                ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
+                return finalizeStrictTurn(largest.reply, strictMemory, { pipeline: true, intent: pipelineIntent });
               }
             }
             const priceLine = buildPriceRangeLine(scopedForFast as any[]);
@@ -7646,24 +7681,13 @@ export async function POST(req: Request) {
           if (mergedCap > 0 && !(mergedRead > 0)) {
             const asksLargestCapacity = /(mas\s+grandes|m[aá]s\s+grandes|mayor\s+capacidad|mas\s+capacidad|m[aá]s\s+capacidad|de\s+mayor\s+capacidad|mas\s+peso|m[aá]s\s+peso)/.test(textNorm);
             if (asksLargestCapacity) {
-              const byCapacity = [...(baseScoped as any[])]
-                .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
-                .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
-              const topRows = byCapacity.length ? byCapacity : (baseScoped as any[]);
-              const options = buildNumberedProductOptions(topRows.slice(0, 8) as any[], 8);
-              if (options.length) {
-                strictMemory.pending_product_options = options;
+              const largest = buildLargestCapacitySuggestion(baseScoped as any[]);
+              if (largest.options.length) {
+                strictMemory.pending_product_options = largest.options;
                 strictMemory.pending_family_options = [];
                 strictMemory.awaiting_action = "strict_choose_model";
                 strictMemory.strict_model_offset = 0;
-                const priceLine = buildPriceRangeLine(topRows as any[]);
-                strictReply = [
-                  "Claro. Estas son las balanzas de mayor capacidad que tengo activas en catálogo:",
-                  ...(priceLine ? [priceLine] : []),
-                  ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
-                  "",
-                  "Elige con letra/número (A/1), o escribe 'más'.",
-                ].join("\n");
+                strictReply = largest.reply;
               }
             }
             if (String(strictReply || "").trim()) {
@@ -8877,24 +8901,13 @@ export async function POST(req: Request) {
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
             const asksLargestCapacity = /(mas\s+grandes|m[aá]s\s+grandes|mayor\s+capacidad|mas\s+capacidad|m[aá]s\s+capacidad|de\s+mayor\s+capacidad|mas\s+peso|m[aá]s\s+peso)/.test(textNorm);
             if (asksLargestCapacity) {
-              const byCapacity = [...(categoryScoped as any[])]
-                .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
-                .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
-              const topRows = byCapacity.length ? byCapacity : (categoryScoped as any[]);
-              const options = buildNumberedProductOptions(topRows.slice(0, 8) as any[], 8);
-              if (options.length) {
-                strictMemory.pending_product_options = options;
+              const largest = buildLargestCapacitySuggestion(categoryScoped as any[]);
+              if (largest.options.length) {
+                strictMemory.pending_product_options = largest.options;
                 strictMemory.pending_family_options = [];
                 strictMemory.awaiting_action = "strict_choose_model";
                 strictMemory.strict_model_offset = 0;
-                const priceLine = buildPriceRangeLine(topRows as any[]);
-                strictReply = [
-                  "Claro. Estas son las balanzas de mayor capacidad que tengo activas en catálogo:",
-                  ...(priceLine ? [priceLine] : []),
-                  ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
-                  "",
-                  "Elige con letra/número (A/1), o escribe 'más'.",
-                ].join("\n");
+                strictReply = largest.reply;
               }
             }
             if (String(strictReply || "").trim()) {
@@ -9313,24 +9326,13 @@ export async function POST(req: Request) {
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
             const asksLargestCapacity = /(mas\s+grandes|m[aá]s\s+grandes|mayor\s+capacidad|mas\s+capacidad|m[aá]s\s+capacidad|de\s+mayor\s+capacidad|mas\s+peso|m[aá]s\s+peso)/.test(textNorm);
             if (asksLargestCapacity) {
-              const byCapacity = [...(baseScoped as any[])]
-                .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
-                .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
-              const topRows = byCapacity.length ? byCapacity : (baseScoped as any[]);
-              const options = buildNumberedProductOptions(topRows.slice(0, 8) as any[], 8);
-              if (options.length) {
-                strictMemory.pending_product_options = options;
+              const largest = buildLargestCapacitySuggestion(baseScoped as any[]);
+              if (largest.options.length) {
+                strictMemory.pending_product_options = largest.options;
                 strictMemory.pending_family_options = [];
                 strictMemory.awaiting_action = "strict_choose_model";
                 strictMemory.strict_model_offset = 0;
-                const priceLine = buildPriceRangeLine(topRows as any[]);
-                strictReply = [
-                  "Claro. Estas son las balanzas de mayor capacidad que tengo activas en catálogo:",
-                  ...(priceLine ? [priceLine] : []),
-                  ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
-                  "",
-                  "Elige con letra/número (A/1), o escribe 'más'.",
-                ].join("\n");
+                strictReply = largest.reply;
               }
             }
             if (String(strictReply || "").trim()) {

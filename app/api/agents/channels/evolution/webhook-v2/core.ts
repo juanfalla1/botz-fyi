@@ -4795,11 +4795,39 @@ function buildLargestCapacitySuggestion(rows: any[]): { options: any[]; reply: s
   const topRows = byCapacity.length ? byCapacity : source;
   const options = buildNumberedProductOptions(topRows.slice(0, 8) as any[], 8);
   const priceLine = buildPriceRangeLine(topRows as any[]);
+  const gamaLabelMap: Record<string, string> = {
+    basica: "Línea básica (uso industrial estándar)",
+    media: "Línea media (mayor precisión)",
+    alta: "Línea alta (alta precisión industrial)",
+    esencial: "Línea esencial: soluciones confiables para empresas en crecimiento",
+    intermedia: "Línea intermedia: mayor desempeño y funciones para empresas en expansión",
+    avanzada: "Línea avanzada: mayor rendimiento para empresas con alta demanda",
+    premium: "Línea premium: soluciones de alto nivel para empresas de gran escala",
+  };
+  const order = ["basica", "media", "alta", "esencial", "intermedia", "avanzada", "premium"];
+  const bucket = new Map<string, string[]>();
+  for (const key of order) bucket.set(key, []);
+  bucket.set("", []);
+  for (const o of options.slice(0, 6)) {
+    const m = String(o?.name || "").match(/\bGama:\s*([^|]+)/i);
+    const key = normalizeText(String(m?.[1] || "")).replace(/[^a-z]/g, "");
+    if (!bucket.has(key)) bucket.set(key, []);
+    bucket.get(key)!.push(`${o.code}) ${o.name}`);
+  }
+  const groupedLines: string[] = [];
+  for (const key of order) {
+    const items = bucket.get(key) || [];
+    if (!items.length) continue;
+    groupedLines.push(gamaLabelMap[key] || `Línea ${key}`);
+    groupedLines.push(...items);
+    groupedLines.push("");
+  }
+  const others = bucket.get("") || [];
+  if (others.length) groupedLines.push(...others, "");
   const reply = [
     "Claro. Estas son las balanzas de mayor capacidad que tengo activas en catálogo:",
     ...(priceLine ? [priceLine] : []),
-    ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
-    "",
+    ...groupedLines,
     "Elige con letra/número (A/1), o escribe 'más'.",
   ].join("\n");
   return { options, reply };
