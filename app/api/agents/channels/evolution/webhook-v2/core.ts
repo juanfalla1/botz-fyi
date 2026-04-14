@@ -5187,7 +5187,7 @@ async function buildStandardQuotePdf(args: {
   // Contact + totals row
   const contactTop = itemRowY + itemRowH;
   const totalsW = unitW + totalW;
-  const totalsX = c6;
+  const totalsX = c5;
   const contactLeftW = contentW - totalsW;
 
   doc.rect(x, contactTop, contactLeftW, CONTACT_H, "S");
@@ -5213,7 +5213,7 @@ async function buildStandardQuotePdf(args: {
   doc.text("Valor total:", totalsX + 2, contactTop + 16.8);
   doc.setTextColor(dark[0], dark[1], dark[2]);
   doc.rect(totalsX + totalsW * 0.52, contactTop, totalsW * 0.48, CONTACT_H, "S");
-  const valRight = totalsX + totalsW - 2.6;
+  const valRight = totalsX + totalsW - 3.8;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.9);
   doc.text(`$${formatMoney(subtotal)}`, valRight, contactTop + 4.2, { align: "right" });
