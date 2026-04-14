@@ -1964,11 +1964,12 @@ function filterNearbyTechnicalRows(rows: any[], spec: { capacityG: number; reada
   });
 }
 
-function applyApplicationProfile(rows: any[], args: { application?: string; targetCapacityG?: number; targetReadabilityG?: number }): any[] {
+function applyApplicationProfile(rows: any[], args: { application?: string; targetCapacityG?: number; targetReadabilityG?: number; allowFallback?: boolean }): any[] {
   const list = Array.isArray(rows) ? rows : [];
   const app = normalizeText(String(args.application || ""));
   const targetCap = Number(args.targetCapacityG || 0);
   const targetRead = Number(args.targetReadabilityG || 0);
+  const allowFallback = args.allowFallback !== false;
   if (!app && !(targetCap > 0) && !(targetRead > 0)) return list;
 
   const out = list.filter((row: any) => {
@@ -1996,7 +1997,8 @@ function applyApplicationProfile(rows: any[], args: { application?: string; targ
     return true;
   });
 
-  return out.length ? out : list;
+  if (out.length) return out;
+  return allowFallback ? list : [];
 }
 
 function isQuoteProceedIntent(text: string): boolean {
@@ -6394,7 +6396,12 @@ export async function POST(req: Request) {
         }
 
         if (pipelineIntent === "technical_spec_input") {
-          const appProfile = String(strictMemory.target_application || previousMemory?.target_application || "").trim();
+          const appNow = detectTargetApplication(text);
+          const appProfile = String(appNow || strictMemory.target_application || previousMemory?.target_application || "").trim();
+          if (appNow) {
+            strictMemory.target_application = appNow;
+            strictMemory.target_industry = appNow === "joyeria_oro" ? "joyeria" : appNow;
+          }
           const merged = mergeLooseSpecWithMemory(
             {
               capacityG: Number(previousMemory?.strict_filter_capacity_g || previousMemory?.target_capacity_g || 0),
@@ -6418,6 +6425,7 @@ export async function POST(req: Request) {
               application: appProfile,
               targetCapacityG: cap,
               targetReadabilityG: read,
+              allowFallback: false,
             });
             const options = buildNumberedProductOptions((sourceRows || []).slice(0, 8) as any[], 8);
             if (options.length) {
@@ -6521,6 +6529,7 @@ export async function POST(req: Request) {
               application: appProfile,
               targetCapacityG: cap,
               targetReadabilityG: read,
+              allowFallback: false,
             });
             const options = buildNumberedProductOptions((profiledRows || []).slice(0, 8) as any[], 8);
             if (options.length) {
@@ -10076,11 +10085,17 @@ export async function POST(req: Request) {
             const ranged = filterRowsByCapacityRange(recommendedRows as any[], rangeHint);
             if (ranged.length) recommendedRows = ranged;
           }
-          const appProfile = String(strictMemory.target_application || previousMemory?.target_application || "").trim();
+          const appNow = detectTargetApplication(text);
+          const appProfile = String(appNow || strictMemory.target_application || previousMemory?.target_application || "").trim();
+          if (appNow) {
+            strictMemory.target_application = appNow;
+            strictMemory.target_industry = appNow === "joyeria_oro" ? "joyeria" : appNow;
+          }
           const profiledRows = applyApplicationProfile(recommendedRows as any[], {
             application: appProfile,
             targetCapacityG: hintedCap || Number(previousMemory?.strict_filter_capacity_g || 0),
             targetReadabilityG: hintedRead || Number(previousMemory?.strict_filter_readability_g || 0),
+            allowFallback: false,
           });
           const allOptions = buildNumberedProductOptions(profiledRows as any[], 60);
           const options = allOptions.slice(0, 8);
@@ -10134,11 +10149,17 @@ export async function POST(req: Request) {
             readabilityG: parsed.readabilityG,
           });
           const rankedRowsRaw = ranked.length ? ranked.map((r: any) => r.row) : ownerRows;
-          const appProfile = String(strictMemory.target_application || previousMemory?.target_application || "").trim();
+          const appNow = detectTargetApplication(text);
+          const appProfile = String(appNow || strictMemory.target_application || previousMemory?.target_application || "").trim();
+          if (appNow) {
+            strictMemory.target_application = appNow;
+            strictMemory.target_industry = appNow === "joyeria_oro" ? "joyeria" : appNow;
+          }
           const rankedRows = applyApplicationProfile(rankedRowsRaw as any[], {
             application: appProfile,
             targetCapacityG: Number(parsed.capacityG || 0),
             targetReadabilityG: Number(parsed.readabilityG || 0),
+            allowFallback: false,
           });
           const options = buildNumberedProductOptions(rankedRows as any[], 8);
           if (options.length) {
@@ -10198,6 +10219,7 @@ export async function POST(req: Request) {
               application: appProfile,
               targetCapacityG: hintedCap || Number(previousMemory?.strict_filter_capacity_g || 0),
               targetReadabilityG: hintedRead || Number(previousMemory?.strict_filter_readability_g || 0),
+              allowFallback: false,
             });
             const allOptions = buildNumberedProductOptions(profiledRows as any[], 60);
             const options = allOptions.slice(0, 8);
