@@ -2821,8 +2821,15 @@ function getApplicationRecommendedOptions(args: {
   const capTarget = Number(args.capTargetG || 0);
   const excludeId = String(args.excludeId || "").trim();
   const isJewelry = normalizeText(app) === "joyeria_oro";
+  const prefersLab = normalizeText(app) === "laboratorio";
+  const highPrecisionNeed = targetRead > 0 && targetRead <= 0.001;
   const minCap = capTarget > 0 ? (isJewelry ? capTarget * 0.5 : capTarget * 0.25) : 0;
-  const maxCap = capTarget > 0 ? (isJewelry ? capTarget * 2.5 : capTarget * 4.0) : Number.POSITIVE_INFINITY;
+  const capMultiplier = isJewelry
+    ? 2.5
+    : (prefersLab && highPrecisionNeed)
+      ? 20
+      : (prefersLab ? 10 : 4);
+  const maxCap = capTarget > 0 ? (capTarget * capMultiplier) : Number.POSITIVE_INFINITY;
   const filtered = rows
     .filter((r: any) => {
       const id = String(r?.id || "").trim();
@@ -2847,7 +2854,13 @@ function getApplicationRecommendedOptions(args: {
       const bc = Number(extractRowTechnicalSpec(b)?.capacityG || 0);
       const ad = capTarget > 0 ? Math.abs(ac - capTarget) : 0;
       const bd = capTarget > 0 ? Math.abs(bc - capTarget) : 0;
-      return ad - bd || ar - br;
+
+      const readDeltaA = targetRead > 0 ? Math.abs(Math.log10(Math.max(ar, 1e-9) / Math.max(targetRead, 1e-9))) : ar;
+      const readDeltaB = targetRead > 0 ? Math.abs(Math.log10(Math.max(br, 1e-9) / Math.max(targetRead, 1e-9))) : br;
+      const belowPenaltyA = capTarget > 0 && ac < capTarget ? 1 : 0;
+      const belowPenaltyB = capTarget > 0 && bc < capTarget ? 1 : 0;
+
+      return readDeltaA - readDeltaB || belowPenaltyA - belowPenaltyB || ad - bd || ar - br;
     });
   return buildNumberedProductOptions(filtered.slice(0, 8) as any[], 8);
 }
