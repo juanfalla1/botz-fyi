@@ -4768,11 +4768,14 @@ function rowCatalogCopPrice(row: any): number {
 
 function buildPriceRangeLine(rows: any[]): string {
   const list = Array.isArray(rows) ? rows : [];
-  const industrialHits = list.filter((r: any) => {
+  const sample = [...list]
+    .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0))
+    .slice(0, Math.min(12, Math.max(3, list.length)));
+  const industrialHits = sample.filter((r: any) => {
     const txt = normalizeText(`${String(r?.name || "")} ${String(r?.category || "")} ${familyLabelFromRow(r)}`);
     return /(industrial|plataforma|ranger|defender|valor|rc31|r31|r71|ckw|td52p)/.test(txt);
   }).length;
-  const isIndustrialProfile = industrialHits > 0 && industrialHits >= Math.max(1, Math.floor(list.length / 3));
+  const isIndustrialProfile = industrialHits > 0 && industrialHits >= Math.max(1, Math.floor(sample.length / 3));
   return isIndustrialProfile
     ? "💰 Valores estimados: desde $3.500.000 (según gama y funcionalidad). Deseas continuar con la cotizacion"
     : "💰 Valores estimados: desde $4.000.000 (según gama y funcionalidad). Deseas continuar con la cotizacion";
