@@ -5203,19 +5203,21 @@ async function buildStandardQuotePdf(args: {
   const total = subtotal + iva;
 
   doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(totalsX, contactTop, totalsW * 0.52, CONTACT_H, "F");
+  const totalsLabelW = totalsW * 0.44;
+  const totalsValueW = totalsW - totalsLabelW;
+  doc.rect(totalsX, contactTop, totalsLabelW, CONTACT_H, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.04);
-  doc.text("Subtotal:", totalsX + 2, contactTop + 4.2);
-  doc.text("Descuento:", totalsX + 2, contactTop + 8.4);
-  doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, totalsX + 2, contactTop + 12.6);
-  doc.text("Valor total:", totalsX + 2, contactTop + 16.8);
+  doc.text("Subtotal:", totalsX + 1.6, contactTop + 4.2);
+  doc.text("Descuento:", totalsX + 1.6, contactTop + 8.4);
+  doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, totalsX + 1.6, contactTop + 12.6);
+  doc.text("Valor total:", totalsX + 1.6, contactTop + 16.8);
   doc.setTextColor(dark[0], dark[1], dark[2]);
-  doc.rect(totalsX + totalsW * 0.52, contactTop, totalsW * 0.48, CONTACT_H, "S");
+  doc.rect(totalsX + totalsLabelW, contactTop, totalsValueW, CONTACT_H, "S");
   const valRight = totalsX + totalsW - 3.8;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.9);
+  doc.setFontSize(6.1);
   doc.text(`$${formatMoney(subtotal)}`, valRight, contactTop + 4.2, { align: "right" });
   doc.text(`$${formatMoney(0)}`, valRight, contactTop + 8.4, { align: "right" });
   doc.text(`$${formatMoney(iva)}`, valRight, contactTop + 12.6, { align: "right" });
