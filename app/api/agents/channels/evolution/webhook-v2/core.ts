@@ -5039,7 +5039,7 @@ async function buildStandardQuotePdf(args: {
   }
 
   // Info general
-  const infoTop = ptToMm(243.86);
+  const infoTop = y + bannerBoxH;
   const infoH = ptToMm(82.35);
   doc.setLineWidth(ptToMm(0.14));
   doc.rect(x, infoTop, contentW, infoH, "S");
@@ -5083,7 +5083,7 @@ async function buildStandardQuotePdf(args: {
   }
 
   // Main table header
-  const tableHeadY = ptToMm(325.73);
+  const tableHeadY = infoTop + infoH;
   const headH = ptToMm(13.68);
   const c0 = ptToMm(33.12);
   const c1 = ptToMm(59.52);
@@ -5128,7 +5128,7 @@ async function buildStandardQuotePdf(args: {
     ? Number(item.totalCop || 0)
     : Number(item.basePriceUsd || 0) * Number(item.trmRate || 0) * qty;
 
-  const itemRowY = ptToMm(338.81);
+  const itemRowY = tableHeadY + headH;
   const itemRowH = ptToMm(258.62);
   doc.setLineWidth(ptToMm(0.14));
   doc.rect(x, itemRowY, contentW, itemRowH, "S");
@@ -5181,7 +5181,7 @@ async function buildStandardQuotePdf(args: {
   doc.text(`$ ${formatMoney(lineTotal)}`, c7 - 1.2, itemRowY + 5, { align: "right" });
 
   // Contact + totals row
-  const contactTop = ptToMm(596.47);
+  const contactTop = itemRowY + itemRowH;
   const totalsX = ptToMm(415.27);
   const totalsW = ptToMm(151.49);
   const contactLeftW = ptToMm(415.27 - 33.12);
@@ -5221,7 +5221,7 @@ async function buildStandardQuotePdf(args: {
   doc.text(`$${formatMoney(total)}`, valRight, contactTop + 16.8, { align: "right" });
 
   // Observaciones block (full width)
-  const obsTop = ptToMm(650.74);
+  const obsTop = contactTop + CONTACT_H;
   doc.rect(x, obsTop, contentW, OBS_H, "S");
   const legal = [
     "Observaciones generales de la cotización",
@@ -5236,7 +5236,7 @@ async function buildStandardQuotePdf(args: {
   doc.text(legalLines, x + 1.5, obsTop + 4.5);
 
   // Footer company + perks/social
-  const footerTop = ptToMm(704.98);
+  const footerTop = obsTop + OBS_H;
   doc.rect(x, footerTop, contentW, FOOTER_H, "S");
 
   const textW = contentW - 44;
