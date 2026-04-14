@@ -6291,15 +6291,17 @@ export async function POST(req: Request) {
         /^(balanza|)$/i.test(String(strictMemory.commercial_equipment_choice || "")) &&
         !/^(strict_quote_data|advisor_meeting_slot|commercial_client_recognition|commercial_new_customer_data|commercial_choose_equipment|commercial_existing_lookup|commercial_existing_confirm|commercial_existing_contact_update)$/i.test(awaiting)
       ) {
-        const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileGlobal);
+        const industrialModeGlobal = guidedProfileGlobal === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
+        const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileGlobal, industrialModeGlobal as any);
         strictMemory.pending_product_options = guidedOptions;
         strictMemory.pending_family_options = [];
         strictMemory.awaiting_action = guidedOptions.length ? "strict_choose_model" : "strict_need_spec";
         strictMemory.last_category_intent = "balanzas";
         strictMemory.guided_balanza_profile = guidedProfileGlobal;
+        strictMemory.guided_industrial_mode = industrialModeGlobal;
         strictMemory.strict_family_label = "balanzas";
         strictMemory.strict_model_offset = 0;
-        strictReply = buildGuidedBalanzaReply(guidedProfileGlobal);
+        strictReply = buildGuidedBalanzaReplyWithMode(guidedProfileGlobal, industrialModeGlobal as any);
       }
 
       const pipelineGate = async (): Promise<Response | null> => {
@@ -6351,14 +6353,16 @@ export async function POST(req: Request) {
         if (pipelineIntent === "guided_need_discovery") {
           const guidedProfile = detectGuidedBalanzaProfile(text);
           if (guidedProfile) {
-            const options = buildGuidedPendingOptions(ownerRows as any[], guidedProfile);
+            const industrialMode = guidedProfile === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
+            const options = buildGuidedPendingOptions(ownerRows as any[], guidedProfile, industrialMode as any);
             strictMemory.pending_product_options = options;
             strictMemory.pending_family_options = [];
             strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
             strictMemory.last_category_intent = "balanzas";
             strictMemory.guided_balanza_profile = guidedProfile;
+            strictMemory.guided_industrial_mode = industrialMode;
             strictMemory.commercial_welcome_sent = true;
-            const reply = buildGuidedBalanzaReply(guidedProfile);
+            const reply = buildGuidedBalanzaReplyWithMode(guidedProfile, industrialMode as any);
             return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "guided_need_discovery", guided_profile: guidedProfile });
           }
           const featureTerms = extractFeatureTerms(text);
@@ -7880,13 +7884,15 @@ export async function POST(req: Request) {
 
         const guidedProfileInNeedStep = detectGuidedBalanzaProfile(text);
         if (guidedProfileInNeedStep) {
-          const options = buildGuidedPendingOptions(ownerRows as any[], guidedProfileInNeedStep);
+          const industrialModeNeed = guidedProfileInNeedStep === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
+          const options = buildGuidedPendingOptions(ownerRows as any[], guidedProfileInNeedStep, industrialModeNeed as any);
           strictMemory.pending_product_options = options;
           strictMemory.pending_family_options = [];
           strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
           strictMemory.last_category_intent = "balanzas";
           strictMemory.guided_balanza_profile = guidedProfileInNeedStep;
-          strictReply = buildGuidedBalanzaReply(guidedProfileInNeedStep);
+          strictMemory.guided_industrial_mode = industrialModeNeed;
+          strictReply = buildGuidedBalanzaReplyWithMode(guidedProfileInNeedStep, industrialModeNeed as any);
         }
 
         if (!String(strictReply || "").trim() && !(cap > 0) && !(read > 0)) {
@@ -9422,15 +9428,19 @@ export async function POST(req: Request) {
             !Array.isArray(pendingStrictOptions) ||
             pendingStrictOptions.length === 0;
           if (shouldRefreshGuidedList) {
-            const optionsFromGuided = buildGuidedPendingOptions(ownerRows as any[], guidedProfileInModelStep as GuidedBalanzaProfile);
+            const industrialModeModel = guidedProfileInModelStep === "balanza_industrial_portatil_conteo"
+              ? (detectIndustrialGuidedMode(text) || String(previousMemory?.guided_industrial_mode || strictMemory.guided_industrial_mode || ""))
+              : "";
+            const optionsFromGuided = buildGuidedPendingOptions(ownerRows as any[], guidedProfileInModelStep as GuidedBalanzaProfile, industrialModeModel as any);
             strictMemory.guided_balanza_profile = guidedProfileInModelStep;
+            strictMemory.guided_industrial_mode = industrialModeModel;
             strictMemory.last_category_intent = "balanzas";
             strictMemory.awaiting_action = optionsFromGuided.length ? "strict_choose_model" : "strict_need_spec";
             strictMemory.pending_product_options = optionsFromGuided;
             strictMemory.pending_family_options = [];
             strictMemory.strict_family_label = "balanzas";
             strictMemory.strict_model_offset = 0;
-            strictReply = buildGuidedBalanzaReply(guidedProfileInModelStep as GuidedBalanzaProfile);
+            strictReply = buildGuidedBalanzaReplyWithMode(guidedProfileInModelStep as GuidedBalanzaProfile, industrialModeModel as any);
           } else {
             strictMemory.awaiting_action = "strict_choose_model";
             strictReply = "Perfecto. Seguimos en esta selección semimicro. Elige una opción con número o letra (ej.: 1 o A), o escribe 'más'.";
