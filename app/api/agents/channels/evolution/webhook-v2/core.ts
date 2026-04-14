@@ -6577,6 +6577,21 @@ export async function POST(req: Request) {
           }
 
           if (cap > 0 && !(read > 0)) {
+            const guidedProfileByNeed = detectGuidedBalanzaProfile(text);
+            if (guidedProfileByNeed === "balanza_industrial_portatil_conteo") {
+              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileByNeed);
+              if (guidedOptions.length) {
+                strictMemory.guided_balanza_profile = guidedProfileByNeed;
+                strictMemory.last_category_intent = "balanzas";
+                strictMemory.pending_product_options = guidedOptions;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                strictMemory.strict_partial_capacity_g = cap;
+                strictMemory.strict_filter_capacity_g = cap;
+                return finalizeStrictTurn(buildGuidedBalanzaReply(guidedProfileByNeed), strictMemory, { pipeline: true, intent: "guided_need_discovery" });
+              }
+            }
             const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
             const scopedForFast = currentCategory ? scopeCatalogRows(ownerRows as any[], currentCategory) : ownerRows;
             if (isLargestCapacityAsk(text)) {
