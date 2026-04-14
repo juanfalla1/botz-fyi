@@ -4869,29 +4869,7 @@ async function buildStandardQuotePdf(args: {
         const boxY = 8.5;
         const boxW = 193;
         const boxH = 61;
-        const props: any = (doc as any).getImageProperties?.(bannerDataUrl);
-        const iw = Number(props?.width || 0);
-        const ih = Number(props?.height || 0);
-        let drawW = boxW;
-        let drawH = boxH;
-        if (iw > 0 && ih > 0) {
-          const scale = Math.max(boxW / iw, boxH / ih);
-          drawW = iw * scale;
-          drawH = ih * scale;
-        }
-        const drawX = boxX + (boxW - drawW) / 2;
-        const drawY = boxY + (boxH - drawH) / 2;
-        const pdfAny: any = doc as any;
-        if (typeof pdfAny.saveGraphicsState === "function" && typeof pdfAny.clip === "function" && typeof pdfAny.restoreGraphicsState === "function") {
-          pdfAny.saveGraphicsState();
-          doc.rect(boxX, boxY, boxW, boxH);
-          pdfAny.clip();
-          if (typeof pdfAny.discardPath === "function") pdfAny.discardPath();
-          doc.addImage(bannerDataUrl, bannerFmt as any, drawX, drawY, drawW, drawH, undefined, "SLOW");
-          pdfAny.restoreGraphicsState();
-        } else {
-          doc.addImage(bannerDataUrl, bannerFmt as any, drawX, drawY, drawW, drawH, undefined, "SLOW");
-        }
+        doc.addImage(bannerDataUrl, bannerFmt as any, boxX, boxY, boxW, boxH);
       } catch {
         // ignore banner rendering failure
       }
