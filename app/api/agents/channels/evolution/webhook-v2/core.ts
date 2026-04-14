@@ -5004,7 +5004,26 @@ async function buildStandardQuotePdf(args: {
   if (bannerDataUrl) {
     try {
       const fmt = /^data:image\/png/i.test(bannerDataUrl) ? "PNG" : /^data:image\/webp/i.test(bannerDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(bannerDataUrl, fmt as any, bannerX, bannerY, bannerW, bannerH, undefined, "SLOW");
+      const props: any = (doc as any).getImageProperties?.(bannerDataUrl);
+      const iw = Number(props?.width || 0);
+      const ih = Number(props?.height || 0);
+      if (iw > 0 && ih > 0) {
+        const base = bannerH / ih;
+        const zoom = Number(process.env.WHATSAPP_QUOTE_BANNER_ZOOM || 1.12);
+        const drawW = iw * base * zoom;
+        const drawH = ih * base * zoom;
+        const drawX = bannerX - ((drawW - bannerW) / 2);
+        const drawY = bannerY - ((drawH - bannerH) * 0.92);
+        const pdfAny: any = doc as any;
+        pdfAny.saveGraphicsState();
+        doc.rect(bannerX, bannerY, bannerW, bannerH, null as any);
+        pdfAny.clip();
+        pdfAny.discardPath();
+        doc.addImage(bannerDataUrl, fmt as any, drawX, drawY, drawW, drawH, undefined, "SLOW");
+        pdfAny.restoreGraphicsState();
+      } else {
+        doc.addImage(bannerDataUrl, fmt as any, bannerX, bannerY, bannerW, bannerH, undefined, "SLOW");
+      }
     } catch {
       // ignore
     }
