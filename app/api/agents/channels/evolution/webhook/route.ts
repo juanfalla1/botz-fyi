@@ -4578,12 +4578,15 @@ function rowCatalogCopPrice(row: any): number {
 }
 
 function buildPriceRangeLine(rows: any[]): string {
-  const values = (Array.isArray(rows) ? rows : [])
-    .map((r) => rowCatalogCopPrice(r))
-    .filter((v) => Number.isFinite(v) && v > 0)
-    .sort((a, b) => a - b);
-  if (!values.length) return "";
-  return `Según base de datos, nuestras balanzas van desde COP $ ${formatMoney(values[0])}.`;
+  const list = Array.isArray(rows) ? rows : [];
+  const industrialHits = list.filter((r: any) => {
+    const txt = normalizeText(`${String(r?.name || "")} ${String(r?.category || "")} ${familyLabelFromRow(r)}`);
+    return /(industrial|plataforma|ranger|defender|valor|rc31|r31|r71|ckw|td52p)/.test(txt);
+  }).length;
+  const isIndustrialProfile = industrialHits > 0 && industrialHits >= Math.max(1, Math.floor(list.length / 3));
+  return isIndustrialProfile
+    ? "💰 Valores estimados: desde $3.500.000 (según gama y funcionalidad). Deseas continuar con la cotizacion"
+    : "💰 Valores estimados: desde $4.000.000 (según gama y funcionalidad). Deseas continuar con la cotizacion";
 }
 
 function quoteCodeFromDraftId(draftId: string) {
@@ -7417,8 +7420,10 @@ export async function POST(req: Request) {
               "Elige una con letra/número (A/1) y te envío ficha o cotización.",
             ].join("\n");
           } else {
+            const priceLine = buildPriceRangeLine(scopedForFast as any[]);
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g).`,
+              ...(priceLine ? [priceLine] : []),
               "Ahora dime la resolución/precisión objetivo.",
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
@@ -7614,9 +7619,11 @@ export async function POST(req: Request) {
           strictMemory.strict_partial_capacity_g = mergedCap > 0 ? mergedCap : "";
           strictMemory.strict_partial_readability_g = mergedRead > 0 ? mergedRead : "";
           if (mergedCap > 0 && !(mergedRead > 0)) {
+            const priceLine = buildPriceRangeLine(baseScoped as any[]);
             strictMemory.awaiting_action = "strict_need_spec";
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(mergedCap)} g).`,
+              ...(priceLine ? [priceLine] : []),
               "Ahora dime la resolución/precisión objetivo.",
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
@@ -8817,8 +8824,10 @@ export async function POST(req: Request) {
               ].join("\n");
             }
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
+            const priceLine = buildPriceRangeLine(familyRows as any[]);
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
+              ...(priceLine ? [priceLine] : []),
               "Ahora dime la resolución/precisión objetivo.",
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
@@ -9225,8 +9234,10 @@ export async function POST(req: Request) {
               "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
             ].join("\n");
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
+            const priceLine = buildPriceRangeLine(baseScoped as any[]);
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
+              ...(priceLine ? [priceLine] : []),
               "Ahora dime la resolución/precisión objetivo.",
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
