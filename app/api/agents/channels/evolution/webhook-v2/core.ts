@@ -4991,9 +4991,10 @@ async function buildStandardQuotePdf(args: {
   let y = marginTop;
 
   // Header frame
-  const bannerBoxH = 27.8;
-  const inviteStripH = 10.2;
-  const titleStripH = 4.8;
+  const hasEmbeddedHeader = Boolean(String(bannerDataUrl || "").trim());
+  const bannerBoxH = hasEmbeddedHeader ? 42.8 : 27.8;
+  const inviteStripH = hasEmbeddedHeader ? 0 : 10.2;
+  const titleStripH = hasEmbeddedHeader ? 0 : 4.8;
 
   doc.setDrawColor(35, 35, 35);
   doc.setLineWidth(0.25);
@@ -5001,52 +5002,43 @@ async function buildStandardQuotePdf(args: {
 
   if (bannerDataUrl) {
     try {
-      const props: any = (doc as any).getImageProperties?.(bannerDataUrl);
-      const iw = Number(props?.width || 0);
-      const ih = Number(props?.height || 0);
-      let drawW = contentW;
-      let drawH = bannerBoxH;
-      if (iw > 0 && ih > 0) {
-        const scale = Math.min(contentW / iw, bannerBoxH / ih);
-        drawW = iw * scale;
-        drawH = ih * scale;
-      }
-      const drawX = x + (contentW - drawW) / 2;
-      const drawY = y + (bannerBoxH - drawH) / 2;
-      doc.addImage(bannerDataUrl, /^data:image\/png/i.test(bannerDataUrl) ? "PNG" : "JPEG", drawX, drawY, drawW, drawH);
+      const fmt = /^data:image\/png/i.test(bannerDataUrl) ? "PNG" : /^data:image\/webp/i.test(bannerDataUrl) ? "WEBP" : "JPEG";
+      doc.addImage(bannerDataUrl, fmt as any, x, y, contentW, bannerBoxH);
     } catch {
       // ignore
     }
   }
 
-  const inviteY = y + bannerBoxH;
-  doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(x, inviteY, contentW, inviteStripH, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.3);
-  doc.text(
-    [
-      "AVANZA INTERNACIONAL GROUP S.A.S. como representantes directo de la marca OHAUS para Colombia,",
-      "agradece su amable invitación a cotizar nuestra línea de equipos de laboratorio y nuestra línea de servicio técnico",
-      "como mantenimiento preventivo, correctivo, soporte técnico y acompañamiento.",
-    ],
-    x + contentW / 2,
-    inviteY + 3.05,
-    { align: "center" },
-  );
+  if (!hasEmbeddedHeader) {
+    const inviteY = y + bannerBoxH;
+    doc.setFillColor(blue[0], blue[1], blue[2]);
+    doc.rect(x, inviteY, contentW, inviteStripH, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.3);
+    doc.text(
+      [
+        "AVANZA INTERNACIONAL GROUP S.A.S. como representantes directo de la marca OHAUS para Colombia,",
+        "agradece su amable invitación a cotizar nuestra línea de equipos de laboratorio y nuestra línea de servicio técnico",
+        "como mantenimiento preventivo, correctivo, soporte técnico y acompañamiento.",
+      ],
+      x + contentW / 2,
+      inviteY + 3.05,
+      { align: "center" },
+    );
 
-  const titleY = inviteY + inviteStripH;
-  doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(x, titleY, contentW, titleStripH, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.8);
-  doc.text("Información general", x + contentW / 2, titleY + 3.35, { align: "center" });
-  doc.setTextColor(dark[0], dark[1], dark[2]);
+    const titleY = inviteY + inviteStripH;
+    doc.setFillColor(blue[0], blue[1], blue[2]);
+    doc.rect(x, titleY, contentW, titleStripH, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.8);
+    doc.text("Información general", x + contentW / 2, titleY + 3.35, { align: "center" });
+    doc.setTextColor(dark[0], dark[1], dark[2]);
+  }
 
   // Info general
-  y = titleY + titleStripH;
+  y = y + bannerBoxH + inviteStripH + titleStripH;
 
   const infoTop = y;
   const infoH = 27.5;
@@ -5223,11 +5215,12 @@ async function buildStandardQuotePdf(args: {
   doc.rect(totalsX + totalsW * 0.52, contactTop, totalsW * 0.48, CONTACT_H, "S");
   const valRight = totalsX + totalsW - 1.2;
   doc.setFont("helvetica", "normal");
-  doc.text(`$ ${formatMoney(subtotal)}`, valRight, contactTop + 4.2, { align: "right" });
-  doc.text(`$ ${formatMoney(0)}`, valRight, contactTop + 8.4, { align: "right" });
-  doc.text(`$ ${formatMoney(iva)}`, valRight, contactTop + 12.6, { align: "right" });
+  doc.setFontSize(6.9);
+  doc.text(`$${formatMoney(subtotal)}`, valRight, contactTop + 4.2, { align: "right" });
+  doc.text(`$${formatMoney(0)}`, valRight, contactTop + 8.4, { align: "right" });
+  doc.text(`$${formatMoney(iva)}`, valRight, contactTop + 12.6, { align: "right" });
   doc.setFont("helvetica", "bold");
-  doc.text(`$ ${formatMoney(total)}`, valRight, contactTop + 16.8, { align: "right" });
+  doc.text(`$${formatMoney(total)}`, valRight, contactTop + 16.8, { align: "right" });
 
   // Observaciones block (full width)
   const obsTop = contactTop + CONTACT_H;
