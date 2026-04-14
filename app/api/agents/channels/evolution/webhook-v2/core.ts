@@ -1539,7 +1539,15 @@ function shouldAutoQuote(text: string): boolean {
 function asksQuoteIntent(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
-  return /(cotiz|cotizacion|cotizar|presupuesto)/.test(t);
+  if (/(cotiz|cotizacion|cotizar)/.test(t)) return true;
+  if (/\bpresupuesto\b/.test(t) && /(quier|necesit|haz|genera|envia|enviame|dame|cotiz)/.test(t)) return true;
+  return false;
+}
+
+function isBudgetVisibilityFollowup(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!/\b(presupuesto|precio|valor)\b/.test(t)) return false;
+  return /(no\s+(sale|aparece|veo|salio|salio)|falta|no\s+me\s+(sale|aparece)|donde\s+esta|donde\s+quedo|no\s+sale\s+el\s+(presupuesto|precio|valor)|no\s+veo\s+el\s+(presupuesto|precio|valor))/.test(t);
 }
 
 type AlternativeFollowupIntent =
@@ -8320,6 +8328,28 @@ export async function POST(req: Request) {
               `Puedo ayudarte con ${selectedName}, pero para no inventar necesito validar el uso con el peso aproximado (mínimo y máximo).`,
               hasSheetCandidate ? "¿Quieres que te envíe la ficha técnica ahora por este WhatsApp?" : "¿Quieres que te comparta la información técnica disponible por este WhatsApp?",
             ].join("\n");
+        } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && isBudgetVisibilityFollowup(text) && !wantsSheet) {
+          const effectiveRecommendedPool =
+            (Array.isArray(strictMemory?.last_recommended_options) && strictMemory.last_recommended_options.length)
+              ? strictMemory.last_recommended_options
+              : (lastRecommendedOptions.length
+                ? lastRecommendedOptions
+                : (Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []));
+          const idSet = new Set(
+            (effectiveRecommendedPool || [])
+              .map((o: any) => String(o?.id || "").trim())
+              .filter(Boolean)
+          );
+          const scopedRows = idSet.size
+            ? (ownerRows as any[]).filter((r: any) => idSet.has(String(r?.id || "").trim()))
+            : (rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows);
+          const priceLine = buildPriceRangeLine(scopedRows as any[]);
+          strictReply = priceLine
+            ? [
+                `Claro. ${priceLine}`,
+                "Si quieres continuar, responde: 1) Cotización o 2) Ficha técnica.",
+              ].join("\n")
+            : "Claro, en este grupo no tengo precio visible en BD para estimar presupuesto ahora mismo. Si quieres, te genero cotización directa con la referencia seleccionada.";
         } else if (!String(strictReply || "").trim() && (wantsQuote || /^1\b/.test(textNorm))) {
           const bundleQuoteAskFromAction = asksQuoteIntent(text) && /\b(las|los|todas|todos|opciones|referencias|3|tres)\b/.test(textNorm);
           const effectiveRecommendedPool =
