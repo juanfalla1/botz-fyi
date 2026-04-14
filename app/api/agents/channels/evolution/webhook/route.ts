@@ -2562,8 +2562,29 @@ function detectGuidedBalanzaProfile(text: string): GuidedBalanzaProfile | null {
   return null;
 }
 
-function buildGuidedBalanzaReply(profile: GuidedBalanzaProfile): string {
+function detectIndustrialGuidedMode(text: string): "conteo" | "estandar" | "" {
+  const t = normalizeText(String(text || ""));
+  if (!t) return "";
+  if (/(contar|conteo|cuenta\s*piez|piezas|tornillos|inventario)/.test(t)) return "conteo";
+  if (/(estandar|estándar|sin\s+conteo|solo\s+peso|pesaje\s+normal)/.test(t)) return "estandar";
+  return "";
+}
+
+function guidedGroupsByMode(profile: GuidedBalanzaProfile, industrialMode: "conteo" | "estandar" | "" = ""): any[] {
   const groups = GUIDED_BALANZA_CATALOG[profile] || [];
+  if (profile !== "balanza_industrial_portatil_conteo" || !industrialMode) return groups;
+  return groups.filter((g: any) => {
+    const tier = normalizeText(String(g?.tier || ""));
+    const isConteoTier = /conteo\s+especial/.test(tier);
+    const isStdTier = /uso\s+industrial\s+estandar/.test(tier) && !isConteoTier;
+    if (industrialMode === "conteo") return !isStdTier;
+    if (industrialMode === "estandar") return !isConteoTier;
+    return true;
+  });
+}
+
+function buildGuidedBalanzaReplyWithMode(profile: GuidedBalanzaProfile, industrialMode: "conteo" | "estandar" | "" = ""): string {
+  const groups = guidedGroupsByMode(profile, industrialMode);
   const intro = "Sí, contamos con balanzas de precisión que se ajustan a tu necesidad.";
   const estimated = profile === "balanza_industrial_portatil_conteo"
     ? "💰 Valores estimados: desde $3.500.000 (según gama y funcionalidad). Deseas continuar con la cotización"
@@ -2584,9 +2605,13 @@ function buildGuidedBalanzaReply(profile: GuidedBalanzaProfile): string {
   ].join("\n");
 }
 
-function buildGuidedPendingOptions(rows: any[], profile: GuidedBalanzaProfile): any[] {
+function buildGuidedBalanzaReply(profile: GuidedBalanzaProfile): string {
+  return buildGuidedBalanzaReplyWithMode(profile, "");
+}
+
+function buildGuidedPendingOptions(rows: any[], profile: GuidedBalanzaProfile, industrialMode: "conteo" | "estandar" | "" = ""): any[] {
   const rowList = Array.isArray(rows) ? rows : [];
-  const orderedModels = (GUIDED_BALANZA_CATALOG[profile] || []).flatMap((g) => g.models);
+  const orderedModels = guidedGroupsByMode(profile, industrialMode).flatMap((g) => g.models);
   const options = orderedModels.map((m, i) => {
     const modelNorm = normalizeText(m.model);
     const hit = rowList.find((r: any) => {
@@ -6406,9 +6431,11 @@ export async function POST(req: Request) {
           if (cap > 0 && !(read > 0)) {
             const guidedProfileByNeed = detectGuidedBalanzaProfile(text);
             if (guidedProfileByNeed === "balanza_industrial_portatil_conteo") {
-              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileByNeed);
+              const industrialMode = detectIndustrialGuidedMode(text);
+              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileByNeed, industrialMode);
               if (guidedOptions.length) {
                 strictMemory.guided_balanza_profile = guidedProfileByNeed;
+                strictMemory.guided_industrial_mode = industrialMode;
                 strictMemory.last_category_intent = "balanzas";
                 strictMemory.pending_product_options = guidedOptions;
                 strictMemory.pending_family_options = [];
@@ -6416,7 +6443,7 @@ export async function POST(req: Request) {
                 strictMemory.strict_model_offset = 0;
                 strictMemory.strict_partial_capacity_g = cap;
                 strictMemory.strict_filter_capacity_g = cap;
-                return finalizeStrictTurn(buildGuidedBalanzaReply(guidedProfileByNeed), strictMemory, { pipeline: true, intent: "guided_need_discovery" });
+                return finalizeStrictTurn(buildGuidedBalanzaReplyWithMode(guidedProfileByNeed, industrialMode), strictMemory, { pipeline: true, intent: "guided_need_discovery" });
               }
             }
             const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
