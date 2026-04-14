@@ -4601,7 +4601,8 @@ function asDateYmd(input: Date | string) {
 }
 
 const QUOTE_BANNER_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_BANNER_IMAGE_URL || "").trim();
-const CANONICAL_QUOTE_BANNER_PATH = path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "header_banner_superior.png");
+const CANONICAL_QUOTE_BANNER_PATH = path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "banner_cotizacion_avanza_ohaus.png");
+const ALT_QUOTE_BANNER_PATH = path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "header_banner_superior.png");
 const LOCAL_QUOTE_BANNER_PATH = String(
   process.env.WHATSAPP_QUOTE_BANNER_LOCAL_PATH ||
   CANONICAL_QUOTE_BANNER_PATH
@@ -4667,6 +4668,7 @@ async function resolveQuoteBannerImageDataUrl(): Promise<string> {
 
   const localPath = [
     String(CANONICAL_QUOTE_BANNER_PATH || "").trim(),
+    String(ALT_QUOTE_BANNER_PATH || "").trim(),
     String(LOCAL_QUOTE_BANNER_PATH || "").trim(),
   ].find((p) => p && fs.existsSync(p)) || "";
   if (localPath) {
