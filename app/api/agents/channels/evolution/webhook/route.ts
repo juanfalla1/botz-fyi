@@ -4601,19 +4601,22 @@ function asDateYmd(input: Date | string) {
 }
 
 const QUOTE_BANNER_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_BANNER_IMAGE_URL || "").trim();
+const CANONICAL_QUOTE_BANNER_PATH = path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "header_banner_superior.png");
 const LOCAL_QUOTE_BANNER_PATH = String(
   process.env.WHATSAPP_QUOTE_BANNER_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "header_banner_superior.png")
+  CANONICAL_QUOTE_BANNER_PATH
 ).trim();
 const QUOTE_PERKS_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_PERKS_IMAGE_URL || "").trim();
+const CANONICAL_QUOTE_PERKS_PATH = path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "strip_perks_3_iconos.png");
 const LOCAL_QUOTE_PERKS_PATH = String(
   process.env.WHATSAPP_QUOTE_PERKS_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "strip_perks_3_iconos.png")
+  CANONICAL_QUOTE_PERKS_PATH
 ).trim();
 const QUOTE_SOCIAL_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_SOCIAL_IMAGE_URL || "").trim();
+const CANONICAL_QUOTE_SOCIAL_PATH = path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "strip_redes_fb_ig_in.png");
 const LOCAL_QUOTE_SOCIAL_PATH = String(
   process.env.WHATSAPP_QUOTE_SOCIAL_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "strip_redes_fb_ig_in.png")
+  CANONICAL_QUOTE_SOCIAL_PATH
 ).trim();
 const LOCAL_QUOTE_SOCIAL_FB_PATH = String(
   process.env.WHATSAPP_QUOTE_SOCIAL_FB_LOCAL_PATH ||
@@ -4662,8 +4665,11 @@ async function resolveQuoteBannerImageDataUrl(): Promise<string> {
   }
   let dataUrl = "";
 
-  const localPath = String(LOCAL_QUOTE_BANNER_PATH || "").trim();
-  if (localPath && fs.existsSync(localPath)) {
+  const localPath = [
+    String(CANONICAL_QUOTE_BANNER_PATH || "").trim(),
+    String(LOCAL_QUOTE_BANNER_PATH || "").trim(),
+  ].find((p) => p && fs.existsSync(p)) || "";
+  if (localPath) {
     try {
       const ext = String(path.extname(localPath || "")).toLowerCase();
       const mime = ext === ".png"
@@ -4698,8 +4704,11 @@ async function resolveQuotePerksImageDataUrl(): Promise<string> {
   }
   let dataUrl = "";
 
-  const localPath = String(LOCAL_QUOTE_PERKS_PATH || "").trim();
-  if (localPath && fs.existsSync(localPath)) {
+  const localPath = [
+    String(CANONICAL_QUOTE_PERKS_PATH || "").trim(),
+    String(LOCAL_QUOTE_PERKS_PATH || "").trim(),
+  ].find((p) => p && fs.existsSync(p)) || "";
+  if (localPath) {
     try {
       const ext = String(path.extname(localPath || "")).toLowerCase();
       const mime = ext === ".png"
@@ -4734,8 +4743,11 @@ async function resolveQuoteSocialImageDataUrl(): Promise<string> {
   }
   let dataUrl = "";
 
-  const localPath = String(LOCAL_QUOTE_SOCIAL_PATH || "").trim();
-  if (localPath && fs.existsSync(localPath)) {
+  const localPath = [
+    String(CANONICAL_QUOTE_SOCIAL_PATH || "").trim(),
+    String(LOCAL_QUOTE_SOCIAL_PATH || "").trim(),
+  ].find((p) => p && fs.existsSync(p)) || "";
+  if (localPath) {
     try {
       const ext = String(path.extname(localPath || "")).toLowerCase();
       const mime = ext === ".png"
@@ -4855,7 +4867,7 @@ async function buildStandardQuotePdf(args: {
         const boxY = 8.5;
         const boxW = 193;
         const boxH = 55;
-        const overscan = 1.24;
+        const overscan = Math.max(1, Number(process.env.WHATSAPP_QUOTE_BANNER_OVERSCAN || 1.9));
         const drawW = boxW * overscan;
         const drawH = boxH * overscan;
         const drawX = boxX - ((drawW - boxW) / 2);
