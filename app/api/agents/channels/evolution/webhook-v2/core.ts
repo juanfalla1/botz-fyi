@@ -4747,36 +4747,9 @@ const LOCAL_QUOTE_SOCIAL_PATH = String(
   process.env.WHATSAPP_QUOTE_SOCIAL_LOCAL_PATH ||
   path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "strip_redes_fb_ig_in.png")
 ).trim();
-const LOCAL_QUOTE_SOCIAL_FB_PATH = String(
-  process.env.WHATSAPP_QUOTE_SOCIAL_FB_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "social_fb.png")
-).trim();
-const LOCAL_QUOTE_SOCIAL_IG_PATH = String(
-  process.env.WHATSAPP_QUOTE_SOCIAL_IG_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "social_ig.png")
-).trim();
-const LOCAL_QUOTE_SOCIAL_IN_PATH = String(
-  process.env.WHATSAPP_QUOTE_SOCIAL_IN_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "social_in.png")
-).trim();
-const QUOTE_ASSET_CACHE_MS = Math.max(0, Number(process.env.WHATSAPP_QUOTE_ASSET_CACHE_MS || 300000));
 let quoteBannerImageCache: { at: number; dataUrl: string } | null = null;
 let quotePerksImageCache: { at: number; dataUrl: string } | null = null;
 let quoteSocialImageCache: { at: number; dataUrl: string } | null = null;
-
-function absoluteImageFileToDataUrl(absolutePath: string): string {
-  const p = String(absolutePath || "").trim();
-  if (!p || !fs.existsSync(p)) return "";
-  const ext = String(path.extname(p || "")).toLowerCase();
-  const mime = ext === ".png" ? "image/png" : (ext === ".jpg" || ext === ".jpeg") ? "image/jpeg" : ext === ".webp" ? "image/webp" : "";
-  if (!mime) return "";
-  try {
-    const base64 = fs.readFileSync(p).toString("base64");
-    return base64 ? `data:${mime};base64,${base64}` : "";
-  } catch {
-    return "";
-  }
-}
 
 function imageDataUrlFromRemote(remote: { base64: string; mimetype: string } | null): string {
   if (!remote) return "";
@@ -4789,7 +4762,7 @@ function imageDataUrlFromRemote(remote: { base64: string; mimetype: string } | n
 
 async function resolveQuoteBannerImageDataUrl(): Promise<string> {
   const now = Date.now();
-  if (quoteBannerImageCache && (now - quoteBannerImageCache.at) < QUOTE_ASSET_CACHE_MS) {
+  if (quoteBannerImageCache && (now - quoteBannerImageCache.at) < 30 * 60 * 1000) {
     return quoteBannerImageCache.dataUrl;
   }
   let dataUrl = "";
@@ -4828,7 +4801,7 @@ async function resolveQuoteBannerImageDataUrl(): Promise<string> {
 
 async function resolveQuotePerksImageDataUrl(): Promise<string> {
   const now = Date.now();
-  if (quotePerksImageCache && (now - quotePerksImageCache.at) < QUOTE_ASSET_CACHE_MS) {
+  if (quotePerksImageCache && (now - quotePerksImageCache.at) < 30 * 60 * 1000) {
     return quotePerksImageCache.dataUrl;
   }
   let dataUrl = "";
@@ -4867,7 +4840,7 @@ async function resolveQuotePerksImageDataUrl(): Promise<string> {
 
 async function resolveQuoteSocialImageDataUrl(): Promise<string> {
   const now = Date.now();
-  if (quoteSocialImageCache && (now - quoteSocialImageCache.at) < QUOTE_ASSET_CACHE_MS) {
+  if (quoteSocialImageCache && (now - quoteSocialImageCache.at) < 30 * 60 * 1000) {
     return quoteSocialImageCache.dataUrl;
   }
   let dataUrl = "";
@@ -4966,95 +4939,87 @@ async function buildStandardQuotePdf(args: {
 }) {
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
   const ptToMm = (v: number) => (v * 25.4) / 72;
-  const marginLeft = ptToMm(33.12);
+  const marginLeft = ptToMm(32.16);
+  const marginRight = ptToMm(29.34);
   const marginTop = ptToMm(54.0);
-  const contentW = ptToMm(533.64);
-
-  const CONTACT_H = ptToMm(55.23);
-  const OBS_H = ptToMm(55.2);
-  const FOOTER_H = ptToMm(109.46);
-
+  const marginBottom = ptToMm(28.14);
+  const contentW = 210 - marginLeft - marginRight;
+  const contentBottomY = 297 - marginBottom;
+  const contactBlockH = ptToMm(54.27);
+  const legalBlockH = ptToMm(54.24);
+  const footerBlockH = ptToMm(108.5);
   const blue = [9, 137, 189] as const;
   const dark = [20, 20, 20] as const;
   const phoneSafe = normalizePhone(args.customerPhone || "");
   const ivaRate = quoteIvaRate();
-  const footerPageTop = ptToMm(813.54);
+  const col = [marginLeft, marginLeft + 9, marginLeft + 40, marginLeft + 114, marginLeft + 139, marginLeft + 151, marginLeft + 172, marginLeft + contentW];
+  const footerPageTop = 284;
+  const singleItemMode = Array.isArray(args.items) && args.items.length === 1;
 
   const bannerDataUrl = await resolveQuoteBannerImageDataUrl();
+  const hasBanner = Boolean(String(bannerDataUrl || "").trim());
   const perksDataUrl = await resolveQuotePerksImageDataUrl();
-  const socialDataUrl = await resolveQuoteSocialImageDataUrl();
+  const hasPerksStrip = Boolean(String(perksDataUrl || "").trim());
 
-  const x = marginLeft;
-  const y = marginTop;
+  const drawHeader = (compact = false) => {
+    doc.setFillColor(245, 248, 251);
+    doc.rect(0, 0, 210, 297, "F");
+    const boxHeight = compact ? 20 : (hasBanner ? 62 : 28);
+    const boxX = marginLeft;
+    const boxY = compact ? 8 : (marginTop - 11);
+    const titleBarY = boxY + (compact ? 12 : (hasBanner ? 58 : 20));
+    doc.setFillColor(255, 255, 255);
+    doc.rect(boxX, boxY, contentW, boxHeight, "F");
+    doc.setDrawColor(210, 220, 228);
+    doc.rect(boxX, boxY, contentW, boxHeight, "S");
 
-  // Header frame
-  const hasEmbeddedHeader = Boolean(String(bannerDataUrl || "").trim());
-  const bannerBoxH = hasEmbeddedHeader ? ptToMm(192.39) : 27.8;
-  const inviteStripH = hasEmbeddedHeader ? 0 : 10.2;
-  const titleStripH = hasEmbeddedHeader ? 0 : 4.8;
-  const bannerX = x;
-  const bannerY = y;
-  const bannerW = contentW;
-  const bannerH = ptToMm(192.39);
-
-  doc.setDrawColor(35, 35, 35);
-  doc.setLineWidth(ptToMm(0.14));
-  doc.rect(x, y, contentW, bannerBoxH + inviteStripH + titleStripH, "S");
-
-  if (bannerDataUrl) {
-    try {
-      const fmt = /^data:image\/png/i.test(bannerDataUrl) ? "PNG" : /^data:image\/webp/i.test(bannerDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(bannerDataUrl, fmt as any, bannerX, bannerY, bannerW, bannerH, undefined, "SLOW");
-    } catch {
-      // ignore
+    if (hasBanner && !compact) {
+      try {
+        doc.addImage(bannerDataUrl, "PNG", boxX + 0.5, boxY + 0.5, contentW - 1, 55);
+      } catch {
+        // ignore banner rendering failure
+      }
     }
-  }
 
-  if (!hasEmbeddedHeader) {
-    const inviteY = y + bannerBoxH;
     doc.setFillColor(blue[0], blue[1], blue[2]);
-    doc.rect(x, inviteY, contentW, inviteStripH, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.3);
-    doc.text(
-      [
-        "AVANZA INTERNACIONAL GROUP S.A.S. como representantes directo de la marca OHAUS para Colombia,",
-        "agradece su amable invitación a cotizar nuestra línea de equipos de laboratorio y nuestra línea de servicio técnico",
-        "como mantenimiento preventivo, correctivo, soporte técnico y acompañamiento.",
-      ],
-      x + contentW / 2,
-      inviteY + 3.05,
-      { align: "center" },
-    );
+    doc.rect(boxX, titleBarY, contentW, 8, "F");
 
-    const titleY = inviteY + inviteStripH;
-    doc.setFillColor(blue[0], blue[1], blue[2]);
-    doc.rect(x, titleY, contentW, titleStripH, "F");
-    doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.8);
-    doc.text("Información general", x + contentW / 2, titleY + 3.35, { align: "center" });
+    doc.setTextColor(237, 106, 47);
+    doc.setFontSize(compact ? 22 : 28);
+    if (!hasBanner || compact) doc.text("Avanza", boxX + 4, compact ? 19 : 20);
+    doc.setTextColor(220, 23, 55);
+    doc.setFontSize(compact ? 16 : 20);
+    if (!hasBanner || compact) doc.text("OHAUS", compact ? (boxX + 42) : (boxX + 52), compact ? 19 : 20);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.text("AVANZA INTERNACIONAL GROUP S.A.S. - Cotizacion Comercial", boxX + 4, titleBarY + 5.2);
     doc.setTextColor(dark[0], dark[1], dark[2]);
-  }
+  };
 
-  // Info general
-  const infoTop = y + bannerBoxH;
-  const infoH = ptToMm(82.35);
-  doc.setLineWidth(ptToMm(0.14));
-  doc.rect(x, infoTop, contentW, infoH, "S");
-  const halfX = ptToMm(305.81);
-  doc.line(halfX, infoTop, halfX, infoTop + infoH);
-  for (let i = 1; i <= 6; i += 1) {
-    const yy = infoTop + ptToMm(13.56) * i;
-    doc.line(x, yy, x + contentW, yy);
+  drawHeader(false);
+
+  const infoTitleY = hasBanner ? (marginTop + 27) : 44;
+  const infoTopY = hasBanner ? (marginTop + 30) : 47;
+  const tableHeaderY = hasBanner ? (infoTopY + 32) : 79;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("Información general", marginLeft + 2, infoTitleY);
+  doc.setDrawColor(35, 35, 35);
+  doc.setLineWidth(0.25);
+  doc.rect(marginLeft, infoTopY, contentW, 28, "S");
+  doc.line(marginLeft + contentW / 2, infoTopY, marginLeft + contentW / 2, infoTopY + 28);
+  for (let r = 1; r <= 4; r += 1) {
+    const yLine = infoTopY + (28 / 5) * r;
+    doc.line(marginLeft, yLine, marginLeft + contentW, yLine);
   }
 
   const leftRows: Array<[string, string]> = [
     ["Cliente", args.companyName || args.customerName || "-"],
     ["Contacto", args.customerName || "-"],
-    ["Dirección", String(args.city || "Bogota D.C")],
-    ["Numero de Cotizacion", args.quoteNumber],
+    ["Direccion", String(args.city || "Bogota D.C")],
+    ["Número de Cotización", args.quoteNumber],
     ["Forma de Pago", "Contado"],
   ];
   const rightRows: Array<[string, string]> = [
@@ -5065,164 +5030,265 @@ async function buildStandardQuotePdf(args: {
     ["Fecha de Entrega", "45 días hábiles"],
   ];
 
-  let rowY = infoTop + ptToMm(10.8);
-  for (let i = 0; i < 5; i += 1) {
+  let yRow = infoTopY + 5;
+  for (let i = 0; i < leftRows.length; i += 1) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.04);
-    const l = `${leftRows[i][0]}:`;
-    doc.text(l, x + 2, rowY);
+    const leftLabel = `${leftRows[i][0]}:`;
+    doc.text(leftLabel, marginLeft + 2, yRow);
     doc.setFont("helvetica", "normal");
-    doc.text(String(leftRows[i][1] || "-").slice(0, 35), x + 2 + doc.getTextWidth(l) + 2, rowY);
-
+    doc.text(String(leftRows[i][1] || "-").slice(0, 32), marginLeft + 2 + doc.getTextWidth(leftLabel) + 3, yRow);
     doc.setFont("helvetica", "bold");
-    const r = `${rightRows[i][0]}:`;
-    doc.text(r, halfX + 2, rowY);
+    const rightLabel = `${rightRows[i][0]}:`;
+    doc.text(rightLabel, marginLeft + contentW / 2 + 2, yRow);
     doc.setFont("helvetica", "normal");
-    doc.text(String(rightRows[i][1] || "-").slice(0, 33), halfX + 2 + doc.getTextWidth(r) + 2, rowY);
-    rowY += ptToMm(13.56);
+    doc.text(String(rightRows[i][1] || "-").slice(0, 30), marginLeft + contentW / 2 + 2 + doc.getTextWidth(rightLabel) + 3, yRow);
+    yRow += 5;
   }
 
-  // Main table header
-  const tableHeadY = infoTop + infoH;
-  const headH = ptToMm(13.68);
-  const c0 = ptToMm(33.12);
-  const c1 = ptToMm(59.52);
-  const c2 = ptToMm(141.62);
-  const c3 = ptToMm(305.81);
-  const c4 = ptToMm(374.23);
-  const c5 = ptToMm(415.27);
-  const c6 = ptToMm(483.70);
-  const c7 = ptToMm(566.76);
-  const descW = c3 - c2;
-  const warrantyW = c4 - c3;
-  const unitW = c6 - c5;
-  const totalW = c7 - c6;
-
-  doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(ptToMm(32.64), tableHeadY, ptToMm(533.76), headH, "F");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.96);
-  doc.setTextColor(255, 255, 255);
-  doc.text("Item", c0 + ptToMm(1.8), tableHeadY + ptToMm(9.4));
-  doc.text("Producto", c1 + ptToMm(1.5), tableHeadY + ptToMm(9.4));
-  doc.text("Descripcion", c2 + ptToMm(1.5), tableHeadY + ptToMm(9.4));
-  doc.text("Garantía", c3 + ptToMm(1.5), tableHeadY + ptToMm(9.4));
-  doc.text("Cant.", c5 - ptToMm(1.2), tableHeadY + ptToMm(9.4), { align: "right" });
-  doc.text("Valor unit.", c6 - ptToMm(1.2), tableHeadY + ptToMm(9.4), { align: "right" });
-  doc.text("Valor total", c7 - ptToMm(1.2), tableHeadY + ptToMm(9.4), { align: "right" });
-  doc.setTextColor(dark[0], dark[1], dark[2]);
-
-  // First line item only (fixed one-page approved layout)
-  const item = (args.items || [])[0] || {
-    productName: "-",
-    quantity: 1,
-    basePriceUsd: 0,
-    trmRate: 0,
-    totalCop: 0,
-    description: "Producto sin detalle",
-    warranty: "1 AÑO POR DEFECTO DE FABRICA",
-    imageDataUrl: "",
+  const drawTableHeader = (yTop: number) => {
+    doc.setFillColor(blue[0], blue[1], blue[2]);
+    doc.rect(marginLeft, yTop, contentW, 7, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(6.96);
+    doc.text("Item", marginLeft + 2, yTop + 5.2);
+    doc.text("Producto", marginLeft + 14, yTop + 5.2);
+    doc.text("Descripcion", marginLeft + 42, yTop + 5.2);
+    doc.text("Garantia", marginLeft + 119.5, yTop + 5.2);
+    doc.text("Cant.", marginLeft + 145, yTop + 5.2, { align: "right" });
+    doc.text("Valor unit.", marginLeft + 166.5, yTop + 5.2, { align: "right" });
+    doc.text("Valor total", marginLeft + contentW - 3.2, yTop + 5.2, { align: "right" });
+    doc.setTextColor(dark[0], dark[1], dark[2]);
   };
-  const qty = Math.max(1, Number(item.quantity || 1));
-  const lineTotal = Number(item.totalCop || 0) > 0
-    ? Number(item.totalCop || 0)
-    : Number(item.basePriceUsd || 0) * Number(item.trmRate || 0) * qty;
 
-  const itemRowY = tableHeadY + headH;
-  const itemRowH = ptToMm(258.62);
-  doc.setLineWidth(ptToMm(0.14));
-  doc.rect(x, itemRowY, contentW, itemRowH, "S");
-  [c1, c2, c3, c4, c5, c6].forEach((cx) => doc.line(cx, itemRowY, cx, itemRowY + itemRowH));
+  const truncateLines = (lines: string[], maxLines: number): string[] => {
+    if (lines.length <= maxLines) return lines;
+    const next = lines.slice(0, maxLines);
+    next[maxLines - 1] = `${String(next[maxLines - 1] || "").trimEnd()}...`;
+    return next;
+  };
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.96);
-  doc.text("1", c0 + 3, itemRowY + 5);
-  doc.setFont("helvetica", "bold");
-  doc.text(String(item.productName || "-").slice(0, 20), c1 + 1.5, itemRowY + 5);
-  doc.setFont("helvetica", "normal");
+  let currentTableHeaderY = tableHeaderY;
+  let tableHeaderDrawn = false;
+  let y = currentTableHeaderY + 11;
+  let index = 1;
+  let subtotal = 0;
+  const lineHeight = singleItemMode ? 2.6 : 3.5;
+  const rowPadding = singleItemMode ? 2.4 : 3;
+  for (const item of args.items || []) {
+    const qty = Math.max(1, Number(item.quantity || 1));
+    const lineTotal = Number(item.totalCop || 0) > 0
+      ? Number(item.totalCop || 0)
+      : Number(item.basePriceUsd || 0) * Number(item.trmRate || 0) * qty;
+    subtotal += lineTotal;
 
-  if (ENABLE_QUOTE_PRODUCT_IMAGE && String(item.imageDataUrl || "").trim()) {
-    try {
-      const img = String(item.imageDataUrl || "").trim();
-      const fmt = /^data:image\/png/i.test(img) ? "PNG" : /^data:image\/webp/i.test(img) ? "WEBP" : "JPEG";
-      const boxX = ptToMm(65.87);
-      const boxY = ptToMm(350.13);
-      const boxW = ptToMm(70.36);
-      const boxH = ptToMm(90.54);
-      let dw = boxW;
-      let dh = boxH;
-      try {
-        const props: any = (doc as any).getImageProperties?.(img);
-        const iw = Number(props?.width || 0);
-        const ih = Number(props?.height || 0);
-        if (iw > 0 && ih > 0) {
-          const s = Math.min(boxW / iw, boxH / ih);
-          dw = iw * s;
-          dh = ih * s;
+    const fullDesc = String(item.description || "")
+      .replace(/[^\x20-\x7EÁÉÍÓÚáéíóúÑñÜü°µ±×.,:;()\/-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const baseDesc = fullDesc || `Producto: ${String(item.productName || "-")}`;
+
+    const productLines = truncateLines(
+      doc.splitTextToSize(String(item.productName || "-").slice(0, 40), 28),
+      2,
+    );
+    const hasImage = ENABLE_QUOTE_PRODUCT_IMAGE && Boolean(String(item.imageDataUrl || "").trim());
+    const descTextWidth = 74;
+    const descLinesRaw = doc.splitTextToSize(baseDesc, descTextWidth);
+    const descLinesAll = singleItemMode ? truncateLines(descLinesRaw, 18) : descLinesRaw;
+    let descCursor = 0;
+    let isFirstSegment = true;
+    while (isFirstSegment || descCursor < descLinesAll.length) {
+      const descRemaining = descLinesAll.slice(descCursor);
+      const minDescLines = descRemaining.length > 0 ? 1 : (isFirstSegment ? 1 : 0);
+      const maxDescLines = Math.max(minDescLines, descRemaining.length || (isFirstSegment ? 1 : 0));
+      const rowHeightFor = (descCount: number) => {
+        const lineCount = Math.max(
+          isFirstSegment ? productLines.length : 1,
+          Math.max(descCount, 1),
+          1,
+        );
+        return Math.max(isFirstSegment && hasImage ? (singleItemMode ? 32 : 40) : 12, lineCount * lineHeight + rowPadding);
+      };
+      const minRowH = rowHeightFor(minDescLines);
+
+      if (!tableHeaderDrawn) {
+        if (y + minRowH > (contentBottomY - (contactBlockH + legalBlockH + footerBlockH + 4))) {
+          if (doc.getNumberOfPages() === 1) {
+            // Repaint first page with compact header to avoid an empty first sheet.
+            drawHeader(true);
+            currentTableHeaderY = 33;
+            y = 42;
+          } else {
+            doc.addPage();
+            drawHeader(true);
+            currentTableHeaderY = 33;
+            y = 42;
+          }
         }
-      } catch {}
-      doc.addImage(img, fmt as any, boxX + (boxW - dw) / 2, boxY + (boxH - dh) / 2, dw, dh);
-    } catch {}
+        drawTableHeader(currentTableHeaderY);
+        tableHeaderDrawn = true;
+      }
+
+      if (y + minRowH > (contentBottomY - (contactBlockH + legalBlockH + footerBlockH + 4))) {
+        doc.addPage();
+        drawHeader(true);
+        currentTableHeaderY = 33;
+        drawTableHeader(currentTableHeaderY);
+        y = 42;
+      }
+
+      let descCount = maxDescLines;
+      while (descCount > minDescLines && y + rowHeightFor(descCount) > 235) {
+        descCount -= 1;
+      }
+      const rowH = rowHeightFor(descCount);
+      const descChunk = descRemaining.length > 0
+        ? descRemaining.slice(0, descCount)
+        : (isFirstSegment ? [baseDesc] : []);
+
+      doc.setDrawColor(20, 20, 20);
+      doc.setLineWidth(0.35);
+      doc.rect(marginLeft, y - 4, contentW, rowH, "S");
+      for (let i = 1; i < col.length - 1; i += 1) {
+        doc.line(col[i], y - 4, col[i], y - 4 + rowH);
+      }
+
+      const bodyY = y + 1.8;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.96);
+      if (isFirstSegment) {
+        doc.text(String(index), marginLeft + 2, bodyY);
+        doc.setFont("helvetica", "bold");
+        doc.text(productLines, marginLeft + 12, bodyY);
+        doc.setFont("helvetica", "normal");
+      } else {
+        doc.setFont("helvetica", "italic");
+        doc.text("cont.", marginLeft + 12, bodyY);
+        doc.setFont("helvetica", "normal");
+      }
+
+      if (isFirstSegment && hasImage) {
+        try {
+          const imgX = marginLeft + 12;
+          const imgY = bodyY + 2;
+          const boxW = 24;
+          const boxH = Math.min(30, Math.max(22, rowH - 16));
+          const dataUrl = String(item.imageDataUrl || "");
+          const fmt = /^data:image\/png/i.test(dataUrl)
+            ? "PNG"
+            : /^data:image\/webp/i.test(dataUrl)
+              ? "WEBP"
+              : "JPEG";
+          let drawW = boxW;
+          let drawH = boxH;
+          try {
+            const props: any = (doc as any).getImageProperties?.(dataUrl);
+            const pW = Number(props?.width || 0);
+            const pH = Number(props?.height || 0);
+            if (pW > 0 && pH > 0) {
+              const scale = Math.min(boxW / pW, boxH / pH);
+              drawW = Math.max(8, pW * scale);
+              drawH = Math.max(8, pH * scale);
+            }
+          } catch {
+            // keep box dimensions if image metadata is unavailable
+          }
+          const drawX = imgX + (boxW - drawW) / 2;
+          const drawY = imgY + (boxH - drawH) / 2;
+          doc.addImage(dataUrl, fmt as any, drawX, drawY, drawW, drawH);
+        } catch {
+          // ignore image rendering failure
+        }
+      }
+
+      if (descChunk.length > 0) {
+        doc.setFontSize(6.96);
+        doc.text(descChunk, marginLeft + 42, bodyY);
+        doc.setFontSize(6.96);
+      }
+      if (isFirstSegment) {
+        const warrantyLines = doc.splitTextToSize(String(item.warranty || "1 AÑO POR DEFECTO DE FÁBRICA"), 15.5);
+        doc.text(warrantyLines, marginLeft + 120.2, bodyY);
+        doc.text(String(qty), marginLeft + 145, bodyY, { align: "right" });
+        doc.setFontSize(8.04);
+        doc.text(`$ ${formatMoney(lineTotal / qty)}`, marginLeft + 166.5, bodyY, { align: "right" });
+        doc.text(`$ ${formatMoney(lineTotal)}`, marginLeft + contentW - 3.2, bodyY, { align: "right" });
+        doc.setFontSize(6.96);
+      }
+
+      y += rowH + 0.9;
+      descCursor += descChunk.length;
+      isFirstSegment = false;
+      if (descLinesAll.length === 0) break;
+    }
+
+    index += 1;
   }
 
-  const descText = String(item.description || `Producto: ${String(item.productName || "-")}`)
-    .replace(/[^\x20-\x7EÁÉÍÓÚáéíóúÑñÜü°µ±×.,:;()\/-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const descLines = doc.splitTextToSize(descText, descW - 2).slice(0, 28);
-  if (descLines.length >= 28) descLines[27] = `${String(descLines[27] || "").trimEnd()}...`;
-  doc.text(descLines, c2 + 1.2, itemRowY + 5);
+  if (index === 1) {
+    if (!tableHeaderDrawn) {
+      drawTableHeader(tableHeaderY);
+      y = tableHeaderY + 11;
+      tableHeaderDrawn = true;
+    }
+    doc.setDrawColor(180, 196, 210);
+    doc.rect(marginLeft, y - 4, contentW, 18, "S");
+    for (let i = 1; i < col.length - 1; i += 1) {
+      doc.line(col[i], y - 4, col[i], y + 14);
+    }
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.96);
+    doc.text("1", marginLeft + 2, y + 1.8);
+    doc.text("-", marginLeft + 12, y + 1.8);
+    doc.text("Producto sin detalle en esta cotización", marginLeft + 42, y + 1.8);
+    doc.text("-", marginLeft + 118.8, y + 1.8);
+    doc.text("1", marginLeft + 145, y + 1.8, { align: "right" });
+    doc.text(`$ ${formatMoney(0)}`, marginLeft + 166.5, y + 1.8, { align: "right" });
+    doc.text(`$ ${formatMoney(0)}`, marginLeft + contentW - 3.2, y + 1.8, { align: "right" });
+    y += 20;
+  }
 
-  const warrantyLines = doc.splitTextToSize(String(item.warranty || "1 AÑO POR DEFECTO DE FABRICA"), warrantyW - 2);
-  doc.text(warrantyLines, c3 + 1.2, itemRowY + 5);
-  doc.text(String(qty), c5 - 1.2, itemRowY + 5, { align: "right" });
-  doc.setFontSize(8.04);
-  doc.text(`$ ${formatMoney(lineTotal / qty)}`, c6 - 1.2, itemRowY + 5, { align: "right" });
-  doc.text(`$ ${formatMoney(lineTotal)}`, c7 - 1.2, itemRowY + 5, { align: "right" });
-
-  // Contact + totals row
-  const contactTop = itemRowY + itemRowH;
-  const totalsX = ptToMm(415.27);
-  const totalsW = ptToMm(151.49);
-  const contactLeftW = ptToMm(415.27 - 33.12);
-
-  doc.rect(x, contactTop, contactLeftW, CONTACT_H, "S");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.04);
-  doc.text("Contacto Comercial", x + 1.5, contactTop + 3.8);
-  doc.text("Mariana Rodriguez", x + 1.5, contactTop + 7.8);
-  doc.text("CEL 3183731171", x + 1.5, contactTop + 11.8);
-  doc.text("cotizaciones@avanzagroup.com.co", x + 1.5, contactTop + 15.8);
-
-  const subtotal = lineTotal;
   const iva = subtotal * ivaRate;
   const total = subtotal + iva;
 
+  if (y > (contentBottomY - (contactBlockH + legalBlockH + footerBlockH + 4))) {
+    doc.addPage();
+    drawHeader(true);
+    y = 40;
+  }
+
+  const totalsLabelX = marginLeft + 118;
+  const totalsLabelW = 31;
+  const totalsValueX = totalsLabelX + totalsLabelW;
+  const totalsValueW = 41;
+  const totalsValueRight = totalsValueX + totalsValueW - 1;
+
   doc.setFillColor(blue[0], blue[1], blue[2]);
-  const totalsLabelW = ptToMm(68.43);
-  const totalsValueW = ptToMm(83.06);
-  doc.rect(totalsX, contactTop, totalsLabelW, CONTACT_H, "F");
+  doc.rect(totalsLabelX, y, totalsLabelW, 24, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.04);
-  doc.text("Subtotal:", totalsX + 1.6, contactTop + 4.2);
-  doc.text("Descuento:", totalsX + 1.6, contactTop + 8.4);
-  doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, totalsX + 1.6, contactTop + 12.6);
-  doc.text("Valor total:", totalsX + 1.6, contactTop + 16.8);
-  doc.setTextColor(dark[0], dark[1], dark[2]);
-  doc.rect(totalsX + totalsLabelW, contactTop, totalsValueW, CONTACT_H, "S");
-  const valRight = ptToMm(566.76) - ptToMm(3.2);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.1);
-  doc.text(`$${formatMoney(subtotal)}`, valRight, contactTop + 4.2, { align: "right" });
-  doc.text(`$${formatMoney(0)}`, valRight, contactTop + 8.4, { align: "right" });
-  doc.text(`$${formatMoney(iva)}`, valRight, contactTop + 12.6, { align: "right" });
-  doc.setFont("helvetica", "bold");
-  doc.text(`$${formatMoney(total)}`, valRight, contactTop + 16.8, { align: "right" });
+  doc.text("Subtotal:", totalsLabelX + 2, y + 6);
+  doc.text("Descuento:", totalsLabelX + 2, y + 12.2);
+  doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, totalsLabelX + 2, y + 18.4);
+  doc.text("Valor total:", totalsLabelX + 2, y + 22.8);
 
-  // Observaciones block (full width)
-  const obsTop = contactTop + CONTACT_H;
-  doc.rect(x, obsTop, contentW, OBS_H, "S");
+  doc.setTextColor(dark[0], dark[1], dark[2]);
+  doc.setDrawColor(35, 35, 35);
+  doc.setLineWidth(0.25);
+  doc.rect(totalsValueX, y, totalsValueW, 24, "S");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.04);
+  doc.text(`$ ${formatMoney(subtotal)}`, totalsValueRight, y + 6, { align: "right" });
+  doc.text(`$ ${formatMoney(0)}`, totalsValueRight, y + 12.2, { align: "right" });
+  doc.text(`$ ${formatMoney(iva)}`, totalsValueRight, y + 18.4, { align: "right" });
+  doc.setFont("helvetica", "bold");
+  doc.text(`$ ${formatMoney(total)}`, totalsValueRight, y + 22.8, { align: "right" });
+
+  let yFooter = y + 2;
+
   const legal = [
     "Observaciones generales de la cotización",
     "- Todos los distribuidores asumen el valor del flete. En el caso de clientes, el flete sera asumido unicamente si el envio es fuera de Bogota.",
@@ -5230,53 +5296,48 @@ async function buildStandardQuotePdf(args: {
     "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
     `${String(args.city || "Bogota D.C")}, ${args.issueDate}`,
   ].join("\n");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.96);
-  const legalLines = doc.splitTextToSize(legal, contentW - 3).slice(0, 16);
-  doc.text(legalLines, x + 1.5, obsTop + 4.5);
-
-  // Footer company + perks/social
-  const footerTop = obsTop + OBS_H;
-  doc.rect(x, footerTop, contentW, FOOTER_H, "S");
-
-  const textW = contentW - 44;
+  let legalLines = doc.splitTextToSize(legal, 112);
   const companyFooter = [
     "AVANZA INTERNACIONAL GROUP S.A.S",
-    "Autopista Medellín k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a. NIT 900505419",
+    "Autopista Medellin k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a.",
+    "NIT 900505419",
     "CELULAR 321 2165 771",
     "www.balanzasybasculas.com.co - www.avanzagroup.com.co",
   ].join("\n");
-  doc.setFontSize(8.04);
-  const companyLines = doc.splitTextToSize(companyFooter, textW).slice(0, 7);
-  doc.text(companyLines, x + 1.5, footerTop + 6);
+  const companyFooterLines = doc.splitTextToSize(companyFooter, 112);
+  const legalHeight = legalBlockH;
+  const companyHeight = footerBlockH;
+  const closingEstimate = contactBlockH + legalHeight + companyHeight + 4;
+  if (yFooter + closingEstimate > contentBottomY) {
+    doc.addPage();
+    drawHeader(true);
+    yFooter = 40;
+  }
 
-  if (perksDataUrl) {
-    try {
-      const perksFmt = /^data:image\/png/i.test(perksDataUrl) ? "PNG" : /^data:image\/webp/i.test(perksDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(perksDataUrl, perksFmt as any, ptToMm(422.17), ptToMm(713.77), ptToMm(124.57), ptToMm(52.2));
-    } catch {}
-  }
-  const fbDataUrl = absoluteImageFileToDataUrl(LOCAL_QUOTE_SOCIAL_FB_PATH);
-  const igDataUrl = absoluteImageFileToDataUrl(LOCAL_QUOTE_SOCIAL_IG_PATH);
-  const inDataUrl = absoluteImageFileToDataUrl(LOCAL_QUOTE_SOCIAL_IN_PATH);
-  const hasSplitSocialIcons = Boolean(fbDataUrl || igDataUrl || inDataUrl);
-  if (hasSplitSocialIcons) {
-    const drawIcon = (dataUrl: string, iconX: number) => {
-      if (!dataUrl) return;
-      try {
-        const iconFmt = /^data:image\/png/i.test(dataUrl) ? "PNG" : /^data:image\/webp/i.test(dataUrl) ? "WEBP" : "JPEG";
-        doc.addImage(dataUrl, iconFmt as any, iconX, ptToMm(781.12), ptToMm(22.5), ptToMm(22.5));
-      } catch {}
-    };
-    drawIcon(fbDataUrl, ptToMm(444.38));
-    drawIcon(igDataUrl, ptToMm(474.37));
-    drawIcon(inDataUrl, ptToMm(503.46));
-  } else if (socialDataUrl) {
-    try {
-      const socialFmt = /^data:image\/png/i.test(socialDataUrl) ? "PNG" : /^data:image\/webp/i.test(socialDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(socialDataUrl, socialFmt as any, ptToMm(444.38), ptToMm(781.12), ptToMm(81.58), ptToMm(22.5));
-    } catch {}
-  }
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.04);
+  doc.text("Contacto Comercial", marginLeft, yFooter + 3);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.04);
+  doc.text("Mariana Rodriguez", marginLeft, yFooter + 8);
+  doc.text("CEL 3183731171", marginLeft, yFooter + 13);
+  doc.text("cotizaciones@avanzagroup.com.co", marginLeft, yFooter + 18);
+
+  doc.setFontSize(6.96);
+  doc.text(legalLines, marginLeft, yFooter + 24);
+
+  doc.setDrawColor(35, 35, 35);
+  doc.setLineWidth(0.25);
+  const leftFooterTop = yFooter + 1;
+  const leftFooterBottom = leftFooterTop + contactBlockH + legalHeight;
+  doc.rect(marginLeft, leftFooterTop, 117, leftFooterBottom - leftFooterTop, "S");
+  doc.line(marginLeft, leftFooterTop + contactBlockH, marginLeft + 117, leftFooterTop + contactBlockH);
+
+  const legalBottomY = leftFooterBottom;
+  const companyBlockTop = legalBottomY + 1;
+  const footerBlockTop = companyBlockTop + 6;
+  doc.setFontSize(8.04);
+  doc.text(companyFooterLines, marginLeft, footerBlockTop);
 
   const createdSource = String(args.createdAt || "").trim();
   const updatedSource = String(args.updatedAt || "").trim();
@@ -5285,13 +5346,55 @@ async function buildStandardQuotePdf(args: {
   const updatedDate = updatedSource ? new Date(updatedSource) : nowStamp;
   const createdAt = asDateYmd(createdDate);
   const modifiedAt = `${asDateYmd(updatedDate)} ${String(updatedDate.toTimeString() || "").slice(0, 8)}`;
+  const footerMetaTop = companyBlockTop + companyHeight - 12;
   doc.setFontSize(6.96);
-  doc.text(`Fecha de creación ${createdAt}`, x + 1.5, footerTop + FOOTER_H - 8);
-  doc.text(`Fecha de modificación ${modifiedAt}`, x + 1.5, footerTop + FOOTER_H - 3);
+  doc.text(`Fecha de creación ${createdAt}`, marginLeft, footerMetaTop);
+  doc.text(`Fecha de modificación ${modifiedAt}`, marginLeft, footerMetaTop + 5);
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.2);
-  doc.text("Pág 1 de 1", x, footerPageTop);
+  if (hasPerksStrip) {
+    try {
+      const fmt = /^data:image\/png/i.test(perksDataUrl)
+        ? "PNG"
+        : /^data:image\/webp/i.test(perksDataUrl)
+          ? "WEBP"
+          : "JPEG";
+      const stripW = 38;
+      const stripH = 16;
+      const stripX = marginLeft + 132;
+      const stripY = companyBlockTop + 6;
+      doc.addImage(perksDataUrl, fmt as any, stripX, stripY, stripW, stripH);
+    } catch {
+      // ignore perks strip rendering failure
+    }
+  }
+
+  const socialDataUrl = await resolveQuoteSocialImageDataUrl();
+  if (socialDataUrl) {
+    try {
+      const socialFmt = /^data:image\/png/i.test(socialDataUrl)
+        ? "PNG"
+        : /^data:image\/webp/i.test(socialDataUrl)
+          ? "WEBP"
+          : "JPEG";
+      doc.addImage(socialDataUrl, socialFmt as any, marginLeft + 141, companyBlockTop + 24, 25, 8);
+    } catch {
+      // ignore social strip rendering failure
+    }
+  }
+
+  const companyBlockBottom = companyBlockTop + companyHeight;
+  doc.setDrawColor(35, 35, 35);
+  doc.setLineWidth(0.25);
+  doc.rect(marginLeft, companyBlockTop, contentW, companyBlockBottom - companyBlockTop, "S");
+
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p += 1) {
+    doc.setPage(p);
+    doc.setFontSize(8.2);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Pág ${p} de ${totalPages}`, 10, footerPageTop);
+  }
+
   return Buffer.from(doc.output("arraybuffer")).toString("base64");
 }
 
