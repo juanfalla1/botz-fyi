@@ -1188,6 +1188,11 @@ function optionDisplayName(row: any): string {
 function gamaLabelForModelName(name: string): string {
   const n = normalizeText(String(name || "")).replace(/[^a-z0-9]/g, "");
   if (!n) return "";
+
+  // Mapeo explícito según matriz comercial acordada (Word cliente)
+  if (/^exp(1203|125d|225d)ad$/.test(n)) return "premium";
+  if (/^exp(223|423|623|224|324)ad$/.test(n)) return "avanzada";
+
   if (/^px\d/.test(n)) return "esencial";
   if (/^ax\d/.test(n)) return "intermedia";
   if (/^exr\d/.test(n)) return "avanzada";
