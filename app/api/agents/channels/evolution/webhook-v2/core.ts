@@ -4964,8 +4964,8 @@ async function buildStandardQuotePdf(args: {
   updatedAt?: string;
   items: QuotePdfLineItem[];
 }) {
-  const doc = new jsPDF({ unit: "pt", format: [595.2, 841.68], compress: true });
-  const ptToMm = (v: number) => v;
+  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const ptToMm = (v: number) => (v * 25.4) / 72;
   const marginLeft = ptToMm(33.12);
   const marginTop = ptToMm(54.0);
   const contentW = ptToMm(533.64);
