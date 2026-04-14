@@ -2768,8 +2768,19 @@ type ConversationSlots = {
 
 function detectTargetApplication(text: string): string {
   const t = normalizeText(text || "");
-  if (/(oro|joyeria|joyería|quilat|kilat)/.test(t)) return "joyeria_oro";
-  if (/(laboratorio|lab\b|analitica|analítica|farmacia)/.test(t)) return "laboratorio";
+
+  const hasJewelry = /(oro|joyeria|joyería|quilat|kilat)/.test(t);
+  const hasLab = /(laboratorio|lab\b|analitica|analítica|farmacia)/.test(t);
+  const jewelryNegated = /(no\s+es\s+ni\s+para\s+(oro|joyeria|joyería|quilat|kilat)|no\s+es\s+para\s+(oro|joyeria|joyería|quilat|kilat)|ni\s+para\s+(oro|joyeria|joyería|quilat|kilat))/.test(t);
+  const labNegated = /(no\s+es\s+ni\s+para\s+(laboratorio|lab|analitica|analítica|farmacia)|no\s+es\s+para\s+(laboratorio|lab|analitica|analítica|farmacia)|ni\s+para\s+(laboratorio|lab|analitica|analítica|farmacia))/.test(t);
+
+  const jewelryPositive = hasJewelry && !jewelryNegated;
+  const labPositive = hasLab && !labNegated;
+
+  if (jewelryPositive && !labPositive) return "joyeria_oro";
+  if (labPositive && !jewelryPositive) return "laboratorio";
+  if (jewelryPositive && labPositive) return "";
+
   if (/(alimento|alimentos|comida|restaurante|cocina|leche)/.test(t)) return "alimentos";
   if (/(industrial|produccion|producción|bodega|planta)/.test(t)) return "industrial";
   return "";
