@@ -6532,8 +6532,10 @@ export async function POST(req: Request) {
               strictMemory.pending_family_options = [];
               strictMemory.awaiting_action = "strict_choose_model";
               strictMemory.strict_model_offset = 0;
+              const priceLine = buildPriceRangeLine(capRowsGeneric as any[]);
               const reply = [
                 `Perfecto. Para ~${formatSpecNumber(cap)} g, te recomiendo empezar con ${String(first?.name || "esta opción")} (${appHint}).`,
+                ...(priceLine ? [priceLine] : []),
                 "También te dejo alternativas cercanas por capacidad:",
                 ...alternatives.map((o) => `${o.code}) ${o.name}`),
                 "",
@@ -6553,8 +6555,10 @@ export async function POST(req: Request) {
                 strictMemory.awaiting_action = "strict_choose_model";
                 strictMemory.strict_model_offset = 0;
                 const total = options.length;
+                const priceLine = buildPriceRangeLine(rankedRows as any[]);
                 const reply = [
                   `Perfecto. Para básculas activas, en este momento manejo ${total} modelo(s).`,
+                  ...(priceLine ? [priceLine] : []),
                   ...options.map((o) => `${o.code}) ${o.name}`),
                   "",
                   "Elige una con letra/número (A/1) y te envío ficha o cotización.",
