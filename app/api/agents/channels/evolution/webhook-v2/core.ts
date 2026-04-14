@@ -7930,8 +7930,10 @@ export async function POST(req: Request) {
               "Elige una con letra/número (A/1) y te envío ficha o cotización.",
             ].join("\n");
           } else {
+            const priceLine = buildPriceRangeLine(scopedForFast as any[]);
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g).`,
+              ...(priceLine ? [priceLine] : []),
               "Ahora dime la resolución/precisión objetivo.",
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
@@ -8151,9 +8153,11 @@ export async function POST(req: Request) {
           strictMemory.strict_partial_capacity_g = mergedCap > 0 ? mergedCap : "";
           strictMemory.strict_partial_readability_g = mergedRead > 0 ? mergedRead : "";
           if (mergedCap > 0 && !(mergedRead > 0)) {
+            const priceLine = buildPriceRangeLine(baseScoped as any[]);
             strictMemory.awaiting_action = "strict_need_spec";
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(mergedCap)} g).`,
+              ...(priceLine ? [priceLine] : []),
               "Ahora dime la resolución/precisión objetivo.",
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
@@ -9654,8 +9658,10 @@ export async function POST(req: Request) {
             }
             }
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
+            const priceLine = buildPriceRangeLine(familyRows as any[]);
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
+              ...(priceLine ? [priceLine] : []),
               "Ahora dime la resolución/precisión objetivo.",
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
@@ -10062,8 +10068,10 @@ export async function POST(req: Request) {
               "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
             ].join("\n");
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
+            const priceLine = buildPriceRangeLine(baseScoped as any[]);
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
+              ...(priceLine ? [priceLine] : []),
               "Ahora dime la resolución/precisión objetivo.",
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
