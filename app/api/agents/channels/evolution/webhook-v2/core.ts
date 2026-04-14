@@ -1185,6 +1185,20 @@ function optionDisplayName(row: any): string {
   return out.length > 88 ? `${out.slice(0, 85)}...` : out;
 }
 
+function gamaLabelForModelName(name: string): string {
+  const n = normalizeText(String(name || "")).replace(/[^a-z0-9]/g, "");
+  if (!n) return "";
+  if (/^px\d/.test(n)) return "esencial";
+  if (/^ax\d/.test(n)) return "intermedia";
+  if (/^exr\d/.test(n)) return "avanzada";
+  if (/^exp\d+ad$/.test(n)) return "avanzada";
+  if (/^exp\d/.test(n)) return "premium";
+  if (/^r31p\d|^rc31p\d/.test(n)) return "basica";
+  if (/^r71md\d/.test(n)) return "media";
+  if (/^r71mhd\d/.test(n)) return "alta";
+  return "";
+}
+
 function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: string; rank: number; id: string; name: string; raw_name: string; category: string; base_price_usd: number }> {
   const list = Array.isArray(rows) ? rows : [];
   const out: Array<{ code: string; rank: number; id: string; name: string; raw_name: string; category: string; base_price_usd: number }> = [];
@@ -1193,6 +1207,8 @@ function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: s
     const baseName = optionDisplayName(row);
     const spec = extractRowTechnicalSpec(row);
     const specParts: string[] = [];
+    const gama = gamaLabelForModelName(String(row?.name || ""));
+    if (gama) specParts.push(`Gama: ${gama}`);
     if (spec.capacityG > 0) specParts.push(`Cap: ${formatSpecNumber(spec.capacityG)} g`);
     if (spec.readabilityG > 0) specParts.push(`Res: ${formatSpecNumber(spec.readabilityG)} g`);
     const delivery = deliveryLabelForRow(row);
@@ -2735,11 +2751,13 @@ function buildGuidedPendingOptions(rows: any[], profile: GuidedBalanzaProfile): 
       const n = normalizeText(String(r?.name || ""));
       return n === modelNorm || n.includes(modelNorm);
     });
+    const gama = gamaLabelForModelName(m.model);
+    const gamaPart = gama ? ` | Gama: ${gama}` : "";
     return {
       code: String(i + 1),
       rank: i + 1,
       id: String(hit?.id || ""),
-      name: `${m.model} | Cap: ${m.capacity} | Res: ${m.resolution} | Entrega: ${m.delivery}`,
+      name: `${m.model}${gamaPart} | Cap: ${m.capacity} | Res: ${m.resolution} | Entrega: ${m.delivery}`,
       raw_name: String(hit?.name || m.model),
       category: String(hit?.category || "balanzas"),
       base_price_usd: Number(hit?.base_price_usd || 0),
