@@ -4850,7 +4850,17 @@ async function buildStandardQuotePdf(args: {
 
     if (hasBanner && !compact) {
       try {
-        doc.addImage(bannerDataUrl, "PNG", 8.5, 8.5, 193, 55);
+        const bannerFmt = /^data:image\/png/i.test(bannerDataUrl) ? "PNG" : /^data:image\/webp/i.test(bannerDataUrl) ? "WEBP" : "JPEG";
+        const boxX = 8.5;
+        const boxY = 8.5;
+        const boxW = 193;
+        const boxH = 55;
+        const overscan = 1.24;
+        const drawW = boxW * overscan;
+        const drawH = boxH * overscan;
+        const drawX = boxX - ((drawW - boxW) / 2);
+        const drawY = boxY - ((drawH - boxH) / 2);
+        doc.addImage(bannerDataUrl, bannerFmt as any, drawX, drawY, drawW, drawH);
       } catch {
         // ignore banner rendering failure
       }
@@ -5243,7 +5253,7 @@ async function buildStandardQuotePdf(args: {
   if (perksDataUrl) {
     try {
       const perksFmt = /^data:image\/png/i.test(perksDataUrl) ? "PNG" : /^data:image\/webp/i.test(perksDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(perksDataUrl, perksFmt as any, 160, companyBlockTop + 2.8, 31, 14.8);
+      doc.addImage(perksDataUrl, perksFmt as any, 156.5, companyBlockTop + 1.8, 35.5, 17.2);
     } catch {
       // ignore footer perks rendering failure
     }
@@ -5257,16 +5267,16 @@ async function buildStandardQuotePdf(args: {
       if (!dataUrl) return;
       try {
         const iconFmt = /^data:image\/png/i.test(dataUrl) ? "PNG" : /^data:image\/webp/i.test(dataUrl) ? "WEBP" : "JPEG";
-        doc.addImage(dataUrl, iconFmt as any, x, companyBlockTop + 18.6, 5.8, 5.8);
+        doc.addImage(dataUrl, iconFmt as any, x, companyBlockTop + 19.4, 7.2, 7.2);
       } catch {}
     };
-    drawIcon(fbDataUrl, 166.5);
-    drawIcon(igDataUrl, 174.0);
-    drawIcon(inDataUrl, 181.5);
+    drawIcon(fbDataUrl, 164.8);
+    drawIcon(igDataUrl, 173.1);
+    drawIcon(inDataUrl, 181.4);
   } else if (socialDataUrl) {
     try {
       const socialFmt = /^data:image\/png/i.test(socialDataUrl) ? "PNG" : /^data:image\/webp/i.test(socialDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(socialDataUrl, socialFmt as any, 165.5, companyBlockTop + 19.0, 20.5, 6.4);
+      doc.addImage(socialDataUrl, socialFmt as any, 164.6, companyBlockTop + 20.2, 22.8, 7.3);
     } catch {
       // ignore footer social rendering failure
     }
