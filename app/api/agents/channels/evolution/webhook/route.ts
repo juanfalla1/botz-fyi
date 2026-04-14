@@ -7420,6 +7420,28 @@ export async function POST(req: Request) {
               "Elige una con letra/número (A/1) y te envío ficha o cotización.",
             ].join("\n");
           } else {
+            const asksLargestCapacity = /(mas\s+grandes|m[aá]s\s+grandes|mayor\s+capacidad|mas\s+capacidad|m[aá]s\s+capacidad|de\s+mayor\s+capacidad|mas\s+peso|m[aá]s\s+peso)/.test(textNorm);
+            if (asksLargestCapacity) {
+              const byCapacity = [...(scopedForFast as any[])]
+                .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
+                .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
+              const topRows = byCapacity.length ? byCapacity : (scopedForFast as any[]);
+              const options = buildNumberedProductOptions(topRows.slice(0, 8) as any[], 8);
+              if (options.length) {
+                strictMemory.pending_product_options = options;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                const priceLine = buildPriceRangeLine(topRows as any[]);
+                return finalizeStrictTurn([
+                  "Claro. Estas son las balanzas de mayor capacidad que tengo activas en catálogo:",
+                  ...(priceLine ? [priceLine] : []),
+                  ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Elige con letra/número (A/1), o escribe 'más'.",
+                ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
+              }
+            }
             const priceLine = buildPriceRangeLine(scopedForFast as any[]);
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g).`,
@@ -7619,6 +7641,31 @@ export async function POST(req: Request) {
           strictMemory.strict_partial_capacity_g = mergedCap > 0 ? mergedCap : "";
           strictMemory.strict_partial_readability_g = mergedRead > 0 ? mergedRead : "";
           if (mergedCap > 0 && !(mergedRead > 0)) {
+            const asksLargestCapacity = /(mas\s+grandes|m[aá]s\s+grandes|mayor\s+capacidad|mas\s+capacidad|m[aá]s\s+capacidad|de\s+mayor\s+capacidad|mas\s+peso|m[aá]s\s+peso)/.test(textNorm);
+            if (asksLargestCapacity) {
+              const byCapacity = [...(baseScoped as any[])]
+                .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
+                .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
+              const topRows = byCapacity.length ? byCapacity : (baseScoped as any[]);
+              const options = buildNumberedProductOptions(topRows.slice(0, 8) as any[], 8);
+              if (options.length) {
+                strictMemory.pending_product_options = options;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                const priceLine = buildPriceRangeLine(topRows as any[]);
+                strictReply = [
+                  "Claro. Estas son las balanzas de mayor capacidad que tengo activas en catálogo:",
+                  ...(priceLine ? [priceLine] : []),
+                  ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Elige con letra/número (A/1), o escribe 'más'.",
+                ].join("\n");
+              }
+            }
+            if (String(strictReply || "").trim()) {
+              // handled above
+            } else {
             const priceLine = buildPriceRangeLine(baseScoped as any[]);
             strictMemory.awaiting_action = "strict_need_spec";
             strictReply = [
@@ -7627,6 +7674,7 @@ export async function POST(req: Request) {
               "Ahora dime la resolución/precisión objetivo.",
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
+            }
           } else if (mergedRead > 0 && !(mergedCap > 0)) {
             strictMemory.awaiting_action = "strict_need_spec";
             strictReply = [
@@ -8824,6 +8872,31 @@ export async function POST(req: Request) {
               ].join("\n");
             }
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
+            const asksLargestCapacity = /(mas\s+grandes|m[aá]s\s+grandes|mayor\s+capacidad|mas\s+capacidad|m[aá]s\s+capacidad|de\s+mayor\s+capacidad|mas\s+peso|m[aá]s\s+peso)/.test(textNorm);
+            if (asksLargestCapacity) {
+              const byCapacity = [...(categoryScoped as any[])]
+                .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
+                .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
+              const topRows = byCapacity.length ? byCapacity : (categoryScoped as any[]);
+              const options = buildNumberedProductOptions(topRows.slice(0, 8) as any[], 8);
+              if (options.length) {
+                strictMemory.pending_product_options = options;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                const priceLine = buildPriceRangeLine(topRows as any[]);
+                strictReply = [
+                  "Claro. Estas son las balanzas de mayor capacidad que tengo activas en catálogo:",
+                  ...(priceLine ? [priceLine] : []),
+                  ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Elige con letra/número (A/1), o escribe 'más'.",
+                ].join("\n");
+              }
+            }
+            if (String(strictReply || "").trim()) {
+              // handled above
+            } else {
             const priceLine = buildPriceRangeLine(familyRows as any[]);
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
@@ -8831,6 +8904,7 @@ export async function POST(req: Request) {
               "Ahora dime la resolución/precisión objetivo.",
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
+            }
           } else {
             let prioritized = prioritizeTechnicalRows(familyRows as any[], {
               capacityG: effectiveCap,
@@ -9234,6 +9308,31 @@ export async function POST(req: Request) {
               "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
             ].join("\n");
           } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
+            const asksLargestCapacity = /(mas\s+grandes|m[aá]s\s+grandes|mayor\s+capacidad|mas\s+capacidad|m[aá]s\s+capacidad|de\s+mayor\s+capacidad|mas\s+peso|m[aá]s\s+peso)/.test(textNorm);
+            if (asksLargestCapacity) {
+              const byCapacity = [...(baseScoped as any[])]
+                .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
+                .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
+              const topRows = byCapacity.length ? byCapacity : (baseScoped as any[]);
+              const options = buildNumberedProductOptions(topRows.slice(0, 8) as any[], 8);
+              if (options.length) {
+                strictMemory.pending_product_options = options;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                const priceLine = buildPriceRangeLine(topRows as any[]);
+                strictReply = [
+                  "Claro. Estas son las balanzas de mayor capacidad que tengo activas en catálogo:",
+                  ...(priceLine ? [priceLine] : []),
+                  ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Elige con letra/número (A/1), o escribe 'más'.",
+                ].join("\n");
+              }
+            }
+            if (String(strictReply || "").trim()) {
+              // handled above
+            } else {
             const priceLine = buildPriceRangeLine(baseScoped as any[]);
             strictReply = [
               `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
@@ -9241,6 +9340,7 @@ export async function POST(req: Request) {
               "Ahora dime la resolución/precisión objetivo.",
               "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
             ].join("\n");
+            }
           } else {
             const prioritized = prioritizeTechnicalRows(baseScoped as any[], {
               capacityG: effectiveCap,
