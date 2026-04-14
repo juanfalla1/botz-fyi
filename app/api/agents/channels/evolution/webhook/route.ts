@@ -4868,13 +4868,8 @@ async function buildStandardQuotePdf(args: {
         const boxX = 8.5;
         const boxY = 8.5;
         const boxW = 193;
-        const boxH = 55;
-        const overscan = Math.max(1, Number(process.env.WHATSAPP_QUOTE_BANNER_OVERSCAN || 4.25));
-        const drawW = boxW * overscan;
-        const drawH = boxH * overscan;
-        const drawX = boxX - ((drawW - boxW) / 2);
-        const drawY = boxY - ((drawH - boxH) / 2);
-        doc.addImage(bannerDataUrl, bannerFmt as any, drawX, drawY, drawW, drawH);
+        const boxH = 61;
+        doc.addImage(bannerDataUrl, bannerFmt as any, boxX, boxY, boxW, boxH);
       } catch {
         // ignore banner rendering failure
       }
@@ -4899,8 +4894,8 @@ async function buildStandardQuotePdf(args: {
 
   drawHeader(false);
 
-  const infoTopY = hasBanner ? 72.5 : 47;
-  const tableHeaderY = hasBanner ? 104.5 : 79;
+  const infoTopY = hasBanner ? 72 : 47;
+  const tableHeaderY = hasBanner ? 104 : 79;
   doc.setDrawColor(35, 35, 35);
   doc.setLineWidth(0.25);
   doc.rect(10, infoTopY, 190, 28, "S");
@@ -5152,9 +5147,9 @@ async function buildStandardQuotePdf(args: {
   }
 
   const totalsLabelX = 157;
-  const totalsLabelW = 19;
+  const totalsLabelW = 17;
   const totalsValueX = totalsLabelX + totalsLabelW;
-  const totalsValueW = 24;
+  const totalsValueW = 26;
   const totalsValueRight = totalsValueX + totalsValueW - 1;
 
   doc.setFillColor(blue[0], blue[1], blue[2]);
