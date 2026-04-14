@@ -5003,7 +5003,7 @@ async function buildStandardQuotePdf(args: {
   if (bannerDataUrl) {
     try {
       const fmt = /^data:image\/png/i.test(bannerDataUrl) ? "PNG" : /^data:image\/webp/i.test(bannerDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(bannerDataUrl, fmt as any, x, y, contentW, bannerBoxH);
+      doc.addImage(bannerDataUrl, fmt as any, x + 0.2, y + 0.2, contentW - 0.4, bannerBoxH - 0.4);
     } catch {
       // ignore
     }
@@ -5213,7 +5213,7 @@ async function buildStandardQuotePdf(args: {
   doc.text("Valor total:", totalsX + 2, contactTop + 16.8);
   doc.setTextColor(dark[0], dark[1], dark[2]);
   doc.rect(totalsX + totalsW * 0.52, contactTop, totalsW * 0.48, CONTACT_H, "S");
-  const valRight = totalsX + totalsW - 1.2;
+  const valRight = totalsX + totalsW - 2.6;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.9);
   doc.text(`$${formatMoney(subtotal)}`, valRight, contactTop + 4.2, { align: "right" });
