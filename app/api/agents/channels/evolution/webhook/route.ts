@@ -7486,7 +7486,12 @@ export async function POST(req: Request) {
               strictMemory.awaiting_action = "strict_need_spec";
             }
           } else {
-            strictReply = buildBalanzaQualificationPrompt();
+            const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
+            if (currentCategory === "basculas") {
+              strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
+            } else {
+              strictReply = buildBalanzaQualificationPrompt();
+            }
             strictMemory.awaiting_action = "strict_need_spec";
           }
           }
