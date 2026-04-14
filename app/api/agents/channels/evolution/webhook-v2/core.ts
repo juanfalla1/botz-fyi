@@ -4992,7 +4992,7 @@ async function buildStandardQuotePdf(args: {
 
   // Header frame
   const hasEmbeddedHeader = Boolean(String(bannerDataUrl || "").trim());
-  const bannerBoxH = hasEmbeddedHeader ? 42.8 : 27.8;
+  const bannerBoxH = hasEmbeddedHeader ? 61.0 : 27.8;
   const inviteStripH = hasEmbeddedHeader ? 0 : 10.2;
   const titleStripH = hasEmbeddedHeader ? 0 : 4.8;
 
