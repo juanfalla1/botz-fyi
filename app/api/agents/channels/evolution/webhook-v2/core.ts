@@ -9195,6 +9195,7 @@ export async function POST(req: Request) {
           isCatalogBreadthQuestion(text) ||
           /(que\s+mas|que\s+otros?|que\s+tienes|que\s+manejas|que\s+ofrec|catalogo|otro\s+tipo|otra\s+categoria|otra\s+categoría|opciones)/.test(normalizeText(text));
         const requestedCategoryIntentInModelStep = detectCatalogCategoryIntent(text);
+        const appHintInModelStep = detectTargetApplication(text);
         const currentCategoryIntentInModelStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
         const isCategorySwitchInModelStep = Boolean(
           requestedCategoryIntentInModelStep &&
@@ -9212,7 +9213,7 @@ export async function POST(req: Request) {
           isGlobalCatalogAsk(text) ||
           /\b(dame|muestrame|mu[eé]strame|quiero|ver)\b.*\b(todo|todos|todas)\b.*\b(prod|producto|productos|prodcutos|catalogo)\b/.test(textNorm);
         const hasScopedContextInModelStep = Boolean(currentCategoryIntentInModelStep || familyLabel || pendingStrictOptions.length);
-        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && guidedProfileInModelStep) {
+        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && guidedProfileInModelStep && !technicalBypassInSelection && !appHintInModelStep) {
           const rememberedGuided = String(previousMemory?.guided_balanza_profile || strictMemory.guided_balanza_profile || "").trim();
           const shouldRefreshGuidedList =
             rememberedGuided !== String(guidedProfileInModelStep) ||
