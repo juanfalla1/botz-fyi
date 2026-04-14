@@ -9219,6 +9219,15 @@ export async function POST(req: Request) {
         const requestedCategoryIntentInModelStep = detectCatalogCategoryIntent(text);
         const appHintInModelStep = detectTargetApplication(text);
         const currentCategoryIntentInModelStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
+        const featureTermsInModelStep = extractFeatureTerms(text);
+        const asksFeatureValidationInModelStep = Boolean(
+          !strictSelection &&
+          !askMore &&
+          !askBack &&
+          !askCancel &&
+          featureTermsInModelStep.length > 0 &&
+          (isFeatureQuestionIntent(text) || isUseCaseApplicabilityIntent(text))
+        );
         const isCategorySwitchInModelStep = Boolean(
           requestedCategoryIntentInModelStep &&
           normalizeText(String(requestedCategoryIntentInModelStep || "")) !== currentCategoryIntentInModelStep
@@ -9235,6 +9244,39 @@ export async function POST(req: Request) {
           isGlobalCatalogAsk(text) ||
           /\b(dame|muestrame|mu[eé]strame|quiero|ver)\b.*\b(todo|todos|todas)\b.*\b(prod|producto|productos|prodcutos|catalogo)\b/.test(textNorm);
         const hasScopedContextInModelStep = Boolean(currentCategoryIntentInModelStep || familyLabel || pendingStrictOptions.length);
+        if (!String(strictReply || "").trim() && asksFeatureValidationInModelStep) {
+          const scopedByIntent = requestedCategoryIntentInModelStep
+            ? scopeCatalogRows(ownerRows as any, requestedCategoryIntentInModelStep)
+            : (categoryScoped as any[]);
+          const basePool = Array.isArray(scopedByIntent) && scopedByIntent.length ? scopedByIntent : (ownerRows as any[]);
+          const rankedScoped = rankCatalogByFeature(basePool as any[], featureTermsInModelStep).slice(0, 10);
+          const rankedGlobal = rankedScoped.length ? rankedScoped : rankCatalogByFeature(ownerRows as any[], featureTermsInModelStep).slice(0, 10);
+          const rankedRows = rankedGlobal.map((x: any) => x.row);
+          const appProfile = String(appHintInModelStep || strictMemory.target_application || previousMemory?.target_application || "").trim();
+          const profiledRows = applyApplicationProfile(rankedRows as any[], {
+            application: appProfile,
+            targetCapacityG: Number(previousMemory?.strict_filter_capacity_g || 0),
+            targetReadabilityG: Number(previousMemory?.strict_filter_readability_g || 0),
+            allowFallback: false,
+          });
+          const options = buildNumberedProductOptions((profiledRows || rankedRows).slice(0, 8) as any[], 8);
+
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              `Sí, en catálogo activo tengo referencias que coinciden con esa descripción (${featureTermsInModelStep.join(", ")}).`,
+              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige con letra/número (A/1), o escribe 'más'.",
+            ].join("\n");
+          } else {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = `Con base en catálogo activo y descripciones, no tengo referencias que coincidan con (${featureTermsInModelStep.join(", ")}). Si quieres, dime capacidad y resolución para buscar alternativas reales.`;
+          }
+        }
         if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && guidedProfileInModelStep && !technicalBypassInSelection && !appHintInModelStep) {
           const rememberedGuided = String(previousMemory?.guided_balanza_profile || strictMemory.guided_balanza_profile || "").trim();
           const shouldRefreshGuidedList =
