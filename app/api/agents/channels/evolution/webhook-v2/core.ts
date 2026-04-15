@@ -8439,7 +8439,11 @@ export async function POST(req: Request) {
               "",
               "Responde con letra o número (A/1).",
             ].join("\n")
-            : `Entiendo el cambio. En base de datos no tengo referencias activas para ${String(categoryIntentInAction || "esa categoría").replace(/_/g, " ")} en este momento.`;
+            : [
+              `Entiendo el cambio. En base de datos no tengo referencias activas para ${String(categoryIntentInAction || "esa categoría").replace(/_/g, " ")} en este momento.`,
+              buildCommercialEscalationMessage(),
+            ].join("\n");
+          if (!families.length) strictMemory.awaiting_action = "conversation_followup";
         } else if (awaiting === "strict_choose_action" && asksAnotherQuote && !anotherQuoteChoice && !followupIntent && !wantsSheet) {
           strictReply = buildAnotherQuotePrompt();
         } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "advisor") {
@@ -9641,8 +9645,11 @@ export async function POST(req: Request) {
           strictMemory.strict_partial_capacity_g = "";
           strictMemory.strict_partial_readability_g = "";
           if (!families.length) {
-            strictMemory.awaiting_action = "none";
-            strictReply = `Entiendo el cambio. Ahora mismo no tengo referencias activas para ${String(requestedCategoryIntentInModelStep || "esa categoría").replace(/_/g, " ")}. Si quieres, te ayudo con balanzas y básculas disponibles.`;
+            strictMemory.awaiting_action = "conversation_followup";
+            strictReply = [
+              `Entiendo el cambio. Ahora mismo no tengo referencias activas para ${String(requestedCategoryIntentInModelStep || "esa categoría").replace(/_/g, " ")}.`,
+              buildCommercialEscalationMessage(),
+            ].join("\n");
           } else {
             strictMemory.awaiting_action = "strict_choose_family";
             strictReply = [
@@ -10284,7 +10291,11 @@ export async function POST(req: Request) {
               "",
               "Responde con letra o número (A/1).",
             ].join("\n")
-            : `En base de datos no tengo referencias activas para ${String(categoryIntentInFamilyStep || "esa categoría").replace(/_/g, " ")} en este momento.`;
+            : [
+              `En base de datos no tengo referencias activas para ${String(categoryIntentInFamilyStep || "esa categoría").replace(/_/g, " ")} en este momento.`,
+              buildCommercialEscalationMessage(),
+            ].join("\n");
+          if (!families.length) strictMemory.awaiting_action = "conversation_followup";
         }
 
         if (!String(strictReply || "").trim() && preParsedSpec) {
@@ -10621,8 +10632,11 @@ export async function POST(req: Request) {
         strictMemory.last_category_intent = String(categoryIntent || "");
         const useCaseDrivenRequest = isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text) || /joyeria|joyería|oro/.test(normalizeText(text));
         if (!familyOptions.length) {
-          strictMemory.awaiting_action = "none";
-          strictReply = `Ahora mismo no tengo referencias activas para ${String((categoryIntent || "esa categoría").replace(/_/g, " "))}. Si quieres, dime el modelo exacto y te confirmo ficha o cotización.`;
+          strictMemory.awaiting_action = "conversation_followup";
+          strictReply = [
+            `Ahora mismo no tengo referencias activas para ${String((categoryIntent || "esa categoría").replace(/_/g, " "))}.`,
+            buildCommercialEscalationMessage(),
+          ].join("\n");
         } else if (useCaseDrivenRequest) {
           const inferred = inferFamilyFromUseCase(text, familyOptions);
           if (inferred) {
@@ -13002,9 +13016,14 @@ export async function POST(req: Request) {
                   "Responde con letra o número (ej.: A o 1). Luego te pido cantidad.",
                 ].join("\n"))
           : (categoryRestrictedWithoutMatches
-              ? `Ahora mismo no tengo referencias activas para cotizar en la categoría ${targetCategoryForQuote.replace(/_/g, " ")}. Si quieres, te muestro opciones disponibles en balanzas o básculas.`
+              ? [
+                  `Ahora mismo no tengo referencias activas para cotizar en la categoría ${targetCategoryForQuote.replace(/_/g, " ")}.`,
+                  buildCommercialEscalationMessage(),
+                ].join("\n")
               : "Claro. Para cotizar de una, dime modelo exacto y cantidad (ejemplo: Explorer 220, 2 unidades).");
-        nextMemory.awaiting_action = quoteOptions.length ? "product_option_selection" : "quote_product_selection";
+        nextMemory.awaiting_action = categoryRestrictedWithoutMatches
+          ? "conversation_followup"
+          : (quoteOptions.length ? "product_option_selection" : "quote_product_selection");
         nextMemory.pending_product_options = quoteOptions;
         nextMemory.last_category_intent = targetCategoryForQuote;
 
