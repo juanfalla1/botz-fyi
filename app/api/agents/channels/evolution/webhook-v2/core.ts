@@ -8053,11 +8053,34 @@ export async function POST(req: Request) {
           } else {
             const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
             if (currentCategory === "basculas") {
-              strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
+              const asksBasculaOptions = /(tienes?\s+basculas?|que\s+modelos\s+tienes?\s+de\s+basculas?|que\s+basculas?\s+tienes?|dame\s+(opciones|modelos)|muestrame\s+(opciones|modelos))/i.test(String(text || ""));
+              if (asksBasculaOptions) {
+                const basculaRows = scopeCatalogRows(ownerRows as any[], "basculas");
+                const options = buildNumberedProductOptions(basculaRows as any[], 8);
+                if (options.length) {
+                  strictMemory.pending_product_options = options;
+                  strictMemory.pending_family_options = [];
+                  strictMemory.awaiting_action = "strict_choose_model";
+                  strictMemory.strict_model_offset = 0;
+                  strictReply = [
+                    `Perfecto. En catálogo activo tengo ${options.length} báscula(s).`,
+                    ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+                    "",
+                    "Elige con letra/número (A/1), o escribe 'más'.",
+                  ].join("\n");
+                } else {
+                  strictReply = "Ahora mismo no veo básculas activas en base de datos. Si quieres, dime capacidad y resolución y te confirmo alternativas de otras líneas.";
+                  strictMemory.awaiting_action = "strict_need_spec";
+                }
+              } else {
+                strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
+              }
             } else {
               strictReply = buildBalanzaQualificationPrompt();
             }
-            strictMemory.awaiting_action = "strict_need_spec";
+            if (!String(strictMemory.awaiting_action || "").trim() || strictMemory.awaiting_action === "none") {
+              strictMemory.awaiting_action = "strict_need_spec";
+            }
           }
           }
         } else if (!String(strictReply || "").trim() && read > 0 && !(cap > 0)) {
