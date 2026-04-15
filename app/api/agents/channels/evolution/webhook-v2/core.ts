@@ -4258,70 +4258,6 @@ function resolveModelSpecificLocalImageDataUrl(row: any): string {
   return "";
 }
 
-async function fetchRemoteText(url: string): Promise<string> {
-  const target = String(url || "").trim();
-  if (!/^https?:\/\//i.test(target)) return "";
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
-  try {
-    const res = await fetch(target, {
-      method: "GET",
-      signal: controller.signal,
-      redirect: "follow",
-      headers: { "User-Agent": "BotzWhatsApp/1.0", Accept: "text/html,application/xhtml+xml" },
-    });
-    if (!res.ok) return "";
-    const ctype = String(res.headers.get("content-type") || "").toLowerCase();
-    if (ctype && !ctype.includes("text/html") && !ctype.includes("application/xhtml+xml")) return "";
-    return String(await res.text());
-  } catch {
-    return "";
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-function toAbsoluteUrl(raw: string, baseUrl: string): string {
-  const v = String(raw || "").trim();
-  if (!v) return "";
-  try {
-    return new URL(v, baseUrl).toString();
-  } catch {
-    return "";
-  }
-}
-
-function extractProductPageImageCandidates(html: string, pageUrl: string): string[] {
-  const src = String(html || "");
-  if (!src) return [];
-  const out: string[] = [];
-  const push = (u: string) => {
-    const abs = toAbsoluteUrl(u, pageUrl);
-    if (!/^https?:\/\//i.test(abs)) return;
-    if (/\.(svg)(\?|$)/i.test(abs)) return;
-    if (out.includes(abs)) return;
-    out.push(abs);
-  };
-
-  const metaRe = /<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image|og:image:url)["'][^>]+content=["']([^"']+)["'][^>]*>/gi;
-  let m: RegExpExecArray | null = null;
-  while ((m = metaRe.exec(src)) !== null) {
-    push(String(m[1] || ""));
-    if (out.length >= 8) break;
-  }
-
-  if (out.length < 8) {
-    const imgRe = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
-    while ((m = imgRe.exec(src)) !== null) {
-      push(String(m[1] || ""));
-      if (out.length >= 12) break;
-    }
-  }
-
-  return out;
-}
-
 let pdfParseModuleCache: any = null;
 const localQuotePdfTextCache = new Map<string, { at: number; lines: string[] }>();
 const localQuotePdfImageCache = new Map<string, { at: number; dataUrl: string; mtimeMs: number; byteSize: number }>();
@@ -5164,19 +5100,6 @@ async function resolveProductImageDataUrl(row: any): Promise<string> {
     const remote = await fetchRemoteFileAsBase64(u);
     const dataUrl = imageDataUrlFromRemote(remote);
     if (dataUrl) return dataUrl;
-  }
-
-  const productPageUrl = String(row?.product_url || "").trim();
-  if (/^https?:\/\//i.test(productPageUrl) && !/\.pdf(\?|$)/i.test(productPageUrl)) {
-    const html = await fetchRemoteText(productPageUrl);
-    if (html) {
-      const pageImageCandidates = extractProductPageImageCandidates(html, productPageUrl);
-      for (const u of pageImageCandidates) {
-        const remote = await fetchRemoteFileAsBase64(u);
-        const dataUrl = imageDataUrlFromRemote(remote);
-        if (dataUrl) return dataUrl;
-      }
-    }
   }
 
   // Intentionally avoid extracting image from local quote PDFs here.
