@@ -2596,7 +2596,7 @@ function buildGuidedBalanzaReplyWithMode(profile: GuidedBalanzaProfile, industri
     ...groups.flatMap((group) => [
       "",
       group.tier,
-      ...group.models.map((m) => `${modelIndex++}) ${m.model} – ${m.capacity} x ${m.resolution} (${m.delivery})`),
+      ...group.models.map((m: any) => `${modelIndex++}) ${m.model} – ${m.capacity} x ${m.resolution} (${m.delivery})`),
     ]),
     "",
     "Responde con número que se encuentra al principio del modelo (ej.: 1).",
@@ -2612,7 +2612,7 @@ function buildGuidedBalanzaReply(profile: GuidedBalanzaProfile): string {
 function buildGuidedPendingOptions(rows: any[], profile: GuidedBalanzaProfile, industrialMode: "conteo" | "estandar" | "" = ""): any[] {
   const rowList = Array.isArray(rows) ? rows : [];
   const orderedModels = guidedGroupsByMode(profile, industrialMode).flatMap((g) => g.models);
-  const options = orderedModels.map((m, i) => {
+  const options = orderedModels.map((m: any, i: number) => {
     const modelNorm = normalizeText(m.model);
     const hit = rowList.find((r: any) => {
       const n = normalizeText(String(r?.name || ""));
@@ -6634,8 +6634,23 @@ export async function POST(req: Request) {
           }
           if (chosenEquipment === "bascula") {
             strictMemory.last_category_intent = "basculas";
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
+            const basculaRows = scopeCatalogRows(ownerRows as any[], "basculas");
+            const options = buildNumberedProductOptions(basculaRows as any[], 8);
+            if (options.length) {
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictReply = [
+                `Perfecto. En catálogo activo tengo ${options.length} báscula(s).`,
+                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra/número (A/1), o escribe 'más'.",
+              ].join("\n");
+            } else {
+              strictMemory.awaiting_action = "strict_need_spec";
+              strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
+            }
             return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "bascula_qualification_new_customer" });
           }
           if (chosenEquipment === "analizador_humedad") {
@@ -6676,8 +6691,23 @@ export async function POST(req: Request) {
         }
         if (chosenEquipment === "bascula") {
           strictMemory.last_category_intent = "basculas";
-          strictMemory.awaiting_action = "strict_need_spec";
-          strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
+          const basculaRows = scopeCatalogRows(ownerRows as any[], "basculas");
+          const options = buildNumberedProductOptions(basculaRows as any[], 8);
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictReply = [
+              `Perfecto. En catálogo activo tengo ${options.length} báscula(s).`,
+              ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige con letra/número (A/1), o escribe 'más'.",
+            ].join("\n");
+          } else {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
+          }
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "bascula_qualification" });
         }
         if (chosenEquipment === "analizador_humedad") {
