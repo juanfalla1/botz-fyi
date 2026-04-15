@@ -2494,13 +2494,29 @@ function parseExistingContactUpdateData(text: string, fallbackInboundPhone: stri
   area: string;
 } {
   const raw = String(text || "");
-  const name = sanitizeCustomerDisplayName(
-    extractSimpleLabeledValue(raw, ["nombre", "contacto", "encargado", "responsable"]) ||
-    extractCustomerName(raw, "")
-  );
-  const email = String(extractEmail(raw) || "").trim().toLowerCase();
+  const lines = raw
+    .split(/\n|;|,/)
+    .map((l) => String(l || "").trim())
+    .filter(Boolean);
+
+  const email = String(extractEmail(raw) || lines.find((l) => /@/.test(l)) || "").trim().toLowerCase();
   const phone = normalizePhone(String(extractCustomerPhone(raw, fallbackInboundPhone || "") || "").trim());
   const area = String(extractSimpleLabeledValue(raw, ["area", "área", "cargo", "departamento"]) || "").trim();
+
+  const fallbackNameLine = lines.find((l) => {
+    const t = normalizeText(l);
+    if (!t) return false;
+    if (/@/.test(l)) return false;
+    if (/^\+?\d[\d\s()-]{7,}$/.test(l)) return false;
+    if (/\b(area|área|cargo|departamento|correo|email|cel|celular|telefono|tel|nit)\b/.test(t)) return false;
+    return /[a-záéíóúñ]/i.test(l);
+  }) || "";
+
+  const name = sanitizeCustomerDisplayName(
+    extractSimpleLabeledValue(raw, ["nombre", "contacto", "encargado", "responsable"]) ||
+    extractCustomerName(raw, "") ||
+    fallbackNameLine
+  );
   return { name, email, phone, area };
 }
 
