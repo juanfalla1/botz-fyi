@@ -5086,10 +5086,7 @@ async function resolveQuoteSocialImageDataUrl(): Promise<string> {
   return dataUrl;
 }
 
-async function resolveProductImageDataUrl(
-  row: any,
-  options?: { allowStaticProfileFallback?: boolean },
-): Promise<string> {
+async function resolveProductImageDataUrl(row: any): Promise<string> {
   const localModelSpecific = resolveModelSpecificLocalImageDataUrl(row);
   if (localModelSpecific) return localModelSpecific;
 
@@ -5109,15 +5106,12 @@ async function resolveProductImageDataUrl(
   // Those PDFs can contain a generic hero image and make multi-product
   // quotations look like every row has the same product photo.
 
-  const allowStaticProfileFallback = options?.allowStaticProfileFallback !== false;
-  if (allowStaticProfileFallback) {
-    const staticProfile = resolveStaticQuoteProfile(row, String(row?.name || ""));
-    if (staticProfile?.imageFile) {
-      const local = localImageFileToDataUrl(staticProfile.imageFile);
-      if (local) {
-        console.log("[evolution-webhook] quote_image_static_ok", { model: String(row?.name || ""), imageFile: staticProfile.imageFile });
-        return local;
-      }
+  const staticProfile = resolveStaticQuoteProfile(row, String(row?.name || ""));
+  if (staticProfile?.imageFile) {
+    const local = localImageFileToDataUrl(staticProfile.imageFile);
+    if (local) {
+      console.log("[evolution-webhook] quote_image_static_ok", { model: String(row?.name || ""), imageFile: staticProfile.imageFile });
+      return local;
     }
   }
 
@@ -14009,11 +14003,7 @@ export async function POST(req: Request) {
                   nextMemory.last_quote_draft_id = String(draft.id);
                   nextMemory.last_quote_product_name = String((selected as any).name || "");
                   nextMemory.awaiting_action = "none";
-                  const isMultiReferenceQuote = selectedProducts.length > 1;
-                  const productImageDataUrl = await resolveProductImageDataUrl(
-                    selected,
-                    { allowStaticProfileFallback: !isMultiReferenceQuote },
-                  );
+                  const productImageDataUrl = await resolveProductImageDataUrl(selected);
                   const quoteDescription = await buildQuoteItemDescriptionAsync(selected, String((selected as any).name || ""));
                   const pdfBase64 = await buildQuotePdf({
                     draftId: String(draft.id),
