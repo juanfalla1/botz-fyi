@@ -4467,6 +4467,13 @@ function scopeCatalogRows(rows: any[], categoryIntent: string): any[] {
   return out;
 }
 
+function scopeStrictBasculaRows(rows: any[]): any[] {
+  return (rows || []).filter((row: any) => {
+    if (!categoryMatchesIntent(row, "basculas")) return false;
+    return passesStrictCategoryGuard(row, "basculas");
+  });
+}
+
 function isCatalogMatchConsistent(text: string, row: any, forcedCategory?: string): boolean {
   if (!row) return false;
   const requestedCategory = normalizeText(String(forcedCategory || detectCatalogCategoryIntent(text) || ""));
@@ -6887,7 +6894,7 @@ export async function POST(req: Request) {
           }
           if (effectiveEquipment === "bascula") {
             strictMemory.last_category_intent = "basculas";
-            const basculaRows = scopeCatalogRows(ownerRows as any[], "basculas");
+            const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
             const options = buildNumberedProductOptions(basculaRows as any[], 8);
             if (options.length) {
               strictMemory.pending_product_options = options;
@@ -7189,7 +7196,7 @@ export async function POST(req: Request) {
         }
         if (effectiveEquipment === "bascula") {
           strictMemory.last_category_intent = "basculas";
-          const basculaRows = scopeCatalogRows(ownerRows as any[], "basculas");
+          const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
           const options = buildNumberedProductOptions(basculaRows as any[], 8);
           if (options.length) {
             strictMemory.pending_product_options = options;
@@ -8055,7 +8062,7 @@ export async function POST(req: Request) {
             if (currentCategory === "basculas") {
               const asksBasculaOptions = /(tienes?\s+basculas?|que\s+modelos\s+tienes?\s+de\s+basculas?|que\s+basculas?\s+tienes?|dame\s+(opciones|modelos)|muestrame\s+(opciones|modelos))/i.test(String(text || ""));
               if (asksBasculaOptions) {
-                const basculaRows = scopeCatalogRows(ownerRows as any[], "basculas");
+                const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
                 const options = buildNumberedProductOptions(basculaRows as any[], 8);
                 if (options.length) {
                   strictMemory.pending_product_options = options;
