@@ -5297,8 +5297,7 @@ async function buildStandardQuotePdf(args: {
   doc.text("Valor total", c7 - ptToMm(1.2), tableHeadY + ptToMm(9.4), { align: "right" });
   doc.setTextColor(dark[0], dark[1], dark[2]);
 
-  // First line item only (fixed one-page approved layout)
-  const item = (args.items || [])[0] || {
+  const normalizedLineItems = (Array.isArray(args.items) && args.items.length ? args.items : [{
     productName: "-",
     quantity: 1,
     basePriceUsd: 0,
@@ -5307,63 +5306,128 @@ async function buildStandardQuotePdf(args: {
     description: "Producto sin detalle",
     warranty: "1 AÑO POR DEFECTO DE FABRICA",
     imageDataUrl: "",
-  };
-  const qty = Math.max(1, Number(item.quantity || 1));
-  const lineTotal = Number(item.totalCop || 0) > 0
-    ? Number(item.totalCop || 0)
-    : Number(item.basePriceUsd || 0) * Number(item.trmRate || 0) * qty;
+  }]).map((row) => {
+    const qty = Math.max(1, Number(row.quantity || 1));
+    const lineTotal = Number(row.totalCop || 0) > 0
+      ? Number(row.totalCop || 0)
+      : Number(row.basePriceUsd || 0) * Number(row.trmRate || 0) * qty;
+    return {
+      ...row,
+      quantity: qty,
+      lineTotal,
+    };
+  });
 
+  let subtotal = 0;
   const itemRowY = tableHeadY + headH;
   const itemRowH = ptToMm(258.62);
   doc.setLineWidth(ptToMm(0.14));
   doc.rect(x, itemRowY, contentW, itemRowH, "S");
   [c1, c2, c3, c4, c5, c6].forEach((cx) => doc.line(cx, itemRowY, cx, itemRowY + itemRowH));
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.96);
-  doc.text("1", c0 + 3, itemRowY + 5);
-  doc.setFont("helvetica", "bold");
-  doc.text(String(item.productName || "-").slice(0, 20), c1 + 1.5, itemRowY + 5);
-  doc.setFont("helvetica", "normal");
+  if (normalizedLineItems.length <= 1) {
+    const item = normalizedLineItems[0];
+    const qty = Math.max(1, Number(item.quantity || 1));
+    const lineTotal = Number(item.lineTotal || 0);
+    subtotal = lineTotal;
 
-  if (ENABLE_QUOTE_PRODUCT_IMAGE && String(item.imageDataUrl || "").trim()) {
-    try {
-      const img = String(item.imageDataUrl || "").trim();
-      const fmt = /^data:image\/png/i.test(img) ? "PNG" : /^data:image\/webp/i.test(img) ? "WEBP" : "JPEG";
-      const boxX = ptToMm(65.87);
-      const boxY = ptToMm(350.13);
-      const boxW = ptToMm(70.36);
-      const boxH = ptToMm(90.54);
-      let dw = boxW;
-      let dh = boxH;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.96);
+    doc.text("1", c0 + 3, itemRowY + 5);
+    doc.setFont("helvetica", "bold");
+    doc.text(String(item.productName || "-").slice(0, 20), c1 + 1.5, itemRowY + 5);
+    doc.setFont("helvetica", "normal");
+
+    if (ENABLE_QUOTE_PRODUCT_IMAGE && String(item.imageDataUrl || "").trim()) {
       try {
-        const props: any = (doc as any).getImageProperties?.(img);
-        const iw = Number(props?.width || 0);
-        const ih = Number(props?.height || 0);
-        if (iw > 0 && ih > 0) {
-          const s = Math.min(boxW / iw, boxH / ih);
-          dw = iw * s;
-          dh = ih * s;
-        }
+        const img = String(item.imageDataUrl || "").trim();
+        const fmt = /^data:image\/png/i.test(img) ? "PNG" : /^data:image\/webp/i.test(img) ? "WEBP" : "JPEG";
+        const boxX = ptToMm(65.87);
+        const boxY = ptToMm(350.13);
+        const boxW = ptToMm(70.36);
+        const boxH = ptToMm(90.54);
+        let dw = boxW;
+        let dh = boxH;
+        try {
+          const props: any = (doc as any).getImageProperties?.(img);
+          const iw = Number(props?.width || 0);
+          const ih = Number(props?.height || 0);
+          if (iw > 0 && ih > 0) {
+            const s = Math.min(boxW / iw, boxH / ih);
+            dw = iw * s;
+            dh = ih * s;
+          }
+        } catch {}
+        doc.addImage(img, fmt as any, boxX + (boxW - dw) / 2, boxY + (boxH - dh) / 2, dw, dh);
       } catch {}
-      doc.addImage(img, fmt as any, boxX + (boxW - dw) / 2, boxY + (boxH - dh) / 2, dw, dh);
-    } catch {}
+    }
+
+    const descText = String(item.description || `Producto: ${String(item.productName || "-")}`)
+      .replace(/[^\x20-\x7EÁÉÍÓÚáéíóúÑñÜü°µ±×.,:;()\/-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const descLines = doc.splitTextToSize(descText, descW - 2).slice(0, 28);
+    if (descLines.length >= 28) descLines[27] = `${String(descLines[27] || "").trimEnd()}...`;
+    doc.text(descLines, c2 + 1.2, itemRowY + 5);
+
+    const warrantyLines = doc.splitTextToSize(String(item.warranty || "1 AÑO POR DEFECTO DE FABRICA"), warrantyW - 2);
+    doc.text(warrantyLines, c3 + 1.2, itemRowY + 5);
+    doc.text(String(qty), c5 - 1.2, itemRowY + 5, { align: "right" });
+    doc.setFontSize(8.04);
+    doc.text(`$ ${formatMoney(lineTotal / qty)}`, c6 - 1.2, itemRowY + 5, { align: "right" });
+    doc.text(`$ ${formatMoney(lineTotal)}`, c7 - 1.2, itemRowY + 5, { align: "right" });
+  } else {
+    const maxRows = Math.min(normalizedLineItems.length, 6);
+    const rowH = itemRowH / maxRows;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.6);
+
+    for (let i = 0; i < maxRows; i += 1) {
+      if (i > 0) {
+        const yy = itemRowY + rowH * i;
+        doc.line(x, yy, x + contentW, yy);
+      }
+
+      const row = normalizedLineItems[i];
+      const top = itemRowY + rowH * i;
+      const textY = top + 4.4;
+      const qty = Math.max(1, Number(row.quantity || 1));
+      const lineTotal = Number(row.lineTotal || 0);
+      subtotal += lineTotal;
+
+      doc.setFont("helvetica", "normal");
+      doc.text(String(i + 1), c0 + 3, textY);
+      doc.setFont("helvetica", "bold");
+      doc.text(String(row.productName || "-").slice(0, 24), c1 + 1.2, textY);
+      doc.setFont("helvetica", "normal");
+
+      const descText = String(row.description || `Producto: ${String(row.productName || "-")}`)
+        .replace(/[^\x20-\x7EÁÉÍÓÚáéíóúÑñÜü°µ±×.,:;()\/-]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      const descMax = Math.max(2, Math.min(7, Math.floor((rowH - 3) / 2.8)));
+      const descLines = doc.splitTextToSize(descText, descW - 2).slice(0, descMax);
+      if (doc.splitTextToSize(descText, descW - 2).length > descMax && descLines.length) {
+        const last = descLines.length - 1;
+        descLines[last] = `${String(descLines[last] || "").trimEnd()}...`;
+      }
+      doc.text(descLines, c2 + 1.2, textY);
+
+      const wMax = Math.max(1, Math.min(4, Math.floor((rowH - 3) / 3.2)));
+      const warrantyLines = doc.splitTextToSize(String(row.warranty || "1 AÑO POR DEFECTO DE FABRICA"), warrantyW - 2).slice(0, wMax);
+      doc.text(warrantyLines, c3 + 1.2, textY);
+      doc.text(String(qty), c5 - 1.2, textY, { align: "right" });
+      doc.text(`$ ${formatMoney(lineTotal / qty)}`, c6 - 1.2, textY, { align: "right" });
+      doc.text(`$ ${formatMoney(lineTotal)}`, c7 - 1.2, textY, { align: "right" });
+    }
+
+    if (normalizedLineItems.length > maxRows) {
+      const hidden = normalizedLineItems.length - maxRows;
+      const foot = `+${hidden} referencia(s) adicional(es) en la cotizacion consolidada`;
+      doc.setFontSize(6.2);
+      doc.text(foot, c2 + 1.2, itemRowY + itemRowH - 2.6);
+    }
   }
-
-  const descText = String(item.description || `Producto: ${String(item.productName || "-")}`)
-    .replace(/[^\x20-\x7EÁÉÍÓÚáéíóúÑñÜü°µ±×.,:;()\/-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const descLines = doc.splitTextToSize(descText, descW - 2).slice(0, 28);
-  if (descLines.length >= 28) descLines[27] = `${String(descLines[27] || "").trimEnd()}...`;
-  doc.text(descLines, c2 + 1.2, itemRowY + 5);
-
-  const warrantyLines = doc.splitTextToSize(String(item.warranty || "1 AÑO POR DEFECTO DE FABRICA"), warrantyW - 2);
-  doc.text(warrantyLines, c3 + 1.2, itemRowY + 5);
-  doc.text(String(qty), c5 - 1.2, itemRowY + 5, { align: "right" });
-  doc.setFontSize(8.04);
-  doc.text(`$ ${formatMoney(lineTotal / qty)}`, c6 - 1.2, itemRowY + 5, { align: "right" });
-  doc.text(`$ ${formatMoney(lineTotal)}`, c7 - 1.2, itemRowY + 5, { align: "right" });
 
   // Contact + totals row
   const contactTop = itemRowY + itemRowH;
@@ -5379,7 +5443,6 @@ async function buildStandardQuotePdf(args: {
   doc.text("CEL 3183731171", x + 1.5, contactTop + 11.8);
   doc.text("cotizaciones@avanzagroup.com.co", x + 1.5, contactTop + 15.8);
 
-  const subtotal = lineTotal;
   const iva = subtotal * ivaRate;
   const total = subtotal + iva;
 
@@ -13500,7 +13563,7 @@ export async function POST(req: Request) {
         if (forceBundleQuoteIntake) {
           console.log("[quote-bundle] start", { inbound: String(originalInboundText || ""), intent: String(nextMemory.last_intent || "") });
         }
-        const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url", 120, false);
+        const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url", 360, false);
 
         const quoteSourceText = resumeQuoteFromContext
           ? `${recentUserContext}\n${inbound.text}`
