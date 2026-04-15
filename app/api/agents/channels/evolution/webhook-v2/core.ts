@@ -6729,17 +6729,18 @@ export async function POST(req: Request) {
             return finalizeStrictTurn(`Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g). Ahora dime la resolución objetivo (ej.: 0.1 g, 0.01 g, 0.001 g).`, strictMemory, { pipeline: true, intent: pipelineIntent });
           }
           if (read > 0 && !(cap > 0)) {
-            const semimicroCue = /(semimicro|semi\s*micro|semi\w*micro|seminicro|usp|\b\d+(?:[.,]\d+)?\s*mg\b)/.test(textNorm);
-            if (semimicroCue) {
-              const semimicroProfile: GuidedBalanzaProfile = "balanza_semimicro_00001";
-              const options = buildGuidedPendingOptions(ownerRows as any[], semimicroProfile);
+            const guidedProfileByRead = detectGuidedBalanzaProfile(text);
+            if (guidedProfileByRead) {
+              const industrialMode = guidedProfileByRead === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
+              const options = buildGuidedPendingOptions(ownerRows as any[], guidedProfileByRead, industrialMode as any);
               strictMemory.pending_product_options = options;
               strictMemory.pending_family_options = [];
               strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
               strictMemory.strict_model_offset = 0;
               strictMemory.last_category_intent = "balanzas";
-              strictMemory.guided_balanza_profile = semimicroProfile;
-              return finalizeStrictTurn(buildGuidedBalanzaReply(semimicroProfile), strictMemory, { pipeline: true, intent: "guided_need_discovery" });
+              strictMemory.guided_balanza_profile = guidedProfileByRead;
+              strictMemory.guided_industrial_mode = industrialMode;
+              return finalizeStrictTurn(buildGuidedBalanzaReplyWithMode(guidedProfileByRead, industrialMode as any), strictMemory, { pipeline: true, intent: "guided_need_discovery" });
             }
             strictMemory.awaiting_action = "strict_need_spec";
             return finalizeStrictTurn(`Perfecto, ya tengo la precisión (${formatSpecNumber(read)} g). Ahora dime la capacidad aproximada (ej.: 200 g, 1000 g, 2 kg).`, strictMemory, { pipeline: true, intent: pipelineIntent });
