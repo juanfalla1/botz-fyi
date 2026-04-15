@@ -6918,10 +6918,15 @@ export async function POST(req: Request) {
         strictMemory.commercial_client_type = "new";
         strictMemory.awaiting_action = "commercial_new_customer_data";
 
+        const retryTextNorm = normalizeText(String(text || ""));
+        const hasRegistrationPayload =
+          looksLikeBillingData(String(text || "")) ||
+          /\b(empresa|correo|contacto|departamento|ciudad|razon\s+social|nombres?)\b/.test(retryTextNorm) ||
+          /@/.test(String(text || ""));
         const retryLookupNit = String(extractCompanyNit(text) || "").replace(/\D/g, "").trim();
         const retryLookupPhone = normalizePhone(String(extractCustomerPhone(text, inbound.from) || "").trim());
         const retryLookupPhoneTail = phoneTail10(retryLookupPhone);
-        if (String(awaiting || "") === "commercial_new_customer_data" && (retryLookupNit || retryLookupPhoneTail)) {
+        if (String(awaiting || "") === "commercial_new_customer_data" && !hasRegistrationPayload && (retryLookupNit || retryLookupPhoneTail)) {
           let matchedContact: any = null;
           try {
             if (retryLookupNit) {
