@@ -2703,14 +2703,20 @@ function deliveryLabelForRow(row: any): string {
 function detectGuidedBalanzaProfile(text: string): GuidedBalanzaProfile | null {
   const t = normalizeText(String(text || ""));
   const hasGrameraWord = /\bgramera\b/.test(t);
-  const hasOro = /(oro|joyeria|joyería|minero|calidad\s+del\s+oro|dos\s+cifras|densidad\s+para\s+oro)/.test(t);
-  const hasThree = /(tres\s+cifras|0\s*[,.]\s*001|1\s*mg|cabina|cosmetic|menos\s+de\s+200|menos\s+de\s+300)/.test(t);
-  const hasFour = /(cuatro\s+cifras|0\s*[,.]\s*0001|0\s*[,.]\s*1\s*mg|laboratorio|laboratorio\s+de\s+alimentos)/.test(t);
-  const hasFive = /(cinco\s+cifras|0\s*[,.]\s*00001|0\s*[,.]\s*01\s*mg|semi\s*micro|semimicro|semi\w*micro|seminicro|usp|microgram|migrogram|\b\d+(?:[.,]\d+)?\s*mg\b)/.test(t);
-  const hasIndustrial = /(portatil|portátil|recargable|plato\s+grande|cuenta\s+piezas|tres\s+pantallas|tornillos|30\s*kg|15\s*kg|gramo\s+por\s+gramo)/.test(t);
+  const hasOro = /(oro|joyeria|joyería|minero|calidad\s+del\s+oro|vender\s+oro|dos\s+cifras|densidad\s+para\s+oro)/.test(t);
+  const hasThree = /(tres\s+cifras|0\s*[,.]\s*001|1\s*mg|cabina|con\s+cabina|cosmetic|cosmetico|cosmeticos|menos\s+de\s+200|menos\s+de\s+300|buena\s+resolucion)/.test(t);
+  const hasFour = /(cuatro\s+cifras|0\s*[,.]\s*0001|0\s*[,.]\s*1\s*mg|0\s*[,.]\s*1\s*mg|laboratorio|laboratorio\s+de\s+alimentos|capacidad\s*200\s*g)/.test(t);
+  const hasFive = /(cinco\s+cifras|0\s*[,.]\s*00001|0\s*[,.]\s*01\s*mg|semi\s*micro|semimicro|semi\w*micro|seminicro|usp|pesada\s+minima\s+usp|microgram|migrogram|\b\d+(?:[.,]\d+)?\s*mg\b)/.test(t);
+  const hasIndustrial = /(portatil|portátil|recargable|plato\s+grande|cuenta\s+piezas|tres\s+pantallas|tornillos|30\s*kg|15\s*kg|gramo\s+por\s+gramo|bulto|bultos)/.test(t);
+  const hasExplicitReadability001 = /0\s*[,.]\s*001|1\s*mg/.test(t);
+  const hasExplicitReadability0001 = /0\s*[,.]\s*0001|0\s*[,.]\s*1\s*mg/.test(t);
+  const hasExplicitReadability00001 = /0\s*[,.]\s*00001|0\s*[,.]\s*01\s*mg/.test(t);
   const hasGrameraOnly = hasGrameraWord && !hasOro && !hasThree && !hasFour && !hasFive && !hasIndustrial;
 
   if (hasGrameraOnly) return null;
+  if (hasExplicitReadability00001) return "balanza_semimicro_00001";
+  if (hasExplicitReadability0001) return "balanza_laboratorio_0001";
+  if (hasExplicitReadability001 && !hasOro) return "balanza_precision_001";
   if (hasFive) return "balanza_semimicro_00001";
   if (hasFour) return "balanza_laboratorio_0001";
   if (hasIndustrial) return "balanza_industrial_portatil_conteo";
