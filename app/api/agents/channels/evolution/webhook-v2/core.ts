@@ -6847,6 +6847,88 @@ export async function POST(req: Request) {
       if (!String(strictReply || "").trim() && shouldHandleNewCommercialStep && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
         strictMemory.commercial_client_type = "new";
         strictMemory.awaiting_action = "commercial_new_customer_data";
+
+        const retryLookupNit = String(extractCompanyNit(text) || "").replace(/\D/g, "").trim();
+        const retryLookupPhone = normalizePhone(String(extractCustomerPhone(text, inbound.from) || "").trim());
+        const retryLookupPhoneTail = phoneTail10(retryLookupPhone);
+        if (String(awaiting || "") === "commercial_new_customer_data" && (retryLookupNit || retryLookupPhoneTail)) {
+          let matchedContact: any = null;
+          try {
+            if (retryLookupNit) {
+              const { data: byNitKey } = await supabase
+                .from("agent_crm_contacts")
+                .select("id,name,email,phone,company,contact_key,metadata,updated_at")
+                .eq("created_by", ownerId)
+                .eq("contact_key", `nit:${retryLookupNit}`)
+                .order("updated_at", { ascending: false })
+                .limit(1);
+              if (Array.isArray(byNitKey) && byNitKey[0]) matchedContact = byNitKey[0];
+            }
+            if (!matchedContact && retryLookupPhoneTail) {
+              const { data: byPhoneKey } = await supabase
+                .from("agent_crm_contacts")
+                .select("id,name,email,phone,company,contact_key,metadata,updated_at")
+                .eq("created_by", ownerId)
+                .or(`contact_key.eq.cel:${retryLookupPhone},contact_key.eq.cel:${retryLookupPhoneTail},phone.eq.${retryLookupPhone},phone.like.%${retryLookupPhoneTail}`)
+                .order("updated_at", { ascending: false })
+                .limit(5);
+              if (Array.isArray(byPhoneKey) && byPhoneKey[0]) matchedContact = byPhoneKey[0];
+            }
+          } catch {}
+
+          if (matchedContact && typeof matchedContact === "object") {
+            const matchedMeta = matchedContact?.metadata && typeof matchedContact.metadata === "object"
+              ? matchedContact.metadata
+              : {};
+            const matchedNit = String(matchedMeta?.nit || "").replace(/\D/g, "").trim();
+            const matchedCity = normalizeCityLabel(String(matchedMeta?.billing_city || "").trim());
+            const matchedName = sanitizeCustomerDisplayName(String(matchedContact?.name || ""));
+            const matchedEmail = String(matchedContact?.email || "").trim().toLowerCase();
+            const matchedPhone = normalizePhone(String(matchedContact?.phone || ""));
+            const matchedCompany = String(matchedContact?.company || "").trim();
+
+            strictMemory.commercial_client_type = "existing";
+            strictMemory.crm_contact_found = true;
+            strictMemory.crm_contact_id = String(matchedContact?.id || "").trim();
+            strictMemory.crm_contact_name = matchedName;
+            strictMemory.crm_contact_email = matchedEmail;
+            strictMemory.crm_contact_phone = matchedPhone;
+            strictMemory.crm_company = matchedCompany;
+            strictMemory.crm_nit = matchedNit;
+            strictMemory.crm_billing_city = matchedCity;
+            strictMemory.quote_data = {
+              city: matchedCity || String(strictMemory?.quote_data?.city || "") || "Bogota",
+              company: matchedCompany || String(strictMemory?.quote_data?.company || ""),
+              nit: matchedNit || String(strictMemory?.quote_data?.nit || ""),
+              contact: matchedName || String(strictMemory?.quote_data?.contact || ""),
+              email: matchedEmail || String(strictMemory?.quote_data?.email || ""),
+              phone: matchedPhone || normalizePhone(String(strictMemory?.customer_phone || inbound.from || "")),
+            };
+            strictMemory.commercial_existing_match = {
+              id: String(matchedContact?.id || "").trim(),
+              company: matchedCompany,
+              nit: matchedNit,
+              contact: matchedName,
+              email: matchedEmail,
+              phone: matchedPhone,
+              city: matchedCity,
+            };
+            strictMemory.awaiting_action = "commercial_existing_confirm";
+            strictReply = [
+              "Perfecto, gracias por la corrección. Ya encontré tu empresa en nuestra base de clientes.",
+              "",
+              buildExistingClientMatchConfirmationPrompt({
+                company: matchedCompany,
+                nit: matchedNit,
+                contact: matchedName,
+                email: matchedEmail,
+                phone: matchedPhone,
+              }),
+            ].join("\n");
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_recovered_from_new_data" });
+          }
+        }
+
         if (shouldEscalateToAdvisorByCommercialRule(strictMemory, text)) {
           strictReply = buildCommercialEscalationMessage();
           strictMemory.awaiting_action = "conversation_followup";
