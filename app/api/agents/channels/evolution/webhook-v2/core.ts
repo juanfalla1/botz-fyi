@@ -2752,6 +2752,17 @@ function buildGuidedBalanzaReplyWithMode(profile: GuidedBalanzaProfile, industri
   const estimated = profile === "balanza_industrial_portatil_conteo"
     ? "💰 Valores estimados: desde $3.500.000 (según gama y funcionalidad). Deseas continuar con la cotización"
     : "💰 Valores estimados: desde $4.000.000 (según gama y funcionalidad). Deseas continuar con la cotización";
+  const tierToGama = (tier: string): string => {
+    const t = normalizeText(String(tier || ""));
+    if (/linea\s+esencial/.test(t)) return "esencial";
+    if (/linea\s+intermedia/.test(t)) return "intermedia";
+    if (/linea\s+avanzada/.test(t)) return "avanzada";
+    if (/linea\s+premium/.test(t)) return "premium";
+    if (/linea\s+basica/.test(t)) return "basica";
+    if (/linea\s+media/.test(t)) return "media";
+    if (/linea\s+alta/.test(t)) return "alta";
+    return "";
+  };
   let modelIndex = 1;
   return [
     intro,
@@ -2759,7 +2770,11 @@ function buildGuidedBalanzaReplyWithMode(profile: GuidedBalanzaProfile, industri
     ...groups.flatMap((group) => [
       "",
       group.tier,
-      ...group.models.map((m: any) => `${modelIndex++}) ${m.model} – ${m.capacity} x ${m.resolution} (${m.delivery})`),
+      ...group.models.map((m: any) => {
+        const gama = tierToGama(String(group?.tier || ""));
+        const gamaPart = gama ? ` | Gama: ${gama}` : "";
+        return `${modelIndex++}) ${m.model} – ${m.capacity} x ${m.resolution} (${m.delivery})${gamaPart}`;
+      }),
     ]),
     "",
     "Responde con número que se encuentra al principio del modelo (ej.: 1).",
