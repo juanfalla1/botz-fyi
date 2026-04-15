@@ -5592,35 +5592,6 @@ async function buildBundleQuotePdf(args: {
   const issueDate = asDateYmd(now);
   const validUntil = asDateYmd(new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000));
 
-  const normalizedItems = (args.items || []).map((item: any) => {
-    const qty = Math.max(1, Number(item.quantity || 1));
-    const totalCop = Number(item.totalCop || 0) > 0
-      ? Number(item.totalCop || 0)
-      : Number(item.basePriceUsd || 0) * Number(item.trmRate || 0) * qty;
-    const unitCop = qty > 0 ? Number((totalCop / qty).toFixed(2)) : totalCop;
-    return {
-      productName: String(item.productName || "-").trim() || "-",
-      quantity: qty,
-      basePriceUsd: Number(item.basePriceUsd || 0),
-      trmRate: Number(item.trmRate || 0),
-      totalCop,
-      unitCop,
-    };
-  }).filter((x: any) => x.totalCop > 0 || x.productName !== "-");
-
-  const grandTotalCop = normalizedItems.reduce((acc: number, it: any) => acc + Number(it.totalCop || 0), 0);
-  const totalQty = normalizedItems.reduce((acc: number, it: any) => acc + Math.max(1, Number(it.quantity || 1)), 0);
-  const firstTrm = Number(normalizedItems[0]?.trmRate || 0);
-  const firstUsd = Number(normalizedItems[0]?.basePriceUsd || 0);
-  const descriptionLines = normalizedItems.length
-    ? [
-        `Cotizacion consolidada de ${normalizedItems.length} referencia(s):`,
-        ...normalizedItems.map((it: any, idx: number) => (
-          `${idx + 1}) ${it.productName} | Cant: ${it.quantity} | Unit: $${formatMoney(it.unitCop)} | Total: $${formatMoney(it.totalCop)}`
-        )),
-      ]
-    : ["Cotizacion consolidada sin detalle de referencias."];
-
   return await buildStandardQuotePdf({
     quoteNumber,
     issueDate,
@@ -5629,17 +5600,21 @@ async function buildBundleQuotePdf(args: {
     customerName: args.customerName,
     customerEmail: args.customerEmail,
     customerPhone: args.customerPhone,
-    items: [
-      {
-        productName: normalizedItems.length > 1 ? `PAQUETE (${normalizedItems.length} refs)` : String(normalizedItems[0]?.productName || "PAQUETE"),
-        quantity: Math.max(1, totalQty),
-        basePriceUsd: firstUsd,
-        trmRate: firstTrm,
-        totalCop: grandTotalCop,
-        description: descriptionLines.join("\n"),
-        imageDataUrl: "",
-      },
-    ],
+    items: (args.items || []).map((item: any) => {
+      const qty = Math.max(1, Number(item.quantity || 1));
+      const totalCop = Number(item.totalCop || 0) > 0
+        ? Number(item.totalCop || 0)
+        : Number(item.basePriceUsd || 0) * Number(item.trmRate || 0) * qty;
+      return {
+        productName: String(item.productName || "-"),
+        quantity: qty,
+        basePriceUsd: Number(item.basePriceUsd || 0),
+        trmRate: Number(item.trmRate || 0),
+        totalCop,
+        description: String(item.description || "").trim() || `Producto: ${String(item.productName || "-")}`,
+        imageDataUrl: String(item.imageDataUrl || "").trim(),
+      };
+    }),
   });
 }
 
@@ -13525,7 +13500,7 @@ export async function POST(req: Request) {
         if (forceBundleQuoteIntake) {
           console.log("[quote-bundle] start", { inbound: String(originalInboundText || ""), intent: String(nextMemory.last_intent || "") });
         }
-        const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url", 360, false);
+        const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url", 120, false);
 
         const quoteSourceText = resumeQuoteFromContext
           ? `${recentUserContext}\n${inbound.text}`
@@ -14576,21 +14551,20 @@ export async function POST(req: Request) {
     }
     console.info("[evolution-webhook] reply sent", { channelId: (channel as any)?.id, agentId: agent.id, to: sentTo });
 
-    const bundleDoc = autoQuoteBundle as { fileName: string; pdfBase64: string; draftIds: string[] } | null;
-    if (autoQuoteDocs.length || resendPdf || bundleDoc) {
+    if (autoQuoteDocs.length || resendPdf || autoQuoteBundle) {
       try {
-        if (bundleDoc) {
-          console.log("[quote-bundle] send final start", { drafts: bundleDoc.draftIds?.length || 0, fileName: bundleDoc.fileName });
+        if (autoQuoteBundle) {
+          console.log("[quote-bundle] send final start", { drafts: autoQuoteBundle.draftIds?.length || 0, fileName: autoQuoteBundle.fileName });
         }
-        if (bundleDoc) {
+        if (autoQuoteBundle) {
           await evolutionService.sendDocument(outboundInstance, sentTo, {
-            base64: bundleDoc.pdfBase64,
-            fileName: bundleDoc.fileName,
-            caption: `Cotizacion consolidada ${bundleDoc.fileName}`,
+            base64: autoQuoteBundle.pdfBase64,
+            fileName: autoQuoteBundle.fileName,
+            caption: `Cotizacion consolidada ${autoQuoteBundle.fileName}`,
             mimetype: "application/pdf",
           });
 
-          for (const id of bundleDoc.draftIds) {
+          for (const id of autoQuoteBundle.draftIds) {
             await supabase
               .from("agent_quote_drafts")
               .update({ status: "quote" })
