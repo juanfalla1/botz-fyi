@@ -9457,6 +9457,29 @@ export async function POST(req: Request) {
           isGlobalCatalogAsk(text) ||
           /\b(dame|muestrame|mu[eé]strame|quiero|ver)\b.*\b(todo|todos|todas)\b.*\b(prod|producto|productos|prodcutos|catalogo)\b/.test(textNorm);
         const hasScopedContextInModelStep = Boolean(currentCategoryIntentInModelStep || familyLabel || pendingStrictOptions.length);
+        const asksBasculaOptionsInModelStep = /\b(tienes?\s+basculas?|que\s+modelos\s+tienes?\s+de\s+basculas?|que\s+basculas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos)|muestrame\s+(las\s+)?(opciones|modelos))\b/i.test(String(text || ""));
+        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && asksBasculaOptionsInModelStep) {
+          const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
+          const options = buildNumberedProductOptions(basculaRows as any[], 8);
+          strictMemory.last_category_intent = "basculas";
+          strictMemory.strict_family_label = "basculas";
+          strictMemory.strict_model_offset = 0;
+          strictMemory.pending_family_options = [];
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictReply = [
+              `Perfecto. En catálogo activo tengo ${options.length} báscula(s).`,
+              ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige con letra/número (A/1), o escribe 'más'.",
+            ].join("\n");
+          } else {
+            strictMemory.pending_product_options = [];
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = "Ahora mismo no veo básculas activas en base de datos. Si quieres, dime capacidad y resolución y te confirmo alternativas.";
+          }
+        }
         if (!String(strictReply || "").trim() && asksFeatureValidationInModelStep) {
           const scopedByIntent = requestedCategoryIntentInModelStep
             ? scopeCatalogRows(ownerRows as any, requestedCategoryIntentInModelStep)
