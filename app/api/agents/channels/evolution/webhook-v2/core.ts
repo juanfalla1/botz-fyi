@@ -9660,7 +9660,7 @@ export async function POST(req: Request) {
             strictReply = `Con base en catálogo activo y descripciones, no tengo referencias que coincidan con (${featureTermsInModelStep.join(", ")}). Si quieres, dime capacidad y resolución para buscar alternativas reales.`;
           }
         }
-        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && guidedProfileInModelStep && !technicalBypassInSelection && !appHintInModelStep) {
+        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && guidedProfileInModelStep) {
           const rememberedGuided = String(previousMemory?.guided_balanza_profile || strictMemory.guided_balanza_profile || "").trim();
           const shouldRefreshGuidedList =
             rememberedGuided !== String(guidedProfileInModelStep) ||
