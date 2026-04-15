@@ -6587,8 +6587,41 @@ export async function POST(req: Request) {
           const read = Number(merged.readabilityG || 0);
           strictMemory.strict_partial_capacity_g = cap > 0 ? cap : "";
           strictMemory.strict_partial_readability_g = read > 0 ? read : "";
+          const guidedProfileByNeed = detectGuidedBalanzaProfile(text);
+
+          if (guidedProfileByNeed && !(cap > 0) && !(read > 0)) {
+            const industrialMode = guidedProfileByNeed === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
+            const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileByNeed, industrialMode as any);
+            if (guidedOptions.length) {
+              strictMemory.guided_balanza_profile = guidedProfileByNeed;
+              strictMemory.guided_industrial_mode = industrialMode;
+              strictMemory.last_category_intent = "balanzas";
+              strictMemory.pending_product_options = guidedOptions;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              return finalizeStrictTurn(buildGuidedBalanzaReplyWithMode(guidedProfileByNeed, industrialMode as any), strictMemory, { pipeline: true, intent: "guided_need_discovery" });
+            }
+          }
 
           if (cap > 0 && read > 0) {
+            if (guidedProfileByNeed) {
+              const industrialMode = guidedProfileByNeed === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
+              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileByNeed, industrialMode as any);
+              if (guidedOptions.length) {
+                strictMemory.guided_balanza_profile = guidedProfileByNeed;
+                strictMemory.guided_industrial_mode = industrialMode;
+                strictMemory.last_category_intent = "balanzas";
+                strictMemory.pending_product_options = guidedOptions;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                strictMemory.strict_filter_capacity_g = cap;
+                strictMemory.strict_filter_readability_g = read;
+                strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
+                return finalizeStrictTurn(buildGuidedBalanzaReplyWithMode(guidedProfileByNeed, industrialMode as any), strictMemory, { pipeline: true, intent: "guided_need_discovery" });
+              }
+            }
             strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
             strictMemory.strict_filter_capacity_g = cap;
             strictMemory.strict_filter_readability_g = read;
@@ -6649,7 +6682,6 @@ export async function POST(req: Request) {
           }
 
           if (cap > 0 && !(read > 0)) {
-            const guidedProfileByNeed = detectGuidedBalanzaProfile(text);
             if (guidedProfileByNeed) {
               const industrialMode = guidedProfileByNeed === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
               const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileByNeed, industrialMode as any);
