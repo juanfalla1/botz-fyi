@@ -9682,7 +9682,20 @@ export async function POST(req: Request) {
             strictReply = buildGuidedBalanzaReplyWithMode(guidedProfileInModelStep as GuidedBalanzaProfile, industrialModeModel as any);
           } else {
             strictMemory.awaiting_action = "strict_choose_model";
-            strictReply = "Perfecto. Seguimos en esta selección semimicro. Elige una opción con número o letra (ej.: 1 o A), o escribe 'más'.";
+            const profileKey = normalizeText(String(rememberedGuided || guidedProfileInModelStep || ""));
+            const profileLabel =
+              profileKey === "balanza_oro_001"
+                ? "oro/joyería"
+                : profileKey === "balanza_precision_001"
+                  ? "precisión"
+                  : profileKey === "balanza_laboratorio_0001"
+                    ? "laboratorio"
+                    : profileKey === "balanza_semimicro_00001"
+                      ? "semimicro"
+                      : profileKey === "balanza_industrial_portatil_conteo"
+                        ? "industrial"
+                        : "esta selección";
+            strictReply = `Perfecto. Seguimos en el perfil ${profileLabel}. Elige una opción con número o letra (ej.: 1 o A), o escribe 'más'.`;
           }
         }
         if (!String(strictReply || "").trim() && asksGlobalCatalogInModelStep && hasScopedContextInModelStep) {
