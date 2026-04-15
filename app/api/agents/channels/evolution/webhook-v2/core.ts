@@ -5401,6 +5401,31 @@ async function buildStandardQuotePdf(args: {
       doc.text(String(row.productName || "-").slice(0, 24), c1 + 1.2, textY);
       doc.setFont("helvetica", "normal");
 
+      if (ENABLE_QUOTE_PRODUCT_IMAGE && String(row.imageDataUrl || "").trim()) {
+        try {
+          const img = String(row.imageDataUrl || "").trim();
+          const fmt = /^data:image\/png/i.test(img) ? "PNG" : /^data:image\/webp/i.test(img) ? "WEBP" : "JPEG";
+          const boxX = c1 + 1.2;
+          const boxY = textY + 2.2;
+          const boxW = 17;
+          const maxBoxH = Math.max(10, rowH - 9.5);
+          const boxH = Math.min(22, maxBoxH);
+          let drawW = boxW;
+          let drawH = boxH;
+          try {
+            const props: any = (doc as any).getImageProperties?.(img);
+            const iw = Number(props?.width || 0);
+            const ih = Number(props?.height || 0);
+            if (iw > 0 && ih > 0) {
+              const scale = Math.min(boxW / iw, boxH / ih);
+              drawW = Math.max(6, iw * scale);
+              drawH = Math.max(6, ih * scale);
+            }
+          } catch {}
+          doc.addImage(img, fmt as any, boxX + (boxW - drawW) / 2, boxY + (boxH - drawH) / 2, drawW, drawH);
+        } catch {}
+      }
+
       const descText = String(row.description || `Producto: ${String(row.productName || "-")}`)
         .replace(/[^\x20-\x7EÁÉÍÓÚáéíóúÑñÜü°µ±×.,:;()\/-]/g, " ")
         .replace(/\s+/g, " ")
