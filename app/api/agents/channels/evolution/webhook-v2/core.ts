@@ -3453,12 +3453,13 @@ function getReusableBillingData(memory: any): {
   complete: boolean;
 } {
   const q = memory?.quote_data && typeof memory.quote_data === "object" ? memory.quote_data : {};
-  const city = normalizeCityLabel(String(q?.city || memory?.crm_billing_city || "").trim());
-  const company = String(q?.company || memory?.crm_company || memory?.commercial_company_name || "").trim();
-  const nit = String(q?.nit || memory?.crm_nit || memory?.commercial_company_nit || "").replace(/[^0-9.-]/g, "").trim();
-  const contact = String(q?.contact || memory?.crm_contact_name || memory?.commercial_customer_name || memory?.customer_name || "").trim();
-  const email = String(q?.email || memory?.crm_contact_email || memory?.customer_email || "").trim().toLowerCase();
-  const phone = normalizePhone(String(q?.phone || memory?.crm_contact_phone || memory?.customer_phone || "").trim());
+  const ncd = memory?.new_customer_data && typeof memory.new_customer_data === "object" ? memory.new_customer_data : {};
+  const city = normalizeCityLabel(String(q?.city || memory?.crm_billing_city || ncd?.city || "").trim());
+  const company = String(q?.company || memory?.crm_company || memory?.commercial_company_name || ncd?.company || "").trim();
+  const nit = String(q?.nit || memory?.crm_nit || memory?.commercial_company_nit || ncd?.nit || "").replace(/[^0-9.-]/g, "").trim();
+  const contact = String(q?.contact || memory?.crm_contact_name || memory?.commercial_customer_name || memory?.customer_name || ncd?.contact || "").trim();
+  const email = String(q?.email || memory?.crm_contact_email || memory?.customer_email || ncd?.email || "").trim().toLowerCase();
+  const phone = normalizePhone(String(q?.phone || memory?.crm_contact_phone || memory?.customer_phone || ncd?.phone || "").trim());
   const complete = Boolean(city && company && nit && contact && email && phone);
   return { city, company, nit, contact, email, phone, complete };
 }
@@ -6352,8 +6353,9 @@ export async function POST(req: Request) {
           const reply = [
             "En base de datos no tengo ese tipo de producto en catalogo activo.",
             `Actualmente si manejo: ${available}.`,
-            "Si quieres, te recomiendo opciones segun capacidad, precision y aplicacion.",
+            buildCommercialEscalationMessage(),
           ].join("\n");
+          strictMemory.awaiting_action = "conversation_followup";
           return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "out_of_catalog" });
         }
 
@@ -6480,21 +6482,18 @@ export async function POST(req: Request) {
           strictMemory.target_industry = app === "joyeria_oro" ? "joyeria" : app;
           if (app === "laboratorio" && !hasActiveLabEquipment && (asksLabCatalog || explicitLabEquipmentAsk)) {
             if (options.length) {
-              strictMemory.pending_product_options = options;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
               const reply = [
                 "En base de datos no tengo equipos de laboratorio activos (ej. planchas/agitadores) en este momento.",
-                "Sí tengo estas balanzas recomendadas para uso de laboratorio:",
-                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-                "",
-                "Elige una con letra/número (A/1), o escribe 'más'.",
+                buildCommercialEscalationMessage(),
               ].join("\n");
+              strictMemory.awaiting_action = "conversation_followup";
               return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
             }
-            strictMemory.awaiting_action = "strict_need_spec";
-            return finalizeStrictTurn("En base de datos no tengo equipos de laboratorio activos en este momento. Si quieres, te recomiendo balanzas para uso de laboratorio según capacidad y precisión.", strictMemory, { pipeline: true, intent: pipelineIntent });
+            strictMemory.awaiting_action = "conversation_followup";
+            return finalizeStrictTurn([
+              "En base de datos no tengo equipos de laboratorio activos en este momento.",
+              buildCommercialEscalationMessage(),
+            ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
           }
           if (options.length) {
             strictMemory.pending_product_options = options;
@@ -6867,6 +6866,31 @@ export async function POST(req: Request) {
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "new_customer_data_required" });
         }
         strictMemory.commercial_validation_complete = true;
+        {
+          const d = strictMemory?.new_customer_data && typeof strictMemory.new_customer_data === "object" ? strictMemory.new_customer_data : {};
+          const city = normalizeCityLabel(String(d?.city || "").trim());
+          const company = String(d?.company || "").trim();
+          const nit = String(d?.nit || "").replace(/\D/g, "").trim();
+          const contact = sanitizeCustomerDisplayName(String(d?.contact || "").trim());
+          const email = String(d?.email || "").trim().toLowerCase();
+          const phone = normalizePhone(String(d?.phone || "").trim());
+          if (city) strictMemory.crm_billing_city = city;
+          if (company) strictMemory.crm_company = company;
+          if (nit) strictMemory.crm_nit = nit;
+          if (contact) {
+            strictMemory.crm_contact_name = contact;
+            strictMemory.customer_name = contact;
+          }
+          if (email) {
+            strictMemory.crm_contact_email = email;
+            strictMemory.customer_email = email;
+          }
+          if (phone) {
+            strictMemory.crm_contact_phone = phone;
+            strictMemory.customer_phone = phone;
+            strictMemory.crm_contact_found = true;
+          }
+        }
         const chosenEquipment = detectEquipmentChoice(text);
         const guidedProfileFromNeed = detectGuidedBalanzaProfile(text);
         const effectiveEquipment = chosenEquipment || (guidedProfileFromNeed ? "balanza" : "");
@@ -9634,8 +9658,11 @@ export async function POST(req: Request) {
         if (!String(strictReply || "").trim() && asksHotplate && !isCategorySwitchInModelStep) {
           const labRows = scopeCatalogRows(ownerRows as any, "equipos_laboratorio");
           if (!labRows.length) {
-            strictReply = "En base de datos no tengo planchas de calentamiento/agitación activas en este momento. Solo puedo ofrecer referencias activas del catálogo cargado (balanzas y analizador de humedad).";
-            strictMemory.awaiting_action = "strict_choose_family";
+            strictReply = [
+              "En base de datos no tengo planchas de calentamiento/agitación activas en este momento.",
+              buildCommercialEscalationMessage(),
+            ].join("\n");
+            strictMemory.awaiting_action = "conversation_followup";
           }
         }
         if (!String(strictReply || "").trim() && freeCatalogAskInModelStep && !isCategorySwitchInModelStep) {
