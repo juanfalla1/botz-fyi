@@ -6644,9 +6644,9 @@ export async function POST(req: Request) {
 
           if (cap > 0 && !(read > 0)) {
             const guidedProfileByNeed = detectGuidedBalanzaProfile(text);
-            if (guidedProfileByNeed === "balanza_industrial_portatil_conteo") {
-              const industrialMode = detectIndustrialGuidedMode(text);
-              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileByNeed, industrialMode);
+            if (guidedProfileByNeed) {
+              const industrialMode = guidedProfileByNeed === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
+              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileByNeed, industrialMode as any);
               if (guidedOptions.length) {
                 strictMemory.guided_balanza_profile = guidedProfileByNeed;
                 strictMemory.guided_industrial_mode = industrialMode;
@@ -6657,7 +6657,7 @@ export async function POST(req: Request) {
                 strictMemory.strict_model_offset = 0;
                 strictMemory.strict_partial_capacity_g = cap;
                 strictMemory.strict_filter_capacity_g = cap;
-                return finalizeStrictTurn(buildGuidedBalanzaReplyWithMode(guidedProfileByNeed, industrialMode), strictMemory, { pipeline: true, intent: "guided_need_discovery" });
+                return finalizeStrictTurn(buildGuidedBalanzaReplyWithMode(guidedProfileByNeed, industrialMode as any), strictMemory, { pipeline: true, intent: "guided_need_discovery" });
               }
             }
             const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
