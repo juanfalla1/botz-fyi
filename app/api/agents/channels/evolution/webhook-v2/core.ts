@@ -13588,7 +13588,7 @@ export async function POST(req: Request) {
         if (forceBundleQuoteIntake) {
           console.log("[quote-bundle] start", { inbound: String(originalInboundText || ""), intent: String(nextMemory.last_intent || "") });
         }
-        const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url", 360, false);
+        const products = await fetchCatalogRows("id,name,brand,category,base_price_usd,price_currency,source_payload,product_url,image_url", 360, false);
 
         const quoteSourceText = resumeQuoteFromContext
           ? `${recentUserContext}\n${inbound.text}`
