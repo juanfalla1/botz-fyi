@@ -1647,6 +1647,91 @@ function toGrams(valueRaw: string, unitRaw: string): number {
   return n;
 }
 
+function parseLocalePositiveNumber(raw: string): number {
+  const src = String(raw || "").trim();
+  if (!src) return 0;
+  let normalized = src;
+  if (/^[1-9]\d{0,2}(?:[\.,]\d{3})+$/.test(normalized)) {
+    normalized = normalized.replace(/[\.,]/g, "");
+  } else {
+    normalized = normalized.replace(/,/g, ".");
+  }
+  const n = Number(normalized);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n;
+}
+
+function extractDimensionTripletMm(text: string): number[] | null {
+  const t = normalizeText(String(text || "")).replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  const m = t.match(/(\d+(?:[\.,]\d+)?)\s*(mm|cm)?\s*(?:x|por|×|✕|✖|\*)\s*(\d+(?:[\.,]\d+)?)\s*(mm|cm)?\s*(?:x|por|×|✕|✖|\*)\s*(\d+(?:[\.,]\d+)?)\s*(mm|cm)?/i);
+  if (!m) return null;
+  const a = parseLocalePositiveNumber(m[1]);
+  const b = parseLocalePositiveNumber(m[3]);
+  const c = parseLocalePositiveNumber(m[5]);
+  if (!(a > 0) || !(b > 0) || !(c > 0)) return null;
+  const unit = normalizeText(String(m[2] || m[4] || m[6] || "mm"));
+  const factor = unit === "cm" ? 10 : 1;
+  return [a * factor, b * factor, c * factor];
+}
+
+function parseDimensionHint(text: string): { dimsMm: number[] } | null {
+  const dims = extractDimensionTripletMm(text);
+  if (!dims) return null;
+  return { dimsMm: dims };
+}
+
+function extractRowDimensionsMm(row: any): number[] | null {
+  const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const fromPayload = uniqueNormalizedStrings([
+    String((payload as any)?.dimensions || ""),
+    String((payload as any)?.dimensiones || ""),
+    String((payload as any)?.size || ""),
+    String((payload as any)?.tamano || ""),
+    String((payload as any)?.tamaño || ""),
+  ]);
+  for (const candidate of fromPayload) {
+    const dims = extractDimensionTripletMm(candidate);
+    if (dims) return dims;
+  }
+  const hay = [
+    String(row?.description || ""),
+    String(row?.summary || ""),
+    String(row?.specs_text || ""),
+    String((payload as any)?.description || ""),
+    String((payload as any)?.resumen || ""),
+  ].filter(Boolean).join(" \n ");
+  return extractDimensionTripletMm(hay);
+}
+
+function rankCatalogByDimensions(rows: any[], dimsMm: number[]): Array<{ row: any; score: number }> {
+  const target = (Array.isArray(dimsMm) ? dimsMm : [])
+    .map((n) => Number(n || 0))
+    .filter((n) => n > 0)
+    .sort((a, b) => a - b);
+  if (target.length !== 3) return [];
+
+  const ranked: Array<{ row: any; score: number }> = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const rowDims = (extractRowDimensionsMm(row) || [])
+      .map((n) => Number(n || 0))
+      .filter((n) => n > 0)
+      .sort((a, b) => a - b);
+    if (rowDims.length !== 3) continue;
+    const deltas = rowDims.map((v, i) => Math.abs(v - target[i]));
+    const toleranceOk = deltas.every((d, i) => d <= Math.max(5, target[i] * 0.08));
+    const score = deltas.reduce((acc, n) => acc + n, 0) + (toleranceOk ? 0 : 2000);
+    ranked.push({ row, score });
+  }
+  return ranked.sort((a, b) => a.score - b.score);
+}
+
+function formatDimensionTripletMm(dimsMm: number[]): string {
+  const d = (Array.isArray(dimsMm) ? dimsMm : []).map((n) => Number(n || 0)).filter((n) => n > 0);
+  if (d.length !== 3) return "dimensiones";
+  return `${formatSpecNumber(d[0])} x ${formatSpecNumber(d[1])} x ${formatSpecNumber(d[2])} mm`;
+}
+
 function parseTechnicalSpecQuery(text: string): { capacityG: number; readabilityG: number } | null {
   const t = normalizeText(String(text || ""))
     .replace(/(\d)\s*[\.,]\s*(\d)/g, "$1.$2")
@@ -6390,6 +6475,7 @@ export async function POST(req: Request) {
       const categoryIntent = detectCatalogCategoryIntent(text);
       const technicalSpecIntent =
         isTechnicalSpecQuery(text) ||
+        Boolean(parseDimensionHint(text)) ||
         /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*(?:x|×|✕|✖|\*|por)\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b/i.test(String(text || ""));
 
       const { data: ownerRowsRaw } = await supabase
@@ -8218,11 +8304,48 @@ export async function POST(req: Request) {
         }
 
         if (!String(strictReply || "").trim() && !(cap > 0) && !(read > 0)) {
+          const dimensionHint = parseDimensionHint(text);
+          if (dimensionHint) {
+            const criterionLabel = formatDimensionTripletMm(dimensionHint.dimsMm);
+            const rankedByDims = rankCatalogByDimensions(baseScoped as any[], dimensionHint.dimsMm);
+            const exactByDims = rankedByDims
+              .filter((x: any) => Number(x?.score || 0) < 2000)
+              .map((x: any) => x.row);
+            if (exactByDims.length) {
+              const options = buildNumberedProductOptions(exactByDims.slice(0, 8) as any[], 8);
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictReply = [
+                `Sí, tengo opciones activas con dimensiones cercanas a ${criterionLabel}.`,
+                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra o número (A/1), o escribe 'más'.",
+              ].join("\n");
+            } else if (rankedByDims.length) {
+              const options = buildNumberedProductOptions(rankedByDims.map((x: any) => x.row).slice(0, 8) as any[], 8);
+              strictMemory.pending_product_options = options;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictReply = [
+                `No tengo coincidencia exacta por dimensiones (${criterionLabel}), pero sí estas alternativas cercanas:`,
+                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige con letra o número (A/1), o ajustamos dimensión/capacidad.",
+              ].join("\n");
+            } else {
+              strictReply = `No encontré modelos activos con dimensiones ${criterionLabel} en el catálogo actual. Si quieres, te propongo cercanas por capacidad/resolución.`;
+              strictMemory.awaiting_action = "strict_need_spec";
+            }
+          }
+
           const asksPrecisionOptionsNow =
             /(balanzas?\s+de\s+precisi[oó]n|balanzas?\s+precision|de\s+precisi[oó]n|balanzas?\s+de\s+alta\s+precisi[oó]n)/.test(textNorm) ||
             (/precisi[oó]n/.test(textNorm) && /(opciones?|alternativas?|muestrame|mu[eé]strame|dame|quiero|tienes?)/.test(textNorm)) ||
             /(cabina|con\s+cabina)/.test(textNorm);
-          if (asksPrecisionOptionsNow) {
+          if (!String(strictReply || "").trim() && asksPrecisionOptionsNow) {
             const precisionRows = scopeCatalogRows(ownerRows as any[], "balanzas_precision");
             const options = buildNumberedProductOptions(precisionRows as any[], 8);
             if (options.length) {
