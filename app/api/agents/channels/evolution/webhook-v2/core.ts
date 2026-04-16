@@ -1162,6 +1162,25 @@ function extractBundleOptionIndexes(text: string): number[] {
   return numbers.filter((n, idx, arr) => arr.indexOf(n) === idx);
 }
 
+function extractBundleSelectionFromCountCommand(text: string): { count: number; picks: number[] } | null {
+  const raw = String(text || "");
+  const t = normalizeText(raw);
+  if (!/\bcotiz(?:ar|a|acion|ación)?\b/.test(t)) return null;
+  const tokens = [...t.matchAll(/\b(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/g)].map((m) => String(m?.[1] || "").trim());
+  if (!tokens.length) return null;
+  const map: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
+  const firstNum = Number(tokens[0] ? (Number(tokens[0]) || map[tokens[0]] || 0) : 0);
+  if (!firstNum || firstNum < 2) return null;
+
+  const picks = extractBundleOptionIndexes(raw)
+    .filter((n) => n !== firstNum)
+    .slice(0, 3);
+  return {
+    count: Math.max(2, Math.min(3, firstNum)),
+    picks,
+  };
+}
+
 function catalogReferenceCode(row: any): string {
   const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const fromSource = String(source?.product_code || source?.sap || source?.numero_modelo || "").trim();
@@ -7792,11 +7811,9 @@ export async function POST(req: Request) {
       if (pipelineResponse) return pipelineResponse;
 
       if (!String(strictReply || "").trim()) {
-        const bundleCountMatch = textNorm.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/i);
-        const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
-        const bundleCountRaw = String(bundleCountMatch?.[1] || "").trim().toLowerCase();
-        const requestedBundleCount = Math.max(0, Math.min(3, Number(bundleCountRaw ? (Number(bundleCountRaw) || numberWordMap[bundleCountRaw] || 0) : 0)));
-        const selectedIndexesRaw = extractBundleOptionIndexes(text);
+        const bundleSelection = extractBundleSelectionFromCountCommand(text);
+        const requestedBundleCount = Number(bundleSelection?.count || 0);
+        const selectedIndexesRaw = (bundleSelection?.picks?.length ? bundleSelection.picks : extractBundleOptionIndexes(text));
         const pendingForBundle =
           (Array.isArray(previousMemory?.quote_bundle_options_current) ? previousMemory.quote_bundle_options_current : [])
             .concat(Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
@@ -7807,6 +7824,17 @@ export async function POST(req: Request) {
               if (!key) return false;
               return arr.findIndex((x: any) => String(x?.id || x?.product_id || x?.raw_name || x?.name || "").trim() === key) === idx;
             });
+        if (!requestedBundleCount && selectedIndexesRaw.length === 1 && pendingForBundle.length >= selectedIndexesRaw[0] && asksQuoteIntent(text)) {
+          const pick = pendingForBundle[selectedIndexesRaw[0] - 1];
+          const pickedName = String(pick?.raw_name || pick?.name || "").trim();
+          if (pickedName) {
+            strictBypassAutoQuote = true;
+            inbound.text = `cotizar ${pickedName}`;
+            strictMemory.pending_product_options = pendingForBundle;
+            strictMemory.last_recommended_options = pendingForBundle;
+            strictMemory.awaiting_action = "none";
+          }
+        }
         if ((requestedBundleCount >= 2 || selectedIndexesRaw.length >= 2) && pendingForBundle.length >= 2 && asksQuoteIntent(text)) {
           const explicitIdx = selectedIndexesRaw.filter((n) => n >= 1 && n <= pendingForBundle.length);
           const chosenByIndex = explicitIdx
@@ -10377,18 +10405,26 @@ export async function POST(req: Request) {
                 if (!key) return false;
                 return arr.findIndex((x: any) => String(x?.raw_name || x?.name || "").trim() === key) === idx;
               });
-          const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
-          const numMatch =
-            textNorm.match(/\b(?:las|los)\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/) ||
-            textNorm.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/);
-          const rawNum = String(numMatch?.[1] || "").trim();
+          const bundleSelection = extractBundleSelectionFromCountCommand(text);
+          const explicitIdx = (bundleSelection?.picks?.length ? bundleSelection.picks : extractBundleOptionIndexes(text))
+            .filter((n) => n >= 1 && n <= pendingOptions.length);
           const selectedCount = /\b(todas|todos)\b/.test(textNorm)
             ? pendingOptions.length
-            : Math.max(2, Math.min(3, Number(rawNum ? (Number(rawNum) || numberWordMap[rawNum] || 3) : 3)));
-          const explicitIdx = extractBundleOptionIndexes(text).filter((n) => n >= 1 && n <= pendingOptions.length);
+            : Math.max(2, Math.min(3, Number(bundleSelection?.count || 0) || 3));
           const chosen = explicitIdx.length >= 2
             ? explicitIdx.map((n) => pendingOptions[n - 1]).filter(Boolean).slice(0, 3)
             : [];
+          if (!chosen.length && explicitIdx.length === 1) {
+            const pick = pendingOptions[explicitIdx[0] - 1];
+            const pickedName = String(pick?.raw_name || pick?.name || "").trim();
+            if (pickedName) {
+              strictBypassAutoQuote = true;
+              inbound.text = `cotizar ${pickedName}`;
+              strictMemory.pending_product_options = pendingOptions;
+              strictMemory.last_recommended_options = pendingOptions;
+              strictMemory.awaiting_action = "none";
+            }
+          }
           if (chosen.length >= 2) {
             const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
             strictBypassAutoQuote = true;
