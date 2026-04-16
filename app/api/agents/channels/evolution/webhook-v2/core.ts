@@ -700,6 +700,26 @@ function appendQuoteClosurePrompt(text: string): string {
   return `${base}\n\n${prompt}`;
 }
 
+function appendBundleQuoteClosurePrompt(text: string): string {
+  const base = String(text || "").trim();
+  const prompt = [
+    "Envío de cotización consolidada",
+    "De acuerdo con la información suministrada, te compartimos la cotización consolidada para tu revisión.",
+    "Si deseas, también te comparto las fichas técnicas de cada referencia por separado.",
+    "Escribe: fichas 1,2,3 (ejemplo).",
+    "",
+    "¿Deseas saber algo más o recibir asesoría adicional? Con gusto te apoyamos 😊",
+    "",
+    "Recuerda que estás cotizando con Avanza International Group, distribuidores de la marca OHAUS, líder en el mercado, lo que te garantiza un equipo con la más alta tecnología, precisión y respaldo.",
+    "",
+    "Si tu equipo es para entrega en Bogotá o Medellín, te obsequiamos la entrega, instalación y capacitación. Para otras ciudades, el envío debe ser asumido por el cliente, pero te acompañamos con instalación y capacitación virtual.",
+  ].join("\n");
+  if (!base) return prompt;
+  const t = normalizeText(base);
+  if (/(envio de cotizacion consolidada|fichas tecnicas de cada referencia|escribe:\s*fichas\s+1,2,3)/.test(t)) return base;
+  return `${base}\n\n${prompt}`;
+}
+
 function appendAdvisorAppointmentPrompt(text: string): string {
   const base = String(text || "").trim();
   if (!base) return "Si prefieres, también puedo agendar una cita con un asesor humano para cerrar la compra. Escribe: cita.";
@@ -15282,8 +15302,13 @@ export async function POST(req: Request) {
     const quoteDeliveryPlanned = Boolean(autoQuoteDocs.length || autoQuoteBundle || resendPdf);
     const techDeliveryPlanned = Boolean(technicalDocs.length);
     if (quoteDeliveryPlanned && String(reply || "").trim()) {
+      const multiQuoteDelivery = Boolean(
+        autoQuoteBundle ||
+        autoQuoteDocs.length > 1 ||
+        Number(nextMemory?.bundle_quote_count || previousMemory?.bundle_quote_count || 0) >= 2
+      );
       reply = appendAdvisorAppointmentPrompt(reply);
-      reply = appendQuoteClosurePrompt(reply);
+      reply = multiQuoteDelivery ? appendBundleQuoteClosurePrompt(reply) : appendQuoteClosurePrompt(reply);
       nextMemory.awaiting_action = "conversation_followup";
       if (String(nextMemory.conversation_status || "") !== "closed") nextMemory.conversation_status = "open";
       nextMemory.quote_feedback_due_at = isoAfterHours(24);
