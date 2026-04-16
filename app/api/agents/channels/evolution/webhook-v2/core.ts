@@ -8823,20 +8823,17 @@ export async function POST(req: Request) {
             (/precisi[oó]n/.test(textNorm) && /(opciones?|alternativas?|muestrame|mu[eé]strame|dame|quiero|tienes?)/.test(textNorm)) ||
             /(cabina|con\s+cabina)/.test(textNorm);
           if (!String(strictReply || "").trim() && asksPrecisionOptionsNow) {
-            const precisionRows = scopeCatalogRows(ownerRows as any[], "balanzas_precision");
-            const options = buildNumberedProductOptions(precisionRows as any[], 8);
+            const guidedProfile = "balanza_precision_001" as GuidedBalanzaProfile;
+            const options = buildGuidedPendingOptions(ownerRows as any[], guidedProfile, "");
             if (options.length) {
               strictMemory.pending_product_options = options;
               strictMemory.pending_family_options = [];
               strictMemory.awaiting_action = "strict_choose_model";
               strictMemory.strict_model_offset = 0;
-              strictMemory.last_category_intent = "balanzas_precision";
-              strictReply = [
-                `Claro. Tengo ${precisionRows.length} balanza(s) de precisión activas en base de datos.`,
-                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                "",
-                "Elige con letra o número (A/1), o escribe 'más'.",
-              ].join("\n");
+              strictMemory.last_category_intent = "balanzas";
+              strictMemory.guided_balanza_profile = guidedProfile;
+              strictMemory.guided_industrial_mode = "";
+              strictReply = buildGuidedBalanzaReplyWithMode(guidedProfile, "");
             }
           }
 
@@ -10630,26 +10627,17 @@ export async function POST(req: Request) {
           !parseLooseTechnicalHint(text) &&
           !parseTechnicalSpecQuery(text);
         if (!String(strictReply || "").trim() && asksPrecisionInventory) {
-          const precisionRows = scopeCatalogRows(ownerRows as any[], "balanzas_precision");
-          const options = buildNumberedProductOptions(precisionRows as any[], 8);
+          const guidedProfile = "balanza_precision_001" as GuidedBalanzaProfile;
+          const options = buildGuidedPendingOptions(ownerRows as any[], guidedProfile, "");
           if (options.length) {
             strictMemory.pending_product_options = options;
             strictMemory.pending_family_options = [];
             strictMemory.awaiting_action = "strict_choose_model";
             strictMemory.strict_model_offset = 0;
-            strictMemory.last_category_intent = "balanzas_precision";
-            strictReply = [
-              `Sí. En base de datos tengo ${precisionRows.length} balanza(s) de precisión activas.`,
-              "Estas son 4 opciones recomendadas para iniciar:",
-              ...options.slice(0, 4).map((o) => {
-                const row = (precisionRows as any[]).find((r: any) => String(r?.id || "") === String(o.id || ""));
-                const cap = Number(getRowCapacityG(row) || 0);
-                const read = Number(getRowReadabilityG(row) || 0);
-                return `${o.code}) ${o.name} | Cap: ${formatSpecNumber(cap)} g | Res: ${formatSpecNumber(read)} g`;
-              }),
-              "",
-              "Elige con letra o número (A/1), o dime la resolución exacta (ej.: 0.01 g).",
-            ].join("\n");
+            strictMemory.last_category_intent = "balanzas";
+            strictMemory.guided_balanza_profile = guidedProfile;
+            strictMemory.guided_industrial_mode = "";
+            strictReply = buildGuidedBalanzaReplyWithMode(guidedProfile, "");
           } else {
             strictReply = "Ahora mismo no tengo balanzas de precisión activas en base de datos. Si quieres, reviso alternativas cercanas por resolución.";
           }
