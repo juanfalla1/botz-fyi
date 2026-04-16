@@ -3052,7 +3052,9 @@ function buildGuidedBalanzaReplyWithMode(profile: GuidedBalanzaProfile, industri
     ]),
     "",
     "Responde con número que se encuentra al principio del modelo (ej.: 1).",
-    "Si deseas cotizar varias unidades, puedes escribir: “cotizar 2” o “cotizar 3” (máximo 3 equipos por solicitud).",
+    "Para cotizar varias referencias (máx. 3), escribe: cotizar opciones 5,6,13 (ejemplo).",
+    "También puedes escribir: cotizar modelos PX6202/E, AX2202/E, EXP6202.",
+    "Para una sola referencia con varias unidades: cotizar opción 5 cantidad 3.",
     "Si tienes dudas, escribe “asesor” para recibir acompañamiento especializado.",
   ].join("\n");
 }
@@ -11209,9 +11211,8 @@ export async function POST(req: Request) {
             "",
             ...(options.length >= 3
               ? [
-                  (options.length >= 4)
-                    ? `Si quieres cotizar varias de una vez, escribe: cotizar 3 o cotizar ${options.length}.`
-                    : "Si quieres cotizar varias de una vez, escribe: cotizar 3.",
+                  "Si quieres cotizar varias referencias (máx. 3), escribe: cotizar opciones 1,2,4.",
+                  "También puedes escribir: cotizar modelos PX6202/E, AX2202/E, EXP6202.",
                   "",
                 ]
               : []),
@@ -11327,9 +11328,8 @@ export async function POST(req: Request) {
               "",
               ...(options.length >= 3
                 ? [
-                    (options.length >= 4)
-                      ? `Si quieres cotizar varias de una vez, escribe: cotizar 3 o cotizar ${options.length}.`
-                      : "Si quieres cotizar varias de una vez, escribe: cotizar 3.",
+                    "Si quieres cotizar varias referencias (máx. 3), escribe: cotizar opciones 1,2,4.",
+                    "También puedes escribir: cotizar modelos PX6202/E, AX2202/E, EXP6202.",
                     "",
                   ]
                 : []),
