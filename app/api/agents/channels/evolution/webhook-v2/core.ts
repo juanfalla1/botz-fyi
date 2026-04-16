@@ -7188,6 +7188,17 @@ export async function POST(req: Request) {
             ].join("\n");
             return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_recovered_from_new_data" });
           }
+
+          strictMemory.awaiting_action = "commercial_new_customer_data";
+          strictReply = [
+            "No encontré ese NIT/celular en nuestra base de clientes.",
+            "Si quieres, intenta con otro NIT/celular o continúa como cliente nuevo.",
+            "",
+            "Opciones:",
+            "1) Enviar otro NIT/celular para volver a buscar.",
+            "2) Enviar en un solo mensaje: departamento/ciudad, empresa, NIT, nombre de contacto, correo y celular.",
+          ].join("\n");
+          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_retry_not_found" });
         }
 
         if (shouldEscalateToAdvisorByCommercialRule(strictMemory, text)) {
