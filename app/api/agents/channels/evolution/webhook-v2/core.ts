@@ -8109,6 +8109,7 @@ export async function POST(req: Request) {
             strictMemory.quote_bundle_options_current = chosen;
             strictMemory.quote_bundle_options = chosen;
             strictMemory.last_recommended_options = chosen;
+            strictMemory.quote_bundle_selected_ids = chosen.map((o: any) => String(o?.id || o?.product_id || "").trim()).filter(Boolean);
             strictMemory.last_intent = "quote_bundle_request";
             strictMemory.bundle_quote_mode = true;
             strictMemory.bundle_quote_count = chosen.length;
@@ -10714,6 +10715,7 @@ export async function POST(req: Request) {
             strictMemory.last_recommended_options = chosen;
             strictMemory.quote_bundle_options_current = chosen;
             strictMemory.quote_bundle_options = chosen;
+            strictMemory.quote_bundle_selected_ids = chosen.map((o: any) => String(o?.id || o?.product_id || "").trim()).filter(Boolean);
             strictMemory.quote_quantity = 1;
             strictMemory.awaiting_action = "none";
             strictMemory.last_intent = "quote_bundle_request";
@@ -14295,6 +14297,12 @@ export async function POST(req: Request) {
               if (!key) return false;
               return arr.findIndex((x: any) => String(x?.id || x?.product_id || x?.raw_name || x?.name || "").trim() === key) === idx;
             });
+        const bundleSelectedIds =
+          (Array.isArray(nextMemory?.quote_bundle_selected_ids) ? nextMemory.quote_bundle_selected_ids : [])
+            .concat(Array.isArray(previousMemory?.quote_bundle_selected_ids) ? previousMemory.quote_bundle_selected_ids : [])
+            .map((x: any) => String(x || "").trim())
+            .filter(Boolean)
+            .filter((id: string, idx: number, arr: string[]) => arr.indexOf(id) === idx);
         const pendingBundleOptions =
           bundleOptionsCurrent
             .concat(Array.isArray(nextMemory?.quote_bundle_options) ? nextMemory.quote_bundle_options : [])
@@ -14339,6 +14347,10 @@ export async function POST(req: Request) {
                     })
                     .map((o: any) => resolvePendingOptionToProduct(o))
                     .filter(Boolean)
+                : (bundleSelectedIds.length > 0)
+                    ? bundleSelectedIds
+                        .map((id: string) => (commercialProducts || []).find((p: any) => String(p?.id || "").trim() === id))
+                        .filter(Boolean)
                 : ((extractModelLikeTokens(quoteSourceText).length >= 2)
                     ? []
                     : (bundleOptionsCurrent.length
