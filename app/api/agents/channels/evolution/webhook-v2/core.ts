@@ -2797,7 +2797,7 @@ function isProductDefinitionIntent(text: string): boolean {
   const t = normalizeText(String(text || ""));
   if (!t) return false;
   const asksDefinition = /(que\s+es|que\s+significa|que\s+quiere\s+decir|explicame|explica|definicion|definicion\s+de|para\s+que\s+sirve)/.test(t);
-  const mentionsTechTerm = /(semimicro|capacidad|resolucion|lectura\s+minima|linealidad|repetibilidad|calibracion|trazabilidad|estabilidad|usb|rs\s*232|ethernet|bluetooth|wifi)/.test(t);
+  const mentionsTechTerm = /(microbalanza|semimicro|semi\s*analitica|analitica|balanza\s+de\s+precision|capacidad|resolucion|lectura\s+minima|linealidad|repetibilidad|calibracion|trazabilidad|estabilidad|usb|rs\s*232|ethernet|bluetooth|wifi)/.test(t);
   const looksLikeProductRequest = /(balanza|balanzas|bascula|basculas|opciones|modelos|catalogo|gama|cotizar|precio)/.test(t);
   if (!asksDefinition && looksLikeProductRequest) return false;
   return asksDefinition || mentionsTechTerm;
@@ -2818,12 +2818,17 @@ function buildProductDefinitionReply(text: string): string {
   const subject = extractDefinitionSubject(text);
   const s = normalizeText(subject).replace(/\s+/g, " ").trim();
 
-  if (/semi\s*micro|semimicro/.test(s)) {
+  if (/microbalanza|semi\s*micro|semimicro|semi\s*analitica|analitica|balanza\s+de\s+precision/.test(s)) {
     return appendQuoteClosureCta([
-      "Semimicro: es una balanza de muy alta precisión para laboratorio.",
-      "Normalmente trabaja con lectura de 0.01 mg (0.00001 g), ideal para muestras pequeñas y análisis exigente.",
+      "Las balanzas se diferencian principalmente por su nivel de precisión:",
+      "1) Microbalanza: la más exacta (hasta 0,001 mg)",
+      "2) Semimicro: 0,01 mg",
+      "3) Analítica: 0,1 mg",
+      "4) Semi-analítica: 1 mg",
+      "5) Balanza de precisión: 0,01 g o más (uso más general)",
       "",
-      "Si quieres, te muestro 3 opciones por gama para comparar costo-beneficio.",
+      "En resumen: entre más 'micro' es la balanza, mayor exactitud ofrece;",
+      "entre más 'de precisión', más industrial y menos sensible es.",
     ].join("\n"));
   }
   if (/capacidad/.test(s)) {
@@ -2833,19 +2838,33 @@ function buildProductDefinitionReply(text: string): string {
     return appendQuoteClosureCta("Resolución (o lectura mínima): es el nivel de detalle que muestra la balanza. Entre más decimales, mayor precisión de lectura.");
   }
   if (/linealidad/.test(s)) {
-    return appendQuoteClosureCta("Linealidad: indica qué tan cerca está la lectura del valor real en distintos puntos del rango de pesaje.");
+    return appendQuoteClosureCta([
+      "Linealidad: indica qué tan exacta es la balanza en todo el rango de pesaje.",
+      "👉 Que pese bien tanto 1 g como 200 g.",
+      "👉 Si no es buena, puede dar errores en diferentes puntos.",
+    ].join("\n"));
   }
   if (/repetibilidad/.test(s)) {
-    return appendQuoteClosureCta("Repetibilidad: mide si la balanza entrega el mismo resultado al pesar varias veces la misma muestra en las mismas condiciones.");
+    return appendQuoteClosureCta([
+      "Repetibilidad: es la capacidad de dar el mismo resultado varias veces al pesar lo mismo.",
+      "👉 Si pesas 10 veces el mismo objeto, debería dar igual siempre.",
+    ].join("\n"));
   }
   if (/calibracion/.test(s)) {
     return appendQuoteClosureCta("Calibración: ajuste del equipo para asegurar exactitud. Puede ser interna (automática) o externa (con pesas patrón).");
   }
   if (/trazabilidad/.test(s)) {
-    return appendQuoteClosureCta("Trazabilidad: permite relacionar la medición con patrones de referencia certificados para auditoría y control de calidad.");
+    return appendQuoteClosureCta([
+      "Trazabilidad: significa que los resultados están respaldados por estándares oficiales.",
+      "👉 Importante en laboratorios, auditorías y normas (ISO, GLP).",
+    ].join("\n"));
   }
   if (/estabilidad/.test(s)) {
-    return appendQuoteClosureCta("Estabilidad: capacidad de mantener una lectura firme sin fluctuaciones por vibración o ambiente.");
+    return appendQuoteClosureCta([
+      "Estabilidad: es qué tan rápido y firme la balanza muestra un resultado sin fluctuar.",
+      "👉 Una buena balanza no 'baila' el número.",
+      "👉 Muy importante en ambientes reales de trabajo.",
+    ].join("\n"));
   }
   if (/usb|rs\s*232|ethernet|bluetooth|wifi/.test(s)) {
     return appendQuoteClosureCta("Conectividad (USB/RS232/Ethernet/Bluetooth): permite transferir datos de pesaje a PC, impresora o sistema de control para trazabilidad y reportes.");
