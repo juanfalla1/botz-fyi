@@ -6911,18 +6911,16 @@ export async function POST(req: Request) {
             strictMemory.pending_family_options = [];
             strictMemory.awaiting_action = "strict_choose_model";
             strictMemory.strict_model_offset = 0;
-            const selectedRead = Number(extractRowTechnicalSpec(selected)?.readabilityG || 0);
-            const maxRead = maxReadabilityForApplication(app);
-            const selectedCompatible = selectedRead > 0 && selectedRead <= maxRead;
+            const appLabel = app.replace(/_/g, " ");
             const intro = pipelineIntent === "application_update"
-              ? `Perfecto. Para ${app.replace(/_/g, " ")}, estas son opciones activas de catálogo:`
-              : (selected
-                ? (selectedCompatible
-                    ? `Sí, ${String((selected as any)?.name || selectedName)} puede servir para ${app.replace(/_/g, " ")}.`
-                    : `No del todo: ${String((selected as any)?.name || selectedName)} no es la mejor para ${app.replace(/_/g, " ")}; estas alternativas sí son más adecuadas.`)
-                : `Sí, para ${app.replace(/_/g, " ")} estas opciones sí son adecuadas.`);
+              ? `Perfecto. Para ${appLabel}, estas son opciones activas de catálogo:`
+              : `Sí, contamos con balanzas de precisión que se ajustan a tu necesidad para ${appLabel}.`;
+            const estimated = /laboratorio|joyeria|oro/.test(appLabel)
+              ? "💰 Valores estimados: desde $4.000.000 (según gama y funcionalidad). Deseas continuar con la cotización"
+              : "💰 Valores estimados: según modelo, gama y disponibilidad.";
             const reply = [
               intro,
+              estimated,
               "Te comparto 3 recomendaciones de catálogo para seguir:",
               ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
               "",
