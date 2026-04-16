@@ -2760,7 +2760,7 @@ function isCapacityResolutionHelpIntent(text: string): boolean {
 function isPriceObjectionIntent(text: string): boolean {
   const t = normalizeText(String(text || ""));
   if (!t) return false;
-  return /(por\s*que\s+es\s+tan\s+car|por\s*que\s+tan\s+car|esta\s+muy\s+car|es\s+muy\s+car|muy\s+costos|muy\s+costosa|esta\s+costosa|esta\s+costoso|esta\s+cara|esta\s+caro)/i.test(t.replace(/\s+/g, " "));
+  return /(por\s*que\s+es\s+tan\s+car|por\s*que\s+tan\s+car|porque\s+es\s+tan\s+car|porque\s+tan\s+car|esta\s+muy\s+car|es\s+muy\s+car|muy\s+costos|muy\s+costosa|esta\s+costosa|esta\s+costoso|esta\s+cara|esta\s+caro)/i.test(t.replace(/\s+/g, " "));
 }
 
 function buildPriceObjectionReply(): string {
