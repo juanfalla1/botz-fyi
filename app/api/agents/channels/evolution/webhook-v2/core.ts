@@ -2733,8 +2733,19 @@ function buildBalanzaQualificationPrompt(): string {
   return "¿Qué capacidad y resolución requiere la balanza y qué tipo de muestras va a pesar?";
 }
 
+function quoteClosureCta(): string {
+  return "Dime cuál balanza te interesa para cotizar (número o modelo).";
+}
+
+function appendQuoteClosureCta(text: string): string {
+  const body = String(text || "").trim();
+  if (!body) return quoteClosureCta();
+  if (/dime\s+cual\s+balanza\s+te\s+interesa\s+para\s+cotizar/i.test(normalizeText(body))) return body;
+  return `${body}\n\n${quoteClosureCta()}`;
+}
+
 function buildCapacityResolutionExplanation(): string {
-  return [
+  return appendQuoteClosureCta([
     "Capacidad:",
     "Es el peso máximo que una balanza puede medir.",
     "👉 Ejemplo: si la capacidad es de 5 kg, no puedes pesar más de eso.",
@@ -2749,7 +2760,7 @@ function buildCapacityResolutionExplanation(): string {
     "En pocas palabras:",
     "Capacidad = cuánto peso aguanta",
     "Resolución = cuántos decimales muestra (qué tan exacto mide) 👍",
-  ].join("\n");
+  ].join("\n"));
 }
 
 function isCapacityResolutionHelpIntent(text: string): boolean {
@@ -2764,7 +2775,7 @@ function isPriceObjectionIntent(text: string): boolean {
 }
 
 function buildPriceObjectionReply(): string {
-  return [
+  return appendQuoteClosureCta([
     "Buena pregunta 👌",
     "La diferencia real está en esto:",
     "1) Estabilidad y precisión real",
@@ -2778,7 +2789,7 @@ function buildPriceObjectionReply(): string {
     "👉 las profesionales garantizan resultados confiables.",
     "",
     "Si quieres, te propongo 3 opciones por gama (esencial/intermedia/premium) para comparar costo-beneficio y elegir la ideal.",
-  ].join("\n");
+  ].join("\n"));
 }
 
 function isProductDefinitionIntent(text: string): boolean {
@@ -2805,42 +2816,42 @@ function buildProductDefinitionReply(text: string): string {
   const s = normalizeText(subject).replace(/\s+/g, " ").trim();
 
   if (/semi\s*micro|semimicro/.test(s)) {
-    return [
+    return appendQuoteClosureCta([
       "Semimicro: es una balanza de muy alta precisión para laboratorio.",
       "Normalmente trabaja con lectura de 0.01 mg (0.00001 g), ideal para muestras pequeñas y análisis exigente.",
       "",
       "Si quieres, te muestro 3 opciones por gama para comparar costo-beneficio.",
-    ].join("\n");
+    ].join("\n"));
   }
   if (/capacidad/.test(s)) {
-    return "Capacidad: es el peso máximo que puede soportar la balanza. Si la capacidad es 5 kg, no debes superar ese valor.";
+    return appendQuoteClosureCta("Capacidad: es el peso máximo que puede soportar la balanza. Si la capacidad es 5 kg, no debes superar ese valor.");
   }
   if (/resolucion|precision|lectura\s*minima/.test(s)) {
-    return "Resolución (o lectura mínima): es el nivel de detalle que muestra la balanza. Entre más decimales, mayor precisión de lectura.";
+    return appendQuoteClosureCta("Resolución (o lectura mínima): es el nivel de detalle que muestra la balanza. Entre más decimales, mayor precisión de lectura.");
   }
   if (/linealidad/.test(s)) {
-    return "Linealidad: indica qué tan cerca está la lectura del valor real en distintos puntos del rango de pesaje.";
+    return appendQuoteClosureCta("Linealidad: indica qué tan cerca está la lectura del valor real en distintos puntos del rango de pesaje.");
   }
   if (/repetibilidad/.test(s)) {
-    return "Repetibilidad: mide si la balanza entrega el mismo resultado al pesar varias veces la misma muestra en las mismas condiciones.";
+    return appendQuoteClosureCta("Repetibilidad: mide si la balanza entrega el mismo resultado al pesar varias veces la misma muestra en las mismas condiciones.");
   }
   if (/calibracion/.test(s)) {
-    return "Calibración: ajuste del equipo para asegurar exactitud. Puede ser interna (automática) o externa (con pesas patrón).";
+    return appendQuoteClosureCta("Calibración: ajuste del equipo para asegurar exactitud. Puede ser interna (automática) o externa (con pesas patrón).");
   }
   if (/trazabilidad/.test(s)) {
-    return "Trazabilidad: permite relacionar la medición con patrones de referencia certificados para auditoría y control de calidad.";
+    return appendQuoteClosureCta("Trazabilidad: permite relacionar la medición con patrones de referencia certificados para auditoría y control de calidad.");
   }
   if (/estabilidad/.test(s)) {
-    return "Estabilidad: capacidad de mantener una lectura firme sin fluctuaciones por vibración o ambiente.";
+    return appendQuoteClosureCta("Estabilidad: capacidad de mantener una lectura firme sin fluctuaciones por vibración o ambiente.");
   }
   if (/usb|rs\s*232|ethernet|bluetooth|wifi/.test(s)) {
-    return "Conectividad (USB/RS232/Ethernet/Bluetooth): permite transferir datos de pesaje a PC, impresora o sistema de control para trazabilidad y reportes.";
+    return appendQuoteClosureCta("Conectividad (USB/RS232/Ethernet/Bluetooth): permite transferir datos de pesaje a PC, impresora o sistema de control para trazabilidad y reportes.");
   }
 
-  return [
+  return appendQuoteClosureCta([
     "Buena pregunta. Te explico ese término en contexto de balanzas de forma simple.",
     "Si quieres, también te lo aterrizo a 3 modelos de referencia para que compares mejor.",
-  ].join("\n");
+  ].join("\n"));
 }
 
 function optionGamaLabel(option: any): string {
