@@ -3232,6 +3232,7 @@ function buildGuidedBalanzaReplyWithMode(profile: GuidedBalanzaProfile, industri
     "",
     "Responde con número que se encuentra al principio del modelo (ej.: 1).",
     "Para cotizar varias referencias (máx. 3), escribe: cotizar opciones 5,6,13 (ejemplo).",
+    "También puedes responder solo con números: 5,6,13.",
     "También puedes escribir: cotizar modelos PX6202/E, AX2202/E, EXP6202.",
     "Para una sola referencia con varias unidades: cotizar opción 5 cantidad 3.",
     "Si tienes dudas, escribe “asesor” para recibir acompañamiento especializado.",
@@ -8078,7 +8079,8 @@ export async function POST(req: Request) {
             strictMemory.awaiting_action = "none";
           }
         }
-        if ((requestedBundleCount >= 2 || selectedIndexesRaw.length >= 2) && pendingForBundle.length >= 2 && asksQuoteIntent(text)) {
+        const acceptsBareIndexSelection = String(awaiting || "") === "strict_choose_model" && selectedIndexesRaw.length >= 2;
+        if ((requestedBundleCount >= 2 || selectedIndexesRaw.length >= 2) && pendingForBundle.length >= 2 && (asksQuoteIntent(text) || acceptsBareIndexSelection)) {
           const explicitIdx = selectedIndexesRaw.filter((n) => n >= 1 && n <= optionsForIndexSelection.length);
           const chosenByIndex = explicitIdx
             .map((n) => optionsForIndexSelection[n - 1])
@@ -10644,11 +10646,14 @@ export async function POST(req: Request) {
         }
 
         const bundleQuoteAsk =
-          asksQuoteIntent(text) &&
           (
-            /\b(las|los|todas|todos|opciones|referencias)\b/.test(textNorm) ||
-            /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(textNorm)
-          );
+            asksQuoteIntent(text) &&
+            (
+              /\b(las|los|todas|todos|opciones|referencias)\b/.test(textNorm) ||
+              /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(textNorm)
+            )
+          ) ||
+          (!asksQuoteIntent(text) && !strictSelection && extractBundleOptionIndexes(text).length >= 2);
         if (!String(strictReply || "").trim() && bundleQuoteAsk) {
           const pendingOptions =
             (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
@@ -11472,6 +11477,7 @@ export async function POST(req: Request) {
             ...(options.length >= 3
               ? [
                   "Si quieres cotizar varias referencias (máx. 3), escribe: cotizar opciones 1,2,4.",
+                  "También puedes responder solo con números: 1,2,4.",
                   "También puedes escribir: cotizar modelos PX6202/E, AX2202/E, EXP6202.",
                   "",
                 ]
@@ -11589,6 +11595,7 @@ export async function POST(req: Request) {
               ...(options.length >= 3
                 ? [
                     "Si quieres cotizar varias referencias (máx. 3), escribe: cotizar opciones 1,2,4.",
+                    "También puedes responder solo con números: 1,2,4.",
                     "También puedes escribir: cotizar modelos PX6202/E, AX2202/E, EXP6202.",
                     "",
                   ]
