@@ -14522,6 +14522,44 @@ export async function POST(req: Request) {
             extractLabeledValue(combinedUserContext, ["contacto"]) ||
             String((previousDraftPayload as any)?.customer_contact || previousDraftForCustomer?.customer_name || "");
 
+          const rememberedCrmCompany = String(
+            nextMemory.crm_company ||
+            previousMemory?.crm_company ||
+            nextMemory.commercial_company_name ||
+            previousMemory?.commercial_company_name ||
+            ""
+          ).trim();
+          const rememberedCrmNit = String(
+            nextMemory.crm_nit ||
+            previousMemory?.crm_nit ||
+            nextMemory.commercial_nit ||
+            previousMemory?.commercial_nit ||
+            ""
+          ).replace(/\D/g, "").trim();
+          const rememberedCrmContact = String(
+            nextMemory.crm_contact_name ||
+            previousMemory?.crm_contact_name ||
+            nextMemory.commercial_customer_name ||
+            previousMemory?.commercial_customer_name ||
+            nextMemory.customer_name ||
+            previousMemory?.customer_name ||
+            ""
+          ).trim();
+          const rememberedCrmEmail = String(
+            nextMemory.crm_contact_email ||
+            previousMemory?.crm_contact_email ||
+            nextMemory.customer_email ||
+            previousMemory?.customer_email ||
+            ""
+          ).trim();
+          const rememberedCrmPhone = String(
+            nextMemory.crm_contact_phone ||
+            previousMemory?.crm_contact_phone ||
+            nextMemory.customer_phone ||
+            previousMemory?.customer_phone ||
+            ""
+          ).trim();
+
           const canReusePriorQuoteIdentity =
             continuationIntent &&
             explicitModelProducts.length > 0 &&
@@ -14532,6 +14570,7 @@ export async function POST(req: Request) {
           );
           const effectiveCustomerCompany = String(
             customerCompany ||
+            rememberedCrmCompany ||
             (previousDraftPayload as any)?.customer_company ||
             previousDraftForCustomer?.company_name ||
             cfg?.company_name ||
@@ -14539,14 +14578,15 @@ export async function POST(req: Request) {
           ).trim();
           const effectiveCustomerNit = String(
             customerNit ||
+            rememberedCrmNit ||
             (previousDraftPayload as any)?.customer_nit ||
             "N/A"
           ).trim();
           const effectiveCustomerContact = String(
-            customerContact || customerName || (previousDraftPayload as any)?.customer_contact || previousDraftForCustomer?.customer_name || "Contacto"
+            customerContact || rememberedCrmContact || customerName || (previousDraftPayload as any)?.customer_contact || previousDraftForCustomer?.customer_name || "Contacto"
           ).trim();
-          const effectiveCustomerEmail = String(customerEmail || previousDraftForCustomer?.customer_email || "").trim();
-          const effectiveCustomerPhone = String(customerPhone || previousDraftForCustomer?.customer_phone || inboundPhoneFallback).trim();
+          const effectiveCustomerEmail = String(customerEmail || rememberedCrmEmail || previousDraftForCustomer?.customer_email || "").trim();
+          const effectiveCustomerPhone = String(customerPhone || rememberedCrmPhone || previousDraftForCustomer?.customer_phone || inboundPhoneFallback).trim();
 
           const missingFields: string[] = [];
           if (!isPresent(effectiveCustomerCity)) missingFields.push("ciudad");
