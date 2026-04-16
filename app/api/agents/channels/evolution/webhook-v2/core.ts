@@ -10325,8 +10325,11 @@ export async function POST(req: Request) {
         const asksBalanzaOptionsInModelStep = /\b(tienes?\s+balanzas?|que\s+modelos\s+tienes?\s+de\s+balanzas?|que\s+balanzas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|muestrame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|dame\s+todas\s+las\s+opciones\s+de\s+balanzas?)\b/i.test(String(text || ""));
         const asksBasculaOptionsInModelStep = /\b(tienes?\s+basculas?|que\s+modelos\s+tienes?\s+de\s+basculas?|que\s+basculas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos)|muestrame\s+(las\s+)?(opciones|modelos))\b/i.test(String(text || ""));
         if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && asksBalanzaOptionsInModelStep) {
-          const balanzaRows = scopeCatalogRows(ownerRows as any, "balanzas");
-          const options = buildNumberedProductOptions(balanzaRows as any[], 14);
+          const profileForList = (guidedProfileInModelStep || rememberedGuidedProfile || "balanza_precision_001") as GuidedBalanzaProfile;
+          const industrialModeForList = profileForList === "balanza_industrial_portatil_conteo"
+            ? (detectIndustrialGuidedMode(text) || String(previousMemory?.guided_industrial_mode || strictMemory.guided_industrial_mode || ""))
+            : "";
+          const options = buildGuidedPendingOptions(ownerRows as any[], profileForList, industrialModeForList as any);
           strictMemory.last_category_intent = "balanzas";
           strictMemory.strict_family_label = "balanzas";
           strictMemory.strict_model_offset = 0;
@@ -10334,12 +10337,9 @@ export async function POST(req: Request) {
           if (options.length) {
             strictMemory.pending_product_options = options;
             strictMemory.awaiting_action = "strict_choose_model";
-            strictReply = [
-              `Perfecto. En catálogo activo tengo ${options.length} balanza(s).`,
-              ...options.slice(0, 8).map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Elige con letra/número (A/1), escribe 'más' para ver más opciones, o 'cotizar opciones 3,7,9'.",
-            ].join("\n");
+            strictMemory.guided_balanza_profile = profileForList;
+            strictMemory.guided_industrial_mode = industrialModeForList;
+            strictReply = buildGuidedBalanzaReplyWithMode(profileForList, industrialModeForList as any);
           } else {
             strictMemory.pending_product_options = [];
             strictMemory.awaiting_action = "strict_need_spec";
