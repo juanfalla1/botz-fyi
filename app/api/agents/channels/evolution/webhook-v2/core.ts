@@ -1166,19 +1166,38 @@ function extractBundleSelectionFromCountCommand(text: string): { count: number; 
   const raw = String(text || "");
   const t = normalizeText(raw);
   if (!/\bcotiz(?:ar|a|acion|ación)?\b/.test(t)) return null;
+  const explicitPicks = extractBundleOptionIndexes(raw).slice(0, 3);
+  const explicitSelectionIntent =
+    /\bopcion(?:es)?\b/.test(t) ||
+    /[,;]|\sy\s|\se\s|\//.test(t);
+  if (explicitSelectionIntent && explicitPicks.length >= 2) {
+    return { count: Math.min(3, explicitPicks.length), picks: explicitPicks };
+  }
+
   const tokens = [...t.matchAll(/\b(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/g)].map((m) => String(m?.[1] || "").trim());
   if (!tokens.length) return null;
   const map: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
   const firstNum = Number(tokens[0] ? (Number(tokens[0]) || map[tokens[0]] || 0) : 0);
   if (!firstNum || firstNum < 2) return null;
 
-  const picks = extractBundleOptionIndexes(raw)
+  const picks = explicitPicks
     .filter((n) => n !== firstNum)
     .slice(0, 3);
   return {
     count: Math.max(2, Math.min(3, firstNum)),
     picks,
   };
+}
+
+function pickBundleOptionSourceByIndexes(indexes: number[], sources: any[][]): any[] {
+  const maxIdx = Math.max(0, ...indexes.map((n) => Number(n || 0)));
+  for (const src of sources) {
+    if (Array.isArray(src) && src.length >= Math.max(1, maxIdx)) return src;
+  }
+  for (const src of sources) {
+    if (Array.isArray(src) && src.length) return src;
+  }
+  return [];
 }
 
 function catalogReferenceCode(row: any): string {
@@ -7816,18 +7835,26 @@ export async function POST(req: Request) {
         const bundleSelection = extractBundleSelectionFromCountCommand(text);
         const requestedBundleCount = Number(bundleSelection?.count || 0);
         const selectedIndexesRaw = (bundleSelection?.picks?.length ? bundleSelection.picks : extractBundleOptionIndexes(text));
+        const pendingOnly = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+        const currentBundleOnly = Array.isArray(previousMemory?.quote_bundle_options_current) ? previousMemory.quote_bundle_options_current : [];
+        const recommendedOnly = Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [];
+        const quoteBundleOnly = Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [];
         const pendingForBundle =
-          (Array.isArray(previousMemory?.quote_bundle_options_current) ? previousMemory.quote_bundle_options_current : [])
-            .concat(Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
-            .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
-            .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [])
+          currentBundleOnly
+            .concat(quoteBundleOnly)
+            .concat(pendingOnly)
+            .concat(recommendedOnly)
             .filter((o: any, idx: number, arr: any[]) => {
               const key = String(o?.id || o?.product_id || o?.raw_name || o?.name || "").trim();
               if (!key) return false;
               return arr.findIndex((x: any) => String(x?.id || x?.product_id || x?.raw_name || x?.name || "").trim() === key) === idx;
             });
-        if (!requestedBundleCount && selectedIndexesRaw.length === 1 && pendingForBundle.length >= selectedIndexesRaw[0] && asksQuoteIntent(text)) {
-          const pick = pendingForBundle[selectedIndexesRaw[0] - 1];
+        const optionsForIndexSelection = pickBundleOptionSourceByIndexes(
+          selectedIndexesRaw,
+          [pendingOnly, currentBundleOnly, recommendedOnly, quoteBundleOnly, pendingForBundle],
+        );
+        if (!requestedBundleCount && selectedIndexesRaw.length === 1 && optionsForIndexSelection.length >= selectedIndexesRaw[0] && asksQuoteIntent(text)) {
+          const pick = optionsForIndexSelection[selectedIndexesRaw[0] - 1];
           const pickedName = String(pick?.raw_name || pick?.name || "").trim();
           if (pickedName) {
             strictBypassAutoQuote = true;
@@ -7838,9 +7865,9 @@ export async function POST(req: Request) {
           }
         }
         if ((requestedBundleCount >= 2 || selectedIndexesRaw.length >= 2) && pendingForBundle.length >= 2 && asksQuoteIntent(text)) {
-          const explicitIdx = selectedIndexesRaw.filter((n) => n >= 1 && n <= pendingForBundle.length);
+          const explicitIdx = selectedIndexesRaw.filter((n) => n >= 1 && n <= optionsForIndexSelection.length);
           const chosenByIndex = explicitIdx
-            .map((n) => pendingForBundle[n - 1])
+            .map((n) => optionsForIndexSelection[n - 1])
             .filter(Boolean)
             .slice(0, 3);
           const chosen = chosenByIndex.length >= 2 ? chosenByIndex : [];
@@ -10407,17 +10434,25 @@ export async function POST(req: Request) {
                 if (!key) return false;
                 return arr.findIndex((x: any) => String(x?.raw_name || x?.name || "").trim() === key) === idx;
               });
+          const pendingOnly = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+          const currentBundleOnly = Array.isArray(previousMemory?.quote_bundle_options_current) ? previousMemory.quote_bundle_options_current : [];
+          const recommendedOnly = Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [];
+          const quoteBundleOnly = Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [];
           const bundleSelection = extractBundleSelectionFromCountCommand(text);
           const explicitIdx = (bundleSelection?.picks?.length ? bundleSelection.picks : extractBundleOptionIndexes(text))
-            .filter((n) => n >= 1 && n <= pendingOptions.length);
+            .filter((n) => n >= 1);
+          const optionsForIndexSelection = pickBundleOptionSourceByIndexes(
+            explicitIdx,
+            [pendingOnly, currentBundleOnly, recommendedOnly, quoteBundleOnly, pendingOptions],
+          );
           const selectedCount = /\b(todas|todos)\b/.test(textNorm)
             ? pendingOptions.length
             : Math.max(2, Math.min(3, Number(bundleSelection?.count || 0) || 3));
           const chosen = explicitIdx.length >= 2
-            ? explicitIdx.map((n) => pendingOptions[n - 1]).filter(Boolean).slice(0, 3)
+            ? explicitIdx.filter((n) => n <= optionsForIndexSelection.length).map((n) => optionsForIndexSelection[n - 1]).filter(Boolean).slice(0, 3)
             : [];
           if (!chosen.length && explicitIdx.length === 1) {
-            const pick = pendingOptions[explicitIdx[0] - 1];
+            const pick = explicitIdx[0] <= optionsForIndexSelection.length ? optionsForIndexSelection[explicitIdx[0] - 1] : null;
             const pickedName = String(pick?.raw_name || pick?.name || "").trim();
             if (pickedName) {
               strictBypassAutoQuote = true;
