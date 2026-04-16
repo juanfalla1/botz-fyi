@@ -2758,6 +2758,99 @@ function updateNewCustomerRegistration(memory: any, text: string, fallbackName: 
   memory.customer_name = contact || memory.customer_name || "";
 }
 
+async function upsertNewCommercialCustomerContact(
+  supabase: any,
+  args: {
+    ownerId: string;
+    tenantId?: string | null;
+    city: string;
+    company: string;
+    nit: string;
+    contact: string;
+    email: string;
+    phone: string;
+  }
+) {
+  const ownerId = String(args.ownerId || "").trim();
+  const city = normalizeCityLabel(String(args.city || "").trim());
+  const company = String(args.company || "").trim();
+  const nit = String(args.nit || "").replace(/\D/g, "").trim();
+  const contact = sanitizeCustomerDisplayName(String(args.contact || "").trim());
+  const email = String(args.email || "").trim().toLowerCase();
+  const phone = normalizePhone(String(args.phone || "").trim());
+  const tail = phoneTail10(phone);
+  if (!ownerId || !company || !nit || !contact || !email || !phone) return;
+
+  const baseMeta = {
+    nit,
+    billing_city: city,
+    customer_type: "new",
+    source: "whatsapp_new_customer_data",
+    whatsapp_transport_id: phone,
+    whatsapp_lifecycle_at: new Date().toISOString(),
+  };
+
+  try {
+    let existing: any = null;
+    const { data: byNit } = await supabase
+      .from("agent_crm_contacts")
+      .select("id,metadata")
+      .eq("created_by", ownerId)
+      .eq("contact_key", `nit:${nit}`)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    if (Array.isArray(byNit) && byNit[0]) existing = byNit[0];
+
+    if (!existing && tail) {
+      const { data: byPhone } = await supabase
+        .from("agent_crm_contacts")
+        .select("id,metadata")
+        .eq("created_by", ownerId)
+        .or(`phone.eq.${phone},phone.like.%${tail},contact_key.eq.cel:${phone},contact_key.eq.cel:${tail}`)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (Array.isArray(byPhone) && byPhone[0]) existing = byPhone[0];
+    }
+
+    if (existing?.id) {
+      const mergedMeta = {
+        ...(existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
+        ...baseMeta,
+      };
+      await supabase
+        .from("agent_crm_contacts")
+        .update({
+          name: contact,
+          email,
+          phone,
+          company,
+          contact_key: `nit:${nit}`,
+          status: "analysis",
+          metadata: mergedMeta,
+        })
+        .eq("id", String(existing.id))
+        .eq("created_by", ownerId);
+      return;
+    }
+
+    await supabase
+      .from("agent_crm_contacts")
+      .insert({
+        tenant_id: args.tenantId || null,
+        created_by: ownerId,
+        name: contact,
+        email,
+        phone,
+        company,
+        contact_key: `nit:${nit}`,
+        status: "analysis",
+        metadata: baseMeta,
+      });
+  } catch {
+    // best effort
+  }
+}
+
 function getMissingNewCustomerFields(memory: any): string[] {
   const d = memory?.new_customer_data && typeof memory.new_customer_data === "object" ? memory.new_customer_data : {};
   const missing: string[] = [];
@@ -7275,6 +7368,17 @@ export async function POST(req: Request) {
             strictMemory.customer_phone = phone;
             strictMemory.crm_contact_found = true;
           }
+
+          await upsertNewCommercialCustomerContact(supabase as any, {
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            city,
+            company,
+            nit,
+            contact,
+            email,
+            phone,
+          });
         }
         const chosenEquipment = detectEquipmentChoice(text);
         const guidedProfileFromNeed = detectGuidedBalanzaProfile(text);
