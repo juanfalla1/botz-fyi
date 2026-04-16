@@ -2754,7 +2754,7 @@ function buildCapacityResolutionExplanation(): string {
 
 function isCapacityResolutionHelpIntent(text: string): boolean {
   const t = normalizeText(String(text || ""));
-  return /(no\s+se|no\s+entiendo|que\s+es\s+la\s+capacidad|que\s+es\s+la\s+resolucion|no\s+entiendo\s+capacidad|explicame\s+capacidad|explicame\s+resolucion)/.test(t);
+  return /(no\s+se|no\s+entiendo|que\s+es\s+(?:la\s+)?capacidad|que\s+es\s+(?:la\s+)?resolucion|no\s+entiendo\s+capacidad|no\s+entiendo\s+resolucion|explicame\s+capacidad|explicame\s+resolucion)/.test(t.replace(/\s+/g, " "));
 }
 
 function detectClientRecognitionChoice(text: string): "new" | "existing" | "" {
