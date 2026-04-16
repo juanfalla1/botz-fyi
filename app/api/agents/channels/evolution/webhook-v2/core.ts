@@ -2531,8 +2531,8 @@ function buildNoActiveCatalogEscalationMessage(topic?: string): string {
 
 function detectUnavailableLabTopic(text: string): string {
   const t = normalizeText(String(text || ""));
-  if (/(agitad|orbital)/.test(t)) return "agitadores orbitales";
-  if (/(planch|calentam)/.test(t)) return "planchas de calentamiento y agitacion";
+  if (/(agita|agitad|agbit|orbital)/.test(t)) return "agitadores orbitales";
+  if (/(planch|calent)/.test(t)) return "planchas de calentamiento y agitacion";
   if (/(centrifug|centrifuga|centrifugas)/.test(t)) return "centrifugas";
   if (/(electroquim|phmetro|conductivimetro|multiparametro|electrodos)/.test(t)) return "electroquimica";
   return "equipos de laboratorio";
