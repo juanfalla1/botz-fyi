@@ -1235,6 +1235,32 @@ function optionDisplayName(row: any): string {
   return out.length > 88 ? `${out.slice(0, 85)}...` : out;
 }
 
+function dedupeOptionSpecSegments(text: string): string {
+  const raw = String(text || "").trim();
+  if (!raw.includes("|")) return raw;
+  const parts = raw.split("|").map((p) => String(p || "").trim()).filter(Boolean);
+  if (parts.length <= 1) return raw;
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const part of parts) {
+    const key = normalizeText(part).replace(/\s+/g, " ").trim();
+    const specKey = key.startsWith("gama:")
+      ? "gama"
+      : key.startsWith("cap:")
+        ? "cap"
+        : key.startsWith("res:")
+          ? "res"
+          : key.startsWith("entrega:")
+            ? "entrega"
+            : "";
+    const dedupeKey = specKey || key;
+    if (!dedupeKey || seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    out.push(part);
+  }
+  return out.join(" | ");
+}
+
 function gamaLabelForModelName(name: string): string {
   const n = normalizeText(String(name || "")).replace(/[^a-z0-9]/g, "");
   if (!n) return "";
@@ -1270,7 +1296,7 @@ function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: s
     const delivery = deliveryLabelForRow(row);
     if (delivery) specParts.push(`Entrega: ${delivery}`);
     const suffix = specParts.length ? ` | ${specParts.join(" | ")}` : "";
-    const name = `${baseName}${suffix}`.slice(0, 140);
+    const name = dedupeOptionSpecSegments(`${baseName}${suffix}`).slice(0, 140);
     if (!name) continue;
     const key = String(row?.id || "").trim() || normalizeText(name);
     if (!key || seen.has(key)) continue;
@@ -7082,6 +7108,20 @@ export async function POST(req: Request) {
                 return finalizeStrictTurn(buildGuidedBalanzaReplyWithMode(guidedProfile, ""), strictMemory, { pipeline: true, intent: pipelineIntent });
               }
             }
+            if (app === "laboratorio") {
+              const guidedProfile = "balanza_laboratorio_0001" as GuidedBalanzaProfile;
+              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfile, "");
+              if (guidedOptions.length) {
+                strictMemory.pending_product_options = guidedOptions;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                strictMemory.last_category_intent = "balanzas";
+                strictMemory.guided_balanza_profile = guidedProfile;
+                strictMemory.guided_industrial_mode = "";
+                return finalizeStrictTurn(buildGuidedBalanzaReplyWithMode(guidedProfile, ""), strictMemory, { pipeline: true, intent: pipelineIntent });
+              }
+            }
             strictMemory.pending_product_options = options;
             strictMemory.pending_family_options = [];
             strictMemory.awaiting_action = "strict_choose_model";
@@ -7199,6 +7239,23 @@ export async function POST(req: Request) {
             }
 
             if (appProfile) {
+              if (appProfile === "laboratorio") {
+                const guidedProfile = "balanza_laboratorio_0001" as GuidedBalanzaProfile;
+                const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfile, "");
+                if (guidedOptions.length) {
+                  strictMemory.guided_balanza_profile = guidedProfile;
+                  strictMemory.guided_industrial_mode = "";
+                  strictMemory.last_category_intent = "balanzas";
+                  strictMemory.pending_product_options = guidedOptions;
+                  strictMemory.pending_family_options = [];
+                  strictMemory.awaiting_action = "strict_choose_model";
+                  strictMemory.strict_model_offset = 0;
+                  strictMemory.strict_filter_capacity_g = cap;
+                  strictMemory.strict_filter_readability_g = read;
+                  strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
+                  return finalizeStrictTurn(buildGuidedBalanzaReplyWithMode(guidedProfile, ""), strictMemory, { pipeline: true, intent: "guided_need_discovery" });
+                }
+              }
               const appAlternatives = getApplicationRecommendedOptions({
                 rows: baseScoped as any[],
                 application: appProfile,
