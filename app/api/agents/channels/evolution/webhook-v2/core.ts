@@ -1244,6 +1244,7 @@ function gamaLabelForModelName(name: string): string {
   if (/^exp(223|423|623|224|324)ad$/.test(n)) return "avanzada";
 
   if (/^px\d/.test(n)) return "esencial";
+  if (/^vx\d/.test(n)) return "intermedia";
   if (/^ax\d/.test(n)) return "intermedia";
   if (/^exr\d/.test(n)) return "avanzada";
   if (/^exp\d+ad$/.test(n)) return "avanzada";
@@ -2796,7 +2797,9 @@ function isProductDefinitionIntent(text: string): boolean {
   const t = normalizeText(String(text || ""));
   if (!t) return false;
   const asksDefinition = /(que\s+es|que\s+significa|que\s+quiere\s+decir|explicame|explica|definicion|definicion\s+de|para\s+que\s+sirve)/.test(t);
-  const mentionsTechTerm = /(semimicro|capacidad|resolucion|precision|lectura\s+minima|linealidad|repetibilidad|calibracion|trazabilidad|estabilidad|usb|rs\s*232|ethernet|bluetooth|wifi)/.test(t);
+  const mentionsTechTerm = /(semimicro|capacidad|resolucion|lectura\s+minima|linealidad|repetibilidad|calibracion|trazabilidad|estabilidad|usb|rs\s*232|ethernet|bluetooth|wifi)/.test(t);
+  const looksLikeProductRequest = /(balanza|balanzas|bascula|basculas|opciones|modelos|catalogo|gama|cotizar|precio)/.test(t);
+  if (!asksDefinition && looksLikeProductRequest) return false;
   return asksDefinition || mentionsTechTerm;
 }
 
