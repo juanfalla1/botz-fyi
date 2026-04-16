@@ -1150,6 +1150,18 @@ function extractQuoteRequestedQuantity(text: string): number {
   return extractQuantity(text);
 }
 
+function extractBundleOptionIndexes(text: string): number[] {
+  const raw = String(text || "");
+  if (!raw) return [];
+  const numbers = [...raw.matchAll(/\b([1-9]\d?)\b/g)]
+    .map((m) => Number(m?.[1] || 0))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (numbers.length < 2) return [];
+  const hasSelectionSignal = /(cotiz|opcion|opciones|referencias?|\,|\;|\sy\s|\se\s|\/|\-)/i.test(raw);
+  if (!hasSelectionSignal) return [];
+  return numbers.filter((n, idx, arr) => arr.indexOf(n) === idx);
+}
+
 function catalogReferenceCode(row: any): string {
   const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const fromSource = String(source?.product_code || source?.sap || source?.numero_modelo || "").trim();
@@ -7783,7 +7795,8 @@ export async function POST(req: Request) {
         const bundleCountMatch = textNorm.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/i);
         const numberWordMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
         const bundleCountRaw = String(bundleCountMatch?.[1] || "").trim().toLowerCase();
-        const requestedBundleCount = Number(bundleCountRaw ? (Number(bundleCountRaw) || numberWordMap[bundleCountRaw] || 0) : 0);
+        const requestedBundleCount = Math.max(0, Math.min(3, Number(bundleCountRaw ? (Number(bundleCountRaw) || numberWordMap[bundleCountRaw] || 0) : 0)));
+        const selectedIndexesRaw = extractBundleOptionIndexes(text);
         const pendingForBundle =
           (Array.isArray(previousMemory?.quote_bundle_options_current) ? previousMemory.quote_bundle_options_current : [])
             .concat(Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
@@ -7794,8 +7807,13 @@ export async function POST(req: Request) {
               if (!key) return false;
               return arr.findIndex((x: any) => String(x?.id || x?.product_id || x?.raw_name || x?.name || "").trim() === key) === idx;
             });
-        if (requestedBundleCount >= 2 && pendingForBundle.length >= 2 && asksQuoteIntent(text)) {
-          const chosen = pendingForBundle.slice(0, Math.min(requestedBundleCount, pendingForBundle.length));
+        if ((requestedBundleCount >= 2 || selectedIndexesRaw.length >= 2) && pendingForBundle.length >= 2 && asksQuoteIntent(text)) {
+          const explicitIdx = selectedIndexesRaw.filter((n) => n >= 1 && n <= pendingForBundle.length);
+          const chosenByIndex = explicitIdx
+            .map((n) => pendingForBundle[n - 1])
+            .filter(Boolean)
+            .slice(0, 3);
+          const chosen = chosenByIndex.length >= 2 ? chosenByIndex : [];
           const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
           if (modelNames.length >= 2) {
             strictBypassAutoQuote = true;
@@ -7808,7 +7826,21 @@ export async function POST(req: Request) {
             strictMemory.bundle_quote_mode = true;
             strictMemory.bundle_quote_count = chosen.length;
             strictMemory.awaiting_action = "none";
-            strictReply = `Perfecto. Voy a generar una cotización consolidada para esas ${chosen.length} opciones y te la envío en PDF por este WhatsApp.`;
+            strictReply = `Perfecto. Voy a generar la cotización consolidada para las opciones ${explicitIdx.slice(0, chosen.length).join(", ")} y te la envío en PDF por este WhatsApp.`;
+          } else {
+            const shortlist = pendingForBundle.slice(0, Math.min(8, pendingForBundle.length));
+            strictMemory.quote_bundle_options_current = shortlist;
+            strictMemory.quote_bundle_options = shortlist;
+            strictMemory.last_recommended_options = shortlist;
+            strictMemory.bundle_quote_mode = true;
+            strictMemory.bundle_quote_requested_count = requestedBundleCount >= 2 ? requestedBundleCount : Math.min(3, Math.max(2, explicitIdx.length || 3));
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictReply = [
+              `Perfecto. Para cotizar ${requestedBundleCount >= 2 ? requestedBundleCount : 3} referencia(s), indícame cuáles opciones quieres del listado (máximo 3 por solicitud).`,
+              ...shortlist.slice(0, 6).map((o: any, idx: number) => `${idx + 1}) ${String(o?.raw_name || o?.name || "").trim()}`),
+              "",
+              "Escribe: cotizar 1,2,4 (ejemplo).",
+            ].join("\n");
           }
         }
       }
@@ -10352,8 +10384,11 @@ export async function POST(req: Request) {
           const rawNum = String(numMatch?.[1] || "").trim();
           const selectedCount = /\b(todas|todos)\b/.test(textNorm)
             ? pendingOptions.length
-            : Math.max(2, Number(rawNum ? (Number(rawNum) || numberWordMap[rawNum] || 3) : 3));
-          const chosen = pendingOptions.slice(0, Math.max(1, Math.min(selectedCount, pendingOptions.length || selectedCount)));
+            : Math.max(2, Math.min(3, Number(rawNum ? (Number(rawNum) || numberWordMap[rawNum] || 3) : 3)));
+          const explicitIdx = extractBundleOptionIndexes(text).filter((n) => n >= 1 && n <= pendingOptions.length);
+          const chosen = explicitIdx.length >= 2
+            ? explicitIdx.map((n) => pendingOptions[n - 1]).filter(Boolean).slice(0, 3)
+            : [];
           if (chosen.length >= 2) {
             const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
             strictBypassAutoQuote = true;
@@ -10370,6 +10405,21 @@ export async function POST(req: Request) {
             strictMemory.last_selected_product_name = "";
             strictMemory.last_selected_product_id = "";
             strictMemory.last_selection_at = "";
+          } else if (selectedCount >= 2 && pendingOptions.length >= 2) {
+            const shortlist = pendingOptions.slice(0, Math.min(8, pendingOptions.length));
+            strictMemory.quote_bundle_options_current = shortlist;
+            strictMemory.quote_bundle_options = shortlist;
+            strictMemory.pending_product_options = shortlist;
+            strictMemory.last_recommended_options = shortlist;
+            strictMemory.bundle_quote_mode = true;
+            strictMemory.bundle_quote_requested_count = selectedCount;
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictReply = [
+              `Perfecto. Para cotizar ${selectedCount} referencia(s), indícame cuáles opciones quieres del listado (máximo 3 por solicitud).`,
+              ...shortlist.slice(0, 6).map((o: any, idx: number) => `${idx + 1}) ${String(o?.raw_name || o?.name || "").trim()}`),
+              "",
+              "Escribe: cotizar 1,2,4 (ejemplo).",
+            ].join("\n");
           }
         }
         const looseSpecHint = preParsedSpec
