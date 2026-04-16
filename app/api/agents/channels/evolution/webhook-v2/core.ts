@@ -2785,7 +2785,7 @@ function isProductDefinitionIntent(text: string): boolean {
   const t = normalizeText(String(text || ""));
   if (!t) return false;
   const asksDefinition = /(que\s+es|que\s+significa|que\s+quiere\s+decir|explicame|explica|definicion|definicion\s+de|para\s+que\s+sirve)/.test(t);
-  const mentionsTechTerm = /(semimicro|capacidad|resolucion|precision|lectura\s+minima|linealidad|repetibilidad|calibracion|trazabilidad|estabilidad)/.test(t);
+  const mentionsTechTerm = /(semimicro|capacidad|resolucion|precision|lectura\s+minima|linealidad|repetibilidad|calibracion|trazabilidad|estabilidad|usb|rs\s*232|ethernet|bluetooth|wifi)/.test(t);
   return asksDefinition || mentionsTechTerm;
 }
 
@@ -2832,6 +2832,9 @@ function buildProductDefinitionReply(text: string): string {
   }
   if (/estabilidad/.test(s)) {
     return "Estabilidad: capacidad de mantener una lectura firme sin fluctuaciones por vibración o ambiente.";
+  }
+  if (/usb|rs\s*232|ethernet|bluetooth|wifi/.test(s)) {
+    return "Conectividad (USB/RS232/Ethernet/Bluetooth): permite transferir datos de pesaje a PC, impresora o sistema de control para trazabilidad y reportes.";
   }
 
   return [
@@ -10305,7 +10308,30 @@ export async function POST(req: Request) {
           isGlobalCatalogAsk(text) ||
           /\b(dame|muestrame|mu[eé]strame|quiero|ver)\b.*\b(todo|todos|todas)\b.*\b(prod|producto|productos|prodcutos|catalogo)\b/.test(textNorm);
         const hasScopedContextInModelStep = Boolean(currentCategoryIntentInModelStep || familyLabel || pendingStrictOptions.length);
+        const asksBalanzaOptionsInModelStep = /\b(tienes?\s+balanzas?|que\s+modelos\s+tienes?\s+de\s+balanzas?|que\s+balanzas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|muestrame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|dame\s+todas\s+las\s+opciones\s+de\s+balanzas?)\b/i.test(String(text || ""));
         const asksBasculaOptionsInModelStep = /\b(tienes?\s+basculas?|que\s+modelos\s+tienes?\s+de\s+basculas?|que\s+basculas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos)|muestrame\s+(las\s+)?(opciones|modelos))\b/i.test(String(text || ""));
+        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && asksBalanzaOptionsInModelStep) {
+          const balanzaRows = scopeCatalogRows(ownerRows as any, "balanzas");
+          const options = buildNumberedProductOptions(balanzaRows as any[], 14);
+          strictMemory.last_category_intent = "balanzas";
+          strictMemory.strict_family_label = "balanzas";
+          strictMemory.strict_model_offset = 0;
+          strictMemory.pending_family_options = [];
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictReply = [
+              `Perfecto. En catálogo activo tengo ${options.length} balanza(s).`,
+              ...options.slice(0, 8).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige con letra/número (A/1), escribe 'más' para ver más opciones, o 'cotizar opciones 3,7,9'.",
+            ].join("\n");
+          } else {
+            strictMemory.pending_product_options = [];
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = "Ahora mismo no veo balanzas activas en base de datos. Si quieres, dime capacidad y resolución y te confirmo alternativas.";
+          }
+        }
         if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && asksBasculaOptionsInModelStep) {
           const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
           const options = buildNumberedProductOptions(basculaRows as any[], 8);
