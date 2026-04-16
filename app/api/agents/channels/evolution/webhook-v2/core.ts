@@ -7068,6 +7068,20 @@ export async function POST(req: Request) {
             return finalizeStrictTurn(buildNoActiveCatalogEscalationMessage(unavailableLabTopic), strictMemory, { pipeline: true, intent: pipelineIntent });
           }
           if (options.length) {
+            if (app === "joyeria_oro") {
+              const guidedProfile = "balanza_oro_001" as GuidedBalanzaProfile;
+              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfile, "");
+              if (guidedOptions.length) {
+                strictMemory.pending_product_options = guidedOptions;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                strictMemory.last_category_intent = "balanzas";
+                strictMemory.guided_balanza_profile = guidedProfile;
+                strictMemory.guided_industrial_mode = "";
+                return finalizeStrictTurn(buildGuidedBalanzaReplyWithMode(guidedProfile, ""), strictMemory, { pipeline: true, intent: pipelineIntent });
+              }
+            }
             strictMemory.pending_product_options = options;
             strictMemory.pending_family_options = [];
             strictMemory.awaiting_action = "strict_choose_model";
