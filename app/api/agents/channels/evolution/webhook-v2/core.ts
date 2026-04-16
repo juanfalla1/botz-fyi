@@ -2765,11 +2765,17 @@ function isPriceObjectionIntent(text: string): boolean {
 
 function buildPriceObjectionReply(): string {
   return [
-    "Buena pregunta 👌 El valor cambia por 4 factores principales:",
-    "1) Precisión (más decimales = mayor costo)",
-    "2) Capacidad de carga",
-    "3) Tecnología interna (calibración, estabilidad y velocidad)",
-    "4) Soporte, garantía y disponibilidad",
+    "Buena pregunta 👌",
+    "La diferencia real está en esto:",
+    "1) Estabilidad y precisión real",
+    "Las balanzas profesionales mantienen lecturas estables, incluso con vibraciones o cambios de ambiente.",
+    "2) Reproducibilidad",
+    "En laboratorio necesitas que el resultado sea el mismo siempre, no que varíe cada vez que pesas.",
+    "3) Durabilidad y respaldo",
+    "Son equipos diseñados para uso continuo, con soporte técnico y garantía real.",
+    "",
+    "👉 Las más económicas pesan,",
+    "👉 las profesionales garantizan resultados confiables.",
     "",
     "Si quieres, te propongo 3 opciones por gama (esencial/intermedia/premium) para comparar costo-beneficio y elegir la ideal.",
   ].join("\n");
