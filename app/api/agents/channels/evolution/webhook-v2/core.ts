@@ -14373,6 +14373,27 @@ export async function POST(req: Request) {
             ? [matchedProduct || rememberedProduct]
             : [];
 
+        if (forceBundleQuoteIntake) {
+          const explicitIndexes = extractBundleOptionIndexes(quoteSourceText).slice(0, 3);
+          if (explicitIndexes.length >= 2) {
+            const selectionSource = pickBundleOptionSourceByIndexes(explicitIndexes, [bundleOptionsCurrent, pendingBundleOptions]);
+            const byIndex = explicitIndexes
+              .filter((n) => n >= 1 && n <= selectionSource.length)
+              .map((n) => resolvePendingOptionToProduct(selectionSource[n - 1]))
+              .filter(Boolean)
+              .filter((row: any, idx: number, arr: any[]) => {
+                const id = String(row?.id || "").trim();
+                if (!id) return false;
+                return arr.findIndex((x: any) => String(x?.id || "").trim() === id) === idx;
+              })
+              .slice(0, 3);
+            if (byIndex.length >= 2) {
+              selectedProducts = byIndex;
+              nextMemory.bundle_quote_count = byIndex.length;
+            }
+          }
+        }
+
         if (forceBundleQuoteIntake && !selectedProducts.length && pendingBundleOptions.length >= 2) {
           const pendingNames = pendingBundleOptions
             .map((o: any) => String(o?.raw_name || o?.name || "").trim())
