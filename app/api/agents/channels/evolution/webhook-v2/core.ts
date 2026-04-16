@@ -2781,6 +2781,65 @@ function buildPriceObjectionReply(): string {
   ].join("\n");
 }
 
+function isProductDefinitionIntent(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!t) return false;
+  const asksDefinition = /(que\s+es|que\s+significa|que\s+quiere\s+decir|explicame|explica|definicion|definicion\s+de|para\s+que\s+sirve)/.test(t);
+  const mentionsTechTerm = /(semimicro|capacidad|resolucion|precision|lectura\s+minima|linealidad|repetibilidad|calibracion|trazabilidad|estabilidad)/.test(t);
+  return asksDefinition || mentionsTechTerm;
+}
+
+function extractDefinitionSubject(text: string): string {
+  const src = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  if (!src) return "";
+  const m = src.match(/(?:que\s+es|que\s+significa|que\s+quiere\s+decir|explicame|explica|definicion\s+de|para\s+que\s+sirve)\s+([a-z0-9\s]{2,60})/);
+  const raw = String(m?.[1] || src).trim();
+  return raw
+    .replace(/\b(la|el|los|las|una|un|de|del|en|para|balanza|balanzas|equipo|equipos)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildProductDefinitionReply(text: string): string {
+  const subject = extractDefinitionSubject(text);
+  const s = normalizeText(subject).replace(/\s+/g, " ").trim();
+
+  if (/semi\s*micro|semimicro/.test(s)) {
+    return [
+      "Semimicro: es una balanza de muy alta precisión para laboratorio.",
+      "Normalmente trabaja con lectura de 0.01 mg (0.00001 g), ideal para muestras pequeñas y análisis exigente.",
+      "",
+      "Si quieres, te muestro 3 opciones por gama para comparar costo-beneficio.",
+    ].join("\n");
+  }
+  if (/capacidad/.test(s)) {
+    return "Capacidad: es el peso máximo que puede soportar la balanza. Si la capacidad es 5 kg, no debes superar ese valor.";
+  }
+  if (/resolucion|precision|lectura\s*minima/.test(s)) {
+    return "Resolución (o lectura mínima): es el nivel de detalle que muestra la balanza. Entre más decimales, mayor precisión de lectura.";
+  }
+  if (/linealidad/.test(s)) {
+    return "Linealidad: indica qué tan cerca está la lectura del valor real en distintos puntos del rango de pesaje.";
+  }
+  if (/repetibilidad/.test(s)) {
+    return "Repetibilidad: mide si la balanza entrega el mismo resultado al pesar varias veces la misma muestra en las mismas condiciones.";
+  }
+  if (/calibracion/.test(s)) {
+    return "Calibración: ajuste del equipo para asegurar exactitud. Puede ser interna (automática) o externa (con pesas patrón).";
+  }
+  if (/trazabilidad/.test(s)) {
+    return "Trazabilidad: permite relacionar la medición con patrones de referencia certificados para auditoría y control de calidad.";
+  }
+  if (/estabilidad/.test(s)) {
+    return "Estabilidad: capacidad de mantener una lectura firme sin fluctuaciones por vibración o ambiente.";
+  }
+
+  return [
+    "Buena pregunta. Te explico ese término en contexto de balanzas de forma simple.",
+    "Si quieres, también te lo aterrizo a 3 modelos de referencia para que compares mejor.",
+  ].join("\n");
+}
+
 function optionGamaLabel(option: any): string {
   const fromName = String(option?.name || "").match(/\bgama\s*:\s*([a-zA-Z]+)/i);
   if (fromName?.[1]) return normalizeText(String(fromName[1] || ""));
@@ -7905,6 +7964,13 @@ export async function POST(req: Request) {
         strictMemory.price_objection_context_category = String(rememberedCategory || previousMemory?.last_category_intent || "balanzas");
         strictReply = buildPriceObjectionReply();
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "price_objection_guidance" });
+      }
+
+      if (!String(strictReply || "").trim() && isProductDefinitionIntent(text)) {
+        const inSelectionStep = /^(strict_choose_model|strict_choose_family|strict_choose_action|price_objection_followup)$/i.test(String(awaiting || ""));
+        strictMemory.awaiting_action = inSelectionStep ? String(awaiting || "strict_choose_model") : "strict_need_spec";
+        strictReply = buildProductDefinitionReply(text);
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "product_definition_help" });
       }
 
       if (!String(strictReply || "").trim() && String(awaiting || "") === "price_objection_followup" && isAffirmativeShortIntent(text)) {
