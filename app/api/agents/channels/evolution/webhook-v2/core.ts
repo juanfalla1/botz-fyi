@@ -2757,6 +2757,24 @@ function isCapacityResolutionHelpIntent(text: string): boolean {
   return /(no\s+se|no\s+entiendo|que\s+es\s+(?:la\s+)?capacidad|que\s+es\s+(?:la\s+)?resolucion|no\s+entiendo\s+capacidad|no\s+entiendo\s+resolucion|explicame\s+capacidad|explicame\s+resolucion)/.test(t.replace(/\s+/g, " "));
 }
 
+function isPriceObjectionIntent(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!t) return false;
+  return /(por\s*que\s+es\s+tan\s+car|por\s*que\s+tan\s+car|esta\s+muy\s+car|es\s+muy\s+car|muy\s+costos|muy\s+costosa|esta\s+costosa|esta\s+costoso|esta\s+cara|esta\s+caro)/i.test(t.replace(/\s+/g, " "));
+}
+
+function buildPriceObjectionReply(): string {
+  return [
+    "Buena pregunta 👌 El valor cambia por 4 factores principales:",
+    "1) Precisión (más decimales = mayor costo)",
+    "2) Capacidad de carga",
+    "3) Tecnología interna (calibración, estabilidad y velocidad)",
+    "4) Soporte, garantía y disponibilidad",
+    "",
+    "Si quieres, te propongo 3 opciones por gama (esencial/intermedia/premium) para comparar costo-beneficio y elegir la ideal.",
+  ].join("\n");
+}
+
 function detectClientRecognitionChoice(text: string): "new" | "existing" | "" {
   const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
   if (/^1$/.test(t) || /cliente\s+nuevo|soy\s+nuevo/.test(t)) return "new";
@@ -7833,6 +7851,13 @@ export async function POST(req: Request) {
             : []),
         ].join("\n");
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "capacity_resolution_help" });
+      }
+
+      if (!String(strictReply || "").trim() && isPriceObjectionIntent(text)) {
+        const inSelectionStep = /^(strict_choose_model|strict_choose_family|strict_choose_action)$/i.test(String(awaiting || ""));
+        strictMemory.awaiting_action = inSelectionStep ? String(awaiting || "strict_choose_model") : "strict_need_spec";
+        strictReply = buildPriceObjectionReply();
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "price_objection_guidance" });
       }
 
       const pipelineResponse = await pipelineGate();
