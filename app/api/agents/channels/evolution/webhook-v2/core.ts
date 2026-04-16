@@ -2775,6 +2775,47 @@ function buildPriceObjectionReply(): string {
   ].join("\n");
 }
 
+function optionGamaLabel(option: any): string {
+  const fromName = String(option?.name || "").match(/\bgama\s*:\s*([a-zA-Z]+)/i);
+  if (fromName?.[1]) return normalizeText(String(fromName[1] || ""));
+  return normalizeText(gamaLabelForModelName(String(option?.raw_name || option?.name || "")));
+}
+
+function pickDistinctGamaOptions(options: any[], maxItems = 3): any[] {
+  const list = Array.isArray(options) ? options : [];
+  const selected: any[] = [];
+  const seenIds = new Set<string>();
+  const seenGamas = new Set<string>();
+
+  for (const opt of list) {
+    const id = String(opt?.id || opt?.product_id || opt?.raw_name || opt?.name || "").trim();
+    if (!id || seenIds.has(id)) continue;
+    const gama = optionGamaLabel(opt);
+    if (!gama || seenGamas.has(gama)) continue;
+    selected.push(opt);
+    seenIds.add(id);
+    seenGamas.add(gama);
+    if (selected.length >= maxItems) return selected;
+  }
+
+  for (const opt of list) {
+    const id = String(opt?.id || opt?.product_id || opt?.raw_name || opt?.name || "").trim();
+    if (!id || seenIds.has(id)) continue;
+    selected.push(opt);
+    seenIds.add(id);
+    if (selected.length >= maxItems) return selected;
+  }
+
+  return selected;
+}
+
+function isAffirmativeShortIntent(text: string): boolean {
+  const t = normalizeText(String(text || "")).trim();
+  if (!t) return false;
+  if (/^(si|s[ií]|ok|dale|de\s+una|listo|hagamoslo|hagamoslo\s+asi|perfecto)$/.test(t)) return true;
+  return isQuoteProceedIntent(t);
+}
+
 function detectClientRecognitionChoice(text: string): "new" | "existing" | "" {
   const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
   if (/^1$/.test(t) || /cliente\s+nuevo|soy\s+nuevo/.test(t)) return "new";
@@ -7854,10 +7895,43 @@ export async function POST(req: Request) {
       }
 
       if (!String(strictReply || "").trim() && isPriceObjectionIntent(text)) {
-        const inSelectionStep = /^(strict_choose_model|strict_choose_family|strict_choose_action)$/i.test(String(awaiting || ""));
-        strictMemory.awaiting_action = inSelectionStep ? String(awaiting || "strict_choose_model") : "strict_need_spec";
+        strictMemory.awaiting_action = "price_objection_followup";
+        strictMemory.price_objection_context_category = String(rememberedCategory || previousMemory?.last_category_intent || "balanzas");
         strictReply = buildPriceObjectionReply();
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "price_objection_guidance" });
+      }
+
+      if (!String(strictReply || "").trim() && String(awaiting || "") === "price_objection_followup" && isAffirmativeShortIntent(text)) {
+        const contextCategory = String(previousMemory?.price_objection_context_category || rememberedCategory || previousMemory?.last_category_intent || "balanzas").trim();
+        const scopedRows = contextCategory ? scopeCatalogRows(ownerRows as any[], contextCategory) : ownerRows;
+        const pendingOptions = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+        const sourceOptions = pendingOptions.length
+          ? pendingOptions
+          : buildNumberedProductOptions(scopedRows as any[], 12);
+        const picked = pickDistinctGamaOptions(sourceOptions as any[], 3)
+          .slice(0, 3)
+          .map((o: any, idx: number) => ({ ...o, code: String(idx + 1), rank: idx + 1 }));
+
+        if (picked.length) {
+          strictMemory.pending_product_options = picked;
+          strictMemory.pending_family_options = [];
+          strictMemory.quote_bundle_options_current = picked;
+          strictMemory.quote_bundle_options = picked;
+          strictMemory.last_recommended_options = picked;
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictMemory.strict_model_offset = 0;
+          strictReply = [
+            "Perfecto 👌 Te comparto 3 opciones por gama para comparar costo-beneficio:",
+            ...picked.map((o: any) => `${o.code}) ${o.name}`),
+            "",
+            "Si quieres, te cotizo una o varias (máx. 3).",
+            "Escribe: cotizar opciones 1,2,3 (ejemplo).",
+          ].join("\n");
+        } else {
+          strictMemory.awaiting_action = "strict_need_spec";
+          strictReply = buildBalanzaQualificationPrompt();
+        }
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "price_objection_followup_options" });
       }
 
       const pipelineResponse = await pipelineGate();
