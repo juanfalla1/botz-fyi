@@ -10348,7 +10348,8 @@ export async function POST(req: Request) {
               ].join("\n")
             : "Ahora mismo no tengo familias activas para mostrarte en catálogo.";
         } else if (chooseCurrent) {
-          const pending = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+          const pending = (Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+            .map((o: any) => ({ ...o, name: dedupeOptionSpecSegments(String(o?.name || "")) }));
           const familyLabel = String(previousMemory?.strict_family_label || "").trim();
           strictMemory.awaiting_action = pending.length ? "strict_choose_model" : "strict_choose_family";
           strictMemory.pending_product_options = pending;
@@ -10367,7 +10368,8 @@ export async function POST(req: Request) {
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model") {
         const familyLabel = String(previousMemory?.strict_family_label || "").trim();
-        const pendingStrictOptions = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+        const pendingStrictOptions = (Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
+          .map((o: any) => ({ ...o, name: dedupeOptionSpecSegments(String(o?.name || "")) }));
         const strictSelection = resolvePendingProductOptionStrict(text, pendingStrictOptions);
         const strictCommand = String(text || "").trim();
         const askMore = /^(mas|más)$/i.test(strictCommand);
@@ -10576,7 +10578,7 @@ export async function POST(req: Request) {
                   const row = familyRowsSwitch.find((r: any) => String(r?.id || "") === String(o.id || ""));
                   const cap = Number(getRowCapacityG(row) || 0);
                   const read = Number(getRowReadabilityG(row) || 0);
-                  return `${o.code}) ${o.name} | Cap: ${formatSpecNumber(cap)} g | Res: ${formatSpecNumber(read)} g`;
+                  return dedupeOptionSpecSegments(`${o.code}) ${o.name} | Cap: ${formatSpecNumber(cap)} g | Res: ${formatSpecNumber(read)} g`);
                 }),
                 "",
                 "Responde con letra o número (A/1), o escribe 'más' para ver siguientes.",
@@ -10896,7 +10898,7 @@ export async function POST(req: Request) {
                   ...options.slice(0, 4).map((o) => {
                     const row = (rankedRows || []).find((r: any) => String(r?.id || "") === String(o.id || ""));
                     const cap = Number(getRowCapacityG(row) || 0);
-                    return `${o.code}) ${o.name} | Cap: ${formatSpecNumber(cap)} g`;
+                    return dedupeOptionSpecSegments(`${o.code}) ${o.name} | Cap: ${formatSpecNumber(cap)} g`);
                   }),
                   "",
                   "Elige con letra o número (A/1). Si quieres, luego afinamos por capacidad.",
