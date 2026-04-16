@@ -2503,6 +2503,32 @@ function buildCommercialEscalationMessage(): string {
   ].join("\n");
 }
 
+function equipmentChoiceLabel(choice: string): string {
+  const key = normalizeText(String(choice || ""));
+  if (key === "balanza") return "balanzas";
+  if (key === "bascula") return "basculas";
+  if (key === "pesas_patron") return "pesas patron";
+  if (key === "analizador_humedad") return "analizadores de humedad";
+  if (key === "agitador_orbital") return "agitadores orbitales";
+  if (key === "plancha_agitacion") return "planchas de calentamiento y agitacion";
+  if (key === "centrifuga") return "centrifugas";
+  if (key === "electroquimica") return "electroquimica";
+  if (key === "otros") return "otros equipos";
+  return "esa categoria";
+}
+
+function buildNoActiveCatalogEscalationMessage(topic?: string): string {
+  const label = String(topic || "").trim();
+  return [
+    label
+      ? `Ahora mismo no tengo referencias activas para ${label} en el catalogo automatico.`
+      : "Ahora mismo no tengo referencias activas para esa solicitud en el catalogo automatico.",
+    "Te conecto de inmediato con nuestra asesora Mariana para validar disponibilidad y precio actualizado:",
+    "Mariana: +57 318 3731171",
+    "https://wa.me/573183731171",
+  ].join("\n");
+}
+
 function looksLikeCommercialDataInput(text: string): boolean {
   const t = normalizeText(String(text || ""));
   if (!t) return false;
@@ -6574,9 +6600,8 @@ export async function POST(req: Request) {
         if (isOutOfCatalogDomainQuery(text)) {
           const available = listActiveCatalogCategories(ownerRows as any[]);
           const reply = [
-            "En base de datos no tengo ese tipo de producto en catalogo activo.",
+            buildNoActiveCatalogEscalationMessage("ese tipo de producto"),
             `Actualmente si manejo: ${available}.`,
-            buildCommercialEscalationMessage(),
           ].join("\n");
           strictMemory.awaiting_action = "conversation_followup";
           return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "out_of_catalog" });
@@ -6706,17 +6731,13 @@ export async function POST(req: Request) {
           if (app === "laboratorio" && !hasActiveLabEquipment && (asksLabCatalog || explicitLabEquipmentAsk)) {
             if (options.length) {
               const reply = [
-                "En base de datos no tengo equipos de laboratorio activos (ej. planchas/agitadores) en este momento.",
-                buildCommercialEscalationMessage(),
+                buildNoActiveCatalogEscalationMessage("equipos de laboratorio (ej. planchas/agitadores)"),
               ].join("\n");
               strictMemory.awaiting_action = "conversation_followup";
               return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
             }
             strictMemory.awaiting_action = "conversation_followup";
-            return finalizeStrictTurn([
-              "En base de datos no tengo equipos de laboratorio activos en este momento.",
-              buildCommercialEscalationMessage(),
-            ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
+            return finalizeStrictTurn(buildNoActiveCatalogEscalationMessage("equipos de laboratorio"), strictMemory, { pipeline: true, intent: pipelineIntent });
           }
           if (options.length) {
             strictMemory.pending_product_options = options;
@@ -7298,10 +7319,7 @@ export async function POST(req: Request) {
             return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "humidity_qualification_new_customer" });
           }
           strictMemory.awaiting_action = "conversation_followup";
-          strictReply = [
-            "En base de datos no tengo ese tipo de producto en catálogo activo para cotización automática.",
-            buildCommercialEscalationMessage(),
-          ].join("\n\n");
+          strictReply = buildNoActiveCatalogEscalationMessage(equipmentChoiceLabel(effectiveEquipment));
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "other_equipment_escalation_new_customer" });
         }
         strictMemory.awaiting_action = "commercial_choose_equipment";
@@ -7600,10 +7618,7 @@ export async function POST(req: Request) {
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "humidity_qualification" });
         }
         strictMemory.awaiting_action = "conversation_followup";
-        strictReply = [
-          "En base de datos no tengo ese tipo de producto en catálogo activo para cotización automática.",
-          buildCommercialEscalationMessage(),
-        ].join("\n\n");
+        strictReply = buildNoActiveCatalogEscalationMessage(equipmentChoiceLabel(effectiveEquipment));
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "other_equipment_escalation" });
       }
 
@@ -8831,8 +8846,7 @@ export async function POST(req: Request) {
               "Responde con letra o número (A/1).",
             ].join("\n")
             : [
-              `Entiendo el cambio. En base de datos no tengo referencias activas para ${String(categoryIntentInAction || "esa categoría").replace(/_/g, " ")} en este momento.`,
-              buildCommercialEscalationMessage(),
+              buildNoActiveCatalogEscalationMessage(String(categoryIntentInAction || "esa categoria").replace(/_/g, " ")),
             ].join("\n");
           if (!families.length) strictMemory.awaiting_action = "conversation_followup";
         } else if (awaiting === "strict_choose_action" && asksAnotherQuote && !anotherQuoteChoice && !followupIntent && !wantsSheet) {
@@ -10050,10 +10064,7 @@ export async function POST(req: Request) {
           strictMemory.strict_partial_readability_g = "";
           if (!families.length) {
             strictMemory.awaiting_action = "conversation_followup";
-            strictReply = [
-              `Entiendo el cambio. Ahora mismo no tengo referencias activas para ${String(requestedCategoryIntentInModelStep || "esa categoría").replace(/_/g, " ")}.`,
-              buildCommercialEscalationMessage(),
-            ].join("\n");
+            strictReply = buildNoActiveCatalogEscalationMessage(String(requestedCategoryIntentInModelStep || "esa categoria").replace(/_/g, " "));
           } else {
             strictMemory.awaiting_action = "strict_choose_family";
             strictReply = [
@@ -10069,10 +10080,7 @@ export async function POST(req: Request) {
         if (!String(strictReply || "").trim() && asksHotplate && !isCategorySwitchInModelStep) {
           const labRows = scopeCatalogRows(ownerRows as any, "equipos_laboratorio");
           if (!labRows.length) {
-            strictReply = [
-              "En base de datos no tengo planchas de calentamiento/agitación activas en este momento.",
-              buildCommercialEscalationMessage(),
-            ].join("\n");
+            strictReply = buildNoActiveCatalogEscalationMessage("planchas de calentamiento y agitacion");
             strictMemory.awaiting_action = "conversation_followup";
           }
         }
@@ -10696,8 +10704,7 @@ export async function POST(req: Request) {
               "Responde con letra o número (A/1).",
             ].join("\n")
             : [
-              `En base de datos no tengo referencias activas para ${String(categoryIntentInFamilyStep || "esa categoría").replace(/_/g, " ")} en este momento.`,
-              buildCommercialEscalationMessage(),
+              buildNoActiveCatalogEscalationMessage(String(categoryIntentInFamilyStep || "esa categoria").replace(/_/g, " ")),
             ].join("\n");
           if (!families.length) strictMemory.awaiting_action = "conversation_followup";
         }
@@ -11037,10 +11044,7 @@ export async function POST(req: Request) {
         const useCaseDrivenRequest = isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text) || /joyeria|joyería|oro/.test(normalizeText(text));
         if (!familyOptions.length) {
           strictMemory.awaiting_action = "conversation_followup";
-          strictReply = [
-            `Ahora mismo no tengo referencias activas para ${String((categoryIntent || "esa categoría").replace(/_/g, " "))}.`,
-            buildCommercialEscalationMessage(),
-          ].join("\n");
+          strictReply = buildNoActiveCatalogEscalationMessage(String((categoryIntent || "esa categoria").replace(/_/g, " ")));
         } else if (useCaseDrivenRequest) {
           const inferred = inferFamilyFromUseCase(text, familyOptions);
           if (inferred) {
@@ -13420,10 +13424,7 @@ export async function POST(req: Request) {
                   "Responde con letra o número (ej.: A o 1). Luego te pido cantidad.",
                 ].join("\n"))
           : (categoryRestrictedWithoutMatches
-              ? [
-                  `Ahora mismo no tengo referencias activas para cotizar en la categoría ${targetCategoryForQuote.replace(/_/g, " ")}.`,
-                  buildCommercialEscalationMessage(),
-                ].join("\n")
+              ? buildNoActiveCatalogEscalationMessage(`cotizar en la categoria ${targetCategoryForQuote.replace(/_/g, " ")}`)
               : "Claro. Para cotizar de una, dime modelo exacto y cantidad (ejemplo: Explorer 220, 2 unidades).");
         nextMemory.awaiting_action = categoryRestrictedWithoutMatches
           ? "conversation_followup"
