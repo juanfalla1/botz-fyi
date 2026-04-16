@@ -7822,9 +7822,18 @@ export async function POST(req: Request) {
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "other_equipment_escalation" });
       }
 
-      if (!String(strictReply || "").trim() && isCapacityResolutionHelpIntent(text) && awaiting === "strict_need_spec") {
-        strictMemory.awaiting_action = "strict_need_spec";
-        strictReply = buildCapacityResolutionExplanation();
+      if (!String(strictReply || "").trim() && isCapacityResolutionHelpIntent(text)) {
+        const pendingOpts = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+        const inSelectionStep = /^(strict_choose_model|strict_choose_family|strict_choose_action)$/i.test(String(awaiting || ""));
+        strictMemory.awaiting_action = inSelectionStep
+          ? String(awaiting || "strict_choose_model")
+          : "strict_need_spec";
+        strictReply = [
+          buildCapacityResolutionExplanation(),
+          ...(inSelectionStep && pendingOpts.length
+            ? ["", "Si quieres retomar el listado, elige una opción con número o letra (ej.: 1 o A)."]
+            : []),
+        ].join("\n");
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "capacity_resolution_help" });
       }
 
