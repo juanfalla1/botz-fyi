@@ -2422,6 +2422,18 @@ function normalizeNitParts(rawNit: string): { base: string; dv: string } {
   return { base: digits.slice(0, -1), dv: digits.slice(-1) };
 }
 
+function areEquivalentNitValues(aRaw: string, bRaw: string): boolean {
+  const a = String(aRaw || "").replace(/\D/g, "").trim();
+  const b = String(bRaw || "").replace(/\D/g, "").trim();
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const short = a.length <= b.length ? a : b;
+  const long = a.length > b.length ? a : b;
+  // Tolerar NIT con/sin dígito de verificación al final.
+  if (long.length === short.length + 1 && long.startsWith(short)) return true;
+  return false;
+}
+
 function isValidColombianNit(rawNit: string): boolean {
   const digitsOnly = String(rawNit || "").replace(/\D/g, "");
   if (/^\d{8,12}$/.test(digitsOnly)) return true;
@@ -7248,6 +7260,17 @@ export async function POST(req: Request) {
                 .order("updated_at", { ascending: false })
                 .limit(1);
               if (Array.isArray(byNitKey) && byNitKey[0]) matchedContact = byNitKey[0];
+
+              if (!matchedContact) {
+                const { data: byNitMeta } = await supabase
+                  .from("agent_crm_contacts")
+                  .select("id,name,email,phone,company,contact_key,metadata,updated_at")
+                  .eq("created_by", ownerId)
+                  .contains("metadata", { nit: retryLookupNit })
+                  .order("updated_at", { ascending: false })
+                  .limit(1);
+                if (Array.isArray(byNitMeta) && byNitMeta[0]) matchedContact = byNitMeta[0];
+              }
             }
             if (!matchedContact && retryLookupPhoneTail) {
               const { data: byPhoneKey } = await supabase
@@ -7476,6 +7499,17 @@ export async function POST(req: Request) {
                 .order("updated_at", { ascending: false })
                 .limit(1);
               if (Array.isArray(byNitKey) && byNitKey[0]) matchedContact = byNitKey[0];
+
+              if (!matchedContact) {
+                const { data: byNitMeta } = await supabase
+                  .from("agent_crm_contacts")
+                  .select("id,name,email,phone,company,contact_key,metadata,updated_at")
+                  .eq("created_by", ownerId)
+                  .contains("metadata", { nit: lookupNit })
+                  .order("updated_at", { ascending: false })
+                  .limit(1);
+                if (Array.isArray(byNitMeta) && byNitMeta[0]) matchedContact = byNitMeta[0];
+              }
             }
 
             if (!matchedContact && lookupPhoneTail) {
@@ -7508,8 +7542,8 @@ export async function POST(req: Request) {
               const cContactKeyDigits = cContactKey.replace(/\D/g, "").trim();
               const cContactKeyTail = phoneTail10(cContactKeyDigits);
               const phoneMatch = Boolean(lookupPhoneTail) && Boolean(cTail) && cTail === lookupPhoneTail;
-              const nitMatch = Boolean(lookupNit) && Boolean(cNit) && cNit === lookupNit;
-              const nitByContactKey = Boolean(lookupNit) && cContactKey.startsWith("nit:") && cContactKeyDigits === lookupNit;
+              const nitMatch = Boolean(lookupNit) && Boolean(cNit) && areEquivalentNitValues(cNit, lookupNit);
+              const nitByContactKey = Boolean(lookupNit) && cContactKey.startsWith("nit:") && areEquivalentNitValues(cContactKeyDigits, lookupNit);
               const phoneByContactKey = Boolean(lookupPhoneTail) && cContactKey.startsWith("cel:") && Boolean(cContactKeyTail) && cContactKeyTail === lookupPhoneTail;
               return phoneMatch || nitMatch || nitByContactKey || phoneByContactKey;
             }) || null;
