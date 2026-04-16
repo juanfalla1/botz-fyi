@@ -2529,6 +2529,15 @@ function buildNoActiveCatalogEscalationMessage(topic?: string): string {
   ].join("\n");
 }
 
+function detectUnavailableLabTopic(text: string): string {
+  const t = normalizeText(String(text || ""));
+  if (/(agitador|agitacion|agitacion\s+orbital)/.test(t)) return "agitadores orbitales";
+  if (/(plancha|planchas|calentamiento)/.test(t)) return "planchas de calentamiento y agitacion";
+  if (/(centrifug|centrifuga|centrifugas)/.test(t)) return "centrifugas";
+  if (/(electroquim|phmetro|conductivimetro|multiparametro|electrodos)/.test(t)) return "electroquimica";
+  return "equipos de laboratorio";
+}
+
 function looksLikeCommercialDataInput(text: string): boolean {
   const t = normalizeText(String(text || ""));
   if (!t) return false;
@@ -6729,15 +6738,16 @@ export async function POST(req: Request) {
           strictMemory.target_application = app;
           strictMemory.target_industry = app === "joyeria_oro" ? "joyeria" : app;
           if (app === "laboratorio" && !hasActiveLabEquipment && (asksLabCatalog || explicitLabEquipmentAsk)) {
+            const unavailableLabTopic = detectUnavailableLabTopic(text);
             if (options.length) {
               const reply = [
-                buildNoActiveCatalogEscalationMessage("equipos de laboratorio (ej. planchas/agitadores)"),
+                buildNoActiveCatalogEscalationMessage(unavailableLabTopic),
               ].join("\n");
               strictMemory.awaiting_action = "conversation_followup";
               return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
             }
             strictMemory.awaiting_action = "conversation_followup";
-            return finalizeStrictTurn(buildNoActiveCatalogEscalationMessage("equipos de laboratorio"), strictMemory, { pipeline: true, intent: pipelineIntent });
+            return finalizeStrictTurn(buildNoActiveCatalogEscalationMessage(unavailableLabTopic), strictMemory, { pipeline: true, intent: pipelineIntent });
           }
           if (options.length) {
             strictMemory.pending_product_options = options;
