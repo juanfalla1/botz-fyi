@@ -1626,7 +1626,19 @@ function isTechnicalSpecQuery(text: string): boolean {
 }
 
 function toGrams(valueRaw: string, unitRaw: string): number {
-  const n = Number(String(valueRaw || "").replace(/,/g, "."));
+  const raw = String(valueRaw || "").trim();
+  if (!raw) return 0;
+
+  let normalized = raw;
+  // Soporta miles en formato es/en para capacidades (ej: 4.200, 1,600, 12.000).
+  // Evita romper lecturas pequeñas (ej: 0.001, 0,001), que conservan decimal.
+  if (/^[1-9]\d{0,2}(?:[\.,]\d{3})+$/.test(normalized)) {
+    normalized = normalized.replace(/[\.,]/g, "");
+  } else {
+    normalized = normalized.replace(/,/g, ".");
+  }
+
+  const n = Number(normalized);
   if (!Number.isFinite(n) || n <= 0) return 0;
   const u = normalizeText(String(unitRaw || "g"));
   if (u === "mg") return n / 1000;
