@@ -177,9 +177,10 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const qPhone = normalizePhone(url.searchParams.get("phone"));
   const qEmail = String(url.searchParams.get("email") || "").trim().toLowerCase();
+  const qContactId = String(url.searchParams.get("contact_id") || "").trim();
 
-  if (!qPhone && !qEmail) {
-    return NextResponse.json({ ok: false, error: "Missing phone or email" }, { status: 400 });
+  if (!qPhone && !qEmail && !qContactId) {
+    return NextResponse.json({ ok: false, error: "Missing phone, email or contact_id" }, { status: 400 });
   }
 
   const ownerId = scope.ownerId;
@@ -192,7 +193,23 @@ export async function GET(req: Request) {
   if (agentsErr) return NextResponse.json({ ok: false, error: agentsErr.message }, { status: 400 });
   const agentIds = Array.isArray(ownerAgents) ? ownerAgents.map((a: any) => String(a.id)).filter(Boolean) : [];
 
-  const draftRowsLimit = qPhone ? 500 : 120;
+  let selectedContactRow: any = null;
+  if (qContactId) {
+    const { data: byId } = await supabase
+      .from("agent_crm_contacts")
+      .select("id,contact_key,name,email,phone,company,assigned_agent_id,status,next_action,next_action_at,metadata,updated_at")
+      .eq("created_by", ownerId)
+      .eq("id", qContactId)
+      .maybeSingle();
+    selectedContactRow = byId || null;
+  }
+
+  const effectivePhone = normalizePhone(String(qPhone || selectedContactRow?.phone || ""));
+  const effectiveEmail = String(qEmail || selectedContactRow?.email || "").trim().toLowerCase();
+  const selectedMeta = selectedContactRow?.metadata && typeof selectedContactRow.metadata === "object" ? selectedContactRow.metadata : {};
+  const selectedNit = String((selectedMeta as any)?.nit || "").replace(/\D/g, "").trim();
+
+  const draftRowsLimit = effectivePhone ? 500 : 220;
   let draftsQuery = supabase
     .from("agent_quote_drafts")
     .select("id,agent_id,customer_name,customer_email,customer_phone,company_name,product_name,total_cop,trm_rate,status,payload,created_at,updated_at")
@@ -200,8 +217,8 @@ export async function GET(req: Request) {
     .order("created_at", { ascending: false })
     .limit(draftRowsLimit);
 
-  if (!qPhone && qEmail) {
-    draftsQuery = draftsQuery.eq("customer_email", qEmail);
+  if (!effectivePhone && effectiveEmail) {
+    draftsQuery = draftsQuery.eq("customer_email", effectiveEmail);
   }
 
   const { data: rawDrafts, error: draftsErr } = await draftsQuery;
@@ -211,20 +228,24 @@ export async function GET(req: Request) {
     const phone = normalizePhone(d?.customer_phone);
     const payload = d?.payload && typeof d.payload === "object" ? d.payload : {};
     const payloadPhone = normalizePhone((payload as any)?.customer_phone || (payload as any)?.whatsapp_send?.to || "");
-    const queryPhones = expandPhoneCandidates(qPhone);
+    const payloadNit = String((payload as any)?.customer_nit || "").replace(/\D/g, "").trim();
+    const queryPhones = expandPhoneCandidates(effectivePhone);
     const draftPhones = new Set<string>([
       ...Array.from(expandPhoneCandidates(phone)),
       ...Array.from(expandPhoneCandidates(payloadPhone)),
     ]);
     const phoneMatch = Array.from(queryPhones).some((p) => draftPhones.has(p));
-    if (qPhone && qEmail) return phoneMatch || email === qEmail;
-    if (qPhone) return phoneMatch;
-    if (qEmail) return email === qEmail;
+    const emailMatch = Boolean(effectiveEmail) && email === effectiveEmail;
+    const nitMatch = Boolean(selectedNit) && Boolean(payloadNit) && payloadNit === selectedNit;
+    if (effectivePhone && effectiveEmail) return phoneMatch || emailMatch || nitMatch;
+    if (effectivePhone) return phoneMatch || nitMatch;
+    if (effectiveEmail) return emailMatch || nitMatch;
+    if (selectedNit) return nitMatch;
     return true;
   });
 
   let convRows: any[] = [];
-  if (agentIds.length && qPhone) {
+  if (agentIds.length && effectivePhone) {
     const { data: convData, error: convErr } = await supabase
       .from("agent_conversations")
       .select("id,agent_id,contact_phone,contact_name,channel,status,message_count,transcript,created_at")
@@ -233,8 +254,8 @@ export async function GET(req: Request) {
       .limit(1200);
     if (convErr) return NextResponse.json({ ok: false, error: convErr.message }, { status: 400 });
     const rows = Array.isArray(convData) ? convData : [];
-    const exact = normalizePhone(qPhone);
-    const t10 = tail10(qPhone);
+    const exact = normalizePhone(effectivePhone);
+    const t10 = tail10(effectivePhone);
     convRows = rows.filter((c: any) => {
       const cp = normalizePhone(c?.contact_phone);
       if (!cp) return false;
@@ -267,14 +288,16 @@ export async function GET(req: Request) {
 
   timeline.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
-  let contactRow: any = null;
-  try {
-    contactRow = await resolveOrCreateContact(supabase, ownerId, { phone: qPhone, email: qEmail });
-  } catch (e: any) {
-    if (!isMissingTableError(e, "agent_crm_contacts")) {
-      throw e;
+  let contactRow: any = selectedContactRow || null;
+  if (!contactRow && (effectivePhone || effectiveEmail)) {
+    try {
+      contactRow = await resolveOrCreateContact(supabase, ownerId, { phone: effectivePhone, email: effectiveEmail });
+    } catch (e: any) {
+      if (!isMissingTableError(e, "agent_crm_contacts")) {
+        throw e;
+      }
+      contactRow = null;
     }
-    contactRow = null;
   }
 
   const { data: notes } = contactRow?.id

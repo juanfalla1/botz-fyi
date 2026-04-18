@@ -75,6 +75,31 @@ function isArchivedCrmContact(row: any) {
   return Boolean((metadata as any)?.archived === true);
 }
 
+function draftIdentityKey(d: any) {
+  const payload = d?.payload && typeof d.payload === "object" ? d.payload : {};
+  const email = String(d?.customer_email || "").trim().toLowerCase();
+  const phone = phoneTail10(String(d?.customer_phone || (payload as any)?.customer_phone || (payload as any)?.whatsapp_send?.to || ""));
+  const nit = String((payload as any)?.customer_nit || "").replace(/\D/g, "").trim();
+  const company = normalizeText(String(d?.company_name || "")).trim();
+  const name = normalizeText(String(d?.customer_name || "")).trim();
+  return [email || "-", phone || "-", nit || "-", company || "-", name || "-"].join("|");
+}
+
+function isSeedDraft(d: any) {
+  const payload = d?.payload && typeof d.payload === "object" ? d.payload : {};
+  return Boolean((payload as any)?.lead_seed === true) || normalizeText(String(d?.product_name || "")).includes("prospecto whatsapp");
+}
+
+function filterSeedDuplicates(drafts: Draft[]) {
+  const rows = Array.isArray(drafts) ? drafts : [];
+  const hasRealByKey = new Set<string>();
+  for (const d of rows) {
+    if (isSeedDraft(d)) continue;
+    hasRealByKey.add(draftIdentityKey(d));
+  }
+  return rows.filter((d) => !(isSeedDraft(d) && hasRealByKey.has(draftIdentityKey(d))));
+}
+
 function cleanContactName(raw: string | null | undefined) {
   const name = String(raw || "").trim().replace(/\s+/g, " ");
   if (!name) return "";
@@ -254,9 +279,10 @@ export async function GET(req: Request) {
   }
 
   const safeDrafts: Draft[] = Array.isArray(drafts) ? (drafts as Draft[]) : [];
+  const visibleDrafts: Draft[] = filterSeedDuplicates(safeDrafts);
   const convRows = Array.isArray(conversations) ? conversations : [];
   const draftEmailByPhone = new Map<string, string>();
-  for (const d of safeDrafts) {
+  for (const d of visibleDrafts) {
     const t10 = phoneTail10(d?.customer_phone);
     const email = String(d?.customer_email || "").trim().toLowerCase();
     if (t10 && email) draftEmailByPhone.set(t10, email);
@@ -293,7 +319,7 @@ export async function GET(req: Request) {
     invoicing: [] as Draft[],
   };
 
-  for (const d of safeDrafts) {
+  for (const d of visibleDrafts) {
     const st = resolveDraftStage(d) as keyof typeof byStatus;
     const normalizedDraft = { ...d, status: st } as Draft;
     if (st in byStatus) {
@@ -415,7 +441,7 @@ export async function GET(req: Request) {
     channelSummaryMap.set(ch, Number(channelSummaryMap.get(ch) || 0) + 1);
   }
 
-  for (const d of safeDrafts) {
+  for (const d of visibleDrafts) {
     const phone = normalizePhone(d.customer_phone);
     const email = String(d.customer_email || "").trim().toLowerCase();
     const key = contactKeyOf(phone, email) || `draft:${d.id}`;
@@ -563,7 +589,7 @@ export async function GET(req: Request) {
   }
 
   const latestSentByKey = new Map<string, string>();
-  for (const d of safeDrafts) {
+  for (const d of visibleDrafts) {
     const st = normalizeCrmStage(d.status);
     if (!(st === "quote" || st === "purchase_order" || st === "invoicing")) continue;
     const key = contactKeyOf(d.customer_phone, d.customer_email);
@@ -652,20 +678,20 @@ export async function GET(req: Request) {
     contacts_bot: contacts.filter((c: any) => c.contact_segment === "bot").length,
     contacts_clients: contacts.filter((c: any) => c.contact_segment === "client" || c.contact_segment === "mixed").length,
     contacts_distributors: contacts.filter((c: any) => c.contact_segment === "distributor").length,
-    opportunities: safeDrafts.length,
+    opportunities: visibleDrafts.length,
     quotes_sent: byStatus.quote + byStatus.purchase_order + byStatus.invoicing,
     analysis: byStatus.analysis,
     study: byStatus.study,
     quote: byStatus.quote,
     purchase_order: byStatus.purchase_order,
     invoicing: byStatus.invoicing,
-    quotes_requested: safeDrafts.length,
+    quotes_requested: visibleDrafts.length,
     won: byStatus.purchase_order,
     lost: 0,
     contacts_with_quote_requests: contacts.filter((c: any) => Number(c.quote_requests_count || 0) > 0).length,
     contacts_with_tech_sheet_requests: contacts.filter((c: any) => Number(c.tech_sheet_requests_count || 0) > 0).length,
-    total_quotes_requested_cop: safeDrafts.reduce((acc, d) => acc + Number(d.total_cop || 0), 0),
-    total_pipeline_cop: safeDrafts.reduce((acc, d) => acc + Number(d.total_cop || 0), 0),
+    total_quotes_requested_cop: visibleDrafts.reduce((acc, d) => acc + Number(d.total_cop || 0), 0),
+    total_pipeline_cop: visibleDrafts.reduce((acc, d) => acc + Number(d.total_cop || 0), 0),
   };
 
   const funnel = [
@@ -683,7 +709,7 @@ export async function GET(req: Request) {
       summary,
       pipeline,
       contacts,
-      drafts: safeDrafts,
+      drafts: visibleDrafts,
       agents: Array.from(agentNameMap.entries()).map(([id, name]) => ({ id, name })),
       channel_summary: Array.from(channelSummaryMap.entries()).map(([channel, count]) => ({ channel, count })),
       by_agent: Array.from(byAgentMap.values()).sort((a, b) => b.pipeline_cop - a.pipeline_cop),

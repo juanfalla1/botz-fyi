@@ -663,6 +663,7 @@ export default function AgentsCrmPage() {
     if (docFileInputRef.current) docFileInputRef.current.value = "";
     try {
       const q = new URLSearchParams();
+      if ((c as any)?.contact_id) q.set("contact_id", String((c as any).contact_id));
       if (c.phone) q.set("phone", c.phone);
       if (c.email) q.set("email", c.email);
       const res = await authedFetch(`/api/agents/crm/contact?${q.toString()}`);
