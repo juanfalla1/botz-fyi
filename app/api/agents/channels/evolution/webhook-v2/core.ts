@@ -2883,6 +2883,22 @@ function extractDefinitionSubject(text: string): string {
 }
 
 function buildProductDefinitionReply(text: string): string {
+  const source = normalizeText(String(text || "")).replace(/\s+/g, " ").trim();
+  if (/(para\s+que\s+sirven?|que\s+uso\s+tienen|para\s+que\s+se\s+usan)/.test(source) && /(balanza|balanzas|bascula|basculas)/.test(source)) {
+    return [
+      "Buena pregunta 👌",
+      "Las balanzas/basculas sirven para medir peso con precision en procesos como:",
+      "1) Laboratorio y control de calidad",
+      "2) Produccion e inventario (industrial)",
+      "3) Joyeria/metales (alta precision)",
+      "",
+      "Para recomendarte la ideal, dime por favor:",
+      "- Que vas a pesar",
+      "- Rango de peso aproximado (min-max)",
+      "- Precision deseada (ej.: 1 g, 0.1 g, 0.01 g o 0.001 g)",
+    ].join("\n");
+  }
+
   const subject = extractDefinitionSubject(text);
   const s = normalizeText(subject).replace(/\s+/g, " ").trim();
 
