@@ -11062,6 +11062,15 @@ export async function POST(req: Request) {
           strictReply = buildScaleDifferenceGuidanceReply();
         }
         if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && guidedProfileInModelStep) {
+          if (isDifferenceQuestionIntent(text)) {
+            strictMemory.pending_product_options = [];
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = buildScaleDifferenceGuidanceReply();
+          }
+          if (String(strictReply || "").trim()) {
+            // keep comparison guidance priority over guided profile loops
+          } else {
           const rememberedGuided = String(previousMemory?.guided_balanza_profile || strictMemory.guided_balanza_profile || "").trim();
           const shouldRefreshGuidedList =
             rememberedGuided !== String(guidedProfileInModelStep) ||
@@ -11097,6 +11106,7 @@ export async function POST(req: Request) {
                         ? "industrial"
                         : "esta selección";
             strictReply = `Perfecto. Seguimos en el perfil ${profileLabel}. Elige una opción con número o letra (ej.: 1 o A), o escribe 'más'.`;
+          }
           }
         }
         if (!String(strictReply || "").trim() && asksGlobalCatalogInModelStep && hasScopedContextInModelStep) {
