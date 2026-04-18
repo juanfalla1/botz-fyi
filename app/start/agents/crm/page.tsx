@@ -163,6 +163,8 @@ export default function AgentsCrmPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteMode, setDeleteMode] = useState<"one" | "selected">("one");
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
+  const [opportunityDeleteModalOpen, setOpportunityDeleteModalOpen] = useState(false);
+  const [opportunityDeleteTarget, setOpportunityDeleteTarget] = useState<Draft | null>(null);
   const [opportunityNoteModalOpen, setOpportunityNoteModalOpen] = useState(false);
   const [opportunityNoteTarget, setOpportunityNoteTarget] = useState<Draft | null>(null);
   const [opportunityNoteDraft, setOpportunityNoteDraft] = useState("");
@@ -431,10 +433,20 @@ export default function AgentsCrmPage() {
     }
   };
 
-  const deleteOpportunity = async (d: Draft) => {
+  const openOpportunityDeleteModal = (d: Draft) => {
+    setOpportunityDeleteTarget(d);
+    setOpportunityDeleteModalOpen(true);
+  };
+
+  const closeOpportunityDeleteModal = () => {
+    if (updatingId && opportunityDeleteTarget?.id && updatingId === opportunityDeleteTarget.id) return;
+    setOpportunityDeleteModalOpen(false);
+    setOpportunityDeleteTarget(null);
+  };
+
+  const deleteOpportunity = async () => {
+    const d = opportunityDeleteTarget;
     if (!d?.id) return;
-    const confirmed = window.confirm(tr("¿Eliminar este negocio del pipeline?", "Delete this opportunity from pipeline?"));
-    if (!confirmed) return;
     setUpdatingId(d.id);
     setError(null);
     try {
@@ -442,6 +454,7 @@ export default function AgentsCrmPage() {
       const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo eliminar negocio");
       await fetchData();
+      closeOpportunityDeleteModal();
     } catch (e: any) {
       setError(String(e?.message || "Error eliminando negocio"));
     } finally {
@@ -1937,7 +1950,7 @@ export default function AgentsCrmPage() {
                           {tr("Bitácora", "Log")}
                         </button>
                         <button
-                          onClick={() => void deleteOpportunity(d)}
+                          onClick={() => openOpportunityDeleteModal(d)}
                           disabled={updatingId === d.id}
                           style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 7, background: "#2a1216", color: "#fca5a5", padding: "6px 8px", fontSize: 12, cursor: "pointer" }}
                         >
@@ -2644,6 +2657,62 @@ export default function AgentsCrmPage() {
                   {Boolean(updatingId && opportunityNoteTarget?.id && updatingId === opportunityNoteTarget.id)
                     ? tr("Guardando...", "Saving...")
                     : tr("Guardar observación", "Save observation")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {opportunityDeleteModalOpen && (
+          <div
+            onClick={closeOpportunityDeleteModal}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(2,6,23,0.74)",
+              zIndex: 3051,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 14,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "min(520px, 100%)",
+                borderRadius: 16,
+                border: `1px solid ${C.border}`,
+                background: "linear-gradient(180deg, rgba(30,37,50,0.98), rgba(18,24,34,0.98))",
+                boxShadow: "0 24px 60px rgba(0,0,0,0.50)",
+                padding: 16,
+              }}
+            >
+              <div style={{ fontWeight: 900, fontSize: 17, marginBottom: 8 }}>
+                {tr("Eliminar negocio", "Delete opportunity")}
+              </div>
+              <div style={{ color: C.muted, fontSize: 13, marginBottom: 10 }}>
+                {tr("Esta acción eliminará este negocio del pipeline. No se puede deshacer.", "This action will remove this opportunity from the pipeline. It cannot be undone.")}
+              </div>
+              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: "rgba(15,17,23,0.9)", padding: "8px 10px", color: C.white, fontSize: 12, marginBottom: 12 }}>
+                <b>{tr("Negocio", "Opportunity")}:</b> {String(opportunityDeleteTarget?.product_name || opportunityDeleteTarget?.id || "-")}
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button
+                  onClick={closeOpportunityDeleteModal}
+                  disabled={Boolean(updatingId && opportunityDeleteTarget?.id && updatingId === opportunityDeleteTarget.id)}
+                  style={{ border: `1px solid ${C.border}`, borderRadius: 9, background: C.dark, color: C.white, padding: "8px 12px", cursor: "pointer", fontWeight: 700 }}
+                >
+                  {tr("Cancelar", "Cancel")}
+                </button>
+                <button
+                  onClick={() => void deleteOpportunity()}
+                  disabled={Boolean(updatingId && opportunityDeleteTarget?.id && updatingId === opportunityDeleteTarget.id)}
+                  style={{ border: "none", borderRadius: 9, background: "#ef4444", color: "#fff", padding: "8px 12px", cursor: "pointer", fontWeight: 800 }}
+                >
+                  {Boolean(updatingId && opportunityDeleteTarget?.id && updatingId === opportunityDeleteTarget.id)
+                    ? tr("Eliminando...", "Deleting...")
+                    : tr("Confirmar eliminación", "Confirm delete")}
                 </button>
               </div>
             </div>
