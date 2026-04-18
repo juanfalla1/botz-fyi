@@ -2885,18 +2885,22 @@ function extractDefinitionSubject(text: string): string {
 function buildProductDefinitionReply(text: string): string {
   const source = normalizeText(String(text || "")).replace(/\s+/g, " ").trim();
   if (/(para\s+que\s+sirven?|que\s+uso\s+tienen|para\s+que\s+se\s+usan)/.test(source) && /(balanza|balanzas|bascula|basculas)/.test(source)) {
-    return [
+    return appendQuoteClosureCta([
       "Buena pregunta 👌",
-      "Las balanzas/basculas sirven para medir peso con precision en procesos como:",
-      "1) Laboratorio y control de calidad",
-      "2) Produccion e inventario (industrial)",
-      "3) Joyeria/metales (alta precision)",
+      "Una balanza sirve para medir masa/peso con precision y tomar decisiones correctas en compra, produccion y control de calidad.",
       "",
-      "Para recomendarte la ideal, dime por favor:",
-      "- Que vas a pesar",
-      "- Rango de peso aproximado (min-max)",
-      "- Precision deseada (ej.: 1 g, 0.1 g, 0.01 g o 0.001 g)",
-    ].join("\n");
+      "En la practica, te ayuda a:",
+      "1) Evitar errores de dosificacion o formulacion (laboratorio/farmacia/alimentos)",
+      "2) Controlar mermas y estandarizar procesos (industria y bodega)",
+      "3) Cumplir tolerancias y trazabilidad en auditorias",
+      "4) Comprar/vender por peso real con confianza (joyeria y metales)",
+      "",
+      "La clave para elegir bien es combinar:",
+      "- Capacidad: peso maximo que soporta",
+      "- Resolucion: nivel de detalle (decimales) que puede leer",
+      "",
+      "Si quieres, te recomiendo opciones exactas segun tu caso.",
+    ].join("\n"));
   }
 
   const subject = extractDefinitionSubject(text);
