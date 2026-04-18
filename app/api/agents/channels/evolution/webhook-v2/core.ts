@@ -3235,7 +3235,7 @@ function detectGuidedBalanzaProfile(text: string): GuidedBalanzaProfile | null {
   const hasThree = /(tres\s+cifras|0\s*[,.]\s*001|1\s*mg|cabina|con\s+cabina|cosmetic|cosmetico|cosmeticos|menos\s+de\s+200|menos\s+de\s+300|buena\s+resolucion)/.test(t);
   const hasFour = /(cuatro\s+cifras|0\s*[,.]\s*0001|0\s*[,.]\s*1\s*mg|0\s*[,.]\s*1\s*mg|laboratorio|laboratorio\s+de\s+alimentos|capacidad\s*200\s*g)/.test(t);
   const hasFive = /(cinco\s+cifras|0\s*[,.]\s*00001|0\s*[,.]\s*01\s*mg|semi\s*micro|semimicro|semi\w*micro|seminicro|usp|pesada\s+minima\s+usp|microgram|migrogram|\b\d+(?:[.,]\d+)?\s*mg\b)/.test(t);
-  const hasIndustrial = /(portatil|portátil|recargable|plato\s+grande|cuenta\s+piezas|tres\s+pantallas|tornillos|30\s*kg|15\s*kg|gramo\s+por\s+gramo|bulto|bultos)/.test(t);
+  const hasIndustrial = /(portatil|portátil|recargable|plato\s+grande|cuenta\s+piezas|tres\s+pantallas|tornillos|30\s*kg|15\s*kg|gramo\s+por\s+gramo|bulto|bultos|peso\s+fuerte|peso\s+pesado|carga\s+pesada|alto\s+peso|mucho\s+peso|pesos?\s+altos?)/.test(t);
   const hasExplicitReadability001 = /0\s*[,.]\s*001|1\s*mg/.test(t);
   const hasExplicitReadability0001 = /0\s*[,.]\s*0001|0\s*[,.]\s*1\s*mg/.test(t);
   const hasExplicitReadability00001 = /0\s*[,.]\s*00001|0\s*[,.]\s*01\s*mg/.test(t);
@@ -3263,6 +3263,12 @@ function detectIndustrialGuidedMode(text: string): "conteo" | "estandar" | "" {
   if (/(contar|conteo|cuenta\s*piez|piezas|tornillos|inventario)/.test(t)) return "conteo";
   if (/(estandar|estándar|sin\s+conteo|solo\s+peso|pesaje\s+normal)/.test(t)) return "estandar";
   return "";
+}
+
+function isHeavyDutyWeightIntent(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!t) return false;
+  return /(peso\s+fuerte|peso\s+pesado|carga\s+pesada|alto\s+peso|mucho\s+peso|pesos?\s+altos?|peso\s+industrial)/.test(t);
 }
 
 function guidedGroupsByMode(profile: GuidedBalanzaProfile, industrialMode: "conteo" | "estandar" | "" = ""): any[] {
@@ -9090,9 +9096,50 @@ export async function POST(req: Request) {
             }
           } else {
             const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
+            const recommendationAskNow = isRecommendationIntent(text) || /que\s+me\s+recomiendas?|que\s+recomiendas?/.test(textNorm);
+            const heavyDutyAskNow = isHeavyDutyWeightIntent(text);
+            if (!String(strictReply || "").trim() && (heavyDutyAskNow || recommendationAskNow)) {
+              const guidedProfileNow = heavyDutyAskNow ? ("balanza_industrial_portatil_conteo" as GuidedBalanzaProfile) : detectGuidedBalanzaProfile(text);
+              if (guidedProfileNow) {
+                const industrialMode = guidedProfileNow === "balanza_industrial_portatil_conteo"
+                  ? (detectIndustrialGuidedMode(text) || "estandar")
+                  : "";
+                const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileNow, industrialMode as any);
+                if (guidedOptions.length) {
+                  strictMemory.guided_balanza_profile = guidedProfileNow;
+                  strictMemory.guided_industrial_mode = industrialMode;
+                  strictMemory.last_category_intent = "balanzas";
+                  strictMemory.pending_product_options = guidedOptions;
+                  strictMemory.pending_family_options = [];
+                  strictMemory.awaiting_action = "strict_choose_model";
+                  strictMemory.strict_model_offset = 0;
+                  strictReply = buildGuidedBalanzaReplyWithMode(guidedProfileNow, industrialMode as any);
+                }
+              }
+              if (!String(strictReply || "").trim()) {
+                const scopedRows = heavyDutyAskNow
+                  ? scopeStrictBasculaRows(ownerRows as any[])
+                  : (currentCategory ? scopeCatalogRows(ownerRows as any[], currentCategory) : (ownerRows as any[]));
+                const options = buildNumberedProductOptions((scopedRows || []).slice(0, 8) as any[], 8);
+                if (options.length) {
+                  strictMemory.pending_product_options = options;
+                  strictMemory.pending_family_options = [];
+                  strictMemory.awaiting_action = "strict_choose_model";
+                  strictMemory.strict_model_offset = 0;
+                  strictReply = [
+                    heavyDutyAskNow
+                      ? "Perfecto. Para peso fuerte te recomiendo iniciar con estas opciones de línea industrial:"
+                      : "Perfecto. Te recomiendo estas opciones para que elijas la que mejor se ajusta a tu necesidad:",
+                    ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
+                    "",
+                    "Si quieres, elige con letra/número (A/1) y te envío ficha o cotización.",
+                  ].join("\n");
+                }
+              }
+            }
             if (currentCategory === "basculas") {
               const asksBasculaOptions = /(tienes?\s+basculas?|que\s+modelos\s+tienes?\s+de\s+basculas?|que\s+basculas?\s+tienes?|dame\s+(opciones|modelos)|muestrame\s+(opciones|modelos))/i.test(String(text || ""));
-              if (asksBasculaOptions) {
+              if (!String(strictReply || "").trim() && asksBasculaOptions) {
                 const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
                 const options = buildNumberedProductOptions(basculaRows as any[], 8);
                 if (options.length) {
@@ -9110,10 +9157,10 @@ export async function POST(req: Request) {
                   strictReply = "Ahora mismo no veo básculas activas en base de datos. Si quieres, dime capacidad y resolución y te confirmo alternativas de otras líneas.";
                   strictMemory.awaiting_action = "strict_need_spec";
                 }
-              } else {
+              } else if (!String(strictReply || "").trim()) {
                 strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
               }
-            } else {
+            } else if (!String(strictReply || "").trim()) {
               strictReply = buildBalanzaQualificationPrompt();
             }
             if (!String(strictMemory.awaiting_action || "").trim() || strictMemory.awaiting_action === "none") {
