@@ -836,7 +836,9 @@ async function buildStrictConversationalReply(args: {
 
   const systemPrompt = [
     "Eres Ava, asesora comercial por WhatsApp.",
-    "Responde SIEMPRE en español, tono natural y útil, en 2-4 líneas.",
+    "Responde SIEMPRE en español, tono natural, consultivo y útil.",
+    "No respondas plano: cuando el cliente haga preguntas de uso/definicion/comparacion, explica en lenguaje simple que es, para que sirve, por que importa y un ejemplo breve aplicado.",
+    "Formato recomendado: 3-6 lineas; primero explicas, luego guias a siguiente paso comercial.",
     "No inventes productos, precios ni disponibilidad fuera de catálogo activo.",
     outOfCatalog
       ? "Si el cliente pide algo fuera del catálogo, dilo directo en una línea y redirige a balanzas/analizador de humedad."
@@ -845,6 +847,7 @@ async function buildStrictConversationalReply(args: {
     args.categoryHint ? `Categoría activa: ${String(args.categoryHint || "").replace(/_/g, " ")}.` : "",
     optionsHint ? `Opciones activas: ${optionsHint}.` : "",
     "Si existe lista de opciones activa, sugiere que también puede elegir con letra/número o escribir 'más', pero sin bloquear la conversación.",
+    "Cierra siempre con una accion concreta para continuar (elegir modelo, cotizar o pedir ficha tecnica).",
   ]
     .filter(Boolean)
     .join("\n");
@@ -15407,7 +15410,9 @@ export async function POST(req: Request) {
         String(cfg?.company_desc || ""),
         String(cfg?.system_prompt || cfg?.important_instructions || ""),
         "Responde en espanol claro y profesional, con mensajes cortos de WhatsApp.",
-        "Regla de brevedad estricta: 2-4 lineas, maximo 1 pregunta por mensaje, sin formularios largos ni listas extensas salvo que el cliente pida un listado.",
+        "Regla de claridad y contexto: 3-7 lineas segun complejidad, maximo 2 preguntas por mensaje, evita respuestas planas.",
+        "Cuando el cliente pregunte para que sirve, diferencias, ventajas, uso o como elegir, responde en formato consultivo: (1) explicacion simple, (2) utilidad practica/impacto, (3) ejemplo breve aplicado, (4) cierre comercial para avanzar.",
+        "En cada respuesta comercial, cierra con una accion concreta: elegir modelo, pedir cotizacion, o solicitar ficha tecnica.",
         "Regla estricta de canal: toda entrega de informacion, fichas tecnicas, imagenes y cotizaciones debe ser por este mismo WhatsApp; no ofrecer envio por correo salvo que el cliente lo pida explicitamente.",
         "Regla estricta: solo puedes mencionar, recomendar o cotizar productos presentes en el catalogo cargado abajo. Si el usuario pide algo fuera de catalogo, dilo explicitamente y pide elegir un producto existente.",
         "Nunca afirmes vender carros/vehiculos; solo equipos de pesaje/laboratorio del catalogo.",
