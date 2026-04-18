@@ -46,6 +46,28 @@ function isMissingTableError(err: any, tableName: string) {
   ) && msg.includes(t);
 }
 
+function normalizeText(raw: string | null | undefined) {
+  return String(raw || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function extractQuotedProductHints(convRows: any[]) {
+  const hints = new Set<string>();
+  for (const c of Array.isArray(convRows) ? convRows : []) {
+    const transcript = Array.isArray(c?.transcript) ? c.transcript : [];
+    for (const m of transcript) {
+      if (String(m?.role || "") !== "assistant") continue;
+      const t = normalizeText(String(m?.content || ""));
+      const match = t.match(/cotizaci(?:o|ó)n\s+de\s+([a-z0-9\/-]{3,})/i);
+      const token = String(match?.[1] || "").trim();
+      if (token) hints.add(token);
+    }
+  }
+  return hints;
+}
+
 function isQuoteDraftStatusConstraintError(err: any) {
   const msg = String(err?.message || "").toLowerCase();
   return msg.includes("agent_quote_drafts_status_check") || (msg.includes("check constraint") && msg.includes("agent_quote_drafts"));
@@ -223,7 +245,7 @@ export async function GET(req: Request) {
 
   const { data: rawDrafts, error: draftsErr } = await draftsQuery;
   if (draftsErr) return NextResponse.json({ ok: false, error: draftsErr.message }, { status: 400 });
-  const drafts = (Array.isArray(rawDrafts) ? rawDrafts : []).filter((d: any) => {
+  let drafts = (Array.isArray(rawDrafts) ? rawDrafts : []).filter((d: any) => {
     const email = String(d?.customer_email || "").trim().toLowerCase();
     const phone = normalizePhone(d?.customer_phone);
     const payload = d?.payload && typeof d.payload === "object" ? d.payload : {};
@@ -262,6 +284,32 @@ export async function GET(req: Request) {
       if (cp === exact) return true;
       return tail10(cp) === t10;
     });
+  }
+
+  if ((!Array.isArray(drafts) || drafts.length === 0) && effectivePhone && convRows.length) {
+    const hints = extractQuotedProductHints(convRows);
+    if (hints.size > 0) {
+      const latestConvMs = Math.max(
+        ...convRows
+          .map((c: any) => new Date(String(c?.created_at || "")).getTime())
+          .filter((n: number) => Number.isFinite(n))
+      );
+      const { data: fallbackDraftRows } = await supabase
+        .from("agent_quote_drafts")
+        .select("id,agent_id,customer_name,customer_email,customer_phone,company_name,product_name,total_cop,trm_rate,status,payload,created_at,updated_at")
+        .eq("created_by", ownerId)
+        .order("created_at", { ascending: false })
+        .limit(400);
+      const fallback = (Array.isArray(fallbackDraftRows) ? fallbackDraftRows : []).filter((d: any) => {
+        const nameNorm = normalizeText(String(d?.product_name || ""));
+        const hintMatch = Array.from(hints).some((h) => nameNorm.includes(h));
+        if (!hintMatch) return false;
+        const at = new Date(String(d?.created_at || d?.updated_at || "")).getTime();
+        if (!Number.isFinite(at) || !Number.isFinite(latestConvMs)) return true;
+        return Math.abs(at - latestConvMs) <= 3 * 60 * 60 * 1000;
+      });
+      if (fallback.length) drafts = fallback.slice(0, 20);
+    }
   }
 
   const timeline: Array<{ at: string; kind: string; text: string }> = [];
