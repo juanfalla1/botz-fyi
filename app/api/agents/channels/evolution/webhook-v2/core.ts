@@ -10569,7 +10569,8 @@ export async function POST(req: Request) {
             const effectiveCity = normalizeCityLabel(customerCity || "Bogota");
             const effectiveCompany = customerCompany || "Persona natural";
             const effectiveNit = customerNit || "N/A";
-            const effectiveContact = customerContact || (knownCustomerName || inbound.pushName || "Cliente");
+            const effectiveContact = customerContact || String(strictMemory?.crm_contact_name || "").trim() || (knownCustomerName || inbound.pushName || "Cliente");
+            const effectivePhone = normalizePhone(customerPhone || String(strictMemory?.crm_contact_phone || "") || inbound.from || "");
             const cityKey = normalizeCityLabel(effectiveCity);
             const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
             const cityCop = Number(cityPrices?.[cityKey] || 0);
@@ -10601,7 +10602,7 @@ export async function POST(req: Request) {
               agent_id: String(agent.id),
               customer_name: effectiveContact || null,
               customer_email: customerEmail || null,
-              customer_phone: customerPhone || null,
+              customer_phone: effectivePhone || null,
               company_name: effectiveCompany || null,
               location: effectiveCity || null,
               product_catalog_id: (selected as any)?.id || null,
@@ -10618,6 +10619,7 @@ export async function POST(req: Request) {
                 customer_nit: effectiveNit || null,
                 customer_company: effectiveCompany || null,
                 customer_contact: effectiveContact || null,
+                customer_phone: effectivePhone || null,
                 unit_price_cop: unitPriceCop > 0 ? unitPriceCop : null,
               },
               status: "analysis",

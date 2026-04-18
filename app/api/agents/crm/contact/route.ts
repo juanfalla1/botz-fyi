@@ -194,8 +194,11 @@ export async function GET(req: Request) {
   const drafts = (Array.isArray(rawDrafts) ? rawDrafts : []).filter((d: any) => {
     const email = String(d?.customer_email || "").trim().toLowerCase();
     const phone = normalizePhone(d?.customer_phone);
-    if (qPhone && qEmail) return tail10(phone) === tail10(qPhone) || email === qEmail;
-    if (qPhone) return tail10(phone) === tail10(qPhone);
+    const payload = d?.payload && typeof d.payload === "object" ? d.payload : {};
+    const payloadPhone = normalizePhone((payload as any)?.customer_phone || (payload as any)?.whatsapp_send?.to || "");
+    const phoneMatch = tail10(phone) === tail10(qPhone) || tail10(payloadPhone) === tail10(qPhone);
+    if (qPhone && qEmail) return phoneMatch || email === qEmail;
+    if (qPhone) return phoneMatch;
     if (qEmail) return email === qEmail;
     return true;
   });
