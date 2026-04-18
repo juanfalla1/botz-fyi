@@ -2382,6 +2382,23 @@ function buildBalanzaQualificationPrompt(): string {
   return "¿Qué capacidad y resolución requiere la balanza y qué tipo de muestras va a pesar?";
 }
 
+function isDifferenceQuestionIntent(text: string): boolean {
+  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return false;
+  const asksDifference = /(diferenc|compar|cual\s+conviene|cual\s+es\s+mejor|ventajas?\s+de\s+una\s+y\s+otra|que\s+cambia\s+entre)/.test(t);
+  const mentionsScale = /(balanza|balanzas|bascula|basculas)/.test(t);
+  return asksDifference && mentionsScale;
+}
+
+function buildScaleDifferenceGuidanceReply(): string {
+  return [
+    "Claro, te explico rapido 👌",
+    "La diferencia principal entre balanzas/basculas esta en: capacidad (peso maximo), resolucion (nivel de precision), tipo de uso (laboratorio/joyeria/industrial) y tiempo de entrega.",
+    "Ejemplo: 0.01 g da mas precision que 0.1 g, pero normalmente con menor capacidad.",
+    "Si quieres, te comparo 3 modelos exactos para tu caso. Dime: que vas a pesar, rango de peso (min-max) y precision deseada.",
+  ].join("\n");
+}
+
 function buildCapacityResolutionExplanation(): string {
   return [
     "Capacidad:",
@@ -6629,7 +6646,9 @@ export async function POST(req: Request) {
           strictMemory.commercial_equipment_choice = chosenEquipment;
           if (chosenEquipment === "balanza") {
             strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = buildBalanzaQualificationPrompt();
+            strictReply = isDifferenceQuestionIntent(text)
+              ? buildScaleDifferenceGuidanceReply()
+              : buildBalanzaQualificationPrompt();
             return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_qualification_new_customer" });
           }
           if (chosenEquipment === "bascula") {
@@ -6686,7 +6705,9 @@ export async function POST(req: Request) {
         strictMemory.commercial_equipment_choice = chosenEquipment;
         if (chosenEquipment === "balanza") {
           strictMemory.awaiting_action = "strict_need_spec";
-          strictReply = buildBalanzaQualificationPrompt();
+          strictReply = isDifferenceQuestionIntent(text)
+            ? buildScaleDifferenceGuidanceReply()
+            : buildBalanzaQualificationPrompt();
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_qualification" });
         }
         if (chosenEquipment === "bascula") {
@@ -7520,7 +7541,9 @@ export async function POST(req: Request) {
             if (currentCategory === "basculas") {
               strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
             } else {
-              strictReply = buildBalanzaQualificationPrompt();
+              strictReply = isDifferenceQuestionIntent(text)
+                ? buildScaleDifferenceGuidanceReply()
+                : buildBalanzaQualificationPrompt();
             }
             strictMemory.awaiting_action = "strict_need_spec";
           }
