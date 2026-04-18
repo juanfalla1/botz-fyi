@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/app/api/_utils/auth";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
+import { resolveCrmOwnerScope } from "@/app/api/agents/crm/_scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +23,9 @@ export async function GET(req: Request) {
   const supabase = getServiceSupabase();
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
 
-  const ownerId = guard.user.id;
+  const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+  if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
+  const ownerId = scope.ownerId;
   const url = new URL(req.url);
   const contactId = String(url.searchParams.get("contact_id") || "").trim();
   const quoteDraftId = String(url.searchParams.get("quote_draft_id") || "").trim();
@@ -56,7 +59,9 @@ export async function POST(req: Request) {
   const supabase = getServiceSupabase();
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
 
-  const ownerId = guard.user.id;
+  const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+  if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
+  const ownerId = scope.ownerId;
   const body = await req.json().catch(() => ({}));
   const docType = String(body?.doc_type || "other").trim() || "other";
   const bucketName = String(body?.bucket_name || "").trim();

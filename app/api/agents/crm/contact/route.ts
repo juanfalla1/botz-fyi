@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/app/api/_utils/auth";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
+import { resolveCrmOwnerScope } from "@/app/api/agents/crm/_scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -155,6 +156,8 @@ export async function GET(req: Request) {
 
   const supabase = getServiceSupabase();
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+  const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+  if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
 
   const url = new URL(req.url);
   const qPhone = normalizePhone(url.searchParams.get("phone"));
@@ -164,7 +167,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "Missing phone or email" }, { status: 400 });
   }
 
-  const ownerId = guard.user.id;
+  const ownerId = scope.ownerId;
 
   const { data: ownerAgents, error: agentsErr } = await supabase
     .from("ai_agents")
@@ -279,9 +282,11 @@ export async function PATCH(req: Request) {
 
   const supabase = getServiceSupabase();
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+  const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+  if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
 
   const body = await req.json().catch(() => ({}));
-  const ownerId = guard.user.id;
+  const ownerId = scope.ownerId;
 
   const phone = normalizePhone(body?.phone);
   const email = String(body?.email || "").trim().toLowerCase();
@@ -392,9 +397,11 @@ export async function POST(req: Request) {
 
   const supabase = getServiceSupabase();
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+  const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+  if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
 
   const body = await req.json().catch(() => ({}));
-  const ownerId = guard.user.id;
+  const ownerId = scope.ownerId;
   const note = String(body?.note || "").trim();
   if (!note) return NextResponse.json({ ok: false, error: "Missing note" }, { status: 400 });
 
@@ -444,9 +451,11 @@ export async function DELETE(req: Request) {
 
   const supabase = getServiceSupabase();
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+  const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+  if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
 
   const body = await req.json().catch(() => ({}));
-  const ownerId = guard.user.id;
+  const ownerId = scope.ownerId;
   const phone = normalizePhone(body?.phone);
   const email = String(body?.email || "").trim().toLowerCase();
   const explicitKey = String(body?.contact_key || "").trim();

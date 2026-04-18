@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/app/api/_utils/auth";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
+import { resolveCrmOwnerScope } from "@/app/api/agents/crm/_scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,19 +62,6 @@ function isMissingTableError(err: any, tableName: string) {
     msg.includes("could not find the table") ||
     msg.includes("schema cache")
   ) && msg.includes(t);
-}
-
-async function isOwnerAuthorizedForCrm(supabase: any, userId: string) {
-  const { data, error } = await supabase
-    .from("agent_crm_access")
-    .select("enabled")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) {
-    if (isMissingTableError(error, "agent_crm_access")) return false;
-    throw new Error(error.message);
-  }
-  return Boolean((data as any)?.enabled);
 }
 
 function contactKeyOf(phoneRaw: string | null | undefined, emailRaw: string | null | undefined) {
@@ -173,7 +161,9 @@ export async function GET(req: Request) {
   const supabase = getServiceSupabase();
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
 
-  const ownerId = guard.user.id;
+  const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+  if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
+  const ownerId = scope.ownerId;
 
   const { data: ownerAgents, error: agentsErr } = await supabase
     .from("ai_agents")
@@ -197,8 +187,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: settingsErr.message }, { status: 400 });
   }
 
-  const ownerAuthorized = await isOwnerAuthorizedForCrm(supabase, ownerId);
-  const crmEnabled = ownerAuthorized && !(settingsErr && String(settingsErr.message || "").includes("does not exist")) && Boolean(settings?.enabled !== false);
+  const crmEnabled = !(settingsErr && String(settingsErr.message || "").includes("does not exist")) && Boolean(settings?.enabled !== false);
   if (!crmEnabled) {
     return NextResponse.json({
       ok: true,

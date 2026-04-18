@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/app/api/_utils/auth";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
+import { resolveCrmOwnerScope } from "@/app/api/agents/crm/_scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,6 +71,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   const supabase = getServiceSupabase();
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+  const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+  if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
+  const ownerId = scope.ownerId;
 
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ ok: false, error: "Missing id" }, { status: 400 });
@@ -85,7 +89,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     .from("agent_quote_drafts")
     .select("id,created_by,customer_name,customer_email,customer_phone,company_name,payload")
     .eq("id", id)
-    .eq("created_by", guard.user.id)
+    .eq("created_by", ownerId)
     .maybeSingle();
   if (draftErr) return NextResponse.json({ ok: false, error: draftErr.message }, { status: 400 });
   if (!draftRow) return NextResponse.json({ ok: false, error: "Opportunity not found" }, { status: 404 });
@@ -103,7 +107,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     .from("agent_quote_drafts")
     .update({ status: nextStatus, payload: payloadWithStage, updated_at: new Date().toISOString() })
     .eq("id", id)
-    .eq("created_by", guard.user.id)
+    .eq("created_by", ownerId)
     .select("id,status,updated_at")
     .single();
 
@@ -113,7 +117,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       .from("agent_quote_drafts")
       .update({ status: legacyStatus, payload: payloadWithStage, updated_at: new Date().toISOString() })
       .eq("id", id)
-      .eq("created_by", guard.user.id)
+      .eq("created_by", ownerId)
       .select("id,status,updated_at")
       .single();
     data = retry.data as any;
@@ -132,9 +136,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     const contactKey = phone || email;
     if (contactKey) {
       const { data: existing } = await supabase
-        .from("agent_crm_contacts")
-        .select("id")
-        .eq("created_by", guard.user.id)
+          .from("agent_crm_contacts")
+          .select("id")
+          .eq("created_by", ownerId)
         .or(phone ? `contact_key.eq.${contactKey},phone.like.%${phone}` : `contact_key.eq.${contactKey}`)
         .order("updated_at", { ascending: false })
         .limit(1)
@@ -145,13 +149,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
           .from("agent_crm_contacts")
           .update({ status: nextStatus })
           .eq("id", existing.id)
-          .eq("created_by", guard.user.id);
+          .eq("created_by", ownerId);
       } else {
         await supabase
           .from("agent_crm_contacts")
           .insert({
             tenant_id: null,
-            created_by: guard.user.id,
+            created_by: ownerId,
             contact_key: contactKey,
             name: (draftRow as any)?.customer_name || null,
             email: email || null,
@@ -176,6 +180,9 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
 
   const supabase = getServiceSupabase();
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+  const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+  if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
+  const ownerId = scope.ownerId;
 
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ ok: false, error: "Missing id" }, { status: 400 });
@@ -184,7 +191,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     .from("agent_quote_drafts")
     .delete()
     .eq("id", id)
-    .eq("created_by", guard.user.id);
+    .eq("created_by", ownerId);
 
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });

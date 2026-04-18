@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/app/api/_utils/auth";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
+import { resolveCrmOwnerScope } from "@/app/api/agents/crm/_scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -109,31 +110,18 @@ async function ensureSettings(supabase: any, ownerId: string) {
   return inserted;
 }
 
-async function isOwnerAuthorizedForCrm(supabase: any, userId: string) {
-  const { data, error } = await supabase
-    .from("agent_crm_access")
-    .select("enabled")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    if (isMissingTableError(error, "agent_crm_access")) return false;
-    throw new Error(error.message);
-  }
-
-  return Boolean((data as any)?.enabled);
-}
-
 export async function GET(req: Request) {
   const guard = await getRequestUser(req);
   if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
   const supabase = getServiceSupabase();
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+  const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+  if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
+  const ownerId = scope.ownerId;
 
   try {
-    const data = await ensureSettings(supabase, guard.user.id);
-    const authorized = await isOwnerAuthorizedForCrm(supabase, guard.user.id);
-    return NextResponse.json({ ok: true, data: { ...data, enabled: authorized }, authorized_by_owner: authorized });
+    const data = await ensureSettings(supabase, ownerId);
+    return NextResponse.json({ ok: true, data: { ...data, enabled: true }, authorized_by_owner: true });
   } catch (e: any) {
     const msg = String(e?.message || "");
     if (msg.includes("agent_crm_settings") && msg.includes("does not exist")) {
@@ -143,7 +131,7 @@ export async function GET(req: Request) {
         data: {
           id: null,
           tenant_id: null,
-          created_by: guard.user.id,
+          created_by: ownerId,
           enabled: false,
           stage_labels: DEFAULT_STAGE_LABELS,
           contact_fields: DEFAULT_CONTACT_FIELDS,
@@ -160,10 +148,13 @@ export async function PATCH(req: Request) {
   if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
   const supabase = getServiceSupabase();
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+  const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+  if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
+  const ownerId = scope.ownerId;
 
   try {
     const body = await req.json().catch(() => ({}));
-    const current = await ensureSettings(supabase, guard.user.id);
+    const current = await ensureSettings(supabase, ownerId);
 
     const patch: any = {};
     if (typeof body?.enabled === "boolean") {
@@ -180,7 +171,7 @@ export async function PATCH(req: Request) {
       .from("agent_crm_settings")
       .update(patch)
       .eq("id", current.id)
-      .eq("created_by", guard.user.id)
+      .eq("created_by", ownerId)
       .select("id,tenant_id,created_by,enabled,stage_labels,contact_fields,created_at,updated_at")
       .single();
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });

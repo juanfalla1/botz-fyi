@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/app/api/_utils/auth";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
+import { resolveCrmOwnerScope } from "@/app/api/agents/crm/_scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +29,9 @@ export async function POST(req: Request) {
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
 
   try {
-    const ownerId = guard.user.id;
+    const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+    if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
+    const ownerId = scope.ownerId;
     const body = await req.json().catch(() => ({}));
     const contactId = String(body?.contact_id || "").trim();
     const quoteDraftId = String(body?.quote_draft_id || "").trim() || null;
