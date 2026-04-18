@@ -33,7 +33,7 @@ function expandPhoneCandidates(raw: string | null | undefined) {
 function contactKeyOf(phoneRaw: string | null | undefined, emailRaw: string | null | undefined) {
   const phone = tail10(phoneRaw);
   const email = String(emailRaw || "").trim().toLowerCase();
-  return phone || email;
+  return email || phone;
 }
 
 function isMissingTableError(err: any, tableName: string) {
