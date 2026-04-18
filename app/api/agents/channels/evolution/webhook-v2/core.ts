@@ -3050,7 +3050,7 @@ async function upsertNewCommercialCustomerContact(
     email: string;
     phone: string;
   }
-) {
+): Promise<boolean> {
   const ownerId = String(args.ownerId || "").trim();
   const city = normalizeCityLabel(String(args.city || "").trim());
   const company = String(args.company || "").trim();
@@ -3059,7 +3059,7 @@ async function upsertNewCommercialCustomerContact(
   const email = String(args.email || "").trim().toLowerCase();
   const phone = normalizePhone(String(args.phone || "").trim());
   const tail = phoneTail10(phone);
-  if (!ownerId || !company || !nit || !contact || !email || !phone) return;
+  if (!ownerId || !company || !nit || !contact || !email || !phone) return false;
 
   const baseMeta = {
     nit,
@@ -3071,7 +3071,7 @@ async function upsertNewCommercialCustomerContact(
   };
 
   try {
-    let existing: any = null;
+    let existingByNit: any = null;
     const { data: byNit } = await supabase
       .from("agent_crm_contacts")
       .select("id,metadata")
@@ -3079,55 +3079,68 @@ async function upsertNewCommercialCustomerContact(
       .eq("contact_key", `nit:${nit}`)
       .order("updated_at", { ascending: false })
       .limit(1);
-    if (Array.isArray(byNit) && byNit[0]) existing = byNit[0];
+    if (Array.isArray(byNit) && byNit[0]) existingByNit = byNit[0];
 
-    if (!existing && tail) {
-      const { data: byPhone } = await supabase
+    const mergedMeta = {
+      ...(existingByNit?.metadata && typeof existingByNit.metadata === "object" ? existingByNit.metadata : {}),
+      ...baseMeta,
+    };
+
+    let persisted = false;
+    for (let attempt = 0; attempt < 2 && !persisted; attempt++) {
+      const { error: upsertErr } = await supabase
         .from("agent_crm_contacts")
-        .select("id,metadata")
+        .upsert(
+          {
+            tenant_id: args.tenantId || null,
+            created_by: ownerId,
+            name: contact,
+            email,
+            phone,
+            company,
+            contact_key: `nit:${nit}`,
+            status: "analysis",
+            metadata: mergedMeta,
+          },
+          { onConflict: "created_by,contact_key" }
+        );
+
+      if (upsertErr) {
+        console.error("[webhook-v2][crm-upsert-new-customer]", {
+          attempt,
+          ownerId,
+          nit,
+          phoneTail: tail,
+          error: String((upsertErr as any)?.message || upsertErr),
+        });
+        continue;
+      }
+
+      const { data: verifyRows, error: verifyErr } = await supabase
+        .from("agent_crm_contacts")
+        .select("id")
         .eq("created_by", ownerId)
-        .or(`phone.eq.${phone},phone.like.%${tail},contact_key.eq.cel:${phone},contact_key.eq.cel:${tail}`)
-        .order("updated_at", { ascending: false })
+        .eq("contact_key", `nit:${nit}`)
         .limit(1);
-      if (Array.isArray(byPhone) && byPhone[0]) existing = byPhone[0];
+      if (!verifyErr && Array.isArray(verifyRows) && verifyRows[0]?.id) persisted = true;
+      if (verifyErr) {
+        console.error("[webhook-v2][crm-upsert-new-customer-verify]", {
+          ownerId,
+          nit,
+          error: String((verifyErr as any)?.message || verifyErr),
+        });
+      }
     }
 
-    if (existing?.id) {
-      const mergedMeta = {
-        ...(existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
-        ...baseMeta,
-      };
-      await supabase
-        .from("agent_crm_contacts")
-        .update({
-          name: contact,
-          email,
-          phone,
-          company,
-          contact_key: `nit:${nit}`,
-          status: "analysis",
-          metadata: mergedMeta,
-        })
-        .eq("id", String(existing.id))
-        .eq("created_by", ownerId);
-      return;
-    }
-
-    await supabase
-      .from("agent_crm_contacts")
-      .insert({
-        tenant_id: args.tenantId || null,
-        created_by: ownerId,
-        name: contact,
-        email,
-        phone,
-        company,
-        contact_key: `nit:${nit}`,
-        status: "analysis",
-        metadata: baseMeta,
-      });
-  } catch {
-    // best effort
+    return persisted;
+  } catch (error) {
+    console.error("[webhook-v2][crm-upsert-new-customer-fatal]", {
+      ownerId,
+      nit,
+      phoneTail: tail,
+      error: String((error as any)?.message || error),
+    });
+    return false;
   }
 }
 
@@ -7706,7 +7719,7 @@ export async function POST(req: Request) {
             strictMemory.crm_contact_found = true;
           }
 
-          await upsertNewCommercialCustomerContact(supabase as any, {
+          const persistedNewCommercialContact = await upsertNewCommercialCustomerContact(supabase as any, {
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
             city,
@@ -7716,6 +7729,21 @@ export async function POST(req: Request) {
             email,
             phone,
           });
+          if (!persistedNewCommercialContact) {
+            strictMemory.commercial_validation_complete = false;
+            strictMemory.awaiting_action = "commercial_new_customer_data";
+            strictReply = [
+              "Recibi tus datos, pero no pude guardarlos en CRM en este intento.",
+              "Por favor reenvialos en un solo mensaje para completar el registro:",
+              "- Departamento/ciudad",
+              "- Empresa",
+              "- NIT (sin puntos, comas ni guiones)",
+              "- Nombre de contacto",
+              "- Correo",
+              "- Celular",
+            ].join("\n");
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "new_customer_data_persist_failed" });
+          }
         }
         const chosenEquipment = detectEquipmentChoice(text);
         const guidedProfileFromNeed = detectGuidedBalanzaProfile(text);
