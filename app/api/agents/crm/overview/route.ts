@@ -445,10 +445,12 @@ export async function GET(req: Request) {
     const phone = normalizePhone(d.customer_phone);
     const email = String(d.customer_email || "").trim().toLowerCase();
     const key = contactKeyOf(phone, email) || `draft:${d.id}`;
+    const draftPayload = d?.payload && typeof d.payload === "object" ? d.payload : {};
+    const draftContactName = cleanContactName(String((draftPayload as any)?.customer_contact || d.customer_name || ""));
 
     const prev = contactsMap.get(key) || {
       key,
-      name: d.customer_name || "",
+      name: draftContactName || "",
       email,
       phone: phoneTail10(phone),
       company: d.company_name || "",
@@ -472,7 +474,7 @@ export async function GET(req: Request) {
       contact_id: null,
     };
 
-    prev.name = prev.name || cleanContactName(d.customer_name) || "";
+    prev.name = prev.name || draftContactName || "";
     prev.email = prev.email || email;
     prev.phone = prev.phone || phoneTail10(phone);
     prev.company = prev.company || d.company_name || "";
@@ -572,7 +574,10 @@ export async function GET(req: Request) {
        contact_id: (cc as any)?.id || null,
      };
 
-    prev.name = cleanContactName((cc as any)?.name) || prev.name || "";
+    const crmName = cleanContactName((cc as any)?.name);
+    if (!String(prev.name || "").trim()) {
+      prev.name = crmName || prev.name || "";
+    }
     prev.email = String((cc as any)?.email || prev.email || "");
     prev.phone = phoneTail10((cc as any)?.phone || prev.phone || "");
     prev.company = String((cc as any)?.company || prev.company || "");

@@ -3510,6 +3510,16 @@ function isHeavyDutyWeightIntent(text: string): boolean {
   return /(peso\s+fuerte|peso\s+pesado|carga\s+pesada|cargas?\s+altas?|alto\s+peso|mucho\s+peso|peso\s+grande|pesos?\s+altos?|peso\s+industrial)/.test(t);
 }
 
+function isAmbiguousNeedInput(text: string): boolean {
+  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return true;
+  if (!/(balanza|balanzas|bascula|basculas)/.test(t)) return false;
+  if (/\bpara\s+pesar\s+or$/.test(t)) return true;
+  if (/\bpara\s+pesar$/.test(t)) return true;
+  if (/\bor$/.test(t) || /\bpara$/.test(t)) return true;
+  return false;
+}
+
 function guidedGroupsByMode(profile: GuidedBalanzaProfile, industrialMode: "conteo" | "estandar" | "" = ""): any[] {
   const groups = GUIDED_BALANZA_CATALOG[profile] || [];
   if (profile !== "balanza_industrial_portatil_conteo" || !industrialMode) return groups;
@@ -7305,6 +7315,14 @@ export async function POST(req: Request) {
               "Puedes escribir: modelo exacto (ej.: PX3202/E), categoría (balanzas, básculas o analizador de humedad), o capacidad y resolución (ej.: 2200 g x 0.01 g).",
             ].join("\n");
             return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "guided_need_discovery_invalid" });
+          }
+          if (isAmbiguousNeedInput(text)) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            const reply = [
+              "Entendido. No alcancé a comprender completamente tu necesidad.",
+              "Por favor escríbeme de nuevo indicando: qué vas a pesar, rango aproximado (mín-máx) y precisión deseada (ej. 0.01 g o 0.001 g).",
+            ].join("\n");
+            return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "guided_need_discovery_clarify" });
           }
           const productKind = /(bascula|basculas)/.test(textNorm) ? "báscula" : "balanza";
           const guidance = /(tornillo|tornillos|tuerca|tuercas|perno|pernos|repuesto|repuestos)/.test(textNorm)
