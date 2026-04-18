@@ -2563,6 +2563,96 @@ function isValidColombianNit(rawNit: string): boolean {
   return expected === Number(dv);
 }
 
+async function findCommercialContactByIdentifiers(args: {
+  supabase: any;
+  ownerId: string;
+  lookupNit?: string;
+  lookupPhone?: string;
+  lookupPhoneTail?: string;
+}): Promise<{ matchedContact: any | null; fallbackCandidatesCount: number }> {
+  const supabase = args.supabase;
+  const ownerId = String(args.ownerId || "").trim();
+  const lookupNit = String(args.lookupNit || "").replace(/\D/g, "").trim();
+  const lookupPhone = normalizePhone(String(args.lookupPhone || "").trim());
+  const lookupPhoneTail = phoneTail10(args.lookupPhoneTail || lookupPhone);
+  if (!supabase || !ownerId) return { matchedContact: null, fallbackCandidatesCount: 0 };
+
+  let matchedContact: any = null;
+  let fallbackCandidatesCount = 0;
+
+  try {
+    if (lookupNit) {
+      const { data: byNitKey } = await supabase
+        .from("agent_crm_contacts")
+        .select("id,name,email,phone,company,contact_key,metadata,updated_at")
+        .eq("created_by", ownerId)
+        .eq("contact_key", `nit:${lookupNit}`)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (Array.isArray(byNitKey) && byNitKey[0]) matchedContact = byNitKey[0];
+
+      if (!matchedContact) {
+        const { data: byNitPrefix } = await supabase
+          .from("agent_crm_contacts")
+          .select("id,name,email,phone,company,contact_key,metadata,updated_at")
+          .eq("created_by", ownerId)
+          .like("contact_key", `nit:${lookupNit}%`)
+          .order("updated_at", { ascending: false })
+          .limit(5);
+        if (Array.isArray(byNitPrefix) && byNitPrefix[0]) matchedContact = byNitPrefix[0];
+      }
+
+      if (!matchedContact) {
+        const { data: byNitMeta } = await supabase
+          .from("agent_crm_contacts")
+          .select("id,name,email,phone,company,contact_key,metadata,updated_at")
+          .eq("created_by", ownerId)
+          .contains("metadata", { nit: lookupNit })
+          .order("updated_at", { ascending: false })
+          .limit(5);
+        if (Array.isArray(byNitMeta) && byNitMeta[0]) matchedContact = byNitMeta[0];
+      }
+    }
+
+    if (!matchedContact && lookupPhoneTail) {
+      const { data: byPhoneKey } = await supabase
+        .from("agent_crm_contacts")
+        .select("id,name,email,phone,company,contact_key,metadata,updated_at")
+        .eq("created_by", ownerId)
+        .or(`contact_key.eq.cel:${lookupPhone},contact_key.eq.cel:${lookupPhoneTail},phone.eq.${lookupPhone},phone.like.%${lookupPhoneTail}`)
+        .order("updated_at", { ascending: false })
+        .limit(10);
+      if (Array.isArray(byPhoneKey) && byPhoneKey[0]) matchedContact = byPhoneKey[0];
+    }
+
+    if (!matchedContact && (lookupNit || lookupPhoneTail)) {
+      const { data: crmCandidates } = await supabase
+        .from("agent_crm_contacts")
+        .select("id,name,email,phone,company,contact_key,metadata,updated_at")
+        .eq("created_by", ownerId)
+        .order("updated_at", { ascending: false })
+        .limit(10000);
+      const candidates = Array.isArray(crmCandidates) ? crmCandidates : [];
+      fallbackCandidatesCount = candidates.length;
+      matchedContact = candidates.find((c: any) => {
+        const cPhone = normalizePhone(String(c?.phone || ""));
+        const cTail = phoneTail10(cPhone);
+        const cNit = String((c?.metadata && typeof c.metadata === "object" ? c.metadata.nit : "") || "").replace(/\D/g, "").trim();
+        const cContactKey = String(c?.contact_key || "").trim().toLowerCase();
+        const cContactKeyDigits = cContactKey.replace(/\D/g, "").trim();
+        const cContactKeyTail = phoneTail10(cContactKeyDigits);
+        const phoneMatch = Boolean(lookupPhoneTail) && Boolean(cTail) && cTail === lookupPhoneTail;
+        const nitMatch = Boolean(lookupNit) && Boolean(cNit) && areEquivalentNitValues(cNit, lookupNit);
+        const nitByContactKey = Boolean(lookupNit) && cContactKey.startsWith("nit:") && areEquivalentNitValues(cContactKeyDigits, lookupNit);
+        const phoneByContactKey = Boolean(lookupPhoneTail) && cContactKey.startsWith("cel:") && Boolean(cContactKeyTail) && cContactKeyTail === lookupPhoneTail;
+        return phoneMatch || nitMatch || nitByContactKey || phoneByContactKey;
+      }) || null;
+    }
+  } catch {}
+
+  return { matchedContact: matchedContact || null, fallbackCandidatesCount };
+}
+
 function isLikelyRutValue(rawRut: string): boolean {
   const cleaned = String(rawRut || "").replace(/\s+/g, "").replace(/\./g, "");
   if (!cleaned) return false;
@@ -7641,40 +7731,14 @@ export async function POST(req: Request) {
         const retryLookupPhone = normalizePhone(String(extractCustomerPhone(text, inbound.from) || "").trim());
         const retryLookupPhoneTail = phoneTail10(retryLookupPhone);
         if (String(awaiting || "") === "commercial_new_customer_data" && !hasRegistrationPayload && (retryLookupNit || retryLookupPhoneTail)) {
-          let matchedContact: any = null;
-          try {
-            if (retryLookupNit) {
-              const { data: byNitKey } = await supabase
-                .from("agent_crm_contacts")
-                .select("id,name,email,phone,company,contact_key,metadata,updated_at")
-                .eq("created_by", ownerId)
-                .eq("contact_key", `nit:${retryLookupNit}`)
-                .order("updated_at", { ascending: false })
-                .limit(1);
-              if (Array.isArray(byNitKey) && byNitKey[0]) matchedContact = byNitKey[0];
-
-              if (!matchedContact) {
-                const { data: byNitMeta } = await supabase
-                  .from("agent_crm_contacts")
-                  .select("id,name,email,phone,company,contact_key,metadata,updated_at")
-                  .eq("created_by", ownerId)
-                  .contains("metadata", { nit: retryLookupNit })
-                  .order("updated_at", { ascending: false })
-                  .limit(1);
-                if (Array.isArray(byNitMeta) && byNitMeta[0]) matchedContact = byNitMeta[0];
-              }
-            }
-            if (!matchedContact && retryLookupPhoneTail) {
-              const { data: byPhoneKey } = await supabase
-                .from("agent_crm_contacts")
-                .select("id,name,email,phone,company,contact_key,metadata,updated_at")
-                .eq("created_by", ownerId)
-                .or(`contact_key.eq.cel:${retryLookupPhone},contact_key.eq.cel:${retryLookupPhoneTail},phone.eq.${retryLookupPhone},phone.like.%${retryLookupPhoneTail}`)
-                .order("updated_at", { ascending: false })
-                .limit(5);
-              if (Array.isArray(byPhoneKey) && byPhoneKey[0]) matchedContact = byPhoneKey[0];
-            }
-          } catch {}
+          const retryLookup = await findCommercialContactByIdentifiers({
+            supabase,
+            ownerId,
+            lookupNit: retryLookupNit,
+            lookupPhone: retryLookupPhone,
+            lookupPhoneTail: retryLookupPhoneTail,
+          });
+          const matchedContact = retryLookup.matchedContact;
 
           if (matchedContact && typeof matchedContact === "object") {
             const matchedMeta = matchedContact?.metadata && typeof matchedContact.metadata === "object"
@@ -7894,68 +7958,15 @@ export async function POST(req: Request) {
             return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_lookup_missing_key" });
           }
 
-          let matchedContact: any = null;
-          let lookupCandidatesCount = 0;
-          try {
-            if (lookupNit) {
-              const { data: byNitKey } = await supabase
-                .from("agent_crm_contacts")
-                .select("id,name,email,phone,company,contact_key,metadata,updated_at")
-                .eq("created_by", ownerId)
-                .eq("contact_key", `nit:${lookupNit}`)
-                .order("updated_at", { ascending: false })
-                .limit(1);
-              if (Array.isArray(byNitKey) && byNitKey[0]) matchedContact = byNitKey[0];
-
-              if (!matchedContact) {
-                const { data: byNitMeta } = await supabase
-                  .from("agent_crm_contacts")
-                  .select("id,name,email,phone,company,contact_key,metadata,updated_at")
-                  .eq("created_by", ownerId)
-                  .contains("metadata", { nit: lookupNit })
-                  .order("updated_at", { ascending: false })
-                  .limit(1);
-                if (Array.isArray(byNitMeta) && byNitMeta[0]) matchedContact = byNitMeta[0];
-              }
-            }
-
-            if (!matchedContact && lookupPhoneTail) {
-              const { data: byPhoneKey } = await supabase
-                .from("agent_crm_contacts")
-                .select("id,name,email,phone,company,contact_key,metadata,updated_at")
-                .eq("created_by", ownerId)
-                .or(`contact_key.eq.cel:${lookupPhone},contact_key.eq.cel:${lookupPhoneTail},phone.eq.${lookupPhone},phone.like.%${lookupPhoneTail}`)
-                .order("updated_at", { ascending: false })
-                .limit(5);
-              if (Array.isArray(byPhoneKey) && byPhoneKey[0]) matchedContact = byPhoneKey[0];
-            }
-
-            if (matchedContact) {
-              // exact key/phone match resolved
-            } else {
-              const { data: crmCandidates } = await supabase
-                .from("agent_crm_contacts")
-                .select("id,name,email,phone,company,contact_key,metadata,updated_at")
-                .eq("created_by", ownerId)
-                .order("updated_at", { ascending: false })
-                .limit(2000);
-              const candidates = Array.isArray(crmCandidates) ? crmCandidates : [];
-              lookupCandidatesCount = candidates.length;
-            matchedContact = candidates.find((c: any) => {
-              const cPhone = normalizePhone(String(c?.phone || ""));
-              const cTail = phoneTail10(cPhone);
-              const cNit = String((c?.metadata && typeof c.metadata === "object" ? c.metadata.nit : "") || "").replace(/\D/g, "").trim();
-              const cContactKey = String(c?.contact_key || "").trim().toLowerCase();
-              const cContactKeyDigits = cContactKey.replace(/\D/g, "").trim();
-              const cContactKeyTail = phoneTail10(cContactKeyDigits);
-              const phoneMatch = Boolean(lookupPhoneTail) && Boolean(cTail) && cTail === lookupPhoneTail;
-              const nitMatch = Boolean(lookupNit) && Boolean(cNit) && areEquivalentNitValues(cNit, lookupNit);
-              const nitByContactKey = Boolean(lookupNit) && cContactKey.startsWith("nit:") && areEquivalentNitValues(cContactKeyDigits, lookupNit);
-              const phoneByContactKey = Boolean(lookupPhoneTail) && cContactKey.startsWith("cel:") && Boolean(cContactKeyTail) && cContactKeyTail === lookupPhoneTail;
-              return phoneMatch || nitMatch || nitByContactKey || phoneByContactKey;
-            }) || null;
-            }
-          } catch {}
+          const existingLookup = await findCommercialContactByIdentifiers({
+            supabase,
+            ownerId,
+            lookupNit,
+            lookupPhone,
+            lookupPhoneTail,
+          });
+          let matchedContact: any = existingLookup.matchedContact;
+          const lookupCandidatesCount = Number(existingLookup.fallbackCandidatesCount || 0);
 
           console.log("[existing-customer-lookup]", {
             ownerId,
