@@ -474,7 +474,11 @@ export async function GET(req: Request) {
       contact_id: null,
     };
 
-    prev.name = prev.name || draftContactName || "";
+    if (draftContactName) {
+      prev.name = draftContactName;
+    } else {
+      prev.name = prev.name || "";
+    }
     prev.email = prev.email || email;
     prev.phone = prev.phone || phoneTail10(phone);
     prev.company = prev.company || d.company_name || "";

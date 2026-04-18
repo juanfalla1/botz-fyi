@@ -11047,6 +11047,12 @@ export async function POST(req: Request) {
             strictReply = `Con base en catálogo activo y descripciones, no tengo referencias que coincidan con (${featureTermsInModelStep.join(", ")}). Si quieres, dime capacidad y resolución para buscar alternativas reales.`;
           }
         }
+        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && isDifferenceQuestionIntent(text)) {
+          strictMemory.pending_product_options = [];
+          strictMemory.pending_family_options = [];
+          strictMemory.awaiting_action = "strict_need_spec";
+          strictReply = buildScaleDifferenceGuidanceReply();
+        }
         if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && guidedProfileInModelStep) {
           const rememberedGuided = String(previousMemory?.guided_balanza_profile || strictMemory.guided_balanza_profile || "").trim();
           const shouldRefreshGuidedList =
