@@ -1693,7 +1693,7 @@ function detectAlternativeFollowupIntent(text: string): AlternativeFollowupInten
 function isAlternativeRejectionIntent(text: string): boolean {
   const t = normalizeText(String(text || ""));
   if (!t) return false;
-  return /(no\s+me\s+sirve|no\s+busco\s+eso|no\s+es\s+eso|no\s+me\s+funciona|no\s+me\s+conviene|que\s+mas\s+opciones|que\s+otras\s+opciones|que\s+otra\s+tienes|que\s+mas\s+tienes)/.test(t);
+  return /(no\s+me\s+sirve|no\s+me\s+sirven|no\s+busco\s+eso|no\s+es\s+eso|no\s+me\s+funciona|no\s+me\s+conviene|ninguna\s+de\s+estas?|ninguna\s+me\s+sirve|en\s+lo\s+que\s+estoy\s+buscando|no\s+es\s+lo\s+que\s+busco|que\s+mas\s+opciones|que\s+otras\s+opciones|que\s+otra\s+tienes|que\s+mas\s+tienes)/.test(t);
 }
 
 function isQuoteStarterIntent(text: string): boolean {
@@ -2790,6 +2790,16 @@ function buildEquipmentMenuPrompt(): string {
 
 function buildBalanzaQualificationPrompt(): string {
   return "¿Qué capacidad y resolución requiere la balanza y qué tipo de muestras va a pesar?";
+}
+
+function buildGuidedNeedReframePrompt(): string {
+  return [
+    "Perfecto, gracias por decirmelo.",
+    "Para recomendarte algo que si te sirva, cuentame por favor:",
+    "1) Que vas a pesar",
+    "2) Rango de peso aproximado (minimo y maximo)",
+    "3) Precision deseada (ej.: 0.01 g o 0.001 g)",
+  ].join("\n");
 }
 
 function quoteClosureCta(): string {
@@ -8112,6 +8122,15 @@ export async function POST(req: Request) {
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "other_equipment_escalation" });
       }
 
+      if (!String(strictReply || "").trim() && isAlternativeRejectionIntent(text)) {
+        const inSelectionStep = /^(strict_choose_model|strict_choose_family|strict_choose_action|price_objection_followup|strict_need_spec|strict_need_industry)$/i.test(String(awaiting || ""));
+        if (inSelectionStep) {
+          strictMemory.awaiting_action = "strict_need_spec";
+          strictReply = buildGuidedNeedReframePrompt();
+          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "alternative_reframe_guidance" });
+        }
+      }
+
       if (!String(strictReply || "").trim() && isCapacityResolutionHelpIntent(text)) {
         const pendingOpts = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
         const inSelectionStep = /^(strict_choose_model|strict_choose_family|strict_choose_action)$/i.test(String(awaiting || ""));
@@ -9298,13 +9317,7 @@ export async function POST(req: Request) {
           !categoryIntentInAction;
         if (needsGuidedReframeInAction) {
           strictMemory.awaiting_action = "strict_need_spec";
-          strictReply = [
-            "Entiendo, gracias por decirmelo.",
-            "Para recomendarte algo que si te sirva, cuentame por favor:",
-            "1) Que vas a pesar",
-            "2) Rango de peso aproximado (minimo y maximo)",
-            "3) Precision deseada (ej.: 0.01 g o 0.001 g)",
-          ].join("\n");
+          strictReply = buildGuidedNeedReframePrompt();
         }
 
         if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && (appHintInAction || (asksApplicationRecommendationsNow && String(previousMemory?.target_application || "").trim())) && !wantsQuote && !wantsSheet && !(technicalCapInAction > 0 || technicalReadInAction > 0)) {
