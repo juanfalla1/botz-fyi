@@ -428,6 +428,58 @@ export default function AgentsCrmPage() {
     }
   };
 
+  const deleteOpportunity = async (d: Draft) => {
+    if (!d?.id) return;
+    const confirmed = window.confirm(tr("¿Eliminar este negocio del pipeline?", "Delete this opportunity from pipeline?"));
+    if (!confirmed) return;
+    setUpdatingId(d.id);
+    setError(null);
+    try {
+      const res = await authedFetch(`/api/agents/crm/opportunities/${d.id}`, { method: "DELETE" });
+      const json = await readJsonSafe(res);
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo eliminar negocio");
+      await fetchData();
+    } catch (e: any) {
+      setError(String(e?.message || "Error eliminando negocio"));
+    } finally {
+      setUpdatingId("");
+    }
+  };
+
+  const addOpportunityObservation = async (d: Draft) => {
+    const note = window.prompt(tr("Escribe la observación para bitácora", "Write the observation note"), "");
+    const trimmed = String(note || "").trim();
+    if (!trimmed) return;
+    const phone = String(d?.customer_phone || "").trim();
+    const email = String(d?.customer_email || "").trim();
+    if (!phone && !email) {
+      setError(tr("Este negocio no tiene teléfono ni correo para guardar bitácora.", "This opportunity has no phone or email to save notes."));
+      return;
+    }
+    setUpdatingId(d.id);
+    setError(null);
+    try {
+      const res = await authedFetch("/api/agents/crm/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone,
+          email,
+          name: String(d?.customer_name || "").trim(),
+          company: String(d?.company_name || "").trim(),
+          note: trimmed,
+        }),
+      });
+      const json = await readJsonSafe(res);
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo guardar observación");
+      await fetchData();
+    } catch (e: any) {
+      setError(String(e?.message || "Error guardando observación"));
+    } finally {
+      setUpdatingId("");
+    }
+  };
+
   const stageLabel = (status: string) => {
     const key = normalizeStage(status);
     if (key === "analysis") return tr("Analisis de Necesidad", "Needs Analysis");
@@ -1858,6 +1910,22 @@ export default function AgentsCrmPage() {
                       >
                         {stageOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
+                      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                        <button
+                          onClick={() => void addOpportunityObservation(d)}
+                          disabled={updatingId === d.id}
+                          style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 7, background: C.dark, color: C.white, padding: "6px 8px", fontSize: 12, cursor: "pointer" }}
+                        >
+                          {tr("Bitácora", "Log")}
+                        </button>
+                        <button
+                          onClick={() => void deleteOpportunity(d)}
+                          disabled={updatingId === d.id}
+                          style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 7, background: "#2a1216", color: "#fca5a5", padding: "6px 8px", fontSize: 12, cursor: "pointer" }}
+                        >
+                          {tr("Eliminar", "Delete")}
+                        </button>
+                      </div>
                     </div>
                   ))}
                   {!loading && (((filteredPipeline as any)[col.key] || []).length === 0) && <div style={{ color: C.muted, fontSize: 12 }}>{tr("Sin registros", "No records")}</div>}

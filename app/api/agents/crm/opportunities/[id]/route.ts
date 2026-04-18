@@ -169,3 +169,23 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   return NextResponse.json({ ok: true, data });
 }
+
+export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const guard = await getRequestUser(req);
+  if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
+
+  const supabase = getServiceSupabase();
+  if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+
+  const { id } = await ctx.params;
+  if (!id) return NextResponse.json({ ok: false, error: "Missing id" }, { status: 400 });
+
+  const { error } = await supabase
+    .from("agent_quote_drafts")
+    .delete()
+    .eq("id", id)
+    .eq("created_by", guard.user.id);
+
+  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+  return NextResponse.json({ ok: true });
+}
