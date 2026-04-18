@@ -163,6 +163,9 @@ export default function AgentsCrmPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteMode, setDeleteMode] = useState<"one" | "selected">("one");
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
+  const [opportunityNoteModalOpen, setOpportunityNoteModalOpen] = useState(false);
+  const [opportunityNoteTarget, setOpportunityNoteTarget] = useState<Draft | null>(null);
+  const [opportunityNoteDraft, setOpportunityNoteDraft] = useState("");
   const [selectedContactKeys, setSelectedContactKeys] = useState<string[]>([]);
   const [integrationAccess, setIntegrationAccess] = useState<IntegrationAccessState | null>(null);
   const [integrationLoading, setIntegrationLoading] = useState(false);
@@ -446,9 +449,23 @@ export default function AgentsCrmPage() {
     }
   };
 
-  const addOpportunityObservation = async (d: Draft) => {
-    const note = window.prompt(tr("Escribe la observación para bitácora", "Write the observation note"), "");
-    const trimmed = String(note || "").trim();
+  const openOpportunityObservationModal = (d: Draft) => {
+    setOpportunityNoteTarget(d);
+    setOpportunityNoteDraft("");
+    setOpportunityNoteModalOpen(true);
+  };
+
+  const closeOpportunityObservationModal = () => {
+    if (updatingId && opportunityNoteTarget?.id && updatingId === opportunityNoteTarget.id) return;
+    setOpportunityNoteModalOpen(false);
+    setOpportunityNoteTarget(null);
+    setOpportunityNoteDraft("");
+  };
+
+  const addOpportunityObservation = async () => {
+    const d = opportunityNoteTarget;
+    if (!d?.id) return;
+    const trimmed = String(opportunityNoteDraft || "").trim();
     if (!trimmed) return;
     const phone = String(d?.customer_phone || "").trim();
     const email = String(d?.customer_email || "").trim();
@@ -473,6 +490,7 @@ export default function AgentsCrmPage() {
       const json = await readJsonSafe(res);
       if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo guardar observación");
       await fetchData();
+      closeOpportunityObservationModal();
     } catch (e: any) {
       setError(String(e?.message || "Error guardando observación"));
     } finally {
@@ -1912,7 +1930,7 @@ export default function AgentsCrmPage() {
                       </select>
                       <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
                         <button
-                          onClick={() => void addOpportunityObservation(d)}
+                          onClick={() => openOpportunityObservationModal(d)}
                           disabled={updatingId === d.id}
                           style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 7, background: C.dark, color: C.white, padding: "6px 8px", fontSize: 12, cursor: "pointer" }}
                         >
@@ -2556,6 +2574,76 @@ export default function AgentsCrmPage() {
                   style={{ border: "none", borderRadius: 9, background: "#ef4444", color: "#fff", padding: "8px 12px", cursor: "pointer", fontWeight: 800 }}
                 >
                   {updatingContactKey ? tr("Eliminando...", "Deleting...") : tr("Confirmar eliminación", "Confirm delete")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {opportunityNoteModalOpen && (
+          <div
+            onClick={closeOpportunityObservationModal}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(2,6,23,0.74)",
+              zIndex: 3050,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 14,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "min(620px, 100%)",
+                borderRadius: 16,
+                border: `1px solid ${C.border}`,
+                background: "linear-gradient(180deg, rgba(30,37,50,0.98), rgba(18,24,34,0.98))",
+                boxShadow: "0 24px 60px rgba(0,0,0,0.50)",
+                padding: 16,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontWeight: 900, fontSize: 17 }}>{tr("Agregar observación a bitácora", "Add logbook observation")}</div>
+                <button
+                  onClick={closeOpportunityObservationModal}
+                  disabled={Boolean(updatingId && opportunityNoteTarget?.id && updatingId === opportunityNoteTarget.id)}
+                  style={{ marginLeft: "auto", border: "none", background: "transparent", color: C.muted, fontSize: 18, cursor: "pointer" }}
+                >
+                  ×
+                </button>
+              </div>
+              <div style={{ color: C.muted, fontSize: 13, marginBottom: 10 }}>
+                {tr("Este comentario quedará guardado en el historial del contacto asociado a este negocio.", "This comment will be saved in the contact history linked to this opportunity.")}
+              </div>
+              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, background: "rgba(15,17,23,0.9)", padding: "8px 10px", color: C.white, fontSize: 12, marginBottom: 10 }}>
+                <b>{tr("Negocio", "Opportunity")}:</b> {String(opportunityNoteTarget?.product_name || opportunityNoteTarget?.id || "-")}
+              </div>
+              <textarea
+                value={opportunityNoteDraft}
+                onChange={(e) => setOpportunityNoteDraft(e.target.value)}
+                rows={5}
+                placeholder={tr("Escribe la observación para bitácora...", "Write the observation note...")}
+                style={{ width: "100%", resize: "vertical", borderRadius: 10, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white, padding: "10px 12px", fontSize: 13 }}
+              />
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+                <button
+                  onClick={closeOpportunityObservationModal}
+                  disabled={Boolean(updatingId && opportunityNoteTarget?.id && updatingId === opportunityNoteTarget.id)}
+                  style={{ border: `1px solid ${C.border}`, borderRadius: 9, background: C.dark, color: C.white, padding: "8px 12px", cursor: "pointer", fontWeight: 700 }}
+                >
+                  {tr("Cancelar", "Cancel")}
+                </button>
+                <button
+                  onClick={() => void addOpportunityObservation()}
+                  disabled={Boolean(updatingId && opportunityNoteTarget?.id && updatingId === opportunityNoteTarget.id) || !opportunityNoteDraft.trim()}
+                  style={{ border: "none", borderRadius: 9, background: C.lime, color: "#0b0e14", padding: "8px 12px", cursor: "pointer", fontWeight: 800 }}
+                >
+                  {Boolean(updatingId && opportunityNoteTarget?.id && updatingId === opportunityNoteTarget.id)
+                    ? tr("Guardando...", "Saving...")
+                    : tr("Guardar observación", "Save observation")}
                 </button>
               </div>
             </div>
