@@ -3285,6 +3285,106 @@ async function upsertNewCommercialCustomerContact(
   }
 }
 
+async function ensureAnalysisOpportunitySeed(
+  supabase: any,
+  args: {
+    ownerId: string;
+    tenantId?: string | null;
+    agentId?: string | null;
+    customerName?: string;
+    customerEmail?: string;
+    customerPhone?: string;
+    companyName?: string;
+    location?: string;
+    customerNit?: string;
+    customerType?: string;
+  }
+): Promise<void> {
+  const ownerId = String(args.ownerId || "").trim();
+  if (!ownerId) return;
+  const customerName = sanitizeCustomerDisplayName(String(args.customerName || "").trim());
+  const customerEmail = String(args.customerEmail || "").trim().toLowerCase();
+  const customerPhone = normalizePhone(String(args.customerPhone || "").trim());
+  const phoneTail = phoneTail10(customerPhone);
+  if (!customerEmail && !phoneTail) return;
+
+  try {
+    let exists = false;
+    let lookup = supabase
+      .from("agent_quote_drafts")
+      .select("id,payload,status,updated_at")
+      .eq("created_by", ownerId)
+      .order("updated_at", { ascending: false })
+      .limit(20);
+    if (customerEmail && phoneTail) {
+      lookup = lookup.or(`customer_email.eq.${customerEmail},customer_phone.like.%${phoneTail}`);
+    } else if (customerEmail) {
+      lookup = lookup.eq("customer_email", customerEmail);
+    } else {
+      lookup = lookup.like("customer_phone", `%${phoneTail}`);
+    }
+    const { data: recentRows } = await lookup;
+    if (Array.isArray(recentRows)) {
+      exists = recentRows.some((r: any) => {
+        const payload = r?.payload && typeof r.payload === "object" ? r.payload : {};
+        const isSeed = Boolean(payload?.lead_seed);
+        const st = normalizeText(String(r?.status || ""));
+        const isOpenStage = /^(analysis|study|quote|purchase_order|invoicing|draft|sent|won|lost)$/.test(st);
+        return isSeed || isOpenStage;
+      });
+    }
+    if (exists) return;
+
+    const draftPayload: any = {
+      tenant_id: args.tenantId || null,
+      created_by: ownerId,
+      agent_id: args.agentId || null,
+      customer_name: customerName || null,
+      customer_email: customerEmail || null,
+      customer_phone: customerPhone || null,
+      company_name: String(args.companyName || "").trim() || null,
+      location: normalizeCityLabel(String(args.location || "").trim()) || null,
+      product_name: "Prospecto WhatsApp",
+      notes: "Lead automático desde validación comercial (WhatsApp)",
+      payload: {
+        lead_seed: true,
+        lead_seed_source: "whatsapp_commercial_validation",
+        customer_nit: String(args.customerNit || "").replace(/\D/g, "").trim() || null,
+        customer_type: normalizeText(String(args.customerType || "").trim()) || null,
+        created_at_iso: new Date().toISOString(),
+      },
+      status: "analysis",
+    };
+
+    let { error: seedErr } = await supabase.from("agent_quote_drafts").insert(draftPayload);
+    if (seedErr && isQuoteDraftStatusConstraintError(seedErr)) {
+      draftPayload.status = "draft";
+      draftPayload.payload = {
+        ...(draftPayload.payload || {}),
+        crm_stage: "analysis",
+        crm_stage_updated_at: new Date().toISOString(),
+      };
+      const retry = await supabase.from("agent_quote_drafts").insert(draftPayload);
+      seedErr = retry.error as any;
+    }
+    if (seedErr) {
+      console.error("[webhook-v2][crm-seed-opportunity]", {
+        ownerId,
+        phoneTail,
+        email: customerEmail,
+        error: String((seedErr as any)?.message || seedErr),
+      });
+    }
+  } catch (error) {
+    console.error("[webhook-v2][crm-seed-opportunity-fatal]", {
+      ownerId,
+      phoneTail,
+      email: customerEmail,
+      error: String((error as any)?.message || error),
+    });
+  }
+}
+
 function getMissingNewCustomerFields(memory: any): string[] {
   const d = memory?.new_customer_data && typeof memory.new_customer_data === "object" ? memory.new_customer_data : {};
   const missing: string[] = [];
@@ -7873,6 +7973,19 @@ export async function POST(req: Request) {
             ].join("\n");
             return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "new_customer_data_persist_failed" });
           }
+
+          await ensureAnalysisOpportunitySeed(supabase as any, {
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            agentId: String(agent.id || "").trim() || null,
+            customerName: contact,
+            customerEmail: email,
+            customerPhone: phone,
+            companyName: company,
+            location: city,
+            customerNit: nit,
+            customerType: "new",
+          });
         }
         const chosenEquipment = detectEquipmentChoice(text);
         const guidedProfileFromNeed = detectGuidedBalanzaProfile(text);
@@ -8063,6 +8176,18 @@ export async function POST(req: Request) {
           strictMemory.commercial_validation_complete = true;
           recognizedReturningCustomer = true;
           strictMemory.customer_name = String(matched?.contact || strictMemory.crm_contact_name || strictMemory.customer_name || "").trim();
+          await ensureAnalysisOpportunitySeed(supabase as any, {
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            agentId: String(agent.id || "").trim() || null,
+            customerName: String(matched?.contact || strictMemory.crm_contact_name || "").trim(),
+            customerEmail: String(matched?.email || strictMemory.crm_contact_email || "").trim(),
+            customerPhone: String(matched?.phone || strictMemory.crm_contact_phone || "").trim(),
+            companyName: String(matched?.company || strictMemory.crm_company || "").trim(),
+            location: String(matched?.city || strictMemory.crm_billing_city || "").trim(),
+            customerNit: String(matched?.nit || strictMemory.crm_nit || "").trim(),
+            customerType: "existing",
+          });
           strictMemory.awaiting_action = "commercial_choose_equipment";
           strictReply = buildEquipmentMenuPrompt();
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_confirmed" });
@@ -8117,6 +8242,19 @@ export async function POST(req: Request) {
           strictMemory.commercial_customer_name = updated.name;
           strictMemory.commercial_validation_complete = true;
           recognizedReturningCustomer = true;
+
+          await ensureAnalysisOpportunitySeed(supabase as any, {
+            ownerId,
+            tenantId: (agent as any)?.tenant_id || null,
+            agentId: String(agent.id || "").trim() || null,
+            customerName: updated.name,
+            customerEmail: updated.email || String(strictMemory.crm_contact_email || "").trim(),
+            customerPhone: updated.phone || String(strictMemory.crm_contact_phone || "").trim(),
+            companyName: String(matched?.company || strictMemory.crm_company || "").trim(),
+            location: String(matched?.city || strictMemory.crm_billing_city || "").trim(),
+            customerNit: String(matched?.nit || strictMemory.crm_nit || "").trim(),
+            customerType: "existing",
+          });
 
           strictMemory.awaiting_action = "commercial_choose_equipment";
           strictReply = [
