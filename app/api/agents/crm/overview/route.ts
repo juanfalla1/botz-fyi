@@ -538,7 +538,9 @@ export async function GET(req: Request) {
     if (new Date(c?.created_at).getTime() > new Date(prev.last_activity_at).getTime()) {
       prev.last_activity_at = c?.created_at;
       prev.last_channel = String(c?.channel || "").toLowerCase();
-      prev.name = cleanContactName(c?.contact_name) || prev.name || "";
+      if (!String(prev.name || "").trim()) {
+        prev.name = cleanContactName(c?.contact_name) || prev.name || "";
+      }
     }
     contactsMap.set(key, prev);
   }

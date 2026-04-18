@@ -3516,8 +3516,26 @@ function isAmbiguousNeedInput(text: string): boolean {
   if (!/(balanza|balanzas|bascula|basculas)/.test(t)) return false;
   if (/\bpara\s+pesar\s+or$/.test(t)) return true;
   if (/\bpara\s+pesar$/.test(t)) return true;
+  if (/\bpara\s+pesar\s+[a-z]{1,2}$/.test(t)) return true;
   if (/\bor$/.test(t) || /\bpara$/.test(t)) return true;
   return false;
+}
+
+function isDifferenceQuestionIntent(text: string): boolean {
+  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return false;
+  const asksDifference = /(diferenc|compar|cual\s+conviene|cual\s+es\s+mejor|ventajas?\s+de\s+una\s+y\s+otra|que\s+cambia\s+entre)/.test(t);
+  const mentionsScale = /(balanza|balanzas|bascula|basculas)/.test(t);
+  return asksDifference && mentionsScale;
+}
+
+function buildScaleDifferenceGuidanceReply(): string {
+  return [
+    "Claro, te explico rapido 👌",
+    "La diferencia principal entre balanzas/basculas esta en: capacidad (peso maximo), resolucion (nivel de precision), tipo de uso (laboratorio/joyeria/industrial) y tiempo de entrega.",
+    "Ejemplo: 0.01 g da mas precision que 0.1 g, pero normalmente con menor capacidad.",
+    "Si quieres, te comparo 3 modelos exactos para tu caso. Dime: que vas a pesar, rango de peso (min-max) y precision deseada.",
+  ].join("\n");
 }
 
 function guidedGroupsByMode(profile: GuidedBalanzaProfile, industrialMode: "conteo" | "estandar" | "" = ""): any[] {
@@ -7307,6 +7325,11 @@ export async function POST(req: Request) {
           const app = detectTargetApplication(text) || "";
           const categoryIntentNow = detectCatalogCategoryIntent(text) || "";
           const strictReadabilityHint = Number(slotPack?.slots?.target_readability_g || 0);
+          if (isDifferenceQuestionIntent(text)) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = buildScaleDifferenceGuidanceReply();
+            return finalizeStrictTurn(strictReply, strictMemory, { pipeline: true, intent: "guided_need_discovery_difference" });
+          }
           const hasStrongNeedSignal = Boolean(app || categoryIntentNow || strictReadabilityHint > 0 || featureTerms.length > 0);
           if (!hasStrongNeedSignal) {
             strictMemory.awaiting_action = "strict_need_spec";
