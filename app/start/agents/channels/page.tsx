@@ -217,11 +217,11 @@ export default function AgentChannelsPage() {
     ? `${window.location.origin}/api/whatsapp/meta/callback`
     : "https://tu-dominio.com/api/whatsapp/meta/callback";
   const evolutionWebhookUrl = (() => {
-    if (typeof window === "undefined") return "https://tu-dominio.com/api/agents/channels/evolution/webhook";
+    if (typeof window === "undefined") return "https://tu-dominio.com/api/agents/channels/evolution/webhook-v2";
     const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
     const publicBase = String(process.env.NEXT_PUBLIC_APP_URL || "https://www.botz.fyi").replace(/\/$/, "");
     const base = isLocal ? publicBase : window.location.origin;
-    return `${base}/api/agents/channels/evolution/webhook`;
+    return `${base}/api/agents/channels/evolution/webhook-v2`;
   })();
 
   const genVerifyToken = () => {

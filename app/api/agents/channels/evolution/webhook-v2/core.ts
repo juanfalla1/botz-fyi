@@ -16240,7 +16240,7 @@ export async function POST(req: Request) {
     }
 
     await logUsageEvent(supabase as any, ownerId, billedTokens, {
-      endpoint: "/api/agents/channels/evolution/webhook",
+      endpoint: "/api/agents/channels/evolution/webhook-v2",
       action: autoQuoteDocs.length ? "whatsapp_evolution_quote_auto" : "whatsapp_evolution_turn",
       metadata: {
         agent_id: agent.id,

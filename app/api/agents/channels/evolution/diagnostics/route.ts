@@ -74,7 +74,7 @@ export async function GET(req: Request) {
           EVOLUTION_API_URL: Boolean(process.env.EVOLUTION_API_URL),
           EVOLUTION_API_KEY: Boolean(process.env.EVOLUTION_API_KEY),
         },
-        expected_webhook_url: `${origin}/api/agents/channels/evolution/webhook`,
+        expected_webhook_url: `${origin}/api/agents/channels/evolution/webhook-v2`,
         user_id: guard.user.id,
         channel: channel || null,
         agent,
