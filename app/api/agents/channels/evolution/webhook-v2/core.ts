@@ -3268,7 +3268,7 @@ function detectIndustrialGuidedMode(text: string): "conteo" | "estandar" | "" {
 function isHeavyDutyWeightIntent(text: string): boolean {
   const t = normalizeText(String(text || ""));
   if (!t) return false;
-  return /(peso\s+fuerte|peso\s+pesado|carga\s+pesada|alto\s+peso|mucho\s+peso|pesos?\s+altos?|peso\s+industrial)/.test(t);
+  return /(peso\s+fuerte|peso\s+pesado|carga\s+pesada|cargas?\s+altas?|alto\s+peso|mucho\s+peso|peso\s+grande|pesos?\s+altos?|peso\s+industrial)/.test(t);
 }
 
 function guidedGroupsByMode(profile: GuidedBalanzaProfile, industrialMode: "conteo" | "estandar" | "" = ""): any[] {
