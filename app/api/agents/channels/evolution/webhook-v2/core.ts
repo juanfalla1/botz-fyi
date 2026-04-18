@@ -8050,7 +8050,9 @@ export async function POST(req: Request) {
               return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_guided_new_customer" });
             }
             strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = buildBalanzaQualificationPrompt();
+            strictReply = isDifferenceQuestionIntent(text)
+              ? buildScaleDifferenceGuidanceReply()
+              : buildBalanzaQualificationPrompt();
             return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_qualification_new_customer" });
           }
           if (effectiveEquipment === "bascula") {
@@ -8332,7 +8334,9 @@ export async function POST(req: Request) {
             return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_guided_existing_customer" });
           }
           strictMemory.awaiting_action = "strict_need_spec";
-          strictReply = buildBalanzaQualificationPrompt();
+          strictReply = isDifferenceQuestionIntent(text)
+            ? buildScaleDifferenceGuidanceReply()
+            : buildBalanzaQualificationPrompt();
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_qualification" });
         }
         if (effectiveEquipment === "bascula") {
@@ -8474,7 +8478,9 @@ export async function POST(req: Request) {
           ].join("\n");
         } else {
           strictMemory.awaiting_action = "strict_need_spec";
-          strictReply = buildBalanzaQualificationPrompt();
+          strictReply = isDifferenceQuestionIntent(text)
+            ? buildScaleDifferenceGuidanceReply()
+            : buildBalanzaQualificationPrompt();
         }
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "price_objection_followup_options" });
       }
@@ -9461,7 +9467,9 @@ export async function POST(req: Request) {
                 strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
               }
             } else if (!String(strictReply || "").trim()) {
-              strictReply = buildBalanzaQualificationPrompt();
+              strictReply = isDifferenceQuestionIntent(text)
+                ? buildScaleDifferenceGuidanceReply()
+                : buildBalanzaQualificationPrompt();
             }
             if (!String(strictMemory.awaiting_action || "").trim() || strictMemory.awaiting_action === "none") {
               strictMemory.awaiting_action = "strict_need_spec";
