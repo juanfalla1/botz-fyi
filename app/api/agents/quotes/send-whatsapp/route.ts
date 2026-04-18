@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/app/api/_utils/auth";
-import { getAnonSupabaseWithToken } from "@/app/api/_utils/supabase";
+import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { evolutionService } from "../../../../../lib/services/evolution.service";
 import { buildQuotePdfFromDraft } from "../_utils/pdf";
+import { resolveCrmOwnerScope } from "@/app/api/agents/crm/_scope";
 
 export const runtime = "nodejs";
 
@@ -27,8 +28,11 @@ export async function POST(req: Request) {
   const guard = await getRequestUser(req);
   if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
 
-  const supabase = getAnonSupabaseWithToken(guard.token);
+  const supabase = getServiceSupabase();
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing Supabase env" }, { status: 500 });
+  const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+  if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
+  const ownerId = scope.ownerId;
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -44,7 +48,7 @@ export async function POST(req: Request) {
       .from("agent_quote_drafts")
       .select("*")
       .eq("id", draftId)
-      .eq("created_by", guard.user.id)
+      .eq("created_by", ownerId)
       .maybeSingle();
 
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
@@ -56,7 +60,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Telefono destino invalido para WhatsApp" }, { status: 400 });
     }
 
-    const instanceName = requestedInstance || userInstanceName(guard.user.id);
+    const instanceName = requestedInstance || userInstanceName(ownerId);
     const { pdfBase64, fileName } = await buildQuotePdfFromDraft(draftId, draft);
     const caption = `Cotizacion preliminar ${fileName}`;
     const sendResult = await evolutionService.sendDocument(instanceName, to, {
@@ -80,14 +84,14 @@ export async function POST(req: Request) {
       .from("agent_quote_drafts")
       .update({ status: "quote", payload: mergedPayload } as any)
       .eq("id", draftId)
-      .eq("created_by", guard.user.id);
+      .eq("created_by", ownerId);
 
     if (updateResult.error && isQuoteDraftStatusConstraintError(updateResult.error)) {
       const legacyResult = await supabase
         .from("agent_quote_drafts")
         .update({ status: "sent", payload: mergedPayload } as any)
         .eq("id", draftId)
-        .eq("created_by", guard.user.id);
+        .eq("created_by", ownerId);
       if (legacyResult.error) {
         return NextResponse.json({ ok: false, error: legacyResult.error.message }, { status: 400 });
       }

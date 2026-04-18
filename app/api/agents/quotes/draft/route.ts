@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/app/api/_utils/auth";
-import { getAnonSupabaseWithToken } from "@/app/api/_utils/supabase";
+import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { SYSTEM_TENANT_ID } from "@/app/api/_utils/system";
+import { resolveCrmOwnerScope } from "@/app/api/agents/crm/_scope";
 
 function todayKey() {
   const d = new Date();
@@ -65,13 +66,13 @@ async function fetchTrmFallback() {
   return { rate, source: "open.er-api.com", source_url: url };
 }
 
-async function getOrFetchTrm(supabase: any, userId: string) {
+async function getOrFetchTrm(supabase: any, ownerId: string) {
   const day = todayKey();
   const { data: cached } = await supabase
     .from("agent_fx_rates")
     .select("id,rate,rate_date,source")
     .eq("tenant_id", SYSTEM_TENANT_ID)
-    .eq("created_by", userId)
+    .eq("created_by", ownerId)
     .eq("from_currency", "USD")
     .eq("to_currency", "COP")
     .eq("rate_date", day)
@@ -88,7 +89,7 @@ async function getOrFetchTrm(supabase: any, userId: string) {
 
   const payload = {
     tenant_id: SYSTEM_TENANT_ID,
-    created_by: userId,
+    created_by: ownerId,
     rate_date: day,
     from_currency: "USD",
     to_currency: "COP",
@@ -111,8 +112,11 @@ export async function POST(req: Request) {
   const guard = await getRequestUser(req);
   if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
 
-  const supabase = getAnonSupabaseWithToken(guard.token);
+  const supabase = getServiceSupabase();
   if (!supabase) return NextResponse.json({ ok: false, error: "Missing Supabase env" }, { status: 500 });
+  const scope = await resolveCrmOwnerScope(supabase, guard.user.id);
+  if (!scope.ok) return NextResponse.json({ ok: false, error: scope.error || "CRM no habilitado" }, { status: scope.status || 403 });
+  const ownerId = scope.ownerId;
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -133,7 +137,7 @@ export async function POST(req: Request) {
         .select("id,name,brand,category,base_price_usd,price_currency")
         .eq("id", productCatalogId)
         .eq("tenant_id", SYSTEM_TENANT_ID)
-        .eq("created_by", guard.user.id)
+        .eq("created_by", ownerId)
         .maybeSingle();
       product = data || null;
     } else if (productQuery) {
@@ -141,7 +145,7 @@ export async function POST(req: Request) {
         .from("agent_product_catalog")
         .select("id,name,brand,category,base_price_usd,price_currency")
         .eq("tenant_id", SYSTEM_TENANT_ID)
-        .eq("created_by", guard.user.id)
+        .eq("created_by", ownerId)
         .eq("is_active", true)
         .or(`name.ilike.%${productQuery}%,summary.ilike.%${productQuery}%`)
         .order("updated_at", { ascending: false })
@@ -167,7 +171,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const trm = await getOrFetchTrm(supabase, guard.user.id);
+    const trm = await getOrFetchTrm(supabase, ownerId);
     const trmRate = Number(trm?.rate || 0);
     if (!trmRate || trmRate <= 0) {
       return NextResponse.json({ ok: false, error: "No se pudo obtener TRM" }, { status: 500 });
@@ -177,7 +181,7 @@ export async function POST(req: Request) {
 
     const draftPayload = {
       tenant_id: SYSTEM_TENANT_ID,
-      created_by: guard.user.id,
+      created_by: ownerId,
       agent_id: String(body?.agentId || "").trim() || null,
       customer_name: String(body?.customerName || "").trim() || null,
       customer_email: String(body?.customerEmail || "").trim().toLowerCase() || null,
