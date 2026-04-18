@@ -8100,6 +8100,11 @@ export async function POST(req: Request) {
         const currentAwaiting = String(awaiting || "").trim();
 
         if (/^(commercial_client_recognition|none)$/i.test(currentAwaiting)) {
+          if (isAffirmativeShortIntent(text)) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = buildGuidedNeedReframePrompt();
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_affirmative_without_lookup" });
+          }
           strictMemory.awaiting_action = "commercial_existing_lookup";
           strictReply = buildExistingClientLookupPrompt();
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_lookup_required" });
