@@ -8192,8 +8192,39 @@ export async function POST(req: Request) {
         strictMemory.awaiting_action = inSelectionStep
           ? String(awaiting || "strict_need_spec")
           : "strict_need_spec";
+        strictMemory.strict_followup_after_use_explanation = true;
         strictReply = buildScaleUseExplanationReply(categoryNow);
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "scale_use_explanation" });
+      }
+
+      if (
+        !String(strictReply || "").trim() &&
+        Boolean(previousMemory?.strict_followup_after_use_explanation) &&
+        isAffirmativeShortIntent(text)
+      ) {
+        const categoryNow = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || ""));
+        strictMemory.strict_followup_after_use_explanation = false;
+        if (categoryNow === "basculas") {
+          const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
+          const options = buildNumberedProductOptions(basculaRows as any[], 8);
+          if (options.length) {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_model_offset = 0;
+            strictMemory.last_category_intent = "basculas";
+            strictReply = [
+              `Perfecto. Para básculas, te recomiendo estas opciones activas para empezar:`,
+              ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+              "",
+              "Elige con letra/número (A/1) y te envío ficha o cotización.",
+            ].join("\n");
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "use_explanation_affirmative_basculas" });
+          }
+        }
+        strictMemory.awaiting_action = "strict_need_spec";
+        strictReply = buildGuidedNeedReframePrompt();
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "use_explanation_affirmative_guidance" });
       }
 
       if (!String(strictReply || "").trim() && isCapacityResolutionHelpIntent(text)) {
