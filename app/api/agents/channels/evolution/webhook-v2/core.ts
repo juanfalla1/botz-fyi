@@ -1690,6 +1690,12 @@ function detectAlternativeFollowupIntent(text: string): AlternativeFollowupInten
   return null;
 }
 
+function isAlternativeRejectionIntent(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!t) return false;
+  return /(no\s+me\s+sirve|no\s+busco\s+eso|no\s+es\s+eso|no\s+me\s+funciona|no\s+me\s+conviene|que\s+mas\s+opciones|que\s+otras\s+opciones|que\s+otra\s+tienes|que\s+mas\s+tienes)/.test(t);
+}
+
 function isQuoteStarterIntent(text: string): boolean {
   const t = normalizeText(text);
   const asksQuote = asksQuoteIntent(t);
@@ -2227,6 +2233,12 @@ function applyApplicationProfile(rows: any[], args: { application?: string; targ
 function isQuoteProceedIntent(text: string): boolean {
   const t = normalizeText(text);
   return /(damela|dámela|enviamela|enviamela|hazla|generala|genérala|cotizala|cotízala|adelante|si por favor|si, por favor|dale|de una)/.test(t);
+}
+
+function isQuoteResumeIntent(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!t) return false;
+  return /(retom|reanuda|continu|seguimos|sigamos|donde\s+ibamos|donde\s+quedamos)/.test(t) && /(cotiz|propuesta|precio|pdf|eso)/.test(t);
 }
 
 function isQuantityUpdateIntent(text: string): boolean {
@@ -9247,6 +9259,26 @@ export async function POST(req: Request) {
           categoryIntentInAction && normalizeText(String(categoryIntentInAction || "")) !== currentCategoryInAction
         );
 
+        const needsGuidedReframeInAction =
+          !String(strictReply || "").trim() &&
+          awaiting === "strict_choose_action" &&
+          !wantsQuote &&
+          !wantsSheet &&
+          !followupIntent &&
+          isAlternativeRejectionIntent(text) &&
+          !(technicalCapInAction > 0 || technicalReadInAction > 0) &&
+          !categoryIntentInAction;
+        if (needsGuidedReframeInAction) {
+          strictMemory.awaiting_action = "strict_need_spec";
+          strictReply = [
+            "Entiendo, gracias por decirmelo.",
+            "Para recomendarte algo que si te sirva, cuentame por favor:",
+            "1) Que vas a pesar",
+            "2) Rango de peso aproximado (minimo y maximo)",
+            "3) Precision deseada (ej.: 0.01 g o 0.001 g)",
+          ].join("\n");
+        }
+
         if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && (appHintInAction || (asksApplicationRecommendationsNow && String(previousMemory?.target_application || "").trim())) && !wantsQuote && !wantsSheet && !(technicalCapInAction > 0 || technicalReadInAction > 0)) {
           const effectiveApp = appHintInAction || String(previousMemory?.target_application || "").trim();
           strictMemory.target_application = effectiveApp;
@@ -9881,7 +9913,7 @@ export async function POST(req: Request) {
         const asksAnotherQuoteInQuoteData = isAnotherQuoteAmbiguousIntent(quoteTurnText);
         const normalizedQuoteData = normalizeText(String(quoteTurnText || "")).replace(/[^a-z0-9\s]/g, " ").trim();
         const isAdvanceInQuoteData = normalizedQuoteData === "avanza";
-        const wantsReuseBillingInQuoteData =
+        const explicitReuseBillingInQuoteData =
           /\bmismos?\s+datos\b/.test(normalizedQuoteData) ||
           /\busar\s+los?\s+mismos?\s+datos\b/.test(normalizedQuoteData) ||
           /\bmisma\s+informacion\b/.test(normalizedQuoteData);
@@ -9893,7 +9925,22 @@ export async function POST(req: Request) {
             ...((strictMemory?.quote_data && typeof strictMemory.quote_data === "object") ? strictMemory.quote_data : {}),
           },
         });
-        const quoteDataInputText = wantsReuseBillingInQuoteData && reusableBillingInQuoteData.complete
+        const canAutoResumeWithReusableBillingInQuoteData =
+          reusableBillingInQuoteData.complete &&
+          !isAdvanceInQuoteData &&
+          !looksLikeBillingData(quoteTurnText) &&
+          (
+            isAffirmativeShortIntent(quoteTurnText) ||
+            isQuoteProceedIntent(quoteTurnText) ||
+            isQuoteResumeIntent(quoteTurnText) ||
+            isContinueQuoteWithoutPersonalDataIntent(quoteTurnText) ||
+            asksQuoteIntent(quoteTurnText) ||
+            /^\s*1\b/.test(String(quoteTurnText || ""))
+          );
+        const shouldReuseBillingInQuoteData =
+          (explicitReuseBillingInQuoteData && reusableBillingInQuoteData.complete) ||
+          canAutoResumeWithReusableBillingInQuoteData;
+        const quoteDataInputText = shouldReuseBillingInQuoteData
           ? billingDataAsSingleMessage(reusableBillingInQuoteData)
           : quoteTurnText;
         const hasBillingDataInQuoteData = looksLikeBillingData(quoteDataInputText);
@@ -9911,7 +9958,7 @@ export async function POST(req: Request) {
           strictReply = asksAnotherQuoteInQuoteData
             ? buildAnotherQuotePrompt()
             : "Entendido. Para alternativas, dime si prefieres: otro modelo, más económico, mayor capacidad, menor capacidad u otra marca.";
-        } else if (wantsReuseBillingInQuoteData && !reusableBillingInQuoteData.complete) {
+        } else if (explicitReuseBillingInQuoteData && !reusableBillingInQuoteData.complete) {
           const missingReusable: string[] = [];
           if (!reusableBillingInQuoteData.city) missingReusable.push("ciudad");
           if (!reusableBillingInQuoteData.company) missingReusable.push("empresa");
@@ -9923,7 +9970,7 @@ export async function POST(req: Request) {
           strictReply = missingReusable.length
             ? `Puedo reutilizar los datos anteriores, pero me falta: ${missingReusable.join(", ")}. Envíamelo en un solo mensaje para continuar.`
             : "No encontré datos previos completos para reutilizar. Envíame ciudad, empresa, NIT, contacto, correo y celular en un solo mensaje.";
-        } else if (!isAdvanceInQuoteData && !hasBillingDataInQuoteData) {
+        } else if (!isAdvanceInQuoteData && !hasBillingDataInQuoteData && !shouldReuseBillingInQuoteData) {
           strictMemory.awaiting_action = "strict_quote_data";
           strictReply = "Para continuar esta cotización, envíame los datos de facturación en un solo mensaje (ciudad, empresa, NIT, contacto, correo, celular).";
         }
@@ -10053,7 +10100,7 @@ export async function POST(req: Request) {
           } catch {}
         }
 
-        const quoteData = wantsReuseBillingInQuoteData && reusableBillingInQuoteData.complete
+        const quoteData = shouldReuseBillingInQuoteData
           ? {
               city: reusableBillingInQuoteData.city,
               company: reusableBillingInQuoteData.company,
@@ -14385,6 +14432,7 @@ export async function POST(req: Request) {
     const rememberedSelectedProductId = String(nextMemory.last_selected_product_id || previousMemory?.last_selected_product_id || "").trim();
     const quoteProceedFromMemory =
       (isQuoteProceedIntent(inbound.text) ||
+        (isQuoteResumeIntent(inbound.text) && quoteContextActive) ||
         isQuantityUpdateIntent(inbound.text) ||
         (hasBareQuantity(inbound.text) && quoteContextActive) ||
         asksQuoteWithNumber ||
