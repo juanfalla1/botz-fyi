@@ -8093,6 +8093,7 @@ export async function POST(req: Request) {
 
       const shouldHandleExistingCommercialStep =
         clientType === "existing" &&
+        !isDifferenceQuestionIntent(text) &&
         /^(commercial_client_recognition|commercial_existing_lookup|commercial_existing_confirm|commercial_existing_contact_update|commercial_choose_equipment|none)$/i.test(awaiting);
       if (!String(strictReply || "").trim() && shouldHandleExistingCommercialStep && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
         strictMemory.commercial_client_type = "existing";
