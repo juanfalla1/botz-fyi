@@ -15,6 +15,21 @@ function tail10(raw: string | null | undefined) {
   return n.length > 10 ? n.slice(-10) : n;
 }
 
+function expandPhoneCandidates(raw: string | null | undefined) {
+  const n = normalizePhone(raw);
+  const out = new Set<string>();
+  if (!n) return out;
+  out.add(n);
+  out.add(tail10(n));
+  if (n.length >= 8) out.add(n.slice(-8));
+  if (n.length > 10 && n.startsWith("57")) {
+    const local = n.slice(-10);
+    out.add(local);
+    if (local.length >= 8) out.add(local.slice(-8));
+  }
+  return out;
+}
+
 function contactKeyOf(phoneRaw: string | null | undefined, emailRaw: string | null | undefined) {
   const phone = tail10(phoneRaw);
   const email = String(emailRaw || "").trim().toLowerCase();
@@ -196,7 +211,12 @@ export async function GET(req: Request) {
     const phone = normalizePhone(d?.customer_phone);
     const payload = d?.payload && typeof d.payload === "object" ? d.payload : {};
     const payloadPhone = normalizePhone((payload as any)?.customer_phone || (payload as any)?.whatsapp_send?.to || "");
-    const phoneMatch = tail10(phone) === tail10(qPhone) || tail10(payloadPhone) === tail10(qPhone);
+    const queryPhones = expandPhoneCandidates(qPhone);
+    const draftPhones = new Set<string>([
+      ...Array.from(expandPhoneCandidates(phone)),
+      ...Array.from(expandPhoneCandidates(payloadPhone)),
+    ]);
+    const phoneMatch = Array.from(queryPhones).some((p) => draftPhones.has(p));
     if (qPhone && qEmail) return phoneMatch || email === qEmail;
     if (qPhone) return phoneMatch;
     if (qEmail) return email === qEmail;
