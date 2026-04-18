@@ -10357,6 +10357,17 @@ export async function POST(req: Request) {
           customerSegment === "existing" && crmContactFoundForQuote
             ? (hasBusinessCore && hasReachability)
             : hasBusinessOrReachability;
+        const quoteTurnNorm = normalizeText(String(quoteTurnText || ""));
+        const quoteActionOnlyInput =
+          /^\s*1\s*$/.test(String(quoteTurnText || "")) ||
+          isAffirmativeShortIntent(quoteTurnText) ||
+          isQuoteProceedIntent(quoteTurnText) ||
+          isQuoteResumeIntent(quoteTurnText) ||
+          isContinueQuoteWithoutPersonalDataIntent(quoteTurnText);
+        const hasFreshBillingPayloadInMessage =
+          looksLikeBillingData(String(quoteTurnText || "")) ||
+          /\b(ciudad|empresa|nit|contacto|correo|celular|telefono|teléfono)\b/.test(quoteTurnNorm) ||
+          /@/.test(String(quoteTurnText || ""));
         const missingAttemptsPrev = Number(previousMemory?.strict_quote_data_missing_attempts || strictMemory.strict_quote_data_missing_attempts || 0);
 
         if (!crmContactFoundForQuote && isAdvanceInQuoteData) {
@@ -10371,7 +10382,11 @@ export async function POST(req: Request) {
           } else {
             strictReply = "Para cliente nuevo sí necesito datos de facturación antes de cotizar: ciudad, empresa, NIT, contacto, correo y celular.";
           }
-        } else if (!isAdvanceInQuoteData && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachabilityForKnownExisting)) {
+        } else if (!isAdvanceInQuoteData && quoteActionOnlyInput && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachabilityForKnownExisting) && !hasFreshBillingPayloadInMessage) {
+          strictMemory.strict_quote_data_missing_attempts = missingAttemptsPrev + 1;
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = "Para continuar esta cotización, envíame los datos de facturación en un solo mensaje (ciudad, empresa, NIT, contacto, correo, celular).";
+        } else if (!isAdvanceInQuoteData && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachabilityForKnownExisting) && hasFreshBillingPayloadInMessage) {
           const missingAttempts = missingAttemptsPrev + 1;
           strictMemory.strict_quote_data_missing_attempts = missingAttempts;
           const missing: string[] = [];
