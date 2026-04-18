@@ -2626,7 +2626,7 @@ export default function AgentsCrmPage() {
                 onChange={(e) => setOpportunityNoteDraft(e.target.value)}
                 rows={5}
                 placeholder={tr("Escribe la observación para bitácora...", "Write the observation note...")}
-                style={{ width: "100%", resize: "vertical", borderRadius: 10, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white, padding: "10px 12px", fontSize: 13 }}
+                style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box", resize: "vertical", borderRadius: 10, border: `1px solid ${C.border}`, background: "#0f1117", color: C.white, padding: "10px 12px", fontSize: 13 }}
               />
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
                 <button
