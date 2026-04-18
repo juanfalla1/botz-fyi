@@ -70,6 +70,11 @@ function contactKeyOf(phoneRaw: string | null | undefined, emailRaw: string | nu
   return email || phone;
 }
 
+function isArchivedCrmContact(row: any) {
+  const metadata = row?.metadata && typeof row.metadata === "object" ? row.metadata : {};
+  return Boolean((metadata as any)?.archived === true);
+}
+
 function cleanContactName(raw: string | null | undefined) {
   const name = String(raw || "").trim().replace(/\s+/g, " ");
   if (!name) return "";
@@ -511,6 +516,7 @@ export async function GET(req: Request) {
   }
 
   for (const cc of Array.isArray(crmContacts) ? crmContacts : []) {
+    if (isArchivedCrmContact(cc)) continue;
     const key = normalizeContactKey((cc as any)?.contact_key || contactKeyOf((cc as any)?.phone, (cc as any)?.email) || "");
     if (!key) continue;
     const prev = contactsMap.get(key) || {

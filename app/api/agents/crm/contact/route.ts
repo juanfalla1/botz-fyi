@@ -466,7 +466,7 @@ export async function DELETE(req: Request) {
   try {
     let query = supabase
       .from("agent_crm_contacts")
-      .select("id")
+      .select("id,metadata")
       .eq("created_by", ownerId)
       .eq("contact_key", key)
       .limit(200);
@@ -475,7 +475,7 @@ export async function DELETE(req: Request) {
       const p10 = tail10(phone);
       query = supabase
         .from("agent_crm_contacts")
-        .select("id")
+        .select("id,metadata")
         .eq("created_by", ownerId)
         .or(`contact_key.eq.${key},phone.like.%${p10}`)
         .limit(200);
@@ -483,7 +483,8 @@ export async function DELETE(req: Request) {
 
     const { data: rows, error: readErr } = await query;
     if (readErr) return NextResponse.json({ ok: false, error: readErr.message }, { status: 400 });
-    const ids = (Array.isArray(rows) ? rows : []).map((r: any) => String(r?.id || "")).filter(Boolean);
+    const rowItems = Array.isArray(rows) ? rows : [];
+    const ids = rowItems.map((r: any) => String(r?.id || "")).filter(Boolean);
 
     const p10 = phone ? tail10(phone) : "";
     const emailKey = email || "";
@@ -526,20 +527,26 @@ export async function DELETE(req: Request) {
 
     if (!ids.length) return NextResponse.json({ ok: true, deleted: 0 });
 
-    await supabase
-      .from("agent_crm_notes")
-      .delete()
-      .eq("created_by", ownerId)
-      .in("contact_id", ids);
+    for (const row of rowItems) {
+      const id = String((row as any)?.id || "").trim();
+      if (!id) continue;
+      const prevMeta = (row as any)?.metadata && typeof (row as any).metadata === "object" ? (row as any).metadata : {};
+      const archivedMeta = {
+        ...prevMeta,
+        archived: true,
+        archived_at: new Date().toISOString(),
+        archived_by: ownerId,
+        archived_reason: "crm_contact_delete_action",
+      };
+      const { error: archiveErr } = await supabase
+        .from("agent_crm_contacts")
+        .update({ metadata: archivedMeta, next_action: null, next_action_at: null, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("created_by", ownerId);
+      if (archiveErr) return NextResponse.json({ ok: false, error: archiveErr.message }, { status: 400 });
+    }
 
-    const { error: delErr } = await supabase
-      .from("agent_crm_contacts")
-      .delete()
-      .eq("created_by", ownerId)
-      .in("id", ids);
-    if (delErr) return NextResponse.json({ ok: false, error: delErr.message }, { status: 400 });
-
-    return NextResponse.json({ ok: true, deleted: ids.length });
+    return NextResponse.json({ ok: true, deleted: ids.length, archived: ids.length });
   } catch (e: any) {
     if (isMissingTableError(e, "agent_crm_contacts")) {
       return NextResponse.json({ ok: false, code: "missing_table", error: "Falta migración CRM contacts (agent_crm_contacts)" }, { status: 400 });
