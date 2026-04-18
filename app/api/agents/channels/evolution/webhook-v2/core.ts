@@ -10328,7 +10328,7 @@ export async function POST(req: Request) {
             };
         strictMemory.quote_data = quoteData;
 
-        const customerCity = String(quoteData.city || "").trim() || (Boolean(crmContactFoundForQuote) ? "Bogota" : "");
+        const customerCity = String(quoteData.city || "").trim() || ((Boolean(crmContactFoundForQuote) || Boolean(recognizedReturningCustomer)) ? "Bogota" : "");
         const customerCompany = String(quoteData.company || "").trim();
         const customerNit = String(quoteData.nit || "").trim();
         const customerContact = String(quoteData.contact || "").trim();
