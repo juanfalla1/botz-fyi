@@ -3225,6 +3225,14 @@ function isExplicitFamilyMenuAsk(text: string): boolean {
   return /(que\s+opciones\s+tienes|que\s+familias\s+tienes|que\s+categorias\s+tienes|muestrame\s+familias|muestrame\s+categorias|dame\s+el\s+menu)/.test(t);
 }
 
+function isBasculaAvailabilityAsk(text: string): boolean {
+  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return false;
+  const mentionsBascula = /(bascula|basculas|bacula|baculas|bscula|bsculas|b[aá]scu)/.test(t);
+  if (!mentionsBascula) return false;
+  return /(tiene|tienen|hay|manejan|ofrecen|muestran|que\s+modelos|dame\s+opciones|muestrame\s+opciones|opciones|modelos|catalogo|cat[aá]logo)/.test(t);
+}
+
 function normalizeDeliveryLabel(raw: string): string {
   const t = normalizeText(String(raw || ""));
   if (!t) return "";
@@ -9119,6 +9127,26 @@ export async function POST(req: Request) {
             }
           } else {
             const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
+            if (!String(strictReply || "").trim() && isBasculaAvailabilityAsk(text)) {
+              const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
+              const options = buildNumberedProductOptions(basculaRows as any[], 8);
+              if (options.length) {
+                strictMemory.pending_product_options = options;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                strictMemory.last_category_intent = "basculas";
+                strictReply = [
+                  `Perfecto. En catálogo activo tengo ${options.length} báscula(s).`,
+                  ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Elige con letra/número (A/1), o escribe 'más'.",
+                ].join("\n");
+              } else {
+                strictMemory.awaiting_action = "strict_need_spec";
+                strictReply = "Ahora mismo no veo básculas activas en base de datos. Si quieres, dime capacidad y resolución y te confirmo alternativas de otras líneas.";
+              }
+            }
             const recommendationAskNow = isRecommendationIntent(text) || /que\s+me\s+recomiendas?|que\s+recomiendas?/.test(textNorm);
             const heavyDutyAskNow = isHeavyDutyWeightIntent(text);
             if (!String(strictReply || "").trim() && (heavyDutyAskNow || recommendationAskNow)) {
