@@ -2795,6 +2795,24 @@ function buildBalanzaQualificationPrompt(): string {
   return "¿Qué capacidad y resolución requiere la balanza y qué tipo de muestras va a pesar?";
 }
 
+function isScaleUseExplanationIntent(text: string): boolean {
+  const t = normalizeText(String(text || "")).replace(/\s+/g, " ").trim();
+  if (!t) return false;
+  return /(para\s+que\s+sirven?|que\s+uso\s+tienen|para\s+que\s+se\s+usan|para\s+que\s+me\s+sirven)/.test(t) && /(balanza|balanzas|bascula|basculas)/.test(t);
+}
+
+function buildScaleUseExplanationReply(categoryHint: string): string {
+  const isBascula = normalizeText(String(categoryHint || "")) === "basculas";
+  const productWord = isBascula ? "básculas" : "balanzas";
+  return [
+    "Claro 👌",
+    `Las ${productWord} sirven para medir peso con precisión y controlar mejor tus procesos (calidad, inventario, dosificación y costos).`,
+    "Te ayudan a evitar errores de pesaje, reducir mermas y tomar decisiones con datos confiables.",
+    "La elección correcta depende de capacidad (peso máximo) y resolución (nivel de detalle).",
+    "Si quieres, te recomiendo ahora mismo la mejor opción para tu caso y te la cotizo.",
+  ].join("\n");
+}
+
 function buildGuidedNeedReframePrompt(): string {
   return [
     "Perfecto, gracias por decirmelo.",
@@ -8166,6 +8184,16 @@ export async function POST(req: Request) {
           strictReply = buildGuidedNeedReframePrompt();
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "alternative_reframe_guidance" });
         }
+      }
+
+      if (!String(strictReply || "").trim() && isScaleUseExplanationIntent(text)) {
+        const categoryNow = String(rememberedCategory || previousMemory?.last_category_intent || "");
+        const inSelectionStep = /^(strict_choose_model|strict_choose_family|strict_choose_action|strict_need_spec|strict_need_industry|price_objection_followup)$/i.test(String(awaiting || ""));
+        strictMemory.awaiting_action = inSelectionStep
+          ? String(awaiting || "strict_need_spec")
+          : "strict_need_spec";
+        strictReply = buildScaleUseExplanationReply(categoryNow);
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "scale_use_explanation" });
       }
 
       if (!String(strictReply || "").trim() && isCapacityResolutionHelpIntent(text)) {
