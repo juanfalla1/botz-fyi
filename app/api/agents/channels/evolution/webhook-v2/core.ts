@@ -10613,6 +10613,9 @@ export async function POST(req: Request) {
             const totalCop = unitPriceCop > 0
               ? Number((unitPriceCop * qty).toFixed(2))
               : Number((basePriceUsd * trmRate * qty).toFixed(2));
+            const selectedNameForQuote = String((selected as any)?.name || "producto");
+            const quoteDescriptionForDraft = buildQuoteItemDescription(selected, selectedNameForQuote);
+            const productImageDataUrlForDraft = await resolveProductImageDataUrl(selected);
 
             const draftPayload = {
               tenant_id: (agent as any)?.tenant_id || null,
@@ -10638,6 +10641,8 @@ export async function POST(req: Request) {
                 customer_company: effectiveCompany || null,
                 customer_contact: effectiveContact || null,
                 customer_phone: effectivePhone || null,
+                item_description: quoteDescriptionForDraft,
+                item_image_data_url: productImageDataUrlForDraft || "",
                 unit_price_cop: unitPriceCop > 0 ? unitPriceCop : null,
               },
               status: "analysis",
@@ -10671,11 +10676,8 @@ export async function POST(req: Request) {
             if (draftErr) {
               strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
             } else {
-              const selectedNameForQuote = String((selected as any)?.name || "producto");
               let quotePdfAttached = false;
               try {
-                const productImageDataUrl = await resolveProductImageDataUrl(selected);
-                const quoteDescription = buildQuoteItemDescription(selected, String((selected as any)?.name || ""));
                 const pdfBase64 = await buildQuotePdf({
                   draftId: String((insertedDraft as any)?.id || ""),
                   customerName: effectiveContact,
@@ -10689,8 +10691,8 @@ export async function POST(req: Request) {
                   totalCop,
                   city: effectiveCity,
                   nit: effectiveNit,
-                  itemDescription: quoteDescription,
-                  imageDataUrl: productImageDataUrl,
+                  itemDescription: quoteDescriptionForDraft,
+                  imageDataUrl: productImageDataUrlForDraft,
                   notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
                 });
                 strictDocs.push({
@@ -10707,8 +10709,6 @@ export async function POST(req: Request) {
                   selected: String((selected as any)?.name || ""),
                 });
                 try {
-                  const productImageDataUrl = await resolveProductImageDataUrl(selected);
-                  const retryDescription = buildQuoteItemDescription(selected, selectedNameForQuote);
                   const retryPdfBase64 = await buildQuotePdf({
                     draftId: String((insertedDraft as any)?.id || ""),
                     customerName: effectiveContact,
@@ -10722,8 +10722,8 @@ export async function POST(req: Request) {
                     totalCop,
                     city: effectiveCity,
                     nit: effectiveNit,
-                    itemDescription: retryDescription,
-                    imageDataUrl: productImageDataUrl,
+                    itemDescription: quoteDescriptionForDraft,
+                    imageDataUrl: productImageDataUrlForDraft,
                     notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
                   });
                   if (retryPdfBase64) {
@@ -15264,6 +15264,9 @@ export async function POST(req: Request) {
                 const totalCop = selectedUnitCop > 0
                   ? Number((selectedUnitCop * quantity).toFixed(2))
                   : Number((basePriceUsd * trmRate * quantity).toFixed(2));
+                const selectedNameForQuote = String((selected as any).name || "");
+                const quoteDescriptionForDraft = buildQuoteItemDescription(selected, selectedNameForQuote);
+                const productImageDataUrlForDraft = await resolveProductImageDataUrl(selected);
                 const draftPayload = {
                   tenant_id: (agent as any)?.tenant_id || null,
                   created_by: ownerId,
@@ -15290,6 +15293,9 @@ export async function POST(req: Request) {
                     customer_nit: effectiveCustomerNit || null,
                     customer_company: effectiveCustomerCompany || null,
                     customer_contact: effectiveCustomerContact || null,
+                    customer_phone: effectiveCustomerPhone || null,
+                    item_description: quoteDescriptionForDraft,
+                    item_image_data_url: productImageDataUrlForDraft || "",
                     unit_price_cop: selectedUnitCop > 0 ? selectedUnitCop : null,
                     automation: "evolution_webhook",
                   },
