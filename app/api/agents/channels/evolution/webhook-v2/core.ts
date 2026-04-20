@@ -1854,7 +1854,23 @@ function parseTechnicalSpecQuery(text: string): { capacityG: number; readability
   const capacityG = toGrams(m[1], m[2] || "g");
   const readabilityG = toGrams(m[3], m[4] || "g");
   if (!(capacityG > 0) || !(readabilityG > 0)) return null;
-  return { capacityG, readabilityG };
+  return { capacityG: normalizeRequestedCapacityG(capacityG), readabilityG };
+}
+
+function normalizeRequestedCapacityG(rawCapG: number): number {
+  const cap = Number(rawCapG || 0);
+  if (!(cap > 0)) return 0;
+  const snapMap: Record<number, number> = {
+    200: 220,
+    300: 330,
+    600: 620,
+    3000: 3200,
+    4000: 4200,
+    5000: 5200,
+    6000: 6200,
+  };
+  const rounded = Math.round(cap);
+  return Number(snapMap[rounded] || cap);
 }
 
 function parseLooseTechnicalHint(text: string): { capacityG?: number; readabilityG?: number } | null {
@@ -2010,7 +2026,7 @@ function mergeLooseSpecWithMemory(
   }
 
   return {
-    capacityG: cap > 0 ? cap : prevCap,
+    capacityG: cap > 0 ? normalizeRequestedCapacityG(cap) : normalizeRequestedCapacityG(prevCap),
     readabilityG: read > 0 ? read : prevRead,
   };
 }
@@ -7568,6 +7584,9 @@ export async function POST(req: Request) {
               strictMemory.pending_family_options = [];
               strictMemory.awaiting_action = "strict_choose_model";
               strictMemory.strict_model_offset = 0;
+              strictMemory.strict_filtered_catalog_ids = (sourceRows || [])
+                .map((r: any) => String(r?.id || "").trim())
+                .filter(Boolean);
               const priceLine = buildPriceRangeLine(sourceRows as any[]);
               const reply = [
                 exactRows.length ? `Sí, tengo coincidencias exactas para ${strictMemory.strict_spec_query}.` : `Para ${strictMemory.strict_spec_query} no veo exacta, pero sí cercanas de BD:`,
@@ -7610,6 +7629,9 @@ export async function POST(req: Request) {
                 strictMemory.pending_family_options = [];
                 strictMemory.awaiting_action = "strict_choose_model";
                 strictMemory.strict_model_offset = 0;
+                strictMemory.strict_filtered_catalog_ids = (appAlternatives || [])
+                  .map((r: any) => String(r?.id || "").trim())
+                  .filter(Boolean);
                 const priceLine = buildPriceRangeLine(appAlternatives as any[]);
                 const reply = [
                   `Para ${strictMemory.strict_spec_query} no tengo coincidencia exacta en ${appProfile.replace(/_/g, " ")}, pero sí estas alternativas compatibles:`,
@@ -11723,7 +11745,14 @@ export async function POST(req: Request) {
         }
 
         if (!String(strictReply || "").trim()) {
-        const allOptions = buildNumberedProductOptions(familyRows as any[], 60);
+        const hasTechLock = hasActiveTechnicalRequirement(previousMemory);
+        const lockedIds = Array.isArray(previousMemory?.strict_filtered_catalog_ids)
+          ? previousMemory.strict_filtered_catalog_ids.map((v: any) => String(v || "").trim()).filter(Boolean)
+          : [];
+        const lockedRows = hasTechLock && lockedIds.length
+          ? familyRows.filter((r: any) => lockedIds.includes(String(r?.id || "").trim()))
+          : familyRows;
+        const allOptions = buildNumberedProductOptions((lockedRows.length ? lockedRows : familyRows) as any[], 60);
         const total = allOptions.length;
         const prevOffset = Math.max(0, Number(previousMemory?.strict_model_offset || 0));
         const nextOffset = askMore ? Math.min(prevOffset + 8, Math.max(0, total - 1)) : prevOffset;
@@ -13459,6 +13488,18 @@ export async function POST(req: Request) {
       reply = "Listo, reinicié el contexto de esta conversación. Ahora dime el modelo exacto y te respondo solo con datos confirmados de la base de datos.";
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+    }
+
+    if (!handledByGreeting && isAffirmativeShortIntent(inbound.text)) {
+      const awaitingNow = normalizeText(String(previousMemory?.awaiting_action || nextMemory?.awaiting_action || ""));
+      const hasPending = Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0;
+      const lastIntent = normalizeText(String(previousMemory?.last_intent || ""));
+      if (awaitingNow === "none" && !hasPending && /(use_explanation|guided_need_discovery|compatibility_question|application_update)/.test(lastIntent)) {
+        nextMemory.awaiting_action = "strict_need_spec";
+        reply = buildGuidedNeedReframePrompt();
+        handledByGreeting = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+      }
     }
 
     if (!handledByGreeting && isGreetingIntent(inbound.text)) {
