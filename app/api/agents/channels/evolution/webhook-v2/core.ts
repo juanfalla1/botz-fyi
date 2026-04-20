@@ -7,6 +7,8 @@ import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
 import { buildQuotePdfFromDraft } from "../../../quotes/_utils/pdf";
 import { evolutionService } from "../../../../../../lib/services/evolution.service";
+import { buildPhase1InvariantSnapshot } from "./invariants";
+import { ENABLE_PHASE1_PASSIVE_INVARIANT_LOGGING, ENABLE_WORD_MATRIX_SPEC_PRIORITY } from "./phase1-flags";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -3508,6 +3510,14 @@ function detectGuidedBalanzaProfile(text: string): GuidedBalanzaProfile | null {
   return null;
 }
 
+function guidedProfileFromUsageContext(text: string): GuidedBalanzaProfile | null {
+  const app = detectTargetApplication(text);
+  if (app === "laboratorio") return "balanza_laboratorio_0001";
+  if (app === "joyeria_oro") return "balanza_oro_001";
+  if (app === "industrial") return "balanza_industrial_portatil_conteo";
+  return null;
+}
+
 function buildGuidedBalanzaReply(profile: GuidedBalanzaProfile): string {
   return buildGuidedBalanzaReplyWithMode(profile, "");
 }
@@ -6540,6 +6550,30 @@ async function buildBundleQuotePdf(args: {
   });
 }
 
+function safeLogPhase1Invariants(args: {
+  inboundText: string;
+  outboundText: string;
+  strict: boolean;
+  route?: string;
+  intent?: string;
+  awaitingAction?: string;
+}) {
+  try {
+    if (!ENABLE_PHASE1_PASSIVE_INVARIANT_LOGGING) return;
+    const snapshot = buildPhase1InvariantSnapshot({
+      inboundText: args.inboundText,
+      outboundText: args.outboundText,
+      strict: args.strict,
+      route: args.route,
+      intent: args.intent,
+      awaitingAction: args.awaitingAction,
+    });
+    console.log("[phase1-invariants]", JSON.stringify(snapshot));
+  } catch {
+    // silent by design (phase 1 passive observability)
+  }
+}
+
 export async function POST(req: Request) {
   try {
     console.log("[evolution-webhook] --- WEBHOOK ENTRY ---", { time: new Date().toISOString(), version: QUOTE_FLOW_VERSION });
@@ -6988,6 +7022,14 @@ export async function POST(req: Request) {
           .update({ status: "processed", processed_at: new Date().toISOString() })
           .eq("provider", "evolution")
           .eq("provider_message_id", incomingDedupKey);
+        safeLogPhase1Invariants({
+          inboundText: inbound.text,
+          outboundText: safeReply,
+          strict: true,
+          route: String(extra?.pipeline ? "strict_pipeline" : "strict").trim() || "strict",
+          intent: String((extra as any)?.intent || "strict_turn"),
+          awaitingAction: String(memory?.awaiting_action || ""),
+        });
         return NextResponse.json({ ok: true, sent: true, strict: true, ...extra });
       };
 
@@ -7026,6 +7068,14 @@ export async function POST(req: Request) {
           .update({ status: "processed", processed_at: new Date().toISOString() })
           .eq("provider", "evolution")
           .eq("provider_message_id", incomingDedupKey);
+        safeLogPhase1Invariants({
+          inboundText: inbound.text,
+          outboundText: strictReply,
+          strict: true,
+          route: "strict_reset",
+          intent: "reset_context",
+          awaitingAction: String(strictMemory?.awaiting_action || ""),
+        });
         return NextResponse.json({ ok: true, sent: true, strict: true, reset: true });
       }
 
@@ -7054,6 +7104,14 @@ export async function POST(req: Request) {
             .update({ status: "processed", processed_at: new Date().toISOString() })
             .eq("provider", "evolution")
             .eq("provider_message_id", incomingDedupKey);
+          safeLogPhase1Invariants({
+            inboundText: inbound.text,
+            outboundText: strictReply,
+            strict: true,
+            route: "strict_advisor",
+            intent: "advisor_meeting_prompt",
+            awaitingAction: String(strictMemory?.awaiting_action || ""),
+          });
           return NextResponse.json({ ok: true, sent: true, strict: true, advisor: true });
         }
 
@@ -7129,6 +7187,15 @@ export async function POST(req: Request) {
           .eq("provider", "evolution")
           .eq("provider_message_id", incomingDedupKey);
 
+        safeLogPhase1Invariants({
+          inboundText: inbound.text,
+          outboundText: strictReply,
+          strict: true,
+          route: "strict_advisor",
+          intent: slot ? "advisor_meeting_scheduled" : "advisor_meeting_reprompt",
+          awaitingAction: String(strictMemory?.awaiting_action || ""),
+        });
+
         return NextResponse.json({ ok: true, sent: true, strict: true, advisor: true });
       }
 
@@ -7161,6 +7228,15 @@ export async function POST(req: Request) {
           .update({ status: "processed", processed_at: new Date().toISOString() })
           .eq("provider", "evolution")
           .eq("provider_message_id", incomingDedupKey);
+
+        safeLogPhase1Invariants({
+          inboundText: inbound.text,
+          outboundText: strictReply,
+          strict: true,
+          route: "strict_advisor",
+          intent: "advisor_meeting_prompt",
+          awaitingAction: String(strictMemory?.awaiting_action || ""),
+        });
 
         return NextResponse.json({ ok: true, sent: true, strict: true, advisor: true });
       }
@@ -7199,6 +7275,14 @@ export async function POST(req: Request) {
           .update({ status: "processed", processed_at: new Date().toISOString() })
           .eq("provider", "evolution")
           .eq("provider_message_id", incomingDedupKey);
+        safeLogPhase1Invariants({
+          inboundText: inbound.text,
+          outboundText: strictReply,
+          strict: true,
+          route: "strict_close",
+          intent: "conversation_closed",
+          awaitingAction: String(strictMemory?.awaiting_action || ""),
+        });
         return NextResponse.json({ ok: true, sent: true, strict: true });
       }
 
@@ -7566,6 +7650,24 @@ export async function POST(req: Request) {
             strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
             strictMemory.strict_filter_capacity_g = cap;
             strictMemory.strict_filter_readability_g = read;
+            const guidedByUsage = ENABLE_WORD_MATRIX_SPEC_PRIORITY ? guidedProfileFromUsageContext(text) : null;
+            if (guidedByUsage) {
+              const industrialMode = guidedByUsage === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
+              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedByUsage, industrialMode as any);
+              if (guidedOptions.length) {
+                strictMemory.guided_balanza_profile = guidedByUsage;
+                strictMemory.guided_industrial_mode = industrialMode;
+                strictMemory.last_category_intent = "balanzas";
+                strictMemory.pending_product_options = guidedOptions;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                return finalizeStrictTurn(buildGuidedBalanzaReplyWithMode(guidedByUsage, industrialMode as any), strictMemory, {
+                  pipeline: true,
+                  intent: "guided_need_discovery",
+                });
+              }
+            }
             const exactRows = getExactTechnicalMatches(baseScoped as any[], { capacityG: cap, readabilityG: read });
             const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: cap, readabilityG: read });
             const sourceRowsRaw = exactRows.length ? exactRows : prioritized.orderedRows;
@@ -12609,6 +12711,15 @@ export async function POST(req: Request) {
           .eq("provider", "evolution")
           .eq("provider_message_id", incomingDedupKey);
 
+        safeLogPhase1Invariants({
+          inboundText: inbound.text,
+          outboundText: strictReply,
+          strict: true,
+          route: "strict",
+          intent: String(strictMemory?.last_intent || classifiedIntent.intent || "strict_turn"),
+          awaitingAction: String(strictMemory?.awaiting_action || ""),
+        });
+
         return NextResponse.json({ ok: true, sent: true, strict: true });
       }
 
@@ -16380,6 +16491,15 @@ export async function POST(req: Request) {
       .update({ status: "processed", processed_at: new Date().toISOString() })
       .eq("provider", "evolution")
       .eq("provider_message_id", incomingDedupKey);
+
+    safeLogPhase1Invariants({
+      inboundText: inbound.text,
+      outboundText: reply,
+      strict: false,
+      route: resolvedRoute,
+      intent: String(nextMemory?.last_intent || classifiedIntent.intent || ""),
+      awaitingAction: String(nextMemory?.awaiting_action || ""),
+    });
 
     return NextResponse.json({ ok: true, sent: true });
   } catch (e: any) {
