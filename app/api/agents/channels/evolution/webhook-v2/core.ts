@@ -11063,8 +11063,29 @@ export async function POST(req: Request) {
               "Elige con letra/número (A/1), o escribe 'más'.",
             ].join("\n");
           } else {
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = `Con base en catálogo activo y descripciones, no tengo referencias que coincidan con (${featureTermsInModelStep.join(", ")}). Si quieres, dime capacidad y resolución para buscar alternativas reales.`;
+            const guidedByFeature = (detectGuidedBalanzaProfile(text) || rememberedGuidedProfile || "") as GuidedBalanzaProfile | "";
+            if (guidedByFeature) {
+              const industrialMode = guidedByFeature === "balanza_industrial_portatil_conteo"
+                ? (detectIndustrialGuidedMode(text) || String(previousMemory?.guided_industrial_mode || strictMemory.guided_industrial_mode || ""))
+                : "";
+              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedByFeature, industrialMode as any);
+              if (guidedOptions.length) {
+                strictMemory.guided_balanza_profile = guidedByFeature;
+                strictMemory.guided_industrial_mode = industrialMode;
+                strictMemory.last_category_intent = "balanzas";
+                strictMemory.pending_product_options = guidedOptions;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
+                strictReply = buildGuidedBalanzaReplyWithMode(guidedByFeature, industrialMode as any);
+              } else {
+                strictMemory.awaiting_action = "strict_need_spec";
+                strictReply = buildGuidedNeedReframePrompt();
+              }
+            } else {
+              strictMemory.awaiting_action = "strict_need_spec";
+              strictReply = `Con base en catálogo activo y descripciones, no tengo referencias que coincidan con (${featureTermsInModelStep.join(", ")}). Si quieres, dime capacidad y resolución para buscar alternativas reales.`;
+            }
           }
         }
         if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && isDifferenceQuestionIntent(text)) {
