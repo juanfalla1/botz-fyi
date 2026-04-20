@@ -10721,6 +10721,38 @@ export async function POST(req: Request) {
         let crmCityForQuote = normalizeCityLabel(String(previousMemory?.crm_billing_city || strictMemory.crm_billing_city || "").trim());
         let crmTierForQuote = normalizeText(String(previousMemory?.crm_price_tier || strictMemory.crm_price_tier || "").trim());
         let crmTypeForQuote = normalizeText(String(previousMemory?.crm_customer_type || strictMemory.crm_customer_type || "").trim());
+        const rememberedExistingMatch =
+          previousMemory?.commercial_existing_match && typeof previousMemory.commercial_existing_match === "object"
+            ? previousMemory.commercial_existing_match
+            : (strictMemory?.commercial_existing_match && typeof strictMemory.commercial_existing_match === "object"
+                ? strictMemory.commercial_existing_match
+                : {});
+        const rememberedExistingType = normalizeText(String(previousMemory?.commercial_client_type || strictMemory?.commercial_client_type || "").trim()) === "existing";
+
+        if (!crmContactFoundForQuote && rememberedExistingMatch && Object.keys(rememberedExistingMatch).length) {
+          const fallbackName = sanitizeCustomerDisplayName(String((rememberedExistingMatch as any)?.contact || "").trim());
+          const fallbackEmail = String((rememberedExistingMatch as any)?.email || "").trim().toLowerCase();
+          const fallbackPhone = normalizePhone(String((rememberedExistingMatch as any)?.phone || "").trim());
+          const fallbackCompany = String((rememberedExistingMatch as any)?.company || "").trim();
+          const fallbackNit = String((rememberedExistingMatch as any)?.nit || "").replace(/\D/g, "").trim();
+          const fallbackCity = normalizeCityLabel(String((rememberedExistingMatch as any)?.city || "").trim());
+          if (fallbackName || fallbackEmail || fallbackPhone || fallbackCompany || fallbackNit) {
+            crmContactFoundForQuote = true;
+            if (fallbackName) crmNameForQuote = fallbackName;
+            if (fallbackEmail) crmEmailForQuote = fallbackEmail;
+            if (fallbackPhone) crmPhoneForQuote = fallbackPhone;
+            if (fallbackCompany) crmCompanyForQuote = fallbackCompany;
+            if (fallbackNit) crmNitForQuote = fallbackNit;
+            if (fallbackCity) crmCityForQuote = fallbackCity;
+            strictMemory.crm_contact_found = true;
+            strictMemory.crm_contact_name = crmNameForQuote;
+            strictMemory.crm_contact_email = crmEmailForQuote;
+            strictMemory.crm_contact_phone = crmPhoneForQuote;
+            strictMemory.crm_company = crmCompanyForQuote;
+            strictMemory.crm_nit = crmNitForQuote;
+            strictMemory.crm_billing_city = crmCityForQuote;
+          }
+        }
 
         if (!crmContactFoundForQuote) {
           try {
@@ -10804,7 +10836,7 @@ export async function POST(req: Request) {
             };
         strictMemory.quote_data = quoteData;
 
-        const customerCity = String(quoteData.city || "").trim() || ((Boolean(crmContactFoundForQuote) || Boolean(recognizedReturningCustomer)) ? "Bogota" : "");
+        const customerCity = String(quoteData.city || "").trim() || ((Boolean(crmContactFoundForQuote) || Boolean(recognizedReturningCustomer) || rememberedExistingType) ? "Bogota" : "");
         const customerCompany = String(quoteData.company || "").trim();
         const customerNit = String(quoteData.nit || "").trim();
         const customerContact = String(quoteData.contact || "").trim();
@@ -10823,7 +10855,7 @@ export async function POST(req: Request) {
         const hasReachability = customerEmail.includes("@") || customerPhone.replace(/\D/g, "").length >= 7;
         const hasBusinessCore = customerCompany.length >= 3;
         const isDistributorCustomer = crmTierForQuote === "distribuidor" || crmTypeForQuote === "distributor";
-        const isExistingCustomer = !isDistributorCustomer && crmContactFoundForQuote && Boolean(recognizedReturningCustomer);
+        const isExistingCustomer = !isDistributorCustomer && crmContactFoundForQuote && (Boolean(recognizedReturningCustomer) || rememberedExistingType);
         const customerSegment = isDistributorCustomer ? "distributor" : (isExistingCustomer ? "existing" : "new");
         strictMemory.customer_segment = customerSegment;
         const hasBusinessOrReachability = isNaturalPerson
