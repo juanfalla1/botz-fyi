@@ -11063,7 +11063,13 @@ export async function POST(req: Request) {
               "Elige con letra/número (A/1), o escribe 'más'.",
             ].join("\n");
           } else {
-            const guidedByFeature = (detectGuidedBalanzaProfile(text) || rememberedGuidedProfile || "") as GuidedBalanzaProfile | "";
+            const hasOroFeatureTerm = featureTermsInModelStep.some((t) => /oro|joyeria|joyeria/.test(normalizeText(String(t || ""))));
+            const guidedByFeature = (
+              detectGuidedBalanzaProfile(text) ||
+              (hasOroFeatureTerm ? "balanza_oro_001" : "") ||
+              rememberedGuidedProfile ||
+              ""
+            ) as GuidedBalanzaProfile | "";
             if (guidedByFeature) {
               const industrialMode = guidedByFeature === "balanza_industrial_portatil_conteo"
                 ? (detectIndustrialGuidedMode(text) || String(previousMemory?.guided_industrial_mode || strictMemory.guided_industrial_mode || ""))
