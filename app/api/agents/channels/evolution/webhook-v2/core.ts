@@ -8189,6 +8189,68 @@ export async function POST(req: Request) {
           const contact = sanitizeCustomerDisplayName(String(d?.contact || "").trim());
           const email = String(d?.email || "").trim().toLowerCase();
           const phone = normalizePhone(String(d?.phone || "").trim());
+
+          const existingFromFullData = await findCommercialContactByIdentifiers({
+            supabase,
+            ownerId,
+            lookupNit: nit,
+            lookupPhone: phone,
+            lookupPhoneTail: phoneTail10(phone),
+          });
+          const matchedContact = existingFromFullData.matchedContact;
+          if (matchedContact && typeof matchedContact === "object") {
+            const matchedMeta = matchedContact?.metadata && typeof matchedContact.metadata === "object"
+              ? matchedContact.metadata
+              : {};
+            const matchedNit = String(matchedMeta?.nit || "").replace(/\D/g, "").trim();
+            const matchedCity = normalizeCityLabel(String(matchedMeta?.billing_city || "").trim());
+            const matchedName = sanitizeCustomerDisplayName(String(matchedContact?.name || ""));
+            const matchedEmail = String(matchedContact?.email || "").trim().toLowerCase();
+            const matchedPhone = normalizePhone(String(matchedContact?.phone || ""));
+            const matchedCompany = String(matchedContact?.company || "").trim();
+
+            strictMemory.commercial_client_type = "existing";
+            strictMemory.commercial_validation_complete = false;
+            strictMemory.crm_contact_found = true;
+            strictMemory.crm_contact_id = String(matchedContact?.id || "").trim();
+            strictMemory.crm_contact_name = matchedName;
+            strictMemory.crm_contact_email = matchedEmail;
+            strictMemory.crm_contact_phone = matchedPhone;
+            strictMemory.crm_company = matchedCompany;
+            strictMemory.crm_nit = matchedNit;
+            strictMemory.crm_billing_city = matchedCity;
+            strictMemory.quote_data = {
+              city: matchedCity || String(strictMemory?.quote_data?.city || "") || "Bogota",
+              company: matchedCompany || String(strictMemory?.quote_data?.company || ""),
+              nit: matchedNit || String(strictMemory?.quote_data?.nit || ""),
+              contact: matchedName || String(strictMemory?.quote_data?.contact || ""),
+              email: matchedEmail || String(strictMemory?.quote_data?.email || ""),
+              phone: matchedPhone || normalizePhone(String(strictMemory?.customer_phone || inbound.from || "")),
+            };
+            strictMemory.commercial_existing_match = {
+              id: String(matchedContact?.id || "").trim(),
+              company: matchedCompany,
+              nit: matchedNit,
+              contact: matchedName,
+              email: matchedEmail,
+              phone: matchedPhone,
+              city: matchedCity,
+            };
+            strictMemory.awaiting_action = "commercial_existing_confirm";
+            strictReply = [
+              "Ya encontré que esta información corresponde a un cliente existente en nuestra base.",
+              "",
+              buildExistingClientMatchConfirmationPrompt({
+                company: matchedCompany,
+                nit: matchedNit,
+                contact: matchedName,
+                email: matchedEmail,
+                phone: matchedPhone,
+              }),
+            ].join("\n");
+            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_detected_from_full_data" });
+          }
+
           if (city) strictMemory.crm_billing_city = city;
           if (company) strictMemory.crm_company = company;
           if (nit) strictMemory.crm_nit = nit;
