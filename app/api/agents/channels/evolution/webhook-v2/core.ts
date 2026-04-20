@@ -9075,7 +9075,7 @@ export async function POST(req: Request) {
             }
           }
         }
-        if (!sentTo) return false;
+        if (!sentTo) return { ok: false, sentTo: "" };
         const docDestinations = [
           sentTo,
           ...toCandidates,
@@ -9113,7 +9113,7 @@ export async function POST(req: Request) {
             break;
           }
         }
-        return true;
+        return { ok: true, sentTo };
       };
 
       const mutedUntilIso = String(previousMemory?.offtopic_muted_until || "").trim();
@@ -10888,8 +10888,9 @@ export async function POST(req: Request) {
                 strictReply = attachedSheetWithQuote
                   ? `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te envío en este WhatsApp el PDF junto con la ficha técnica.`
                   : `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
+                strictMemory.pending_post_quote_video_link = "";
                 const youtubeLink = pickYoutubeVideoForModel(selectedNameForQuote);
-                if (youtubeLink) strictReply += `\n\nVideo del equipo:\n${youtubeLink}`;
+                if (youtubeLink) strictMemory.pending_post_quote_video_link = youtubeLink;
               } else {
                 strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
               }
@@ -12504,8 +12505,20 @@ export async function POST(req: Request) {
       }
 
       if (!strictBypassAutoQuote) {
-        const sentOk = await sendTextAndDocs(strictReply, strictDocs);
-        if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+        const sendResult = await sendTextAndDocs(strictReply, strictDocs);
+        if (!sendResult.ok) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
+
+        const pendingVideoLink = String(strictMemory.pending_post_quote_video_link || "").trim();
+        if (pendingVideoLink && strictQuoteDelivered && String(sendResult.sentTo || "").trim()) {
+          try {
+            await evolutionService.sendMessage(
+              outboundInstance,
+              String(sendResult.sentTo || "").trim(),
+              withAvaSignature(`Video del equipo:\n${pendingVideoLink}`)
+            );
+          } catch {}
+          strictMemory.pending_post_quote_video_link = "";
+        }
 
         try {
           const strictClosed = String(strictMemory.conversation_status || "") === "closed";
