@@ -7685,7 +7685,11 @@ export async function POST(req: Request) {
             }
             const exactRows = getExactTechnicalMatches(baseScoped as any[], { capacityG: cap, readabilityG: read });
             const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: cap, readabilityG: read });
-            const sourceRowsRaw = exactRows.length ? exactRows : prioritized.orderedRows;
+            const hasUsageContext = Boolean(guidedByUsage || appProfile);
+            const nearbyRows = filterNearbyTechnicalRows(prioritized.orderedRows as any[], { capacityG: cap, readabilityG: read });
+            const sourceRowsRaw = hasUsageContext
+              ? (exactRows.length ? exactRows : prioritized.orderedRows)
+              : (nearbyRows.length > 1 ? nearbyRows : prioritized.orderedRows);
             const sourceRows = applyApplicationProfile(sourceRowsRaw as any[], {
               application: appProfile,
               targetCapacityG: cap,
@@ -7702,8 +7706,13 @@ export async function POST(req: Request) {
                 .map((r: any) => String(r?.id || "").trim())
                 .filter(Boolean);
               const priceLine = buildPriceRangeLine(sourceRows as any[]);
+              const headline = hasUsageContext
+                ? (exactRows.length
+                    ? `Sí, tengo coincidencias exactas para ${strictMemory.strict_spec_query}.`
+                    : `Para ${strictMemory.strict_spec_query} no veo exacta, pero sí cercanas de BD:`)
+                : `Para ${strictMemory.strict_spec_query} tengo estas opciones relacionadas por capacidad y resolución:`;
               const reply = [
-                exactRows.length ? `Sí, tengo coincidencias exactas para ${strictMemory.strict_spec_query}.` : `Para ${strictMemory.strict_spec_query} no veo exacta, pero sí cercanas de BD:`,
+                headline,
                 ...(priceLine ? [priceLine] : []),
                 ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
                 "",
