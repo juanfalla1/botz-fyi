@@ -3510,11 +3510,26 @@ function detectGuidedBalanzaProfile(text: string): GuidedBalanzaProfile | null {
   return null;
 }
 
-function guidedProfileFromUsageContext(text: string): GuidedBalanzaProfile | null {
+function guidedProfileFromUsageContext(text: string, capacityG: number, readabilityG: number): GuidedBalanzaProfile | null {
   const app = detectTargetApplication(text);
-  if (app === "laboratorio") return "balanza_laboratorio_0001";
-  if (app === "joyeria_oro") return "balanza_oro_001";
+  const read = Number(readabilityG || 0);
+  const cap = Number(capacityG || 0);
+
   if (app === "industrial") return "balanza_industrial_portatil_conteo";
+
+  if (app === "laboratorio") {
+    if (read > 0 && read <= 0.00001) return "balanza_semimicro_00001";
+    if (read > 0 && read <= 0.0001) return "balanza_laboratorio_0001";
+    if (read > 0 && read <= 0.001) return "balanza_precision_001";
+    if (read > 0 && read <= 0.01) return cap >= 1000 ? "balanza_oro_001" : "balanza_precision_001";
+    return "balanza_precision_001";
+  }
+
+  if (app === "joyeria_oro") {
+    if (read > 0 && read <= 0.001) return "balanza_precision_001";
+    return "balanza_oro_001";
+  }
+
   return null;
 }
 
@@ -7650,7 +7665,7 @@ export async function POST(req: Request) {
             strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
             strictMemory.strict_filter_capacity_g = cap;
             strictMemory.strict_filter_readability_g = read;
-            const guidedByUsage = ENABLE_WORD_MATRIX_SPEC_PRIORITY ? guidedProfileFromUsageContext(text) : null;
+            const guidedByUsage = ENABLE_WORD_MATRIX_SPEC_PRIORITY ? guidedProfileFromUsageContext(text, cap, read) : null;
             if (guidedByUsage) {
               const industrialMode = guidedByUsage === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
               const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedByUsage, industrialMode as any);
