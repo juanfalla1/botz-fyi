@@ -2798,7 +2798,7 @@ function buildNewCustomerDataPrompt(): string {
     "Compárteme en un solo mensaje:",
     "- Departamento/ciudad",
     "- Empresa",
-    "- NIT (sin puntos, comas ni guiones)",
+    "- NIT completo con dígito de verificación (sin puntos, comas ni guiones)",
     "- Nombre de Contacto",
     "- Correo",
     "- Celular",
@@ -3408,7 +3408,9 @@ function getMissingNewCustomerFields(memory: any): string[] {
   const missing: string[] = [];
   if (!String(d.city || "").trim()) missing.push("Departamento/ciudad");
   if (!String(d.company || "").trim()) missing.push("Empresa");
-  if (!/^\d{8,12}$/.test(String(d.nit || "").replace(/\D/g, ""))) missing.push("NIT (sin puntos, comas ni guiones)");
+  if (!/^\d{9,13}$/.test(String(d.nit || "").replace(/\D/g, ""))) {
+    missing.push("NIT completo con dígito de verificación (sin puntos, comas ni guiones)");
+  }
   if (!String(d.contact || "").trim()) missing.push("Nombre de Contacto");
   if (!String(d.email || "").trim()) missing.push("Correo");
   if (!/^\d{10,15}$/.test(String(d.phone || "").replace(/\D/g, ""))) missing.push("Celular");
@@ -7742,16 +7744,17 @@ export async function POST(req: Request) {
                 });
               }
             }
+            const explicitUsageContext = detectTargetApplication(text);
             const exactRows = getExactTechnicalMatches(baseScoped as any[], { capacityG: cap, readabilityG: read });
             const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: cap, readabilityG: read });
-            const hasUsageContext = Boolean(guidedByUsage || appProfile);
+            const hasUsageContext = Boolean(guidedByUsage || explicitUsageContext);
             const nearbyRows = filterNearbyTechnicalRows(prioritized.orderedRows as any[], { capacityG: cap, readabilityG: read });
             const sourceRowsRaw = hasUsageContext
               ? (exactRows.length ? exactRows : prioritized.orderedRows)
               : (nearbyRows.length > 1 ? nearbyRows : prioritized.orderedRows);
             const sourceRows = hasUsageContext
               ? applyApplicationProfile(sourceRowsRaw as any[], {
-                  application: appProfile,
+                  application: explicitUsageContext,
                   targetCapacityG: cap,
                   targetReadabilityG: read,
                   allowFallback: false,
@@ -8221,7 +8224,7 @@ export async function POST(req: Request) {
               "Por favor reenvialos en un solo mensaje para completar el registro:",
               "- Departamento/ciudad",
               "- Empresa",
-              "- NIT (sin puntos, comas ni guiones)",
+              "- NIT completo con dígito de verificación (sin puntos, comas ni guiones)",
               "- Nombre de contacto",
               "- Correo",
               "- Celular",
