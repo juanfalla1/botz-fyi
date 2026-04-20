@@ -1303,6 +1303,9 @@ function gamaLabelForModelName(name: string): string {
   if (/^r31p\d|^rc31p\d/.test(n)) return "basica";
   if (/^r71md\d/.test(n)) return "media";
   if (/^r71mhd\d/.test(n)) return "alta";
+  if (/^sjx\d/.test(n)) return "esencial";
+  if (/^spx\d/.test(n)) return "intermedia";
+  if (/^stx\d/.test(n)) return "avanzada";
   return "";
 }
 
