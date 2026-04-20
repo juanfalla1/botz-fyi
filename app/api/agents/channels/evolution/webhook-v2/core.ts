@@ -3545,6 +3545,20 @@ function isDifferenceQuestionIntent(text: string): boolean {
   return asksDifference && mentionsScale;
 }
 
+function hasPriorityProductGuidanceIntent(text: string): boolean {
+  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+  if (!t) return false;
+  if (isDifferenceQuestionIntent(text)) return true;
+  if (isScaleUseExplanationIntent(text)) return true;
+  if (isAlternativeRejectionIntent(text)) return true;
+  if (isGuidedNeedDiscoveryText(text)) return true;
+  if (Boolean(parseTechnicalSpecQuery(text) || parseLooseTechnicalHint(text))) return true;
+  if (Boolean(detectCatalogCategoryIntent(text) || detectTargetApplication(text))) return true;
+  const hasScaleWords = /(balanza|balanzas|bascula|basculas|humedad|analizador)/.test(t);
+  const hasCommercialAsk = /(dame|muestrame|muestrame|tienes|que\s+modelos|que\s+diferencias|recomiend|busco|necesito|quiero)/.test(t);
+  return hasScaleWords && hasCommercialAsk;
+}
+
 function buildScaleDifferenceGuidanceReply(): string {
   return [
     "Claro, te explico rapido 👌",
@@ -8098,6 +8112,7 @@ export async function POST(req: Request) {
 
       const shouldHandleExistingCommercialStep =
         clientType === "existing" &&
+        !hasPriorityProductGuidanceIntent(text) &&
         !isDifferenceQuestionIntent(text) &&
         /^(commercial_client_recognition|commercial_existing_lookup|commercial_existing_confirm|commercial_existing_contact_update|commercial_choose_equipment|none)$/i.test(awaiting);
       if (!String(strictReply || "").trim() && shouldHandleExistingCommercialStep && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
