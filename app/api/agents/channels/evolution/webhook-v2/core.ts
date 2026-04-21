@@ -10881,6 +10881,12 @@ export async function POST(req: Request) {
           customerSegment === "existing" && crmContactFoundForQuote
             ? (hasBusinessCore && hasReachability)
             : hasBusinessOrReachability;
+        const missingOnlyCityForKnownExisting =
+          customerSegment === "existing" &&
+          crmContactFoundForQuote &&
+          hasContactCore &&
+          hasBusinessOrReachabilityForKnownExisting &&
+          !hasCityCore;
         const quoteTurnNorm = normalizeText(String(quoteTurnText || ""));
         const quoteActionOnlyInput =
           /^\s*1\s*$/.test(String(quoteTurnText || "")) ||
@@ -10893,6 +10899,36 @@ export async function POST(req: Request) {
           /\b(ciudad|empresa|nit|contacto|correo|celular|telefono|teléfono)\b/.test(quoteTurnNorm) ||
           /@/.test(String(quoteTurnText || ""));
         const missingAttemptsPrev = Number(previousMemory?.strict_quote_data_missing_attempts || strictMemory.strict_quote_data_missing_attempts || 0);
+
+        if (customerSegment === "existing" && crmContactFoundForQuote && hasCityCore) {
+          const resolvedCity = normalizeCityLabel(customerCity);
+          strictMemory.crm_billing_city = resolvedCity;
+          strictMemory.quote_data = {
+            ...(strictMemory.quote_data && typeof strictMemory.quote_data === "object" ? strictMemory.quote_data : {}),
+            city: resolvedCity,
+          };
+          try {
+            const existingContactId = String(strictMemory.crm_contact_id || "").trim();
+            if (existingContactId) {
+              const { data: existingRow } = await supabase
+                .from("agent_crm_contacts")
+                .select("metadata")
+                .eq("id", existingContactId)
+                .eq("created_by", ownerId)
+                .maybeSingle();
+              const mergedMetadata = {
+                ...(existingRow?.metadata && typeof existingRow.metadata === "object" ? existingRow.metadata : {}),
+                billing_city: resolvedCity,
+                whatsapp_lifecycle_at: new Date().toISOString(),
+              };
+              await supabase
+                .from("agent_crm_contacts")
+                .update({ metadata: mergedMetadata })
+                .eq("id", existingContactId)
+                .eq("created_by", ownerId);
+            }
+          } catch {}
+        }
 
         if (!crmContactFoundForQuote && isAdvanceInQuoteData) {
           const missingAttempts = missingAttemptsPrev + 1;
@@ -10909,7 +10945,9 @@ export async function POST(req: Request) {
         } else if (!isAdvanceInQuoteData && quoteActionOnlyInput && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachabilityForKnownExisting) && !hasFreshBillingPayloadInMessage) {
           strictMemory.strict_quote_data_missing_attempts = missingAttemptsPrev + 1;
           strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = "Para continuar esta cotización, envíame los datos de facturación en un solo mensaje (ciudad, empresa, NIT, contacto, correo, celular).";
+          strictReply = missingOnlyCityForKnownExisting
+            ? "Para continuar esta cotización solo me falta la ciudad. Envíamela en un solo mensaje (ej.: Bogotá)."
+            : "Para continuar esta cotización, envíame los datos de facturación en un solo mensaje (ciudad, empresa, NIT, contacto, correo, celular).";
         } else if (!isAdvanceInQuoteData && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachabilityForKnownExisting) && hasFreshBillingPayloadInMessage) {
           const missingAttempts = missingAttemptsPrev + 1;
           strictMemory.strict_quote_data_missing_attempts = missingAttempts;
@@ -10931,7 +10969,9 @@ export async function POST(req: Request) {
             strictReply = "No puedo generar cotización sin datos obligatorios. Cierro esta solicitud por seguridad. Si deseas retomarla, escribe: cotización y comparte ciudad, empresa, NIT, contacto, correo y celular.";
           } else {
             strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = `Perfecto, ya registré parte de tus datos. Para continuar me falta: ${missing.join(", ")}. Puedes enviarlo en un solo mensaje o escribir exactamente: avanza.`;
+            strictReply = missingOnlyCityForKnownExisting
+              ? "Perfecto, para continuar solo me falta la ciudad. Envíamela en un solo mensaje (ej.: Bogotá)."
+              : `Perfecto, ya registré parte de tus datos. Para continuar me falta: ${missing.join(", ")}. Puedes enviarlo en un solo mensaje o escribir exactamente: avanza.`;
           }
         }
         if (!String(strictReply || "").trim()) {
