@@ -8055,7 +8055,10 @@ export async function POST(req: Request) {
 
       const recognitionChoiceCandidate = detectClientRecognitionChoice(text);
       const recognitionNumericOnly = /^\s*[12]\s*$/.test(String(text || "").trim());
-      const recognitionStepActive = /^(commercial_client_recognition|none)$/i.test(awaiting);
+      const rawPrevAwaiting = String(previousMemory?.awaiting_action || strictPrevAwaiting || "").trim();
+      const recognitionStepActive =
+        /^(commercial_client_recognition|none)$/i.test(awaiting) ||
+        /^commercial_client_recognition$/i.test(rawPrevAwaiting);
       const recognitionChoice =
         recognitionNumericOnly && !recognitionStepActive
           ? ""
