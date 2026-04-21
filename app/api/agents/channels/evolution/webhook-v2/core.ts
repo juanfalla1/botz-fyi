@@ -8506,6 +8506,22 @@ export async function POST(req: Request) {
           }
 
           strictMemory.commercial_validation_complete = true;
+          strictMemory.commercial_client_type = "existing";
+          strictMemory.crm_contact_found = true;
+          strictMemory.crm_contact_name = String(matched?.contact || strictMemory.crm_contact_name || "").trim();
+          strictMemory.crm_contact_email = String(matched?.email || strictMemory.crm_contact_email || "").trim().toLowerCase();
+          strictMemory.crm_contact_phone = normalizePhone(String(matched?.phone || strictMemory.crm_contact_phone || ""));
+          strictMemory.crm_company = String(matched?.company || strictMemory.crm_company || "").trim();
+          strictMemory.crm_nit = String(matched?.nit || strictMemory.crm_nit || "").replace(/\D/g, "").trim();
+          strictMemory.crm_billing_city = normalizeCityLabel(String(matched?.city || strictMemory.crm_billing_city || "").trim());
+          strictMemory.quote_data = {
+            city: String((matched as any)?.city || strictMemory.crm_billing_city || strictMemory?.quote_data?.city || "Bogota").trim(),
+            company: String((matched as any)?.company || strictMemory.crm_company || strictMemory?.quote_data?.company || "").trim(),
+            nit: String((matched as any)?.nit || strictMemory.crm_nit || strictMemory?.quote_data?.nit || "").replace(/\D/g, "").trim(),
+            contact: String((matched as any)?.contact || strictMemory.crm_contact_name || strictMemory?.quote_data?.contact || "").trim(),
+            email: String((matched as any)?.email || strictMemory.crm_contact_email || strictMemory?.quote_data?.email || "").trim().toLowerCase(),
+            phone: normalizePhone(String((matched as any)?.phone || strictMemory.crm_contact_phone || strictMemory?.quote_data?.phone || inbound.from || "")),
+          };
           recognizedReturningCustomer = true;
           strictMemory.customer_name = String(matched?.contact || strictMemory.crm_contact_name || strictMemory.customer_name || "").trim();
           await ensureAnalysisOpportunitySeed(supabase as any, {
