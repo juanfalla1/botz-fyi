@@ -4806,6 +4806,7 @@ function extractFeatureTerms(text: string): string[] {
     "cotizar", "cotizacion", "presupuesto", "precio", "trm", "whatsapp", "catalogo", "referencia", "referencias",
     "modelo", "modelos", "tiene", "tienen", "tenga", "tengan", "incluye", "incluyan", "caracteristica", "caracteristicas",
     "especificacion", "especificaciones", "debe", "tener", "con", "busco", "necesito", "quiero", "ohaus",
+    "mas", "otros", "otras", "otro", "que", "prodcuto", "prodcutos", "productod",
   ]);
   const aliasMap: Record<string, string> = {
     tipo: "",
@@ -11335,6 +11336,7 @@ export async function POST(req: Request) {
           !askMore &&
           !askBack &&
           !askCancel &&
+          !freeCatalogAskInModelStep &&
           featureTermsInModelStep.length > 0 &&
           (isFeatureQuestionIntent(text) || isUseCaseApplicabilityIntent(text))
         );
