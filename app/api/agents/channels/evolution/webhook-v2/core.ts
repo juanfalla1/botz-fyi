@@ -9229,6 +9229,25 @@ export async function POST(req: Request) {
         }
       }
 
+      // Interceptor: "si" afirmativo corto con producto en memoria y awaiting no accionable
+      // Evita que caiga a IA libre y reinicie el flujo
+      if (
+        !String(strictReply || "").trim() &&
+        isAffirmativeShortIntent(text) &&
+        /^\s*(s[íi]|si|ok|dale|claro|bueno|listo|perfecto|enviamela|enviame|manda|mandate|mandame)\s*$/i.test(String(text || "").trim()) &&
+        /^(conversation_followup|none|strict_need_spec)$/i.test(String(awaiting || "")) &&
+        (previousMemory?.last_selected_product_name || previousMemory?.last_product_name)
+      ) {
+        const productName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || "").trim();
+        strictMemory.awaiting_action = "strict_choose_action";
+        strictMemory.last_selected_product_name = productName;
+        strictReply = [
+          `Perfecto. Para ${productName}, ¿qué deseas?`,
+          "1) Cotización",
+          "2) Ficha técnica",
+        ].join("\n");
+      }
+
       const askMoreFromAction =
         awaiting === "strict_choose_action" &&
         !wantsQuote &&
