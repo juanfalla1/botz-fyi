@@ -12485,14 +12485,17 @@ export async function POST(req: Request) {
           });
         } else if (!String(strictReply || "").trim() && selectedFamily) {
           const selectedFamilyResolved = selectedFamily as { key?: string; label?: string };
-          const familyRows = baseScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamilyResolved.key || "")));
+          const familyRowsInScope = baseScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamilyResolved.key || "")));
+          const familyRowsGlobal = ownerRows.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamilyResolved.key || "")));
+          const familyRows = familyRowsInScope.length ? familyRowsInScope : familyRowsGlobal;
           const hinted = parseLooseTechnicalHint(text);
           const rangeHint = parseCapacityRangeHint(text);
           const hintedCap = Number(hinted?.capacityG || 0);
           const hintedRead = Number(hinted?.readabilityG || 0);
           const familyMaxCap = familyRows.reduce((mx: number, r: any) => Math.max(mx, Number(getRowCapacityG(r) || 0)), 0);
           const capacityOutOfFamilyRange = hintedCap > 0 && familyMaxCap > 0 && familyMaxCap < (hintedCap * 0.7);
-          const baseRowsForRanking = capacityOutOfFamilyRange ? (baseScoped as any[]) : (familyRows as any[]);
+          const fallbackScopeRows = (Array.isArray(baseScoped) && baseScoped.length) ? (baseScoped as any[]) : (ownerRows as any[]);
+          const baseRowsForRanking = capacityOutOfFamilyRange ? fallbackScopeRows : (familyRows as any[]);
           let recommendedRows = baseRowsForRanking as any[];
           if (hintedCap > 0 && hintedRead > 0) {
             const prioritized = prioritizeTechnicalRows(baseRowsForRanking as any[], { capacityG: hintedCap, readabilityG: hintedRead });
@@ -12522,38 +12525,56 @@ export async function POST(req: Request) {
           });
           const allOptions = buildNumberedProductOptions(profiledRows as any[], 60);
           const options = allOptions.slice(0, 8);
-          strictMemory.pending_product_options = options;
-          strictMemory.pending_family_options = [];
-          strictMemory.awaiting_action = "strict_choose_model";
-          strictMemory.strict_family_label = capacityOutOfFamilyRange ? "" : String(selectedFamilyResolved.label || "");
-          strictMemory.strict_model_offset = 0;
-          if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
-          if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
-          const needsReadabilityForQuote = hintedCap > 0 && !(hintedRead > 0);
-          const recommendationIntro = (isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text))
-              ? (capacityOutOfFamilyRange
-                ? `Para ese uso y capacidad (${formatSpecNumber(hintedCap)} g), te muestro ${options.length} opción(es)${allOptions.length > options.length ? ` de ${allOptions.length}` : ""} más cercanas en catálogo:`
-                : `Para ese uso te recomiendo empezar con ${String(selectedFamilyResolved.label || "esa familia")}. Modelos sugeridos (${options.length} mostrados${allOptions.length > options.length ? ` de ${allOptions.length}` : ""}):`)
-            : `Perfecto. Modelos de ${String(selectedFamilyResolved.label || "familia")} (${allOptions.length}):`;
-          strictReply = [
-            recommendationIntro,
-            ...options.map((o) => `${o.code}) ${o.name}`),
-            "",
-            ...(options.length >= 3
+          if (!allOptions.length) {
+            const fallbackFamilies = pendingFamilies.length ? pendingFamilies : buildNumberedFamilyOptions(ownerRows as any[], 8);
+            strictMemory.pending_product_options = [];
+            strictMemory.pending_family_options = fallbackFamilies;
+            strictMemory.awaiting_action = "strict_choose_family";
+            strictMemory.strict_family_label = "";
+            strictMemory.strict_model_offset = 0;
+            strictReply = fallbackFamilies.length
               ? [
-                  "Si quieres cotizar varias referencias (máx. 3), escribe: cotizar opciones 1,2,4.",
-                  "También puedes responder solo con números: 1,2,4.",
-                  "También puedes escribir: cotizar modelos PX6202/E, AX2202/E, EXP6202.",
+                  `No veo modelos activos para ${String(selectedFamilyResolved.label || "esa familia")} con el filtro actual.`,
+                  "Elige otra familia para continuar:",
+                  ...fallbackFamilies.map((f: any) => `${f.code}) ${f.label} (${f.count})`),
                   "",
-                ]
-              : []),
-            ...(needsReadabilityForQuote
-              ? ["Si quieres cotización exacta, compárteme también la resolución (ej.: 4000 g x 0.01 g).", ""]
-              : []),
-            (allOptions.length > options.length)
-              ? "Responde con letra o número (ej.: A o 1), o escribe 'más' para ver siguientes."
-              : "Responde con letra o número (ej.: A o 1).",
-          ].join("\n");
+                  "Responde con letra o número (A/1).",
+                ].join("\n")
+              : "No veo familias activas para continuar en este momento.";
+          } else {
+            strictMemory.pending_product_options = options;
+            strictMemory.pending_family_options = [];
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictMemory.strict_family_label = capacityOutOfFamilyRange ? "" : String(selectedFamilyResolved.label || "");
+            strictMemory.strict_model_offset = 0;
+            if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
+            if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
+            const needsReadabilityForQuote = hintedCap > 0 && !(hintedRead > 0);
+            const recommendationIntro = (isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text))
+                ? (capacityOutOfFamilyRange
+                  ? `Para ese uso y capacidad (${formatSpecNumber(hintedCap)} g), te muestro ${options.length} opción(es)${allOptions.length > options.length ? ` de ${allOptions.length}` : ""} más cercanas en catálogo:`
+                  : `Para ese uso te recomiendo empezar con ${String(selectedFamilyResolved.label || "esa familia")}. Modelos sugeridos (${options.length} mostrados${allOptions.length > options.length ? ` de ${allOptions.length}` : ""}):`)
+              : `Perfecto. Modelos de ${String(selectedFamilyResolved.label || "familia")} (${allOptions.length}):`;
+            strictReply = [
+              recommendationIntro,
+              ...options.map((o) => `${o.code}) ${o.name}`),
+              "",
+              ...(options.length >= 3
+                ? [
+                    "Si quieres cotizar varias referencias (máx. 3), escribe: cotizar opciones 1,2,4.",
+                    "También puedes responder solo con números: 1,2,4.",
+                    "También puedes escribir: cotizar modelos PX6202/E, AX2202/E, EXP6202.",
+                    "",
+                  ]
+                : []),
+              ...(needsReadabilityForQuote
+                ? ["Si quieres cotización exacta, compárteme también la resolución (ej.: 4000 g x 0.01 g).", ""]
+                : []),
+              (allOptions.length > options.length)
+                ? "Responde con letra o número (ej.: A o 1), o escribe 'más' para ver siguientes."
+                : "Responde con letra o número (ej.: A o 1).",
+            ].join("\n");
+          }
         }
       } else if (!String(strictReply || "").trim() && wantsQuote && !selectedProduct && !explicitModel) {
         strictMemory.awaiting_action = "strict_need_spec";
