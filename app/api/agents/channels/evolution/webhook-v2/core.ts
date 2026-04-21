@@ -6760,7 +6760,7 @@ export async function POST(req: Request) {
     if (!ownerId) return NextResponse.json({ ok: false, error: "Agente sin propietario" }, { status: 400 });
 
     const incomingDedupKey = String(inbound.messageId || `${inbound.instance || "default"}:${inbound.from}:${normalizeText(inbound.text)}`).trim();
-    const dedup = await reserveIncomingMessage(supabase as any, {
+    const reserveResult = await reserveIncomingMessage(supabase as any, {
       provider: "evolution",
       providerMessageId: incomingDedupKey,
       instance: inbound.instance,
@@ -6770,7 +6770,7 @@ export async function POST(req: Request) {
         text: String(inbound.text || "").slice(0, 1000),
       },
     });
-    if (dedup.duplicate) {
+    if (reserveResult.duplicate) {
       console.log("[evolution-webhook] ignored: duplicate_provider_message", { key: incomingDedupKey });
       return NextResponse.json({ ok: true, ignored: true, reason: "duplicate_provider_message" });
     }
@@ -13429,12 +13429,12 @@ export async function POST(req: Request) {
           (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
             .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
             .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []);
-        const dedup = new Map<string, any>();
+        const bundleDedupeMap = new Map<string, any>();
         for (const o of bundlePool) {
           const key = String(o?.raw_name || o?.name || "").trim();
-          if (key && !dedup.has(key)) dedup.set(key, o);
+          if (key && !bundleDedupeMap.has(key)) bundleDedupeMap.set(key, o);
         }
-        const options = Array.from(dedup.values());
+        const options = Array.from(bundleDedupeMap.values());
         if (options.length >= 2) {
           const numMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
           const m = inboundTextNorm.match(/\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/);
@@ -13709,12 +13709,12 @@ export async function POST(req: Request) {
             (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
               .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
               .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []);
-          const dedup = new Map<string, any>();
+          const bundleDedupeMap2 = new Map<string, any>();
           for (const o of bundlePool) {
             const key = String(o?.raw_name || o?.name || "").trim();
-            if (key && !dedup.has(key)) dedup.set(key, o);
+            if (key && !bundleDedupeMap2.has(key)) bundleDedupeMap2.set(key, o);
           }
-          const chosen = Array.from(dedup.values()).slice(0, 8);
+          const chosen = Array.from(bundleDedupeMap2.values()).slice(0, 8);
           const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
           if (modelNames.length >= 2) {
             inbound.text = `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`;
