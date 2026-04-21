@@ -8079,6 +8079,7 @@ export async function POST(req: Request) {
 
       const shouldHandleNewCommercialStep =
         clientType === "new" &&
+        !isPlainCatalogAsk &&
         (!Boolean(strictMemory.commercial_validation_complete) || /^(commercial_client_recognition|commercial_new_customer_data|commercial_choose_equipment|none)$/i.test(awaiting));
       if (!String(strictReply || "").trim() && shouldHandleNewCommercialStep && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
         strictMemory.commercial_client_type = "new";
@@ -8374,10 +8375,12 @@ export async function POST(req: Request) {
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "new_customer_data_completed" });
       }
 
+      const isPlainCatalogAsk = isInventoryInfoIntent(text) || isCatalogBreadthQuestion(text) || isGlobalCatalogAsk(text);
       const shouldHandleExistingCommercialStep =
         clientType === "existing" &&
         !hasPriorityProductGuidanceIntent(text) &&
         !isDifferenceQuestionIntent(text) &&
+        !(isPlainCatalogAsk && /^(commercial_existing_lookup|commercial_client_recognition|none)$/i.test(awaiting)) &&
         /^(commercial_client_recognition|commercial_existing_lookup|commercial_existing_confirm|commercial_existing_contact_update|commercial_choose_equipment|none)$/i.test(awaiting);
       if (!String(strictReply || "").trim() && shouldHandleExistingCommercialStep && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
         strictMemory.commercial_client_type = "existing";
