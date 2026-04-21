@@ -2322,7 +2322,7 @@ function isInventoryInfoIntent(text: string): boolean {
 
 function isRecommendationIntent(text: string): boolean {
   const t = normalizeText(text);
-  return /(recomiend|que me puedes recomendar|que me recomiendas|modelo ideal|que modelo|cual modelo|no se que modelo|no se cual|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza|gramera|ley\s+de\s+oro|quilat|kilat|joyeria|control\s+de\s+calidad|laboratorio|pesar\s+(cosas|objetos|elementos|articulos|partes|piezas|materiales)\s+(grande|grandes|pesad|muy\s+pesad|de\s+mucho|alto\s+peso|gran\s+capacidad)|necesito\s+pesar\s+(mucho|bastante|grandes|pesad)|alta\s+capacidad|gran\s+capacidad|mayor\s+capacidad|mas\s+capacidad)/.test(t);
+  return /(recomiend|que me puedes recomendar|que me recomiendas|modelo ideal|que modelo|cual modelo|no se que modelo|no se cual|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza|gramera|ley\s+de\s+oro|quilat|kilat|joyeria|control\s+de\s+calidad|laboratorio|pesar\s+(cosas|objetos|elementos|articulos|partes|piezas|materiales)\s+(grande|grandes|pesad|muy\s+pesad|de\s+mucho|alto\s+peso|gran\s+capacidad|pequeñ|pequen|livian|ligero|chic|peq)|necesito\s+pesar\s+(mucho|bastante|grandes|pesad|pequeño|pequen|poco|poca|livian|ligero|cosas)|alta\s+capacidad|gran\s+capacidad|mayor\s+capacidad|mas\s+capacidad|baja\s+capacidad|menor\s+capacidad|poca\s+capacidad|pequeña\s+capacidad|objetos\s+(pequeño|pequeña|chico|livian|ligero)|cosas\s+(pequeña|pequeño|chica|liviana|ligera|diminuta))/.test(t);
 }
 
 function isUseCaseApplicabilityIntent(text: string): boolean {
@@ -4808,8 +4808,11 @@ function extractFeatureTerms(text: string): string[] {
     "especificacion", "especificaciones", "debe", "tener", "con", "busco", "necesito", "quiero", "ohaus",
     "mas", "otros", "otras", "otro", "que", "prodcuto", "prodcutos", "productod",
     "pesar", "cosas", "grandes", "grande", "pesado", "pesados", "pesada", "pesadas",
-    "necesito", "quiero", "busco", "algo", "algo", "mucho", "muy", "bien", "bastante",
-    "alto", "alta", "bajo", "baja", "poca", "poco", "mayor", "menor", "mayor", "menor",
+    "pequeño", "pequeños", "pequeña", "pequeñas", "pequeno", "pequenos", "pequena", "pequenas",
+    "liviano", "livianos", "liviana", "livianas", "ligero", "ligeros", "ligera", "ligeras",
+    "chico", "chicos", "chica", "chicas", "diminuto", "minusculo", "menudo",
+    "necesito", "quiero", "busco", "algo", "mucho", "muy", "bien", "bastante",
+    "alto", "alta", "bajo", "baja", "poca", "poco", "mayor", "menor",
   ]);
   const aliasMap: Record<string, string> = {
     tipo: "",
