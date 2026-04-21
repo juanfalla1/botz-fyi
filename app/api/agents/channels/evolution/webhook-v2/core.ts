@@ -2322,7 +2322,7 @@ function isInventoryInfoIntent(text: string): boolean {
 
 function isRecommendationIntent(text: string): boolean {
   const t = normalizeText(text);
-  return /(recomiend|que me puedes recomendar|que me recomiendas|modelo ideal|que modelo|cual modelo|no se que modelo|no se cual|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza|gramera|ley\s+de\s+oro|quilat|kilat|joyeria|control\s+de\s+calidad|laboratorio)/.test(t);
+  return /(recomiend|que me puedes recomendar|que me recomiendas|modelo ideal|que modelo|cual modelo|no se que modelo|no se cual|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza|gramera|ley\s+de\s+oro|quilat|kilat|joyeria|control\s+de\s+calidad|laboratorio|pesar\s+(cosas|objetos|elementos|articulos|partes|piezas|materiales)\s+(grande|grandes|pesad|muy\s+pesad|de\s+mucho|alto\s+peso|gran\s+capacidad)|necesito\s+pesar\s+(mucho|bastante|grandes|pesad)|alta\s+capacidad|gran\s+capacidad|mayor\s+capacidad|mas\s+capacidad)/.test(t);
 }
 
 function isUseCaseApplicabilityIntent(text: string): boolean {
@@ -4807,6 +4807,9 @@ function extractFeatureTerms(text: string): string[] {
     "modelo", "modelos", "tiene", "tienen", "tenga", "tengan", "incluye", "incluyan", "caracteristica", "caracteristicas",
     "especificacion", "especificaciones", "debe", "tener", "con", "busco", "necesito", "quiero", "ohaus",
     "mas", "otros", "otras", "otro", "que", "prodcuto", "prodcutos", "productod",
+    "pesar", "cosas", "grandes", "grande", "pesado", "pesados", "pesada", "pesadas",
+    "necesito", "quiero", "busco", "algo", "algo", "mucho", "muy", "bien", "bastante",
+    "alto", "alta", "bajo", "baja", "poca", "poco", "mayor", "menor", "mayor", "menor",
   ]);
   const aliasMap: Record<string, string> = {
     tipo: "",
