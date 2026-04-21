@@ -8086,6 +8086,7 @@ export async function POST(req: Request) {
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "commercial_recognition_required" });
       }
 
+      const isPlainCatalogAsk = isInventoryInfoIntent(text) || isCatalogBreadthQuestion(text) || isGlobalCatalogAsk(text);
       const shouldHandleNewCommercialStep =
         clientType === "new" &&
         !isPlainCatalogAsk &&
@@ -8384,7 +8385,6 @@ export async function POST(req: Request) {
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "new_customer_data_completed" });
       }
 
-      const isPlainCatalogAsk = isInventoryInfoIntent(text) || isCatalogBreadthQuestion(text) || isGlobalCatalogAsk(text);
       const shouldHandleExistingCommercialStep =
         clientType === "existing" &&
         !hasPriorityProductGuidanceIntent(text) &&
