@@ -7209,7 +7209,7 @@ export async function POST(req: Request) {
               "2) Mañana 9:00 am",
               "3) Esta semana (próximo disponible)",
             ].join("\n")
-          : appendQuoteClosurePrompt(`Perfecto. Agendé la gestión con asesor para ${slot.label}. Te contactaremos en ese horario por WhatsApp o llamada.`);
+          : `Perfecto. Agendé la gestión con asesor para ${slot.label}. Te contactaremos en ese horario por WhatsApp o llamada.`;
         if (!slot) {
           strictMemory.awaiting_action = "advisor_meeting_slot";
         } else {
@@ -13268,7 +13268,6 @@ export async function POST(req: Request) {
         nextMemory.awaiting_action = "conversation_followup";
         nextMemory.advisor_meeting_at = slot.iso;
         nextMemory.advisor_meeting_label = slot.label;
-        reply = appendQuoteClosurePrompt(reply);
       }
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
