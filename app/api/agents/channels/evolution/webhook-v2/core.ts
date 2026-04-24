@@ -285,6 +285,26 @@ type InboundEvent = {
   source?: string;
 };
 
+function inboundBusinessPhoneCandidates(inbound: InboundEvent): string[] {
+  const values = [
+    inbound.from,
+    ...(Array.isArray(inbound.alternates) ? inbound.alternates : []),
+    ...(Array.isArray(inbound.jidCandidates) ? inbound.jidCandidates : []),
+  ];
+
+  const parsed = values
+    .map((v) => normalizePhone(String(v || "")))
+    .filter((v) => v.length >= 10 && v.length <= 15);
+
+  return Array.from(new Set(parsed));
+}
+
+function resolveInboundCustomerPhone(inbound: InboundEvent): string {
+  const candidates = inboundBusinessPhoneCandidates(inbound);
+  const standard = candidates.find((v) => v.length >= 10 && v.length <= 12);
+  return standard || candidates[0] || normalizePhone(inbound.from || "");
+}
+
 type ClassifiedIntent = {
   intent:
     | "greeting"
@@ -6759,12 +6779,14 @@ export async function POST(req: Request) {
     const ownerId = String((agent as any).created_by || "").trim();
     if (!ownerId) return NextResponse.json({ ok: false, error: "Agente sin propietario" }, { status: 400 });
 
+    const inboundCustomerPhone = resolveInboundCustomerPhone(inbound);
+
     const incomingDedupKey = String(inbound.messageId || `${inbound.instance || "default"}:${inbound.from}:${normalizeText(inbound.text)}`).trim();
     const reserveResult = await reserveIncomingMessage(supabase as any, {
       provider: "evolution",
       providerMessageId: incomingDedupKey,
       instance: inbound.instance,
-      fromPhone: inbound.from,
+      fromPhone: inboundCustomerPhone || inbound.from,
       payload: {
         message_id: inbound.messageId || null,
         text: String(inbound.text || "").slice(0, 1000),
@@ -6795,8 +6817,8 @@ export async function POST(req: Request) {
     const docs = buildDocumentContext(inbound.text, files);
 
     // Obtener historial de conversación
-    const inboundPhoneNorm = normalizePhone(inbound.from || "");
-    const inboundPhoneTail = phoneTail10(inbound.from || "");
+    const inboundPhoneNorm = normalizePhone(inboundCustomerPhone || inbound.from || "");
+    const inboundPhoneTail = phoneTail10(inboundCustomerPhone || inbound.from || "");
     const inboundFilter = inboundPhoneTail
       ? `contact_phone.eq.${inboundPhoneNorm},contact_phone.like.%${inboundPhoneTail}`
       : `contact_phone.eq.${inboundPhoneNorm}`;
@@ -6850,6 +6872,9 @@ export async function POST(req: Request) {
       last_user_text: inbound.text,
       last_user_at: new Date().toISOString(),
     };
+    if (!String(nextMemory.customer_phone || "").trim() && inboundCustomerPhone.length >= 10 && inboundCustomerPhone.length <= 12) {
+      nextMemory.customer_phone = inboundCustomerPhone;
+    }
     if (String(previousMemory?.conversation_status || "") === "closed") {
       nextMemory.awaiting_action = "none";
       nextMemory.pending_product_options = [];
