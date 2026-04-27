@@ -15,6 +15,7 @@ export default function WidgetAgentPage() {
   const [examples, setExamples] = useState<string[]>([]);
   const [primary, setPrimary] = useState("#a3e635");
   const [bg, setBg] = useState("#0b1220");
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [text, setText] = useState("");
@@ -51,6 +52,7 @@ export default function WidgetAgentPage() {
         setExamples(Array.isArray(data.examples) ? data.examples.slice(0, 4).map((x: any) => String(x || "")).filter(Boolean) : []);
         setPrimary(String(data?.widget?.primary_color || "#a3e635"));
         setBg(String(data?.widget?.bg_color || "#0b1220"));
+        setAvatarUrl(String(data?.widget?.avatar_url || ""));
         setMessages([{ role: "assistant", content: String(data.welcome_message || "¡Hola! ¿En qué te puedo ayudar?") }]);
       } catch (e: any) {
         if (!alive) return;
@@ -99,7 +101,11 @@ export default function WidgetAgentPage() {
   return (
     <div style={{ height: "100dvh", background: bg, color: colors.text, fontFamily: "Inter,system-ui,sans-serif", display: "flex", flexDirection: "column" }}>
       <div style={{ padding: "12px 14px", borderBottom: `1px solid ${colors.border}`, display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 30, height: 30, borderRadius: "50%", background: primary, color: "#111", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900 }}>B</div>
+        <div style={{ width: 30, height: 30, borderRadius: "50%", background: primary, color: "#111", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, overflow: "hidden", flexShrink: 0 }}>
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : "B"}
+        </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
           <div style={{ fontSize: 11, color: colors.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{role}</div>

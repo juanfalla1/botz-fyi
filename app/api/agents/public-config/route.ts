@@ -51,6 +51,7 @@ export async function GET(req: Request) {
         bg_color: String(widget.bg_color || "#0b1220"),
         primary_color: String(widget.primary_color || "#a3e635"),
         auto_open: Boolean(widget.auto_open),
+        avatar_url: String(widget.avatar_url || publish.avatar_url || cfg.avatar_url || ""),
       },
     },
   });
