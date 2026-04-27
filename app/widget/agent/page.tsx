@@ -104,7 +104,7 @@ export default function WidgetAgentPage() {
         <div style={{ width: 30, height: 30, borderRadius: "50%", background: primary, color: "#111", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, overflow: "hidden", flexShrink: 0 }}>
           {avatarUrl ? (
             <img src={avatarUrl} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          ) : "B"}
+          ) : (String(title || "A").trim().charAt(0).toUpperCase() || "A")}
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
