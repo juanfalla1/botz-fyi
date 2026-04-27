@@ -12,7 +12,6 @@ export default function WidgetAgentPage() {
   const [title, setTitle] = useState("Botz");
   const [role, setRole] = useState("Asistente virtual");
   const [welcome, setWelcome] = useState("¡Hola! ¿En qué te puedo ayudar?");
-  const [examples, setExamples] = useState<string[]>([]);
   const [primary, setPrimary] = useState("#a3e635");
   const [bg, setBg] = useState("#0b1220");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -49,7 +48,6 @@ export default function WidgetAgentPage() {
         setTitle(String(data.name || "Botz"));
         setRole(String(data.role || "Asistente virtual"));
         setWelcome(String(data.welcome_message || "¡Hola! ¿En qué te puedo ayudar?"));
-        setExamples(Array.isArray(data.examples) ? data.examples.slice(0, 4).map((x: any) => String(x || "")).filter(Boolean) : []);
         setPrimary(String(data?.widget?.primary_color || "#a3e635"));
         setBg(String(data?.widget?.bg_color || "#0b1220"));
         setAvatarUrl(String(data?.widget?.avatar_url || ""));
@@ -123,21 +121,6 @@ export default function WidgetAgentPage() {
       <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
         {loadingConfig && <div style={{ color: colors.muted, fontSize: 13 }}>Cargando agente...</div>}
         {error && <div style={{ color: "#fca5a5", fontSize: 13, marginBottom: 8 }}>{error}</div>}
-
-        {!loadingConfig && examples.length > 0 && messages.length <= 1 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-            {examples.map((ex, idx) => (
-              <button
-                key={`${ex}-${idx}`}
-                type="button"
-                onClick={() => send(ex)}
-                style={{ border: `1px solid ${colors.border}`, borderRadius: 999, padding: "7px 10px", background: "rgba(255,255,255,0.04)", color: colors.text, cursor: "pointer", fontSize: 12 }}
-              >
-                {ex}
-              </button>
-            ))}
-          </div>
-        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {messages.map((m, idx) => (
