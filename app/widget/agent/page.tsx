@@ -97,7 +97,9 @@ export default function WidgetAgentPage() {
   };
 
   return (
-    <div style={{ height: "100dvh", background: bg, color: colors.text, fontFamily: "Inter,system-ui,sans-serif", display: "flex", flexDirection: "column" }}>
+    <>
+      <style>{`html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }`}</style>
+      <div style={{ height: "100dvh", background: bg, color: colors.text, fontFamily: "Inter,system-ui,sans-serif", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div style={{ padding: "12px 14px", borderBottom: `1px solid ${colors.border}`, display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ width: 30, height: 30, borderRadius: "50%", background: primary, color: "#111", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, overflow: "hidden", flexShrink: 0 }}>
           {avatarUrl ? (
@@ -118,7 +120,7 @@ export default function WidgetAgentPage() {
         </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 12 }}>
         {loadingConfig && <div style={{ color: colors.muted, fontSize: 13 }}>Cargando agente...</div>}
         {error && <div style={{ color: "#fca5a5", fontSize: 13, marginBottom: 8 }}>{error}</div>}
 
@@ -137,7 +139,7 @@ export default function WidgetAgentPage() {
         </div>
       </div>
 
-      <div style={{ borderTop: `1px solid ${colors.border}`, padding: 10, display: "flex", gap: 8 }}>
+      <div style={{ borderTop: `1px solid ${colors.border}`, padding: 10, display: "flex", gap: 8, flexShrink: 0 }}>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -156,6 +158,7 @@ export default function WidgetAgentPage() {
           Enviar
         </button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
