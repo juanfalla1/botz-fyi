@@ -11056,21 +11056,30 @@ export async function POST(req: Request) {
             const effectivePhone = normalizePhone(customerPhone || String(strictMemory?.crm_contact_phone || "") || inbound.from || "");
             const cityKey = normalizeCityLabel(effectiveCity);
             const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
-            const cityCop = Number(cityPrices?.[cityKey] || 0);
-            const bogotaCop = Number(cityPrices?.bogota || 0);
-            const distributorCop = Number(cityPrices?.distribuidor || 0);
+            const parseCop = (v: any) => {
+              const n = Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
+              return Number.isFinite(n) && n > 0 ? n : 0;
+            };
+            const cityCop = parseCop((cityPrices as any)?.[cityKey]);
+            const bogotaCop = parseCop((cityPrices as any)?.bogota);
+            const antioquiaCop = parseCop((cityPrices as any)?.antioquia);
+            const distributorCop = parseCop((cityPrices as any)?.distribuidor);
             const useDistributorPrice = crmTierForQuote === "distribuidor" || crmTypeForQuote === "distributor";
-            const existingCop = Number(cityPrices?.cliente_antiguo || cityPrices?.cliente_recurrente || cityPrices?.recurrente || cityPrices?.existing || 0);
-            const newCop = Number(cityPrices?.cliente_nuevo || cityPrices?.new || 0);
+            const existingCop = parseCop((cityPrices as any)?.cliente_antiguo || (cityPrices as any)?.cliente_recurrente || (cityPrices as any)?.recurrente || (cityPrices as any)?.existing);
+            const newCop = parseCop((cityPrices as any)?.cliente_nuevo || (cityPrices as any)?.new);
             const useExistingPrice = customerSegment === "existing" && existingCop > 0;
             const useNewPrice = customerSegment === "new" && newCop > 0;
+            const finalCustomerCopByCity = cityKey === "antioquia" ? antioquiaCop : bogotaCop;
+            const fallbackFinalCustomerCop = finalCustomerCopByCity > 0
+              ? finalCustomerCopByCity
+              : (cityCop > 0 ? cityCop : (bogotaCop > 0 ? bogotaCop : antioquiaCop));
             const unitPriceCop = useDistributorPrice && distributorCop > 0
               ? distributorCop
               : useExistingPrice
                 ? existingCop
                 : useNewPrice
                   ? newCop
-                  : (cityCop > 0 ? cityCop : bogotaCop);
+                  : fallbackFinalCustomerCop;
             const baseUsdRaw = Number((selected as any)?.base_price_usd || 0);
             const basePriceUsd = baseUsdRaw > 0
               ? baseUsdRaw
