@@ -1410,6 +1410,24 @@ function resolvePendingProductOption(text: string, optionsRaw: any): { code: str
     if (nameNorm && t.includes(nameNorm)) return option;
     const modelTokens = extractModelLikeTokens(option.name);
     if (modelTokens.some((tk) => t.includes(normalizeText(tk)))) return option;
+    const inboundModelTokens = extractModelLikeTokens(tRaw);
+    if (inboundModelTokens.length && modelTokens.length) {
+      const hasModelNearMatch = inboundModelTokens.some((rawIn) => {
+        const inTok = splitModelToken(rawIn);
+        if (!inTok.letters || !inTok.digits) return false;
+        return modelTokens.some((rawOpt) => {
+          const optTok = splitModelToken(rawOpt);
+          if (!optTok.letters || !optTok.digits) return false;
+          if (inTok.letters !== optTok.letters) return false;
+          if (inTok.digits === optTok.digits) return true;
+          if (optTok.digits.startsWith(inTok.digits) || inTok.digits.startsWith(optTok.digits)) return true;
+          const inNoZero = inTok.digits.replace(/0/g, "");
+          const optNoZero = optTok.digits.replace(/0/g, "");
+          return inNoZero.length >= 2 && inNoZero === optNoZero;
+        });
+      });
+      if (hasModelNearMatch) return option;
+    }
     const terms = extractCatalogTerms(option.name).filter((term) => term.length >= 5).slice(0, 6);
     const hits = terms.reduce((acc, term) => (t.includes(term) ? acc + 1 : acc), 0);
     if (hits >= Math.min(2, Math.max(1, terms.length))) return option;
