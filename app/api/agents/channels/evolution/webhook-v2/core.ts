@@ -7590,7 +7590,11 @@ export async function POST(req: Request) {
             ].join("\n");
             return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: "guided_need_discovery_clarify" });
           }
-          const productKind = /(bascula|basculas)/.test(textNorm) ? "báscula" : "balanza";
+          const asksBascula = /(bascula|basculas)/.test(textNorm);
+          const productKind = asksBascula ? "báscula" : "balanza";
+          const guidanceRows = asksBascula
+            ? scopeCatalogRows(ownerRows as any[], "basculas")
+            : ownerRows as any[];
           const guidance = /(tornillo|tornillos|tuerca|tuercas|perno|pernos|repuesto|repuestos)/.test(textNorm)
             ? "Claro, para ese uso sí tenemos opciones. ¿La necesitas para conteo de piezas o para peso total, y qué rango de peso manejas?"
             : /(papa|papas|alimento|alimentos)/.test(textNorm)
@@ -7601,7 +7605,7 @@ export async function POST(req: Request) {
                   ? "Claro, para oro/joyería sí hay opciones. Para recomendarte bien, dime rango de peso y precisión que necesitas."
                   : `Sí, para esa necesidad tenemos opciones de ${productKind}. Para orientarte bien, dime qué vas a pesar, rango de peso aproximado y nivel de precisión que necesitas.`;
           const appOptions = getApplicationRecommendedOptions({
-            rows: ownerRows as any[],
+            rows: guidanceRows,
             application: app,
             capTargetG: Number(slotPack.slots.target_capacity_g || 0),
             targetReadabilityG: Number(slotPack.slots.target_readability_g || 0),
@@ -7612,9 +7616,18 @@ export async function POST(req: Request) {
           strictMemory.pending_family_options = [];
           strictMemory.awaiting_action = appOptions.length ? "strict_choose_model" : "strict_need_spec";
           strictMemory.strict_use_case = String(text || "").trim();
+          const onlyOneBascula = asksBascula && appOptions.length === 1;
           const reply = [
             guidance,
-            ...(top.length ? ["", "Opciones sugeridas para empezar:", ...top.map((o) => `${o.code}) ${o.name}`), "", "Si quieres, elige A/1 y te envío ficha o cotización."] : []),
+            ...(top.length
+              ? [
+                  "",
+                  onlyOneBascula ? "Por ahora en catálogo activo tengo 1 báscula compatible:" : "Opciones sugeridas para empezar:",
+                  ...top.map((o) => `${o.code}) ${o.name}`),
+                  "",
+                  "Si quieres, elige A/1 y te envío ficha o cotización.",
+                ]
+              : []),
           ].join("\n");
           return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
         }
