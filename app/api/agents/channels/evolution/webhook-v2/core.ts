@@ -9596,13 +9596,22 @@ export async function POST(req: Request) {
       }
 
       if (!String(strictReply || "").trim() && isGreeting && !explicitModel && !categoryIntent && !wantsQuote && !wantsSheet) {
+        const hasPriorConversation =
+          Boolean(previousMemory?.last_user_at || previousMemory?.last_intent || previousMemory?.last_quote_draft_id) ||
+          Boolean(previousMemory?.recognized_returning_customer || strictMemory?.recognized_returning_customer || recognizedReturningCustomer) ||
+          (Array.isArray(existingConv?.transcript) && existingConv.transcript.length > 0);
         strictMemory.awaiting_action = "none";
         strictMemory.pending_product_options = [];
         strictMemory.pending_family_options = [];
         strictMemory.strict_model_offset = 0;
         strictMemory.strict_family_label = "";
-        strictReply = buildCommercialWelcomeMessage();
-        strictMemory.commercial_welcome_sent = true;
+        if (hasPriorConversation) {
+          strictReply = buildGreetingReply(knownCustomerName, strictMemory);
+          strictMemory.commercial_welcome_sent = false;
+        } else {
+          strictReply = buildCommercialWelcomeMessage();
+          strictMemory.commercial_welcome_sent = true;
+        }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
         const parsed = parseLooseTechnicalHint(text);
         const capacityRange = parseCapacityRangeHint(text);
