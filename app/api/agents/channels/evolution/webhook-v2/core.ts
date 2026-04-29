@@ -4175,6 +4175,16 @@ function getLocalPdfIndex(): LocalPdfIndexEntry[] {
   return files;
 }
 
+function expandModelAliasTokens(tokens: string[]): string[] {
+  const base = uniqueNormalizedStrings((tokens || []).map((t) => normalizeCatalogQueryText(String(t || "")).replace(/[^a-z0-9]/g, "")).filter((t) => t.length >= 4));
+  const extra = new Set<string>(base);
+  for (const token of base) {
+    if (token.startsWith("rc31p")) extra.add(`r31p${token.slice(5)}`);
+    if (token.startsWith("r31p")) extra.add(`rc31p${token.slice(4)}`);
+  }
+  return Array.from(extra);
+}
+
 function pickBestLocalPdfPath(row: any, queryText: string): string {
   const files = getLocalPdfIndex();
   if (!files.length) return "";
@@ -4213,15 +4223,15 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
     ...extractModelLikeTokens(String(queryText || "")),
     String(row?.name || ""),
   ])
-    .map((t) => canonical(t))
-    .filter((t) => t.length >= 5);
-  if (strictModelTokens.length) {
+    .map((t) => canonical(t));
+  const strictModelAliasTokens = expandModelAliasTokens(strictModelTokens);
+  if (strictModelAliasTokens.length) {
     let strictBest: { filePath: string; score: number } | null = null;
     for (const f of files) {
       const hay = normalizeCatalogQueryText(f.normalized || f.fileName || "");
       const hayCanon = canonical(hay);
       let score = 0;
-      for (const token of strictModelTokens) {
+      for (const token of strictModelAliasTokens) {
         if (hayCanon.includes(token)) score += 20;
       }
       if (/ficha|datasheet|data sheet/.test(hay)) score += 3;
@@ -4274,6 +4284,7 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
     ...extractModelLikeTokens(String(queryText || "")),
     ...codeTokens.map((x) => normalizeCatalogQueryText(x)),
   ]).filter((x) => x.length >= 3);
+  const modelAliasTokens = expandModelAliasTokens(modelTokens);
   const textTerms = uniqueNormalizedStrings([
     ...extractCatalogTerms(`${String(row?.name || "")} ${String(queryText || "")}`).slice(0, 12),
     ...familyHints,
@@ -4285,7 +4296,7 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
     let score = 0;
     let modelHits = 0;
     let termHits = 0;
-    for (const token of modelTokens) {
+    for (const token of modelAliasTokens) {
       if (hay.includes(normalizeCatalogQueryText(token))) {
         score += 12;
         modelHits += 1;
@@ -4313,7 +4324,7 @@ function pickBestLocalPdfPath(row: any, queryText: string): string {
     if (/\b(sjx|spx|stx)\w*/.test(modelNorm) || /scout/.test(modelNorm)) return pickByKeywordPriority(["scout", "datasheet"]);
     return "";
   })();
-  if (modelTokens.length && best.modelHits === 0) {
+  if (modelAliasTokens.length && best.modelHits === 0) {
     if (hasStrongFamilyHint && best.termHits >= 1 && best.score >= 4) return best.filePath;
     if (!(best.termHits >= 2 && best.score >= 8)) return familyFallback;
   }
@@ -5515,19 +5526,22 @@ function filterCatalogByTerms(text: string, rows: any[], forcedCategory?: string
 }
 
 function pickBestProductPdfUrl(row: any, queryText: string): string {
+  const directDatasheetUrl = String(row?.datasheet_url || "").trim();
+  if (/^https?:\/\//i.test(directDatasheetUrl)) return directDatasheetUrl;
+
   const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const payloadPdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
   const productUrlAsPdf = /\.pdf(\?|$)/i.test(String(row?.product_url || "")) ? String(row?.product_url || "") : "";
 
   const candidates = uniqueNormalizedStrings(
-    [String(row?.datasheet_url || "").trim(), ...payloadPdfLinks.map((u: any) => String(u || "").trim()), productUrlAsPdf]
+    [...payloadPdfLinks.map((u: any) => String(u || "").trim()), productUrlAsPdf]
       .filter(Boolean)
   ).filter((u) => /^https?:\/\//i.test(u) && /\.pdf(\?|$)/i.test(u));
 
   if (!candidates.length) return "";
 
   const baseText = `${String(row?.name || "")} ${String(row?.slug || "")} ${String(queryText || "")}`;
-  const modelTokens = extractModelLikeTokens(baseText);
+  const modelTokens = expandModelAliasTokens(extractModelLikeTokens(baseText));
   const terms = extractCatalogTerms(baseText);
   const slugCompact = normalizeCatalogQueryText(String(row?.slug || "")).replace(/[^a-z0-9]+/g, "");
 
@@ -10642,9 +10656,12 @@ export async function POST(req: Request) {
                   `No tengo un PDF válido para ${selectedName} en este momento, pero sí te comparto las especificaciones disponibles en catálogo:`,
                   technicalSummary,
                   "",
+                  `${datasheetUrl ? `Enlace directo de ficha: ${datasheetUrl}` : ""}`,
                   "Si quieres, te genero la cotización ahora.",
                 ].join("\n")
-                : `No tengo un PDF válido para ${selectedName} en este momento y tampoco tengo especificaciones completas cargadas para este modelo. Si quieres, te genero la cotización ahora.`;
+                : `${
+                  `No tengo un PDF válido para ${selectedName} en este momento y tampoco tengo especificaciones completas cargadas para este modelo.`
+                }${datasheetUrl ? `\nEnlace directo de ficha: ${datasheetUrl}` : ""}\nSi quieres, te genero la cotización ahora.`;
               strictMemory.awaiting_action = "strict_confirm_quote_after_missing_sheet";
             }
           }
