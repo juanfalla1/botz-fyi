@@ -9990,6 +9990,22 @@ export async function POST(req: Request) {
             "Responde con letra o número (ej.: A o 1).",
           ].join("\n");
         }
+      } else if (!String(strictReply || "").trim() && awaiting === "strict_confirm_quote_after_missing_sheet") {
+        if (isAffirmativeShortIntent(text) || /^\s*1\b/.test(textNorm) || /\b(si|sí|dale|ok|de una|hagale|h[aá]gale)\b/.test(textNorm)) {
+          const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
+          strictMemory.quote_quantity = qtyRequested;
+          strictMemory.awaiting_action = "strict_quote_data";
+          strictReply = buildQuoteDataIntakePrompt(
+            `Perfecto. Te genero la cotización ahora (${qtyRequested} unidad(es)).`,
+            strictMemory
+          );
+        } else if (isNegativeShortIntent(text) || /^\s*2\b/.test(textNorm) || /\b(no|despues|después|luego)\b/.test(textNorm)) {
+          strictMemory.awaiting_action = "strict_choose_action";
+          strictReply = "Entendido. Responde 1 para cotización o 2 para ficha técnica.";
+        } else {
+          strictMemory.awaiting_action = "strict_confirm_quote_after_missing_sheet";
+          strictReply = "Para continuar, responde: sí para cotización o no para volver al menú.";
+        }
       } else if (!String(strictReply || "").trim() && selectedProduct) {
         const selectedName = String(selectedProduct?.name || "").trim();
         const hasSheetCandidate = Boolean(pickBestProductPdfUrl(selectedProduct, text) || pickBestLocalPdfPath(selectedProduct, text));
@@ -10131,6 +10147,11 @@ export async function POST(req: Request) {
         }
 
         if (awaiting === "strict_choose_action" && (technicalCapInAction > 0 || technicalReadInAction > 0) && !wantsQuote && !wantsSheet) {
+          const selectedCategoryNorm = normalizeText(`${String((selectedProduct as any)?.category || "")} ${String((selectedProduct as any)?.source_payload?.subcategory || "")}`);
+          const shouldScopeBasculas = /(bascula|basculas|plataforma|indicador|defender|ranger|valor)/.test(textNorm) || /(bascula|basculas|plataforma|indicador)/.test(selectedCategoryNorm);
+          const actionScopedRows = shouldScopeBasculas
+            ? scopeCatalogRows(ownerRows as any[], "basculas")
+            : baseScoped;
           const mergedTechnical = mergeLooseSpecWithMemory(
             {
               capacityG: Number(previousMemory?.strict_filter_capacity_g || previousMemory?.strict_partial_capacity_g || 0),
@@ -10154,7 +10175,7 @@ export async function POST(req: Request) {
               }
             }
             if (!String(strictReply || "").trim()) {
-              const priceLine = buildPriceRangeLine(baseScoped as any[]);
+              const priceLine = buildPriceRangeLine(actionScopedRows as any[]);
               strictMemory.awaiting_action = "strict_need_spec";
               strictReply = [
                 `Perfecto, ya tengo la capacidad (${formatSpecNumber(mergedCap)} g).`,
@@ -10176,8 +10197,8 @@ export async function POST(req: Request) {
             strictMemory.strict_filter_readability_g = mergedRead;
             strictMemory.strict_partial_capacity_g = "";
             strictMemory.strict_partial_readability_g = "";
-            const exactRows = getExactTechnicalMatches(baseScoped as any[], { capacityG: mergedCap, readabilityG: mergedRead });
-            const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: mergedCap, readabilityG: mergedRead });
+            const exactRows = getExactTechnicalMatches(actionScopedRows as any[], { capacityG: mergedCap, readabilityG: mergedRead });
+            const prioritized = prioritizeTechnicalRows(actionScopedRows as any[], { capacityG: mergedCap, readabilityG: mergedRead });
             const options = buildNumberedProductOptions((exactRows.length ? exactRows : (prioritized.orderedRows || [])).slice(0, 8) as any[], 8);
             strictMemory.pending_product_options = options;
             strictMemory.pending_family_options = [];
@@ -10624,6 +10645,7 @@ export async function POST(req: Request) {
                   "Si quieres, te genero la cotización ahora.",
                 ].join("\n")
                 : `No tengo un PDF válido para ${selectedName} en este momento y tampoco tengo especificaciones completas cargadas para este modelo. Si quieres, te genero la cotización ahora.`;
+              strictMemory.awaiting_action = "strict_confirm_quote_after_missing_sheet";
             }
           }
         } else if (!String(strictReply || "").trim()) {
