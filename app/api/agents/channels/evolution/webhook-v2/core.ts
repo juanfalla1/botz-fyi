@@ -893,13 +893,13 @@ async function buildStrictConversationalReply(args: {
 
 function isAdvisorAppointmentIntent(text: string): boolean {
   const t = normalizeText(text || "");
-  return /(\bcita\b|\basesor\b|asesor humano|asesor comercial|agendar|agenda|llamada con asesor|quiero hablar con asesor|mariana|transferir\s+asesor|pasame\s+con\s+asesor)/.test(t);
+  return /(\bcita\b|\basesor\b|asesor humano|asesor comercial|agendar|agenda|llamada con asesor|quiero hablar con asesor|mariana|milena|transferir\s+asesor|pasame\s+con\s+asesor)/.test(t);
 }
 
 function buildAdvisorMiniAgendaPrompt(): string {
   return [
     "Perfecto. Agendemos una llamada con asesor humano.",
-    `Si prefieres atención inmediata, puedes escribirle a Mariana aquí: ${MARIANA_ESCALATION_LINK}`,
+    `Si prefieres atención inmediata, puedes escribirle a Milena aquí: ${MARIANA_ESCALATION_LINK}`,
     "",
     "Elige horario:",
     "1) Hoy (en las próximas horas)",
@@ -2439,7 +2439,7 @@ type GuidedBalanzaProfile =
 
 type GuidedModelSpec = { model: string; capacity: string; resolution: string; delivery: string };
 
-const MARIANA_ESCALATION_LINK = "https://wa.me/573183731171";
+const MARIANA_ESCALATION_LINK = "https://wa.me/573008265047";
 
 const GUIDED_BALANZA_CATALOG: Record<GuidedBalanzaProfile, Array<{ tier: string; models: GuidedModelSpec[] }>> = {
   balanza_oro_001: [
@@ -2752,9 +2752,9 @@ function updateCommercialValidation(memory: any, text: string, fallbackName: str
 function buildCommercialEscalationMessage(): string {
   return [
     "⚠️ Si no contamos con esta información, no podremos continuar con el proceso.",
-    "Para continuar con este proceso te pondremos en contacto con nuestra asesora Mariana.",
-    "Mariana: +57 318 3731171",
-    `https://wa.me/573183731171`,
+    "Para continuar con este proceso te pondremos en contacto con nuestra asesora Milena.",
+    "Milena: +57 300 8265047",
+    `https://wa.me/573008265047`,
   ].join("\n");
 }
 
@@ -2778,9 +2778,9 @@ function buildNoActiveCatalogEscalationMessage(topic?: string): string {
     label
       ? `Ahora mismo no tengo referencias activas para ${label} en el catalogo automatico.`
       : "Ahora mismo no tengo referencias activas para esa solicitud en el catalogo automatico.",
-    "Te conecto de inmediato con nuestra asesora Mariana para validar disponibilidad y precio actualizado:",
-    "Mariana: +57 318 3731171",
-    "https://wa.me/573183731171",
+    "Te conecto de inmediato con nuestra asesora Milena para validar disponibilidad y precio actualizado:",
+    "Milena: +57 300 8265047",
+    "https://wa.me/573008265047",
   ].join("\n");
 }
 
@@ -6414,8 +6414,8 @@ async function buildStandardQuotePdf(args: {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.04);
   doc.text("Contacto Comercial", x + 1.5, contactTop + 3.8);
-  doc.text("Mariana Rodriguez", x + 1.5, contactTop + 7.8);
-  doc.text("CEL 3183731171", x + 1.5, contactTop + 11.8);
+  doc.text("Milena", x + 1.5, contactTop + 7.8);
+  doc.text("CEL 3008265047", x + 1.5, contactTop + 11.8);
   doc.text("cotizaciones@avanzagroup.com.co", x + 1.5, contactTop + 15.8);
 
   const iva = subtotal * ivaRate;
