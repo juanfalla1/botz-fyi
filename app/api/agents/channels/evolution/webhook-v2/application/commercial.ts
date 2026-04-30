@@ -6,6 +6,454 @@ function normalizeText(value: string): string {
     .trim();
 }
 
+export function normalizeCityLabel(raw: string): string {
+  const t = normalizeText(String(raw || ""));
+  if (!t) return "";
+  if (/(bogota|bogota dc|bogota d c)/.test(t)) return "bogota";
+  if (/(medellin|antioquia|envigado|itagui|sabaneta|bello)/.test(t)) return "antioquia";
+  return t;
+}
+
+export function sanitizeCustomerDisplayName(raw: string): string {
+  const v = String(raw || "").trim().replace(/\s+/g, " ");
+  if (!v) return "";
+  const lc = v.toLowerCase();
+  if (["hola", "cliente", "usuario", "user", "amigo", "amiga"].includes(lc)) return "";
+  if (/^\+?\d+$/.test(v)) return "";
+  if (v.length < 2) return "";
+  return v;
+}
+
+export function extractCustomerName(text: string, fallback: string): string {
+  const m = String(text || "").match(/nombre(?:\s+completo)?\s*:\s*([^\n,.]+)/i);
+  if (m?.[1]) return String(m[1]).trim();
+  const fb = String(fallback || "").trim();
+  if (!fb) return "";
+  if (["hola", "cliente", "usuario", "user"].includes(fb.toLowerCase())) return "";
+  return fb;
+}
+
+export function extractEmail(text: string): string {
+  const m = String(text || "").match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+  return m ? String(m[0] || "").toLowerCase() : "";
+}
+
+export function extractCustomerPhone(args: {
+  text: string;
+  fallbackInbound: string;
+  normalizePhone: (raw: string) => string;
+}): string {
+  const raw = String(args.text || "");
+  const labeled = raw.match(/(?:telefono|tel|celular|movil|whatsapp)\s*[:=]?\s*([+\d\s().-]{8,25})/i);
+  const fromLabel = args.normalizePhone(String(labeled?.[1] || ""));
+  if (fromLabel.length >= 10 && fromLabel.length <= 12) return fromLabel;
+
+  const any = raw.match(/\+?\d[\d\s().-]{8,20}\d/g);
+  if (any?.length) {
+    for (const candidate of any) {
+      const n = args.normalizePhone(candidate);
+      if (n.length >= 10 && n.length <= 12) return n;
+    }
+  }
+
+  const inbound = args.normalizePhone(args.fallbackInbound || "");
+  if (inbound.length >= 10 && inbound.length <= 12) return inbound;
+  return "";
+}
+
+export function isPresent(v: string): boolean {
+  return Boolean(String(v || "").trim());
+}
+
+export function looksLikeCustomerNameAnswer(text: string): string {
+  const src = String(text || "").trim();
+  if (!src) return "";
+  const cleaned = src
+    .replace(/^soy\s+/i, "")
+    .replace(/^mi\s+nombre\s+es\s+/i, "")
+    .replace(/^nombre\s*[:\-]\s*/i, "")
+    .replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return "";
+  if (cleaned.length < 3 || cleaned.length > 60) return "";
+  const words = cleaned.split(" ").filter(Boolean);
+  if (words.length > 5) return "";
+  const bad = ["hola", "si", "ok", "dale", "cotizar", "producto", "ficha", "imagen", "pdf"];
+  if (words.some((w) => bad.includes(w.toLowerCase()))) return "";
+  return sanitizeCustomerDisplayName(cleaned);
+}
+
+export function extractLabeledValue(text: string, labels: string[]): string {
+  const raw = String(text || "");
+  for (const label of labels) {
+    const rxStrict = new RegExp(`(?:${label})\\s*[:=\\-–]\\s*([^\\n,;]{2,120})`, "i");
+    const mStrict = raw.match(rxStrict);
+    if (mStrict?.[1]) return String(mStrict[1]).trim();
+    const rxLoose = new RegExp(`(?:${label})\\s+([^\\n,;]{2,120})`, "i");
+    const mLoose = raw.match(rxLoose);
+    if (mLoose?.[1]) return String(mLoose[1]).trim();
+  }
+  return "";
+}
+
+export function extractSimpleLabeledValue(text: string, keys: string[]): string {
+  const source = String(text || "");
+  for (const k of keys) {
+    const m = source.match(new RegExp(`\\b${k}\\b\\s*[:=\\-–]?\\s*([^\\n,;]+)`, "i"));
+    if (m?.[1]) return String(m[1]).trim();
+  }
+  return "";
+}
+
+export function detectPersonaNatural(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  return /persona\s+natural|soy\s+natural|no\s+tengo\s+empresa|sin\s+empresa/.test(t);
+}
+
+export function extractRut(text: string): string {
+  const raw = String(text || "");
+  const labeled = raw.match(/\brut\s*[:=]?\s*([a-z0-9.\-]{5,24})/i)?.[1] || "";
+  return String(labeled || "").trim();
+}
+
+export function extractCommercialCompanyName(text: string): string {
+  const raw = String(text || "");
+  const labeled = raw.match(/\b(?:empresa|compania|compañia|razon\s+social)\s*[:=]?\s*([^\n,;]{3,120})/i)?.[1] || "";
+  const cleaned = String(labeled || "").trim();
+  if (!cleaned) return "";
+  if (/^(persona\s+natural|natural)$/i.test(cleaned)) return "";
+  return cleaned;
+}
+
+export function updateCommercialValidation(args: {
+  memory: any;
+  text: string;
+  fallbackName: string;
+  sanitizeCustomerDisplayName: (raw: string) => string;
+  extractCustomerName: (text: string, fallback: string) => string;
+  extractCompanyNit: (text: string) => string;
+  isValidColombianNit: (value: string) => boolean;
+  isLikelyRutValue: (value: string) => boolean;
+}): void {
+  const inferredName = args.sanitizeCustomerDisplayName(args.extractCustomerName(args.text, args.fallbackName || ""));
+  const nit = args.extractCompanyNit(args.text);
+  const rut = extractRut(args.text);
+  const company = extractCommercialCompanyName(args.text);
+  const saysPersonaNatural = detectPersonaNatural(args.text);
+  const memory = args.memory;
+
+  if (inferredName && !String(memory?.customer_name || "").trim()) memory.customer_name = inferredName;
+  if (inferredName) memory.commercial_customer_name = inferredName;
+  if (company) memory.commercial_company_name = company;
+  if (nit) memory.commercial_company_nit = nit;
+  if (rut) memory.commercial_rut = rut;
+  if (saysPersonaNatural) memory.is_persona_natural = true;
+
+  memory.has_customer_name = Boolean(String(memory?.commercial_customer_name || memory?.customer_name || "").trim());
+  memory.has_company_name = Boolean(String(memory?.commercial_company_name || "").trim());
+  memory.has_company_nit = args.isValidColombianNit(String(memory?.commercial_company_nit || ""));
+  memory.has_rut = args.isLikelyRutValue(String(memory?.commercial_rut || ""));
+  memory.has_valid_nit = memory.has_company_nit;
+  memory.has_valid_rut = memory.has_rut;
+  memory.is_persona_natural = Boolean(memory?.is_persona_natural);
+  memory.commercial_validation_complete = memory.is_persona_natural
+    ? Boolean(memory.has_customer_name && memory.has_rut)
+    : Boolean(memory.has_customer_name && memory.has_company_name && memory.has_company_nit);
+}
+
+export function buildCommercialEscalationMessage(): string {
+  return [
+    "⚠️ Si no contamos con esta información, no podremos continuar con el proceso.",
+    "Para continuar con este proceso te pondremos en contacto con nuestra asesora Milena.",
+    "Milena: +57 300 8265047",
+    "https://wa.me/573008265047",
+  ].join("\n");
+}
+
+export function equipmentChoiceLabel(choice: string): string {
+  const key = normalizeText(String(choice || ""));
+  if (key === "balanza") return "balanzas";
+  if (key === "bascula") return "basculas";
+  if (key === "pesas_patron") return "pesas patron";
+  if (key === "analizador_humedad") return "analizadores de humedad";
+  if (key === "agitador_orbital") return "agitadores orbitales";
+  if (key === "plancha_agitacion") return "planchas de calentamiento y agitacion";
+  if (key === "centrifuga") return "centrifugas";
+  if (key === "electroquimica") return "electroquimica";
+  if (key === "otros") return "otros equipos";
+  return "esa categoria";
+}
+
+export function detectUnavailableLabTopic(text: string): string {
+  const t = normalizeText(String(text || ""));
+  if (/(agita|agitad|agbit|orbital)/.test(t)) return "agitadores orbitales";
+  if (/(planch|calent)/.test(t)) return "planchas de calentamiento y agitacion";
+  if (/(centrifug|centrifuga|centrifugas)/.test(t)) return "centrifugas";
+  if (/(electroquim|phmetro|conductivimetro|multiparametro|electrodos)/.test(t)) return "electroquimica";
+  return "equipos de laboratorio";
+}
+
+export function looksLikeCommercialDataInput(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!t) return false;
+  return /(\bnit\b|\brut\b|\bnombre\b|\bempresa\b|\brazon\s+social\b|persona\s+natural)/.test(t);
+}
+
+export function buildCommercialValidationOkMessage(): string {
+  return [
+    "Perfecto, datos registrados correctamente.",
+    "¿En qué equipo estás interesado?",
+    "1) Balanza",
+    "2) Báscula",
+    "3) Pesas patrón",
+    "4) Analizadores de humedad",
+    "5) Agitadores orbitales",
+    "6) Planchas de calentamiento y agitación",
+    "7) Centrífugas",
+    "8) Electroquímica (pHmetro, conductivímetro, multiparámetro y electrodos)",
+    "9) Otros",
+  ].join("\n");
+}
+
+export function isAffirmativeShortIntent(text: string, isQuoteProceedIntent: (text: string) => boolean): boolean {
+  const t = normalizeText(String(text || "")).trim();
+  if (!t) return false;
+  if (/^(si|s[ií]|ok|dale|de\s+una|listo|hagamoslo|hagamoslo\s+asi|perfecto)$/.test(t)) return true;
+  return isQuoteProceedIntent(t);
+}
+
+export function isNegativeShortIntent(text: string): boolean {
+  const t = normalizeText(String(text || "")).trim();
+  if (!t) return false;
+  return /^(no|nop|negativo|despues|después|luego|ahora\s+no)$/.test(t);
+}
+
+export function buildNoActiveCatalogEscalationMessage(topic?: string): string {
+  const label = String(topic || "").trim();
+  return [
+    label
+      ? `Ahora mismo no tengo referencias activas para ${label} en el catalogo automatico.`
+      : "Ahora mismo no tengo referencias activas para esa solicitud en el catalogo automatico.",
+    "Te conecto de inmediato con nuestra asesora Milena para validar disponibilidad y precio actualizado:",
+    "Milena: +57 300 8265047",
+    "https://wa.me/573008265047",
+  ].join("\n");
+}
+
+export async function upsertNewCommercialCustomerContact(args: {
+  supabase: any;
+  ownerId: string;
+  tenantId?: string | null;
+  city: string;
+  company: string;
+  nit: string;
+  contact: string;
+  email: string;
+  phone: string;
+  normalizeCityLabel: (raw: string) => string;
+  sanitizeCustomerDisplayName: (raw: string) => string;
+  normalizePhone: (raw: string) => string;
+  phoneTail10: (raw: string) => string;
+}): Promise<boolean> {
+  const ownerId = String(args.ownerId || "").trim();
+  const city = args.normalizeCityLabel(String(args.city || "").trim());
+  const company = String(args.company || "").trim();
+  const nit = String(args.nit || "").replace(/\D/g, "").trim();
+  const contact = args.sanitizeCustomerDisplayName(String(args.contact || "").trim());
+  const email = String(args.email || "").trim().toLowerCase();
+  const phone = args.normalizePhone(String(args.phone || "").trim());
+  const tail = args.phoneTail10(phone);
+  if (!ownerId || !company || !nit || !contact || !email || !phone) return false;
+
+  const baseMeta = {
+    nit,
+    billing_city: city,
+    customer_type: "new",
+    source: "whatsapp_new_customer_data",
+    whatsapp_transport_id: phone,
+    whatsapp_lifecycle_at: new Date().toISOString(),
+  };
+
+  try {
+    let existingByNit: any = null;
+    const { data: byNit } = await args.supabase
+      .from("agent_crm_contacts")
+      .select("id,metadata")
+      .eq("created_by", ownerId)
+      .eq("contact_key", `nit:${nit}`)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    if (Array.isArray(byNit) && byNit[0]) existingByNit = byNit[0];
+
+    const mergedMeta = {
+      ...(existingByNit?.metadata && typeof existingByNit.metadata === "object" ? existingByNit.metadata : {}),
+      ...baseMeta,
+    };
+
+    let persisted = false;
+    for (let attempt = 0; attempt < 2 && !persisted; attempt++) {
+      const { error: upsertErr } = await args.supabase
+        .from("agent_crm_contacts")
+        .upsert(
+          {
+            tenant_id: args.tenantId || null,
+            created_by: ownerId,
+            name: contact,
+            email,
+            phone,
+            company,
+            contact_key: `nit:${nit}`,
+            status: "analysis",
+            metadata: mergedMeta,
+          },
+          { onConflict: "created_by,contact_key" }
+        );
+
+      if (upsertErr) {
+        console.error("[webhook-v2][crm-upsert-new-customer]", {
+          attempt,
+          ownerId,
+          nit,
+          phoneTail: tail,
+          error: String((upsertErr as any)?.message || upsertErr),
+        });
+        continue;
+      }
+
+      const { data: verifyRows, error: verifyErr } = await args.supabase
+        .from("agent_crm_contacts")
+        .select("id")
+        .eq("created_by", ownerId)
+        .eq("contact_key", `nit:${nit}`)
+        .limit(1);
+      if (!verifyErr && Array.isArray(verifyRows) && verifyRows[0]?.id) persisted = true;
+      if (verifyErr) {
+        console.error("[webhook-v2][crm-upsert-new-customer-verify]", {
+          ownerId,
+          nit,
+          error: String((verifyErr as any)?.message || verifyErr),
+        });
+      }
+    }
+
+    return persisted;
+  } catch (error) {
+    console.error("[webhook-v2][crm-upsert-new-customer-fatal]", {
+      ownerId,
+      nit,
+      phoneTail: tail,
+      error: String((error as any)?.message || error),
+    });
+    return false;
+  }
+}
+
+export async function ensureAnalysisOpportunitySeed(args: {
+  supabase: any;
+  ownerId: string;
+  tenantId?: string | null;
+  agentId?: string | null;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  companyName?: string;
+  location?: string;
+  customerNit?: string;
+  customerType?: string;
+  sanitizeCustomerDisplayName: (raw: string) => string;
+  normalizePhone: (raw: string) => string;
+  phoneTail10: (raw: string) => string;
+  normalizeCityLabel: (raw: string) => string;
+  normalizeText: (raw: string) => string;
+  isQuoteDraftStatusConstraintError: (err: any) => boolean;
+}): Promise<void> {
+  const ownerId = String(args.ownerId || "").trim();
+  if (!ownerId) return;
+  const customerName = args.sanitizeCustomerDisplayName(String(args.customerName || "").trim());
+  const customerEmail = String(args.customerEmail || "").trim().toLowerCase();
+  const customerPhone = args.normalizePhone(String(args.customerPhone || "").trim());
+  const phoneTail = args.phoneTail10(customerPhone);
+  if (!customerEmail && !phoneTail) return;
+
+  try {
+    let exists = false;
+    let lookup = args.supabase
+      .from("agent_quote_drafts")
+      .select("id,payload,status,updated_at")
+      .eq("created_by", ownerId)
+      .order("updated_at", { ascending: false })
+      .limit(20);
+    if (customerEmail && phoneTail) {
+      lookup = lookup.or(`customer_email.eq.${customerEmail},customer_phone.like.%${phoneTail}`);
+    } else if (customerEmail) {
+      lookup = lookup.eq("customer_email", customerEmail);
+    } else {
+      lookup = lookup.like("customer_phone", `%${phoneTail}`);
+    }
+    const { data: recentRows } = await lookup;
+    if (Array.isArray(recentRows)) {
+      exists = recentRows.some((r: any) => {
+        const payload = r?.payload && typeof r.payload === "object" ? r.payload : {};
+        const isSeed = Boolean(payload?.lead_seed);
+        const st = args.normalizeText(String(r?.status || ""));
+        const isOpenStage = /^(analysis|study|quote|purchase_order|invoicing|draft|sent|won|lost)$/.test(st);
+        return isSeed || isOpenStage;
+      });
+    }
+    if (exists) return;
+
+    const draftPayload: any = {
+      tenant_id: args.tenantId || null,
+      created_by: ownerId,
+      agent_id: args.agentId || null,
+      customer_name: customerName || null,
+      customer_email: customerEmail || null,
+      customer_phone: customerPhone || null,
+      company_name: String(args.companyName || "").trim() || null,
+      location: args.normalizeCityLabel(String(args.location || "").trim()) || null,
+      product_name: "Prospecto WhatsApp",
+      notes: "Lead automático desde validación comercial (WhatsApp)",
+      payload: {
+        lead_seed: true,
+        lead_seed_source: "whatsapp_commercial_validation",
+        customer_nit: String(args.customerNit || "").replace(/\D/g, "").trim() || null,
+        customer_type: args.normalizeText(String(args.customerType || "").trim()) || null,
+        created_at_iso: new Date().toISOString(),
+      },
+      status: "analysis",
+    };
+
+    let { error: seedErr } = await args.supabase.from("agent_quote_drafts").insert(draftPayload);
+    if (seedErr && args.isQuoteDraftStatusConstraintError(seedErr)) {
+      draftPayload.status = "draft";
+      draftPayload.payload = {
+        ...(draftPayload.payload || {}),
+        crm_stage: "analysis",
+        crm_stage_updated_at: new Date().toISOString(),
+      };
+      const retry = await args.supabase.from("agent_quote_drafts").insert(draftPayload);
+      seedErr = retry.error as any;
+    }
+    if (seedErr) {
+      console.error("[webhook-v2][crm-seed-opportunity]", {
+        ownerId,
+        phoneTail,
+        email: customerEmail,
+        error: String((seedErr as any)?.message || seedErr),
+      });
+    }
+  } catch (error) {
+    console.error("[webhook-v2][crm-seed-opportunity-fatal]", {
+      ownerId,
+      phoneTail,
+      email: customerEmail,
+      error: String((error as any)?.message || error),
+    });
+  }
+}
+
 export function buildExistingClientMatchConfirmationPrompt(args: {
   company: string;
   nit: string;
