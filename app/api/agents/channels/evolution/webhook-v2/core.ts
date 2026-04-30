@@ -3038,6 +3038,8 @@ function isProductDefinitionIntent(text: string): boolean {
   const asksDefinition = /(que\s+es|que\s+significa|que\s+quiere\s+decir|explicame|explica|definicion|definicion\s+de|para\s+que\s+sirve)/.test(t);
   const mentionsTechTerm = /(microbalanza|semimicro|semi\s*analitica|analitica|balanza\s+de\s+precision|capacidad|resolucion|lectura\s+minima|linealidad|repetibilidad|calibracion|trazabilidad|estabilidad|usb|rs\s*232|ethernet|bluetooth|wifi)/.test(t);
   const looksLikeProductRequest = /(balanza|balanzas|bascula|basculas|opciones|modelos|catalogo|gama|cotizar|precio)/.test(t);
+  const hasNumericSpec = Boolean(parseTechnicalSpecQuery(text)) || /\b\d+(?:[.,]\d+)?\s*(g|kg|mg)\b/.test(t);
+  if (!asksDefinition && hasNumericSpec) return false;
   if (!asksDefinition && looksLikeProductRequest) return false;
   return asksDefinition || mentionsTechTerm;
 }
