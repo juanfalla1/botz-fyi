@@ -3,12 +3,44 @@ import OpenAI from "openai";
 import { jsPDF } from "jspdf";
 import fs from "node:fs";
 import path from "node:path";
-import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
 import { buildQuotePdfFromDraft } from "../../../quotes/_utils/pdf";
-import { evolutionService } from "../../../../../../lib/services/evolution.service";
 import { buildPhase1InvariantSnapshot } from "./invariants";
 import { ENABLE_PHASE1_PASSIVE_INVARIANT_LOGGING } from "./phase1-flags";
+import { MAX_WHATSAPP_DOC_BYTES, ENABLE_STRICT_WHATSAPP_MODE, WEBHOOK_V2_DYNAMIC, WEBHOOK_V2_RUNTIME } from "./config/runtime";
+import { webhookInfraServices } from "./infra/services";
+import {
+  buildMissingNewCustomerDataMessage,
+  buildExistingClientMatchConfirmationPrompt,
+  getMissingNewCustomerFields,
+  parseExistingContactUpdateData as parseExistingContactUpdateDataApp,
+  shouldEscalateToAdvisorByCommercialRule,
+  updateNewCustomerRegistration as updateNewCustomerRegistrationApp,
+} from "./application/commercial";
+import {
+  buildProductDefinitionReply as buildProductDefinitionReplyApp,
+  buildGuidedNeedReframePrompt,
+  buildScaleUseExplanationReply,
+} from "./application/guidance";
+import {
+  detectClientRecognitionChoice,
+  detectEquipmentChoice,
+  detectExistingClientConfirmationChoice,
+  detectGuidedBalanzaProfile,
+  detectIndustrialGuidedMode,
+  guidedProfileFromUsageContext,
+  hasPriorityProductGuidanceIntent as hasPriorityProductGuidanceIntentDomain,
+  isAmbiguousNeedInput,
+  isBasculaAvailabilityAsk,
+  isCapacityResolutionHelpIntent,
+  isDifferenceQuestionIntent,
+  isExplicitFamilyMenuAsk,
+  isHeavyDutyWeightIntent,
+  isPriceObjectionIntent,
+  isProductDefinitionIntent,
+  isScaleUseExplanationIntent,
+} from "./domain/intents";
+import type { GuidedBalanzaProfile } from "./application/guided-profiles";
 import {
   buildBalanzaQualificationPrompt,
   buildEquipmentMenuPrompt,
@@ -16,8 +48,11 @@ import {
   buildNewCustomerDataPrompt,
 } from "./application/prompts";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime = WEBHOOK_V2_RUNTIME;
+export const dynamic = WEBHOOK_V2_DYNAMIC;
+
+const getServiceSupabase = webhookInfraServices.getSupabase;
+const evolutionService = webhookInfraServices.evolution;
 
 const CATALOG_REFERENCE_URL = "https://balanzasybasculas.com.co/";
 const CATALOG_REFERENCE_SHARE_URL = "https://share.google/cE6wPPEGCH3vytJMm";
@@ -39,8 +74,7 @@ const ENABLE_RUNTIME_PDF_IMAGE_PARSE_FOR_QUOTE = String(
 ).toLowerCase() === "true";
 const ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE = false;
 const ENABLE_QUOTE_PRODUCT_IMAGE = String(process.env.WHATSAPP_QUOTE_EMBED_PRODUCT_IMAGE || "true").toLowerCase() === "true";
-const STRICT_WHATSAPP_MODE = String(process.env.WHATSAPP_STRICT_MODE || "true").toLowerCase() !== "false";
-const MAX_WHATSAPP_DOC_BYTES = Number(process.env.WHATSAPP_DOC_MAX_BYTES || 8 * 1024 * 1024);
+const STRICT_WHATSAPP_MODE = ENABLE_STRICT_WHATSAPP_MODE;
 const QUOTE_FLOW_VERSION = "quote-flow-2026-03-26-stability-hotfix-03";
 const ALLOWED_BRAND_KEYS = ["ohaus"];
 const ALLOWED_NAME_KEYS = ["explorer", "adventurer", "pioneer", "ranger", "defender", "valor", "scout", "mb120", "mb90", "mb27", "mb23", "aquasearcher", "frontier"];
@@ -2454,13 +2488,6 @@ function listActiveCatalogCategories(rows: any[]): string {
   return labels.map((x) => `${x.label} (${x.count})`).join(", ");
 }
 
-type GuidedBalanzaProfile =
-  | "balanza_oro_001"
-  | "balanza_precision_001"
-  | "balanza_laboratorio_0001"
-  | "balanza_semimicro_00001"
-  | "balanza_industrial_portatil_conteo";
-
 type GuidedModelSpec = { model: string; capacity: string; resolution: string; delivery: string };
 
 const MARIANA_ESCALATION_LINK = "https://wa.me/573008265047";
@@ -2839,101 +2866,6 @@ function buildCommercialValidationOkMessage(): string {
   ].join("\n");
 }
 
-function buildExistingClientMatchConfirmationPrompt(args: {
-  company: string;
-  nit: string;
-  contact: string;
-  email: string;
-  phone: string;
-}): string {
-  const company = String(args.company || "").trim() || "Empresa no registrada";
-  const nit = String(args.nit || "").trim() || "NIT no registrado";
-  const contact = String(args.contact || "").trim() || "Contacto no registrado";
-  const email = String(args.email || "").trim() || "Correo no registrado";
-  const phone = String(args.phone || "").trim() || "Celular no registrado";
-  return [
-    "Perfecto, encontré estos datos en nuestra base:",
-    `- Empresa: ${company}`,
-    `- NIT: ${nit}`,
-    `- Contacto: ${contact}`,
-    `- Correo: ${email}`,
-    `- Celular: ${phone}`,
-    "",
-    "¿Eres la misma persona de contacto?",
-    "1) Sí, continuar",
-    "2) No, soy otra persona/área",
-  ].join("\n");
-}
-
-function detectExistingClientConfirmationChoice(text: string): "same" | "different" | "" {
-  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (!t) return "";
-  if (/^(1|si|sí|soy yo|misma persona|correcto|confirmo|continuar)$/.test(t) || /(misma\s+persona|soy\s+yo|si\s+continuar)/.test(t)) return "same";
-  if (/^(2|no|otra persona|otro contacto|otra area|otra área|cambio de personal)$/.test(t) || /(otra\s+persona|otro\s+contacto|otra\s+area|otra\s+área|cambio\s+de\s+personal)/.test(t)) return "different";
-  return "";
-}
-
-function parseExistingContactUpdateData(text: string, fallbackInboundPhone: string): {
-  name: string;
-  email: string;
-  phone: string;
-  area: string;
-} {
-  const raw = String(text || "");
-  const lines = raw
-    .split(/\n|;|,/)
-    .map((l) => String(l || "").trim())
-    .filter(Boolean);
-
-  const email = String(extractEmail(raw) || lines.find((l) => /@/.test(l)) || "").trim().toLowerCase();
-  const phone = normalizePhone(String(extractCustomerPhone(raw, fallbackInboundPhone || "") || "").trim());
-  const area = String(extractSimpleLabeledValue(raw, ["area", "área", "cargo", "departamento"]) || "").trim();
-
-  const fallbackNameLine = lines.find((l) => {
-    const t = normalizeText(l);
-    if (!t) return false;
-    if (/@/.test(l)) return false;
-    if (/^\+?\d[\d\s()-]{7,}$/.test(l)) return false;
-    if (/\b(area|área|cargo|departamento|correo|email|cel|celular|telefono|tel|nit)\b/.test(t)) return false;
-    return /[a-záéíóúñ]/i.test(l);
-  }) || "";
-
-  const name = sanitizeCustomerDisplayName(
-    extractSimpleLabeledValue(raw, ["nombre", "contacto", "encargado", "responsable"]) ||
-    extractCustomerName(raw, "") ||
-    fallbackNameLine
-  );
-  return { name, email, phone, area };
-}
-
-function isScaleUseExplanationIntent(text: string): boolean {
-  const t = normalizeText(String(text || "")).replace(/\s+/g, " ").trim();
-  if (!t) return false;
-  return /(para\s+que\s+sirven?|que\s+uso\s+tienen|para\s+que\s+se\s+usan|para\s+que\s+me\s+sirven)/.test(t) && /(balanza|balanzas|bascula|basculas)/.test(t);
-}
-
-function buildScaleUseExplanationReply(categoryHint: string): string {
-  const isBascula = normalizeText(String(categoryHint || "")) === "basculas";
-  const productWord = isBascula ? "básculas" : "balanzas";
-  return [
-    "Claro 👌",
-    `Las ${productWord} sirven para medir peso con precisión y controlar mejor tus procesos (calidad, inventario, dosificación y costos).`,
-    "Te ayudan a evitar errores de pesaje, reducir mermas y tomar decisiones con datos confiables.",
-    "La elección correcta depende de capacidad (peso máximo) y resolución (nivel de detalle).",
-    "Si quieres, te recomiendo ahora mismo la mejor opción para tu caso y te la cotizo.",
-  ].join("\n");
-}
-
-function buildGuidedNeedReframePrompt(): string {
-  return [
-    "Perfecto, gracias por decirmelo.",
-    "Para recomendarte algo que si te sirva, cuentame por favor:",
-    "1) Que vas a pesar",
-    "2) Rango de peso aproximado (minimo y maximo)",
-    "3) Precision deseada (ej.: 0.01 g o 0.001 g)",
-  ].join("\n");
-}
-
 function quoteClosureCta(): string {
   return "Dime cuál balanza te interesa para cotizar (número o modelo).";
 }
@@ -2964,17 +2896,6 @@ function buildCapacityResolutionExplanation(): string {
   ].join("\n"));
 }
 
-function isCapacityResolutionHelpIntent(text: string): boolean {
-  const t = normalizeText(String(text || ""));
-  return /(no\s+se|no\s+entiendo|que\s+es\s+(?:la\s+)?capacidad|que\s+es\s+(?:la\s+)?resolucion|no\s+entiendo\s+capacidad|no\s+entiendo\s+resolucion|explicame\s+capacidad|explicame\s+resolucion)/.test(t.replace(/\s+/g, " "));
-}
-
-function isPriceObjectionIntent(text: string): boolean {
-  const t = normalizeText(String(text || ""));
-  if (!t) return false;
-  return /(por\s*que\s+es\s+tan\s+car|por\s*que\s+tan\s+car|porque\s+es\s+tan\s+car|porque\s+tan\s+car|esta\s+muy\s+car|es\s+muy\s+car|muy\s+costos|muy\s+costosa|esta\s+costosa|esta\s+costoso|esta\s+cara|esta\s+caro)/i.test(t.replace(/\s+/g, " "));
-}
-
 function buildPriceObjectionReply(): string {
   return appendQuoteClosureCta([
     "Buena pregunta 👌",
@@ -2990,111 +2911,6 @@ function buildPriceObjectionReply(): string {
     "👉 las profesionales garantizan resultados confiables.",
     "",
     "Si quieres, te propongo 3 opciones por gama (esencial/intermedia/premium) para comparar costo-beneficio y elegir la ideal.",
-  ].join("\n"));
-}
-
-function isProductDefinitionIntent(text: string): boolean {
-  const t = normalizeText(String(text || ""));
-  if (!t) return false;
-  const asksDefinition = /(que\s+es|que\s+significa|que\s+quiere\s+decir|explicame|explica|definicion|definicion\s+de|para\s+que\s+sirve)/.test(t);
-  const mentionsTechTerm = /(microbalanza|semimicro|semi\s*analitica|analitica|balanza\s+de\s+precision|capacidad|resolucion|lectura\s+minima|linealidad|repetibilidad|calibracion|trazabilidad|estabilidad|usb|rs\s*232|ethernet|bluetooth|wifi)/.test(t);
-  const looksLikeProductRequest = /(balanza|balanzas|bascula|basculas|opciones|modelos|catalogo|gama|cotizar|precio)/.test(t);
-  const hasNumericSpec = Boolean(parseTechnicalSpecQuery(text)) || /\b\d+(?:[.,]\d+)?\s*(g|kg|mg)\b/.test(t);
-  if (!asksDefinition && hasNumericSpec) return false;
-  if (!asksDefinition && looksLikeProductRequest) return false;
-  return asksDefinition || mentionsTechTerm;
-}
-
-function extractDefinitionSubject(text: string): string {
-  const src = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
-  if (!src) return "";
-  const m = src.match(/(?:que\s+es|que\s+significa|que\s+quiere\s+decir|explicame|explica|definicion\s+de|para\s+que\s+sirve)\s+([a-z0-9\s]{2,60})/);
-  const raw = String(m?.[1] || src).trim();
-  return raw
-    .replace(/\b(la|el|los|las|una|un|de|del|en|para|balanza|balanzas|equipo|equipos)\b/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function buildProductDefinitionReply(text: string): string {
-  const source = normalizeText(String(text || "")).replace(/\s+/g, " ").trim();
-  if (/(para\s+que\s+sirven?|que\s+uso\s+tienen|para\s+que\s+se\s+usan)/.test(source) && /(balanza|balanzas|bascula|basculas)/.test(source)) {
-    return appendQuoteClosureCta([
-      "Buena pregunta 👌",
-      "Una balanza sirve para medir masa/peso con precision y tomar decisiones correctas en compra, produccion y control de calidad.",
-      "",
-      "En la practica, te ayuda a:",
-      "1) Evitar errores de dosificacion o formulacion (laboratorio/farmacia/alimentos)",
-      "2) Controlar mermas y estandarizar procesos (industria y bodega)",
-      "3) Cumplir tolerancias y trazabilidad en auditorias",
-      "4) Comprar/vender por peso real con confianza (joyeria y metales)",
-      "",
-      "La clave para elegir bien es combinar:",
-      "- Capacidad: peso maximo que soporta",
-      "- Resolucion: nivel de detalle (decimales) que puede leer",
-      "",
-      "Si quieres, te recomiendo opciones exactas segun tu caso.",
-    ].join("\n"));
-  }
-
-  const subject = extractDefinitionSubject(text);
-  const s = normalizeText(subject).replace(/\s+/g, " ").trim();
-
-  if (/microbalanza|semi\s*micro|semimicro|semi\s*analitica|analitica|balanza\s+de\s+precision/.test(s)) {
-    return appendQuoteClosureCta([
-      "Las balanzas se diferencian principalmente por su nivel de precisión:",
-      "1) Microbalanza: la más exacta (hasta 0,001 mg)",
-      "2) Semimicro: 0,01 mg",
-      "3) Analítica: 0,1 mg",
-      "4) Semi-analítica: 1 mg",
-      "5) Balanza de precisión: 0,01 g o más (uso más general)",
-      "",
-      "En resumen: entre más 'micro' es la balanza, mayor exactitud ofrece;",
-      "entre más 'de precisión', más industrial y menos sensible es.",
-    ].join("\n"));
-  }
-  if (/capacidad/.test(s)) {
-    return appendQuoteClosureCta("Capacidad: es el peso máximo que puede soportar la balanza. Si la capacidad es 5 kg, no debes superar ese valor.");
-  }
-  if (/resolucion|precision|lectura\s*minima/.test(s)) {
-    return appendQuoteClosureCta("Resolución (o lectura mínima): es el nivel de detalle que muestra la balanza. Entre más decimales, mayor precisión de lectura.");
-  }
-  if (/linealidad/.test(s)) {
-    return appendQuoteClosureCta([
-      "Linealidad: indica qué tan exacta es la balanza en todo el rango de pesaje.",
-      "👉 Que pese bien tanto 1 g como 200 g.",
-      "👉 Si no es buena, puede dar errores en diferentes puntos.",
-    ].join("\n"));
-  }
-  if (/repetibilidad/.test(s)) {
-    return appendQuoteClosureCta([
-      "Repetibilidad: es la capacidad de dar el mismo resultado varias veces al pesar lo mismo.",
-      "👉 Si pesas 10 veces el mismo objeto, debería dar igual siempre.",
-    ].join("\n"));
-  }
-  if (/calibracion/.test(s)) {
-    return appendQuoteClosureCta("Calibración: ajuste del equipo para asegurar exactitud. Puede ser interna (automática) o externa (con pesas patrón).");
-  }
-  if (/trazabilidad/.test(s)) {
-    return appendQuoteClosureCta([
-      "Trazabilidad: significa que los resultados están respaldados por estándares oficiales.",
-      "👉 Importante en laboratorios, auditorías y normas (ISO, GLP).",
-    ].join("\n"));
-  }
-  if (/estabilidad/.test(s)) {
-    return appendQuoteClosureCta([
-      "Estabilidad: es qué tan rápido y firme la balanza muestra un resultado sin fluctuar.",
-      "👉 Una buena balanza no 'baila' el número.",
-      "👉 Muy importante en ambientes reales de trabajo.",
-    ].join("\n"));
-  }
-  if (/usb|rs\s*232|ethernet|bluetooth|wifi/.test(s)) {
-    return appendQuoteClosureCta("Conectividad (USB/RS232/Ethernet/Bluetooth): permite transferir datos de pesaje a PC, impresora o sistema de control para trazabilidad y reportes.");
-  }
-
-  return appendQuoteClosureCta([
-    "Buena pregunta. Te explico ese término en contexto de balanzas de forma simple.",
-    "Si quieres, también te lo aterrizo a 3 modelos de referencia para que compares mejor.",
   ].join("\n"));
 }
 
@@ -3139,11 +2955,10 @@ function isAffirmativeShortIntent(text: string): boolean {
   return isQuoteProceedIntent(t);
 }
 
-function detectClientRecognitionChoice(text: string): "new" | "existing" | "" {
-  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (/^1$/.test(t) || /cliente\s+nuevo|soy\s+nuevo/.test(t)) return "new";
-  if (/^2$/.test(t) || /ya\s+soy\s+cliente|ya\s+los\s+conozco|cliente\s+de\s+avanza/.test(t)) return "existing";
-  return "";
+function isNegativeShortIntent(text: string): boolean {
+  const t = normalizeText(String(text || "")).trim();
+  if (!t) return false;
+  return /^(no|nop|negativo|despues|después|luego|ahora\s+no)$/.test(t);
 }
 
 function extractSimpleLabeledValue(text: string, keys: string[]): string {
@@ -3153,53 +2968,6 @@ function extractSimpleLabeledValue(text: string, keys: string[]): string {
     if (m?.[1]) return String(m[1]).trim();
   }
   return "";
-}
-
-function extractLooseNewCustomerFields(text: string): { city: string; company: string; nit: string; contact: string } {
-  const raw = String(text || "");
-  const lines = raw
-    .split(/\n|;|,/) 
-    .map((l) => String(l || "").trim())
-    .filter(Boolean);
-  let looseNit = "";
-  for (const line of lines) {
-    const candidate = String(line || "").replace(/\D/g, "");
-    if (/^\d{8,12}$/.test(candidate)) {
-      looseNit = candidate;
-      break;
-    }
-  }
-  const filtered = lines.filter((line) => {
-    const l = normalizeText(line);
-    if (looseNit && String(line).replace(/\D/g, "") === looseNit) return false;
-    if (/@/.test(line)) return false;
-    if (/^\+?\d[\d\s()-]{8,}$/.test(line)) return false;
-    if (/\bnit\b|\bcorreo\b|\bemail\b|\bcel\b|\bcelular\b|\btelefono\b/.test(l)) return false;
-    return true;
-  });
-  return {
-    city: String(filtered[0] || "").trim(),
-    company: String(filtered[1] || "").trim(),
-    contact: String(filtered[2] || "").trim(),
-    nit: looseNit,
-  };
-}
-
-function updateNewCustomerRegistration(memory: any, text: string, fallbackName: string) {
-  const current = memory?.new_customer_data && typeof memory.new_customer_data === "object" ? memory.new_customer_data : {};
-  const loose = extractLooseNewCustomerFields(text);
-  const city = normalizeCityLabel(extractSimpleLabeledValue(text, ["departamento", "ciudad"]) || loose.city || current.city || "");
-  const company = extractSimpleLabeledValue(text, ["empresa", "razon social", "compania", "compañia"]) || loose.company || current.company || "";
-  const nit = String(extractSimpleLabeledValue(text, ["nit"]) || loose.nit || current.nit || "").replace(/\D/g, "").trim();
-  const contact = sanitizeCustomerDisplayName(extractSimpleLabeledValue(text, ["nombre de contacto", "contacto", "nombre"]) || loose.contact || current.contact || extractCustomerName(text, fallbackName || ""));
-  const email = String(extractEmail(text) || current.email || "").trim().toLowerCase();
-  const phone = normalizePhone(String(extractCustomerPhone(text, "") || current.phone || "").trim());
-
-  memory.new_customer_data = { city, company, nit, contact, email, phone };
-  memory.commercial_customer_name = contact || memory.commercial_customer_name || "";
-  memory.commercial_company_name = company || memory.commercial_company_name || "";
-  memory.commercial_company_nit = nit || memory.commercial_company_nit || "";
-  memory.customer_name = contact || memory.customer_name || "";
 }
 
 async function upsertNewCommercialCustomerContact(
@@ -3408,64 +3176,6 @@ async function ensureAnalysisOpportunitySeed(
   }
 }
 
-function getMissingNewCustomerFields(memory: any): string[] {
-  const d = memory?.new_customer_data && typeof memory.new_customer_data === "object" ? memory.new_customer_data : {};
-  const missing: string[] = [];
-  if (!String(d.city || "").trim()) missing.push("Departamento/ciudad");
-  if (!String(d.company || "").trim()) missing.push("Empresa");
-  if (!/^\d{9,13}$/.test(String(d.nit || "").replace(/\D/g, ""))) {
-    missing.push("Documento (cédula o NIT, solo números, sin puntos, comas ni guiones)");
-  }
-  if (!String(d.contact || "").trim()) missing.push("Nombre de Contacto");
-  if (!String(d.email || "").trim()) missing.push("Correo");
-  if (!/^\d{10,15}$/.test(String(d.phone || "").replace(/\D/g, ""))) missing.push("Celular");
-  return missing;
-}
-
-function buildMissingNewCustomerDataMessage(missing: string[]): string {
-  return [
-    "⚠️ Si no contamos con esta información, no podremos continuar con el proceso.",
-    `Por favor completa: ${missing.join(", ")}.`,
-  ].join("\n");
-}
-
-function shouldEscalateToAdvisorByCommercialRule(memory: any, text: string): boolean {
-  const t = normalizeText(String(text || ""));
-  if (Boolean(memory?.is_persona_natural)) return true;
-  if (/solo\s+precio|solamente\s+precio|dame\s+precio\s+solamente/.test(t)) return true;
-  if (/no\s+quiero\s+dar\s+datos|no\s+dare\s+datos|sin\s+datos/.test(t)) return true;
-  return false;
-}
-
-function detectEquipmentChoice(text: string): string {
-  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (/^1$/.test(t) || /balanza/.test(t)) return "balanza";
-  if (/^2$/.test(t) || /bascula|báscula/.test(t)) return "bascula";
-  if (/^3$/.test(t) || /pesas?\s+patron/.test(t)) return "pesas_patron";
-  if (/^4$/.test(t) || /analizador/.test(t)) return "analizador_humedad";
-  if (/^5$/.test(t) || /agitador/.test(t)) return "agitador_orbital";
-  if (/^6$/.test(t) || /planchas?/.test(t)) return "plancha_agitacion";
-  if (/^7$/.test(t) || /centrifug/.test(t)) return "centrifuga";
-  if (/^8$/.test(t) || /electroquim|phmetro|conductivimetro|multiparametro|electrodos/.test(t)) return "electroquimica";
-  if (/^9$/.test(t) || /otros?/.test(t)) return "otros";
-  return "";
-}
-
-function isExplicitFamilyMenuAsk(text: string): boolean {
-  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (!t) return false;
-  if (/^(balanza|balanzas|bascula|basculas|opciones|alternativas|familias|categorias|categorias\s+activas)$/.test(t)) return true;
-  return /(que\s+opciones\s+tienes|que\s+familias\s+tienes|que\s+categorias\s+tienes|muestrame\s+familias|muestrame\s+categorias|dame\s+el\s+menu)/.test(t);
-}
-
-function isBasculaAvailabilityAsk(text: string): boolean {
-  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (!t) return false;
-  const mentionsBascula = /(bascula|basculas|bacula|baculas|bscula|bsculas|b[aá]scu)/.test(t);
-  if (!mentionsBascula) return false;
-  return /(tiene|tienen|hay|manejan|ofrecen|muestran|que\s+modelos|dame\s+opciones|muestrame\s+opciones|opciones|modelos|catalogo|cat[aá]logo)/.test(t);
-}
-
 function normalizeDeliveryLabel(raw: string): string {
   const t = normalizeText(String(raw || ""));
   if (!t) return "";
@@ -3490,54 +3200,6 @@ function deliveryLabelForRow(row: any): string {
     .flatMap((g) => g.models)
     .find((m) => modelNorm.includes(normalizeText(m.model)));
   return guided?.delivery || "";
-}
-
-function detectGuidedBalanzaProfile(text: string): GuidedBalanzaProfile | null {
-  const t = normalizeText(String(text || ""));
-  const hasGrameraWord = /\bgramera\b/.test(t);
-  const hasOro = /(oro|joyeria|joyería|minero|calidad\s+del\s+oro|vender\s+oro|dos\s+cifras|densidad\s+para\s+oro)/.test(t);
-  const hasThree = /(tres\s+cifras|0\s*[,.]\s*001|1\s*mg|cabina|con\s+cabina|cosmetic|cosmetico|cosmeticos|menos\s+de\s+200|menos\s+de\s+300|buena\s+resolucion)/.test(t);
-  const hasFour = /(cuatro\s+cifras|0\s*[,.]\s*0001|0\s*[,.]\s*1\s*mg|0\s*[,.]\s*1\s*mg|laboratorio|laboratorio\s+de\s+alimentos|capacidad\s*200\s*g)/.test(t);
-  const hasFive = /(cinco\s+cifras|0\s*[,.]\s*00001|0\s*[,.]\s*01\s*mg|semi\s*micro|semimicro|semi\w*micro|seminicro|usp|pesada\s+minima\s+usp|microgram|migrogram|\b\d+(?:[.,]\d+)?\s*mg\b)/.test(t);
-  const hasIndustrial = /(portatil|portátil|recargable|plato\s+grande|cuenta\s+piezas|tres\s+pantallas|tornillos|30\s*kg|15\s*kg|gramo\s+por\s+gramo|bulto|bultos|peso\s+fuerte|peso\s+pesado|carga\s+pesada|alto\s+peso|mucho\s+peso|pesos?\s+altos?)/.test(t);
-  const hasExplicitReadability001 = /0\s*[,.]\s*001|1\s*mg/.test(t);
-  const hasExplicitReadability0001 = /0\s*[,.]\s*0001|0\s*[,.]\s*1\s*mg/.test(t);
-  const hasExplicitReadability00001 = /0\s*[,.]\s*00001|0\s*[,.]\s*01\s*mg/.test(t);
-  const hasGrameraOnly = hasGrameraWord && !hasOro && !hasThree && !hasFour && !hasFive && !hasIndustrial;
-
-  if (hasGrameraOnly) return null;
-  if (hasExplicitReadability00001) return "balanza_semimicro_00001";
-  if (hasExplicitReadability0001) return "balanza_laboratorio_0001";
-  if (hasExplicitReadability001 && !hasOro) return "balanza_precision_001";
-  if (hasFive) return "balanza_semimicro_00001";
-  if (hasFour) return "balanza_laboratorio_0001";
-  if (hasIndustrial) return "balanza_industrial_portatil_conteo";
-  if (hasOro) return "balanza_oro_001";
-  if (hasThree || hasGrameraWord) return "balanza_precision_001";
-  return null;
-}
-
-function guidedProfileFromUsageContext(text: string, capacityG: number, readabilityG: number): GuidedBalanzaProfile | null {
-  const app = detectTargetApplication(text);
-  const read = Number(readabilityG || 0);
-  const cap = Number(capacityG || 0);
-
-  if (app === "industrial") return "balanza_industrial_portatil_conteo";
-
-  if (app === "laboratorio") {
-    if (read > 0 && read <= 0.00001) return "balanza_semimicro_00001";
-    if (read > 0 && read <= 0.0001) return "balanza_laboratorio_0001";
-    if (read > 0 && read <= 0.001) return "balanza_precision_001";
-    if (read > 0 && read <= 0.01) return cap >= 1000 ? "balanza_oro_001" : "balanza_precision_001";
-    return "balanza_precision_001";
-  }
-
-  if (app === "joyeria_oro") {
-    if (read > 0 && read <= 0.001) return "balanza_precision_001";
-    return "balanza_oro_001";
-  }
-
-  return null;
 }
 
 function buildGuidedBalanzaReply(profile: GuidedBalanzaProfile): string {
@@ -3603,51 +3265,15 @@ function buildGroupedSpecReplyNoContext(args: {
   ].join("\n");
 }
 
-function detectIndustrialGuidedMode(text: string): "conteo" | "estandar" | "" {
-  const t = normalizeText(String(text || ""));
-  if (!t) return "";
-  if (/(contar|conteo|cuenta\s*piez|piezas|tornillos|inventario)/.test(t)) return "conteo";
-  if (/(estandar|estándar|sin\s+conteo|solo\s+peso|pesaje\s+normal)/.test(t)) return "estandar";
-  return "";
-}
-
-function isHeavyDutyWeightIntent(text: string): boolean {
-  const t = normalizeText(String(text || ""));
-  if (!t) return false;
-  return /(peso\s+fuerte|peso\s+pesado|carga\s+pesada|cargas?\s+altas?|alto\s+peso|mucho\s+peso|peso\s+grande|pesos?\s+altos?|peso\s+industrial)/.test(t);
-}
-
-function isAmbiguousNeedInput(text: string): boolean {
-  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (!t) return true;
-  if (!/(balanza|balanzas|bascula|basculas)/.test(t)) return false;
-  if (/\bpara\s+pesar\s+or$/.test(t)) return true;
-  if (/\bpara\s+pesar$/.test(t)) return true;
-  if (/\bpara\s+pesar\s+[a-z]{1,2}$/.test(t)) return true;
-  if (/\bor$/.test(t) || /\bpara$/.test(t)) return true;
-  return false;
-}
-
-function isDifferenceQuestionIntent(text: string): boolean {
-  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (!t) return false;
-  const asksDifference = /(diferenc|compar|cual\s+conviene|cual\s+es\s+mejor|ventajas?\s+de\s+una\s+y\s+otra|que\s+cambia\s+entre)/.test(t);
-  const mentionsScale = /(balanza|balanzas|bascula|basculas)/.test(t);
-  return asksDifference && mentionsScale;
-}
-
 function hasPriorityProductGuidanceIntent(text: string): boolean {
-  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (!t) return false;
-  if (isDifferenceQuestionIntent(text)) return true;
-  if (isScaleUseExplanationIntent(text)) return true;
-  if (isAlternativeRejectionIntent(text)) return true;
-  if (isGuidedNeedDiscoveryText(text)) return true;
-  if (Boolean(parseTechnicalSpecQuery(text) || parseLooseTechnicalHint(text))) return true;
-  if (Boolean(detectCatalogCategoryIntent(text) || detectTargetApplication(text))) return true;
-  const hasScaleWords = /(balanza|balanzas|bascula|basculas|humedad|analizador)/.test(t);
-  const hasCommercialAsk = /(dame|muestrame|muestrame|tienes|que\s+modelos|que\s+diferencias|recomiend|busco|necesito|quiero)/.test(t);
-  return hasScaleWords && hasCommercialAsk;
+  return hasPriorityProductGuidanceIntentDomain({
+    text,
+    isScaleUseExplanationIntent,
+    isAlternativeRejectionIntent,
+    isGuidedNeedDiscoveryText,
+    hasTechnicalSpec: Boolean(parseTechnicalSpecQuery(text) || parseLooseTechnicalHint(text)),
+    hasCategoryOrApplication: Boolean(detectCatalogCategoryIntent(text) || detectTargetApplication(text)),
+  });
 }
 
 function buildScaleDifferenceGuidanceReply(): string {
@@ -7770,7 +7396,12 @@ export async function POST(req: Request) {
             strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
             strictMemory.strict_filter_capacity_g = cap;
             strictMemory.strict_filter_readability_g = read;
-            const guidedByUsage = guidedProfileFromUsageContext(text, cap, read);
+            const guidedByUsage = guidedProfileFromUsageContext({
+              text,
+              capacityG: cap,
+              readabilityG: read,
+              detectTargetApplication,
+            });
             if (guidedByUsage) {
               const industrialMode = guidedByUsage === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
               const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedByUsage, industrialMode as any);
@@ -8216,7 +7847,18 @@ export async function POST(req: Request) {
           strictMemory.awaiting_action = "conversation_followup";
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "commercial_escalation_new_customer" });
         }
-        updateNewCustomerRegistration(strictMemory, text, inbound.pushName || "");
+        updateNewCustomerRegistrationApp({
+          memory: strictMemory,
+          text,
+          fallbackName: inbound.pushName || "",
+          normalizeCityLabel,
+          extractSimpleLabeledValue,
+          sanitizeCustomerDisplayName,
+          extractCustomerName,
+          extractEmail,
+          normalizePhone,
+          extractCustomerPhone,
+        });
         if (Boolean(strictMemory.is_persona_natural)) {
           strictReply = buildCommercialEscalationMessage();
           strictMemory.awaiting_action = "conversation_followup";
@@ -8593,7 +8235,16 @@ export async function POST(req: Request) {
           const matched = strictMemory?.commercial_existing_match && typeof strictMemory.commercial_existing_match === "object"
             ? strictMemory.commercial_existing_match
             : {};
-          const updated = parseExistingContactUpdateData(text, inbound.from);
+          const updated = parseExistingContactUpdateDataApp({
+            text,
+            fallbackInboundPhone: inbound.from,
+            extractEmail,
+            normalizePhone,
+            extractCustomerPhone,
+            extractSimpleLabeledValue,
+            extractCustomerName,
+            sanitizeCustomerDisplayName,
+          });
           if (!updated.name || (!updated.email && !updated.phone)) {
             strictMemory.awaiting_action = "commercial_existing_contact_update";
             strictReply = "Para actualizar el contacto necesito al menos: nombre y (correo o celular).";
@@ -8796,10 +8447,13 @@ export async function POST(req: Request) {
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "price_objection_guidance" });
       }
 
-      if (!String(strictReply || "").trim() && isProductDefinitionIntent(text)) {
+      if (!String(strictReply || "").trim() && isProductDefinitionIntent(
+        text,
+        Boolean(parseTechnicalSpecQuery(text)) || /\b\d+(?:[.,]\d+)?\s*(g|kg|mg)\b/.test(normalizeText(String(text || "")))
+      )) {
         const inSelectionStep = /^(strict_choose_model|strict_choose_family|strict_choose_action|price_objection_followup)$/i.test(String(awaiting || ""));
         strictMemory.awaiting_action = inSelectionStep ? String(awaiting || "strict_choose_model") : "strict_need_spec";
-        strictReply = buildProductDefinitionReply(text);
+        strictReply = buildProductDefinitionReplyApp(text, appendQuoteClosureCta);
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "product_definition_help" });
       }
 
@@ -16887,3 +16541,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: e?.message || "Error en webhook Evolution" }, { status: 500 });
   }
 }
+
+export const handleWebhookTurn = POST;
