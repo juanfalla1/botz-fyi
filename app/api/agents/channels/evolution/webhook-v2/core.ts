@@ -2838,8 +2838,9 @@ function buildNewCustomerDataPrompt(): string {
     "Para generar tu cotización es necesario registrar tus datos en nuestra plataforma.",
     "Compárteme en un solo mensaje:",
     "- Departamento/ciudad",
-    "- Empresa",
-    "- NIT completo con dígito de verificación (sin puntos, comas ni guiones)",
+    "- Tipo de cliente (Persona natural o Empresa)",
+    "- Empresa (si aplica)",
+    "- Documento (cédula o NIT, solo números, sin puntos, comas ni guiones)",
     "- Nombre de Contacto",
     "- Correo",
     "- Celular",
@@ -3450,7 +3451,7 @@ function getMissingNewCustomerFields(memory: any): string[] {
   if (!String(d.city || "").trim()) missing.push("Departamento/ciudad");
   if (!String(d.company || "").trim()) missing.push("Empresa");
   if (!/^\d{9,13}$/.test(String(d.nit || "").replace(/\D/g, ""))) {
-    missing.push("NIT completo con dígito de verificación (sin puntos, comas ni guiones)");
+    missing.push("Documento (cédula o NIT, solo números, sin puntos, comas ni guiones)");
   }
   if (!String(d.contact || "").trim()) missing.push("Nombre de Contacto");
   if (!String(d.email || "").trim()) missing.push("Correo");
@@ -8370,8 +8371,9 @@ export async function POST(req: Request) {
               "Recibi tus datos, pero no pude guardarlos en CRM en este intento.",
               "Por favor reenvialos en un solo mensaje para completar el registro:",
               "- Departamento/ciudad",
-              "- Empresa",
-              "- NIT completo con dígito de verificación (sin puntos, comas ni guiones)",
+              "- Tipo de cliente (Persona natural o Empresa)",
+              "- Empresa (si aplica)",
+              "- Documento (cédula o NIT, solo números, sin puntos, comas ni guiones)",
               "- Nombre de contacto",
               "- Correo",
               "- Celular",
