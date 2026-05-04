@@ -6633,6 +6633,25 @@ export async function POST(req: Request) {
         return null;
       };
 
+      if (
+        !String(strictReply || "").trim() &&
+        isGreeting &&
+        !explicitModel &&
+        !categoryIntent &&
+        !technicalSpecIntent &&
+        !wantsQuote &&
+        !wantsSheet
+      ) {
+        strictMemory.awaiting_action = "none";
+        strictMemory.pending_product_options = [];
+        strictMemory.pending_family_options = [];
+        strictMemory.strict_model_offset = 0;
+        strictMemory.strict_family_label = "";
+        strictMemory.commercial_welcome_sent = true;
+        strictReply = buildCommercialWelcomeMessage();
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "greeting_reset_to_welcome" });
+      }
+
       const recognitionChoice = detectClientRecognitionChoice(text);
       const currentClientType = String(strictMemory.commercial_client_type || previousMemory?.commercial_client_type || "").trim();
       const clientType = currentClientType || recognitionChoice;
