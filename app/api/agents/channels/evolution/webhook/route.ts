@@ -6610,34 +6610,6 @@ export async function POST(req: Request) {
       const clientType = currentClientType || recognitionChoice;
       if (clientType) strictMemory.commercial_client_type = clientType;
 
-      if (!String(strictReply || "").trim() && recognitionChoice === "new") {
-        strictMemory.commercial_client_type = "new";
-        strictMemory.commercial_validation_complete = false;
-        strictMemory.awaiting_action = "commercial_new_customer_data";
-        strictMemory.pending_product_options = [];
-        strictMemory.pending_family_options = [];
-        strictMemory.last_selected_product_id = "";
-        strictMemory.last_selected_product_name = "";
-        strictMemory.last_product_id = "";
-        strictMemory.last_product_name = "";
-        strictReply = buildNewCustomerDataPrompt();
-        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "recognition_new_customer_data_prompt" });
-      }
-
-      if (!String(strictReply || "").trim() && recognitionChoice === "existing") {
-        strictMemory.commercial_client_type = "existing";
-        strictMemory.commercial_validation_complete = false;
-        strictMemory.awaiting_action = "commercial_existing_lookup";
-        strictMemory.pending_product_options = [];
-        strictMemory.pending_family_options = [];
-        strictMemory.last_selected_product_id = "";
-        strictMemory.last_selected_product_name = "";
-        strictMemory.last_product_id = "";
-        strictMemory.last_product_name = "";
-        strictReply = "Perfecto. Para validarte en base de datos, envíame NIT o celular registrado (ej: NIT 900505419 o celular 3131657711).";
-        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "recognition_existing_lookup_prompt" });
-      }
-
       if (!String(strictReply || "").trim() && !clientType && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
         strictMemory.awaiting_action = "commercial_client_recognition";
         strictReply = buildCommercialWelcomeMessage();
