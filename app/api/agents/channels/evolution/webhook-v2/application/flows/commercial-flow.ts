@@ -1289,6 +1289,8 @@ export async function handleCommercialNewCustomerStep(args: {
   buildCommercialValidationOkMessage: any;
 }): Promise<null | { strictReply: string; gate: string }> {
   const isPlainCatalogAsk = args.isInventoryInfoIntent(args.text) || args.isCatalogBreadthQuestion(args.text) || args.isGlobalCatalogAsk(args.text);
+  const textNorm = args.normalizeText(String(args.text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
+  const explicitNewCustomerChoice = /^(1|soy\s+cliente\s+nuevo|cliente\s+nuevo|soy\s+nuevo)$/.test(textNorm);
   const shouldHandleNewCommercialStep =
     args.clientType === "new" &&
     !isPlainCatalogAsk &&
@@ -1298,6 +1300,16 @@ export async function handleCommercialNewCustomerStep(args: {
 
   args.strictMemory.commercial_client_type = "new";
   args.strictMemory.awaiting_action = "commercial_new_customer_data";
+
+  if (explicitNewCustomerChoice) {
+    args.strictMemory.commercial_validation_complete = false;
+    args.strictMemory.new_customer_data = {};
+    args.strictMemory.commercial_existing_match = {};
+    return {
+      strictReply: args.buildNewCustomerDataPrompt(),
+      gate: "new_customer_data_prompt_from_recognition_choice",
+    };
+  }
 
   const retryLookupResult = await args.handleCommercialNewCustomerRetryLookup({
     awaiting: args.awaiting,
