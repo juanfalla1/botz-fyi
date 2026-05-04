@@ -1,5 +1,5 @@
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
-import { evolutionService } from "../../../../../../lib/services/evolution.service";
+import { evolutionService } from "../../../../../../../lib/services/evolution.service";
 
 export type WebhookInfraServices = {
   getSupabase: typeof getServiceSupabase;
