@@ -3396,7 +3396,11 @@ export async function POST(req: Request) {
         recognizedReturningCustomer,
         existingTranscriptLength: Array.isArray(existingConv?.transcript) ? existingConv.transcript.length : 0,
         knownCustomerName,
-        buildGreetingReply: (name: string, memory: any) => buildGreetingReplyApp({ knownCustomerName: name, memory, shouldUseFullGreeting: shouldUseFullGreetingApp }),
+        buildGreetingReply: (name: string, memory: any) => buildGreetingReplyApp({
+          knownCustomerName: name,
+          memory,
+          shouldUseFullGreeting: (mem: any) => shouldUseFullGreetingApp(mem, normalizeText),
+        }),
         buildCommercialWelcomeMessage,
       });
 
@@ -4831,7 +4835,11 @@ export async function POST(req: Request) {
       nextMemory.pending_family_options = [];
       nextMemory.strict_model_offset = 0;
       nextMemory.strict_family_label = "";
-      reply = buildGreetingReplyApp({ knownCustomerName, memory: nextMemory, shouldUseFullGreeting: shouldUseFullGreetingApp });
+      reply = buildGreetingReplyApp({
+        knownCustomerName,
+        memory: nextMemory,
+        shouldUseFullGreeting: (mem: any) => shouldUseFullGreetingApp(mem, normalizeText),
+      });
       if (!knownCustomerName) nextMemory.awaiting_action = "capture_name";
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
