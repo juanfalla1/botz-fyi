@@ -6657,9 +6657,10 @@ export async function POST(req: Request) {
       const clientType = currentClientType || recognitionChoice;
       const hasValidatedCommercialData = Boolean(strictMemory.commercial_validation_complete || previousMemory?.commercial_validation_complete);
       const inEquipmentSelectionStep = /^commercial_choose_equipment$/i.test(String(awaiting || ""));
+      const inRecognitionStep = /^(commercial_client_recognition|none)$/i.test(String(awaiting || "")) || Boolean(previousMemory?.commercial_welcome_sent);
       if (clientType) strictMemory.commercial_client_type = clientType;
 
-      if (!String(strictReply || "").trim() && recognitionChoice === "new" && !(inEquipmentSelectionStep && hasValidatedCommercialData)) {
+      if (!String(strictReply || "").trim() && recognitionChoice === "new" && inRecognitionStep && !(inEquipmentSelectionStep && hasValidatedCommercialData)) {
         strictMemory.commercial_client_type = "new";
         strictMemory.commercial_validation_complete = false;
         strictMemory.awaiting_action = "commercial_new_customer_data";
@@ -6673,7 +6674,7 @@ export async function POST(req: Request) {
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "recognition_new_customer_data_prompt" });
       }
 
-      if (!String(strictReply || "").trim() && recognitionChoice === "existing" && !(inEquipmentSelectionStep && hasValidatedCommercialData)) {
+      if (!String(strictReply || "").trim() && recognitionChoice === "existing" && inRecognitionStep && !(inEquipmentSelectionStep && hasValidatedCommercialData)) {
         strictMemory.commercial_client_type = "existing";
         strictMemory.commercial_validation_complete = false;
         strictMemory.awaiting_action = "commercial_existing_lookup";
