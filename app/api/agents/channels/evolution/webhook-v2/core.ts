@@ -154,12 +154,6 @@ import { handleStrictChooseFamilyPrimary, handleStrictChooseFamilyTechnical } fr
 import { handleStrictChooseModelFlow } from "./application/flows/choose-model-flow";
 import { persistAdvisorMeetingSelection, resolveAdvisorMeetingReply } from "./application/flows/advisor-flow";
 import {
-  buildStrictQuoteFallbackReply,
-  deriveQuoteAwaitingAction,
-  isCommercialBlockingAwaitingStep,
-  isStrictQuoteSelectionStep,
-} from "./application/flows/quote-flow";
-import {
   detectClientRecognitionChoice,
   detectEquipmentChoice,
   detectExistingClientConfirmationChoice,
@@ -536,6 +530,47 @@ function normalizeText(v: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+}
+
+function isStrictQuoteSelectionStep(awaiting: string): boolean {
+  const key = String(awaiting || "").trim();
+  return [
+    "strict_choose_model",
+    "strict_choose_family",
+    "strict_choose_family_technical",
+    "strict_choose_action",
+    "strict_need_spec",
+    "strict_quote_data",
+    "strict_confirm_quote_after_missing_sheet",
+  ].includes(key);
+}
+
+function deriveQuoteAwaitingAction(previousMemory: Record<string, any>, strictPrevAwaiting: string): string {
+  const memoryAwaiting = String(previousMemory?.awaiting_action || "").trim();
+  if (memoryAwaiting) return memoryAwaiting;
+  return String(strictPrevAwaiting || "").trim();
+}
+
+function isCommercialBlockingAwaitingStep(awaiting: string): boolean {
+  const key = String(awaiting || "").trim();
+  return key.startsWith("commercial_") || ["advisor_meeting_slot", "advisor_meeting_confirm"].includes(key);
+}
+
+function buildStrictQuoteFallbackReply(awaiting: string): string {
+  const key = String(awaiting || "").trim();
+  if (key === "strict_choose_model") {
+    return "Te ayudo de una. Elige el modelo con letra o numero (A/1), o escribe 'mas' para ver mas opciones.";
+  }
+  if (key === "strict_quote_data") {
+    return "Perfecto. Para generar la cotizacion, comparteme ciudad, empresa, NIT, nombre, correo y telefono en un solo mensaje.";
+  }
+  if (key === "strict_confirm_quote_after_missing_sheet") {
+    return "Para continuar, responde: si para cotizacion o no para volver al menu.";
+  }
+  if (key === "conversation_followup") {
+    return "Con gusto. Si quieres cotizacion escribe 1, y si quieres ficha tecnica escribe 2.";
+  }
+  return "Te ayudo con eso. Dime el equipo que buscas o si prefieres te recomiendo opciones segun capacidad y uso.";
 }
 
 function isQuoteDraftStatusConstraintError(err: any): boolean {
