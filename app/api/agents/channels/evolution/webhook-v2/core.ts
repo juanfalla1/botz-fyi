@@ -1827,6 +1827,24 @@ export async function POST(req: Request) {
         });
       }
 
+      const recognitionChoiceNow = detectClientRecognitionChoice(text);
+      const recognitionStepFromMemory =
+        /^commercial_client_recognition$/i.test(String(strictPrevAwaiting || "")) ||
+        Boolean(previousMemory?.commercial_welcome_sent);
+      if (recognitionChoiceNow === "new" && recognitionStepFromMemory) {
+        strictMemory.commercial_client_type = "new";
+        strictMemory.commercial_validation_complete = false;
+        strictMemory.new_customer_data = {};
+        strictMemory.commercial_existing_match = {};
+        strictMemory.awaiting_action = "commercial_new_customer_data";
+        const strictReply = buildNewCustomerDataPrompt();
+        return finalizeStrictTurn(strictReply, strictMemory, {
+          route: "strict_commercial",
+          gate: "new_customer_data_prompt_from_recognition_choice_core",
+          intent: "commercial_new_customer_data",
+        });
+      }
+
       if (strictPrevAwaiting === "advisor_meeting_slot") {
         if (isAdvisorAppointmentIntentApp(text, normalizeText)) {
           const strictReply = buildAdvisorMiniAgendaPromptApp(MARIANA_ESCALATION_LINK);
