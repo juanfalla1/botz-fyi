@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { jsPDF } from "jspdf";
 import fs from "node:fs";
 import path from "node:path";
 import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
@@ -10,19 +9,155 @@ import { ENABLE_PHASE1_PASSIVE_INVARIANT_LOGGING } from "./phase1-flags";
 import { MAX_WHATSAPP_DOC_BYTES, ENABLE_STRICT_WHATSAPP_MODE, WEBHOOK_V2_DYNAMIC, WEBHOOK_V2_RUNTIME } from "./config/runtime";
 import { webhookInfraServices } from "./infra/services";
 import {
+  buildNoActiveCatalogEscalationMessage,
+  buildCommercialEscalationMessage,
+  buildCommercialValidationOkMessage,
   buildMissingNewCustomerDataMessage,
-  buildGoalGuidedNewCustomerDataMessage,
   buildExistingClientMatchConfirmationPrompt,
+  detectPersonaNatural,
+  detectUnavailableLabTopic,
+  ensureAnalysisOpportunitySeed as ensureAnalysisOpportunitySeedApp,
+  equipmentChoiceLabel,
+  extractCommercialCompanyName,
+  extractCustomerName,
+  extractCustomerPhone as extractCustomerPhoneApp,
+  extractEmail,
+  extractLabeledValue,
+  extractRut,
+  extractSimpleLabeledValue,
   getMissingNewCustomerFields,
+  isAffirmativeShortIntent as isAffirmativeShortIntentApp,
+  isNegativeShortIntent as isNegativeShortIntentApp,
+  isPresent,
+  looksLikeCommercialDataInput,
+  looksLikeCustomerNameAnswer,
+  normalizeCityLabel,
   parseExistingContactUpdateData as parseExistingContactUpdateDataApp,
+  sanitizeCustomerDisplayName,
   shouldEscalateToAdvisorByCommercialRule,
+  updateCommercialValidation as updateCommercialValidationApp,
   updateNewCustomerRegistration as updateNewCustomerRegistrationApp,
+  upsertNewCommercialCustomerContact as upsertNewCommercialCustomerContactApp,
 } from "./application/commercial";
 import {
+  appendQuoteClosureCta,
+  buildCapacityResolutionExplanation,
+  buildPriceObjectionReply,
   buildProductDefinitionReply as buildProductDefinitionReplyApp,
+  deliveryLabelForRow as deliveryLabelForRowApp,
   buildGuidedNeedReframePrompt,
+  pickDistinctGamaOptions as pickDistinctGamaOptionsApp,
   buildScaleUseExplanationReply,
+  buildScaleDifferenceGuidanceReply,
 } from "./application/guidance";
+import {
+  appendBundleQuoteClosurePrompt as appendBundleQuoteClosurePromptApp,
+  appendQuoteClosurePrompt as appendQuoteClosurePromptApp,
+  enforceWhatsAppDelivery as enforceWhatsAppDeliveryApp,
+} from "./application/quote-delivery";
+import {
+  catalogFeatureSearchBlob as catalogFeatureSearchBlobApp,
+  detectCalibrationPreference as detectCalibrationPreferenceApp,
+  extractFeatureTerms as extractFeatureTermsApp,
+  rankCatalogByFeature as rankCatalogByFeatureApp,
+  rowMatchesCalibrationPreference as rowMatchesCalibrationPreferenceApp,
+} from "./application/feature-filter";
+import {
+  applyStrictAffirmativeReentry,
+  buildStrictConversationalReply as buildStrictConversationalReplyApp,
+  resolveStrictChooseActionFallbackReply,
+} from "./application/strict-conversation";
+import {
+  buildQuoteItemDescriptionAsync as buildQuoteItemDescriptionAsyncApp,
+  localImageFileToDataUrl as localImageFileToDataUrlApp,
+  resolveModelSpecificLocalImageDataUrl as resolveModelSpecificLocalImageDataUrlApp,
+  resolveStaticQuoteProfile as resolveStaticQuoteProfileApp,
+} from "./application/quote-media";
+import {
+  absoluteImageFileToDataUrl as absoluteImageFileToDataUrlApp,
+  asDateYmd as asDateYmdApp,
+  buildLargestCapacitySuggestion as buildLargestCapacitySuggestionApp,
+  buildPriceRangeLine as buildPriceRangeLineApp,
+  formatMoney as formatMoneyApp,
+  isLargestCapacityAsk as isLargestCapacityAskApp,
+  quoteCodeFromDraftId as quoteCodeFromDraftIdApp,
+  resolveProductImageDataUrl as resolveProductImageDataUrlApp,
+  resolveQuoteBannerImageDataUrl as resolveQuoteBannerImageDataUrlApp,
+  resolveQuotePerksImageDataUrl as resolveQuotePerksImageDataUrlApp,
+  resolveQuoteSocialImageDataUrl as resolveQuoteSocialImageDataUrlApp,
+} from "./application/quote-helpers-large";
+import {
+  buildBundleQuotePdf as buildBundleQuotePdfApp,
+  buildQuotePdf as buildQuotePdfApp,
+  buildSimpleQuotePdf as buildSimpleQuotePdfApp,
+} from "./application/quote-pdf";
+import { getOrFetchTrm as getOrFetchTrmApp } from "./application/trm";
+import {
+  isCategoryFollowUpIntent as isCategoryFollowUpIntentApp,
+  isConsistencyChallengeIntent as isConsistencyChallengeIntentApp,
+  isProductLookupIntent as isProductLookupIntentApp,
+  isStrictCatalogIntent as isStrictCatalogIntentApp,
+  pickCatalogByVariantText as pickCatalogByVariantTextApp,
+} from "./application/catalog-intelligence-large";
+import {
+  classifyIntent as classifyIntentApp,
+  findCatalogProductByName as findCatalogProductByNameApp,
+} from "./application/intent-classifier";
+import {
+  buildDocumentContext as buildDocumentContextApp,
+  markIncomingMessageProcessed as markIncomingMessageProcessedApp,
+  persistConversationTurn as persistConversationTurnApp,
+  reserveIncomingMessage as reserveIncomingMessageApp,
+} from "./application/conversation-persistence";
+import {
+  resolveChannelAndAgent,
+  shouldIgnoreDuplicateRecentText,
+} from "./application/webhook-bootstrap";
+import {
+  buildNextMemory,
+  collectHistoryMessages,
+  resolveKnownCustomerProfile,
+} from "./application/conversation-bootstrap";
+import {
+  buildQuoteItemDescription as buildQuoteItemDescriptionApp,
+  buildTechnicalSummary as buildTechnicalSummaryApp,
+  detectTechResendIntent as detectTechResendIntentApp,
+  extractSpecsFromJson as extractSpecsFromJsonApp,
+  isContextResetIntent as isContextResetIntentApp,
+} from "./application/quote-description";
+import {
+  handleCommercialExistingEntryStep,
+  handleCommercialExistingEquipmentGate,
+  handleCommercialExistingConfirmFlow,
+  handleCommercialExistingEquipmentSelection,
+  handleCommercialExistingContactUpdateFlow,
+  handleCommercialExistingStep,
+  handleCommercialExistingLookupFlow,
+  handleCommercialStep,
+  handleCommercialNewCustomerEquipmentSelection,
+  handleCommercialNewCustomerPersistAndDetectExisting,
+  handleCommercialNewCustomerRetryLookup,
+  handleCommercialNewCustomerStep,
+  resolveCommercialClientTypeStep,
+} from "./application/flows/commercial-flow";
+import {
+  handleStrictConfirmQuoteAfterMissingSheet,
+  handleStrictAskMoreOptions,
+  resolveSelectedProductForActionContext,
+  handleStrictSelectedProductActionFlow,
+  runStrictQuoteDataFlow,
+} from "./application/flows/quote-flow";
+import { handleStrictDatasheetRequest } from "./application/flows/datasheet-flow";
+import { handleStrictCatalogScopeDisambiguation } from "./application/flows/catalog-scope-flow";
+import { handleStrictChooseFamilyPrimary, handleStrictChooseFamilyTechnical } from "./application/flows/family-flow";
+import { handleStrictChooseModelFlow } from "./application/flows/choose-model-flow";
+import { persistAdvisorMeetingSelection, resolveAdvisorMeetingReply } from "./application/flows/advisor-flow";
+import {
+  buildStrictQuoteFallbackReply,
+  deriveQuoteAwaitingAction,
+  isCommercialBlockingAwaitingStep,
+  isStrictQuoteSelectionStep,
+} from "./application/flows/quote-flow";
 import {
   detectClientRecognitionChoice,
   detectEquipmentChoice,
@@ -48,6 +183,221 @@ import {
   buildExistingClientLookupPrompt,
   buildNewCustomerDataPrompt,
 } from "./application/prompts";
+import { extractInbound, resolveInboundCustomerPhone, summarizeInboundAttempt } from "./application/inbound";
+import {
+  extractCompanyNit,
+  findCommercialContactByIdentifiers,
+  isValidColombianNit,
+} from "./application/commercial-lookup";
+import {
+  hasCarbonAnalyzerMatch,
+  isInventoryInfoIntent,
+  isMultiProductQuoteIntent,
+  isOutOfCatalogDomainQuery,
+  isPriceIntent,
+  isQuantityUpdateIntent,
+  isQuoteProceedIntent,
+  isQuoteRecallIntent,
+  isQuoteResumeIntent,
+  isRecommendationIntent,
+  isSameQuoteContinuationIntent,
+  isUnsupportedSpecificAnalyzerRequest,
+  isUseCaseApplicabilityIntent,
+  isUseCaseFamilyHint,
+  shouldResendPdf,
+} from "./application/quote-intents";
+import {
+  buildGuidedBalanzaReplyWithMode,
+  GUIDED_BALANZA_CATALOG,
+  guidedGroupsByMode,
+  MARIANA_ESCALATION_LINK,
+} from "./application/guided-catalog";
+import {
+  buildCompatibilityAnswer,
+  classifyMessageIntent,
+  isGuidedNeedDiscoveryText,
+  type ConversationSlots,
+  updateConversationSlots,
+} from "./application/conversation-intelligence";
+import {
+  billingDataAsSingleMessage as billingDataAsSingleMessageApp,
+  buildAnotherQuotePrompt as buildAnotherQuotePromptApp,
+  buildGreetingReply as buildGreetingReplyApp,
+  buildQuoteDataIntakePrompt as buildQuoteDataIntakePromptApp,
+  detectAlternativeFollowupIntent as detectAlternativeFollowupIntentApp,
+  extractCatalogTerms as extractCatalogTermsApp,
+  getReusableBillingData as getReusableBillingDataApp,
+  isAffirmativeIntent as isAffirmativeIntentApp,
+  isAlternativeRejectionIntent as isAlternativeRejectionIntentApp,
+  isAnotherQuoteAmbiguousIntent as isAnotherQuoteAmbiguousIntentApp,
+  isBudgetVisibilityFollowup as isBudgetVisibilityFollowupApp,
+  isConversationCloseIntent as isConversationCloseIntentApp,
+  isCorrectionIntent as isCorrectionIntentApp,
+  isContactInfoBundle as isContactInfoBundleApp,
+  isGreetingIntent as isGreetingIntentApp,
+  isHistoryIntent as isHistoryIntentApp,
+  looksLikeBillingData as looksLikeBillingDataApp,
+  parseAnotherQuoteChoice as parseAnotherQuoteChoiceApp,
+  shouldUseFullGreeting as shouldUseFullGreetingApp,
+  type AnotherQuoteChoice,
+  type AlternativeFollowupIntent,
+} from "./application/conversation-helpers";
+import {
+  buildConversationCloseReply,
+  hasQuoteContext,
+} from "./application/conversation-close";
+import {
+  resetMemoryForGlobalCatalogAsk,
+  resetStaleStrictSelectionState,
+  resetStrictContextMemory,
+} from "./application/strict-memory";
+import {
+  sendStrictQuickText as sendStrictQuickTextApp,
+  buildStrictDeliveryCandidates,
+  sendStrictTextAndDocs as sendStrictTextAndDocsApp,
+  finalizeStrictTurnDelivery,
+} from "./application/strict-delivery";
+import { applyStrictOfftopicGuardrail } from "./application/strict-guardrails";
+import { applyStrictGreetingGate } from "./application/strict-greeting";
+import {
+  applyBasculaAvailabilityNeedSpec,
+  applyCapacityRangeNeedSpec,
+  applyCapacityOnlyNeedSpec,
+  applyChooseActionCategoryAndQuoteChoices,
+  applyChooseActionTechnicalHint,
+  applyChooseActionFollowupIntent,
+  applyChooseActionUseCaseAndBudgetFollowup,
+  applyCategoryInventoryIntentFlow,
+  applyTechnicalSpecOptionsFlow,
+  applyExactOrCompatibleNeedSpec,
+  applyReadOnlyNeedSpec,
+  applyRememberedAlternativesNeedSpec,
+  applyStrictNeedIndustryFlow,
+  applyStrictNeedSpecFlow,
+} from "./application/strict-need-spec";
+import {
+  persistCurrentTurnWithContext,
+  syncCrmLifecycleAndMeetingWithContext,
+} from "./application/turn-sync";
+import {
+  asksQuoteIntent as asksQuoteIntentApp,
+  extractBundleOptionIndexes as extractBundleOptionIndexesApp,
+  extractBundleSelectionFromCountCommand as extractBundleSelectionFromCountCommandApp,
+  extractQuantity as extractQuantityApp,
+  extractQuoteRequestedQuantity as extractQuoteRequestedQuantityApp,
+  hasBareQuantity as hasBareQuantityApp,
+  hasReferencePronoun as hasReferencePronounApp,
+  hasUniformQuantityHint as hasUniformQuantityHintApp,
+  isConcreteQuoteIntent as isConcreteQuoteIntentApp,
+  isQuoteStarterIntent as isQuoteStarterIntentApp,
+  pickBundleOptionSourceByIndexes as pickBundleOptionSourceByIndexesApp,
+  shouldAutoQuote as shouldAutoQuoteApp,
+} from "./application/quote-selection-helpers";
+import {
+  detectCatalogCategoryIntent,
+  isProductImageIntent,
+  isTechnicalSheetIntent,
+  isTechSheetCatalogListIntent,
+} from "./application/catalog-intents";
+import { catalogSubcategory, isAllowedCatalogRow, isCommercialCatalogRow, isDocumentCatalogRow } from "./application/catalog-filter";
+import { normalizePhone, normalizeRealCustomerPhone } from "./application/phone";
+import {
+  extractDimensionTripletMm,
+  formatDimensionTripletMm,
+  formatSpecNumber,
+  inferFamilyFromReadability,
+  isTechnicalSpecQuery,
+  mergeLooseSpecWithMemory,
+  normalizeRequestedCapacityG,
+  parseCapacityRangeHint,
+  parseDimensionHint,
+  parseExplicitCapacityHint,
+  parseLocalePositiveNumber,
+  parseLooseTechnicalHint,
+  parseTechnicalSpecQuery,
+  toGrams,
+} from "./application/technical-spec";
+import {
+  buildAmbiguityQuestion as buildAmbiguityQuestionApp,
+  getExactTechnicalMatches as getExactTechnicalMatchesApp,
+  getRowCapacityG as getRowCapacityGApp,
+  getRowReadabilityG as getRowReadabilityGApp,
+  hasActiveTechnicalRequirement as hasActiveTechnicalRequirementApp,
+  isAmbiguousTechnicalMessage as isAmbiguousTechnicalMessageApp,
+  isExactTechnicalMatch as isExactTechnicalMatchApp,
+  resetStrictRecommendationState as resetStrictRecommendationStateApp,
+  withAvaSignature as withAvaSignatureApp,
+} from "./application/technical-message-helpers";
+import {
+  applyApplicationProfile as applyApplicationProfileApp,
+  extractRowDimensionsMm as extractRowDimensionsMmApp,
+  extractRowTechnicalSpec as extractRowTechnicalSpecApp,
+  filterNearbyTechnicalRows as filterNearbyTechnicalRowsApp,
+  filterReasonableTechnicalRows as filterReasonableTechnicalRowsApp,
+  filterRowsByCapacityRange as filterRowsByCapacityRangeApp,
+  prioritizeTechnicalRows as prioritizeTechnicalRowsApp,
+  rankCatalogByCapacityOnly as rankCatalogByCapacityOnlyApp,
+  rankCatalogByDimensions as rankCatalogByDimensionsApp,
+  rankCatalogByReadabilityOnly as rankCatalogByReadabilityOnlyApp,
+  rankCatalogByTechnicalSpec as rankCatalogByTechnicalSpecApp,
+} from "./application/technical-ranking";
+import {
+  buildCommercialWelcomeMessage,
+  isCatalogBreadthQuestion as isCatalogBreadthQuestionApp,
+  isFlowChangeWithoutModelDetailsIntent as isFlowChangeWithoutModelDetailsIntentApp,
+  isGlobalCatalogAsk as isGlobalCatalogAskApp,
+  isLikelyRutValue,
+  listActiveCatalogCategories,
+} from "./application/catalog-helpers";
+import { pickYoutubeVideoForModel } from "./application/media";
+import {
+  createLocalPdfIndexResolver,
+  expandModelAliasTokens as expandModelAliasTokensApp,
+  fetchRemoteFileAsBase64 as fetchRemoteFileAsBase64App,
+  fetchLocalFileAsBase64 as fetchLocalFileAsBase64App,
+  pickBestLocalPdfPath as pickBestLocalPdfPathApp,
+  safeFileName,
+} from "./application/local-pdf-index";
+import { buildGroupedSpecReplyNoContext as buildGroupedSpecReplyNoContextApp, inferSpecProcessLabel as inferSpecProcessLabelApp } from "./application/spec-grouping";
+import { detectTargetApplication, maxReadabilityForApplication } from "./application/recommendation";
+import {
+  buildGuidedPendingOptions as buildGuidedPendingOptionsApp,
+  getApplicationRecommendedOptions as getApplicationRecommendedOptionsApp,
+} from "./application/recommendation-options";
+import {
+  isoAfterHours as isoAfterHoursApp,
+  persistKnownNameInCrm as persistKnownNameInCrmApp,
+  upsertCrmLifecycleState as upsertCrmLifecycleStateApp,
+} from "./application/crm-lifecycle";
+import {
+  appendAdvisorAppointmentPrompt as appendAdvisorAppointmentPromptApp,
+  buildAdvisorMiniAgendaPrompt as buildAdvisorMiniAgendaPromptApp,
+  buildGuidedRecoveryMessage as buildGuidedRecoveryMessageApp,
+  isAdvisorAppointmentIntent as isAdvisorAppointmentIntentApp,
+  parseAdvisorMiniAgendaChoice as parseAdvisorMiniAgendaChoiceApp,
+} from "./application/advisor-helpers";
+import {
+  buildNumberedFamilyOptions as buildNumberedFamilyOptionsApp,
+  buildNumberedProductOptions as buildNumberedProductOptionsApp,
+  dedupeOptionSpecSegments as dedupeOptionSpecSegmentsApp,
+  extractPerProductQuantities as extractPerProductQuantitiesApp,
+  familyLabelFromRow as familyLabelFromRowApp,
+  gamaLabelForModelName as gamaLabelForModelNameApp,
+  inferFamilyFromUseCase as inferFamilyFromUseCaseApp,
+  isOptionOnlyReply as isOptionOnlyReplyApp,
+  resolvePendingFamilyOption as resolvePendingFamilyOptionApp,
+  resolvePendingProductOption as resolvePendingProductOptionApp,
+  resolvePendingProductOptionStrict as resolvePendingProductOptionStrictApp,
+} from "./application/options-helpers";
+import {
+  findExactModelProduct as findExactModelProductApp,
+  findExplicitModelProducts as findExplicitModelProductsApp,
+  hasConcreteProductHint as hasConcreteProductHintApp,
+  isFeatureQuestionIntent as isFeatureQuestionIntentApp,
+  pickBestCatalogProduct as pickBestCatalogProductApp,
+  extractModelLikeTokens as extractModelLikeTokensApp,
+  splitModelToken as splitModelTokenApp,
+} from "./application/product-matching";
 
 export const runtime = WEBHOOK_V2_RUNTIME;
 export const dynamic = WEBHOOK_V2_DYNAMIC;
@@ -77,9 +427,6 @@ const ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE = false;
 const ENABLE_QUOTE_PRODUCT_IMAGE = String(process.env.WHATSAPP_QUOTE_EMBED_PRODUCT_IMAGE || "true").toLowerCase() === "true";
 const STRICT_WHATSAPP_MODE = ENABLE_STRICT_WHATSAPP_MODE;
 const QUOTE_FLOW_VERSION = "quote-flow-2026-03-26-stability-hotfix-03";
-const ALLOWED_BRAND_KEYS = ["ohaus"];
-const ALLOWED_NAME_KEYS = ["explorer", "adventurer", "pioneer", "ranger", "defender", "valor", "scout", "mb120", "mb90", "mb27", "mb23", "aquasearcher", "frontier"];
-const ALLOWED_CATEGORY_KEYS = ["balanzas", "basculas", "analizador_humedad", "electroquimica", "equipos_laboratorio", "documentos"];
 const OFFICIAL_CATALOG_CATEGORIES = [
   "Balanzas (Explorer, Adventurer, Pioneer, PR, Scout)",
   "Basculas (Ranger, Defender, Valor)",
@@ -93,59 +440,8 @@ async function upsertBotEvent(_payload: any): Promise<void> {
   return;
 }
 
-function isAllowedCatalogRow(row: any) {
-  const brand = normalizeText(String(row?.brand || ""));
-  const name = normalizeText(String(row?.name || ""));
-  const category = normalizeText(String(row?.category || ""));
-  if (!name) return false;
-  if (ALLOWED_BRAND_KEYS.some((k) => brand.includes(k))) return true;
-  if (ALLOWED_CATEGORY_KEYS.some((k) => category === k || category.startsWith(`${k}_`))) return true;
-  return ALLOWED_NAME_KEYS.some((k) => name.includes(k));
-}
-
-function catalogSubcategory(row: any): string {
-  const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-  return normalizeText(String((payload as any)?.subcategory || ""));
-}
-
-function isDocumentCatalogRow(row: any): boolean {
-  const category = normalizeText(String(row?.category || ""));
-  const subcategory = catalogSubcategory(row);
-  const name = normalizeText(String(row?.name || ""));
-  const productUrl = normalizeText(String(row?.product_url || ""));
-  if (category === "documentos") return true;
-  if (subcategory.startsWith("documentos")) return true;
-  if (name.includes("datasheet") || name.includes("data sheet") || name.includes("ficha")) return true;
-  if (productUrl.includes(".pdf")) return true;
-  return false;
-}
-
-function isCommercialCatalogRow(row: any): boolean {
-  return isAllowedCatalogRow(row) && !isDocumentCatalogRow(row);
-}
-
 function estimateTokens(text: string) {
   return Math.max(1, Math.ceil(String(text || "").length / 4));
-}
-
-function normalizePhone(raw: string) {
-  const base = String(raw || "").split(":")[0].split("@")[0];
-  const digits = base.replace(/\D/g, "");
-  
-  if (raw.includes("@lid") && digits) {
-    return digits;
-  }
-  
-  return digits;
-}
-
-function normalizeRealCustomerPhone(raw: string): string {
-  const n = normalizePhone(raw || "");
-  if (!n) return "";
-  if (n.length === 10) return n;
-  if (n.length === 12 && n.startsWith("57")) return n;
-  if (n.length === 11 && n.startsWith("1")) return n;
-  return "";
 }
 
 async function mirrorAdvisorMeetingToAvanza(args: {
@@ -180,170 +476,10 @@ async function mirrorAdvisorMeetingToAvanza(args: {
   });
 }
 
-function isLidCandidate(raw: string): boolean {
-  const value = String(raw || "").toLowerCase();
-  return value.includes("@lid") || value.endsWith(":lid");
-}
-
-function pickBestPhone(candidates: any[]): string {
-  const raws = candidates.map((v) => String(v || "").trim()).filter(Boolean);
-  if (!raws.length) return "";
-
-  const jidPreferred = raws.find((v) => /@s\.whatsapp\.net$/i.test(v) || /@c\.us$/i.test(v));
-  if (jidPreferred) return normalizePhone(jidPreferred);
-
-  const parsedEntries = raws
-    .map((v) => ({ raw: v, phone: normalizePhone(v), isLid: isLidCandidate(v) }))
-    .filter((v) => Boolean(v.phone));
-
-  const nonLid = parsedEntries.filter((v) => !v.isLid).map((v) => v.phone);
-  const lid = parsedEntries.filter((v) => v.isLid).map((v) => v.phone);
-  const parsed = [...nonLid, ...lid];
-
-  const medium = parsed.find((n) => n.length >= 10 && n.length <= 15);
-  if (medium) return medium;
-
-  const long = parsed.find((n) => n.length >= 16);
-  return long || parsed[0] || "";
-}
-
-function preferredInboundPhone(payload: any, item: any): string {
-  const key = item?.key || {};
-
-  // Priorizar SIEMPRE remoteJid/participant (numero real del cliente en inbound).
-  const rawPrimary = [
-    key?.remoteJid,
-    item?.data?.key?.remoteJid,
-    payload?.data?.key?.remoteJid,
-    key?.participant,
-    item?.data?.key?.participant,
-    payload?.data?.key?.participant,
-  ];
-
-  const primary = pickBestPhone(rawPrimary);
-  if (primary) return primary;
-
-  // Fallback solo si no hubo remoteJid/participant.
-  const firstChoice = pickBestPhone([
-    item?.from,
-    payload?.from,
-    item?.jid,
-    payload?.jid,
-  ]);
-  if (firstChoice) return firstChoice;
-
-  return "";
-}
-
 function boolish(value: any): boolean {
   if (value === true || value === 1) return true;
   const v = String(value ?? "").trim().toLowerCase();
   return v === "true" || v === "1" || v === "yes";
-}
-
-function findTextCandidate(node: any, depth = 0): string {
-  if (depth > 3 || node == null) return "";
-  if (typeof node === "string") return node.trim();
-  if (typeof node !== "object") return "";
-
-  const directKeys = ["conversation", "text", "body", "content", "caption", "title", "selectedDisplayText"];
-  for (const k of directKeys) {
-    const v = (node as any)?.[k];
-    if (typeof v === "string" && v.trim()) return v.trim();
-  }
-
-  for (const v of Object.values(node)) {
-    const found = findTextCandidate(v, depth + 1);
-    if (found) return found;
-  }
-  return "";
-}
-
-function unwrapMessage(raw: any): any {
-  if (!raw || typeof raw !== "object") return raw;
-
-  let msg = raw;
-  for (let i = 0; i < 4; i++) {
-    if (msg?.ephemeralMessage?.message) {
-      msg = msg.ephemeralMessage.message;
-      continue;
-    }
-    if (msg?.viewOnceMessage?.message) {
-      msg = msg.viewOnceMessage.message;
-      continue;
-    }
-    if (msg?.viewOnceMessageV2?.message) {
-      msg = msg.viewOnceMessageV2.message;
-      continue;
-    }
-    if (msg?.viewOnceMessageV2Extension?.message) {
-      msg = msg.viewOnceMessageV2Extension.message;
-      continue;
-    }
-    break;
-  }
-
-  return msg;
-}
-
-function extractTextFromMessage(msg: any, messageType?: string): string {
-  if (typeof msg === "string") return msg.trim();
-  const m = unwrapMessage(msg);
-  const typeKey = String(messageType || "").trim();
-
-  const byType = typeKey && m && typeof m === "object" ? m?.[typeKey] : null;
-
-  return String(
-    m?.conversation ||
-      m?.text ||
-      m?.body ||
-      m?.content ||
-      m?.caption ||
-      m?.extendedTextMessage?.text ||
-      m?.imageMessage?.caption ||
-      m?.videoMessage?.caption ||
-      m?.documentMessage?.caption ||
-      m?.buttonsResponseMessage?.selectedDisplayText ||
-      m?.listResponseMessage?.title ||
-      byType?.text ||
-      byType?.caption ||
-      byType?.selectedDisplayText ||
-      byType?.title ||
-      findTextCandidate(m) ||
-      ""
-  ).trim();
-}
-
-type InboundEvent = {
-  instance: string;
-  from: string;
-  fromIsLid?: boolean;
-  jidCandidates?: string[];
-  alternates?: string[];
-  text: string;
-  pushName?: string;
-  messageId?: string;
-  source?: string;
-};
-
-function inboundBusinessPhoneCandidates(inbound: InboundEvent): string[] {
-  const values = [
-    inbound.from,
-    ...(Array.isArray(inbound.alternates) ? inbound.alternates : []),
-    ...(Array.isArray(inbound.jidCandidates) ? inbound.jidCandidates : []),
-  ];
-
-  const parsed = values
-    .map((v) => normalizePhone(String(v || "")))
-    .filter((v) => v.length >= 10 && v.length <= 15);
-
-  return Array.from(new Set(parsed));
-}
-
-function resolveInboundCustomerPhone(inbound: InboundEvent): string {
-  const candidates = inboundBusinessPhoneCandidates(inbound);
-  const standard = candidates.find((v) => v.length >= 10 && v.length <= 12);
-  return standard || candidates[0] || normalizePhone(inbound.from || "");
 }
 
 type ClassifiedIntent = {
@@ -366,172 +502,6 @@ type ClassifiedIntent = {
   needs_clarification: boolean;
 };
 
-function inboundJidCandidates(payload: any, item: any): string[] {
-  const key = item?.key || {};
-  const values = [
-    key?.remoteJid,
-    item?.data?.key?.remoteJid,
-    payload?.data?.key?.remoteJid,
-    key?.participant,
-    item?.data?.key?.participant,
-    payload?.data?.key?.participant,
-    item?.jid,
-    payload?.jid,
-    payload?.remoteJid,
-  ]
-    .map((v) => String(v || "").trim())
-    .filter((v) => v.includes("@"));
-
-  return Array.from(new Set(values));
-}
-
-function inboundPhoneCandidates(payload: any, item: any): string[] {
-  const key = item?.key || {};
-
-  const ranked = [
-    key?.remoteJid,
-    item?.data?.key?.remoteJid,
-    payload?.data?.key?.remoteJid,
-    key?.participant,
-    item?.data?.key?.participant,
-    payload?.data?.key?.participant,
-    item?.from,
-    payload?.from,
-    item?.jid,
-    payload?.jid,
-  ]
-    .map((v) => {
-      const raw = String(v || "");
-      return { phone: normalizePhone(raw), isLid: isLidCandidate(raw) };
-    })
-    .filter((v) => v.phone.length >= 10 && v.phone.length <= 15)
-    .sort((a, b) => Number(a.isLid) - Number(b.isLid))
-    .map((v) => v.phone);
-
-  return Array.from(new Set(ranked));
-}
-
-function extractInbound(payload: any): InboundEvent | null {
-  const event = String(payload?.event || payload?.type || payload?.eventName || "").toLowerCase();
-  const hasUpsertEvent = /messages?[._-]?upsert/.test(event);
-  const hasUpdateEvent = /messages?[._-]?update/.test(event);
-
-  const instance = String(
-    payload?.instance || payload?.instanceName || payload?.data?.instance || payload?.data?.instanceId || ""
-  ).trim();
-
-  if (
-    !hasUpsertEvent &&
-    !hasUpdateEvent &&
-    !payload?.message &&
-    !payload?.messages &&
-    !payload?.data?.message &&
-    !payload?.data?.messages
-  ) {
-    return null;
-  }
-
-  // Para messages.update, verificar que sea un mensaje real (no solo ACK de entrega)
-  if (hasUpdateEvent && !payload?.data?.message && !payload?.data?.messages && !payload?.message) {
-    const fromMe = payload?.data?.fromMe ?? payload?.fromMe;
-    console.log("[evolution-webhook] messages.update check", { 
-      fromMe, 
-      hasMessage: !!payload?.data?.message,
-      hasMessages: !!payload?.data?.messages,
-      dataKeys: payload?.data ? Object.keys(payload.data) : []
-    });
-    if (fromMe === true || fromMe === "true") {
-      console.log("[evolution-webhook] ignoring delivery ACK");
-      return null;
-    }
-    
-    // Para messages.update con fromMe: false, verificar si hay datos de mensaje
-    const updateData = payload?.data || {};
-    const hasMessageData = updateData?.message || updateData?.messages || updateData?.text || updateData?.body;
-    if (!hasMessageData) {
-      console.log("[evolution-webhook] ignoring messages.update without message content");
-      return null;
-    }
-  }
-
-  const rawData = payload?.data || payload?.payload || payload;
-  const candidates = Array.isArray(rawData)
-    ? rawData
-    : Array.isArray(rawData?.messages)
-      ? rawData.messages
-      : Array.isArray(rawData?.data)
-        ? rawData.data
-      : rawData
-        ? [rawData]
-        : [];
-
-  for (const item of candidates) {
-    const key = item?.key || {};
-    const source = String(item?.source || item?.data?.source || payload?.data?.source || payload?.source || "").toLowerCase();
-    if (source === "api" || source === "outbound" || source === "server") continue;
-
-    const fromMe = boolish(key?.fromMe ?? item?.fromMe ?? item?.data?.key?.fromMe ?? payload?.data?.fromMe ?? payload?.fromMe);
-    if (fromMe) continue;
-
-    const orderedCandidates = inboundPhoneCandidates(payload, item);
-    const jidCandidates = inboundJidCandidates(payload, item);
-    const preferred = String(preferredInboundPhone(payload, item)).trim();
-    const rawPrimaryRemote = [
-      key?.remoteJid,
-      item?.data?.key?.remoteJid,
-      payload?.data?.key?.remoteJid,
-      key?.participant,
-      item?.data?.key?.participant,
-      payload?.data?.key?.participant,
-    ]
-      .map((v) => String(v || "").trim())
-      .find(Boolean) || "";
-    const preferredIsLid = isLidCandidate(rawPrimaryRemote);
-    const remoteJid = preferred && preferred.length >= 10 && preferred.length <= 15
-      ? preferred
-      : (orderedCandidates[0] || "");
-    if (!remoteJid) continue;
-
-    const from = normalizePhone(String(remoteJid).split("@")[0] || "");
-    
-    // Para messages.update, el mensaje puede estar en payload.data.message
-    const messageData = item?.message || item?.data?.message || item?.data || payload?.data?.message || payload?.message || {};
-    const typeHint = String(item?.messageType || item?.data?.messageType || messageData?.messageType || "").trim();
-    const text = String(
-      extractTextFromMessage(messageData, typeHint) ||
-      item?.text ||
-      item?.body ||
-      item?.content ||
-      item?.data?.text ||
-      item?.data?.body ||
-      item?.data?.content ||
-      payload?.data?.text ||
-      payload?.data?.body ||
-      payload?.text ||
-      payload?.body ||
-      ""
-    ).trim();
-    if (!from || !text) continue;
-
-    const pushName = String(item?.pushName || item?.data?.pushName || payload?.data?.pushName || "").trim();
-    const messageId = String(key?.id || item?.id || item?.data?.key?.id || payload?.data?.messageId || "").trim();
-
-    return {
-      instance,
-      from,
-      fromIsLid: preferredIsLid && from === normalizePhone(rawPrimaryRemote),
-      jidCandidates,
-      alternates: orderedCandidates.filter((p) => p !== from),
-      text,
-      pushName: pushName || undefined,
-      messageId: messageId || undefined,
-      source: source || undefined,
-    };
-  }
-
-  return null;
-}
-
 async function persistConversationTurn(
   supabase: any,
   params: {
@@ -547,192 +517,16 @@ async function persistConversationTurn(
     contactName?: string;
   }
 ) {
-  const nowIso = new Date().toISOString();
-  const {
-    agentId,
-    ownerId,
-    tenantId = null,
-    from,
-    pushName,
-    inboundText,
-    outboundText,
-    messageId,
-    memory,
-    contactName,
-  } = params;
-
-  const fromReal = normalizeRealCustomerPhone(from || "");
-  const fromNorm = normalizePhone(from || "");
-  const fromKey = fromReal || fromNorm;
-  const fromTail = phoneTail10(fromKey || from || "");
-  const contactFilter = fromTail
-    ? `contact_phone.eq.${fromKey},contact_phone.like.%${fromTail}`
-    : `contact_phone.eq.${fromKey}`;
-
-  const { data: existing } = await supabase
-    .from("agent_conversations")
-    .select("id,transcript,message_count,metadata")
-    .eq("agent_id", agentId)
-    .eq("channel", "whatsapp")
-    .or(contactFilter)
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const nextItems = [
-    { role: "user", content: inboundText, timestamp: nowIso },
-    { role: "assistant", content: outboundText, timestamp: nowIso },
-  ];
-
-  if (existing?.id) {
-    const currentTranscript = Array.isArray(existing.transcript) ? existing.transcript : [];
-    const currentMeta = existing.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
-
-    if (messageId && String(currentMeta?.last_inbound_message_id || "") === messageId) {
-      return;
-    }
-
-    const mergedTranscript = [...currentTranscript, ...nextItems].slice(-80);
-    const currentCount = Number(existing.message_count || 0) || 0;
-    await supabase
-      .from("agent_conversations")
-      .update({
-        ...(contactName ? { contact_name: contactName } : {}),
-        transcript: mergedTranscript,
-        message_count: currentCount + 2,
-        status: "completed",
-        ended_at: nowIso,
-        metadata: {
-          ...currentMeta,
-          owner_id: ownerId,
-          last_inbound_message_id: messageId || currentMeta?.last_inbound_message_id || null,
-          whatsapp_memory: {
-            ...(currentMeta?.whatsapp_memory && typeof currentMeta.whatsapp_memory === "object" ? currentMeta.whatsapp_memory : {}),
-            ...(memory && typeof memory === "object" ? memory : {}),
-            updated_at: nowIso,
-          },
-        },
-      })
-      .eq("id", existing.id);
-    return;
-  }
-
-  await supabase.from("agent_conversations").insert({
-    agent_id: agentId,
-    tenant_id: tenantId || null,
-    contact_name: contactName || pushName || from,
-    contact_phone: fromReal || fromNorm || from,
-    channel: "whatsapp",
-    status: "completed",
-    message_count: 2,
-    duration_seconds: 0,
-    credits_used: 0,
-    transcript: nextItems,
-    metadata: {
-      owner_id: ownerId,
-      source: "evolution_webhook",
-      last_inbound_message_id: messageId || null,
-      whatsapp_memory: {
-        ...(memory && typeof memory === "object" ? memory : {}),
-        updated_at: nowIso,
-      },
-    },
-    started_at: nowIso,
-    ended_at: nowIso,
+  return persistConversationTurnApp({
+    supabase,
+    ...params,
+    normalizePhone,
+    phoneTail10,
   });
 }
 
-async function reserveIncomingMessage(
-  supabase: any,
-  args: {
-    provider: string;
-    providerMessageId: string;
-    instance?: string;
-    fromPhone?: string;
-    payload?: any;
-  }
-): Promise<{ ok: boolean; duplicate: boolean }> {
-  const providerMessageId = String(args.providerMessageId || "").trim();
-  if (!providerMessageId) return { ok: true, duplicate: false };
-
-  const { error } = await supabase.from("incoming_messages").insert({
-    provider: String(args.provider || "evolution").trim() || "evolution",
-    provider_message_id: providerMessageId,
-    instance_name: String(args.instance || "").trim() || null,
-    from_phone: String(args.fromPhone || "").trim() || null,
-    payload: args.payload && typeof args.payload === "object" ? args.payload : null,
-    status: "received",
-  });
-
-  if (!error) return { ok: true, duplicate: false };
-
-  const code = String((error as any)?.code || "").trim();
-  const msg = String((error as any)?.message || "").toLowerCase();
-  if (code === "23505" || msg.includes("duplicate key") || msg.includes("unique constraint")) {
-    return { ok: true, duplicate: true };
-  }
-
-  if (msg.includes("relation") && msg.includes("incoming_messages")) {
-    return { ok: true, duplicate: false };
-  }
-
-  console.warn("[evolution-webhook] reserve incoming failed", error?.message || error);
-  return { ok: false, duplicate: false };
-}
-
-function summarizeInboundAttempt(payload: any) {
-  const d = payload?.data || {};
-  const key = d?.key || {};
-  const message = d?.message || payload?.message || {};
-  const remoteJid = String(key?.remoteJid || key?.participant || d?.from || payload?.sender || "");
-  const fromMe = boolish(key?.fromMe);
-  const messageType = String(d?.messageType || payload?.messageType || "");
-  const text = extractTextFromMessage(message, messageType) || findTextCandidate(message);
-  const messageKeys = message && typeof message === "object" ? Object.keys(message).slice(0, 8) : [];
-
-  return {
-    fromMe,
-    remoteJid,
-    messageType,
-    hasText: Boolean(String(text || "").trim()),
-    messageKeys,
-    source: String(d?.source || payload?.source || ""),
-  };
-}
-
-function buildDocumentContext(message: string, files: { name: string; content: string }[]) {
-  if (!files.length) return "";
-  const terms = Array.from(
-    new Set(
-      String(message || "")
-        .toLowerCase()
-        .split(/[^a-z0-9áéíóúñü]+/i)
-        .map((t) => t.trim())
-        .filter((t) => t.length >= 4)
-    )
-  ).slice(0, 8);
-
-  const ranked = files
-    .map((f) => {
-      const lc = f.content.toLowerCase();
-      const score = terms.reduce((acc, t) => (lc.includes(t) ? acc + 1 : acc), 0);
-      return { ...f, score };
-    })
-    .sort((a, b) => b.score - a.score);
-
-  const selected = ranked.filter((f) => f.score > 0).slice(0, 3);
-  const fallback = selected.length ? selected : ranked.slice(0, 2);
-
-  const blocks = fallback.map((f) => {
-    const lc = f.content.toLowerCase();
-    const firstHit = terms.map((t) => lc.indexOf(t)).find((i) => i >= 0) ?? -1;
-    const start = firstHit >= 0 ? Math.max(0, firstHit - 700) : 0;
-    const end = Math.min(f.content.length, start + 1800);
-    const excerpt = f.content.slice(start, end).trim();
-    return `\n--- ${f.name} ---\n${excerpt}`;
-  });
-
-  return `\n\nDocumentos indexados (extractos):\n${blocks.join("\n")}`;
+async function markIncomingMessageProcessed(supabase: any, providerMessageId: string): Promise<void> {
+  return markIncomingMessageProcessedApp(supabase, { provider: "evolution", providerMessageId });
 }
 
 function normalizeText(v: string) {
@@ -748,118 +542,11 @@ function isQuoteDraftStatusConstraintError(err: any): boolean {
 }
 
 function appendQuoteClosurePrompt(text: string): string {
-  const base = String(text || "").trim();
-  const prompt = [
-    "Envio de cotización y ficha técnica",
-    "De acuerdo con la información suministrada, te compartimos la cotización junto con la ficha técnica del equipo para tu revisión.",
-    "",
-    "¿Deseas saber algo más o recibir asesoría adicional? Con gusto te apoyamos 😊",
-    "",
-    "Recuerda que estás cotizando con Avanza International Group, distribuidores de la marca OHAUS, líder en el mercado, lo que te garantiza un equipo con la más alta tecnología, precisión y respaldo.",
-    "",
-    "Si tu equipo es para entrega en Bogotá o Medellín, te obsequiamos la entrega, instalación y capacitación. Para otras ciudades, el envío debe ser asumido por el cliente, pero te acompañamos con instalación y capacitación virtual.",
-  ].join("\n");
-  if (!base) return prompt;
-  const t = normalizeText(base);
-  if (/(envio de cotizacion y ficha tecnica|deseas saber algo mas|marca ohaus|instalacion y capacitacion virtual)/.test(t)) return base;
-  return `${base}\n\n${prompt}`;
+  return appendQuoteClosurePromptApp(text, normalizeText);
 }
 
 function appendBundleQuoteClosurePrompt(text: string): string {
-  const base = String(text || "").trim();
-  const prompt = [
-    "Envío de cotización consolidada",
-    "De acuerdo con la información suministrada, te compartimos la cotización consolidada para tu revisión.",
-    "Si deseas, también te comparto las fichas técnicas de cada referencia por separado.",
-    "Escribe: fichas 1,2,3 (ejemplo).",
-    "",
-    "¿Deseas saber algo más o recibir asesoría adicional? Con gusto te apoyamos 😊",
-    "",
-    "Recuerda que estás cotizando con Avanza International Group, distribuidores de la marca OHAUS, líder en el mercado, lo que te garantiza un equipo con la más alta tecnología, precisión y respaldo.",
-    "",
-    "Si tu equipo es para entrega en Bogotá o Medellín, te obsequiamos la entrega, instalación y capacitación. Para otras ciudades, el envío debe ser asumido por el cliente, pero te acompañamos con instalación y capacitación virtual.",
-  ].join("\n");
-  if (!base) return prompt;
-  const t = normalizeText(base);
-  if (/(envio de cotizacion consolidada|fichas tecnicas de cada referencia|escribe:\s*fichas\s+1,2,3)/.test(t)) return base;
-  return `${base}\n\n${prompt}`;
-}
-
-function appendAdvisorAppointmentPrompt(text: string): string {
-  const base = String(text || "").trim();
-  if (!base) return "Si prefieres, también puedo agendar una cita con un asesor humano para cerrar la compra. Escribe: cita.";
-  const t = normalizeText(base);
-  if (/(agendar una cita|asesor humano|cerrar la compra|escribe:\s*cita)/.test(t)) return base;
-  return `${base}\nSi prefieres, también puedo agendar una cita con un asesor humano para cerrar la compra. Escribe: cita.`;
-}
-
-function buildGuidedRecoveryMessage(args: {
-  awaiting: string;
-  rememberedProduct?: string;
-  hasPendingFamilies?: boolean;
-  hasPendingModels?: boolean;
-  inboundText?: string;
-}): string {
-  const awaiting = String(args.awaiting || "").trim();
-  const rememberedProduct = String(args.rememberedProduct || "").trim();
-  const hasPendingFamilies = Boolean(args.hasPendingFamilies);
-  const hasPendingModels = Boolean(args.hasPendingModels);
-  const inboundText = normalizeText(String(args.inboundText || ""));
-
-  if (awaiting === "strict_choose_family" || hasPendingFamilies) {
-    return [
-      "No te preocupes si hubo un error de escritura, te guío de una.",
-      "Responde con la letra/número de la familia (A/1), o dime qué vas a pesar y su funcionalidad (ej.: laboratorio, control de calidad, producción) y te sugiero la mejor opción.",
-    ].join("\n");
-  }
-
-  if (awaiting === "strict_choose_model" || hasPendingModels) {
-    return [
-      "No pasa nada si hubo un typo.",
-      "Responde con la letra/número del modelo (A/1), o escribe el modelo aproximado. También puedes escribir capacidad x resolución (ej.: 4000 g x 0.01 g).",
-    ].join("\n");
-  }
-
-  if (rememberedProduct) {
-    if (/(opciones?|alternativas?|categoria|categorias|familia|familias|balanza|balanzas|bascula|basculas|laboratorio|joyeria|joyería|industrial)/.test(inboundText)) {
-      return [
-        "Perfecto, mantengo el contexto y abrimos opciones según tu necesidad.",
-        "Dime uso + capacidad + resolución (ej.: laboratorio, 1000 g, 0.1 g), o escribe solo la categoría y te muestro opciones activas.",
-      ].join("\n");
-    }
-    if (/(sirve|aplica|funciona|precision|precisi[oó]n|resolucion|resoluci[oó]n|capacidad|pesar|menos de|mayor|menor)/.test(inboundText)) {
-      return [
-        `Claro. Tomo ${rememberedProduct} como referencia.`,
-        "Para responder bien según catálogo, dime capacidad y resolución objetivo (ej.: 200 g x 0.001 g), o escribe: mayor resolución / más económica.",
-      ].join("\n");
-    }
-    return [
-      `Te ayudo de una con ${rememberedProduct}.`,
-      "Puedes responder:",
-      "1) Cotización",
-      "2) Ficha técnica",
-      "3) Otra pregunta técnica",
-      "4) Cerrar conversación",
-    ].join("\n");
-  }
-
-  return [
-    "No te entendí del todo, pero te ayudo de una.",
-    "Puedes escribir: modelo exacto (ej.: AX12001/E), categoría (balanzas o analizador humedad), o qué vas a pesar y su funcionalidad para orientarte mejor.",
-    "También puedes ver el catálogo aquí: https://balanzasybasculas.com.co/",
-    "Si quieres, te dejo más referencias aquí: https://share.google/cE6wPPEGCH3vytJMm",
-  ].join("\n");
-}
-
-function deriveStrictAwaitingAction(previousMemory: any, strictPrevAwaiting: string): string {
-  const fromMemory = String(strictPrevAwaiting || "").trim();
-  const lastValid = String(previousMemory?.last_valid_state || "").trim();
-  const hasPendingModels = Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0;
-  const hasPendingFamilies = Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0;
-  if (fromMemory) return fromMemory;
-  if (hasPendingModels) return "strict_choose_model";
-  if (hasPendingFamilies) return "strict_choose_family";
-  return lastValid;
+  return appendBundleQuoteClosurePromptApp(text, normalizeText);
 }
 
 function logStrictTransition(meta: { before: string; after: string; text: string; intent: string }) {
@@ -874,248 +561,24 @@ function logStrictTransition(meta: { before: string; after: string; text: string
   } catch {}
 }
 
-async function buildStrictConversationalReply(args: {
-  apiKey?: string;
-  inboundText: string;
-  awaiting?: string;
-  selectedProduct?: string;
-  categoryHint?: string;
-  pendingOptions?: Array<{ code?: string; name?: string }>;
-}): Promise<string> {
-  const apiKey = String(args.apiKey || "").trim();
-  const inboundText = String(args.inboundText || "").trim();
-  if (!apiKey || !inboundText) return "";
-
-  const textNorm = normalizeText(inboundText);
-  const outOfCatalog =
-    isOutOfCatalogDomainQuery(inboundText) ||
-    /\b(carro|carros|vehiculo|vehiculos|moto|motos|leche|comida|alimento|alimentos)\b/.test(textNorm);
-  const pending = Array.isArray(args.pendingOptions) ? args.pendingOptions : [];
-  const optionsHint = pending.length
-    ? pending
-        .slice(0, 4)
-        .map((o) => `${String(o?.code || "").trim()}) ${String(o?.name || "").trim()}`)
-        .filter((x) => /\w/.test(x))
-        .join(" | ")
-    : "";
-
-  const systemPrompt = [
-    "Eres Ava, asesora comercial por WhatsApp.",
-    "Responde SIEMPRE en español, tono natural, consultivo y útil.",
-    "No respondas plano: cuando el cliente haga preguntas de uso/definicion/comparacion, explica en lenguaje simple que es, para que sirve, por que importa y un ejemplo breve aplicado.",
-    "Formato recomendado: 3-6 lineas; primero explicas, luego guias a siguiente paso comercial.",
-    "No inventes productos, precios ni disponibilidad fuera de catálogo activo.",
-    outOfCatalog
-      ? "Si el cliente pide algo fuera del catálogo, dilo directo en una línea y redirige a balanzas/analizador de humedad."
-      : "Si hay contexto técnico/comercial, aprovéchalo y guía al siguiente paso sin forzar menú.",
-    args.selectedProduct ? `Producto de referencia actual: ${String(args.selectedProduct || "")}.` : "",
-    args.categoryHint ? `Categoría activa: ${String(args.categoryHint || "").replace(/_/g, " ")}.` : "",
-    optionsHint ? `Opciones activas: ${optionsHint}.` : "",
-    "Si existe lista de opciones activa, sugiere que también puede elegir con letra/número o escribir 'más', pero sin bloquear la conversación.",
-    "Cierra siempre con una accion concreta para continuar (elegir modelo, cotizar o pedir ficha tecnica).",
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  try {
-    const openai = new OpenAI({ apiKey });
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0.2,
-      max_tokens: 140,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: inboundText },
-      ] as any,
-    });
-    return String(completion.choices?.[0]?.message?.content || "").trim();
-  } catch {
-    return "";
-  }
-}
-
-function isAdvisorAppointmentIntent(text: string): boolean {
-  const t = normalizeText(text || "");
-  return /(\bcita\b|\basesor\b|asesor humano|asesor comercial|agendar|agenda|llamada con asesor|quiero hablar con asesor|mariana|milena|transferir\s+asesor|pasame\s+con\s+asesor)/.test(t);
-}
-
-function buildAdvisorMiniAgendaPrompt(): string {
-  return [
-    "Perfecto. Agendemos una llamada con asesor humano.",
-    `Si prefieres atención inmediata, puedes escribirle a Milena aquí: ${MARIANA_ESCALATION_LINK}`,
-    "",
-    "Elige horario:",
-    "1) Hoy (en las próximas horas)",
-    "2) Mañana 9:00 am",
-    "3) Esta semana (próximo disponible)",
-    "",
-    "Responde 1, 2 o 3.",
-  ].join("\n");
-}
-
-function parseAdvisorMiniAgendaChoice(text: string): { iso: string; label: string } | null {
-  const t = normalizeText(text || "");
-  const now = new Date();
-  const mk = (d: Date, label: string) => ({ iso: d.toISOString(), label });
-
-  if (/\b1\b|hoy|ahora|mas tarde/.test(t)) {
-    const d = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-    return mk(d, "Hoy (próximas horas)");
-  }
-  if (/\b2\b|manana|mañana/.test(t)) {
-    const d = new Date(now);
-    d.setDate(d.getDate() + 1);
-    d.setHours(9, 0, 0, 0);
-    return mk(d, "Mañana 9:00 am");
-  }
-  if (/\b3\b|esta semana|proximo disponible|próximo disponible/.test(t)) {
-    const d = new Date(now);
-    d.setDate(d.getDate() + 2);
-    d.setHours(10, 0, 0, 0);
-    return mk(d, "Esta semana (próximo disponible)");
-  }
-  return null;
-}
-
-function extractEmail(text: string): string {
-  const m = String(text || "").match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
-  return m ? String(m[0] || "").toLowerCase() : "";
-}
-
-function extractCustomerName(text: string, fallback: string): string {
-  const m = String(text || "").match(/nombre(?:\s+completo)?\s*:\s*([^\n,.]+)/i);
-  if (m?.[1]) return String(m[1]).trim();
-  const fb = String(fallback || "").trim();
-  if (!fb) return "";
-  if (["hola", "cliente", "usuario", "user"].includes(fb.toLowerCase())) return "";
-  return fb;
-}
-
 function extractCustomerPhone(text: string, fallbackInbound: string): string {
-  const raw = String(text || "");
-  const labeled = raw.match(/(?:telefono|tel|celular|movil|whatsapp)\s*[:=]?\s*([+\d\s().-]{8,25})/i);
-  const fromLabel = normalizePhone(String(labeled?.[1] || ""));
-  if (fromLabel.length >= 10 && fromLabel.length <= 12) return fromLabel;
-
-  const any = raw.match(/\+?\d[\d\s().-]{8,20}\d/g);
-  if (any?.length) {
-    for (const candidate of any) {
-      const n = normalizePhone(candidate);
-      if (n.length >= 10 && n.length <= 12) return n;
-    }
-  }
-
-  const inbound = normalizePhone(fallbackInbound || "");
-  if (inbound.length >= 10 && inbound.length <= 12) return inbound;
-  return "";
-}
-
-function extractLabeledValue(text: string, labels: string[]): string {
-  const raw = String(text || "");
-  for (const label of labels) {
-    const rxStrict = new RegExp(`(?:${label})\\s*[:=]\\s*([^\\n,;]{2,120})`, "i");
-    const mStrict = raw.match(rxStrict);
-    if (mStrict?.[1]) return String(mStrict[1]).trim();
-    const rxLoose = new RegExp(`(?:${label})\\s+([^\\n,;]{2,120})`, "i");
-    const mLoose = raw.match(rxLoose);
-    if (mLoose?.[1]) return String(mLoose[1]).trim();
-  }
-  return "";
-}
-
-function normalizeCityLabel(raw: string): string {
-  const t = normalizeText(String(raw || ""));
-  if (!t) return "";
-  if (/(bogota|bogota dc|bogota d c)/.test(t)) return "bogota";
-  if (/(medellin|antioquia|envigado|itagui|sabaneta|bello)/.test(t)) return "antioquia";
-  return t;
-}
-
-function isPresent(v: string): boolean {
-  return Boolean(String(v || "").trim());
-}
-
-function sanitizeCustomerDisplayName(raw: string): string {
-  const v = String(raw || "").trim().replace(/\s+/g, " ");
-  if (!v) return "";
-  const lc = v.toLowerCase();
-  if (["hola", "cliente", "usuario", "user", "amigo", "amiga"].includes(lc)) return "";
-  if (/^\+?\d+$/.test(v)) return "";
-  if (v.length < 2) return "";
-  return v;
-}
-
-function looksLikeCustomerNameAnswer(text: string): string {
-  const src = String(text || "").trim();
-  if (!src) return "";
-  const cleaned = src
-    .replace(/^soy\s+/i, "")
-    .replace(/^mi\s+nombre\s+es\s+/i, "")
-    .replace(/^nombre\s*[:\-]\s*/i, "")
-    .replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!cleaned) return "";
-  if (cleaned.length < 3 || cleaned.length > 60) return "";
-  const words = cleaned.split(" ").filter(Boolean);
-  if (words.length > 5) return "";
-  const bad = ["hola", "si", "ok", "dale", "cotizar", "producto", "ficha", "imagen", "pdf"];
-  if (words.some((w) => bad.includes(w.toLowerCase()))) return "";
-  return sanitizeCustomerDisplayName(cleaned);
+  return extractCustomerPhoneApp({ text, fallbackInbound, normalizePhone });
 }
 
 async function persistKnownNameInCrm(
   supabase: any,
   args: { ownerId: string; tenantId?: string | null; phone: string; name: string }
 ) {
-  const ownerId = String(args.ownerId || "").trim();
-  const phone = normalizePhone(args.phone || "");
-  const tail = phoneTail10(phone);
-  const name = sanitizeCustomerDisplayName(args.name || "");
-  if (!ownerId || !tail || !name) return;
-
-  try {
-    const { data: existing, error: readErr } = await supabase
-      .from("agent_crm_contacts")
-      .select("id,name,metadata")
-      .eq("created_by", ownerId)
-      .or(`phone.eq.${phone},phone.like.%${tail}`)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (readErr) return;
-
-    if (existing?.id) {
-      const mergedMeta = {
-        ...(existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
-        whatsapp_transport_id: phone,
-      };
-      await supabase
-        .from("agent_crm_contacts")
-        .update({ name, metadata: mergedMeta })
-        .eq("id", String(existing.id))
-        .eq("created_by", ownerId);
-      return;
-    }
-
-    await supabase.from("agent_crm_contacts").insert({
-      tenant_id: args.tenantId || null,
-      created_by: ownerId,
-      name,
-      phone,
-      status: "analysis",
-      next_action: null,
-      next_action_at: null,
-      metadata: { source: "whatsapp_name_capture", whatsapp_transport_id: phone },
-    });
-  } catch {
-    // best effort
-  }
-}
-
-function isoAfterHours(hours: number): string {
-  return new Date(Date.now() + Math.max(1, hours) * 60 * 60 * 1000).toISOString();
+  return persistKnownNameInCrmApp({
+    supabase,
+    ownerId: args.ownerId,
+    tenantId: args.tenantId,
+    phone: args.phone,
+    name: args.name,
+    normalizePhone,
+    phoneTail10,
+    sanitizeCustomerDisplayName,
+  });
 }
 
 async function upsertCrmLifecycleState(
@@ -1132,2141 +595,169 @@ async function upsertCrmLifecycleState(
     metadata?: Record<string, any>;
   }
 ) {
-  const ownerId = String(args.ownerId || "").trim();
-  const phone = normalizePhone(args.phone || "");
-  const realPhone = normalizeRealCustomerPhone(String(args.realPhone || ""));
-  const tail = phoneTail10(phone);
-  if (!ownerId || !tail) return;
-
-  try {
-    const { data: existing } = await supabase
-      .from("agent_crm_contacts")
-      .select("id,status,next_action,next_action_at,metadata")
-      .eq("created_by", ownerId)
-      .or(`phone.eq.${phone},phone.like.%${tail}`)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const nextStatus = String(args.status || existing?.status || "analysis").trim() || "analysis";
-    const nextAction = args.nextAction === undefined
-      ? (existing?.next_action ?? null)
-      : (String(args.nextAction || "").trim() || null);
-    const nextActionAt = args.nextActionAt === undefined
-      ? (existing?.next_action_at ?? null)
-      : (String(args.nextActionAt || "").trim() || null);
-    const mergedMetadata = {
-      ...(existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
-      ...(args.metadata && typeof args.metadata === "object" ? args.metadata : {}),
-      whatsapp_transport_id: phone,
-      whatsapp_real_phone: realPhone || String((existing?.metadata as any)?.whatsapp_real_phone || ""),
-      whatsapp_lifecycle_at: new Date().toISOString(),
-    };
-
-    if (existing?.id) {
-      const updatePayload: Record<string, any> = {
-        status: nextStatus,
-        next_action: nextAction,
-        next_action_at: nextActionAt,
-        metadata: mergedMetadata,
-      };
-      const safeName = sanitizeCustomerDisplayName(String(args.name || ""));
-      if (safeName) updatePayload.name = safeName;
-      await supabase
-        .from("agent_crm_contacts")
-        .update(updatePayload)
-        .eq("id", String(existing.id))
-        .eq("created_by", ownerId);
-      return;
-    }
-
-    await supabase.from("agent_crm_contacts").insert({
-      tenant_id: args.tenantId || null,
-      created_by: ownerId,
-      name: sanitizeCustomerDisplayName(String(args.name || "")) || null,
-      phone,
-      status: nextStatus,
-      next_action: nextAction,
-      next_action_at: nextActionAt,
-      metadata: mergedMetadata,
-    });
-  } catch {
-    // best effort
-  }
-}
-
-function extractQuantity(text: string): number {
-  const t = String(text || "");
-  const m1 = [...t.matchAll(/(?:\bcantidad\b|\bqty\b|\bx\b)\s*[:=]?\s*(\d{1,5})/gi)];
-  if (m1.length) {
-    const n = Number(m1[m1.length - 1]?.[1] || 1);
-    return Math.max(1, Math.min(100000, n));
-  }
-  const m2 = [...t.matchAll(/\b(\d{1,5})\s*(?:unidad|unidades|equipos?|balanza|balanzas|bascula|basculas|pieza|piezas)\b/gi)];
-  if (m2.length) {
-    const n = Number(m2[m2.length - 1]?.[1] || 1);
-    return Math.max(1, Math.min(100000, n));
-  }
-  return 1;
-}
-
-function extractQuoteRequestedQuantity(text: string): number {
-  const t = normalizeText(String(text || ""));
-  if (!t) return 1;
-  const hasTechnicalSpecPattern = Boolean(parseTechnicalSpecQuery(String(text || ""))) ||
-    /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)\s*(?:x|×|\*|por)\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)\b/i.test(String(text || ""));
-  if (hasTechnicalSpecPattern) {
-    const hasExplicitUnitQty = /\b(?:cantidad|qty)\s*[:=]?\s*\d{1,5}\b/.test(t) ||
-      /\b\d{1,4}\s*(?:unidad|unidades|equipo|equipos|balanza|balanzas|bascula|basculas|pieza|piezas)\b/.test(t);
-    if (!hasExplicitUnitQty) return 1;
-  }
-  const m1 = t.match(/\b(?:de|por|para)\s*(\d{1,4})\s*(?:unidad|unidades|equipo|equipos|balanza|balanzas|bascula|basculas|pieza|piezas)?\b/);
-  if (m1?.[1]) {
-    const n = Number(m1[1]);
-    if (Number.isFinite(n) && n > 0) return Math.max(1, Math.min(100000, n));
-  }
-  const m2 = t.match(/\b(\d{1,4})\s*(?:unidad|unidades|equipo|equipos|balanza|balanzas|bascula|basculas|pieza|piezas)\b/);
-  if (m2?.[1]) {
-    const n = Number(m2[1]);
-    if (Number.isFinite(n) && n > 0) return Math.max(1, Math.min(100000, n));
-  }
-  const m3 = t.match(/\bcotiz(?:acion|ar)?\s*(?:de|por)?\s*(\d{1,4})\b/);
-  if (m3?.[1]) {
-    const n = Number(m3[1]);
-    if (Number.isFinite(n) && n > 0) return Math.max(1, Math.min(100000, n));
-  }
-  return extractQuantity(text);
-}
-
-function extractBundleOptionIndexes(text: string): number[] {
-  const raw = String(text || "");
-  if (!raw) return [];
-  const numbers = [...raw.matchAll(/\b([1-9]\d?)\b/g)]
-    .map((m) => Number(m?.[1] || 0))
-    .filter((n) => Number.isFinite(n) && n > 0);
-  if (numbers.length < 2) return [];
-  const hasSelectionSignal = /(cotiz|opcion|opciones|referencias?|\,|\;|\sy\s|\se\s|\/|\-)/i.test(raw);
-  if (!hasSelectionSignal) return [];
-  return numbers.filter((n, idx, arr) => arr.indexOf(n) === idx);
+  return upsertCrmLifecycleStateApp({
+    supabase,
+    ...args,
+    normalizePhone,
+    normalizeRealCustomerPhone,
+    phoneTail10,
+    sanitizeCustomerDisplayName,
+  });
 }
 
 function extractBundleSelectionFromCountCommand(text: string): { count: number; picks: number[] } | null {
-  const raw = String(text || "");
-  const t = normalizeText(raw);
-  if (!/\bcotiz(?:ar|a|acion|ación)?\b/.test(t)) return null;
-  const explicitPicks = extractBundleOptionIndexes(raw).slice(0, 3);
-  const explicitSelectionIntent =
-    /\bopcion(?:es)?\b/.test(t) ||
-    /[,;]|\sy\s|\se\s|\//.test(t);
-  if (explicitSelectionIntent && explicitPicks.length >= 2) {
-    return { count: Math.min(3, explicitPicks.length), picks: explicitPicks };
-  }
-
-  const tokens = [...t.matchAll(/\b(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/g)].map((m) => String(m?.[1] || "").trim());
-  if (!tokens.length) return null;
-  const map: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8 };
-  const firstNum = Number(tokens[0] ? (Number(tokens[0]) || map[tokens[0]] || 0) : 0);
-  if (!firstNum || firstNum < 2) return null;
-
-  const picks = explicitPicks
-    .filter((n) => n !== firstNum)
-    .slice(0, 3);
-  return {
-    count: Math.max(2, Math.min(3, firstNum)),
-    picks,
-  };
-}
-
-function pickBundleOptionSourceByIndexes(indexes: number[], sources: any[][]): any[] {
-  const maxIdx = Math.max(0, ...indexes.map((n) => Number(n || 0)));
-  for (const src of sources) {
-    if (Array.isArray(src) && src.length >= Math.max(1, maxIdx)) return src;
-  }
-  for (const src of sources) {
-    if (Array.isArray(src) && src.length) return src;
-  }
-  return [];
-}
-
-function catalogReferenceCode(row: any): string {
-  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-  const fromSource = String(source?.product_code || source?.sap || source?.numero_modelo || "").trim();
-  if (fromSource) return fromSource;
-  const fromName = String(row?.name || "").trim().match(/\b([A-Z]{1,4}\d+[A-Z0-9\/-]*)\b/);
-  if (fromName?.[1]) return fromName[1];
-  return "";
-}
-
-function prettifyCatalogLabel(raw: string): string {
-  const txt = String(raw || "").replace(/\s+/g, " ").trim();
-  if (!txt) return "";
-  const alpha = (txt.match(/[a-zA-Z]/g) || []).length;
-  const upper = (txt.match(/[A-Z]/g) || []).length;
-  const mostlyUpper = alpha > 8 && (upper / Math.max(1, alpha)) >= 0.72;
-  if (!mostlyUpper) return txt;
-  const lower = txt.toLowerCase();
-  const titled = lower.replace(/\b([a-záéíóúñ][a-záéíóúñ0-9\/-]*)\b/g, (w) => w.charAt(0).toUpperCase() + w.slice(1));
-  return titled
-    .replace(/\bDe\b/g, "de")
-    .replace(/\bY\b/g, "y")
-    .replace(/\bCon\b/g, "con")
-    .replace(/\bPara\b/g, "para");
-}
-
-function optionDisplayName(row: any): string {
-  const base = humanCatalogName(String(row?.name || "").trim()) || String(row?.name || "").trim();
-  const clean = prettifyCatalogLabel(base).replace(/\s*\+\s*/g, " + ").trim();
-  const code = catalogReferenceCode(row);
-  const out = code && !normalizeText(clean).includes(normalizeText(code))
-    ? `${code} - ${clean}`
-    : clean;
-  return out.length > 88 ? `${out.slice(0, 85)}...` : out;
-}
-
-function dedupeOptionSpecSegments(text: string): string {
-  const raw = String(text || "").trim();
-  if (!raw.includes("|")) return raw;
-  const parts = raw.split("|").map((p) => String(p || "").trim()).filter(Boolean);
-  if (parts.length <= 1) return raw;
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const part of parts) {
-    const key = normalizeText(part).replace(/\s+/g, " ").trim();
-    const specKey = key.startsWith("gama:")
-      ? "gama"
-      : key.startsWith("cap:")
-        ? "cap"
-        : key.startsWith("res:")
-          ? "res"
-          : key.startsWith("entrega:")
-            ? "entrega"
-            : "";
-    const dedupeKey = specKey || key;
-    if (!dedupeKey || seen.has(dedupeKey)) continue;
-    seen.add(dedupeKey);
-    out.push(part);
-  }
-  return out.join(" | ");
-}
-
-function gamaLabelForModelName(name: string): string {
-  const n = normalizeText(String(name || "")).replace(/[^a-z0-9]/g, "");
-  if (!n) return "";
-
-  // Mapeo explícito según matriz comercial acordada (Word cliente)
-  if (/^exp(1203|125d|225d)ad$/.test(n)) return "premium";
-  if (/^exp(223|423|623|224|324)ad$/.test(n)) return "avanzada";
-
-  if (/^px\d/.test(n)) return "esencial";
-  if (/^vx\d/.test(n)) return "intermedia";
-  if (/^ax\d/.test(n)) return "intermedia";
-  if (/^exr\d/.test(n)) return "avanzada";
-  if (/^exp\d+ad$/.test(n)) return "avanzada";
-  if (/^exp\d/.test(n)) return "premium";
-  if (/^r31p\d|^rc31p\d/.test(n)) return "basica";
-  if (/^r71md\d/.test(n)) return "media";
-  if (/^r71mhd\d/.test(n)) return "alta";
-  if (/^sjx\d/.test(n)) return "esencial";
-  if (/^spx\d/.test(n)) return "intermedia";
-  if (/^stx\d/.test(n)) return "avanzada";
-  return "";
+  return extractBundleSelectionFromCountCommandApp(text, normalizeText);
 }
 
 function buildNumberedProductOptions(rows: any[], maxItems = 5): Array<{ code: string; rank: number; id: string; name: string; raw_name: string; category: string; base_price_usd: number }> {
-  const list = Array.isArray(rows) ? rows : [];
-  const out: Array<{ code: string; rank: number; id: string; name: string; raw_name: string; category: string; base_price_usd: number }> = [];
-  const seen = new Set<string>();
-  for (const row of list) {
-    const baseName = optionDisplayName(row);
-    const spec = extractRowTechnicalSpec(row);
-    const specParts: string[] = [];
-    const gama = gamaLabelForModelName(String(row?.name || ""));
-    if (gama) specParts.push(`Gama: ${gama}`);
-    if (spec.capacityG > 0) specParts.push(`Cap: ${formatSpecNumber(spec.capacityG)} g`);
-    if (spec.readabilityG > 0) specParts.push(`Res: ${formatSpecNumber(spec.readabilityG)} g`);
-    const delivery = deliveryLabelForRow(row);
-    if (delivery) specParts.push(`Entrega: ${delivery}`);
-    const suffix = specParts.length ? ` | ${specParts.join(" | ")}` : "";
-    const name = dedupeOptionSpecSegments(`${baseName}${suffix}`).slice(0, 140);
-    if (!name) continue;
-    const key = String(row?.id || "").trim() || normalizeText(name);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    const rank = out.length + 1;
-    if (rank > Math.max(1, maxItems)) break;
-    const code = String(rank);
-    out.push({
-      code,
-      rank,
-      id: String(row?.id || "").trim(),
-      name,
-      raw_name: String(row?.name || "").trim() || name,
-      category: String(row?.category || "").trim(),
-      base_price_usd: Number(row?.base_price_usd || 0),
-    });
-  }
-  return out;
+  return buildNumberedProductOptionsApp({
+    rows,
+    maxItems,
+    extractRowTechnicalSpec,
+    formatSpecNumber,
+    deliveryLabelForRow: ({ row, catalogReferenceCode }) => deliveryLabelForRowApp({ row, catalogReferenceCode, guidedCatalog: GUIDED_BALANZA_CATALOG }),
+    humanCatalogName,
+    normalizeText,
+  });
 }
 
 function resolvePendingProductOption(text: string, optionsRaw: any): { code: string; rank: number; id: string; name: string; raw_name: string; category: string; base_price_usd: number } | null {
-  const tRaw = String(text || "").trim();
-  const t = normalizeText(tRaw);
-  if (!t) return null;
-  const options = (Array.isArray(optionsRaw) ? optionsRaw : [])
-    .map((o: any) => ({
-      code: String(o?.code || "").trim().toUpperCase(),
-      rank: Number(o?.rank || 0),
-      id: String(o?.id || "").trim(),
-      name: String(o?.name || "").trim(),
-      raw_name: String(o?.raw_name || o?.name || "").trim(),
-      category: String(o?.category || "").trim(),
-      base_price_usd: Number(o?.base_price_usd || 0),
-    }))
-    .filter((o: any) => o.name);
-  if (!options.length) return null;
-
-  const firstToken = String(tRaw).trim().split(/\s+/)[0] || "";
-  const firstTokenClean = firstToken.replace(/[^a-z0-9]/gi, "").toUpperCase();
-  const codeMatch = t.match(/(?:^|\b)(?:opcion|codigo|código|letra)\s*([a-z])\b/i) || t.match(/^\s*([a-z])\s*$/i);
-  const numMatch = t.match(/(?:^|\b)(?:opcion|numero|número|#)\s*([1-9])\b/i) || t.match(/^\s*([1-9])(?:\s|$)/i);
-  const code = String(codeMatch?.[1] || "").toUpperCase();
-  const rank = Number(numMatch?.[1] || 0);
-  if (!code && !rank && /^[A-Z]$/.test(firstTokenClean)) {
-    const byLeadingCode = options.find((o: any) => o.code === firstTokenClean);
-    if (byLeadingCode) return byLeadingCode;
-  }
-  if (!code && !rank && /^[1-9]$/.test(firstTokenClean)) {
-    const byLeadingRank = options.find((o: any) => o.rank === Number(firstTokenClean));
-    if (byLeadingRank) return byLeadingRank;
-  }
-  if (code) {
-    const byCode = options.find((o: any) => o.code === code);
-    if (byCode) return byCode;
-  }
-  if (rank > 0) {
-    const byRank = options.find((o: any) => o.rank === rank);
-    if (byRank) return byRank;
-  }
-
-  for (const option of options) {
-    const nameNorm = normalizeText(option.name);
-    if (nameNorm && t.includes(nameNorm)) return option;
-    const modelTokens = extractModelLikeTokens(option.name);
-    if (modelTokens.some((tk) => t.includes(normalizeText(tk)))) return option;
-    const inboundModelTokens = extractModelLikeTokens(tRaw);
-    if (inboundModelTokens.length && modelTokens.length) {
-      const hasModelNearMatch = inboundModelTokens.some((rawIn) => {
-        const inTok = splitModelToken(rawIn);
-        if (!inTok.letters || !inTok.digits) return false;
-        return modelTokens.some((rawOpt) => {
-          const optTok = splitModelToken(rawOpt);
-          if (!optTok.letters || !optTok.digits) return false;
-          if (inTok.letters !== optTok.letters) return false;
-          if (inTok.digits === optTok.digits) return true;
-          if (optTok.digits.startsWith(inTok.digits) || inTok.digits.startsWith(optTok.digits)) return true;
-          const inNoZero = inTok.digits.replace(/0/g, "");
-          const optNoZero = optTok.digits.replace(/0/g, "");
-          return inNoZero.length >= 2 && inNoZero === optNoZero;
-        });
-      });
-      if (hasModelNearMatch) return option;
-    }
-    const terms = extractCatalogTerms(option.name).filter((term) => term.length >= 5).slice(0, 6);
-    const hits = terms.reduce((acc, term) => (t.includes(term) ? acc + 1 : acc), 0);
-    if (hits >= Math.min(2, Math.max(1, terms.length))) return option;
-  }
-
-  return null;
-}
-
-function resolvePendingProductOptionStrict(text: string, optionsRaw: any): { code: string; rank: number; id: string; name: string; raw_name: string; category: string; base_price_usd: number } | null {
-  const tRaw = String(text || "").trim();
-  if (!tRaw) return null;
-  const options = (Array.isArray(optionsRaw) ? optionsRaw : [])
-    .map((o: any) => ({
-      code: String(o?.code || "").trim().toUpperCase(),
-      rank: Number(o?.rank || 0),
-      id: String(o?.id || "").trim(),
-      name: String(o?.name || "").trim(),
-      raw_name: String(o?.raw_name || o?.name || "").trim(),
-      category: String(o?.category || "").trim(),
-      base_price_usd: Number(o?.base_price_usd || 0),
-    }))
-    .filter((o: any) => o.name);
-  if (!options.length) return null;
-
-  const codeMatch =
-    tRaw.match(/^\s*([a-z])\s*$/i) ||
-    tRaw.match(/^\s*(?:opcion|opción|letra|codigo|código)\s*[:\-]?\s*([a-z])\s*$/i);
-  const numMatch =
-    tRaw.match(/^\s*([1-9]\d?)\s*$/i) ||
-    tRaw.match(/^\s*(?:opcion|opción|numero|número|#)\s*[:\-]?\s*([1-9]\d?)\s*$/i);
-  const code = String(codeMatch?.[1] || "").toUpperCase();
-  const rank = Number(numMatch?.[1] || 0);
-
-  if (code) {
-    const byCode = options.find((o: any) => o.code === code);
-    if (byCode) return byCode;
-  }
-  if (rank > 0) {
-    const byRank = options.find((o: any) => o.rank === rank);
-    if (byRank) return byRank;
-  }
-  return null;
+  return resolvePendingProductOptionApp({
+    text,
+    optionsRaw,
+    normalizeText,
+    extractModelLikeTokens,
+    splitModelToken,
+    extractCatalogTerms,
+  });
 }
 
 function familyLabelFromRow(row: any): string {
-  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-  const family = String(source?.family || source?.familia || "").trim();
-  const categoryNorm = normalizeText(String(row?.category || ""));
-  const subNorm = normalizeText(String(source?.subcategory || "").trim());
-  if (family) {
-    if (
-      (categoryNorm === "basculas" || subNorm.startsWith("basculas") || subNorm.startsWith("plataformas") || subNorm.startsWith("indicadores")) &&
-      /balanzas?/.test(normalizeText(family))
-    ) {
-      return "Bascula industriales";
-    }
-    return family;
-  }
-  const sub = subNorm;
-  if (sub) {
-    const mapped: Record<string, string> = {
-      balanzas_semimicro: "Balanza Semi - Micro",
-      balanzas_analiticas: "Balanza Analitica",
-      balanzas_semianaliticas: "Balanza Semi - Analitica",
-      balanzas_precision: "Balanza Precisión",
-      balanzas_conteo: "Balanzas Contadoras",
-      balanzas_mesa: "Balanzas industriales",
-      basculas_mesa: "Bascula industriales",
-      basculas_piso: "Bascula industriales",
-      basculas_lavables: "Bascula industriales",
-      plataformas: "Bascula industriales",
-      plataformas_lavables: "Bascula industriales",
-      indicadores: "Bascula industriales",
-      indicadores_lavables: "Bascula industriales",
-      analizador_humedad: "Analizador de humedad",
-    };
-    if (mapped[sub]) return mapped[sub];
-  }
-  // Do not infer family from technical specs here.
-  // Family menus must reflect DB taxonomy (family/subcategory) only.
-  return "";
-}
-
-function buildNumberedFamilyOptions(rows: any[], maxItems = 8): Array<{ code: string; rank: number; key: string; label: string; count: number }> {
-  const map = new Map<string, { key: string; label: string; count: number }>();
-  const rowList = Array.isArray(rows) ? rows : [];
-  const balanzasOnly = rowList.length > 0 && rowList.every((row: any) => {
-    const c = normalizeText(String(row?.category || ""));
-    return c === "balanzas" || c.startsWith("balanzas_");
-  });
-  const canonicalBalanzasFamilyLabel = (label: string): string => {
-    const t = normalizeText(label);
-    if (!t) return "";
-    if (t.includes("portatil")) return "Balanzas industriales";
-    if (t.includes("semimicro") || t.includes("semi micro")) return "Balanza Semi - Micro";
-    if (t.includes("semi") && t.includes("analit")) return "Balanza Semi - Analitica";
-    if (t.includes("analit")) return "Balanza Analitica";
-    if (t.includes("precis")) return "Balanza Precisión";
-    if (t.includes("contadora") || t.includes("conteo")) return "Balanzas Contadoras";
-    if (t.includes("industrial") || t.includes("mesa")) return "Balanzas industriales";
-    return label;
-  };
-  for (const row of Array.isArray(rows) ? rows : []) {
-    const rawLabel = familyLabelFromRow(row);
-    const label = balanzasOnly ? canonicalBalanzasFamilyLabel(rawLabel) : rawLabel;
-    const key = normalizeText(label);
-    if (!key) continue;
-    if (["balanzas", "basculas", "general"].includes(key)) continue;
-    const prev = map.get(key) || { key, label, count: 0 };
-    prev.count += 1;
-    if (!prev.label || prev.label.length > label.length) prev.label = label;
-    map.set(key, prev);
-  }
-  const preferredBalanzasOrder = [
-    "balanza semi - micro",
-    "balanza analitica",
-    "balanza semi - analitica",
-    "balanza precision",
-    "balanzas industriales",
-    "balanzas contadoras",
-  ].map((x) => normalizeText(x));
-  const orderIndex = (label: string) => {
-    const idx = preferredBalanzasOrder.indexOf(normalizeText(label));
-    return idx >= 0 ? idx : 999;
-  };
-
-  return Array.from(map.values())
-    .sort((a, b) => {
-      if (balanzasOnly) {
-        const ai = orderIndex(a.label);
-        const bi = orderIndex(b.label);
-        if (ai !== bi) return ai - bi;
-      }
-      return b.count - a.count || a.label.localeCompare(b.label);
-    })
-    .slice(0, maxItems)
-    .map((x, i) => ({ code: String.fromCharCode(65 + i), rank: i + 1, key: x.key, label: x.label, count: x.count }));
-}
-
-function resolvePendingFamilyOption(text: string, optionsRaw: any): { code: string; rank: number; key: string; label: string; count: number } | null {
-  const options = (Array.isArray(optionsRaw) ? optionsRaw : [])
-    .map((o: any) => ({
-      code: String(o?.code || "").toUpperCase(),
-      rank: Number(o?.rank || 0),
-      key: String(o?.key || "").trim(),
-      label: String(o?.label || "").trim(),
-      count: Number(o?.count || 0),
-    }))
-    .filter((o: any) => o.code && o.rank > 0 && o.key);
-  if (!options.length) return null;
-  const t = normalizeText(String(text || "").trim());
-  if (!t) return null;
-  const byDirect = options.find((o: any) => t === normalizeText(o.code) || t === String(o.rank));
-  if (byDirect) return byDirect;
-  const byMention = options.find((o: any) => normalizeText(o.label).includes(t) || t.includes(normalizeText(o.label)));
-  if (byMention) return byMention;
-
-  const tTerms = t
-    .split(/[^a-z0-9]+/i)
-    .map((x) => x.trim())
-    .filter((x) => x.length >= 4)
-    .filter((x) => !["dije", "dijiste", "quiero", "busco", "tengo", "tienes", "familia", "elige", "opcion"].includes(x));
-  if (!tTerms.length) return null;
-
-  let best: any = null;
-  for (const o of options) {
-    const labelTerms = normalizeText(String(o.label || ""))
-      .split(/[^a-z0-9]+/i)
-      .map((x) => x.trim())
-      .filter((x) => x.length >= 4);
-    const hits = tTerms.filter((tt) => labelTerms.some((lt) => lt.includes(tt) || tt.includes(lt))).length;
-    if (!best || hits > best.hits) best = { o, hits };
-  }
-  return best && best.hits > 0 ? best.o : null;
+  return familyLabelFromRowApp(row, normalizeText);
 }
 
 function inferFamilyFromUseCase(
   text: string,
   optionsRaw: any,
 ): { code: string; rank: number; key: string; label: string; count: number } | null {
-  const options = (Array.isArray(optionsRaw) ? optionsRaw : [])
-    .map((o: any) => ({
-      code: String(o?.code || "").toUpperCase(),
-      rank: Number(o?.rank || 0),
-      key: String(o?.key || "").trim(),
-      label: String(o?.label || "").trim(),
-      count: Number(o?.count || 0),
-    }))
-    .filter((o: any) => o.code && o.rank > 0 && o.key);
-  if (!options.length) return null;
-  const t = normalizeText(String(text || ""));
-  if (!t) return null;
-
-  const wantsJewelryPrecision = /(oro|joyeria|joyeria|ley\s+de\s+oro|quilat|kilat|gramera|anillo|arete|cadena|gramos|gramo|mg|miligram)/.test(t);
-  const wantsIndustrial = /(maquina|maquinas|bodega|industrial|plataforma|carga pesada)/.test(t);
-  const wantsLab = /(laboratorio|farmacia|control de calidad|formulacion|formulación|microbiologia|analis|investigacion)/.test(t);
-
-  const rankByHints = (o: any) => {
-    const l = normalizeText(String(o?.label || ""));
-    let score = 0;
-    if (wantsJewelryPrecision) {
-      if (/joyeria|jewelry/.test(l)) score += 8;
-      if (/analitica|semi\s*analitica|semi\s*micro/.test(l)) score += 6;
-      if (/precision/.test(l)) score += 4;
-    }
-    if (wantsIndustrial) {
-      if (/industrial|plataforma|basculas/.test(l)) score += 8;
-    }
-    if (wantsLab) {
-      if (/analitica|semi\s*analitica|precision|laboratorio/.test(l)) score += 8;
-      if (/micro|semi\s*micro/.test(l)) score += 4;
-    }
-    return score;
-  };
-
-  const best = options
-    .map((o: any) => ({ o, score: rankByHints(o) }))
-    .sort((a: any, b: any) => b.score - a.score || a.o.rank - b.o.rank)[0];
-
-  return best && best.score > 0 ? best.o : null;
-}
-
-function isOptionOnlyReply(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  return /^(opcion\s*)?([a-z]|[1-9])$/.test(t) || /^(quiero|elijo|escojo)\s+(opcion\s*)?([a-z]|[1-9])$/.test(t);
+  return inferFamilyFromUseCaseApp(text, optionsRaw, normalizeText);
 }
 
 function extractPerProductQuantities(text: string, products: Array<{ id: string; name: string }>): Record<string, number> {
-  const result: Record<string, number> = {};
-  const chunks = String(text || "")
-    .split(/\n|;|\|/)
-    .map((x) => x.trim())
-    .filter(Boolean);
-
-  for (const p of products || []) {
-    const pName = normalizeText(String(p?.name || ""));
-    const terms = pName
-      .split(/[^a-z0-9]+/i)
-      .map((x) => x.trim())
-      .filter((x) => x.length >= 5)
-      .slice(0, 6);
-
-    for (const chunk of chunks) {
-      const c = normalizeText(chunk);
-      const hits = terms.reduce((acc, t) => (c.includes(t) ? acc + 1 : acc), 0);
-      if (hits >= 2 || (pName && c.includes(pName))) {
-        const qty = extractQuantity(chunk);
-        if (qty > 0) {
-          result[String(p.id)] = qty;
-          break;
-        }
-      }
-    }
-  }
-
-  return result;
-}
-
-function hasUniformQuantityHint(text: string): boolean {
-  const t = normalizeText(text);
-  return /(para todos|cada uno|cada producto|los 3|los tres)/.test(t) && /\d/.test(t);
+  return extractPerProductQuantitiesApp({ text, products, normalizeText, extractQuantity: extractQuantityApp });
 }
 
 function shouldAutoQuote(text: string): boolean {
-  const t = normalizeText(text);
-  const asksQuote = /(cotiz|cotizacion|cotizar|presupuesto|precio)/.test(t);
-  const asksDelivery = /(pdf|archivo|adjunt|enviame|enviame|enviame|whatsapp|trm)/.test(t);
-  const asksMulti = isMultiProductQuoteIntent(t);
-  return asksQuote && (asksDelivery || asksMulti);
+  return shouldAutoQuoteApp({ text, normalizeText, isMultiProductQuoteIntent });
 }
 
 function asksQuoteIntent(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  if (/(cotiz|cotizacion|cotizar)/.test(t)) return true;
-  if (/\bpresupuesto\b/.test(t) && /(quier|necesit|haz|genera|envia|enviame|dame|cotiz)/.test(t)) return true;
-  return false;
+  return asksQuoteIntentApp(text, normalizeText);
 }
-
-function isBudgetVisibilityFollowup(text: string): boolean {
-  const t = normalizeText(String(text || ""));
-  if (!/\b(presupuesto|precio|valor)\b/.test(t)) return false;
-  return /(no\s+(sale|aparece|veo|salio|salio)|falta|no\s+me\s+(sale|aparece)|donde\s+esta|donde\s+quedo|no\s+sale\s+el\s+(presupuesto|precio|valor)|no\s+veo\s+el\s+(presupuesto|precio|valor))/.test(t);
-}
-
-type AlternativeFollowupIntent =
-  | "alternative_lower_price"
-  | "alternative_same_need"
-  | "alternative_other_brand"
-  | "alternative_higher_capacity"
-  | "alternative_lower_capacity"
-  | "requote_same_model";
 
 function detectAlternativeFollowupIntent(text: string): AlternativeFollowupIntent | null {
-  const t = normalizeText(String(text || ""));
-  if (!t) return null;
-  if (/(otra\s+marca|otras\s+marcas|marca\s+diferente|de\s+otra\s+marca)/.test(t)) return "alternative_other_brand";
-  if (/(muy\s+costos|mas\s+barat|más\s+barat|mas\s+econom|más\s+econom|economic)/.test(t)) return "alternative_lower_price";
-  if (/(mayor\s+capacidad|mas\s+capacidad|más\s+capacidad)/.test(t)) return "alternative_higher_capacity";
-  if (/(menor\s+capacidad|menos\s+capacidad)/.test(t)) return "alternative_lower_capacity";
-  if (/(mayor\s+resolucion|mejor\s+resolucion|mas\s+resolucion|más\s+resolucion|mas\s+precision|más\s+precision|mejor\s+precision|menor\s+resolucion|menos\s+precision|menor\s+precision)/.test(t)) return "alternative_same_need";
-  if (/(alternativ|otra\s+opcion|otro\s+modelo|similar|parecid|equivalent)/.test(t)) return "alternative_same_need";
-  if (/(mismo\s+modelo|misma\s+referencia|esta\s+misma|este\s+mismo|la\s+misma\s+cotizacion|misma\s+cotizacion)/.test(t)) return "requote_same_model";
-  if (/(otra\s+cotiz|otra\s+cotizacion|nueva\s+cotizacion|re\s*cotiz)/.test(t)) return null;
-  return null;
+  return detectAlternativeFollowupIntentApp(text, normalizeText);
 }
 
 function isAlternativeRejectionIntent(text: string): boolean {
-  const t = normalizeText(String(text || ""));
-  if (!t) return false;
-  return /(no\s+me\s+sirve|no\s+me\s+sirven|no\s+busco\s+eso|no\s+es\s+eso|no\s+me\s+funciona|no\s+me\s+conviene|ninguna\s+de\s+estas?|ninguna\s+me\s+sirve|en\s+lo\s+que\s+estoy\s+buscando|no\s+es\s+lo\s+que\s+busco|que\s+mas\s+opciones|que\s+otras\s+opciones|que\s+otra\s+tienes|que\s+mas\s+tienes)/.test(t);
+  return isAlternativeRejectionIntentApp(text, normalizeText);
 }
 
 function isQuoteStarterIntent(text: string): boolean {
-  const t = normalizeText(text);
-  const asksQuote = asksQuoteIntent(t);
-  const hasConcreteRef = hasConcreteProductHint(t) || /\b\d{2,}\b/.test(t) || /(explorer|adventurer|pioneer|scout|defender|valor|fron|modelo|referencia)/.test(t);
-  return asksQuote && !hasConcreteRef;
+  return isQuoteStarterIntentApp({ text, normalizeText, asksQuoteIntent, hasConcreteProductHint });
 }
 
 function hasReferencePronoun(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  return /\b(de\s+esta|de\s+este|de\s+esa|de\s+ese|esta|este|esa|ese)\b/.test(t);
+  return hasReferencePronounApp(text, normalizeText);
 }
 
 function isConcreteQuoteIntent(text: string, rememberedProductName?: string): boolean {
-  const t = normalizeText(text || "");
-  if (!asksQuoteIntent(t)) return false;
-  if (hasConcreteProductHint(t)) return true;
-  const hasRememberedProduct = Boolean(normalizeText(String(rememberedProductName || "")));
-  if (!hasRememberedProduct) return false;
-  if (hasReferencePronoun(t)) return true;
-  return /\b(la|esta|esa)\s+cotizacion\b|^cotizacion\b|^la\s+cotizacion\b/.test(t);
+  return isConcreteQuoteIntentApp({
+    text,
+    rememberedProductName,
+    normalizeText,
+    asksQuoteIntent,
+    hasConcreteProductHint,
+    hasReferencePronoun,
+  });
 }
 
 function hasBareQuantity(text: string): boolean {
-  const t = normalizeText(text || "");
-  return /\b\d{1,5}\b/.test(t) && /(unidad|unidades|equipo|equipos|balanza|balanzas|bascula|basculas|pieza|piezas|qty|cantidad|x\s*\d)/.test(t);
+  return hasBareQuantityApp(text, normalizeText);
 }
 
-function isTechnicalSpecQuery(text: string): boolean {
-  return Boolean(parseTechnicalSpecQuery(text));
-}
-
-function toGrams(valueRaw: string, unitRaw: string): number {
-  const raw = String(valueRaw || "").trim();
-  if (!raw) return 0;
-
-  let normalized = raw;
-  // Soporta miles en formato es/en para capacidades (ej: 4.200, 1,600, 12.000).
-  // Evita romper lecturas pequeñas (ej: 0.001, 0,001), que conservan decimal.
-  if (/^[1-9]\d{0,2}(?:[\.,]\d{3})+$/.test(normalized)) {
-    normalized = normalized.replace(/[\.,]/g, "");
-  } else {
-    normalized = normalized.replace(/,/g, ".");
-  }
-
-  const n = Number(normalized);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  const u = normalizeText(String(unitRaw || "g"));
-  if (u === "mg") return n / 1000;
-  if (u === "kg") return n * 1000;
-  if (u === "gr" || u === "gramo" || u === "gramos") return n;
-  return n;
-}
-
-function parseLocalePositiveNumber(raw: string): number {
-  const src = String(raw || "").trim();
-  if (!src) return 0;
-  let normalized = src;
-  if (/^[1-9]\d{0,2}(?:[\.,]\d{3})+$/.test(normalized)) {
-    normalized = normalized.replace(/[\.,]/g, "");
-  } else {
-    normalized = normalized.replace(/,/g, ".");
-  }
-  const n = Number(normalized);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return n;
-}
-
-function extractDimensionTripletMm(text: string): number[] | null {
-  const t = normalizeText(String(text || "")).replace(/\s+/g, " ").trim();
-  if (!t) return null;
-  const m = t.match(/(\d+(?:[\.,]\d+)?)\s*(mm|cm)?\s*(?:x|por|×|✕|✖|\*)\s*(\d+(?:[\.,]\d+)?)\s*(mm|cm)?\s*(?:x|por|×|✕|✖|\*)\s*(\d+(?:[\.,]\d+)?)\s*(mm|cm)?/i);
-  if (!m) return null;
-  const a = parseLocalePositiveNumber(m[1]);
-  const b = parseLocalePositiveNumber(m[3]);
-  const c = parseLocalePositiveNumber(m[5]);
-  if (!(a > 0) || !(b > 0) || !(c > 0)) return null;
-  const unit = normalizeText(String(m[2] || m[4] || m[6] || "mm"));
-  const factor = unit === "cm" ? 10 : 1;
-  return [a * factor, b * factor, c * factor];
-}
-
-function parseDimensionHint(text: string): { dimsMm: number[] } | null {
-  const dims = extractDimensionTripletMm(text);
-  if (!dims) return null;
-  return { dimsMm: dims };
-}
 
 function extractRowDimensionsMm(row: any): number[] | null {
-  const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-  const fromPayload = uniqueNormalizedStrings([
-    String((payload as any)?.dimensions || ""),
-    String((payload as any)?.dimensiones || ""),
-    String((payload as any)?.size || ""),
-    String((payload as any)?.tamano || ""),
-    String((payload as any)?.tamaño || ""),
-  ]);
-  for (const candidate of fromPayload) {
-    const dims = extractDimensionTripletMm(candidate);
-    if (dims) return dims;
-  }
-  const hay = [
-    String(row?.description || ""),
-    String(row?.summary || ""),
-    String(row?.specs_text || ""),
-    String((payload as any)?.description || ""),
-    String((payload as any)?.resumen || ""),
-  ].filter(Boolean).join(" \n ");
-  return extractDimensionTripletMm(hay);
+  return extractRowDimensionsMmApp(row);
 }
 
 function rankCatalogByDimensions(rows: any[], dimsMm: number[]): Array<{ row: any; score: number }> {
-  const target = (Array.isArray(dimsMm) ? dimsMm : [])
-    .map((n) => Number(n || 0))
-    .filter((n) => n > 0)
-    .sort((a, b) => a - b);
-  if (target.length !== 3) return [];
-
-  const ranked: Array<{ row: any; score: number }> = [];
-  for (const row of Array.isArray(rows) ? rows : []) {
-    const rowDims = (extractRowDimensionsMm(row) || [])
-      .map((n) => Number(n || 0))
-      .filter((n) => n > 0)
-      .sort((a, b) => a - b);
-    if (rowDims.length !== 3) continue;
-    const deltas = rowDims.map((v, i) => Math.abs(v - target[i]));
-    const toleranceOk = deltas.every((d, i) => d <= Math.max(5, target[i] * 0.08));
-    const score = deltas.reduce((acc, n) => acc + n, 0) + (toleranceOk ? 0 : 2000);
-    ranked.push({ row, score });
-  }
-  return ranked.sort((a, b) => a.score - b.score);
-}
-
-function formatDimensionTripletMm(dimsMm: number[]): string {
-  const d = (Array.isArray(dimsMm) ? dimsMm : []).map((n) => Number(n || 0)).filter((n) => n > 0);
-  if (d.length !== 3) return "dimensiones";
-  return `${formatSpecNumber(d[0])} x ${formatSpecNumber(d[1])} x ${formatSpecNumber(d[2])} mm`;
-}
-
-function parseTechnicalSpecQuery(text: string): { capacityG: number; readabilityG: number } | null {
-  const t = normalizeText(String(text || ""))
-    .replace(/(\d)\s*[\.,]\s*(\d)/g, "$1.$2")
-    .replace(/[×✕✖*]/g, "x")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!t) return null;
-
-  const primary = t.match(/(?:^|\s)(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\s*(?:x|por)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\b/i);
-  const byKeywords = t.match(/(?:capacidad|cap|max)\D{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\b.{0,80}(?:resolucion|resolucion\s+minima|precision|lectura\s+minima|readability)\D{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\b/i);
-  const m = primary || byKeywords;
-  if (!m) return null;
-
-  const capacityG = toGrams(m[1], m[2] || "g");
-  const readabilityG = toGrams(m[3], m[4] || "g");
-  if (!(capacityG > 0) || !(readabilityG > 0)) return null;
-  return { capacityG: normalizeRequestedCapacityG(capacityG), readabilityG };
-}
-
-function normalizeRequestedCapacityG(rawCapG: number): number {
-  const cap = Number(rawCapG || 0);
-  if (!(cap > 0)) return 0;
-  const snapMap: Record<number, number> = {
-    200: 220,
-    300: 330,
-    600: 620,
-    3000: 3200,
-    4000: 4200,
-    5000: 5200,
-    6000: 6200,
-  };
-  const rounded = Math.round(cap);
-  return Number(snapMap[rounded] || cap);
-}
-
-function parseLooseTechnicalHint(text: string): { capacityG?: number; readabilityG?: number } | null {
-  const t = normalizeText(String(text || ""))
-    .replace(/(\d)\s*[\.,]\s*(\d)/g, "$1.$2")
-    .replace(/[×✕✖*]/g, "x")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!t) return null;
-
-  const strictPair = parseTechnicalSpecQuery(t);
-  if (strictPair) return strictPair;
-
-  const explicitReadToken =
-    t.match(/(?:^|\s)(0(?:[\.,]\d+))\s*(mg|g|kg|gr|gramo|gramos)\b/i) ||
-    t.match(/(?:^|\s)([\.,]\d+)\s*(mg|g|kg|gr|gramo|gramos)\b/i);
-  if (explicitReadToken) {
-    const raw = String(explicitReadToken[1] || "").replace(/^\./, "0.").replace(/^,/, "0.");
-    const unit = String(explicitReadToken[2] || "g");
-    const read = toGrams(raw, unit);
-    if (read > 0 && read < 1) return { readabilityG: read };
-  }
-
-  const sigMap: Record<string, number> = {
-    "1": 1,
-    "2": 2,
-    "3": 3,
-    "4": 4,
-    "un": 1,
-    "una": 1,
-    "uno": 1,
-    "dos": 2,
-    "tres": 3,
-    "cuatro": 4,
-  };
-  const sig = t.match(/\b(1|2|3|4|un|una|uno|dos|tres|cuatro)\s*(cifra|cifras|decimal|decimales)\s*(significativa|significativas)?\b/i);
-  if (sig) {
-    const n = Number(sigMap[String(sig[1] || "").toLowerCase()] || 0);
-    if (n >= 1 && n <= 4) {
-      return { readabilityG: Number(Math.pow(10, -n).toFixed(8)) };
-    }
-  }
-
-  const valuesForward = Array.from(t.matchAll(/(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)\b/gi))
-    .map((m: any) => toGrams(String(m?.[1] || ""), String(m?.[2] || "g")))
-    .filter((n: number) => Number.isFinite(n) && n > 0);
-  const valuesReverse = Array.from(t.matchAll(/\b(mg|g|kg|gr|gramo|gramos)\s*[,:\- ]+\s*(\d+(?:[\.,]\d+)?)/gi))
-    .map((m: any) => toGrams(String(m?.[2] || ""), String(m?.[1] || "g")))
-    .filter((n: number) => Number.isFinite(n) && n > 0);
-  const values = [...valuesForward, ...valuesReverse];
-  if (!values.length) return null;
-
-  const hasReadabilityKeyword = /(resolucion|precision|lectura\s*minima|division|divisiones|readability)/.test(t);
-  const hasCapacityKeyword = /(capacidad|max|hasta|rango|alcance|de\s*\d+(?:[\.,]\d+)?\s*(mg|g|kg|gr|gramo|gramos))/.test(t);
-
-  if (values.length >= 2) {
-    const sorted = [...values].sort((a, b) => a - b);
-    const maybeRead = sorted[0];
-    const maybeCap = sorted[sorted.length - 1];
-    if (maybeCap >= 1 && maybeRead > 0 && (maybeCap / maybeRead) >= 10) {
-      return { capacityG: maybeCap, readabilityG: maybeRead };
-    }
-  }
-
-  const only = values[0];
-  if (hasReadabilityKeyword) {
-    if (only >= 1) return { capacityG: only };
-    return { readabilityG: only };
-  }
-  if (hasCapacityKeyword && only >= 1) return { capacityG: only };
-  if (only < 1) return { readabilityG: only };
-  return { capacityG: only };
-}
-
-function parseCapacityRangeHint(text: string): { minG: number; maxG: number } | null {
-  const t = normalizeText(String(text || ""))
-    .replace(/(\d)\s*[\.,]\s*(\d)/g, "$1.$2")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!t) return null;
-
-  const pairPatterns = [
-    /(?:entre|rango|de)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\s*(?:a|y|-|hasta)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\b/i,
-    /desde\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\s*hasta\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)?\b/i,
-  ];
-  for (const rx of pairPatterns) {
-    const m = t.match(rx);
-    if (!m) continue;
-    const a = toGrams(m[1], m[2] || "g");
-    const b = toGrams(m[3], m[4] || m[2] || "g");
-    if (!(a > 0) || !(b > 0)) continue;
-    const minG = Math.min(a, b);
-    const maxG = Math.max(a, b);
-    if (maxG > 0) return { minG, maxG };
-  }
-
-  let minG = 0;
-  let maxG = 0;
-  const minOnly = t.match(/(?:capacidad\s*)?(?:minima|minimo|desde|mayor\s+que|mas\s+de)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)\b/i);
-  const maxOnly = t.match(/(?:capacidad\s*)?(?:maxima|maximo|hasta|menor\s+que|no\s+mas\s+de)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)\b/i);
-  if (minOnly) minG = toGrams(minOnly[1], minOnly[2] || "g");
-  if (maxOnly) maxG = toGrams(maxOnly[1], maxOnly[2] || "g");
-  if (minG > 0 && maxG > 0) {
-    const minV = Math.min(minG, maxG);
-    const maxV = Math.max(minG, maxG);
-    return { minG: minV, maxG: maxV };
-  }
-  if (minG > 0) return { minG, maxG: Number.POSITIVE_INFINITY };
-  if (maxG > 0) return { minG: 0, maxG };
-  return null;
-}
-
-function parseExplicitCapacityHint(text: string): number {
-  const t = normalizeText(String(text || ""))
-    .replace(/(\d)\s*[\.,]\s*(\d)/g, "$1.$2")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!t) return 0;
-  const m = t.match(/\bcapacidad\D{0,20}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg|gr|gramo|gramos)\b/i);
-  if (!m) return 0;
-  return toGrams(String(m[1] || ""), String(m[2] || "g"));
-}
-
-function filterRowsByCapacityRange(rows: any[], range: { minG: number; maxG: number } | null): any[] {
-  if (!range || !Array.isArray(rows) || !rows.length) return Array.isArray(rows) ? rows : [];
-  const minG = Math.max(0, Number(range.minG || 0));
-  const maxG = Number(range.maxG || 0);
-  return rows.filter((row: any) => {
-    const cap = Number(extractRowTechnicalSpec(row)?.capacityG || 0);
-    if (!(cap > 0)) return false;
-    if (minG > 0 && cap < minG) return false;
-    if (Number.isFinite(maxG) && maxG > 0 && cap > maxG) return false;
-    return true;
-  });
-}
-
-function mergeLooseSpecWithMemory(
-  prev: { capacityG?: number; readabilityG?: number },
-  hint: { capacityG?: number; readabilityG?: number } | null
-): { capacityG: number; readabilityG: number } {
-  const prevCap = Number(prev?.capacityG || 0);
-  const prevRead = Number(prev?.readabilityG || 0);
-  let cap = Number(hint?.capacityG || 0);
-  let read = Number(hint?.readabilityG || 0);
-
-  if (prevCap > 0 && !(prevRead > 0) && cap > 0 && cap <= 1 && !(read > 0)) {
-    read = cap;
-    cap = 0;
-  }
-  if (prevRead > 0 && !(prevCap > 0) && read > 0 && !(cap > 0) && read >= 1) {
-    cap = read;
-    read = 0;
-  }
-
-  return {
-    capacityG: cap > 0 ? normalizeRequestedCapacityG(cap) : normalizeRequestedCapacityG(prevCap),
-    readabilityG: read > 0 ? read : prevRead,
-  };
-}
-
-function formatSpecNumber(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "0";
-  if (n >= 1) return String(Number(n.toFixed(3))).replace(/\.0+$/, "");
-  if (n >= 0.01) return String(Number(n.toFixed(4))).replace(/\.0+$/, "");
-  return String(Number(n.toFixed(6))).replace(/\.0+$/, "");
-}
-
-function inferFamilyFromReadability(readabilityG: number): { family: string; capacityHint: string } {
-  const r = Number(readabilityG || 0);
-  if (!(r > 0)) return { family: "balanzas", capacityHint: "200 g, 620 g o 3200 g" };
-  if (r <= 0.0001) return { family: "Balanza Analítica", capacityHint: "120 g, 220 g o 320 g" };
-  if (r <= 0.001) return { family: "Balanza Semi - Micro", capacityHint: "120 g, 220 g o 520 g" };
-  if (r <= 0.01) return { family: "Balanza Precisión", capacityHint: "620 g, 1600 g, 3200 g o 6200 g" };
-  if (r <= 0.1) return { family: "Balanzas Contadoras", capacityHint: "3 kg, 6 kg o 15 kg" };
-  return { family: "Balanzas industriales", capacityHint: "15 kg, 30 kg o 60 kg" };
+  return rankCatalogByDimensionsApp(rows, dimsMm);
 }
 
 function extractRowTechnicalSpec(row: any): { capacityG: number; readabilityG: number } {
-  const specsText = String(row?.specs_text || "");
-  const specsJsonText = row?.specs_json ? JSON.stringify(row.specs_json) : "";
-  const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-  const payloadSpecText = [
-    (payload as any)?.capacity,
-    (payload as any)?.capacidad,
-    (payload as any)?.capacity_g,
-    (payload as any)?.capacidad_g,
-    (payload as any)?.max,
-    (payload as any)?.max_g,
-    (payload as any)?.resolution,
-    (payload as any)?.resolucion,
-    (payload as any)?.resolution_g,
-    (payload as any)?.resolucion_g,
-    (payload as any)?.readability,
-    (payload as any)?.readability_g,
-    (payload as any)?.precision,
-    (payload as any)?.precision_g,
-    (payload as any)?.family,
-    (payload as any)?.quote_model,
-  ]
-    .map((v) => String(v ?? "").trim())
-    .filter(Boolean)
-    .join(" ");
-  const hay = normalizeCatalogQueryText(`${specsText} ${specsJsonText} ${payloadSpecText}`);
-  const cap =
-    hay.match(/(?:capacidad|max(?:ima)?|maximum|max\.|weighing\s*capacity|peso\s*max(?:imo)?)[^0-9]{0,24}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/) ||
-    hay.match(/(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)\s*(?:x|por|\*)\s*\d+(?:[\.,]\d+)?\s*(mg|g|kg)/);
-  const read =
-    hay.match(/(?:resolucion|lectura\s*minima|readability|division|d=|incremento)[^0-9]{0,24}(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/) ||
-    hay.match(/\d+(?:[\.,]\d+)?\s*(mg|g|kg)\s*(?:x|por|\*)\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/);
+  return extractRowTechnicalSpecApp({ row, normalizeCatalogQueryText });
+}
 
-  if (cap && read) {
-    const capVal = cap[1] ? toGrams(cap[1], cap[2] || "g") : toGrams(cap[1], cap[2] || "g");
-    const readVal = read[2] && read[3] ? toGrams(read[2], read[3]) : toGrams(read[1], read[2] || "g");
-    if (capVal > 0 && readVal > 0) return { capacityG: capVal, readabilityG: readVal };
-  }
-
-  const unitPairs = Array.from(hay.matchAll(/(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/g))
-    .map((m: any) => toGrams(String(m?.[1] || ""), String(m?.[2] || "g")))
-    .filter((n: number) => Number.isFinite(n) && n > 0)
-    .sort((a, b) => a - b);
-  const fallbackRead = unitPairs.length ? unitPairs[0] : 0;
-  const fallbackCap = unitPairs.length ? unitPairs[unitPairs.length - 1] : 0;
-
-  return {
-    capacityG: cap ? toGrams(cap[1], cap[2] || "g") : fallbackCap,
-    readabilityG: read
-      ? (read[2] && read[3] ? toGrams(read[2], read[3]) : toGrams(read[1], read[2] || "g"))
-      : (fallbackRead > 0 && fallbackCap / Math.max(fallbackRead, 0.000000001) >= 10 ? fallbackRead : 0),
-  };
+function filterRowsByCapacityRange(rows: any[], range: { minG: number; maxG: number } | null): any[] {
+  return filterRowsByCapacityRangeApp({ rows, range, extractRowTechnicalSpec });
 }
 
 function rankCatalogByTechnicalSpec(rows: any[], spec: { capacityG: number; readabilityG: number }): Array<{ row: any; capacityDeltaPct: number; readabilityRatio: number; score: number }> {
-  const targetCap = Math.max(0.000001, Number(spec?.capacityG || 0));
-  const targetRead = Math.max(0.000000001, Number(spec?.readabilityG || 0));
-  if (!(targetCap > 0) || !(targetRead > 0)) return [];
-  return (rows || [])
-    .map((row: any) => {
-      const rs = extractRowTechnicalSpec(row);
-      if (!(rs.capacityG > 0) || !(rs.readabilityG > 0)) return null;
-      const capacityDeltaPct = Math.abs(rs.capacityG - targetCap) / targetCap * 100;
-      const readabilityRatio = rs.readabilityG / targetRead;
-      const readPenalty = readabilityRatio <= 1 ? readabilityRatio * 0.2 : readabilityRatio;
-      const score = capacityDeltaPct + readPenalty * 100;
-      return { row, capacityDeltaPct, readabilityRatio, score };
-    })
-    .filter(Boolean)
-    .sort((a: any, b: any) => a.score - b.score) as any;
+  return rankCatalogByTechnicalSpecApp({ rows, spec, extractRowTechnicalSpec });
 }
 
 function rankCatalogByCapacityOnly(rows: any[], capacityG: number): Array<{ row: any; capacityDeltaPct: number; score: number }> {
-  const targetCap = Math.max(0.000001, Number(capacityG || 0));
-  if (!(targetCap > 0)) return [];
-  return (rows || [])
-    .map((row: any) => {
-      const rs = extractRowTechnicalSpec(row);
-      if (!(rs.capacityG > 0)) return null;
-      const capacityDeltaPct = Math.abs(rs.capacityG - targetCap) / targetCap * 100;
-      const score = capacityDeltaPct + (rs.readabilityG > 0 ? 0 : 15);
-      return { row, capacityDeltaPct, score };
-    })
-    .filter(Boolean)
-    .sort((a: any, b: any) => a.score - b.score) as any;
+  return rankCatalogByCapacityOnlyApp({ rows, capacityG, extractRowTechnicalSpec });
 }
 
 function rankCatalogByReadabilityOnly(rows: any[], readabilityG: number): Array<{ row: any; readabilityRatio: number; score: number }> {
-  const targetRead = Math.max(0.000000001, Number(readabilityG || 0));
-  if (!(targetRead > 0)) return [];
-  return (rows || [])
-    .map((row: any) => {
-      const rs = extractRowTechnicalSpec(row);
-      if (!(rs.readabilityG > 0)) return null;
-      const readabilityRatio = rs.readabilityG / targetRead;
-      const logDelta = Math.abs(Math.log10(Math.max(readabilityRatio, 0.000000001)));
-      const worsePenalty = readabilityRatio > 1 ? readabilityRatio * 2 : 0;
-      const score = logDelta * 100 + worsePenalty;
-      return { row, readabilityRatio, score };
-    })
-    .filter(Boolean)
-    .sort((a: any, b: any) => a.score - b.score) as any;
+  return rankCatalogByReadabilityOnlyApp({ rows, readabilityG, extractRowTechnicalSpec });
 }
 
 function prioritizeTechnicalRows(rows: any[], spec: { capacityG: number; readabilityG: number }): { orderedRows: any[]; exactCount: number } {
-  const ranked = rankCatalogByTechnicalSpec(rows, spec);
-  if (!ranked.length) return { orderedRows: [], exactCount: 0 };
-
-  const reasonable = ranked.filter((x: any) => {
-    const capOk = x.capacityDeltaPct <= 280;
-    const readOk = x.readabilityRatio >= 0.5 && x.readabilityRatio <= 2.5;
-    return capOk && readOk;
+  return prioritizeTechnicalRowsApp({
+    rows,
+    spec,
+    rankCatalogByTechnicalSpec: (innerRows, innerSpec) => rankCatalogByTechnicalSpec(innerRows, innerSpec),
   });
-  const pool = reasonable.length ? reasonable : ranked;
-
-  const exact = pool.filter((x: any) => x.capacityDeltaPct <= 8 && x.readabilityRatio >= 0.8 && x.readabilityRatio <= 1.25);
-  const near = pool.filter((x: any) => !(x.capacityDeltaPct <= 8 && x.readabilityRatio >= 0.8 && x.readabilityRatio <= 1.25));
-  const out: any[] = [];
-  const seen = new Set<string>();
-
-  for (const x of [...exact, ...near]) {
-    const id = String(x?.row?.id || "").trim() || normalizeText(String(x?.row?.name || ""));
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    out.push(x.row);
-  }
-  return { orderedRows: out, exactCount: exact.length };
 }
 
 function filterReasonableTechnicalRows(rows: any[], spec: { capacityG: number; readabilityG: number }): any[] {
-  const targetCap = Number(spec.capacityG || 0);
-  const targetRead = Number(spec.readabilityG || 0);
-  if (!(targetCap > 0) || !(targetRead > 0)) return Array.isArray(rows) ? rows : [];
-  const strictRead = targetRead <= 0.1;
-  const maxCapDeltaPct = strictRead ? 80 : 180;
-  const maxReadRatio = strictRead ? 3 : 8;
-  return (Array.isArray(rows) ? rows : []).filter((row: any) => {
-    const rs = extractRowTechnicalSpec(row);
-    const cap = Number(rs.capacityG || 0);
-    const read = Number(rs.readabilityG || 0);
-    if (!(cap > 0) || !(read > 0)) return false;
-    const capDeltaPct = (Math.abs(cap - targetCap) / Math.max(1, targetCap)) * 100;
-    const readRatio = Math.max(read, targetRead) / Math.max(1e-9, Math.min(read, targetRead));
-    return capDeltaPct <= maxCapDeltaPct && readRatio <= maxReadRatio;
-  });
+  return filterReasonableTechnicalRowsApp({ rows, spec, extractRowTechnicalSpec });
 }
 
 function filterNearbyTechnicalRows(rows: any[], spec: { capacityG: number; readabilityG: number }): any[] {
-  const targetCap = Number(spec.capacityG || 0);
-  const targetRead = Number(spec.readabilityG || 0);
-  if (!(targetCap > 0) || !(targetRead > 0)) return Array.isArray(rows) ? rows : [];
-  const maxCapDeltaPct = 1200;
-  const maxReadRatio = 25;
-  return (Array.isArray(rows) ? rows : []).filter((row: any) => {
-    const rs = extractRowTechnicalSpec(row);
-    const cap = Number(rs.capacityG || 0);
-    const read = Number(rs.readabilityG || 0);
-    if (!(cap > 0) || !(read > 0)) return false;
-    const capDeltaPct = (Math.abs(cap - targetCap) / Math.max(1, targetCap)) * 100;
-    const readRatio = Math.max(read, targetRead) / Math.max(1e-9, Math.min(read, targetRead));
-    return capDeltaPct <= maxCapDeltaPct && readRatio <= maxReadRatio;
-  });
+  return filterNearbyTechnicalRowsApp({ rows, spec, extractRowTechnicalSpec });
 }
 
 function applyApplicationProfile(rows: any[], args: { application?: string; targetCapacityG?: number; targetReadabilityG?: number; allowFallback?: boolean }): any[] {
-  const list = Array.isArray(rows) ? rows : [];
-  const app = normalizeText(String(args.application || ""));
-  const targetCap = Number(args.targetCapacityG || 0);
-  const targetRead = Number(args.targetReadabilityG || 0);
-  const allowFallback = args.allowFallback !== false;
-  if (!app && !(targetCap > 0) && !(targetRead > 0)) return list;
-
-  const out = list.filter((row: any) => {
-    const spec = extractRowTechnicalSpec(row);
-    const cap = Number(spec.capacityG || 0);
-    const read = Number(spec.readabilityG || 0);
-    const txt = normalizeText(`${String(row?.name || "")} ${String(row?.category || "")} ${familyLabelFromRow(row)}`);
-    if (!(cap > 0) || !(read > 0)) return false;
-    if (targetCap > 0) {
-      const minCap = targetCap * 0.2;
-      const maxCap = targetCap * 5;
-      if (cap < minCap || cap > maxCap) return false;
-    }
-    if (targetRead > 0 && read > targetRead * 2) return false;
-
-    if (app === "joyeria_oro") {
-      if (read > 0.01) return false;
-      if (cap > 6000) return false;
-      if (/(industrial|plataforma|ranger|defender|valor|rc31|r71|ckw|td52p)/.test(txt)) return false;
-    }
-    if (app === "laboratorio") {
-      if (read > 0.1) return false;
-      if (/(industrial|plataforma|ranger|defender|valor|rc31|r71|ckw|td52p)/.test(txt)) return false;
-    }
-    return true;
-  });
-
-  if (out.length) return out;
-  return allowFallback ? list : [];
+  return applyApplicationProfileApp({ rows, profile: args, extractRowTechnicalSpec, familyLabelFromRow });
 }
 
-function isQuoteProceedIntent(text: string): boolean {
-  const t = normalizeText(text);
-  return /(damela|dámela|enviamela|enviamela|hazla|generala|genérala|cotizala|cotízala|adelante|si por favor|si, por favor|dale|de una)/.test(t);
-}
-
-function isQuoteResumeIntent(text: string): boolean {
-  const t = normalizeText(String(text || ""));
-  if (!t) return false;
-  return /(retom|reanuda|continu|seguimos|sigamos|donde\s+ibamos|donde\s+quedamos)/.test(t) && /(cotiz|propuesta|precio|pdf|eso)/.test(t);
-}
-
-function isQuantityUpdateIntent(text: string): boolean {
-  const t = normalizeText(text);
-  return /(\d{1,5})\s*(unidad|unidades|equipos?)/.test(t) && /(te pedi|te pedí|corrige|actualiza|ajusta|son|quiero|necesito)/.test(t);
-}
-
-function isQuoteRecallIntent(text: string): boolean {
-  const t = normalizeText(text);
-  return (
-    /recuerd|ultima cotizacion|cotizacion que me enviaste|cotizacion anterior|mi cotizacion|mi ultima cotizacion|donde esta la cotizacion|donde va la cotizacion|estado de la cotizacion|aun no me envias|aun no envias|no me has enviado|sigue pendiente la cotizacion/.test(t) &&
-    /(cotiz|pdf|enviaste|anterior|ultima|recordar|recuerd)/.test(t)
-  );
-}
-
-function isPriceIntent(text: string): boolean {
-  const t = normalizeText(text);
-  return /(precio|precios|con precio|tienen precio|productos con precio|cuanto vale|cuanto cuest|valor|valen|cuestan)/.test(t);
-}
-
-function isMultiProductQuoteIntent(text: string): boolean {
-  const t = normalizeText(text);
-  return /(los\s*3|los\s*tres|todos\s+los\s+productos|todos\s+los\s+que\s+tienen\s+precio|de\s+los\s+3|dos\s+mas|tres\s+mas|agrega|agregar|incluye|incluir|suma|sumar|adiciona|adicionar|misma\s+cotizacion|misma\s+cotización)/.test(t);
-}
-
-function isSameQuoteContinuationIntent(text: string): boolean {
-  const t = normalizeText(text);
-  return /(misma\s+cotizacion|misma\s+cotización|en\s+la\s+misma\s+cotizacion|en\s+la\s+misma\s+cotización|agrega|agregar|incluye|incluir|suma|sumar|adiciona|adicionar|dos\s+mas|tres\s+mas)/.test(t);
-}
 
 function isFlowChangeWithoutModelDetailsIntent(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  const hasModelTokens = extractModelLikeTokens(text).length >= 1;
-  const hasQtyHint = /(\d{1,4})\s*(x|por|unidad|unidades)/.test(t);
-  if (hasModelTokens || hasQtyHint) return false;
-  return /(mas\s+de\s+un\s+modelo|m[aá]s\s+de\s+un\s+modelo|varios\s+modelos|multiples\s+modelos|m[uú]ltiples\s+modelos|otro\s+modelo|otra\s+referencia|otra\s+opcion|otro\s+equipo|cambiar\s+modelo|cambiar\s+referencia|quiero\s+otro|quiero\s+otras|agregar\s+otro|agregar\s+mas|incluir\s+otro|incluir\s+mas)/.test(t);
+  return isFlowChangeWithoutModelDetailsIntentApp({ text, extractModelLikeTokens });
 }
 
-function shouldResendPdf(text: string): boolean {
-  const t = normalizeText(text);
-  return /(reenviar|reenvia|reenvie|volver a enviar|mandame otra vez|otra vez el pdf|reenvio|enviala por aqui|mandala por aqui|dame por aqui|pasala por aqui|donde esta la cotizacion|donde va la cotizacion|estado de la cotizacion|no la veo|no llego el pdf|no me llego el pdf|aun no llega el pdf)/.test(t);
-}
-
-function isInventoryInfoIntent(text: string): boolean {
-  const t = normalizeText(text);
-  if (isPriceIntent(t)) return false;
-  return (
-    /(cuantos|cuantas|numero de|cantidad de).*(productos|equipos|referencias|items)/.test(t) ||
-    /(catalogo|inventario).*(productos|equipos|referencias)/.test(t) ||
-    /(que|cuales).*(productos|prodcutos|equipos).*(tienen|manejan|venden|ofrecen)/.test(t) ||
-    /(productos|prodcutos|producto|prodcuto|equipos|equipo).*(tienen|tiene|manejan|maneja|venden|vende|ofrecen|ofrece)/.test(t) ||
-    /(que mas producto|que mas productos|que otros productos|que otras referencias|que mas tienes|que otro tienes)/.test(t) ||
-    /(tiene|tienen|tinen|hay).*(balanza|balanzas|blanza|blanzas|bascula|basculas|bscula|bsculas)/.test(t)
-  );
-}
-
-function isRecommendationIntent(text: string): boolean {
-  const t = normalizeText(text);
-  return /(recomiend|que me puedes recomendar|que me recomiendas|modelo ideal|que modelo|cual modelo|no se que modelo|no se cual|me sirve|para mi caso|que balanza|tipo de balanza|tipos de balanzas|clase de balanza|sugerencia|busco\s+(una\s+)?balanza|necesito\s+(una\s+)?balanza|gramera|ley\s+de\s+oro|quilat|kilat|joyeria|control\s+de\s+calidad|laboratorio|pesar\s+(cosas|objetos|elementos|articulos|partes|piezas|materiales)\s+(grande|grandes|pesad|muy\s+pesad|de\s+mucho|alto\s+peso|gran\s+capacidad|pequeñ|pequen|livian|ligero|chic|peq)|necesito\s+pesar\s+(mucho|bastante|grandes|pesad|pequeño|pequen|poco|poca|livian|ligero|cosas)|alta\s+capacidad|gran\s+capacidad|mayor\s+capacidad|mas\s+capacidad|baja\s+capacidad|menor\s+capacidad|poca\s+capacidad|pequeña\s+capacidad|objetos\s+(pequeño|pequeña|chico|livian|ligero)|cosas\s+(pequeña|pequeño|chica|liviana|ligera|diminuta))/.test(t);
-}
-
-function isUseCaseApplicabilityIntent(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  return (
-    /(sirve\s+para|me\s+sirve\s+para|funciona\s+para|aplica\s+para|se\s+puede\s+usar\s+para|puede\s+pesar|pesa\s+\w+|pesar\s+\w+)/.test(t) ||
-    (/(tornillo|tornillos|tuerca|tuercas|perno|pernos|maquina|maquinas|equipo|equipos|pieza|piezas|muestra|muestras)/.test(t) && /(producto|modelo|balanza|bascula|este|esta)/.test(t))
-  );
-}
-
-function isUseCaseFamilyHint(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  return /(joyeria|joyería|oro|ley\s+de\s+oro|quilat|kilat|gramera|laboratorio|farmacia|industrial|produccion|producción|bodega|maquina|máquina|control\s+de\s+calidad|formulacion|formulación)/.test(t);
-}
 
 function isCatalogBreadthQuestion(text: string): boolean {
-  const t = normalizeCatalogQueryText(String(text || ""));
-  if (!t) return false;
-  return (
-    /(que\s+mas|que\s+otros?|otras\s+referencias|mas\s+referencias|catalogo\s+completo)/.test(t) ||
-    /(?:producto|productos|prodcutos|productod|referencia|referencias).*(tien|manej|ofrec|hay)/.test(t)
-  );
+  return isCatalogBreadthQuestionApp(text, normalizeCatalogQueryText);
 }
 
 function isGlobalCatalogAsk(text: string): boolean {
-  const t = normalizeCatalogQueryText(String(text || ""));
-  if (!t) return false;
-  return (
-    /(dame|muestrame|mu[eé]strame|quiero|ver).*(todo\s+el\s+catalogo|catalogo\s+completo|dame\s+el\s+catalogo|catalogo)/.test(t) ||
-    /(dame|muestrame|mu[eé]strame|quiero|ver).*(todos\s+los\s+productos|todos\s+los\s+prodcutos|todas\s+las\s+referencias|todos\s+los\s+equipos)/.test(t) ||
-    /^catalogo$/.test(t)
-  );
+  return isGlobalCatalogAskApp(text, normalizeCatalogQueryText);
 }
 
-function isOutOfCatalogDomainQuery(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  const outTerms = /(tornillo|tornillos|herramienta|herramientas|taladro|martillo|llave inglesa|destornillador|broca|ferreteria|ferreteria|tuerca|perno|clavo|soldadura|silicona|pintura|tenedor|tenedores|cuchillo|cuchillos|cuchara|cucharas|plato|platos|vaso|vasos|carro|carros|vehiculo|vehiculos)/.test(t);
-  if (!outTerms) return false;
-  const inDomain = /(balanza|balanzas|bascula|basculas|ohaus|analitica|precision|trm|cotizacion|ficha tecnica|humedad|electroquimica|laboratorio|centrifuga|mezclador|agitador|modelo|producto|referencia|sirve para|me sirve|puede pesar|pesar)/.test(t);
-  return outTerms && !inDomain;
-}
-
-function isUnsupportedSpecificAnalyzerRequest(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  const asksMoistureAnalyzer = /(anali[sz]ador(?:es)?|humedad)/.test(t);
-  if (!asksMoistureAnalyzer) return false;
-  return /(fibra\s+de\s+carbono|fibra\s+de\s+carbon|carbon\s+fiber|carbono\s+composito|compuesto\s+de\s+carbono)/.test(t);
-}
-
-function hasCarbonAnalyzerMatch(rows: any[]): boolean {
-  const list = Array.isArray(rows) ? rows : [];
-  return list.some((row: any) => {
-    const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-    const hay = normalizeText([
-      String(row?.name || ""),
-      String(row?.summary || ""),
-      String(row?.description || ""),
-      String(row?.specs_text || ""),
-      JSON.stringify(source || {}),
-    ].join(" "));
-    return /(fibra\s+de\s+carbono|fibra\s+de\s+carbon|carbon\s+fiber|carbono\s+composito|compuesto\s+de\s+carbono)/.test(hay);
-  });
-}
-
-function listActiveCatalogCategories(rows: any[]): string {
-  const list = Array.isArray(rows) ? rows : [];
-  const counts = new Map<string, number>();
-  for (const row of list) {
-    const cat = normalizeText(String(row?.category || ""));
-    if (!cat) continue;
-    counts.set(cat, (counts.get(cat) || 0) + 1);
-  }
-  const labels: Array<{ key: string; label: string; count: number }> = [
-    { key: "balanzas", label: "balanzas", count: counts.get("balanzas") || 0 },
-    { key: "basculas", label: "basculas", count: counts.get("basculas") || 0 },
-    { key: "analizador_humedad", label: "analizador de humedad", count: counts.get("analizador_humedad") || 0 },
-    { key: "electroquimica", label: "electroquimica", count: counts.get("electroquimica") || 0 },
-    { key: "equipos_laboratorio", label: "equipos de laboratorio", count: counts.get("equipos_laboratorio") || 0 },
-  ].filter((x) => x.count > 0);
-  if (!labels.length) return "catalogo activo limitado";
-  return labels.map((x) => `${x.label} (${x.count})`).join(", ");
-}
-
-type GuidedModelSpec = { model: string; capacity: string; resolution: string; delivery: string };
-
-const MARIANA_ESCALATION_LINK = "https://wa.me/573008265047";
-
-const GUIDED_BALANZA_CATALOG: Record<GuidedBalanzaProfile, Array<{ tier: string; models: GuidedModelSpec[] }>> = {
-  balanza_oro_001: [
-    { tier: "Línea esencial: soluciones confiables para empresas en crecimiento", models: [
-      { model: "PX3202/E", capacity: "3200 g", resolution: "0,01 g", delivery: "stock" },
-      { model: "PX1602/E", capacity: "1600 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
-      { model: "PX4202/E", capacity: "4200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
-      { model: "PX6202/E", capacity: "6200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
-    ] },
-    { tier: "Línea intermedia: mayor desempeño y funciones para empresas en expansión", models: [
-      { model: "AX2202/E", capacity: "2200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
-      { model: "AX6202/E", capacity: "6200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
-    ] },
-    { tier: "Línea avanzada: mayor rendimiento para empresas con alta demanda", models: [
-      { model: "EXR2202", capacity: "2200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
-      { model: "EXR4202", capacity: "4200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
-      { model: "EXR6202", capacity: "6200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
-      { model: "EXR12202", capacity: "12200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
-    ] },
-    { tier: "Línea premium: soluciones de alto nivel para empresas de gran escala", models: [
-      { model: "EXP2202", capacity: "2200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
-      { model: "EXP4202", capacity: "4200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
-      { model: "EXP6202", capacity: "6200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
-      { model: "EXP12202", capacity: "12200 g", resolution: "0,01 g", delivery: "importación a cuatro semanas" },
-    ] },
-  ],
-  balanza_precision_001: [
-    { tier: "Línea esencial: soluciones confiables para empresas en crecimiento", models: [
-      { model: "PX323/E", capacity: "320 g", resolution: "0,001 g", delivery: "stock" },
-      { model: "PX623/E", capacity: "620 g", resolution: "0,001 g", delivery: "stock" },
-    ] },
-    { tier: "Línea intermedia: mayor desempeño y funciones para empresas en expansión", models: [
-      { model: "AX223/E", capacity: "220 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
-      { model: "AX423/E", capacity: "420 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
-      { model: "AX623/E", capacity: "620 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
-    ] },
-    { tier: "Línea avanzada: mayor rendimiento para empresas con alta demanda", models: [
-      { model: "EXP223/AD", capacity: "220 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
-      { model: "EXP423/AD", capacity: "420 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
-      { model: "EXP623/AD", capacity: "620 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
-    ] },
-    { tier: "Línea premium: soluciones de alto nivel para empresas de gran escala", models: [
-      { model: "EXP1203/AD", capacity: "1200 g", resolution: "0,001 g", delivery: "importación a cuatro semanas" },
-    ] },
-  ],
-  balanza_laboratorio_0001: [
-    { tier: "Línea esencial: soluciones confiables para empresas en crecimiento", models: [
-      { model: "PX224/E", capacity: "220 g", resolution: "0,001 g", delivery: "stock" },
-    ] },
-    { tier: "Línea intermedia: mayor desempeño y funciones para empresas en expansión", models: [
-      { model: "AX224/E", capacity: "220 g", resolution: "0,0001 g", delivery: "stock" },
-    ] },
-    { tier: "Línea avanzada: mayor rendimiento para empresas con alta demanda", models: [
-      { model: "EXP224/AD", capacity: "220 g", resolution: "0,0001 g", delivery: "importación a cuatro semanas" },
-      { model: "EXP324/AD", capacity: "320 g", resolution: "0,0001 g", delivery: "importación a cuatro semanas" },
-    ] },
-  ],
-  balanza_semimicro_00001: [
-    { tier: "Línea esencial: soluciones confiables para empresas en crecimiento", models: [
-      { model: "PX85", capacity: "82 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
-      { model: "PX225D", capacity: "220 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
-    ] },
-    { tier: "Línea intermedia: mayor desempeño y funciones para empresas en expansión", models: [
-      { model: "AX85", capacity: "82 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
-      { model: "AX125D", capacity: "82 g / 120 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
-      { model: "AX225D", capacity: "220 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
-    ] },
-    { tier: "Línea avanzada: mayor rendimiento para empresas con alta demanda", models: [
-      { model: "EXR125D", capacity: "82 g / 120 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
-      { model: "EXR225D", capacity: "120 g / 220 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
-    ] },
-    { tier: "Línea premium: soluciones de alto nivel para empresas de gran escala", models: [
-      { model: "EXP125D/AD", capacity: "82 g / 120 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
-      { model: "EXP225D/AD", capacity: "220 g", resolution: "0,00001 g", delivery: "importación a cuatro semanas" },
-    ] },
-  ],
-  balanza_industrial_portatil_conteo: [
-    { tier: "Línea básica (uso industrial estándar)", models: [
-      { model: "R31P3", capacity: "3000 g", resolution: "0,1 g", delivery: "stock" },
-      { model: "R31P6", capacity: "6000 g", resolution: "0,2 g", delivery: "stock" },
-      { model: "R31P15", capacity: "15000 g", resolution: "0,5 g", delivery: "stock" },
-      { model: "R31P30", capacity: "30000 g", resolution: "1 g", delivery: "stock" },
-    ] },
-    { tier: "Línea básica (uso industrial estándar con conteo especial)", models: [
-      { model: "RC31P3", capacity: "3000 g", resolution: "0,1 g", delivery: "stock" },
-      { model: "RC31P6", capacity: "6000 g", resolution: "0,2 g", delivery: "stock" },
-      { model: "RC31P15", capacity: "15000 g", resolution: "0,5 g", delivery: "stock" },
-      { model: "RC31P30", capacity: "30000 g", resolution: "1 g", delivery: "stock" },
-    ] },
-    { tier: "Línea media (mayor precisión)", models: [
-      { model: "R71MD3", capacity: "3000 g", resolution: "0,05 g", delivery: "importación a cuatro semanas" },
-      { model: "R71MD6", capacity: "6000 g", resolution: "0,1 g", delivery: "importación a cuatro semanas" },
-      { model: "R71MD35", capacity: "35000 g", resolution: "0,5 g", delivery: "importación a cuatro semanas" },
-      { model: "R71MD60", capacity: "60000 g", resolution: "1 g", delivery: "importación a cuatro semanas" },
-    ] },
-    { tier: "Línea alta (alta precisión industrial)", models: [
-      { model: "R71MHD3", capacity: "3000 g", resolution: "0,01 g", delivery: "stock" },
-      { model: "R71MHD6", capacity: "6000 g", resolution: "0,02 g", delivery: "importación a cuatro semanas" },
-      { model: "R71MHD35", capacity: "35000 g", resolution: "0,1 g", delivery: "stock" },
-    ] },
-  ],
-};
-
-function buildCommercialWelcomeMessage(): string {
-  return [
-    "¡Hola! Bienvenido a Avanza International Group. Representantes de la marca OHAUS en Colombia, con 120 años de trayectoria mundial en equipos de pesaje y laboratorio. Contamos con 25 años brindando respaldo y soporte especializado.",
-    "",
-    "¿Ya nos conoces? 👇",
-    "1) Soy cliente nuevo",
-    "2) Ya soy cliente de Avanza",
-  ].join("\n");
-}
-
-function extractCompanyNit(text: string): string {
-  const raw = String(text || "");
-  const labeled = raw.match(/\bnit\s*[:=]?\s*([0-9.\-]{5,20})/i)?.[1] || "";
-  const fallback = (!labeled ? raw.match(/\b([0-9]{7,14}(?:-[0-9])?)\b/)?.[1] : "") || "";
-  return String(labeled || fallback).replace(/[^0-9.-]/g, "").trim();
-}
-
-function normalizeNitParts(rawNit: string): { base: string; dv: string } {
-  const cleaned = String(rawNit || "").replace(/\s+/g, "").replace(/\./g, "");
-  if (!cleaned) return { base: "", dv: "" };
-  if (cleaned.includes("-")) {
-    const [base, dv] = cleaned.split("-");
-    return {
-      base: String(base || "").replace(/\D/g, ""),
-      dv: String(dv || "").replace(/\D/g, "").slice(0, 1),
-    };
-  }
-  const digits = cleaned.replace(/\D/g, "");
-  if (digits.length < 8) return { base: "", dv: "" };
-  return { base: digits.slice(0, -1), dv: digits.slice(-1) };
-}
-
-function areEquivalentNitValues(aRaw: string, bRaw: string): boolean {
-  const a = String(aRaw || "").replace(/\D/g, "").trim();
-  const b = String(bRaw || "").replace(/\D/g, "").trim();
-  if (!a || !b) return false;
-  if (a === b) return true;
-  const short = a.length <= b.length ? a : b;
-  const long = a.length > b.length ? a : b;
-  // Tolerar NIT con/sin dígito de verificación al final.
-  if (long.length === short.length + 1 && long.startsWith(short)) return true;
-  return false;
-}
-
-function isValidColombianNit(rawNit: string): boolean {
-  const digitsOnly = String(rawNit || "").replace(/\D/g, "");
-  if (/^\d{8,12}$/.test(digitsOnly)) return true;
-  const { base, dv } = normalizeNitParts(rawNit);
-  if (!base || !dv) return false;
-  if (!/^\d{6,12}$/.test(base) || !/^\d$/.test(dv)) return false;
-  const weights = [71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3];
-  const digits = base.split("").map((d) => Number(d));
-  if (digits.length > weights.length) return false;
-  const offset = weights.length - digits.length;
-  let sum = 0;
-  for (let i = 0; i < digits.length; i += 1) sum += digits[i] * weights[offset + i];
-  const remainder = sum % 11;
-  const expected = remainder > 1 ? 11 - remainder : remainder;
-  return expected === Number(dv);
-}
-
-async function findCommercialContactByIdentifiers(args: {
-  supabase: any;
-  ownerId: string;
-  lookupNit?: string;
-  lookupPhone?: string;
-  lookupPhoneTail?: string;
-}): Promise<{ matchedContact: any | null; fallbackCandidatesCount: number }> {
-  const supabase = args.supabase;
-  const ownerId = String(args.ownerId || "").trim();
-  const lookupNit = String(args.lookupNit || "").replace(/\D/g, "").trim();
-  const lookupPhone = normalizePhone(String(args.lookupPhone || "").trim());
-  const lookupPhoneTail = phoneTail10(args.lookupPhoneTail || lookupPhone);
-  if (!supabase || !ownerId) return { matchedContact: null, fallbackCandidatesCount: 0 };
-
-  let matchedContact: any = null;
-  let fallbackCandidatesCount = 0;
-
-  try {
-    if (lookupNit) {
-      const { data: byNitKey } = await supabase
-        .from("agent_crm_contacts")
-        .select("id,name,email,phone,company,contact_key,metadata,updated_at")
-        .eq("created_by", ownerId)
-        .eq("contact_key", `nit:${lookupNit}`)
-        .order("updated_at", { ascending: false })
-        .limit(1);
-      if (Array.isArray(byNitKey) && byNitKey[0]) matchedContact = byNitKey[0];
-
-      if (!matchedContact) {
-        const { data: byNitPrefix } = await supabase
-          .from("agent_crm_contacts")
-          .select("id,name,email,phone,company,contact_key,metadata,updated_at")
-          .eq("created_by", ownerId)
-          .like("contact_key", `nit:${lookupNit}%`)
-          .order("updated_at", { ascending: false })
-          .limit(5);
-        if (Array.isArray(byNitPrefix) && byNitPrefix[0]) matchedContact = byNitPrefix[0];
-      }
-
-      if (!matchedContact) {
-        const { data: byNitMeta } = await supabase
-          .from("agent_crm_contacts")
-          .select("id,name,email,phone,company,contact_key,metadata,updated_at")
-          .eq("created_by", ownerId)
-          .contains("metadata", { nit: lookupNit })
-          .order("updated_at", { ascending: false })
-          .limit(5);
-        if (Array.isArray(byNitMeta) && byNitMeta[0]) matchedContact = byNitMeta[0];
-      }
-    }
-
-    if (!matchedContact && lookupPhoneTail) {
-      const { data: byPhoneKey } = await supabase
-        .from("agent_crm_contacts")
-        .select("id,name,email,phone,company,contact_key,metadata,updated_at")
-        .eq("created_by", ownerId)
-        .or(`contact_key.eq.cel:${lookupPhone},contact_key.eq.cel:${lookupPhoneTail},phone.eq.${lookupPhone},phone.like.%${lookupPhoneTail}`)
-        .order("updated_at", { ascending: false })
-        .limit(10);
-      if (Array.isArray(byPhoneKey) && byPhoneKey[0]) matchedContact = byPhoneKey[0];
-    }
-
-    if (!matchedContact && (lookupNit || lookupPhoneTail)) {
-      const { data: crmCandidates } = await supabase
-        .from("agent_crm_contacts")
-        .select("id,name,email,phone,company,contact_key,metadata,updated_at")
-        .eq("created_by", ownerId)
-        .order("updated_at", { ascending: false })
-        .limit(10000);
-      const candidates = Array.isArray(crmCandidates) ? crmCandidates : [];
-      fallbackCandidatesCount = candidates.length;
-      matchedContact = candidates.find((c: any) => {
-        const cPhone = normalizePhone(String(c?.phone || ""));
-        const cTail = phoneTail10(cPhone);
-        const cNit = String((c?.metadata && typeof c.metadata === "object" ? c.metadata.nit : "") || "").replace(/\D/g, "").trim();
-        const cContactKey = String(c?.contact_key || "").trim().toLowerCase();
-        const cContactKeyDigits = cContactKey.replace(/\D/g, "").trim();
-        const cContactKeyTail = phoneTail10(cContactKeyDigits);
-        const phoneMatch = Boolean(lookupPhoneTail) && Boolean(cTail) && cTail === lookupPhoneTail;
-        const nitMatch = Boolean(lookupNit) && Boolean(cNit) && areEquivalentNitValues(cNit, lookupNit);
-        const nitByContactKey = Boolean(lookupNit) && cContactKey.startsWith("nit:") && areEquivalentNitValues(cContactKeyDigits, lookupNit);
-        const phoneByContactKey = Boolean(lookupPhoneTail) && cContactKey.startsWith("cel:") && Boolean(cContactKeyTail) && cContactKeyTail === lookupPhoneTail;
-        return phoneMatch || nitMatch || nitByContactKey || phoneByContactKey;
-      }) || null;
-    }
-  } catch {}
-
-  return { matchedContact: matchedContact || null, fallbackCandidatesCount };
-}
-
-function isLikelyRutValue(rawRut: string): boolean {
-  const cleaned = String(rawRut || "").replace(/\s+/g, "").replace(/\./g, "");
-  if (!cleaned) return false;
-  const digits = cleaned.replace(/\D/g, "");
-  return digits.length >= 7;
-}
-
-function detectPersonaNatural(text: string): boolean {
-  const t = normalizeText(String(text || ""));
-  return /persona\s+natural|soy\s+natural|no\s+tengo\s+empresa|sin\s+empresa/.test(t);
-}
-
-function extractRut(text: string): string {
-  const raw = String(text || "");
-  const labeled = raw.match(/\brut\s*[:=]?\s*([a-z0-9.\-]{5,24})/i)?.[1] || "";
-  return String(labeled || "").trim();
-}
-
-function extractCommercialCompanyName(text: string): string {
-  const raw = String(text || "");
-  const labeled =
-    raw.match(/\b(?:empresa|compania|compañia|razon\s+social)\s*[:=]?\s*([^\n,;]{3,120})/i)?.[1] ||
-    "";
-  const cleaned = String(labeled || "").trim();
-  if (!cleaned) return "";
-  if (/^(persona\s+natural|natural)$/i.test(cleaned)) return "";
-  return cleaned;
-}
-
-function updateCommercialValidation(memory: any, text: string, fallbackName: string) {
-  const inferredName = sanitizeCustomerDisplayName(extractCustomerName(text, fallbackName || ""));
-  const nit = extractCompanyNit(text);
-  const rut = extractRut(text);
-  const company = extractCommercialCompanyName(text);
-  const saysPersonaNatural = detectPersonaNatural(text);
-
-  if (inferredName && !String(memory?.customer_name || "").trim()) memory.customer_name = inferredName;
-  if (inferredName) memory.commercial_customer_name = inferredName;
-  if (company) memory.commercial_company_name = company;
-  if (nit) memory.commercial_company_nit = nit;
-  if (rut) memory.commercial_rut = rut;
-  if (saysPersonaNatural) memory.is_persona_natural = true;
-
-  memory.has_customer_name = Boolean(String(memory?.commercial_customer_name || memory?.customer_name || "").trim());
-  memory.has_company_name = Boolean(String(memory?.commercial_company_name || "").trim());
-  memory.has_company_nit = isValidColombianNit(String(memory?.commercial_company_nit || ""));
-  memory.has_rut = isLikelyRutValue(String(memory?.commercial_rut || ""));
-  memory.has_valid_nit = memory.has_company_nit;
-  memory.has_valid_rut = memory.has_rut;
-  memory.is_persona_natural = Boolean(memory?.is_persona_natural);
-  memory.commercial_validation_complete = memory.is_persona_natural
-    ? Boolean(memory.has_customer_name && memory.has_rut)
-    : Boolean(memory.has_customer_name && memory.has_company_name && memory.has_company_nit);
-}
-
-function buildCommercialEscalationMessage(): string {
-  return [
-    "⚠️ Si no contamos con esta información, no podremos continuar con el proceso.",
-    "Para continuar con este proceso te pondremos en contacto con nuestra asesora Milena.",
-    "Milena: +57 300 8265047",
-    `https://wa.me/573008265047`,
-  ].join("\n");
-}
-
-function equipmentChoiceLabel(choice: string): string {
-  const key = normalizeText(String(choice || ""));
-  if (key === "balanza") return "balanzas";
-  if (key === "bascula") return "basculas";
-  if (key === "pesas_patron") return "pesas patron";
-  if (key === "analizador_humedad") return "analizadores de humedad";
-  if (key === "agitador_orbital") return "agitadores orbitales";
-  if (key === "plancha_agitacion") return "planchas de calentamiento y agitacion";
-  if (key === "centrifuga") return "centrifugas";
-  if (key === "electroquimica") return "electroquimica";
-  if (key === "otros") return "otros equipos";
-  return "esa categoria";
-}
-
-function buildNoActiveCatalogEscalationMessage(topic?: string): string {
-  const label = String(topic || "").trim();
-  return [
-    label
-      ? `Ahora mismo no tengo referencias activas para ${label} en el catalogo automatico.`
-      : "Ahora mismo no tengo referencias activas para esa solicitud en el catalogo automatico.",
-    "Te conecto de inmediato con nuestra asesora Milena para validar disponibilidad y precio actualizado:",
-    "Milena: +57 300 8265047",
-    "https://wa.me/573008265047",
-  ].join("\n");
-}
-
-function detectUnavailableLabTopic(text: string): string {
-  const t = normalizeText(String(text || ""));
-  if (/(agita|agitad|agbit|orbital)/.test(t)) return "agitadores orbitales";
-  if (/(planch|calent)/.test(t)) return "planchas de calentamiento y agitacion";
-  if (/(centrifug|centrifuga|centrifugas)/.test(t)) return "centrifugas";
-  if (/(electroquim|phmetro|conductivimetro|multiparametro|electrodos)/.test(t)) return "electroquimica";
-  return "equipos de laboratorio";
-}
-
-function looksLikeCommercialDataInput(text: string): boolean {
-  const t = normalizeText(String(text || ""));
-  if (!t) return false;
-  return /(\bnit\b|\brut\b|\bnombre\b|\bempresa\b|\brazon\s+social\b|persona\s+natural)/.test(t);
-}
-
-function buildCommercialValidationOkMessage(): string {
-  return [
-    "Perfecto, datos registrados correctamente.",
-    "¿En qué equipo estás interesado?",
-    "1) Balanza",
-    "2) Báscula",
-    "3) Pesas patrón",
-    "4) Analizadores de humedad",
-    "5) Agitadores orbitales",
-    "6) Planchas de calentamiento y agitación",
-    "7) Centrífugas",
-    "8) Electroquímica (pHmetro, conductivímetro, multiparámetro y electrodos)",
-    "9) Otros",
-  ].join("\n");
-}
-
-function quoteClosureCta(): string {
-  return "Dime cuál balanza te interesa para cotizar (número o modelo).";
-}
-
-function appendQuoteClosureCta(text: string): string {
-  const body = String(text || "").trim();
-  if (!body) return quoteClosureCta();
-  if (/dime\s+cual\s+balanza\s+te\s+interesa\s+para\s+cotizar/i.test(normalizeText(body))) return body;
-  return `${body}\n\n${quoteClosureCta()}`;
-}
-
-function buildCapacityResolutionExplanation(): string {
-  return appendQuoteClosureCta([
-    "Capacidad:",
-    "Es el peso máximo que una balanza puede medir.",
-    "👉 Ejemplo: si la capacidad es de 5 kg, no puedes pesar más de eso.",
-    "",
-    "Resolución:",
-    "Es la cantidad de dígitos que ves después del punto (.) en el peso, y define qué tan preciso es el resultado.",
-    "👉 Ejemplo:",
-    "1 decimal → 0.1 g = 100 mg",
-    "2 decimales → 0.01 g = 10 mg",
-    "3 decimales → 0.001 g = 1 mg",
-    "",
-    "En pocas palabras:",
-    "Capacidad = cuánto peso aguanta",
-    "Resolución = cuántos decimales muestra (qué tan exacto mide) 👍",
-  ].join("\n"));
-}
-
-function buildPriceObjectionReply(): string {
-  return appendQuoteClosureCta([
-    "Buena pregunta 👌",
-    "La diferencia real está en esto:",
-    "1) Estabilidad y precisión real",
-    "Las balanzas profesionales mantienen lecturas estables, incluso con vibraciones o cambios de ambiente.",
-    "2) Reproducibilidad",
-    "En laboratorio necesitas que el resultado sea el mismo siempre, no que varíe cada vez que pesas.",
-    "3) Durabilidad y respaldo",
-    "Son equipos diseñados para uso continuo, con soporte técnico y garantía real.",
-    "",
-    "👉 Las más económicas pesan,",
-    "👉 las profesionales garantizan resultados confiables.",
-    "",
-    "Si quieres, te propongo 3 opciones por gama (esencial/intermedia/premium) para comparar costo-beneficio y elegir la ideal.",
-  ].join("\n"));
-}
-
-function optionGamaLabel(option: any): string {
-  const fromName = String(option?.name || "").match(/\bgama\s*:\s*([a-zA-Z]+)/i);
-  if (fromName?.[1]) return normalizeText(String(fromName[1] || ""));
-  return normalizeText(gamaLabelForModelName(String(option?.raw_name || option?.name || "")));
-}
-
-function pickDistinctGamaOptions(options: any[], maxItems = 3): any[] {
-  const list = Array.isArray(options) ? options : [];
-  const selected: any[] = [];
-  const seenIds = new Set<string>();
-  const seenGamas = new Set<string>();
-
-  for (const opt of list) {
-    const id = String(opt?.id || opt?.product_id || opt?.raw_name || opt?.name || "").trim();
-    if (!id || seenIds.has(id)) continue;
-    const gama = optionGamaLabel(opt);
-    if (!gama || seenGamas.has(gama)) continue;
-    selected.push(opt);
-    seenIds.add(id);
-    seenGamas.add(gama);
-    if (selected.length >= maxItems) return selected;
-  }
-
-  for (const opt of list) {
-    const id = String(opt?.id || opt?.product_id || opt?.raw_name || opt?.name || "").trim();
-    if (!id || seenIds.has(id)) continue;
-    selected.push(opt);
-    seenIds.add(id);
-    if (selected.length >= maxItems) return selected;
-  }
-
-  return selected;
-}
 
 function isAffirmativeShortIntent(text: string): boolean {
-  const t = normalizeText(String(text || "")).trim();
-  if (!t) return false;
-  if (/^(si|s[ií]|ok|dale|de\s+una|listo|hagamoslo|hagamoslo\s+asi|perfecto)$/.test(t)) return true;
-  return isQuoteProceedIntent(t);
+  return isAffirmativeShortIntentApp(text, isQuoteProceedIntent);
 }
 
 function isNegativeShortIntent(text: string): boolean {
-  const t = normalizeText(String(text || "")).trim();
-  if (!t) return false;
-  return /^(no|nop|negativo|despues|después|luego|ahora\s+no)$/.test(t);
+  return isNegativeShortIntentApp(text);
 }
 
-function extractSimpleLabeledValue(text: string, keys: string[]): string {
-  const source = String(text || "");
-  for (const k of keys) {
-    const m = source.match(new RegExp(`\\b${k}\\b\\s*[:=]?\\s*([^\\n,;]+)`, "i"));
-    if (m?.[1]) return String(m[1]).trim();
-  }
-  return "";
-}
-
-async function upsertNewCommercialCustomerContact(
-  supabase: any,
-  args: {
-    ownerId: string;
-    tenantId?: string | null;
-    city: string;
-    company: string;
-    nit: string;
-    contact: string;
-    email: string;
-    phone: string;
-  }
-): Promise<boolean> {
-  const ownerId = String(args.ownerId || "").trim();
-  const city = normalizeCityLabel(String(args.city || "").trim());
-  const company = String(args.company || "").trim();
-  const nit = String(args.nit || "").replace(/\D/g, "").trim();
-  const contact = sanitizeCustomerDisplayName(String(args.contact || "").trim());
-  const email = String(args.email || "").trim().toLowerCase();
-  const phone = normalizePhone(String(args.phone || "").trim());
-  const tail = phoneTail10(phone);
-  if (!ownerId || !company || !nit || !contact || !email || !phone) return false;
-
-  const baseMeta = {
-    nit,
-    billing_city: city,
-    customer_type: "new",
-    source: "whatsapp_new_customer_data",
-    whatsapp_transport_id: phone,
-    whatsapp_lifecycle_at: new Date().toISOString(),
-  };
-
-  try {
-    let existingByNit: any = null;
-    const { data: byNit } = await supabase
-      .from("agent_crm_contacts")
-      .select("id,metadata")
-      .eq("created_by", ownerId)
-      .eq("contact_key", `nit:${nit}`)
-      .order("updated_at", { ascending: false })
-      .limit(1);
-    if (Array.isArray(byNit) && byNit[0]) existingByNit = byNit[0];
-
-    const mergedMeta = {
-      ...(existingByNit?.metadata && typeof existingByNit.metadata === "object" ? existingByNit.metadata : {}),
-      ...baseMeta,
-    };
-
-    let persisted = false;
-    for (let attempt = 0; attempt < 2 && !persisted; attempt++) {
-      const { error: upsertErr } = await supabase
-        .from("agent_crm_contacts")
-        .upsert(
-          {
-            tenant_id: args.tenantId || null,
-            created_by: ownerId,
-            name: contact,
-            email,
-            phone,
-            company,
-            contact_key: `nit:${nit}`,
-            status: "analysis",
-            metadata: mergedMeta,
-          },
-          { onConflict: "created_by,contact_key" }
-        );
-
-      if (upsertErr) {
-        console.error("[webhook-v2][crm-upsert-new-customer]", {
-          attempt,
-          ownerId,
-          nit,
-          phoneTail: tail,
-          error: String((upsertErr as any)?.message || upsertErr),
-        });
-        continue;
-      }
-
-      const { data: verifyRows, error: verifyErr } = await supabase
-        .from("agent_crm_contacts")
-        .select("id")
-        .eq("created_by", ownerId)
-        .eq("contact_key", `nit:${nit}`)
-        .limit(1);
-      if (!verifyErr && Array.isArray(verifyRows) && verifyRows[0]?.id) persisted = true;
-      if (verifyErr) {
-        console.error("[webhook-v2][crm-upsert-new-customer-verify]", {
-          ownerId,
-          nit,
-          error: String((verifyErr as any)?.message || verifyErr),
-        });
-      }
-    }
-
-    return persisted;
-  } catch (error) {
-    console.error("[webhook-v2][crm-upsert-new-customer-fatal]", {
-      ownerId,
-      nit,
-      phoneTail: tail,
-      error: String((error as any)?.message || error),
-    });
-    return false;
-  }
-}
-
-async function ensureAnalysisOpportunitySeed(
-  supabase: any,
-  args: {
-    ownerId: string;
-    tenantId?: string | null;
-    agentId?: string | null;
-    customerName?: string;
-    customerEmail?: string;
-    customerPhone?: string;
-    companyName?: string;
-    location?: string;
-    customerNit?: string;
-    customerType?: string;
-  }
-): Promise<void> {
-  const ownerId = String(args.ownerId || "").trim();
-  if (!ownerId) return;
-  const customerName = sanitizeCustomerDisplayName(String(args.customerName || "").trim());
-  const customerEmail = String(args.customerEmail || "").trim().toLowerCase();
-  const customerPhone = normalizePhone(String(args.customerPhone || "").trim());
-  const phoneTail = phoneTail10(customerPhone);
-  if (!customerEmail && !phoneTail) return;
-
-  try {
-    let exists = false;
-    let lookup = supabase
-      .from("agent_quote_drafts")
-      .select("id,payload,status,updated_at")
-      .eq("created_by", ownerId)
-      .order("updated_at", { ascending: false })
-      .limit(20);
-    if (customerEmail && phoneTail) {
-      lookup = lookup.or(`customer_email.eq.${customerEmail},customer_phone.like.%${phoneTail}`);
-    } else if (customerEmail) {
-      lookup = lookup.eq("customer_email", customerEmail);
-    } else {
-      lookup = lookup.like("customer_phone", `%${phoneTail}`);
-    }
-    const { data: recentRows } = await lookup;
-    if (Array.isArray(recentRows)) {
-      exists = recentRows.some((r: any) => {
-        const payload = r?.payload && typeof r.payload === "object" ? r.payload : {};
-        const isSeed = Boolean(payload?.lead_seed);
-        const st = normalizeText(String(r?.status || ""));
-        const isOpenStage = /^(analysis|study|quote|purchase_order|invoicing|draft|sent|won|lost)$/.test(st);
-        return isSeed || isOpenStage;
-      });
-    }
-    if (exists) return;
-
-    const draftPayload: any = {
-      tenant_id: args.tenantId || null,
-      created_by: ownerId,
-      agent_id: args.agentId || null,
-      customer_name: customerName || null,
-      customer_email: customerEmail || null,
-      customer_phone: customerPhone || null,
-      company_name: String(args.companyName || "").trim() || null,
-      location: normalizeCityLabel(String(args.location || "").trim()) || null,
-      product_name: "Prospecto WhatsApp",
-      notes: "Lead automático desde validación comercial (WhatsApp)",
-      payload: {
-        lead_seed: true,
-        lead_seed_source: "whatsapp_commercial_validation",
-        customer_nit: String(args.customerNit || "").replace(/\D/g, "").trim() || null,
-        customer_type: normalizeText(String(args.customerType || "").trim()) || null,
-        created_at_iso: new Date().toISOString(),
-      },
-      status: "analysis",
-    };
-
-    let { error: seedErr } = await supabase.from("agent_quote_drafts").insert(draftPayload);
-    if (seedErr && isQuoteDraftStatusConstraintError(seedErr)) {
-      draftPayload.status = "draft";
-      draftPayload.payload = {
-        ...(draftPayload.payload || {}),
-        crm_stage: "analysis",
-        crm_stage_updated_at: new Date().toISOString(),
-      };
-      const retry = await supabase.from("agent_quote_drafts").insert(draftPayload);
-      seedErr = retry.error as any;
-    }
-    if (seedErr) {
-      console.error("[webhook-v2][crm-seed-opportunity]", {
-        ownerId,
-        phoneTail,
-        email: customerEmail,
-        error: String((seedErr as any)?.message || seedErr),
-      });
-    }
-  } catch (error) {
-    console.error("[webhook-v2][crm-seed-opportunity-fatal]", {
-      ownerId,
-      phoneTail,
-      email: customerEmail,
-      error: String((error as any)?.message || error),
-    });
-  }
-}
-
-function normalizeDeliveryLabel(raw: string): string {
-  const t = normalizeText(String(raw || ""));
-  if (!t) return "";
-  if (/(stock|inmediat|disponible\s+ya|entrega\s+inmediata)/.test(t)) return "stock";
-  if (/(4\s*seman|cuatro\s*seman|importaci)/.test(t)) return "importación a cuatro semanas";
-  return String(raw || "").trim();
-}
-
-function deliveryLabelForRow(row: any): string {
-  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-  const fromRow = [row?.delivery, row?.delivery_time, row?.lead_time, row?.availability, row?.disponibilidad]
-    .map((v) => String(v || "").trim())
-    .find(Boolean) || "";
-  const fromSource = [source?.delivery, source?.delivery_time, source?.lead_time, source?.availability, source?.disponibilidad, source?.entrega]
-    .map((v: any) => String(v || "").trim())
-    .find(Boolean) || "";
-  const direct = normalizeDeliveryLabel(fromRow || fromSource);
-  if (direct) return direct;
-  const modelNorm = normalizeText(catalogReferenceCode(row) || String(row?.name || ""));
-  const guided = Object.values(GUIDED_BALANZA_CATALOG)
-    .flatMap((g) => g)
-    .flatMap((g) => g.models)
-    .find((m) => modelNorm.includes(normalizeText(m.model)));
-  return guided?.delivery || "";
-}
-
-function buildGuidedBalanzaReply(profile: GuidedBalanzaProfile): string {
-  return buildGuidedBalanzaReplyWithMode(profile, "");
-}
-
-function inferSpecProcessLabel(row: any): string {
-  const txt = normalizeText(`${String(row?.name || "")} ${String(row?.category || "")} ${familyLabelFromRow(row)}`);
-  const spec = extractRowTechnicalSpec(row);
-  const cap = Number(spec.capacityG || 0);
-  const read = Number(spec.readabilityG || 0);
-
-  if (/(industrial|plataforma|ranger|defender|valor|rc31|r71|conteo|portatil|portatil|kg\b)/.test(txt) || cap >= 15000) {
-    return "Proceso industrial / conteo";
-  }
-  if (/(oro|joyeria|joyeria|quilat|kilat)/.test(txt) || (read > 0 && read <= 0.01 && cap > 0 && cap <= 6000)) {
-    return "Joyería / metales preciosos";
-  }
-  if (/(laboratorio|analitica|semi|cabina|precision|farmacia|control de calidad)/.test(txt) || (read > 0 && read <= 0.001)) {
-    return "Laboratorio / precisión";
-  }
-  return "Proceso general de pesaje";
-}
-
-function buildGroupedSpecReplyNoContext(args: {
-  specQuery: string;
-  options: Array<{ code: string; id: string; name: string }>;
-  sourceRows: any[];
-  priceLine?: string;
-}): string {
-  const allOptions = Array.isArray(args.options) ? args.options : [];
-  const rows = Array.isArray(args.sourceRows) ? args.sourceRows : [];
-  const byId = new Map<string, any>();
-  for (const r of rows) {
-    const id = String(r?.id || "").trim();
-    if (!id || byId.has(id)) continue;
-    byId.set(id, r);
-  }
-
-  const groups = new Map<string, Array<{ code: string; name: string }>>();
-  for (const opt of allOptions) {
-    const row = byId.get(String(opt?.id || "").trim());
-    const label = inferSpecProcessLabel(row);
-    const prev = groups.get(label) || [];
-    prev.push({ code: String(opt?.code || ""), name: String(opt?.name || "") });
-    groups.set(label, prev);
-  }
-
-  const orderedGroups = Array.from(groups.entries()).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
-  const groupLines = orderedGroups.flatMap(([label, list]) => {
-    const head = `${label}: ${list.length} referencia(s)`;
-    const preview = list.slice(0, 3).map((x) => `${x.code}) ${x.name}`);
-    return [head, ...preview, ""];
-  });
-
-  return [
-    `Para ${args.specQuery} encontré ${allOptions.length} referencia(s) compatibles en base de datos.`,
-    "Como no me indicaste el proceso de uso, te las agrupo por tipo de aplicación (pueden servir para usos distintos):",
-    ...(args.priceLine ? [args.priceLine] : []),
-    ...groupLines,
-    "Indícame tu proceso (laboratorio, joyería u operación industrial) y te dejo solo el grupo correcto.",
-    "También puedes elegir un número (A/1) o escribir 'más' para ver el resto.",
-  ].join("\n");
-}
 
 function hasPriorityProductGuidanceIntent(text: string): boolean {
   return hasPriorityProductGuidanceIntentDomain({
@@ -3279,169 +770,17 @@ function hasPriorityProductGuidanceIntent(text: string): boolean {
   });
 }
 
-function buildScaleDifferenceGuidanceReply(): string {
-  return [
-    "Claro, te explico rapido 👌",
-    "La diferencia principal entre balanzas/basculas esta en: capacidad (peso maximo), resolucion (nivel de precision), tipo de uso (laboratorio/joyeria/industrial) y tiempo de entrega.",
-    "Ejemplo: 0.01 g da mas precision que 0.1 g, pero normalmente con menor capacidad.",
-    "Si quieres, te comparo 3 modelos exactos para tu caso. Dime: que vas a pesar, rango de peso (min-max) y precision deseada.",
-  ].join("\n");
-}
-
-function guidedGroupsByMode(profile: GuidedBalanzaProfile, industrialMode: "conteo" | "estandar" | "" = ""): any[] {
-  const groups = GUIDED_BALANZA_CATALOG[profile] || [];
-  if (profile !== "balanza_industrial_portatil_conteo" || !industrialMode) return groups;
-  return groups.filter((g: any) => {
-    const tier = normalizeText(String(g?.tier || ""));
-    const isConteoTier = /conteo\s+especial/.test(tier);
-    const isStdTier = /uso\s+industrial\s+estandar/.test(tier) && !isConteoTier;
-    if (industrialMode === "conteo") return !isStdTier;
-    if (industrialMode === "estandar") return !isConteoTier;
-    return true;
-  });
-}
-
-function buildGuidedBalanzaReplyWithMode(profile: GuidedBalanzaProfile, industrialMode: "conteo" | "estandar" | "" = ""): string {
-  const groups = guidedGroupsByMode(profile, industrialMode);
-  const intro = profile === "balanza_industrial_portatil_conteo"
-    ? "Sí, contamos con balanzas industriales portátiles para conteo que se ajustan a tu necesidad."
-    : "Sí, contamos con balanzas de precisión que se ajustan a tu necesidad.";
-  const estimated = profile === "balanza_industrial_portatil_conteo"
-    ? "💰 Valores estimados: desde $3.500.000 (según gama y funcionalidad). Deseas continuar con la cotización"
-    : "💰 Valores estimados: desde $4.000.000 (según gama y funcionalidad). Deseas continuar con la cotización";
-  const tierToGama = (tier: string): string => {
-    const t = normalizeText(String(tier || ""));
-    if (/linea\s+esencial/.test(t)) return "esencial";
-    if (/linea\s+intermedia/.test(t)) return "intermedia";
-    if (/linea\s+avanzada/.test(t)) return "avanzada";
-    if (/linea\s+premium/.test(t)) return "premium";
-    if (/linea\s+basica/.test(t)) return "basica";
-    if (/linea\s+media/.test(t)) return "media";
-    if (/linea\s+alta/.test(t)) return "alta";
-    return "";
-  };
-  let modelIndex = 1;
-  return [
-    intro,
-    estimated,
-    ...groups.flatMap((group) => [
-      "",
-      group.tier,
-      ...group.models.map((m: any) => {
-        const gama = tierToGama(String(group?.tier || ""));
-        const gamaPart = gama ? ` | Gama: ${gama}` : "";
-        return `${modelIndex++}) ${m.model} – ${m.capacity} x ${m.resolution} (${m.delivery})${gamaPart}`;
-      }),
-    ]),
-    "",
-    "Responde con número que se encuentra al principio del modelo (ej.: 1).",
-    "Para cotizar varias referencias (máx. 3), escribe: cotizar opciones 5,6,13 (ejemplo).",
-    "También puedes responder solo con números: 5,6,13.",
-    "También puedes escribir: cotizar modelos PX6202/E, AX2202/E, EXP6202.",
-    "Para una sola referencia con varias unidades: cotizar opción 5 cantidad 3.",
-    "Si tienes dudas, escribe “asesor” para recibir acompañamiento especializado.",
-  ].join("\n");
-}
-
-function pickYoutubeVideoForModel(modelName: string): string {
-  const n = normalizeText(String(modelName || "")).replace(/[^a-z0-9]/g, "");
-  if (!n) return "";
-
-  if (/^(px3202e|px1602e|px4202e|px6202e|px323e|px623e|px224e)$/.test(n)) return "https://www.youtube.com/watch?v=7ZsVR_jgeLE";
-  if (/^(sjx|spx|stx)\w*/.test(n)) return "https://www.youtube.com/watch?v=7ZsVR_jgeLE";
-  if (/^(ax2202e|ax6202e|ax223e|ax423e|ax623e|ax224e)$/.test(n)) return "https://www.youtube.com/watch?v=70aadRdYOAI";
-  if (/^(exr2202|exr4202|exr6202|exr12202|exp2202|exp4202|exp6202|exp12202|exp223ad|exp423ad|exp623ad|exp1203ad|exp224ad|exp324ad)$/.test(n)) return "https://www.youtube.com/watch?v=g6vM5wGsOi4";
-  if (/^(exr|exp)\d+/.test(n)) return "https://www.youtube.com/watch?v=g6vM5wGsOi4";
-
-  if (/^(px85|px225d)$/.test(n)) return "https://www.youtube.com/watch?v=ntnDSczGmD4";
-  if (/^(ax85|ax125d|ax225d|exr125d|exr225d|exp125dad|exp225dad)$/.test(n)) return "https://www.youtube.com/watch?v=uZJxn0o4PDk";
-
-  if (/^r31p/.test(n)) return "https://www.youtube.com/watch?v=poLl3iDjTaE";
-  if (/^rc31p/.test(n)) return "https://www.youtube.com/watch?v=Af2j9V6QR9w";
-  if (/^r71(md|mhd)/.test(n)) return "https://www.youtube.com/watch?v=r2YqUbDcCcE";
-
-  return "";
-}
-
 function buildGuidedPendingOptions(rows: any[], profile: GuidedBalanzaProfile, industrialMode: "conteo" | "estandar" | "" = ""): any[] {
-  const rowList = Array.isArray(rows) ? rows : [];
-  const orderedModels = guidedGroupsByMode(profile, industrialMode).flatMap((g) => g.models);
-  const options = orderedModels.map((m: any, i: number) => {
-    const modelNorm = normalizeText(m.model);
-    const hit = rowList.find((r: any) => {
-      const n = normalizeText(String(r?.name || ""));
-      return n === modelNorm || n.includes(modelNorm);
-    });
-    const gama = gamaLabelForModelName(m.model);
-    const gamaPart = gama ? ` | Gama: ${gama}` : "";
-    return {
-      code: String(i + 1),
-      rank: i + 1,
-      id: String(hit?.id || ""),
-      name: `${m.model}${gamaPart} | Cap: ${m.capacity} | Res: ${m.resolution} | Entrega: ${m.delivery}`,
-      raw_name: String(hit?.name || m.model),
-      category: String(hit?.category || "balanzas"),
-      base_price_usd: Number(hit?.base_price_usd || 0),
-    };
+  return buildGuidedPendingOptionsApp({
+    rows,
+    profile,
+    industrialMode,
+    guidedGroupsByMode,
+    normalizeText,
+    gamaLabelForModelName: (name: string) => gamaLabelForModelNameApp(name, normalizeText),
   });
-  return options;
 }
 
-type ConversationIntent =
-  | "guided_need_discovery"
-  | "menu_selection"
-  | "technical_spec_input"
-  | "use_explanation_question"
-  | "compatibility_question"
-  | "application_update"
-  | "alternative_request"
-  | "pricing_request"
-  | "quote_confirmation"
-  | "billing_data_input"
-  | "category_switch"
-  | "fallback_unclear";
-
-type ConversationSlots = {
-  product_type: string;
-  target_capacity_g: number;
-  target_readability_g: number;
-  target_application: string;
-  target_industry: string;
-  current_model: string;
-  current_stage: string;
-  active_menu_type: string;
-  active_menu_options: Record<string, string>;
-  active_menu_context: Record<string, string>;
-  last_recommended_models: string[];
-};
-
-function detectTargetApplication(text: string): string {
-  const t = normalizeText(text || "");
-
-  const hasJewelry = /(oro|joyeria|joyería|quilat|kilat)/.test(t);
-  const hasLab = /(laboratorio|lab\b|analitica|analítica|farmacia)/.test(t);
-  const jewelryNegated = /(no\s+es\s+ni\s+para\s+(oro|joyeria|joyería|quilat|kilat)|no\s+es\s+para\s+(oro|joyeria|joyería|quilat|kilat)|ni\s+para\s+(oro|joyeria|joyería|quilat|kilat))/.test(t);
-  const labNegated = /(no\s+es\s+ni\s+para\s+(laboratorio|lab|analitica|analítica|farmacia)|no\s+es\s+para\s+(laboratorio|lab|analitica|analítica|farmacia)|ni\s+para\s+(laboratorio|lab|analitica|analítica|farmacia))/.test(t);
-
-  const jewelryPositive = hasJewelry && !jewelryNegated;
-  const labPositive = hasLab && !labNegated;
-
-  if (jewelryPositive && !labPositive) return "joyeria_oro";
-  if (labPositive && !jewelryPositive) return "laboratorio";
-  if (jewelryPositive && labPositive) return "";
-
-  if (/(alimento|alimentos|comida|restaurante|cocina|leche)/.test(t)) return "alimentos";
-  if (/(industrial|produccion|producción|bodega|planta)/.test(t)) return "industrial";
-  return "";
-}
-
-function maxReadabilityForApplication(app: string): number {
-  const a = normalizeText(String(app || ""));
-  if (a === "joyeria_oro") return 0.01;
-  if (a === "laboratorio") return 0.1;
-  if (a === "alimentos") return 1;
-  return 1;
-}
 
 function getApplicationRecommendedOptions(args: {
   rows: any[];
@@ -3451,598 +790,39 @@ function getApplicationRecommendedOptions(args: {
   strictPrecision?: boolean;
   excludeId?: string;
 }): any[] {
-  const rows = Array.isArray(args.rows) ? args.rows : [];
-  const app = String(args.application || "").trim();
-  const appMaxRead = maxReadabilityForApplication(app);
-  const targetRead = Number(args.targetReadabilityG || 0);
-  const strictPrecision = Boolean(args.strictPrecision);
-  const maxRead = targetRead > 0 && strictPrecision ? Math.min(appMaxRead, targetRead) : appMaxRead;
-  const capTarget = Number(args.capTargetG || 0);
-  const excludeId = String(args.excludeId || "").trim();
-  const isJewelry = normalizeText(app) === "joyeria_oro";
-  const prefersLab = normalizeText(app) === "laboratorio";
-  const highPrecisionNeed = targetRead > 0 && targetRead <= 0.001;
-  const minCap = capTarget > 0 ? (isJewelry ? capTarget * 0.5 : capTarget * 0.25) : 0;
-  const capMultiplier = isJewelry
-    ? 2.5
-    : (prefersLab && highPrecisionNeed)
-      ? 20
-      : (prefersLab ? 10 : 4);
-  const maxCap = capTarget > 0 ? (capTarget * capMultiplier) : Number.POSITIVE_INFINITY;
-  const filtered = rows
-    .filter((r: any) => {
-      const id = String(r?.id || "").trim();
-      if (excludeId && id && id === excludeId) return false;
-      const rs = extractRowTechnicalSpec(r);
-      const cap = Number(rs?.capacityG || 0);
-      const read = Number(rs?.readabilityG || 0);
-      const appText = normalizeText([String(r?.name || ""), String(r?.category || ""), familyLabelFromRow(r)].join(" "));
-      if (!(read > 0) || !(cap > 0)) return false;
-      if (read > maxRead) return false;
-      if (targetRead > 0 && strictPrecision && read > targetRead) return false;
-      if (capTarget > 0 && (cap < minCap || cap > maxCap)) return false;
-      if (isJewelry && cap > 6000) return false;
-      if (normalizeText(app) === "laboratorio" && /(industrial|plataforma|ranger|defender|valor|rc31|r71|ckw|td52p)/.test(appText)) return false;
-      if (isJewelry && /(industrial|plataforma|ranger|defender|valor|rc31|r71|ckw|td52p)/.test(appText)) return false;
-      return true;
-    })
-    .sort((a: any, b: any) => {
-      const ar = Number(extractRowTechnicalSpec(a)?.readabilityG || 999);
-      const br = Number(extractRowTechnicalSpec(b)?.readabilityG || 999);
-      const ac = Number(extractRowTechnicalSpec(a)?.capacityG || 0);
-      const bc = Number(extractRowTechnicalSpec(b)?.capacityG || 0);
-      const ad = capTarget > 0 ? Math.abs(ac - capTarget) : 0;
-      const bd = capTarget > 0 ? Math.abs(bc - capTarget) : 0;
-
-      const readDeltaA = targetRead > 0 ? Math.abs(Math.log10(Math.max(ar, 1e-9) / Math.max(targetRead, 1e-9))) : ar;
-      const readDeltaB = targetRead > 0 ? Math.abs(Math.log10(Math.max(br, 1e-9) / Math.max(targetRead, 1e-9))) : br;
-      const belowPenaltyA = capTarget > 0 && ac < capTarget ? 1 : 0;
-      const belowPenaltyB = capTarget > 0 && bc < capTarget ? 1 : 0;
-
-      return readDeltaA - readDeltaB || belowPenaltyA - belowPenaltyB || ad - bd || ar - br;
-    });
-  return buildNumberedProductOptions(filtered.slice(0, 8) as any[], 8);
-}
-
-function buildActiveMenuState(args: {
-  awaiting: string;
-  pendingOptions: any[];
-  selectedModel: string;
-}): { type: string; options: Record<string, string>; context: Record<string, string> } {
-  const awaiting = String(args.awaiting || "");
-  if (awaiting === "strict_choose_action") {
-    return {
-      type: "model_action_menu",
-      options: { "1": "quote", "2": "datasheet" },
-      context: args.selectedModel ? { model: args.selectedModel } : {},
-    };
-  }
-  if (awaiting === "strict_choose_model" && Array.isArray(args.pendingOptions) && args.pendingOptions.length > 0) {
-    const options: Record<string, string> = {};
-    for (const o of args.pendingOptions.slice(0, 40)) {
-      const key = String(o?.code || "").trim();
-      const val = String(o?.name || o?.raw_name || "").trim();
-      if (key && val) options[key] = val;
-    }
-    return {
-      type: "model_selection_menu",
-      options,
-      context: {},
-    };
-  }
-  return { type: "", options: {}, context: {} };
-}
-
-function isMenuSelectionInput(text: string): boolean {
-  const t = normalizeText(String(text || "")).trim();
-  return /^([a-z]|\d{1,2})$/.test(t);
-}
-
-function isGuidedNeedDiscoveryText(text: string): boolean {
-  const t = normalizeText(String(text || ""));
-  if (!t) return false;
-  const asksNeed = /\b(quiero|necesito|busco|requiero|recomiend|orienta)\b/.test(t) || /para\s+pesar/.test(t);
-  const inDomain = /(balanza|balanzas|bascula|basculas|humedad|analizador|alimentos|laboratorio|oro|joyeria|joyeria|repuesto|repuestos|cajas|papa|papas|tornillo|tornillos)/.test(t);
-  return asksNeed && inDomain;
-}
-
-function classifyMessageIntent(args: {
-  text: string;
-  awaiting: string;
-  rememberedCategory: string;
-  activeMenuType: string;
-}): ConversationIntent {
-  const text = String(args.text || "");
-  const t = normalizeText(text);
-  const technical = parseLooseTechnicalHint(text);
-  const hasTechnical = Number((technical as any)?.capacityG || 0) > 0 || Number((technical as any)?.readabilityG || 0) > 0 || Boolean(parseTechnicalSpecQuery(text));
-  const categoryIntent = detectCatalogCategoryIntent(text);
-  const guidedNeed = isGuidedNeedDiscoveryText(text);
-  const compatibilityQ = /(sirve|sirven|me sirve|funciona|funcionan|aplica|aplican|para\s+oro|para\s+joyeria|para\s+joyería|para\s+laboratorio|para\s+alimentos|si\s+o\s+no)/.test(t) && /\?/.test(text);
-  const useExplanationQ = /(para\s+que\s+sirven?|que\s+uso\s+tienen|para\s+que\s+se\s+usan)/.test(t) && /(balanza|balanzas|bascula|basculas)/.test(t);
-  const appUpdate = /(para\s+oro|para\s+joyeria|para\s+joyería|para\s+laboratorio|para\s+alimentos|es\s+para\s+|de\s+laboratorio|de\s+joyeria|de\s+joyería|cuales?\s+de\s+laboratorio|cu[aá]les?\s+de\s+laboratorio|laboratorio\s+tienes|de\s+oro)/.test(t);
-  const alternativeReq = /(otra\s+opcion|otra\s+opción|otro\s+modelo|mas\s+econom|más\s+econ|mas\s+resol|más\s+resol|mas\s+capacidad|más\s+capacidad|alternativ|mas\s+opcion|más\s+opción|mas\s+opciones|más\s+opciones)/.test(t);
-
-  if (args.activeMenuType && isMenuSelectionInput(text)) return "menu_selection";
-  if (guidedNeed) return "guided_need_discovery";
-  if (useExplanationQ) return "use_explanation_question";
-  if (compatibilityQ) return "compatibility_question";
-  if (hasTechnical) return "technical_spec_input";
-  if (alternativeReq) return "alternative_request";
-  if (asksQuoteIntent(text) || isPriceIntent(text)) return "pricing_request";
-  if (/^(si|sí|dale|ok|de\s+una|cotizar|cotizacion|cotización|1)$/.test(t)) return "quote_confirmation";
-  if (looksLikeBillingData(text)) return "billing_data_input";
-  if (categoryIntent && normalizeText(String(categoryIntent || "")) !== normalizeText(String(args.rememberedCategory || ""))) return "category_switch";
-  if (appUpdate) return "application_update";
-  return "fallback_unclear";
-}
-
-function updateConversationSlots(args: {
-  previousMemory: Record<string, any>;
-  text: string;
-  awaiting: string;
-  pendingOptions: any[];
-  selectedModel: string;
-}): { slots: ConversationSlots; patch: Record<string, any> } {
-  const prev = args.previousMemory || {};
-  const parsed = parseLooseTechnicalHint(args.text);
-  const merged = mergeLooseSpecWithMemory(
-    {
-      capacityG: Number(prev.strict_filter_capacity_g || prev.strict_partial_capacity_g || prev.target_capacity_g || 0),
-      readabilityG: Number(prev.strict_filter_readability_g || prev.strict_partial_readability_g || prev.target_readability_g || 0),
-    },
-    parsed
-  );
-  const application = detectTargetApplication(args.text) || String(prev.target_application || "");
-  const industry = application === "joyeria_oro" ? "joyeria" : application;
-  const activeMenu = buildActiveMenuState({ awaiting: args.awaiting, pendingOptions: args.pendingOptions, selectedModel: args.selectedModel });
-  const lastRecommended = (Array.isArray(args.pendingOptions) ? args.pendingOptions : [])
-    .map((o: any) => String(o?.name || o?.raw_name || "").trim())
-    .filter(Boolean)
-    .slice(0, 20);
-
-  const slots: ConversationSlots = {
-    product_type: String(prev.product_type || prev.last_category_intent || "balanza").trim(),
-    target_capacity_g: Number(merged.capacityG || 0),
-    target_readability_g: Number(merged.readabilityG || 0),
-    target_application: application,
-    target_industry: String(industry || prev.target_industry || "").trim(),
-    current_model: String(args.selectedModel || prev.current_model || prev.last_selected_product_name || "").trim(),
-    current_stage: String(args.awaiting || prev.current_stage || "").trim(),
-    active_menu_type: activeMenu.type,
-    active_menu_options: activeMenu.options,
-    active_menu_context: activeMenu.context,
-    last_recommended_models: lastRecommended.length ? lastRecommended : (Array.isArray(prev.last_recommended_models) ? prev.last_recommended_models : []),
-  };
-
-  const patch: Record<string, any> = {
-    product_type: slots.product_type,
-    target_capacity_g: slots.target_capacity_g > 0 ? slots.target_capacity_g : (Number(prev.target_capacity_g || 0) || ""),
-    target_readability_g: slots.target_readability_g > 0 ? slots.target_readability_g : (Number(prev.target_readability_g || 0) || ""),
-    target_application: slots.target_application || prev.target_application || "",
-    target_industry: slots.target_industry || prev.target_industry || "",
-    current_model: slots.current_model || "",
-    current_stage: slots.current_stage || "",
-    active_menu_type: slots.active_menu_type || "",
-    active_menu_options: slots.active_menu_options,
-    active_menu_context: slots.active_menu_context,
-    last_recommended_models: slots.last_recommended_models,
-  };
-
-  return { slots, patch };
-}
-
-function buildCompatibilityAnswer(args: {
-  text: string;
-  slots: ConversationSlots;
-  pendingOptions: any[];
-}): string {
-  const app = detectTargetApplication(args.text) || args.slots.target_application || "uso indicado";
-  const options = Array.isArray(args.pendingOptions) ? args.pendingOptions : [];
-  const readable = options.map((o: any) => {
-    const name = String(o?.name || o?.raw_name || "");
-    const m = name.match(/res\s*:?\s*(\d+(?:[\.,]\d+)?)\s*(mg|g|kg)/i);
-    const value = m ? Number(String(m[1] || "").replace(",", ".")) : 0;
-    const unit = String(m?.[2] || "g").toLowerCase();
-    const g = unit === "kg" ? value * 1000 : unit === "mg" ? value / 1000 : value;
-    return { option: o, readabilityG: g > 0 ? g : 999 };
+  return getApplicationRecommendedOptionsApp({
+    ...args,
+    maxReadabilityForApplication,
+    normalizeText,
+    extractRowTechnicalSpec,
+    familyLabelFromRow,
+    buildNumberedProductOptions,
   });
-  const suitable = readable.filter((x) => {
-    if (app === "joyeria_oro") return x.readabilityG <= 0.01;
-    if (app === "laboratorio") return x.readabilityG <= 0.1;
-    if (app === "alimentos") return x.readabilityG <= 1;
-    return x.readabilityG <= 0.1;
-  });
-
-  if (!options.length) {
-    return "Sí, depende del modelo y de la precisión que necesites para ese uso. Si me confirmas capacidad y resolución objetivo, te digo exactamente cuál te sirve.";
-  }
-
-  if (suitable.length) {
-    return [
-      `Sí, para ${app.replace(/_/g, " ")} sí hay opciones que pueden servir en el listado actual.`,
-      `Las más adecuadas por precisión son: ${suitable.slice(0, 3).map((x) => String(x.option?.code || "")).filter(Boolean).join(", ") || "las de mayor precisión"}.`,
-      "Si quieres, te indico la mejor y luego seguimos con ficha técnica o cotización.",
-    ].join("\n");
-  }
-
-  return [
-    `No del todo: para ${app.replace(/_/g, " ")} las opciones actuales no son las ideales por precisión.`,
-    "Te puedo proponer alternativas más finas sin perder tu contexto técnico.",
-    "Si quieres, te muestro 3 recomendadas ahora.",
-  ].join("\n");
 }
 
-function detectCatalogCategoryIntent(text: string): string | null {
-  const t = normalizeText(text || "");
-  if (!t) return null;
-  const asksLabEquipment = /(plancha|planchas|calentamiento|agitacion|agitación|agitador|mezclador|homogeneizador|centrifuga)/.test(t);
-  const negatesBasculas = /\bno\s+quiero\s+(una\s+)?bascula|\bno\s+quiero\s+(una\s+)?bscula|\bno\s+basculas?\b|\bno\s+bsculas?\b/.test(t);
-  if (/(electroquim|ph|orp|conductividad|tds|salinidad|aquasearcher|electrodo|medidor)/.test(t)) {
-    if (/(mesa|sobremesa)/.test(t)) return "electroquimica_medidores_mesa";
-    if (/(portatil|portatiles)/.test(t)) return "electroquimica_medidores_portatiles";
-    if (/(bolsillo)/.test(t)) return "electroquimica_medidores_bolsillo";
-    if (/(electrodo)/.test(t)) return "electroquimica_electrodos";
-    return "electroquimica";
-  }
-  if (/(anali[sz]ador(?:es)?(?:\s+de)?\s+humedad|anali[sz]ador(?:es)?|humedad|mb120|mb90|mb27|mb23)/.test(t)) return "analizador_humedad";
-  if (asksLabEquipment) return "equipos_laboratorio";
-  if (/(balanza|balanzas|analitica|semi analitica|semi-micro|precision|resolucion|lectura minima)/.test(t) && /(precision|resolucion|lectura minima)/.test(t)) {
-    return "balanzas_precision";
-  }
-  if (/(bascula|basculas|bscula|bsculas|ranger|defender|valor|control de peso|ckw|td52p|plataforma\s+de\s+pesaje|plataforma\s+de\s+peso)/.test(t) && !negatesBasculas) return "basculas";
-  if (/(impresora)/.test(t)) return "impresoras";
-  if (/(balanza|balanzas|blanza|blanzas|explorer|adventurer|pioneer|pr\b|scout|analitica|semi analitica|precision)/.test(t)) return "balanzas";
-  if (/(documento|brochure|manual|guia|catalogo pdf)/.test(t)) return "documentos";
-  return null;
-}
-
-function isTechnicalSheetIntent(text: string): boolean {
-  const t = normalizeText(text);
-  return /(ficha|ficha tecnica|fichas tecnicas|datasheet|especificaciones|specs|hoja tecnica|brochure|catalogo tecnico)/.test(t);
-}
-
-function isTechSheetCatalogListIntent(text: string): boolean {
-  const t = normalizeText(text);
-  return (
-    /(de que productos|que productos|cuales productos|cuales referencias|que referencias).*(ficha|ficha tecnica|datasheet|especificaciones)/.test(t) ||
-    /(productos|referencias|modelos).*(con|que tengan).*(ficha|ficha tecnica|datasheet)/.test(t) ||
-    /(listado|lista|catalogo).*(ficha|ficha tecnica|datasheet)/.test(t)
-  );
-}
-
-function isProductImageIntent(text: string): boolean {
-  const t = normalizeText(text);
-  return /(imagen|imagenes|foto|fotos|fotografia|ver producto|no veo imagen|no cargo imagen|reenvia imagen|reenvia imagen)/.test(t);
-}
-
-function safeFileName(input: string, fallbackBase: string, fallbackExt: string): string {
-  const raw = String(input || "").trim();
-  const clean = raw
-    .replace(/[\\/:*?"<>|]+/g, "-")
-    .replace(/\s+/g, "-")
-    .slice(0, 80)
-    .replace(/^-+|-+$/g, "");
-  const base = clean || fallbackBase;
-  return /\.[a-z0-9]{2,8}$/i.test(base) ? base : `${base}.${fallbackExt}`;
-}
-
-type LocalPdfIndexEntry = { filePath: string; fileName: string; normalized: string };
-let localPdfIndexCache: { dir: string; at: number; files: LocalPdfIndexEntry[] } | null = null;
-
-function listLocalPdfFiles(dir: string): LocalPdfIndexEntry[] {
-  const root = String(dir || "").trim();
-  if (!root || !fs.existsSync(root)) return [];
-  const out: LocalPdfIndexEntry[] = [];
-  const stack = [root];
-  while (stack.length) {
-    const cur = String(stack.pop() || "");
-    if (!cur) continue;
-    let entries: fs.Dirent[] = [];
-    try {
-      entries = fs.readdirSync(cur, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const e of entries) {
-      const abs = path.join(cur, e.name);
-      if (e.isDirectory()) {
-        stack.push(abs);
-        continue;
-      }
-      if (!e.isFile() || !/\.pdf$/i.test(e.name)) continue;
-      out.push({ filePath: abs, fileName: e.name, normalized: normalizeCatalogQueryText(e.name) });
-    }
-  }
-  return out;
-}
-
-function getLocalPdfIndex(): LocalPdfIndexEntry[] {
-  const ttlMs = 5 * 60 * 1000;
-  const now = Date.now();
-  if (localPdfIndexCache && localPdfIndexCache.dir === LOCAL_DATASHEET_DIR && (now - localPdfIndexCache.at) < ttlMs) {
-    return localPdfIndexCache.files;
-  }
-  const files = listLocalPdfFiles(LOCAL_DATASHEET_DIR);
-  localPdfIndexCache = { dir: LOCAL_DATASHEET_DIR, at: now, files };
-  return files;
-}
+const getLocalPdfIndex = createLocalPdfIndexResolver({
+  directory: LOCAL_DATASHEET_DIR,
+  normalizeCatalogQueryText,
+});
 
 function expandModelAliasTokens(tokens: string[]): string[] {
-  const base = uniqueNormalizedStrings((tokens || []).map((t) => normalizeCatalogQueryText(String(t || "")).replace(/[^a-z0-9]/g, "")).filter((t) => t.length >= 4));
-  const extra = new Set<string>(base);
-  for (const token of base) {
-    if (token.startsWith("rc31p")) extra.add(`r31p${token.slice(5)}`);
-    if (token.startsWith("r31p")) extra.add(`rc31p${token.slice(4)}`);
-  }
-  return Array.from(extra);
+  return expandModelAliasTokensApp({ tokens, uniqueNormalizedStrings, normalizeCatalogQueryText });
 }
 
 function pickBestLocalPdfPath(row: any, queryText: string): string {
-  const files = getLocalPdfIndex();
-  if (!files.length) return "";
-  const modelNorm = normalizeCatalogQueryText(String(row?.name || queryText || ""));
-
-  const pickByKeywordPriority = (keywords: string[]): string => {
-    const wanted = (keywords || []).map((k) => normalizeCatalogQueryText(String(k || ""))).filter(Boolean);
-    if (!wanted.length) return "";
-    let best: { filePath: string; score: number; byteSize: number } | null = null;
-    for (const f of files) {
-      const hay = normalizeCatalogQueryText(f.normalized || f.fileName || "");
-      let score = 0;
-      for (const kw of wanted) {
-        if (hay.includes(kw)) score += 3;
-      }
-      let byteSize = Number.MAX_SAFE_INTEGER;
-      try {
-        byteSize = Number(fs.statSync(f.filePath).size || 0);
-      } catch {
-        byteSize = Number.MAX_SAFE_INTEGER;
-      }
-      if (byteSize > 5 * 1024 * 1024) score -= 4;
-      if (byteSize > 8 * 1024 * 1024) score -= 12;
-      if (/datasheet|data sheet|ficha/.test(hay)) score += 2;
-      if (/manual|brochure|catalogo|catalog/.test(hay)) score -= 2;
-      if (!best || score > best.score || (score === best.score && byteSize < best.byteSize)) {
-        best = { filePath: f.filePath, score, byteSize };
-      }
-    }
-    return best && best.score >= 3 ? best.filePath : "";
-  };
-
-  const canonical = (v: string) => normalizeCatalogQueryText(String(v || "")).replace(/[^a-z0-9]/g, "");
-  const strictModelTokens = uniqueNormalizedStrings([
-    ...extractModelLikeTokens(String(row?.name || "")),
-    ...extractModelLikeTokens(String(queryText || "")),
-    String(row?.name || ""),
-  ])
-    .map((t) => canonical(t));
-  const strictModelAliasTokens = expandModelAliasTokens(strictModelTokens);
-  if (strictModelAliasTokens.length) {
-    let strictBest: { filePath: string; score: number } | null = null;
-    for (const f of files) {
-      const hay = normalizeCatalogQueryText(f.normalized || f.fileName || "");
-      const hayCanon = canonical(hay);
-      let score = 0;
-      for (const token of strictModelAliasTokens) {
-        if (hayCanon.includes(token)) score += 20;
-      }
-      if (/ficha|datasheet|data sheet/.test(hay)) score += 3;
-      if (score > 0 && (!strictBest || score > strictBest.score)) strictBest = { filePath: f.filePath, score };
-    }
-    if (strictBest) return strictBest.filePath;
-  }
-
-  const directByModelFamily = (() => {
-    if (/\b(ax|ad)\d{2,6}/.test(modelNorm) || /adventurer/.test(modelNorm)) {
-      return pickByKeywordPriority(["adventurer", "ax", "data sheet"]);
-    }
-    if (/\b(exr|exp|ex)\d{2,6}/.test(modelNorm) || /explorer|semi/.test(modelNorm)) {
-      return pickByKeywordPriority(["explorer", "semi", "data sheet"]);
-    }
-    if (/\b(px|pr)\d{2,6}/.test(modelNorm) || /pioneer/.test(modelNorm)) {
-      return pickByKeywordPriority(["pioneer", "px", "pr", "datasheet"]);
-    }
-    if (/\bmb\d{2,5}\b/.test(modelNorm) || /analizador_humedad|humedad/.test(modelNorm)) {
-      return pickByKeywordPriority([modelNorm, "mb", "datasheet"]);
-    }
-    if (/\b(r31|r71|rc31)\w*/.test(modelNorm) || /ranger/.test(modelNorm)) {
-      return pickByKeywordPriority(["ranger", "data", "sheet"]);
-    }
-    if (/\b(sjx|spx|stx)\w*/.test(modelNorm) || /scout/.test(modelNorm)) {
-      return pickByKeywordPriority(["scout", "datasheet"]);
-    }
-    return "";
-  })();
-  if (directByModelFamily) return directByModelFamily;
-
-  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-  const familyHints = uniqueNormalizedStrings([
-    String(source?.family || ""),
-    String(source?.instrument || ""),
-    String(row?.category || ""),
-    /\bexp\d|explorer|exr\d|ex\d/.test(normalizeCatalogQueryText(String(row?.name || ""))) ? "explorer" : "",
-    /\bpr\d|px\d|pioneer/.test(normalizeCatalogQueryText(String(row?.name || ""))) ? "pioneer" : "",
-    /\bad\d|ax\d|adventurer/.test(normalizeCatalogQueryText(String(row?.name || ""))) ? "adventurer" : "",
-    /\bmb\d|humedad/.test(normalizeCatalogQueryText(String(row?.name || ""))) ? "mb" : "",
-    /\bdefender|ranger|valor\b/.test(normalizeCatalogQueryText(String(row?.name || ""))) ? "basculas" : "",
-  ].filter(Boolean));
-  const codeTokens = [
-    String(source?.product_code || "").trim(),
-    String(source?.sap || "").trim(),
-    String(source?.numero_modelo || "").trim(),
-  ].filter(Boolean);
-  const modelTokens = uniqueNormalizedStrings([
-    ...extractModelLikeTokens(String(row?.name || "")),
-    ...extractModelLikeTokens(String(queryText || "")),
-    ...codeTokens.map((x) => normalizeCatalogQueryText(x)),
-  ]).filter((x) => x.length >= 3);
-  const modelAliasTokens = expandModelAliasTokens(modelTokens);
-  const textTerms = uniqueNormalizedStrings([
-    ...extractCatalogTerms(`${String(row?.name || "")} ${String(queryText || "")}`).slice(0, 12),
-    ...familyHints,
-  ]).slice(0, 16);
-
-  let best: { filePath: string; score: number; modelHits: number; termHits: number } | null = null;
-  for (const f of files) {
-    const hay = f.normalized;
-    let score = 0;
-    let modelHits = 0;
-    let termHits = 0;
-    for (const token of modelAliasTokens) {
-      if (hay.includes(normalizeCatalogQueryText(token))) {
-        score += 12;
-        modelHits += 1;
-      }
-    }
-    for (const term of textTerms) {
-      if (hay.includes(normalizeCatalogQueryText(term))) {
-        score += 2;
-        termHits += 1;
-      }
-    }
-    if (/datasheet|data sheet|ficha/.test(hay)) score += 2;
-    if (/manual|brochure|catalogo|catalog/.test(hay)) score -= 2;
-    if (!best || score > best.score) best = { filePath: f.filePath, score, modelHits, termHits };
-  }
-
-  if (!best) return "";
-  const hasStrongFamilyHint = familyHints.some((h) => /explorer|pioneer|adventurer|mb|basculas|electroquimica/.test(normalizeCatalogQueryText(h)));
-  const familyFallback = (() => {
-    if (/\bmb\d{2,5}\b/.test(modelNorm) || /analizador_humedad|humedad/.test(modelNorm)) return pickByKeywordPriority([modelNorm, "mb120", "mb92", "mb62", "datasheet"]);
-    if (/\b(ax|ad)\d{2,6}/.test(modelNorm) || /adventurer/.test(modelNorm)) return pickByKeywordPriority(["adventurer", "ax", "datasheet"]);
-    if (/\b(px|pr)\d{2,6}/.test(modelNorm) || /pioneer/.test(modelNorm)) return pickByKeywordPriority(["pioneer", "px", "pr", "datasheet"]);
-    if (/\b(exr|exp|ex)\d{2,6}/.test(modelNorm) || /explorer|semi/.test(modelNorm)) return pickByKeywordPriority(["explorer", "semi micro", "datasheet"]);
-    if (/\b(r31|r71|rc31)\w*/.test(modelNorm) || /ranger/.test(modelNorm)) return pickByKeywordPriority(["ranger", "ranger 3000", "ranger 4000", "ranger 7000", "datasheet"]);
-    if (/\b(sjx|spx|stx)\w*/.test(modelNorm) || /scout/.test(modelNorm)) return pickByKeywordPriority(["scout", "datasheet"]);
-    return "";
-  })();
-  if (modelAliasTokens.length && best.modelHits === 0) {
-    if (hasStrongFamilyHint && best.termHits >= 1 && best.score >= 4) return best.filePath;
-    if (!(best.termHits >= 2 && best.score >= 8)) return familyFallback;
-  }
-  return best.filePath || familyFallback;
-}
-
-function fetchLocalFileAsBase64(filePath: string): { base64: string; mimetype: string; fileName: string; byteSize: number } | null {
-  const abs = String(filePath || "").trim();
-  if (!abs || !fs.existsSync(abs)) return null;
-  try {
-    const buff = fs.readFileSync(abs);
-    const byteSize = Number(buff.byteLength || 0);
-    if (!byteSize) return null;
-    return {
-      base64: buff.toString("base64"),
-      mimetype: "application/pdf",
-      fileName: safeFileName(path.basename(abs), "ficha-tecnica", "pdf"),
-      byteSize,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function toReadableBulletList(raw: string, maxLines = 4): string {
-  const cleaned = String(raw || "").replace(/\s+/g, " ").trim();
-  if (!cleaned) return "";
-  let chunks = cleaned
-    .split(/[.;]\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (chunks.length <= 1) {
-    chunks = cleaned
-      .split(/,\s+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-  chunks = chunks
-    .filter((s, i, arr) => arr.findIndex((x) => normalizeText(x) === normalizeText(s)) === i)
-    .slice(0, maxLines);
-  if (!chunks.length) return "";
-  return chunks.map((c) => `- ${c}`).join("\n");
+  return pickBestLocalPdfPathApp({
+    row,
+    queryText,
+    getLocalPdfIndex,
+    normalizeCatalogQueryText,
+    uniqueNormalizedStrings,
+    extractModelLikeTokens,
+    extractCatalogTerms,
+  });
 }
 
 async function fetchRemoteFileAsBase64(url: string): Promise<{ base64: string; mimetype: string; fileName: string; byteSize: number } | null> {
-  const target = String(url || "").trim();
-  if (!/^https?:\/\//i.test(target)) return null;
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
-  try {
-    const res = await fetch(target, {
-      method: "GET",
-      signal: controller.signal,
-      redirect: "follow",
-      headers: { "User-Agent": "BotzWhatsApp/1.0" },
-    });
-    if (!res.ok) return null;
-
-    const arr = await res.arrayBuffer();
-    const base64 = Buffer.from(arr).toString("base64");
-    if (!base64) return null;
-    const byteSize = Number(arr.byteLength || 0);
-
-    const contentType = String(res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
-    const mimetype = contentType || "application/octet-stream";
-
-    let pathname = "archivo";
-    try {
-      pathname = decodeURIComponent(new URL(target).pathname.split("/").pop() || "archivo");
-    } catch {
-      pathname = "archivo";
-    }
-
-    const ext = mimetype === "application/pdf"
-      ? "pdf"
-      : mimetype.includes("png")
-        ? "png"
-        : mimetype.includes("jpeg") || mimetype.includes("jpg")
-          ? "jpg"
-          : mimetype.includes("webp")
-            ? "webp"
-            : "bin";
-
-    return {
-      base64,
-      mimetype,
-      fileName: safeFileName(pathname, "archivo", ext),
-      byteSize,
-    };
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-function isHistoryIntent(text: string): boolean {
-  const t = normalizeText(text);
-  return /(mi historial|que tengo en mi historial|historial|mis cotizaciones|cotizaciones anteriores|compras anteriores|mi ultima cotizacion)/.test(t);
-}
-
-function isContactInfoBundle(text: string): boolean {
-  const t = String(text || "");
-  const hasEmail = Boolean(extractEmail(t));
-  const hasPhone = Boolean(extractCustomerPhone(t, ""));
-  const hasNameLike = /(^|\n|\r)(nombre|name)\s*[:=]|^[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}(\s+[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,})?/m.test(t);
-  return (hasPhone && hasNameLike) || (hasEmail && hasNameLike);
-}
-
-function isContinueQuoteWithoutPersonalDataIntent(text: string): boolean {
-  return false;
-}
-
-function looksLikeBillingData(text: string): boolean {
-  const raw = String(text || "").trim();
-  if (!raw) return false;
-  if (isContactInfoBundle(raw)) return true;
-  const hasEmail = Boolean(extractEmail(raw));
-  const hasPhone = Boolean(extractCustomerPhone(raw, ""));
-  const hasNit = /\bnit\s*[:=]?\s*[0-9\.\-]{5,20}\b/i.test(raw);
-  const hasLabeledFields = /\b(ciudad|empresa|razon\s+social|contacto|correo|email|celular|telefono)\s*[:=]/i.test(raw);
-  const hasCityLike = /^[a-zA-Záéíóúüñ\s]{3,40}$/.test(raw) && !/@/.test(raw) && !/^\+?\d[\d\s\-]{6,}$/.test(raw);
-  const hasNameLike = /^[a-zA-Záéíóúüñ\s]{6,60}$/.test(raw) && !/\b(cotiz|modelo|ficha|precio|marca|opcion|opciones|asesor)\b/i.test(raw);
-  return hasNit || hasLabeledFields || hasEmail || hasPhone || hasCityLike || hasNameLike;
+  return fetchRemoteFileAsBase64App(url);
 }
 
 function getReusableBillingData(memory: any): {
@@ -4054,229 +834,31 @@ function getReusableBillingData(memory: any): {
   phone: string;
   complete: boolean;
 } {
-  const q = memory?.quote_data && typeof memory.quote_data === "object" ? memory.quote_data : {};
-  const ncd = memory?.new_customer_data && typeof memory.new_customer_data === "object" ? memory.new_customer_data : {};
-  const city = normalizeCityLabel(String(q?.city || memory?.crm_billing_city || ncd?.city || "").trim());
-  const company = String(q?.company || memory?.crm_company || memory?.commercial_company_name || ncd?.company || "").trim();
-  const nit = String(q?.nit || memory?.crm_nit || memory?.commercial_company_nit || ncd?.nit || "").replace(/[^0-9.-]/g, "").trim();
-  const contact = String(q?.contact || memory?.crm_contact_name || memory?.commercial_customer_name || memory?.customer_name || ncd?.contact || "").trim();
-  const email = String(q?.email || memory?.crm_contact_email || memory?.customer_email || ncd?.email || "").trim().toLowerCase();
-  const phone = normalizePhone(String(q?.phone || memory?.crm_contact_phone || memory?.customer_phone || ncd?.phone || "").trim());
-  const complete = Boolean(city && company && nit && contact && email && phone);
-  return { city, company, nit, contact, email, phone, complete };
-}
-
-function billingDataAsSingleMessage(data: { city: string; company: string; nit: string; contact: string; email: string; phone: string }): string {
-  return [
-    `ciudad: ${data.city}`,
-    `empresa: ${data.company}`,
-    `nit: ${data.nit}`,
-    `contacto: ${data.contact}`,
-    `correo: ${data.email}`,
-    `celular: ${data.phone}`,
-  ].join(", ");
-}
-
-function buildQuoteDataIntakePrompt(prefix: string, memory: any): string {
-  const reusable = getReusableBillingData(memory);
-  const missing: string[] = [];
-  if (!reusable.city) missing.push("ciudad");
-  if (!reusable.company) missing.push("empresa");
-  if (!reusable.nit) missing.push("NIT");
-  if (!reusable.contact) missing.push("contacto");
-  if (!reusable.email) missing.push("correo");
-  if (!reusable.phone) missing.push("celular");
-  if (!missing.length) {
-    return `${prefix} Ya tengo tus datos de facturación. Si deseas continuar con los mismos datos, responde: mismos datos.`;
-  }
-  return `${prefix} Ya tengo parte de tus datos. Para continuar, envíame en un solo mensaje: ${missing.join(", ")}. Si deseas usar los mismos datos anteriores, responde: mismos datos.`;
-}
-
-type AnotherQuoteChoice = "same_model" | "other_model" | "cheaper" | "advisor";
-
-function isAnotherQuoteAmbiguousIntent(text: string): boolean {
-  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (!t) return false;
-  if (/^(otra|otro)$/.test(t)) return true;
-  return /(otra\s+cotiz|otra\s+cotizacion|nueva\s+cotizacion|nueva\s+cotiz)/.test(t);
-}
-
-function parseAnotherQuoteChoice(text: string): AnotherQuoteChoice | null {
-  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (!t) return null;
-  if (/^(1|del\s+mismo\s+modelo|mismo\s+modelo|misma\s+referencia|la\s+misma)$/.test(t)) return "same_model";
-  if (/^(2|de\s+otro\s+modelo|otro\s+modelo|otro\s+equipo)$/.test(t)) return "other_model";
-  if (/^(3|mas\s+economic|mas\s+barat|muy\s+costos|mas\s+economicas?)$/.test(t)) return "cheaper";
-  if (/^(4|hablar\s+con\s+asesor|asesor|cita)$/.test(t)) return "advisor";
-  return null;
-}
-
-function buildAnotherQuotePrompt(): string {
-  return [
-    "Claro. ¿Qué tipo de cotización quieres?",
-    "1) Del mismo modelo",
-    "2) De otro modelo",
-    "3) Ver opciones más económicas",
-    "4) Hablar con asesor",
-  ].join("\n");
-}
-
-function isGreetingIntent(text: string): boolean {
-  const t = normalizeText(text).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (!t) return false;
-  const hasGreeting = /^(hola|buenas|buenos dias|buen dia|buenas tardes|buenas noches|hey|hi)\b/.test(t);
-  const hasBusinessIntent = /(cotiz|producto|pdf|trm|historial|recomiend|precio|catalogo)/.test(t);
-  return hasGreeting && !hasBusinessIntent && t.length <= 40;
-}
-
-function shouldUseFullGreeting(memory: any): boolean {
-  const lastIntent = normalizeText(String(memory?.last_intent || ""));
-  const lastUserAt = Date.parse(String(memory?.last_user_at || ""));
-  if (lastIntent !== "greeting") return true;
-  if (!Number.isFinite(lastUserAt)) return true;
-  const elapsed = Date.now() - lastUserAt;
-  return elapsed > 12 * 60 * 60 * 1000;
-}
-
-function buildGreetingReply(knownCustomerName: string, memory: any): string {
-  const hasName = Boolean(String(knownCustomerName || "").trim());
-  const hasHistory = Boolean(
-    String(memory?.last_user_at || "").trim() ||
-    String(memory?.last_intent || "").trim() ||
-    String(memory?.customer_name || "").trim() ||
-    String(memory?.last_quote_draft_id || "").trim()
-  );
-  const hasQuoteContext =
-    Boolean(String(memory?.last_quote_draft_id || "").trim() || String(memory?.last_quote_pdf_sent_at || "").trim()) ||
-    /(quote_generated|quote_recall|price_request)/.test(String(memory?.last_intent || ""));
-
-  if (!hasHistory) {
-    return hasName
-      ? `Hola, ${knownCustomerName} 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?`
-      : "Hola 👋\nGracias por ser parte de la comunidad OHAUS 🤗, que está revolucionando la calidad de los productos para su empresa.\n¿Qué producto necesitas hoy?";
-  }
-
-  if (hasQuoteContext) {
-    return hasName
-      ? `Hola de nuevo, ${knownCustomerName} 👋 ¿Continuamos con tu cotización o te cotizo otro modelo?`
-      : "Hola de nuevo 👋 ¿Continuamos con tu cotización o te cotizo otro modelo?";
-  }
-
-  if (shouldUseFullGreeting(memory)) {
-    return hasName
-      ? `Hola, ${knownCustomerName} 👋 Qué bueno tenerte de nuevo. Dime el modelo exacto y te envío ficha o cotización.`
-      : "Hola 👋 Qué bueno tenerte de nuevo. Dime el modelo exacto y te envío ficha o cotización.";
-  }
-
-  return hasName
-    ? `Hola de nuevo, ${knownCustomerName} 👋 Dime modelo exacto y te envío ficha o cotización.`
-    : "Hola de nuevo 👋 Dime modelo exacto y te envío ficha o cotización.";
-}
-
-function isAffirmativeIntent(text: string): boolean {
-  const t = normalizeText(text).replace(/[^a-z0-9\s]/g, " ").trim();
-  return /^(si|sí|ok|vale|listo|dale|de una|perfecto|por favor|si por favor|hazlo|enviala|enviamela)\b/.test(t);
-}
-
-function isConversationCloseIntent(text: string): boolean {
-  const t = normalizeCatalogQueryText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (!t) return false;
-  return /\b(no gracias|gracias|eso es todo|nada mas|finaliza|finalizar|finalicemos|finalizamos|termina|terminar|cerrar|cerramos|listo gracias|ok gracias|perfecto gracias|hasta luego|adios|chao)\b/.test(t);
-}
-
-function isCorrectionIntent(text: string): boolean {
-  const t = normalizeText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-  if (!t) return false;
-  return /(no entend|entendiste mal|esta mal|esta incorrect|no era eso|no me sirve|no coincide|equivoc|mal seleccionado|corrige)/.test(t);
-}
-
-function normalizeNumber(value: any): number {
-  const n = Number(String(value ?? "").replace(/,/g, ".").trim());
-  return Number.isFinite(n) ? n : 0;
+  return getReusableBillingDataApp({ memory, normalizeCityLabel, normalizePhone });
 }
 
 function getRowCapacityG(row: any): number {
-  const s = extractRowTechnicalSpec(row);
-  return normalizeNumber(s?.capacityG || row?.capacity_g || row?.capacity || row?.capacidad_g || row?.capacidad || row?.max_g || row?.max);
+  return getRowCapacityGApp({ row, extractRowTechnicalSpec });
 }
 
 function getRowReadabilityG(row: any): number {
-  const s = extractRowTechnicalSpec(row);
-  return normalizeNumber(s?.readabilityG || row?.readability_g || row?.readability || row?.resolution_g || row?.resolution || row?.resolucion_g || row?.resolucion || row?.precision_g || row?.precision);
+  return getRowReadabilityGApp({ row, extractRowTechnicalSpec });
 }
 
 function isExactTechnicalMatch(row: any, requirement: { capacityG: number; readabilityG: number }): boolean {
-  const cap = getRowCapacityG(row);
-  const read = getRowReadabilityG(row);
-  return cap > 0 && read > 0 && cap === Number(requirement.capacityG || 0) && read === Number(requirement.readabilityG || 0);
+  return isExactTechnicalMatchApp({ row, requirement, getRowCapacityG, getRowReadabilityG });
 }
 
 function getExactTechnicalMatches(rows: any[], requirement: { capacityG: number; readabilityG: number }): any[] {
-  return (Array.isArray(rows) ? rows : []).filter((row) => isExactTechnicalMatch(row, requirement));
-}
-
-function hasActiveTechnicalRequirement(memory: any): boolean {
-  const cap = Number(memory?.strict_filter_capacity_g || 0);
-  const read = Number(memory?.strict_filter_readability_g || 0);
-  return cap > 0 && read > 0;
-}
-
-function resetStrictRecommendationState(memory: any) {
-  memory.pending_product_options = [];
-  memory.pending_family_options = [];
-  memory.awaiting_action = "none";
-  memory.strict_family_label = "";
-  memory.strict_model_offset = 0;
-}
-
-function isAmbiguousTechnicalMessage(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  if (parseTechnicalSpecQuery(t)) return false;
-  return /\brango\s*\d+\b/.test(t) || /^\d{2,5}$/.test(t.trim()) || /\bla de\s+\d+\b/.test(t) || /\bla normal\b/.test(t) || /\bla industrial\b/.test(t) || /\bla de laboratorio\b/.test(t);
-}
-
-function buildAmbiguityQuestion(text: string): string {
-  const t = normalizeText(text || "");
-  if (/rango\s*\d+/.test(t)) return "Para no equivocarme: cuando dices ese rango, ¿te refieres a capacidad, presupuesto o referencia específica?";
-  if (/^\d{2,5}$/.test(t.trim())) return "Para no equivocarme, ese número corresponde a capacidad, modelo o presupuesto?";
-  return "Para no equivocarme, ¿puedes confirmarme exactamente capacidad y resolución, por ejemplo 200 g x 0.001 g?";
+  return getExactTechnicalMatchesApp({ rows, requirement, isExactTechnicalMatch });
 }
 
 function withAvaSignature(text: string): string {
-  const body = String(text || "").trim();
-  if (!body) return "Soy Ava de Avanza Balanzas. ¿En qué puedo ayudarte hoy?";
-  const normalized = normalizeText(body);
-  if (normalized.includes("soy ava") || normalized.startsWith("ava:") || normalized.startsWith("hola soy ava")) return body;
-  return `Ava: ${body}`;
+  return withAvaSignatureApp(text, normalizeText);
 }
 
 function enforceWhatsAppDelivery(text: string, inboundText: string): string {
-  const body = String(text || "");
-  const intent = normalizeText(inboundText || "");
-  const isSalesOrInfoFlow = /(cotiz|cotizacion|pdf|trm|precio|presupuesto|ficha|fichas|modelo|modelos|informacion|informacion tecnica|imagen|imagenes)/.test(intent);
-  if (!isSalesOrInfoFlow) return body;
-  const customerAskedEmail = /(correo|email|e-mail)/.test(intent);
-  if (customerAskedEmail) return body;
-
-  let fixed = body;
-  fixed = fixed.replace(/correo\s+electr[oó]nico/gi, "WhatsApp");
-  fixed = fixed.replace(/por\s+correo/gi, "por este WhatsApp");
-  fixed = fixed.replace(/via\s+correo/gi, "por este WhatsApp");
-  fixed = fixed.replace(/v[íi]a\s+correo/gi, "por este WhatsApp");
-  fixed = fixed.replace(/te\s+la\s+enviare\s+a\s+tu\s+correo\s+en\s+breve\.?/gi, "Te la enviaré por este WhatsApp en breve.");
-  fixed = fixed.replace(/te\s+la\s+enviare\s+a\s+tu\s+correo\s+electronico\.?/gi, "Te la enviaré por este WhatsApp.");
-  fixed = fixed.replace(/te\s+la\s+enviare\s+a\s+tu\s+correo\.?/gi, "Te la enviaré por este WhatsApp.");
-  fixed = fixed.replace(/enviarla\s+a\s+tu\s+correo\s+electronico/gi, "enviarla por este WhatsApp");
-  fixed = fixed.replace(/enviarla\s+a\s+tu\s+correo/gi, "enviarla por este WhatsApp");
-  fixed = fixed.replace(/enviartela\s+a\s+tu\s+correo\s+electronico/gi, "enviártela por este WhatsApp");
-  fixed = fixed.replace(/enviartela\s+a\s+tu\s+correo/gi, "enviártela por este WhatsApp");
-  fixed = fixed.replace(/la\s+cotizacion\s+formal\s+sera\s+generada\s+por\s+un\s+comercial[^.]*\.?/gi, "Te genero y envío la cotización por este WhatsApp.");
-  fixed = fixed.replace(/no\s+puedo\s+enviar\s+la\s+cotizacion\s+formal\s+directamente\s+por\s+aqu[ií]\.?/gi, "Sí puedo enviarte la cotización por este WhatsApp.");
-  fixed = fixed.replace(/estoy\s+en\s+modo\s+demo[^.]*\.?/gi, "Puedo enviarte archivos reales por este WhatsApp.");
-  fixed = fixed.replace(/no\s+puedo\s+enviar\s+el\s+pdf\s+real[^.]*\.?/gi, "Sí puedo enviarte el PDF real por este WhatsApp.");
-  fixed = fixed.replace(/se\s+pondra\s+en\s+contacto\s+contigo\s+para\s+generar\s+una\s+cotizacion\s+formal\.?/gi, "Si quieres, te genero la cotización aquí mismo por WhatsApp.");
-  return fixed;
+  return enforceWhatsAppDeliveryApp(text, inboundText, normalizeText);
 }
 
 function phoneTail10(raw: string): string {
@@ -4285,261 +867,51 @@ function phoneTail10(raw: string): string {
 }
 
 function pickBestCatalogProduct(text: string, rows: any[]): any | null {
-  const inbound = normalizeCatalogQueryText(text);
-  const modelTokens = extractModelLikeTokens(inbound);
-  const terms = Array.from(
-    new Set(
-      inbound
-        .split(/[^a-z0-9]+/i)
-        .map((x) => x.trim())
-        .filter((x) => x.length >= 2)
-        .filter((x) => !["quiero", "cotizar", "cotizacion", "marca", "cliente", "cantidad", "trm", "hoy", "enviame", "whatsapp", "pdf", "producto"].includes(x))
-    )
-  );
-
-  let best: { row: any; score: number } | null = null;
-  for (const row of rows || []) {
-    const rowName = normalizeText(String(row?.name || ""));
-    const hay = normalizeText(`${row?.name || ""} ${row?.brand || ""} ${row?.category || ""}`);
-    const inboundCompact = inbound.replace(/\s+/g, "");
-    const nameCompact = rowName.replace(/\s+/g, "");
-    const inboundAlphaNum = inbound.replace(/[^a-z0-9]+/g, "");
-    const nameAlphaNum = rowName.replace(/[^a-z0-9]+/g, "");
-    let score = 0;
-    if (rowName && inbound.includes(rowName)) score += 10;
-    if (nameCompact && inboundCompact.includes(nameCompact)) score += 8;
-    if (nameAlphaNum && inboundAlphaNum.includes(nameAlphaNum)) score += 14;
-    for (const token of modelTokens) {
-      if (hay.includes(token)) score += 10;
-    }
-    for (const term of terms) {
-      if (hay.includes(term)) score += /^\d+$/.test(term) ? 3 : 2;
-    }
-    if (!best || score > best.score) best = { row, score };
-  }
-
-  if (!best || best.score < 4) return null;
-  return best.row;
+  return pickBestCatalogProductApp({ text, rows, normalizeCatalogQueryText, normalizeText, extractModelLikeTokens });
 }
 
 function findExactModelProduct(text: string, rows: any[]): any | null {
-  const inbound = normalizeCatalogQueryText(text || "");
-  const tokens = extractModelLikeTokens(inbound);
-  if (!tokens.length) return null;
-  const inboundCompact = inbound.replace(/[^a-z0-9]+/g, "");
-
-  let best: { row: any; score: number } | null = null;
-  for (const row of rows || []) {
-    const rowName = normalizeCatalogQueryText(String(row?.name || ""));
-    const hay = normalizeCatalogQueryText(`${row?.name || ""} ${row?.brand || ""} ${row?.category || ""} ${catalogSubcategory(row)}`);
-    const rowCompact = rowName.replace(/[^a-z0-9]+/g, "");
-    let score = 0;
-
-    if (rowCompact && inboundCompact.includes(rowCompact)) score += 18;
-    if (rowName && inbound.includes(rowName)) score += 12;
-
-    const rowModelTokens = extractModelLikeTokens(rowName);
-    for (const t of tokens) {
-      const nt = normalizeCatalogQueryText(t);
-      if (hay.includes(nt)) {
-        score += 10;
-        continue;
-      }
-      const tt = splitModelToken(nt);
-      for (const rtRaw of rowModelTokens) {
-        const rt = splitModelToken(rtRaw);
-        if (!tt.letters || !rt.letters) continue;
-        if (tt.letters === rt.letters && tt.digits && rt.digits && rt.digits.includes(tt.digits)) {
-          score += 8;
-          break;
-        }
-      }
-    }
-
-    if (!best || score > best.score) best = { row, score };
-  }
-  if (!best || best.score < 8) return null;
-  return best.row;
+  return findExactModelProductApp({ text, rows, normalizeCatalogQueryText, catalogSubcategory, extractModelLikeTokens, splitModelToken });
 }
 
 function findExplicitModelProducts(text: string, rows: any[]): any[] {
-  const inbound = normalizeCatalogQueryText(String(text || ""));
-  const modelTokens = extractModelLikeTokens(inbound);
-  if (!modelTokens.length) return [];
-  const found: any[] = [];
-  const seenIds = new Set<string>();
-  for (const token of modelTokens) {
-    const nt = normalizeCatalogQueryText(String(token || "")).replace(/[^a-z0-9]+/g, "");
-    const strict = (rows || []).filter((row: any) => {
-      const base = `${String(row?.name || "")} ${String(row?.slug || "")}`;
-      const rowTokens = extractModelLikeTokens(base);
-      if (!rowTokens.length) return false;
-      return rowTokens.some((rtRaw) => {
-        const rt = normalizeCatalogQueryText(String(rtRaw || "")).replace(/[^a-z0-9]+/g, "");
-        if (!rt || !nt) return false;
-        if (rt === nt) return true;
-        const a = splitModelToken(rt);
-        const b = splitModelToken(nt);
-        return Boolean(a.letters && b.letters && a.letters === b.letters && a.digits && b.digits && (a.digits === b.digits || a.digits.startsWith(b.digits)));
-      });
-    });
-
-    const candidate =
-      (strict.length === 1 ? strict[0] : null) ||
-      findExactModelProduct(token, strict.length ? strict : (rows || [])) ||
-      pickBestCatalogProduct(token, strict.length ? strict : (rows || []));
-    const id = String(candidate?.id || "").trim();
-    if (!candidate || !id || seenIds.has(id)) continue;
-    seenIds.add(id);
-    found.push(candidate);
-  }
-  return found;
+  return findExplicitModelProductsApp({
+    text,
+    rows,
+    normalizeCatalogQueryText,
+    extractModelLikeTokens,
+    splitModelToken,
+    findExactModelProduct,
+    pickBestCatalogProduct,
+  });
 }
 
 function extractCatalogTerms(text: string): string[] {
-  const stop = new Set([
-    "hola", "quiero", "necesito", "enviame", "envia", "ficha", "tecnica", "fichatecnica", "imagen", "imagenes", "foto", "fotos",
-    "de", "del", "la", "el", "los", "las", "por", "para", "con", "y", "o", "que", "cual", "cuales", "modelo", "producto",
-    "whatsapp", "favor", "porfavor", "si", "no", "una", "un", "esa", "ese", "me", "ya", "tienes", "tiene", "balanza", "balanzas",
-    "bascula", "basculas", "ohaus", "especificaciones", "especificacion", "specs", "puedes", "puede", "enviar", "mandar", "mandame", "podrias", "podria",
-  ]);
-  return Array.from(
-    new Set(
-      normalizeCatalogQueryText(text || "")
-        .split(/[^a-z0-9]+/i)
-        .map((x) => x.trim())
-        .filter((x) => x.length >= 3)
-        .filter((x) => !stop.has(x))
-    )
-  );
+  return extractCatalogTermsApp(text, normalizeCatalogQueryText);
 }
 
 function isFeatureQuestionIntent(text: string): boolean {
-  const t = normalizeCatalogQueryText(text || "");
-  if (!t) return false;
-  const hasMeasurementSpec = /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)\b/.test(t);
-  return (
-    /(que tenga|que tengan|tiene|tienen|incluye|incluyan|debe tener|caracteristic|especificacion|especificaciones)/.test(t) ||
-    /(con\s+(calibracion|precision|resolucion|capacidad|bateria|usb|bluetooth|wifi|rs\s*232|ip\d{2}|pantalla|sensor|humedad|analitic|semi|micro|calibracion\s+externa|calibracion\s+interna))/.test(t) ||
-    hasMeasurementSpec
-  );
+  return isFeatureQuestionIntentApp(text, normalizeCatalogQueryText);
 }
 
 function detectCalibrationPreference(text: string): "external" | "internal" | null {
-  const t = normalizeText(text || "");
-  if (!t) return null;
-  if (/(calibracion\s+externa|externa\s+calibracion|pesa\s+patron|masa\s+patron|external\s+calibration)/.test(t)) return "external";
-  if (/(calibracion\s+interna|interna\s+calibracion|autocal|ajuste\s+interno|internal\s+calibration)/.test(t)) return "internal";
-  return null;
+  return detectCalibrationPreferenceApp(text, normalizeText);
 }
 
 function rowMatchesCalibrationPreference(row: any, preference: "external" | "internal" | null): boolean {
-  if (!preference) return true;
-  const hay = catalogFeatureSearchBlob(row);
-  if (preference === "external") {
-    return /(calibr\w*\s*(extern|manual)|external\s+calibration|pesa\s+patron|masa\s+patron)/.test(hay);
-  }
-  return /(calibr\w*\s*(intern|auto|ajuste\s+interno)|internal\s+calibration|autocal)/.test(hay);
+  return rowMatchesCalibrationPreferenceApp({ row, preference, catalogFeatureSearchBlob });
 }
 
 function extractFeatureTerms(text: string): string[] {
-  const blacklist = new Set([
-    "balanza", "balanzas", "bascula", "basculas", "equipo", "equipos", "producto", "productos", "categoria",
-    "cotizar", "cotizacion", "presupuesto", "precio", "trm", "whatsapp", "catalogo", "referencia", "referencias",
-    "modelo", "modelos", "tiene", "tienen", "tenga", "tengan", "incluye", "incluyan", "caracteristica", "caracteristicas",
-    "especificacion", "especificaciones", "debe", "tener", "con", "busco", "necesito", "quiero", "ohaus",
-    "mas", "otros", "otras", "otro", "que", "prodcuto", "prodcutos", "productod",
-    "pesar", "cosas", "grandes", "grande", "pesado", "pesados", "pesada", "pesadas",
-    "pequeño", "pequeños", "pequeña", "pequeñas", "pequeno", "pequenos", "pequena", "pequenas",
-    "liviano", "livianos", "liviana", "livianas", "ligero", "ligeros", "ligera", "ligeras",
-    "chico", "chicos", "chica", "chicas", "diminuto", "minusculo", "menudo",
-    "necesito", "quiero", "busco", "algo", "mucho", "muy", "bien", "bastante",
-    "alto", "alta", "bajo", "baja", "poca", "poco", "mayor", "menor",
-  ]);
-  const aliasMap: Record<string, string> = {
-    tipo: "",
-    tipos: "",
-    clase: "",
-    clases: "",
-    balanza: "balanzas",
-    balanzas: "balanzas",
-    bascula: "basculas",
-    basculas: "basculas",
-    joyeria: "joyeria",
-    joyería: "joyeria",
-    precision: "precision",
-    precisión: "precision",
-    analitica: "analitica",
-    analítica: "analitica",
-    semi: "semi",
-    humedad: "humedad",
-    plataforma: "plataforma",
-  };
-  const measurementTerms = Array.from(
-    new Set(
-      (String(text || "").toLowerCase().match(/\b\d+(?:[\.,]\d+)?\s*(?:g|kg|mg)\b/g) || [])
-        .map((x) => x.replace(/\s+/g, "").replace(/,/g, "."))
-    )
-  );
-  const normalized = extractCatalogTerms(text)
-    .map((term) => {
-      const key = normalizeText(term);
-      if (!(key in aliasMap)) return key;
-      return String(aliasMap[key] || "").trim();
-    })
-    .filter((term) => term && !blacklist.has(term));
-  return uniqueNormalizedStrings([...normalized, ...measurementTerms], 10);
+  return extractFeatureTermsApp({ text, extractCatalogTerms, normalizeText, uniqueNormalizedStrings });
 }
 
 function catalogFeatureSearchBlob(row: any): string {
-  const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-  const specsJson = row?.specs_json;
-  const specsJsonText = typeof specsJson === "string"
-    ? specsJson
-    : (specsJson ? JSON.stringify(specsJson) : "");
-  return normalizeCatalogQueryText(
-    [
-      String(row?.name || ""),
-      String(row?.brand || ""),
-      String(row?.category || ""),
-      String(catalogSubcategory(row) || ""),
-      String(row?.summary || ""),
-      String(row?.description || ""),
-      String(row?.specs_text || ""),
-      specsJsonText,
-      JSON.stringify(payload || {}),
-    ].join(" ")
-  );
+  return catalogFeatureSearchBlobApp({ row, normalizeCatalogQueryText, catalogSubcategory });
 }
 
 function rankCatalogByFeature(rows: any[], featureTerms: string[]): Array<{ row: any; matches: number; score: number }> {
-  if (!Array.isArray(rows) || !rows.length || !featureTerms.length) return [];
-  const measurementTerms = featureTerms.filter((t) => /\d/.test(t) && /(mg|g|kg)$/.test(t));
-  const ranked = (rows || []).map((row: any) => {
-    const hay = catalogFeatureSearchBlob(row);
-    const hayCompact = hay.replace(/\s+/g, "");
-    let matches = 0;
-    let score = 0;
-    let measurementMatches = 0;
-    for (const term of featureTerms) {
-      if (!term) continue;
-      const found = hay.includes(term) || hayCompact.includes(term.replace(/\s+/g, ""));
-      if (found) {
-        matches += 1;
-        score += /\d/.test(term) ? 3 : term.length >= 6 ? 2 : 1;
-        if (measurementTerms.includes(term)) measurementMatches += 1;
-      }
-    }
-    if (matches === featureTerms.length) score += 2;
-    if (measurementTerms.length && measurementMatches === measurementTerms.length) score += 4;
-    return { row, matches, score, measurementMatches };
-  });
-  return ranked
-    .filter((x: any) => {
-      if (measurementTerms.length > 0) return x.measurementMatches === measurementTerms.length;
-      return x.matches >= Math.min(featureTerms.length, featureTerms.length <= 2 ? 1 : 2);
-    })
-    .sort((a, b) => b.score - a.score);
+  return rankCatalogByFeatureApp({ rows, featureTerms, catalogFeatureSearchBlob });
 }
 
 function isBalanceTypeQuestion(text: string): boolean {
@@ -4577,368 +949,48 @@ function humanCatalogName(raw: string): string {
 }
 
 function extractSpecsFromJson(specsJson: any, maxLines = 4): string[] {
-  const tables = Array.isArray(specsJson?.tables) ? specsJson.tables : [];
-  const out: string[] = [];
-  for (const t of tables) {
-    const headers = Array.isArray(t?.headers) ? t.headers.map((h: any) => String(h || "").trim()) : [];
-    const rows = Array.isArray(t?.rows) ? t.rows : [];
-    for (const row of rows) {
-      if (!Array.isArray(row)) continue;
-      for (let i = 0; i < row.length; i++) {
-        const value = String(row[i] || "").replace(/\s+/g, " ").trim();
-        if (!value) continue;
-        const header = String(headers[i] || "").replace(/\s+/g, " ").trim();
-        const line = header && !/^col_\d+$/i.test(header)
-          ? `${header}: ${value}`
-          : value;
-        const normalized = normalizeText(line);
-        if (!normalized || normalized === "especificaciones" || normalized === "specifications") continue;
-        out.push(line);
-        if (out.length >= maxLines) return uniqueNormalizedStrings(out, maxLines);
-      }
-    }
-  }
-  return uniqueNormalizedStrings(out, maxLines);
+  return extractSpecsFromJsonApp({ specsJson, maxLines, normalizeText, uniqueNormalizedStrings });
 }
 
 function buildTechnicalSummary(row: any, maxLines = 4): string {
-  const specsText = String(row?.specs_text || "").replace(/\s+/g, " ").trim();
-  const summaryText = String(row?.summary || "").replace(/\s+/g, " ").trim();
-  const descriptionText = String(row?.description || "").replace(/\s+/g, " ").trim();
-
-  const primary = [specsText, summaryText, descriptionText].filter(Boolean).join("; ");
-  let lines = primary
-    .split(/[.;]\s+|\n+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => s.replace(/^[-•\u2022]+\s*/, "").trim())
-    .filter((s) => {
-      const n = normalizeText(s);
-      return Boolean(n) && n !== "especificaciones" && n !== "specifications" && n.length > 8;
-    });
-
-  lines = uniqueNormalizedStrings(lines, Math.max(maxLines, 60));
-  if (!lines.length) {
-    lines = extractSpecsFromJson(row?.specs_json, Math.max(maxLines, 60));
-  }
-  if (!lines.length) return "";
-  return lines.slice(0, maxLines).map((l) => `- ${l}`).join("\n");
+  return buildTechnicalSummaryApp({ row, maxLines, normalizeText, uniqueNormalizedStrings });
 }
 
 function buildQuoteItemDescription(row: any, fallbackName: string): string {
-  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-  const specs = row?.specs_json && typeof row.specs_json === "object" ? row.specs_json : {};
-  const brand = String(row?.brand || "OHAUS").trim() || "OHAUS";
-  const family = String((source as any)?.family || (specs as any)?.familia || "").trim();
-  const templateDescription = String((source as any)?.descripcion_comercial_larga || (source as any)?.quote_description || row?.description || "").trim();
-  if (templateDescription) {
-    const normalizedLines = uniqueNormalizedStrings(
-      templateDescription
-        .split(/\r?\n+|;\s*/)
-        .map((l) => String(l || "").trim())
-        .filter(Boolean),
-      56
-    );
-    if (normalizedLines.length >= 3) return normalizedLines.join("\n");
-  }
-  const sap = String((source as any)?.sap || (source as any)?.product_code || (source as any)?.codigo || "").trim();
-  const capacity = String((source as any)?.capacity || (specs as any)?.capacidad || "").trim();
-  const resolution = String((source as any)?.resolution || (specs as any)?.resolucion || "").trim();
-
-  const lines: string[] = [];
-  lines.push(family ? `${family} marca ${brand}` : `Producto marca ${brand}`);
-  if (sap) lines.push(`SAP: ${sap}`);
-  if (capacity) lines.push(`Capacidad maxima: ${capacity}`);
-  if (resolution) lines.push(`Lectura minima: ${resolution}`);
-
-  const summary = buildTechnicalSummary(row, 48)
-    .split("\n")
-    .map((l) => String(l || "").replace(/^[-*]\s*/, "").trim())
-    .filter(Boolean);
-
-  for (const s of summary) {
-    const normalized = normalizeText(s);
-    if (!normalized) continue;
-    if (lines.some((x) => normalizeText(x) === normalized)) continue;
-    lines.push(s);
-    if (lines.length >= 56) break;
-  }
-
-  if (!lines.length) lines.push(`Producto: ${String(fallbackName || row?.name || "-")}`);
-  return lines.join("\n");
+  return buildQuoteItemDescriptionApp({ row, fallbackName, normalizeText, uniqueNormalizedStrings });
 }
 
 type StaticQuoteProfile = { description: string; imageFile: string };
 
 function resolveStaticQuoteProfile(row: any, fallbackName: string): StaticQuoteProfile | null {
-  const model = normalizeText(String(row?.name || fallbackName || ""));
-  if (!model) return null;
-
-  if (/^px\d+/.test(model)) {
-    return {
-      imageFile: "px.png",
-      description: [
-        "Balanza semi micro marca Ohaus",
-        "SAP: 30475733",
-        "Capacidad maxima: 82 g",
-        "Lectura minima: 0,01 mg",
-        "Tamano del plato: 80 mm",
-        "Calibracion interna AutoCal: Automatica",
-        "Proteccion contra corrientes de aire: Incluido",
-        "Comunicacion: USB; RS232",
-        "Pantalla: LCD de 2 lineas con luz de fondo",
-        "Linealidad: 0,0001 g",
-        "Material del plato: Acero inoxidable",
-        "Alimentacion: Adaptador de CA (incluido)",
-        "Repetibilidad, tipica: 0,02 mg",
-        "Tiempo de estabilizacion: 10 s",
-        "Rango de tara: Capacidad total por sustraccion",
-        "Unidades de medida: Tael de Singapur; Onza Troy; Pennyweight; Grano; Kilogramo; Tical; Personalizado; Miligramo; Momme; Newton; Tael de Taiwan; Gramo; Tael de Hong Kong; Libra; Tola; Mesghal; Quilates; Onza",
-      ].join("\n"),
-    };
-  }
-
-  if (/^ax\d+/.test(model) || /^ad\d+/.test(model)) {
-    return {
-      imageFile: "ax.png",
-      description: [
-        "Balanza Semi micro marca Ohaus",
-        "SAP: 30852314",
-        "Capacidad maxima: 82 g",
-        "Lectura minima: 0,00001 g",
-        "Tamano del plato: 80 mm",
-        "Calibracion interna AutoCal: Automatica",
-        "Proteccion contra corrientes de aire: Incluido",
-        "Autorizada para comercio: No aplica",
-        "Modelo de pantalla auxiliar: Disponible como accesorio",
-        "Dimensiones: 354 mm x 340 mm x 230 mm (LxAxA)",
-        "Puerta automatica: No aplica",
-        "Entorno de trabajo: 10 C - 30 C, 80 % HR, sin condensacion",
-        "Peso neto: 5,1 kg",
-        "Funda de proteccion: Incluido",
-        "Comunicacion: USB; RS232",
-        "Host USB: Incluido",
-        "Alimentacion: Adaptador de CA (incluido)",
-        "Unidades de medida: Tael de Singapur; Onza Troy; Pennyweight; Grano; Tical; Personalizado; Miligramo; Momme; Newton; Baht; Tael de Taiwan; Gramo; Tael de Hong Kong; Libra; Tola; Mesghal; Quilates; Onza",
-        "Pantalla: Pantalla tactil a color WQVGA de 4.3\"",
-        "Material del plato: Acero inoxidable",
-        "Ionizador incorporado: No",
-        "Tiempo de estabilizacion: 8 s",
-        "Repetibilidad, tipica: 0,00002 g",
-        "Peso minimo (USP, 0.1%, tipico): 20 mg",
-        "Linealidad: 0,1 mg",
-      ].join("\n"),
-    };
-  }
-
-  if (/^(exr|exp|ex)\d+/.test(model)) {
-    return {
-      imageFile: "exr.png",
-      description: [
-        "Balanza Semi - Micro marca Ohaus",
-        "Capacidad maxima: 82 g/120 g",
-        "Lectura minima: 0,00001 g",
-        "Pantalla: tactil a color",
-        "Comunicacion: USB; RS232",
-        "Calibracion interna: Automatica",
-        "Gestion de usuarios con perfiles y registro de eventos",
-        "Aplicaciones: pesaje, conteo, chequeo, formulacion y densidad",
-        "Rango de temperatura de funcionamiento: 10 C a 30 C",
-        "Humedad relativa de trabajo: 15 % a 80 % sin condensacion",
-        "Tiempo de estabilizacion: hasta 2 s segun modelo",
-        "Plato de pesaje en acero inoxidable",
-      ].join("\n"),
-    };
-  }
-
-  if (/^mb\d+/.test(model)) {
-    return {
-      imageFile: "mb.png",
-      description: [
-        "Analizador de humedad Ohaus",
-        "Pantalla tactil a color",
-        "Halogeno de alto rendimiento",
-        "Programas de secado rapidos y estables",
-        "Interfaz USB y RS232",
-      ].join("\n"),
-    };
-  }
-
-  if (/^(r31|r71|rc31)/.test(model)) {
-    return {
-      imageFile: "ranger.png",
-      description: [
-        "Balanza industrial Ranger marca Ohaus",
-        "Operacion para ambientes industriales",
-        "Pantalla robusta y rapida",
-        "Construccion durable para uso continuo",
-      ].join("\n"),
-    };
-  }
-
-  if (/^(sjx|spx|stx|px\d+)/.test(model)) {
-    return {
-      imageFile: "px.png",
-      description: [
-        "Balanza de precision marca OHAUS",
-        "Operacion estable para laboratorio y control de calidad",
-        "Pantalla de alta visibilidad y respuesta rapida",
-        "Construccion robusta para uso diario",
-      ].join("\n"),
-    };
-  }
-
-  return null;
+  return resolveStaticQuoteProfileApp({ row, fallbackName, normalizeText });
 }
 
 function localImageFileToDataUrl(fileName: string): string {
-  const safe = String(fileName || "").trim();
-  if (!safe) return "";
-  const p = path.join(QUOTE_LOCAL_IMAGE_DIR, safe);
-  if (!fs.existsSync(p)) return "";
-  const ext = String(path.extname(p || "")).toLowerCase();
-  const mime = ext === ".png" ? "image/png" : (ext === ".jpg" || ext === ".jpeg") ? "image/jpeg" : ext === ".webp" ? "image/webp" : "";
-  if (!mime) return "";
-  try {
-    const base64 = fs.readFileSync(p).toString("base64");
-    return base64 ? `data:${mime};base64,${base64}` : "";
-  } catch {
-    return "";
-  }
+  return localImageFileToDataUrlApp(fileName, QUOTE_LOCAL_IMAGE_DIR);
 }
 
 function resolveModelSpecificLocalImageDataUrl(row: any): string {
-  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-  const canonical = (v: string) => normalizeCatalogQueryText(String(v || "")).replace(/[^a-z0-9]/g, "");
-  const modelHints = uniqueNormalizedStrings([
-    String(row?.name || ""),
-    String((source as any)?.quote_model || ""),
-    String((source as any)?.numero_modelo || ""),
-    ...extractModelLikeTokens(String(row?.name || "")),
-  ])
-    .map((x) => canonical(x))
-    .filter((x) => x.length >= 5);
-  if (!modelHints.length) return "";
-
-  const exts = [".png", ".jpg", ".jpeg", ".webp"];
-  for (const key of modelHints) {
-    for (const ext of exts) {
-      const local = localImageFileToDataUrl(`${key}${ext}`);
-      if (local) return local;
-    }
-  }
-  return "";
+  return resolveModelSpecificLocalImageDataUrlApp({ row, normalizeCatalogQueryText, uniqueNormalizedStrings, extractModelLikeTokens, quoteLocalImageDir: QUOTE_LOCAL_IMAGE_DIR });
 }
 
-let pdfParseModuleCache: any = null;
-const localQuotePdfTextCache = new Map<string, { at: number; lines: string[] }>();
 const localQuotePdfImageCache = new Map<string, { at: number; dataUrl: string; mtimeMs: number; byteSize: number }>();
 
-async function getPdfParseModule(): Promise<any> {
-  if (pdfParseModuleCache) return pdfParseModuleCache;
-  const mod: any = await import("pdf-parse");
-  pdfParseModuleCache = mod || {};
-  return pdfParseModuleCache;
-}
-
-function cleanPdfSpecLines(raw: string): string[] {
-  return String(raw || "")
-    .split(/\r?\n+/)
-    .map((l) => l.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-    .filter((l) => l.length >= 4)
-    .filter((l) => !/^pag\s*\d+/i.test(l))
-    .filter((l) => !/^fecha de /i.test(l))
-    .filter((l) => !/^item\s+producto/i.test(l))
-    .filter((l) => !/^contacto comercial$/i.test(l))
-    .filter((l) => !/^subtotal|^descuento|^iva|^valor total/i.test(l))
-    .filter((l) => !/^avanza internacional/i.test(l))
-    .filter((l) => normalizeText(l).length >= 4);
-}
-
-async function extractPdfTechnicalLines(row: any): Promise<string[]> {
-  if (!ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE) return [];
-  const localPath = pickBestLocalPdfPath(row, String(row?.name || ""));
-  if (!localPath || !fs.existsSync(localPath)) return [];
-  const cache = localQuotePdfTextCache.get(localPath);
-  if (cache && (Date.now() - cache.at) < 6 * 60 * 60 * 1000) return cache.lines;
-  try {
-    const pdfMod = await getPdfParseModule();
-    const PDFParse = (pdfMod as any)?.PDFParse || (pdfMod as any)?.default?.PDFParse;
-    if (!PDFParse) return [];
-    const buff = fs.readFileSync(localPath);
-    const parser: any = new PDFParse({ data: buff });
-    const parsed: any = await parser.getText();
-    await parser.destroy?.();
-    const lines = uniqueNormalizedStrings(cleanPdfSpecLines(String(parsed?.text || "")), 120);
-    console.log("[evolution-webhook] quote_pdf_text_lines", { model: String(row?.name || ""), count: lines.length, localPath });
-    localQuotePdfTextCache.set(localPath, { at: Date.now(), lines });
-    return lines;
-  } catch (err: any) {
-    console.warn("[evolution-webhook] quote_pdf_text_parse_failed", { model: String(row?.name || ""), localPath, error: err?.message || String(err || "") });
-    return [];
-  }
-}
-
 async function buildQuoteItemDescriptionAsync(row: any, fallbackName: string): Promise<string> {
-  const staticProfile = resolveStaticQuoteProfile(row, fallbackName);
-
-  const base = buildQuoteItemDescription(row, fallbackName)
-    .split("\n")
-    .map((l) => String(l || "").trim())
-    .filter(Boolean);
-  const pdfLines = await extractPdfTechnicalLines(row);
-  const merged: string[] = [];
-  for (const line of [...base, ...pdfLines]) {
-    const n = normalizeText(line);
-    if (!n) continue;
-    if (merged.some((x) => normalizeText(x) === n)) continue;
-    merged.push(line);
-    if (merged.length >= 34) break;
-  }
-
-  if (merged.length >= 8) return merged.join("\n");
-
-  if (staticProfile?.description) {
-    const enriched = [...merged];
-    const staticLines = String(staticProfile.description || "")
-      .split(/\r?\n/)
-      .map((l) => String(l || "").trim())
-      .filter(Boolean)
-      .filter((l) => {
-        const n = normalizeText(l);
-        return !/(^sap:|capacidad maxima|lectura minima)/.test(n);
-      });
-    for (const line of staticLines) {
-      const n = normalizeText(line);
-      if (!n) continue;
-      if (enriched.some((x) => normalizeText(x) === n)) continue;
-      enriched.push(line);
-      if (enriched.length >= 26) break;
-    }
-    if (enriched.length > merged.length && enriched.length >= 8) {
-      console.log("[evolution-webhook] quote_description_static_enriched", { model: String(row?.name || fallbackName || "") });
-      return enriched.join("\n");
-    }
-    console.log("[evolution-webhook] quote_description_static_fallback", { model: String(row?.name || fallbackName || "") });
-    return staticProfile.description;
-  }
-
-  if (merged.length) return merged.join("\n");
-
-  return buildQuoteItemDescription(row, fallbackName);
+  return buildQuoteItemDescriptionAsyncApp({
+    row,
+    fallbackName,
+    buildQuoteItemDescription,
+    normalizeText,
+    resolveStaticQuoteProfile: (r, f) => resolveStaticQuoteProfile(r, f),
+    enableRuntimePdfTextParseForQuote: ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE,
+    pickBestLocalPdfPath,
+    uniqueNormalizedStrings,
+  });
 }
 
 function detectTechResendIntent(text: string): "sheet" | "image" | "both" | null {
-  const t = normalizeText(text || "");
-  if (!t) return null;
-  const asksResend = /(reenviar|reenvia|reenvie|reenvio|volver a enviar|otra vez|de nuevo|manda de nuevo)/.test(t);
-  const asksSheet = /(ficha|datasheet|hoja tecnica|documento tecnico|especificaciones)/.test(t);
-  const asksImage = /(imagen|foto)/.test(t);
-  if (!asksResend) return null;
-  if (asksSheet && asksImage) return "both";
-  if (asksImage) return "image";
-  return "sheet";
+  return detectTechResendIntentApp(text, normalizeText);
 }
 
 function normalizeCatalogQueryText(text: string): string {
@@ -4952,27 +1004,11 @@ function normalizeCatalogQueryText(text: string): string {
 }
 
 function isContextResetIntent(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  return /(reinicia(?:r)?\s+contexto|reset(?:ear)?\s+contexto|reset\s+context|limpiar\s+contexto|borrar\s+contexto|olvida\s+contexto|olvida\s+todo|empecemos\s+de\s+nuevo|empezar\s+de\s+nuevo)/.test(t);
+  return isContextResetIntentApp(text, normalizeText);
 }
 
 function hasConcreteProductHint(text: string): boolean {
-  const t = normalizeCatalogQueryText(text || "");
-  if (!t) return false;
-
-  if (extractModelLikeTokens(t).length > 0) return true;
-
-  if (/\b(sjx|spx|stx|px\d{2,6}[a-z]?|ax\d{2,6}[a-z]?|mb\d{2,6}|st\d{2,6}|pr\d{2,6})\b/.test(t)) {
-    return true;
-  }
-
-  const hasFamily = /\b(scout|pioneer|adventurer|explorer|defender|ranger|valor|frontier|starter)\b/.test(t);
-  if (!hasFamily) return false;
-
-  const generic = new Set(["balanza", "balanzas", "bascula", "basculas", "electroquimica", "analizador", "humedad", "equipo", "equipos", "laboratorio"]);
-  const terms = extractCatalogTerms(t).filter((x) => !generic.has(x));
-  return terms.length >= 2;
+  return hasConcreteProductHintApp({ text, normalizeCatalogQueryText, extractModelLikeTokens, extractCatalogTerms });
 }
 
 function prefersWebTechPageOnly(category: string): boolean {
@@ -4981,22 +1017,11 @@ function prefersWebTechPageOnly(category: string): boolean {
 }
 
 function extractModelLikeTokens(text: string): string[] {
-  return Array.from(
-    new Set(
-      normalizeCatalogQueryText(text || "")
-        .split(/[^a-z0-9]+/i)
-        .map((x) => x.trim())
-        .filter((x) => x.length >= 3)
-        .filter((x) => /\d/.test(x))
-    )
-  );
+  return extractModelLikeTokensApp(text, normalizeCatalogQueryText);
 }
 
 function splitModelToken(token: string): { letters: string; digits: string } {
-  const t = normalizeCatalogQueryText(String(token || "")).replace(/[^a-z0-9]/g, "");
-  const letters = (t.match(/^[a-z]+/) || [""])[0];
-  const digits = (t.match(/\d+/g) || []).join("");
-  return { letters, digits };
+  return splitModelTokenApp(token, normalizeCatalogQueryText);
 }
 
 function isLikelyModelCodeToken(token: string): boolean {
@@ -5176,337 +1201,82 @@ function pickCatalogByVariantText(
   variantRows: any[],
   forcedCategory?: string
 ): any | null {
-  const requestedCategory = normalizeText(String(forcedCategory || detectCatalogCategoryIntent(text) || ""));
-  const scopedCatalog = requestedCategory ? scopeCatalogRows(catalogRows || [], requestedCategory) : (catalogRows || []);
-  const sourceCatalog = scopedCatalog.length ? scopedCatalog : (catalogRows || []);
-  if (!sourceCatalog.length || !Array.isArray(variantRows) || !variantRows.length) return null;
-
-  const byCatalogId = new Map<string, any>();
-  for (const row of sourceCatalog) {
-    const id = String(row?.id || "").trim();
-    if (id) byCatalogId.set(id, row);
-  }
-  if (!byCatalogId.size) return null;
-
-  const terms = extractCatalogTerms(text);
-  const modelTokens = extractModelLikeTokens(text);
-  const compactInbound = normalizeCatalogQueryText(text).replace(/[^a-z0-9]+/g, "");
-
-  let best: { row: any; score: number } | null = null;
-  for (const variant of variantRows) {
-    const catalogId = String((variant as any)?.catalog_id || "").trim();
-    const row = byCatalogId.get(catalogId);
-    if (!row) continue;
-
-    const attrs = (variant as any)?.attributes && typeof (variant as any).attributes === "object"
-      ? Object.values((variant as any).attributes as Record<string, any>).map((v) => String(v || "")).join(" ")
-      : String((variant as any)?.attributes || "");
-
-    const blob = `${(variant as any)?.sku || ""} ${(variant as any)?.variant_name || ""} ${(variant as any)?.range_text || ""} ${attrs} ${row?.name || ""}`;
-    const hay = normalizeCatalogQueryText(blob);
-    const hayCompact = hay.replace(/[^a-z0-9]+/g, "");
-
-    let score = 0;
-
-    if (modelTokens.length) {
-      const modelMatches = modelTokens.filter((t) => hay.includes(t));
-      if (!modelMatches.length) continue;
-      score += modelMatches.length * 10;
-      if (modelMatches.some((t) => hayCompact.includes(t))) score += 4;
-    }
-
-    if (compactInbound && hayCompact && compactInbound.includes(hayCompact)) score += 6;
-    if (compactInbound && hayCompact && hayCompact.includes(compactInbound)) score += 6;
-
-    for (const term of terms) {
-      if (hay.includes(term)) score += 3;
-    }
-
-    if (!modelTokens.length && terms.length && score < Math.min(6, terms.length * 3)) {
-      continue;
-    }
-
-    if (!best || score > best.score) best = { row, score };
-  }
-
-  return best?.row || null;
+  return pickCatalogByVariantTextApp({
+    text,
+    catalogRows,
+    variantRows,
+    forcedCategory,
+    normalizeText,
+    detectCatalogCategoryIntent,
+    scopeCatalogRows,
+    extractCatalogTerms,
+    extractModelLikeTokens,
+    normalizeCatalogQueryText,
+  });
 }
 
 function isProductLookupIntent(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  return /(tienen|tienes|tiene|manejan|venden|disponible|disponibilidad|hay|referencia|modelo|explorer|adventurer|balanza|analizador|centrifuga)/.test(t);
+  return isProductLookupIntentApp(text, normalizeText);
 }
 
 function isStrictCatalogIntent(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  return (
-    isProductLookupIntent(t) ||
-    isPriceIntent(t) ||
-    isRecommendationIntent(t) ||
-    isTechnicalSheetIntent(t) ||
-    isProductImageIntent(t) ||
-    Boolean(detectCatalogCategoryIntent(t))
-  );
+  return isStrictCatalogIntentApp({
+    text,
+    normalizeText,
+    isProductLookupIntent,
+    isPriceIntent,
+    isRecommendationIntent,
+    isTechnicalSheetIntent,
+    isProductImageIntent,
+    detectCatalogCategoryIntent,
+  });
 }
 
 function isCategoryFollowUpIntent(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  return /^(cuales|cu[aá]les|que tienen|que mas tienen|de cual|de cuales|muestrame|muestrame mas|dame una|damela|dámela|quiero esa|quiero ese|esa|ese)\b/.test(t);
+  return isCategoryFollowUpIntentApp(text, normalizeText);
 }
 
 function isConsistencyChallengeIntent(text: string): boolean {
-  const t = normalizeText(text || "");
-  if (!t) return false;
-  return /(arriba me dij|me dijiste|te contradices|contradic|eso no coincide|no coincide|pero dijiste)/.test(t);
+  return isConsistencyChallengeIntentApp(text, normalizeText);
 }
 
 function classifyIntent(text: string, memory?: Record<string, any>): ClassifiedIntent {
-  const t = normalizeText(text || "");
-  const category = detectCatalogCategoryIntent(t) || String(memory?.last_category_intent || "").trim() || null;
-  const requestDatasheet = isTechnicalSheetIntent(t) || isProductImageIntent(t);
-  const requestQuote = shouldAutoQuote(t) || isQuoteStarterIntent(t) || isQuoteProceedIntent(t);
-  const requestTrm = /(trm|tasa representativa|dolar hoy|usd cop|tasa de cambio)/.test(t);
-
-  let intent: ClassifiedIntent["intent"] = "aclaracion";
-  if (isGreetingIntent(t)) intent = "greeting";
-  else if (isHistoryIntent(t) || isQuoteRecallIntent(t)) intent = "consultar_historial";
-  else if (requestQuote) intent = "solicitar_cotizacion";
-  else if (requestDatasheet) intent = "solicitar_ficha";
-  else if (requestTrm) intent = "consultar_trm";
-  else if (isGuidedNeedDiscoveryText(t)) intent = "guided_need_discovery";
-  else if (category) intent = "consultar_categoria";
-  else if (isProductLookupIntent(t) || isPriceIntent(t) || isRecommendationIntent(t)) intent = "consultar_producto";
-  else if (/(gracias|ok gracias|listo gracias|chao|adios|hasta luego)/.test(t)) intent = "despedida";
-
-  return {
-    intent,
-    category,
-    product: null,
-    request_datasheet: requestDatasheet,
-    request_quote: requestQuote,
-    request_trm: requestTrm,
-    needs_clarification: intent === "aclaracion",
-  };
+  return classifyIntentApp({
+    text,
+    memory,
+    normalizeText,
+    detectCatalogCategoryIntent,
+    isTechnicalSheetIntent,
+    isProductImageIntent,
+    shouldAutoQuote,
+    isQuoteStarterIntent,
+    isQuoteProceedIntent,
+    isGreetingIntent,
+    isHistoryIntent,
+    isQuoteRecallIntent,
+    isGuidedNeedDiscoveryText,
+    isProductLookupIntent,
+    isPriceIntent,
+    isRecommendationIntent,
+  });
 }
 
 function findCatalogProductByName(rows: any[], rememberedName: string): any | null {
-  const target = normalizeText(rememberedName || "");
-  if (!target) return null;
-  const exact = (rows || []).find((r: any) => normalizeText(String(r?.name || "")) === target);
-  if (exact) return exact;
-  const partial = (rows || []).find((r: any) => target.includes(normalizeText(String(r?.name || ""))) || normalizeText(String(r?.name || "")).includes(target));
-  return partial || null;
-}
-
-function parseRate(v: any) {
-  const raw = String(v ?? "").trim().replace(/[^0-9,.-]/g, "");
-  if (!raw) return null;
-
-  const hasDot = raw.includes(".");
-  const hasComma = raw.includes(",");
-
-  let normalized = raw;
-  if (hasDot && hasComma) {
-    const lastDot = raw.lastIndexOf(".");
-    const lastComma = raw.lastIndexOf(",");
-    if (lastComma > lastDot) {
-      normalized = raw.replace(/\./g, "").replace(/,/g, ".");
-    } else {
-      normalized = raw.replace(/,/g, "");
-    }
-  } else if (hasComma) {
-    normalized = raw.replace(/,/g, ".");
-  }
-
-  const n = Number(normalized);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function isLikelyTrm(rate: number) {
-  return Number.isFinite(rate) && rate >= 1000 && rate <= 10000;
-}
-
-function todayKey() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().slice(0, 10);
-}
-
-async function fetchTrmFromSocrata() {
-  const url = "https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde%20desc";
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`Socrata TRM failed (${res.status})`);
-  const rows = await res.json();
-  const first = Array.isArray(rows) ? rows[0] : null;
-  const rate = parseRate(first?.valor);
-  if (!rate || !isLikelyTrm(rate)) throw new Error("Invalid TRM payload");
-  return { rate, source: "datos.gov.co", source_url: url };
-}
-
-async function fetchTrmFallback() {
-  const url = "https://open.er-api.com/v6/latest/USD";
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`Fallback FX failed (${res.status})`);
-  const json = await res.json();
-  const rate = Number(json?.rates?.COP || 0);
-  if (!isLikelyTrm(rate)) throw new Error("Invalid fallback FX payload");
-  return { rate, source: "open.er-api.com", source_url: url };
+  return findCatalogProductByNameApp(rows, rememberedName, normalizeText);
 }
 
 async function getOrFetchTrm(supabase: any, ownerId: string, tenantId: string | null) {
-  const day = todayKey();
-  const { data: cached } = await supabase
-    .from("agent_fx_rates")
-    .select("id,rate,rate_date,source")
-    .eq("tenant_id", tenantId)
-    .eq("created_by", ownerId)
-    .eq("from_currency", "USD")
-    .eq("to_currency", "COP")
-    .eq("rate_date", day)
-    .maybeSingle();
-
-  if (cached?.rate && isLikelyTrm(Number(cached.rate))) return cached;
-
-  let fetched: { rate: number; source: string; source_url: string };
-  try {
-    fetched = await fetchTrmFromSocrata();
-  } catch {
-    fetched = await fetchTrmFallback();
-  }
-
-  const payload = {
-    tenant_id: tenantId,
-    created_by: ownerId,
-    rate_date: day,
-    from_currency: "USD",
-    to_currency: "COP",
-    rate: fetched.rate,
-    source: fetched.source,
-    source_url: fetched.source_url,
-  };
-
-  const { data, error } = await supabase
-    .from("agent_fx_rates")
-    .upsert(payload, { onConflict: "tenant_id,rate_date,from_currency,to_currency" })
-    .select("id,rate,rate_date,source")
-    .single();
-  if (error) throw new Error(error.message);
-  return data;
-}
-
-function formatMoney(n: number) {
-  return new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 }).format(Number(n || 0));
-}
-
-function rowCatalogCopPrice(row: any): number {
-  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-  const prices = source?.prices_cop && typeof source.prices_cop === "object" ? source.prices_cop : {};
-  const parse = (v: any) => {
-    const n = Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  };
-  return parse((prices as any)?.bogota) || parse((prices as any)?.antioquia) || parse((prices as any)?.distribuidor) || 0;
+  return getOrFetchTrmApp(supabase, ownerId, tenantId);
 }
 
 function buildPriceRangeLine(rows: any[]): string {
-  const list = Array.isArray(rows) ? rows : [];
-  const sample = [...list]
-    .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0))
-    .slice(0, Math.min(12, Math.max(3, list.length)));
-  const industrialHits = sample.filter((r: any) => {
-    const txt = normalizeText(`${String(r?.name || "")} ${String(r?.category || "")} ${familyLabelFromRow(r)}`);
-    return /(industrial|plataforma|ranger|defender|valor|rc31|r31|r71|ckw|td52p)/.test(txt);
-  }).length;
-  const isIndustrialProfile = industrialHits > 0 && industrialHits >= Math.max(1, Math.floor(sample.length / 3));
-  return isIndustrialProfile
-    ? "💰 Valores estimados: desde $3.500.000 (según gama y funcionalidad). Deseas continuar con la cotizacion"
-    : "💰 Valores estimados: desde $4.000.000 (según gama y funcionalidad). Deseas continuar con la cotizacion";
-}
-
-function isLargestCapacityAsk(text: string): boolean {
-  const t = normalizeText(String(text || ""));
-  if (!t) return false;
-  return /(mas\s+grandes|m[aá]s\s+grandes|mayor\s+capacidad|mas\s+capacidad|m[aá]s\s+capacidad|de\s+mayor\s+capacidad|mas\s+peso|m[aá]s\s+peso)/.test(t);
+  return buildPriceRangeLineApp({ rows, normalizeText, getRowCapacityG, familyLabelFromRow });
 }
 
 function buildLargestCapacitySuggestion(rows: any[]): { options: any[]; reply: string } {
-  const source = Array.isArray(rows) ? rows : [];
-  const byCapacity = [...source]
-    .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
-    .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
-  const topRows = byCapacity.length ? byCapacity : source;
-  const options = buildNumberedProductOptions(topRows.slice(0, 8) as any[], 8);
-  const priceLine = buildPriceRangeLine(topRows as any[]);
-  const gamaLabelMap: Record<string, string> = {
-    basica: "Línea básica (uso industrial estándar)",
-    media: "Línea media (mayor precisión)",
-    alta: "Línea alta (alta precisión industrial)",
-    esencial: "Línea esencial: soluciones confiables para empresas en crecimiento",
-    intermedia: "Línea intermedia: mayor desempeño y funciones para empresas en expansión",
-    avanzada: "Línea avanzada: mayor rendimiento para empresas con alta demanda",
-    premium: "Línea premium: soluciones de alto nivel para empresas de gran escala",
-  };
-  const order = ["basica", "media", "alta", "esencial", "intermedia", "avanzada", "premium"];
-  const bucket = new Map<string, string[]>();
-  for (const key of order) bucket.set(key, []);
-  bucket.set("", []);
-  for (const o of options.slice(0, 6)) {
-    const m = String(o?.name || "").match(/\bGama:\s*([^|]+)/i);
-    const key = normalizeText(String(m?.[1] || "")).replace(/[^a-z]/g, "");
-    if (!bucket.has(key)) bucket.set(key, []);
-    bucket.get(key)!.push(`${o.code}) ${o.name}`);
-  }
-  const groupedLines: string[] = [];
-  for (const key of order) {
-    const items = bucket.get(key) || [];
-    if (!items.length) continue;
-    groupedLines.push(gamaLabelMap[key] || `Línea ${key}`);
-    groupedLines.push(...items);
-    groupedLines.push("");
-  }
-  const others = bucket.get("") || [];
-  if (others.length) groupedLines.push(...others, "");
-  const reply = [
-    "Claro. Estas son las balanzas de mayor capacidad que tengo activas en catálogo:",
-    ...(priceLine ? [priceLine] : []),
-    ...groupedLines,
-    "Elige con letra/número (A/1), o escribe 'más'.",
-  ].join("\n");
-  return { options, reply };
+  return buildLargestCapacitySuggestionApp({ rows, buildNumberedProductOptions, getRowCapacityG, normalizeText, familyLabelFromRow });
 }
 
-function quoteCodeFromDraftId(draftId: string) {
-  const raw = String(draftId || "");
-  let h = 0;
-  for (let i = 0; i < raw.length; i += 1) h = (h * 31 + raw.charCodeAt(i)) | 0;
-  const n = Math.abs(h % 100000);
-  return `CO${String(n).padStart(5, "0")}`;
-}
-
-function asDateYmd(input: Date | string) {
-  const d = input instanceof Date ? input : new Date(input);
-  const ts = Number.isFinite(d.getTime()) ? d.getTime() : Date.now();
-  return new Date(ts).toISOString().slice(0, 10);
-}
-
-const QUOTE_BANNER_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_BANNER_IMAGE_URL || "").trim();
-const LOCAL_QUOTE_BANNER_PATH = String(
-  process.env.WHATSAPP_QUOTE_BANNER_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "header_banner_superior.png")
-).trim();
-const QUOTE_PERKS_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_PERKS_IMAGE_URL || "").trim();
-const LOCAL_QUOTE_PERKS_PATH = String(
-  process.env.WHATSAPP_QUOTE_PERKS_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "strip_perks_3_iconos.png")
-).trim();
-const QUOTE_SOCIAL_IMAGE_URL = String(process.env.WHATSAPP_QUOTE_SOCIAL_IMAGE_URL || "").trim();
-const LOCAL_QUOTE_SOCIAL_PATH = String(
-  process.env.WHATSAPP_QUOTE_SOCIAL_LOCAL_PATH ||
-  path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "strip_redes_fb_ig_in.png")
-).trim();
 const LOCAL_QUOTE_SOCIAL_FB_PATH = String(
   process.env.WHATSAPP_QUOTE_SOCIAL_FB_LOCAL_PATH ||
   path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "social_fb.png")
@@ -5519,625 +1289,27 @@ const LOCAL_QUOTE_SOCIAL_IN_PATH = String(
   process.env.WHATSAPP_QUOTE_SOCIAL_IN_LOCAL_PATH ||
   path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "social_in.png")
 ).trim();
-const QUOTE_ASSET_CACHE_MS = Math.max(0, Number(process.env.WHATSAPP_QUOTE_ASSET_CACHE_MS || 300000));
-let quoteBannerImageCache: { at: number; dataUrl: string } | null = null;
-let quotePerksImageCache: { at: number; dataUrl: string } | null = null;
-let quoteSocialImageCache: { at: number; dataUrl: string } | null = null;
-
-function absoluteImageFileToDataUrl(absolutePath: string): string {
-  const p = String(absolutePath || "").trim();
-  if (!p || !fs.existsSync(p)) return "";
-  const ext = String(path.extname(p || "")).toLowerCase();
-  const mime = ext === ".png" ? "image/png" : (ext === ".jpg" || ext === ".jpeg") ? "image/jpeg" : ext === ".webp" ? "image/webp" : "";
-  if (!mime) return "";
-  try {
-    const base64 = fs.readFileSync(p).toString("base64");
-    return base64 ? `data:${mime};base64,${base64}` : "";
-  } catch {
-    return "";
-  }
-}
-
-function imageDataUrlFromRemote(remote: { base64: string; mimetype: string } | null): string {
-  if (!remote) return "";
-  const mime = String(remote.mimetype || "").toLowerCase();
-  if (!/^image\//.test(mime)) return "";
-  const b64 = String(remote.base64 || "").trim();
-  if (!b64) return "";
-  return `data:${mime};base64,${b64}`;
-}
-
 async function resolveQuoteBannerImageDataUrl(): Promise<string> {
-  const now = Date.now();
-  if (quoteBannerImageCache && (now - quoteBannerImageCache.at) < QUOTE_ASSET_CACHE_MS) {
-    return quoteBannerImageCache.dataUrl;
-  }
-  let dataUrl = "";
-
-  const localPath = [
-    String(LOCAL_QUOTE_BANNER_PATH || "").trim(),
-    path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "banner_cotizacion_avanza_ohaus.png"),
-  ].find((p) => p && fs.existsSync(p)) || "";
-  if (localPath && fs.existsSync(localPath)) {
-    try {
-      const ext = String(path.extname(localPath || "")).toLowerCase();
-      const mime = ext === ".png"
-        ? "image/png"
-        : (ext === ".jpg" || ext === ".jpeg")
-          ? "image/jpeg"
-          : ext === ".webp"
-            ? "image/webp"
-            : "";
-      if (mime) {
-        const base64 = fs.readFileSync(localPath).toString("base64");
-        if (base64) dataUrl = `data:${mime};base64,${base64}`;
-      }
-    } catch {
-      dataUrl = "";
-    }
-  }
-
-  if (!dataUrl && QUOTE_BANNER_IMAGE_URL) {
-    const remote = await fetchRemoteFileAsBase64(QUOTE_BANNER_IMAGE_URL);
-    dataUrl = imageDataUrlFromRemote(remote);
-  }
-
-  quoteBannerImageCache = { at: now, dataUrl };
-  return dataUrl;
+  return resolveQuoteBannerImageDataUrlApp(fetchRemoteFileAsBase64);
 }
 
 async function resolveQuotePerksImageDataUrl(): Promise<string> {
-  const now = Date.now();
-  if (quotePerksImageCache && (now - quotePerksImageCache.at) < QUOTE_ASSET_CACHE_MS) {
-    return quotePerksImageCache.dataUrl;
-  }
-  let dataUrl = "";
-
-  const localPath = [
-    String(LOCAL_QUOTE_PERKS_PATH || "").trim(),
-    path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook-v2", "ee3062f7-f286-4d62-b63b-29c796a8799f.png"),
-  ].find((p) => p && fs.existsSync(p)) || "";
-  if (localPath && fs.existsSync(localPath)) {
-    try {
-      const ext = String(path.extname(localPath || "")).toLowerCase();
-      const mime = ext === ".png"
-        ? "image/png"
-        : (ext === ".jpg" || ext === ".jpeg")
-          ? "image/jpeg"
-          : ext === ".webp"
-            ? "image/webp"
-            : "";
-      if (mime) {
-        const base64 = fs.readFileSync(localPath).toString("base64");
-        if (base64) dataUrl = `data:${mime};base64,${base64}`;
-      }
-    } catch {
-      dataUrl = "";
-    }
-  }
-
-  if (!dataUrl && QUOTE_PERKS_IMAGE_URL) {
-    const remote = await fetchRemoteFileAsBase64(QUOTE_PERKS_IMAGE_URL);
-    dataUrl = imageDataUrlFromRemote(remote);
-  }
-
-  quotePerksImageCache = { at: now, dataUrl };
-  return dataUrl;
+  return resolveQuotePerksImageDataUrlApp(fetchRemoteFileAsBase64);
 }
 
 async function resolveQuoteSocialImageDataUrl(): Promise<string> {
-  const now = Date.now();
-  if (quoteSocialImageCache && (now - quoteSocialImageCache.at) < QUOTE_ASSET_CACHE_MS) {
-    return quoteSocialImageCache.dataUrl;
-  }
-  let dataUrl = "";
-
-  const localPath = String(LOCAL_QUOTE_SOCIAL_PATH || "").trim();
-  if (localPath && fs.existsSync(localPath)) {
-    try {
-      const ext = String(path.extname(localPath || "")).toLowerCase();
-      const mime = ext === ".png"
-        ? "image/png"
-        : (ext === ".jpg" || ext === ".jpeg")
-          ? "image/jpeg"
-          : ext === ".webp"
-            ? "image/webp"
-            : "";
-      if (mime) {
-        const base64 = fs.readFileSync(localPath).toString("base64");
-        if (base64) dataUrl = `data:${mime};base64,${base64}`;
-      }
-    } catch {
-      dataUrl = "";
-    }
-  }
-
-  if (!dataUrl && QUOTE_SOCIAL_IMAGE_URL) {
-    const remote = await fetchRemoteFileAsBase64(QUOTE_SOCIAL_IMAGE_URL);
-    dataUrl = imageDataUrlFromRemote(remote);
-  }
-
-  quoteSocialImageCache = { at: now, dataUrl };
-  return dataUrl;
+  return resolveQuoteSocialImageDataUrlApp(fetchRemoteFileAsBase64);
 }
 
 async function resolveProductImageDataUrl(row: any): Promise<string> {
-  const localModelSpecific = resolveModelSpecificLocalImageDataUrl(row);
-  if (localModelSpecific) return localModelSpecific;
-
-  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-  const candidates = uniqueNormalizedStrings([
-    String(row?.image_url || "").trim(),
-    String((source as any)?.image_url || "").trim(),
-    String((source as any)?.image || "").trim(),
-  ]).filter((u) => /^https?:\/\//i.test(u));
-  for (const u of candidates) {
-    const remote = await fetchRemoteFileAsBase64(u);
-    const dataUrl = imageDataUrlFromRemote(remote);
-    if (dataUrl) return dataUrl;
-  }
-
-  // Intentionally avoid extracting image from local quote PDFs here.
-  // Those PDFs can contain a generic hero image and make multi-product
-  // quotations look like every row has the same product photo.
-
-  const staticProfile = resolveStaticQuoteProfile(row, String(row?.name || ""));
-  if (staticProfile?.imageFile) {
-    const local = localImageFileToDataUrl(staticProfile.imageFile);
-    if (local) {
-      console.log("[evolution-webhook] quote_image_static_ok", { model: String(row?.name || ""), imageFile: staticProfile.imageFile });
-      return local;
-    }
-  }
-
-  return "";
-}
-
-type QuotePdfLineItem = {
-  productName: string;
-  quantity: number;
-  basePriceUsd: number;
-  trmRate: number;
-  totalCop: number;
-  description?: string;
-  warranty?: string;
-  imageDataUrl?: string;
-};
-
-function quoteIvaRate(): number {
-  const raw = Number(process.env.WHATSAPP_QUOTE_IVA_RATE || 0.19);
-  if (!Number.isFinite(raw) || raw < 0 || raw > 1) return 0.19;
-  return raw;
-}
-
-async function buildStandardQuotePdf(args: {
-  quoteNumber: string;
-  issueDate: string;
-  validUntil: string;
-  companyName: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  city?: string;
-  nit?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  items: QuotePdfLineItem[];
-}) {
-  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
-  const ptToMm = (v: number) => (v * 25.4) / 72;
-  const marginLeft = ptToMm(33.12);
-  const marginTop = ptToMm(54.0);
-  const contentW = ptToMm(533.64);
-
-  const CONTACT_H = ptToMm(55.23);
-  const OBS_H = ptToMm(55.2);
-  const FOOTER_H = ptToMm(109.46);
-
-  const blue = [9, 137, 189] as const;
-  const dark = [20, 20, 20] as const;
-  const phoneSafe = normalizePhone(args.customerPhone || "");
-  const ivaRate = quoteIvaRate();
-  const footerPageTop = ptToMm(813.54);
-
-  const bannerDataUrl = await resolveQuoteBannerImageDataUrl();
-  const perksDataUrl = await resolveQuotePerksImageDataUrl();
-  const socialDataUrl = await resolveQuoteSocialImageDataUrl();
-
-  const x = marginLeft;
-  const y = marginTop;
-
-  // Header frame
-  const hasEmbeddedHeader = Boolean(String(bannerDataUrl || "").trim());
-  const bannerBoxH = hasEmbeddedHeader ? ptToMm(192.39) : 27.8;
-  const inviteStripH = hasEmbeddedHeader ? 0 : 10.2;
-  const titleStripH = hasEmbeddedHeader ? 0 : 4.8;
-  const bannerX = x;
-  const bannerY = y;
-  const bannerW = contentW;
-  const bannerH = ptToMm(192.39);
-
-  doc.setDrawColor(35, 35, 35);
-  doc.setLineWidth(ptToMm(0.14));
-  doc.rect(x, y, contentW, bannerBoxH + inviteStripH + titleStripH, "S");
-
-  if (bannerDataUrl) {
-    try {
-      const fmt = /^data:image\/png/i.test(bannerDataUrl) ? "PNG" : /^data:image\/webp/i.test(bannerDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(bannerDataUrl, fmt as any, bannerX, bannerY, bannerW, bannerH, undefined, "SLOW");
-    } catch {
-      // ignore
-    }
-  }
-
-  if (!hasEmbeddedHeader) {
-    const inviteY = y + bannerBoxH;
-    doc.setFillColor(blue[0], blue[1], blue[2]);
-    doc.rect(x, inviteY, contentW, inviteStripH, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.3);
-    doc.text(
-      [
-        "AVANZA INTERNACIONAL GROUP S.A.S. como representantes directo de la marca OHAUS para Colombia,",
-        "agradece su amable invitación a cotizar nuestra línea de equipos de laboratorio y nuestra línea de servicio técnico",
-        "como mantenimiento preventivo, correctivo, soporte técnico y acompañamiento.",
-      ],
-      x + contentW / 2,
-      inviteY + 3.05,
-      { align: "center" },
-    );
-
-    const titleY = inviteY + inviteStripH;
-    doc.setFillColor(blue[0], blue[1], blue[2]);
-    doc.rect(x, titleY, contentW, titleStripH, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.8);
-    doc.text("Información general", x + contentW / 2, titleY + 3.35, { align: "center" });
-    doc.setTextColor(dark[0], dark[1], dark[2]);
-  }
-
-  // Info general
-  const infoTop = y + bannerBoxH;
-  const infoH = ptToMm(82.35);
-  doc.setLineWidth(ptToMm(0.14));
-  doc.rect(x, infoTop, contentW, infoH, "S");
-  const halfX = ptToMm(305.81);
-  doc.line(halfX, infoTop, halfX, infoTop + infoH);
-  for (let i = 1; i <= 6; i += 1) {
-    const yy = infoTop + ptToMm(13.56) * i;
-    doc.line(x, yy, x + contentW, yy);
-  }
-
-  const leftRows: Array<[string, string]> = [
-    ["Cliente", args.companyName || args.customerName || "-"],
-    ["Contacto", args.customerName || "-"],
-    ["Dirección", String(args.city || "Bogota D.C")],
-    ["Numero de Cotizacion", args.quoteNumber],
-    ["Forma de Pago", "Contado"],
-  ];
-  const rightRows: Array<[string, string]> = [
-    ["NIT", String(args.nit || "-")],
-    ["Celular", phoneSafe.length >= 10 && phoneSafe.length <= 15 ? phoneSafe : "-"],
-    ["Correo", args.customerEmail || "-"],
-    ["Fecha de Validez", args.validUntil],
-    ["Fecha de Entrega", "45 días hábiles"],
-  ];
-
-  let rowY = infoTop + ptToMm(10.8);
-  for (let i = 0; i < 5; i += 1) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.04);
-    const l = `${leftRows[i][0]}:`;
-    doc.text(l, x + 2, rowY);
-    doc.setFont("helvetica", "normal");
-    doc.text(String(leftRows[i][1] || "-").slice(0, 35), x + 2 + doc.getTextWidth(l) + 2, rowY);
-
-    doc.setFont("helvetica", "bold");
-    const r = `${rightRows[i][0]}:`;
-    doc.text(r, halfX + 2, rowY);
-    doc.setFont("helvetica", "normal");
-    doc.text(String(rightRows[i][1] || "-").slice(0, 33), halfX + 2 + doc.getTextWidth(r) + 2, rowY);
-    rowY += ptToMm(13.56);
-  }
-
-  // Main table header
-  const tableHeadY = infoTop + infoH;
-  const headH = ptToMm(13.68);
-  const c0 = ptToMm(33.12);
-  const c1 = ptToMm(59.52);
-  const c2 = ptToMm(141.62);
-  const c3 = ptToMm(305.81);
-  const c4 = ptToMm(374.23);
-  const c5 = ptToMm(415.27);
-  const c6 = ptToMm(483.70);
-  const c7 = ptToMm(566.76);
-  const descW = c3 - c2;
-  const warrantyW = c4 - c3;
-  const unitW = c6 - c5;
-  const totalW = c7 - c6;
-
-  doc.setFillColor(blue[0], blue[1], blue[2]);
-  doc.rect(ptToMm(32.64), tableHeadY, ptToMm(533.76), headH, "F");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.96);
-  doc.setTextColor(255, 255, 255);
-  doc.text("Item", c0 + ptToMm(1.8), tableHeadY + ptToMm(9.4));
-  doc.text("Producto", c1 + ptToMm(1.5), tableHeadY + ptToMm(9.4));
-  doc.text("Descripcion", c2 + ptToMm(1.5), tableHeadY + ptToMm(9.4));
-  doc.text("Garantía", c3 + ptToMm(1.5), tableHeadY + ptToMm(9.4));
-  doc.text("Cant.", c5 - ptToMm(1.2), tableHeadY + ptToMm(9.4), { align: "right" });
-  doc.text("Valor unit.", c6 - ptToMm(1.2), tableHeadY + ptToMm(9.4), { align: "right" });
-  doc.text("Valor total", c7 - ptToMm(1.2), tableHeadY + ptToMm(9.4), { align: "right" });
-  doc.setTextColor(dark[0], dark[1], dark[2]);
-
-  const normalizedLineItems = (Array.isArray(args.items) && args.items.length ? args.items : [{
-    productName: "-",
-    quantity: 1,
-    basePriceUsd: 0,
-    trmRate: 0,
-    totalCop: 0,
-    description: "Producto sin detalle",
-    warranty: "1 AÑO POR DEFECTO DE FABRICA",
-    imageDataUrl: "",
-  }]).map((row) => {
-    const qty = Math.max(1, Number(row.quantity || 1));
-    const lineTotal = Number(row.totalCop || 0) > 0
-      ? Number(row.totalCop || 0)
-      : Number(row.basePriceUsd || 0) * Number(row.trmRate || 0) * qty;
-    return {
-      ...row,
-      quantity: qty,
-      lineTotal,
-    };
+  return resolveProductImageDataUrlApp({
+    row,
+    resolveModelSpecificLocalImageDataUrl,
+    uniqueNormalizedStrings,
+    fetchRemoteFileAsBase64,
+    resolveStaticQuoteProfile,
+    localImageFileToDataUrl,
   });
-
-  let subtotal = 0;
-  const itemRowY = tableHeadY + headH;
-  const itemRowH = ptToMm(258.62);
-  doc.setLineWidth(ptToMm(0.14));
-  doc.rect(x, itemRowY, contentW, itemRowH, "S");
-  [c1, c2, c3, c4, c5, c6].forEach((cx) => doc.line(cx, itemRowY, cx, itemRowY + itemRowH));
-
-  if (normalizedLineItems.length <= 1) {
-    const item = normalizedLineItems[0];
-    const qty = Math.max(1, Number(item.quantity || 1));
-    const lineTotal = Number(item.lineTotal || 0);
-    subtotal = lineTotal;
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.96);
-    doc.text("1", c0 + 3, itemRowY + 5);
-    doc.setFont("helvetica", "bold");
-    doc.text(String(item.productName || "-").slice(0, 20), c1 + 1.5, itemRowY + 5);
-    doc.setFont("helvetica", "normal");
-
-    if (ENABLE_QUOTE_PRODUCT_IMAGE && String(item.imageDataUrl || "").trim()) {
-      try {
-        const img = String(item.imageDataUrl || "").trim();
-        const fmt = /^data:image\/png/i.test(img) ? "PNG" : /^data:image\/webp/i.test(img) ? "WEBP" : "JPEG";
-        const boxX = ptToMm(65.87);
-        const boxY = ptToMm(350.13);
-        const boxW = ptToMm(70.36);
-        const boxH = ptToMm(90.54);
-        let dw = boxW;
-        let dh = boxH;
-        try {
-          const props: any = (doc as any).getImageProperties?.(img);
-          const iw = Number(props?.width || 0);
-          const ih = Number(props?.height || 0);
-          if (iw > 0 && ih > 0) {
-            const s = Math.min(boxW / iw, boxH / ih);
-            dw = iw * s;
-            dh = ih * s;
-          }
-        } catch {}
-        doc.addImage(img, fmt as any, boxX + (boxW - dw) / 2, boxY + (boxH - dh) / 2, dw, dh);
-      } catch {}
-    }
-
-    const descText = String(item.description || `Producto: ${String(item.productName || "-")}`)
-      .replace(/[^\x20-\x7EÁÉÍÓÚáéíóúÑñÜü°µ±×.,:;()\/-]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    const descLines = doc.splitTextToSize(descText, descW - 2).slice(0, 28);
-    if (descLines.length >= 28) descLines[27] = `${String(descLines[27] || "").trimEnd()}...`;
-    doc.text(descLines, c2 + 1.2, itemRowY + 5);
-
-    const warrantyLines = doc.splitTextToSize(String(item.warranty || "1 AÑO POR DEFECTO DE FABRICA"), warrantyW - 2);
-    doc.text(warrantyLines, c3 + 1.2, itemRowY + 5);
-    doc.text(String(qty), c5 - 1.2, itemRowY + 5, { align: "right" });
-    doc.setFontSize(8.04);
-    doc.text(`$ ${formatMoney(lineTotal / qty)}`, c6 - 1.2, itemRowY + 5, { align: "right" });
-    doc.text(`$ ${formatMoney(lineTotal)}`, c7 - 1.2, itemRowY + 5, { align: "right" });
-  } else {
-    const maxRows = Math.min(normalizedLineItems.length, 6);
-    const rowH = itemRowH / maxRows;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.6);
-
-    for (let i = 0; i < maxRows; i += 1) {
-      if (i > 0) {
-        const yy = itemRowY + rowH * i;
-        doc.line(x, yy, x + contentW, yy);
-      }
-
-      const row = normalizedLineItems[i];
-      const top = itemRowY + rowH * i;
-      const textY = top + 4.4;
-      const qty = Math.max(1, Number(row.quantity || 1));
-      const lineTotal = Number(row.lineTotal || 0);
-      subtotal += lineTotal;
-
-      doc.setFont("helvetica", "normal");
-      doc.text(String(i + 1), c0 + 3, textY);
-      doc.setFont("helvetica", "bold");
-      doc.text(String(row.productName || "-").slice(0, 24), c1 + 1.2, textY);
-      doc.setFont("helvetica", "normal");
-
-      if (ENABLE_QUOTE_PRODUCT_IMAGE && String(row.imageDataUrl || "").trim()) {
-        try {
-          const img = String(row.imageDataUrl || "").trim();
-          const fmt = /^data:image\/png/i.test(img) ? "PNG" : /^data:image\/webp/i.test(img) ? "WEBP" : "JPEG";
-          const boxX = c1 + 1.2;
-          const boxY = textY + 2.2;
-          const boxW = 17;
-          const maxBoxH = Math.max(10, rowH - 9.5);
-          const boxH = Math.min(22, maxBoxH);
-          let drawW = boxW;
-          let drawH = boxH;
-          try {
-            const props: any = (doc as any).getImageProperties?.(img);
-            const iw = Number(props?.width || 0);
-            const ih = Number(props?.height || 0);
-            if (iw > 0 && ih > 0) {
-              const scale = Math.min(boxW / iw, boxH / ih);
-              drawW = Math.max(6, iw * scale);
-              drawH = Math.max(6, ih * scale);
-            }
-          } catch {}
-          doc.addImage(img, fmt as any, boxX + (boxW - drawW) / 2, boxY + (boxH - drawH) / 2, drawW, drawH);
-        } catch {}
-      }
-
-      const descText = String(row.description || `Producto: ${String(row.productName || "-")}`)
-        .replace(/[^\x20-\x7EÁÉÍÓÚáéíóúÑñÜü°µ±×.,:;()\/-]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      const descMax = Math.max(2, Math.min(7, Math.floor((rowH - 3) / 2.8)));
-      const descLines = doc.splitTextToSize(descText, descW - 2).slice(0, descMax);
-      if (doc.splitTextToSize(descText, descW - 2).length > descMax && descLines.length) {
-        const last = descLines.length - 1;
-        descLines[last] = `${String(descLines[last] || "").trimEnd()}...`;
-      }
-      doc.text(descLines, c2 + 1.2, textY);
-
-      const wMax = Math.max(1, Math.min(4, Math.floor((rowH - 3) / 3.2)));
-      const warrantyLines = doc.splitTextToSize(String(row.warranty || "1 AÑO POR DEFECTO DE FABRICA"), warrantyW - 2).slice(0, wMax);
-      doc.text(warrantyLines, c3 + 1.2, textY);
-      doc.text(String(qty), c5 - 1.2, textY, { align: "right" });
-      doc.text(`$ ${formatMoney(lineTotal / qty)}`, c6 - 1.2, textY, { align: "right" });
-      doc.text(`$ ${formatMoney(lineTotal)}`, c7 - 1.2, textY, { align: "right" });
-    }
-
-    if (normalizedLineItems.length > maxRows) {
-      const hidden = normalizedLineItems.length - maxRows;
-      const foot = `+${hidden} referencia(s) adicional(es) en la cotizacion consolidada`;
-      doc.setFontSize(6.2);
-      doc.text(foot, c2 + 1.2, itemRowY + itemRowH - 2.6);
-    }
-  }
-
-  // Contact + totals row
-  const contactTop = itemRowY + itemRowH;
-  const totalsX = ptToMm(415.27);
-  const totalsW = ptToMm(151.49);
-  const contactLeftW = ptToMm(415.27 - 33.12);
-
-  doc.rect(x, contactTop, contactLeftW, CONTACT_H, "S");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.04);
-  doc.text("Contacto Comercial", x + 1.5, contactTop + 3.8);
-  doc.text("Milena", x + 1.5, contactTop + 7.8);
-  doc.text("CEL 3008265047", x + 1.5, contactTop + 11.8);
-  doc.text("cotizaciones@avanzagroup.com.co", x + 1.5, contactTop + 15.8);
-
-  const iva = subtotal * ivaRate;
-  const total = subtotal + iva;
-
-  doc.setFillColor(blue[0], blue[1], blue[2]);
-  const totalsLabelW = ptToMm(68.43);
-  const totalsValueW = ptToMm(83.06);
-  doc.rect(totalsX, contactTop, totalsLabelW, CONTACT_H, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.04);
-  doc.text("Subtotal:", totalsX + 1.6, contactTop + 4.2);
-  doc.text("Descuento:", totalsX + 1.6, contactTop + 8.4);
-  doc.text(`IVA (${Math.round(ivaRate * 100)}%):`, totalsX + 1.6, contactTop + 12.6);
-  doc.text("Valor total:", totalsX + 1.6, contactTop + 16.8);
-  doc.setTextColor(dark[0], dark[1], dark[2]);
-  doc.rect(totalsX + totalsLabelW, contactTop, totalsValueW, CONTACT_H, "S");
-  const valRight = ptToMm(566.76) - ptToMm(3.2);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.1);
-  doc.text(`$${formatMoney(subtotal)}`, valRight, contactTop + 4.2, { align: "right" });
-  doc.text(`$${formatMoney(0)}`, valRight, contactTop + 8.4, { align: "right" });
-  doc.text(`$${formatMoney(iva)}`, valRight, contactTop + 12.6, { align: "right" });
-  doc.setFont("helvetica", "bold");
-  doc.text(`$${formatMoney(total)}`, valRight, contactTop + 16.8, { align: "right" });
-
-  // Observaciones block (full width)
-  const obsTop = contactTop + CONTACT_H;
-  doc.rect(x, obsTop, contentW, OBS_H, "S");
-  const legal = [
-    "Observaciones generales de la cotización",
-    "- Todos los distribuidores asumen el valor del flete. En el caso de clientes, el flete sera asumido unicamente si el envio es fuera de Bogota.",
-    "- No realizamos devoluciones de dinero, excepto cuando se confirme un error de asesoramiento por parte de nuestro equipo.",
-    "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
-    `${String(args.city || "Bogota D.C")}, ${args.issueDate}`,
-  ].join("\n");
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.96);
-  const legalLines = doc.splitTextToSize(legal, contentW - 3).slice(0, 16);
-  doc.text(legalLines, x + 1.5, obsTop + 4.5);
-
-  // Footer company + perks/social
-  const footerTop = obsTop + OBS_H;
-  doc.rect(x, footerTop, contentW, FOOTER_H, "S");
-
-  const textW = contentW - 44;
-  const companyFooter = [
-    "AVANZA INTERNACIONAL GROUP S.A.S",
-    "Autopista Medellín k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a. NIT 900505419",
-    "CELULAR 321 2165 771",
-    "www.balanzasybasculas.com.co - www.avanzagroup.com.co",
-  ].join("\n");
-  doc.setFontSize(8.04);
-  const companyLines = doc.splitTextToSize(companyFooter, textW).slice(0, 7);
-  doc.text(companyLines, x + 1.5, footerTop + 6);
-
-  if (perksDataUrl) {
-    try {
-      const perksFmt = /^data:image\/png/i.test(perksDataUrl) ? "PNG" : /^data:image\/webp/i.test(perksDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(perksDataUrl, perksFmt as any, ptToMm(422.17), ptToMm(713.77), ptToMm(124.57), ptToMm(52.2));
-    } catch {}
-  }
-  const fbDataUrl = absoluteImageFileToDataUrl(LOCAL_QUOTE_SOCIAL_FB_PATH);
-  const igDataUrl = absoluteImageFileToDataUrl(LOCAL_QUOTE_SOCIAL_IG_PATH);
-  const inDataUrl = absoluteImageFileToDataUrl(LOCAL_QUOTE_SOCIAL_IN_PATH);
-  const hasSplitSocialIcons = Boolean(fbDataUrl || igDataUrl || inDataUrl);
-  if (hasSplitSocialIcons) {
-    const drawIcon = (dataUrl: string, iconX: number) => {
-      if (!dataUrl) return;
-      try {
-        const iconFmt = /^data:image\/png/i.test(dataUrl) ? "PNG" : /^data:image\/webp/i.test(dataUrl) ? "WEBP" : "JPEG";
-        doc.addImage(dataUrl, iconFmt as any, iconX, ptToMm(781.12), ptToMm(22.5), ptToMm(22.5));
-      } catch {}
-    };
-    drawIcon(fbDataUrl, ptToMm(444.38));
-    drawIcon(igDataUrl, ptToMm(474.37));
-    drawIcon(inDataUrl, ptToMm(503.46));
-  } else if (socialDataUrl) {
-    try {
-      const socialFmt = /^data:image\/png/i.test(socialDataUrl) ? "PNG" : /^data:image\/webp/i.test(socialDataUrl) ? "WEBP" : "JPEG";
-      doc.addImage(socialDataUrl, socialFmt as any, ptToMm(444.38), ptToMm(781.12), ptToMm(81.58), ptToMm(22.5));
-    } catch {}
-  }
-
-  const createdSource = String(args.createdAt || "").trim();
-  const updatedSource = String(args.updatedAt || "").trim();
-  const nowStamp = new Date();
-  const createdDate = createdSource ? new Date(createdSource) : nowStamp;
-  const updatedDate = updatedSource ? new Date(updatedSource) : nowStamp;
-  const createdAt = asDateYmd(createdDate);
-  const modifiedAt = `${asDateYmd(updatedDate)} ${String(updatedDate.toTimeString() || "").slice(0, 8)}`;
-  doc.setFontSize(6.96);
-  doc.text(`Fecha de creación ${createdAt}`, x + 1.5, footerTop + FOOTER_H - 8);
-  doc.text(`Fecha de modificación ${modifiedAt}`, x + 1.5, footerTop + FOOTER_H - 3);
-
-  return Buffer.from(doc.output("arraybuffer")).toString("base64");
 }
 
 async function buildQuotePdf(args: {
@@ -6159,38 +1331,19 @@ async function buildQuotePdf(args: {
   imageDataUrl?: string;
   notes?: string;
 }) {
-  const now = new Date();
-  const quoteNumber = quoteCodeFromDraftId(args.draftId);
-  const issueDate = asDateYmd(now);
-  const validUntil = asDateYmd(new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000));
-  const quantity = Math.max(1, Number(args.quantity || 1));
-  const totalCop = Number(args.totalCop || 0) > 0
-    ? Number(args.totalCop || 0)
-    : Number(args.basePriceUsd || 0) * Number(args.trmRate || 0) * quantity;
-
-  return await buildStandardQuotePdf({
-    quoteNumber,
-    issueDate,
-    validUntil,
-    companyName: args.companyName,
-    customerName: args.customerName,
-    customerEmail: args.customerEmail,
-    customerPhone: args.customerPhone,
-    city: String(args.city || "").trim() || "Bogota D.C",
-    nit: String(args.nit || "").trim() || "-",
-    createdAt: String(args.createdAt || "").trim(),
-    updatedAt: String(args.updatedAt || "").trim(),
-    items: [
-      {
-        productName: args.productName,
-        quantity,
-        basePriceUsd: Number(args.basePriceUsd || 0),
-        trmRate: Number(args.trmRate || 0),
-        totalCop,
-        description: String(args.itemDescription || "").trim() || `Producto: ${String(args.productName || "-")}`,
-        imageDataUrl: String(args.imageDataUrl || "").trim(),
-      },
-    ],
+  return buildQuotePdfApp({
+    ...args,
+    enableProductImage: ENABLE_QUOTE_PRODUCT_IMAGE,
+    normalizePhone,
+    formatMoney: formatMoneyApp,
+    asDateYmd: asDateYmdApp,
+    resolveQuoteBannerImageDataUrl,
+    resolveQuotePerksImageDataUrl,
+    resolveQuoteSocialImageDataUrl,
+    absoluteImageFileToDataUrl: absoluteImageFileToDataUrlApp,
+    localQuoteSocialFbPath: LOCAL_QUOTE_SOCIAL_FB_PATH,
+    localQuoteSocialIgPath: LOCAL_QUOTE_SOCIAL_IG_PATH,
+    localQuoteSocialInPath: LOCAL_QUOTE_SOCIAL_IN_PATH,
   });
 }
 
@@ -6207,39 +1360,7 @@ async function buildSimpleQuotePdf(args: {
   city: string;
   nit: string;
 }) {
-  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
-  const today = asDateYmd(new Date());
-  let y = 16;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text("Avanza Internacional Group S.A.S.", 12, y);
-  y += 8;
-  doc.setFontSize(12);
-  doc.text("Cotizacion Comercial", 12, y);
-  y += 8;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  const rows: string[] = [
-    `Numero: ${quoteCodeFromDraftId(args.draftId)}`,
-    `Fecha: ${today}`,
-    `Cliente: ${String(args.companyName || args.customerName || "-")}`,
-    `Contacto: ${String(args.customerName || "-")}`,
-    `NIT: ${String(args.nit || "-")}`,
-    `Ciudad: ${String(args.city || "Bogota")}`,
-    `Correo: ${String(args.customerEmail || "-")}`,
-    `Celular: ${String(args.customerPhone || "-")}`,
-    "",
-    `Producto: ${String(args.productName || "-")}`,
-    `Cantidad: ${Math.max(1, Number(args.quantity || 1))}`,
-    `TRM: ${formatMoney(Number(args.trmRate || 0))}`,
-    `Total COP: ${formatMoney(Number(args.totalCop || 0))}`,
-  ];
-  for (const line of rows) {
-    doc.text(line, 12, y);
-    y += 5.5;
-  }
-  const dataUri = doc.output("datauristring");
-  return String(dataUri || "").split(",")[1] || "";
+  return buildSimpleQuotePdfApp({ ...args, asDateYmd: asDateYmdApp, formatMoney: formatMoneyApp });
 }
 
 async function buildBundleQuotePdf(args: {
@@ -6250,34 +1371,19 @@ async function buildBundleQuotePdf(args: {
   customerPhone: string;
   items: Array<{ productName: string; quantity: number; basePriceUsd: number; trmRate: number; totalCop: number }>;
 }) {
-  const now = new Date();
-  const quoteNumber = `CO-B-${String(args.bundleId || "").replace(/[^a-z0-9]/gi, "").slice(-8).toUpperCase()}`;
-  const issueDate = asDateYmd(now);
-  const validUntil = asDateYmd(new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000));
-
-  return await buildStandardQuotePdf({
-    quoteNumber,
-    issueDate,
-    validUntil,
-    companyName: args.companyName,
-    customerName: args.customerName,
-    customerEmail: args.customerEmail,
-    customerPhone: args.customerPhone,
-    items: (args.items || []).map((item: any) => {
-      const qty = Math.max(1, Number(item.quantity || 1));
-      const totalCop = Number(item.totalCop || 0) > 0
-        ? Number(item.totalCop || 0)
-        : Number(item.basePriceUsd || 0) * Number(item.trmRate || 0) * qty;
-      return {
-        productName: String(item.productName || "-"),
-        quantity: qty,
-        basePriceUsd: Number(item.basePriceUsd || 0),
-        trmRate: Number(item.trmRate || 0),
-        totalCop,
-        description: String(item.description || "").trim() || `Producto: ${String(item.productName || "-")}`,
-        imageDataUrl: String(item.imageDataUrl || "").trim(),
-      };
-    }),
+  return buildBundleQuotePdfApp({
+    ...args,
+    enableProductImage: ENABLE_QUOTE_PRODUCT_IMAGE,
+    normalizePhone,
+    formatMoney: formatMoneyApp,
+    asDateYmd: asDateYmdApp,
+    resolveQuoteBannerImageDataUrl,
+    resolveQuotePerksImageDataUrl,
+    resolveQuoteSocialImageDataUrl,
+    absoluteImageFileToDataUrl: absoluteImageFileToDataUrlApp,
+    localQuoteSocialFbPath: LOCAL_QUOTE_SOCIAL_FB_PATH,
+    localQuoteSocialIgPath: LOCAL_QUOTE_SOCIAL_IG_PATH,
+    localQuoteSocialInPath: LOCAL_QUOTE_SOCIAL_IN_PATH,
   });
 }
 
@@ -6336,32 +1442,12 @@ export async function POST(req: Request) {
     const supabase = getServiceSupabase();
     if (!supabase) return NextResponse.json({ ok: false, error: "Missing SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
 
-    const { data: channels, error: chErr } = await supabase
-      .from("agent_channel_connections")
-      .select("id,assigned_agent_id,created_by,status,config")
-      .eq("provider", "evolution")
-      .eq("channel_type", "whatsapp");
-    if (chErr) return NextResponse.json({ ok: false, error: chErr.message }, { status: 500 });
-
-    const byInstance = (channels || []).filter(
-      (row: any) => String(row?.config?.evolution_instance_name || "") === inbound.instance
-    );
-
-    let channel =
-      byInstance.find((row: any) => String(row?.status || "").toLowerCase() === "connected") ||
-      byInstance[0] ||
-      null;
-
-    if (!channel) {
-      const connectedAny = (channels || []).filter(
-        (row: any) => String(row?.status || "").toLowerCase() === "connected"
-      );
-      if (connectedAny.length === 1) {
-        channel = connectedAny[0];
-      } else if ((channels || []).length === 1) {
-        channel = (channels || [])[0];
-      }
-    }
+    const { channel, channelError, agent, agentError, agentPhone: resolvedAgentPhone } = await resolveChannelAndAgent({
+      supabase,
+      inbound,
+      normalizePhone,
+    });
+    if (channelError) return NextResponse.json({ ok: false, error: channelError }, { status: 500 });
     if (!channel) {
       console.warn("[evolution-webhook] ignored: channel_not_found", { instance: inbound.instance });
       return NextResponse.json({ ok: true, ignored: true, reason: "channel_not_found" });
@@ -6369,15 +1455,7 @@ export async function POST(req: Request) {
 
     // Extraer el numero del agente SOLO desde configuracion del canal.
     // No usar payload.sender porque suele ser el numero del cliente y bloquea el enrutamiento.
-    const configuredSelfPhoneRaw = String(
-      channel?.config?.phone ||
-      channel?.config?.number ||
-      channel?.config?.owner ||
-      channel?.config?.wid ||
-      channel?.config?.me ||
-      ""
-    );
-    let agentPhone = normalizePhone(configuredSelfPhoneRaw);
+    let agentPhone = resolvedAgentPhone;
 
     console.log("[evolution-webhook] channel debug", {
       instance: inbound.instance,
@@ -6385,17 +1463,12 @@ export async function POST(req: Request) {
       configKeys: channel?.config ? Object.keys(channel.config) : [],
     });
 
-    if (!channel.assigned_agent_id) {
+    if (agentError === "agent_not_assigned") {
       console.warn("[evolution-webhook] ignored: agent_not_assigned", { channelId: (channel as any)?.id });
       return NextResponse.json({ ok: true, ignored: true, reason: "agent_not_assigned" });
     }
 
-    const { data: agent, error: agentErr } = await supabase
-      .from("ai_agents")
-      .select("id,name,status,description,created_by,tenant_id,configuration")
-      .eq("id", String(channel.assigned_agent_id))
-      .maybeSingle();
-    if (agentErr) return NextResponse.json({ ok: false, error: agentErr.message }, { status: 500 });
+    if (agentError) return NextResponse.json({ ok: false, error: agentError }, { status: 500 });
     if (!agent || String(agent.status) !== "active") {
       console.warn("[evolution-webhook] ignored: agent_inactive", { agentId: String(channel.assigned_agent_id) });
       return NextResponse.json({ ok: true, ignored: true, reason: "agent_inactive" });
@@ -6407,7 +1480,7 @@ export async function POST(req: Request) {
     const inboundCustomerPhone = resolveInboundCustomerPhone(inbound);
 
     const incomingDedupKey = String(inbound.messageId || `${inbound.instance || "default"}:${inbound.from}:${normalizeText(inbound.text)}`).trim();
-    const reserveResult = await reserveIncomingMessage(supabase as any, {
+    const reserveResult = await reserveIncomingMessageApp(supabase as any, {
       provider: "evolution",
       providerMessageId: incomingDedupKey,
       instance: inbound.instance,
@@ -6439,7 +1512,7 @@ export async function POST(req: Request) {
     const files = rawFiles
       .map((f: any) => ({ name: String(f?.name || "Documento").trim() || "Documento", content: String(f?.content || "").trim() }))
       .filter((f: any) => f.content);
-    const docs = buildDocumentContext(inbound.text, files);
+    const docs = buildDocumentContextApp(inbound.text, files);
 
     // Obtener historial de conversación
     const inboundPhoneNorm = normalizePhone(inboundCustomerPhone || inbound.from || "");
@@ -6471,57 +1544,28 @@ export async function POST(req: Request) {
     const previousMemory = existingMeta?.whatsapp_memory && typeof existingMeta.whatsapp_memory === "object"
       ? existingMeta.whatsapp_memory
       : {};
-    const prevTextNorm = normalizeText(String((previousMemory as any)?.last_user_text || ""));
     const currTextNorm = normalizeText(String(inbound.text || ""));
-    const prevUserAtMs = Date.parse(String((previousMemory as any)?.last_user_at || ""));
-    const awaitingForDedup = String((previousMemory as any)?.awaiting_action || "");
-    const isStrictSelectionStep = /^(strict_choose_family|strict_choose_model|strict_choose_action|strict_quote_data|strict_need_spec|strict_need_industry)$/i.test(awaitingForDedup);
-    const isShortOptionReply = isOptionOnlyReply(currTextNorm);
-    if (
-      prevTextNorm &&
-      currTextNorm &&
-      prevTextNorm === currTextNorm &&
-      Number.isFinite(prevUserAtMs) &&
-      Date.now() - prevUserAtMs < 45_000 &&
-      !isStrictSelectionStep &&
-      !isShortOptionReply
-    ) {
+    if (shouldIgnoreDuplicateRecentText({
+      previousMemory,
+      inboundText: inbound.text,
+      normalizeText,
+      isStrictQuoteSelectionStep,
+      isOptionOnlyReply: (value: string) => isOptionOnlyReplyApp(value, normalizeText),
+    })) {
       console.log("[evolution-webhook] ignored: duplicate_recent_text", {
         from: inbound.from,
         text: currTextNorm.slice(0, 80),
       });
       return NextResponse.json({ ok: true, ignored: true, reason: "duplicate_recent_text" });
     }
-    const nextMemory: Record<string, any> = {
-      ...previousMemory,
-      last_user_text: inbound.text,
-      last_user_at: new Date().toISOString(),
-    };
-    if (!String(nextMemory.customer_phone || "").trim() && inboundCustomerPhone.length >= 10 && inboundCustomerPhone.length <= 12) {
-      nextMemory.customer_phone = inboundCustomerPhone;
-    }
-    if (String(previousMemory?.conversation_status || "") === "closed") {
-      nextMemory.awaiting_action = "none";
-      nextMemory.pending_product_options = [];
-      nextMemory.last_selected_product_id = "";
-      nextMemory.last_selected_product_name = "";
-      nextMemory.last_selection_at = "";
-      nextMemory.conversation_status = "open";
-    } else if (!nextMemory.conversation_status) {
-      nextMemory.conversation_status = "open";
-    }
+    const nextMemory = buildNextMemory({
+      previousMemory,
+      inboundText: inbound.text,
+      inboundCustomerPhone,
+    });
     const classifiedIntent = classifyIntent(inbound.text, previousMemory);
 
-    const historyMessages: { role: "user" | "assistant"; content: string }[] = [];
-    if (existingConv?.transcript && Array.isArray(existingConv.transcript)) {
-      for (const msg of existingConv.transcript.slice(-10)) {
-        if (msg?.role === "user" && msg?.content) {
-          historyMessages.push({ role: "user", content: msg.content });
-        } else if (msg?.role === "assistant" && msg?.content) {
-          historyMessages.push({ role: "assistant", content: msg.content });
-        }
-      }
-    }
+    const historyMessages = collectHistoryMessages(existingConv?.transcript);
 
     let reply = "";
     let usageTotal = 0;
@@ -6576,98 +1620,64 @@ export async function POST(req: Request) {
     const tenantId = String((agent as any)?.tenant_id || "").trim();
     const catalogProvider = String((cfg as any)?.catalog_provider || "ohaus_colombia").trim().toLowerCase();
 
-    const inboundName = sanitizeCustomerDisplayName(inbound.pushName || "");
-    let recognizedReturningCustomer = false;
-    let crmContactProfile: any = null;
-    let knownCustomerName = sanitizeCustomerDisplayName(String(nextMemory.customer_name || ""))
-      || sanitizeCustomerDisplayName(String((existingConv as any)?.contact_name || ""))
-      || inboundName;
+    const {
+      knownCustomerName,
+      recognizedReturningCustomer,
+      crmContactProfile,
+    } = await resolveKnownCustomerProfile({
+      supabase,
+      ownerId,
+      agentId: String(agent.id),
+      inboundFilter,
+      inboundPhoneNorm,
+      inboundPhoneTail,
+      previousMemory,
+      existingConvContactName: String((existingConv as any)?.contact_name || ""),
+      inboundPushName: inbound.pushName || "",
+      nextMemory,
+      normalizePhone,
+      phoneTail10,
+      normalizeText,
+      normalizeCityLabel,
+      sanitizeCustomerDisplayName,
+    });
 
-    if (!knownCustomerName) {
-      try {
-        const { data: crmContact } = await supabase
-          .from("agent_crm_contacts")
-          .select("id,name,email,phone,company,status,quote_requests_count,metadata")
-          .eq("created_by", ownerId)
-          .or(inboundFilter.replace(/contact_phone/g, "phone"))
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        crmContactProfile = crmContact as any;
-        knownCustomerName = sanitizeCustomerDisplayName(String((crmContact as any)?.name || ""));
-        const crmStatus = normalizeText(String((crmContact as any)?.status || ""));
-        const crmQuotes = Number((crmContact as any)?.quote_requests_count || 0);
-        recognizedReturningCustomer =
-          recognizedReturningCustomer ||
-          crmQuotes > 0 ||
-          /^(purchase_order|invoicing|won|quote|sent)$/.test(crmStatus);
-      } catch {
-        // ignore missing table or transient query errors
-      }
-    }
+    const persistCurrentTurn = async (outboundText: string, memory: Record<string, any>) => {
+      await persistCurrentTurnWithContext({
+        supabase: supabase as any,
+        persistConversationTurn,
+        agentId: String(agent.id),
+        ownerId,
+        tenantId: (agent as any)?.tenant_id || null,
+        inbound,
+        knownCustomerName,
+        outboundText,
+        memory,
+      });
+    };
 
-    if (crmContactProfile && typeof crmContactProfile === "object") {
-      const crmMeta = crmContactProfile?.metadata && typeof crmContactProfile.metadata === "object" ? crmContactProfile.metadata : {};
-      const crmNit = String(crmMeta?.nit || "").trim();
-      const crmCity = normalizeCityLabel(String(crmMeta?.billing_city || "").trim());
-      const crmTier = normalizeText(String(crmMeta?.price_tier || "").trim());
-      const crmType = normalizeText(String(crmMeta?.customer_type || "").trim());
-      nextMemory.crm_contact_found = true;
-      nextMemory.crm_contact_id = String((crmContactProfile as any)?.id || "").trim();
-      nextMemory.crm_contact_name = String((crmContactProfile as any)?.name || "").trim();
-      nextMemory.crm_contact_email = String((crmContactProfile as any)?.email || "").trim();
-      nextMemory.crm_contact_phone = String((crmContactProfile as any)?.phone || "").trim();
-      nextMemory.crm_company = String((crmContactProfile as any)?.company || "").trim();
-      nextMemory.crm_nit = crmNit;
-      nextMemory.crm_billing_city = crmCity;
-      nextMemory.crm_price_tier = crmTier;
-      nextMemory.crm_customer_type = crmType;
-    } else {
-      nextMemory.crm_contact_found = Boolean(previousMemory?.crm_contact_found);
-    }
-
-    if (!knownCustomerName) {
-      try {
-        const { data: nameDrafts } = await supabase
-          .from("agent_quote_drafts")
-          .select("customer_name,customer_phone")
-          .eq("created_by", ownerId)
-          .eq("agent_id", String(agent.id))
-          .order("created_at", { ascending: false })
-          .limit(30);
-        const list = Array.isArray(nameDrafts) ? nameDrafts : [];
-        const mine = list.find((d: any) => {
-          const p = normalizePhone(String(d?.customer_phone || ""));
-          return p === inboundPhoneNorm || phoneTail10(p) === inboundPhoneTail;
-        });
-        knownCustomerName = sanitizeCustomerDisplayName(String((mine as any)?.customer_name || ""));
-        if (mine) recognizedReturningCustomer = true;
-      } catch {
-        // ignore
-      }
-    }
-
-    if (!recognizedReturningCustomer) {
-      try {
-        const { data: recentDrafts } = await supabase
-          .from("agent_quote_drafts")
-          .select("customer_phone")
-          .eq("created_by", ownerId)
-          .eq("agent_id", String(agent.id))
-          .order("created_at", { ascending: false })
-          .limit(60);
-        const drafts = Array.isArray(recentDrafts) ? recentDrafts : [];
-        recognizedReturningCustomer = drafts.some((d: any) => {
-          const p = normalizePhone(String(d?.customer_phone || ""));
-          return p === inboundPhoneNorm || phoneTail10(p) === inboundPhoneTail;
-        });
-      } catch {
-        // ignore
-      }
-    }
-
-    if (knownCustomerName) nextMemory.customer_name = knownCustomerName;
-    nextMemory.recognized_returning_customer = recognizedReturningCustomer;
+    const syncCrmLifecycleAndMeeting = async (args: {
+      memory: Record<string, any>;
+      previous?: Record<string, any>;
+      source: string;
+      externalRefSuffix: string;
+    }) => {
+      await syncCrmLifecycleAndMeetingWithContext({
+        supabase: supabase as any,
+        ownerId,
+        tenantId: (agent as any)?.tenant_id || null,
+        inbound,
+        knownCustomerName,
+        incomingDedupKey,
+        memory: args.memory,
+        previous: args.previous,
+        source: args.source,
+        externalRefSuffix: args.externalRefSuffix,
+        isoAfterHours: isoAfterHoursApp,
+        upsertCrmLifecycleState,
+        mirrorAdvisorMeetingToAvanza,
+      });
+    };
 
     // Strict deterministic mode: single flow, no ambiguous branches.
     const STRICT_REBUILD_MODE = String(
@@ -6685,7 +1695,16 @@ export async function POST(req: Request) {
         last_user_at: new Date().toISOString(),
       };
       const text = String(inbound.text || "").trim();
-      updateCommercialValidation(strictMemory, text, inbound.pushName || "");
+      updateCommercialValidationApp({
+        memory: strictMemory,
+        text,
+        fallbackName: inbound.pushName || "",
+        sanitizeCustomerDisplayName,
+        extractCustomerName,
+        extractCompanyNit,
+        isValidColombianNit,
+        isLikelyRutValue,
+      });
       const strictPrevAwaiting = String(previousMemory?.awaiting_action || "");
       const preParsedSpec = parseTechnicalSpecQuery(text);
       console.log("[strict-inbound]", {
@@ -6697,42 +1716,25 @@ export async function POST(req: Request) {
       });
 
       const sendStrictQuickText = async (replyText: string): Promise<boolean> => {
-        const msg = withAvaSignature(enforceWhatsAppDelivery(replyText, text));
-        const quickTo = [inbound.from, ...(inbound.alternates || [])]
-          .map((n) => normalizePhone(String(n || "")))
-          .filter((n, i, arr) => n && arr.indexOf(n) === i)
-          .filter((n) => n.length >= 10 && n.length <= 15);
-        for (const to of quickTo) {
-          try {
-            await evolutionService.sendMessage(outboundInstance, to, msg);
-            return true;
-          } catch {
-            continue;
-          }
-        }
-        const quickJids = (inbound.jidCandidates || [])
-          .map((v) => String(v || "").trim())
-          .filter((v, i, arr) => v && arr.indexOf(v) === i)
-          .filter((v) => /@(lid|s\.whatsapp\.net|c\.us)$/i.test(v));
-        for (const jid of quickJids) {
-          try {
-            await evolutionService.sendMessageToJid(outboundInstance, jid, msg);
-            return true;
-          } catch {
-            continue;
-          }
-        }
-        return false;
+        return sendStrictQuickTextApp({
+          replyText,
+          inboundText: text,
+          inboundFrom: inbound.from,
+          inboundAlternates: inbound.alternates || [],
+          inboundJidCandidates: inbound.jidCandidates || [],
+          outboundInstance,
+          normalizePhone,
+          withAvaSignature,
+          enforceWhatsAppDelivery,
+          sendMessage: (instance, to, msg) => evolutionService.sendMessage(instance, to, msg),
+          sendMessageToJid: (instance, jid, msg) => evolutionService.sendMessageToJid(instance, jid, msg),
+        });
       };
 
       const finalizeStrictTurn = async (replyText: string, memory: Record<string, any>, extra: Record<string, any> = {}) => {
         const awaitingNow = String(memory?.awaiting_action || "").trim();
         const safeReply = String(replyText || "").trim() || (
-          awaitingNow === "strict_choose_action"
-            ? "Responde 1 para cotización o 2 para ficha técnica."
-            : awaitingNow === "strict_quote_data"
-              ? "Para continuar con la cotización, envíame ciudad, empresa, NIT, contacto, correo y celular en un solo mensaje."
-              : "¿En qué puedo ayudarte con tu cotización?"
+          buildStrictQuoteFallbackReply(awaitingNow)
         );
         if (!String(replyText || "").trim()) {
           console.warn("[evolution-webhook] empty_strict_reply_fallback", { awaiting: awaitingNow, inboundText: text });
@@ -6740,29 +1742,14 @@ export async function POST(req: Request) {
         const sentOk = await sendStrictQuickText(safeReply);
         if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
         try {
-          await persistConversationTurn(supabase as any, {
-            agentId: String(agent.id),
-            ownerId,
-            tenantId: (agent as any)?.tenant_id || null,
-            from: inboundCustomerPhone || inbound.from,
-            pushName: inbound.pushName,
-            contactName: knownCustomerName || inbound.pushName || inbound.from,
-            inboundText: inbound.text,
-            outboundText: safeReply,
-            messageId: inbound.messageId,
-            memory,
-          });
+          await persistCurrentTurn(safeReply, memory);
         } catch {}
-        await supabase
-          .from("incoming_messages")
-          .update({ status: "processed", processed_at: new Date().toISOString() })
-          .eq("provider", "evolution")
-          .eq("provider_message_id", incomingDedupKey);
+        await markIncomingMessageProcessed(supabase as any, incomingDedupKey);
         safeLogPhase1Invariants({
           inboundText: inbound.text,
           outboundText: safeReply,
           strict: true,
-          route: String(extra?.pipeline ? "strict_pipeline" : "strict").trim() || "strict",
+          route: String(extra?.route || (extra?.pipeline ? "strict_pipeline" : "strict")).trim() || "strict",
           intent: String((extra as any)?.intent || "strict_turn"),
           awaitingAction: String(memory?.awaiting_action || ""),
         });
@@ -6770,265 +1757,114 @@ export async function POST(req: Request) {
       };
 
       if (isContextResetIntent(text)) {
-        const keepCustomerName = String(strictMemory.customer_name || previousMemory?.customer_name || "").trim();
-        const keepCustomerPhone = String(strictMemory.customer_phone || previousMemory?.customer_phone || "").trim();
-        const keepCustomerEmail = String(strictMemory.customer_email || previousMemory?.customer_email || "").trim();
-        Object.keys(strictMemory).forEach((k) => delete strictMemory[k]);
-        if (keepCustomerName) strictMemory.customer_name = keepCustomerName;
-        if (keepCustomerPhone) strictMemory.customer_phone = keepCustomerPhone;
-        if (keepCustomerEmail) strictMemory.customer_email = keepCustomerEmail;
-        strictMemory.awaiting_action = "none";
-        strictMemory.last_intent = "reset_context";
-        strictMemory.last_user_text = text;
-        strictMemory.last_user_at = new Date().toISOString();
+        resetStrictContextMemory({ strictMemory, previousMemory, text });
 
         const strictReply = "Listo, reinicié el contexto de esta conversación. Ahora dime capacidad y resolución (ej.: 220 g x 0.00001 g) o el modelo exacto.";
-        const sentOk = await sendStrictQuickText(strictReply);
-        if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
-        try {
-          await persistConversationTurn(supabase as any, {
-            agentId: String(agent.id),
-            ownerId,
-            tenantId: (agent as any)?.tenant_id || null,
-            from: inboundCustomerPhone || inbound.from,
-            pushName: inbound.pushName,
-            contactName: knownCustomerName || inbound.pushName || inbound.from,
-            inboundText: inbound.text,
-            outboundText: strictReply,
-            messageId: inbound.messageId,
-            memory: strictMemory,
-          });
-        } catch {}
-        await supabase
-          .from("incoming_messages")
-          .update({ status: "processed", processed_at: new Date().toISOString() })
-          .eq("provider", "evolution")
-          .eq("provider_message_id", incomingDedupKey);
-        safeLogPhase1Invariants({
-          inboundText: inbound.text,
-          outboundText: strictReply,
-          strict: true,
+        return finalizeStrictTurn(strictReply, strictMemory, {
+          reset: true,
           route: "strict_reset",
           intent: "reset_context",
-          awaitingAction: String(strictMemory?.awaiting_action || ""),
         });
-        return NextResponse.json({ ok: true, sent: true, strict: true, reset: true });
       }
 
       if (strictPrevAwaiting === "advisor_meeting_slot") {
-        if (isAdvisorAppointmentIntent(text)) {
-          const strictReply = buildAdvisorMiniAgendaPrompt();
+        if (isAdvisorAppointmentIntentApp(text, normalizeText)) {
+          const strictReply = buildAdvisorMiniAgendaPromptApp(MARIANA_ESCALATION_LINK);
           strictMemory.awaiting_action = "advisor_meeting_slot";
-          const sentOk = await sendStrictQuickText(strictReply);
-          if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
-          try {
-            await persistConversationTurn(supabase as any, {
-              agentId: String(agent.id),
-              ownerId,
-              tenantId: (agent as any)?.tenant_id || null,
-              from: inboundCustomerPhone || inbound.from,
-              pushName: inbound.pushName,
-              contactName: knownCustomerName || inbound.pushName || inbound.from,
-              inboundText: inbound.text,
-              outboundText: strictReply,
-              messageId: inbound.messageId,
-              memory: strictMemory,
-            });
-          } catch {}
-          await supabase
-            .from("incoming_messages")
-            .update({ status: "processed", processed_at: new Date().toISOString() })
-            .eq("provider", "evolution")
-            .eq("provider_message_id", incomingDedupKey);
-          safeLogPhase1Invariants({
-            inboundText: inbound.text,
-            outboundText: strictReply,
-            strict: true,
+          return finalizeStrictTurn(strictReply, strictMemory, {
+            advisor: true,
             route: "strict_advisor",
             intent: "advisor_meeting_prompt",
-            awaitingAction: String(strictMemory?.awaiting_action || ""),
           });
-          return NextResponse.json({ ok: true, sent: true, strict: true, advisor: true });
         }
 
-        const slot = parseAdvisorMiniAgendaChoice(text);
-        const strictReply = !slot
-          ? [
-              "Para agendar con asesor, responde 1, 2 o 3 según el horario.",
-              "1) Hoy (en las próximas horas)",
-              "2) Mañana 9:00 am",
-              "3) Esta semana (próximo disponible)",
-            ].join("\n")
-          : `Perfecto. Agendé la gestión con asesor para ${slot.label}. Te contactaremos en ese horario por WhatsApp o llamada.`;
-        if (!slot) {
-          strictMemory.awaiting_action = "advisor_meeting_slot";
-        } else {
-          strictMemory.awaiting_action = "conversation_followup";
-          strictMemory.conversation_status = "open";
-          strictMemory.advisor_meeting_at = slot.iso;
-          strictMemory.advisor_meeting_label = slot.label;
-          console.log("[evolution-webhook] advisor_meeting_slot_saved", { at: slot.iso, label: slot.label });
+        const slot = parseAdvisorMiniAgendaChoiceApp(text, normalizeText);
+        const slotResult = resolveAdvisorMeetingReply({ slot, compactReprompt: true });
+        const strictReply = slotResult.reply;
+        strictMemory.awaiting_action = slotResult.awaitingAction;
+        if (slotResult.conversationStatus) strictMemory.conversation_status = slotResult.conversationStatus;
+        if (slotResult.advisorMeetingAt) strictMemory.advisor_meeting_at = slotResult.advisorMeetingAt;
+        if (slotResult.advisorMeetingLabel) strictMemory.advisor_meeting_label = slotResult.advisorMeetingLabel;
+        if (slotResult.scheduled) {
+          console.log("[evolution-webhook] advisor_meeting_slot_saved", {
+            at: slotResult.advisorMeetingAt,
+            label: slotResult.advisorMeetingLabel,
+          });
         }
 
         const sentOk = await sendStrictQuickText(strictReply);
         if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
 
         try {
-          const strictMeetingAt = String(strictMemory.advisor_meeting_at || "").trim();
-          await upsertCrmLifecycleState(supabase as any, {
+          await persistAdvisorMeetingSelection({
+            supabase,
+            upsertCrmLifecycleState,
+            mirrorAdvisorMeetingToAvanza,
+            persistConversationTurn,
+            isoAfterHours: isoAfterHoursApp,
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
-            phone: inboundCustomerPhone || inbound.from,
-            realPhone: String(strictMemory.customer_phone || previousMemory?.customer_phone || ""),
-            name: knownCustomerName || inbound.pushName || "",
-            status: "quote",
-            nextAction: strictMeetingAt ? "Llamar cliente (cita WhatsApp)" : "Seguimiento cotizacion",
-            nextActionAt: strictMeetingAt || isoAfterHours(24),
-            metadata: {
-              source: "evolution_strict_webhook",
-              advisor_meeting_at: strictMeetingAt,
-              advisor_meeting_label: String(strictMemory.advisor_meeting_label || ""),
-            },
-          });
-          if (strictMeetingAt) {
-            await mirrorAdvisorMeetingToAvanza({
-              ownerId,
-              tenantId: (agent as any)?.tenant_id || null,
-              externalRef: String(inbound.messageId || incomingDedupKey || "slot"),
-              phone: inboundCustomerPhone || inbound.from,
-              customerName: knownCustomerName || inbound.pushName || inbound.from,
-              advisor: "Asesor comercial",
-              meetingAt: strictMeetingAt,
-              meetingLabel: String(strictMemory.advisor_meeting_label || ""),
-              source: "evolution_strict_webhook",
-            });
-          }
-          await persistConversationTurn(supabase as any, {
-            agentId: String(agent.id),
-            ownerId,
-            tenantId: (agent as any)?.tenant_id || null,
-            from: inboundCustomerPhone || inbound.from,
-            pushName: inbound.pushName,
-            contactName: knownCustomerName || inbound.pushName || inbound.from,
+            inboundFrom: inbound.from,
+            inboundPushName: inbound.pushName,
             inboundText: inbound.text,
-            outboundText: strictReply,
-            messageId: inbound.messageId,
-            memory: strictMemory,
+            inboundMessageId: inbound.messageId,
+            incomingDedupKey,
+            knownCustomerName,
+            previousCustomerPhone: String(previousMemory?.customer_phone || ""),
+            strictMemory,
+            strictReply,
+            agentId: String(agent.id),
           });
         } catch {}
 
-        await supabase
-          .from("incoming_messages")
-          .update({ status: "processed", processed_at: new Date().toISOString() })
-          .eq("provider", "evolution")
-          .eq("provider_message_id", incomingDedupKey);
+        await markIncomingMessageProcessed(supabase as any, incomingDedupKey);
 
         safeLogPhase1Invariants({
           inboundText: inbound.text,
           outboundText: strictReply,
           strict: true,
           route: "strict_advisor",
-          intent: slot ? "advisor_meeting_scheduled" : "advisor_meeting_reprompt",
+          intent: slotResult.scheduled ? "advisor_meeting_scheduled" : "advisor_meeting_reprompt",
           awaitingAction: String(strictMemory?.awaiting_action || ""),
         });
 
         return NextResponse.json({ ok: true, sent: true, strict: true, advisor: true });
       }
 
-      if (isAdvisorAppointmentIntent(text)) {
-        const strictReply = buildAdvisorMiniAgendaPrompt();
+      if (isAdvisorAppointmentIntentApp(text, normalizeText)) {
+        const strictReply = buildAdvisorMiniAgendaPromptApp(MARIANA_ESCALATION_LINK);
         strictMemory.awaiting_action = "advisor_meeting_slot";
         strictMemory.conversation_status = "open";
         console.log("[evolution-webhook] advisor_meeting_prompt", { text });
-
-        const sentOk = await sendStrictQuickText(strictReply);
-        if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
-
-        try {
-          await persistConversationTurn(supabase as any, {
-            agentId: String(agent.id),
-            ownerId,
-            tenantId: (agent as any)?.tenant_id || null,
-            from: inboundCustomerPhone || inbound.from,
-            pushName: inbound.pushName,
-            contactName: knownCustomerName || inbound.pushName || inbound.from,
-            inboundText: inbound.text,
-            outboundText: strictReply,
-            messageId: inbound.messageId,
-            memory: strictMemory,
-          });
-        } catch {}
-
-        await supabase
-          .from("incoming_messages")
-          .update({ status: "processed", processed_at: new Date().toISOString() })
-          .eq("provider", "evolution")
-          .eq("provider_message_id", incomingDedupKey);
-
-        safeLogPhase1Invariants({
-          inboundText: inbound.text,
-          outboundText: strictReply,
-          strict: true,
+        return finalizeStrictTurn(strictReply, strictMemory, {
+          advisor: true,
           route: "strict_advisor",
           intent: "advisor_meeting_prompt",
-          awaitingAction: String(strictMemory?.awaiting_action || ""),
         });
-
-        return NextResponse.json({ ok: true, sent: true, strict: true, advisor: true });
       }
 
-      const strictCloseIntentEarly = isConversationCloseIntent(text) && normalizeText(text).length <= 48;
+      const strictCloseIntentEarly = isConversationCloseIntentApp(text, normalizeCatalogQueryText) && normalizeText(text).length <= 48;
       if (strictCloseIntentEarly) {
-        const hadQuoteContext =
-          Boolean(previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
-          /(quote_generated|quote_recall|price_request)/.test(String(previousMemory?.last_intent || ""));
-        const strictReply = hadQuoteContext
-          ? "Perfecto, cerramos por ahora. Gracias por tu tiempo. Te estaremos enviando un recordatorio breve para saber como te parecio la cotizacion."
-          : "Perfecto, cerramos por ahora. Gracias por tu tiempo. Si despues quieres retomar, te ayudo por este mismo WhatsApp.";
+        const hadQuoteContext = hasQuoteContext(previousMemory);
+        const strictReply = buildConversationCloseReply(hadQuoteContext);
         strictMemory.awaiting_action = "none";
         strictMemory.conversation_status = "closed";
         strictMemory.last_intent = "conversation_closed";
-        if (hadQuoteContext) strictMemory.quote_feedback_due_at = isoAfterHours(24);
+        if (hadQuoteContext) strictMemory.quote_feedback_due_at = isoAfterHoursApp(24);
 
-        const sentOk = await sendStrictQuickText(strictReply);
-        if (!sentOk) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
-        try {
-          await persistConversationTurn(supabase as any, {
-            agentId: String(agent.id),
-            ownerId,
-            tenantId: (agent as any)?.tenant_id || null,
-            from: inboundCustomerPhone || inbound.from,
-            pushName: inbound.pushName,
-            contactName: knownCustomerName || inbound.pushName || inbound.from,
-            inboundText: inbound.text,
-            outboundText: strictReply,
-            messageId: inbound.messageId,
-            memory: strictMemory,
-          });
-        } catch {}
-        await supabase
-          .from("incoming_messages")
-          .update({ status: "processed", processed_at: new Date().toISOString() })
-          .eq("provider", "evolution")
-          .eq("provider_message_id", incomingDedupKey);
-        safeLogPhase1Invariants({
-          inboundText: inbound.text,
-          outboundText: strictReply,
-          strict: true,
+        return finalizeStrictTurn(strictReply, strictMemory, {
           route: "strict_close",
           intent: "conversation_closed",
-          awaitingAction: String(strictMemory?.awaiting_action || ""),
         });
-        return NextResponse.json({ ok: true, sent: true, strict: true });
       }
 
       const textNorm = normalizeCatalogQueryText(text);
-      const awaiting = deriveStrictAwaitingAction(previousMemory, strictPrevAwaiting);
+      const awaiting = deriveQuoteAwaitingAction(previousMemory, strictPrevAwaiting);
       const wantsSheet = isTechnicalSheetIntent(text);
       const wantsQuote = asksQuoteIntent(text) || isPriceIntent(text);
-      const isConversationFollowupAmbiguousQuote = awaiting === "conversation_followup" && isAnotherQuoteAmbiguousIntent(text);
-      const isGreeting = isGreetingIntent(text);
-      const explicitModel = hasConcreteProductHint(text) && !isOptionOnlyReply(text);
+      const isConversationFollowupAmbiguousQuote = awaiting === "conversation_followup" && isAnotherQuoteAmbiguousIntentApp(text, normalizeText);
+      const isGreeting = isGreetingIntentApp(text, normalizeText);
+      const explicitModel = hasConcreteProductHint(text) && !isOptionOnlyReplyApp(text, normalizeText);
       const categoryIntent = detectCatalogCategoryIntent(text);
       const technicalSpecIntent =
         isTechnicalSpecQuery(text) ||
@@ -7062,6 +1898,9 @@ export async function POST(req: Request) {
         awaiting,
         pendingOptions: pendingForSlots,
         selectedModel: selectedModelForSlots,
+        parseLooseTechnicalHint,
+        mergeLooseSpecWithMemory,
+        detectTargetApplication,
       });
       Object.assign(strictMemory, slotPack.patch);
       const pipelineIntent = classifyMessageIntent({
@@ -7069,6 +1908,12 @@ export async function POST(req: Request) {
         awaiting,
         rememberedCategory,
         activeMenuType: slotPack.slots.active_menu_type,
+        parseLooseTechnicalHint,
+        parseTechnicalSpecQuery,
+        detectCatalogCategoryIntent,
+        asksQuoteIntent,
+        isPriceIntent,
+        looksLikeBillingData: (value: string) => looksLikeBillingDataApp({ text: value, isContactInfoBundle: (text: string) => isContactInfoBundleApp({ text, extractEmail, extractCustomerPhone }), extractEmail, extractCustomerPhone }),
       });
 
       const guidedProfileGlobal = detectGuidedBalanzaProfile(text);
@@ -7077,7 +1922,7 @@ export async function POST(req: Request) {
         guidedProfileGlobal &&
         Boolean(strictMemory.commercial_validation_complete) &&
         /^(balanza|)$/i.test(String(strictMemory.commercial_equipment_choice || "")) &&
-        !/^(strict_quote_data|advisor_meeting_slot|commercial_client_recognition|commercial_new_customer_data|commercial_choose_equipment|commercial_existing_lookup|commercial_existing_confirm|commercial_existing_contact_update)$/i.test(awaiting)
+        !isCommercialBlockingAwaitingStep(awaiting)
       ) {
         const industrialModeGlobal = guidedProfileGlobal === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
         const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileGlobal, industrialModeGlobal as any);
@@ -7347,7 +2192,12 @@ export async function POST(req: Request) {
             ].join("\n");
             return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
           }
-          const fallback = buildCompatibilityAnswer({ text, slots: slotPack.slots, pendingOptions: pendingForSlots });
+          const fallback = buildCompatibilityAnswer({
+            text,
+            slots: slotPack.slots,
+            pendingOptions: pendingForSlots,
+            detectTargetApplication,
+          });
           strictMemory.awaiting_action = "compatibility_followup";
           strictMemory.compatibility_application = app;
           const reply = [
@@ -7462,11 +2312,12 @@ export async function POST(req: Request) {
                     "",
                     "Elige con letra/número (A/1), o escribe 'más'.",
                   ].join("\n")
-                : buildGroupedSpecReplyNoContext({
+                : buildGroupedSpecReplyNoContextApp({
                     specQuery: strictMemory.strict_spec_query,
                     options,
                     sourceRows: sourceRows as any[],
                     priceLine,
+                    inferSpecProcessLabel: (row: any) => inferSpecProcessLabelApp({ row, familyLabelFromRow, extractRowTechnicalSpec }),
                   });
               return finalizeStrictTurn(reply, strictMemory, { pipeline: true, intent: pipelineIntent });
             }
@@ -7540,7 +2391,7 @@ export async function POST(req: Request) {
             }
             const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
             const scopedForFast = currentCategory ? scopeCatalogRows(ownerRows as any[], currentCategory) : ownerRows;
-            if (isLargestCapacityAsk(text)) {
+            if (isLargestCapacityAskApp(text, normalizeText)) {
               const largest = buildLargestCapacitySuggestion(scopedForFast as any[]);
               if (largest.options.length) {
                 strictMemory.pending_product_options = largest.options;
@@ -7684,7 +2535,7 @@ export async function POST(req: Request) {
                 strictMemory.strict_autorun_quote_with_reuse = true;
                 return null;
               }
-              const quotePrompt = buildQuoteDataIntakePrompt("Perfecto. Para cotizar:", quoteMemoryMerged);
+              const quotePrompt = buildQuoteDataIntakePromptApp("Perfecto. Para cotizar:", getReusableBillingData(quoteMemoryMerged));
               return finalizeStrictTurn(quotePrompt, strictMemory, { pipeline: true, intent: pipelineIntent });
             }
             if (/^\s*2\s*$/.test(textNorm)) {
@@ -7697,7 +2548,7 @@ export async function POST(req: Request) {
           }
 
           if (menuType === "model_selection_menu") {
-            const selectedOption = resolvePendingProductOptionStrict(text, pendingForSlots);
+            const selectedOption = resolvePendingProductOptionStrictApp(text, pendingForSlots);
             if (selectedOption) {
               strictMemory.last_selected_product_id = String(selectedOption.id || "");
               strictMemory.last_selected_product_name = String(selectedOption.raw_name || selectedOption.name || "");
@@ -7721,661 +2572,86 @@ export async function POST(req: Request) {
         return null;
       };
 
-      const recognitionChoiceCandidate = detectClientRecognitionChoice(text);
-      const recognitionNumericOnly = /^\s*[12]\s*$/.test(String(text || "").trim());
-      const rawPrevAwaiting = String(previousMemory?.awaiting_action || strictPrevAwaiting || "").trim();
-      const recognitionStepActive =
-        /^(commercial_client_recognition|none)$/i.test(awaiting) ||
-        /^commercial_client_recognition$/i.test(rawPrevAwaiting);
-      const recognitionChoice =
-        recognitionNumericOnly && !recognitionStepActive
-          ? ""
-          : recognitionChoiceCandidate;
-      const currentClientType = String(strictMemory.commercial_client_type || previousMemory?.commercial_client_type || "").trim();
-      const clientType = currentClientType || recognitionChoice;
-      if (clientType) strictMemory.commercial_client_type = clientType;
-
-      if (recognitionChoice === "new") {
-        strictMemory.commercial_client_type = "new";
-        strictMemory.commercial_validation_complete = false;
-        strictMemory.new_customer_data = {};
-        strictMemory.commercial_existing_match = {};
-      }
-
-      if (recognitionChoice === "existing") {
-        strictMemory.commercial_client_type = "existing";
-        strictMemory.commercial_validation_complete = false;
-        strictMemory.commercial_existing_match = {};
-      }
-
-      if (!String(strictReply || "").trim() && !clientType && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
-        strictMemory.awaiting_action = "commercial_client_recognition";
-        strictReply = buildCommercialWelcomeMessage();
-        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "commercial_recognition_required" });
-      }
-
-      const isPlainCatalogAsk = isInventoryInfoIntent(text) || isCatalogBreadthQuestion(text) || isGlobalCatalogAsk(text);
-      const shouldHandleNewCommercialStep =
-        clientType === "new" &&
-        !isPlainCatalogAsk &&
-        (!Boolean(strictMemory.commercial_validation_complete) || /^(commercial_client_recognition|commercial_new_customer_data|commercial_choose_equipment|none)$/i.test(awaiting));
-      if (!String(strictReply || "").trim() && shouldHandleNewCommercialStep && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
-        strictMemory.commercial_client_type = "new";
-        strictMemory.awaiting_action = "commercial_new_customer_data";
-
-        const retryTextNorm = normalizeText(String(text || ""));
-        const hasRegistrationPayload =
-          looksLikeBillingData(String(text || "")) ||
-          /\b(empresa|correo|contacto|departamento|ciudad|razon\s+social|nombres?)\b/.test(retryTextNorm) ||
-          /@/.test(String(text || ""));
-        const retryLookupNit = String(extractCompanyNit(text) || "").replace(/\D/g, "").trim();
-        const retryLookupPhone = normalizePhone(String(extractCustomerPhone(text, inbound.from) || "").trim());
-        const retryLookupPhoneTail = phoneTail10(retryLookupPhone);
-        if (String(awaiting || "") === "commercial_new_customer_data" && !hasRegistrationPayload && (retryLookupNit || retryLookupPhoneTail)) {
-          const retryLookup = await findCommercialContactByIdentifiers({
-            supabase,
-            ownerId,
-            lookupNit: retryLookupNit,
-            lookupPhone: retryLookupPhone,
-            lookupPhoneTail: retryLookupPhoneTail,
-          });
-          const matchedContact = retryLookup.matchedContact;
-
-          if (matchedContact && typeof matchedContact === "object") {
-            const matchedMeta = matchedContact?.metadata && typeof matchedContact.metadata === "object"
-              ? matchedContact.metadata
-              : {};
-            const matchedNit = String(matchedMeta?.nit || "").replace(/\D/g, "").trim();
-            const matchedCity = normalizeCityLabel(String(matchedMeta?.billing_city || "").trim());
-            const matchedName = sanitizeCustomerDisplayName(String(matchedContact?.name || ""));
-            const matchedEmail = String(matchedContact?.email || "").trim().toLowerCase();
-            const matchedPhone = normalizePhone(String(matchedContact?.phone || ""));
-            const matchedCompany = String(matchedContact?.company || "").trim();
-
-            strictMemory.commercial_client_type = "existing";
-            strictMemory.crm_contact_found = true;
-            strictMemory.crm_contact_id = String(matchedContact?.id || "").trim();
-            strictMemory.crm_contact_name = matchedName;
-            strictMemory.crm_contact_email = matchedEmail;
-            strictMemory.crm_contact_phone = matchedPhone;
-            strictMemory.crm_company = matchedCompany;
-            strictMemory.crm_nit = matchedNit;
-            strictMemory.crm_billing_city = matchedCity;
-            strictMemory.quote_data = {
-              city: matchedCity || String(strictMemory?.quote_data?.city || "") || "Bogota",
-              company: matchedCompany || String(strictMemory?.quote_data?.company || ""),
-              nit: matchedNit || String(strictMemory?.quote_data?.nit || ""),
-              contact: matchedName || String(strictMemory?.quote_data?.contact || ""),
-              email: matchedEmail || String(strictMemory?.quote_data?.email || ""),
-              phone: matchedPhone || normalizePhone(String(strictMemory?.customer_phone || inbound.from || "")),
-            };
-            strictMemory.commercial_existing_match = {
-              id: String(matchedContact?.id || "").trim(),
-              company: matchedCompany,
-              nit: matchedNit,
-              contact: matchedName,
-              email: matchedEmail,
-              phone: matchedPhone,
-              city: matchedCity,
-            };
-            strictMemory.awaiting_action = "commercial_existing_confirm";
-            strictReply = [
-              "Perfecto, gracias por la corrección. Ya encontré tu empresa en nuestra base de clientes.",
-              "",
-              buildExistingClientMatchConfirmationPrompt({
-                company: matchedCompany,
-                nit: matchedNit,
-                contact: matchedName,
-                email: matchedEmail,
-                phone: matchedPhone,
-              }),
-            ].join("\n");
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_recovered_from_new_data" });
-          }
-
-          strictMemory.awaiting_action = "commercial_new_customer_data";
-          strictReply = [
-            "No encontré ese NIT/celular en nuestra base de clientes.",
-            "Si quieres, intenta con otro NIT/celular o continúa como cliente nuevo.",
-            "",
-            "Opciones:",
-            "1) Enviar otro NIT/celular para volver a buscar.",
-            "2) Enviar en un solo mensaje: departamento/ciudad, empresa, NIT, nombre de contacto, correo y celular.",
-          ].join("\n");
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_retry_not_found" });
-        }
-
-        if (shouldEscalateToAdvisorByCommercialRule(strictMemory, text)) {
-          strictReply = buildCommercialEscalationMessage();
-          strictMemory.awaiting_action = "conversation_followup";
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "commercial_escalation_new_customer" });
-        }
-        updateNewCustomerRegistrationApp({
-          memory: strictMemory,
-          text,
-          fallbackName: inbound.pushName || "",
-          normalizeCityLabel,
-          extractSimpleLabeledValue,
-          sanitizeCustomerDisplayName,
-          extractCustomerName,
-          extractEmail,
+      const commercialStep = await handleCommercialStep({
+        strictReply,
+        awaiting,
+        strictPrevAwaiting,
+        text,
+        inboundFrom: inbound.from,
+        inboundPushName: inbound.pushName || "",
+        strictMemory,
+        previousMemory,
+        ownerRows: ownerRows as any[],
+        supabase: supabase as any,
+        ownerId,
+        tenantId: (agent as any)?.tenant_id || null,
+        agentId: String(agent.id || "").trim() || null,
+        resolveCommercialClientTypeStep,
+        detectClientRecognitionChoice,
+        buildCommercialWelcomeMessage,
+        handleCommercialNewCustomerStep,
+        handleCommercialExistingStep,
+        deps: {
+          isInventoryInfoIntent,
+          isCatalogBreadthQuestion,
+          isGlobalCatalogAsk,
+          normalizeText,
+          looksLikeBillingData: (value: string) => looksLikeBillingDataApp({ text: value, isContactInfoBundle: (text: string) => isContactInfoBundleApp({ text, extractEmail, extractCustomerPhone }), extractEmail, extractCustomerPhone }),
+          extractCompanyNit,
           normalizePhone,
           extractCustomerPhone,
-        });
-        if (Boolean(strictMemory.is_persona_natural)) {
-          strictReply = buildCommercialEscalationMessage();
-          strictMemory.awaiting_action = "conversation_followup";
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "persona_natural_escalation" });
-        }
-        const missing = getMissingNewCustomerFields(strictMemory);
-        if (missing.length) {
-          strictReply = awaiting === "commercial_client_recognition"
-            ? buildNewCustomerDataPrompt()
-            : buildGoalGuidedNewCustomerDataMessage(strictMemory, missing);
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "new_customer_data_required" });
-        }
-        strictMemory.commercial_validation_complete = true;
-        {
-          const d = strictMemory?.new_customer_data && typeof strictMemory.new_customer_data === "object" ? strictMemory.new_customer_data : {};
-          const city = normalizeCityLabel(String(d?.city || "").trim());
-          const company = String(d?.company || "").trim();
-          const nit = String(d?.nit || "").replace(/\D/g, "").trim();
-          const contact = sanitizeCustomerDisplayName(String(d?.contact || "").trim());
-          const email = String(d?.email || "").trim().toLowerCase();
-          const phone = normalizePhone(String(d?.phone || "").trim());
-
-          const existingFromFullData = await findCommercialContactByIdentifiers({
-            supabase,
-            ownerId,
-            lookupNit: nit,
-            lookupPhone: phone,
-            lookupPhoneTail: phoneTail10(phone),
-          });
-          const matchedContact = existingFromFullData.matchedContact;
-          if (matchedContact && typeof matchedContact === "object") {
-            const matchedMeta = matchedContact?.metadata && typeof matchedContact.metadata === "object"
-              ? matchedContact.metadata
-              : {};
-            const matchedNit = String(matchedMeta?.nit || "").replace(/\D/g, "").trim();
-            const matchedCity = normalizeCityLabel(String(matchedMeta?.billing_city || "").trim());
-            const matchedName = sanitizeCustomerDisplayName(String(matchedContact?.name || ""));
-            const matchedEmail = String(matchedContact?.email || "").trim().toLowerCase();
-            const matchedPhone = normalizePhone(String(matchedContact?.phone || ""));
-            const matchedCompany = String(matchedContact?.company || "").trim();
-
-            strictMemory.commercial_client_type = "existing";
-            strictMemory.commercial_validation_complete = false;
-            strictMemory.crm_contact_found = true;
-            strictMemory.crm_contact_id = String(matchedContact?.id || "").trim();
-            strictMemory.crm_contact_name = matchedName;
-            strictMemory.crm_contact_email = matchedEmail;
-            strictMemory.crm_contact_phone = matchedPhone;
-            strictMemory.crm_company = matchedCompany;
-            strictMemory.crm_nit = matchedNit;
-            strictMemory.crm_billing_city = matchedCity;
-            strictMemory.quote_data = {
-              city: matchedCity || String(strictMemory?.quote_data?.city || "") || "Bogota",
-              company: matchedCompany || String(strictMemory?.quote_data?.company || ""),
-              nit: matchedNit || String(strictMemory?.quote_data?.nit || ""),
-              contact: matchedName || String(strictMemory?.quote_data?.contact || ""),
-              email: matchedEmail || String(strictMemory?.quote_data?.email || ""),
-              phone: matchedPhone || normalizePhone(String(strictMemory?.customer_phone || inbound.from || "")),
-            };
-            strictMemory.commercial_existing_match = {
-              id: String(matchedContact?.id || "").trim(),
-              company: matchedCompany,
-              nit: matchedNit,
-              contact: matchedName,
-              email: matchedEmail,
-              phone: matchedPhone,
-              city: matchedCity,
-            };
-            strictMemory.awaiting_action = "commercial_existing_confirm";
-            strictReply = [
-              "Ya encontré que esta información corresponde a un cliente existente en nuestra base.",
-              "",
-              buildExistingClientMatchConfirmationPrompt({
-                company: matchedCompany,
-                nit: matchedNit,
-                contact: matchedName,
-                email: matchedEmail,
-                phone: matchedPhone,
-              }),
-            ].join("\n");
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_detected_from_full_data" });
-          }
-
-          if (city) strictMemory.crm_billing_city = city;
-          if (company) strictMemory.crm_company = company;
-          if (nit) strictMemory.crm_nit = nit;
-          if (contact) {
-            strictMemory.crm_contact_name = contact;
-            strictMemory.customer_name = contact;
-          }
-          if (email) {
-            strictMemory.crm_contact_email = email;
-            strictMemory.customer_email = email;
-          }
-          if (phone) {
-            strictMemory.crm_contact_phone = phone;
-            strictMemory.customer_phone = phone;
-            strictMemory.crm_contact_found = true;
-          }
-
-          const persistedNewCommercialContact = await upsertNewCommercialCustomerContact(supabase as any, {
-            ownerId,
-            tenantId: (agent as any)?.tenant_id || null,
-            city,
-            company,
-            nit,
-            contact,
-            email,
-            phone,
-          });
-          if (!persistedNewCommercialContact) {
-            strictMemory.commercial_validation_complete = false;
-            strictMemory.awaiting_action = "commercial_new_customer_data";
-            strictReply = [
-              "Recibi tus datos, pero no pude guardarlos en CRM en este intento.",
-              "Por favor reenvialos en un solo mensaje para completar el registro:",
-              "- Departamento/ciudad",
-              "- Tipo de cliente (Persona natural o Empresa)",
-              "- Empresa (si aplica)",
-              "- Documento (cédula o NIT, solo números, sin puntos, comas ni guiones)",
-              "- Nombre de contacto",
-              "- Correo",
-              "- Celular",
-            ].join("\n");
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "new_customer_data_persist_failed" });
-          }
-
-          await ensureAnalysisOpportunitySeed(supabase as any, {
-            ownerId,
-            tenantId: (agent as any)?.tenant_id || null,
-            agentId: String(agent.id || "").trim() || null,
-            customerName: contact,
-            customerEmail: email,
-            customerPhone: phone,
-            companyName: company,
-            location: city,
-            customerNit: nit,
-            customerType: "new",
-          });
-        }
-        const chosenEquipment = detectEquipmentChoice(text);
-        const guidedProfileFromNeed = detectGuidedBalanzaProfile(text);
-        const effectiveEquipment = chosenEquipment || (guidedProfileFromNeed ? "balanza" : "");
-        if (effectiveEquipment && awaiting === "commercial_choose_equipment") {
-          strictMemory.commercial_equipment_choice = effectiveEquipment;
-          if (effectiveEquipment === "balanza") {
-            const guidedProfile = guidedProfileFromNeed;
-            if (guidedProfile) {
-              const industrialMode = guidedProfile === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
-              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfile, industrialMode as any);
-              strictMemory.pending_product_options = guidedOptions;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = guidedOptions.length ? "strict_choose_model" : "strict_need_spec";
-              strictMemory.last_category_intent = "balanzas";
-              strictMemory.guided_balanza_profile = guidedProfile;
-              strictMemory.guided_industrial_mode = industrialMode;
-              strictMemory.strict_family_label = "balanzas";
-              strictMemory.strict_model_offset = 0;
-              strictReply = buildGuidedBalanzaReplyWithMode(guidedProfile, industrialMode as any);
-              return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_guided_new_customer" });
-            }
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = isDifferenceQuestionIntent(text)
-              ? buildScaleDifferenceGuidanceReply()
-              : buildBalanzaQualificationPrompt();
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_qualification_new_customer" });
-          }
-          if (effectiveEquipment === "bascula") {
-            strictMemory.last_category_intent = "basculas";
-            const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
-            const options = buildNumberedProductOptions(basculaRows as any[], 8);
-            if (options.length) {
-              strictMemory.pending_product_options = options;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
-              strictReply = [
-                `Perfecto. En catálogo activo tengo ${options.length} báscula(s).`,
-                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                "",
-                "Elige con letra/número (A/1), o escribe 'más'.",
-              ].join("\n");
-            } else {
-              strictMemory.awaiting_action = "strict_need_spec";
-              strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
-            }
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "bascula_qualification_new_customer" });
-          }
-          if (effectiveEquipment === "analizador_humedad") {
-            strictMemory.last_category_intent = "analizador_humedad";
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = "Perfecto. Para analizador de humedad, dime tipo de muestra, capacidad aproximada y precisión objetivo.";
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "humidity_qualification_new_customer" });
-          }
-          strictMemory.awaiting_action = "conversation_followup";
-          strictReply = buildNoActiveCatalogEscalationMessage(equipmentChoiceLabel(effectiveEquipment));
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "other_equipment_escalation_new_customer" });
-        }
-        strictMemory.awaiting_action = "commercial_choose_equipment";
-        strictReply = buildCommercialValidationOkMessage();
-        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "new_customer_data_completed" });
-      }
-
-      const shouldHandleExistingCommercialStep =
-        clientType === "existing" &&
-        !hasPriorityProductGuidanceIntent(text) &&
-        !isDifferenceQuestionIntent(text) &&
-        !(isPlainCatalogAsk && /^(commercial_existing_lookup|commercial_client_recognition|none)$/i.test(awaiting)) &&
-        /^(commercial_client_recognition|commercial_existing_lookup|commercial_existing_confirm|commercial_existing_contact_update|commercial_choose_equipment|none)$/i.test(awaiting);
-      if (!String(strictReply || "").trim() && shouldHandleExistingCommercialStep && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
-        strictMemory.commercial_client_type = "existing";
-        const currentAwaiting = String(awaiting || "").trim();
-
-        if (/^(commercial_client_recognition|none)$/i.test(currentAwaiting)) {
-          if (isAffirmativeShortIntent(text)) {
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = buildGuidedNeedReframePrompt();
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_affirmative_without_lookup" });
-          }
-          strictMemory.awaiting_action = "commercial_existing_lookup";
-          strictReply = buildExistingClientLookupPrompt();
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_lookup_required" });
-        }
-
-        if (currentAwaiting === "commercial_existing_lookup") {
-          const lookupNit = String(extractCompanyNit(text) || "").replace(/\D/g, "").trim();
-          const lookupPhone = normalizePhone(String(extractCustomerPhone(text, inbound.from) || "").trim());
-          const lookupPhoneTail = phoneTail10(lookupPhone);
-          if (!lookupNit && !lookupPhoneTail) {
-            strictMemory.awaiting_action = "commercial_existing_lookup";
-            strictReply = "Para validar en base de datos necesito NIT o celular registrado. Ejemplo: NIT 900505419 o celular 3131657711.";
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_lookup_missing_key" });
-          }
-
-          const existingLookup = await findCommercialContactByIdentifiers({
-            supabase,
-            ownerId,
-            lookupNit,
-            lookupPhone,
-            lookupPhoneTail,
-          });
-          let matchedContact: any = existingLookup.matchedContact;
-          const lookupCandidatesCount = Number(existingLookup.fallbackCandidatesCount || 0);
-
-          console.log("[existing-customer-lookup]", {
-            ownerId,
-            lookupNit,
-            lookupPhoneTail,
-            matched: Boolean(matchedContact),
-            fallbackCandidates: lookupCandidatesCount,
-          });
-
-          if (!matchedContact) {
-            strictMemory.commercial_client_type = "new";
-            strictMemory.awaiting_action = "commercial_new_customer_data";
-            strictReply = [
-              "No encontré ese NIT/celular en nuestra base de clientes.",
-              "Para continuar te registro como contacto nuevo.",
-              "",
-              buildNewCustomerDataPrompt(),
-            ].join("\n");
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_not_found_switch_new" });
-          }
-
-          const matchedMeta = matchedContact?.metadata && typeof matchedContact.metadata === "object"
-            ? matchedContact.metadata
-            : {};
-          const matchedNit = String(matchedMeta?.nit || "").replace(/\D/g, "").trim();
-          const matchedCity = normalizeCityLabel(String(matchedMeta?.billing_city || "").trim());
-          const matchedName = sanitizeCustomerDisplayName(String(matchedContact?.name || ""));
-          const matchedEmail = String(matchedContact?.email || "").trim().toLowerCase();
-          const matchedPhone = normalizePhone(String(matchedContact?.phone || ""));
-          const matchedCompany = String(matchedContact?.company || "").trim();
-
-          strictMemory.crm_contact_found = true;
-          strictMemory.crm_contact_id = String(matchedContact?.id || "").trim();
-          strictMemory.crm_contact_name = matchedName;
-          strictMemory.crm_contact_email = matchedEmail;
-          strictMemory.crm_contact_phone = matchedPhone;
-          strictMemory.crm_company = matchedCompany;
-          strictMemory.crm_nit = matchedNit;
-          strictMemory.crm_billing_city = matchedCity;
-          strictMemory.quote_data = {
-            city: matchedCity || String(strictMemory?.quote_data?.city || "") || "Bogota",
-            company: matchedCompany || String(strictMemory?.quote_data?.company || ""),
-            nit: matchedNit || String(strictMemory?.quote_data?.nit || ""),
-            contact: matchedName || String(strictMemory?.quote_data?.contact || ""),
-            email: matchedEmail || String(strictMemory?.quote_data?.email || ""),
-            phone: matchedPhone || normalizePhone(String(strictMemory?.customer_phone || inbound.from || "")),
-          };
-
-          strictMemory.commercial_existing_match = {
-            id: String(matchedContact?.id || "").trim(),
-            company: matchedCompany,
-            nit: matchedNit,
-            contact: matchedName,
-            email: matchedEmail,
-            phone: matchedPhone,
-            city: matchedCity,
-          };
-
-          strictMemory.awaiting_action = "commercial_existing_confirm";
-          strictReply = buildExistingClientMatchConfirmationPrompt({
-            company: matchedCompany,
-            nit: matchedNit,
-            contact: matchedName,
-            email: matchedEmail,
-            phone: matchedPhone,
-          });
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_confirm_identity" });
-        }
-
-        if (currentAwaiting === "commercial_existing_confirm") {
-          const confirmChoice = detectExistingClientConfirmationChoice(text);
-          const matched = strictMemory?.commercial_existing_match && typeof strictMemory.commercial_existing_match === "object"
-            ? strictMemory.commercial_existing_match
-            : {};
-          if (!confirmChoice) {
-            strictMemory.awaiting_action = "commercial_existing_confirm";
-            strictReply = "Confírmame por favor: 1) Sí, soy la misma persona 2) No, soy otra persona/área.";
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_confirm_required" });
-          }
-
-          if (confirmChoice === "different") {
-            strictMemory.awaiting_action = "commercial_existing_contact_update";
-            strictReply = [
-              "Perfecto, actualicemos el contacto para esa empresa.",
-              "Compárteme en un solo mensaje:",
-              "- Nombre de contacto",
-              "- Correo",
-              "- Celular",
-              "- Área/Cargo (opcional)",
-            ].join("\n");
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_contact_update_required" });
-          }
-
-          strictMemory.commercial_validation_complete = true;
-          strictMemory.commercial_client_type = "existing";
-          strictMemory.crm_contact_found = true;
-          strictMemory.crm_contact_name = String(matched?.contact || strictMemory.crm_contact_name || "").trim();
-          strictMemory.crm_contact_email = String(matched?.email || strictMemory.crm_contact_email || "").trim().toLowerCase();
-          strictMemory.crm_contact_phone = normalizePhone(String(matched?.phone || strictMemory.crm_contact_phone || ""));
-          strictMemory.crm_company = String(matched?.company || strictMemory.crm_company || "").trim();
-          strictMemory.crm_nit = String(matched?.nit || strictMemory.crm_nit || "").replace(/\D/g, "").trim();
-          strictMemory.crm_billing_city = normalizeCityLabel(String(matched?.city || strictMemory.crm_billing_city || "").trim());
-          strictMemory.quote_data = {
-            city: String((matched as any)?.city || strictMemory.crm_billing_city || strictMemory?.quote_data?.city || "Bogota").trim(),
-            company: String((matched as any)?.company || strictMemory.crm_company || strictMemory?.quote_data?.company || "").trim(),
-            nit: String((matched as any)?.nit || strictMemory.crm_nit || strictMemory?.quote_data?.nit || "").replace(/\D/g, "").trim(),
-            contact: String((matched as any)?.contact || strictMemory.crm_contact_name || strictMemory?.quote_data?.contact || "").trim(),
-            email: String((matched as any)?.email || strictMemory.crm_contact_email || strictMemory?.quote_data?.email || "").trim().toLowerCase(),
-            phone: normalizePhone(String((matched as any)?.phone || strictMemory.crm_contact_phone || strictMemory?.quote_data?.phone || inbound.from || "")),
-          };
-          recognizedReturningCustomer = true;
-          strictMemory.customer_name = String(matched?.contact || strictMemory.crm_contact_name || strictMemory.customer_name || "").trim();
-          await ensureAnalysisOpportunitySeed(supabase as any, {
-            ownerId,
-            tenantId: (agent as any)?.tenant_id || null,
-            agentId: String(agent.id || "").trim() || null,
-            customerName: String(matched?.contact || strictMemory.crm_contact_name || "").trim(),
-            customerEmail: String(matched?.email || strictMemory.crm_contact_email || "").trim(),
-            customerPhone: String(matched?.phone || strictMemory.crm_contact_phone || "").trim(),
-            companyName: String(matched?.company || strictMemory.crm_company || "").trim(),
-            location: String(matched?.city || strictMemory.crm_billing_city || "").trim(),
-            customerNit: String(matched?.nit || strictMemory.crm_nit || "").trim(),
-            customerType: "existing",
-          });
-          strictMemory.awaiting_action = "commercial_choose_equipment";
-          strictReply = buildEquipmentMenuPrompt();
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_confirmed" });
-        }
-
-        if (currentAwaiting === "commercial_existing_contact_update") {
-          const matched = strictMemory?.commercial_existing_match && typeof strictMemory.commercial_existing_match === "object"
-            ? strictMemory.commercial_existing_match
-            : {};
-          const updated = parseExistingContactUpdateDataApp({
-            text,
-            fallbackInboundPhone: inbound.from,
-            extractEmail,
-            normalizePhone,
-            extractCustomerPhone,
-            extractSimpleLabeledValue,
-            extractCustomerName,
-            sanitizeCustomerDisplayName,
-          });
-          if (!updated.name || (!updated.email && !updated.phone)) {
-            strictMemory.awaiting_action = "commercial_existing_contact_update";
-            strictReply = "Para actualizar el contacto necesito al menos: nombre y (correo o celular).";
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_contact_update_missing_fields" });
-          }
-
-          let insertedContactId = "";
-          try {
-            const metadata = {
-              nit: String(matched?.nit || strictMemory.crm_nit || "").trim(),
-              billing_city: String(matched?.city || strictMemory.crm_billing_city || "").trim(),
-              customer_type: "existing",
-              source: "whatsapp_existing_customer_contact_update",
-              parent_contact_id: String(matched?.id || strictMemory.crm_contact_id || "").trim(),
-              area: String(updated.area || "").trim(),
-              whatsapp_transport_id: normalizePhone(inbound.from || ""),
-              whatsapp_lifecycle_at: new Date().toISOString(),
-            };
-            const { data: inserted } = await supabase
-              .from("agent_crm_contacts")
-              .insert({
-                tenant_id: (agent as any)?.tenant_id || null,
-                created_by: ownerId,
-                name: updated.name,
-                email: updated.email || null,
-                phone: updated.phone || null,
-                company: String(matched?.company || strictMemory.crm_company || "").trim() || null,
-                status: "analysis",
-                metadata,
-              })
-              .select("id")
-              .single();
-            insertedContactId = String((inserted as any)?.id || "").trim();
-          } catch {}
-
-          strictMemory.crm_contact_found = true;
-          strictMemory.crm_contact_id = insertedContactId || String(strictMemory.crm_contact_id || "").trim();
-          strictMemory.crm_contact_name = updated.name;
-          strictMemory.crm_contact_email = updated.email || String(strictMemory.crm_contact_email || "").trim();
-          strictMemory.crm_contact_phone = updated.phone || String(strictMemory.crm_contact_phone || "").trim();
-          strictMemory.customer_name = updated.name;
-          strictMemory.commercial_customer_name = updated.name;
-          strictMemory.commercial_validation_complete = true;
-          recognizedReturningCustomer = true;
-
-          await ensureAnalysisOpportunitySeed(supabase as any, {
-            ownerId,
-            tenantId: (agent as any)?.tenant_id || null,
-            agentId: String(agent.id || "").trim() || null,
-            customerName: updated.name,
-            customerEmail: updated.email || String(strictMemory.crm_contact_email || "").trim(),
-            customerPhone: updated.phone || String(strictMemory.crm_contact_phone || "").trim(),
-            companyName: String(matched?.company || strictMemory.crm_company || "").trim(),
-            location: String(matched?.city || strictMemory.crm_billing_city || "").trim(),
-            customerNit: String(matched?.nit || strictMemory.crm_nit || "").trim(),
-            customerType: "existing",
-          });
-
-          strictMemory.awaiting_action = "commercial_choose_equipment";
-          strictReply = [
-            "Perfecto, ya actualicé el contacto y quedó registrado en CRM/base BOT.",
-            buildEquipmentMenuPrompt(),
-          ].join("\n\n");
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "existing_customer_contact_updated" });
-        }
-
-        strictMemory.commercial_validation_complete = true;
-        const chosenEquipment = detectEquipmentChoice(text);
-        const guidedProfileFromNeed = detectGuidedBalanzaProfile(text);
-        const effectiveEquipment = chosenEquipment || (guidedProfileFromNeed ? "balanza" : "");
-        if (!effectiveEquipment || /^(commercial_client_recognition|commercial_existing_lookup|commercial_existing_confirm|commercial_existing_contact_update)$/i.test(currentAwaiting)) {
-          strictMemory.awaiting_action = "commercial_choose_equipment";
-          strictReply = buildEquipmentMenuPrompt();
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "equipment_selection_required" });
-        }
-        strictMemory.commercial_equipment_choice = effectiveEquipment;
-        if (effectiveEquipment === "balanza") {
-          const guidedProfile = guidedProfileFromNeed;
-          if (guidedProfile) {
-            const industrialMode = guidedProfile === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
-            const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfile, industrialMode as any);
-            strictMemory.pending_product_options = guidedOptions;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = guidedOptions.length ? "strict_choose_model" : "strict_need_spec";
-            strictMemory.last_category_intent = "balanzas";
-            strictMemory.guided_balanza_profile = guidedProfile;
-            strictMemory.guided_industrial_mode = industrialMode;
-            strictMemory.strict_family_label = "balanzas";
-            strictMemory.strict_model_offset = 0;
-            strictReply = buildGuidedBalanzaReplyWithMode(guidedProfile, industrialMode as any);
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_guided_existing_customer" });
-          }
-          strictMemory.awaiting_action = "strict_need_spec";
-          strictReply = isDifferenceQuestionIntent(text)
-            ? buildScaleDifferenceGuidanceReply()
-            : buildBalanzaQualificationPrompt();
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_qualification" });
-        }
-        if (effectiveEquipment === "bascula") {
-          strictMemory.last_category_intent = "basculas";
-          const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
-          const options = buildNumberedProductOptions(basculaRows as any[], 8);
-          if (options.length) {
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictReply = [
-              `Perfecto. En catálogo activo tengo ${options.length} báscula(s).`,
-              ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Elige con letra/número (A/1), o escribe 'más'.",
-            ].join("\n");
-          } else {
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
-          }
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "bascula_qualification" });
-        }
-        if (effectiveEquipment === "analizador_humedad") {
-          strictMemory.last_category_intent = "analizador_humedad";
-          strictMemory.awaiting_action = "strict_need_spec";
-          strictReply = "Perfecto. Para analizador de humedad, dime tipo de muestra, capacidad aproximada y precisión objetivo.";
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "humidity_qualification" });
-        }
-        strictMemory.awaiting_action = "conversation_followup";
-        strictReply = buildNoActiveCatalogEscalationMessage(equipmentChoiceLabel(effectiveEquipment));
-        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "other_equipment_escalation" });
+          phoneTail10,
+          findCommercialContactByIdentifiers,
+          normalizeCityLabel,
+          sanitizeCustomerDisplayName,
+          buildExistingClientMatchConfirmationPrompt,
+          shouldEscalateToAdvisorByCommercialRule,
+          buildCommercialEscalationMessage,
+          updateNewCustomerRegistration: updateNewCustomerRegistrationApp,
+          extractSimpleLabeledValue,
+          extractCustomerName,
+          extractEmail,
+          getMissingNewCustomerFields,
+          buildNewCustomerDataPrompt,
+          buildMissingNewCustomerDataMessage,
+          handleCommercialNewCustomerRetryLookup,
+          handleCommercialNewCustomerPersistAndDetectExisting,
+          upsertNewCommercialCustomerContact: upsertNewCommercialCustomerContactApp,
+          ensureAnalysisOpportunitySeed: ensureAnalysisOpportunitySeedApp,
+          isQuoteDraftStatusConstraintError,
+          handleCommercialNewCustomerEquipmentSelection,
+          detectEquipmentChoice,
+          detectGuidedBalanzaProfile,
+          detectIndustrialGuidedMode,
+          buildGuidedPendingOptions,
+          buildGuidedBalanzaReplyWithMode,
+          isDifferenceQuestionIntent,
+          buildScaleDifferenceGuidanceReply,
+          buildBalanzaQualificationPrompt,
+          scopeStrictBasculaRows,
+          buildNumberedProductOptions,
+          buildNoActiveCatalogEscalationMessage,
+          equipmentChoiceLabel,
+          buildCommercialValidationOkMessage,
+          hasPriorityProductGuidanceIntent,
+          handleCommercialExistingEntryStep,
+          isAffirmativeShortIntent,
+          buildGuidedNeedReframePrompt,
+          buildExistingClientLookupPrompt,
+          handleCommercialExistingLookupFlow,
+          handleCommercialExistingConfirmFlow,
+          detectExistingClientConfirmationChoice,
+          handleCommercialExistingContactUpdateFlow,
+          parseExistingContactUpdateData: parseExistingContactUpdateDataApp,
+          handleCommercialExistingEquipmentGate,
+          buildEquipmentMenuPrompt,
+          handleCommercialExistingEquipmentSelection,
+        },
+      });
+      if (commercialStep) {
+        if (commercialStep.recognizedReturningCustomer) recognizedReturningCustomer = true;
+        strictReply = commercialStep.strictReply;
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: commercialStep.gate });
       }
 
       if (!String(strictReply || "").trim() && isAlternativeRejectionIntent(text)) {
@@ -8467,7 +2743,7 @@ export async function POST(req: Request) {
         const sourceOptions = pendingOptions.length
           ? pendingOptions
           : buildNumberedProductOptions(scopedRows as any[], 12);
-        const picked = pickDistinctGamaOptions(sourceOptions as any[], 3)
+        const picked = pickDistinctGamaOptionsApp(sourceOptions as any[], 3, (name: string) => gamaLabelForModelNameApp(name, normalizeText))
           .slice(0, 3)
           .map((o: any, idx: number) => ({ ...o, code: String(idx + 1), rank: idx + 1 }));
 
@@ -8501,7 +2777,7 @@ export async function POST(req: Request) {
       if (!String(strictReply || "").trim()) {
         const bundleSelection = extractBundleSelectionFromCountCommand(text);
         const requestedBundleCount = Number(bundleSelection?.count || 0);
-        const selectedIndexesRaw = (bundleSelection?.picks?.length ? bundleSelection.picks : extractBundleOptionIndexes(text));
+        const selectedIndexesRaw = (bundleSelection?.picks?.length ? bundleSelection.picks : extractBundleOptionIndexesApp(text));
         const pendingOnly = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
         const currentBundleOnly = Array.isArray(previousMemory?.quote_bundle_options_current) ? previousMemory.quote_bundle_options_current : [];
         const recommendedOnly = Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [];
@@ -8516,7 +2792,7 @@ export async function POST(req: Request) {
               if (!key) return false;
               return arr.findIndex((x: any) => String(x?.id || x?.product_id || x?.raw_name || x?.name || "").trim() === key) === idx;
             });
-        const optionsForIndexSelection = pickBundleOptionSourceByIndexes(
+        const optionsForIndexSelection = pickBundleOptionSourceByIndexesApp(
           selectedIndexesRaw,
           [pendingOnly, currentBundleOnly, recommendedOnly, quoteBundleOnly, pendingForBundle],
         );
@@ -8571,18 +2847,14 @@ export async function POST(req: Request) {
         }
       }
 
-      const strictCloseIntent = isConversationCloseIntent(text) && normalizeText(text).length <= 48;
+      const strictCloseIntent = isConversationCloseIntentApp(text, normalizeCatalogQueryText) && normalizeText(text).length <= 48;
       if (strictCloseIntent) {
-        const hadQuoteContext =
-          Boolean(previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
-          /(quote_generated|quote_recall|price_request)/.test(String(previousMemory?.last_intent || ""));
-        strictReply = hadQuoteContext
-          ? "Perfecto, cerramos por ahora. Gracias por tu tiempo. Te estaremos enviando un recordatorio breve para saber como te parecio la cotizacion."
-          : "Perfecto, cerramos por ahora. Gracias por tu tiempo. Si despues quieres retomar, te ayudo por este mismo WhatsApp.";
+        const hadQuoteContext = hasQuoteContext(previousMemory);
+        strictReply = buildConversationCloseReply(hadQuoteContext);
         strictMemory.awaiting_action = "none";
         strictMemory.conversation_status = "closed";
         strictMemory.last_intent = "conversation_closed";
-        if (hadQuoteContext) strictMemory.quote_feedback_due_at = isoAfterHours(24);
+        if (hadQuoteContext) strictMemory.quote_feedback_due_at = isoAfterHoursApp(24);
       }
 
       const strictAwaiting = String(previousMemory?.awaiting_action || "");
@@ -8591,7 +2863,7 @@ export async function POST(req: Request) {
         const capTarget = Number(previousMemory?.target_capacity_g || previousMemory?.strict_filter_capacity_g || 0);
         const rememberedCategoryCompat = String(previousMemory?.last_category_intent || rememberedCategory || "").trim();
         const scoped = rememberedCategoryCompat ? scopeCatalogRows(ownerRows as any, rememberedCategoryCompat) : ownerRows;
-        const askOptions = isAffirmativeIntent(text) || /^\s*1\s*$/.test(textNorm) || /\b(opciones|recomendadas|muestrame|mu[eé]strame|dame)\b/.test(textNorm);
+        const askOptions = isAffirmativeIntentApp(text, normalizeText) || /^\s*1\s*$/.test(textNorm) || /\b(opciones|recomendadas|muestrame|mu[eé]strame|dame)\b/.test(textNorm);
         const askAdjust = /^\s*2\s*$/.test(textNorm) || /\b(ajust|capacidad|resolucion|resolución|precision|precisión)\b/.test(textNorm);
 
         if (askOptions) {
@@ -8642,12 +2914,12 @@ export async function POST(req: Request) {
           ].join("\n");
         }
       }
-      if (!String(strictReply || "").trim() && isAdvisorAppointmentIntent(text)) {
-        strictReply = buildAdvisorMiniAgendaPrompt();
+      if (!String(strictReply || "").trim() && isAdvisorAppointmentIntentApp(text, normalizeText)) {
+        strictReply = buildAdvisorMiniAgendaPromptApp(MARIANA_ESCALATION_LINK);
         strictMemory.awaiting_action = "advisor_meeting_slot";
         strictMemory.conversation_status = "open";
       } else if (!String(strictReply || "").trim() && strictAwaiting === "advisor_meeting_slot") {
-        const slot = parseAdvisorMiniAgendaChoice(text);
+        const slot = parseAdvisorMiniAgendaChoiceApp(text, normalizeText);
         if (!slot) {
           strictReply = "Para agendar con asesor, responde 1, 2 o 3 según el horario.";
           strictMemory.awaiting_action = "advisor_meeting_slot";
@@ -8661,7 +2933,7 @@ export async function POST(req: Request) {
       }
 
       if (!String(strictReply || "").trim() && awaiting === "followup_quote_disambiguation") {
-        const choice = parseAnotherQuoteChoice(text);
+        const choice = parseAnotherQuoteChoiceApp(text, normalizeText);
         const rememberedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || "").trim();
         const rememberedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || "").trim();
         const selectedFromMemory = rememberedId
@@ -8669,11 +2941,11 @@ export async function POST(req: Request) {
           : (rememberedName ? (findCatalogProductByName(ownerRows as any[], rememberedName) || null) : null);
 
         if (!choice) {
-          strictReply = buildAnotherQuotePrompt();
+          strictReply = buildAnotherQuotePromptApp();
           strictMemory.awaiting_action = "followup_quote_disambiguation";
           strictMemory.last_intent = "followup_quote_disambiguation";
         } else if (choice === "advisor") {
-          strictReply = buildAdvisorMiniAgendaPrompt();
+          strictReply = buildAdvisorMiniAgendaPromptApp(MARIANA_ESCALATION_LINK);
           strictMemory.awaiting_action = "advisor_meeting_slot";
         } else if (choice === "same_model") {
           if (!selectedFromMemory) {
@@ -8681,14 +2953,14 @@ export async function POST(req: Request) {
             strictMemory.awaiting_action = "strict_need_spec";
           } else {
             const selectedName = String((selectedFromMemory as any)?.name || rememberedName || "producto");
-            const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
+            const qtyRequested = Math.max(1, extractQuoteRequestedQuantityApp({ text, normalizeText, parseTechnicalSpecQuery }) || Number(previousMemory?.quote_quantity || 1) || 1);
             strictMemory.last_selected_product_id = String((selectedFromMemory as any)?.id || "").trim();
             strictMemory.last_selected_product_name = selectedName;
             strictMemory.quote_quantity = qtyRequested;
             strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = buildQuoteDataIntakePrompt(
+            strictReply = buildQuoteDataIntakePromptApp(
               `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)).`,
-              strictMemory
+              getReusableBillingData(strictMemory)
             );
           }
         } else {
@@ -8745,14 +3017,14 @@ export async function POST(req: Request) {
       }
 
       if (!String(strictReply || "").trim() && isConversationFollowupAmbiguousQuote) {
-        strictReply = buildAnotherQuotePrompt();
+        strictReply = buildAnotherQuotePromptApp();
         strictMemory.awaiting_action = "followup_quote_disambiguation";
         strictMemory.last_intent = "followup_quote_disambiguation";
       }
 
-      if (!String(strictReply || "").trim() && isAmbiguousTechnicalMessage(text) && !wantsQuote && !wantsSheet) {
+      if (!String(strictReply || "").trim() && isAmbiguousTechnicalMessageApp(text, normalizeText, parseTechnicalSpecQuery) && !wantsQuote && !wantsSheet) {
         strictMemory.awaiting_action = "strict_need_spec";
-        strictReply = buildAmbiguityQuestion(text);
+        strictReply = buildAmbiguityQuestionApp(text, normalizeText);
       }
 
       const shouldShortcutTechnicalSpec =
@@ -8790,8 +3062,8 @@ export async function POST(req: Request) {
         }
       }
 
-      if (!String(strictReply || "").trim() && isCorrectionIntent(text) && awaiting !== "strict_choose_action") {
-        resetStrictRecommendationState(strictMemory);
+      if (!String(strictReply || "").trim() && isCorrectionIntentApp(text, normalizeText) && awaiting !== "strict_choose_action") {
+        resetStrictRecommendationStateApp(strictMemory);
         const cap = Number(previousMemory?.strict_filter_capacity_g || 0);
         const read = Number(previousMemory?.strict_filter_readability_g || 0);
         if (cap > 0 && read > 0) {
@@ -8822,28 +3094,20 @@ export async function POST(req: Request) {
         !wantsSheet &&
         /\b(mas|más|opciones|alternativas|otros|otras|rango|que\s+tienes|tienes\s+mas|tienes\s+m[aá]s|retomar|reanudar|continuar)\b/.test(textNorm);
       if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && askMoreOptionsNow) {
-        const familyLabel = String(previousMemory?.strict_family_label || "").trim();
-        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
-        const familyRows = familyLabel
-          ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
-          : categoryScoped;
-        const sourceRows = (familyRows.length ? familyRows : categoryScoped) as any[];
-        const allOptions = buildNumberedProductOptions(sourceRows, 60);
-        const options = allOptions.slice(0, 8);
-        strictMemory.pending_product_options = options;
-        strictMemory.awaiting_action = "strict_choose_model";
-        strictMemory.strict_model_offset = 0;
-        strictMemory.strict_family_label = familyLabel;
-        strictReply = options.length
-          ? [
-              "Claro, te muestro más opciones disponibles:",
-              ...options.map((o) => `${o.code}) ${o.name}`),
-              "",
-              (allOptions.length > options.length)
-                ? "Escribe 'más' para ver siguientes, o elige con letra/número (A/1)."
-                : "Elige con letra/número (A/1), o dime otra capacidad para filtrar.",
-            ].join("\n")
-          : "No tengo más opciones en este grupo en este momento. Si quieres, dime otra capacidad/resolución y te filtro de nuevo.";
+        const moreOptionsFlow = handleStrictAskMoreOptions({
+          strictReply,
+          text,
+          previousMemory,
+          strictMemory,
+          rememberedCategory,
+          ownerRows: ownerRows as any[],
+          scopeCatalogRows,
+          normalizeText,
+          familyLabelFromRow,
+          buildNumberedProductOptions,
+          intro: "Claro, te muestro más opciones disponibles:",
+        });
+        if (moreOptionsFlow.handled) strictReply = moreOptionsFlow.strictReply;
       }
 
       let selectedProduct: any = null;
@@ -8924,24 +3188,14 @@ export async function POST(req: Request) {
         }
       }
 
-      // Interceptor: "si" afirmativo corto con producto en memoria y awaiting no accionable
-      // Evita que caiga a IA libre y reinicie el flujo
-      if (
-        !String(strictReply || "").trim() &&
-        isAffirmativeShortIntent(text) &&
-        /^\s*(s[íi]|si|ok|dale|claro|bueno|listo|perfecto|enviamela|enviame|manda|mandate|mandame)\s*$/i.test(String(text || "").trim()) &&
-        /^(conversation_followup|none|strict_need_spec)$/i.test(String(awaiting || "")) &&
-        (previousMemory?.last_selected_product_name || previousMemory?.last_product_name)
-      ) {
-        const productName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || "").trim();
-        strictMemory.awaiting_action = "strict_choose_action";
-        strictMemory.last_selected_product_name = productName;
-        strictReply = [
-          `Perfecto. Para ${productName}, ¿qué deseas?`,
-          "1) Cotización",
-          "2) Ficha técnica",
-        ].join("\n");
-      }
+      strictReply = applyStrictAffirmativeReentry({
+        strictReply,
+        awaiting,
+        text,
+        previousMemory,
+        strictMemory,
+        isAffirmativeShortIntent,
+      });
 
       const askMoreFromAction =
         awaiting === "strict_choose_action" &&
@@ -8949,104 +3203,52 @@ export async function POST(req: Request) {
         !wantsSheet &&
         (/\b(mas|más|opciones|alternativas|otros|otras|rango|que\s+tienes|de\s+\d+)/.test(textNorm) || technicalSpecIntent);
       if (!String(strictReply || "").trim() && askMoreFromAction) {
-        const familyLabel = String(previousMemory?.strict_family_label || "").trim();
-        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
-        const familyRows = familyLabel
-          ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
-          : categoryScoped;
-        let sourceRows: any[] = (familyRows.length >= 3 ? familyRows : categoryScoped) as any[];
-        const specHint = parseLooseTechnicalHint(text);
-        if (specHint?.capacityG && specHint?.readabilityG) {
-          const prioritized = prioritizeTechnicalRows(categoryScoped as any[], {
-            capacityG: Number(specHint.capacityG),
-            readabilityG: Number(specHint.readabilityG),
-          });
-          if (prioritized.orderedRows.length) sourceRows = prioritized.orderedRows;
-        }
-        const allOptions = buildNumberedProductOptions(sourceRows as any[], 60);
-        const options = allOptions.slice(0, 8);
-        strictMemory.pending_product_options = options;
-        strictMemory.awaiting_action = "strict_choose_model";
-        strictMemory.strict_model_offset = 0;
-        strictMemory.strict_family_label = familyLabel;
-        if (!options.length) {
-          strictReply = "No tengo más modelos en ese grupo con ese criterio. Si quieres, dime capacidad y resolución (ej.: 4200 g x 0.01 g) y te busco la mejor alternativa.";
-        } else {
-          strictReply = [
-            "Claro, te muestro más opciones.",
-            ...options.map((o) => `${o.code}) ${o.name}`),
-            "",
-            (allOptions.length > options.length)
-              ? "Escribe 'más' para ver siguientes, o elige con letra/número (A/1)."
-              : "Elige con letra/número (A/1), o dime otra capacidad para filtrar.",
-          ].join("\n");
-        }
+        const moreActionOptionsFlow = handleStrictAskMoreOptions({
+          strictReply,
+          text,
+          previousMemory,
+          strictMemory,
+          rememberedCategory,
+          ownerRows: ownerRows as any[],
+          scopeCatalogRows,
+          normalizeText,
+          familyLabelFromRow,
+          buildNumberedProductOptions,
+          includeTechnicalHint: true,
+          parseLooseTechnicalHint,
+          prioritizeTechnicalRows,
+          emptyReply: "No tengo más modelos en ese grupo con ese criterio. Si quieres, dime capacidad y resolución (ej.: 4200 g x 0.01 g) y te busco la mejor alternativa.",
+        });
+        if (moreActionOptionsFlow.handled) strictReply = moreActionOptionsFlow.strictReply;
       }
 
-      if (!selectedProduct && awaiting === "strict_choose_action") {
-        const rememberedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || "").trim();
-        const rememberedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || "").trim();
-        if (rememberedId) {
-          selectedProduct = ownerRows.find((r: any) => String(r?.id || "").trim() === rememberedId) || null;
-        }
-        if (!selectedProduct && rememberedName) {
-          selectedProduct = findCatalogProductByName(ownerRows as any[], rememberedName) || null;
-        }
-      }
+      selectedProduct = resolveSelectedProductForActionContext({
+        selectedProduct,
+        awaiting,
+        text,
+        textNorm,
+        wantsQuote,
+        wantsSheet,
+        previousMemory,
+        strictMemory,
+        ownerRows: ownerRows as any[],
+        isConversationFollowupAmbiguousQuote,
+        resolvePendingProductOptionStrict: resolvePendingProductOptionStrictApp,
+        findCatalogProductByName,
+      });
 
-      if (!selectedProduct && awaiting === "conversation_followup" && (/^1\b/.test(textNorm) || /^2\b/.test(textNorm))) {
-        const rememberedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || "").trim();
-        const rememberedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || "").trim();
-        if (rememberedId) {
-          selectedProduct = ownerRows.find((r: any) => String(r?.id || "").trim() === rememberedId) || null;
-        }
-        if (!selectedProduct && rememberedName) {
-          selectedProduct = findCatalogProductByName(ownerRows as any[], rememberedName) || null;
-        }
-      }
-
-      if (!selectedProduct && awaiting === "strict_choose_model") {
-        const pending = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
-        const selected = resolvePendingProductOptionStrict(text, pending);
-        if (selected?.id) {
-          selectedProduct = ownerRows.find((r: any) => String(r?.id || "") === String(selected.id || "")) || null;
-        }
-      }
-
-      if (!selectedProduct && !isConversationFollowupAmbiguousQuote && (wantsSheet || wantsQuote || /\b(ficha|cotizacion|cotización|precio)\b/.test(textNorm))) {
-        const rememberedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || strictMemory.last_selected_product_id || strictMemory.last_product_id || "").trim();
-        const rememberedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
-        if (rememberedId) {
-          selectedProduct = ownerRows.find((r: any) => String(r?.id || "").trim() === rememberedId) || null;
-        }
-        if (!selectedProduct && rememberedName) {
-          selectedProduct = findCatalogProductByName(ownerRows as any[], rememberedName) || null;
-        }
-      }
-
-      const selfHints = [
+      const { toCandidates, jidCandidates } = buildStrictDeliveryCandidates({
         agentPhone,
-        normalizePhone(String(payload?.destination || "")),
-        normalizePhone(String(payload?.data?.destination || "")),
-        normalizePhone(String(payload?.sender || "")),
-        normalizePhone(String(payload?.data?.sender || "")),
-      ]
-        .filter((n) => n.length >= 10 && n.length <= 15)
-        .filter((n, i, arr) => arr.indexOf(n) === i);
-      const selfSet = new Set(selfHints);
-
-      const toCandidates = [inboundCustomerPhone, inbound.from, ...(inbound.alternates || [])]
-        .map((n) => normalizePhone(String(n || "")))
-        .filter((n, i, arr) => n && arr.indexOf(n) === i)
-        .filter((n) => !(Boolean(inbound.fromIsLid) && n === inbound.from))
-        .filter((n) => !selfSet.has(n))
-        .filter((n) => Boolean(normalizeRealCustomerPhone(n)));
-
-      const jidCandidates = (inbound.jidCandidates || [])
-        .map((v) => String(v || "").trim())
-        .filter((v, i, arr) => v && arr.indexOf(v) === i)
-        .filter((v) => /@(lid|s\.whatsapp\.net|c\.us)$/i.test(v))
-        .filter((v) => !selfSet.has(normalizePhone(v)));
+        inboundFrom: inbound.from,
+        inboundFromIsLid: inbound.fromIsLid,
+        inboundAlternates: inbound.alternates || [],
+        inboundJidCandidates: inbound.jidCandidates || [],
+        payloadDestination: String(payload?.destination || ""),
+        payloadDataDestination: String(payload?.data?.destination || ""),
+        payloadSender: String(payload?.sender || ""),
+        payloadDataSender: String(payload?.data?.sender || ""),
+        normalizePhone,
+      });
 
       void evolutionService.sendTypingPresenceBatch(outboundInstance, [
         ...toCandidates,
@@ -9055,66 +3257,20 @@ export async function POST(req: Request) {
       ]);
 
       const sendTextAndDocs = async (replyText: string, docs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }>) => {
-        let sentTo = "";
-        for (const to of toCandidates) {
-          try {
-            await evolutionService.sendMessage(outboundInstance, to, withAvaSignature(enforceWhatsAppDelivery(replyText, text)));
-            sentTo = to;
-            break;
-          } catch {
-            continue;
-          }
-        }
-        if (!sentTo) {
-          for (const jid of jidCandidates) {
-            try {
-              await evolutionService.sendMessageToJid(outboundInstance, jid, withAvaSignature(enforceWhatsAppDelivery(replyText, text)));
-              sentTo = jid;
-              break;
-            } catch {
-              continue;
-            }
-          }
-        }
-        if (!sentTo) return { ok: false, sentTo: "" };
-        const docDestinations = [
-          sentTo,
-          ...toCandidates,
-          ...jidCandidates,
-        ]
-          .map((v) => String(v || "").trim())
-          .filter((v, i, arr) => v && arr.indexOf(v) === i);
-        for (const d of docs) {
-          const docFile = String(d.fileName || "").toLowerCase();
-          const docCaption = String(d.caption || "").toLowerCase();
-          const isQuoteDoc = /cotiz|quote/.test(docFile) || /cotiz|quote/.test(docCaption);
-          let deliveredDoc = false;
-          for (const dst of docDestinations) {
-            try {
-              await evolutionService.sendDocument(outboundInstance, dst, {
-                base64: d.base64,
-                fileName: safeFileName(d.fileName, isQuoteDoc ? "cotizacion" : "ficha-tecnica", "pdf"),
-                caption: d.caption || (isQuoteDoc ? "Cotización" : "Ficha técnica"),
-                mimetype: d.mimetype || "application/pdf",
-              });
-              deliveredDoc = true;
-              break;
-            } catch {
-              continue;
-            }
-          }
-          if (!deliveredDoc) {
-            await evolutionService.sendMessage(
-              outboundInstance,
-              sentTo,
-              isQuoteDoc
-                ? "Intenté enviarte la cotización PDF, pero falló en este intento. Si escribes 'reenviar cotizacion', la reintento ahora mismo."
-                : "Intenté enviarte la ficha técnica, pero falló en este intento. Escribe 'reenviar ficha' y lo reintento ahora mismo."
-            );
-            break;
-          }
-        }
-        return { ok: true, sentTo };
+        return sendStrictTextAndDocsApp({
+          replyText,
+          inboundText: text,
+          outboundInstance,
+          toCandidates,
+          jidCandidates,
+          withAvaSignature,
+          enforceWhatsAppDelivery,
+          sendMessage: (instance, to, msg) => evolutionService.sendMessage(instance, to, msg),
+          sendMessageToJid: (instance, jid, msg) => evolutionService.sendMessageToJid(instance, jid, msg),
+          sendDocument: (instance, to, doc) => evolutionService.sendDocument(instance, to, doc),
+          safeFileName,
+          docs,
+        });
       };
 
       const mutedUntilIso = String(previousMemory?.offtopic_muted_until || "").trim();
@@ -9123,3226 +3279,405 @@ export async function POST(req: Request) {
         strictMemory.offtopic_muted_until = mutedUntilIso;
         strictMemory.offtopic_count = Math.max(3, Number(previousMemory?.offtopic_count || 3));
         try {
-          const strictClosed = String(strictMemory.conversation_status || "") === "closed";
-          const strictQuoteContext =
-            Boolean(strictMemory.last_quote_draft_id || previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
-            /(quote_generated|quote_recall|price_request)/.test(String(strictMemory.last_intent || previousMemory?.last_intent || ""));
-          const strictNextAction = strictClosed
-            ? (strictQuoteContext ? "Recordatorio feedback cotizacion" : "Seguimiento WhatsApp")
-            : (strictQuoteContext ? "Seguimiento cotizacion" : "");
-          const strictNextActionAt = strictClosed
-            ? (strictQuoteContext ? isoAfterHours(24) : isoAfterHours(48))
-            : (strictQuoteContext ? isoAfterHours(24) : "");
-          const strictMeetingAt = String(strictMemory.advisor_meeting_at || "").trim();
-          await upsertCrmLifecycleState(supabase as any, {
-            ownerId,
-            tenantId: (agent as any)?.tenant_id || null,
-            phone: inboundCustomerPhone || inbound.from,
-            realPhone: String(strictMemory.customer_phone || previousMemory?.customer_phone || ""),
-            name: knownCustomerName || inbound.pushName || "",
-            status: strictQuoteContext ? "quote" : undefined,
-            nextAction: strictMeetingAt ? "Llamar cliente (cita WhatsApp)" : (strictNextAction || undefined),
-            nextActionAt: strictMeetingAt || strictNextActionAt || undefined,
-            metadata: {
-              source: "evolution_strict_webhook",
-              conversation_status: String(strictMemory.conversation_status || "open"),
-              last_intent: String(strictMemory.last_intent || ""),
-              quote_feedback_due_at: String(strictMemory.quote_feedback_due_at || ""),
-              advisor_meeting_at: strictMeetingAt,
-              advisor_meeting_label: String(strictMemory.advisor_meeting_label || ""),
-            },
-          });
-          if (strictMeetingAt) {
-            await mirrorAdvisorMeetingToAvanza({
-              ownerId,
-              tenantId: (agent as any)?.tenant_id || null,
-              externalRef: String(inbound.messageId || incomingDedupKey || "muted"),
-              phone: inboundCustomerPhone || inbound.from,
-              customerName: knownCustomerName || inbound.pushName || inbound.from,
-              advisor: "Asesor comercial",
-              meetingAt: strictMeetingAt,
-              meetingLabel: String(strictMemory.advisor_meeting_label || ""),
-              source: "evolution_strict_webhook",
-            });
-          }
-
-          await persistConversationTurn(supabase as any, {
-            agentId: String(agent.id),
-            ownerId,
-            tenantId: (agent as any)?.tenant_id || null,
-            from: inboundCustomerPhone || inbound.from,
-            pushName: inbound.pushName,
-            contactName: knownCustomerName || inbound.pushName || inbound.from,
-            inboundText: inbound.text,
-            outboundText: "",
-            messageId: inbound.messageId,
+          await syncCrmLifecycleAndMeeting({
             memory: strictMemory,
+            previous: previousMemory,
+            source: "evolution_strict_webhook",
+            externalRefSuffix: "muted",
           });
+
+          await persistCurrentTurn("", strictMemory);
         } catch {}
-        await supabase
-          .from("incoming_messages")
-          .update({ status: "processed", processed_at: new Date().toISOString() })
-          .eq("provider", "evolution")
-          .eq("provider_message_id", incomingDedupKey);
+        await markIncomingMessageProcessed(supabase as any, incomingDedupKey);
         return NextResponse.json({ ok: true, ignored: true, reason: "muted_offtopic" });
       }
 
       // Hard guardrail: never answer outside OHAUS scope.
-      const outOfScope = /\b(autos?|carros?|vehiculos?|motos?|bicicletas?|inmueble|casa|apartamento|hipoteca|pan|leche|carne|fruta|verdura|comida|almuerzo|cena|desayuno|restaurante|pizza|hamburguesa|helado)\b/.test(textNorm);
-      const offTopicCandidate =
-        outOfScope &&
-        !awaiting &&
-        !explicitModel &&
-        !categoryIntent &&
-        !technicalSpecIntent &&
-        !wantsQuote &&
-        !wantsSheet &&
-        !isGreeting &&
-        !isOptionOnlyReply(text);
-      if (offTopicCandidate) {
-        const count = Math.min(10, Number(previousMemory?.offtopic_count || 0) + 1);
-        strictMemory.offtopic_count = count;
-        strictMemory.awaiting_action = "none";
-        if (count >= 3) {
-          const mutedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-          strictMemory.offtopic_muted_until = mutedUntil;
-          strictReply = "Este canal es solo para cotizar balanzas y analizadores de humedad OHAUS. Pauso este chat 15 minutos por mensajes fuera de catálogo.";
-        } else if (count === 2) {
-          strictReply = "Solo manejo catálogo OHAUS de balanzas y analizadores de humedad. Responde 1) Balanzas 2) Humedad o escribe modelo (PX85, AX85, MB120).";
-        } else {
-          strictReply = "No manejo ese tipo de producto. Solo te ayudo con balanzas y analizadores de humedad OHAUS. Responde 1) Balanzas 2) Humedad.";
-        }
-      } else {
-        strictMemory.offtopic_count = 0;
-        strictMemory.offtopic_muted_until = "";
+      if (!String(strictReply || "").trim()) {
+        strictReply = applyStrictOfftopicGuardrail({
+          textNorm,
+          awaiting,
+          explicitModel,
+          categoryIntent,
+          technicalSpecIntent,
+          wantsQuote,
+          wantsSheet,
+          isGreeting,
+          isOptionOnlyReply: (value: string) => isOptionOnlyReplyApp(value, normalizeText),
+          text,
+          previousMemory,
+          strictMemory,
+        }).strictReply;
       }
 
-      if (!String(strictReply || "").trim() && isGreeting && !explicitModel && !categoryIntent && !wantsQuote && !wantsSheet) {
-        const hasPriorConversation =
-          Boolean(previousMemory?.last_user_at || previousMemory?.last_intent || previousMemory?.last_quote_draft_id) ||
-          Boolean(previousMemory?.recognized_returning_customer || strictMemory?.recognized_returning_customer || recognizedReturningCustomer) ||
-          (Array.isArray(existingConv?.transcript) && existingConv.transcript.length > 0);
-        strictMemory.awaiting_action = "none";
-        strictMemory.pending_product_options = [];
-        strictMemory.pending_family_options = [];
-        strictMemory.strict_model_offset = 0;
-        strictMemory.strict_family_label = "";
-        if (hasPriorConversation) {
-          strictReply = buildGreetingReply(knownCustomerName, strictMemory);
-          strictMemory.commercial_welcome_sent = false;
-        } else {
-          strictReply = buildCommercialWelcomeMessage();
-          strictMemory.commercial_welcome_sent = true;
-        }
-      } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
-        const parsed = parseLooseTechnicalHint(text);
-        const capacityRange = parseCapacityRangeHint(text);
-        const asksCategoryMenuNow = isExplicitFamilyMenuAsk(text);
-        const merged = mergeLooseSpecWithMemory(
-          {
-            capacityG: Number(previousMemory?.strict_partial_capacity_g || previousMemory?.strict_filter_capacity_g || 0),
-            readabilityG: Number(previousMemory?.strict_partial_readability_g || previousMemory?.strict_filter_readability_g || 0),
-          },
-          parsed
-        );
-        const cap = Number(merged.capacityG || 0);
-        const read = Number(merged.readabilityG || 0);
-        strictMemory.strict_partial_capacity_g = cap > 0 ? cap : "";
-        strictMemory.strict_partial_readability_g = read > 0 ? read : "";
+      strictReply = applyStrictGreetingGate({
+        strictReply,
+        isGreeting,
+        explicitModel,
+        categoryIntent,
+        wantsQuote,
+        wantsSheet,
+        previousMemory,
+        strictMemory,
+        recognizedReturningCustomer,
+        existingTranscriptLength: Array.isArray(existingConv?.transcript) ? existingConv.transcript.length : 0,
+        knownCustomerName,
+        buildGreetingReply: (name: string, memory: any) => buildGreetingReplyApp({ knownCustomerName: name, memory, shouldUseFullGreeting: shouldUseFullGreetingApp }),
+        buildCommercialWelcomeMessage,
+      });
 
-        const guidedProfileInNeedStep = detectGuidedBalanzaProfile(text);
-        if (guidedProfileInNeedStep) {
-          const industrialModeNeed = guidedProfileInNeedStep === "balanza_industrial_portatil_conteo" ? detectIndustrialGuidedMode(text) : "";
-          const options = buildGuidedPendingOptions(ownerRows as any[], guidedProfileInNeedStep, industrialModeNeed as any);
-          strictMemory.pending_product_options = options;
-          strictMemory.pending_family_options = [];
-          strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
-          strictMemory.last_category_intent = "balanzas";
-          strictMemory.guided_balanza_profile = guidedProfileInNeedStep;
-          strictMemory.guided_industrial_mode = industrialModeNeed;
-          strictReply = buildGuidedBalanzaReplyWithMode(guidedProfileInNeedStep, industrialModeNeed as any);
-        }
-
-        if (!String(strictReply || "").trim() && !(cap > 0) && !(read > 0)) {
-          const dimensionHint = parseDimensionHint(text);
-          if (dimensionHint) {
-            const criterionLabel = formatDimensionTripletMm(dimensionHint.dimsMm);
-            const rankedByDims = rankCatalogByDimensions(baseScoped as any[], dimensionHint.dimsMm);
-            const exactByDims = rankedByDims
-              .filter((x: any) => Number(x?.score || 0) < 2000)
-              .map((x: any) => x.row);
-            if (exactByDims.length) {
-              const options = buildNumberedProductOptions(exactByDims.slice(0, 8) as any[], 8);
-              strictMemory.pending_product_options = options;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
-              strictReply = [
-                `Sí, tengo opciones activas con dimensiones cercanas a ${criterionLabel}.`,
-                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                "",
-                "Elige con letra o número (A/1), o escribe 'más'.",
-              ].join("\n");
-            } else if (rankedByDims.length) {
-              const options = buildNumberedProductOptions(rankedByDims.map((x: any) => x.row).slice(0, 8) as any[], 8);
-              strictMemory.pending_product_options = options;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
-              strictReply = [
-                `No tengo coincidencia exacta por dimensiones (${criterionLabel}), pero sí estas alternativas cercanas:`,
-                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                "",
-                "Elige con letra o número (A/1), o ajustamos dimensión/capacidad.",
-              ].join("\n");
-            } else {
-              strictReply = `No encontré modelos activos con dimensiones ${criterionLabel} en el catálogo actual. Si quieres, te propongo cercanas por capacidad/resolución.`;
-              strictMemory.awaiting_action = "strict_need_spec";
-            }
-          }
-
-          const asksPrecisionOptionsNow =
-            /(balanzas?\s+de\s+precisi[oó]n|balanzas?\s+precision|de\s+precisi[oó]n|balanzas?\s+de\s+alta\s+precisi[oó]n)/.test(textNorm) ||
-            (/precisi[oó]n/.test(textNorm) && /(opciones?|alternativas?|muestrame|mu[eé]strame|dame|quiero|tienes?)/.test(textNorm)) ||
-            /(cabina|con\s+cabina)/.test(textNorm);
-          if (!String(strictReply || "").trim() && asksPrecisionOptionsNow) {
-            const guidedProfile = "balanza_precision_001" as GuidedBalanzaProfile;
-            const options = buildGuidedPendingOptions(ownerRows as any[], guidedProfile, "");
-            if (options.length) {
-              strictMemory.pending_product_options = options;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
-              strictMemory.last_category_intent = "balanzas";
-              strictMemory.guided_balanza_profile = guidedProfile;
-              strictMemory.guided_industrial_mode = "";
-              strictReply = buildGuidedBalanzaReplyWithMode(guidedProfile, "");
-            }
-          }
-
-          if (!String(strictReply || "").trim()) {
-          if (asksCategoryMenuNow) {
-            const requestedCategoryForMenu = detectCatalogCategoryIntent(text);
-            const rowsForMenu = requestedCategoryForMenu
-              ? scopeCatalogRows(ownerRows as any, requestedCategoryForMenu)
-              : (ownerRows as any[]);
-            const families = buildNumberedFamilyOptions(rowsForMenu as any[], 8);
-            strictMemory.pending_family_options = families;
-            strictMemory.pending_product_options = [];
-            strictMemory.awaiting_action = "strict_choose_family";
-            strictMemory.strict_family_label = "";
-            if (requestedCategoryForMenu) strictMemory.last_category_intent = requestedCategoryForMenu;
-            strictReply = families.length
-              ? [
-                  "Claro. Estas son las familias/categorías activas que sí tengo en catálogo:",
-                  ...families.map((f) => `${f.code}) ${f.label} (${f.count})`),
-                  "",
-                  "Elige una con letra o número (A/1) y te muestro opciones compatibles.",
-                ].join("\n")
-              : "En este momento no tengo familias activas para mostrar en el catálogo.";
-          }
-          }
-          if (!String(strictReply || "").trim()) {
-          const asksAlternativesNow = /\b(alternativas?|opciones?)\b/.test(textNorm) || /(dame|muestrame|mu[eé]strame|quiero)\s+.*(alternativas?|opciones?)/.test(textNorm);
-          const rememberedCap = Number(previousMemory?.strict_filter_capacity_g || previousMemory?.strict_partial_capacity_g || 0);
-          const rememberedRead = Number(previousMemory?.strict_filter_readability_g || previousMemory?.strict_partial_readability_g || 0);
-          if (asksAlternativesNow && rememberedCap > 0 && rememberedRead > 0) {
-            const prioritized = prioritizeTechnicalRows(baseScoped as any[], {
-              capacityG: rememberedCap,
-              readabilityG: rememberedRead,
-            });
-            const compatibleRows = filterReasonableTechnicalRows((prioritized.orderedRows.length ? prioritized.orderedRows : baseScoped as any[]) as any[], {
-              capacityG: rememberedCap,
-              readabilityG: rememberedRead,
-            });
-            const options = buildNumberedProductOptions((compatibleRows || []) as any[], 8);
-            if (options.length) {
-              strictMemory.pending_product_options = options;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
-              strictMemory.strict_filter_capacity_g = rememberedCap;
-              strictMemory.strict_filter_readability_g = rememberedRead;
-              strictReply = [
-                `Perfecto. Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g, estas son alternativas reales del catálogo:`,
-                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-                "",
-                "Elige con letra o número (A/1), o escribe 'más'.",
-              ].join("\n");
-            } else {
-              const nearbyRows = filterNearbyTechnicalRows((prioritized.orderedRows.length ? prioritized.orderedRows : baseScoped as any[]) as any[], {
-                capacityG: rememberedCap,
-                readabilityG: rememberedRead,
-              });
-              const nearbyOptions = buildNumberedProductOptions((nearbyRows || []).slice(0, 8) as any[], 8);
-              if (nearbyOptions.length) {
-                strictMemory.pending_product_options = nearbyOptions;
-                strictMemory.pending_family_options = [];
-                strictMemory.awaiting_action = "strict_choose_model";
-                strictMemory.strict_model_offset = 0;
-                strictMemory.strict_filter_capacity_g = rememberedCap;
-                strictMemory.strict_filter_readability_g = rememberedRead;
-                strictReply = [
-                  `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo coincidencia realmente compatible.`,
-                  "Te comparto las más cercanas disponibles para que compares:",
-                  ...nearbyOptions.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-                  "",
-                  "Elige una opción (A/1), o ajustamos capacidad/resolución.",
-                ].join("\n");
-              } else {
-                strictMemory.pending_product_options = [];
-                strictMemory.awaiting_action = "strict_need_spec";
-                strictMemory.strict_filter_capacity_g = rememberedCap;
-                strictMemory.strict_filter_readability_g = rememberedRead;
-                strictReply = `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
-              }
-            }
-          }
-          }
-          if (!String(strictReply || "").trim()) {
-          if (capacityRange) {
-            const rangedRows = filterRowsByCapacityRange(baseScoped as any[], capacityRange);
-            const options = buildNumberedProductOptions(rangedRows.slice(0, 8) as any[], 8);
-            if (options.length) {
-              strictMemory.pending_product_options = options;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
-              strictReply = [
-                `Perfecto, te entendí un rango de capacidad (${formatSpecNumber(capacityRange.minG)} g a ${Number.isFinite(capacityRange.maxG) ? `${formatSpecNumber(capacityRange.maxG)} g` : "en adelante"}).`,
-                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                "",
-                "Responde con letra o número (A/1), o envíame también la resolución objetivo para afinar más.",
-              ].join("\n");
-            } else {
-              strictReply = "No encontré referencias activas para ese rango de capacidad en el catálogo actual. Si quieres, te muestro alternativas cercanas.";
-              strictMemory.awaiting_action = "strict_need_spec";
-            }
-          } else {
-            const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
-            if (!String(strictReply || "").trim() && isBasculaAvailabilityAsk(text)) {
-              const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
-              const options = buildNumberedProductOptions(basculaRows as any[], 8);
-              if (options.length) {
-                strictMemory.pending_product_options = options;
-                strictMemory.pending_family_options = [];
-                strictMemory.awaiting_action = "strict_choose_model";
-                strictMemory.strict_model_offset = 0;
-                strictMemory.last_category_intent = "basculas";
-                strictReply = [
-                  `Perfecto. En catálogo activo tengo ${options.length} báscula(s).`,
-                  ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                  "",
-                  "Elige con letra/número (A/1), o escribe 'más'.",
-                ].join("\n");
-              } else {
-                strictMemory.awaiting_action = "strict_need_spec";
-                strictReply = "Ahora mismo no veo básculas activas en base de datos. Si quieres, dime capacidad y resolución y te confirmo alternativas de otras líneas.";
-              }
-            }
-            const recommendationAskNow = isRecommendationIntent(text) || /que\s+me\s+recomiendas?|que\s+recomiendas?/.test(textNorm);
-            const heavyDutyAskNow = isHeavyDutyWeightIntent(text);
-            if (!String(strictReply || "").trim() && (heavyDutyAskNow || recommendationAskNow)) {
-              const guidedProfileNow = heavyDutyAskNow ? ("balanza_industrial_portatil_conteo" as GuidedBalanzaProfile) : detectGuidedBalanzaProfile(text);
-              if (guidedProfileNow) {
-                const industrialMode = guidedProfileNow === "balanza_industrial_portatil_conteo"
-                  ? (detectIndustrialGuidedMode(text) || "estandar")
-                  : "";
-                const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedProfileNow, industrialMode as any);
-                if (guidedOptions.length) {
-                  strictMemory.guided_balanza_profile = guidedProfileNow;
-                  strictMemory.guided_industrial_mode = industrialMode;
-                  strictMemory.last_category_intent = "balanzas";
-                  strictMemory.pending_product_options = guidedOptions;
-                  strictMemory.pending_family_options = [];
-                  strictMemory.awaiting_action = "strict_choose_model";
-                  strictMemory.strict_model_offset = 0;
-                  strictReply = buildGuidedBalanzaReplyWithMode(guidedProfileNow, industrialMode as any);
-                }
-              }
-              if (!String(strictReply || "").trim()) {
-                const scopedRows = heavyDutyAskNow
-                  ? scopeStrictBasculaRows(ownerRows as any[])
-                  : (currentCategory ? scopeCatalogRows(ownerRows as any[], currentCategory) : (ownerRows as any[]));
-                const options = buildNumberedProductOptions((scopedRows || []).slice(0, 8) as any[], 8);
-                if (options.length) {
-                  strictMemory.pending_product_options = options;
-                  strictMemory.pending_family_options = [];
-                  strictMemory.awaiting_action = "strict_choose_model";
-                  strictMemory.strict_model_offset = 0;
-                  strictReply = [
-                    heavyDutyAskNow
-                      ? "Perfecto. Para peso fuerte te recomiendo iniciar con estas opciones de línea industrial:"
-                      : "Perfecto. Te recomiendo estas opciones para que elijas la que mejor se ajusta a tu necesidad:",
-                    ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-                    "",
-                    "Si quieres, elige con letra/número (A/1) y te envío ficha o cotización.",
-                  ].join("\n");
-                }
-              }
-            }
-            if (currentCategory === "basculas") {
-              const asksBasculaOptions = /(tienes?\s+basculas?|que\s+modelos\s+tienes?\s+de\s+basculas?|que\s+basculas?\s+tienes?|dame\s+(opciones|modelos)|muestrame\s+(opciones|modelos))/i.test(String(text || ""));
-              if (!String(strictReply || "").trim() && asksBasculaOptions) {
-                const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
-                const options = buildNumberedProductOptions(basculaRows as any[], 8);
-                if (options.length) {
-                  strictMemory.pending_product_options = options;
-                  strictMemory.pending_family_options = [];
-                  strictMemory.awaiting_action = "strict_choose_model";
-                  strictMemory.strict_model_offset = 0;
-                  strictReply = [
-                    `Perfecto. En catálogo activo tengo ${options.length} báscula(s).`,
-                    ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                    "",
-                    "Elige con letra/número (A/1), o escribe 'más'.",
-                  ].join("\n");
-                } else {
-                  strictReply = "Ahora mismo no veo básculas activas en base de datos. Si quieres, dime capacidad y resolución y te confirmo alternativas de otras líneas.";
-                  strictMemory.awaiting_action = "strict_need_spec";
-                }
-              } else if (!String(strictReply || "").trim()) {
-                strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
-              }
-            } else if (!String(strictReply || "").trim()) {
-              strictReply = isDifferenceQuestionIntent(text)
-                ? buildScaleDifferenceGuidanceReply()
-                : buildBalanzaQualificationPrompt();
-            }
-            if (!String(strictMemory.awaiting_action || "").trim() || strictMemory.awaiting_action === "none") {
-              strictMemory.awaiting_action = "strict_need_spec";
-            }
-          }
-          }
-        } else if (!String(strictReply || "").trim() && read > 0 && !(cap > 0)) {
-          strictReply = [
-            `Perfecto, ya tengo la precisión (${formatSpecNumber(read)} g).`,
-            "Para recomendarte bien, ¿qué capacidad aproximada necesitas?",
-            "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
-          ].join("\n");
-          strictMemory.awaiting_action = "strict_need_spec";
-        } else if (!String(strictReply || "").trim() && cap > 0 && !(read > 0)) {
-          const currentCategory = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || detectCatalogCategoryIntent(text) || ""));
-          const scopedForFast = currentCategory ? scopeCatalogRows(ownerRows as any[], currentCategory) : ownerRows;
-          if (isLargestCapacityAsk(text)) {
-            const largest = buildLargestCapacitySuggestion(scopedForFast as any[]);
-            if (largest.options.length) {
-              strictMemory.pending_product_options = largest.options;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
-              strictReply = largest.reply;
-            }
-          }
-          if (!String(strictReply || "").trim() && currentCategory === "basculas" && Array.isArray(scopedForFast) && scopedForFast.length > 0 && scopedForFast.length <= 4) {
-            const rankedCap = rankCatalogByCapacityOnly(scopedForFast as any[], cap);
-            const rankedRows = rankedCap.length ? rankedCap.map((x: any) => x.row) : scopedForFast;
-            const options = buildNumberedProductOptions((rankedRows || []).slice(0, 8) as any[], 8);
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictMemory.strict_partial_capacity_g = cap;
-            strictMemory.strict_filter_capacity_g = cap;
-            strictReply = [
-              `Perfecto. Para básculas activas, en este momento manejo ${options.length} modelo(s).`,
-              ...options.map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Elige una con letra/número (A/1) y te envío ficha o cotización.",
-            ].join("\n");
-          } else if (!String(strictReply || "").trim()) {
-            const priceLine = buildPriceRangeLine(scopedForFast as any[]);
-            strictReply = [
-              `Perfecto, ya tengo la capacidad (${formatSpecNumber(cap)} g).`,
-              ...(priceLine ? [priceLine] : []),
-              "Ahora dime la resolución/precisión objetivo.",
-              "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
-            ].join("\n");
-            strictMemory.awaiting_action = "strict_need_spec";
-          }
-        } else if (!String(strictReply || "").trim()) {
-          if (!(cap > 0) || !(read > 0)) {
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = [
-              "No entiendo tu solicitud técnica todavía.",
-              "Por favor repite con formato válido: capacidad x resolución (ej.: 3000 g x 0.01 g) o modelo exacto.",
-            ].join("\n");
-          }
-          if (!String(strictReply || "").trim()) {
-          strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
-          strictMemory.strict_filter_capacity_g = Number(cap || 0);
-          strictMemory.strict_filter_readability_g = Number(read || 0);
-          strictMemory.strict_partial_capacity_g = "";
-          strictMemory.strict_partial_readability_g = "";
-          const exactRows = getExactTechnicalMatches(baseScoped as any[], { capacityG: cap, readabilityG: read });
-          if (exactRows.length) {
-            const options = buildNumberedProductOptions(exactRows.slice(0, 8) as any[], 8);
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictReply = [
-              `Sí, tengo coincidencias exactas para ${strictMemory.strict_spec_query}.`,
-              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Responde con letra o número y te envío ficha técnica o cotización.",
-            ].join("\n");
-          } else {
-            const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: cap, readabilityG: read });
-            const compatibleRows = filterReasonableTechnicalRows((prioritized.orderedRows || []) as any[], { capacityG: cap, readabilityG: read });
-            const options = buildNumberedProductOptions((compatibleRows || []).slice(0, 8) as any[], 8);
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            if (!options.length) {
-              strictMemory.pending_product_options = [];
-              strictMemory.awaiting_action = "strict_need_spec";
-              strictReply = `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
-            } else {
-              strictReply = [
-                `No encontré coincidencia exacta para ${strictMemory.strict_spec_query}.`,
-                "Sí tengo estas opciones cercanas:",
-                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-                "",
-                "Si quieres, elige una opción o te ayudo a ajustar la especificación.",
-              ].join("\n");
-            }
-          }
-          }
-        }
+      if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
+        strictReply = applyStrictNeedSpecFlow({
+          strictReply,
+          awaiting,
+          text,
+          textNorm,
+          previousMemory,
+          strictMemory,
+          ownerRows,
+          baseScoped,
+          rememberedCategory,
+          parseLooseTechnicalHint,
+          parseCapacityRangeHint,
+          isExplicitFamilyMenuAsk,
+          mergeLooseSpecWithMemory,
+          detectGuidedBalanzaProfile,
+          detectIndustrialGuidedMode,
+          buildGuidedPendingOptions,
+          buildGuidedBalanzaReplyWithMode,
+          parseDimensionHint,
+          formatDimensionTripletMm,
+          rankCatalogByDimensions,
+          buildNumberedProductOptions,
+          prioritizeTechnicalRows,
+          filterReasonableTechnicalRows,
+          filterNearbyTechnicalRows,
+          formatSpecNumber,
+          filterRowsByCapacityRange,
+          isBasculaAvailabilityAsk,
+          scopeStrictBasculaRows,
+          normalizeText,
+          detectCatalogCategoryIntent,
+          scopeCatalogRows,
+          isLargestCapacityAsk: (value: string) => isLargestCapacityAskApp(value, normalizeText),
+          buildLargestCapacitySuggestion,
+          rankCatalogByCapacityOnly,
+          buildPriceRangeLine,
+          getExactTechnicalMatches,
+        });
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_industry") {
-        const industry = String(text || "").trim();
-        if (industry.length < 3 || /^(si|ok|listo|dale|de una)$/i.test(industry)) {
-          strictReply = "Para recomendarte el mejor modelo, dime el uso o industria (ej.: laboratorio alimentos, control de calidad, bodega).";
-          strictMemory.awaiting_action = "strict_need_industry";
-        } else {
-          strictMemory.strict_industry = industry;
-          const specParsed = parseTechnicalSpecQuery(prevSpecQuery || String(strictMemory.strict_spec_query || ""));
-          const ranked = specParsed
-            ? rankCatalogByTechnicalSpec(baseScoped as any[], { capacityG: specParsed.capacityG, readabilityG: specParsed.readabilityG })
-            : [];
-          const recommendedRows = (ranked.length ? ranked.map((r: any) => r.row) : baseScoped).slice(0, 8);
-          const options = buildNumberedProductOptions(recommendedRows as any[], 8);
-          strictMemory.pending_product_options = options;
-          strictMemory.pending_family_options = [];
-          strictMemory.awaiting_action = "strict_choose_model";
-          strictMemory.strict_model_offset = 0;
-          strictReply = [
-            `Perfecto. Con ese uso te recomiendo estas opciones${strictMemory.strict_spec_query ? ` para ${String(strictMemory.strict_spec_query)}` : ""}:`,
-            ...options.map((o) => `${o.code}) ${o.name}`),
-            "",
-            "Responde con letra o número (ej.: A o 1).",
-          ].join("\n");
-        }
+        strictReply = applyStrictNeedIndustryFlow({
+          strictReply,
+          awaiting,
+          text,
+          strictMemory,
+          prevSpecQuery,
+          baseScoped: baseScoped as any[],
+          parseTechnicalSpecQuery,
+          rankCatalogByTechnicalSpec,
+          buildNumberedProductOptions,
+        });
       } else if (!String(strictReply || "").trim() && awaiting === "strict_confirm_quote_after_missing_sheet") {
-        if (isAffirmativeShortIntent(text) || /^\s*1\b/.test(textNorm) || /\b(si|sí|dale|ok|de una|hagale|h[aá]gale)\b/.test(textNorm)) {
-          const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
-          strictMemory.quote_quantity = qtyRequested;
-          strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = buildQuoteDataIntakePrompt(
-            `Perfecto. Te genero la cotización ahora (${qtyRequested} unidad(es)).`,
-            strictMemory
-          );
-        } else if (isNegativeShortIntent(text) || /^\s*2\b/.test(textNorm) || /\b(no|despues|después|luego)\b/.test(textNorm)) {
-          strictMemory.awaiting_action = "strict_choose_action";
-          strictReply = "Entendido. Responde 1 para cotización o 2 para ficha técnica.";
-        } else {
-          strictMemory.awaiting_action = "strict_confirm_quote_after_missing_sheet";
-          strictReply = "Para continuar, responde: sí para cotización o no para volver al menú.";
+        const confirmQuoteAfterMissingSheet = handleStrictConfirmQuoteAfterMissingSheet({
+          strictReply,
+          awaiting,
+          text,
+          textNorm,
+          previousMemory,
+          strictMemory,
+          isAffirmativeShortIntent,
+          isNegativeShortIntent,
+          extractQuoteRequestedQuantity: (value: string) => extractQuoteRequestedQuantityApp({ text: value, normalizeText, parseTechnicalSpecQuery }),
+          buildQuoteDataIntakePrompt: (prefix: string, memory: any) => buildQuoteDataIntakePromptApp(prefix, getReusableBillingData(memory)),
+        });
+        if (confirmQuoteAfterMissingSheet.handled) {
+          strictReply = confirmQuoteAfterMissingSheet.strictReply;
         }
       } else if (!String(strictReply || "").trim() && selectedProduct) {
-        const selectedName = String(selectedProduct?.name || "").trim();
-        const hasSheetCandidate = Boolean(pickBestProductPdfUrl(selectedProduct, text) || pickBestLocalPdfPath(selectedProduct, text));
-        const lastRecommendedOptions = (Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
-          .slice(0, 8)
-          .map((o: any) => ({
-            code: String(o?.code || "").trim(),
-            rank: Number(o?.rank || 0),
-            id: String(o?.id || "").trim(),
-            name: String(o?.name || "").trim(),
-            raw_name: String(o?.raw_name || o?.name || "").trim(),
-            category: String(o?.category || "").trim(),
-          }))
-          .filter((o: any) => o.name);
-        if (lastRecommendedOptions.length) strictMemory.last_recommended_options = lastRecommendedOptions;
-        strictMemory.last_product_name = selectedName;
-        strictMemory.last_product_id = String(selectedProduct?.id || "").trim();
-        strictMemory.last_selected_product_name = selectedName;
-        strictMemory.last_selected_product_id = String(selectedProduct?.id || "").trim();
-        strictMemory.last_selection_at = new Date().toISOString();
-        strictMemory.awaiting_action = "strict_choose_action";
-        strictMemory.pending_family_options = [];
-        strictMemory.pending_product_options = [];
-
-        if (awaiting === "strict_choose_action" && /^\s*1\b/.test(textNorm)) {
-          const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
-          strictMemory.quote_quantity = qtyRequested;
-          strictMemory.awaiting_action = "strict_quote_data";
-          const quoteMemoryMerged = {
-            ...(previousMemory && typeof previousMemory === "object" ? previousMemory : {}),
-            ...(strictMemory && typeof strictMemory === "object" ? strictMemory : {}),
-            quote_data: {
-              ...((previousMemory?.quote_data && typeof previousMemory.quote_data === "object") ? previousMemory.quote_data : {}),
-              ...((strictMemory?.quote_data && typeof strictMemory.quote_data === "object") ? strictMemory.quote_data : {}),
-            },
-          };
-          const reusableNow = getReusableBillingData(quoteMemoryMerged);
-          strictMemory.quote_data = {
-            city: reusableNow.city || String(previousMemory?.crm_billing_city || strictMemory.crm_billing_city || "") || "",
-            company: reusableNow.company || String(previousMemory?.crm_company || strictMemory.crm_company || "") || String(previousMemory?.commercial_company_name || strictMemory.commercial_company_name || ""),
-            nit: reusableNow.nit || String(previousMemory?.crm_nit || strictMemory.crm_nit || "") || String(previousMemory?.commercial_company_nit || strictMemory.commercial_company_nit || ""),
-            contact: reusableNow.contact || String(previousMemory?.crm_contact_name || strictMemory.crm_contact_name || "") || String(previousMemory?.commercial_customer_name || strictMemory.commercial_customer_name || "") || String(previousMemory?.customer_name || strictMemory.customer_name || ""),
-            email: reusableNow.email || String(previousMemory?.crm_contact_email || strictMemory.crm_contact_email || "") || String(previousMemory?.customer_email || strictMemory.customer_email || ""),
-            phone: reusableNow.phone || String(previousMemory?.crm_contact_phone || strictMemory.crm_contact_phone || "") || normalizePhone(String(previousMemory?.customer_phone || strictMemory.customer_phone || inbound.from || "")),
-          };
-          strictMemory.strict_autorun_quote_with_reuse = true;
-        }
-
-        const rawAnotherQuoteChoice = awaiting === "strict_choose_action" ? parseAnotherQuoteChoice(text) : null;
-        let followupIntent = awaiting === "strict_choose_action" ? detectAlternativeFollowupIntent(text) : null;
-        const asksAnotherQuote = awaiting === "strict_choose_action" && isAnotherQuoteAmbiguousIntent(text);
-        const anotherQuoteContext = asksAnotherQuote || /\b(otra\s+cotiz|nueva\s+cotiz|recotiz|re\s*cotiz|otra\s+propuesta)\b/.test(textNorm);
-        const anotherQuoteChoice = anotherQuoteContext ? rawAnotherQuoteChoice : null;
-        const technicalHintInAction = awaiting === "strict_choose_action" ? parseLooseTechnicalHint(text) : null;
-        const technicalCapInAction = Number((technicalHintInAction as any)?.capacityG || 0);
-        const technicalReadInAction = Number((technicalHintInAction as any)?.readabilityG || 0);
-        const categoryIntentInAction = awaiting === "strict_choose_action" ? detectCatalogCategoryIntent(text) : null;
-        const appHintInAction = awaiting === "strict_choose_action" ? detectTargetApplication(text) : "";
-        const asksApplicationRecommendationsNow = awaiting === "strict_choose_action" && /^(si|sí|si\s+por\s+favor|sí\s+por\s+favor|por\s+favor|dale|ok|de\s+una)$/.test(textNorm);
-        const currentCategoryInAction = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || ""));
-        const isCategorySwitchInAction = Boolean(
-          categoryIntentInAction && normalizeText(String(categoryIntentInAction || "")) !== currentCategoryInAction
-        );
-
-        const needsGuidedReframeInAction =
-          !String(strictReply || "").trim() &&
-          awaiting === "strict_choose_action" &&
-          !wantsQuote &&
-          !wantsSheet &&
-          !followupIntent &&
-          isAlternativeRejectionIntent(text) &&
-          !(technicalCapInAction > 0 || technicalReadInAction > 0) &&
-          !categoryIntentInAction;
-        if (needsGuidedReframeInAction) {
-          strictMemory.awaiting_action = "strict_need_spec";
-          strictReply = buildGuidedNeedReframePrompt();
-        }
-
-        if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && (appHintInAction || (asksApplicationRecommendationsNow && String(previousMemory?.target_application || "").trim())) && !wantsQuote && !wantsSheet && !(technicalCapInAction > 0 || technicalReadInAction > 0)) {
-          const effectiveApp = appHintInAction || String(previousMemory?.target_application || "").trim();
-          strictMemory.target_application = effectiveApp;
-          strictMemory.target_industry = effectiveApp === "joyeria_oro" ? "joyeria" : effectiveApp;
-          const selectedSpec = extractRowTechnicalSpec(selectedProduct);
-          const selectedRead = Number(selectedSpec?.readabilityG || 0);
-          const maxRead = maxReadabilityForApplication(effectiveApp);
-          const selectedIsCompatible = selectedRead > 0 && selectedRead <= maxRead;
-
-          if (selectedIsCompatible) {
-            strictReply = [
-              `Sí, ${selectedName} puede servir para ${effectiveApp.replace(/_/g, " ")} por precisión (${formatSpecNumber(selectedRead)} g).`,
-              "Si quieres, seguimos con 1) cotización o 2) ficha técnica.",
-            ].join("\n");
-          } else {
-            const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
-            const capTarget = Number(previousMemory?.strict_filter_capacity_g || selectedSpec?.capacityG || 0);
-            const rowsByRead = categoryScoped
-              .filter((r: any) => {
-                const rs = extractRowTechnicalSpec(r);
-                const rr = Number(rs?.readabilityG || 0);
-                return rr > 0 && rr <= maxRead;
-              })
-              .sort((a: any, b: any) => {
-                const ar = Number(extractRowTechnicalSpec(a)?.readabilityG || 999);
-                const br = Number(extractRowTechnicalSpec(b)?.readabilityG || 999);
-                const ac = Number(extractRowTechnicalSpec(a)?.capacityG || 0);
-                const bc = Number(extractRowTechnicalSpec(b)?.capacityG || 0);
-                const ad = capTarget > 0 ? Math.abs(ac - capTarget) : 0;
-                const bd = capTarget > 0 ? Math.abs(bc - capTarget) : 0;
-                return ad - bd || ar - br;
-              });
-            const options = buildNumberedProductOptions(rowsByRead.slice(0, 8) as any[], 8);
-            if (options.length) {
-              strictMemory.pending_product_options = options;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
-              strictReply = [
-                `No del todo: ${selectedName} no es ideal para ${effectiveApp.replace(/_/g, " ")} por su precisión (${formatSpecNumber(selectedRead || 0)} g).`,
-                "Estas opciones sí son más adecuadas para ese uso:",
-                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-                "",
-                "Elige una con letra/número (A/1), o escribe 'más'.",
-              ].join("\n");
-            } else {
-              strictReply = `No del todo: ${selectedName} no es ideal para ${effectiveApp.replace(/_/g, " ")} y no veo opciones activas con esa precisión en este grupo. Si quieres, ajustamos capacidad/resolución.`;
-            }
-          }
-        }
-
-        if (awaiting === "strict_choose_action" && !followupIntent && !wantsQuote && !wantsSheet) {
-          if (/(no\s+me\s+sirve|no\s+quiero\s+este|otra\s+opcion|otra\s+opción|que\s+otra|qué\s+otra|recomiendame\s+otra|recomiéndame\s+otra|me\s+ofreces\s+otra|me\s+puedes\s+ofrecer\s+otra)/.test(textNorm)) {
-            followupIntent = "alternative_same_need";
-          }
-        }
-        if (awaiting === "strict_choose_action" && !followupIntent && !wantsSheet) {
-          if (/\b(menor\s+precio|m[aá]s\s+barat|mas\s+barat|econ[oó]mic|economica|economicas)\b/.test(textNorm)) {
-            followupIntent = "alternative_lower_price";
-          }
-        }
-
-        if (awaiting === "strict_choose_action" && (technicalCapInAction > 0 || technicalReadInAction > 0) && !wantsQuote && !wantsSheet) {
-          const selectedCategoryNorm = normalizeText(`${String((selectedProduct as any)?.category || "")} ${String((selectedProduct as any)?.source_payload?.subcategory || "")}`);
-          const shouldScopeBasculas = /(bascula|basculas|plataforma|indicador|defender|ranger|valor)/.test(textNorm) || /(bascula|basculas|plataforma|indicador)/.test(selectedCategoryNorm);
-          const actionScopedRows = shouldScopeBasculas
-            ? scopeCatalogRows(ownerRows as any[], "basculas")
-            : baseScoped;
-          const mergedTechnical = mergeLooseSpecWithMemory(
-            {
-              capacityG: Number(previousMemory?.strict_filter_capacity_g || previousMemory?.strict_partial_capacity_g || 0),
-              readabilityG: Number(previousMemory?.strict_filter_readability_g || previousMemory?.strict_partial_readability_g || 0),
-            },
-            technicalHintInAction
-          );
-          const mergedCap = Number(mergedTechnical.capacityG || 0);
-          const mergedRead = Number(mergedTechnical.readabilityG || 0);
-          strictMemory.strict_partial_capacity_g = mergedCap > 0 ? mergedCap : "";
-          strictMemory.strict_partial_readability_g = mergedRead > 0 ? mergedRead : "";
-          if (mergedCap > 0 && !(mergedRead > 0)) {
-            if (isLargestCapacityAsk(text)) {
-              const largest = buildLargestCapacitySuggestion(baseScoped as any[]);
-              if (largest.options.length) {
-                strictMemory.pending_product_options = largest.options;
-                strictMemory.pending_family_options = [];
-                strictMemory.awaiting_action = "strict_choose_model";
-                strictMemory.strict_model_offset = 0;
-                strictReply = largest.reply;
-              }
-            }
-            if (!String(strictReply || "").trim()) {
-              const priceLine = buildPriceRangeLine(actionScopedRows as any[]);
-              strictMemory.awaiting_action = "strict_need_spec";
-              strictReply = [
-                `Perfecto, ya tengo la capacidad (${formatSpecNumber(mergedCap)} g).`,
-                ...(priceLine ? [priceLine] : []),
-                "Ahora dime la resolución/precisión objetivo.",
-                "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
-              ].join("\n");
-            }
-          } else if (mergedRead > 0 && !(mergedCap > 0)) {
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = [
-              `Perfecto, ya tengo la precisión (${formatSpecNumber(mergedRead)} g).`,
-              "Para recomendarte bien, ¿qué capacidad aproximada necesitas?",
-              "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
-            ].join("\n");
-          } else if (mergedCap > 0 && mergedRead > 0) {
-            strictMemory.strict_spec_query = `${formatSpecNumber(mergedCap)} g x ${formatSpecNumber(mergedRead)} g`;
-            strictMemory.strict_filter_capacity_g = mergedCap;
-            strictMemory.strict_filter_readability_g = mergedRead;
-            strictMemory.strict_partial_capacity_g = "";
-            strictMemory.strict_partial_readability_g = "";
-            const exactRows = getExactTechnicalMatches(actionScopedRows as any[], { capacityG: mergedCap, readabilityG: mergedRead });
-            const prioritized = prioritizeTechnicalRows(actionScopedRows as any[], { capacityG: mergedCap, readabilityG: mergedRead });
-            const options = buildNumberedProductOptions((exactRows.length ? exactRows : (prioritized.orderedRows || [])).slice(0, 8) as any[], 8);
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictReply = [
-              exactRows.length
-                ? `Sí, tengo coincidencias exactas para ${strictMemory.strict_spec_query}.`
-                : `No encontré coincidencia exacta para ${strictMemory.strict_spec_query}.`,
-              exactRows.length ? "Te comparto las opciones exactas:" : "Sí tengo estas opciones cercanas:",
-              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Elige con letra o número (A/1), o escribe 'más'.",
-            ].join("\n");
-          }
-        } else if (awaiting === "strict_choose_action" && isCategorySwitchInAction) {
-          const scoped = scopeCatalogRows(ownerRows as any, String(categoryIntentInAction || ""));
-          const families = buildNumberedFamilyOptions(scoped as any[], 8);
-          strictMemory.last_category_intent = String(categoryIntentInAction || "");
-          strictMemory.pending_product_options = [];
-          strictMemory.pending_family_options = families;
-          strictMemory.awaiting_action = "strict_choose_family";
-          strictReply = families.length
-            ? [
-              `Perfecto, cambiamos la búsqueda a ${String(categoryIntentInAction || "catálogo").replace(/_/g, " ")}.`,
-              "Elige familia:",
-              ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
-              "",
-              "Responde con letra o número (A/1).",
-            ].join("\n")
-            : [
-              buildNoActiveCatalogEscalationMessage(String(categoryIntentInAction || "esa categoria").replace(/_/g, " ")),
-            ].join("\n");
-          if (!families.length) strictMemory.awaiting_action = "conversation_followup";
-        } else if (awaiting === "strict_choose_action" && asksAnotherQuote && !anotherQuoteChoice && !followupIntent && !wantsSheet) {
-          strictReply = buildAnotherQuotePrompt();
-        } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "advisor") {
-          strictReply = buildAdvisorMiniAgendaPrompt();
-          strictMemory.awaiting_action = "advisor_meeting_slot";
-        } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "same_model") {
-          const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
-          strictMemory.quote_quantity = qtyRequested;
-          strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = buildQuoteDataIntakePrompt(
-            `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)).`,
-            strictMemory
-          );
-        } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "other_model") {
-          followupIntent = "alternative_same_need";
-        } else if (awaiting === "strict_choose_action" && anotherQuoteChoice === "cheaper") {
-          followupIntent = "alternative_lower_price";
-        }
-
-        if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && followupIntent && !wantsSheet) {
-          if (followupIntent === "requote_same_model") {
-            const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
-            strictMemory.quote_quantity = qtyRequested;
-            strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = buildQuoteDataIntakePrompt(
-              `Perfecto. Preparo una nueva cotización para ${selectedName} (${qtyRequested} unidad(es)).`,
-              strictMemory
-            );
-          } else {
-            const selectedId = String(selectedProduct?.id || "").trim();
-            const selectedNorm = normalizeText(selectedName);
-            const selectedSpec = extractRowTechnicalSpec(selectedProduct);
-            const selectedBrand = normalizeText(String(selectedProduct?.brand || ""));
-            const familyLabel = String(previousMemory?.strict_family_label || familyLabelFromRow(selectedProduct) || "").trim();
-            const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
-            const familyScoped = familyLabel
-              ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
-              : categoryScoped;
-            const basePoolRaw = (familyScoped.length >= 3 ? familyScoped : categoryScoped) as any[];
-            const basePool = basePoolRaw.filter((r: any) => {
-              const rid = String(r?.id || "").trim();
-              const rname = normalizeText(String(r?.name || ""));
-              if (selectedId && rid && selectedId === rid) return false;
-              if (!selectedId && selectedNorm && rname && selectedNorm === rname) return false;
-              return true;
-            });
-
-            const byPriceAsc = (rows: any[]) => {
-              return [...rows].sort((a: any, b: any) => {
-                const aPrice = Number(a?.base_price_usd || 0);
-                const bPrice = Number(b?.base_price_usd || 0);
-                if (!(aPrice > 0) && !(bPrice > 0)) return 0;
-                if (!(aPrice > 0)) return 1;
-                if (!(bPrice > 0)) return -1;
-                return aPrice - bPrice;
-              });
-            };
-
-            let rankedRows = [...basePool];
-            let intro = "Claro, aquí tienes alternativas para el mismo uso:";
-            const textFollow = normalizeText(String(text || ""));
-            const wantsBetterResolution = /(mayor\s+resolucion|mejor\s+resolucion|mas\s+resolucion|más\s+resolucion|mas\s+precision|más\s+precision|mejor\s+precision)/.test(textFollow);
-            const wantsLowerResolution = /(menor\s+resolucion|menos\s+precision|menor\s+precision)/.test(textFollow);
-
-            if (followupIntent === "alternative_same_need" && (wantsBetterResolution || wantsLowerResolution)) {
-              const readTarget = Number(selectedSpec?.readabilityG || 0);
-              if (readTarget > 0) {
-                const readRows = basePool
-                  .map((r: any) => ({ row: r, read: Number(extractRowTechnicalSpec(r)?.readabilityG || 0) }))
-                  .filter((x: any) => x.read > 0)
-                  .filter((x: any) => wantsBetterResolution ? x.read < readTarget : x.read > readTarget)
-                  .sort((a: any, b: any) => Math.abs(a.read - readTarget) - Math.abs(b.read - readTarget));
-                rankedRows = readRows.map((x: any) => x.row);
-              }
-              intro = wantsBetterResolution
-                ? "Perfecto, aquí tienes opciones con mejor resolución (más precisión):"
-                : "Perfecto, aquí tienes opciones con menor resolución:";
-            } else if (followupIntent === "alternative_lower_price") {
-              intro = "Perfecto, aquí tienes opciones más económicas:";
-              const selectedPrice = Number(selectedProduct?.base_price_usd || 0);
-              const priced = byPriceAsc(basePool).filter((r: any) => Number(r?.base_price_usd || 0) > 0);
-              const cheaper = selectedPrice > 0 ? priced.filter((r: any) => Number(r?.base_price_usd || 0) < selectedPrice) : [];
-              rankedRows = cheaper.length ? cheaper : priced;
-            } else if (followupIntent === "alternative_higher_capacity" || followupIntent === "alternative_lower_capacity") {
-              const capTarget = Number(selectedSpec?.capacityG || 0);
-              intro = followupIntent === "alternative_higher_capacity"
-                ? "Perfecto, aquí tienes opciones de mayor capacidad:"
-                : "Perfecto, aquí tienes opciones de menor capacidad:";
-              if (capTarget > 0) {
-                const capRows = basePool
-                  .map((r: any) => ({ row: r, cap: Number(extractRowTechnicalSpec(r)?.capacityG || 0) }))
-                  .filter((x: any) => x.cap > 0)
-                  .filter((x: any) => followupIntent === "alternative_higher_capacity" ? x.cap > capTarget : x.cap < capTarget)
-                  .sort((a: any, b: any) => Math.abs(a.cap - capTarget) - Math.abs(b.cap - capTarget));
-                rankedRows = capRows.map((x: any) => x.row);
-              }
-            } else if (followupIntent === "alternative_other_brand") {
-              const otherBrands = basePool.filter((r: any) => {
-                const brand = normalizeText(String(r?.brand || ""));
-                return brand && selectedBrand && brand !== selectedBrand;
-              });
-              if (otherBrands.length) {
-                rankedRows = otherBrands;
-                intro = "Perfecto, aquí tienes alternativas de otra marca:";
-              } else {
-                intro = "En este canal solo cotizo catálogo OHAUS. Igual te comparto alternativas similares dentro de OHAUS:";
-                if (selectedSpec.capacityG > 0 && selectedSpec.readabilityG > 0) {
-                  rankedRows = prioritizeTechnicalRows(basePool, {
-                    capacityG: selectedSpec.capacityG,
-                    readabilityG: selectedSpec.readabilityG,
-                  }).orderedRows;
-                }
-              }
-            } else if (selectedSpec.capacityG > 0 && selectedSpec.readabilityG > 0) {
-              rankedRows = prioritizeTechnicalRows(basePool, {
-                capacityG: selectedSpec.capacityG,
-                readabilityG: selectedSpec.readabilityG,
-              }).orderedRows;
-            }
-
-            const mergedRows: any[] = [];
-            const seen = new Set<string>();
-            for (const row of [...rankedRows, ...basePool]) {
-              const key = String(row?.id || "").trim() || normalizeText(String(row?.name || ""));
-              if (!key || seen.has(key)) continue;
-              seen.add(key);
-              mergedRows.push(row);
-              if (mergedRows.length >= 5) break;
-            }
-
-            const options = buildNumberedProductOptions(mergedRows as any[], 5);
-            if (options.length) {
-              strictMemory.pending_product_options = options;
-              strictMemory.last_recommended_options = options;
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
-              strictMemory.strict_family_label = familyLabel;
-              strictReply = [
-                intro,
-                ...options.map((o) => `${o.code}) ${o.name}`),
-                "",
-                "Elige con letra o número (A/1), o escribe 'más'.",
-              ].join("\n");
-            } else {
-              strictReply = "No encontré alternativas con precio activo en este momento para ese criterio. Si quieres, te muestro el listado completo del grupo.";
-            }
-          }
-        }
-
-        if (!String(strictReply || "").trim() && isUseCaseApplicabilityIntent(text) && !wantsQuote && !wantsSheet) {
-          const technicalSummary = buildTechnicalSummary(selectedProduct, 6);
-          strictReply = technicalSummary
-            ? [
-              `Con base en el catálogo/ficha de ${selectedName}, esto es lo que sí tengo confirmado:`,
-              technicalSummary,
-              "",
-              "Para confirmarte si te sirve para ese uso exacto, dime el peso aproximado (mínimo y máximo) y te valido el modelo sin inventar.",
-              hasSheetCandidate ? "¿Quieres que te envíe la ficha técnica ahora por este WhatsApp?" : "¿Quieres que te comparta la ficha técnica/disponibilidad por este WhatsApp?",
-            ].join("\n")
-            : [
-              `Puedo ayudarte con ${selectedName}, pero para no inventar necesito validar el uso con el peso aproximado (mínimo y máximo).`,
-              hasSheetCandidate ? "¿Quieres que te envíe la ficha técnica ahora por este WhatsApp?" : "¿Quieres que te comparta la información técnica disponible por este WhatsApp?",
-            ].join("\n");
-        } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && isBudgetVisibilityFollowup(text) && !wantsSheet) {
-          const effectiveRecommendedPool =
-            (Array.isArray(strictMemory?.last_recommended_options) && strictMemory.last_recommended_options.length)
-              ? strictMemory.last_recommended_options
-              : (lastRecommendedOptions.length
-                ? lastRecommendedOptions
-                : (Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []));
-          const idSet = new Set(
-            (effectiveRecommendedPool || [])
-              .map((o: any) => String(o?.id || "").trim())
-              .filter(Boolean)
-          );
-          const scopedRows = idSet.size
-            ? (ownerRows as any[]).filter((r: any) => idSet.has(String(r?.id || "").trim()))
-            : (rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows);
-          const priceLine = buildPriceRangeLine(scopedRows as any[]);
-          strictReply = priceLine
-            ? [
-                `Claro. ${priceLine}`,
-                "Si quieres continuar, responde: 1) Cotización o 2) Ficha técnica.",
-              ].join("\n")
-            : "Claro, en este grupo no tengo precio visible en BD para estimar presupuesto ahora mismo. Si quieres, te genero cotización directa con la referencia seleccionada.";
-        } else if (!String(strictReply || "").trim() && (wantsQuote || /^1\b/.test(textNorm))) {
-          const bundleQuoteAskFromAction = asksQuoteIntent(text) && /\b(las|los|todas|todos|opciones|referencias|3|tres)\b/.test(textNorm);
-          const effectiveRecommendedPool =
-            (Array.isArray(strictMemory?.last_recommended_options) && strictMemory.last_recommended_options.length)
-              ? strictMemory.last_recommended_options
-              : (lastRecommendedOptions.length
-                ? lastRecommendedOptions
-                : (Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []));
-          const bundlePool = effectiveRecommendedPool
-            .filter((o: any) => String(o?.raw_name || o?.name || "").trim())
-            .slice(0, 8);
-          if (bundleQuoteAskFromAction && bundlePool.length >= 2) {
-            const countMatch = textNorm.match(/\b(\d{1,2}|dos|tres|cuatro|cinco)\b/);
-            const nWord = String(countMatch?.[1] || "").trim();
-            const nMap: Record<string, number> = { dos: 2, tres: 3, cuatro: 4, cinco: 5 };
-            const requested = /\b(todas|todos)\b/.test(textNorm)
-              ? bundlePool.length
-              : Math.max(2, Number(nWord ? (Number(nWord) || nMap[nWord] || 3) : 3));
-            const chosen = bundlePool.slice(0, Math.max(2, Math.min(requested, bundlePool.length)));
-            const names = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
-            if (names.length >= 2) {
-              strictBypassAutoQuote = true;
-              inbound.text = `cotizar ${names.join(" ; ")}`;
-              strictMemory.awaiting_action = "none";
-              strictMemory.pending_product_options = chosen;
-              strictMemory.quote_bundle_options_current = chosen;
-              strictMemory.last_intent = "quote_bundle_request";
-              strictMemory.bundle_quote_mode = true;
-              strictMemory.bundle_quote_count = names.length;
-              strictReply = `Perfecto. Voy a generar una cotización consolidada para esas ${names.length} opciones y te la envío en PDF por este WhatsApp.`;
-            }
-          }
-
-          if (!strictBypassAutoQuote) {
-          const lockedCap = Number(previousMemory?.strict_filter_capacity_g || 0);
-          const lockedRead = Number(previousMemory?.strict_filter_readability_g || 0);
-          const recommendedPool = effectiveRecommendedPool;
-          const selectedFromSuggestedList = recommendedPool.some((o: any) => {
-            const oid = String(o?.id || "").trim();
-            const oraw = normalizeText(String(o?.raw_name || o?.name || ""));
-            return (
-              (oid && oid === String(selectedProduct?.id || "").trim()) ||
-              (oraw && oraw === normalizeText(selectedName))
-            );
-          });
-          if (lockedCap > 0 && lockedRead > 0 && !selectedFromSuggestedList && awaiting !== "strict_choose_action") {
-            const rs = extractRowTechnicalSpec(selectedProduct);
-            const capDeltaPct = rs.capacityG > 0 ? (Math.abs(rs.capacityG - lockedCap) / lockedCap) * 100 : 999;
-            const readRatio = rs.readabilityG > 0 ? (rs.readabilityG / lockedRead) : 999;
-            const compatible = capDeltaPct <= 12 && readRatio >= 0.8 && readRatio <= 1.35;
-            if (!compatible) {
-              strictReply = `Antes de cotizar, confirmo que ${selectedName} no coincide con tu filtro activo (${formatSpecNumber(lockedCap)} g x ${formatSpecNumber(lockedRead)} g). Elige una opción del listado filtrado (A/1) o escribe 'más'.`;
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictBypassAutoQuote = false;
-            }
-          }
-
-          if (!String(strictReply || "").trim()) {
-          const continuationIntentStrict = isSameQuoteContinuationIntent(text) && extractModelLikeTokens(text).length >= 1;
-          if (continuationIntentStrict) {
-            console.log("[evolution-webhook] strict_quote_continuation_bypass", {
-              selectedName,
-              tokens: extractModelLikeTokens(text),
-              text,
-            });
-            strictBypassAutoQuote = true;
-            inbound.text = `cotizar ${selectedName} ${text}`.trim();
-            nextMemory.awaiting_action = "quote_product_selection";
-            nextMemory.last_product_name = selectedName;
-            nextMemory.last_product_id = String(selectedProduct?.id || "").trim();
-            nextMemory.last_selected_product_name = selectedName;
-            nextMemory.last_selected_product_id = String(selectedProduct?.id || "").trim();
-            nextMemory.last_selection_at = new Date().toISOString();
-            strictMemory.awaiting_action = "none";
-          } else {
-            const asksFlowChangeNoDetails = isFlowChangeWithoutModelDetailsIntent(text);
-            if (asksFlowChangeNoDetails) {
-              strictMemory.awaiting_action = "strict_choose_action";
-              strictReply = "Perfecto. Para evitar ambigüedad, indícame primero qué familia o referencias quieres cotizar y la cantidad por cada una (ej: PX85 x1, PX223 x2).";
-            } else {
-              const qtyRequested = Math.max(1, extractQuoteRequestedQuantity(text) || Number(previousMemory?.quote_quantity || 1) || 1);
-              strictMemory.quote_quantity = qtyRequested;
-              strictMemory.awaiting_action = "strict_quote_data";
-              const quoteMemoryMerged = {
-                ...(previousMemory && typeof previousMemory === "object" ? previousMemory : {}),
-                ...(strictMemory && typeof strictMemory === "object" ? strictMemory : {}),
-                quote_data: {
-                  ...((previousMemory?.quote_data && typeof previousMemory.quote_data === "object") ? previousMemory.quote_data : {}),
-                  ...((strictMemory?.quote_data && typeof strictMemory.quote_data === "object") ? strictMemory.quote_data : {}),
-                },
-              };
-              const reusableNow = getReusableBillingData(quoteMemoryMerged);
-              strictMemory.quote_data = {
-                city: reusableNow.city || String(previousMemory?.crm_billing_city || strictMemory.crm_billing_city || "") || "",
-                company: reusableNow.company || String(previousMemory?.crm_company || strictMemory.crm_company || "") || String(previousMemory?.commercial_company_name || strictMemory.commercial_company_name || ""),
-                nit: reusableNow.nit || String(previousMemory?.crm_nit || strictMemory.crm_nit || "") || String(previousMemory?.commercial_company_nit || strictMemory.commercial_company_nit || ""),
-                contact: reusableNow.contact || String(previousMemory?.crm_contact_name || strictMemory.crm_contact_name || "") || String(previousMemory?.commercial_customer_name || strictMemory.commercial_customer_name || "") || String(previousMemory?.customer_name || strictMemory.customer_name || ""),
-                email: reusableNow.email || String(previousMemory?.crm_contact_email || strictMemory.crm_contact_email || "") || String(previousMemory?.customer_email || strictMemory.customer_email || ""),
-                phone: reusableNow.phone || String(previousMemory?.crm_contact_phone || strictMemory.crm_contact_phone || "") || normalizePhone(String(previousMemory?.customer_phone || strictMemory.customer_phone || inbound.from || "")),
-              };
-              strictMemory.strict_autorun_quote_with_reuse = true;
-            }
-          }
-          }
-          }
-        } else if (!String(strictReply || "").trim() && (wantsSheet || /^2\b/.test(textNorm))) {
-          const appendSheetFromRow = async (row: any, modelLabel: string): Promise<boolean> => {
-            const datasheetUrl = pickBestProductPdfUrl(row, text) || "";
-            const localPdfPath = pickBestLocalPdfPath(row, text);
-            if (datasheetUrl) {
-              const remote = await fetchRemoteFileAsBase64(datasheetUrl);
-              const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrl));
-              if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
-                strictDocs.push({
-                  base64: remote.base64,
-                  fileName: safeFileName(remote.fileName, `ficha-${modelLabel}`, "pdf"),
-                  mimetype: "application/pdf",
-                  caption: `Ficha técnica - ${modelLabel}`,
-                });
-                return true;
-              }
-            }
-            if (localPdfPath) {
-              const local = fetchLocalFileAsBase64(localPdfPath);
-              if (local && Number(local.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
-                strictDocs.push({
-                  base64: local.base64,
-                  fileName: safeFileName(local.fileName, `ficha-${modelLabel}`, "pdf"),
-                  mimetype: "application/pdf",
-                  caption: `Ficha técnica - ${modelLabel}`,
-                });
-                return true;
-              }
-            }
-            return false;
-          };
-
-          const requestedIdx = extractBundleOptionIndexes(text).slice(0, 3);
-          const optionPool =
-            (Array.isArray(previousMemory?.quote_bundle_options_current) ? previousMemory.quote_bundle_options_current : [])
-              .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
-              .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [])
-              .filter((o: any, idx: number, arr: any[]) => {
-                const key = String(o?.id || o?.product_id || o?.raw_name || o?.name || "").trim();
-                if (!key) return false;
-                return arr.findIndex((x: any) => String(x?.id || x?.product_id || x?.raw_name || x?.name || "").trim() === key) === idx;
-              });
-
-          if (requestedIdx.length >= 2 && optionPool.length >= Math.max(...requestedIdx)) {
-            const ownerRowsList = Array.isArray(ownerRows) ? ownerRows : [];
-            const selectedRows = requestedIdx
-              .map((n) => optionPool[n - 1])
-              .filter(Boolean)
-              .map((opt: any) => {
-                const byId = String(opt?.id || opt?.product_id || "").trim();
-                if (byId) {
-                  const rowById = ownerRowsList.find((r: any) => String(r?.id || "").trim() === byId);
-                  if (rowById) return rowById;
-                }
-                const byName = String(opt?.raw_name || opt?.name || "").trim();
-                return byName ? findCatalogProductByName(ownerRowsList, byName) : null;
-              })
-              .filter(Boolean)
-              .filter((row: any, idx: number, arr: any[]) => {
-                const id = String(row?.id || "").trim();
-                return id ? arr.findIndex((x: any) => String(x?.id || "").trim() === id) === idx : false;
-              });
-
-            let attachedCount = 0;
-            const attachedNames: string[] = [];
-            for (const row of selectedRows) {
-              const label = String((row as any)?.name || "modelo").trim();
-              const ok = await appendSheetFromRow(row, label);
-              if (ok) {
-                attachedCount += 1;
-                attachedNames.push(label);
-              }
-            }
-
-            if (attachedCount >= 1) {
-              strictReply = attachedCount === 1
-                ? `Perfecto. Te envío por este WhatsApp la ficha técnica en PDF de ${attachedNames[0]}.`
-                : `Perfecto. Te envío por este WhatsApp las fichas técnicas en PDF de: ${attachedNames.join(", ")}.`;
-            } else {
-              strictReply = "No encontré fichas PDF válidas para esas referencias en este momento. Si quieres, te comparto especificaciones o cotización de inmediato.";
-            }
-          } else {
-            const datasheetUrl = pickBestProductPdfUrl(selectedProduct, text) || "";
-            const localPdfPath = pickBestLocalPdfPath(selectedProduct, text);
-            let attached = false;
-            if (datasheetUrl) {
-              const remote = await fetchRemoteFileAsBase64(datasheetUrl);
-              const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrl));
-              if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
-                strictDocs.push({
-                  base64: remote.base64,
-                  fileName: safeFileName(remote.fileName, `ficha-${selectedName}`, "pdf"),
-                  mimetype: "application/pdf",
-                  caption: `Ficha técnica - ${selectedName}`,
-                });
-                attached = true;
-              }
-            }
-            if (!attached && localPdfPath) {
-              const local = fetchLocalFileAsBase64(localPdfPath);
-              if (local && Number(local.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
-                strictDocs.push({
-                  base64: local.base64,
-                  fileName: safeFileName(local.fileName, `ficha-${selectedName}`, "pdf"),
-                  mimetype: "application/pdf",
-                  caption: `Ficha técnica - ${selectedName}`,
-                });
-                attached = true;
-              }
-            }
-            if (attached) {
-              strictReply = `Perfecto. Te envío por este WhatsApp la ficha técnica en PDF de ${selectedName}.`;
-            } else {
-              const technicalSummary = buildTechnicalSummary(selectedProduct, 6);
-              strictReply = technicalSummary
-                ? [
-                  `No tengo un PDF válido para ${selectedName} en este momento, pero sí te comparto las especificaciones disponibles en catálogo:`,
-                  technicalSummary,
-                  "",
-                  `${datasheetUrl ? `Enlace directo de ficha: ${datasheetUrl}` : ""}`,
-                  "Si quieres, te genero la cotización ahora.",
-                ].join("\n")
-                : `${
-                  `No tengo un PDF válido para ${selectedName} en este momento y tampoco tengo especificaciones completas cargadas para este modelo.`
-                }${datasheetUrl ? `\nEnlace directo de ficha: ${datasheetUrl}` : ""}\nSi quieres, te genero la cotización ahora.`;
-              strictMemory.awaiting_action = "strict_confirm_quote_after_missing_sheet";
-            }
-          }
-        } else if (!String(strictReply || "").trim()) {
-          if (awaiting === "strict_choose_action" && !wantsQuote && !wantsSheet && !/^\s*[12]\b/.test(textNorm)) {
-            const softReply = await buildStrictConversationalReply({
-              apiKey,
-              inboundText: text,
-              awaiting,
-              selectedProduct: selectedName,
-              categoryHint: rememberedCategory,
-              pendingOptions: Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [],
-            });
-            strictReply = String(softReply || "").trim() || [
-              `Entiendo. Si ${selectedName} no te sirve, te puedo proponer alternativas reales del catálogo por:`,
-              "- mayor/menor capacidad",
-              "- mayor/menor resolución",
-              "- más económicas",
-              "También puedes escribir 1 para cotizar o 2 para ficha técnica.",
-            ].join("\n");
-          } else {
-          strictReply = hasSheetCandidate
-            ? [
-              `Perfecto, encontré el modelo ${selectedName}.`,
-              "Ahora dime qué deseas con ese modelo:",
-              "1) Cotización con TRM y PDF",
-              "2) Ficha técnica",
-            ].join("\n")
-            : [
-              `Perfecto, encontré el modelo ${selectedName}.`,
-              "Ahora dime qué deseas con ese modelo:",
-              "1) Cotización con TRM y PDF",
-              "",
-              "Nota: este modelo no tiene ficha técnica PDF cargada en este momento.",
-            ].join("\n");
-          }
+        const selectedProductFlow = await handleStrictSelectedProductActionFlow({
+          strictReply,
+          strictBypassAutoQuote,
+          selectedProduct,
+          awaiting,
+          wantsQuote,
+          wantsSheet,
+          text,
+          textNorm,
+          inbound,
+          nextMemory,
+          strictMemory,
+          previousMemory,
+          rememberedCategory,
+          ownerRows: ownerRows as any[],
+          baseScoped: baseScoped as any[],
+          strictDocs,
+          apiKey,
+          MAX_WHATSAPP_DOC_BYTES,
+          normalizeText,
+          normalizePhone,
+          parseAnotherQuoteChoice: (value: string) => parseAnotherQuoteChoiceApp(value, normalizeText),
+          detectAlternativeFollowupIntent,
+          isAnotherQuoteAmbiguousIntent,
+          parseLooseTechnicalHint,
+          detectCatalogCategoryIntent,
+          detectTargetApplication,
+          isAlternativeRejectionIntent,
+          buildGuidedNeedReframePrompt,
+          applyChooseActionCategoryAndQuoteChoices,
+          buildAnotherQuotePrompt: buildAnotherQuotePromptApp,
+          buildAdvisorMiniAgendaPrompt: () => buildAdvisorMiniAgendaPromptApp(MARIANA_ESCALATION_LINK),
+          buildQuoteDataIntakePrompt: (prefix: string, memory: any) => buildQuoteDataIntakePromptApp(prefix, getReusableBillingData(memory)),
+          buildNoActiveCatalogEscalationMessage,
+          extractQuoteRequestedQuantity: (value: string) => extractQuoteRequestedQuantityApp({ text: value, normalizeText, parseTechnicalSpecQuery }),
+          maxReadabilityForApplication,
+          formatSpecNumber,
+          extractRowTechnicalSpec,
+          scopeCatalogRows,
+          buildNumberedProductOptions,
+          buildNumberedFamilyOptions: (rows: any[], maxItems = 8) => buildNumberedFamilyOptionsApp(rows, normalizeText, maxItems),
+          applyChooseActionTechnicalHint,
+          isLargestCapacityAsk: (value: string) => isLargestCapacityAskApp(value, normalizeText),
+          buildLargestCapacitySuggestion,
+          buildPriceRangeLine,
+          mergeLooseSpecWithMemory,
+          getExactTechnicalMatches,
+          prioritizeTechnicalRows,
+          applyChooseActionFollowupIntent,
+          familyLabelFromRow,
+          applyChooseActionUseCaseAndBudgetFollowup,
+          isUseCaseApplicabilityIntent,
+          isBudgetVisibilityFollowup: (value: string) => isBudgetVisibilityFollowupApp(value, normalizeText),
+          buildTechnicalSummary,
+          asksQuoteIntent,
+          isSameQuoteContinuationIntent,
+          extractModelLikeTokens,
+          isFlowChangeWithoutModelDetailsIntent,
+          getReusableBillingData,
+          handleStrictDatasheetRequest,
+          extractBundleOptionIndexes: extractBundleOptionIndexesApp,
+          findCatalogProductByName,
+          pickBestProductPdfUrl,
+          pickBestLocalPdfPath,
+          fetchRemoteFileAsBase64,
+          fetchLocalFileAsBase64: fetchLocalFileAsBase64App,
+          safeFileName,
+          resolveStrictChooseActionFallbackReply,
+          buildStrictConversationalReply: (args: any) => buildStrictConversationalReplyApp({ ...args, normalizeText, isOutOfCatalogDomainQuery }),
+          isOutOfCatalogDomainQuery,
+        });
+        if (selectedProductFlow.handled) {
+          strictReply = selectedProductFlow.strictReply;
+          strictBypassAutoQuote = selectedProductFlow.strictBypassAutoQuote;
         }
       }
-      if (
-        !String(strictReply || "").trim() &&
-        (awaiting === "strict_quote_data" || Boolean(strictMemory?.strict_autorun_quote_with_reuse))
-      ) {
-        try {
-        const quoteTurnText = Boolean(strictMemory?.strict_autorun_quote_with_reuse) ? "mismos datos" : text;
-        strictMemory.strict_autorun_quote_with_reuse = false;
-        const asksCheapestInQuoteData = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|precio\s+bajo)\b/.test(normalizeText(quoteTurnText));
-        if (asksCheapestInQuoteData) {
-          const scopedForPrice = rememberedCategory
-            ? scopeCatalogRows(ownerRows as any[], rememberedCategory)
-            : (ownerRows as any[]);
-          const pricedRows = (scopedForPrice as any[])
-            .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
-            .sort((a: any, b: any) => Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
-          const options = buildNumberedProductOptions(pricedRows as any[], 8);
-          if (options.length) {
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictMemory.quote_data = {};
-            const topRow = pricedRows[0];
-            const topFamily = String(familyLabelFromRow(topRow) || "N/A").trim();
-            strictReply = [
-              `Perfecto. Según base de datos, la familia más económica aquí es: ${topFamily}.`,
-              "Estas son 4 opciones de menor precio:",
-              ...options.slice(0, 4).map((o) => {
-                const p = Number(o.base_price_usd || 0);
-                return `${o.code}) ${o.name}${p > 0 ? ` (USD ${formatMoney(p)})` : ""}`;
-              }),
-              "",
-              "Responde con letra o número (A/1).",
-            ].join("\n");
-          }
-        }
-        if (!String(strictReply || "").trim()) {
-        const followupIntentInQuoteData = detectAlternativeFollowupIntent(quoteTurnText);
-        const asksAnotherQuoteInQuoteData = isAnotherQuoteAmbiguousIntent(quoteTurnText);
-        const normalizedQuoteData = normalizeText(String(quoteTurnText || "")).replace(/[^a-z0-9\s]/g, " ").trim();
-        const isAdvanceInQuoteData = normalizedQuoteData === "avanza";
-        const explicitReuseBillingInQuoteData =
-          /\bmismos?\s+datos\b/.test(normalizedQuoteData) ||
-          /\busar\s+los?\s+mismos?\s+datos\b/.test(normalizedQuoteData) ||
-          /\bmisma\s+informacion\b/.test(normalizedQuoteData);
-        const reusableBillingInQuoteData = getReusableBillingData({
-          ...(previousMemory && typeof previousMemory === "object" ? previousMemory : {}),
-          ...(strictMemory && typeof strictMemory === "object" ? strictMemory : {}),
-          quote_data: {
-            ...((previousMemory?.quote_data && typeof previousMemory.quote_data === "object") ? previousMemory.quote_data : {}),
-            ...((strictMemory?.quote_data && typeof strictMemory.quote_data === "object") ? strictMemory.quote_data : {}),
-          },
+      if (!String(strictReply || "").trim()) {
+        const quoteFlowResult = await runStrictQuoteDataFlow({
+          strictReply,
+          strictBypassAutoQuote,
+          awaiting,
+          text,
+          strictMemory,
+          previousMemory,
+          ownerRows: ownerRows as any[],
+          rememberedCategory,
+          normalizeText,
+          scopeCatalogRows,
+          buildNumberedProductOptions,
+          familyLabelFromRow,
+          formatMoney: formatMoneyApp,
+          detectAlternativeFollowupIntent,
+          isAnotherQuoteAmbiguousIntent,
+          getReusableBillingData,
+          looksLikeBillingData: (value: string) => looksLikeBillingDataApp({ text: value, isContactInfoBundle: (text: string) => isContactInfoBundleApp({ text, extractEmail, extractCustomerPhone }), extractEmail, extractCustomerPhone }),
+          isAffirmativeShortIntent,
+          isQuoteProceedIntent,
+          isQuoteResumeIntent,
+          isContinueQuoteWithoutPersonalDataIntent: () => false,
+          asksQuoteIntent,
+          billingDataAsSingleMessage: billingDataAsSingleMessageApp,
+          buildAnotherQuotePrompt: buildAnotherQuotePromptApp,
+          inbound,
+          recognizedReturningCustomer,
+          knownCustomerName,
+          strictDocs,
+          supabase,
+          ownerId,
+          tenantId: (agent as any)?.tenant_id || null,
+          normalizePhone,
+          phoneTail10,
+          normalizeCityLabel,
+          extractLabeledValue,
+          extractCustomerName,
+          extractEmail,
+          extractCustomerPhone,
+          sanitizeCustomerDisplayName,
+          findCatalogProductByName,
+          getOrFetchTrm,
+          buildQuoteItemDescription,
+          resolveProductImageDataUrl,
+          isQuoteDraftStatusConstraintError,
+          buildQuotePdf,
+          safeFileName,
+          buildQuotePdfFromDraft,
+          pickBestProductPdfUrl,
+          pickBestLocalPdfPath,
+          fetchRemoteFileAsBase64,
+          fetchLocalFileAsBase64: fetchLocalFileAsBase64App,
+          MAX_WHATSAPP_DOC_BYTES,
+          pickYoutubeVideoForModel,
+          isoAfterHours: isoAfterHoursApp,
         });
-        const canAutoResumeWithReusableBillingInQuoteData =
-          reusableBillingInQuoteData.complete &&
-          !isAdvanceInQuoteData &&
-          !looksLikeBillingData(quoteTurnText) &&
-          (
-            isAffirmativeShortIntent(quoteTurnText) ||
-            isQuoteProceedIntent(quoteTurnText) ||
-            isQuoteResumeIntent(quoteTurnText) ||
-            isContinueQuoteWithoutPersonalDataIntent(quoteTurnText) ||
-            asksQuoteIntent(quoteTurnText) ||
-            /^\s*1\b/.test(String(quoteTurnText || ""))
-          );
-        const shouldReuseBillingInQuoteData =
-          (explicitReuseBillingInQuoteData && reusableBillingInQuoteData.complete) ||
-          canAutoResumeWithReusableBillingInQuoteData;
-        const quoteDataInputText = shouldReuseBillingInQuoteData
-          ? billingDataAsSingleMessage(reusableBillingInQuoteData)
-          : quoteTurnText;
-        const hasBillingDataInQuoteData = looksLikeBillingData(quoteDataInputText);
-        const isCommercialAlternativeInQuoteData =
-          asksAnotherQuoteInQuoteData ||
-          (followupIntentInQuoteData && followupIntentInQuoteData !== "requote_same_model");
-        const crmKnownForQuoteDataGate = Boolean(previousMemory?.crm_contact_found || strictMemory.crm_contact_found);
-
-        if (!crmKnownForQuoteDataGate && isCommercialAlternativeInQuoteData) {
-          strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = "Para cliente nuevo primero debo registrar datos obligatorios de facturación: ciudad, empresa, NIT, contacto, correo y celular. Luego continúo con la cotización.";
-        } else if (isCommercialAlternativeInQuoteData) {
-          strictMemory.awaiting_action = "conversation_followup";
-          strictMemory.last_intent = String(followupIntentInQuoteData || "alternative_same_need");
-          strictReply = asksAnotherQuoteInQuoteData
-            ? buildAnotherQuotePrompt()
-            : "Entendido. Para alternativas, dime si prefieres: otro modelo, más económico, mayor capacidad, menor capacidad u otra marca.";
-        } else if (explicitReuseBillingInQuoteData && !reusableBillingInQuoteData.complete) {
-          const missingReusable: string[] = [];
-          if (!reusableBillingInQuoteData.city) missingReusable.push("ciudad");
-          if (!reusableBillingInQuoteData.company) missingReusable.push("empresa");
-          if (!reusableBillingInQuoteData.nit) missingReusable.push("NIT");
-          if (!reusableBillingInQuoteData.contact) missingReusable.push("contacto");
-          if (!reusableBillingInQuoteData.email) missingReusable.push("correo");
-          if (!reusableBillingInQuoteData.phone) missingReusable.push("celular");
-          strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = missingReusable.length
-            ? `Puedo reutilizar los datos anteriores, pero me falta: ${missingReusable.join(", ")}. Envíamelo en un solo mensaje para continuar.`
-            : "No encontré datos previos completos para reutilizar. Envíame ciudad, empresa, NIT, contacto, correo y celular en un solo mensaje.";
-        } else if (!isAdvanceInQuoteData && !hasBillingDataInQuoteData && !shouldReuseBillingInQuoteData) {
-          strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = "Para continuar esta cotización, envíame los datos de facturación en un solo mensaje (ciudad, empresa, NIT, contacto, correo, celular).";
-        }
-        if (!String(strictReply || "").trim()) {
-        const bundleOptions = Array.isArray(previousMemory?.quote_bundle_options)
-          ? previousMemory.quote_bundle_options
-          : (Array.isArray(previousMemory?.pending_product_options)
-              ? previousMemory.pending_product_options
-              : (Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : []));
-        if (bundleOptions.length >= 2 && isContinueQuoteWithoutPersonalDataIntent(text)) {
-          const modelNames = bundleOptions
-            .map((o: any) => String(o?.raw_name || o?.name || "").trim())
-            .filter(Boolean);
-          if (modelNames.length >= 2) {
-            strictBypassAutoQuote = true;
-            inbound.text = `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`;
-            strictMemory.awaiting_action = "none";
-            strictMemory.pending_product_options = bundleOptions;
-            strictMemory.last_recommended_options = bundleOptions;
-            strictMemory.last_intent = "quote_bundle_request";
-            strictMemory.bundle_quote_mode = true;
-            strictMemory.bundle_quote_count = modelNames.length;
-            strictMemory.quote_data = {};
-          }
-        } else if (isContinueQuoteWithoutPersonalDataIntent(text)) {
-          strictReply = "Perfecto. Para avanzar sin datos, primero confirma el lote a cotizar (ej.: cotizar 8 o cotizar A,B,C).";
-          strictMemory.awaiting_action = "strict_choose_model";
-        }
-        if (strictBypassAutoQuote) {
-          // bypass strict single-product quote_data parsing and continue with auto quote intake
-        } else {
-        const pickBounded = (label: string) => {
-          const rx = new RegExp(`${label}\\s*[:=]?\\s*([^\\n,;]+?)(?=\\s+(ciudad|empresa|company|nit|contacto|correo|email|celular|telefono)\\b|$)`, "i");
-          const m = String(quoteDataInputText || "").match(rx);
-          return m?.[1] ? String(m[1]).trim() : "";
-        };
-
-        const looseLines = String(quoteDataInputText || "")
-          .split(/\n|;|,/)
-          .map((x) => String(x || "").trim())
-          .filter(Boolean);
-        const firstEmailLine = looseLines.find((ln) => /@/.test(ln)) || "";
-        const firstPhoneLine = looseLines.find((ln) => /\b(?:\+?57\s*)?3\d{9}\b/.test(ln.replace(/\s+/g, ""))) || "";
-        const firstNitLine = looseLines.find((ln) => /^\d{6,14}$/.test(ln.replace(/\D/g, ""))) || "";
-        const firstCityLine = looseLines.find((ln) => /^[a-zA-Záéíóúüñ\s]{3,40}$/.test(ln) && !/@/.test(ln) && !/persona\s+natural|sas|s\.a\.s|ltda|nit/i.test(ln)) || "";
-        const firstCompanyLine = looseLines.find((ln) => /persona\s+natural|sas|s\.a\.s|ltda|empresa|razon\s+social/i.test(ln)) || "";
-        const firstContactLine = looseLines.find((ln) => /^[a-zA-Záéíóúüñ\s]{6,60}$/.test(ln) && ln !== firstCityLine && ln !== firstCompanyLine && !/@/.test(ln)) || "";
-
-        const cityNow = normalizeCityLabel(pickBounded("ciudad|city") || extractLabeledValue(quoteDataInputText, ["ciudad", "city"]) || firstCityLine);
-        const companyNow = pickBounded("empresa|company|razon social") || extractLabeledValue(quoteDataInputText, ["empresa", "company", "razon social"]) || firstCompanyLine;
-        const nitNow = (String(quoteDataInputText || "").match(/\bnit\s*[:=]?\s*([0-9\.\-]{5,20})/i)?.[1] || extractLabeledValue(quoteDataInputText, ["nit"]).replace(/[^0-9.\-]/g, "") || firstNitLine.replace(/[^0-9.\-]/g, "")).trim();
-        const contactNow = pickBounded("contacto") || extractLabeledValue(quoteDataInputText, ["contacto"]) || firstContactLine || extractCustomerName(quoteDataInputText, inbound.pushName || "");
-        const emailNow = extractEmail(quoteDataInputText) || String(firstEmailLine || "").trim();
-        const phoneNow = extractCustomerPhone(quoteDataInputText, inbound.from) || String(firstPhoneLine || "").replace(/\D/g, "");
-
-        const prevQuoteData = previousMemory?.quote_data && typeof previousMemory.quote_data === "object" ? previousMemory.quote_data : {};
-        let crmContactFoundForQuote = Boolean(previousMemory?.crm_contact_found || strictMemory.crm_contact_found);
-        let crmNameForQuote = String(previousMemory?.crm_contact_name || strictMemory.crm_contact_name || "").trim();
-        let crmEmailForQuote = String(previousMemory?.crm_contact_email || strictMemory.crm_contact_email || "").trim();
-        let crmPhoneForQuote = String(previousMemory?.crm_contact_phone || strictMemory.crm_contact_phone || "").trim();
-        let crmCompanyForQuote = String(previousMemory?.crm_company || strictMemory.crm_company || "").trim();
-        let crmNitForQuote = String(previousMemory?.crm_nit || strictMemory.crm_nit || "").trim();
-        let crmCityForQuote = normalizeCityLabel(String(previousMemory?.crm_billing_city || strictMemory.crm_billing_city || "").trim());
-        let crmTierForQuote = normalizeText(String(previousMemory?.crm_price_tier || strictMemory.crm_price_tier || "").trim());
-        let crmTypeForQuote = normalizeText(String(previousMemory?.crm_customer_type || strictMemory.crm_customer_type || "").trim());
-        const rememberedExistingMatch =
-          previousMemory?.commercial_existing_match && typeof previousMemory.commercial_existing_match === "object"
-            ? previousMemory.commercial_existing_match
-            : (strictMemory?.commercial_existing_match && typeof strictMemory.commercial_existing_match === "object"
-                ? strictMemory.commercial_existing_match
-                : {});
-        const rememberedExistingType = normalizeText(String(previousMemory?.commercial_client_type || strictMemory?.commercial_client_type || "").trim()) === "existing";
-
-        if (!crmContactFoundForQuote && rememberedExistingMatch && Object.keys(rememberedExistingMatch).length) {
-          const fallbackName = sanitizeCustomerDisplayName(String((rememberedExistingMatch as any)?.contact || "").trim());
-          const fallbackEmail = String((rememberedExistingMatch as any)?.email || "").trim().toLowerCase();
-          const fallbackPhone = normalizePhone(String((rememberedExistingMatch as any)?.phone || "").trim());
-          const fallbackCompany = String((rememberedExistingMatch as any)?.company || "").trim();
-          const fallbackNit = String((rememberedExistingMatch as any)?.nit || "").replace(/\D/g, "").trim();
-          const fallbackCity = normalizeCityLabel(String((rememberedExistingMatch as any)?.city || "").trim());
-          if (fallbackName || fallbackEmail || fallbackPhone || fallbackCompany || fallbackNit) {
-            crmContactFoundForQuote = true;
-            if (fallbackName) crmNameForQuote = fallbackName;
-            if (fallbackEmail) crmEmailForQuote = fallbackEmail;
-            if (fallbackPhone) crmPhoneForQuote = fallbackPhone;
-            if (fallbackCompany) crmCompanyForQuote = fallbackCompany;
-            if (fallbackNit) crmNitForQuote = fallbackNit;
-            if (fallbackCity) crmCityForQuote = fallbackCity;
-            strictMemory.crm_contact_found = true;
-            strictMemory.crm_contact_name = crmNameForQuote;
-            strictMemory.crm_contact_email = crmEmailForQuote;
-            strictMemory.crm_contact_phone = crmPhoneForQuote;
-            strictMemory.crm_company = crmCompanyForQuote;
-            strictMemory.crm_nit = crmNitForQuote;
-            strictMemory.crm_billing_city = crmCityForQuote;
-          }
-        }
-
-        if (!crmContactFoundForQuote) {
-          try {
-            const candidatePhone = normalizePhone(phoneNow || inbound.from || "");
-            const candidatePhoneTail = phoneTail10(candidatePhone);
-            const candidateNit = String(nitNow || "").replace(/[^0-9\-]/g, "").trim();
-            const candidateEmail = String(emailNow || "").trim().toLowerCase();
-            const keyVariants = [
-              candidatePhone ? `cel:${candidatePhone}` : "",
-              candidatePhoneTail ? `cel:${candidatePhoneTail}` : "",
-              candidateNit ? `nit:${candidateNit}` : "",
-              candidateEmail ? `email:${candidateEmail}` : "",
-            ].filter(Boolean);
-            if (keyVariants.length || candidatePhone) {
-              const orParts = [
-                ...keyVariants.map((k) => `contact_key.eq.${k}`),
-                candidatePhone ? `phone.eq.${candidatePhone}` : "",
-                candidatePhoneTail ? `phone.like.%${candidatePhoneTail}` : "",
-              ].filter(Boolean);
-              const { data: crmMatches } = await supabase
-                .from("agent_crm_contacts")
-                .select("id,name,email,phone,company,metadata")
-                .eq("created_by", ownerId)
-                .or(orParts.join(","))
-                .order("updated_at", { ascending: false })
-                .limit(5);
-              const crmMatch = Array.isArray(crmMatches)
-                ? (crmMatches.find((m: any) => {
-                    const p = normalizePhone(String(m?.phone || ""));
-                    const tail = phoneTail10(p);
-                    const ck = String(m?.contact_key || "").trim().toLowerCase();
-                    if (candidateNit && ck === `nit:${candidateNit}`) return true;
-                    if (candidateEmail && ck === `email:${candidateEmail}`) return true;
-                    if (candidatePhone && (p === candidatePhone || ck === `cel:${candidatePhone}`)) return true;
-                    if (candidatePhoneTail && (tail === candidatePhoneTail || ck === `cel:${candidatePhoneTail}`)) return true;
-                    return false;
-                  }) || crmMatches[0])
-                : null;
-              if (crmMatch && typeof crmMatch === "object") {
-                const m = (crmMatch as any)?.metadata && typeof (crmMatch as any).metadata === "object" ? (crmMatch as any).metadata : {};
-                crmContactFoundForQuote = true;
-                crmNameForQuote = String((crmMatch as any)?.name || "").trim();
-                crmEmailForQuote = String((crmMatch as any)?.email || "").trim();
-                crmPhoneForQuote = String((crmMatch as any)?.phone || "").trim();
-                crmCompanyForQuote = String((crmMatch as any)?.company || "").trim();
-                crmNitForQuote = String(m?.nit || "").trim();
-                crmCityForQuote = normalizeCityLabel(String(m?.billing_city || "").trim());
-                crmTierForQuote = normalizeText(String(m?.price_tier || "").trim());
-                crmTypeForQuote = normalizeText(String(m?.customer_type || "").trim());
-                strictMemory.crm_contact_found = true;
-                strictMemory.crm_contact_id = String((crmMatch as any)?.id || "").trim();
-                strictMemory.crm_contact_name = crmNameForQuote;
-                strictMemory.crm_contact_email = crmEmailForQuote;
-                strictMemory.crm_contact_phone = crmPhoneForQuote;
-                strictMemory.crm_company = crmCompanyForQuote;
-                strictMemory.crm_nit = crmNitForQuote;
-                strictMemory.crm_billing_city = crmCityForQuote;
-                strictMemory.crm_price_tier = crmTierForQuote;
-                strictMemory.crm_customer_type = crmTypeForQuote;
-              }
-            }
-          } catch {}
-        }
-
-        const quoteData = shouldReuseBillingInQuoteData
-          ? {
-              city: reusableBillingInQuoteData.city,
-              company: reusableBillingInQuoteData.company,
-              nit: reusableBillingInQuoteData.nit,
-              contact: reusableBillingInQuoteData.contact,
-              email: reusableBillingInQuoteData.email,
-              phone: reusableBillingInQuoteData.phone,
-            }
-          : {
-              city: cityNow || String(prevQuoteData.city || "") || crmCityForQuote,
-              company: companyNow || String(prevQuoteData.company || "") || crmCompanyForQuote || String(previousMemory?.commercial_company_name || strictMemory.commercial_company_name || ""),
-              nit: nitNow || String(prevQuoteData.nit || "") || crmNitForQuote || String(previousMemory?.commercial_company_nit || strictMemory.commercial_company_nit || ""),
-              contact: contactNow || String(prevQuoteData.contact || "") || crmNameForQuote || String(previousMemory?.commercial_customer_name || strictMemory.commercial_customer_name || "") || String(previousMemory?.customer_name || strictMemory.customer_name || ""),
-              email: emailNow || String(prevQuoteData.email || "") || crmEmailForQuote || String(previousMemory?.customer_email || strictMemory.customer_email || ""),
-              phone: phoneNow || String(prevQuoteData.phone || "") || crmPhoneForQuote || normalizePhone(String(previousMemory?.customer_phone || strictMemory.customer_phone || inbound.from || "")),
-            };
-        strictMemory.quote_data = quoteData;
-
-        const customerCity = String(quoteData.city || "").trim() || ((Boolean(crmContactFoundForQuote) || Boolean(recognizedReturningCustomer) || rememberedExistingType) ? "Bogota" : "");
-        const customerCompany = String(quoteData.company || "").trim();
-        const customerNit = String(quoteData.nit || "").trim();
-        const customerContact = String(quoteData.contact || "").trim();
-        const customerEmail = String(quoteData.email || "").trim();
-        const customerPhone = String(quoteData.phone || "").trim();
-        const companyNorm = normalizeText(customerCompany);
-        const applicantNorm = normalizeText(String(quoteDataInputText || ""));
-        const isNaturalPerson =
-          !customerCompany ||
-          /persona\s+natural/.test(companyNorm) ||
-          /persona\s+natural/.test(applicantNorm);
-        const hasAnyQuoteData = Boolean(customerCity || customerCompany || customerNit || customerContact || customerEmail || customerPhone);
-        const hasContactCore = customerContact.length >= 3;
-        const hasCityCore = customerCity.length >= 3;
-        const hasIdentityCore = customerNit.length >= 5;
-        const hasReachability = customerEmail.includes("@") || customerPhone.replace(/\D/g, "").length >= 7;
-        const hasBusinessCore = customerCompany.length >= 3;
-        const isDistributorCustomer = crmTierForQuote === "distribuidor" || crmTypeForQuote === "distributor";
-        const isExistingCustomer = !isDistributorCustomer && crmContactFoundForQuote && (Boolean(recognizedReturningCustomer) || rememberedExistingType);
-        const customerSegment = isDistributorCustomer ? "distributor" : (isExistingCustomer ? "existing" : "new");
-        strictMemory.customer_segment = customerSegment;
-        const hasBusinessOrReachability = isNaturalPerson
-          ? (hasIdentityCore && hasReachability)
-          : (hasBusinessCore && hasIdentityCore && hasReachability);
-        const hasBusinessOrReachabilityForKnownExisting =
-          customerSegment === "existing" && crmContactFoundForQuote
-            ? (hasBusinessCore && hasReachability)
-            : hasBusinessOrReachability;
-        const missingOnlyCityForKnownExisting =
-          customerSegment === "existing" &&
-          crmContactFoundForQuote &&
-          hasContactCore &&
-          hasBusinessOrReachabilityForKnownExisting &&
-          !hasCityCore;
-        const quoteTurnNorm = normalizeText(String(quoteTurnText || ""));
-        const quoteActionOnlyInput =
-          /^\s*1\s*$/.test(String(quoteTurnText || "")) ||
-          isAffirmativeShortIntent(quoteTurnText) ||
-          isQuoteProceedIntent(quoteTurnText) ||
-          isQuoteResumeIntent(quoteTurnText) ||
-          isContinueQuoteWithoutPersonalDataIntent(quoteTurnText);
-        const hasFreshBillingPayloadInMessage =
-          looksLikeBillingData(String(quoteTurnText || "")) ||
-          /\b(ciudad|empresa|nit|contacto|correo|celular|telefono|teléfono)\b/.test(quoteTurnNorm) ||
-          /@/.test(String(quoteTurnText || ""));
-        const missingAttemptsPrev = Number(previousMemory?.strict_quote_data_missing_attempts || strictMemory.strict_quote_data_missing_attempts || 0);
-
-        if (customerSegment === "existing" && crmContactFoundForQuote && hasCityCore) {
-          const resolvedCity = normalizeCityLabel(customerCity);
-          strictMemory.crm_billing_city = resolvedCity;
-          strictMemory.quote_data = {
-            ...(strictMemory.quote_data && typeof strictMemory.quote_data === "object" ? strictMemory.quote_data : {}),
-            city: resolvedCity,
-          };
-          try {
-            const existingContactId = String(strictMemory.crm_contact_id || "").trim();
-            if (existingContactId) {
-              const { data: existingRow } = await supabase
-                .from("agent_crm_contacts")
-                .select("metadata")
-                .eq("id", existingContactId)
-                .eq("created_by", ownerId)
-                .maybeSingle();
-              const mergedMetadata = {
-                ...(existingRow?.metadata && typeof existingRow.metadata === "object" ? existingRow.metadata : {}),
-                billing_city: resolvedCity,
-                whatsapp_lifecycle_at: new Date().toISOString(),
-              };
-              await supabase
-                .from("agent_crm_contacts")
-                .update({ metadata: mergedMetadata })
-                .eq("id", existingContactId)
-                .eq("created_by", ownerId);
-            }
-          } catch {}
-        }
-
-        if (!crmContactFoundForQuote && isAdvanceInQuoteData) {
-          const missingAttempts = missingAttemptsPrev + 1;
-          strictMemory.strict_quote_data_missing_attempts = missingAttempts;
-          strictMemory.awaiting_action = "strict_quote_data";
-          if (missingAttempts >= 3) {
-            strictMemory.awaiting_action = "none";
-            strictMemory.conversation_status = "closed";
-            strictMemory.last_intent = "quote_rejected_missing_data";
-            strictReply = "No puedo generar cotización sin datos obligatorios. Cierro esta solicitud por seguridad. Si deseas retomarla, escribe: cotización y comparte ciudad, empresa, NIT, contacto, correo y celular.";
-          } else {
-            strictReply = "Para cliente nuevo sí necesito datos de facturación antes de cotizar: ciudad, empresa, NIT, contacto, correo y celular.";
-          }
-        } else if (!isAdvanceInQuoteData && quoteActionOnlyInput && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachabilityForKnownExisting) && !hasFreshBillingPayloadInMessage) {
-          strictMemory.strict_quote_data_missing_attempts = missingAttemptsPrev + 1;
-          strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = missingOnlyCityForKnownExisting
-            ? "Para continuar esta cotización solo me falta la ciudad. Envíamela en un solo mensaje (ej.: Bogotá)."
-            : "Para continuar esta cotización, envíame los datos de facturación en un solo mensaje (ciudad, empresa, NIT, contacto, correo, celular).";
-        } else if (!isAdvanceInQuoteData && hasAnyQuoteData && !(hasContactCore && hasCityCore && hasBusinessOrReachabilityForKnownExisting) && hasFreshBillingPayloadInMessage) {
-          const missingAttempts = missingAttemptsPrev + 1;
-          strictMemory.strict_quote_data_missing_attempts = missingAttempts;
-          const missing: string[] = [];
-          if (!hasContactCore) missing.push("contacto");
-          if (!hasCityCore) missing.push("ciudad");
-          if (isNaturalPerson) {
-            if (!hasIdentityCore) missing.push("cédula o NIT");
-            if (!hasReachability) missing.push("correo o celular");
-          } else {
-            if (!hasBusinessCore) missing.push("empresa");
-            if (!hasIdentityCore) missing.push("NIT");
-            if (!hasReachability) missing.push("correo o celular");
-          }
-          if (!crmContactFoundForQuote && missingAttempts >= 3) {
-            strictMemory.awaiting_action = "none";
-            strictMemory.conversation_status = "closed";
-            strictMemory.last_intent = "quote_rejected_missing_data";
-            strictReply = "No puedo generar cotización sin datos obligatorios. Cierro esta solicitud por seguridad. Si deseas retomarla, escribe: cotización y comparte ciudad, empresa, NIT, contacto, correo y celular.";
-          } else {
-            strictMemory.awaiting_action = "strict_quote_data";
-            strictReply = missingOnlyCityForKnownExisting
-              ? "Perfecto, para continuar solo me falta la ciudad. Envíamela en un solo mensaje (ej.: Bogotá)."
-              : `Perfecto, ya registré parte de tus datos. Para continuar me falta: ${missing.join(", ")}. Puedes enviarlo en un solo mensaje o escribir exactamente: avanza.`;
-          }
-        }
-        if (!String(strictReply || "").trim()) {
-        strictMemory.strict_quote_data_missing_attempts = 0;
-        {
-          const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || strictMemory.last_selected_product_id || strictMemory.last_product_id || "").trim();
-          const selectedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
-          const selected = selectedId
-            ? (ownerRows.find((r: any) => String(r?.id || "").trim() === selectedId) || null)
-            : (selectedName ? (findCatalogProductByName(ownerRows as any[], selectedName) || null) : null);
-
-          const qty = Math.max(1, Number(previousMemory?.quote_quantity || strictMemory.quote_quantity || 1));
-          const trm = await getOrFetchTrm(supabase, ownerId, (agent as any)?.tenant_id || null);
-          const trmRate = Number(trm?.rate || 0);
-
-          if (!selected || !(trmRate > 0)) {
-            strictMemory.awaiting_action = "none";
-            strictMemory.quote_data = {};
-            strictReply = "Recibí tus datos. No pude cerrar la cotización automática en este intento, pero ya quedó registrado y te la envío enseguida por este mismo WhatsApp.";
-          } else {
-            const effectiveCity = normalizeCityLabel(customerCity || "Bogota");
-            const effectiveCompany = customerCompany || "Persona natural";
-            const effectiveNit = customerNit || "N/A";
-            const effectiveContact = customerContact || String(strictMemory?.crm_contact_name || "").trim() || (knownCustomerName || inbound.pushName || "Cliente");
-            const effectivePhone = normalizePhone(customerPhone || String(strictMemory?.crm_contact_phone || "") || inbound.from || "");
-            const cityKey = normalizeCityLabel(effectiveCity);
-            const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
-            const parseCop = (v: any) => {
-              const n = Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
-              return Number.isFinite(n) && n > 0 ? n : 0;
-            };
-            const cityCop = parseCop((cityPrices as any)?.[cityKey]);
-            const bogotaCop = parseCop((cityPrices as any)?.bogota);
-            const antioquiaCop = parseCop((cityPrices as any)?.antioquia);
-            const distributorCop = parseCop((cityPrices as any)?.distribuidor);
-            const useDistributorPrice = crmTierForQuote === "distribuidor" || crmTypeForQuote === "distributor";
-            const existingCop = parseCop((cityPrices as any)?.cliente_antiguo || (cityPrices as any)?.cliente_recurrente || (cityPrices as any)?.recurrente || (cityPrices as any)?.existing);
-            const newCop = parseCop((cityPrices as any)?.cliente_nuevo || (cityPrices as any)?.new);
-            const useExistingPrice = customerSegment === "existing" && existingCop > 0;
-            const useNewPrice = customerSegment === "new" && newCop > 0;
-            const finalCustomerCopByCity = cityKey === "antioquia" ? antioquiaCop : bogotaCop;
-            const fallbackFinalCustomerCop = finalCustomerCopByCity > 0
-              ? finalCustomerCopByCity
-              : (cityCop > 0 ? cityCop : (bogotaCop > 0 ? bogotaCop : antioquiaCop));
-            const unitPriceCop = useDistributorPrice && distributorCop > 0
-              ? distributorCop
-              : useExistingPrice
-                ? existingCop
-                : useNewPrice
-                  ? newCop
-                  : fallbackFinalCustomerCop;
-            const baseUsdRaw = Number((selected as any)?.base_price_usd || 0);
-            const basePriceUsd = baseUsdRaw > 0
-              ? baseUsdRaw
-              : (unitPriceCop > 0 ? Number((unitPriceCop / trmRate).toFixed(6)) : 0);
-            const totalCop = unitPriceCop > 0
-              ? Number((unitPriceCop * qty).toFixed(2))
-              : Number((basePriceUsd * trmRate * qty).toFixed(2));
-            const selectedNameForQuote = String((selected as any)?.name || "producto");
-            const quoteDescriptionForDraft = buildQuoteItemDescription(selected, selectedNameForQuote);
-            const productImageDataUrlForDraft = await resolveProductImageDataUrl(selected);
-
-            const draftPayload = {
-              tenant_id: (agent as any)?.tenant_id || null,
-              created_by: ownerId,
-              agent_id: String(agent.id),
-              customer_name: effectiveContact || null,
-              customer_email: customerEmail || null,
-              customer_phone: effectivePhone || null,
-              company_name: effectiveCompany || null,
-              location: effectiveCity || null,
-              product_catalog_id: (selected as any)?.id || null,
-              product_name: String((selected as any)?.name || ""),
-              base_price_usd: basePriceUsd,
-              trm_rate: trmRate,
-              total_cop: totalCop,
-              notes: "Cotizacion automatica WhatsApp (flujo estricto)",
-              payload: {
-                quantity: qty,
-                trm_date: trm?.rate_date || null,
-                trm_source: trm?.source || null,
-                customer_city: effectiveCity || null,
-                customer_nit: effectiveNit || null,
-                customer_company: effectiveCompany || null,
-                customer_contact: effectiveContact || null,
-                customer_phone: effectivePhone || null,
-                item_description: quoteDescriptionForDraft,
-                item_image_data_url: productImageDataUrlForDraft || "",
-                unit_price_cop: unitPriceCop > 0 ? unitPriceCop : null,
-              },
-              status: "analysis",
-            };
-
-            let { data: insertedDraft, error: draftErr } = await supabase
-              .from("agent_quote_drafts")
-              .insert(draftPayload)
-              .select("id")
-              .single();
-
-            if (draftErr && isQuoteDraftStatusConstraintError(draftErr)) {
-              const legacyPayload = {
-                ...draftPayload,
-                status: "draft",
-                payload: {
-                  ...(draftPayload.payload || {}),
-                  crm_stage: "analysis",
-                  crm_stage_updated_at: new Date().toISOString(),
-                },
-              } as any;
-              const retry = await supabase
-                .from("agent_quote_drafts")
-                .insert(legacyPayload)
-                .select("id")
-                .single();
-              insertedDraft = retry.data as any;
-              draftErr = retry.error as any;
-            }
-
-            if (draftErr) {
-              strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
-            } else {
-              let quotePdfAttached = false;
-              try {
-                const pdfBase64 = await buildQuotePdf({
-                  draftId: String((insertedDraft as any)?.id || ""),
-                  customerName: effectiveContact,
-                  customerEmail,
-                  customerPhone,
-                  companyName: effectiveCompany,
-                  productName: String((selected as any)?.name || ""),
-                  quantity: qty,
-                  basePriceUsd,
-                  trmRate,
-                  totalCop,
-                  city: effectiveCity,
-                  nit: effectiveNit,
-                  itemDescription: quoteDescriptionForDraft,
-                  imageDataUrl: productImageDataUrlForDraft,
-                  notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
-                });
-                strictDocs.push({
-                  base64: pdfBase64,
-                  fileName: safeFileName(`cotizacion-${String((selected as any)?.name || "producto")}-${Date.now()}.pdf`, "cotizacion", "pdf"),
-                  mimetype: "application/pdf",
-                  caption: `Cotización - ${String((selected as any)?.name || "producto")}`,
-                });
-                quotePdfAttached = true;
-              } catch (quoteDocErr: any) {
-                console.error("[evolution-webhook] strict_quote_pdf_error", {
-                  message: quoteDocErr?.message || quoteDocErr,
-                  stack: quoteDocErr?.stack || "",
-                  selected: String((selected as any)?.name || ""),
-                });
-                try {
-                  const retryPdfBase64 = await buildQuotePdf({
-                    draftId: String((insertedDraft as any)?.id || ""),
-                    customerName: effectiveContact,
-                    customerEmail,
-                    customerPhone,
-                    companyName: effectiveCompany,
-                    productName: selectedNameForQuote,
-                    quantity: qty,
-                    basePriceUsd,
-                    trmRate,
-                    totalCop,
-                    city: effectiveCity,
-                    nit: effectiveNit,
-                    itemDescription: quoteDescriptionForDraft,
-                    imageDataUrl: productImageDataUrlForDraft,
-                    notes: `Ciudad: ${effectiveCity} | NIT: ${effectiveNit}`,
-                  });
-                  if (retryPdfBase64) {
-                    strictDocs.push({
-                      base64: retryPdfBase64,
-                      fileName: safeFileName(`cotizacion-${selectedNameForQuote}-${Date.now()}.pdf`, "cotizacion", "pdf"),
-                      mimetype: "application/pdf",
-                      caption: `Cotización - ${selectedNameForQuote}`,
-                    });
-                    quotePdfAttached = true;
-                    console.warn("[evolution-webhook] strict_quote_pdf_retry_rich_ok", { selected: selectedNameForQuote });
-                  }
-                } catch (retryErr: any) {
-                  console.error("[evolution-webhook] strict_quote_pdf_retry_rich_error", {
-                    message: retryErr?.message || retryErr,
-                    stack: retryErr?.stack || "",
-                    selected: selectedNameForQuote,
-                  });
-                  try {
-                    const draftId = String((insertedDraft as any)?.id || "");
-                    const fallbackDescription = buildQuoteItemDescription(selected, selectedNameForQuote);
-                    const fallbackImage = await resolveProductImageDataUrl(selected);
-                    const fallbackDraft = {
-                      ...(draftPayload as any),
-                      id: draftId,
-                      customer_name: effectiveContact,
-                      customer_email: customerEmail || null,
-                      customer_phone: customerPhone || null,
-                      company_name: effectiveCompany,
-                      location: effectiveCity,
-                      product_name: selectedNameForQuote,
-                      base_price_usd: basePriceUsd,
-                      trm_rate: trmRate,
-                      total_cop: totalCop,
-                      payload: {
-                        ...((draftPayload as any)?.payload || {}),
-                        quantity: qty,
-                        customer_city: effectiveCity,
-                        customer_nit: effectiveNit,
-                        item_description: fallbackDescription,
-                        item_image_data_url: fallbackImage || "",
-                      },
-                    };
-                    const { pdfBase64: fallbackPdfBase64, fileName: fallbackFileName } = await buildQuotePdfFromDraft(draftId, fallbackDraft);
-                    if (fallbackPdfBase64) {
-                      strictDocs.push({
-                        base64: fallbackPdfBase64,
-                        fileName: safeFileName(fallbackFileName, `cotizacion-${selectedNameForQuote}`, "pdf"),
-                        mimetype: "application/pdf",
-                        caption: `Cotización - ${selectedNameForQuote}`,
-                      });
-                      quotePdfAttached = true;
-                      console.warn("[evolution-webhook] strict_quote_pdf_fallback_shared_ok", { selected: selectedNameForQuote });
-                    }
-                  } catch (fallbackErr: any) {
-                    console.error("[evolution-webhook] strict_quote_pdf_fallback_shared_error", {
-                      message: fallbackErr?.message || fallbackErr,
-                      stack: fallbackErr?.stack || "",
-                      selected: selectedNameForQuote,
-                    });
-                  }
-                }
-              }
-
-              if (quotePdfAttached) {
-                let attachedSheetWithQuote = false;
-                try {
-                  const datasheetUrlForQuote = pickBestProductPdfUrl(selected, `ficha tecnica ${selectedNameForQuote}`) || "";
-                  const localPdfPathForQuote = pickBestLocalPdfPath(selected, `ficha tecnica ${selectedNameForQuote}`);
-                  if (datasheetUrlForQuote) {
-                    const remote = await fetchRemoteFileAsBase64(datasheetUrlForQuote);
-                    const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrlForQuote));
-                    if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
-                      strictDocs.push({
-                        base64: remote.base64,
-                        fileName: safeFileName(remote.fileName, `ficha-${selectedNameForQuote}`, "pdf"),
-                        mimetype: "application/pdf",
-                        caption: `Ficha técnica - ${selectedNameForQuote}`,
-                      });
-                      attachedSheetWithQuote = true;
-                    }
-                  }
-                  if (!attachedSheetWithQuote && localPdfPathForQuote) {
-                    const local = fetchLocalFileAsBase64(localPdfPathForQuote);
-                    if (local && Number(local.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
-                      strictDocs.push({
-                        base64: local.base64,
-                        fileName: safeFileName(local.fileName, `ficha-${selectedNameForQuote}`, "pdf"),
-                        mimetype: "application/pdf",
-                        caption: `Ficha técnica - ${selectedNameForQuote}`,
-                      });
-                      attachedSheetWithQuote = true;
-                    }
-                  }
-                } catch (sheetErr: any) {
-                  console.error("[evolution-webhook] strict_quote_datasheet_attach_error", {
-                    message: sheetErr?.message || sheetErr,
-                    stack: sheetErr?.stack || "",
-                    selected: selectedNameForQuote,
-                  });
-                }
-
-                strictReply = attachedSheetWithQuote
-                  ? `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te envío en este WhatsApp el PDF junto con la ficha técnica.`
-                  : `Listo. Ya generé la cotización de ${selectedNameForQuote} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
-                strictMemory.pending_post_quote_video_link = "";
-                const youtubeLink = pickYoutubeVideoForModel(selectedNameForQuote);
-                if (youtubeLink) strictMemory.pending_post_quote_video_link = youtubeLink;
-              } else {
-                strictReply = "Recibí tus datos, pero falló la generación automática de cotización en este intento. Escríbeme 'reenviar cotización' y la intento de nuevo por este WhatsApp.";
-              }
-            }
-            strictMemory.awaiting_action = "conversation_followup";
-            strictMemory.quote_data = {};
-            strictMemory.quote_quantity = 1;
-            strictMemory.last_intent = "quote_generated";
-            strictMemory.conversation_status = "open";
-            strictMemory.quote_feedback_due_at = isoAfterHours(24);
-            }
-          }
-        }
-        }
-        }
-        }
-        } catch (quoteFlowErr: any) {
-          console.error("[evolution-webhook] strict_quote_data_error", {
-            message: quoteFlowErr?.message || quoteFlowErr,
-            stack: quoteFlowErr?.stack || "",
-            text,
-          });
-          strictMemory.awaiting_action = "strict_quote_data";
-          strictReply = "Tuve un error procesando esta solicitud. Para continuar, envíame en un solo mensaje: ciudad, empresa, NIT, contacto, correo y celular.";
+        if (quoteFlowResult.handled) {
+          strictReply = String(quoteFlowResult.strictReply || strictReply || "");
+          strictBypassAutoQuote = Boolean(quoteFlowResult.strictBypassAutoQuote);
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_catalog_scope_disambiguation") {
-        const t = normalizeText(text);
-        const chooseGlobal = /^\s*(1|a)\s*$/.test(t) || /catalogo\s+completo|todas\s+las\s+categorias|todos\s+los\s+productos/.test(t);
-        const chooseCurrent = /^\s*(2|b)\s*$/.test(t) || /solo\s+esta|solo\s+categoria|solo\s+familia|de\s+balanzas|de\s+basculas/.test(t);
-        if (chooseGlobal) {
-          const families = buildNumberedFamilyOptions(ownerRows as any[], 10);
-          const total = families.reduce((acc: number, f: any) => acc + Number(f?.count || 0), 0);
-          strictMemory.last_category_intent = "";
-          strictMemory.strict_family_label = "";
-          strictMemory.pending_product_options = [];
-          strictMemory.pending_family_options = families;
-          strictMemory.strict_model_offset = 0;
-          strictMemory.awaiting_action = "strict_choose_family";
-          strictReply = families.length
-            ? [
-                `Perfecto. Te muestro el catálogo completo (${total} referencias activas).`,
-                "Elige una familia:",
-                ...families.map((f: any) => `${f.code}) ${f.label} (${f.count})`),
-                "",
-                "Responde con letra o número (A/1).",
-              ].join("\n")
-            : "Ahora mismo no tengo familias activas para mostrarte en catálogo.";
-        } else if (chooseCurrent) {
-          const pending = (Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
-            .map((o: any) => ({ ...o, name: dedupeOptionSpecSegments(String(o?.name || "")) }));
-          const familyLabel = String(previousMemory?.strict_family_label || "").trim();
-          strictMemory.awaiting_action = pending.length ? "strict_choose_model" : "strict_choose_family";
-          strictMemory.pending_product_options = pending;
-          strictMemory.pending_family_options = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
-          strictReply = pending.length
-            ? [
-                `Perfecto, seguimos solo en ${familyLabel || "esta categoría"}.`,
-                ...pending.map((o: any) => `${o.code}) ${o.name}`),
-                "",
-                "Elige con letra o número (A/1), o escribe 'más'.",
-              ].join("\n")
-            : `Perfecto, seguimos solo en ${familyLabel || "esta categoría"}. Elige una familia con letra o número.`;
-        } else {
-          strictMemory.awaiting_action = "strict_catalog_scope_disambiguation";
-          strictReply = "Para evitar ambigüedad, responde: 1) Catálogo completo 2) Solo esta categoría.";
-        }
+        const scopeResult = handleStrictCatalogScopeDisambiguation({
+          strictReply,
+          awaiting,
+          text,
+          ownerRows: ownerRows as any[],
+          previousMemory,
+          strictMemory,
+          normalizeText,
+          buildNumberedFamilyOptions: (rows: any[], maxItems = 8) => buildNumberedFamilyOptionsApp(rows, normalizeText, maxItems),
+          dedupeOptionSpecSegments: (value: string) => dedupeOptionSpecSegmentsApp(value, normalizeText),
+        });
+        if (scopeResult.handled) strictReply = scopeResult.strictReply;
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_model") {
-        const familyLabel = String(previousMemory?.strict_family_label || "").trim();
-        const pendingStrictOptions = (Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
-          .map((o: any) => ({ ...o, name: dedupeOptionSpecSegments(String(o?.name || "")) }));
-        const strictSelection = resolvePendingProductOptionStrict(text, pendingStrictOptions);
-        const strictCommand = String(text || "").trim();
-        const askMore = /^(mas|más)$/i.test(strictCommand);
-        const askBack = /^volver$/i.test(strictCommand);
-        const askCancel = /^cancelar$/i.test(strictCommand);
-        const rememberedGuidedProfile = String(previousMemory?.guided_balanza_profile || strictMemory.guided_balanza_profile || "").trim() as GuidedBalanzaProfile | "";
-        const guidedProfileInModelStep = (detectGuidedBalanzaProfile(text) || rememberedGuidedProfile || "") as GuidedBalanzaProfile | "";
-        const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
-        const asksMoreOptionsDirect = /\b(tienes?\s+mas\s+opciones?|hay\s+mas\s+opciones?|mas\s+opciones?)\b/.test(textNorm);
-        const asksHotplate = /\b(plancha|calentamiento|agitaci[oó]n|agitacion)\b/.test(textNorm);
-        const freeCatalogAskInModelStep =
-          asksMoreOptionsDirect ||
-          isGlobalCatalogAsk(text) ||
-          isInventoryInfoIntent(text) ||
-          isCatalogBreadthQuestion(text) ||
-          /(que\s+mas|que\s+otros?|que\s+tienes|que\s+manejas|que\s+ofrec|catalogo|otro\s+tipo|otra\s+categoria|otra\s+categoría|opciones)/.test(normalizeText(text));
-        const requestedCategoryIntentInModelStep = detectCatalogCategoryIntent(text);
-        const appHintInModelStep = detectTargetApplication(text);
-        const currentCategoryIntentInModelStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
-        const featureTermsInModelStep = extractFeatureTerms(text);
-        const asksFeatureValidationInModelStep = Boolean(
-          !strictSelection &&
-          !askMore &&
-          !askBack &&
-          !askCancel &&
-          !freeCatalogAskInModelStep &&
-          featureTermsInModelStep.length > 0 &&
-          (isFeatureQuestionIntent(text) || isUseCaseApplicabilityIntent(text))
-        );
-        const isCategorySwitchInModelStep = Boolean(
-          requestedCategoryIntentInModelStep &&
-          normalizeText(String(requestedCategoryIntentInModelStep || "")) !== currentCategoryIntentInModelStep
-        );
-        const technicalBypassInSelection = Boolean(
-          parseTechnicalSpecQuery(text) ||
-          parseCapacityRangeHint(text) ||
-          parseLooseTechnicalHint(text) ||
-          isUseCaseApplicabilityIntent(text) ||
-          isUseCaseFamilyHint(text) ||
-          isRecommendationIntent(text)
-        );
-        const asksGlobalCatalogInModelStep =
-          isGlobalCatalogAsk(text) ||
-          /\b(dame|muestrame|mu[eé]strame|quiero|ver)\b.*\b(todo|todos|todas)\b.*\b(prod|producto|productos|prodcutos|catalogo)\b/.test(textNorm);
-        const hasScopedContextInModelStep = Boolean(currentCategoryIntentInModelStep || familyLabel || pendingStrictOptions.length);
-        const asksBalanzaOptionsInModelStep = /\b(tienes?\s+balanzas?|que\s+modelos\s+tienes?\s+de\s+balanzas?|que\s+balanzas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|muestrame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|dame\s+todas\s+las\s+opciones\s+de\s+balanzas?)\b/i.test(String(text || ""));
-        const asksBasculaOptionsInModelStep = /\b(tienes?\s+basculas?|que\s+modelos\s+tienes?\s+de\s+basculas?|que\s+basculas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos)|muestrame\s+(las\s+)?(opciones|modelos))\b/i.test(String(text || ""));
-        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && asksBalanzaOptionsInModelStep) {
-          const profileForList = (guidedProfileInModelStep || rememberedGuidedProfile || "balanza_precision_001") as GuidedBalanzaProfile;
-          const industrialModeForList = profileForList === "balanza_industrial_portatil_conteo"
-            ? (detectIndustrialGuidedMode(text) || String(previousMemory?.guided_industrial_mode || strictMemory.guided_industrial_mode || ""))
-            : "";
-          const options = buildGuidedPendingOptions(ownerRows as any[], profileForList, industrialModeForList as any);
-          strictMemory.last_category_intent = "balanzas";
-          strictMemory.strict_family_label = "balanzas";
-          strictMemory.strict_model_offset = 0;
-          strictMemory.pending_family_options = [];
-          if (options.length) {
-            strictMemory.pending_product_options = options;
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.guided_balanza_profile = profileForList;
-            strictMemory.guided_industrial_mode = industrialModeForList;
-            strictReply = buildGuidedBalanzaReplyWithMode(profileForList, industrialModeForList as any);
-          } else {
-            strictMemory.pending_product_options = [];
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = "Ahora mismo no veo balanzas activas en base de datos. Si quieres, dime capacidad y resolución y te confirmo alternativas.";
-          }
-        }
-        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && asksBasculaOptionsInModelStep) {
-          const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
-          const options = buildNumberedProductOptions(basculaRows as any[], 8);
-          strictMemory.last_category_intent = "basculas";
-          strictMemory.strict_family_label = "basculas";
-          strictMemory.strict_model_offset = 0;
-          strictMemory.pending_family_options = [];
-          if (options.length) {
-            strictMemory.pending_product_options = options;
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictReply = [
-              `Perfecto. En catálogo activo tengo ${options.length} báscula(s).`,
-              ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Elige con letra/número (A/1), o escribe 'más'.",
-            ].join("\n");
-          } else {
-            strictMemory.pending_product_options = [];
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = "Ahora mismo no veo básculas activas en base de datos. Si quieres, dime capacidad y resolución y te confirmo alternativas.";
-          }
-        }
-        if (!String(strictReply || "").trim() && asksFeatureValidationInModelStep) {
-          const scopedByIntent = requestedCategoryIntentInModelStep
-            ? scopeCatalogRows(ownerRows as any, requestedCategoryIntentInModelStep)
-            : (categoryScoped as any[]);
-          const basePool = Array.isArray(scopedByIntent) && scopedByIntent.length ? scopedByIntent : (ownerRows as any[]);
-          const rankedScoped = rankCatalogByFeature(basePool as any[], featureTermsInModelStep).slice(0, 10);
-          const rankedGlobal = rankedScoped.length ? rankedScoped : rankCatalogByFeature(ownerRows as any[], featureTermsInModelStep).slice(0, 10);
-          const rankedRows = rankedGlobal.map((x: any) => x.row);
-          const appProfile = String(appHintInModelStep || strictMemory.target_application || previousMemory?.target_application || "").trim();
-          const profiledRows = applyApplicationProfile(rankedRows as any[], {
-            application: appProfile,
-            targetCapacityG: Number(previousMemory?.strict_filter_capacity_g || 0),
-            targetReadabilityG: Number(previousMemory?.strict_filter_readability_g || 0),
-            allowFallback: false,
-          });
-          const options = buildNumberedProductOptions((profiledRows || rankedRows).slice(0, 8) as any[], 8);
-
-          if (options.length) {
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictReply = [
-              `Sí, en catálogo activo tengo referencias que coinciden con esa descripción (${featureTermsInModelStep.join(", ")}).`,
-              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Elige con letra/número (A/1), o escribe 'más'.",
-            ].join("\n");
-          } else {
-            const hasOroFeatureTerm = featureTermsInModelStep.some((t) => /oro|joyeria|joyeria/.test(normalizeText(String(t || ""))));
-            const guidedByFeature = (
-              detectGuidedBalanzaProfile(text) ||
-              (hasOroFeatureTerm ? "balanza_oro_001" : "") ||
-              rememberedGuidedProfile ||
-              ""
-            ) as GuidedBalanzaProfile | "";
-            if (guidedByFeature) {
-              const industrialMode = guidedByFeature === "balanza_industrial_portatil_conteo"
-                ? (detectIndustrialGuidedMode(text) || String(previousMemory?.guided_industrial_mode || strictMemory.guided_industrial_mode || ""))
-                : "";
-              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], guidedByFeature, industrialMode as any);
-              if (guidedOptions.length) {
-                strictMemory.guided_balanza_profile = guidedByFeature;
-                strictMemory.guided_industrial_mode = industrialMode;
-                strictMemory.last_category_intent = "balanzas";
-                strictMemory.pending_product_options = guidedOptions;
-                strictMemory.pending_family_options = [];
-                strictMemory.awaiting_action = "strict_choose_model";
-                strictMemory.strict_model_offset = 0;
-                strictReply = buildGuidedBalanzaReplyWithMode(guidedByFeature, industrialMode as any);
-              } else {
-                strictMemory.awaiting_action = "strict_need_spec";
-                strictReply = buildGuidedNeedReframePrompt();
-              }
-            } else {
-              strictMemory.awaiting_action = "strict_need_spec";
-              strictReply = `Con base en catálogo activo y descripciones, no tengo referencias que coincidan con (${featureTermsInModelStep.join(", ")}). Si quieres, dime capacidad y resolución para buscar alternativas reales.`;
-            }
-          }
-        }
-        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && isDifferenceQuestionIntent(text)) {
-          strictMemory.pending_product_options = [];
-          strictMemory.pending_family_options = [];
-          strictMemory.awaiting_action = "strict_need_spec";
-          strictReply = buildScaleDifferenceGuidanceReply();
-        }
-        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && guidedProfileInModelStep) {
-          if (isDifferenceQuestionIntent(text)) {
-            strictMemory.pending_product_options = [];
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = buildScaleDifferenceGuidanceReply();
-          }
-          if (String(strictReply || "").trim()) {
-            // keep comparison guidance priority over guided profile loops
-          } else {
-          const rememberedGuided = String(previousMemory?.guided_balanza_profile || strictMemory.guided_balanza_profile || "").trim();
-          const shouldRefreshGuidedList =
-            rememberedGuided !== String(guidedProfileInModelStep) ||
-            !Array.isArray(pendingStrictOptions) ||
-            pendingStrictOptions.length === 0;
-          if (shouldRefreshGuidedList) {
-            const industrialModeModel = guidedProfileInModelStep === "balanza_industrial_portatil_conteo"
-              ? (detectIndustrialGuidedMode(text) || String(previousMemory?.guided_industrial_mode || strictMemory.guided_industrial_mode || ""))
-              : "";
-            const optionsFromGuided = buildGuidedPendingOptions(ownerRows as any[], guidedProfileInModelStep as GuidedBalanzaProfile, industrialModeModel as any);
-            strictMemory.guided_balanza_profile = guidedProfileInModelStep;
-            strictMemory.guided_industrial_mode = industrialModeModel;
-            strictMemory.last_category_intent = "balanzas";
-            strictMemory.awaiting_action = optionsFromGuided.length ? "strict_choose_model" : "strict_need_spec";
-            strictMemory.pending_product_options = optionsFromGuided;
-            strictMemory.pending_family_options = [];
-            strictMemory.strict_family_label = "balanzas";
-            strictMemory.strict_model_offset = 0;
-            strictReply = buildGuidedBalanzaReplyWithMode(guidedProfileInModelStep as GuidedBalanzaProfile, industrialModeModel as any);
-          } else {
-            strictMemory.awaiting_action = "strict_choose_model";
-            const profileKey = normalizeText(String(rememberedGuided || guidedProfileInModelStep || ""));
-            const profileLabel =
-              profileKey === "balanza_oro_001"
-                ? "oro/joyería"
-                : profileKey === "balanza_precision_001"
-                  ? "precisión"
-                  : profileKey === "balanza_laboratorio_0001"
-                    ? "laboratorio"
-                    : profileKey === "balanza_semimicro_00001"
-                      ? "semimicro"
-                      : profileKey === "balanza_industrial_portatil_conteo"
-                        ? "industrial"
-                        : "esta selección";
-            strictReply = `Perfecto. Seguimos en el perfil ${profileLabel}. Elige una opción con número o letra (ej.: 1 o A), o escribe 'más'.`;
-          }
-          }
-        }
-        if (!String(strictReply || "").trim() && asksGlobalCatalogInModelStep && hasScopedContextInModelStep) {
-          strictMemory.awaiting_action = "strict_catalog_scope_disambiguation";
-          strictReply = [
-            "Perfecto. Para no mezclar, ¿te refieres a:",
-            "1) Catálogo completo (todas las categorías)",
-            `2) Solo ${familyLabel || String(currentCategoryIntentInModelStep || "esta categoría").replace(/_/g, " ")}`,
-          ].join("\n");
-        }
-        const inventoryOverrideInSelection =
-          (!asksGlobalCatalogInModelStep && isGlobalCatalogAsk(text)) ||
-          isInventoryInfoIntent(text) ||
-          isCatalogBreadthQuestion(text);
-        if (inventoryOverrideInSelection) {
-          strictMemory.awaiting_action = "none";
-          strictMemory.pending_product_options = [];
-          strictMemory.pending_family_options = [];
-          strictMemory.strict_model_offset = 0;
-          strictMemory.strict_family_label = "";
-          if (isGlobalCatalogAsk(text)) strictMemory.last_category_intent = "";
-        }
-        const familySwitchMentionInModelStep = (() => {
-          const families = buildNumberedFamilyOptions(categoryScoped as any[], 12);
-          if (!families.length) return null;
-          const chosen = resolvePendingFamilyOption(text, families);
-          if (!chosen) return null;
-          const currentKey = normalizeText(String(familyLabel || ""));
-          if (currentKey && normalizeText(String(chosen.key || "")) === currentKey) return null;
-          return { families, chosen };
-        })();
-        if (!String(strictReply || "").trim() && familySwitchMentionInModelStep) {
-          const chosen = familySwitchMentionInModelStep.chosen;
-          const familyRowsSwitch = (categoryScoped as any[]).filter(
-            (r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(chosen.key || ""))
-          );
-          const optionsSwitch = buildNumberedProductOptions(familyRowsSwitch as any[], 8);
-          strictMemory.pending_family_options = familySwitchMentionInModelStep.families;
-          strictMemory.strict_family_label = String(chosen.label || "");
-          strictMemory.strict_model_offset = 0;
-          strictMemory.awaiting_action = "strict_choose_model";
-          strictMemory.pending_product_options = optionsSwitch;
-          strictReply = optionsSwitch.length
-            ? [
-                `Perfecto, cambio la búsqueda a ${String(chosen.label || "esa familia")}.`,
-                ...optionsSwitch.slice(0, 8).map((o) => {
-                  const row = familyRowsSwitch.find((r: any) => String(r?.id || "") === String(o.id || ""));
-                  const cap = Number(getRowCapacityG(row) || 0);
-                  const read = Number(getRowReadabilityG(row) || 0);
-                  return dedupeOptionSpecSegments(`${o.code}) ${o.name} | Cap: ${formatSpecNumber(cap)} g | Res: ${formatSpecNumber(read)} g`);
-                }),
-                "",
-                "Responde con letra o número (A/1), o escribe 'más' para ver siguientes.",
-              ].join("\n")
-            : `Perfecto, cambio la búsqueda a ${String(chosen.label || "esa familia")}, pero ahora no veo modelos activos en esa familia.`;
-        }
-        if (pendingStrictOptions.length > 0 && !strictSelection && !askMore && !askBack && !askCancel && !technicalBypassInSelection && !inventoryOverrideInSelection && !isCategorySwitchInModelStep && !freeCatalogAskInModelStep && !asksHotplate) {
-          const softReply = await buildStrictConversationalReply({
-            apiKey,
-            inboundText: text,
-            awaiting,
-            selectedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
-            categoryHint: rememberedCategory,
-            pendingOptions: pendingStrictOptions,
-          });
-          strictMemory.awaiting_action = "strict_choose_model";
-          strictMemory.pending_product_options = pendingStrictOptions;
-          strictMemory.strict_model_offset = Math.max(0, Number(previousMemory?.strict_model_offset || 0));
-          strictReply = String(softReply || "").trim() || "Por favor elige una opción válida del listado actual. Responde solo con la letra o número disponible (por ejemplo: A, B, 1 o 2), o escribe \"más\" para ver más opciones.";
-        }
-        if (!String(strictReply || "").trim() && isCategorySwitchInModelStep) {
-          const scoped = scopeCatalogRows(ownerRows as any, String(requestedCategoryIntentInModelStep || ""));
-          const families = buildNumberedFamilyOptions(scoped as any[], 8);
-          strictMemory.last_category_intent = String(requestedCategoryIntentInModelStep || "");
-          strictMemory.pending_product_options = [];
-          strictMemory.pending_family_options = families;
-          strictMemory.strict_filter_capacity_g = "";
-          strictMemory.strict_filter_readability_g = "";
-          strictMemory.strict_partial_capacity_g = "";
-          strictMemory.strict_partial_readability_g = "";
-          if (!families.length) {
-            strictMemory.awaiting_action = "conversation_followup";
-            strictReply = buildNoActiveCatalogEscalationMessage(String(requestedCategoryIntentInModelStep || "esa categoria").replace(/_/g, " "));
-          } else {
-            strictMemory.awaiting_action = "strict_choose_family";
-            strictReply = [
-              `Perfecto, cambio la búsqueda a ${String(requestedCategoryIntentInModelStep || "catalogo").replace(/_/g, " ")}.`,
-              "Primero elige familia:",
-              ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
-              "",
-              "Si quieres, también dime qué vas a pesar y su funcionalidad para identificar cuál se adecúa a tu empresa.",
-              "Responde con letra o número (A/1).",
-            ].join("\n");
-          }
-        }
-        if (!String(strictReply || "").trim() && asksHotplate && !isCategorySwitchInModelStep) {
-          const labRows = scopeCatalogRows(ownerRows as any, "equipos_laboratorio");
-          if (!labRows.length) {
-            strictReply = buildNoActiveCatalogEscalationMessage("planchas de calentamiento y agitacion");
-            strictMemory.awaiting_action = "conversation_followup";
-          }
-        }
-        if (!String(strictReply || "").trim() && freeCatalogAskInModelStep && !isCategorySwitchInModelStep) {
-          const asksAllProductsGlobal = isGlobalCatalogAsk(text);
-          if (asksAllProductsGlobal) {
-            const globalFamilies = buildNumberedFamilyOptions(ownerRows as any[], 10);
-            const globalTotal = globalFamilies.reduce((acc: number, o: any) => acc + Number(o?.count || 0), 0);
-            strictMemory.last_category_intent = "";
-            strictMemory.strict_family_label = "";
-            strictMemory.pending_product_options = [];
-            strictMemory.pending_family_options = globalFamilies;
-            strictMemory.awaiting_action = "strict_choose_family";
-            strictReply = globalFamilies.length
-              ? [
-                `Perfecto. En total tengo ${globalTotal} referencias activas en base de datos.`,
-                "Elige una familia para mostrarte opciones:",
-                ...globalFamilies.map((o) => `${o.code}) ${o.label} (${o.count})`),
-                "",
-                "Si quieres, también dime qué vas a pesar y su funcionalidad para identificar cuál se adecúa a tu empresa.",
-                "Responde con letra o número (A/1).",
-              ].join("\n")
-              : "Ahora mismo no veo familias activas en catálogo para mostrarte.";
-          }
-        }
-        if (!String(strictReply || "").trim() && freeCatalogAskInModelStep && !isCategorySwitchInModelStep) {
-          const asksMoreCapacityInModelStep = /(mas\s+capacidad|m[aá]s\s+capacidad|mayor\s+capacidad|de\s+mas\s+capacidad|de\s+m[aá]s\s+capacidad|mas\s+peso|m[aá]s\s+peso)/.test(textNorm);
-          if (!categoryScoped.length) {
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = "En base de datos no tengo más referencias activas en este grupo por ahora. Si quieres, dime capacidad y resolución y te busco alternativas exactas.";
-          } else if (asksMoreCapacityInModelStep) {
-            const byCapacity = [...categoryScoped]
-              .filter((r: any) => Number(getRowCapacityG(r) || 0) > 0)
-              .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0));
-            const options = buildNumberedProductOptions((byCapacity.length ? byCapacity : categoryScoped) as any[], 8);
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.strict_model_offset = 0;
-            strictReply = options.length
-              ? [
-                  "Sí, claro. Te comparto opciones de mayor capacidad que tengo activas en base de datos:",
-                  ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
-                  "",
-                  "Si quieres, después de elegir una te ayudo a validar la resolución ideal para tu uso.",
-                  "Puedes responder con letra o número (A/1).",
-                ].join("\n")
-              : "Ahora mismo no veo opciones de mayor capacidad activas en esta categoría. Si quieres, te propongo alternativas por disponibilidad.";
-          } else {
-            const options = buildNumberedProductOptions(categoryScoped as any[], 60);
-            const page = options.slice(0, 8);
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.pending_family_options = [];
-            strictMemory.pending_product_options = page;
-            strictMemory.strict_model_offset = 0;
-            strictReply = [
-              `Claro. En base de datos tengo ${categoryScoped.length} referencia(s) activas para esta categoría.`,
-              "Te guío con opciones directas para no frenarte:",
-              ...page.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Si prefieres, también te puedo filtrar por mayor capacidad o mejor precisión.",
-              "Responde con letra o número (A/1).",
-            ].join("\n");
-          }
-        }
-        const askCount = /\b(cuantas|cuantos|total|tienen\s+\d+|\d+)\b/.test(textNorm) && !asksQuoteIntent(text);
-        const familyRows = familyLabel
-          ? categoryScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(familyLabel))
-          : categoryScoped;
-
-        const asksPrecisionInventory =
-          /(balanzas?\s+de\s+precision|balanzas?\s+de\s+precisi[oó]n|tienes?\s+de\s+precision|tienen\s+de\s+precision|hay\s+de\s+precision|manejan\s+de\s+precision)/.test(textNorm) &&
-          !parseLooseTechnicalHint(text) &&
-          !parseTechnicalSpecQuery(text);
-        if (!String(strictReply || "").trim() && asksPrecisionInventory) {
-          const guidedProfile = "balanza_precision_001" as GuidedBalanzaProfile;
-          const options = buildGuidedPendingOptions(ownerRows as any[], guidedProfile, "");
-          if (options.length) {
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictMemory.last_category_intent = "balanzas";
-            strictMemory.guided_balanza_profile = guidedProfile;
-            strictMemory.guided_industrial_mode = "";
-            strictReply = buildGuidedBalanzaReplyWithMode(guidedProfile, "");
-          } else {
-            strictReply = "Ahora mismo no tengo balanzas de precisión activas en base de datos. Si quieres, reviso alternativas cercanas por resolución.";
-          }
-        }
-
-        const bundleQuoteAsk =
-          (
-            asksQuoteIntent(text) &&
-            (
-              /\b(las|los|todas|todos|opciones|referencias)\b/.test(textNorm) ||
-              /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(textNorm)
-            )
-          ) ||
-          (!asksQuoteIntent(text) && !strictSelection && extractBundleOptionIndexes(text).length >= 2);
-        if (!String(strictReply || "").trim() && bundleQuoteAsk) {
-          const pendingOptions =
-            (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
-              .concat(Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [])
-              .concat(Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [])
-              .filter((o: any, idx: number, arr: any[]) => {
-                const key = String(o?.raw_name || o?.name || "").trim();
-                if (!key) return false;
-                return arr.findIndex((x: any) => String(x?.raw_name || x?.name || "").trim() === key) === idx;
-              });
-          const pendingOnly = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
-          const currentBundleOnly = Array.isArray(previousMemory?.quote_bundle_options_current) ? previousMemory.quote_bundle_options_current : [];
-          const recommendedOnly = Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [];
-          const quoteBundleOnly = Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [];
-          const bundleSelection = extractBundleSelectionFromCountCommand(text);
-          const explicitIdx = (bundleSelection?.picks?.length ? bundleSelection.picks : extractBundleOptionIndexes(text))
-            .filter((n) => n >= 1);
-          const optionsForIndexSelection = pickBundleOptionSourceByIndexes(
-            explicitIdx,
-            [pendingOnly, currentBundleOnly, recommendedOnly, quoteBundleOnly, pendingOptions],
-          );
-          const selectedCount = /\b(todas|todos)\b/.test(textNorm)
-            ? pendingOptions.length
-            : Math.max(2, Math.min(3, Number(bundleSelection?.count || 0) || 3));
-          const chosen = explicitIdx.length >= 2
-            ? explicitIdx.filter((n) => n <= optionsForIndexSelection.length).map((n) => optionsForIndexSelection[n - 1]).filter(Boolean).slice(0, 3)
-            : [];
-          if (!chosen.length && explicitIdx.length === 1) {
-            const pick = explicitIdx[0] <= optionsForIndexSelection.length ? optionsForIndexSelection[explicitIdx[0] - 1] : null;
-            const pickedName = String(pick?.raw_name || pick?.name || "").trim();
-            if (pickedName) {
-              strictBypassAutoQuote = true;
-              inbound.text = `cotizar ${pickedName}`;
-              strictMemory.pending_product_options = pendingOptions;
-              strictMemory.last_recommended_options = pendingOptions;
-              strictMemory.awaiting_action = "none";
-            }
-          }
-          if (chosen.length >= 2) {
-            const modelNames = chosen.map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
-            strictBypassAutoQuote = true;
-            inbound.text = `cotizar ${modelNames.join(" ; ")} cantidad 1 para todos`;
-            strictMemory.pending_product_options = chosen;
-            strictMemory.last_recommended_options = chosen;
-            strictMemory.quote_bundle_options_current = chosen;
-            strictMemory.quote_bundle_options = chosen;
-            strictMemory.quote_bundle_selected_ids = chosen.map((o: any) => String(o?.id || o?.product_id || "").trim()).filter(Boolean);
-            strictMemory.quote_quantity = 1;
-            strictMemory.awaiting_action = "none";
-            strictMemory.last_intent = "quote_bundle_request";
-            strictMemory.bundle_quote_mode = true;
-            strictMemory.bundle_quote_count = chosen.length;
-            strictMemory.last_selected_product_name = "";
-            strictMemory.last_selected_product_id = "";
-            strictMemory.last_selection_at = "";
-          } else if (selectedCount >= 2 && pendingOptions.length >= 2) {
-            const shortlist = pendingOptions.slice(0, Math.min(8, pendingOptions.length));
-            strictMemory.quote_bundle_options_current = shortlist;
-            strictMemory.quote_bundle_options = shortlist;
-            strictMemory.pending_product_options = shortlist;
-            strictMemory.last_recommended_options = shortlist;
-            strictMemory.bundle_quote_mode = true;
-            strictMemory.bundle_quote_requested_count = selectedCount;
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictReply = [
-              `Perfecto. Para cotizar ${selectedCount} referencia(s), indícame cuáles opciones quieres del listado (máximo 3 por solicitud).`,
-              ...shortlist.slice(0, 6).map((o: any, idx: number) => `${idx + 1}) ${String(o?.raw_name || o?.name || "").trim()}`),
-              "",
-              "Escribe: cotizar 1,2,4 (ejemplo).",
-            ].join("\n");
-          }
-        }
-        const looseSpecHint = preParsedSpec
-          ? {
-              capacityG: Number((preParsedSpec as any)?.capacityG || 0),
-              readabilityG: Number((preParsedSpec as any)?.readabilityG || 0),
-            }
-          : parseLooseTechnicalHint(text);
-        const rangeHint = parseCapacityRangeHint(text);
-
-        if (looseSpecHint && (looseSpecHint.capacityG || looseSpecHint.readabilityG)) {
-          const textNormForMerge = normalizeText(String(text || ""));
-          const semimicroCueInText = /(semimicro|semi\s*micro|semi\w*micro|seminicro|usp|\b\d+(?:[.,]\d+)?\s*mg\b)/.test(textNormForMerge);
-          const rememberedCap = Number(
-            semimicroCueInText
-              ? 0
-              : (
-                previousMemory?.strict_partial_capacity_g ||
-                previousMemory?.strict_filter_capacity_g ||
-                strictMemory?.strict_filter_capacity_g ||
-                0
-              )
-          );
-          const rememberedRead = Number(
-            previousMemory?.strict_partial_readability_g ||
-            previousMemory?.strict_filter_readability_g ||
-            strictMemory?.strict_filter_readability_g ||
-            0
-          );
-          const merged = mergeLooseSpecWithMemory(
-            {
-              capacityG: rememberedCap,
-              readabilityG: rememberedRead,
-            },
-            looseSpecHint
-          );
-          const explicitCapacityFromText = parseExplicitCapacityHint(text);
-          const effectiveCap = explicitCapacityFromText > 0
-            ? explicitCapacityFromText
-            : Number(merged.capacityG || 0);
-          const effectiveRead = Number(merged.readabilityG || 0);
-          strictMemory.strict_partial_capacity_g = effectiveCap > 0 ? effectiveCap : "";
-          strictMemory.strict_partial_readability_g = effectiveRead > 0 ? effectiveRead : "";
-
-          if (effectiveRead > 0 && !(effectiveCap > 0)) {
-            const tNormNeed = normalizeText(String(text || ""));
-            const semimicroCue = /(semimicro|semi\s*micro|semi\w*micro|seminicro|usp|\b\d+(?:[.,]\d+)?\s*mg\b)/.test(tNormNeed);
-            const hasReadabilityConstraint = /(menos\s+de|menor\s+que|hasta|maximo|maximo\s+de|no\s+mas\s+de|no\s+m[aá]s\s+de)/.test(tNormNeed);
-            const asksRecommendationNow = /(cual|cu[aá]l|recomiend|seria\s+buena|ser[ií]a\s+buena|me\s+sirve)/.test(tNormNeed);
-            const asksDirectOptions = /(necesito|quiero|busco|tienen|tienes|opciones|cuales|cu[aá]les|muestrame|mu[eé]strame)/.test(tNormNeed);
-            if (semimicroCue && asksDirectOptions) {
-              const semimicroProfile: GuidedBalanzaProfile = "balanza_semimicro_00001";
-              const guidedOptions = buildGuidedPendingOptions(ownerRows as any[], semimicroProfile);
-              if (guidedOptions.length) {
-                strictMemory.pending_product_options = guidedOptions;
-                strictMemory.pending_family_options = [];
-                strictMemory.awaiting_action = "strict_choose_model";
-                strictMemory.strict_model_offset = 0;
-                strictMemory.last_category_intent = "balanzas";
-                strictMemory.guided_balanza_profile = semimicroProfile;
-                strictReply = buildGuidedBalanzaReply(semimicroProfile);
-              }
-            }
-            if (String(strictReply || "").trim()) {
-              // guided semimicro options already returned in current step
-            } else {
-            const shouldGuideCapacityFirst = effectiveRead <= 0.0001 && !hasReadabilityConstraint;
-            if (!shouldGuideCapacityFirst && (hasReadabilityConstraint || asksRecommendationNow || asksDirectOptions)) {
-              const isPointZeroOne = Math.abs(effectiveRead - 0.01) <= 0.000001;
-              const byFamily = (familyRows as any[]).filter((r: any) => {
-                const rs = extractRowTechnicalSpec(r);
-                const rr = Number(rs.readabilityG || 0);
-                if (!(rr > 0)) return false;
-                if (isPointZeroOne) return Math.abs(rr - 0.01) <= 0.000001;
-                return rr <= effectiveRead;
-              });
-              const byCategory = (categoryScoped as any[]).filter((r: any) => {
-                const rs = extractRowTechnicalSpec(r);
-                const rr = Number(rs.readabilityG || 0);
-                if (!(rr > 0)) return false;
-                if (isPointZeroOne) return Math.abs(rr - 0.01) <= 0.000001;
-                return rr <= effectiveRead;
-              });
-              const pool = byFamily.length ? byFamily : byCategory;
-              const rankedRead = rankCatalogByReadabilityOnly(pool as any[], effectiveRead);
-              const rankedRows = rankedRead.length ? rankedRead.map((x: any) => x.row) : pool;
-              const options = buildNumberedProductOptions((rankedRows || []).slice(0, 8) as any[], 8);
-              if (options.length) {
-                strictMemory.pending_product_options = options;
-                strictMemory.pending_family_options = [];
-                strictMemory.awaiting_action = "strict_choose_model";
-                strictMemory.strict_model_offset = 0;
-                strictMemory.strict_filter_readability_g = effectiveRead;
-                strictReply = [
-                  isPointZeroOne
-                    ? "Perfecto. Para 0.01 g (balanzas de precisión), estas son 4 opciones disponibles en base de datos:"
-                    : `Perfecto. Para precisión menor o igual a ${formatSpecNumber(effectiveRead)} g, estas son 4 opciones disponibles:`,
-                  ...options.slice(0, 4).map((o) => {
-                    const row = (rankedRows || []).find((r: any) => String(r?.id || "") === String(o.id || ""));
-                    const cap = Number(getRowCapacityG(row) || 0);
-                    return dedupeOptionSpecSegments(`${o.code}) ${o.name} | Cap: ${formatSpecNumber(cap)} g`);
-                  }),
-                  "",
-                  "Elige con letra o número (A/1). Si quieres, luego afinamos por capacidad.",
-                ].join("\n");
-              } else {
-                strictReply = `Entiendo. Para precisión <= ${formatSpecNumber(effectiveRead)} g no veo opciones activas en esta categoría. Si quieres, te propongo alternativas cercanas.`;
-              }
-            } else {
-              const inferred = inferFamilyFromReadability(effectiveRead);
-              strictReply = [
-                `Perfecto. ${formatSpecNumber(effectiveRead)} g normalmente corresponde a ${inferred.family}.`,
-                `¿Qué capacidad necesitas para afinarte la recomendación?`,
-                `Opciones rápidas: ${inferred.capacityHint}.`,
-              ].join("\n");
-            }
-            }
-          } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
-            if (isLargestCapacityAsk(text)) {
-              const largest = buildLargestCapacitySuggestion(categoryScoped as any[]);
-              if (largest.options.length) {
-                strictMemory.pending_product_options = largest.options;
-                strictMemory.pending_family_options = [];
-                strictMemory.awaiting_action = "strict_choose_model";
-                strictMemory.strict_model_offset = 0;
-                strictReply = largest.reply;
-              }
-            }
-            if (!String(strictReply || "").trim()) {
-              const priceLine = buildPriceRangeLine(familyRows as any[]);
-              strictReply = [
-                `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
-                ...(priceLine ? [priceLine] : []),
-                "Ahora dime la resolución/precisión objetivo.",
-                "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
-              ].join("\n");
-            }
-          } else {
-            let prioritized = prioritizeTechnicalRows(familyRows as any[], {
-              capacityG: effectiveCap,
-              readabilityG: effectiveRead,
-            });
-            let switchedFromFamily = false;
-            if (prioritized.exactCount === 0) {
-              const categoryWide = prioritizeTechnicalRows(categoryScoped as any[], {
-                capacityG: effectiveCap,
-                readabilityG: effectiveRead,
-              });
-              if (categoryWide.exactCount > 0) {
-                prioritized = categoryWide;
-                switchedFromFamily = true;
-              }
-            }
-            const filteredOptions = buildNumberedProductOptions((prioritized.orderedRows.length ? prioritized.orderedRows : familyRows) as any[], 60);
-            const filteredPage = filteredOptions.slice(0, 8);
-            strictMemory.strict_filter_capacity_g = Number(effectiveCap || 0);
-            strictMemory.strict_filter_readability_g = Number(effectiveRead || 0);
-            strictMemory.pending_product_options = filteredPage;
-            strictMemory.strict_model_offset = 0;
-            strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
-            strictMemory.strict_partial_capacity_g = "";
-            strictMemory.strict_partial_readability_g = "";
-
-            if (!filteredPage.length) {
-              strictReply = "Gracias por el dato. En el catálogo actual no veo una coincidencia clara con esa característica en esta familia. Si quieres, te ayudo a buscarla por capacidad y resolución exacta (ej.: 4200 g x 0.01 g) para recomendarte la opción más segura.";
-            } else {
-              const criterionLabel = `${formatSpecNumber(effectiveCap)} g x ${formatSpecNumber(effectiveRead)} g`;
-              const bestRow = (prioritized.orderedRows.length ? prioritized.orderedRows[0] : null) as any;
-              const bestSpec = bestRow ? extractRowTechnicalSpec(bestRow) : { capacityG: 0, readabilityG: 0 };
-              const bestCap = Number(bestSpec?.capacityG || 0);
-              const bestRead = Number(bestSpec?.readabilityG || 0);
-              const capDeltaPct = bestCap > 0 ? (Math.abs(bestCap - effectiveCap) / Math.max(1, effectiveCap)) * 100 : 9999;
-              const readRatio = (bestRead > 0 && effectiveRead > 0) ? (Math.max(bestRead, effectiveRead) / Math.max(1e-9, Math.min(bestRead, effectiveRead))) : 9999;
-              const tooFar = prioritized.exactCount === 0 && (capDeltaPct > 500 || readRatio > 20);
-              if (tooFar) {
-                const familyAlternatives = buildNumberedFamilyOptions(categoryScoped as any[], 8)
-                  .filter((f) => normalizeText(String(f.label || "")) !== normalizeText(String(familyLabel || "")));
-                strictMemory.pending_product_options = [];
-                strictMemory.pending_family_options = familyAlternatives;
-                strictMemory.awaiting_action = familyAlternatives.length ? "strict_choose_family" : "strict_need_spec";
-                strictReply = familyAlternatives.length
-                  ? [
-                      `Para ${criterionLabel} no tengo opciones realmente compatibles en ${familyLabel || "esta familia"}.`,
-                      "Sí puedo proponerte alternativas en otras familias:",
-                      ...familyAlternatives.map((f) => `${f.code}) ${f.label} (${f.count})`),
-                      "",
-                      "Elige una con letra o número (A/1), o ajustamos capacidad/resolución.",
-                    ].join("\n")
-                  : `Para ${criterionLabel} no tengo opciones realmente compatibles en el catálogo activo de ${familyLabel || "esta familia"}. Si quieres, ajustamos capacidad/resolución.`;
-              } else {
-              const top = filteredPage.slice(0, 3);
-              const exactIntro = prioritized.exactCount > 0
-                ? `¡Excelente! Para ${criterionLabel} sí tenemos coincidencia en catálogo${switchedFromFamily ? " (en otra familia más adecuada)" : (familyLabel ? ` de ${familyLabel}` : "")}.`
-                : `Para ${criterionLabel}, en ${familyLabel || "esta familia"} no veo coincidencia exacta, pero sí alternativas cercanas.`;
-              strictReply = [
-                exactIntro,
-                `Para ${criterionLabel}, te sugiero empezar con estas 3 opciones:`,
-                ...top.map((o, idx) => `${o.code}) ${o.name}${idx === 0 ? " (recomendada para iniciar)" : ""}`),
-                "",
-                (filteredOptions.length > filteredPage.length)
-                  ? "Si quieres, escribe 'más' y te muestro otras alternativas. También puedes elegir A/1 para continuar."
-                  : "Si quieres, te explico cuál conviene más según tu uso (laboratorio, joyería o industrial). También puedes elegir A/1.",
-              ].join("\n");
-              }
-            }
-          }
-        }
-
-        if (!String(strictReply || "").trim() && rangeHint) {
-          const rangedOptionsAll = buildNumberedProductOptions(filterRowsByCapacityRange(familyRows as any[], rangeHint), 60);
-          const rangedPage = rangedOptionsAll.slice(0, 8);
-          if (rangedPage.length) {
-            strictMemory.pending_product_options = rangedPage;
-            strictMemory.strict_model_offset = 0;
-            strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
-            strictReply = [
-              `Perfecto. Te filtro por capacidad entre ${formatSpecNumber(rangeHint.minG)} g y ${Number.isFinite(rangeHint.maxG) ? `${formatSpecNumber(rangeHint.maxG)} g` : "más"}.`,
-              ...rangedPage.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-              "",
-              (rangedOptionsAll.length > rangedPage.length)
-                ? "Responde con letra o número (A/1), o escribe 'más' para ver siguientes."
-                : "Responde con letra o número (A/1), o dime la resolución objetivo para afinar más.",
-            ].join("\n");
-          } else {
-            strictReply = "No encontré modelos activos para ese rango de capacidad en esta familia. Si quieres, te muestro alternativas de otra familia.";
-          }
-        }
-
-        const asksCheapest = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|precio\s+bajo)\b/.test(normalizeText(text));
-        if (!String(strictReply || "").trim() && asksCheapest) {
-          const priced = (familyRows as any[])
-            .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
-            .sort((a: any, b: any) => Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
-          const pricedSource = priced.length ? priced : (categoryScoped as any[])
-            .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
-            .sort((a: any, b: any) => Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
-          const options = buildNumberedProductOptions(pricedSource as any[], 8);
-          if (options.length) {
-            strictMemory.pending_product_options = options;
-            strictMemory.strict_model_offset = 0;
-            strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
-            const topRow = pricedSource[0];
-            const topFamily = normalizeText(familyLabelFromRow(topRow)) || normalizeText(String(topRow?.source_payload?.family || ""));
-            const familyLabelHuman = topFamily ? String(familyLabelFromRow(topRow) || topFamily) : "N/A";
-            strictReply = [
-              `Perfecto. Según base de datos, la familia más económica aquí es: ${familyLabelHuman}.`,
-              "Estas son 4 opciones más económicas:",
-              ...options.slice(0, 4).map((o) => {
-                const p = Number(o.base_price_usd || 0);
-                return `${o.code}) ${o.name}${p > 0 ? ` (USD ${formatMoney(p)})` : ""}`;
-              }),
-              "",
-              "Elige con letra o número (A/1), o escribe 'más'.",
-            ].join("\n");
-          }
-        }
-
-        const recommendationAsk = isRecommendationIntent(text) || /\b(no\s+se|no\s+sé)\b.*\b(modelo|cual|cu[aá]l|ofrecer|ofrecerme|elegir)\b/.test(normalizeText(text));
-        if (!String(strictReply || "").trim() && recommendationAsk) {
-          const allOptions = buildNumberedProductOptions(familyRows as any[], 60);
-          const recommended = allOptions.slice(0, 3);
-          const page = allOptions.slice(0, 8);
-          strictMemory.pending_product_options = page;
-          strictMemory.strict_model_offset = 0;
-          strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
-
-          if (!recommended.length) {
-            strictReply = "Claro, te ayudo a elegir. En este grupo no veo modelos disponibles ahora. Si quieres, te recomiendo otra familia según tu uso (laboratorio, joyería o industrial).";
-          } else {
-            const lines = recommended.map((o, idx) => {
-              const pos = idx + 1;
-              const hint = pos === 1
-                ? "opción equilibrada para iniciar"
-                : (pos === 2 ? "alternativa para comparar costo/beneficio" : "alternativa para mayor capacidad/robustez");
-              return `${o.code}) ${o.name} - ${hint}`;
-            });
-            const rememberedUseCase = String(previousMemory?.strict_use_case || strictMemory?.strict_use_case || "").trim();
-            const hasUseCaseContext = /(para\s+pesar|tornillo|tornillos|tuerca|tuercas|perno|pernos|muestra|muestras|laboratorio|joyeria|joyería|industrial)/.test(normalizeText(`${rememberedUseCase} ${text}`));
-            strictReply = [
-              "¡Claro! Te recomiendo estas opciones para empezar, sin complicarte:",
-              ...lines,
-              "",
-              hasUseCaseContext
-                ? "Con ese uso, para afinarte una recomendación final dime el rango de peso por unidad o capacidad aproximada."
-                : "Si me dices el uso (ej.: laboratorio, joyería o industrial), te digo cuál elegir primero.",
-              "También puedes responder con letra o número (A/1) y te envío ficha o cotización.",
-            ].join("\n");
-          }
-        }
-
-        const correctionAsk = isCorrectionIntent(text);
-        if (!String(strictReply || "").trim() && correctionAsk) {
-          const rememberedCap = Number(previousMemory?.strict_filter_capacity_g || previousMemory?.strict_partial_capacity_g || 0);
-          const rememberedRead = Number(previousMemory?.strict_filter_readability_g || previousMemory?.strict_partial_readability_g || 0);
-          if (rememberedCap > 0 && rememberedRead > 0) {
-            const prioritized = prioritizeTechnicalRows(categoryScoped as any[], {
-              capacityG: rememberedCap,
-              readabilityG: rememberedRead,
-            });
-            const options = buildNumberedProductOptions((prioritized.orderedRows.length ? prioritized.orderedRows : familyRows) as any[], 60);
-            const top = options.slice(0, 3);
-            strictMemory.pending_product_options = options.slice(0, 8);
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictMemory.strict_filter_capacity_g = rememberedCap;
-            strictMemory.strict_filter_readability_g = rememberedRead;
-            strictReply = top.length
-              ? [
-                  `Gracias por corregirme. Reenfoqué la búsqueda a ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g y estas son las opciones más compatibles:`,
-                  ...top.map((o) => `${o.code}) ${o.name}`),
-                  "",
-                  "Si quieres más, escribe 'más'. También puedes elegir A/1 para continuar.",
-                ].join("\n")
-              : "Gracias por corregirme. No veo coincidencias con ese criterio en el catálogo activo. Si quieres, te muestro alternativas por capacidad cercana.";
-          }
-        }
-
-        const asksGlobalCatalogInModelStepTail = isGlobalCatalogAsk(text);
-        const asksInventoryInModelStep = isInventoryInfoIntent(text) || isCatalogBreadthQuestion(text);
-        if (!String(strictReply || "").trim() && (asksGlobalCatalogInModelStepTail || asksInventoryInModelStep)) {
-          const families = buildNumberedFamilyOptions(ownerRows as any[], 10);
-          const total = families.reduce((acc: number, f: any) => acc + Number(f?.count || 0), 0);
-          strictMemory.last_category_intent = asksGlobalCatalogInModelStepTail ? "" : String(previousMemory?.last_category_intent || "");
-          strictMemory.strict_family_label = "";
-          strictMemory.pending_product_options = [];
-          strictMemory.pending_family_options = families;
-          strictMemory.strict_model_offset = 0;
-          strictMemory.awaiting_action = "strict_choose_family";
-          strictReply = families.length
-            ? [
-                `Perfecto. En total tengo ${total} referencias activas en base de datos.`,
-                "Elige una familia para mostrarte modelos:",
-                ...families.map((f: any) => `${f.code}) ${f.label} (${f.count})`),
-                "",
-                "Si quieres, también dime qué vas a pesar y su funcionalidad para identificar cuál se adecúa a tu empresa.",
-                "Responde con letra o número (A/1).",
-              ].join("\n")
-            : "Ahora mismo no tengo familias activas para mostrarte en catálogo.";
-        }
-
-        if (!String(strictReply || "").trim()) {
-        const hasTechLock = hasActiveTechnicalRequirement(previousMemory);
-        const lockedIds = Array.isArray(previousMemory?.strict_filtered_catalog_ids)
-          ? previousMemory.strict_filtered_catalog_ids.map((v: any) => String(v || "").trim()).filter(Boolean)
-          : [];
-        const lockedRows = hasTechLock && lockedIds.length
-          ? familyRows.filter((r: any) => lockedIds.includes(String(r?.id || "").trim()))
-          : familyRows;
-        const allOptions = buildNumberedProductOptions((lockedRows.length ? lockedRows : familyRows) as any[], 60);
-        const total = allOptions.length;
-        const prevOffset = Math.max(0, Number(previousMemory?.strict_model_offset || 0));
-        const nextOffset = askMore ? Math.min(prevOffset + 8, Math.max(0, total - 1)) : prevOffset;
-        const page = allOptions.slice(nextOffset, nextOffset + 8);
-        strictMemory.pending_product_options = page;
-        strictMemory.strict_model_offset = nextOffset;
-        strictMemory.strict_family_label = familyLabel || String(previousMemory?.strict_family_label || "");
-
-        if (!page.length) {
-          strictReply = "No tengo más modelos en ese grupo. Si quieres, te muestro otra familia.";
-        } else if (askMore || askCount) {
-          strictReply = [
-            familyLabel
-              ? `Sí, en ${familyLabel} tengo ${total} referencia(s).`
-              : `Sí, tengo ${total} referencia(s) en este grupo.`,
-            ...page.map((o) => `${o.code}) ${o.name}`),
-            "",
-            (nextOffset + 8 < total)
-              ? "Escribe 'más' para ver siguientes, o elige con letra/número (A/1)."
-              : "Elige con letra/número (A/1), o pide otra familia.",
-          ].join("\n");
+        const chooseModelFlow = await handleStrictChooseModelFlow({
+          strictReply,
+          strictBypassAutoQuote,
+          awaiting,
+          previousMemory,
+          strictMemory,
+          text,
+          textNorm,
+          ownerRows: ownerRows as any[],
+          rememberedCategory,
+          dedupeOptionSpecSegments: (value: string) => dedupeOptionSpecSegmentsApp(value, normalizeText),
+          resolvePendingProductOptionStrict: resolvePendingProductOptionStrictApp,
+          detectGuidedBalanzaProfile,
+          scopeCatalogRows,
+          normalizeText,
+          buildGuidedPendingOptions,
+          detectIndustrialGuidedMode,
+          buildGuidedBalanzaReplyWithMode,
+          scopeStrictBasculaRows,
+          buildNumberedProductOptions,
+          detectCatalogCategoryIntent,
+          extractFeatureTerms,
+          isFeatureQuestionIntent,
+          isUseCaseApplicabilityIntent,
+          rankCatalogByFeature,
+          detectTargetApplication,
+          applyApplicationProfile,
+          buildGuidedNeedReframePrompt,
+          buildScaleDifferenceGuidanceReply,
+          isDifferenceQuestionIntent,
+          parseTechnicalSpecQuery,
+          parseCapacityRangeHint,
+          parseLooseTechnicalHint,
+          isUseCaseFamilyHint,
+          isRecommendationIntent,
+          isGlobalCatalogAsk,
+          isInventoryInfoIntent,
+          isCatalogBreadthQuestion,
+          buildStrictConversationalReply: (args: any) => buildStrictConversationalReplyApp({ ...args, normalizeText, isOutOfCatalogDomainQuery }),
+          apiKey,
+          buildNumberedFamilyOptions: (rows: any[], maxItems = 8) => buildNumberedFamilyOptionsApp(rows, normalizeText, maxItems),
+          resolvePendingFamilyOption: (value: string, optionsRaw: any) => resolvePendingFamilyOptionApp(value, optionsRaw, normalizeText),
+          familyLabelFromRow,
+          getRowCapacityG,
+          getRowReadabilityG,
+          formatSpecNumber,
+          formatMoney: formatMoneyApp,
+          buildNoActiveCatalogEscalationMessage,
+          hasActiveTechnicalRequirement: hasActiveTechnicalRequirementApp,
+          asksQuoteIntent,
+          extractBundleOptionIndexes: extractBundleOptionIndexesApp,
+          extractBundleSelectionFromCountCommand,
+          pickBundleOptionSourceByIndexes: pickBundleOptionSourceByIndexesApp,
+          inbound,
+          isCorrectionIntent,
+          prioritizeTechnicalRows,
+          filterRowsByCapacityRange,
+        });
+        if (chooseModelFlow.handled) {
+          strictReply = chooseModelFlow.strictReply;
+          strictBypassAutoQuote = Boolean(chooseModelFlow.strictBypassAutoQuote);
         } else {
-          strictReply = [
-            "Elige un modelo del listado con letra o número (A/1), o escribe 'más' para ver siguientes.",
-            ...page.map((o) => `${o.code}) ${o.name}`),
-          ].join("\n");
-        }
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictReply = "Elige una opción del listado con letra o número (A/1), o escribe 'más'.";
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_choose_family") {
-        const pendingFamilies = Array.isArray(previousMemory?.pending_family_options) ? previousMemory.pending_family_options : [];
-        const asksCategoryMenuInFamilyStep = isExplicitFamilyMenuAsk(text);
-        const asksCheapestInFamilyStep = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|precio\s+bajo)\b/.test(textNorm);
-        const featureTermsInFamilyStep = extractFeatureTerms(text);
-        const categoryIntentInFamilyStep = detectCatalogCategoryIntent(text);
-        const currentCategoryInFamilyStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
-        const isCategorySwitchInFamilyStep = Boolean(
-          categoryIntentInFamilyStep && normalizeText(String(categoryIntentInFamilyStep || "")) !== currentCategoryInFamilyStep
-        );
-        if (!pendingFamilies.length) {
-          strictMemory.awaiting_action = "none";
-          strictReply = "En este momento no tengo familias disponibles en esa categoría. Si quieres, dime el modelo exacto (ej.: MB120) y te ayudo.";
-        }
+        const familyPrimaryResult = handleStrictChooseFamilyPrimary({
+          strictReply,
+          awaiting,
+          text,
+          textNorm,
+          previousMemory,
+          strictMemory,
+          ownerRows: ownerRows as any[],
+          rememberedCategory,
+          normalizeText,
+          isExplicitFamilyMenuAsk,
+          extractFeatureTerms,
+          detectCatalogCategoryIntent,
+          scopeCatalogRows,
+          buildNumberedProductOptions,
+          buildNumberedFamilyOptions: (rows: any[], maxItems = 8) => buildNumberedFamilyOptionsApp(rows, normalizeText, maxItems),
+          rankCatalogByFeature,
+          familyLabelFromRow,
+          formatMoney: formatMoneyApp,
+          buildNoActiveCatalogEscalationMessage,
+          isOptionOnlyReply: (value: string) => isOptionOnlyReplyApp(value, normalizeText),
+        });
+        if (familyPrimaryResult.handled) strictReply = familyPrimaryResult.strictReply;
 
-        if (!String(strictReply || "").trim() && asksCategoryMenuInFamilyStep) {
-          const families = pendingFamilies.length ? pendingFamilies : buildNumberedFamilyOptions(ownerRows as any[], 8);
-          strictMemory.pending_family_options = families;
-          strictMemory.pending_product_options = [];
-          strictMemory.awaiting_action = "strict_choose_family";
-          strictReply = families.length
-            ? [
-                "Claro. Estas son las familias/categorías activas:",
-                ...families.map((f: any) => `${f.code}) ${f.label} (${f.count})`),
-                "",
-                "Elige una con letra o número (A/1).",
-              ].join("\n")
-            : "En este momento no tengo familias activas para mostrar en catálogo.";
-        }
-
-        if (!String(strictReply || "").trim() && asksCheapestInFamilyStep) {
-          const scopedForPrice = currentCategoryInFamilyStep
-            ? scopeCatalogRows(ownerRows as any[], currentCategoryInFamilyStep)
-            : (ownerRows as any[]);
-          const pricedRows = (scopedForPrice as any[])
-            .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
-            .sort((a: any, b: any) => Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
-          const options = buildNumberedProductOptions(pricedRows as any[], 8);
-          if (options.length) {
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            const topRow = pricedRows[0];
-            const topFamily = String(familyLabelFromRow(topRow) || "N/A").trim();
-            strictReply = [
-              `Perfecto. Según base de datos, la familia más económica aquí es: ${topFamily}.`,
-              "Estas son 4 opciones de menor precio:",
-              ...options.slice(0, 4).map((o) => {
-                const p = Number(o.base_price_usd || 0);
-                return `${o.code}) ${o.name}${p > 0 ? ` (USD ${formatMoney(p)})` : ""}`;
-              }),
-              "",
-              "Responde con letra o número (A/1).",
-            ].join("\n");
-          } else {
-            strictReply = "Ahora mismo no veo productos con precio cargado para calcular las opciones más económicas.";
-          }
-        }
-
-        if (!String(strictReply || "").trim() && featureTermsInFamilyStep.length > 0 && !isOptionOnlyReply(text)) {
-          const scopedForFeature = currentCategoryInFamilyStep
-            ? scopeCatalogRows(ownerRows as any[], currentCategoryInFamilyStep)
-            : (ownerRows as any[]);
-          const rankedByFeature = rankCatalogByFeature(scopedForFeature as any[], featureTermsInFamilyStep).slice(0, 8);
-          if (rankedByFeature.length) {
-            const featureRows = rankedByFeature.map((x: any) => x.row).filter(Boolean);
-            const options = buildNumberedProductOptions(featureRows as any[], 8);
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictReply = [
-              `Sí, encontré ${rankedByFeature.length} referencia(s) que coinciden con esa descripción (${featureTermsInFamilyStep.join(", ")}).`,
-              ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Elige con letra o número (A/1) y te envío la información técnica.",
-            ].join("\n");
-          } else {
-            const fallback = buildNumberedProductOptions(scopedForFeature as any[], 8);
-            strictMemory.pending_product_options = fallback;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = fallback.length ? "strict_choose_model" : "strict_need_spec";
-            strictMemory.strict_model_offset = 0;
-            strictReply = fallback.length
-              ? [
-                  `No encontré coincidencia exacta para (${featureTermsInFamilyStep.join(", ")}) en esta categoría.`,
-                  "Estas son las opciones activas más cercanas:",
-                  ...fallback.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                  "",
-                  "Elige con letra o número (A/1), o dime otra característica exacta.",
-                ].join("\n")
-              : "No encontré coincidencias por esa descripción y no veo opciones activas en esta categoría en este momento.";
-          }
-        }
-
-        if (!String(strictReply || "").trim() && isCategorySwitchInFamilyStep) {
-          const scoped = scopeCatalogRows(ownerRows as any, String(categoryIntentInFamilyStep || ""));
-          const families = buildNumberedFamilyOptions(scoped as any[], 8);
-          strictMemory.last_category_intent = String(categoryIntentInFamilyStep || "");
-          strictMemory.pending_product_options = [];
-          strictMemory.pending_family_options = families;
-          strictMemory.awaiting_action = "strict_choose_family";
-          strictReply = families.length
-            ? [
-              `Perfecto, cambio la búsqueda a ${String(categoryIntentInFamilyStep || "catálogo").replace(/_/g, " ")}.`,
-              "Elige familia:",
-              ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
-              "",
-              "Responde con letra o número (A/1).",
-            ].join("\n")
-            : [
-              buildNoActiveCatalogEscalationMessage(String(categoryIntentInFamilyStep || "esa categoria").replace(/_/g, " ")),
-            ].join("\n");
-          if (!families.length) strictMemory.awaiting_action = "conversation_followup";
-        }
-
-        if (!String(strictReply || "").trim() && preParsedSpec) {
-          const cap = Number((preParsedSpec as any)?.capacityG || 0);
-          const read = Number((preParsedSpec as any)?.readabilityG || 0);
-          if (cap > 0 && read > 0) {
-            strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
-            strictMemory.strict_filter_capacity_g = cap;
-            strictMemory.strict_filter_readability_g = read;
-            const exactRows = getExactTechnicalMatches(ownerRows as any[], { capacityG: cap, readabilityG: read });
-            const prioritized = prioritizeTechnicalRows(ownerRows as any[], { capacityG: cap, readabilityG: read });
-            const sourceRows = exactRows.length ? exactRows : (prioritized.orderedRows.length ? prioritized.orderedRows : ownerRows);
-            const allOptions = buildNumberedProductOptions(sourceRows as any[], 60);
-            const options = allOptions.slice(0, 8);
-            if (options.length) {
-              strictMemory.pending_product_options = options;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
-              strictMemory.strict_family_label = "";
-              strictReply = [
-                exactRows.length
-                  ? `Sí, para ${strictMemory.strict_spec_query} tengo coincidencias exactas.`
-                  : `Para ${strictMemory.strict_spec_query} no veo coincidencia exacta, pero sí opciones cercanas:`,
-                ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-                "",
-                (allOptions.length > options.length)
-                  ? "Responde con letra o número (A/1), o escribe 'más' para ver siguientes."
-                  : "Responde con letra o número (A/1).",
-              ].join("\n");
-            } else {
-              strictMemory.awaiting_action = "strict_need_spec";
-              strictReply = "No encontré coincidencias para esa capacidad/resolución en el catálogo activo. Si quieres, te muestro alternativas cercanas.";
-            }
-          }
-        }
-
-        const looseSpecHintInFamilyStep = parseLooseTechnicalHint(text);
-        if (!String(strictReply || "").trim() && looseSpecHintInFamilyStep && (looseSpecHintInFamilyStep.capacityG || looseSpecHintInFamilyStep.readabilityG)) {
-          const merged = mergeLooseSpecWithMemory(
-            {
-              capacityG: Number(previousMemory?.strict_partial_capacity_g || 0),
-              readabilityG: Number(previousMemory?.strict_partial_readability_g || 0),
-            },
-            looseSpecHintInFamilyStep
-          );
-          const effectiveCap = Number(merged.capacityG || 0);
-          const effectiveRead = Number(merged.readabilityG || 0);
-          strictMemory.strict_partial_capacity_g = effectiveCap > 0 ? effectiveCap : "";
-          strictMemory.strict_partial_readability_g = effectiveRead > 0 ? effectiveRead : "";
-
-          if (effectiveRead > 0 && !(effectiveCap > 0)) {
-            strictReply = [
-              `Perfecto, ya tengo la precisión (${formatSpecNumber(effectiveRead)} g).`,
-              "Para recomendarte mejor, dime la capacidad aproximada.",
-              "Opciones rápidas: 500 g, 2 kg, 4.2 kg.",
-            ].join("\n");
-          } else if (effectiveCap > 0 && !(effectiveRead > 0)) {
-            if (isLargestCapacityAsk(text)) {
-              const largest = buildLargestCapacitySuggestion(baseScoped as any[]);
-              if (largest.options.length) {
-                strictMemory.pending_product_options = largest.options;
-                strictMemory.pending_family_options = [];
-                strictMemory.awaiting_action = "strict_choose_model";
-                strictMemory.strict_model_offset = 0;
-                strictReply = largest.reply;
-              }
-            }
-            if (!String(strictReply || "").trim()) {
-              const priceLine = buildPriceRangeLine(baseScoped as any[]);
-              strictReply = [
-                `Perfecto, ya tengo la capacidad (${formatSpecNumber(effectiveCap)} g).`,
-                ...(priceLine ? [priceLine] : []),
-                "Ahora dime la resolución/precisión objetivo.",
-                "Opciones comunes: 1 g, 0.1 g, 0.01 g, 0.001 g.",
-              ].join("\n");
-            }
-          } else {
-            const prioritized = prioritizeTechnicalRows(baseScoped as any[], {
-              capacityG: effectiveCap,
-              readabilityG: effectiveRead,
-            });
-
-            const sourceRows = prioritized.orderedRows.length ? prioritized.orderedRows : (baseScoped as any[]);
-            const allOptions = buildNumberedProductOptions(sourceRows, 60);
-            const options = allOptions.slice(0, 8);
-            strictMemory.strict_filter_capacity_g = Number(effectiveCap || 0);
-            strictMemory.strict_filter_readability_g = Number(effectiveRead || 0);
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictMemory.strict_family_label = "";
-            strictMemory.strict_partial_capacity_g = "";
-            strictMemory.strict_partial_readability_g = "";
-
-            if (!options.length) {
-              strictReply = "Gracias por el dato. No encontré coincidencias claras con esa característica en el catálogo activo. Si quieres, envíame capacidad y resolución exacta (ej.: 4200 g x 0.01 g) y lo ajusto mejor.";
-            } else {
-              const criterionLabel = `${formatSpecNumber(effectiveCap)} g x ${formatSpecNumber(effectiveRead)} g`;
-              const top = options.slice(0, 3);
-              const exactIntro = prioritized.exactCount > 0
-                ? `¡Excelente! Con base en ${criterionLabel}, sí tenemos coincidencia en el catálogo.`
-                : `Con base en ${criterionLabel}, no veo coincidencia exacta en este grupo, pero sí opciones cercanas.`;
-              strictReply = [
-                exactIntro,
-                "Para facilitarte la elección, te recomiendo estas 3 primero:",
-                ...top.map((o, idx) => `${o.code}) ${o.name}${idx === 0 ? " (recomendada para iniciar)" : ""}`),
-                "",
-                (allOptions.length > options.length)
-                  ? "Si quieres más alternativas, escribe 'más'. También puedes elegir A/1 para continuar."
-                  : "También puedo recomendarte la mejor según tu uso. Si prefieres, elige A/1 para continuar.",
-              ].join("\n");
-            }
-          }
-        }
-
-        const selectedFamily =
-          resolvePendingFamilyOption(text, pendingFamilies) ||
-          ((isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text) || isUseCaseFamilyHint(text))
-            ? inferFamilyFromUseCase(text, pendingFamilies)
-            : null);
-        const followupIntentInFamilyStep = detectAlternativeFollowupIntent(text);
-        const conversationalReformulationInFamilyStep = Boolean(
-          /(no\s+me\s+sirve|otra\s+opcion|otra\s+opción|me\s+puedes\s+ofrecer|que\s+me\s+recomiendas|qué\s+me\s+recomiendas)/.test(textNorm) ||
-          followupIntentInFamilyStep
-        );
-        let handledTechnicalGuidedInFamilyStep = false;
-        if (!String(strictReply || "").trim() && !selectedFamily && conversationalReformulationInFamilyStep) {
-          const quick = buildNumberedProductOptions(baseScoped as any[], 60).slice(0, 3);
-          if (quick.length) {
-            strictMemory.pending_product_options = quick;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictMemory.strict_family_label = String(familyLabelFromRow((baseScoped as any[])[0] || "") || "");
-            strictReply = [
-              "Claro. Para no perder el hilo, te propongo estas opciones reales del catálogo y luego afinamos según capacidad/resolución:",
-              ...quick.map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Si prefieres, dime capacidad y resolución objetivo (ej.: 200 g x 0.001 g).",
-            ].join("\n");
-          }
-        }
-        if (!String(strictReply || "").trim() && !selectedFamily) {
-          const looseHintWithoutFamily = parseLooseTechnicalHint(text);
-          const hintedCap = Number(looseHintWithoutFamily?.capacityG || 0);
-          const hintedRead = Number(looseHintWithoutFamily?.readabilityG || 0);
-          if (hintedCap > 0 || hintedRead > 0) {
-            handledTechnicalGuidedInFamilyStep = true;
-            let recommendedRows = baseScoped as any[];
-            if (hintedCap > 0 && hintedRead > 0) {
-              const prioritized = prioritizeTechnicalRows(baseScoped as any[], { capacityG: hintedCap, readabilityG: hintedRead });
-              if (prioritized.orderedRows.length) recommendedRows = prioritized.orderedRows as any[];
-            } else if (hintedCap > 0) {
-              const rankedCap = rankCatalogByCapacityOnly(baseScoped as any[], hintedCap);
-              if (rankedCap.length) recommendedRows = rankedCap.map((x: any) => x.row);
-            } else if (hintedRead > 0) {
-              const rankedRead = rankCatalogByReadabilityOnly(baseScoped as any[], hintedRead);
-              if (rankedRead.length) recommendedRows = rankedRead.map((x: any) => x.row);
-            }
-
-            const sourceRows = (Array.isArray(recommendedRows) && recommendedRows.length)
-              ? recommendedRows
-              : (ownerRows as any[]);
-            const allOptions = buildNumberedProductOptions(sourceRows as any[], 60);
-            const options = allOptions.slice(0, 8);
-            if (options.length) {
-              strictMemory.pending_product_options = options;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_family_label = "";
-              strictMemory.strict_model_offset = 0;
-              if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
-              if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
-              const criterionLabel = (hintedCap > 0 && hintedRead > 0)
-                ? `${formatSpecNumber(hintedCap)} g x ${formatSpecNumber(hintedRead)} g`
-                : (hintedCap > 0 ? `${formatSpecNumber(hintedCap)} g` : `${formatSpecNumber(hintedRead)} g`);
-              strictReply = [
-                `Perfecto. Para ${criterionLabel}, te muestro opciones cercanas en catálogo:`,
-                ...options.map((o) => `${o.code}) ${o.name}`),
-                "",
-                (allOptions.length > options.length)
-                  ? "Responde con letra o número (A/1), o escribe 'más' para ver siguientes."
-                  : "Responde con letra o número (A/1).",
-              ].join("\n");
-            } else {
-              strictReply = "Entendí tu necesidad técnica, pero no encontré coincidencias activas en este momento. Si quieres, escribe 'volver' para elegir familia o ajusta capacidad/resolución.";
-            }
-          }
-        }
-        if (!String(strictReply || "").trim() && !selectedFamily && !handledTechnicalGuidedInFamilyStep) {
-          const familyHints = pendingFamilies
-            .slice(0, 6)
-            .map((f: any) => ({ code: String(f?.code || ""), name: String(f?.label || "") }))
-            .filter((f: any) => f.code && f.name);
-          const softReply = await buildStrictConversationalReply({
+        if (!String(strictReply || "").trim()) {
+          const familyTechnicalResult = await handleStrictChooseFamilyTechnical({
+            strictReply,
+            awaiting,
+            text,
+            textNorm,
+            previousMemory,
+            strictMemory,
+            ownerRows: ownerRows as any[],
+            baseScoped: baseScoped as any[],
+            pendingFamilies: pendingFamilies as any[],
+            rememberedCategory,
+            preParsedSpec,
+            formatSpecNumber,
+            getExactTechnicalMatches,
+            prioritizeTechnicalRows,
+            parseLooseTechnicalHint,
+            mergeLooseSpecWithMemory,
+            isLargestCapacityAsk: (value: string) => isLargestCapacityAskApp(value, normalizeText),
+            buildLargestCapacitySuggestion,
+            buildPriceRangeLine,
+            buildNumberedProductOptions,
+            resolvePendingFamilyOption: (value: string, optionsRaw: any) => resolvePendingFamilyOptionApp(value, optionsRaw, normalizeText),
+            isRecommendationIntent,
+            isUseCaseApplicabilityIntent,
+            isUseCaseFamilyHint,
+            inferFamilyFromUseCase,
+            detectAlternativeFollowupIntent,
+            familyLabelFromRow,
+            rankCatalogByCapacityOnly,
+            rankCatalogByReadabilityOnly,
+            buildStrictConversationalReply: (args: any) => buildStrictConversationalReplyApp({ ...args, normalizeText, isOutOfCatalogDomainQuery }),
             apiKey,
-            inboundText: text,
-            awaiting,
-            selectedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
-            categoryHint: rememberedCategory,
-            pendingOptions: familyHints,
+            buildGuidedRecoveryMessage: (args) => buildGuidedRecoveryMessageApp({ ...args, normalizeText }),
+            normalizeText,
+            parseCapacityRangeHint,
+            getRowCapacityG,
+            filterRowsByCapacityRange,
+            detectTargetApplication,
+            applyApplicationProfile,
+            buildNumberedFamilyOptions: (rows: any[], maxItems = 8) => buildNumberedFamilyOptionsApp(rows, normalizeText, maxItems),
           });
-          strictReply = String(softReply || "").trim() || buildGuidedRecoveryMessage({
-            awaiting,
-            rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
-            hasPendingFamilies: pendingFamilies.length > 0,
-            inboundText: text,
-          });
-        } else if (!String(strictReply || "").trim() && selectedFamily) {
-          const selectedFamilyResolved = selectedFamily as { key?: string; label?: string };
-          const familyRowsInScope = baseScoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamilyResolved.key || "")));
-          const familyRowsGlobal = ownerRows.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String(selectedFamilyResolved.key || "")));
-          const familyRows = familyRowsInScope.length ? familyRowsInScope : familyRowsGlobal;
-          const hinted = parseLooseTechnicalHint(text);
-          const rangeHint = parseCapacityRangeHint(text);
-          const hintedCap = Number(hinted?.capacityG || 0);
-          const hintedRead = Number(hinted?.readabilityG || 0);
-          const familyMaxCap = familyRows.reduce((mx: number, r: any) => Math.max(mx, Number(getRowCapacityG(r) || 0)), 0);
-          const capacityOutOfFamilyRange = hintedCap > 0 && familyMaxCap > 0 && familyMaxCap < (hintedCap * 0.7);
-          const fallbackScopeRows = (Array.isArray(baseScoped) && baseScoped.length) ? (baseScoped as any[]) : (ownerRows as any[]);
-          const baseRowsForRanking = capacityOutOfFamilyRange ? fallbackScopeRows : (familyRows as any[]);
-          let recommendedRows = baseRowsForRanking as any[];
-          if (hintedCap > 0 && hintedRead > 0) {
-            const prioritized = prioritizeTechnicalRows(baseRowsForRanking as any[], { capacityG: hintedCap, readabilityG: hintedRead });
-            if (prioritized.orderedRows.length) recommendedRows = prioritized.orderedRows as any[];
-          } else if (hintedCap > 0) {
-            const rankedCap = rankCatalogByCapacityOnly(baseRowsForRanking as any[], hintedCap);
-            if (rankedCap.length) recommendedRows = rankedCap.map((x: any) => x.row);
-          } else if (hintedRead > 0) {
-            const rankedRead = rankCatalogByReadabilityOnly(baseRowsForRanking as any[], hintedRead);
-            if (rankedRead.length) recommendedRows = rankedRead.map((x: any) => x.row);
-          }
-          if (rangeHint) {
-            const ranged = filterRowsByCapacityRange(recommendedRows as any[], rangeHint);
-            if (ranged.length) recommendedRows = ranged;
-          }
-          const appNow = detectTargetApplication(text);
-          const appProfile = String(appNow || strictMemory.target_application || previousMemory?.target_application || "").trim();
-          if (appNow) {
-            strictMemory.target_application = appNow;
-            strictMemory.target_industry = appNow === "joyeria_oro" ? "joyeria" : appNow;
-          }
-          const profiledRows = applyApplicationProfile(recommendedRows as any[], {
-            application: appProfile,
-            targetCapacityG: hintedCap || Number(previousMemory?.strict_filter_capacity_g || 0),
-            targetReadabilityG: hintedRead || Number(previousMemory?.strict_filter_readability_g || 0),
-            allowFallback: false,
-          });
-          const allOptions = buildNumberedProductOptions(profiledRows as any[], 60);
-          const options = allOptions.slice(0, 8);
-          if (!allOptions.length) {
-            const fallbackFamilies = pendingFamilies.length ? pendingFamilies : buildNumberedFamilyOptions(ownerRows as any[], 8);
-            strictMemory.pending_product_options = [];
-            strictMemory.pending_family_options = fallbackFamilies;
-            strictMemory.awaiting_action = "strict_choose_family";
-            strictMemory.strict_family_label = "";
-            strictMemory.strict_model_offset = 0;
-            strictReply = fallbackFamilies.length
-              ? [
-                  `No veo modelos activos para ${String(selectedFamilyResolved.label || "esa familia")} con el filtro actual.`,
-                  "Elige otra familia para continuar:",
-                  ...fallbackFamilies.map((f: any) => `${f.code}) ${f.label} (${f.count})`),
-                  "",
-                  "Responde con letra o número (A/1).",
-                ].join("\n")
-              : "No veo familias activas para continuar en este momento.";
-          } else {
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_family_label = capacityOutOfFamilyRange ? "" : String(selectedFamilyResolved.label || "");
-            strictMemory.strict_model_offset = 0;
-            if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
-            if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
-            const needsReadabilityForQuote = hintedCap > 0 && !(hintedRead > 0);
-            const recommendationIntro = (isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text))
-                ? (capacityOutOfFamilyRange
-                  ? `Para ese uso y capacidad (${formatSpecNumber(hintedCap)} g), te muestro ${options.length} opción(es)${allOptions.length > options.length ? ` de ${allOptions.length}` : ""} más cercanas en catálogo:`
-                  : `Para ese uso te recomiendo empezar con ${String(selectedFamilyResolved.label || "esa familia")}. Modelos sugeridos (${options.length} mostrados${allOptions.length > options.length ? ` de ${allOptions.length}` : ""}):`)
-              : `Perfecto. Modelos de ${String(selectedFamilyResolved.label || "familia")} (${allOptions.length}):`;
-            strictReply = [
-              recommendationIntro,
-              ...options.map((o) => `${o.code}) ${o.name}`),
-              "",
-              ...(options.length >= 3
-                ? [
-                    "Si quieres cotizar varias referencias (máx. 3), escribe: cotizar opciones 1,2,4.",
-                    "También puedes responder solo con números: 1,2,4.",
-                    "También puedes escribir: cotizar modelos PX6202/E, AX2202/E, EXP6202.",
-                    "",
-                  ]
-                : []),
-              ...(needsReadabilityForQuote
-                ? ["Si quieres cotización exacta, compárteme también la resolución (ej.: 4000 g x 0.01 g).", ""]
-                : []),
-              (allOptions.length > options.length)
-                ? "Responde con letra o número (ej.: A o 1), o escribe 'más' para ver siguientes."
-                : "Responde con letra o número (ej.: A o 1).",
-            ].join("\n");
-          }
+          if (familyTechnicalResult.handled) strictReply = familyTechnicalResult.strictReply;
         }
       } else if (!String(strictReply || "").trim() && wantsQuote && !selectedProduct && !explicitModel) {
         strictMemory.awaiting_action = "strict_need_spec";
@@ -12390,178 +3725,56 @@ export async function POST(req: Request) {
             strictReply = "No encontré coincidencia exacta para esa capacidad/resolución. ¿Quieres que busquemos una resolución cercana?";
           }
         }
-      } else if (!String(strictReply || "").trim() && (categoryIntent || isInventoryInfoIntent(text))) {
-        const scoped = categoryIntent ? scopeCatalogRows(ownerRows as any, categoryIntent) : ownerRows;
-        const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
-        strictMemory.pending_family_options = familyOptions;
-        strictMemory.pending_product_options = [];
-        strictMemory.last_category_intent = String(categoryIntent || "");
-        const useCaseDrivenRequest = isRecommendationIntent(text) || isUseCaseApplicabilityIntent(text) || /joyeria|joyería|oro/.test(normalizeText(text));
-        if (!familyOptions.length) {
-          strictMemory.awaiting_action = "conversation_followup";
-          strictReply = buildNoActiveCatalogEscalationMessage(String((categoryIntent || "esa categoria").replace(/_/g, " ")));
-        } else if (useCaseDrivenRequest) {
-          const inferred = inferFamilyFromUseCase(text, familyOptions);
-          if (inferred) {
-            const familyRows = scoped.filter((r: any) => normalizeText(familyLabelFromRow(r)) === normalizeText(String((inferred as any)?.key || "")));
-            const hinted = parseLooseTechnicalHint(text);
-            const rangeHint = parseCapacityRangeHint(text);
-            const hintedCap = Number(hinted?.capacityG || 0);
-            const hintedRead = Number(hinted?.readabilityG || 0);
-            const familyMaxCap = familyRows.reduce((mx: number, r: any) => Math.max(mx, Number(getRowCapacityG(r) || 0)), 0);
-            const capacityOutOfFamilyRange = hintedCap > 0 && familyMaxCap > 0 && familyMaxCap < (hintedCap * 0.7);
-            const baseRowsForRanking = capacityOutOfFamilyRange ? (scoped as any[]) : (familyRows as any[]);
-            let recommendedRows = baseRowsForRanking as any[];
-            if (hintedCap > 0 && hintedRead > 0) {
-              const prioritized = prioritizeTechnicalRows(baseRowsForRanking as any[], { capacityG: hintedCap, readabilityG: hintedRead });
-              if (prioritized.orderedRows.length) recommendedRows = prioritized.orderedRows as any[];
-            } else if (hintedCap > 0) {
-              const rankedCap = rankCatalogByCapacityOnly(baseRowsForRanking as any[], hintedCap);
-              if (rankedCap.length) recommendedRows = rankedCap.map((x: any) => x.row);
-            } else if (hintedRead > 0) {
-              const rankedRead = rankCatalogByReadabilityOnly(baseRowsForRanking as any[], hintedRead);
-              if (rankedRead.length) recommendedRows = rankedRead.map((x: any) => x.row);
-            }
-            if (rangeHint) {
-              const ranged = filterRowsByCapacityRange(recommendedRows as any[], rangeHint);
-              if (ranged.length) recommendedRows = ranged;
-            }
-            const appProfile = String(strictMemory.target_application || previousMemory?.target_application || detectTargetApplication(text) || "").trim();
-            const profiledRows = applyApplicationProfile(recommendedRows as any[], {
-              application: appProfile,
-              targetCapacityG: hintedCap || Number(previousMemory?.strict_filter_capacity_g || 0),
-              targetReadabilityG: hintedRead || Number(previousMemory?.strict_filter_readability_g || 0),
-              allowFallback: false,
-            });
-            const allOptions = buildNumberedProductOptions(profiledRows as any[], 60);
-            const options = allOptions.slice(0, 8);
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_family_label = capacityOutOfFamilyRange ? "" : String((inferred as any)?.label || "");
-            strictMemory.strict_model_offset = 0;
-            if (hintedCap > 0) strictMemory.strict_filter_capacity_g = hintedCap;
-            if (hintedRead > 0) strictMemory.strict_filter_readability_g = hintedRead;
-            strictReply = [
-              `Para ese uso te recomiendo empezar con ${String((inferred as any)?.label || "esa familia")}. Modelos sugeridos (${options.length} mostrados${allOptions.length > options.length ? ` de ${allOptions.length}` : ""}):`,
-              ...options.map((o) => `${o.code}) ${o.name}`),
-              "",
-              ...(options.length >= 3
-                ? [
-                    "Si quieres cotizar varias referencias (máx. 3), escribe: cotizar opciones 1,2,4.",
-                    "También puedes responder solo con números: 1,2,4.",
-                    "También puedes escribir: cotizar modelos PX6202/E, AX2202/E, EXP6202.",
-                    "",
-                  ]
-                : []),
-              (allOptions.length > options.length)
-                ? "Responde con letra o número (ej.: A o 1), o escribe 'más' para ver siguientes."
-                : "Responde con letra o número (ej.: A o 1).",
-            ].join("\n");
-          } else {
-            if (isGuidedNeedDiscoveryText(text)) {
-              const options = buildNumberedProductOptions(scoped as any[], 8).slice(0, 4);
-              strictMemory.pending_product_options = options;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
-              strictReply = [
-                "Sí, para esa necesidad sí tenemos opciones y te guío para recomendarte bien.",
-                "Para afinar, dime qué peso aproximado manejas y si buscas alta precisión o uso general.",
-                ...(options.length ? ["", "Opciones para empezar:", ...options.map((o) => `${o.code}) ${o.name}`), "", "Si quieres, elige A/1 y te envío ficha o cotización."] : []),
-              ].join("\n");
-            } else {
-              strictMemory.awaiting_action = "strict_choose_family";
-              const familyScopedTotal = familyOptions.reduce((acc: number, o: any) => acc + Number(o?.count || 0), 0);
-              const priceRangeLine = normalizeText(String(categoryIntent || "")) === "balanzas" ? buildPriceRangeLine(scoped as any[]) : "";
-              strictReply = [
-                `Sí, tenemos ${familyScopedTotal || scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
-                "Primero elige la familia:",
-                ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
-                "",
-                ...(priceRangeLine ? [priceRangeLine] : []),
-                "Si quieres, también dime qué vas a pesar y su funcionalidad para identificar cuál se adecúa a tu empresa.",
-                "Responde con letra o número (ej.: A o 1).",
-              ].join("\n");
-            }
-          }
-        } else {
-          if (isGuidedNeedDiscoveryText(text)) {
-            const options = buildNumberedProductOptions(scoped as any[], 8).slice(0, 4);
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = options.length ? "strict_choose_model" : "strict_need_spec";
-            strictReply = [
-              "Sí, para esa necesidad sí tenemos opciones y te guío para recomendarte bien.",
-              "Para afinar, dime qué peso aproximado manejas y si buscas alta precisión o uso general.",
-              ...(options.length ? ["", "Opciones para empezar:", ...options.map((o) => `${o.code}) ${o.name}`), "", "Si quieres, elige A/1 y te envío ficha o cotización."] : []),
-            ].join("\n");
-          } else {
-            strictMemory.awaiting_action = "strict_choose_family";
-            const familyScopedTotal = familyOptions.reduce((acc: number, o: any) => acc + Number(o?.count || 0), 0);
-            const priceRangeLine = normalizeText(String(categoryIntent || "")) === "balanzas" ? buildPriceRangeLine(scoped as any[]) : "";
-            strictReply = [
-              `Sí, tenemos ${familyScopedTotal || scoped.length} referencias en la categoría ${String((categoryIntent || "catalogo").replace(/_/g, " "))}.`,
-              "Primero elige la familia:",
-              ...familyOptions.map((o) => `${o.code}) ${o.label} (${o.count})`),
-              "",
-              ...(priceRangeLine ? [priceRangeLine] : []),
-              "Si quieres, también dime qué vas a pesar y su funcionalidad para identificar cuál se adecúa a tu empresa.",
-              "Responde con letra o número (ej.: A o 1).",
-            ].join("\n");
-          }
-        }
-      } else if (!String(strictReply || "").trim() && isTechnicalSpecQuery(text) && !selectedProduct) {
-        const parsed = parseTechnicalSpecQuery(text);
-        const ranked = parsed
-          ? rankCatalogByTechnicalSpec(ownerRows as any[], { capacityG: parsed.capacityG, readabilityG: parsed.readabilityG })
-          : [];
-        const rankedRows = ranked.length ? ranked.map((r: any) => r.row) : ownerRows;
-        const options = buildNumberedProductOptions(rankedRows as any[], 8);
-        if (options.length) {
-          strictMemory.pending_product_options = options;
-          strictMemory.pending_family_options = [];
-          strictMemory.awaiting_action = "strict_choose_model";
-          strictMemory.strict_model_offset = 0;
-          strictReply = [
-            `Sí, tengo opciones para ${text.trim()}.`,
-            ...options.slice(0, 6).map((o) => `${o.code}) ${o.name}`),
-            "",
-            "Responde con letra o número (A/1) y te envío ficha técnica o cotización.",
-          ].join("\n");
-        } else {
-          strictMemory.awaiting_action = "strict_need_spec";
-          strictReply = "No encontré coincidencia exacta para esa capacidad/resolución. ¿Quieres que busquemos una resolución cercana?";
-        }
-      } else if (!String(strictReply || "").trim() && preParsedSpec) {
-        const cap = Number((preParsedSpec as any)?.capacityG || 0);
-        const read = Number((preParsedSpec as any)?.readabilityG || 0);
-        if (cap > 0 && read > 0) {
-          strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
-          strictMemory.strict_filter_capacity_g = cap;
-          strictMemory.strict_filter_readability_g = read;
-          const exactRows = getExactTechnicalMatches(ownerRows as any[], { capacityG: cap, readabilityG: read });
-          const prioritized = prioritizeTechnicalRows(ownerRows as any[], { capacityG: cap, readabilityG: read });
-          const sourceRows = exactRows.length ? exactRows : (prioritized.orderedRows.length ? prioritized.orderedRows : ownerRows);
-          const options = buildNumberedProductOptions(sourceRows as any[], 8);
-          if (options.length) {
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictReply = [
-              exactRows.length
-                ? `Sí, para ${strictMemory.strict_spec_query} tengo coincidencias exactas.`
-                : `Para ${strictMemory.strict_spec_query} no veo coincidencia exacta, pero sí opciones cercanas:`,
-              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Responde con letra o número (A/1), o escribe 'más'.",
-            ].join("\n");
-          } else {
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = "No encontré una coincidencia clara para esa capacidad/resolución. Si quieres, te ayudo a ajustar el criterio.";
-          }
-        }
       } else if (!String(strictReply || "").trim()) {
+        strictReply = applyCategoryInventoryIntentFlow({
+          strictReply,
+          text,
+          categoryIntent,
+          strictMemory,
+          previousMemory,
+          ownerRows: ownerRows as any[],
+          isInventoryInfoIntent,
+          scopeCatalogRows,
+          buildNumberedFamilyOptions: (rows: any[], maxItems = 8) => buildNumberedFamilyOptionsApp(rows, normalizeText, maxItems),
+          isRecommendationIntent,
+          isUseCaseApplicabilityIntent,
+          normalizeText,
+          buildNoActiveCatalogEscalationMessage,
+          inferFamilyFromUseCase,
+          familyLabelFromRow,
+          parseLooseTechnicalHint,
+          parseCapacityRangeHint,
+          getRowCapacityG,
+          prioritizeTechnicalRows,
+          rankCatalogByCapacityOnly,
+          rankCatalogByReadabilityOnly,
+          filterRowsByCapacityRange,
+          detectTargetApplication,
+          applyApplicationProfile,
+          buildNumberedProductOptions,
+          isGuidedNeedDiscoveryText,
+          buildPriceRangeLine,
+        });
+      }
+      if (!String(strictReply || "").trim()) {
+        strictReply = applyTechnicalSpecOptionsFlow({
+          strictReply,
+          text,
+          selectedProduct,
+          strictMemory,
+          ownerRows: ownerRows as any[],
+          preParsedSpec,
+          formatSpecNumber,
+          isTechnicalSpecQuery,
+          parseTechnicalSpecQuery,
+          rankCatalogByTechnicalSpec,
+          getExactTechnicalMatches,
+          prioritizeTechnicalRows,
+          buildNumberedProductOptions,
+          noOptionsReply: "No encontré una coincidencia clara para esa capacidad/resolución. Si quieres, te ayudo a ajustar el criterio.",
+        });
+      }
+      if (!String(strictReply || "").trim()) {
         const asksOptionsNow = /\b(dame|muestrame|mu[eé]strame|quiero|opciones?|alternativas?)\b/.test(textNorm);
         const appNow = detectTargetApplication(text);
         if (asksOptionsNow && appNow) {
@@ -12592,172 +3805,42 @@ export async function POST(req: Request) {
           }
         }
         if (!String(strictReply || "").trim()) {
-        strictReply = buildGuidedRecoveryMessage({
+        strictReply = buildGuidedRecoveryMessageApp({
           awaiting,
           rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
           hasPendingFamilies: Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0,
           hasPendingModels: Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0,
           inboundText: text,
+          normalizeText,
         });
         }
       }
 
-      const strictAssetDelivered = strictDocs.length > 0;
-      const strictQuoteDelivered = strictDocs.some((d) => /cotiz/i.test(`${String(d.caption || "")} ${String(d.fileName || "")}`));
       if (
         preParsedSpec &&
         /(no te entendi del todo|no pasa nada si hubo un typo|no te preocupes si hubo un error de escritura)/i.test(normalizeText(String(strictReply || "")))
       ) {
-        const cap = Number((preParsedSpec as any)?.capacityG || 0);
-        const read = Number((preParsedSpec as any)?.readabilityG || 0);
-        if (cap > 0 && read > 0) {
-          strictMemory.strict_spec_query = `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`;
-          strictMemory.strict_filter_capacity_g = cap;
-          strictMemory.strict_filter_readability_g = read;
-          const exactRows = getExactTechnicalMatches(ownerRows as any[], { capacityG: cap, readabilityG: read });
-          const prioritized = prioritizeTechnicalRows(ownerRows as any[], { capacityG: cap, readabilityG: read });
-          const sourceRows = exactRows.length ? exactRows : (prioritized.orderedRows.length ? prioritized.orderedRows : ownerRows);
-          const options = buildNumberedProductOptions(sourceRows as any[], 8);
-          if (options.length) {
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictReply = [
-              exactRows.length
-                ? `Sí, para ${strictMemory.strict_spec_query} tengo coincidencias exactas.`
-                : `Para ${strictMemory.strict_spec_query} no veo coincidencia exacta, pero sí opciones cercanas:`,
-              ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Responde con letra o número (A/1), o escribe 'más'.",
-            ].join("\n");
-          } else {
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = "No encontré coincidencias para esa capacidad/resolución en el catálogo activo. Si quieres, te muestro alternativas cercanas.";
-          }
-        }
-      }
-      if (!String(strictReply || "").trim() && strictAssetDelivered) {
-        strictReply = strictQuoteDelivered
-          ? "Listo. Te envié la cotización por este WhatsApp."
-          : "Listo. Te envié la ficha técnica por este WhatsApp.";
-      }
-      if (strictAssetDelivered && String(strictReply || "").trim()) {
-        strictReply = appendAdvisorAppointmentPrompt(strictReply);
-        strictReply = appendQuoteClosurePrompt(strictReply);
-        strictMemory.awaiting_action = "conversation_followup";
-        strictMemory.conversation_status = "open";
-        strictMemory.last_intent = strictQuoteDelivered ? "quote_generated" : "tech_sheet_request";
-        if (strictQuoteDelivered) strictMemory.quote_feedback_due_at = isoAfterHours(24);
-      }
-
-      strictMemory.last_valid_state = String(strictMemory.awaiting_action || awaiting || "none");
-      logStrictTransition({
-        before: awaiting,
-        after: String(strictMemory.awaiting_action || "none"),
-        text,
-        intent: String(strictMemory.last_intent || previousMemory?.last_intent || "strict_router"),
-      });
-
-      if (!String(strictReply || "").trim()) {
-        const awaitingNow = String(strictMemory.awaiting_action || awaiting || "").trim();
-        strictReply = awaitingNow === "strict_choose_action"
-          ? "Responde 1 para cotización o 2 para ficha técnica."
-          : awaitingNow === "strict_quote_data"
-            ? "Para continuar con la cotización, envíame ciudad, empresa, NIT, contacto, correo y celular en un solo mensaje."
-            : "¿En qué puedo ayudarte con tu cotización?";
-        console.warn("[evolution-webhook] strict_reply_empty_before_send", { awaiting: awaitingNow, text });
-      }
-
-      if (!strictBypassAutoQuote) {
-        const sendResult = await sendTextAndDocs(strictReply, strictDocs);
-        if (!sendResult.ok) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
-
-        const pendingVideoLink = String(strictMemory.pending_post_quote_video_link || "").trim();
-        if (pendingVideoLink && strictQuoteDelivered && String(sendResult.sentTo || "").trim()) {
-          try {
-            await evolutionService.sendMessage(
-              outboundInstance,
-              String(sendResult.sentTo || "").trim(),
-              withAvaSignature(`Video del equipo:\n${pendingVideoLink}`)
-            );
-          } catch {}
-          strictMemory.pending_post_quote_video_link = "";
-        }
-
-        try {
-          const strictClosed = String(strictMemory.conversation_status || "") === "closed";
-          const strictQuoteContext =
-            Boolean(strictMemory.last_quote_draft_id || previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
-            /(quote_generated|quote_recall|price_request)/.test(String(strictMemory.last_intent || previousMemory?.last_intent || ""));
-          const strictNextAction = strictClosed
-            ? (strictQuoteContext ? "Recordatorio feedback cotizacion" : "Seguimiento WhatsApp")
-            : (strictQuoteContext ? "Seguimiento cotizacion" : "");
-          const strictNextActionAt = strictClosed
-            ? (strictQuoteContext ? isoAfterHours(24) : isoAfterHours(48))
-            : (strictQuoteContext ? isoAfterHours(24) : "");
-          const strictMeetingAt = String(strictMemory.advisor_meeting_at || "").trim();
-          await upsertCrmLifecycleState(supabase as any, {
-            ownerId,
-            tenantId: (agent as any)?.tenant_id || null,
-            phone: inboundCustomerPhone || inbound.from,
-            realPhone: String(strictMemory.customer_phone || previousMemory?.customer_phone || ""),
-            name: knownCustomerName || inbound.pushName || "",
-            status: strictQuoteContext ? "quote" : undefined,
-            nextAction: strictMeetingAt ? "Llamar cliente (cita WhatsApp)" : (strictNextAction || undefined),
-            nextActionAt: strictMeetingAt || strictNextActionAt || undefined,
-            metadata: {
-              source: "evolution_strict_webhook",
-              conversation_status: String(strictMemory.conversation_status || "open"),
-              last_intent: String(strictMemory.last_intent || ""),
-              quote_feedback_due_at: String(strictMemory.quote_feedback_due_at || ""),
-              advisor_meeting_at: strictMeetingAt,
-              advisor_meeting_label: String(strictMemory.advisor_meeting_label || ""),
-            },
-          });
-          if (strictMeetingAt) {
-            await mirrorAdvisorMeetingToAvanza({
-              ownerId,
-              tenantId: (agent as any)?.tenant_id || null,
-              externalRef: String(inbound.messageId || incomingDedupKey || "reply"),
-              phone: inboundCustomerPhone || inbound.from,
-              customerName: knownCustomerName || inbound.pushName || inbound.from,
-              advisor: "Asesor comercial",
-              meetingAt: strictMeetingAt,
-              meetingLabel: String(strictMemory.advisor_meeting_label || ""),
-              source: "evolution_strict_webhook",
-            });
-          }
-
-          await persistConversationTurn(supabase as any, {
-            agentId: String(agent.id),
-            ownerId,
-            tenantId: (agent as any)?.tenant_id || null,
-            from: inboundCustomerPhone || inbound.from,
-            pushName: inbound.pushName,
-            contactName: knownCustomerName || inbound.pushName || inbound.from,
-            inboundText: inbound.text,
-            outboundText: strictReply,
-            messageId: inbound.messageId,
-            memory: strictMemory,
-          });
-        } catch {}
-
-        await supabase
-          .from("incoming_messages")
-          .update({ status: "processed", processed_at: new Date().toISOString() })
-          .eq("provider", "evolution")
-          .eq("provider_message_id", incomingDedupKey);
-
-        safeLogPhase1Invariants({
-          inboundText: inbound.text,
-          outboundText: strictReply,
-          strict: true,
-          route: "strict",
-          intent: String(strictMemory?.last_intent || classifiedIntent.intent || "strict_turn"),
-          awaitingAction: String(strictMemory?.awaiting_action || ""),
+        strictReply = applyTechnicalSpecOptionsFlow({
+          strictReply: "",
+          text,
+          selectedProduct,
+          strictMemory,
+          ownerRows: ownerRows as any[],
+          preParsedSpec,
+          formatSpecNumber,
+          isTechnicalSpecQuery,
+          parseTechnicalSpecQuery,
+          rankCatalogByTechnicalSpec,
+          getExactTechnicalMatches,
+          prioritizeTechnicalRows,
+          buildNumberedProductOptions,
+          noOptionsReply: "No encontré coincidencias para esa capacidad/resolución en el catálogo activo. Si quieres, te muestro alternativas cercanas.",
         });
-
+      }
+      const strictFinalizeResult = await finalizeStrictTurnDelivery({ strictReply, strictDocs, strictBypassAutoQuote, strictMemory, previousMemory, awaiting, text, inbound, classifiedIntent, outboundInstance, incomingDedupKey, supabase, appendAdvisorAppointmentPrompt: (value: string) => appendAdvisorAppointmentPromptApp(value, normalizeText), appendQuoteClosurePrompt, isoAfterHours: isoAfterHoursApp, logStrictTransition, buildStrictQuoteFallbackReply, sendTextAndDocs, evolutionService, withAvaSignature, syncCrmLifecycleAndMeeting, persistCurrentTurn, markIncomingMessageProcessed, safeLogPhase1Invariants });
+      strictReply = String(strictFinalizeResult.strictReply || strictReply || "");
+      if (strictFinalizeResult.handled) {
+        if (!String(strictReply || "").trim()) return NextResponse.json({ ok: true, ignored: true, reason: "invalid_destination" });
         return NextResponse.json({ ok: true, sent: true, strict: true });
       }
 
@@ -12772,24 +3855,16 @@ export async function POST(req: Request) {
     const staleStrictState = Number.isFinite(lastUserAtMs)
       && (Date.now() - lastUserAtMs) > 25 * 60 * 1000
       && /^(strict_choose_family|strict_choose_model|strict_quote_data)$/i.test(String(awaitingAction || ""));
-    if (staleStrictState && !isOptionOnlyReply(originalInboundText) && !isGlobalCatalogAsk(originalInboundText)) {
-      nextMemory.awaiting_action = "none";
-      nextMemory.pending_product_options = [];
-      nextMemory.pending_family_options = [];
-      nextMemory.strict_model_offset = 0;
-      nextMemory.strict_family_label = "";
+    if (staleStrictState && !isOptionOnlyReplyApp(originalInboundText, normalizeText) && !isGlobalCatalogAsk(originalInboundText)) {
+      resetStaleStrictSelectionState(nextMemory);
       awaitingAction = "none";
     }
     if (isGlobalCatalogAsk(originalInboundText)) {
-      nextMemory.awaiting_action = "none";
-      nextMemory.last_category_intent = "";
-      nextMemory.strict_family_label = "";
-      nextMemory.pending_product_options = [];
-      nextMemory.pending_family_options = [];
+      resetMemoryForGlobalCatalogAsk(nextMemory);
       inbound.text = "catalogo completo";
       awaitingAction = "none";
     }
-    const explicitModelGlobal = hasConcreteProductHint(originalInboundText) && !isOptionOnlyReply(originalInboundText);
+    const explicitModelGlobal = hasConcreteProductHint(originalInboundText) && !isOptionOnlyReplyApp(originalInboundText, normalizeText);
     if (explicitModelGlobal) {
       nextMemory.awaiting_action = "none";
       nextMemory.pending_product_options = [];
@@ -12858,7 +3933,7 @@ export async function POST(req: Request) {
       isPriceIntent(originalInboundText) ||
       isTechnicalSheetIntent(originalInboundText) ||
       isProductImageIntent(originalInboundText) ||
-      isGreetingIntent(originalInboundText)
+      isGreetingIntentApp(originalInboundText, normalizeText)
     );
     if (inboundTechnicalSpec) {
       nextMemory.awaiting_action = "none";
@@ -12874,7 +3949,7 @@ export async function POST(req: Request) {
       if (directRefineChoice) {
         nextMemory.awaiting_action = "technical_refine_choice";
       }
-      if (isAffirmativeIntent(tRefine) || directRefineChoice) {
+      if (isAffirmativeIntentApp(tRefine, normalizeText) || directRefineChoice) {
         const lastSpec = String(previousMemory?.last_technical_spec_query || nextMemory?.last_technical_spec_query || "").trim();
         if (!directRefineChoice) {
           reply = lastSpec
@@ -12884,7 +3959,7 @@ export async function POST(req: Request) {
           handledByRecommendation = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
         }
-      } else if (!isConversationCloseIntent(originalInboundText)) {
+      } else if (!isConversationCloseIntentApp(originalInboundText, normalizeCatalogQueryText)) {
         reply = "Para continuar, responde 'sí' y te doy opciones de ajuste, o escribe una nueva referencia (ej.: 320g x 0.0001).";
         nextMemory.awaiting_action = "technical_refine_prompt";
         handledByRecommendation = true;
@@ -12933,7 +4008,7 @@ export async function POST(req: Request) {
       Number.isFinite(selectedAtStrictMs) &&
       (Date.now() - selectedAtStrictMs) <= 30 * 60 * 1000;
 
-    if (!handledByGreeting && selectedStrictActive && !inboundTechnicalSpec && !isConversationCloseIntent(originalInboundText)) {
+    if (!handledByGreeting && selectedStrictActive && !inboundTechnicalSpec && !isConversationCloseIntentApp(originalInboundText, normalizeCatalogQueryText)) {
       const tStrict = normalizeText(originalInboundText);
       const looksLikeTechnicalNumericSpec = /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*[x×]\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b/.test(normalizeCatalogQueryText(originalInboundText));
       const looksLikeCategoryOrInventoryByTypos = /(balanza|balanzas|blanza|blanzas|bascula|basculas|bscula|bsculas|catalogo|inventario|referencias|que\s+tienen|tienen\s+bal)/.test(tStrict);
@@ -12964,7 +4039,7 @@ export async function POST(req: Request) {
         } else if (wantsImageStrict) {
           inbound.text = `imagen de ${selectedNameStrict}`;
           nextMemory.awaiting_action = "none";
-        } else if ((awaitingAction === "product_action" || awaitingAction === "conversation_followup") && isAffirmativeIntent(tStrict)) {
+        } else if ((awaitingAction === "product_action" || awaitingAction === "conversation_followup") && isAffirmativeIntentApp(tStrict, normalizeText)) {
           reply = `Perfecto. Para ${selectedNameStrict}, responde 1 para cotización o 2 para ficha técnica.`;
           nextMemory.awaiting_action = "product_action";
           handledByQuoteStarter = true;
@@ -12972,50 +4047,42 @@ export async function POST(req: Request) {
         }
       }
     }
-    if (awaitingAction === "conversation_followup" && isConversationCloseIntent(inbound.text)) {
-      const hadQuoteContext =
-        Boolean(previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
-        /(quote_generated|quote_recall|price_request)/.test(String(previousMemory?.last_intent || ""));
-      reply = hadQuoteContext
-        ? "Perfecto, cerramos por ahora. Gracias por tu tiempo. Te estaremos enviando un recordatorio breve para saber como te parecio la cotizacion."
-        : "Perfecto, cerramos por ahora. Gracias por tu tiempo. Si despues quieres retomar, te ayudo por este mismo WhatsApp.";
+    if (awaitingAction === "conversation_followup" && isConversationCloseIntentApp(inbound.text, normalizeCatalogQueryText)) {
+      const hadQuoteContext = hasQuoteContext(previousMemory);
+      reply = buildConversationCloseReply(hadQuoteContext);
       nextMemory.awaiting_action = "none";
       nextMemory.conversation_status = "closed";
       nextMemory.last_intent = "conversation_closed";
-      if (hadQuoteContext) nextMemory.quote_feedback_due_at = isoAfterHours(24);
+      if (hadQuoteContext) nextMemory.quote_feedback_due_at = isoAfterHoursApp(24);
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
-    if (!handledByGreeting && awaitingAction === "conversation_followup" && isAdvisorAppointmentIntent(inbound.text)) {
-      reply = buildAdvisorMiniAgendaPrompt();
+    if (!handledByGreeting && awaitingAction === "conversation_followup" && isAdvisorAppointmentIntentApp(inbound.text, normalizeText)) {
+      reply = buildAdvisorMiniAgendaPromptApp(MARIANA_ESCALATION_LINK);
       nextMemory.awaiting_action = "advisor_meeting_slot";
       nextMemory.conversation_status = "open";
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
-    if (!handledByGreeting && awaitingAction === "advisor_meeting_slot") {
-      const slot = parseAdvisorMiniAgendaChoice(inbound.text);
-      if (!slot) {
-        reply = "Para agendar con asesor, responde 1, 2 o 3 según el horario.";
-        nextMemory.awaiting_action = "advisor_meeting_slot";
-      } else {
-        reply = `Perfecto. Agendé la gestión con asesor para ${slot.label}. Te contactaremos en ese horario por WhatsApp o llamada.`;
-        nextMemory.awaiting_action = "conversation_followup";
-        nextMemory.advisor_meeting_at = slot.iso;
-        nextMemory.advisor_meeting_label = slot.label;
+      if (!handledByGreeting && awaitingAction === "advisor_meeting_slot") {
+        const slot = parseAdvisorMiniAgendaChoiceApp(inbound.text, normalizeText);
+        const slotResult = resolveAdvisorMeetingReply({ slot });
+        reply = slotResult.reply;
+        nextMemory.awaiting_action = slotResult.awaitingAction;
+        if (slotResult.advisorMeetingAt) nextMemory.advisor_meeting_at = slotResult.advisorMeetingAt;
+        if (slotResult.advisorMeetingLabel) nextMemory.advisor_meeting_label = slotResult.advisorMeetingLabel;
+        handledByGreeting = true;
+        billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       }
-      handledByGreeting = true;
-      billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
-    }
     if (!handledByGreeting && awaitingAction === "followup_quote_disambiguation") {
-      const choice = parseAnotherQuoteChoice(originalInboundText);
+      const choice = parseAnotherQuoteChoiceApp(originalInboundText, normalizeText);
       const rememberedProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
       if (!choice) {
-        reply = buildAnotherQuotePrompt();
+        reply = buildAnotherQuotePromptApp();
         nextMemory.awaiting_action = "followup_quote_disambiguation";
         nextMemory.last_intent = "followup_quote_disambiguation";
       } else if (choice === "advisor") {
-        reply = buildAdvisorMiniAgendaPrompt();
+        reply = buildAdvisorMiniAgendaPromptApp(MARIANA_ESCALATION_LINK);
         nextMemory.awaiting_action = "advisor_meeting_slot";
       } else if (choice === "same_model" && rememberedProduct) {
         inbound.text = `cotizar ${rememberedProduct}`.trim();
@@ -13033,9 +4100,9 @@ export async function POST(req: Request) {
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
-    if (!handledByGreeting && awaitingAction === "conversation_followup" && !isConversationCloseIntent(inbound.text)) {
-      if (isAnotherQuoteAmbiguousIntent(originalInboundText)) {
-        reply = buildAnotherQuotePrompt();
+    if (!handledByGreeting && awaitingAction === "conversation_followup" && !isConversationCloseIntentApp(inbound.text, normalizeCatalogQueryText)) {
+      if (isAnotherQuoteAmbiguousIntentApp(originalInboundText, normalizeText)) {
+        reply = buildAnotherQuotePromptApp();
         nextMemory.awaiting_action = "followup_quote_disambiguation";
         nextMemory.last_intent = "followup_quote_disambiguation";
         handledByGreeting = true;
@@ -13044,9 +4111,9 @@ export async function POST(req: Request) {
       const rememberedProduct = String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || nextMemory.last_product_name || previousMemory?.last_product_name || "").trim();
       if (!handledByGreeting && rememberedProduct) {
         const t = normalizeText(originalInboundText);
-        const anotherQuoteChoiceConversation = parseAnotherQuoteChoice(originalInboundText);
+        const anotherQuoteChoiceConversation = parseAnotherQuoteChoiceApp(originalInboundText, normalizeText);
         if (anotherQuoteChoiceConversation === "advisor") {
-          reply = buildAdvisorMiniAgendaPrompt();
+          reply = buildAdvisorMiniAgendaPromptApp(MARIANA_ESCALATION_LINK);
           nextMemory.awaiting_action = "advisor_meeting_slot";
           handledByGreeting = true;
           billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
@@ -13087,17 +4154,13 @@ export async function POST(req: Request) {
         billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
       }
     }
-    if (!handledByGreeting && isConversationCloseIntent(inbound.text) && normalizeText(inbound.text).length <= 32) {
-      const hadQuoteContext =
-        Boolean(previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
-        /(quote_generated|quote_recall|price_request)/.test(String(previousMemory?.last_intent || ""));
-      reply = hadQuoteContext
-        ? "Perfecto, cerramos por ahora. Gracias por tu tiempo. Te estaremos enviando un recordatorio breve para saber como te parecio la cotizacion."
-        : "Perfecto, cerramos por ahora. Gracias por tu tiempo. Si despues quieres retomar, te ayudo por este mismo WhatsApp.";
+    if (!handledByGreeting && isConversationCloseIntentApp(inbound.text, normalizeCatalogQueryText) && normalizeText(inbound.text).length <= 32) {
+      const hadQuoteContext = hasQuoteContext(previousMemory);
+      reply = buildConversationCloseReply(hadQuoteContext);
       nextMemory.awaiting_action = "none";
       nextMemory.conversation_status = "closed";
       nextMemory.last_intent = "conversation_closed";
-      if (hadQuoteContext) nextMemory.quote_feedback_due_at = isoAfterHours(24);
+      if (hadQuoteContext) nextMemory.quote_feedback_due_at = isoAfterHoursApp(24);
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
@@ -13110,7 +4173,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (awaitingAction === "quote_contact_bundle" && (isContactInfoBundle(inbound.text) || isContinueQuoteWithoutPersonalDataIntent(inbound.text))) {
+    if (awaitingAction === "quote_contact_bundle" && (isContactInfoBundleApp({ text: inbound.text, extractEmail, extractCustomerPhone }) || false)) {
       const rememberedForQuote = String(
         nextMemory.last_selected_product_name ||
         previousMemory?.last_selected_product_name ||
@@ -13141,7 +4204,7 @@ export async function POST(req: Request) {
       ? (previousMemory as any).pending_family_options
       : [];
     const selectedPendingFamily = String(previousMemory?.awaiting_action || "") === "family_option_selection"
-      ? resolvePendingFamilyOption(originalInboundText, pendingFamilyOptions)
+      ? resolvePendingFamilyOptionApp(originalInboundText, pendingFamilyOptions, normalizeText)
       : null;
 
     let bundleOverrideApplied = false;
@@ -13151,7 +4214,7 @@ export async function POST(req: Request) {
       const inboundBundleByCount = /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(inboundTextNorm);
       const inboundBundleAll = asksQuoteIntent(inboundTextNorm) && /\b(todas|todos|todas\s+las|todos\s+los)\b/.test(inboundTextNorm);
       const inboundIntent = String(nextMemory.last_intent || previousMemory?.last_intent || "");
-      const continueWithoutData = isContinueQuoteWithoutPersonalDataIntent(originalInboundText);
+      const continueWithoutData = false;
       const shouldBundleOverride =
         inboundIntent === "quote_bundle_request" ||
         inboundBundleByCount ||
@@ -13204,7 +4267,7 @@ export async function POST(req: Request) {
     if (!handledByGreeting && pendingProductOptions.length >= 2) {
       const bulkText = normalizeText(originalInboundText);
       const continueBundleWithoutData =
-        isContinueQuoteWithoutPersonalDataIntent(originalInboundText) &&
+        false &&
         String(previousMemory?.last_intent || nextMemory.last_intent || "") === "quote_bundle_request";
       const asksBulkByCount = /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(bulkText);
       const asksBulkAll = asksQuoteIntent(bulkText) && /\b(todas|todos|todas\s+las|todos\s+los)\b/.test(bulkText);
@@ -13289,7 +4352,7 @@ export async function POST(req: Request) {
       if (!normalizeText(originalInboundText).includes(normalizeText(selectedCanonicalName))) {
         inbound.text = `${originalInboundText} ${selectedCanonicalName}`.trim();
       }
-      if (isOptionOnlyReply(originalInboundText)) {
+      if (isOptionOnlyReplyApp(originalInboundText, normalizeText)) {
         reply = [
           `Perfecto, seleccionaste ${String(selectedPendingOption.code || "")} - ${String(selectedPendingOption.name || "")}.`,
           "Ahora dime qué deseas con ese modelo:",
@@ -13310,7 +4373,7 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && String(previousMemory?.awaiting_action || "") === "product_option_selection" && !selectedPendingOption) {
       const optionInterruptIntent = Boolean(
-        isConversationCloseIntent(originalInboundText) ||
+        isConversationCloseIntentApp(originalInboundText, normalizeCatalogQueryText) ||
         inboundTechnicalSpec ||
         inboundCategoryOrInventoryIntent ||
         asksQuoteIntent(originalInboundText) ||
@@ -13409,7 +4472,7 @@ export async function POST(req: Request) {
       if (key && !bundleContinueDedup.has(key)) bundleContinueDedup.set(key, o);
     }
     const bundleContinueOptions = Array.from(bundleContinueDedup.values());
-    const continueWithoutDataGlobal = isContinueQuoteWithoutPersonalDataIntent(originalInboundText) && bundleContinueOptions.length >= 2;
+    const continueWithoutDataGlobal = false && bundleContinueOptions.length >= 2;
     if (continueWithoutDataGlobal) {
       const names = bundleContinueOptions.slice(0, 8).map((o: any) => String(o?.raw_name || o?.name || "").trim()).filter(Boolean);
       if (names.length >= 2) {
@@ -13437,7 +4500,7 @@ export async function POST(req: Request) {
         } else {
         const continueWithoutDataOnBundle =
           String(previousMemory?.last_intent || nextMemory.last_intent || "") === "quote_bundle_request" &&
-          isContinueQuoteWithoutPersonalDataIntent(originalInboundText);
+          false;
         if (continueWithoutDataOnBundle) {
           const bundlePool =
             (Array.isArray(previousMemory?.quote_bundle_options) ? previousMemory.quote_bundle_options : [])
@@ -13512,7 +4575,7 @@ export async function POST(req: Request) {
             nextMemory.last_selection_at = "";
           }
         } else {
-        const confirmsDefaultFromOption = isAffirmativeIntent(optText) || /^(ok|vale|listo|de una)$/i.test(String(originalInboundText || "").trim());
+        const confirmsDefaultFromOption = isAffirmativeIntentApp(optText, normalizeText) || /^(ok|vale|listo|de una)$/i.test(String(originalInboundText || "").trim());
         const asksQuoteByOption = /^(1|a)\b/.test(optText) || /\b(cotiz|cotizacion|precio|la cotizacion)\b/.test(optText);
         const asksSheetByOption = /^(2|b)\b/.test(optText) || isTechnicalSheetIntent(optText);
         const asksImageByOption = /^(3|c|4|d)\b/.test(optText) || isProductImageIntent(optText) || (isTechnicalSheetIntent(optText) && isProductImageIntent(optText));
@@ -13688,13 +4751,13 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && isGreetingIntent(inbound.text)) {
+    if (!handledByGreeting && isGreetingIntentApp(inbound.text, normalizeText)) {
       nextMemory.awaiting_action = "none";
       nextMemory.pending_product_options = [];
       nextMemory.pending_family_options = [];
       nextMemory.strict_model_offset = 0;
       nextMemory.strict_family_label = "";
-      reply = buildGreetingReply(knownCustomerName, nextMemory);
+      reply = buildGreetingReplyApp({ knownCustomerName, memory: nextMemory, shouldUseFullGreeting: shouldUseFullGreetingApp });
       if (!knownCustomerName) nextMemory.awaiting_action = "capture_name";
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
@@ -13708,7 +4771,7 @@ export async function POST(req: Request) {
         const rawRows = await fetchCatalogRows("id,name,category,brand,base_price_usd,source_payload,product_url", 220, false);
         const commercialRows = (Array.isArray(rawRows) ? rawRows : []).filter((r: any) => isCommercialCatalogRow(r));
         const scoped = scopeCatalogRows(commercialRows as any, forcedCategory);
-        const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
+        const familyOptions = buildNumberedFamilyOptionsApp(scoped as any[], normalizeText, 8);
         const inferred = inferFamilyFromUseCase(originalInboundText, familyOptions);
         const inferredKey = String((inferred as any)?.key || "").trim();
         const familyRows = inferredKey
@@ -13742,7 +4805,7 @@ export async function POST(req: Request) {
           const categoryRowsRaw = await fetchCatalogRows("id,name,category,brand,base_price_usd,source_payload,product_url", 220, false);
           const categoryRowsCommercial = (Array.isArray(categoryRowsRaw) ? categoryRowsRaw : []).filter((r: any) => isCommercialCatalogRow(r));
           const scoped = scopeCatalogRows(categoryRowsCommercial as any, inboundCategoryIntent);
-          const familyOptions = buildNumberedFamilyOptions(scoped as any[], 8);
+          const familyOptions = buildNumberedFamilyOptionsApp(scoped as any[], normalizeText, 8);
           const categoryLabel = inboundCategoryIntent.replace(/_/g, " ");
           const needText = normalizeText(`${String(originalInboundText || "")} ${String(inbound.text || "")}`);
           const rawNeedText = String(inbound.text || originalInboundText || "");
@@ -14088,7 +5151,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && !handledByInventory && isHistoryIntent(inbound.text)) {
+    if (!handledByGreeting && !handledByInventory && isHistoryIntentApp(inbound.text, normalizeText)) {
       try {
         const inboundPhone = normalizePhone(inbound.from || "");
         const inboundTail = phoneTail10(inbound.from || "");
@@ -14110,7 +5173,7 @@ export async function POST(req: Request) {
         if (mine.length) {
           const last = mine[0] as any;
           const qty = Math.max(1, Number(last?.payload?.quantity || 1));
-          reply = `Si, ya tengo tu historial. Veo ${mine.length} cotizacion(es) asociadas a este numero. La ultima fue de ${String(last?.product_name || "producto")}, cantidad ${qty}, total COP ${formatMoney(Number(last?.total_cop || 0))}, estado ${String(last?.status || "draft")}. Si quieres, te la reenvio en PDF escribiendo: reenviar PDF.`;
+          reply = `Si, ya tengo tu historial. Veo ${mine.length} cotizacion(es) asociadas a este numero. La ultima fue de ${String(last?.product_name || "producto")}, cantidad ${qty}, total COP ${formatMoneyApp(Number(last?.total_cop || 0))}, estado ${String(last?.status || "draft")}. Si quieres, te la reenvio en PDF escribiendo: reenviar PDF.`;
         } else {
           reply = "Por ahora no encuentro cotizaciones previas asociadas a este numero. Si quieres, te genero una nueva en este momento.";
         }
@@ -14201,11 +5264,11 @@ export async function POST(req: Request) {
           nextMemory.last_selected_product_id = String((matched as any)?.id || "");
           nextMemory.last_selection_at = new Date().toISOString();
           nextMemory.pending_product_options = [];
-          reply = `El producto ${String(matched.name)} tiene precio base USD ${formatMoney(Number(matched.base_price_usd || 0))}. Si quieres, te genero la cotizacion con TRM de hoy y PDF.`;
+          reply = `El producto ${String(matched.name)} tiene precio base USD ${formatMoneyApp(Number(matched.base_price_usd || 0))}. Si quieres, te genero la cotizacion con TRM de hoy y PDF.`;
         } else if (list.length) {
           const options = buildNumberedProductOptions(list, 5);
           const sample = options
-            .map((p: any) => `${p.code}) ${String(p.name)} (USD ${formatMoney(Number(p.base_price_usd || 0))})`);
+            .map((p: any) => `${p.code}) ${String(p.name)} (USD ${formatMoneyApp(Number(p.base_price_usd || 0))})`);
           nextMemory.pending_product_options = options;
           nextMemory.awaiting_action = "product_option_selection";
           reply = [
@@ -14332,7 +5395,7 @@ export async function POST(req: Request) {
     const techResendIntent = detectTechResendIntent(inbound.text);
     const techInboundText = techResendIntent && rememberedTechProduct
       ? `ficha tecnica de ${rememberedTechProduct}`
-      : awaitingTechAssetChoice && isAffirmativeIntent(inbound.text) && rememberedTechProduct
+      : awaitingTechAssetChoice && isAffirmativeIntentApp(inbound.text, normalizeText) && rememberedTechProduct
         ? `ficha tecnica de ${rememberedTechProduct}`
         : inbound.text;
 
@@ -14524,7 +5587,7 @@ export async function POST(req: Request) {
               }
             }
             if (!attachedSheet && localPdfPath) {
-              const local = fetchLocalFileAsBase64(localPdfPath);
+              const local = fetchLocalFileAsBase64App(localPdfPath);
               if (local) {
                 if (Number(local.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
                   technicalDocs.push({
@@ -14828,7 +5891,7 @@ export async function POST(req: Request) {
 
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && isQuantityUpdateIntent(inbound.text)) {
       try {
-        const requestedQty = extractQuantity(inbound.text);
+        const requestedQty = extractQuantityApp(inbound.text);
         const memoryDraftId = String(previousMemory?.last_quote_draft_id || "").trim();
 
         let baseDraft: any = null;
@@ -14949,7 +6012,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && awaitingAction === "tech_asset_choice" && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && isAffirmativeIntent(inbound.text)) {
+    if (!handledByGreeting && awaitingAction === "tech_asset_choice" && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && !handledByQuoteStarter && isAffirmativeIntentApp(inbound.text, normalizeText)) {
       const prevIntent = String(previousMemory?.last_intent || "");
       const lastProductName = String(previousMemory?.last_product_name || nextMemory?.last_product_name || "").trim();
       if ((/(tech_sheet_request|image_request)/.test(prevIntent)) && lastProductName) {
@@ -14963,7 +6026,7 @@ export async function POST(req: Request) {
     const previousIntent = String(previousMemory?.last_intent || "");
     const recallByConfirmation =
       Boolean(previousMemory?.last_quote_draft_id) &&
-      isAffirmativeIntent(inbound.text) &&
+      isAffirmativeIntentApp(inbound.text, normalizeText) &&
       /(quote_recall|quote_generated|price_request)/.test(previousIntent) &&
       awaitingAction === "quote_resend_confirmation";
     if (!handledByGreeting && !handledByInventory && !handledByHistory && !handledByPricing && !handledByRecommendation && !handledByTechSheet && (isQuoteRecallIntent(inbound.text) || recallByConfirmation)) {
@@ -14989,9 +6052,9 @@ export async function POST(req: Request) {
           nextMemory.last_quote_draft_id = String(lastDraft.id);
           nextMemory.last_quote_product_name = String(lastDraft.product_name || "");
           const qty = Math.max(1, Number((lastDraft as any)?.payload?.quantity || 1));
-          const requestedQty = extractQuantity(inbound.text);
+          const requestedQty = extractQuantityApp(inbound.text);
           const hasQtyUpdate = isQuantityUpdateIntent(inbound.text) && requestedQty > 0 && requestedQty !== qty;
-          reply = `Si, claro. Tu ultima cotizacion fue del producto ${String(lastDraft.product_name || "")}, cantidad ${qty}, total COP ${formatMoney(Number(lastDraft.total_cop || 0))} con TRM ${formatMoney(Number(lastDraft.trm_rate || 0))}.`;
+          reply = `Si, claro. Tu ultima cotizacion fue del producto ${String(lastDraft.product_name || "")}, cantidad ${qty}, total COP ${formatMoneyApp(Number(lastDraft.total_cop || 0))} con TRM ${formatMoneyApp(Number(lastDraft.trm_rate || 0))}.`;
 
           const wantsResend = shouldResendPdf(inbound.text) || recallByConfirmation || hasQtyUpdate;
           if (wantsResend) {
@@ -15098,18 +6161,18 @@ export async function POST(req: Request) {
         isQuantityUpdateIntent(inbound.text) ||
         (hasBareQuantity(inbound.text) && quoteContextActive) ||
         asksQuoteWithNumber ||
-        (isAffirmativeIntent(inbound.text) && /(price_request|quote_starter|recommendation_request)/.test(previousIntentForQuoteFlow))) &&
+        (isAffirmativeIntentApp(inbound.text, normalizeText) && /(price_request|quote_starter|recommendation_request)/.test(previousIntentForQuoteFlow))) &&
       !inboundIsTechnicalSpec &&
       Boolean(nextMemory.last_product_name || nextMemory.last_product_id || rememberedSelectedProductName || rememberedSelectedProductId);
     const resumeQuoteFromContext =
-      isContactInfoBundle(inbound.text) &&
+      isContactInfoBundleApp({ text: inbound.text, extractEmail, extractCustomerPhone }) &&
       shouldAutoQuote(`${recentUserContext}\n${inbound.text}`);
     const forceBundleQuoteIntake =
       bundleOverrideApplied ||
       String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" ||
       (
         String(nextMemory.awaiting_action || previousMemory?.awaiting_action || "") === "strict_quote_data" &&
-        isContinueQuoteWithoutPersonalDataIntent(originalInboundText)
+        false
       );
 
     if (
@@ -15257,9 +6320,9 @@ export async function POST(req: Request) {
             : [];
 
         if (forceBundleQuoteIntake) {
-          const explicitIndexes = extractBundleOptionIndexes(quoteSourceText).slice(0, 3);
+          const explicitIndexes = extractBundleOptionIndexesApp(quoteSourceText).slice(0, 3);
           if (explicitIndexes.length >= 2) {
-            const selectionSource = pickBundleOptionSourceByIndexes(explicitIndexes, [bundleOptionsCurrent, pendingBundleOptions]);
+            const selectionSource = pickBundleOptionSourceByIndexesApp(explicitIndexes, [bundleOptionsCurrent, pendingBundleOptions]);
             const byIndex = explicitIndexes
               .filter((n) => n >= 1 && n <= selectionSource.length)
               .map((n) => resolvePendingOptionToProduct(selectionSource[n - 1]))
@@ -15324,15 +6387,15 @@ export async function POST(req: Request) {
             .map((m: any) => String(m.content || ""));
           const combinedUserContext = `${latestUserLines.join("\n")}\n${inbound.text}`;
 
-          const qtyFromOriginalInbound = extractQuoteRequestedQuantity(originalInboundText);
-          const qtyFromInbound = extractQuoteRequestedQuantity(inbound.text);
-          const qtyFromSource = extractQuoteRequestedQuantity(quoteSourceText);
+          const qtyFromOriginalInbound = extractQuoteRequestedQuantityApp({ text: originalInboundText, normalizeText, parseTechnicalSpecQuery });
+          const qtyFromInbound = extractQuoteRequestedQuantityApp({ text: inbound.text, normalizeText, parseTechnicalSpecQuery });
+          const qtyFromSource = extractQuoteRequestedQuantityApp({ text: quoteSourceText, normalizeText, parseTechnicalSpecQuery });
           const defaultQuantity = Math.max(1, qtyFromOriginalInbound || qtyFromInbound || qtyFromSource || 1);
           const perProductQty = extractPerProductQuantities(
             quoteSourceText,
             selectedProducts.map((p: any) => ({ id: String(p.id), name: String(p.name || "") }))
           );
-          const uniformHint = hasUniformQuantityHint(quoteSourceText);
+          const uniformHint = hasUniformQuantityHintApp(quoteSourceText, normalizeText);
 
           let previousDraftForCustomer: any = null;
           const shouldRecoverCustomerFromDraft =
@@ -15488,9 +6551,9 @@ export async function POST(req: Request) {
           if (!missingFields.length && !handledByQuoteIntake && selectedProducts.length === 1) {
             const selected = selectedProducts[0] as any;
             const requestedQty = Math.max(1,
-              extractQuoteRequestedQuantity(originalInboundText) ||
-              extractQuoteRequestedQuantity(inbound.text) ||
-              extractQuoteRequestedQuantity(quoteSourceText)
+              extractQuoteRequestedQuantityApp({ text: originalInboundText, normalizeText, parseTechnicalSpecQuery }) ||
+              extractQuoteRequestedQuantityApp({ text: inbound.text, normalizeText, parseTechnicalSpecQuery }) ||
+              extractQuoteRequestedQuantityApp({ text: quoteSourceText, normalizeText, parseTechnicalSpecQuery })
             );
             const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
             const cityPriceCop = Number(cityPrices?.[effectiveCustomerCity] || 0);
@@ -15520,8 +6583,8 @@ export async function POST(req: Request) {
                   1;
                 if (selectedProducts.length === 1) {
                   const explicitQty = Math.max(
-                    extractQuoteRequestedQuantity(originalInboundText),
-                    extractQuoteRequestedQuantity(inbound.text)
+                    extractQuoteRequestedQuantityApp({ text: originalInboundText, normalizeText, parseTechnicalSpecQuery }),
+                    extractQuoteRequestedQuantityApp({ text: inbound.text, normalizeText, parseTechnicalSpecQuery })
                   );
                   if (explicitQty > 1) quantity = explicitQty;
                 }
@@ -15735,7 +6798,7 @@ export async function POST(req: Request) {
       const inboundBulkQuoteCommand = /\bcotiz(?:ar|a|acion|ación)?\s*(\d{1,2}|dos|tres|cuatro|cinco|seis|siete|ocho)\b/.test(normalizeText(originalInboundText));
       const skipSingleProductFallback =
         String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" ||
-        isContinueQuoteWithoutPersonalDataIntent(originalInboundText);
+        false;
       if (selectedStillActive && !inboundTechnicalSpec && !inboundBulkQuoteCommand && !skipSingleProductFallback) {
           reply = `¿Quieres ficha técnica o cotización de ${selectedProductForGuide}?`;
           nextMemory.awaiting_action = "product_action";
@@ -15895,7 +6958,7 @@ export async function POST(req: Request) {
 
         if (!String(reply || "").trim() && !bundleOverrideApplied) {
         const continueWithoutDataInBundle =
-          isContinueQuoteWithoutPersonalDataIntent(originalInboundText) &&
+          false &&
           (
             String(nextMemory.last_intent || previousMemory?.last_intent || "") === "quote_bundle_request" ||
             String(nextMemory.awaiting_action || previousMemory?.awaiting_action || "") === "strict_quote_data"
@@ -16054,7 +7117,7 @@ export async function POST(req: Request) {
                           : handledByHistory
                             ? "history"
                             : handledByGreeting
-                              ? (isConversationCloseIntent(originalInboundText) ? "conversation_close" : "greeting")
+                              ? (isConversationCloseIntentApp(originalInboundText, normalizeCatalogQueryText) ? "conversation_close" : "greeting")
                               : "fallback";
     let effectiveAwaitingAction = String(nextMemory.awaiting_action || "");
     if (bundleOverrideApplied) {
@@ -16089,12 +7152,13 @@ export async function POST(req: Request) {
     if (!String(reply || "").trim()) {
       const pendingFamiliesNow = Array.isArray(nextMemory?.pending_family_options) && nextMemory.pending_family_options.length > 0;
       const pendingModelsNow = Array.isArray(nextMemory?.pending_product_options) && nextMemory.pending_product_options.length > 0;
-      reply = buildGuidedRecoveryMessage({
+      reply = buildGuidedRecoveryMessageApp({
         awaiting: String(nextMemory.awaiting_action || previousMemory?.awaiting_action || ""),
         rememberedProduct: String(nextMemory.last_selected_product_name || previousMemory?.last_selected_product_name || ""),
         hasPendingFamilies: pendingFamiliesNow || (Array.isArray(previousMemory?.pending_family_options) && previousMemory.pending_family_options.length > 0),
         hasPendingModels: pendingModelsNow || (Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0),
         inboundText: inbound.text,
+        normalizeText,
       });
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
     }
@@ -16107,11 +7171,11 @@ export async function POST(req: Request) {
         autoQuoteDocs.length > 1 ||
         Number(nextMemory?.bundle_quote_count || previousMemory?.bundle_quote_count || 0) >= 2
       );
-      reply = appendAdvisorAppointmentPrompt(reply);
+      reply = appendAdvisorAppointmentPromptApp(reply, normalizeText);
       reply = multiQuoteDelivery ? appendBundleQuoteClosurePrompt(reply) : appendQuoteClosurePrompt(reply);
       nextMemory.awaiting_action = "conversation_followup";
       if (String(nextMemory.conversation_status || "") !== "closed") nextMemory.conversation_status = "open";
-      nextMemory.quote_feedback_due_at = isoAfterHours(24);
+      nextMemory.quote_feedback_due_at = isoAfterHoursApp(24);
     } else if (techDeliveryPlanned && String(reply || "").trim()) {
       reply = appendQuoteClosurePrompt(reply);
       nextMemory.awaiting_action = "conversation_followup";
@@ -16172,12 +7236,12 @@ export async function POST(req: Request) {
     const selfPhone = selfHints[0] || "";
     const selfSet = new Set(selfHints);
 
-    const toCandidates = [inboundCustomerPhone, inbound.from, ...(inbound.alternates || [])]
+    const toCandidates = [inbound.from, ...(inbound.alternates || [])]
       .map((n) => normalizePhone(String(n || "")))
       .filter((n, i, arr) => n && arr.indexOf(n) === i)
       .filter((n) => !(Boolean(inbound.fromIsLid) && n === inbound.from))
       .filter((n) => !selfSet.has(n))
-      .filter((n) => Boolean(normalizeRealCustomerPhone(n)))
+      .filter((n) => n.length >= 10 && n.length <= 15)
       .sort((a, b) => {
         const aLikelyReal = a.length <= 13 ? 0 : 1;
         const bLikelyReal = b.length <= 13 ? 0 : 1;
@@ -16378,7 +7442,7 @@ export async function POST(req: Request) {
       nextMemory.last_intent = "quote_generated";
       if (String(nextMemory.conversation_status || "") !== "closed") {
         nextMemory.awaiting_action = "conversation_followup";
-        nextMemory.quote_feedback_due_at = isoAfterHours(24);
+        nextMemory.quote_feedback_due_at = isoAfterHoursApp(24);
       }
     }
     else if (handledByRecall) nextMemory.last_intent = "quote_recall";
@@ -16418,66 +7482,19 @@ export async function POST(req: Request) {
         await persistKnownNameInCrm(supabase as any, {
           ownerId,
           tenantId: (agent as any)?.tenant_id || null,
-          phone: inboundCustomerPhone || inbound.from,
+          phone: inbound.from,
           name: knownCustomerName,
         });
       }
 
-      const finalClosed = String(nextMemory.conversation_status || "") === "closed";
-      const finalQuoteContext =
-        Boolean(nextMemory.last_quote_draft_id || nextMemory.last_quote_pdf_sent_at || previousMemory?.last_quote_draft_id || previousMemory?.last_quote_pdf_sent_at) ||
-        /(quote_generated|quote_recall|price_request)/.test(String(nextMemory.last_intent || previousMemory?.last_intent || ""));
-      const finalNextAction = finalClosed
-        ? (finalQuoteContext ? "Recordatorio feedback cotizacion" : "Seguimiento WhatsApp")
-        : (finalQuoteContext ? "Seguimiento cotizacion" : "");
-      const finalNextActionAt = finalClosed
-        ? (finalQuoteContext ? isoAfterHours(24) : isoAfterHours(48))
-        : (finalQuoteContext ? isoAfterHours(24) : "");
-      const finalMeetingAt = String(nextMemory.advisor_meeting_at || previousMemory?.advisor_meeting_at || "").trim();
-      await upsertCrmLifecycleState(supabase as any, {
-        ownerId,
-        tenantId: (agent as any)?.tenant_id || null,
-        phone: inboundCustomerPhone || inbound.from,
-        realPhone: String(nextMemory.customer_phone || previousMemory?.customer_phone || ""),
-        name: knownCustomerName || inbound.pushName || "",
-        status: finalQuoteContext ? "quote" : undefined,
-        nextAction: finalMeetingAt ? "Llamar cliente (cita WhatsApp)" : (finalNextAction || undefined),
-        nextActionAt: finalMeetingAt || finalNextActionAt || undefined,
-        metadata: {
-          source: "evolution_webhook",
-          conversation_status: String(nextMemory.conversation_status || "open"),
-          last_intent: String(nextMemory.last_intent || ""),
-          quote_feedback_due_at: String(nextMemory.quote_feedback_due_at || ""),
-          advisor_meeting_at: finalMeetingAt,
-          advisor_meeting_label: String(nextMemory.advisor_meeting_label || previousMemory?.advisor_meeting_label || ""),
-        },
-      });
-      if (finalMeetingAt) {
-        await mirrorAdvisorMeetingToAvanza({
-          ownerId,
-          tenantId: (agent as any)?.tenant_id || null,
-          externalRef: String(inbound.messageId || incomingDedupKey || "final"),
-          phone: inboundCustomerPhone || inbound.from,
-          customerName: knownCustomerName || inbound.pushName || inbound.from,
-          advisor: "Asesor comercial",
-          meetingAt: finalMeetingAt,
-          meetingLabel: String(nextMemory.advisor_meeting_label || previousMemory?.advisor_meeting_label || ""),
-          source: "evolution_webhook",
-        });
-      }
-
-      await persistConversationTurn(supabase as any, {
-        agentId: String(agent.id),
-        ownerId,
-        tenantId: (agent as any)?.tenant_id || null,
-        from: inboundCustomerPhone || inbound.from,
-        pushName: inbound.pushName,
-        contactName: knownCustomerName || inbound.pushName || inbound.from,
-        inboundText: inbound.text,
-        outboundText: reply,
-        messageId: inbound.messageId,
+      await syncCrmLifecycleAndMeeting({
         memory: nextMemory,
+        previous: previousMemory,
+        source: "evolution_webhook",
+        externalRefSuffix: "final",
       });
+
+      await persistCurrentTurn(reply, nextMemory);
     } catch (saveErr: any) {
       console.warn("[evolution-webhook] conversation save failed", saveErr?.message || saveErr);
     }
@@ -16502,7 +7519,7 @@ export async function POST(req: Request) {
         agent_id: String(agent.id),
         owner_id: ownerId,
         tenant_id: (agent as any)?.tenant_id || null,
-        phone: inboundCustomerPhone || inbound.from,
+        phone: inbound.from,
         message_id: incomingDedupKey,
         intent: String(classifiedIntent.intent || ""),
         category: classifiedIntent.category,
@@ -16523,11 +7540,7 @@ export async function POST(req: Request) {
       console.warn("[evolution-webhook] audit_log_failed", auditErr?.message || auditErr);
     }
 
-    await supabase
-      .from("incoming_messages")
-      .update({ status: "processed", processed_at: new Date().toISOString() })
-      .eq("provider", "evolution")
-      .eq("provider_message_id", incomingDedupKey);
+    await markIncomingMessageProcessed(supabase as any, incomingDedupKey);
 
     safeLogPhase1Invariants({
       inboundText: inbound.text,
@@ -16546,3 +7559,4 @@ export async function POST(req: Request) {
 }
 
 export const handleWebhookTurn = POST;
+

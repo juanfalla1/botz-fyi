@@ -6,6 +6,123 @@ function normalizeText(value: string): string {
     .trim();
 }
 
+function quoteClosureCta(): string {
+  return "Dime cuál balanza te interesa para cotizar (número o modelo).";
+}
+
+export function appendQuoteClosureCta(text: string): string {
+  const body = String(text || "").trim();
+  if (!body) return quoteClosureCta();
+  if (/dime\s+cual\s+balanza\s+te\s+interesa\s+para\s+cotizar/i.test(normalizeText(body))) return body;
+  return `${body}\n\n${quoteClosureCta()}`;
+}
+
+export function buildCapacityResolutionExplanation(): string {
+  return appendQuoteClosureCta([
+    "Capacidad:",
+    "Es el peso máximo que una balanza puede medir.",
+    "👉 Ejemplo: si la capacidad es de 5 kg, no puedes pesar más de eso.",
+    "",
+    "Resolución:",
+    "Es la cantidad de dígitos que ves después del punto (.) en el peso, y define qué tan preciso es el resultado.",
+    "👉 Ejemplo:",
+    "1 decimal → 0.1 g = 100 mg",
+    "2 decimales → 0.01 g = 10 mg",
+    "3 decimales → 0.001 g = 1 mg",
+    "",
+    "En pocas palabras:",
+    "Capacidad = cuánto peso aguanta",
+    "Resolución = cuántos decimales muestra (qué tan exacto mide) 👍",
+  ].join("\n"));
+}
+
+export function buildPriceObjectionReply(): string {
+  return appendQuoteClosureCta([
+    "Buena pregunta 👌",
+    "La diferencia real está en esto:",
+    "1) Estabilidad y precisión real",
+    "Las balanzas profesionales mantienen lecturas estables, incluso con vibraciones o cambios de ambiente.",
+    "2) Reproducibilidad",
+    "En laboratorio necesitas que el resultado sea el mismo siempre, no que varíe cada vez que pesas.",
+    "3) Durabilidad y respaldo",
+    "Son equipos diseñados para uso continuo, con soporte técnico y garantía real.",
+    "",
+    "👉 Las más económicas pesan,",
+    "👉 las profesionales garantizan resultados confiables.",
+    "",
+    "Si quieres, te propongo 3 opciones por gama (esencial/intermedia/premium) para comparar costo-beneficio y elegir la ideal.",
+  ].join("\n"));
+}
+
+export function pickDistinctGamaOptions(
+  options: any[],
+  maxItems = 3,
+  gamaLabelForModelName: (name: string) => string
+): any[] {
+  const list = Array.isArray(options) ? options : [];
+  const selected: any[] = [];
+  const seenIds = new Set<string>();
+  const seenGamas = new Set<string>();
+
+  const optionGamaLabel = (option: any): string => {
+    const fromName = String(option?.name || "").match(/\bgama\s*:\s*([a-zA-Z]+)/i);
+    if (fromName?.[1]) return normalizeText(String(fromName[1] || ""));
+    return normalizeText(gamaLabelForModelName(String(option?.raw_name || option?.name || "")));
+  };
+
+  for (const opt of list) {
+    const id = String(opt?.id || opt?.product_id || opt?.raw_name || opt?.name || "").trim();
+    if (!id || seenIds.has(id)) continue;
+    const gama = optionGamaLabel(opt);
+    if (!gama || seenGamas.has(gama)) continue;
+    selected.push(opt);
+    seenIds.add(id);
+    seenGamas.add(gama);
+    if (selected.length >= maxItems) return selected;
+  }
+
+  for (const opt of list) {
+    const id = String(opt?.id || opt?.product_id || opt?.raw_name || opt?.name || "").trim();
+    if (!id || seenIds.has(id)) continue;
+    selected.push(opt);
+    seenIds.add(id);
+    if (selected.length >= maxItems) return selected;
+  }
+
+  return selected;
+}
+
+export function normalizeDeliveryLabel(raw: string): string {
+  const t = normalizeText(String(raw || ""));
+  if (!t) return "";
+  if (/(stock|inmediat|disponible\s+ya|entrega\s+inmediata)/.test(t)) return "stock";
+  if (/(4\s*seman|cuatro\s*seman|importaci)/.test(t)) return "importación a cuatro semanas";
+  return String(raw || "").trim();
+}
+
+export function deliveryLabelForRow(args: {
+  row: any;
+  catalogReferenceCode: (row: any) => string;
+  guidedCatalog: any;
+}): string {
+  const { row, catalogReferenceCode, guidedCatalog } = args;
+  const source = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const fromRow = [row?.delivery, row?.delivery_time, row?.lead_time, row?.availability, row?.disponibilidad]
+    .map((v) => String(v || "").trim())
+    .find(Boolean) || "";
+  const fromSource = [source?.delivery, source?.delivery_time, source?.lead_time, source?.availability, source?.disponibilidad, source?.entrega]
+    .map((v: any) => String(v || "").trim())
+    .find(Boolean) || "";
+  const direct = normalizeDeliveryLabel(fromRow || fromSource);
+  if (direct) return direct;
+  const modelNorm = normalizeText(catalogReferenceCode(row) || String(row?.name || ""));
+  const guided = Object.values(guidedCatalog || {})
+    .flatMap((g: any) => g)
+    .flatMap((g: any) => g.models)
+    .find((m: any) => modelNorm.includes(normalizeText(m.model)));
+  return guided?.delivery || "";
+}
+
 export function isScaleUseExplanationIntent(text: string): boolean {
   const t = normalizeText(String(text || "")).replace(/\s+/g, " ").trim();
   if (!t) return false;
@@ -31,6 +148,15 @@ export function buildGuidedNeedReframePrompt(): string {
     "1) Que vas a pesar",
     "2) Rango de peso aproximado (minimo y maximo)",
     "3) Precision deseada (ej.: 0.01 g o 0.001 g)",
+  ].join("\n");
+}
+
+export function buildScaleDifferenceGuidanceReply(): string {
+  return [
+    "Claro, te explico rapido 👌",
+    "La diferencia principal entre balanzas/basculas esta en: capacidad (peso maximo), resolucion (nivel de precision), tipo de uso (laboratorio/joyeria/industrial) y tiempo de entrega.",
+    "Ejemplo: 0.01 g da mas precision que 0.1 g, pero normalmente con menor capacidad.",
+    "Si quieres, te comparo 3 modelos exactos para tu caso. Dime: que vas a pesar, rango de peso (min-max) y precision deseada.",
   ].join("\n");
 }
 
