@@ -2,20 +2,22 @@ export async function sendStrictQuickText(args: {
   replyText: string;
   inboundText: string;
   inboundFrom: string;
+  inboundPreferredPhone?: string;
   inboundAlternates?: string[];
   inboundJidCandidates?: string[];
   outboundInstance: string;
   normalizePhone: (v: string) => string;
+  normalizeRealCustomerPhone: (v: string) => string;
   withAvaSignature: (v: string) => string;
   enforceWhatsAppDelivery: (text: string, inboundText: string) => string;
   sendMessage: (instance: string, to: string, msg: string) => Promise<any>;
   sendMessageToJid: (instance: string, jid: string, msg: string) => Promise<any>;
 }): Promise<boolean> {
   const msg = args.withAvaSignature(args.enforceWhatsAppDelivery(args.replyText, args.inboundText));
-  const quickTo = [args.inboundFrom, ...(args.inboundAlternates || [])]
+  const quickTo = [args.inboundPreferredPhone, args.inboundFrom, ...(args.inboundAlternates || [])]
     .map((n) => args.normalizePhone(String(n || "")))
     .filter((n, i, arr) => n && arr.indexOf(n) === i)
-    .filter((n) => n.length >= 10 && n.length <= 15);
+    .filter((n) => Boolean(args.normalizeRealCustomerPhone(n)));
   for (const to of quickTo) {
     try {
       await args.sendMessage(args.outboundInstance, to, msg);
@@ -42,6 +44,7 @@ export async function sendStrictQuickText(args: {
 export function buildStrictDeliveryCandidates(args: {
   agentPhone: string;
   inboundFrom: string;
+  inboundPreferredPhone?: string;
   inboundFromIsLid?: boolean;
   inboundAlternates?: string[];
   inboundJidCandidates?: string[];
@@ -50,6 +53,7 @@ export function buildStrictDeliveryCandidates(args: {
   payloadSender?: string;
   payloadDataSender?: string;
   normalizePhone: (v: string) => string;
+  normalizeRealCustomerPhone: (v: string) => string;
 }): { toCandidates: string[]; jidCandidates: string[] } {
   const selfHints = [
     args.agentPhone,
@@ -62,12 +66,12 @@ export function buildStrictDeliveryCandidates(args: {
     .filter((n, i, arr) => arr.indexOf(n) === i);
   const selfSet = new Set(selfHints);
 
-  const toCandidates = [args.inboundFrom, ...(args.inboundAlternates || [])]
+  const toCandidates = [args.inboundPreferredPhone, args.inboundFrom, ...(args.inboundAlternates || [])]
     .map((n) => args.normalizePhone(String(n || "")))
     .filter((n, i, arr) => n && arr.indexOf(n) === i)
     .filter((n) => !(Boolean(args.inboundFromIsLid) && n === args.inboundFrom))
     .filter((n) => !selfSet.has(n))
-    .filter((n) => n.length >= 10 && n.length <= 15);
+    .filter((n) => Boolean(args.normalizeRealCustomerPhone(n)));
 
   const jidCandidates = (args.inboundJidCandidates || [])
     .map((v) => String(v || "").trim())

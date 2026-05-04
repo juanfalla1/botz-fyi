@@ -1267,6 +1267,7 @@ export async function handleCommercialNewCustomerStep(args: {
   getMissingNewCustomerFields: (memory: any) => string[];
   buildNewCustomerDataPrompt: () => string;
   buildMissingNewCustomerDataMessage: (missing: string[]) => string;
+  buildGoalGuidedNewCustomerDataMessage?: (memory: any, missing: string[]) => string;
   handleCommercialNewCustomerRetryLookup: any;
   handleCommercialNewCustomerPersistAndDetectExisting: any;
   upsertNewCommercialCustomerContact: any;
@@ -1344,7 +1345,11 @@ export async function handleCommercialNewCustomerStep(args: {
   const missing = args.getMissingNewCustomerFields(args.strictMemory);
   if (missing.length) {
     return {
-      strictReply: args.awaiting === "commercial_client_recognition" ? args.buildNewCustomerDataPrompt() : args.buildMissingNewCustomerDataMessage(missing),
+      strictReply: args.awaiting === "commercial_client_recognition"
+        ? args.buildNewCustomerDataPrompt()
+        : (args.buildGoalGuidedNewCustomerDataMessage
+            ? args.buildGoalGuidedNewCustomerDataMessage(args.strictMemory, missing)
+            : args.buildMissingNewCustomerDataMessage(missing)),
       gate: "new_customer_data_required",
     };
   }

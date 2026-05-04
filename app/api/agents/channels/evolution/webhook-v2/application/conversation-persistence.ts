@@ -11,12 +11,15 @@ export async function persistConversationTurn(args: {
   memory?: Record<string, any>;
   contactName?: string;
   normalizePhone: (v: string) => string;
+  normalizeRealCustomerPhone: (v: string) => string;
   phoneTail10: (v: string) => string;
 }): Promise<void> {
   const nowIso = new Date().toISOString();
+  const fromReal = args.normalizeRealCustomerPhone(args.from || "");
   const fromNorm = args.normalizePhone(args.from || "");
-  const fromTail = args.phoneTail10(args.from || "");
-  const contactFilter = fromTail ? `contact_phone.eq.${fromNorm},contact_phone.like.%${fromTail}` : `contact_phone.eq.${fromNorm}`;
+  const fromKey = fromReal || fromNorm;
+  const fromTail = args.phoneTail10(fromKey || args.from || "");
+  const contactFilter = fromTail ? `contact_phone.eq.${fromKey},contact_phone.like.%${fromTail}` : `contact_phone.eq.${fromKey}`;
 
   const { data: existing } = await args.supabase
     .from("agent_conversations")
@@ -68,7 +71,7 @@ export async function persistConversationTurn(args: {
     agent_id: args.agentId,
     tenant_id: args.tenantId || null,
     contact_name: args.contactName || args.pushName || args.from,
-    contact_phone: fromNorm || args.from,
+    contact_phone: fromReal || fromNorm || args.from,
     channel: "whatsapp",
     status: "completed",
     message_count: 2,

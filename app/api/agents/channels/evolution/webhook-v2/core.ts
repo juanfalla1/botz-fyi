@@ -13,6 +13,7 @@ import {
   buildCommercialEscalationMessage,
   buildCommercialValidationOkMessage,
   buildMissingNewCustomerDataMessage,
+  buildGoalGuidedNewCustomerDataMessage,
   buildExistingClientMatchConfirmationPrompt,
   detectPersonaNatural,
   detectUnavailableLabTopic,
@@ -521,6 +522,7 @@ async function persistConversationTurn(
     supabase,
     ...params,
     normalizePhone,
+    normalizeRealCustomerPhone,
     phoneTail10,
   });
 }
@@ -1720,10 +1722,12 @@ export async function POST(req: Request) {
           replyText,
           inboundText: text,
           inboundFrom: inbound.from,
+          inboundPreferredPhone: inboundCustomerPhone,
           inboundAlternates: inbound.alternates || [],
           inboundJidCandidates: inbound.jidCandidates || [],
           outboundInstance,
           normalizePhone,
+          normalizeRealCustomerPhone,
           withAvaSignature,
           enforceWhatsAppDelivery,
           sendMessage: (instance, to, msg) => evolutionService.sendMessage(instance, to, msg),
@@ -2614,6 +2618,7 @@ export async function POST(req: Request) {
           getMissingNewCustomerFields,
           buildNewCustomerDataPrompt,
           buildMissingNewCustomerDataMessage,
+          buildGoalGuidedNewCustomerDataMessage,
           handleCommercialNewCustomerRetryLookup,
           handleCommercialNewCustomerPersistAndDetectExisting,
           upsertNewCommercialCustomerContact: upsertNewCommercialCustomerContactApp,
@@ -3240,6 +3245,7 @@ export async function POST(req: Request) {
       const { toCandidates, jidCandidates } = buildStrictDeliveryCandidates({
         agentPhone,
         inboundFrom: inbound.from,
+        inboundPreferredPhone: inboundCustomerPhone,
         inboundFromIsLid: inbound.fromIsLid,
         inboundAlternates: inbound.alternates || [],
         inboundJidCandidates: inbound.jidCandidates || [],
@@ -3248,6 +3254,7 @@ export async function POST(req: Request) {
         payloadSender: String(payload?.sender || ""),
         payloadDataSender: String(payload?.data?.sender || ""),
         normalizePhone,
+        normalizeRealCustomerPhone,
       });
 
       void evolutionService.sendTypingPresenceBatch(outboundInstance, [
@@ -7236,12 +7243,12 @@ export async function POST(req: Request) {
     const selfPhone = selfHints[0] || "";
     const selfSet = new Set(selfHints);
 
-    const toCandidates = [inbound.from, ...(inbound.alternates || [])]
+    const toCandidates = [inboundCustomerPhone, inbound.from, ...(inbound.alternates || [])]
       .map((n) => normalizePhone(String(n || "")))
       .filter((n, i, arr) => n && arr.indexOf(n) === i)
       .filter((n) => !(Boolean(inbound.fromIsLid) && n === inbound.from))
       .filter((n) => !selfSet.has(n))
-      .filter((n) => n.length >= 10 && n.length <= 15)
+      .filter((n) => Boolean(normalizeRealCustomerPhone(n)))
       .sort((a, b) => {
         const aLikelyReal = a.length <= 13 ? 0 : 1;
         const bLikelyReal = b.length <= 13 ? 0 : 1;
