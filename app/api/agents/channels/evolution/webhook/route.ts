@@ -7538,36 +7538,6 @@ export async function POST(req: Request) {
         const parsed = parseLooseTechnicalHint(text);
         const capacityRange = parseCapacityRangeHint(text);
         const asksCategoryMenuNow = isExplicitFamilyMenuAsk(text);
-        const heavyDutyHint = /\b(tractor(?:es)?|camion(?:es)?|camioneta(?:s)?|volqueta(?:s)?|tonelada(?:s)?|carga\s+pesada|pallet(?:s)?|estiba(?:s)?)\b/i.test(String(text || ""));
-        const hasNumericSpecInText = /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg|lb|libras?|t|ton|toneladas?)?\b/i.test(String(text || ""));
-
-        if (heavyDutyHint && !hasNumericSpecInText) {
-          strictMemory.last_category_intent = "basculas";
-          strictMemory.strict_partial_capacity_g = "";
-          strictMemory.strict_partial_readability_g = "";
-          strictMemory.strict_filter_capacity_g = "";
-          strictMemory.strict_filter_readability_g = "";
-          strictMemory.strict_spec_query = "";
-          const basculaRows = scopeCatalogRows(ownerRows as any[], "basculas");
-          const options = buildNumberedProductOptions(basculaRows as any[], 8);
-          if (options.length) {
-            strictMemory.pending_product_options = options;
-            strictMemory.pending_family_options = [];
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.strict_model_offset = 0;
-            strictReply = [
-              "Para pesar tractores/carga pesada, te recomiendo básculas industriales.",
-              ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-              "",
-              "Elige con letra/número (A/1), o escribe 'más'.",
-            ].join("\n");
-          } else {
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = "Para recomendarte la báscula correcta, dime capacidad máxima aproximada (kg o toneladas) y tipo de uso (plataforma, piso o camión).";
-          }
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "heavy_duty_bascula_routing" });
-        }
-
         const merged = mergeLooseSpecWithMemory(
           {
             capacityG: Number(previousMemory?.strict_partial_capacity_g || previousMemory?.strict_filter_capacity_g || 0),
