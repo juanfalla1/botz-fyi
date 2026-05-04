@@ -6677,52 +6677,6 @@ export async function POST(req: Request) {
         (!Boolean(strictMemory.commercial_validation_complete) || /^(commercial_client_recognition|commercial_new_customer_data|commercial_choose_equipment|none)$/i.test(awaiting));
       if (!String(strictReply || "").trim() && shouldHandleNewCommercialStep && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
         strictMemory.commercial_client_type = "new";
-
-        const chosenEquipmentImmediate = detectEquipmentChoice(text);
-        if (chosenEquipmentImmediate && awaiting === "commercial_choose_equipment" && Boolean(strictMemory.commercial_validation_complete)) {
-          strictMemory.commercial_equipment_choice = chosenEquipmentImmediate;
-          if (chosenEquipmentImmediate === "balanza") {
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = isDifferenceQuestionIntent(text)
-              ? buildScaleDifferenceGuidanceReply()
-              : buildBalanzaQualificationPrompt();
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "balanza_qualification_new_customer" });
-          }
-          if (chosenEquipmentImmediate === "bascula") {
-            strictMemory.last_category_intent = "basculas";
-            const basculaRows = scopeCatalogRows(ownerRows as any[], "basculas");
-            const options = buildNumberedProductOptions(basculaRows as any[], 8);
-            if (options.length) {
-              strictMemory.pending_product_options = options;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
-              strictReply = [
-                `Perfecto. En catálogo activo tengo ${options.length} báscula(s).`,
-                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                "",
-                "Elige con letra/número (A/1), o escribe 'más'.",
-              ].join("\n");
-            } else {
-              strictMemory.awaiting_action = "strict_need_spec";
-              strictReply = "Perfecto. Para báscula, dime capacidad y resolución objetivo para recomendarte la mejor opción.";
-            }
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "bascula_qualification_new_customer" });
-          }
-          if (chosenEquipmentImmediate === "analizador_humedad") {
-            strictMemory.last_category_intent = "analizador_humedad";
-            strictMemory.awaiting_action = "strict_need_spec";
-            strictReply = "Perfecto. Para analizador de humedad, dime tipo de muestra, capacidad aproximada y precisión objetivo.";
-            return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "humidity_qualification_new_customer" });
-          }
-          strictMemory.awaiting_action = "conversation_followup";
-          strictReply = [
-            "En base de datos no tengo ese tipo de producto en catálogo activo para cotización automática.",
-            buildCommercialEscalationMessage(),
-          ].join("\n\n");
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "other_equipment_escalation_new_customer" });
-        }
-
         strictMemory.awaiting_action = "commercial_new_customer_data";
         if (shouldEscalateToAdvisorByCommercialRule(strictMemory, text)) {
           strictReply = buildCommercialEscalationMessage();
