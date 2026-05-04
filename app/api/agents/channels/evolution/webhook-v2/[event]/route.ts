@@ -1,5 +1,5 @@
-import { POST as CorePost } from "../core";
+import { POST as StableWebhookPost } from "../../webhook/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const POST = CorePost;
+export const POST = StableWebhookPost;

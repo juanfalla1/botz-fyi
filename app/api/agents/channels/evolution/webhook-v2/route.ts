@@ -1,5 +1,5 @@
-import { POST as ConversationEnginePost } from "./application/conversation-engine";
+import { POST as StableWebhookPost } from "../webhook/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const POST = ConversationEnginePost;
+export const POST = StableWebhookPost;
