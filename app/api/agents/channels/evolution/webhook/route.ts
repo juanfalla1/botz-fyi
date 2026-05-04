@@ -6126,6 +6126,15 @@ export async function POST(req: Request) {
       const technicalSpecIntent =
         isTechnicalSpecQuery(text) ||
         /\b\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b\s*(?:x|×|✕|✖|\*|por)\s*\d+(?:[\.,]\d+)?\s*(?:mg|g|kg)?\b/i.test(String(text || ""));
+      const genericQuestionIntent = /\b(que|qué|como|cómo|cual|cuál|cuando|cuándo|donde|dónde|por\s+que|porqué|ayuda|explica|informacion|información)\b/.test(textNorm);
+      const productSignalIntent = Boolean(
+        explicitModel ||
+        categoryIntent ||
+        technicalSpecIntent ||
+        wantsQuote ||
+        wantsSheet ||
+        /\b(balanza|balanzas|bascula|basculas|peso|pesar|capacidad|resolucion|resolución|modelo|referencia|ohaus|humedad|ph|conductivimetro|electroquimica)\b/.test(textNorm)
+      );
 
       const { data: ownerRowsRaw } = await supabase
         .from("agent_product_catalog")
@@ -6170,6 +6179,28 @@ export async function POST(req: Request) {
       }
 
       let strictBypassAutoQuote = false;
+
+      if (
+        !String(strictReply || "").trim() &&
+        /^strict_need_spec$/i.test(String(awaiting || "")) &&
+        genericQuestionIntent &&
+        !productSignalIntent
+      ) {
+        strictMemory.awaiting_action = "commercial_choose_equipment";
+        strictMemory.pending_product_options = [];
+        strictMemory.pending_family_options = [];
+        strictMemory.strict_spec_query = "";
+        strictReply = [
+          "Te ayudo con información de equipos OHAUS para cotizar.",
+          "Para responderte bien, primero dime qué tipo de equipo necesitas:",
+          "1) Balanza",
+          "2) Báscula",
+          "3) Pesas patrón",
+          "4) Analizadores de humedad",
+          "5) Otros equipos de laboratorio",
+        ].join("\n");
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "generic_question_reframe_to_equipment" });
+      }
       const selectedModelForSlots = String(
         previousMemory?.last_selected_product_name ||
         previousMemory?.last_product_name ||
