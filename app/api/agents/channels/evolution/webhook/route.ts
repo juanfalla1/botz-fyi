@@ -4378,22 +4378,6 @@ function pickBestProductPdfUrl(row: any, queryText: string): string {
   return best.url;
 }
 
-function pickBestProductVideoUrl(row: any): string {
-  const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
-  const candidates = uniqueNormalizedStrings([
-    String((row as any)?.youtube_url || "").trim(),
-    String((row as any)?.video_url || "").trim(),
-    String((payload as any)?.youtube_url || "").trim(),
-    String((payload as any)?.video_url || "").trim(),
-    String((payload as any)?.youtube || "").trim(),
-    String((payload as any)?.video || "").trim(),
-    ...(Array.isArray((payload as any)?.video_links) ? (payload as any).video_links.map((u: any) => String(u || "").trim()) : []),
-  ]).filter((u) => /^https?:\/\//i.test(u));
-
-  const preferred = candidates.find((u) => /youtube\.com|youtu\.be/i.test(u));
-  return preferred || candidates[0] || "";
-}
-
 function pickCatalogByVariantText(
   text: string,
   catalogRows: any[],
@@ -5284,7 +5268,7 @@ async function buildStandardQuotePdf(args: {
   doc.setFont("helvetica", "bold");
   doc.text(`$${formatMoney(total)}`, totalsValueRight, y + 22.8, { align: "right" });
 
-  let yFooter = y + (singleItemMode ? 30 : 30);
+  let yFooter = y + (singleItemMode ? 4 : 8);
 
   const legal = [
     "Observaciones generales de la cotización",
@@ -5293,8 +5277,7 @@ async function buildStandardQuotePdf(args: {
     "No dude en contactarnos para cualquier duda o solicitud adicional. Gracias por confiar en nosotros.",
     `${String(args.city || "Bogota D.C")}, ${args.issueDate}`,
   ].join("\n");
-  const legalTextWidth = 186;
-  let legalLines = doc.splitTextToSize(legal, legalTextWidth);
+  let legalLines = doc.splitTextToSize(legal, 188);
   const companyFooter = [
     "AVANZA INTERNACIONAL GROUP S.A.S",
     "Autopista Medellin k 2.5 entrada parcelas 900 metros - Ciem oikos occidente bodega 7a.",
@@ -5340,8 +5323,8 @@ async function buildStandardQuotePdf(args: {
   doc.setLineWidth(0.25);
   const leftFooterTop = yFooter + 4;
   const leftFooterBottom = yFooter + 24 + legalHeight + 1;
-  doc.rect(10, leftFooterTop, 190, leftFooterBottom - leftFooterTop, "S");
-  doc.line(10, yFooter + 22, 200, yFooter + 22);
+  doc.rect(10, leftFooterTop, 117, leftFooterBottom - leftFooterTop, "S");
+  doc.line(10, yFooter + 22, 127, yFooter + 22);
 
   const legalBottomY = yFooter + 24 + legalHeight;
   const footerBlockTop = legalBottomY + 12;
@@ -8610,17 +8593,7 @@ export async function POST(req: Request) {
                 mimetype: "application/pdf",
                 caption: `Cotización - ${String((selected as any)?.name || "producto")}`,
               });
-              const selectedName = String((selected as any)?.name || "producto");
-              const datasheetUrl = pickBestProductPdfUrl(selected, selectedName);
-              const videoUrl = pickBestProductVideoUrl(selected);
-              const linkLines = [
-                datasheetUrl ? `Ficha técnica: ${datasheetUrl}` : "",
-                videoUrl ? `Video del equipo: ${videoUrl}` : "",
-              ].filter(Boolean);
-              strictReply = [
-                `Listo. Ya generé la cotización de ${selectedName} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`,
-                ...(linkLines.length ? ["", ...linkLines] : []),
-              ].join("\n");
+              strictReply = `Listo. Ya generé la cotización de ${String((selected as any)?.name || "producto")} (${qty} unidad(es)) y te la envío en PDF por este WhatsApp.`;
             }
             strictMemory.awaiting_action = "conversation_followup";
             strictMemory.quote_data = {};
