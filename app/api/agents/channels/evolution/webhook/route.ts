@@ -6655,9 +6655,11 @@ export async function POST(req: Request) {
       const recognitionChoice = detectClientRecognitionChoice(text);
       const currentClientType = String(strictMemory.commercial_client_type || previousMemory?.commercial_client_type || "").trim();
       const clientType = currentClientType || recognitionChoice;
+      const hasValidatedCommercialData = Boolean(strictMemory.commercial_validation_complete || previousMemory?.commercial_validation_complete);
+      const inEquipmentSelectionStep = /^commercial_choose_equipment$/i.test(String(awaiting || ""));
       if (clientType) strictMemory.commercial_client_type = clientType;
 
-      if (!String(strictReply || "").trim() && recognitionChoice === "new") {
+      if (!String(strictReply || "").trim() && recognitionChoice === "new" && !(inEquipmentSelectionStep && hasValidatedCommercialData)) {
         strictMemory.commercial_client_type = "new";
         strictMemory.commercial_validation_complete = false;
         strictMemory.awaiting_action = "commercial_new_customer_data";
@@ -6671,7 +6673,7 @@ export async function POST(req: Request) {
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "recognition_new_customer_data_prompt" });
       }
 
-      if (!String(strictReply || "").trim() && recognitionChoice === "existing") {
+      if (!String(strictReply || "").trim() && recognitionChoice === "existing" && !(inEquipmentSelectionStep && hasValidatedCommercialData)) {
         strictMemory.commercial_client_type = "existing";
         strictMemory.commercial_validation_complete = false;
         strictMemory.awaiting_action = "commercial_existing_lookup";
@@ -6698,7 +6700,7 @@ export async function POST(req: Request) {
         strictMemory.commercial_client_type = "new";
 
         const chosenEquipmentImmediate = detectEquipmentChoice(text);
-        if (chosenEquipmentImmediate && awaiting === "commercial_choose_equipment" && Boolean(strictMemory.commercial_validation_complete)) {
+        if (chosenEquipmentImmediate && inEquipmentSelectionStep && hasValidatedCommercialData) {
           strictMemory.commercial_equipment_choice = chosenEquipmentImmediate;
           if (chosenEquipmentImmediate === "balanza") {
             strictMemory.awaiting_action = "strict_need_spec";
