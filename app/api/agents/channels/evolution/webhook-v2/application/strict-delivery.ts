@@ -14,10 +14,12 @@ export async function sendStrictQuickText(args: {
   sendMessageToJid: (instance: string, jid: string, msg: string) => Promise<any>;
 }): Promise<boolean> {
   const msg = args.withAvaSignature(args.enforceWhatsAppDelivery(args.replyText, args.inboundText));
-  const quickTo = [args.inboundPreferredPhone, args.inboundFrom, ...(args.inboundAlternates || [])]
+  const baseQuick = [args.inboundPreferredPhone, args.inboundFrom, ...(args.inboundAlternates || [])]
     .map((n) => args.normalizePhone(String(n || "")))
     .filter((n, i, arr) => n && arr.indexOf(n) === i)
-    .filter((n) => Boolean(args.normalizeRealCustomerPhone(n)));
+    .filter((n) => n.length >= 10 && n.length <= 15);
+  const quickReal = baseQuick.filter((n) => Boolean(args.normalizeRealCustomerPhone(n)));
+  const quickTo = quickReal.length ? quickReal : baseQuick;
   for (const to of quickTo) {
     try {
       await args.sendMessage(args.outboundInstance, to, msg);
@@ -66,12 +68,14 @@ export function buildStrictDeliveryCandidates(args: {
     .filter((n, i, arr) => arr.indexOf(n) === i);
   const selfSet = new Set(selfHints);
 
-  const toCandidates = [args.inboundPreferredPhone, args.inboundFrom, ...(args.inboundAlternates || [])]
+  const baseCandidates = [args.inboundPreferredPhone, args.inboundFrom, ...(args.inboundAlternates || [])]
     .map((n) => args.normalizePhone(String(n || "")))
     .filter((n, i, arr) => n && arr.indexOf(n) === i)
     .filter((n) => !(Boolean(args.inboundFromIsLid) && n === args.inboundFrom))
     .filter((n) => !selfSet.has(n))
-    .filter((n) => Boolean(args.normalizeRealCustomerPhone(n)));
+    .filter((n) => n.length >= 10 && n.length <= 15);
+  const realCandidates = baseCandidates.filter((n) => Boolean(args.normalizeRealCustomerPhone(n)));
+  const toCandidates = realCandidates.length ? realCandidates : baseCandidates;
 
   const jidCandidates = (args.inboundJidCandidates || [])
     .map((v) => String(v || "").trim())

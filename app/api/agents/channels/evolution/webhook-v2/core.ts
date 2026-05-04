@@ -7243,12 +7243,14 @@ export async function POST(req: Request) {
     const selfPhone = selfHints[0] || "";
     const selfSet = new Set(selfHints);
 
-    const toCandidates = [inboundCustomerPhone, inbound.from, ...(inbound.alternates || [])]
+    const baseToCandidates = [inboundCustomerPhone, inbound.from, ...(inbound.alternates || [])]
       .map((n) => normalizePhone(String(n || "")))
       .filter((n, i, arr) => n && arr.indexOf(n) === i)
       .filter((n) => !(Boolean(inbound.fromIsLid) && n === inbound.from))
       .filter((n) => !selfSet.has(n))
-      .filter((n) => Boolean(normalizeRealCustomerPhone(n)))
+      .filter((n) => n.length >= 10 && n.length <= 15);
+    const realToCandidates = baseToCandidates.filter((n) => Boolean(normalizeRealCustomerPhone(n)));
+    const toCandidates = (realToCandidates.length ? realToCandidates : baseToCandidates)
       .sort((a, b) => {
         const aLikelyReal = a.length <= 13 ? 0 : 1;
         const bLikelyReal = b.length <= 13 ? 0 : 1;
