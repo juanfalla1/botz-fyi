@@ -6141,6 +6141,34 @@ export async function POST(req: Request) {
       const prevSpecQuery = String(previousMemory?.strict_spec_query || "").trim();
       let strictReply = "";
       const strictDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }> = [];
+
+      const numericRecognition = /^\s*[12]\s*$/.test(String(text || "").trim());
+      const welcomeJustSent = Boolean(previousMemory?.commercial_welcome_sent);
+      if (numericRecognition && welcomeJustSent) {
+        const choice = String(text || "").trim();
+        strictMemory.pending_product_options = [];
+        strictMemory.pending_family_options = [];
+        strictMemory.last_selected_product_id = "";
+        strictMemory.last_selected_product_name = "";
+        strictMemory.last_product_id = "";
+        strictMemory.last_product_name = "";
+        strictMemory.commercial_welcome_sent = false;
+
+        if (choice === "1") {
+          strictMemory.commercial_client_type = "new";
+          strictMemory.commercial_validation_complete = false;
+          strictMemory.awaiting_action = "commercial_new_customer_data";
+          strictReply = buildNewCustomerDataPrompt();
+          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "recognition_choice_new_forced" });
+        }
+
+        strictMemory.commercial_client_type = "existing";
+        strictMemory.commercial_validation_complete = false;
+        strictMemory.awaiting_action = "commercial_existing_lookup";
+        strictReply = "Perfecto. Para validarte en base de datos, envíame NIT o celular registrado (ej: NIT 900505419 o celular 3131657711).";
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "recognition_choice_existing_forced" });
+      }
+
       let strictBypassAutoQuote = false;
       const selectedModelForSlots = String(
         previousMemory?.last_selected_product_name ||
