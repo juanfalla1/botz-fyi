@@ -4837,7 +4837,7 @@ export async function POST(req: Request) {
       nextMemory.strict_family_label = "";
       reply = buildGreetingReplyApp({
         knownCustomerName,
-        memory: nextMemory,
+        memory: previousMemory,
         shouldUseFullGreeting: (mem: any) => shouldUseFullGreetingApp(mem, normalizeText),
       });
       if (!knownCustomerName) nextMemory.awaiting_action = "capture_name";
