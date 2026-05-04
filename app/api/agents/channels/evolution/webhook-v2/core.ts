@@ -1493,8 +1493,25 @@ export async function POST(req: Request) {
       },
     });
     if (reserveResult.duplicate) {
+      const { data: existingIncoming } = await (supabase as any)
+        .from("incoming_messages")
+        .select("status,processed_at")
+        .eq("provider", "evolution")
+        .eq("provider_message_id", incomingDedupKey)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const duplicateStatus = String((existingIncoming as any)?.status || "").trim().toLowerCase();
+      if (duplicateStatus && duplicateStatus !== "processed") {
+        console.warn("[evolution-webhook] duplicate key found but message not processed, continuing", {
+          key: incomingDedupKey,
+          status: duplicateStatus,
+        });
+      } else {
       console.log("[evolution-webhook] ignored: duplicate_provider_message", { key: incomingDedupKey });
       return NextResponse.json({ ok: true, ignored: true, reason: "duplicate_provider_message" });
+      }
     }
 
     const access = await checkEntitlementAccess(supabase as any, ownerId);
