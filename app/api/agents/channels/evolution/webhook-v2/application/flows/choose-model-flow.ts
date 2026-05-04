@@ -70,13 +70,13 @@ export async function handleStrictChooseModelFlow(args: any): Promise<{
     .map((o: any) => ({ ...o, name: dedupeLine(String(o?.name || "")) }));
   const strictSelection = resolvePendingProductOptionStrict(text, pendingStrictOptions);
   const strictCommand = String(text || "").trim();
-  const askMore = /^(mas|más)$/i.test(strictCommand);
+  const askMore = /^(mas|más|mas\s+modelos?|más\s+modelos?|ver\s+mas|ver\s+más|mu[eé]strame\s+mas|mu[eé]strame\s+más)$/i.test(strictCommand);
   const askBack = /^volver$/i.test(strictCommand);
   const askCancel = /^cancelar$/i.test(strictCommand);
   const rememberedGuidedProfile = String(previousMemory?.guided_balanza_profile || strictMemory.guided_balanza_profile || "").trim();
   const guidedProfileInModelStep = (detectGuidedBalanzaProfile(text) || rememberedGuidedProfile || "");
   const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
-  const asksMoreOptionsDirect = /\b(tienes?\s+mas\s+opciones?|hay\s+mas\s+opciones?|mas\s+opciones?)\b/.test(textNorm);
+  const asksMoreOptionsDirect = /\b(tienes?\s+mas\s+opciones?|hay\s+mas\s+opciones?|mas\s+opciones?|tienes?\s+mas\s+modelos?|hay\s+mas\s+modelos?|mas\s+modelos?)\b/.test(textNorm);
   const freeCatalogAskInModelStep =
     asksMoreOptionsDirect ||
     isGlobalCatalogAsk(text) ||
