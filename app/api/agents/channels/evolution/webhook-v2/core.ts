@@ -1256,6 +1256,14 @@ function isProductLookupIntent(text: string): boolean {
   return isProductLookupIntentApp(text, normalizeText);
 }
 
+function isGreetingIntent(text: string): boolean {
+  return isGreetingIntentApp(text, normalizeText);
+}
+
+function isHistoryIntent(text: string): boolean {
+  return isHistoryIntentApp(text, normalizeText);
+}
+
 function isStrictCatalogIntent(text: string): boolean {
   return isStrictCatalogIntentApp({
     text,
