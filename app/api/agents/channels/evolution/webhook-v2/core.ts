@@ -1682,11 +1682,7 @@ export async function POST(req: Request) {
     };
 
     // Strict deterministic mode: single flow, no ambiguous branches.
-    const STRICT_REBUILD_MODE = String(
-      process.env.WHATSAPP_USE_V2 ||
-      process.env.WHATSAPP_STRICT_REBUILD ||
-      "true"
-    ).toLowerCase() !== "false";
+    const STRICT_REBUILD_MODE = false;
     if (STRICT_REBUILD_MODE) {
       const outboundInstance = String((channel as any)?.config?.evolution_instance_name || inbound.instance || "");
       if (!outboundInstance) return NextResponse.json({ ok: true, ignored: true, reason: "instance_missing" });
@@ -7562,7 +7558,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, sent: true });
   } catch (e: any) {
-    console.error("[evolution-webhook] error", e?.message || e);
+    console.error("[evolution-webhook] error", {
+      message: e?.message || e,
+      name: e?.name || null,
+      stack: e?.stack || null,
+    });
     return NextResponse.json({ ok: false, error: e?.message || "Error en webhook Evolution" }, { status: 500 });
   }
 }
