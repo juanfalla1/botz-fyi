@@ -7254,15 +7254,21 @@ export async function POST(req: Request) {
 
       const sendTextAndDocs = async (replyText: string, docs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }>) => {
         let sentTo = "";
-        for (const to of toCandidates) {
-          try {
-            await evolutionService.sendMessage(outboundInstance, to, withAvaSignature(enforceWhatsAppDelivery(replyText, text)));
-            sentTo = to;
-            break;
-          } catch {
-            continue;
+        const realToCandidates = toCandidates.filter((n) => Boolean(normalizeRealCustomerPhone(n)));
+        const shouldPreferJid = Boolean(inbound.fromIsLid) || !realToCandidates.length;
+
+        if (!shouldPreferJid) {
+          for (const to of toCandidates) {
+            try {
+              await evolutionService.sendMessage(outboundInstance, to, withAvaSignature(enforceWhatsAppDelivery(replyText, text)));
+              sentTo = to;
+              break;
+            } catch {
+              continue;
+            }
           }
         }
+
         if (!sentTo) {
           for (const jid of jidCandidates) {
             try {
@@ -7274,6 +7280,19 @@ export async function POST(req: Request) {
             }
           }
         }
+
+        if (!sentTo && shouldPreferJid) {
+          for (const to of toCandidates) {
+            try {
+              await evolutionService.sendMessage(outboundInstance, to, withAvaSignature(enforceWhatsAppDelivery(replyText, text)));
+              sentTo = to;
+              break;
+            } catch {
+              continue;
+            }
+          }
+        }
+
         if (!sentTo) return false;
         const docDestinations = [
           sentTo,
@@ -13365,24 +13384,29 @@ export async function POST(req: Request) {
     });
 
     let sentTo = "";
-    for (const to of toCandidates) {
-      console.info("[evolution-webhook] sending reply", {
-        outboundInstance,
-        to,
-        messageChars: reply.length,
-        agentId: agent.id,
-      });
-      try {
-        await evolutionService.sendMessage(outboundInstance, to, reply);
-        sentTo = to;
-        break;
-      } catch (err: any) {
-        const msg = String(err?.message || "");
-        if (msg.includes('"exists":false') || msg.includes("Bad Request")) {
-          console.warn("[evolution-webhook] send candidate rejected", { to, reason: "exists_false" });
-          continue;
+    const realToCandidates = toCandidates.filter((n) => Boolean(normalizeRealCustomerPhone(n)));
+    const shouldPreferJid = Boolean(inbound.fromIsLid) || !realToCandidates.length;
+
+    if (!shouldPreferJid) {
+      for (const to of toCandidates) {
+        console.info("[evolution-webhook] sending reply", {
+          outboundInstance,
+          to,
+          messageChars: reply.length,
+          agentId: agent.id,
+        });
+        try {
+          await evolutionService.sendMessage(outboundInstance, to, reply);
+          sentTo = to;
+          break;
+        } catch (err: any) {
+          const msg = String(err?.message || "");
+          if (msg.includes('"exists":false') || msg.includes("Bad Request")) {
+            console.warn("[evolution-webhook] send candidate rejected", { to, reason: "exists_false" });
+            continue;
+          }
+          throw err;
         }
-        throw err;
       }
     }
 
@@ -13402,6 +13426,29 @@ export async function POST(req: Request) {
           const msg = String(err?.message || "");
           if (msg.includes('"exists":false') || msg.includes("Bad Request")) {
             console.warn("[evolution-webhook] send jid candidate rejected", { jid, reason: "exists_false" });
+            continue;
+          }
+          throw err;
+        }
+      }
+    }
+
+    if (!sentTo && shouldPreferJid) {
+      for (const to of toCandidates) {
+        console.info("[evolution-webhook] sending reply (fallback number)", {
+          outboundInstance,
+          to,
+          messageChars: reply.length,
+          agentId: agent.id,
+        });
+        try {
+          await evolutionService.sendMessage(outboundInstance, to, reply);
+          sentTo = to;
+          break;
+        } catch (err: any) {
+          const msg = String(err?.message || "");
+          if (msg.includes('"exists":false') || msg.includes("Bad Request")) {
+            console.warn("[evolution-webhook] send candidate rejected", { to, reason: "exists_false" });
             continue;
           }
           throw err;
