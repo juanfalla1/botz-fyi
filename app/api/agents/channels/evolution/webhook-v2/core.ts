@@ -4835,11 +4835,21 @@ export async function POST(req: Request) {
       nextMemory.pending_family_options = [];
       nextMemory.strict_model_offset = 0;
       nextMemory.strict_family_label = "";
-      reply = buildGreetingReplyApp({
-        knownCustomerName,
-        memory: previousMemory,
-        shouldUseFullGreeting: (mem: any) => shouldUseFullGreetingApp(mem, normalizeText),
-      });
+      const hasPriorConversationForGreeting =
+        Boolean(previousMemory?.last_user_at || previousMemory?.last_intent || previousMemory?.last_quote_draft_id) ||
+        Boolean(previousMemory?.recognized_returning_customer || nextMemory?.recognized_returning_customer) ||
+        (Array.isArray(existingConv?.transcript) && existingConv.transcript.length > 0);
+      if (hasPriorConversationForGreeting) {
+        nextMemory.commercial_welcome_sent = false;
+        reply = buildGreetingReplyApp({
+          knownCustomerName,
+          memory: previousMemory,
+          shouldUseFullGreeting: (mem: any) => shouldUseFullGreetingApp(mem, normalizeText),
+        });
+      } else {
+        nextMemory.commercial_welcome_sent = true;
+        reply = buildCommercialWelcomeMessage();
+      }
       if (!knownCustomerName) nextMemory.awaiting_action = "capture_name";
       handledByGreeting = true;
       billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
