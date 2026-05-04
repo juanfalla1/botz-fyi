@@ -551,6 +551,49 @@ export function buildMissingNewCustomerDataMessage(missing: string[]): string {
   ].join("\n");
 }
 
+export function buildGoalGuidedNewCustomerDataMessage(memory: any, missing: string[]): string {
+  const d = memory?.new_customer_data && typeof memory.new_customer_data === "object" ? memory.new_customer_data : {};
+  const totalFields = 6;
+  const done = Math.max(0, totalFields - Number(missing?.length || 0));
+
+  const city = String(d.city || "").trim();
+  const company = String(d.company || "").trim();
+  const nit = String(d.nit || "").replace(/\D/g, "").trim();
+  const contact = String(d.contact || "").trim();
+  const email = String(d.email || "").trim().toLowerCase();
+  const phone = String(d.phone || "").replace(/\D/g, "").trim();
+
+  const missingSet = new Set((missing || []).map((v) => normalizeText(String(v || ""))));
+  const isMissing = (keywords: string[]) => keywords.some((k) => {
+    const nk = normalizeText(k);
+    for (const m of missingSet) {
+      if (m.includes(nk) || nk.includes(m)) return true;
+    }
+    return false;
+  });
+
+  const cityLine = isMissing(["departamento/ciudad", "departamento", "ciudad"]) ? "Departamento/ciudad: " : `Departamento/ciudad: ${city}`;
+  const companyLine = isMissing(["empresa"]) ? "Empresa (si aplica): " : `Empresa (si aplica): ${company}`;
+  const docLine = isMissing(["documento", "nit", "cedula", "cédula"]) ? "Documento (cédula o NIT): " : `Documento (cédula o NIT): ${nit}`;
+  const contactLine = isMissing(["nombre de contacto", "contacto", "nombre"]) ? "Nombre de Contacto: " : `Nombre de Contacto: ${contact}`;
+  const emailLine = isMissing(["correo", "email"]) ? "Correo: " : `Correo: ${email}`;
+  const phoneLine = isMissing(["celular", "cel", "telefono", "tel"]) ? "Celular: " : `Celular: ${phone}`;
+
+  return [
+    `Vamos muy bien (${done}/${totalFields} datos). Para generar tu cotización me faltan: ${missing.join(", ")}.`,
+    "",
+    "Envíamelo en un solo mensaje con este formato:",
+    cityLine,
+    companyLine,
+    docLine,
+    contactLine,
+    emailLine,
+    phoneLine,
+    "",
+    "Objetivo: apenas esté completo, te genero la cotización.",
+  ].join("\n");
+}
+
 export function shouldEscalateToAdvisorByCommercialRule(memory: any, text: string): boolean {
   const t = normalizeText(String(text || ""));
   if (Boolean(memory?.is_persona_natural)) return true;

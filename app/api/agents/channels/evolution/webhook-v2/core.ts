@@ -11,6 +11,7 @@ import { MAX_WHATSAPP_DOC_BYTES, ENABLE_STRICT_WHATSAPP_MODE, WEBHOOK_V2_DYNAMIC
 import { webhookInfraServices } from "./infra/services";
 import {
   buildMissingNewCustomerDataMessage,
+  buildGoalGuidedNewCustomerDataMessage,
   buildExistingClientMatchConfirmationPrompt,
   getMissingNewCustomerFields,
   parseExistingContactUpdateData as parseExistingContactUpdateDataApp,
@@ -7870,7 +7871,7 @@ export async function POST(req: Request) {
         if (missing.length) {
           strictReply = awaiting === "commercial_client_recognition"
             ? buildNewCustomerDataPrompt()
-            : buildMissingNewCustomerDataMessage(missing);
+            : buildGoalGuidedNewCustomerDataMessage(strictMemory, missing);
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "new_customer_data_required" });
         }
         strictMemory.commercial_validation_complete = true;
