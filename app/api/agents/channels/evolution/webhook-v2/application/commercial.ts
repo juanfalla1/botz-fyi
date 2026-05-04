@@ -610,6 +610,96 @@ export function extractLooseNewCustomerFields(text: string): { city: string; com
   };
 }
 
+function cleanListLabelLine(rawLine: string): string {
+  return String(rawLine || "")
+    .replace(/^[\s\-•·*\.]+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripKnownTemplatePrefix(line: string): string {
+  const cleaned = cleanListLabelLine(line);
+  return cleaned
+    .replace(/^tipo\s+de\s+cliente\s*\([^)]*\)\s*/i, "")
+    .replace(/^documento\s*\([^)]*\)\s*/i, "")
+    .trim();
+}
+
+export function extractTemplateNewCustomerFields(text: string): {
+  city: string;
+  company: string;
+  nit: string;
+  contact: string;
+  email: string;
+  phone: string;
+  isPersonaNatural: boolean;
+} {
+  const raw = String(text || "");
+  const lines = raw
+    .split(/\n/)
+    .map((l) => stripKnownTemplatePrefix(l))
+    .filter(Boolean);
+
+  let city = "";
+  let company = "";
+  let nit = "";
+  let contact = "";
+  let email = "";
+  let phone = "";
+  let isPersonaNatural = false;
+
+  for (const line of lines) {
+    const normalized = normalizeText(line);
+    const noParens = line.replace(/\([^)]*\)/g, " ");
+
+    if (!city) {
+      const mCity = noParens.match(/(?:departamento\s*\/\s*ciudad|departamento|ciudad)\s*[:=\-–]?\s*(.+)$/i);
+      if (mCity?.[1]) city = String(mCity[1]).trim();
+    }
+
+    if (!company) {
+      const mCompany = noParens.match(/(?:empresa\s*\(si\s*aplica\)|empresa|razon\s+social|compania|compañia)\s*[:=\-–]?\s*(.+)$/i);
+      if (mCompany?.[1]) company = String(mCompany[1]).trim();
+    }
+
+    if (!contact) {
+      const mContact = noParens.match(/(?:nombre\s+de\s+contacto|contacto|nombre)\s*[:=\-–]?\s*(.+)$/i);
+      if (mContact?.[1]) contact = String(mContact[1]).trim();
+    }
+
+    if (!email) {
+      const mEmail = line.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+      if (mEmail?.[0]) email = String(mEmail[0]).trim().toLowerCase();
+    }
+
+    if (!phone) {
+      const mPhoneLabel = noParens.match(/(?:celular|cel|telefono|tel|movil|whatsapp)\s*[:=\-–]?\s*([+\d\s().-]{8,25})/i);
+      const phoneDigits = String((mPhoneLabel?.[1] || "")).replace(/\D/g, "");
+      if (phoneDigits) phone = phoneDigits;
+    }
+
+    if (!nit) {
+      const mDoc = noParens.match(/(?:documento|cedula|c[eé]dula|nit)\s*[:=\-–]?\s*([\d.,\-\s]{6,24})/i);
+      const docDigits = String((mDoc?.[1] || "")).replace(/\D/g, "");
+      if (docDigits.length >= 8) nit = docDigits;
+    }
+
+    if (/persona\s+natural|natural/.test(normalized) && !/empresa/.test(normalized)) {
+      isPersonaNatural = true;
+    }
+  }
+
+  return {
+    city,
+    company,
+    nit,
+    contact,
+    email,
+    phone,
+    isPersonaNatural,
+  };
+}
+
 export function updateNewCustomerRegistration(args: {
   memory: any;
   text: string;
@@ -624,14 +714,16 @@ export function updateNewCustomerRegistration(args: {
 }): void {
   const current = args.memory?.new_customer_data && typeof args.memory.new_customer_data === "object" ? args.memory.new_customer_data : {};
   const loose = extractLooseNewCustomerFields(args.text);
-  const city = args.normalizeCityLabel(args.extractSimpleLabeledValue(args.text, ["departamento", "ciudad"]) || loose.city || current.city || "");
-  const company = args.extractSimpleLabeledValue(args.text, ["empresa", "razon social", "compania", "compañia"]) || loose.company || current.company || "";
-  const nit = String(args.extractSimpleLabeledValue(args.text, ["nit"]) || loose.nit || current.nit || "").replace(/\D/g, "").trim();
-  const contact = args.sanitizeCustomerDisplayName(args.extractSimpleLabeledValue(args.text, ["nombre de contacto", "contacto", "nombre"]) || loose.contact || current.contact || args.extractCustomerName(args.text, args.fallbackName || ""));
-  const email = String(args.extractEmail(args.text) || current.email || "").trim().toLowerCase();
-  const phone = args.normalizePhone(String(args.extractCustomerPhone(args.text, "") || current.phone || "").trim());
+  const template = extractTemplateNewCustomerFields(args.text);
+  const city = args.normalizeCityLabel(args.extractSimpleLabeledValue(args.text, ["departamento/ciudad", "departamento", "ciudad"]) || template.city || loose.city || current.city || "");
+  const company = args.extractSimpleLabeledValue(args.text, ["empresa (si aplica)", "empresa", "razon social", "compania", "compañia"]) || template.company || loose.company || current.company || "";
+  const nit = String(args.extractSimpleLabeledValue(args.text, ["documento", "cedula", "cédula", "nit"]) || template.nit || loose.nit || current.nit || "").replace(/\D/g, "").trim();
+  const contact = args.sanitizeCustomerDisplayName(args.extractSimpleLabeledValue(args.text, ["nombre de contacto", "contacto", "nombre"]) || template.contact || loose.contact || current.contact || args.extractCustomerName(args.text, args.fallbackName || ""));
+  const email = String(args.extractEmail(args.text) || template.email || current.email || "").trim().toLowerCase();
+  const phone = args.normalizePhone(String(args.extractCustomerPhone(args.text, "") || template.phone || current.phone || "").trim());
 
   args.memory.new_customer_data = { city, company, nit, contact, email, phone };
+  if (template.isPersonaNatural) args.memory.is_persona_natural = true;
   args.memory.commercial_customer_name = contact || args.memory.commercial_customer_name || "";
   args.memory.commercial_company_name = company || args.memory.commercial_company_name || "";
   args.memory.commercial_company_nit = nit || args.memory.commercial_company_nit || "";
