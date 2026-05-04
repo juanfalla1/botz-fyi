@@ -6627,6 +6627,30 @@ export async function POST(req: Request) {
       const clientType = currentClientType || recognitionChoice;
       if (clientType) strictMemory.commercial_client_type = clientType;
 
+      if (recognitionChoice === "new") {
+        strictMemory.commercial_client_type = "new";
+        strictMemory.commercial_validation_complete = false;
+        strictMemory.new_customer_data = {};
+        strictMemory.commercial_existing_match = {};
+        strictMemory.crm_contact_found = false;
+        strictMemory.crm_contact_id = "";
+        strictMemory.crm_contact_name = "";
+        strictMemory.crm_contact_email = "";
+        strictMemory.crm_contact_phone = "";
+        strictMemory.last_selected_product_id = "";
+        strictMemory.last_selected_product_name = "";
+        strictMemory.last_product_id = "";
+        strictMemory.last_product_name = "";
+        strictMemory.pending_product_options = [];
+      }
+
+      if (recognitionChoice === "existing") {
+        strictMemory.commercial_client_type = "existing";
+        strictMemory.commercial_validation_complete = false;
+        strictMemory.commercial_existing_match = {};
+        strictMemory.pending_product_options = [];
+      }
+
       if (!String(strictReply || "").trim() && !clientType && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
         strictMemory.awaiting_action = "commercial_client_recognition";
         strictReply = buildCommercialWelcomeMessage();
