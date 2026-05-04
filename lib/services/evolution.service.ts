@@ -75,8 +75,10 @@ async function evolutionFetch(path: string, init: RequestInit = {}) {
 }
 
 export class EvolutionService {
+  private typingPresenceSupport = new Map<string, boolean>();
+
   private typingDelayMs(): number {
-    const raw = Number(process.env.WHATSAPP_TYPING_HINT_MS || 900);
+    const raw = Number(process.env.WHATSAPP_TYPING_HINT_MS || 0);
     if (!Number.isFinite(raw) || raw < 0) return 0;
     return Math.min(2500, Math.round(raw));
   }
@@ -88,6 +90,8 @@ export class EvolutionService {
   }
 
   async sendTypingPresence(instanceName: string, destination: string): Promise<void> {
+    if (this.typingPresenceSupport.get(String(instanceName || "")) === false) return;
+
     const raw = String(destination || "").trim();
     if (!raw) return;
     const number = raw.includes("@") ? raw : raw.replace(/\D/g, "");
@@ -127,8 +131,10 @@ export class EvolutionService {
       if (ok) break;
     }
     if (!ok) {
+      this.typingPresenceSupport.set(String(instanceName || ""), false);
       console.warn("[evolutionService] typing_presence_not_supported", { instanceName, destination: number });
     } else {
+      this.typingPresenceSupport.set(String(instanceName || ""), true);
       console.log("[evolutionService] typing_presence_ok", { instanceName, destination: number, path: okPath });
     }
   }
