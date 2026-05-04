@@ -560,11 +560,13 @@ async function persistConversationTurn(
     contactName,
   } = params;
 
+  const fromReal = normalizeRealCustomerPhone(from || "");
   const fromNorm = normalizePhone(from || "");
-  const fromTail = phoneTail10(from || "");
+  const fromKey = fromReal || fromNorm;
+  const fromTail = phoneTail10(fromKey || from || "");
   const contactFilter = fromTail
-    ? `contact_phone.eq.${fromNorm},contact_phone.like.%${fromTail}`
-    : `contact_phone.eq.${fromNorm}`;
+    ? `contact_phone.eq.${fromKey},contact_phone.like.%${fromTail}`
+    : `contact_phone.eq.${fromKey}`;
 
   const { data: existing } = await supabase
     .from("agent_conversations")
@@ -618,7 +620,7 @@ async function persistConversationTurn(
     agent_id: agentId,
     tenant_id: tenantId || null,
     contact_name: contactName || pushName || from,
-    contact_phone: fromNorm || from,
+    contact_phone: fromReal || fromNorm || from,
     channel: "whatsapp",
     status: "completed",
     message_count: 2,
@@ -6741,7 +6743,7 @@ export async function POST(req: Request) {
             agentId: String(agent.id),
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
-            from: inbound.from,
+            from: inboundCustomerPhone || inbound.from,
             pushName: inbound.pushName,
             contactName: knownCustomerName || inbound.pushName || inbound.from,
             inboundText: inbound.text,
@@ -6787,7 +6789,7 @@ export async function POST(req: Request) {
             agentId: String(agent.id),
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
-            from: inbound.from,
+            from: inboundCustomerPhone || inbound.from,
             pushName: inbound.pushName,
             contactName: knownCustomerName || inbound.pushName || inbound.from,
             inboundText: inbound.text,
@@ -6823,7 +6825,7 @@ export async function POST(req: Request) {
               agentId: String(agent.id),
               ownerId,
               tenantId: (agent as any)?.tenant_id || null,
-              from: inbound.from,
+              from: inboundCustomerPhone || inbound.from,
               pushName: inbound.pushName,
               contactName: knownCustomerName || inbound.pushName || inbound.from,
               inboundText: inbound.text,
@@ -6875,7 +6877,7 @@ export async function POST(req: Request) {
           await upsertCrmLifecycleState(supabase as any, {
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
-            phone: inbound.from,
+            phone: inboundCustomerPhone || inbound.from,
             realPhone: String(strictMemory.customer_phone || previousMemory?.customer_phone || ""),
             name: knownCustomerName || inbound.pushName || "",
             status: "quote",
@@ -6892,7 +6894,7 @@ export async function POST(req: Request) {
               ownerId,
               tenantId: (agent as any)?.tenant_id || null,
               externalRef: String(inbound.messageId || incomingDedupKey || "slot"),
-              phone: inbound.from,
+              phone: inboundCustomerPhone || inbound.from,
               customerName: knownCustomerName || inbound.pushName || inbound.from,
               advisor: "Asesor comercial",
               meetingAt: strictMeetingAt,
@@ -6904,7 +6906,7 @@ export async function POST(req: Request) {
             agentId: String(agent.id),
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
-            from: inbound.from,
+            from: inboundCustomerPhone || inbound.from,
             pushName: inbound.pushName,
             contactName: knownCustomerName || inbound.pushName || inbound.from,
             inboundText: inbound.text,
@@ -6946,7 +6948,7 @@ export async function POST(req: Request) {
             agentId: String(agent.id),
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
-            from: inbound.from,
+            from: inboundCustomerPhone || inbound.from,
             pushName: inbound.pushName,
             contactName: knownCustomerName || inbound.pushName || inbound.from,
             inboundText: inbound.text,
@@ -6994,7 +6996,7 @@ export async function POST(req: Request) {
             agentId: String(agent.id),
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
-            from: inbound.from,
+            from: inboundCustomerPhone || inbound.from,
             pushName: inbound.pushName,
             contactName: knownCustomerName || inbound.pushName || inbound.from,
             inboundText: inbound.text,
@@ -9032,12 +9034,12 @@ export async function POST(req: Request) {
         .filter((n, i, arr) => arr.indexOf(n) === i);
       const selfSet = new Set(selfHints);
 
-      const toCandidates = [inbound.from, ...(inbound.alternates || [])]
+      const toCandidates = [inboundCustomerPhone, inbound.from, ...(inbound.alternates || [])]
         .map((n) => normalizePhone(String(n || "")))
         .filter((n, i, arr) => n && arr.indexOf(n) === i)
         .filter((n) => !(Boolean(inbound.fromIsLid) && n === inbound.from))
         .filter((n) => !selfSet.has(n))
-        .filter((n) => n.length >= 10 && n.length <= 15);
+        .filter((n) => Boolean(normalizeRealCustomerPhone(n)));
 
       const jidCandidates = (inbound.jidCandidates || [])
         .map((v) => String(v || "").trim())
@@ -9134,7 +9136,7 @@ export async function POST(req: Request) {
           await upsertCrmLifecycleState(supabase as any, {
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
-            phone: inbound.from,
+            phone: inboundCustomerPhone || inbound.from,
             realPhone: String(strictMemory.customer_phone || previousMemory?.customer_phone || ""),
             name: knownCustomerName || inbound.pushName || "",
             status: strictQuoteContext ? "quote" : undefined,
@@ -9154,7 +9156,7 @@ export async function POST(req: Request) {
               ownerId,
               tenantId: (agent as any)?.tenant_id || null,
               externalRef: String(inbound.messageId || incomingDedupKey || "muted"),
-              phone: inbound.from,
+              phone: inboundCustomerPhone || inbound.from,
               customerName: knownCustomerName || inbound.pushName || inbound.from,
               advisor: "Asesor comercial",
               meetingAt: strictMeetingAt,
@@ -9167,7 +9169,7 @@ export async function POST(req: Request) {
             agentId: String(agent.id),
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
-            from: inbound.from,
+            from: inboundCustomerPhone || inbound.from,
             pushName: inbound.pushName,
             contactName: knownCustomerName || inbound.pushName || inbound.from,
             inboundText: inbound.text,
@@ -12697,7 +12699,7 @@ export async function POST(req: Request) {
           await upsertCrmLifecycleState(supabase as any, {
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
-            phone: inbound.from,
+            phone: inboundCustomerPhone || inbound.from,
             realPhone: String(strictMemory.customer_phone || previousMemory?.customer_phone || ""),
             name: knownCustomerName || inbound.pushName || "",
             status: strictQuoteContext ? "quote" : undefined,
@@ -12717,7 +12719,7 @@ export async function POST(req: Request) {
               ownerId,
               tenantId: (agent as any)?.tenant_id || null,
               externalRef: String(inbound.messageId || incomingDedupKey || "reply"),
-              phone: inbound.from,
+              phone: inboundCustomerPhone || inbound.from,
               customerName: knownCustomerName || inbound.pushName || inbound.from,
               advisor: "Asesor comercial",
               meetingAt: strictMeetingAt,
@@ -12730,7 +12732,7 @@ export async function POST(req: Request) {
             agentId: String(agent.id),
             ownerId,
             tenantId: (agent as any)?.tenant_id || null,
-            from: inbound.from,
+            from: inboundCustomerPhone || inbound.from,
             pushName: inbound.pushName,
             contactName: knownCustomerName || inbound.pushName || inbound.from,
             inboundText: inbound.text,
@@ -16169,12 +16171,12 @@ export async function POST(req: Request) {
     const selfPhone = selfHints[0] || "";
     const selfSet = new Set(selfHints);
 
-    const toCandidates = [inbound.from, ...(inbound.alternates || [])]
+    const toCandidates = [inboundCustomerPhone, inbound.from, ...(inbound.alternates || [])]
       .map((n) => normalizePhone(String(n || "")))
       .filter((n, i, arr) => n && arr.indexOf(n) === i)
       .filter((n) => !(Boolean(inbound.fromIsLid) && n === inbound.from))
       .filter((n) => !selfSet.has(n))
-      .filter((n) => n.length >= 10 && n.length <= 15)
+      .filter((n) => Boolean(normalizeRealCustomerPhone(n)))
       .sort((a, b) => {
         const aLikelyReal = a.length <= 13 ? 0 : 1;
         const bLikelyReal = b.length <= 13 ? 0 : 1;
@@ -16415,7 +16417,7 @@ export async function POST(req: Request) {
         await persistKnownNameInCrm(supabase as any, {
           ownerId,
           tenantId: (agent as any)?.tenant_id || null,
-          phone: inbound.from,
+          phone: inboundCustomerPhone || inbound.from,
           name: knownCustomerName,
         });
       }
@@ -16434,7 +16436,7 @@ export async function POST(req: Request) {
       await upsertCrmLifecycleState(supabase as any, {
         ownerId,
         tenantId: (agent as any)?.tenant_id || null,
-        phone: inbound.from,
+        phone: inboundCustomerPhone || inbound.from,
         realPhone: String(nextMemory.customer_phone || previousMemory?.customer_phone || ""),
         name: knownCustomerName || inbound.pushName || "",
         status: finalQuoteContext ? "quote" : undefined,
@@ -16454,7 +16456,7 @@ export async function POST(req: Request) {
           ownerId,
           tenantId: (agent as any)?.tenant_id || null,
           externalRef: String(inbound.messageId || incomingDedupKey || "final"),
-          phone: inbound.from,
+          phone: inboundCustomerPhone || inbound.from,
           customerName: knownCustomerName || inbound.pushName || inbound.from,
           advisor: "Asesor comercial",
           meetingAt: finalMeetingAt,
@@ -16467,7 +16469,7 @@ export async function POST(req: Request) {
         agentId: String(agent.id),
         ownerId,
         tenantId: (agent as any)?.tenant_id || null,
-        from: inbound.from,
+        from: inboundCustomerPhone || inbound.from,
         pushName: inbound.pushName,
         contactName: knownCustomerName || inbound.pushName || inbound.from,
         inboundText: inbound.text,
@@ -16499,7 +16501,7 @@ export async function POST(req: Request) {
         agent_id: String(agent.id),
         owner_id: ownerId,
         tenant_id: (agent as any)?.tenant_id || null,
-        phone: inbound.from,
+        phone: inboundCustomerPhone || inbound.from,
         message_id: incomingDedupKey,
         intent: String(classifiedIntent.intent || ""),
         category: classifiedIntent.category,
