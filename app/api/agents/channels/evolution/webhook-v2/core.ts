@@ -5532,34 +5532,74 @@ function rowCatalogCopPrice(row: any): number {
   return parse((prices as any)?.bogota) || parse((prices as any)?.antioquia) || parse((prices as any)?.distribuidor) || 0;
 }
 
+function rowHasBluetoothConfirmed(row: any): boolean {
+  const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+  const specsJson = row?.specs_json && typeof row.specs_json === "object" ? row.specs_json : {};
+  const hay = normalizeText([
+    String(row?.name || ""),
+    String(row?.summary || ""),
+    String(row?.description || ""),
+    String(row?.specs_text || ""),
+    String((payload as any)?.connectivity || ""),
+    String((payload as any)?.features || ""),
+    JSON.stringify(payload || {}),
+    JSON.stringify(specsJson || {}),
+  ].join(" "));
+  if (!/bluetooth/.test(hay)) return false;
+  if (/sin\s+bluetooth|no\s+bluetooth|without\s+bluetooth/.test(hay)) return false;
+  return true;
+}
+
+function isBluetoothAsk(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!t) return false;
+  return /(bluetooth|blue\s*tooth|bt\b|conectividad)/.test(t) && /(tiene|trae|incluye|soporta|cual|cu[aá]l|que|qu[eé]|model|referenc|opcion)/.test(t);
+}
+
 function buildPriceRangeLine(rows: any[]): string {
   const list = Array.isArray(rows) ? rows : [];
-  const sample = [...list]
-    .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0))
-    .slice(0, Math.min(12, Math.max(3, list.length)));
-  const industrialHits = sample.filter((r: any) => {
-    const txt = normalizeText(`${String(r?.name || "")} ${String(r?.category || "")} ${familyLabelFromRow(r)}`);
-    return /(industrial|plataforma|ranger|defender|valor|rc31|r31|r71|ckw|td52p)/.test(txt);
-  }).length;
-  const isIndustrialProfile = industrialHits > 0 && industrialHits >= Math.max(1, Math.floor(sample.length / 3));
-  return isIndustrialProfile
-    ? "💰 Valores estimados: desde $3.500.000 (según gama y funcionalidad). Deseas continuar con la cotizacion"
-    : "💰 Valores estimados: desde $4.000.000 (según gama y funcionalidad). Deseas continuar con la cotizacion";
+  const copValues = list
+    .map((r: any) => Number(rowCatalogCopPrice(r) || 0))
+    .filter((n: number) => Number.isFinite(n) && n > 0)
+    .sort((a: number, b: number) => a - b);
+  if (copValues.length) {
+    const minCop = copValues[0];
+    const maxCop = copValues[copValues.length - 1];
+    return `💰 Valores estimados en BD: desde $${formatMoney(minCop)} hasta $${formatMoney(maxCop)} COP (según ciudad, gama y funcionalidad).`;
+  }
+  const usdValues = list
+    .map((r: any) => Number(r?.base_price_usd || 0))
+    .filter((n: number) => Number.isFinite(n) && n > 0)
+    .sort((a: number, b: number) => a - b);
+  if (usdValues.length) {
+    return `💰 Valores estimados en BD: desde USD ${formatMoney(usdValues[0])} hasta USD ${formatMoney(usdValues[usdValues.length - 1])}.`;
+  }
+  return "💰 En este grupo no tengo precios confirmados en BD para estimar rango ahora mismo.";
 }
 
 function buildHigherPriceEstimateLine(rows: any[]): string {
   const list = Array.isArray(rows) ? rows : [];
-  const sample = [...list]
-    .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0))
-    .slice(0, Math.min(12, Math.max(3, list.length)));
-  const industrialHits = sample.filter((r: any) => {
-    const txt = normalizeText(`${String(r?.name || "")} ${String(r?.category || "")} ${familyLabelFromRow(r)}`);
-    return /(industrial|plataforma|ranger|defender|valor|rc31|r31|r71|ckw|td52p)/.test(txt);
-  }).length;
-  const isIndustrialProfile = industrialHits > 0 && industrialHits >= Math.max(1, Math.floor(sample.length / 3));
-  return isIndustrialProfile
-    ? "💰 Valores estimados (gama superior): desde $4.500.000 (según capacidad, precisión y funcionalidad)."
-    : "💰 Valores estimados (gama superior): desde $5.000.000 (según capacidad, precisión y funcionalidad).";
+  const copValues = list
+    .map((r: any) => Number(rowCatalogCopPrice(r) || 0))
+    .filter((n: number) => Number.isFinite(n) && n > 0)
+    .sort((a: number, b: number) => a - b);
+  if (copValues.length) {
+    const pivot = Math.max(0, Math.floor(copValues.length * 0.6));
+    const fromCop = copValues[pivot] || copValues[0];
+    const maxCop = copValues[copValues.length - 1];
+    return `💰 Valores estimados en BD (gama superior): desde $${formatMoney(fromCop)} hasta $${formatMoney(maxCop)} COP.`;
+  }
+  const usdValues = list
+    .map((r: any) => Number(r?.base_price_usd || 0))
+    .filter((n: number) => Number.isFinite(n) && n > 0)
+    .sort((a: number, b: number) => a - b);
+  if (usdValues.length) {
+    const pivot = Math.max(0, Math.floor(usdValues.length * 0.6));
+    const fromUsd = usdValues[pivot] || usdValues[0];
+    const maxUsd = usdValues[usdValues.length - 1];
+    return `💰 Valores estimados en BD (gama superior): desde USD ${formatMoney(fromUsd)} hasta USD ${formatMoney(maxUsd)}.`;
+  }
+  return "💰 En este grupo no tengo precios confirmados en BD para estimar gama superior.";
 }
 
 function isLargestCapacityAsk(text: string): boolean {
@@ -7303,6 +7343,36 @@ export async function POST(req: Request) {
         rememberedCategory,
         activeMenuType: slotPack.slots.active_menu_type,
       });
+
+      if (!String(strictReply || "").trim() && isBluetoothAsk(text)) {
+        const pendingOptions = Array.isArray(previousMemory?.pending_product_options)
+          ? previousMemory.pending_product_options
+          : [];
+        const pendingIdSet = new Set(
+          pendingOptions.map((o: any) => String(o?.id || "").trim()).filter(Boolean)
+        );
+        const scopedRows = rememberedCategory ? scopeCatalogRows(ownerRows as any[], rememberedCategory) : (ownerRows as any[]);
+        const baseRows = pendingIdSet.size
+          ? (scopedRows as any[]).filter((r: any) => pendingIdSet.has(String(r?.id || "").trim()))
+          : (scopedRows as any[]);
+        const withBluetooth = (baseRows as any[]).filter((r: any) => rowHasBluetoothConfirmed(r));
+        const options = buildNumberedProductOptions(withBluetooth as any[], 8);
+        if (options.length) {
+          strictMemory.pending_product_options = options;
+          strictMemory.pending_family_options = [];
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictMemory.strict_model_offset = 0;
+          strictReply = [
+            `Sí, en base de datos/ficha técnica tengo ${options.length} referencia(s) con Bluetooth confirmado:`,
+            ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+            "",
+            "Elige con letra o número (A/1) y te envío ficha técnica o cotización.",
+          ].join("\n");
+        } else {
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictReply = "Ahora mismo no tengo Bluetooth confirmado en ficha/base para las opciones activas. Si quieres, elige un modelo y te confirmo solo con datos de ficha técnica.";
+        }
+      }
 
       if (!String(strictReply || "").trim() && (asksLowerPriceGlobal || asksHigherPriceGlobal)) {
         const pendingOptions = Array.isArray(previousMemory?.pending_product_options)
