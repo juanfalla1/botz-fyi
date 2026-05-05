@@ -5593,11 +5593,17 @@ function buildPriceRangeLine(rows: any[]): string {
 }
 
 function buildHigherPriceEstimateLine(rows: any[]): string {
-  const baseRange = buildPriceRangeLine(rows);
-  if (/^💰\s+Valores estimados en BD:/i.test(baseRange)) {
-    return baseRange.replace(/^💰\s+Valores estimados en BD:/i, "💰 Valores estimados en BD (rango del grupo):");
-  }
-  return baseRange;
+  const list = Array.isArray(rows) ? rows : [];
+  const sortedHigh = [...list]
+    .map((r: any) => ({ row: r, cop: Number(rowCatalogCopPrice(r) || 0) }))
+    .filter((x: any) => Number.isFinite(x.cop) && x.cop > 0)
+    .sort((a: any, b: any) => b.cop - a.cop);
+  if (!sortedHigh.length) return "💰 En este grupo no tengo precios en COP confirmados en BD para estimar rango ahora mismo.";
+  const highWindow = sortedHigh.slice(0, Math.min(6, Math.max(3, sortedHigh.length)));
+  const highValues = highWindow.map((x: any) => Number(x.cop || 0)).filter((n: number) => n > 0);
+  const minCop = Math.min(...highValues);
+  const maxCop = Math.max(...highValues);
+  return `💰 Valores estimados en BD (segmento de mayor precio): desde $${formatMoney(minCop)} hasta $${formatMoney(maxCop)} COP.`;
 }
 
 function isLargestCapacityAsk(text: string): boolean {
