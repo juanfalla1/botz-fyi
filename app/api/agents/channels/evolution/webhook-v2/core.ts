@@ -5529,7 +5529,29 @@ function rowCatalogCopPrice(row: any): number {
     const n = Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
     return Number.isFinite(n) && n > 0 ? n : 0;
   };
-  return parse((prices as any)?.bogota) || parse((prices as any)?.antioquia) || parse((prices as any)?.distribuidor) || 0;
+  const direct =
+    parse((prices as any)?.bogota) ||
+    parse((prices as any)?.["cliente_final_bogota"]) ||
+    parse((prices as any)?.["cliente_final_antioquia"]) ||
+    parse((prices as any)?.antioquia) ||
+    parse((prices as any)?.distribuidor);
+  if (direct > 0) return direct;
+  const entries = Object.entries(prices as any);
+  const findByKey = (rx: RegExp) => {
+    for (const [k, v] of entries) {
+      if (rx.test(normalizeText(String(k || "")))) {
+        const n = parse(v);
+        if (n > 0) return n;
+      }
+    }
+    return 0;
+  };
+  return (
+    findByKey(/(bogota|bogota|cliente\s*final\s*bogota)/) ||
+    findByKey(/(antioquia|cliente\s*final\s*antioquia)/) ||
+    findByKey(/(distribuidor|dealer|canal)/) ||
+    0
+  );
 }
 
 function rowHasBluetoothConfirmed(row: any): boolean {
@@ -5567,14 +5589,7 @@ function buildPriceRangeLine(rows: any[]): string {
     const maxCop = copValues[copValues.length - 1];
     return `💰 Valores estimados en BD: desde $${formatMoney(minCop)} hasta $${formatMoney(maxCop)} COP (según ciudad, gama y funcionalidad).`;
   }
-  const usdValues = list
-    .map((r: any) => Number(r?.base_price_usd || 0))
-    .filter((n: number) => Number.isFinite(n) && n > 0)
-    .sort((a: number, b: number) => a - b);
-  if (usdValues.length) {
-    return `💰 Valores estimados en BD: desde USD ${formatMoney(usdValues[0])} hasta USD ${formatMoney(usdValues[usdValues.length - 1])} (sin rango COP cargado).`;
-  }
-  return "💰 En este grupo no tengo precios confirmados en BD para estimar rango ahora mismo.";
+  return "💰 En este grupo no tengo precios en COP confirmados en BD para estimar rango ahora mismo.";
 }
 
 function buildHigherPriceEstimateLine(rows: any[]): string {
@@ -6938,10 +6953,10 @@ export async function POST(req: Request) {
             ? (scopedRows as any[]).filter((r: any) => pendingIdSet.has(String(r?.id || "").trim()))
             : (scopedRows as any[]);
           const pricedRows = (baseRows as any[])
-            .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
+            .filter((r: any) => Number(rowCatalogCopPrice(r) || 0) > 0)
             .sort((a: any, b: any) => asksHigherPriceFinalize
-              ? Number(b?.base_price_usd || 0) - Number(a?.base_price_usd || 0)
-              : Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
+              ? Number(rowCatalogCopPrice(b) || 0) - Number(rowCatalogCopPrice(a) || 0)
+              : Number(rowCatalogCopPrice(a) || 0) - Number(rowCatalogCopPrice(b) || 0));
           const forcedOptions = buildNumberedProductOptions(pricedRows as any[], 8);
           if (forcedOptions.length) {
             memory.pending_product_options = forcedOptions;
@@ -7360,10 +7375,10 @@ export async function POST(req: Request) {
         const scopedRows = rememberedCategory ? scopeCatalogRows(ownerRows as any[], rememberedCategory) : (ownerRows as any[]);
         const baseRows = scopedRows as any[];
         const pricedRows = (baseRows as any[])
-          .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
+          .filter((r: any) => Number(rowCatalogCopPrice(r) || 0) > 0)
           .sort((a: any, b: any) => asksHigherPriceGlobal
-            ? Number(b?.base_price_usd || 0) - Number(a?.base_price_usd || 0)
-            : Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
+            ? Number(rowCatalogCopPrice(b) || 0) - Number(rowCatalogCopPrice(a) || 0)
+            : Number(rowCatalogCopPrice(a) || 0) - Number(rowCatalogCopPrice(b) || 0));
         const options = buildNumberedProductOptions(pricedRows as any[], 8);
         if (options.length) {
           strictMemory.pending_product_options = options;
