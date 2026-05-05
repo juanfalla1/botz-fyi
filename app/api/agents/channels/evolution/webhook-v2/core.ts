@@ -2606,7 +2606,7 @@ function buildCommercialWelcomeMessage(): string {
 
 function extractCompanyNit(text: string): string {
   const raw = String(text || "");
-  const labeled = raw.match(/\bnit\s*[:=]?\s*([0-9.\-]{5,20})/i)?.[1] || "";
+  const labeled = raw.match(/\b(?:nit|documento|cedula|c[ée]dula)\b[^\d]{0,40}([0-9.\-]{5,20})/i)?.[1] || "";
   const fallback = (!labeled ? raw.match(/\b([0-9]{7,14}(?:-[0-9])?)\b/)?.[1] : "") || "";
   return String(labeled || fallback).replace(/[^0-9.-]/g, "").trim();
 }
