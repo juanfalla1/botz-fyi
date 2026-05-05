@@ -1821,7 +1821,7 @@ function detectAlternativeFollowupIntent(text: string): AlternativeFollowupInten
   const t = normalizeText(String(text || ""));
   if (!t) return null;
   if (/(otra\s+marca|otras\s+marcas|marca\s+diferente|de\s+otra\s+marca)/.test(t)) return "alternative_other_brand";
-  if (/(muy\s+costos|mas\s+barat|más\s+barat|mas\s+econom|más\s+econom|economic)/.test(t)) return "alternative_lower_price";
+  if (/(muy\s+costos|mas\s+barat|más\s+barat|mas\s+econom|más\s+econom|economic|menor\s+precio|menos\s+precio|precio\s+mas\s+bajo|precio\s+m[aá]s\s+bajo)/.test(t)) return "alternative_lower_price";
   if (/(mayor\s+capacidad|mas\s+capacidad|más\s+capacidad)/.test(t)) return "alternative_higher_capacity";
   if (/(menor\s+capacidad|menos\s+capacidad)/.test(t)) return "alternative_lower_capacity";
   if (/(mayor\s+resolucion|mejor\s+resolucion|mas\s+resolucion|más\s+resolucion|mas\s+precision|más\s+precision|mejor\s+precision|menor\s+resolucion|menos\s+precision|menor\s+precision)/.test(t)) return "alternative_same_need";
@@ -6823,23 +6823,6 @@ export async function POST(req: Request) {
           historyMessages,
         });
       } catch {}
-      const shouldHardBlockOutOfCatalog =
-        Boolean(llmCatalogGate?.ok) &&
-        Boolean(llmCatalogGate?.out_of_domain) &&
-        Number(llmCatalogGate?.confidence || 0) >= 0.55 &&
-        !isTechSheetAskNow &&
-        !hasCatalogModelMatchNow &&
-        !inStrictSelectionNow &&
-        !optionOnlyNow;
-      if (shouldHardBlockOutOfCatalog) {
-        strictMemory.awaiting_action = "conversation_followup";
-        const strictReply = [
-          "Ese uso no lo tengo soportado en el catálogo/fichas técnicas activas de esta instancia.",
-          "Puedo ayudarte con equipos OHAUS disponibles (balanzas, básculas, analizadores de humedad y laboratorio).",
-          "Si quieres, te conecto con una asesora para validar un requerimiento especial.",
-        ].join("\n");
-        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "out_of_catalog_llm_gate" });
-      }
 
       const sendStrictQuickText = async (replyText: string): Promise<boolean> => {
         const msg = withAvaSignature(enforceWhatsAppDelivery(replyText, text));
@@ -6913,6 +6896,24 @@ export async function POST(req: Request) {
         });
         return NextResponse.json({ ok: true, sent: true, strict: true, ...extra });
       };
+
+      const shouldHardBlockOutOfCatalog =
+        Boolean(llmCatalogGate?.ok) &&
+        Boolean(llmCatalogGate?.out_of_domain) &&
+        Number(llmCatalogGate?.confidence || 0) >= 0.55 &&
+        !isTechSheetAskNow &&
+        !hasCatalogModelMatchNow &&
+        !inStrictSelectionNow &&
+        !optionOnlyNow;
+      if (shouldHardBlockOutOfCatalog) {
+        strictMemory.awaiting_action = "conversation_followup";
+        const strictReply = [
+          "Ese uso no lo tengo soportado en el catálogo/fichas técnicas activas de esta instancia.",
+          "Puedo ayudarte con equipos OHAUS disponibles (balanzas, básculas, analizadores de humedad y laboratorio).",
+          "Si quieres, te conecto con una asesora para validar un requerimiento especial.",
+        ].join("\n");
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "out_of_catalog_llm_gate" });
+      }
 
       if (isContextResetIntent(text)) {
         const keepCustomerName = String(strictMemory.customer_name || previousMemory?.customer_name || "").trim();
