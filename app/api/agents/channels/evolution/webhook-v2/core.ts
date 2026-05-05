@@ -47,6 +47,7 @@ import {
   buildExistingClientLookupPrompt,
   buildNewCustomerDataPrompt,
 } from "./application/prompts";
+import { applyLLMEntitiesToMemory, runLLMGuide, resolveFinalReply } from "./llm-guide";
 
 export const runtime = WEBHOOK_V2_RUNTIME;
 export const dynamic = WEBHOOK_V2_DYNAMIC;
@@ -895,6 +896,8 @@ async function buildStrictConversationalReply(args: {
   selectedProduct?: string;
   categoryHint?: string;
   pendingOptions?: Array<{ code?: string; name?: string }>;
+  previousMemory?: Record<string, any>;
+  historyMessages?: Array<{ role: "user" | "assistant"; content: string }>;
 }): Promise<string> {
   const apiKey = String(args.apiKey || "").trim();
   const inboundText = String(args.inboundText || "").trim();
@@ -932,6 +935,12 @@ async function buildStrictConversationalReply(args: {
     .join("\n");
 
   try {
+    const llmGuide = await runLLMGuide({
+      apiKey,
+      inboundText,
+      previousMemory: args.previousMemory || {},
+      historyMessages: args.historyMessages || [],
+    });
     const openai = new OpenAI({ apiKey });
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -942,9 +951,17 @@ async function buildStrictConversationalReply(args: {
         { role: "user", content: inboundText },
       ] as any,
     });
-    return String(completion.choices?.[0]?.message?.content || "").trim();
+    const motorReply = String(completion.choices?.[0]?.message?.content || "").trim();
+    if (llmGuide.ok && String(llmGuide.reply || "").trim()) return String(llmGuide.reply || "").trim();
+    return resolveFinalReply(motorReply, llmGuide);
   } catch {
-    return "";
+    const llmGuide = await runLLMGuide({
+      apiKey,
+      inboundText,
+      previousMemory: args.previousMemory || {},
+      historyMessages: args.historyMessages || [],
+    });
+    return resolveFinalReply("", llmGuide);
   }
 }
 
@@ -6599,6 +6616,16 @@ export async function POST(req: Request) {
       }
     }
 
+    try {
+      const llmGuideForSlots = await runLLMGuide({
+        apiKey,
+        inboundText: inbound.text,
+        previousMemory: previousMemory || {},
+        historyMessages,
+      });
+      applyLLMEntitiesToMemory(nextMemory, llmGuideForSlots);
+    } catch {}
+
     let reply = "";
     let usageTotal = 0;
     let usageCompletion = 0;
@@ -10381,6 +10408,8 @@ export async function POST(req: Request) {
               selectedProduct: selectedName,
               categoryHint: rememberedCategory,
               pendingOptions: Array.isArray(previousMemory?.last_recommended_options) ? previousMemory.last_recommended_options : [],
+              previousMemory,
+              historyMessages,
             });
             strictReply = String(softReply || "").trim() || [
               `Entiendo. Si ${selectedName} no te sirve, te puedo proponer alternativas reales del catálogo por:`,
@@ -11425,6 +11454,8 @@ export async function POST(req: Request) {
             selectedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
             categoryHint: rememberedCategory,
             pendingOptions: pendingStrictOptions,
+            previousMemory,
+            historyMessages,
           });
           strictMemory.awaiting_action = "strict_choose_model";
           strictMemory.pending_product_options = pendingStrictOptions;
@@ -12325,6 +12356,8 @@ export async function POST(req: Request) {
             selectedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
             categoryHint: rememberedCategory,
             pendingOptions: familyHints,
+            previousMemory,
+            historyMessages,
           });
           strictReply = String(softReply || "").trim() || buildGuidedRecoveryMessage({
             awaiting,
