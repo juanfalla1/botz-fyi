@@ -6881,13 +6881,60 @@ export async function POST(req: Request) {
 
       const finalizeStrictTurn = async (replyText: string, memory: Record<string, any>, extra: Record<string, any> = {}) => {
         const awaitingNow = String(memory?.awaiting_action || "").trim();
-        const safeReply = String(replyText || "").trim() || (
+        let safeReply = String(replyText || "").trim() || (
           awaitingNow === "strict_choose_action"
             ? "Responde 1 para cotización o 2 para ficha técnica."
             : awaitingNow === "strict_quote_data"
               ? "Para continuar con la cotización, envíame ciudad, empresa, NIT, contacto, correo y celular en un solo mensaje."
               : "¿En qué puedo ayudarte con tu cotización?"
         );
+        const inboundNormForFinalize = normalizeText(String(text || ""));
+        const asksLowerPriceFinalize = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|menos\s+precio|precio\s+bajo)\b/.test(inboundNormForFinalize);
+        const asksHigherPriceFinalize = /\b(mayor\s+precio|m[aá]s\s+costos|mas\s+costos|precio\s+m[aá]s\s+alto|precio\s+mas\s+alto|gama\s+alta|premium)\b/.test(inboundNormForFinalize);
+        const shouldForcePriceReply = (asksLowerPriceFinalize || asksHigherPriceFinalize) && awaitingNow === "strict_choose_model";
+        if (shouldForcePriceReply) {
+          const pending = Array.isArray(memory?.pending_product_options) ? memory.pending_product_options : [];
+          const pendingIdSet = new Set(
+            pending.map((o: any) => String(o?.id || "").trim()).filter(Boolean)
+          );
+          const categoryHint = String(memory?.last_category_intent || previousMemory?.last_category_intent || "").trim();
+          const scopedRows = categoryHint ? scopeCatalogRows(ownerRows as any[], categoryHint) : (ownerRows as any[]);
+          const baseRows = pendingIdSet.size
+            ? (scopedRows as any[]).filter((r: any) => pendingIdSet.has(String(r?.id || "").trim()))
+            : (scopedRows as any[]);
+          const pricedRows = (baseRows as any[])
+            .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
+            .sort((a: any, b: any) => asksHigherPriceFinalize
+              ? Number(b?.base_price_usd || 0) - Number(a?.base_price_usd || 0)
+              : Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
+          const forcedOptions = buildNumberedProductOptions(pricedRows as any[], 8);
+          if (forcedOptions.length) {
+            memory.pending_product_options = forcedOptions;
+            const estimateLine = asksHigherPriceFinalize
+              ? buildHigherPriceEstimateLine(pricedRows as any[])
+              : buildPriceRangeLine(pricedRows as any[]);
+            safeReply = [
+              asksHigherPriceFinalize
+                ? "Perfecto. Estas son opciones de mayor precio:"
+                : "Perfecto. Estas son opciones de menor precio:",
+              estimateLine,
+              ...forcedOptions.slice(0, 4).map((o: any) => {
+                const p = Number(o?.base_price_usd || 0);
+                return `${o.code}) ${o.name}${p > 0 ? ` (USD ${formatMoney(p)})` : ""}`;
+              }),
+              "",
+              "Elige con letra o número (A/1), o responde 1) Cotización, 2) Ficha técnica.",
+            ].join("\n");
+          }
+        }
+        if ((asksLowerPriceFinalize || asksHigherPriceFinalize) && !/valores\s+estimados/i.test(safeReply)) {
+          const categoryHint = String(memory?.last_category_intent || previousMemory?.last_category_intent || "").trim();
+          const scopedRows = categoryHint ? scopeCatalogRows(ownerRows as any[], categoryHint) : (ownerRows as any[]);
+          const estimateLine = asksHigherPriceFinalize
+            ? buildHigherPriceEstimateLine(scopedRows as any[])
+            : buildPriceRangeLine(scopedRows as any[]);
+          safeReply = `${safeReply}\n${estimateLine}`.trim();
+        }
         if (!String(replyText || "").trim()) {
           console.warn("[evolution-webhook] empty_strict_reply_fallback", { awaiting: awaitingNow, inboundText: text });
         }
