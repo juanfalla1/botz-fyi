@@ -7972,7 +7972,7 @@ export async function POST(req: Request) {
           strictReply = [
             asksWhyDataNeeded
               ? "Te los pido para emitir la cotización correcta, aplicar precio por ciudad y dejar tu registro comercial para seguimiento y garantía."
-              : "Te ayudo. Envíamelo en un solo mensaje, línea por línea, así:",
+              : "Te comparto un ejemplo de plantilla (con datos ficticios) para que la copies y reemplaces con tus datos reales:",
             "",
             "Departamento/ciudad: Bogotá",
             "Tipo de cliente: Empresa",
