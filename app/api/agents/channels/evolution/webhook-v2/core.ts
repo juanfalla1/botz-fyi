@@ -7269,6 +7269,8 @@ export async function POST(req: Request) {
       let strictReply = "";
       const strictDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }> = [];
       let strictBypassAutoQuote = false;
+      const asksLowerPriceGlobal = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|menos\s+precio|precio\s+bajo)\b/.test(textNorm);
+      const asksHigherPriceGlobal = /\b(mayor\s+precio|m[aá]s\s+costos|mas\s+costos|precio\s+m[aá]s\s+alto|precio\s+mas\s+alto|gama\s+alta|premium)\b/.test(textNorm);
       const selectedModelForSlots = String(
         previousMemory?.last_selected_product_name ||
         previousMemory?.last_product_name ||
@@ -7289,6 +7291,46 @@ export async function POST(req: Request) {
         rememberedCategory,
         activeMenuType: slotPack.slots.active_menu_type,
       });
+
+      if (!String(strictReply || "").trim() && (asksLowerPriceGlobal || asksHigherPriceGlobal)) {
+        const pendingOptions = Array.isArray(previousMemory?.pending_product_options)
+          ? previousMemory.pending_product_options
+          : [];
+        const pendingIdSet = new Set(
+          pendingOptions.map((o: any) => String(o?.id || "").trim()).filter(Boolean)
+        );
+        const scopedRows = rememberedCategory ? scopeCatalogRows(ownerRows as any[], rememberedCategory) : (ownerRows as any[]);
+        const baseRows = pendingIdSet.size
+          ? (scopedRows as any[]).filter((r: any) => pendingIdSet.has(String(r?.id || "").trim()))
+          : (scopedRows as any[]);
+        const pricedRows = (baseRows as any[])
+          .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
+          .sort((a: any, b: any) => asksHigherPriceGlobal
+            ? Number(b?.base_price_usd || 0) - Number(a?.base_price_usd || 0)
+            : Number(a?.base_price_usd || 0) - Number(b?.base_price_usd || 0));
+        const options = buildNumberedProductOptions(pricedRows as any[], 8);
+        if (options.length) {
+          strictMemory.pending_product_options = options;
+          strictMemory.pending_family_options = [];
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictMemory.strict_model_offset = 0;
+          const estimateLine = asksHigherPriceGlobal
+            ? buildHigherPriceEstimateLine(pricedRows as any[])
+            : buildPriceRangeLine(pricedRows as any[]);
+          strictReply = [
+            asksHigherPriceGlobal
+              ? "Perfecto. Estas son opciones de mayor precio:"
+              : "Perfecto. Estas son opciones de menor precio:",
+            estimateLine,
+            ...options.slice(0, 3).map((o) => {
+              const p = Number(o.base_price_usd || 0);
+              return `${o.code}) ${o.name}${p > 0 ? ` (USD ${formatMoney(p)})` : ""}`;
+            }),
+            "",
+            "Elige A/1, o responde 1) Cotización 2) Ficha técnica.",
+          ].join("\n");
+        }
+      }
 
       const guidedProfileGlobal = detectGuidedBalanzaProfile(text);
       if (
