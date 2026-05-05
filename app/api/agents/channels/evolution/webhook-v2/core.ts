@@ -6804,6 +6804,43 @@ export async function POST(req: Request) {
         spec: preParsedSpec,
       });
 
+      const isTechSheetAskNow = /(ficha|ficha tecnica|datasheet|hoja tecnica|manual|brochure|especificaciones)/i.test(text);
+      const modelTokenNow = String(text.match(/\b([a-z]{1,4}\d{2,6}(?:\/[a-z]{1,3})?)\b/i)?.[1] || "").trim();
+      const hasCatalogModelMatchNow = modelTokenNow
+        ? (Array.isArray(ownerRows) ? ownerRows : []).some((r: any) => {
+            const hay = normalizeText(`${String(r?.name || "")} ${String(r?.product_code || "")} ${String(r?.sku || "")}`);
+            return hay.includes(normalizeText(modelTokenNow));
+          })
+        : false;
+      const inStrictSelectionNow = /^(strict_choose_family|strict_choose_model|strict_choose_action|strict_quote_data|strict_need_spec|strict_need_industry)$/i.test(strictPrevAwaiting);
+      const optionOnlyNow = isOptionOnlyReply(normalizeText(text));
+      let llmCatalogGate: any = null;
+      try {
+        llmCatalogGate = await runLLMGuide({
+          apiKey,
+          inboundText: text,
+          previousMemory: previousMemory || {},
+          historyMessages,
+        });
+      } catch {}
+      const shouldHardBlockOutOfCatalog =
+        Boolean(llmCatalogGate?.ok) &&
+        Boolean(llmCatalogGate?.out_of_domain) &&
+        Number(llmCatalogGate?.confidence || 0) >= 0.55 &&
+        !isTechSheetAskNow &&
+        !hasCatalogModelMatchNow &&
+        !inStrictSelectionNow &&
+        !optionOnlyNow;
+      if (shouldHardBlockOutOfCatalog) {
+        strictMemory.awaiting_action = "conversation_followup";
+        const strictReply = [
+          "Ese uso no lo tengo soportado en el catálogo/fichas técnicas activas de esta instancia.",
+          "Puedo ayudarte con equipos OHAUS disponibles (balanzas, básculas, analizadores de humedad y laboratorio).",
+          "Si quieres, te conecto con una asesora para validar un requerimiento especial.",
+        ].join("\n");
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "out_of_catalog_llm_gate" });
+      }
+
       const sendStrictQuickText = async (replyText: string): Promise<boolean> => {
         const msg = withAvaSignature(enforceWhatsAppDelivery(replyText, text));
         const quickTo = [inbound.from, ...(inbound.alternates || [])]
