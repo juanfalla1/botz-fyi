@@ -7357,16 +7357,8 @@ export async function POST(req: Request) {
       }
 
       if (!String(strictReply || "").trim() && (asksLowerPriceGlobal || asksHigherPriceGlobal)) {
-        const pendingOptions = Array.isArray(previousMemory?.pending_product_options)
-          ? previousMemory.pending_product_options
-          : [];
-        const pendingIdSet = new Set(
-          pendingOptions.map((o: any) => String(o?.id || "").trim()).filter(Boolean)
-        );
         const scopedRows = rememberedCategory ? scopeCatalogRows(ownerRows as any[], rememberedCategory) : (ownerRows as any[]);
-        const baseRows = pendingIdSet.size
-          ? (scopedRows as any[]).filter((r: any) => pendingIdSet.has(String(r?.id || "").trim()))
-          : (scopedRows as any[]);
+        const baseRows = scopedRows as any[];
         const pricedRows = (baseRows as any[])
           .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
           .sort((a: any, b: any) => asksHigherPriceGlobal
