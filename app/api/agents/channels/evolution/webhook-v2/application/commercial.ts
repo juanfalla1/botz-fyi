@@ -760,7 +760,8 @@ export function updateNewCustomerRegistration(args: {
   const template = extractTemplateNewCustomerFields(args.text);
   const city = args.normalizeCityLabel(args.extractSimpleLabeledValue(args.text, ["departamento/ciudad", "departamento", "ciudad"]) || template.city || loose.city || current.city || "");
   const company = args.extractSimpleLabeledValue(args.text, ["empresa (si aplica)", "empresa", "razon social", "compania", "compañia"]) || template.company || loose.company || current.company || "";
-  const nit = String(args.extractSimpleLabeledValue(args.text, ["documento", "cedula", "cédula", "nit"]) || template.nit || loose.nit || current.nit || "").replace(/\D/g, "").trim();
+  const nitFromDocumentLine = String(args.text.match(/\b(?:documento|nit|cedula|c[ée]dula)\b[^\d]{0,60}(\d{6,14}(?:-\d)?)/i)?.[1] || "").trim();
+  const nit = String(nitFromDocumentLine || args.extractSimpleLabeledValue(args.text, ["documento", "cedula", "cédula", "nit"]) || template.nit || loose.nit || current.nit || "").replace(/\D/g, "").trim();
   const contact = args.sanitizeCustomerDisplayName(args.extractSimpleLabeledValue(args.text, ["nombre de contacto", "contacto", "nombre"]) || template.contact || loose.contact || current.contact || args.extractCustomerName(args.text, args.fallbackName || ""));
   const email = String(args.extractEmail(args.text) || template.email || current.email || "").trim().toLowerCase();
   const phone = args.normalizePhone(String(args.extractCustomerPhone(args.text, "") || template.phone || current.phone || "").trim());
