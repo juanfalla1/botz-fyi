@@ -7965,6 +7965,25 @@ export async function POST(req: Request) {
           normalizePhone,
           extractCustomerPhone,
         });
+        const asksWhyDataNeeded = /\b(para\s+que\s+son\s+los\s+datos|para\s+que\s+los\s+necesitan|por\s+que\s+piden\s+datos|porque\s+piden\s+datos|para\s+que\s+necesitan\s+mis\s+datos)\b/i.test(textNorm);
+        const asksHowToFillData = /\b(como\s+lleno\s+esos\s+datos|como\s+llenar\s+los\s+datos|como\s+te\s+los\s+mando|como\s+los\s+envio|ejemplo\s+de\s+datos)\b/i.test(textNorm);
+        if (asksWhyDataNeeded || asksHowToFillData) {
+          strictMemory.awaiting_action = "commercial_new_customer_data";
+          strictReply = [
+            asksWhyDataNeeded
+              ? "Te los pido para emitir la cotización correcta, aplicar precio por ciudad y dejar tu registro comercial para seguimiento y garantía."
+              : "Te ayudo. Envíamelo en un solo mensaje, línea por línea, así:",
+            "",
+            "Departamento/ciudad: Bogotá",
+            "Tipo de cliente: Empresa",
+            "Empresa: ACME SAS",
+            "Documento (NIT o cédula, solo números): 900123456",
+            "Nombre de contacto: Ana Pérez",
+            "Correo: compras@acme.com",
+            "Celular: 3001234567",
+          ].join("\n");
+          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: asksWhyDataNeeded ? "new_customer_data_explained" : "new_customer_data_example" });
+        }
         if (Boolean(strictMemory.is_persona_natural)) {
           strictReply = buildCommercialEscalationMessage();
           strictMemory.awaiting_action = "conversation_followup";
