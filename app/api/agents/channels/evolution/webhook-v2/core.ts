@@ -2495,6 +2495,9 @@ function isGlobalCatalogAsk(text: string): boolean {
 function isOutOfCatalogDomainQuery(text: string): boolean {
   const t = normalizeText(text || "");
   if (!t) return false;
+  const asksTechnicalDocs = /(ficha|ficha tecnica|datasheet|hoja tecnica|especificaciones|manual|brochure|catalogo tecnico)/.test(t);
+  const hasLikelyCatalogModel = /\b(ax\d|px\d|exr?\d|exp\d|r31|rc31|r71|mb\d|valor|defender|ranger|scout|adventurer|explorer|pioneer)\b/.test(t);
+  if (asksTechnicalDocs && hasLikelyCatalogModel) return false;
   const hardOutTerms = /(caballo|caballos|perro|perros|gato|gatos|vaca|vacas|ganado|mascota|mascotas|veterinari|zootecnia|comida|alimento|alimentos|ropa|zapato|zapatos|celular|celulares|computador|computadores|laptop|portatil|televisor|televisores)/.test(t);
   if (hardOutTerms) return true;
   const outTerms = /(tornillo|tornillos|herramienta|herramientas|taladro|martillo|llave inglesa|destornillador|broca|ferreteria|ferreteria|tuerca|perno|clavo|soldadura|silicona|pintura|tenedor|tenedores|cuchillo|cuchillos|cuchara|cucharas|plato|platos|vaso|vasos|carro|carros|vehiculo|vehiculos)/.test(t);
