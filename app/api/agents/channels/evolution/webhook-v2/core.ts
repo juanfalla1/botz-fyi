@@ -5578,28 +5578,11 @@ function buildPriceRangeLine(rows: any[]): string {
 }
 
 function buildHigherPriceEstimateLine(rows: any[]): string {
-  const list = Array.isArray(rows) ? rows : [];
-  const copValues = list
-    .map((r: any) => Number(rowCatalogCopPrice(r) || 0))
-    .filter((n: number) => Number.isFinite(n) && n > 0)
-    .sort((a: number, b: number) => a - b);
-  if (copValues.length) {
-    const pivot = Math.max(0, Math.floor(copValues.length * 0.6));
-    const fromCop = copValues[pivot] || copValues[0];
-    const maxCop = copValues[copValues.length - 1];
-    return `💰 Valores estimados en BD (gama superior): desde $${formatMoney(fromCop)} hasta $${formatMoney(maxCop)} COP.`;
+  const baseRange = buildPriceRangeLine(rows);
+  if (/^💰\s+Valores estimados en BD:/i.test(baseRange)) {
+    return baseRange.replace(/^💰\s+Valores estimados en BD:/i, "💰 Valores estimados en BD (rango del grupo):");
   }
-  const usdValues = list
-    .map((r: any) => Number(r?.base_price_usd || 0))
-    .filter((n: number) => Number.isFinite(n) && n > 0)
-    .sort((a: number, b: number) => a - b);
-  if (usdValues.length) {
-    const pivot = Math.max(0, Math.floor(usdValues.length * 0.6));
-    const fromUsd = usdValues[pivot] || usdValues[0];
-    const maxUsd = usdValues[usdValues.length - 1];
-    return `💰 Valores estimados en BD (gama superior): desde USD ${formatMoney(fromUsd)} hasta USD ${formatMoney(maxUsd)}.`;
-  }
-  return "💰 En este grupo no tengo precios confirmados en BD para estimar gama superior.";
+  return baseRange;
 }
 
 function isLargestCapacityAsk(text: string): boolean {
@@ -7352,10 +7335,12 @@ export async function POST(req: Request) {
           pendingOptions.map((o: any) => String(o?.id || "").trim()).filter(Boolean)
         );
         const scopedRows = rememberedCategory ? scopeCatalogRows(ownerRows as any[], rememberedCategory) : (ownerRows as any[]);
-        const baseRows = pendingIdSet.size
+        const pendingRows = pendingIdSet.size
           ? (scopedRows as any[]).filter((r: any) => pendingIdSet.has(String(r?.id || "").trim()))
-          : (scopedRows as any[]);
-        const withBluetooth = (baseRows as any[]).filter((r: any) => rowHasBluetoothConfirmed(r));
+          : [];
+        const pendingBluetooth = (pendingRows as any[]).filter((r: any) => rowHasBluetoothConfirmed(r));
+        const allBluetoothInScope = (scopedRows as any[]).filter((r: any) => rowHasBluetoothConfirmed(r));
+        const withBluetooth = pendingBluetooth.length ? pendingBluetooth : allBluetoothInScope;
         const options = buildNumberedProductOptions(withBluetooth as any[], 8);
         if (options.length) {
           strictMemory.pending_product_options = options;
@@ -7363,7 +7348,7 @@ export async function POST(req: Request) {
           strictMemory.awaiting_action = "strict_choose_model";
           strictMemory.strict_model_offset = 0;
           strictReply = [
-            `Sí, en base de datos/ficha técnica tengo ${options.length} referencia(s) con Bluetooth confirmado:`,
+            `Sí, en base de datos/ficha técnica tengo ${options.length} referencia(s) con Bluetooth confirmado${pendingBluetooth.length ? " en la selección actual" : " en este grupo"}:`,
             ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
             "",
             "Elige con letra o número (A/1) y te envío ficha técnica o cotización.",
