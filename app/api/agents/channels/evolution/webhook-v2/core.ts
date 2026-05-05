@@ -5558,6 +5558,13 @@ function isBluetoothAsk(text: string): boolean {
 
 function buildPriceRangeLine(rows: any[]): string {
   const list = Array.isArray(rows) ? rows : [];
+  const usdValues = list
+    .map((r: any) => Number(r?.base_price_usd || 0))
+    .filter((n: number) => Number.isFinite(n) && n > 0)
+    .sort((a: number, b: number) => a - b);
+  if (usdValues.length) {
+    return `💰 Valores estimados en BD: desde USD ${formatMoney(usdValues[0])} hasta USD ${formatMoney(usdValues[usdValues.length - 1])}.`;
+  }
   const copValues = list
     .map((r: any) => Number(rowCatalogCopPrice(r) || 0))
     .filter((n: number) => Number.isFinite(n) && n > 0)
@@ -5566,13 +5573,6 @@ function buildPriceRangeLine(rows: any[]): string {
     const minCop = copValues[0];
     const maxCop = copValues[copValues.length - 1];
     return `💰 Valores estimados en BD: desde $${formatMoney(minCop)} hasta $${formatMoney(maxCop)} COP (según ciudad, gama y funcionalidad).`;
-  }
-  const usdValues = list
-    .map((r: any) => Number(r?.base_price_usd || 0))
-    .filter((n: number) => Number.isFinite(n) && n > 0)
-    .sort((a: number, b: number) => a - b);
-  if (usdValues.length) {
-    return `💰 Valores estimados en BD: desde USD ${formatMoney(usdValues[0])} hasta USD ${formatMoney(usdValues[usdValues.length - 1])}.`;
   }
   return "💰 En este grupo no tengo precios confirmados en BD para estimar rango ahora mismo.";
 }
@@ -6953,10 +6953,7 @@ export async function POST(req: Request) {
                 ? "Perfecto. Estas son opciones de mayor precio:"
                 : "Perfecto. Estas son opciones de menor precio:",
               estimateLine,
-              ...forcedOptions.slice(0, 4).map((o: any) => {
-                const p = Number(o?.base_price_usd || 0);
-                return `${o.code}) ${o.name}${p > 0 ? ` (USD ${formatMoney(p)})` : ""}`;
-              }),
+              ...forcedOptions.slice(0, 4).map((o: any) => `${o.code}) ${o.name}`),
               "",
               "Elige con letra o número (A/1), o responde 1) Cotización, 2) Ficha técnica.",
             ].join("\n");
@@ -7389,10 +7386,7 @@ export async function POST(req: Request) {
               ? "Perfecto. Estas son opciones de mayor precio:"
               : "Perfecto. Estas son opciones de menor precio:",
             estimateLine,
-            ...options.slice(0, 3).map((o) => {
-              const p = Number(o.base_price_usd || 0);
-              return `${o.code}) ${o.name}${p > 0 ? ` (USD ${formatMoney(p)})` : ""}`;
-            }),
+            ...options.slice(0, 3).map((o) => `${o.code}) ${o.name}`),
             "",
             "Elige A/1, o responde 1) Cotización 2) Ficha técnica.",
           ].join("\n");
@@ -10732,10 +10726,7 @@ export async function POST(req: Request) {
             strictReply = [
               `Perfecto. Según base de datos, la familia más económica aquí es: ${topFamily}.`,
               "Estas son 4 opciones de menor precio:",
-              ...options.slice(0, 4).map((o) => {
-                const p = Number(o.base_price_usd || 0);
-                return `${o.code}) ${o.name}${p > 0 ? ` (USD ${formatMoney(p)})` : ""}`;
-              }),
+                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
               "",
               "Responde con letra o número (A/1).",
             ].join("\n");
@@ -12177,10 +12168,7 @@ export async function POST(req: Request) {
             strictReply = [
               `Perfecto. Según base de datos, la familia más económica aquí es: ${familyLabelHuman}.`,
               "Estas son 4 opciones más económicas:",
-              ...options.slice(0, 4).map((o) => {
-                const p = Number(o.base_price_usd || 0);
-                return `${o.code}) ${o.name}${p > 0 ? ` (USD ${formatMoney(p)})` : ""}`;
-              }),
+                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
               "",
               "Elige con letra o número (A/1), o escribe 'más'.",
             ].join("\n");
@@ -12355,10 +12343,7 @@ export async function POST(req: Request) {
             strictReply = [
               `Perfecto. Según base de datos, la familia más económica aquí es: ${topFamily}.`,
               "Estas son 4 opciones de menor precio:",
-              ...options.slice(0, 4).map((o) => {
-                const p = Number(o.base_price_usd || 0);
-                return `${o.code}) ${o.name}${p > 0 ? ` (USD ${formatMoney(p)})` : ""}`;
-              }),
+                ...options.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
               "",
               "Responde con letra o número (A/1).",
             ].join("\n");
