@@ -5558,13 +5558,6 @@ function isBluetoothAsk(text: string): boolean {
 
 function buildPriceRangeLine(rows: any[]): string {
   const list = Array.isArray(rows) ? rows : [];
-  const usdValues = list
-    .map((r: any) => Number(r?.base_price_usd || 0))
-    .filter((n: number) => Number.isFinite(n) && n > 0)
-    .sort((a: number, b: number) => a - b);
-  if (usdValues.length) {
-    return `💰 Valores estimados en BD: desde USD ${formatMoney(usdValues[0])} hasta USD ${formatMoney(usdValues[usdValues.length - 1])}.`;
-  }
   const copValues = list
     .map((r: any) => Number(rowCatalogCopPrice(r) || 0))
     .filter((n: number) => Number.isFinite(n) && n > 0)
@@ -5573,6 +5566,13 @@ function buildPriceRangeLine(rows: any[]): string {
     const minCop = copValues[0];
     const maxCop = copValues[copValues.length - 1];
     return `💰 Valores estimados en BD: desde $${formatMoney(minCop)} hasta $${formatMoney(maxCop)} COP (según ciudad, gama y funcionalidad).`;
+  }
+  const usdValues = list
+    .map((r: any) => Number(r?.base_price_usd || 0))
+    .filter((n: number) => Number.isFinite(n) && n > 0)
+    .sort((a: number, b: number) => a - b);
+  if (usdValues.length) {
+    return `💰 Valores estimados en BD: desde USD ${formatMoney(usdValues[0])} hasta USD ${formatMoney(usdValues[usdValues.length - 1])} (sin rango COP cargado).`;
   }
   return "💰 En este grupo no tengo precios confirmados en BD para estimar rango ahora mismo.";
 }
