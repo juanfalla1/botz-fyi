@@ -2991,7 +2991,7 @@ async function upsertNewCommercialCustomerContact(
   const email = String(args.email || "").trim().toLowerCase();
   const phone = normalizePhone(String(args.phone || "").trim());
   const tail = phoneTail10(phone);
-  if (!ownerId || !company || !nit || !contact || !email || !phone) return false;
+  if (!ownerId || (!nit && !tail && !email)) return false;
 
   const baseMeta = {
     nit,
@@ -3003,18 +3003,57 @@ async function upsertNewCommercialCustomerContact(
   };
 
   try {
-    let existingByNit: any = null;
-    const { data: byNit } = await supabase
-      .from("agent_crm_contacts")
-      .select("id,metadata")
-      .eq("created_by", ownerId)
-      .eq("contact_key", `nit:${nit}`)
-      .order("updated_at", { ascending: false })
-      .limit(1);
-    if (Array.isArray(byNit) && byNit[0]) existingByNit = byNit[0];
+    let existingContact: any = null;
+    if (nit) {
+      const { data: byNit } = await supabase
+        .from("agent_crm_contacts")
+        .select("id,name,email,phone,company,contact_key,metadata")
+        .eq("created_by", ownerId)
+        .eq("contact_key", `nit:${nit}`)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (Array.isArray(byNit) && byNit[0]) existingContact = byNit[0];
+    }
+
+    if (!existingContact && tail) {
+      const { data: byPhone } = await supabase
+        .from("agent_crm_contacts")
+        .select("id,name,email,phone,company,contact_key,metadata")
+        .eq("created_by", ownerId)
+        .or(`phone.eq.${phone},phone.like.%${tail},contact_key.eq.cel:${phone},contact_key.eq.cel:${tail}`)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (Array.isArray(byPhone) && byPhone[0]) existingContact = byPhone[0];
+    }
+
+    if (!existingContact && email) {
+      const { data: byEmail } = await supabase
+        .from("agent_crm_contacts")
+        .select("id,name,email,phone,company,contact_key,metadata")
+        .eq("created_by", ownerId)
+        .eq("email", email)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (Array.isArray(byEmail) && byEmail[0]) existingContact = byEmail[0];
+    }
+
+    const existingName = sanitizeCustomerDisplayName(String(existingContact?.name || "").trim());
+    const existingEmail = String(existingContact?.email || "").trim().toLowerCase();
+    const existingPhone = normalizePhone(String(existingContact?.phone || "").trim());
+    const existingCompany = String(existingContact?.company || "").trim();
+    const resolvedName = contact || existingName || null;
+    const resolvedEmail = email || existingEmail || null;
+    const resolvedPhone = phone || existingPhone || null;
+    const resolvedCompany = company || existingCompany || null;
+
+    const candidateKey = nit
+      ? `nit:${nit}`
+      : (resolvedPhone ? `cel:${resolvedPhone}` : (resolvedEmail ? `mail:${resolvedEmail}` : ""));
+    const contactKey = String(existingContact?.contact_key || "").trim() || candidateKey;
+    if (!contactKey) return false;
 
     const mergedMeta = {
-      ...(existingByNit?.metadata && typeof existingByNit.metadata === "object" ? existingByNit.metadata : {}),
+      ...(existingContact?.metadata && typeof existingContact.metadata === "object" ? existingContact.metadata : {}),
       ...baseMeta,
     };
 
@@ -3026,11 +3065,11 @@ async function upsertNewCommercialCustomerContact(
           {
             tenant_id: args.tenantId || null,
             created_by: ownerId,
-            name: contact,
-            email,
-            phone,
-            company,
-            contact_key: `nit:${nit}`,
+            name: resolvedName,
+            email: resolvedEmail,
+            phone: resolvedPhone,
+            company: resolvedCompany,
+            contact_key: contactKey,
             status: "analysis",
             metadata: mergedMeta,
           },
@@ -3052,7 +3091,7 @@ async function upsertNewCommercialCustomerContact(
         .from("agent_crm_contacts")
         .select("id")
         .eq("created_by", ownerId)
-        .eq("contact_key", `nit:${nit}`)
+        .eq("contact_key", contactKey)
         .limit(1);
       if (!verifyErr && Array.isArray(verifyRows) && verifyRows[0]?.id) persisted = true;
       if (verifyErr) {
