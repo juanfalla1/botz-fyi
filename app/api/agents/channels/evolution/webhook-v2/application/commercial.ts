@@ -14,6 +14,19 @@ export function normalizeCityLabel(raw: string): string {
   return t;
 }
 
+export function detectDepartmentLabel(raw: string): string {
+  const t = normalizeText(String(raw || ""));
+  if (!t) return "";
+  if (/(bogota|bogota dc|bogota d c|cundinamarca)/.test(t)) return "bogota";
+  if (/(antioquia|medellin|envigado|itagui|sabaneta|bello|rionegro)/.test(t)) return "antioquia";
+  if (/risaralda/.test(t)) return "risaralda";
+  if (/valle\s+del\s+cauca|cali/.test(t)) return "valle_del_cauca";
+  if (/atlantico|barranquilla/.test(t)) return "atlantico";
+  if (/santander|bucaramanga/.test(t)) return "santander";
+  if (/norte\s+de\s+santander|cucuta/.test(t)) return "norte_de_santander";
+  return "";
+}
+
 export function sanitizeCustomerDisplayName(raw: string): string {
   const v = String(raw || "").trim().replace(/\s+/g, " ");
   if (!v) return "";
@@ -259,6 +272,7 @@ export async function upsertNewCommercialCustomerContact(args: {
 }): Promise<boolean> {
   const ownerId = String(args.ownerId || "").trim();
   const city = args.normalizeCityLabel(String(args.city || "").trim());
+  const department = detectDepartmentLabel(String(args.city || ""));
   const company = String(args.company || "").trim();
   const nit = String(args.nit || "").replace(/\D/g, "").trim();
   const contact = args.sanitizeCustomerDisplayName(String(args.contact || "").trim());
@@ -270,6 +284,7 @@ export async function upsertNewCommercialCustomerContact(args: {
   const baseMeta = {
     nit,
     billing_city: city,
+    billing_department: department,
     customer_type: "new",
     source: "whatsapp_new_customer_data",
     whatsapp_transport_id: phone,
@@ -766,7 +781,7 @@ export function updateNewCustomerRegistration(args: {
   const email = String(args.extractEmail(args.text) || template.email || current.email || "").trim().toLowerCase();
   const phone = args.normalizePhone(String(args.extractCustomerPhone(args.text, "") || template.phone || current.phone || "").trim());
 
-  args.memory.new_customer_data = { city, company, nit, contact, email, phone };
+  args.memory.new_customer_data = { city, department: detectDepartmentLabel(city || args.text), company, nit, contact, email, phone };
   if (template.isPersonaNatural) args.memory.is_persona_natural = true;
   args.memory.commercial_customer_name = contact || args.memory.commercial_customer_name || "";
   args.memory.commercial_company_name = company || args.memory.commercial_company_name || "";

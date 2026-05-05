@@ -19,6 +19,8 @@ const DEFAULT_CONTACT_FIELDS = [
   { key: "email", label: "Email", visible: true, required: true },
   { key: "phone", label: "Telefono", visible: true, required: true },
   { key: "company", label: "Empresa", visible: true, required: false },
+  { key: "city", label: "Ciudad", visible: true, required: false },
+  { key: "department", label: "Departamento", visible: true, required: false },
   { key: "assigned_agent_name", label: "Asignado a", visible: false, required: false },
   { key: "last_channel", label: "Canal", visible: false, required: false },
   { key: "last_product", label: "Ultimo producto", visible: false, required: false },

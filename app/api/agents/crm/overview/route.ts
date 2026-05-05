@@ -656,9 +656,13 @@ export async function GET(req: Request) {
       const agenda = agendaAt
         ? `${agendaLabel || "Cita con asesor"} · ${new Date(agendaAt).toLocaleString()}`
         : "";
+      const city = String((metadata as any)?.billing_city || "").trim();
+      const department = String((metadata as any)?.billing_department || "").trim();
       return {
         ...c,
         phone,
+        city,
+        department,
         status,
         name: hasName ? c.name : (phone ? `Contacto ${phone.slice(-4)}` : ""),
         next_action: nextAction,

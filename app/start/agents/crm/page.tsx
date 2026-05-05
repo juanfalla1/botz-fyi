@@ -102,6 +102,8 @@ const CONTACT_FIELD_DEFAULTS = [
   { key: "email", label: "Email", visible: true, required: true },
   { key: "phone", label: "Telefono", visible: true, required: true },
   { key: "company", label: "Empresa", visible: true, required: false },
+  { key: "city", label: "Ciudad", visible: true, required: false },
+  { key: "department", label: "Departamento", visible: true, required: false },
   { key: "assigned_agent_name", label: "Asignado a", visible: false, required: false },
   { key: "last_channel", label: "Canal", visible: false, required: false },
   { key: "last_product", label: "Ultimo producto", visible: false, required: false },
@@ -265,6 +267,8 @@ export default function AgentsCrmPage() {
     if (key === "email") return 220;
     if (key === "phone") return 140;
     if (key === "company") return 160;
+    if (key === "city") return 150;
+    if (key === "department") return 170;
     if (key === "status") return 150;
     if (key === "next_action") return 220;
     if (key === "agenda") return 230;

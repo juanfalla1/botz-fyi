@@ -1028,6 +1028,27 @@ function normalizeCityLabel(raw: string): string {
   return t;
 }
 
+function detectDepartmentLabel(raw: string): string {
+  const t = normalizeText(String(raw || ""));
+  if (!t) return "";
+  if (/(bogota|bogota dc|bogota d c|cundinamarca)/.test(t)) return "bogota";
+  if (/(antioquia|medellin|envigado|itagui|sabaneta|bello|rionegro)/.test(t)) return "antioquia";
+  if (/risaralda/.test(t)) return "risaralda";
+  if (/valle\s+del\s+cauca|cali/.test(t)) return "valle_del_cauca";
+  if (/atlantico|barranquilla/.test(t)) return "atlantico";
+  if (/santander|bucaramanga/.test(t)) return "santander";
+  if (/norte\s+de\s+santander|cucuta/.test(t)) return "norte_de_santander";
+  return "";
+}
+
+function resolvePricingCityKey(cityRaw: string, departmentRaw: string): string {
+  const city = normalizeCityLabel(cityRaw);
+  const department = detectDepartmentLabel(departmentRaw || cityRaw);
+  if (city === "antioquia" || department === "antioquia") return "antioquia";
+  if (city === "bogota" || department === "bogota") return "bogota";
+  return city;
+}
+
 function isPresent(v: string): boolean {
   return Boolean(String(v || "").trim());
 }
@@ -2985,6 +3006,7 @@ async function upsertNewCommercialCustomerContact(
 ): Promise<boolean> {
   const ownerId = String(args.ownerId || "").trim();
   const city = normalizeCityLabel(String(args.city || "").trim());
+  const department = detectDepartmentLabel(String(args.city || ""));
   const company = String(args.company || "").trim();
   const nit = String(args.nit || "").replace(/\D/g, "").trim();
   const contact = sanitizeCustomerDisplayName(String(args.contact || "").trim());
@@ -2996,6 +3018,7 @@ async function upsertNewCommercialCustomerContact(
   const baseMeta = {
     nit,
     billing_city: city,
+    billing_department: department,
     customer_type: "new",
     source: "whatsapp_new_customer_data",
     whatsapp_transport_id: phone,
@@ -10514,7 +10537,8 @@ export async function POST(req: Request) {
         const firstCompanyLine = looseLines.find((ln) => /persona\s+natural|sas|s\.a\.s|ltda|empresa|razon\s+social/i.test(ln)) || "";
         const firstContactLine = looseLines.find((ln) => /^[a-zA-Záéíóúüñ\s]{6,60}$/.test(ln) && ln !== firstCityLine && ln !== firstCompanyLine && !/@/.test(ln)) || "";
 
-        const cityNow = normalizeCityLabel(pickBounded("ciudad|city") || extractLabeledValue(quoteDataInputText, ["ciudad", "city"]) || firstCityLine);
+          const cityNow = normalizeCityLabel(pickBounded("ciudad|city") || extractLabeledValue(quoteDataInputText, ["ciudad", "city"]) || firstCityLine);
+          const departmentNow = detectDepartmentLabel(pickBounded("departamento|depto") || extractLabeledValue(quoteDataInputText, ["departamento", "depto"]) || cityNow);
         const companyNow = pickBounded("empresa|company|razon social") || extractLabeledValue(quoteDataInputText, ["empresa", "company", "razon social"]) || firstCompanyLine;
         const nitNow = (String(quoteDataInputText || "").match(/\bnit\s*[:=]?\s*([0-9\.\-]{5,20})/i)?.[1] || extractLabeledValue(quoteDataInputText, ["nit"]).replace(/[^0-9.\-]/g, "") || firstNitLine.replace(/[^0-9.\-]/g, "")).trim();
         const contactNow = pickBounded("contacto") || extractLabeledValue(quoteDataInputText, ["contacto"]) || firstContactLine || extractCustomerName(quoteDataInputText, inbound.pushName || "");
@@ -10647,6 +10671,7 @@ export async function POST(req: Request) {
         strictMemory.quote_data = quoteData;
 
         const customerCity = String(quoteData.city || "").trim() || ((Boolean(crmContactFoundForQuote) || Boolean(recognizedReturningCustomer) || rememberedExistingType) ? "Bogota" : "");
+        const customerDepartment = departmentNow || detectDepartmentLabel(customerCity);
         const customerCompany = String(quoteData.company || "").trim();
         const customerNit = String(quoteData.nit || "").trim();
         const customerContact = String(quoteData.contact || "").trim();
@@ -10696,11 +10721,12 @@ export async function POST(req: Request) {
 
         if (customerSegment === "existing" && crmContactFoundForQuote && hasCityCore) {
           const resolvedCity = normalizeCityLabel(customerCity);
-          strictMemory.crm_billing_city = resolvedCity;
-          strictMemory.quote_data = {
-            ...(strictMemory.quote_data && typeof strictMemory.quote_data === "object" ? strictMemory.quote_data : {}),
-            city: resolvedCity,
-          };
+            strictMemory.crm_billing_city = resolvedCity;
+            strictMemory.crm_billing_department = customerDepartment;
+            strictMemory.quote_data = {
+              ...(strictMemory.quote_data && typeof strictMemory.quote_data === "object" ? strictMemory.quote_data : {}),
+              city: resolvedCity,
+            };
           try {
             const existingContactId = String(strictMemory.crm_contact_id || "").trim();
             if (existingContactId) {
@@ -10713,6 +10739,7 @@ export async function POST(req: Request) {
               const mergedMetadata = {
                 ...(existingRow?.metadata && typeof existingRow.metadata === "object" ? existingRow.metadata : {}),
                 billing_city: resolvedCity,
+                billing_department: customerDepartment || detectDepartmentLabel(resolvedCity),
                 whatsapp_lifecycle_at: new Date().toISOString(),
               };
               await supabase
@@ -10791,7 +10818,7 @@ export async function POST(req: Request) {
             const effectiveNit = customerNit || "N/A";
             const effectiveContact = customerContact || String(strictMemory?.crm_contact_name || "").trim() || (knownCustomerName || inbound.pushName || "Cliente");
             const effectivePhone = normalizePhone(customerPhone || String(strictMemory?.crm_contact_phone || "") || inbound.from || "");
-            const cityKey = normalizeCityLabel(effectiveCity);
+            const cityKey = resolvePricingCityKey(effectiveCity, customerDepartment);
             const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
             const parseCop = (v: any) => {
               const n = Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
@@ -10848,6 +10875,7 @@ export async function POST(req: Request) {
                 trm_date: trm?.rate_date || null,
                 trm_source: trm?.source || null,
                 customer_city: effectiveCity || null,
+                customer_department: customerDepartment || detectDepartmentLabel(effectiveCity) || null,
                 customer_nit: effectiveNit || null,
                 customer_company: effectiveCompany || null,
                 customer_contact: effectiveContact || null,
@@ -15475,6 +15503,7 @@ export async function POST(req: Request) {
           const effectiveCustomerCity = normalizeCityLabel(
             String(customerCity || previousDraftForCustomer?.location || (previousDraftPayload as any)?.customer_city || "Bogota")
           );
+          const effectiveCustomerDepartment = detectDepartmentLabel(String((previousDraftPayload as any)?.customer_department || customerCity || previousDraftForCustomer?.location || ""));
           const effectiveCustomerCompany = String(
             customerCompany ||
             rememberedCrmCompany ||
@@ -15562,7 +15591,8 @@ export async function POST(req: Request) {
                   if (explicitQty > 1) quantity = explicitQty;
                 }
                 const cityPrices = (selected as any)?.source_payload?.prices_cop || {};
-                const cityPriceCop = Number(cityPrices?.[effectiveCustomerCity] || 0);
+                const pricingCityKey = resolvePricingCityKey(effectiveCustomerCity, effectiveCustomerDepartment);
+                const cityPriceCop = Number(cityPrices?.[pricingCityKey] || 0);
                 const bogotaPriceCop = Number(cityPrices?.bogota || 0);
                 const selectedUnitCop = cityPriceCop > 0 ? cityPriceCop : bogotaPriceCop;
                 const basePriceUsdRaw = Number((selected as any)?.base_price_usd || 0);
@@ -15606,6 +15636,7 @@ export async function POST(req: Request) {
                     trm_source: trm.source,
                     price_currency: String((selected as any)?.price_currency || "USD"),
                     customer_city: effectiveCustomerCity || null,
+                    customer_department: effectiveCustomerDepartment || null,
                     customer_nit: effectiveCustomerNit || null,
                     customer_company: effectiveCustomerCompany || null,
                     customer_contact: effectiveCustomerContact || null,
