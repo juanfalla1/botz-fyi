@@ -410,6 +410,22 @@ function inboundPhoneCandidates(payload: any, item: any): string[] {
   return Array.from(new Set(ranked));
 }
 
+function resolveInboundRealPhone(jidCandidates: string[], orderedCandidates: string[]): string {
+  const jidFirst = jidCandidates
+    .map((raw) => String(raw || "").trim())
+    .filter((raw) => /@s\.whatsapp\.net$|@c\.us$/i.test(raw) && !isLidCandidate(raw))
+    .map((raw) => normalizeRealCustomerPhone(normalizePhone(raw)))
+    .find(Boolean);
+  if (jidFirst) return jidFirst;
+
+  const orderedReal = orderedCandidates
+    .map((v) => normalizeRealCustomerPhone(v))
+    .find(Boolean);
+  if (orderedReal) return orderedReal;
+
+  return "";
+}
+
 function extractInbound(payload: any): InboundEvent | null {
   const event = String(payload?.event || payload?.type || payload?.eventName || "").toLowerCase();
   const hasUpsertEvent = /messages?[._-]?upsert/.test(event);
@@ -474,6 +490,7 @@ function extractInbound(payload: any): InboundEvent | null {
 
     const orderedCandidates = inboundPhoneCandidates(payload, item);
     const jidCandidates = inboundJidCandidates(payload, item);
+    const resolvedRealPhone = resolveInboundRealPhone(jidCandidates, orderedCandidates);
     const preferred = String(preferredInboundPhone(payload, item)).trim();
     const rawPrimaryRemote = [
       key?.remoteJid,
@@ -491,7 +508,7 @@ function extractInbound(payload: any): InboundEvent | null {
       : (orderedCandidates[0] || "");
     if (!remoteJid) continue;
 
-    const from = normalizePhone(String(remoteJid).split("@")[0] || "");
+    const from = resolvedRealPhone || normalizePhone(String(remoteJid).split("@")[0] || "");
     
     // Para messages.update, el mensaje puede estar en payload.data.message
     const messageData = item?.message || item?.data?.message || item?.data || payload?.data?.message || payload?.message || {};
@@ -518,7 +535,7 @@ function extractInbound(payload: any): InboundEvent | null {
     return {
       instance,
       from,
-      fromIsLid: preferredIsLid && from === normalizePhone(rawPrimaryRemote),
+      fromIsLid: !resolvedRealPhone && preferredIsLid && from === normalizePhone(rawPrimaryRemote),
       jidCandidates,
       alternates: orderedCandidates.filter((p) => p !== from),
       text,
@@ -16505,7 +16522,12 @@ export async function POST(req: Request) {
         ownerId,
         tenantId: (agent as any)?.tenant_id || null,
         phone: inbound.from,
-        realPhone: String(nextMemory.customer_phone || previousMemory?.customer_phone || ""),
+        realPhone: String(
+          nextMemory.customer_phone ||
+          previousMemory?.customer_phone ||
+          normalizeRealCustomerPhone(inbound.from) ||
+          ""
+        ),
         name: knownCustomerName || inbound.pushName || "",
         status: finalQuoteContext ? "quote" : undefined,
         nextAction: finalMeetingAt ? "Llamar cliente (cita WhatsApp)" : (finalNextAction || undefined),
