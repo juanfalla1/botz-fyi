@@ -1809,6 +1809,18 @@ function isBudgetVisibilityFollowup(text: string): boolean {
   return /(no\s+(sale|aparece|veo|salio|salio)|falta|no\s+me\s+(sale|aparece)|donde\s+esta|donde\s+quedo|no\s+sale\s+el\s+(presupuesto|precio|valor)|no\s+veo\s+el\s+(presupuesto|precio|valor))/.test(t);
 }
 
+function isLowerPriceAsk(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!t) return false;
+  return /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|menos\s+precio|precio\s+bajo|precio\s+mas\s+bajo|precio\s+m[aá]s\s+bajo)\b/.test(t);
+}
+
+function isHigherPriceAsk(text: string): boolean {
+  const t = normalizeText(String(text || ""));
+  if (!t) return false;
+  return /\b(mayor\s+precio|meyor\s+precio|m[aá]s\s+costos|mas\s+costos|precio\s+m[aá]s\s+alto|precio\s+mas\s+alto|gama\s+alta|premium)\b/.test(t);
+}
+
 type AlternativeFollowupIntent =
   | "alternative_lower_price"
   | "alternative_higher_price"
@@ -1822,8 +1834,8 @@ function detectAlternativeFollowupIntent(text: string): AlternativeFollowupInten
   const t = normalizeText(String(text || ""));
   if (!t) return null;
   if (/(otra\s+marca|otras\s+marcas|marca\s+diferente|de\s+otra\s+marca)/.test(t)) return "alternative_other_brand";
-  if (/(muy\s+costos|mas\s+barat|más\s+barat|mas\s+econom|más\s+econom|economic|menor\s+precio|menos\s+precio|precio\s+mas\s+bajo|precio\s+m[aá]s\s+bajo)/.test(t)) return "alternative_lower_price";
-  if (/(mayor\s+precio|mas\s+costos|m[aá]s\s+costos|precio\s+mas\s+alto|precio\s+m[aá]s\s+alto|gama\s+alta|premium)/.test(t)) return "alternative_higher_price";
+  if (isLowerPriceAsk(t)) return "alternative_lower_price";
+  if (isHigherPriceAsk(t)) return "alternative_higher_price";
   if (/(mayor\s+capacidad|mas\s+capacidad|más\s+capacidad)/.test(t)) return "alternative_higher_capacity";
   if (/(menor\s+capacidad|menos\s+capacidad)/.test(t)) return "alternative_lower_capacity";
   if (/(mayor\s+resolucion|mejor\s+resolucion|mas\s+resolucion|más\s+resolucion|mas\s+precision|más\s+precision|mejor\s+precision|menor\s+resolucion|menos\s+precision|menor\s+precision)/.test(t)) return "alternative_same_need";
@@ -6889,8 +6901,8 @@ export async function POST(req: Request) {
               : "¿En qué puedo ayudarte con tu cotización?"
         );
         const inboundNormForFinalize = normalizeText(String(text || ""));
-        const asksLowerPriceFinalize = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|menos\s+precio|precio\s+bajo)\b/.test(inboundNormForFinalize);
-        const asksHigherPriceFinalize = /\b(mayor\s+precio|m[aá]s\s+costos|mas\s+costos|precio\s+m[aá]s\s+alto|precio\s+mas\s+alto|gama\s+alta|premium)\b/.test(inboundNormForFinalize);
+        const asksLowerPriceFinalize = isLowerPriceAsk(inboundNormForFinalize);
+        const asksHigherPriceFinalize = isHigherPriceAsk(inboundNormForFinalize);
         const shouldForcePriceReply = (asksLowerPriceFinalize || asksHigherPriceFinalize) && awaitingNow === "strict_choose_model";
         if (shouldForcePriceReply) {
           const pending = Array.isArray(memory?.pending_product_options) ? memory.pending_product_options : [];
@@ -7269,8 +7281,8 @@ export async function POST(req: Request) {
       let strictReply = "";
       const strictDocs: Array<{ base64: string; fileName: string; mimetype: string; caption?: string }> = [];
       let strictBypassAutoQuote = false;
-      const asksLowerPriceGlobal = /\b(economic|economica|economicas|economico|economicos|mas\s+barat|m[aá]s\s+barat|menor\s+precio|menos\s+precio|precio\s+bajo)\b/.test(textNorm);
-      const asksHigherPriceGlobal = /\b(mayor\s+precio|m[aá]s\s+costos|mas\s+costos|precio\s+m[aá]s\s+alto|precio\s+mas\s+alto|gama\s+alta|premium)\b/.test(textNorm);
+      const asksLowerPriceGlobal = isLowerPriceAsk(textNorm);
+      const asksHigherPriceGlobal = isHigherPriceAsk(textNorm);
       const selectedModelForSlots = String(
         previousMemory?.last_selected_product_name ||
         previousMemory?.last_product_name ||
@@ -10071,12 +10083,12 @@ export async function POST(req: Request) {
           }
         }
         if (awaiting === "strict_choose_action" && !followupIntent && !wantsSheet) {
-          if (/\b(menor\s+precio|m[aá]s\s+barat|mas\s+barat|econ[oó]mic|economica|economicas)\b/.test(textNorm)) {
+          if (isLowerPriceAsk(textNorm)) {
             followupIntent = "alternative_lower_price";
           }
         }
         if (awaiting === "strict_choose_action" && !followupIntent && !wantsSheet) {
-          if (/\b(mayor\s+precio|m[aá]s\s+costos|mas\s+costos|precio\s+m[aá]s\s+alto|precio\s+mas\s+alto|gama\s+alta|premium)\b/.test(textNorm)) {
+          if (isHigherPriceAsk(textNorm)) {
             followupIntent = "alternative_higher_price";
           }
         }
