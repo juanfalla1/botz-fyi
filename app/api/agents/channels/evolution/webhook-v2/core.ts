@@ -1811,6 +1811,7 @@ function isBudgetVisibilityFollowup(text: string): boolean {
 
 type AlternativeFollowupIntent =
   | "alternative_lower_price"
+  | "alternative_higher_price"
   | "alternative_same_need"
   | "alternative_other_brand"
   | "alternative_higher_capacity"
@@ -1822,6 +1823,7 @@ function detectAlternativeFollowupIntent(text: string): AlternativeFollowupInten
   if (!t) return null;
   if (/(otra\s+marca|otras\s+marcas|marca\s+diferente|de\s+otra\s+marca)/.test(t)) return "alternative_other_brand";
   if (/(muy\s+costos|mas\s+barat|más\s+barat|mas\s+econom|más\s+econom|economic|menor\s+precio|menos\s+precio|precio\s+mas\s+bajo|precio\s+m[aá]s\s+bajo)/.test(t)) return "alternative_lower_price";
+  if (/(mayor\s+precio|mas\s+costos|m[aá]s\s+costos|precio\s+mas\s+alto|precio\s+m[aá]s\s+alto|gama\s+alta|premium)/.test(t)) return "alternative_higher_price";
   if (/(mayor\s+capacidad|mas\s+capacidad|más\s+capacidad)/.test(t)) return "alternative_higher_capacity";
   if (/(menor\s+capacidad|menos\s+capacidad)/.test(t)) return "alternative_lower_capacity";
   if (/(mayor\s+resolucion|mejor\s+resolucion|mas\s+resolucion|más\s+resolucion|mas\s+precision|más\s+precision|mejor\s+precision|menor\s+resolucion|menos\s+precision|menor\s+precision)/.test(t)) return "alternative_same_need";
@@ -4276,6 +4278,15 @@ function isAffirmativeIntent(text: string): boolean {
   return /^(si|sí|ok|vale|listo|dale|de una|perfecto|por favor|si por favor|hazlo|enviala|enviamela)\b/.test(t);
 }
 
+function buildStrictActionMenuPrompt(): string {
+  return [
+    "Perfecto. ¿Qué prefieres ahora?",
+    "1) Cotización",
+    "2) Ficha técnica",
+    "3) Ver más opciones",
+  ].join("\n");
+}
+
 function isConversationCloseIntent(text: string): boolean {
   const t = normalizeCatalogQueryText(String(text || "")).replace(/[^a-z0-9\s]/g, " ").trim();
   if (!t) return false;
@@ -5522,6 +5533,21 @@ function buildPriceRangeLine(rows: any[]): string {
   return isIndustrialProfile
     ? "💰 Valores estimados: desde $3.500.000 (según gama y funcionalidad). Deseas continuar con la cotizacion"
     : "💰 Valores estimados: desde $4.000.000 (según gama y funcionalidad). Deseas continuar con la cotizacion";
+}
+
+function buildHigherPriceEstimateLine(rows: any[]): string {
+  const list = Array.isArray(rows) ? rows : [];
+  const sample = [...list]
+    .sort((a: any, b: any) => Number(getRowCapacityG(b) || 0) - Number(getRowCapacityG(a) || 0))
+    .slice(0, Math.min(12, Math.max(3, list.length)));
+  const industrialHits = sample.filter((r: any) => {
+    const txt = normalizeText(`${String(r?.name || "")} ${String(r?.category || "")} ${familyLabelFromRow(r)}`);
+    return /(industrial|plataforma|ranger|defender|valor|rc31|r31|r71|ckw|td52p)/.test(txt);
+  }).length;
+  const isIndustrialProfile = industrialHits > 0 && industrialHits >= Math.max(1, Math.floor(sample.length / 3));
+  return isIndustrialProfile
+    ? "💰 Valores estimados (gama superior): desde $4.500.000 (según capacidad, precisión y funcionalidad)."
+    : "💰 Valores estimados (gama superior): desde $5.000.000 (según capacidad, precisión y funcionalidad).";
 }
 
 function isLargestCapacityAsk(text: string): boolean {
@@ -9894,6 +9920,11 @@ export async function POST(req: Request) {
           strictReply = buildGuidedNeedReframePrompt();
         }
 
+        if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && isAffirmativeShortIntent(text) && !wantsQuote && !wantsSheet && !followupIntent && !anotherQuoteChoice && !(technicalCapInAction > 0 || technicalReadInAction > 0) && !appHintInAction && !String(previousMemory?.target_application || "").trim()) {
+          strictMemory.awaiting_action = "strict_choose_action";
+          strictReply = buildStrictActionMenuPrompt();
+        }
+
         if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && (appHintInAction || (asksApplicationRecommendationsNow && String(previousMemory?.target_application || "").trim())) && !wantsQuote && !wantsSheet && !(technicalCapInAction > 0 || technicalReadInAction > 0)) {
           const effectiveApp = appHintInAction || String(previousMemory?.target_application || "").trim();
           strictMemory.target_application = effectiveApp;
@@ -9906,7 +9937,7 @@ export async function POST(req: Request) {
           if (selectedIsCompatible) {
             strictReply = [
               `Sí, ${selectedName} puede servir para ${effectiveApp.replace(/_/g, " ")} por precisión (${formatSpecNumber(selectedRead)} g).`,
-              "Si quieres, seguimos con 1) cotización o 2) ficha técnica.",
+              buildStrictActionMenuPrompt(),
             ].join("\n");
           } else {
             const categoryScoped = rememberedCategory ? scopeCatalogRows(ownerRows as any, rememberedCategory) : ownerRows;
@@ -9953,6 +9984,11 @@ export async function POST(req: Request) {
         if (awaiting === "strict_choose_action" && !followupIntent && !wantsSheet) {
           if (/\b(menor\s+precio|m[aá]s\s+barat|mas\s+barat|econ[oó]mic|economica|economicas)\b/.test(textNorm)) {
             followupIntent = "alternative_lower_price";
+          }
+        }
+        if (awaiting === "strict_choose_action" && !followupIntent && !wantsSheet) {
+          if (/\b(mayor\s+precio|m[aá]s\s+costos|mas\s+costos|precio\s+m[aá]s\s+alto|precio\s+mas\s+alto|gama\s+alta|premium)\b/.test(textNorm)) {
+            followupIntent = "alternative_higher_price";
           }
         }
 
@@ -10126,6 +10162,14 @@ export async function POST(req: Request) {
               const priced = byPriceAsc(basePool).filter((r: any) => Number(r?.base_price_usd || 0) > 0);
               const cheaper = selectedPrice > 0 ? priced.filter((r: any) => Number(r?.base_price_usd || 0) < selectedPrice) : [];
               rankedRows = cheaper.length ? cheaper : priced;
+            } else if (followupIntent === "alternative_higher_price") {
+              intro = "Perfecto, aquí tienes opciones de mayor precio:";
+              const selectedPrice = Number(selectedProduct?.base_price_usd || 0);
+              const pricedDesc = byPriceAsc(basePool)
+                .filter((r: any) => Number(r?.base_price_usd || 0) > 0)
+                .reverse();
+              const higher = selectedPrice > 0 ? pricedDesc.filter((r: any) => Number(r?.base_price_usd || 0) > selectedPrice) : [];
+              rankedRows = higher.length ? higher : pricedDesc;
             } else if (followupIntent === "alternative_higher_capacity" || followupIntent === "alternative_lower_capacity") {
               const capTarget = Number(selectedSpec?.capacityG || 0);
               intro = followupIntent === "alternative_higher_capacity"
@@ -10175,6 +10219,12 @@ export async function POST(req: Request) {
 
             const options = buildNumberedProductOptions(mergedRows as any[], 5);
             if (options.length) {
+              const priceLine =
+                followupIntent === "alternative_lower_price"
+                  ? buildPriceRangeLine(mergedRows as any[])
+                  : (followupIntent === "alternative_higher_price"
+                    ? buildHigherPriceEstimateLine(mergedRows as any[])
+                    : "");
               strictMemory.pending_product_options = options;
               strictMemory.last_recommended_options = options;
               strictMemory.awaiting_action = "strict_choose_model";
@@ -10182,6 +10232,7 @@ export async function POST(req: Request) {
               strictMemory.strict_family_label = familyLabel;
               strictReply = [
                 intro,
+                ...(priceLine ? [priceLine] : []),
                 ...options.map((o) => `${o.code}) ${o.name}`),
                 "",
                 "Elige con letra o número (A/1), o escribe 'más'.",
@@ -13864,7 +13915,9 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!handledByGreeting && isGreetingIntent(inbound.text)) {
+    const greetingAwaiting = normalizeText(String(previousMemory?.awaiting_action || nextMemory?.awaiting_action || "none"));
+    const hasActiveFlowAwaiting = greetingAwaiting && greetingAwaiting !== "none" && greetingAwaiting !== "capture_name";
+    if (!handledByGreeting && isGreetingIntent(inbound.text) && !hasActiveFlowAwaiting) {
       nextMemory.awaiting_action = "none";
       nextMemory.pending_product_options = [];
       nextMemory.pending_family_options = [];
