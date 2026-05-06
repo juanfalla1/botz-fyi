@@ -701,35 +701,84 @@ function normalizeTranscript(text: string): string {
 
 function removeRepeatedPhrases(input: string): string {
   const words = input.split(/\s+/).filter(Boolean);
-  if (words.length < 6) return input;
+  if (words.length < 4) return input;
 
-  const maxWindow = Math.min(6, Math.floor(words.length / 2));
+  let current = words;
+
+  for (let pass = 0; pass < 3; pass += 1) {
+    current = collapseImmediateNgramRepeats(current, 4);
+    current = collapseRepeatedNgramsWithFillers(current, 4);
+  }
+
+  return current.join(" ").trim();
+}
+
+function collapseImmediateNgramRepeats(words: string[], maxSize: number): string[] {
   const result: string[] = [];
   let i = 0;
 
   while (i < words.length) {
-    let skipped = false;
+    let collapsed = false;
 
-    for (let size = maxWindow; size >= 2; size -= 1) {
-      if (i + size * 2 > words.length) continue;
+    for (let size = Math.min(maxSize, Math.floor((words.length - i) / 2)); size >= 2; size -= 1) {
+      const first = words.slice(i, i + size).join(" ").toLowerCase();
+      const second = words.slice(i + size, i + size * 2).join(" ").toLowerCase();
 
-      const a = words.slice(i, i + size).join(" ").toLowerCase();
-      const b = words.slice(i + size, i + size * 2).join(" ").toLowerCase();
-      if (a === b) {
+      if (first === second) {
         result.push(...words.slice(i, i + size));
         i += size * 2;
-        skipped = true;
+        collapsed = true;
         break;
       }
     }
 
-    if (!skipped) {
+    if (!collapsed) {
       result.push(words[i]);
       i += 1;
     }
   }
 
-  return result.join(" ").trim();
+  return result;
+}
+
+function collapseRepeatedNgramsWithFillers(words: string[], maxSize: number): string[] {
+  const fillers = new Set(["and", "please", "could", "you", "um", "uh"]);
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < words.length) {
+    let collapsed = false;
+
+    for (let size = Math.min(maxSize, Math.floor((words.length - i) / 2)); size >= 2; size -= 1) {
+      const first = words.slice(i, i + size);
+      let j = i + size;
+
+      while (j < words.length && fillers.has(words[j].toLowerCase())) {
+        j += 1;
+      }
+
+      if (j + size > words.length) continue;
+
+      const second = words.slice(j, j + size);
+      if (joinLower(first) === joinLower(second)) {
+        result.push(...first);
+        i = j + size;
+        collapsed = true;
+        break;
+      }
+    }
+
+    if (!collapsed) {
+      result.push(words[i]);
+      i += 1;
+    }
+  }
+
+  return result;
+}
+
+function joinLower(words: string[]): string {
+  return words.join(" ").toLowerCase();
 }
 
 function extractBestQuestion(raw: string): string {
