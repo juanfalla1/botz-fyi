@@ -758,86 +758,109 @@ export default function InterviewCoach() {
       </section>
 
       <section style={{ marginTop: "32px", display: "grid", gap: "16px", maxWidth: "900px" }}>
-        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
-          <h2>CV match score</h2>
-          <p style={{ color: "#cbd5e1" }}>
-            {typeof result?.matchScore === "number" ? `${result.matchScore}%` : "Aquí aparecerá el porcentaje de match entre CV y Job Description."}
+        <div
+          style={{
+            position: "sticky",
+            top: "8px",
+            zIndex: 5,
+            background: "#071827",
+            border: "1px solid #1fb4d8",
+            borderRadius: "14px",
+            padding: "14px",
+          }}
+        >
+          <p style={{ color: "#cbd5e1", margin: 0 }}>
+            Match: <strong>{typeof result?.matchScore === "number" ? `${result.matchScore}%` : "--"}</strong> | Shortlist: <strong>{typeof result?.shortlistProbability === "number" ? `${result.shortlistProbability}%` : "--"}</strong> | Verdict: <strong>{result?.recruiterVerdict || "--"}</strong>
           </p>
         </div>
 
-        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
-          <h2>Shortlist probability</h2>
-          <p style={{ color: "#cbd5e1" }}>
-            {typeof result?.shortlistProbability === "number"
-              ? `${result.shortlistProbability}%`
-              : "Aquí aparecerá la probabilidad estimada de llamada por RRHH."}
+        <details open style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <summary style={{ cursor: "pointer", fontWeight: 700 }}>Quick interview view</summary>
+          <p style={{ color: "#cbd5e1", marginTop: "12px" }}>
+            {result?.shortAnswer || "Aquí aparecerá una respuesta corta para decir rápido."}
           </p>
-          <p style={{ color: "#10b2cb", fontWeight: 700, marginTop: "8px" }}>
+          <button
+            onClick={copyShortAnswer}
+            disabled={!result?.shortAnswer}
+            style={{
+              marginTop: "12px",
+              padding: "10px 14px",
+              borderRadius: "10px",
+              border: "none",
+              background: "#10b2cb",
+              color: "white",
+              fontWeight: 700,
+              cursor: !result?.shortAnswer ? "not-allowed" : "pointer",
+            }}
+          >
+            Copy short answer
+          </button>
+          <p style={{ color: "#cbd5e1", marginTop: "12px" }}>
+            {result?.suggestedAnswer || "Aquí aparecerá la respuesta sugerida en inglés."}
+          </p>
+        </details>
+
+        <details open style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <summary style={{ cursor: "pointer", fontWeight: 700 }}>Match dashboard</summary>
+          <p style={{ color: "#cbd5e1", marginTop: "12px" }}>
+            CV match score: {typeof result?.matchScore === "number" ? `${result.matchScore}%` : "Aquí aparecerá el porcentaje de match entre CV y Job Description."}
+          </p>
+          <p style={{ color: "#cbd5e1" }}>
+            Shortlist probability: {typeof result?.shortlistProbability === "number" ? `${result.shortlistProbability}%` : "Aquí aparecerá la probabilidad estimada de llamada por RRHH."}
+          </p>
+          <p style={{ color: "#10b2cb", fontWeight: 700 }}>
             {result?.recruiterVerdict || "Aquí aparecerá el veredicto de headhunter."}
           </p>
-          <p style={{ color: "#cbd5e1", marginTop: "8px" }}>
+          <p style={{ color: "#cbd5e1" }}>
             {result?.recruiterSummary || "Aquí aparecerá el resumen de por qué te llamarían o qué falta reforzar."}
           </p>
-        </div>
-
-        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
-          <h2>Headhunter scorecard</h2>
           <p style={{ color: "#cbd5e1" }}>
             {result?.scorecard
               ? `Experience ${result.scorecard.experienceFit}% | Skills ${result.scorecard.skillsFit}% | Industry ${result.scorecard.industryFit}% | Seniority ${result.scorecard.seniorityFit}% | Communication ${result.scorecard.communicationFit}%`
               : "Aquí aparecerá la evaluación por dimensiones de RRHH."}
           </p>
-        </div>
+        </details>
 
-        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
-          <h2>Matched strengths</h2>
-          <p style={{ color: "#cbd5e1" }}>
+        <details style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <summary style={{ cursor: "pointer", fontWeight: 700 }}>Strengths, gaps and tailored pitch</summary>
+          <p style={{ color: "#cbd5e1", marginTop: "12px" }}>
             {result?.matchedStrengths?.length
               ? result.matchedStrengths.join(" | ")
               : "Aquí aparecerán los puntos del CV que sí hacen match con la vacante."}
           </p>
-        </div>
-
-        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
-          <h2>Gaps to address honestly</h2>
           <p style={{ color: "#cbd5e1" }}>
             {result?.gaps?.length
               ? result.gaps.join(" | ")
               : "Aquí aparecerán brechas reales para responder sin inventar experiencia."}
           </p>
-        </div>
-
-        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
-          <h2>Tailored pitch</h2>
           <p style={{ color: "#cbd5e1" }}>
             {result?.tailoredPitch || "Aquí aparecerá un pitch adaptado al job description sin mentiras."}
           </p>
-        </div>
-
-        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
-          <h2>Priority actions to improve call-back</h2>
           <p style={{ color: "#cbd5e1" }}>
             {result?.priorityActions?.length
               ? result.priorityActions.join(" | ")
               : "Aquí aparecerán acciones concretas para aumentar tu probabilidad de llamado."}
           </p>
-        </div>
+        </details>
 
-        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+        <details style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <summary style={{ cursor: "pointer", fontWeight: 700 }}>Spanish meaning</summary>
           <h2>Spanish meaning</h2>
           <p style={{ color: "#cbd5e1" }}>
             {result?.spanishMeaning || "Aquí aparecerá la traducción en español."}
           </p>
-        </div>
+        </details>
 
-        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+        <details style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <summary style={{ cursor: "pointer", fontWeight: 700 }}>Suggested answer</summary>
           <h2>Suggested answer</h2>
           <p style={{ color: "#cbd5e1" }}>
             {result?.suggestedAnswer || "Aquí aparecerá la respuesta sugerida en inglés."}
           </p>
-        </div>
+        </details>
 
-        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+        <details style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <summary style={{ cursor: "pointer", fontWeight: 700 }}>Short answer</summary>
           <h2>Short answer to say</h2>
           <p style={{ color: "#cbd5e1" }}>
             {result?.shortAnswer || "Aquí aparecerá una respuesta corta para decir rápido."}
@@ -858,7 +881,7 @@ export default function InterviewCoach() {
           >
             Copy short answer
           </button>
-        </div>
+        </details>
       </section>
     </main>
   );
