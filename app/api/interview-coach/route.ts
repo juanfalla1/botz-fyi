@@ -71,6 +71,10 @@ Return ONLY valid JSON with this structure:
     "communicationFit": 0
   },
   "priorityActions": [""],
+  "requiredSkills": [""],
+  "matchingSkills": [""],
+  "missingSkills": [""],
+  "skillsSemanticSummary": "",
   "spanishMeaning": "",
   "suggestedAnswer": "",
   "shortAnswer": ""
@@ -94,6 +98,11 @@ Rules:
 - "recruiterSummary" must explain in 2-3 lines why this profile is or is not likely to be called.
 - "scorecard" must score each dimension from 0 to 100.
 - "priorityActions" must include 3-5 concrete actions to improve call-back probability without lying.
+- Skills evaluation must be semantic, not exact keyword-only matching.
+- "requiredSkills" should list 6-12 core skills from job description.
+- "matchingSkills" should list skills from CV that semantically match the required skills.
+- "missingSkills" should list honest gaps or partially covered skills.
+- "skillsSemanticSummary" should explain fit quality in recruiter terms (2-3 lines).
           `,
         },
         {
@@ -148,6 +157,10 @@ ${question}
         communicationFit: number;
       };
       priorityActions: string[];
+      requiredSkills: string[];
+      matchingSkills: string[];
+      missingSkills: string[];
+      skillsSemanticSummary: string;
       spanishMeaning: string;
       suggestedAnswer: string;
       shortAnswer: string;
@@ -196,6 +209,16 @@ ${question}
       priorityActions: Array.isArray(data.priorityActions)
         ? data.priorityActions.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
         : [],
+      requiredSkills: Array.isArray(data.requiredSkills)
+        ? data.requiredSkills.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : [],
+      matchingSkills: Array.isArray(data.matchingSkills)
+        ? data.matchingSkills.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : [],
+      missingSkills: Array.isArray(data.missingSkills)
+        ? data.missingSkills.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : [],
+      skillsSemanticSummary: typeof data.skillsSemanticSummary === "string" ? data.skillsSemanticSummary : "",
       spanishMeaning: typeof data.spanishMeaning === "string" ? data.spanishMeaning : "",
       suggestedAnswer: typeof data.suggestedAnswer === "string" ? data.suggestedAnswer : "",
       shortAnswer: typeof data.shortAnswer === "string" ? data.shortAnswer : "",

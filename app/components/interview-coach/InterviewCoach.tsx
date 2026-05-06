@@ -21,6 +21,10 @@ type CoachResponse = {
     communicationFit: number;
   };
   priorityActions?: string[];
+  requiredSkills?: string[];
+  matchingSkills?: string[];
+  missingSkills?: string[];
+  skillsSemanticSummary?: string;
 };
 
 export default function InterviewCoach() {
@@ -757,25 +761,41 @@ export default function InterviewCoach() {
         )}
       </section>
 
-      <section style={{ marginTop: "32px", display: "grid", gap: "16px", maxWidth: "900px" }}>
-        <div
-          style={{
-            position: "sticky",
-            top: "8px",
-            zIndex: 5,
-            background: "#071827",
-            border: "1px solid #1fb4d8",
-            borderRadius: "14px",
-            padding: "14px",
-          }}
-        >
-          <p style={{ color: "#cbd5e1", margin: 0 }}>
-            Match: <strong>{typeof result?.matchScore === "number" ? `${result.matchScore}%` : "--"}</strong> | Shortlist: <strong>{typeof result?.shortlistProbability === "number" ? `${result.shortlistProbability}%` : "--"}</strong> | Verdict: <strong>{result?.recruiterVerdict || "--"}</strong>
-          </p>
+      <section style={{ marginTop: "32px", display: "grid", gap: "16px", maxWidth: "960px" }}>
+        <div style={{ display: "grid", gap: "12px", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+          <MetricDonutCard label="CV match score" value={result?.matchScore} />
+          <MetricDonutCard label="Shortlist probability" value={result?.shortlistProbability} />
+          <div style={{ padding: "18px", borderRadius: "14px", background: "#0f2538", border: "1px solid #1b3a52" }}>
+            <p style={{ margin: 0, color: "#10b2cb", fontWeight: 700 }}>{result?.recruiterVerdict || "Recruiter verdict"}</p>
+            <p style={{ margin: "8px 0 0", color: "#cbd5e1" }}>{result?.recruiterSummary || "Aquí aparecerá el resumen de por qué te llamarían o qué falta reforzar."}</p>
+          </div>
         </div>
 
-        <details open style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
-          <summary style={{ cursor: "pointer", fontWeight: 700 }}>Quick interview view</summary>
+        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538", border: "1px solid #1b3a52" }}>
+          <h2 style={{ marginTop: 0 }}>Headhunter scorecard</h2>
+          {result?.scorecard ? (
+            <div style={{ display: "grid", gap: "10px" }}>
+              <ScoreRow label="Experience" value={result.scorecard.experienceFit} />
+              <ScoreRow label="Skills" value={result.scorecard.skillsFit} />
+              <ScoreRow label="Industry" value={result.scorecard.industryFit} />
+              <ScoreRow label="Seniority" value={result.scorecard.seniorityFit} />
+              <ScoreRow label="Communication" value={result.scorecard.communicationFit} />
+            </div>
+          ) : (
+            <p style={{ color: "#cbd5e1" }}>Aquí aparecerá la evaluación por dimensiones de RRHH.</p>
+          )}
+        </div>
+
+        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538", border: "1px solid #1b3a52" }}>
+          <h2 style={{ marginTop: 0 }}>Skills semantic matching</h2>
+          <p style={{ color: "#cbd5e1" }}>{result?.skillsSemanticSummary || "Aquí aparecerá el análisis semántico de skills entre CV y Job Description."}</p>
+          <ChipLine title="Required skills" items={result?.requiredSkills} emptyText="Aquí aparecerán los skills clave del job description." />
+          <ChipLine title="Matching skills" items={result?.matchingSkills} emptyText="Aquí aparecerán los skills de tu CV que hacen match semántico." tone="match" />
+          <ChipLine title="Missing skills" items={result?.missingSkills} emptyText="Aquí aparecerán brechas de skills a reforzar honestamente." tone="gap" />
+        </div>
+
+        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538", border: "1px solid #1b3a52" }}>
+          <h2 style={{ marginTop: 0 }}>Quick interview view</h2>
           <p style={{ color: "#cbd5e1", marginTop: "12px" }}>
             {result?.shortAnswer || "Aquí aparecerá una respuesta corta para decir rápido."}
           </p>
@@ -798,28 +818,7 @@ export default function InterviewCoach() {
           <p style={{ color: "#cbd5e1", marginTop: "12px" }}>
             {result?.suggestedAnswer || "Aquí aparecerá la respuesta sugerida en inglés."}
           </p>
-        </details>
-
-        <details open style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
-          <summary style={{ cursor: "pointer", fontWeight: 700 }}>Match dashboard</summary>
-          <p style={{ color: "#cbd5e1", marginTop: "12px" }}>
-            CV match score: {typeof result?.matchScore === "number" ? `${result.matchScore}%` : "Aquí aparecerá el porcentaje de match entre CV y Job Description."}
-          </p>
-          <p style={{ color: "#cbd5e1" }}>
-            Shortlist probability: {typeof result?.shortlistProbability === "number" ? `${result.shortlistProbability}%` : "Aquí aparecerá la probabilidad estimada de llamada por RRHH."}
-          </p>
-          <p style={{ color: "#10b2cb", fontWeight: 700 }}>
-            {result?.recruiterVerdict || "Aquí aparecerá el veredicto de headhunter."}
-          </p>
-          <p style={{ color: "#cbd5e1" }}>
-            {result?.recruiterSummary || "Aquí aparecerá el resumen de por qué te llamarían o qué falta reforzar."}
-          </p>
-          <p style={{ color: "#cbd5e1" }}>
-            {result?.scorecard
-              ? `Experience ${result.scorecard.experienceFit}% | Skills ${result.scorecard.skillsFit}% | Industry ${result.scorecard.industryFit}% | Seniority ${result.scorecard.seniorityFit}% | Communication ${result.scorecard.communicationFit}%`
-              : "Aquí aparecerá la evaluación por dimensiones de RRHH."}
-          </p>
-        </details>
+        </div>
 
         <details style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
           <summary style={{ cursor: "pointer", fontWeight: 700 }}>Strengths, gaps and tailored pitch</summary>
@@ -915,6 +914,78 @@ function buildRequestBody({
     formData.set("jdFile", attachedJdFile);
   }
   return formData;
+}
+
+function MetricDonutCard({ label, value }: { label: string; value?: number }) {
+  const safeValue = typeof value === "number" ? Math.max(0, Math.min(100, value)) : 0;
+  const fill = safeValue * 3.6;
+
+  return (
+    <div style={{ padding: "18px", borderRadius: "14px", background: "#0f2538", border: "1px solid #1b3a52" }}>
+      <p style={{ margin: 0, color: "#cbd5e1" }}>{label}</p>
+      <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+        <div
+          style={{
+            width: "64px",
+            height: "64px",
+            borderRadius: "50%",
+            background: `conic-gradient(#10b2cb 0deg ${fill}deg, #16344a ${fill}deg 360deg)`,
+            display: "grid",
+            placeItems: "center",
+          }}
+        >
+          <div style={{ width: "46px", height: "46px", borderRadius: "50%", background: "#0f2538", display: "grid", placeItems: "center", color: "white", fontWeight: 700, fontSize: "12px" }}>
+            {typeof value === "number" ? `${safeValue}%` : "--"}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScoreRow({ label, value }: { label: string; value: number }) {
+  const safe = Math.max(0, Math.min(100, value));
+  return (
+    <div style={{ display: "grid", gap: "6px" }}>
+      <p style={{ margin: 0, color: "#cbd5e1" }}>{label} {safe}%</p>
+      <div style={{ height: "8px", borderRadius: "999px", background: "#17374d", overflow: "hidden" }}>
+        <div style={{ width: `${safe}%`, height: "100%", background: "linear-gradient(90deg, #10b2cb, #1fb4d8)" }} />
+      </div>
+    </div>
+  );
+}
+
+function ChipLine({
+  title,
+  items,
+  emptyText,
+  tone = "neutral",
+}: {
+  title: string;
+  items?: string[];
+  emptyText: string;
+  tone?: "neutral" | "match" | "gap";
+}) {
+  const bg = tone === "match" ? "#12445a" : tone === "gap" ? "#3b2b3c" : "#17374d";
+  const border = tone === "match" ? "#10b2cb" : tone === "gap" ? "#1fb4d8" : "#2b4c63";
+  const text = tone === "gap" ? "#d9f6ff" : "#cbd5e1";
+
+  return (
+    <div style={{ marginTop: "10px" }}>
+      <p style={{ margin: "0 0 8px", color: "#cbd5e1", fontWeight: 700 }}>{title}</p>
+      {items && items.length > 0 ? (
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {items.map((item) => (
+            <span key={`${title}-${item}`} style={{ background: bg, border: `1px solid ${border}`, color: text, borderRadius: "999px", padding: "6px 10px", fontSize: "13px" }}>
+              {item}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p style={{ margin: 0, color: "#cbd5e1" }}>{emptyText}</p>
+      )}
+    </div>
+  );
 }
 
 type SpeechRecognitionAlternativeLike = {
