@@ -35,11 +35,6 @@ export default function InterviewCoach() {
     return window.SpeechRecognition || window.webkitSpeechRecognition || null;
   }, []);
 
-  const shouldUseRecordingFallback = useMemo(() => {
-    if (typeof navigator === "undefined") return false;
-    return isMobileUserAgent(navigator.userAgent);
-  }, []);
-
   useEffect(() => {
     setMicSupported(Boolean(speechRecognitionConstructor));
   }, [speechRecognitionConstructor]);
@@ -57,10 +52,8 @@ export default function InterviewCoach() {
   async function startMicrophone() {
     setError("");
 
-    if (!speechRecognitionConstructor || shouldUseRecordingFallback) {
-      if (!speechRecognitionConstructor) {
-        setMicSupported(false);
-      }
+    if (!speechRecognitionConstructor) {
+      setMicSupported(false);
       await startFallbackRecording();
       return;
     }
@@ -677,11 +670,6 @@ function removeRepeatedPhrases(input: string): string {
   }
 
   return result.join(" ").trim();
-}
-
-function isMobileUserAgent(userAgent: string): boolean {
-  const ua = String(userAgent || "").toLowerCase();
-  return /android|iphone|ipad|ipod|mobile/i.test(ua);
 }
 
 function extractBestQuestion(raw: string): string {
