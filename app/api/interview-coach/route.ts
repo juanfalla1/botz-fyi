@@ -303,16 +303,20 @@ async function extractCvTextFromFile(file: File): Promise<string> {
   }
 
   if (isPdf) {
-    const mod: any = await import("pdf-parse");
-    const parser = new mod.PDFParse({ data: buffer });
     try {
-      const parsed = await parser.getText();
-      const text = String(parsed?.text || "").trim();
-      if (text) return text;
-    } finally {
+      const mod: any = await import("pdf-parse");
+      const parser = new mod.PDFParse({ data: buffer });
       try {
-        await parser.destroy();
-      } catch {}
+        const parsed = await parser.getText();
+        const text = String(parsed?.text || "").trim();
+        if (text) return text;
+      } finally {
+        try {
+          await parser.destroy();
+        } catch {}
+      }
+    } catch (error) {
+      console.warn("PDF text parser failed, using OCR fallback:", error);
     }
 
     const ocrText = await extractPdfTextWithOcr(buffer);
