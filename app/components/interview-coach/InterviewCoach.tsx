@@ -1,0 +1,561 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+
+type CoachResponse = {
+  spanishMeaning: string;
+  suggestedAnswer: string;
+  shortAnswer: string;
+};
+
+export default function InterviewCoach() {
+  const [profile, setProfile] = useState("");
+  const [question, setQuestion] = useState("");
+  const [transcript, setTranscript] = useState("");
+  const [attachedFileName, setAttachedFileName] = useState("");
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [cvStatusMessage, setCvStatusMessage] = useState("");
+  const [result, setResult] = useState<CoachResponse | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isRecordingFallback, setIsRecordingFallback] = useState(false);
+  const [isTranscribingAudio, setIsTranscribingAudio] = useState(false);
+  const [micSupported, setMicSupported] = useState(true);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const speechRecognitionConstructor = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  }, []);
+
+  useEffect(() => {
+    setMicSupported(Boolean(speechRecognitionConstructor));
+  }, [speechRecognitionConstructor]);
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+      mediaRecorderRef.current?.stop();
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    };
+  }, []);
+
+  async function startMicrophone() {
+    setError("");
+
+    if (!speechRecognitionConstructor) {
+      setMicSupported(false);
+      await startFallbackRecording();
+      return;
+    }
+
+    const recognition = new speechRecognitionConstructor();
+    recognition.lang = "en-US";
+    recognition.interimResults = true;
+    recognition.continuous = true;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event: SpeechRecognitionEventLike) => {
+      let text = "";
+      for (let i = 0; i < event.results.length; i += 1) {
+        text += `${event.results[i][0].transcript} `;
+      }
+
+      const normalized = text.trim();
+      setTranscript(normalized);
+      setQuestion(normalized);
+    };
+
+    recognition.onerror = async () => {
+      setIsListening(false);
+      await startFallbackRecording();
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }
+
+  function stopMicrophone() {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+
+    stopFallbackRecording();
+  }
+
+  async function startFallbackRecording() {
+    if (typeof window === "undefined" || !window.MediaRecorder || !navigator.mediaDevices?.getUserMedia) {
+      setError("Microphone transcription is not supported in this browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      audioChunksRef.current = [];
+
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        setIsRecordingFallback(false);
+        mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        void transcribeRecordedAudio();
+      };
+
+      recorder.start();
+      setIsRecordingFallback(true);
+    } catch {
+      setError("Could not access microphone. Check browser permissions.");
+    }
+  }
+
+  function stopFallbackRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+  }
+
+  async function transcribeRecordedAudio() {
+    if (!audioChunksRef.current.length) return;
+    setIsTranscribingAudio(true);
+
+    try {
+      const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+      const formData = new FormData();
+      formData.set("mode", "transcribe");
+      formData.set("audioFile", audioBlob, "question.webm");
+
+      const res = await fetch("/api/interview-coach", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = (await res.json()) as { transcript?: string; error?: string };
+
+      if (!res.ok) {
+        throw new Error(data.error || "Could not transcribe audio");
+      }
+
+      const transcriptText = String(data.transcript || "").trim();
+      if (transcriptText) {
+        setTranscript(transcriptText);
+        setQuestion(transcriptText);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Could not transcribe microphone audio. Please try again.");
+    } finally {
+      setIsTranscribingAudio(false);
+      audioChunksRef.current = [];
+    }
+  }
+
+  function useTranscriptAsQuestion() {
+    if (!transcript.trim()) return;
+    setQuestion(transcript.trim());
+  }
+
+  async function copyShortAnswer() {
+    if (!result?.shortAnswer?.trim()) return;
+    try {
+      await navigator.clipboard.writeText(result.shortAnswer);
+    } catch {
+      setError("Could not copy short answer to clipboard.");
+    }
+  }
+
+  function handleAttachCvClick() {
+    fileInputRef.current?.click();
+  }
+
+  function handleRemoveCv() {
+    setAttachedFile(null);
+    setAttachedFileName("");
+    setCvStatusMessage("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleCvFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setError("");
+    setAttachedFileName(file.name);
+    setAttachedFile(file);
+    setCvStatusMessage("");
+
+    const isTextLike =
+      file.type.startsWith("text/") ||
+      file.name.endsWith(".txt") ||
+      file.name.endsWith(".md") ||
+      file.name.endsWith(".json") ||
+      file.name.endsWith(".csv");
+
+    if (!isTextLike) {
+      setCvStatusMessage("CV file attached. It will be parsed when you click Generate answer.");
+      return;
+    }
+
+    try {
+      const content = await file.text();
+      setProfile(content);
+      setCvStatusMessage("CV text loaded successfully from file.");
+    } catch {
+      setError("Could not read the attached CV file.");
+      setCvStatusMessage("");
+    }
+  }
+
+  async function handleGenerate() {
+    setError("");
+
+    if (!question.trim()) return;
+
+    setLoading(true);
+    setResult(null);
+
+    try {
+      const res = await fetch("/api/interview-coach", {
+        method: "POST",
+        body: buildRequestBody({ question, profile, attachedFile }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Error generating answer");
+      }
+
+      setResult(data);
+    } catch (error) {
+      console.error(error);
+      setError("Error generating answer");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main style={{ minHeight: "100vh", padding: "40px", background: "#071827", color: "white" }}>
+      <h1 style={{ fontSize: "36px", fontWeight: 700 }}>
+        Botz Interview Coach
+      </h1>
+
+      <p style={{ marginTop: "12px", maxWidth: "700px", color: "#cbd5e1" }}>
+        Paste or write the interview question. Botz will help you understand it and prepare a short answer in English.
+      </p>
+
+      <section style={{ marginTop: "32px", maxWidth: "800px" }}>
+        <label style={{ display: "block", marginBottom: "10px", fontWeight: 600 }}>
+          CV or professional profile
+        </label>
+
+        <textarea
+          value={profile}
+          onChange={(e) => setProfile(e.target.value)}
+          placeholder="Paste your CV or professional profile here"
+          rows={6}
+          style={{
+            width: "100%",
+            padding: "16px",
+            borderRadius: "12px",
+            border: "1px solid #1fb4d8",
+            background: "#0f2538",
+            color: "white",
+            fontSize: "16px",
+            marginBottom: "20px",
+          }}
+        />
+
+        <div style={{ marginTop: "-8px", marginBottom: "20px", display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleCvFileChange}
+            style={{ display: "none" }}
+            accept=".txt,.md,.json,.csv,.pdf,.docx,text/plain,text/markdown,application/json,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          />
+          <button
+            onClick={handleAttachCvClick}
+            type="button"
+            style={{
+              padding: "10px 14px",
+              borderRadius: "10px",
+              border: "1px solid #10b2cb",
+              background: "#0f2538",
+              color: "white",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Attach CV file
+          </button>
+          {attachedFile && (
+            <button
+              onClick={handleRemoveCv}
+              type="button"
+              style={{
+                padding: "10px 14px",
+                borderRadius: "10px",
+                border: "1px solid #1fb4d8",
+                background: "#071827",
+                color: "white",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Remove CV file
+            </button>
+          )}
+          {attachedFileName && <span style={{ color: "#cbd5e1" }}>{attachedFileName}</span>}
+        </div>
+
+        {cvStatusMessage && (
+          <p style={{ marginTop: "-10px", marginBottom: "14px", color: "#10b2cb", fontWeight: 600 }}>
+            {cvStatusMessage}
+          </p>
+        )}
+
+        <label style={{ display: "block", marginBottom: "10px", fontWeight: 600 }}>
+          Interview question
+        </label>
+
+        <textarea
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="Example: Tell me about your experience managing projects."
+          rows={5}
+          style={{
+            width: "100%",
+            padding: "16px",
+            borderRadius: "12px",
+            border: "1px solid #1fb4d8",
+            background: "#0f2538",
+            color: "white",
+            fontSize: "16px",
+          }}
+        />
+
+        <div style={{ marginTop: "12px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <button
+            onClick={startMicrophone}
+            disabled={isListening || isRecordingFallback || isTranscribingAudio}
+            style={{
+              padding: "10px 14px",
+              borderRadius: "10px",
+              border: "1px solid #10b2cb",
+              background: isListening || isRecordingFallback ? "#0f2538" : "#10b2cb",
+              color: "white",
+              fontWeight: 700,
+              cursor: isListening || isRecordingFallback || isTranscribingAudio ? "not-allowed" : "pointer",
+            }}
+          >
+            Start microphone
+          </button>
+
+          <button
+            onClick={stopMicrophone}
+            disabled={!isListening && !isRecordingFallback}
+            style={{
+              padding: "10px 14px",
+              borderRadius: "10px",
+              border: "1px solid #10b2cb",
+              background: "#0f2538",
+              color: "white",
+              fontWeight: 700,
+              cursor: !isListening && !isRecordingFallback ? "not-allowed" : "pointer",
+            }}
+          >
+            Stop microphone
+          </button>
+
+          <button
+            onClick={useTranscriptAsQuestion}
+            disabled={!transcript.trim()}
+            style={{
+              padding: "10px 14px",
+              borderRadius: "10px",
+              border: "1px solid #10b2cb",
+              background: "#0f2538",
+              color: "white",
+              fontWeight: 700,
+              cursor: !transcript.trim() ? "not-allowed" : "pointer",
+            }}
+          >
+            Use transcript as question
+          </button>
+        </div>
+
+        {!micSupported && (
+          <p style={{ marginTop: "10px", color: "#1fb4d8" }}>
+            Microphone transcription is not supported in this browser.
+          </p>
+        )}
+
+        {isListening && (
+          <p style={{ marginTop: "10px", color: "#10b2cb", fontWeight: 600 }}>
+            Listening...
+          </p>
+        )}
+
+        {isRecordingFallback && (
+          <p style={{ marginTop: "10px", color: "#10b2cb", fontWeight: 600 }}>
+            Listening... (audio recording mode)
+          </p>
+        )}
+
+        {isTranscribingAudio && (
+          <p style={{ marginTop: "10px", color: "#10b2cb", fontWeight: 600 }}>
+            Generating transcript...
+          </p>
+        )}
+
+        <button
+          onClick={handleGenerate}
+          disabled={loading}
+          style={{
+            marginTop: "16px",
+            padding: "12px 20px",
+            borderRadius: "10px",
+            border: "none",
+            background: loading ? "#64748b" : "#10b2cb",
+            color: "white",
+            fontWeight: 700,
+            cursor: loading ? "not-allowed" : "pointer",
+          }}
+        >
+          {loading ? "Generating..." : "Generate answer"}
+        </button>
+
+        {error && (
+          <p style={{ marginTop: "12px", color: "#1fb4d8", fontWeight: 600 }}>
+            {error}
+          </p>
+        )}
+      </section>
+
+      <section style={{ marginTop: "32px", display: "grid", gap: "16px", maxWidth: "900px" }}>
+        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <h2>Spanish meaning</h2>
+          <p style={{ color: "#cbd5e1" }}>
+            {result?.spanishMeaning || "Aquí aparecerá la traducción en español."}
+          </p>
+        </div>
+
+        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <h2>Suggested answer</h2>
+          <p style={{ color: "#cbd5e1" }}>
+            {result?.suggestedAnswer || "Aquí aparecerá la respuesta sugerida en inglés."}
+          </p>
+        </div>
+
+        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <h2>Short answer to say</h2>
+          <p style={{ color: "#cbd5e1" }}>
+            {result?.shortAnswer || "Aquí aparecerá una respuesta corta para decir rápido."}
+          </p>
+          <button
+            onClick={copyShortAnswer}
+            disabled={!result?.shortAnswer}
+            style={{
+              marginTop: "12px",
+              padding: "10px 14px",
+              borderRadius: "10px",
+              border: "none",
+              background: "#10b2cb",
+              color: "white",
+              fontWeight: 700,
+              cursor: !result?.shortAnswer ? "not-allowed" : "pointer",
+            }}
+          >
+            Copy short answer
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function buildRequestBody({
+  question,
+  profile,
+  attachedFile,
+}: {
+  question: string;
+  profile: string;
+  attachedFile: File | null;
+}): FormData | string {
+  if (!attachedFile) {
+    return JSON.stringify({ question, profile });
+  }
+
+  const formData = new FormData();
+  formData.set("question", question);
+  formData.set("profile", profile);
+  formData.set("cvFile", attachedFile);
+  return formData;
+}
+
+type SpeechRecognitionAlternativeLike = {
+  transcript: string;
+};
+
+type SpeechRecognitionResultLike = {
+  [index: number]: SpeechRecognitionAlternativeLike;
+};
+
+type SpeechRecognitionResultListLike = {
+  length: number;
+  [index: number]: SpeechRecognitionResultLike;
+};
+
+type SpeechRecognitionEventLike = {
+  results: SpeechRecognitionResultListLike;
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionConstructorLike = new () => SpeechRecognitionLike;
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructorLike;
+    webkitSpeechRecognition?: SpeechRecognitionConstructorLike;
+  }
+}
