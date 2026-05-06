@@ -360,6 +360,27 @@ export default function InterviewCoach() {
     await generateAnswerForQuestion(question);
   }
 
+  async function handleValidateMatch() {
+    setError("");
+
+    const hasProfile = profile.trim().length > 0 || Boolean(attachedFile);
+    const hasJobDescription = jobDescription.trim().length > 0 || Boolean(attachedJdFile);
+
+    if (!hasProfile) {
+      setError("Please add your CV/profile before validating match.");
+      return;
+    }
+
+    if (!hasJobDescription) {
+      setError("Please add a job description before validating match.");
+      return;
+    }
+
+    await generateAnswerForQuestion(
+      "Evaluate my CV against this job description and return match score, shortlist probability, scorecard, strengths, gaps, and tailored pitch."
+    );
+  }
+
   async function generateAnswerForQuestion(rawQuestion: string) {
     const detectedQuestion = extractBestQuestion(rawQuestion);
     if (!detectedQuestion) return;
@@ -550,6 +571,23 @@ export default function InterviewCoach() {
             {jdStatusMessage}
           </p>
         )}
+
+        <button
+          onClick={handleValidateMatch}
+          disabled={loading}
+          style={{
+            marginBottom: "16px",
+            padding: "12px 20px",
+            borderRadius: "10px",
+            border: "none",
+            background: loading ? "#64748b" : "#10b2cb",
+            color: "white",
+            fontWeight: 700,
+            cursor: loading ? "not-allowed" : "pointer",
+          }}
+        >
+          {loading ? "Validating..." : "Validate CV vs Job match"}
+        </button>
 
         <textarea
           value={question}
