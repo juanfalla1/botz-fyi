@@ -17,6 +17,7 @@ export default function InterviewCoach() {
   const [cvStatusMessage, setCvStatusMessage] = useState("");
   const [result, setResult] = useState<CoachResponse | null>(null);
   const [error, setError] = useState("");
+  const [lastDetectedQuestion, setLastDetectedQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isRecordingFallback, setIsRecordingFallback] = useState(false);
@@ -194,6 +195,15 @@ export default function InterviewCoach() {
     setQuestion(transcript.trim());
   }
 
+  function clearQuestion() {
+    setQuestion("");
+    setLastDetectedQuestion("");
+  }
+
+  function clearTranscript() {
+    setTranscript("");
+  }
+
   async function copyShortAnswer() {
     if (!result?.shortAnswer?.trim()) return;
     try {
@@ -252,13 +262,16 @@ export default function InterviewCoach() {
 
     if (!question.trim()) return;
 
+    const detectedQuestion = extractBestQuestion(question);
+    setLastDetectedQuestion(detectedQuestion);
+
     setLoading(true);
     setResult(null);
 
     try {
       const res = await fetch("/api/interview-coach", {
         method: "POST",
-        body: buildRequestBody({ question, profile, attachedFile }),
+        body: buildRequestBody({ question: detectedQuestion, profile, attachedFile }),
       });
 
       const data = await res.json();
@@ -425,6 +438,38 @@ export default function InterviewCoach() {
           >
             Use transcript as question
           </button>
+
+          <button
+            onClick={clearTranscript}
+            disabled={!transcript.trim()}
+            style={{
+              padding: "10px 14px",
+              borderRadius: "10px",
+              border: "1px solid #10b2cb",
+              background: "#0f2538",
+              color: "white",
+              fontWeight: 700,
+              cursor: !transcript.trim() ? "not-allowed" : "pointer",
+            }}
+          >
+            Clear transcript
+          </button>
+
+          <button
+            onClick={clearQuestion}
+            disabled={!question.trim()}
+            style={{
+              padding: "10px 14px",
+              borderRadius: "10px",
+              border: "1px solid #10b2cb",
+              background: "#0f2538",
+              color: "white",
+              fontWeight: 700,
+              cursor: !question.trim() ? "not-allowed" : "pointer",
+            }}
+          >
+            Clear question
+          </button>
         </div>
 
         {!micSupported && (
@@ -471,6 +516,12 @@ export default function InterviewCoach() {
         {error && (
           <p style={{ marginTop: "12px", color: "#1fb4d8", fontWeight: 600 }}>
             {error}
+          </p>
+        )}
+
+        {lastDetectedQuestion && lastDetectedQuestion !== question.trim() && (
+          <p style={{ marginTop: "10px", color: "#cbd5e1" }}>
+            Using detected question: {lastDetectedQuestion}
           </p>
         )}
       </section>
@@ -631,4 +682,29 @@ function removeRepeatedPhrases(input: string): string {
 function isMobileUserAgent(userAgent: string): boolean {
   const ua = String(userAgent || "").toLowerCase();
   return /android|iphone|ipad|ipod|mobile/i.test(ua);
+}
+
+function extractBestQuestion(raw: string): string {
+  const text = normalizeTranscript(raw).replace(/\s+/g, " ").trim();
+  if (!text) return "";
+
+  const questionChunks = text
+    .split("?")
+    .map((chunk) => chunk.trim())
+    .filter(Boolean);
+
+  if (questionChunks.length > 0) {
+    return `${questionChunks[questionChunks.length - 1]}?`;
+  }
+
+  const sentenceChunks = text
+    .split(/[.!\n]/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean);
+
+  if (sentenceChunks.length > 0) {
+    return sentenceChunks[sentenceChunks.length - 1];
+  }
+
+  return text;
 }
