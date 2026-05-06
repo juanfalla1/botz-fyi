@@ -18,6 +18,7 @@ export default function InterviewCoach() {
   const [result, setResult] = useState<CoachResponse | null>(null);
   const [error, setError] = useState("");
   const [lastDetectedQuestion, setLastDetectedQuestion] = useState("");
+  const [autoGenerate, setAutoGenerate] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isRecordingFallback, setIsRecordingFallback] = useState(false);
@@ -30,6 +31,7 @@ export default function InterviewCoach() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const isGeneratingRef = useRef(false);
 
   const speechRecognitionConstructor = useMemo(() => {
     if (typeof window === "undefined") return null;
@@ -39,6 +41,10 @@ export default function InterviewCoach() {
   useEffect(() => {
     setMicSupported(Boolean(speechRecognitionConstructor));
   }, [speechRecognitionConstructor]);
+
+  useEffect(() => {
+    isGeneratingRef.current = loading;
+  }, [loading]);
 
   useEffect(() => {
     return () => {
@@ -95,6 +101,9 @@ export default function InterviewCoach() {
       silenceTimerRef.current = window.setTimeout(() => {
         const detected = extractBestQuestion(normalized);
         setQuestion(detected);
+        if (autoGenerate && detected && !isGeneratingRef.current) {
+          void generateAnswerForQuestion(detected);
+        }
       }, 1500);
     };
 
@@ -113,6 +122,9 @@ export default function InterviewCoach() {
       const finalDetected = extractBestQuestion(normalizeTranscript(finalTranscriptRef.current));
       if (finalDetected) {
         setQuestion(finalDetected);
+        if (autoGenerate && !isGeneratingRef.current) {
+          void generateAnswerForQuestion(finalDetected);
+        }
       }
     };
 
@@ -281,7 +293,13 @@ export default function InterviewCoach() {
 
     if (!question.trim()) return;
 
-    const detectedQuestion = extractBestQuestion(question);
+    await generateAnswerForQuestion(question);
+  }
+
+  async function generateAnswerForQuestion(rawQuestion: string) {
+    const detectedQuestion = extractBestQuestion(rawQuestion);
+    if (!detectedQuestion) return;
+
     setLastDetectedQuestion(detectedQuestion);
 
     setLoading(true);
@@ -472,6 +490,22 @@ export default function InterviewCoach() {
             }}
           >
             Clear transcript
+          </button>
+
+          <button
+            onClick={() => setAutoGenerate((value) => !value)}
+            type="button"
+            style={{
+              padding: "10px 14px",
+              borderRadius: "10px",
+              border: "1px solid #10b2cb",
+              background: autoGenerate ? "#10b2cb" : "#0f2538",
+              color: "white",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            {autoGenerate ? "Auto-answer: ON" : "Auto-answer: OFF"}
           </button>
 
           <button
