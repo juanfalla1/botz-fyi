@@ -34,6 +34,11 @@ export default function InterviewCoach() {
     return window.SpeechRecognition || window.webkitSpeechRecognition || null;
   }, []);
 
+  const shouldUseRecordingFallback = useMemo(() => {
+    if (typeof navigator === "undefined") return false;
+    return isMobileUserAgent(navigator.userAgent);
+  }, []);
+
   useEffect(() => {
     setMicSupported(Boolean(speechRecognitionConstructor));
   }, [speechRecognitionConstructor]);
@@ -51,8 +56,10 @@ export default function InterviewCoach() {
   async function startMicrophone() {
     setError("");
 
-    if (!speechRecognitionConstructor) {
-      setMicSupported(false);
+    if (!speechRecognitionConstructor || shouldUseRecordingFallback) {
+      if (!speechRecognitionConstructor) {
+        setMicSupported(false);
+      }
       await startFallbackRecording();
       return;
     }
@@ -584,5 +591,44 @@ function normalizeTranscript(text: string): string {
     cleaned.push(word);
   }
 
-  return cleaned.join(" ").trim();
+  const compact = cleaned.join(" ").trim();
+  return removeRepeatedPhrases(compact);
+}
+
+function removeRepeatedPhrases(input: string): string {
+  const words = input.split(/\s+/).filter(Boolean);
+  if (words.length < 6) return input;
+
+  const maxWindow = Math.min(6, Math.floor(words.length / 2));
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < words.length) {
+    let skipped = false;
+
+    for (let size = maxWindow; size >= 2; size -= 1) {
+      if (i + size * 2 > words.length) continue;
+
+      const a = words.slice(i, i + size).join(" ").toLowerCase();
+      const b = words.slice(i + size, i + size * 2).join(" ").toLowerCase();
+      if (a === b) {
+        result.push(...words.slice(i, i + size));
+        i += size * 2;
+        skipped = true;
+        break;
+      }
+    }
+
+    if (!skipped) {
+      result.push(words[i]);
+      i += 1;
+    }
+  }
+
+  return result.join(" ").trim();
+}
+
+function isMobileUserAgent(userAgent: string): boolean {
+  const ua = String(userAgent || "").toLowerCase();
+  return /android|iphone|ipad|ipod|mobile/i.test(ua);
 }
