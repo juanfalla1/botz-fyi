@@ -6,15 +6,23 @@ type CoachResponse = {
   spanishMeaning: string;
   suggestedAnswer: string;
   shortAnswer: string;
+  matchScore?: number;
+  matchedStrengths?: string[];
+  gaps?: string[];
+  tailoredPitch?: string;
 };
 
 export default function InterviewCoach() {
   const [profile, setProfile] = useState("");
+  const [jobDescription, setJobDescription] = useState("");
   const [question, setQuestion] = useState("");
   const [transcript, setTranscript] = useState("");
   const [attachedFileName, setAttachedFileName] = useState("");
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachedJdFileName, setAttachedJdFileName] = useState("");
+  const [attachedJdFile, setAttachedJdFile] = useState<File | null>(null);
   const [cvStatusMessage, setCvStatusMessage] = useState("");
+  const [jdStatusMessage, setJdStatusMessage] = useState("");
   const [result, setResult] = useState<CoachResponse | null>(null);
   const [error, setError] = useState("");
   const [lastDetectedQuestion, setLastDetectedQuestion] = useState("");
@@ -28,6 +36,7 @@ export default function InterviewCoach() {
   const finalTranscriptRef = useRef("");
   const silenceTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const jdFileInputRef = useRef<HTMLInputElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -257,6 +266,19 @@ export default function InterviewCoach() {
     }
   }
 
+  function handleAttachJdClick() {
+    jdFileInputRef.current?.click();
+  }
+
+  function handleRemoveJd() {
+    setAttachedJdFile(null);
+    setAttachedJdFileName("");
+    setJdStatusMessage("");
+    if (jdFileInputRef.current) {
+      jdFileInputRef.current.value = "";
+    }
+  }
+
   async function handleCvFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -288,6 +310,37 @@ export default function InterviewCoach() {
     }
   }
 
+  async function handleJdFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setError("");
+    setAttachedJdFileName(file.name);
+    setAttachedJdFile(file);
+    setJdStatusMessage("");
+
+    const isTextLike =
+      file.type.startsWith("text/") ||
+      file.name.endsWith(".txt") ||
+      file.name.endsWith(".md") ||
+      file.name.endsWith(".json") ||
+      file.name.endsWith(".csv");
+
+    if (!isTextLike) {
+      setJdStatusMessage("JD file attached. It will be parsed when you click Generate answer.");
+      return;
+    }
+
+    try {
+      const content = await file.text();
+      setJobDescription(content);
+      setJdStatusMessage("Job description loaded successfully from file.");
+    } catch {
+      setError("Could not read the attached JD file.");
+      setJdStatusMessage("");
+    }
+  }
+
   async function handleGenerate() {
     setError("");
 
@@ -308,7 +361,13 @@ export default function InterviewCoach() {
     try {
       const res = await fetch("/api/interview-coach", {
         method: "POST",
-        body: buildRequestBody({ question: detectedQuestion, profile, attachedFile }),
+        body: buildRequestBody({
+          question: detectedQuestion,
+          profile,
+          attachedFile,
+          jobDescription,
+          attachedJdFile,
+        }),
       });
 
       const data = await res.json();
@@ -410,6 +469,76 @@ export default function InterviewCoach() {
         <label style={{ display: "block", marginBottom: "10px", fontWeight: 600 }}>
           Interview question
         </label>
+
+        <label style={{ display: "block", marginTop: "10px", marginBottom: "10px", fontWeight: 600 }}>
+          Job description
+        </label>
+
+        <textarea
+          value={jobDescription}
+          onChange={(e) => setJobDescription(e.target.value)}
+          placeholder="Paste the job description here"
+          rows={6}
+          style={{
+            width: "100%",
+            padding: "16px",
+            borderRadius: "12px",
+            border: "1px solid #1fb4d8",
+            background: "#0f2538",
+            color: "white",
+            fontSize: "16px",
+            marginBottom: "18px",
+          }}
+        />
+
+        <div style={{ marginTop: "-8px", marginBottom: "20px", display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            ref={jdFileInputRef}
+            type="file"
+            onChange={handleJdFileChange}
+            style={{ display: "none" }}
+            accept=".txt,.md,.json,.csv,.pdf,.docx,text/plain,text/markdown,application/json,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          />
+          <button
+            onClick={handleAttachJdClick}
+            type="button"
+            style={{
+              padding: "10px 14px",
+              borderRadius: "10px",
+              border: "1px solid #10b2cb",
+              background: "#0f2538",
+              color: "white",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Attach JD file
+          </button>
+          {attachedJdFile && (
+            <button
+              onClick={handleRemoveJd}
+              type="button"
+              style={{
+                padding: "10px 14px",
+                borderRadius: "10px",
+                border: "1px solid #1fb4d8",
+                background: "#071827",
+                color: "white",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Remove JD file
+            </button>
+          )}
+          {attachedJdFileName && <span style={{ color: "#cbd5e1" }}>{attachedJdFileName}</span>}
+        </div>
+
+        {jdStatusMessage && (
+          <p style={{ marginTop: "-10px", marginBottom: "14px", color: "#10b2cb", fontWeight: 600 }}>
+            {jdStatusMessage}
+          </p>
+        )}
 
         <textarea
           value={question}
@@ -581,6 +710,38 @@ export default function InterviewCoach() {
 
       <section style={{ marginTop: "32px", display: "grid", gap: "16px", maxWidth: "900px" }}>
         <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <h2>CV match score</h2>
+          <p style={{ color: "#cbd5e1" }}>
+            {typeof result?.matchScore === "number" ? `${result.matchScore}%` : "Aquí aparecerá el porcentaje de match entre CV y Job Description."}
+          </p>
+        </div>
+
+        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <h2>Matched strengths</h2>
+          <p style={{ color: "#cbd5e1" }}>
+            {result?.matchedStrengths?.length
+              ? result.matchedStrengths.join(" | ")
+              : "Aquí aparecerán los puntos del CV que sí hacen match con la vacante."}
+          </p>
+        </div>
+
+        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <h2>Gaps to address honestly</h2>
+          <p style={{ color: "#cbd5e1" }}>
+            {result?.gaps?.length
+              ? result.gaps.join(" | ")
+              : "Aquí aparecerán brechas reales para responder sin inventar experiencia."}
+          </p>
+        </div>
+
+        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <h2>Tailored pitch</h2>
+          <p style={{ color: "#cbd5e1" }}>
+            {result?.tailoredPitch || "Aquí aparecerá un pitch adaptado al job description sin mentiras."}
+          </p>
+        </div>
+
+        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
           <h2>Spanish meaning</h2>
           <p style={{ color: "#cbd5e1" }}>
             {result?.spanishMeaning || "Aquí aparecerá la traducción en español."}
@@ -625,19 +786,29 @@ function buildRequestBody({
   question,
   profile,
   attachedFile,
+  jobDescription,
+  attachedJdFile,
 }: {
   question: string;
   profile: string;
   attachedFile: File | null;
+  jobDescription: string;
+  attachedJdFile: File | null;
 }): FormData | string {
-  if (!attachedFile) {
-    return JSON.stringify({ question, profile });
+  if (!attachedFile && !attachedJdFile) {
+    return JSON.stringify({ question, profile, jobDescription });
   }
 
   const formData = new FormData();
   formData.set("question", question);
   formData.set("profile", profile);
-  formData.set("cvFile", attachedFile);
+  formData.set("jobDescription", jobDescription);
+  if (attachedFile) {
+    formData.set("cvFile", attachedFile);
+  }
+  if (attachedJdFile) {
+    formData.set("jdFile", attachedJdFile);
+  }
   return formData;
 }
 
