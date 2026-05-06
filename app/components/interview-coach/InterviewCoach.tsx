@@ -23,6 +23,7 @@ export default function InterviewCoach() {
   const [isTranscribingAudio, setIsTranscribingAudio] = useState(false);
   const [micSupported, setMicSupported] = useState(true);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const finalTranscriptRef = useRef("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -62,16 +63,23 @@ export default function InterviewCoach() {
     recognition.continuous = true;
 
     recognition.onstart = () => {
+      finalTranscriptRef.current = "";
       setIsListening(true);
     };
 
     recognition.onresult = (event: SpeechRecognitionEventLike) => {
-      let text = "";
-      for (let i = 0; i < event.results.length; i += 1) {
-        text += `${event.results[i][0].transcript} `;
+      let interimText = "";
+
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const chunk = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscriptRef.current += `${chunk} `;
+        } else {
+          interimText += `${chunk} `;
+        }
       }
 
-      const normalized = text.trim();
+      const normalized = normalizeTranscript(`${finalTranscriptRef.current}${interimText}`.trim());
       setTranscript(normalized);
       setQuestion(normalized);
     };
@@ -255,7 +263,7 @@ export default function InterviewCoach() {
       setResult(data);
     } catch (error) {
       console.error(error);
-      setError("Error generating answer");
+      setError(error instanceof Error ? error.message : "Error generating answer");
     } finally {
       setLoading(false);
     }
@@ -527,6 +535,7 @@ type SpeechRecognitionAlternativeLike = {
 };
 
 type SpeechRecognitionResultLike = {
+  isFinal: boolean;
   [index: number]: SpeechRecognitionAlternativeLike;
 };
 
@@ -536,6 +545,7 @@ type SpeechRecognitionResultListLike = {
 };
 
 type SpeechRecognitionEventLike = {
+  resultIndex: number;
   results: SpeechRecognitionResultListLike;
 };
 
@@ -558,4 +568,21 @@ declare global {
     SpeechRecognition?: SpeechRecognitionConstructorLike;
     webkitSpeechRecognition?: SpeechRecognitionConstructorLike;
   }
+}
+
+function normalizeTranscript(text: string): string {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (!words.length) return "";
+
+  const cleaned: string[] = [];
+  for (const word of words) {
+    const previous = cleaned[cleaned.length - 1];
+    if (previous && previous.toLowerCase() === word.toLowerCase()) {
+      continue;
+    }
+
+    cleaned.push(word);
+  }
+
+  return cleaned.join(" ").trim();
 }

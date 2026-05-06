@@ -59,6 +59,7 @@ Rules:
 - Translate the interview question into simple Spanish.
 - Suggest a professional answer in English.
 - Use the provided CV/profile as the main source of truth.
+- If the question asks for "your experience", "tell me about yourself", or a summary, focus the answer on the CV/profile details.
 - Use simple English, easy to say in an interview.
 - Make the suggested answer natural, confident, and professional.
 - Keep the short answer very short.
@@ -111,9 +112,10 @@ ${question}
     });
   } catch (error) {
     console.error("Interview Coach error:", error);
+    const message = error instanceof Error ? error.message : "Something went wrong";
 
     return NextResponse.json(
-      { error: "Something went wrong" },
+      { error: message },
       { status: 500 }
     );
   }
@@ -202,12 +204,16 @@ async function extractCvTextFromFile(file: File): Promise<string> {
     const parser = new mod.PDFParse({ data: buffer });
     try {
       const parsed = await parser.getText();
-      return String(parsed?.text || "").trim();
+      const text = String(parsed?.text || "").trim();
+      if (text) return text;
     } finally {
       try {
         await parser.destroy();
       } catch {}
     }
+
+    const ocrText = await extractPdfTextWithOcr(buffer);
+    return ocrText;
   }
 
   if (isDocx) {
@@ -226,6 +232,30 @@ async function transcribeAudioFile(file: File): Promise<string> {
   });
 
   return String(transcription.text || "");
+}
+
+async function extractPdfTextWithOcr(buffer: Buffer): Promise<string> {
+  const response = await client.responses.create({
+    model: "gpt-4.1-mini",
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: "Extract all readable text from this CV PDF. Return plain text only.",
+          },
+          {
+            type: "input_file",
+            filename: "cv.pdf",
+            file_data: `data:application/pdf;base64,${buffer.toString("base64")}`,
+          },
+        ],
+      },
+    ],
+  });
+
+  return String(response.output_text || "").trim();
 }
 
 function getExtension(name: string, mime = ""): string {
