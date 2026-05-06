@@ -25,6 +25,7 @@ export default function InterviewCoach() {
   const [micSupported, setMicSupported] = useState(true);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const finalTranscriptRef = useRef("");
+  const silenceTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -43,6 +44,10 @@ export default function InterviewCoach() {
     return () => {
       recognitionRef.current?.stop();
       recognitionRef.current = null;
+      if (silenceTimerRef.current) {
+        window.clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
       mediaRecorderRef.current?.stop();
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
@@ -82,7 +87,15 @@ export default function InterviewCoach() {
 
       const normalized = normalizeTranscript(`${finalTranscriptRef.current}${interimText}`.trim());
       setTranscript(normalized);
-      setQuestion(normalized);
+
+      if (silenceTimerRef.current) {
+        window.clearTimeout(silenceTimerRef.current);
+      }
+
+      silenceTimerRef.current = window.setTimeout(() => {
+        const detected = extractBestQuestion(normalized);
+        setQuestion(detected);
+      }, 1500);
     };
 
     recognition.onerror = async () => {
@@ -92,6 +105,15 @@ export default function InterviewCoach() {
 
     recognition.onend = () => {
       setIsListening(false);
+      if (silenceTimerRef.current) {
+        window.clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+
+      const finalDetected = extractBestQuestion(normalizeTranscript(finalTranscriptRef.current));
+      if (finalDetected) {
+        setQuestion(finalDetected);
+      }
     };
 
     recognitionRef.current = recognition;
@@ -102,6 +124,10 @@ export default function InterviewCoach() {
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
+      if (silenceTimerRef.current) {
+        window.clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
       return;
     }
 
