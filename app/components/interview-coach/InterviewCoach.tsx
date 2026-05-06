@@ -10,6 +10,17 @@ type CoachResponse = {
   matchedStrengths?: string[];
   gaps?: string[];
   tailoredPitch?: string;
+  shortlistProbability?: number;
+  recruiterVerdict?: string;
+  recruiterSummary?: string;
+  scorecard?: {
+    experienceFit: number;
+    skillsFit: number;
+    industryFit: number;
+    seniorityFit: number;
+    communicationFit: number;
+  };
+  priorityActions?: string[];
 };
 
 export default function InterviewCoach() {
@@ -717,6 +728,30 @@ export default function InterviewCoach() {
         </div>
 
         <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <h2>Shortlist probability</h2>
+          <p style={{ color: "#cbd5e1" }}>
+            {typeof result?.shortlistProbability === "number"
+              ? `${result.shortlistProbability}%`
+              : "Aquí aparecerá la probabilidad estimada de llamada por RRHH."}
+          </p>
+          <p style={{ color: "#10b2cb", fontWeight: 700, marginTop: "8px" }}>
+            {result?.recruiterVerdict || "Aquí aparecerá el veredicto de headhunter."}
+          </p>
+          <p style={{ color: "#cbd5e1", marginTop: "8px" }}>
+            {result?.recruiterSummary || "Aquí aparecerá el resumen de por qué te llamarían o qué falta reforzar."}
+          </p>
+        </div>
+
+        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <h2>Headhunter scorecard</h2>
+          <p style={{ color: "#cbd5e1" }}>
+            {result?.scorecard
+              ? `Experience ${result.scorecard.experienceFit}% | Skills ${result.scorecard.skillsFit}% | Industry ${result.scorecard.industryFit}% | Seniority ${result.scorecard.seniorityFit}% | Communication ${result.scorecard.communicationFit}%`
+              : "Aquí aparecerá la evaluación por dimensiones de RRHH."}
+          </p>
+        </div>
+
+        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
           <h2>Matched strengths</h2>
           <p style={{ color: "#cbd5e1" }}>
             {result?.matchedStrengths?.length
@@ -738,6 +773,15 @@ export default function InterviewCoach() {
           <h2>Tailored pitch</h2>
           <p style={{ color: "#cbd5e1" }}>
             {result?.tailoredPitch || "Aquí aparecerá un pitch adaptado al job description sin mentiras."}
+          </p>
+        </div>
+
+        <div style={{ padding: "20px", borderRadius: "14px", background: "#0f2538" }}>
+          <h2>Priority actions to improve call-back</h2>
+          <p style={{ color: "#cbd5e1" }}>
+            {result?.priorityActions?.length
+              ? result.priorityActions.join(" | ")
+              : "Aquí aparecerán acciones concretas para aumentar tu probabilidad de llamado."}
           </p>
         </div>
 

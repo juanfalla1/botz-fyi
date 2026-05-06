@@ -60,6 +60,17 @@ Return ONLY valid JSON with this structure:
   "matchedStrengths": [""],
   "gaps": [""],
   "tailoredPitch": "",
+  "shortlistProbability": 0,
+  "recruiterVerdict": "",
+  "recruiterSummary": "",
+  "scorecard": {
+    "experienceFit": 0,
+    "skillsFit": 0,
+    "industryFit": 0,
+    "seniorityFit": 0,
+    "communicationFit": 0
+  },
+  "priorityActions": [""],
   "spanishMeaning": "",
   "suggestedAnswer": "",
   "shortAnswer": ""
@@ -78,6 +89,11 @@ Rules:
 - "matchedStrengths" must include 3-6 concrete matching points.
 - "gaps" must include 2-5 honest gaps or weaker areas. Do not hallucinate.
 - "tailoredPitch" must be a short pitch aligned to the role and truthful.
+- "shortlistProbability" must be an integer from 0 to 100 estimating call-back probability from a recruiter view.
+- "recruiterVerdict" must be one of: "Strong shortlist", "Possible shortlist", "Needs improvement".
+- "recruiterSummary" must explain in 2-3 lines why this profile is or is not likely to be called.
+- "scorecard" must score each dimension from 0 to 100.
+- "priorityActions" must include 3-5 concrete actions to improve call-back probability without lying.
           `,
         },
         {
@@ -121,6 +137,17 @@ ${question}
       matchedStrengths: string[];
       gaps: string[];
       tailoredPitch: string;
+      shortlistProbability: number;
+      recruiterVerdict: string;
+      recruiterSummary: string;
+      scorecard: {
+        experienceFit: number;
+        skillsFit: number;
+        industryFit: number;
+        seniorityFit: number;
+        communicationFit: number;
+      };
+      priorityActions: string[];
       spanishMeaning: string;
       suggestedAnswer: string;
       shortAnswer: string;
@@ -135,6 +162,40 @@ ${question}
         ? data.gaps.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
         : [],
       tailoredPitch: typeof data.tailoredPitch === "string" ? data.tailoredPitch : "",
+      shortlistProbability:
+        typeof data.shortlistProbability === "number"
+          ? Math.max(0, Math.min(100, Math.round(data.shortlistProbability)))
+          : 0,
+      recruiterVerdict:
+        typeof data.recruiterVerdict === "string" && data.recruiterVerdict.trim()
+          ? data.recruiterVerdict
+          : "Needs improvement",
+      recruiterSummary: typeof data.recruiterSummary === "string" ? data.recruiterSummary : "",
+      scorecard: {
+        experienceFit:
+          typeof data.scorecard?.experienceFit === "number"
+            ? Math.max(0, Math.min(100, Math.round(data.scorecard.experienceFit)))
+            : 0,
+        skillsFit:
+          typeof data.scorecard?.skillsFit === "number"
+            ? Math.max(0, Math.min(100, Math.round(data.scorecard.skillsFit)))
+            : 0,
+        industryFit:
+          typeof data.scorecard?.industryFit === "number"
+            ? Math.max(0, Math.min(100, Math.round(data.scorecard.industryFit)))
+            : 0,
+        seniorityFit:
+          typeof data.scorecard?.seniorityFit === "number"
+            ? Math.max(0, Math.min(100, Math.round(data.scorecard.seniorityFit)))
+            : 0,
+        communicationFit:
+          typeof data.scorecard?.communicationFit === "number"
+            ? Math.max(0, Math.min(100, Math.round(data.scorecard.communicationFit)))
+            : 0,
+      },
+      priorityActions: Array.isArray(data.priorityActions)
+        ? data.priorityActions.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : [],
       spanishMeaning: typeof data.spanishMeaning === "string" ? data.spanishMeaning : "",
       suggestedAnswer: typeof data.suggestedAnswer === "string" ? data.suggestedAnswer : "",
       shortAnswer: typeof data.shortAnswer === "string" ? data.shortAnswer : "",
