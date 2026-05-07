@@ -2871,7 +2871,7 @@ function updateCommercialValidation(memory: any, text: string, fallbackName: str
   memory.has_valid_rut = memory.has_rut;
   memory.is_persona_natural = Boolean(memory?.is_persona_natural);
   memory.commercial_validation_complete = memory.is_persona_natural
-    ? Boolean(memory.has_customer_name && memory.has_rut)
+    ? Boolean(memory.has_customer_name && (memory.has_company_nit || memory.has_rut))
     : Boolean(memory.has_customer_name && memory.has_company_name && memory.has_company_nit);
 }
 
@@ -8221,11 +8221,6 @@ export async function POST(req: Request) {
             "Celular: 3001234567",
           ].join("\n");
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: asksWhyDataNeeded ? "new_customer_data_explained" : "new_customer_data_example" });
-        }
-        if (Boolean(strictMemory.is_persona_natural)) {
-          strictReply = buildCommercialEscalationMessage();
-          strictMemory.awaiting_action = "conversation_followup";
-          return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "persona_natural_escalation" });
         }
         const missing = getMissingNewCustomerFields(strictMemory);
         if (missing.length) {

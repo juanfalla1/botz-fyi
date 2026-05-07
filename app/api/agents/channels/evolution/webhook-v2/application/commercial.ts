@@ -172,7 +172,7 @@ export function updateCommercialValidation(args: {
   memory.has_valid_rut = memory.has_rut;
   memory.is_persona_natural = Boolean(memory?.is_persona_natural);
   memory.commercial_validation_complete = memory.is_persona_natural
-    ? Boolean(memory.has_customer_name && memory.has_rut)
+    ? Boolean(memory.has_customer_name && (memory.has_company_nit || memory.has_rut))
     : Boolean(memory.has_customer_name && memory.has_company_name && memory.has_company_nit);
 }
 
@@ -547,9 +547,10 @@ export function parseExistingContactUpdateData(args: {
 
 export function getMissingNewCustomerFields(memory: any): string[] {
   const d = memory?.new_customer_data && typeof memory.new_customer_data === "object" ? memory.new_customer_data : {};
+  const isPersonaNatural = Boolean(memory?.is_persona_natural);
   const missing: string[] = [];
   if (!String(d.city || "").trim()) missing.push("Departamento/ciudad");
-  if (!String(d.company || "").trim()) missing.push("Empresa");
+  if (!isPersonaNatural && !String(d.company || "").trim()) missing.push("Empresa");
   if (!/^\d{9,13}$/.test(String(d.nit || "").replace(/\D/g, ""))) {
     missing.push("Documento (cédula o NIT, solo números, sin puntos, comas ni guiones)");
   }
@@ -611,7 +612,6 @@ export function buildGoalGuidedNewCustomerDataMessage(memory: any, missing: stri
 
 export function shouldEscalateToAdvisorByCommercialRule(memory: any, text: string): boolean {
   const t = normalizeText(String(text || ""));
-  if (Boolean(memory?.is_persona_natural)) return true;
   if (/solo\s+precio|solamente\s+precio|dame\s+precio\s+solamente/.test(t)) return true;
   if (/no\s+quiero\s+dar\s+datos|no\s+dare\s+datos|sin\s+datos/.test(t)) return true;
   return false;
