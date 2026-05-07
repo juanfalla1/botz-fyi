@@ -7296,6 +7296,11 @@ export async function POST(req: Request) {
       }
 
       const textNorm = normalizeCatalogQueryText(text);
+      const asksDistributorPricing = /\b(distribuidor|distribuidores|precio\s+distribuidor|tarifa\s+distribuidor|precios\s+para\s+distribuidor)\b/i.test(textNorm);
+      if (asksDistributorPricing) {
+        strictMemory.crm_customer_type = "distributor";
+        strictMemory.commercial_customer_type = "distributor";
+      }
       const awaiting = deriveStrictAwaitingAction(previousMemory, strictPrevAwaiting);
       const wantsSheet = isTechnicalSheetIntent(text);
       const wantsQuote = asksQuoteIntent(text) || isPriceIntent(text);
@@ -8224,9 +8229,17 @@ export async function POST(req: Request) {
         }
         const missing = getMissingNewCustomerFields(strictMemory);
         if (missing.length) {
-          strictReply = awaiting === "commercial_client_recognition"
+          const baseMissingReply = awaiting === "commercial_client_recognition"
             ? buildNewCustomerDataPrompt()
             : buildGoalGuidedNewCustomerDataMessage(strictMemory, missing);
+          strictReply = asksDistributorPricing
+            ? [
+                "Perfecto, sí manejamos tarifa para distribuidor.",
+                "Para emitir la cotización correcta te pido completar solo los datos faltantes:",
+                "",
+                baseMissingReply,
+              ].join("\n")
+            : baseMissingReply;
           return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "new_customer_data_required" });
         }
         strictMemory.commercial_validation_complete = true;
@@ -8288,7 +8301,7 @@ export async function POST(req: Request) {
             strictMemory.awaiting_action = "commercial_existing_confirm";
             strictReply = [
               "Ya encontré que esta información corresponde a un cliente existente en nuestra base.",
-              "",
+              ...(asksDistributorPricing ? ["Perfecto, te cotizo con tarifa distribuidor cuando confirmemos el flujo.", ""] : [""]),
               buildExistingClientMatchConfirmationPrompt({
                 company: matchedCompany,
                 nit: matchedNit,
