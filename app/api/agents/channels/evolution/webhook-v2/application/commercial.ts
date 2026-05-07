@@ -652,6 +652,17 @@ export function extractLooseNewCustomerFields(text: string): { city: string; com
       break;
     }
   }
+  let inlineCompany = "";
+  if (!inlineCompany) {
+    const mBeforeNit = raw.match(/(?:empresa\s*[:=\-–]?\s*|a\s+nombre\s+de\s+)?([^\n,;]{3,120}?)\s+nit\b/i);
+    const candidate = String(mBeforeNit?.[1] || "").trim();
+    if (candidate && !/^(cotizar|precios|distribuidor|cliente|empresa)$/i.test(candidate)) inlineCompany = candidate;
+  }
+  if (!inlineCompany) {
+    const mEmpresa = raw.match(/\bempresa\s*[:=\-–]?\s*([^\n,;]{3,120})/i);
+    const candidate = String(mEmpresa?.[1] || "").trim();
+    if (candidate && !/^(si aplica|n\/a|na)$/i.test(candidate)) inlineCompany = candidate;
+  }
   const filtered = lines.filter((line) => {
     const l = normalizeText(line);
     if (looseNit && String(line).replace(/\D/g, "") === looseNit) return false;
@@ -662,7 +673,7 @@ export function extractLooseNewCustomerFields(text: string): { city: string; com
   });
   return {
     city: String(filtered[0] || "").trim(),
-    company: String(filtered[1] || "").trim(),
+    company: inlineCompany || String(filtered[1] || "").trim(),
     contact: String(filtered[2] || "").trim(),
     nit: looseNit,
   };
