@@ -13938,6 +13938,41 @@ export async function POST(req: Request) {
       }
     }
 
+    // Recovery: if product context exists and user answers menu-style options
+    // (1/2/3/4) while awaiting_action drifted, force deterministic action mapping.
+    if (!String(reply || "").trim()) {
+      const rememberedOptionProductLoose = String(
+        nextMemory.last_selected_product_name ||
+        previousMemory?.last_selected_product_name ||
+        nextMemory.last_product_name ||
+        previousMemory?.last_product_name ||
+        ""
+      ).trim();
+      const optLoose = normalizeText(String(originalInboundText || "")).trim();
+      const awaitingLoose = String(nextMemory.awaiting_action || previousMemory?.awaiting_action || "").trim();
+      const isActionLikeAwaiting = /^(product_action|conversation_followup|none)$/i.test(awaitingLoose);
+      if (rememberedOptionProductLoose && isActionLikeAwaiting && /^(1|2|3|4|a|b|c|d)\b/.test(optLoose)) {
+        if (/^(1|a)\b/.test(optLoose)) {
+          inbound.text = `cotizar ${rememberedOptionProductLoose} ${originalInboundText}`.trim();
+          nextMemory.awaiting_action = "quote_product_selection";
+        } else if (/^(2|b)\b/.test(optLoose)) {
+          inbound.text = `ficha tecnica de ${rememberedOptionProductLoose}`;
+          nextMemory.awaiting_action = "none";
+        } else if (/^(3|c)\b/.test(optLoose)) {
+          reply = `Perfecto. ¿Qué pregunta técnica tienes sobre ${rememberedOptionProductLoose}?`;
+          nextMemory.awaiting_action = "product_action";
+          handledByTechSheet = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        } else if (/^(4|d)\b/.test(optLoose)) {
+          reply = "Perfecto, cierro esta conversación. Si luego quieres retomar, escríbeme el modelo o la categoría y seguimos.";
+          nextMemory.awaiting_action = "conversation_followup";
+          nextMemory.conversation_status = "closed";
+          handledByGreeting = true;
+          billedTokens = Math.max(1, Math.min(500, estimateTokens(reply)));
+        }
+      }
+    }
+
     const countCatalogRows = async (pricedOnly = false): Promise<number> => {
       let ownerQuery = supabase
         .from("agent_product_catalog")
