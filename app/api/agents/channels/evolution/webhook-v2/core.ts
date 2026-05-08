@@ -2020,7 +2020,6 @@ function normalizeRequestedCapacityG(rawCapG: number): number {
     3000: 3200,
     4000: 4200,
     5000: 5200,
-    6000: 6200,
   };
   const rounded = Math.round(cap);
   return Number(snapMap[rounded] || cap);
