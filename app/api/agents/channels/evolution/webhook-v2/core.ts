@@ -2516,7 +2516,7 @@ function isOutOfCatalogDomainQuery(text: string): boolean {
   if (hardOutTerms) return true;
   const outTerms = /(tornillo|tornillos|herramienta|herramientas|taladro|martillo|llave inglesa|destornillador|broca|ferreteria|ferreteria|tuerca|perno|clavo|soldadura|silicona|pintura|tenedor|tenedores|cuchillo|cuchillos|cuchara|cucharas|plato|platos|vaso|vasos|carro|carros|vehiculo|vehiculos)/.test(t);
   if (!outTerms) return false;
-  const inDomain = /(balanza|balanzas|bascula|basculas|ohaus|analitica|precision|trm|cotizacion|ficha tecnica|humedad|electroquimica|laboratorio|centrifuga|mezclador|agitador|modelo|producto|referencia|sirve para|me sirve|puede pesar|pesar)/.test(t);
+  const inDomain = /(balanza|balanzas|bascula|basculas|ohaus|analitica|precision|trm|cotizacion|ficha tecnica|humedad|electroquimica|laboratorio|centrifuga|mezclador|agitador|modelo|producto|referencia|sirve para|me sirve|puede pesar|pesar|peso|industrial|industria|plataforma)/.test(t);
   return outTerms && !inDomain;
 }
 
@@ -3802,7 +3802,7 @@ function detectCatalogCategoryIntent(text: string): string | null {
   if (/(balanza|balanzas|analitica|semi analitica|semi-micro|precision|resolucion|lectura minima)/.test(t) && /(precision|resolucion|lectura minima)/.test(t)) {
     return "balanzas_precision";
   }
-  if (/(bascula|basculas|bscula|bsculas|ranger|defender|valor|control de peso|ckw|td52p|plataforma\s+de\s+pesaje|plataforma\s+de\s+peso)/.test(t) && !negatesBasculas) return "basculas";
+  if (/(bascula|basculas|bscula|bsculas|ranger|defender|valor|control de peso|ckw|td52p|plataforma\s+de\s+pesaje|plataforma\s+de\s+peso|peso\s+industrial|industrial)/.test(t) && !negatesBasculas) return "basculas";
   if (/(impresora)/.test(t)) return "impresoras";
   if (/(balanza|balanzas|blanza|blanzas|explorer|adventurer|pioneer|pr\b|scout|analitica|semi analitica|precision)/.test(t)) return "balanzas";
   if (/(documento|brochure|manual|guia|catalogo pdf)/.test(t)) return "documentos";
@@ -9211,12 +9211,13 @@ export async function POST(req: Request) {
       let selectedProduct: any = null;
       const modelTokenHint = extractModelLikeTokens(text);
       const looksLikeModelCode = modelTokenHint.some((tk) => isLikelyModelCodeToken(tk));
-      if (!String(strictReply || "").trim() && explicitModel && looksLikeModelCode && !technicalSpecIntent) {
-        selectedProduct = findExactModelProduct(text, ownerRows as any[]) || pickBestCatalogProduct(text, ownerRows as any[]);
-      }
+      const explicitModelProduct = (!String(strictReply || "").trim() && explicitModel && looksLikeModelCode)
+        ? (findExactModelProduct(text, ownerRows as any[]) || pickBestCatalogProduct(text, ownerRows as any[]))
+        : null;
+      if (explicitModelProduct) selectedProduct = explicitModelProduct;
 
       const directTechnicalSpec = preParsedSpec;
-      if (!String(strictReply || "").trim() && directTechnicalSpec) {
+      if (!String(strictReply || "").trim() && directTechnicalSpec && !explicitModelProduct) {
         strictMemory.strict_spec_query = text;
         strictMemory.strict_filter_capacity_g = Number(directTechnicalSpec.capacityG || 0);
         strictMemory.strict_filter_readability_g = Number(directTechnicalSpec.readabilityG || 0);
