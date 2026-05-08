@@ -9598,6 +9598,30 @@ export async function POST(req: Request) {
           strictMemory.commercial_welcome_sent = true;
         }
       } else if (!String(strictReply || "").trim() && awaiting === "strict_need_spec") {
+        const explicitModelInNeedStep = hasConcreteProductHint(text) && !isOptionOnlyReply(text)
+          ? (findExactModelProduct(text, ownerRows as any[]) || findExactModelProduct(text, baseScoped as any[]) || pickBestCatalogProduct(text, ownerRows as any[]))
+          : null;
+        if (explicitModelInNeedStep) {
+          const selectedNameNeed = String((explicitModelInNeedStep as any)?.name || "").trim();
+          strictMemory.last_product_id = String((explicitModelInNeedStep as any)?.id || "").trim();
+          strictMemory.last_product_name = selectedNameNeed;
+          strictMemory.last_selected_product_id = String((explicitModelInNeedStep as any)?.id || "").trim();
+          strictMemory.last_selected_product_name = selectedNameNeed;
+          strictMemory.awaiting_action = "strict_choose_action";
+          const technicalSummaryNeed = buildTechnicalSummary(explicitModelInNeedStep, 6);
+          strictReply = technicalSummaryNeed
+            ? [
+                `Perfecto, encontré la referencia ${selectedNameNeed}.`,
+                technicalSummaryNeed,
+                "",
+                "Responde con: 1) Cotización  2) Ficha técnica  3) Ver otras opciones  4) Cambiar requerimiento",
+              ].join("\n")
+            : [
+                `Perfecto, encontré la referencia ${selectedNameNeed}.`,
+                "Responde con: 1) Cotización  2) Ficha técnica  3) Ver otras opciones  4) Cambiar requerimiento",
+              ].join("\n");
+        }
+
         const parsed = parseLooseTechnicalHint(text);
         const capacityRange = parseCapacityRangeHint(text);
         const asksCategoryMenuNow = isExplicitFamilyMenuAsk(text);
