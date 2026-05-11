@@ -154,6 +154,7 @@ export default function AgentsCrmPage() {
   const [contactsPage, setContactsPage] = useState(1);
   const [contactsPageSize, setContactsPageSize] = useState(100);
   const [contactOpsFilter, setContactOpsFilter] = useState<"all" | "overdue" | "unassigned" | "quote_stale">("all");
+  const [contactsLane, setContactsLane] = useState<"managed" | "automatic">("managed");
   const [filterAgent, setFilterAgent] = useState("all");
   const [filterChannel, setFilterChannel] = useState("all");
   const [filterQuoteDemand, setFilterQuoteDemand] = useState("all");
@@ -1132,8 +1133,11 @@ export default function AgentsCrmPage() {
     const nowMs = Date.now();
     return contacts.filter((c) => {
       const segment = String((c as any).contact_segment || "bot");
+      const autoCaptured = Boolean((c as any)?.metadata?.auto_captured);
       if (contactsTopTab === "database" && !(segment === "client" || segment === "distributor" || segment === "mixed")) return false;
       if (contactsTopTab === "bot" && !(segment === "bot" || segment === "mixed")) return false;
+      if (activeTab === "contacts" && contactsLane === "automatic" && !autoCaptured) return false;
+      if (activeTab === "contacts" && contactsLane === "managed" && autoCaptured) return false;
       if (filterStatus !== "all" && normalizeStage(String(c.status || "analysis")) !== normalizeStage(filterStatus)) return false;
       if (filterAgent !== "all" && String(c.assigned_agent_id || "") !== filterAgent) return false;
       if (filterChannel !== "all" && String(c.last_channel || "") !== filterChannel) return false;
@@ -1160,7 +1164,12 @@ export default function AgentsCrmPage() {
       const hay = `${c.name || ""} ${c.email || ""} ${c.phone || ""} ${c.company || ""} ${c.last_product || ""}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [contacts, search, filterStatus, contactsTopTab, filterAgent, filterChannel, filterQuoteDemand, contactOpsFilter]);
+  }, [contacts, search, filterStatus, contactsTopTab, filterAgent, filterChannel, filterQuoteDemand, contactOpsFilter, activeTab, contactsLane]);
+
+  const automaticContactsCount = useMemo(
+    () => contacts.filter((c) => Boolean((c as any)?.metadata?.auto_captured)).length,
+    [contacts]
+  );
 
   const opsCounters = useMemo(() => {
     const nowMs = Date.now();
@@ -1185,7 +1194,7 @@ export default function AgentsCrmPage() {
 
   useEffect(() => {
     setContactsPage(1);
-  }, [search, filterStatus, contactsTopTab, filterAgent, filterChannel, filterQuoteDemand, contactOpsFilter, contactsPageSize]);
+  }, [search, filterStatus, contactsTopTab, filterAgent, filterChannel, filterQuoteDemand, contactOpsFilter, contactsPageSize, contactsLane]);
 
   useEffect(() => {
     if (contactsPage > contactsTotalPages) setContactsPage(contactsTotalPages);
@@ -1195,6 +1204,7 @@ export default function AgentsCrmPage() {
     if (activeTab === "database") setContactsTopTab("database");
     if (activeTab === "contacts") setContactsTopTab("bot");
     if (activeTab !== "contacts") setContactOpsFilter("all");
+    if (activeTab !== "contacts") setContactsLane("managed");
   }, [activeTab]);
 
   useEffect(() => {
@@ -1977,9 +1987,32 @@ export default function AgentsCrmPage() {
         <div style={{ border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
           <div style={{ background: C.card, padding: "10px 12px", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span>{activeTab === "database" ? tr("Base de datos", "Database") : tr("Contactos en gestión", "Managed contacts")}</span>
+              <span>
+                {activeTab === "database"
+                  ? tr("Base de datos", "Database")
+                  : contactsLane === "automatic"
+                    ? tr("Contactos automáticos", "Automatic contacts")
+                    : tr("Contactos en gestión", "Managed contacts")}
+              </span>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {activeTab === "contacts" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <button
+                    onClick={() => setContactsLane("managed")}
+                    style={{ border: `1px solid ${C.border}`, borderRadius: 999, background: contactsLane === "managed" ? "rgba(163,230,53,0.18)" : C.dark, color: contactsLane === "managed" ? C.white : C.muted, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}
+                  >
+                    {tr("En gestión", "Managed")}
+                  </button>
+                  <button
+                    onClick={() => setContactsLane("automatic")}
+                    style={{ border: `1px solid ${C.border}`, borderRadius: 999, background: contactsLane === "automatic" ? "rgba(96,165,250,0.18)" : C.dark, color: contactsLane === "automatic" ? C.white : C.muted, padding: "5px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700 }}
+                  >
+                    {tr("Automáticos", "Automatic")}
+                    {` (${automaticContactsCount})`}
+                  </button>
+                </div>
+              )}
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
