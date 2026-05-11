@@ -6859,6 +6859,19 @@ export async function POST(req: Request) {
     if (knownCustomerName) nextMemory.customer_name = knownCustomerName;
     nextMemory.recognized_returning_customer = recognizedReturningCustomer;
 
+    // Ensure every inbound WhatsApp contact exists in CRM (best effort).
+    await upsertCrmLifecycleState(supabase as any, {
+      ownerId,
+      tenantId: (agent as any)?.tenant_id || null,
+      phone: inbound.from,
+      realPhone: inboundCustomerPhone,
+      name: knownCustomerName || inbound.pushName || "",
+      metadata: {
+        source: "evolution_inbound_auto_capture",
+        auto_captured: true,
+      },
+    });
+
     // Strict deterministic mode: single flow, no ambiguous branches.
     const STRICT_REBUILD_MODE = String(
       process.env.WHATSAPP_USE_V2 ||
