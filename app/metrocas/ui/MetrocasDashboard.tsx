@@ -367,7 +367,7 @@ export function MetrocasDashboard() {
         <div className={`${s.container} ${s.topNavInner}`}>
           <div className={s.brand}>Metricas Intelligence</div>
           <div className={s.navActions}>
-            <a href="/metrocas" className={s.btnSecondary}>Volver al landing</a>
+            <a href="/metricas" className={s.btnSecondary}>Volver al landing</a>
             <a href="/intelligence/upload" className={s.btnPrimary}>Subir dataset</a>
           </div>
         </div>
