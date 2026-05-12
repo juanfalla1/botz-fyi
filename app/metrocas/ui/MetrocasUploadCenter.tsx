@@ -61,7 +61,7 @@ export function MetrocasUploadCenter() {
     <main className={`${s.metrocasRoot} ${s.lightSurface}`}>
       <div className={s.topNav}>
         <div className={`${s.container} ${s.topNavInner}`}>
-          <div className={s.brand}>Metrocas Upload Center</div>
+          <div className={s.brand}>Metricas Upload Center</div>
           <div className={s.navActions}>
             <a href="/metrocas" className={s.btnSecondary}>Volver al landing</a>
             <a href="/intelligence" className={s.btnPrimary}>Ir al dashboard</a>

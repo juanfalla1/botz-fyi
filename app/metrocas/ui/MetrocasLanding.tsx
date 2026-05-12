@@ -35,7 +35,7 @@ export function MetrocasLanding() {
     <main className={s.metrocasRoot}>
       <nav className={s.topNav}>
         <div className={`${s.container} ${s.topNavInner}`}>
-          <div className={s.brand}>Metrocas Intelligence</div>
+          <div className={s.brand}>Metricas Intelligence</div>
           <div className={s.navActions}>
             <a href="/intelligence/upload" className={s.btnSecondary}>Subir mi Excel</a>
             <a href="/intelligence" className={s.btnPrimary}>Entrar al dashboard</a>
@@ -48,7 +48,7 @@ export function MetrocasLanding() {
           Entiende por que tus ventas suben o bajan con IA
         </motion.h1>
         <p className={s.subtitle}>
-          Metrocas analiza ventas, inventario, clientes y productos para detectar oportunidades, riesgos y acciones concretas para mejorar tu negocio.
+          Metricas analiza ventas, inventario, clientes y productos para detectar oportunidades, riesgos y acciones concretas para mejorar tu negocio.
         </p>
         <div className={s.navActions}>
           <a href="/intelligence" className={s.btnPrimary}>Comenzar analisis</a>
