@@ -1039,6 +1039,45 @@ body{ padding-top: var(--header-h); }
 /* Avanza CRM runs without the global Botz header */
 body.avanza-crm-no-header{ padding-top: 0 !important; overflow: hidden; }
 
+/* Metrocas/Intelligence run without global header, but keep normal scrolling */
+body.no-global-header{ padding-top: 0 !important; overflow-x: hidden; }
+
+/* Avanza CRM own shell must not inherit compact header hacks */
+body.avanza-crm-no-header .avz-shell-header {
+  height: auto !important;
+  min-height: 96px !important;
+  padding: 0 !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 5000 !important;
+}
+
+body.avanza-crm-no-header .avz-shell-header .avz-shell-nav {
+  padding-top: 6px !important;
+  padding-bottom: 10px !important;
+  justify-content: flex-start !important;
+  max-width: 100% !important;
+}
+
+@media (max-width: 640px) {
+  body.avanza-crm-no-header .avz-shell-header .avz-shell-topbar {
+    row-gap: 8px !important;
+  }
+
+  body.avanza-crm-no-header .avz-shell-header .avz-shell-meta {
+    display: none !important;
+  }
+
+  body.avanza-crm-no-header .avz-shell-header .avz-nav-action {
+    margin-left: auto !important;
+    max-width: calc(100vw - 28px) !important;
+  }
+}
+
+body.avanza-crm-no-header .avz-shell-header .avz-shell-nav a::after {
+  display: none !important;
+}
+
 /* Anclas: que no queden ocultas bajo el header fijo */
 section[id]{ scroll-margin-top: calc(var(--header-h) + 8px); }
 

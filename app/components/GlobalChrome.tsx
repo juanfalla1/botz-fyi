@@ -14,15 +14,21 @@ export default function GlobalChrome() {
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-    if (hideGlobalChrome) {
+    document.body.classList.remove("avanza-crm-no-header");
+    document.body.classList.remove("no-global-header");
+    if (isAvanzaCrm) {
       document.body.classList.add("avanza-crm-no-header");
+    } else if (hideGlobalChrome) {
+      document.body.classList.add("no-global-header");
     } else {
       document.body.classList.remove("avanza-crm-no-header");
+      document.body.classList.remove("no-global-header");
     }
     return () => {
       document.body.classList.remove("avanza-crm-no-header");
+      document.body.classList.remove("no-global-header");
     };
-  }, [hideGlobalChrome]);
+  }, [hideGlobalChrome, isAvanzaCrm]);
 
   if (hideGlobalChrome) return null;
   return (
