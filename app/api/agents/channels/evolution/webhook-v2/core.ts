@@ -9593,7 +9593,17 @@ export async function POST(req: Request) {
         strictMemory.offtopic_muted_until = "";
       }
 
-      if (!String(strictReply || "").trim() && isGreeting && !explicitModel && !categoryIntent && !wantsQuote && !wantsSheet) {
+      const hasContextForGuidance =
+        Boolean(previousMemory?.last_category_intent || previousMemory?.target_application || previousMemory?.strict_spec_query) ||
+        Boolean(previousMemory?.last_selected_product_name || previousMemory?.last_product_name) ||
+        (Array.isArray(previousMemory?.pending_product_options) && previousMemory.pending_product_options.length > 0);
+      if (!String(strictReply || "").trim() && !awaiting && isAffirmativeShortIntent(text) && hasContextForGuidance && !explicitModel && !wantsQuote && !wantsSheet) {
+        const appHint = String(previousMemory?.target_application || strictMemory?.target_application || "").trim().replace(/_/g, " ");
+        strictMemory.awaiting_action = "strict_need_spec";
+        strictReply = appHint
+          ? `Perfecto. Para ${appHint} te guío de una. Confírmame capacidad y precisión objetivo (ej.: 3000 g x 0.1 g) y te muestro modelos reales.`
+          : "Perfecto, te guío de una. Confírmame capacidad y precisión objetivo (ej.: 3000 g x 0.1 g) y te muestro modelos reales.";
+      } else if (!String(strictReply || "").trim() && isGreeting && !explicitModel && !categoryIntent && !wantsQuote && !wantsSheet) {
         const hasPriorConversation =
           Boolean(previousMemory?.last_user_at || previousMemory?.last_intent || previousMemory?.last_quote_draft_id) ||
           Boolean(previousMemory?.recognized_returning_customer || strictMemory?.recognized_returning_customer || recognizedReturningCustomer) ||
