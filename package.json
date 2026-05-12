@@ -9,7 +9,8 @@
     "catalog:ohaus:template:sync-and-audit": "python scripts/sync-and-audit-ohaus-template.py",
     "catalog:ohaus:cotizaciones:sync": "python scripts/sync-ohaus-cotizaciones-folder.py",
     "catalog:ohaus:prices:sync": "python scripts/sync-ohaus-prices-from-list.py",
-    "catalog:ohaus:assets:sync": "python scripts/sync-ohaus-cotizaciones-assets.py"
+    "catalog:ohaus:assets:sync": "python scripts/sync-ohaus-cotizaciones-assets.py",
+    "webhook-v2:golden": "node scripts/webhook-v2-golden-check.mjs"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
@@ -41,7 +42,8 @@
     "recharts": "^3.1.2",
     "resend": "^6.9.1",
     "stripe": "^20.3.0",
-    "uuid": "^12.0.0"
+    "uuid": "^12.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.11",
