@@ -63,7 +63,7 @@ export function MetrocasLanding() {
       <section className={`${s.container} ${s.section}`}>
         <h2 className={s.sectionTitle}>Como funciona</h2>
         <ol className={s.grid4}>
-          {["Sube tu Excel o CSV", "Metrocas limpia y organiza", "Calcula KPIs", "IA explica que pasa", "Dashboard + alertas"].map((step, i) => (
+          {["Sube tu Excel o CSV", "Metricas limpia y organiza", "Calcula KPIs", "IA explica que pasa", "Dashboard + alertas"].map((step, i) => (
             <li key={step} className={s.card}><strong>{i + 1}.</strong> {step}</li>
           ))}
         </ol>
