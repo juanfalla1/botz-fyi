@@ -3,6 +3,7 @@
   background: radial-gradient(circle at 15% 10%, #1b3a8a 0%, #0c1f4f 45%, #071533 100%);
   color: #f5f9ff;
   font-family: "Segoe UI", "Inter", sans-serif;
+  overflow-x: clip;
 }
 
 .container {
@@ -73,6 +74,9 @@
   margin: 0;
   font-size: clamp(2rem, 4.2vw, 3.25rem);
   line-height: 1.15;
+  max-width: 22ch;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 
 .subtitle {
@@ -155,6 +159,14 @@
 }
 
 @media (max-width: 700px) {
+  .container { width: min(1200px, 95%); }
+  .topNavInner { align-items: flex-start; }
+  .brand { font-size: 0.98rem; }
+  .navActions { width: 100%; }
+  .btnPrimary, .btnSecondary { width: 100%; text-align: center; }
+  .hero { padding: 36px 0 16px; }
+  .title { font-size: clamp(1.65rem, 8.3vw, 2.05rem); max-width: none; text-wrap: wrap; }
+  .subtitle { font-size: 1rem; }
   .grid2, .grid3, .grid4, .form { grid-template-columns: 1fr; }
   .textarea, .full { grid-column: auto; }
 }

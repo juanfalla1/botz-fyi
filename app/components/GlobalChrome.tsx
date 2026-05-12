@@ -9,7 +9,8 @@ export default function GlobalChrome() {
   const pathname = usePathname();
   const isAvanzaCrm = String(pathname || "").startsWith("/avanza-crm");
   const isWidgetRoute = String(pathname || "").startsWith("/widget/");
-  const hideGlobalChrome = isAvanzaCrm || isWidgetRoute;
+  const isMetrocas = String(pathname || "").startsWith("/metrocas") || String(pathname || "").startsWith("/intelligence");
+  const hideGlobalChrome = isAvanzaCrm || isWidgetRoute || isMetrocas;
 
   useEffect(() => {
     if (typeof document === "undefined") return;
