@@ -1192,11 +1192,12 @@ async function upsertCrmLifecycleState(
   if (!ownerId || !tail) return;
 
   try {
+    const contactKey = `cel:${realPhone || phone || tail}`;
     const { data: existing } = await supabase
       .from("agent_crm_contacts")
       .select("id,status,next_action,next_action_at,metadata")
       .eq("created_by", ownerId)
-      .or(`phone.eq.${phone},phone.like.%${tail}`)
+      .or(`contact_key.eq.${contactKey},phone.eq.${phone},phone.like.%${tail}`)
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -1233,16 +1234,17 @@ async function upsertCrmLifecycleState(
       return;
     }
 
-    await supabase.from("agent_crm_contacts").insert({
+    await supabase.from("agent_crm_contacts").upsert({
       tenant_id: args.tenantId || null,
       created_by: ownerId,
+      contact_key: contactKey,
       name: sanitizeCustomerDisplayName(String(args.name || "")) || null,
       phone,
       status: nextStatus,
       next_action: nextAction,
       next_action_at: nextActionAt,
       metadata: mergedMetadata,
-    });
+    }, { onConflict: "created_by,contact_key" });
   } catch {
     // best effort
   }
