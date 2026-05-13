@@ -167,6 +167,78 @@ export async function GET(req: Request) {
     const cityTopSales = cityRanking[0]?.city || "EN BLANCO";
     const cityTopOpportunity = cityRanking[1]?.city || cityTopSales;
 
+    const alerts = [] as Array<{
+      title: string;
+      description: string;
+      severity: "low" | "medium" | "high" | "critical";
+      recommendation: string;
+      expectedImpact: string;
+      suggestedAction: string;
+      type: string;
+    }>;
+
+    if (growth < 0) {
+      alerts.push({
+        title: `Ventas bajaron ${Math.abs(growth).toFixed(1)}% frente al periodo anterior`,
+        description: "Se detecta contraccion en la comparacion mensual de ventas.",
+        severity: Math.abs(growth) >= 20 ? "critical" : "high",
+        recommendation: "Priorizar recuperacion de clientes top y categorias de mayor margen.",
+        expectedImpact: "Recuperar entre 5% y 12% del ingreso del siguiente mes.",
+        suggestedAction: "Activar plan comercial de 30 dias por sede y segmento.",
+        type: "sales_drop",
+      });
+    }
+
+    const topProduct = productRanking[0];
+    if (topProduct && topProduct.participation > 0.25) {
+      alerts.push({
+        title: `Alta concentracion en producto ${topProduct.label}`,
+        description: `Este producto concentra ${(topProduct.participation * 100).toFixed(1)}% de la venta total.`,
+        severity: topProduct.participation > 0.4 ? "high" : "medium",
+        recommendation: "Reducir dependencia ampliando mix en productos de la misma linea.",
+        expectedImpact: "Menor riesgo comercial ante variaciones de demanda.",
+        suggestedAction: "Promover 3 productos alternativos en las sedes principales.",
+        type: "concentration_risk",
+      });
+    }
+
+    const recommendations = [] as Array<{
+      type: string;
+      priority: "P1" | "P2" | "P3";
+      title: string;
+      description: string;
+      expectedImpact: string;
+      actionPlan: string;
+      supportingData: string;
+    }>;
+
+    if (customerRanking.length) {
+      const topCustomer = customerRanking[0];
+      recommendations.push({
+        type: "ventas",
+        priority: "P1",
+        title: "Recuperar frecuencia de clientes clave",
+        description: "Los clientes top deben sostener la frecuencia para proteger ingreso mensual.",
+        expectedImpact: "Incremento estimado de 3% a 8% en ventas del proximo periodo.",
+        actionPlan: "Secuencia comercial de 30 dias con seguimiento semanal por asesor.",
+        supportingData: `Cliente top actual: ${topCustomer.label} (${topCustomer.sales.toLocaleString("es-CO")}).`,
+      });
+    }
+
+    if (branchRanking.length > 1) {
+      const topBranch = branchRanking[0];
+      const tailBranch = branchRanking[branchRanking.length - 1];
+      recommendations.push({
+        type: "sedes",
+        priority: "P2",
+        title: "Cerrar brecha de desempeno entre sedes",
+        description: "Existe diferencia relevante entre sedes lideres y rezagadas.",
+        expectedImpact: "Mejora de cobertura comercial en zonas de baja conversion.",
+        actionPlan: "Replicar practicas de la sede lider y reforzar seguimiento en la sede rezagada.",
+        supportingData: `Top: ${topBranch.label} (${topBranch.sales.toLocaleString("es-CO")}) | Rezagada: ${tailBranch.label} (${tailBranch.sales.toLocaleString("es-CO")}).`,
+      });
+    }
+
     const dashboard = {
     datasetId,
     kpis: {
@@ -182,8 +254,8 @@ export async function GET(req: Request) {
       noRotationProducts: 0,
       criticalStock: 0,
       opportunitiesDetected: segmentRanking.length,
-      criticalAlerts: 0,
-      generatedRecommendations: 0,
+      criticalAlerts: alerts.filter((a) => a.severity === "critical").length,
+      generatedRecommendations: recommendations.length,
       cityTopSales,
       cityTopGrowth: cityTopSales,
       cityTopDrop: cityRanking[cityRanking.length - 1]?.city || "EN BLANCO",
@@ -198,8 +270,8 @@ export async function GET(req: Request) {
     topCustomers: customerRanking.slice(0, 12).map((x) => ({ name: x.label, sales: x.sales, frequency: x.quantity, city: "Global" })),
     cityRanking,
     cityCategoryHeatmap: [],
-    alerts: [],
-    recommendations: [],
+    alerts,
+    recommendations,
     aiInsights: null,
     };
 
