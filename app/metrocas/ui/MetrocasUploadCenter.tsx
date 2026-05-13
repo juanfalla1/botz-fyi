@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import s from "@/app/metrocas/ui/metrocas-theme.module.css";
 
 export function MetrocasUploadCenter() {
@@ -8,13 +8,27 @@ export function MetrocasUploadCenter() {
   const [preview, setPreview] = useState<any>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [accessKey, setAccessKey] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = new URLSearchParams(window.location.search).get("access_key") || "";
+    setAccessKey(key);
+  }, []);
+
+  const withAccessKey = useMemo(
+    () =>
+      (path: string) =>
+        accessKey ? `${path}${path.includes("?") ? "&" : "?"}access_key=${encodeURIComponent(accessKey)}` : path,
+    [accessKey],
+  );
 
   async function doPreview() {
     if (!file) return;
     setLoading(true);
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch("/api/metrocas/upload/preview", { method: "POST", body: form });
+    const res = await fetch(withAccessKey("/api/metrocas/upload/preview"), { method: "POST", body: form });
     if (res.status === 401) {
       setLoading(false);
       setMessage("Debes iniciar sesion antes de subir archivos. Entra por /start?auth=1 y vuelve a intentar.");
@@ -30,7 +44,7 @@ export function MetrocasUploadCenter() {
     setLoading(true);
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch("/api/metrocas/upload", { method: "POST", body: form });
+    const res = await fetch(withAccessKey("/api/metrocas/upload"), { method: "POST", body: form });
     if (res.status === 401) {
       setLoading(false);
       setMessage("Debes iniciar sesion antes de importar. Entra por /start?auth=1 y vuelve a intentar.");
@@ -63,8 +77,8 @@ export function MetrocasUploadCenter() {
     const datasetId = json?.dataset?.id;
     setMessage("Dataset importado. Redirigiendo a dashboard...");
     window.location.href = datasetId
-      ? `/intelligence?dataset_id=${encodeURIComponent(datasetId)}`
-      : "/intelligence";
+      ? withAccessKey(`/intelligence?dataset_id=${encodeURIComponent(datasetId)}`)
+      : withAccessKey("/intelligence");
   }
 
   return (
@@ -73,8 +87,8 @@ export function MetrocasUploadCenter() {
         <div className={`${s.container} ${s.topNavInner}`}>
           <div className={s.brand}>Metricas Upload Center</div>
           <div className={s.navActions}>
-            <a href="/metricas" className={s.btnSecondary}>Volver al landing</a>
-            <a href="/intelligence" className={s.btnPrimary}>Ir al dashboard</a>
+            <a href={withAccessKey("/metricas")} className={s.btnSecondary}>Volver al landing</a>
+            <a href={withAccessKey("/intelligence")} className={s.btnPrimary}>Ir al dashboard</a>
           </div>
         </div>
       </div>

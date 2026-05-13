@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import s from "@/app/metrocas/ui/metrocas-theme.module.css";
 
@@ -17,6 +17,22 @@ const problems = [
 export function MetrocasLanding() {
   const [sending, setSending] = useState(false);
   const [ok, setOk] = useState("");
+  const [accessKey, setAccessKey] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = new URLSearchParams(window.location.search).get("access_key") || "";
+    setAccessKey(key);
+  }, []);
+
+  const uploadHref = useMemo(
+    () => (accessKey ? `/intelligence/upload?access_key=${encodeURIComponent(accessKey)}` : "/intelligence/upload"),
+    [accessKey],
+  );
+  const dashboardHref = useMemo(
+    () => (accessKey ? `/intelligence?access_key=${encodeURIComponent(accessKey)}` : "/intelligence"),
+    [accessKey],
+  );
 
   async function onLeadSubmit(formData: FormData) {
     setSending(true);
@@ -38,8 +54,8 @@ export function MetrocasLanding() {
           <div className={s.brand}>Metricas Intelligence</div>
           <div className={s.navActions}>
             <a href="/login?next=/metricas" className={s.btnSecondary}>Iniciar sesion</a>
-            <a href="/intelligence/upload" className={s.btnSecondary}>Subir mi Excel</a>
-            <a href="/intelligence" className={s.btnPrimary}>Entrar al dashboard</a>
+            <a href={uploadHref} className={s.btnSecondary}>Subir mi Excel</a>
+            <a href={dashboardHref} className={s.btnPrimary}>Entrar al dashboard</a>
           </div>
         </div>
       </nav>
@@ -52,8 +68,8 @@ export function MetrocasLanding() {
           Metricas analiza ventas, inventario, clientes y productos para detectar oportunidades, riesgos y acciones concretas para mejorar tu negocio.
         </p>
         <div className={s.navActions}>
-          <a href="/intelligence" className={s.btnPrimary}>Comenzar analisis</a>
-          <a href="/intelligence/upload" className={s.btnSecondary}>Subir mi Excel</a>
+          <a href={dashboardHref} className={s.btnPrimary}>Comenzar analisis</a>
+          <a href={uploadHref} className={s.btnSecondary}>Subir mi Excel</a>
         </div>
       </section>
 
@@ -102,8 +118,8 @@ export function MetrocasLanding() {
         <div style={{ padding: 16, borderRadius: 14 }}>
         <h3 className={s.sectionTitle}>Convierte tus datos en decisiones inteligentes</h3>
         <div className={s.navActions}>
-          <a href="/intelligence" className={s.btnPrimary}>Analizar mi negocio</a>
-          <a href="/intelligence/upload" className={s.btnSecondary}>Subir Excel</a>
+          <a href={dashboardHref} className={s.btnPrimary}>Analizar mi negocio</a>
+          <a href={uploadHref} className={s.btnSecondary}>Subir Excel</a>
         </div>
 
         <form action={onLeadSubmit} className={s.form} style={{ marginTop: 12 }}>
