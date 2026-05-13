@@ -109,6 +109,36 @@ const clean = (v: string) =>
     .trim()
     .toUpperCase();
 
+function inferYearMonth(rows: Array<Record<string, unknown>>): string {
+  const byMonth = new Map<string, number>();
+  for (const r of rows) {
+    const dt = normalizeDate(r.invoice_date);
+    if (!dt) continue;
+    const m = dt.slice(0, 7);
+    byMonth.set(m, (byMonth.get(m) || 0) + 1);
+  }
+  const ranked = [...byMonth.entries()].sort((a, b) => b[1] - a[1]);
+  return ranked[0]?.[0] || "";
+}
+
+function parseDayFromHeader(value: unknown) {
+  const raw = clean(String(value || ""));
+  const withNum = raw.match(/(LUNES|MARTES|MIERCOLES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO)\s*(\d{1,2})/i);
+  if (withNum) {
+    return { dayName: withNum[1], dayNumber: Number(withNum[2]) };
+  }
+  const onlyDay = raw.match(/(LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO)/i);
+  if (onlyDay) {
+    return { dayName: onlyDay[1], dayNumber: null as number | null };
+  }
+  return { dayName: "", dayNumber: null as number | null };
+}
+
+function monthDate(yearMonth: string, dayNumber: number | null): string | null {
+  if (!yearMonth || !dayNumber || dayNumber < 1 || dayNumber > 31) return null;
+  return `${yearMonth}-${String(dayNumber).padStart(2, "0")}`;
+}
+
 const normalizeSegment = (segment: string) => {
   const s = clean(segment);
   if (!s || s === "(EN BLANCO)" || s === "EN BLANCO") return "En blanco";
@@ -253,8 +283,9 @@ export function parseWorkbook(buffer: ArrayBuffer): ParsedSheetData {
   const macroRows = toNormalized(macroRaw);
   const hoja8Rows = hoja8Raw.length ? toNormalized(hoja8Raw) : macroRows;
   const macroPosRows = toNormalized(posRaw);
+  const inferredMonth = inferYearMonth(hoja8Rows);
 
-  const dailyTrafficRows = trafficDailyRaw
+  const dailyTrafficRowsDirect = trafficDailyRaw
     .map((r) => {
       const trafficDate = normalizeDate(
         pick(r, [
@@ -300,7 +331,32 @@ export function parseWorkbook(buffer: ArrayBuffer): ParsedSheetData {
     })
     .filter((r) => r.traffic_date && Number(r.visits || 0) > 0);
 
-  const hourlyTrafficRows = trafficHourlyRaw
+  const dailyTrafficRowsMatrix: Array<Record<string, unknown>> = [];
+  if (!dailyTrafficRowsDirect.length && trafficDailyRaw.length) {
+    for (const r of trafficDailyRaw) {
+      const branch = String(pick(r, ["COMERCIO", "Comercio", "Sede", "sede", "Sucursal"]) || "").trim();
+      if (!branch || clean(branch).includes("TOTAL")) continue;
+      for (const [k, v] of Object.entries(r)) {
+        const header = parseDayFromHeader(k);
+        if (!header.dayName) continue;
+        const visits = num(v);
+        if (visits <= 0) continue;
+        const trafficDate = monthDate(inferredMonth, header.dayNumber);
+        if (!trafficDate) continue;
+        dailyTrafficRowsMatrix.push({
+          traffic_date: trafficDate,
+          branch,
+          visits: Math.max(0, Math.round(visits)),
+          target_daily: num(pick(r, ["META DIARIA", "Meta diaria", "Meta"])),
+          conversion: 0,
+          sales_per_visit: 0,
+        });
+      }
+    }
+  }
+  const dailyTrafficRows = dailyTrafficRowsDirect.length ? dailyTrafficRowsDirect : dailyTrafficRowsMatrix;
+
+  const hourlyTrafficRowsDirect = trafficHourlyRaw
     .map((r) => {
       const dayName = String(
         pick(r, ["Dia", "Día", "Dia semana", "Día semana", "day", "day_name", "weekday"]) || "N/A",
@@ -315,6 +371,34 @@ export function parseWorkbook(buffer: ArrayBuffer): ParsedSheetData {
       };
     })
     .filter((r) => r.hour_slot && r.hour_slot !== "N/A" && Number(r.visits || 0) > 0);
+
+  const hourlyTrafficRowsMatrix: Array<Record<string, unknown>> = [];
+  if (!hourlyTrafficRowsDirect.length && trafficHourlyRaw.length) {
+    const headerRow = trafficHourlyRaw[0] || {};
+    const slotByKey = new Map<string, string>();
+    for (const [k, v] of Object.entries(headerRow)) {
+      const label = String(v || "").trim();
+      if (/\d\s*(am|pm)\s*-\s*\d/i.test(label) || />\s*6pm/i.test(label)) {
+        slotByKey.set(k, label);
+      }
+    }
+    for (let i = 1; i < trafficHourlyRaw.length; i += 1) {
+      const row = trafficHourlyRaw[i];
+      const dayNameRaw = String(row["CLIENTES HORA TIENDA ENERO"] || row["DIA"] || "").trim();
+      const dayName = dayNameRaw ? dayNameRaw : "N/A";
+      if (clean(dayName).includes("TOTAL") || clean(dayName).includes("PROMEDIO")) continue;
+      for (const [k, slot] of slotByKey.entries()) {
+        const visits = num((row as any)[k]);
+        if (visits <= 0) continue;
+        hourlyTrafficRowsMatrix.push({
+          day_name: dayName,
+          hour_slot: slot,
+          visits: Math.max(0, Math.round(visits)),
+        });
+      }
+    }
+  }
+  const hourlyTrafficRows = hourlyTrafficRowsDirect.length ? hourlyTrafficRowsDirect : hourlyTrafficRowsMatrix;
 
   const warnings: string[] = [];
   if (!hoja8Raw.length) warnings.push("Falta Hoja8, se reconstruye automaticamente desde Macro.");
