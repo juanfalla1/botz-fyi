@@ -284,7 +284,30 @@ export async function GET(req: Request) {
     ];
 
     const MAX_FACTS = 12000;
-    const facts = items.length > MAX_FACTS ? items.slice(items.length - MAX_FACTS) : items;
+    let facts = items;
+    if (items.length > MAX_FACTS) {
+      const byMonth = new Map<string, any[]>();
+      for (const it of items) {
+        const key = String(it.month || "Sin fecha");
+        const list = byMonth.get(key) || [];
+        list.push(it);
+        byMonth.set(key, list);
+      }
+
+      const buckets = [...byMonth.values()];
+      const perBucket = Math.max(1, Math.floor(MAX_FACTS / Math.max(1, buckets.length)));
+      const sampled: any[] = [];
+      for (const bucket of buckets) {
+        sampled.push(...bucket.slice(0, perBucket));
+      }
+
+      if (sampled.length < MAX_FACTS) {
+        const need = MAX_FACTS - sampled.length;
+        const flat = buckets.flat();
+        sampled.push(...flat.slice(sampled.length, sampled.length + need));
+      }
+      facts = sampled.slice(0, MAX_FACTS);
+    }
 
     return NextResponse.json({
       ok: true,
