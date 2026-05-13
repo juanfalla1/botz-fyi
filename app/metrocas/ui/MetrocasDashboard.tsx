@@ -802,6 +802,81 @@ export function MetrocasDashboard() {
                         {ensureArray(normalized.city_traffic_light).slice(0, 10).map((x: any, idx: number) => <div key={`tl-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
                       </div>
                     </div>
+
+                    <div className={s.card} style={{ marginTop: 12 }}>
+                      <h4 style={{ marginTop: 0 }}>Tabla ejecutiva de riesgo y accion</h4>
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
+                          <thead>
+                            <tr>
+                              <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #d5e2f7" }}>Riesgo</th>
+                              <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #d5e2f7" }}>Accion</th>
+                              <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #d5e2f7" }}>KPI objetivo</th>
+                              <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #d5e2f7" }}>Impacto estimado</th>
+                              <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #d5e2f7" }}>Owner</th>
+                              <th style={{ textAlign: "left", padding: "8px", borderBottom: "1px solid #d5e2f7" }}>Horizonte</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {ensureArray(normalized.priority_actions_top5).slice(0, 5).map((r: any, idx: number) => {
+                              const risk = ensureArray(normalized.city_traffic_light).find((x: any) => String(x?.priority || "") === String(r?.priority || ""));
+                              const riskLabel = String(risk?.color || "medio").toLowerCase();
+                              const riskColor = riskLabel === "rojo" ? "#b91c1c" : riskLabel === "verde" ? "#15803d" : "#b45309";
+                              const impact = Number(r?.impacto_estimado_cop || r?.estimated_impact_cop || 0);
+                              const actionText = String(r?.accion || r?.action || "N/A");
+                              const kpiText = String(r?.kpi_objetivo || r?.kpi || "N/A");
+                              const ownerText = String(r?.owner_rol || r?.owner || "N/A");
+                              const days = Number(r?.horizonte_dias || r?.horizon_days || 0);
+                              return (
+                                <tr key={`risk-row-${idx}`}>
+                                  <td style={{ padding: "8px", borderBottom: "1px solid #eef4ff", color: riskColor, fontWeight: 700 }}>{riskLabel.toUpperCase()}</td>
+                                  <td style={{ padding: "8px", borderBottom: "1px solid #eef4ff" }}>{actionText}</td>
+                                  <td style={{ padding: "8px", borderBottom: "1px solid #eef4ff" }}>{kpiText}</td>
+                                  <td style={{ padding: "8px", borderBottom: "1px solid #eef4ff" }}>{money(impact)}</td>
+                                  <td style={{ padding: "8px", borderBottom: "1px solid #eef4ff" }}>{ownerText}</td>
+                                  <td style={{ padding: "8px", borderBottom: "1px solid #eef4ff" }}>{days ? `${days} dias` : "N/A"}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className={s.grid2} style={{ marginTop: 12 }}>
+                      <div className={s.card}>
+                        <h4 style={{ marginTop: 0 }}>Impacto estimado por accion (Top 5)</h4>
+                        <div style={chartBoxStyle}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={ensureArray(normalized.priority_actions_top5).slice(0, 5).map((a: any, i: number) => ({
+                                accion: `A${i + 1}`,
+                                impacto: Number(a?.impacto_estimado_cop || a?.estimated_impact_cop || 0),
+                              }))}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="accion" />
+                              <YAxis tickFormatter={(v) => compactNum(Number(v))} />
+                              <Tooltip formatter={(v: any) => money(Number(v))} />
+                              <Bar dataKey="impacto" fill="#2563eb" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                      <div className={s.card}>
+                        <h4 style={{ marginTop: 0 }}>Semaforo por ciudad (resumen)</h4>
+                        {ensureArray(normalized.city_traffic_light).slice(0, 10).map((c: any, idx: number) => {
+                          const color = String(c?.color || "medio").toLowerCase();
+                          const dot = color === "rojo" ? "#dc2626" : color === "verde" ? "#16a34a" : "#f59e0b";
+                          return (
+                            <div key={`city-light-${idx}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                              <span style={{ width: 10, height: 10, borderRadius: 999, background: dot, display: "inline-block" }} />
+                              <span className={s.muted}>{String(c?.city || "N/A")} - {String(c?.color || "N/A").toUpperCase()}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                         </>
                       );
                     })()}
