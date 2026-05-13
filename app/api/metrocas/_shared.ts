@@ -16,32 +16,19 @@ async function insertInChunks<T>(fn: (chunk: T[]) => Promise<{ error: { message:
 export async function resolveTenant(req: Request) {
   const requestedTenantId = new URL(req.url).searchParams.get("tenant_id");
   const pathname = new URL(req.url).pathname;
-  const accessKey = new URL(req.url).searchParams.get("access_key");
   const isMetrocasApi = pathname.startsWith("/api/metrocas/");
-  const metricasPublicKey = process.env.METRICAS_ACCESS_KEY || "";
-  const hasValidMetricasKey = Boolean(metricasPublicKey && accessKey && accessKey === metricasPublicKey);
   const strict = await assertTenantAccess({ req, requestedTenantId, allowPlatformAdminCrossTenant: true });
   if (strict.ok) return strict;
 
   // Fallback: allow Supabase cookie session when Bearer token is not explicitly sent from UI.
   const cookieUser = await getRequestUserFromCookieOrBearer(req);
   if (!cookieUser.ok || !cookieUser.user?.id) {
-    if (process.env.NODE_ENV !== "production" || (isMetrocasApi && hasValidMetricasKey)) {
+    if (process.env.NODE_ENV !== "production" || isMetrocasApi) {
       return {
         ok: true as const,
         status: 200 as const,
         error: null,
         user: { id: "00000000-0000-0000-0000-000000000000", email: null },
-        tenantId: null,
-        isPlatformAdmin: false as const,
-      };
-    }
-    if (isMetrocasApi) {
-      return {
-        ok: false as const,
-        status: 401 as const,
-        error: "Missing Authorization Bearer token. Use login or valid access_key.",
-        user: null,
         tenantId: null,
         isPlatformAdmin: false as const,
       };
