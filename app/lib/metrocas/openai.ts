@@ -19,6 +19,10 @@ const OUTPUT_SCHEMA = {
   recommended_actions_30_days: [],
   recommended_actions_60_days: [],
   recommended_actions_90_days: [],
+  highest_sales_days: [],
+  weakest_sales_days: [],
+  products_to_strengthen: [],
+  risks_if_no_action: [],
 };
 
 export async function generateExecutiveInsights(summaryJson: Record<string, unknown>) {
@@ -28,15 +32,15 @@ export async function generateExecutiveInsights(summaryJson: Record<string, unkn
   const response = await client.responses.create({
     model: "gpt-4.1-mini",
     input: [
-      {
-        role: "system",
-        content:
-          "Eres un analista ejecutivo SaaS B2B. Responde solo JSON valido en espanol. No inventes datos, cita metricas usadas, separa hechos de hipotesis e indica vacios de informacion.",
-      },
-      {
-        role: "user",
-        content: `Genera el analisis con esta estructura exacta: ${JSON.stringify(OUTPUT_SCHEMA)}. Datos: ${JSON.stringify(summaryJson)}`,
-      },
+        {
+          role: "system",
+          content:
+          "Eres un analista ejecutivo SaaS B2B senior en revenue operations. Responde solo JSON valido en espanol. No inventes datos. Obligatoro: aterriza hallazgos con numeros concretos y nombra dias, ciudades, clientes, categorias y productos cuando existan en los datos. Incluye que mejorar, como medirlo y que riesgo existe si no se ejecuta.",
+        },
+        {
+          role: "user",
+          content: `Genera el analisis con esta estructura exacta: ${JSON.stringify(OUTPUT_SCHEMA)}. Reglas: (1) En executive_summary incluye 3-5 frases accionables con cifras. (2) Llena highest_sales_days y weakest_sales_days con fechas y ventas. (3) Llena products_to_strengthen con productos/categorias de baja rotacion o caida y la razon. (4) Llena risks_if_no_action con riesgos cuantificados. (5) En recommended_actions_30_days define acciones con KPI objetivo (por ejemplo recuperacion %, frecuencia, conversion, cobertura). Datos: ${JSON.stringify(summaryJson)}`,
+        },
     ],
   });
   const raw = response.output_text?.trim() || "";
