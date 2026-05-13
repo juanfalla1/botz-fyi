@@ -72,6 +72,9 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
   const byWeekday = new Map<string, number>();
   const byProduct = new Map<string, { sales: number; qty: number }>();
   const byCategoryMonth = new Map<string, Map<string, number>>();
+  const bySegmentMonth = new Map<string, Map<string, number>>();
+  const byCustomerMonth = new Map<string, Map<string, number>>();
+  const byProductMonth = new Map<string, Map<string, number>>();
   const byBranch = new Map<string, number>();
   const byCustomer = new Map<string, number>();
   const byCity = new Map<string, number>();
@@ -90,6 +93,7 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
     const category = String(row.category || row.product_category || raw.categoria || raw.product_category || "Sin categoria").trim() || "Sin categoria";
     const customer = String(row.customer_name || raw.customer_name || raw.cliente || "Sin cliente").trim() || "Sin cliente";
     const city = String(row.city || raw.city || raw.ciudad || "EN BLANCO").trim() || "EN BLANCO";
+    const segment = String(row.segment || raw.segment || raw.segmento || "En blanco").trim() || "En blanco";
     const branch = String(row.journal || row.seller || row.channel || raw.journal || raw.canal || "SIN SEDE").trim() || "SIN SEDE";
 
     totalSales += amount;
@@ -105,6 +109,18 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
     const catMap = byCategoryMonth.get(category) || new Map<string, number>();
     catMap.set(month, (catMap.get(month) || 0) + amount);
     byCategoryMonth.set(category, catMap);
+
+    const segMap = bySegmentMonth.get(segment) || new Map<string, number>();
+    segMap.set(month, (segMap.get(month) || 0) + amount);
+    bySegmentMonth.set(segment, segMap);
+
+    const custMap = byCustomerMonth.get(customer) || new Map<string, number>();
+    custMap.set(month, (custMap.get(month) || 0) + amount);
+    byCustomerMonth.set(customer, custMap);
+
+    const prodMap = byProductMonth.get(product) || new Map<string, number>();
+    prodMap.set(month, (prodMap.get(month) || 0) + amount);
+    byProductMonth.set(product, prodMap);
 
     if (date) {
       validDateRows += 1;
@@ -138,6 +154,23 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
     .filter((x) => Number.isFinite(x.delta))
     .sort((a, b) => a.delta - b.delta)
     .slice(0, 8);
+
+  const buildVariation = (source: Map<string, Map<string, number>>, top = 8) =>
+    [...source.entries()]
+      .map(([name, m]) => {
+        const curr = toNum(m.get(latest));
+        const prev = toNum(m.get(previous));
+        const delta = curr - prev;
+        const deltaPct = prev > 0 ? (delta / prev) * 100 : 0;
+        return { name, prev, curr, delta, deltaPct };
+      })
+      .filter((x) => Number.isFinite(x.deltaPct) && (x.prev > 0 || x.curr > 0))
+      .sort((a, b) => b.delta - a.delta)
+      .slice(0, top);
+
+  const segmentVariation = buildVariation(bySegmentMonth, 10);
+  const customerVariation = buildVariation(byCustomerMonth, 10);
+  const productVariation = buildVariation(byProductMonth, 10);
 
   const sortedNewCustomers = [...firstPurchaseByCustomer.entries()].sort((a, b) => a[1].localeCompare(b[1]));
   const newCustomersByMonth = new Map<string, number>();
@@ -272,6 +305,15 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
         topProductShare: topProducts[0]?.participation || 0,
         top3CustomerShare,
         top5ProductShare,
+      },
+      variationAnalysis: {
+        betweenMonths: {
+          previous: previous || null,
+          current: latest || null,
+        },
+        segmentVariation,
+        customerVariation,
+        productVariation,
       },
       opportunityModel: {
         estimatedRecoveryBase,

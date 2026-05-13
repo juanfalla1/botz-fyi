@@ -801,6 +801,18 @@ export function MetrocasDashboard() {
                         <strong>Semaforo por ciudad</strong>
                         {ensureArray(normalized.city_traffic_light).slice(0, 10).map((x: any, idx: number) => <div key={`tl-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
                       </div>
+                      <div className={s.card}>
+                        <strong>Variacion por segmento (mes vs mes)</strong>
+                        {ensureArray(normalized.segment_variation_analysis).slice(0, 8).map((x: any, idx: number) => <div key={`sv-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
+                      </div>
+                      <div className={s.card}>
+                        <strong>Variacion por cliente (mes vs mes)</strong>
+                        {ensureArray(normalized.customer_variation_analysis).slice(0, 8).map((x: any, idx: number) => <div key={`cv-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
+                      </div>
+                      <div className={s.card}>
+                        <strong>Variacion por producto (mes vs mes)</strong>
+                        {ensureArray(normalized.product_variation_analysis).slice(0, 8).map((x: any, idx: number) => <div key={`pv-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
+                      </div>
                     </div>
 
                     <div className={s.card} style={{ marginTop: 12 }}>
