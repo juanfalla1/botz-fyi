@@ -120,11 +120,28 @@ export function MetrocasDashboard() {
   };
 
   const ensureArray = (v: any) => (Array.isArray(v) ? v : []);
+  const prettyKey = (k: string) =>
+    k
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (m) => m.toUpperCase());
+  const formatByKey = (key: string, value: any) => {
+    if (typeof value !== "number") return String(value);
+    const k = key.toLowerCase();
+    if (k.includes("pct") || k.includes("participation") || k.includes("conversion") || k.includes("share")) {
+      return `${Number(value).toLocaleString("es-CO", { maximumFractionDigits: 2 })}%`;
+    }
+    if (k.includes("cop") || k.includes("sales") || k.includes("impact") || k.includes("venta") || k.includes("monto")) {
+      return money(Number(value));
+    }
+    return Number(value).toLocaleString("es-CO", { maximumFractionDigits: 2 });
+  };
+  const formatSummaryNumbers = (text: string) =>
+    String(text || "").replace(/\b\d{7,}\b/g, (m) => Number(m).toLocaleString("es-CO"));
   const renderItem = (item: any) => {
     if (typeof item === "string") return item;
     if (item && typeof item === "object") {
       return Object.entries(item)
-        .map(([k, v]) => `${k}: ${typeof v === "number" ? Number(v).toLocaleString("es-CO") : String(v)}`)
+        .map(([k, v]) => `${prettyKey(k)}: ${formatByKey(k, v)}`)
         .join(" | ");
     }
     return String(item ?? "");
@@ -745,7 +762,7 @@ export function MetrocasDashboard() {
                       return (
                         <>
                     <h4 style={{ marginTop: 0 }}>Resumen ejecutivo</h4>
-                    <p className={s.muted}>{String(normalized.executive_summary || "Sin resumen")}</p>
+                    <p className={s.muted}>{formatSummaryNumbers(String(normalized.executive_summary || "Sin resumen"))}</p>
                     <div className={s.grid2}>
                       <div className={s.card}>
                         <strong>Fortalezas</strong>
