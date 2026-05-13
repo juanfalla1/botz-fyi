@@ -1108,25 +1108,13 @@ export function MetrocasDashboard() {
                     {variationModel.months.map((mm) => (<option key={`vm-to-${mm}`} value={mm}>{mm}</option>))}
                   </select>
                 </div>
-                {yoyModel.hasAnnualData ? (
-                  <div className={s.navActions} style={{ marginBottom: 10 }}>
-                    <span className={s.muted}>Comparativo anual:</span>
-                    <select className={s.input} value={compareMonth} onChange={(e) => setCompareMonth(e.target.value)} style={{ maxWidth: 220 }}>
-                      {yoyModel.monthOptions.map((mm) => (
-                        <option key={`cmp-${mm}`} value={mm}>{`${mm} (${yoyModel.prevYear}-${mm} vs ${yoyModel.latestYear}-${mm})`}</option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <p className={s.muted} style={{ marginBottom: 10 }}>Comparativo anual oculto: este dataset no tiene datos del año anterior para comparar.</p>
-                )}
                 <p className={s.muted}>
-                  Comparativo entre <strong>{variationModel.prevMonth || "N/A"}</strong> y <strong>{variationModel.currMonth || "N/A"}</strong>.
+                  Comparativo mensual entre <strong>{variationModel.prevMonth || "N/A"}</strong> y <strong>{variationModel.currMonth || "N/A"}</strong>.
                 </p>
                 <div className={s.grid2}>
                   <div className={s.card}>
                     <h4 style={{ marginTop: 0 }}>Segmento: top suben/bajan</h4>
-                    <p className={s.muted}>Insight: este bloque concentra la mayor variacion mensual por segmento.</p>
+                    <p className={s.muted}>Insight: mayor alza en {String(variationModel.segment.topGrowth[0]?.name || "N/A")}; mayor caida en {String(variationModel.segment.topDrop[0]?.name || "N/A")}.</p>
                     <div style={chartBoxStyle}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={[...variationModel.segment.topGrowth.slice(0, 4), ...variationModel.segment.topDrop.slice(0, 4)].map((x) => ({ name: String(x.name).slice(0, 18), delta: x.delta }))}>
@@ -1158,7 +1146,7 @@ export function MetrocasDashboard() {
                   </div>
                   <div className={s.card}>
                     <h4 style={{ marginTop: 0 }}>Cliente: top suben/bajan</h4>
-                    <p className={s.muted}>Insight: cliente top explica la mayor diferencia del periodo.</p>
+                    <p className={s.muted}>Insight: cliente con mayor alza: {String(variationModel.customer.topGrowth[0]?.name || "N/A")}.</p>
                     <div style={chartBoxStyle}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={[...variationModel.customer.topGrowth.slice(0, 4), ...variationModel.customer.topDrop.slice(0, 4)].map((x) => ({ name: String(x.name).slice(0, 18), delta: x.delta }))}>
@@ -1173,7 +1161,7 @@ export function MetrocasDashboard() {
                   </div>
                   <div className={s.card}>
                     <h4 style={{ marginTop: 0 }}>Producto: top suben/bajan</h4>
-                    <p className={s.muted}>Insight: aqui se ve el producto con mayor crecimiento y los de mayor caida.</p>
+                    <p className={s.muted}>Insight: producto con mayor alza: {String(variationModel.product.topGrowth[0]?.name || "N/A")}; mayor caida: {String(variationModel.product.topDrop[0]?.name || "N/A")}.</p>
                     <div style={chartBoxStyle}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={[...variationModel.product.topGrowth.slice(0, 4), ...variationModel.product.topDrop.slice(0, 4)].map((x) => ({ name: String(x.name).slice(0, 18), delta: x.delta }))}>
@@ -1186,32 +1174,14 @@ export function MetrocasDashboard() {
                       </ResponsiveContainer>
                     </div>
                   </div>
-                  {yoyModel.hasAnnualData ? <div className={s.card}>
-                    <h4 style={{ marginTop: 0 }}>Enero-Abril: comparativo anual (crecio/disminuyo)</h4>
-                    {yoyModel.yoyByMonth.map((m) => (
-                      <div key={`yoy-${m.monthNum}`} className={s.muted}>
-                        - {m.month}: {m.status.toUpperCase()} | {yoyModel.prevYear}: {money(m.prev)} | {yoyModel.latestYear}: {money(m.curr)} | Delta: {money(m.delta)} | DeltaPct: {pct(m.deltaPct)}
-                      </div>
-                    ))}
-                  </div> : null}
-                  {yoyModel.hasAnnualData ? <div className={s.card}>
-                    <h4 style={{ marginTop: 0 }}>Clientes ({yoyModel.prevYear}-{yoyModel.selected} vs {yoyModel.latestYear}-{yoyModel.selected})</h4>
-                    {(yoyModel.customer.up || []).slice(0, 4).map((r) => (
-                      <div key={`cy-up-${r.name}`} className={s.muted}>- Sube: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
-                    ))}
-                    {(yoyModel.customer.down || []).slice(0, 4).map((r) => (
-                      <div key={`cy-dn-${r.name}`} className={s.muted}>- Baja: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
-                    ))}
-                  </div> : null}
-                  {yoyModel.hasAnnualData ? <div className={s.card}>
-                    <h4 style={{ marginTop: 0 }}>Productos ({yoyModel.prevYear}-{yoyModel.selected} vs {yoyModel.latestYear}-{yoyModel.selected})</h4>
-                    {(yoyModel.product.up || []).slice(0, 4).map((r) => (
-                      <div key={`py-up-${r.name}`} className={s.muted}>- Sube: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
-                    ))}
-                    {(yoyModel.product.down || []).slice(0, 4).map((r) => (
-                      <div key={`py-dn-${r.name}`} className={s.muted}>- Baja: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
-                    ))}
-                  </div> : null}
+                  <div className={s.card}>
+                    <h4 style={{ marginTop: 0 }}>Resumen del comparativo mensual</h4>
+                    <div className={s.muted}>- Mes base: {variationModel.prevMonth || "N/A"}</div>
+                    <div className={s.muted}>- Mes comparado: {variationModel.currMonth || "N/A"}</div>
+                    <div className={s.muted}>- Segmento mayor alza: {String(variationModel.segment.topGrowth[0]?.name || "N/A")}</div>
+                    <div className={s.muted}>- Cliente mayor alza: {String(variationModel.customer.topGrowth[0]?.name || "N/A")}</div>
+                    <div className={s.muted}>- Producto mayor alza: {String(variationModel.product.topGrowth[0]?.name || "N/A")}</div>
+                  </div>
                 </div>
               </div>
             ) : null}
