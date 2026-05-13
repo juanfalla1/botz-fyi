@@ -15,6 +15,11 @@ export function MetrocasUploadCenter() {
     const form = new FormData();
     form.append("file", file);
     const res = await fetch("/api/metrocas/upload/preview", { method: "POST", body: form });
+    if (res.status === 401) {
+      setLoading(false);
+      setMessage("Debes iniciar sesion antes de subir archivos. Entra por /start?auth=1 y vuelve a intentar.");
+      return;
+    }
     const json = await res.json();
     setPreview(json);
     setLoading(false);
@@ -26,6 +31,11 @@ export function MetrocasUploadCenter() {
     const form = new FormData();
     form.append("file", file);
     const res = await fetch("/api/metrocas/upload", { method: "POST", body: form });
+    if (res.status === 401) {
+      setLoading(false);
+      setMessage("Debes iniciar sesion antes de importar. Entra por /start?auth=1 y vuelve a intentar.");
+      return;
+    }
     const text = await res.text();
     let json: any = null;
     try {
