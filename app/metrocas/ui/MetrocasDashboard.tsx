@@ -88,6 +88,7 @@ export function MetrocasDashboard() {
   const [citiesData, setCitiesData] = useState<any[]>([]);
   const [branchesData, setBranchesData] = useState<any[]>([]);
   const [trafficData, setTrafficData] = useState<{ daily: any[]; hourly: any[]; byBranch: any[] }>({ daily: [], hourly: [], byBranch: [] });
+  const [trafficLoading, setTrafficLoading] = useState(false);
   const [citySearch, setCitySearch] = useState("");
   const [showAllCities, setShowAllCities] = useState(false);
   const [hideBlankCity, setHideBlankCity] = useState(true);
@@ -106,6 +107,7 @@ export function MetrocasDashboard() {
   ];
 
   const loadAnalytics = async (datasetId: string) => {
+    setTrafficLoading(true);
     const endpoints = [
       "/api/metrocas/prices",
       "/api/metrocas/segments",
@@ -149,6 +151,7 @@ export function MetrocasDashboard() {
           }
         : { daily: [], hourly: [], byBranch: [] },
     );
+    setTrafficLoading(false);
   };
   const effectiveDashboard = useMemo(() => {
     if (dashboard && (dashboard as any).kpis) return dashboard;
@@ -501,6 +504,16 @@ export function MetrocasDashboard() {
             {tab === "Trafico" ? (
               <div className={s.grid2} style={{ marginTop: 10 }}>
                 <div className={s.card}>
+                  <strong>Estado de carga de trafico</strong>
+                  {trafficLoading ? (
+                    <p className={s.muted}><span className={s.inlineLoader}><span className={s.spinner} /> Cargando datos de trafico...</span></p>
+                  ) : (
+                    <p className={s.muted}>
+                      Filas cargadas - diario: {compactNum((trafficData.daily || []).length)} | por hora: {compactNum((trafficData.hourly || []).length)} | sedes: {compactNum((trafficData.byBranch || []).length)}
+                    </p>
+                  )}
+                </div>
+                <div className={s.card}>
                   <h4 style={{ marginTop: 0 }}>Trafico diario real</h4>
                   <div style={chartBoxStyle}><ResponsiveContainer width="100%" height="100%"><LineChart data={(trafficData.daily || []).map((d: any) => ({ date: d.traffic_date, count: Number(d.visits || 0) }))}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis tickFormatter={(v) => compactNum(Number(v))} /><Tooltip formatter={(v: any) => `${compactNum(Number(v))} visitas`} /><Line type="monotone" dataKey="count" stroke="#16a34a" /></LineChart></ResponsiveContainer></div>
                 </div>
@@ -512,7 +525,7 @@ export function MetrocasDashboard() {
                   <h4 style={{ marginTop: 0 }}>Trafico por hora real</h4>
                   <div style={chartBoxStyle}><ResponsiveContainer width="100%" height="100%"><BarChart data={(trafficData.hourly || []).slice(0, 24).map((h: any) => ({ hour: h.hour_slot, visits: Number(h.visits || 0) }))}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="hour" tick={{ fontSize: 10 }} /><YAxis tickFormatter={(v) => compactNum(Number(v))} /><Tooltip formatter={(v: any) => `${compactNum(Number(v))} visitas`} /><Bar dataKey="visits" fill="#0ea5e9" /></BarChart></ResponsiveContainer></div>
                 </div>
-                {!trafficData.daily.length && !trafficData.hourly.length ? <p className={s.muted}>No hay datos reales de trafico en este dataset. Verifica hojas "Trafico por dia" y "Trafico por horas".</p> : null}
+                {!trafficLoading && !trafficData.daily.length && !trafficData.hourly.length ? <p className={s.muted}>No hay datos reales de trafico en este dataset. Verifica hojas "Trafico por dia" y "Trafico por horas" y vuelve a importar el Excel.</p> : null}
               </div>
             ) : null}
             {tab === "Ciudades" ? (

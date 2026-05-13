@@ -9,6 +9,7 @@ export function MetrocasUploadCenter() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [accessKey, setAccessKey] = useState("");
+  const [loadingAction, setLoadingAction] = useState<"preview" | "import" | "">("");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -25,28 +26,33 @@ export function MetrocasUploadCenter() {
 
   async function doPreview() {
     if (!file) return;
+    setLoadingAction("preview");
     setLoading(true);
     const form = new FormData();
     form.append("file", file);
     const res = await fetch(withAccessKey("/api/metrocas/upload/preview"), { method: "POST", body: form });
     if (res.status === 401) {
       setLoading(false);
+      setLoadingAction("");
       setMessage("Debes iniciar sesion antes de subir archivos. Entra por /login?next=/metricas y vuelve a intentar.");
       return;
     }
     const json = await res.json();
     setPreview(json);
     setLoading(false);
+    setLoadingAction("");
   }
 
   async function doImport() {
     if (!file) return;
+    setLoadingAction("import");
     setLoading(true);
     const form = new FormData();
     form.append("file", file);
     const res = await fetch(withAccessKey("/api/metrocas/upload"), { method: "POST", body: form });
     if (res.status === 401) {
       setLoading(false);
+      setLoadingAction("");
       setMessage("Debes iniciar sesion antes de importar. Entra por /login?next=/metricas y vuelve a intentar.");
       return;
     }
@@ -58,6 +64,7 @@ export function MetrocasUploadCenter() {
       json = null;
     }
     setLoading(false);
+    setLoadingAction("");
     if (!res.ok) {
       const validationDetails = json?.validation
         ? [
@@ -103,9 +110,18 @@ export function MetrocasUploadCenter() {
           onChange={(e) => setFile(e.target.files?.[0] || null)}
         />
         <div className={s.navActions} style={{ marginTop: 10 }}>
-          <button onClick={doPreview} disabled={!file || loading} className={s.btnSecondary}>Preview</button>
-          <button onClick={doImport} disabled={!file || loading} className={s.btnPrimary}>Confirmar importacion</button>
+          <button onClick={doPreview} disabled={!file || loading} className={s.btnSecondary}>
+            {loading && loadingAction === "preview" ? (
+              <span className={s.inlineLoader}><span className={s.spinner} /> Cargando preview...</span>
+            ) : "Preview"}
+          </button>
+          <button onClick={doImport} disabled={!file || loading} className={s.btnPrimary}>
+            {loading && loadingAction === "import" ? (
+              <span className={s.inlineLoader}><span className={`${s.spinner} ${s.spinnerLg}`} /> Importando archivo...</span>
+            ) : "Confirmar importacion"}
+          </button>
         </div>
+        {loading ? <p className={s.muted}><span className={s.inlineLoader}><span className={`${s.spinner} ${s.spinnerLg}`} /> Procesando Excel, por favor espera...</span></p> : null}
         {message ? <p className={s.muted}>{message}</p> : null}
 
         {preview?.validation ? (
