@@ -256,6 +256,13 @@ export default function BotzLandingExperience() {
     }
   }, [user, authLoading, activeTab]);
 
+  useEffect(() => {
+    if (authLoading || !user) return;
+    const next = (searchParams.get("next") || "").trim();
+    if (!next || !next.startsWith("/") || next.startsWith("//")) return;
+    router.replace(next);
+  }, [authLoading, user, searchParams, router]);
+
   // ✅ Evitar que queden datos visibles al cerrar sesión
   useEffect(() => {
     if (authLoading) return;

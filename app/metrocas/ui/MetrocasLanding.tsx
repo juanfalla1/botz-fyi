@@ -37,7 +37,7 @@ export function MetrocasLanding() {
         <div className={`${s.container} ${s.topNavInner}`}>
           <div className={s.brand}>Metricas Intelligence</div>
           <div className={s.navActions}>
-            <a href="/start?auth=1" className={s.btnSecondary}>Iniciar sesion</a>
+            <a href="/login?next=/metricas" className={s.btnSecondary}>Iniciar sesion</a>
             <a href="/intelligence/upload" className={s.btnSecondary}>Subir mi Excel</a>
             <a href="/intelligence" className={s.btnPrimary}>Entrar al dashboard</a>
           </div>
