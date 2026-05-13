@@ -88,6 +88,9 @@ export function MetrocasDashboard() {
   const [citiesData, setCitiesData] = useState<any[]>([]);
   const [branchesData, setBranchesData] = useState<any[]>([]);
   const [trafficData, setTrafficData] = useState<{ daily: any[]; hourly: any[]; byBranch: any[] }>({ daily: [], hourly: [], byBranch: [] });
+  const [citySearch, setCitySearch] = useState("");
+  const [showAllCities, setShowAllCities] = useState(false);
+  const [hideBlankCity, setHideBlankCity] = useState(true);
   const tabs = [
     "Resumen Ejecutivo",
     "Ventas por Dia",
@@ -361,6 +364,21 @@ export function MetrocasDashboard() {
     set(arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item]);
   };
 
+  const cityRows = useMemo(() => {
+    const base = (citiesData.length ? citiesData : effectiveDashboard.cityRanking).map((c: any) => ({
+      city: String(c.city || c.label || "EN BLANCO"),
+      sales: Number(c.sales || 0),
+      quantity: Number(c.quantity || 0),
+    }));
+    const term = citySearch.trim().toUpperCase();
+    const filtered = base.filter((c) => {
+      if (hideBlankCity && c.city === "EN BLANCO") return false;
+      if (!term) return true;
+      return c.city.includes(term);
+    });
+    return filtered.sort((a, b) => b.sales - a.sales);
+  }, [citiesData, effectiveDashboard.cityRanking, citySearch, hideBlankCity]);
+
   return (
     <main className={`${s.metrocasRoot} ${s.lightSurface}`}>
       <div className={s.topNav}>
@@ -497,15 +515,33 @@ export function MetrocasDashboard() {
                 {!trafficData.daily.length && !trafficData.hourly.length ? <p className={s.muted}>No hay datos reales de trafico en este dataset. Verifica hojas "Trafico por dia" y "Trafico por horas".</p> : null}
               </div>
             ) : null}
-            {tab === "Ciudades" && effectiveDashboard.cityRanking?.length ? (
-              <div className={s.grid2} style={{ marginTop: 10 }}>
-                {(citiesData.length ? citiesData : effectiveDashboard.cityRanking).map((c: any) => (
+            {tab === "Ciudades" ? (
+              <div style={{ marginTop: 10 }}>
+                <div className={s.navActions} style={{ marginBottom: 10 }}>
+                  <input
+                    className={s.input}
+                    placeholder="Buscar ciudad..."
+                    value={citySearch}
+                    onChange={(e) => setCitySearch(e.target.value)}
+                    style={{ maxWidth: 260 }}
+                  />
+                  <label className={s.muted} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input type="checkbox" checked={hideBlankCity} onChange={(e) => setHideBlankCity(e.target.checked)} />
+                    Ocultar EN BLANCO
+                  </label>
+                  <button className={showAllCities ? s.btnSecondary : s.btnPrimary} onClick={() => setShowAllCities(false)}>Top 20</button>
+                  <button className={showAllCities ? s.btnPrimary : s.btnSecondary} onClick={() => setShowAllCities(true)}>Ver todas</button>
+                  <span className={s.muted}>Mostrando {Math.min(showAllCities ? cityRows.length : 20, cityRows.length)} de {cityRows.length}</span>
+                </div>
+                <div className={s.grid2}>
+                {(showAllCities ? cityRows : cityRows.slice(0, 20)).map((c: any, idx: number) => (
                   <div key={c.city} className={s.card}>
-                    <strong>{c.city || c.label}</strong>
+                    <strong>#{idx + 1} {c.city}</strong>
                     <div className={s.muted}>Ventas: ${Number(c.sales || 0).toLocaleString("es-CO")}</div>
                     <div className={s.muted}>Cantidad: {compactNum(Number(c.quantity || 0))}</div>
                   </div>
                 ))}
+                </div>
               </div>
             ) : null}
             {tab === "Rankings" && branchAnalysis.length ? (
