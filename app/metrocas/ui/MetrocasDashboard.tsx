@@ -753,6 +753,18 @@ export function MetrocasDashboard() {
                 <button className={s.btnPrimary} onClick={generateAiStrategic} disabled={aiLoading}>
                   {aiLoading ? "Generando analisis..." : "Generar analisis IA"}
                 </button>
+                {aiLoading ? (
+                  <div className={s.card} style={{ marginTop: 10 }}>
+                    <div className={s.inlineLoader}>
+                      <span style={{ fontSize: 18 }} aria-hidden="true">🤖</span>
+                      <span className={`${s.spinner} ${s.spinnerLg}`} />
+                      <span className={s.muted}>IA ejecutiva analizando ventas, segmentos y variaciones... </span>
+                    </div>
+                    <p className={s.muted} style={{ marginTop: 8 }}>
+                      Esto puede tardar entre 10 y 60 segundos segun el tamano del dataset.
+                    </p>
+                  </div>
+                ) : null}
                 {aiMessage ? <p className={s.muted} style={{ marginTop: 8 }}>{aiMessage}</p> : null}
                 {aiInsights ? (
                   <div style={{ marginTop: 10 }}>
