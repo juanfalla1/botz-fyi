@@ -231,24 +231,6 @@ export function MetrocasDashboard() {
     [effectiveDashboard],
   );
 
-  const kpiHighlights = useMemo(() => {
-    const topSegment = (segmentRanking[0]?.label || aggregate.bySegment[0]?.label || "N/A").toString();
-    const topCustomer = (effectiveDashboard.topCustomers?.[0]?.name || customersData[0]?.label || "N/A").toString();
-    const topProduct = (effectiveDashboard.topProducts?.[0]?.name || productsData.stars[0]?.label || aggregate.byProduct[0]?.label || "N/A").toString();
-    const variationLabel = growthContext === "insufficient_periods"
-      ? "N/A"
-      : pct(Number(effectiveDashboard.kpis.monthlyGrowth || effectiveDashboard.kpis.monthlyDrop || 0));
-    const trend = Number(effectiveDashboard.kpis.monthlyGrowth || 0) > 0 ? "Alcista" : Number(effectiveDashboard.kpis.monthlyDrop || 0) < 0 ? "Ajuste" : "Estable";
-    return [
-      { label: "Total ventas", value: money(Number(effectiveDashboard.kpis.totalSales || 0)), helper: "Volumen acumulado" },
-      { label: "Variacion periodo", value: variationLabel, helper: monthsDetected.length > 1 ? `${monthsDetected[monthsDetected.length - 2]} vs ${monthsDetected[monthsDetected.length - 1]}` : "Comparativo pendiente" },
-      { label: "Segmento lider", value: topSegment, helper: "Mayor facturacion" },
-      { label: "Cliente top", value: topCustomer, helper: "Mayor contribucion" },
-      { label: "Producto top", value: topProduct, helper: "Mayor ingreso" },
-      { label: "Tendencia", value: trend, helper: "Estado general" },
-    ];
-  }, [segmentRanking, aggregate.bySegment, aggregate.byProduct, effectiveDashboard, customersData, productsData.stars, growthContext, monthsDetected]);
-
   const money = (v: number) =>
     new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(
       Number(v || 0),
@@ -372,6 +354,24 @@ export function MetrocasDashboard() {
       totalSales: filteredFacts.reduce((a, f) => a + Number(f.amount || 0), 0),
     };
   }, [filteredFacts]);
+
+  const kpiHighlights = useMemo(() => {
+    const topSegment = (segmentRanking[0]?.label || aggregate.bySegment[0]?.label || "N/A").toString();
+    const topCustomer = (effectiveDashboard.topCustomers?.[0]?.name || customersData[0]?.label || "N/A").toString();
+    const topProduct = (effectiveDashboard.topProducts?.[0]?.name || productsData.stars[0]?.label || aggregate.byProduct[0]?.label || "N/A").toString();
+    const variationLabel = growthContext === "insufficient_periods"
+      ? "N/A"
+      : pct(Number(effectiveDashboard.kpis.monthlyGrowth || effectiveDashboard.kpis.monthlyDrop || 0));
+    const trend = Number(effectiveDashboard.kpis.monthlyGrowth || 0) > 0 ? "Alcista" : Number(effectiveDashboard.kpis.monthlyDrop || 0) < 0 ? "Ajuste" : "Estable";
+    return [
+      { label: "Total ventas", value: money(Number(effectiveDashboard.kpis.totalSales || 0)), helper: "Volumen acumulado" },
+      { label: "Variacion periodo", value: variationLabel, helper: monthsDetected.length > 1 ? `${monthsDetected[monthsDetected.length - 2]} vs ${monthsDetected[monthsDetected.length - 1]}` : "Comparativo pendiente" },
+      { label: "Segmento lider", value: topSegment, helper: "Mayor facturacion" },
+      { label: "Cliente top", value: topCustomer, helper: "Mayor contribucion" },
+      { label: "Producto top", value: topProduct, helper: "Mayor ingreso" },
+      { label: "Tendencia", value: trend, helper: "Estado general" },
+    ];
+  }, [segmentRanking, aggregate.bySegment, aggregate.byProduct, effectiveDashboard, customersData, productsData.stars, growthContext, monthsDetected]);
 
   const workPlans = useMemo(() => {
     return aggregate.byBranch.slice(0, 8).map((b) => {
