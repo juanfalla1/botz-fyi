@@ -345,11 +345,15 @@ export function MetrocasDashboard() {
     setAiLoading(true);
     setAiMessage("");
     try {
-      const res = await fetch("/api/metrocas/analyze", {
+      const ctrl = new AbortController();
+      const timer = window.setTimeout(() => ctrl.abort(), 120000);
+      const res = await fetch(withAccessKey("/api/metrocas/analyze"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ dataset_id: activeDatasetId }),
+        signal: ctrl.signal,
       });
+      window.clearTimeout(timer);
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         setAiMessage(json?.details ? `${json.error}: ${json.details}` : json?.error || "No se pudo generar analisis");
@@ -361,6 +365,11 @@ export function MetrocasDashboard() {
       } else {
         setAiMessage("La API respondio sin insights. Revisa configuracion.");
       }
+    } catch (error: any) {
+      const msg = String(error?.name || "").includes("Abort")
+        ? "El analisis IA tardo demasiado. Intenta nuevamente con este dataset o reduce volumen de datos."
+        : "No se pudo conectar con el servicio de analisis IA.";
+      setAiMessage(msg);
     } finally {
       setAiLoading(false);
     }
