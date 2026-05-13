@@ -48,6 +48,16 @@ export async function generateExecutiveInsights(summaryJson: Record<string, unkn
   try {
     return JSON.parse(raw);
   } catch {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      const candidate = raw.slice(start, end + 1);
+      try {
+        return JSON.parse(candidate);
+      } catch {
+        // ignore
+      }
+    }
     return { ...OUTPUT_SCHEMA, executive_summary: raw || "No fue posible generar analisis estructurado." };
   }
 }

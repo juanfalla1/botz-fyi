@@ -93,6 +93,30 @@ export function MetrocasDashboard() {
   const [showAllCities, setShowAllCities] = useState(false);
   const [hideBlankCity, setHideBlankCity] = useState(true);
   const [accessKey, setAccessKey] = useState("");
+
+  const normalizeInsights = (raw: any) => {
+    if (!raw) return null;
+    if (typeof raw === "object") return raw;
+    if (typeof raw === "string") {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return { executive_summary: raw };
+      }
+    }
+    return null;
+  };
+
+  const ensureArray = (v: any) => (Array.isArray(v) ? v : []);
+  const renderItem = (item: any) => {
+    if (typeof item === "string") return item;
+    if (item && typeof item === "object") {
+      return Object.entries(item)
+        .map(([k, v]) => `${k}: ${typeof v === "number" ? Number(v).toLocaleString("es-CO") : String(v)}`)
+        .join(" | ");
+    }
+    return String(item ?? "");
+  };
   const tabs = [
     "Resumen Ejecutivo",
     "Ventas por Dia",
@@ -703,26 +727,47 @@ export function MetrocasDashboard() {
                 {aiMessage ? <p className={s.muted} style={{ marginTop: 8 }}>{aiMessage}</p> : null}
                 {aiInsights ? (
                   <div style={{ marginTop: 10 }}>
+                    {(() => {
+                      const normalized = normalizeInsights(aiInsights);
+                      if (!normalized) return <p className={s.muted}>Sin insights disponibles.</p>;
+                      return (
+                        <>
                     <h4 style={{ marginTop: 0 }}>Resumen ejecutivo</h4>
-                    <p className={s.muted}>{String(aiInsights.executive_summary || "Sin resumen")}</p>
+                    <p className={s.muted}>{String(normalized.executive_summary || "Sin resumen")}</p>
                     <div className={s.grid2}>
                       <div className={s.card}>
                         <strong>Fortalezas</strong>
-                        {(aiInsights.strengths || []).slice(0, 6).map((x: string) => <div key={x} className={s.muted}>- {x}</div>)}
+                        {ensureArray(normalized.strengths).slice(0, 6).map((x: any, idx: number) => <div key={`st-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
                       </div>
                       <div className={s.card}>
                         <strong>Debilidades</strong>
-                        {(aiInsights.weaknesses || []).slice(0, 6).map((x: string) => <div key={x} className={s.muted}>- {x}</div>)}
+                        {ensureArray(normalized.weaknesses).slice(0, 6).map((x: any, idx: number) => <div key={`wk-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
                       </div>
                       <div className={s.card}>
                         <strong>Acciones 30 dias</strong>
-                        {(aiInsights.recommended_actions_30_days || []).slice(0, 8).map((x: string) => <div key={x} className={s.muted}>- {x}</div>)}
+                        {ensureArray(normalized.recommended_actions_30_days).slice(0, 8).map((x: any, idx: number) => <div key={`a30-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
                       </div>
                       <div className={s.card}>
                         <strong>Acciones 60/90 dias</strong>
-                        {[...(aiInsights.recommended_actions_60_days || []), ...(aiInsights.recommended_actions_90_days || [])].slice(0, 8).map((x: string) => <div key={x} className={s.muted}>- {x}</div>)}
+                        {[...ensureArray(normalized.recommended_actions_60_days), ...ensureArray(normalized.recommended_actions_90_days)].slice(0, 8).map((x: any, idx: number) => <div key={`a6090-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
+                      </div>
+                      <div className={s.card}>
+                        <strong>Top ciudades</strong>
+                        {ensureArray(normalized.city_analysis).slice(0, 6).map((x: any, idx: number) => <div key={`ct-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
+                      </div>
+                      <div className={s.card}>
+                        <strong>Top productos y debiles</strong>
+                        {ensureArray(normalized.product_analysis).slice(0, 6).map((x: any, idx: number) => <div key={`pr-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
+                        {ensureArray(normalized.products_to_strengthen).slice(0, 4).map((x: any, idx: number) => <div key={`ps-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
+                      </div>
+                      <div className={s.card}>
+                        <strong>Cobertura macro</strong>
+                        {ensureArray(normalized.macro_coverage_check).slice(0, 10).map((x: any, idx: number) => <div key={`mc-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
                       </div>
                     </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 ) : (
                   <p className={s.muted} style={{ marginTop: 10 }}>Aun no hay analisis IA guardado para este dataset.</p>
