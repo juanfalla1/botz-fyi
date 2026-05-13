@@ -96,7 +96,19 @@ export function MetrocasDashboard() {
 
   const normalizeInsights = (raw: any) => {
     if (!raw) return null;
-    if (typeof raw === "object") return raw;
+    if (typeof raw === "object") {
+      const obj = raw as any;
+      const maybeJson = String(obj?.executive_summary || "").trim();
+      if (maybeJson.startsWith("{") && maybeJson.endsWith("}")) {
+        try {
+          const reparsed = JSON.parse(maybeJson);
+          return reparsed;
+        } catch {
+          // keep original object
+        }
+      }
+      return obj;
+    }
     if (typeof raw === "string") {
       try {
         return JSON.parse(raw);
