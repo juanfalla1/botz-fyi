@@ -118,7 +118,9 @@ function inferYearMonth(rows: Array<Record<string, unknown>>): string {
     byMonth.set(m, (byMonth.get(m) || 0) + 1);
   }
   const ranked = [...byMonth.entries()].sort((a, b) => b[1] - a[1]);
-  return ranked[0]?.[0] || "";
+  if (ranked[0]?.[0]) return ranked[0][0];
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function parseDayFromHeader(value: unknown) {
@@ -284,16 +286,22 @@ export function parseWorkbook(buffer: ArrayBuffer): ParsedSheetData {
   const hoja8Rows = hoja8Raw.length ? toNormalized(hoja8Raw) : macroRows;
   const macroPosRows = toNormalized(posRaw);
   const inferredMonth = inferYearMonth(hoja8Rows);
+  const hasTrafficDailyMatrix = trafficDailyRaw.some((r) => {
+    const keys = Object.keys(r || {});
+    const hasCommerce = keys.some((k) => clean(k) === "COMERCIO");
+    const hasDayCols = keys.some((k) => {
+      const p = parseDayFromHeader(k);
+      return Boolean(p.dayName);
+    });
+    return hasCommerce && hasDayCols;
+  });
 
-  const dailyTrafficRowsDirect = trafficDailyRaw
+  const dailyTrafficRowsDirect = (hasTrafficDailyMatrix ? [] : trafficDailyRaw)
     .map((r) => {
       const trafficDate = normalizeDate(
         pick(r, [
           "Fecha",
           "fecha",
-          "DIA",
-          "Dia",
-          "Día",
           "traffic_date",
           "fecha trafico",
           "Fecha trafico",
