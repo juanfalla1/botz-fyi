@@ -175,6 +175,25 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
   const top3CustomerShare = topCustomers.slice(0, 3).reduce((acc, x) => acc + toNum(x.participation), 0);
   const top5ProductShare = topProducts.slice(0, 5).reduce((acc, x) => acc + toNum(x.participation), 0);
 
+  const hasCoreSales = rows.length > 0;
+  const hasPos = posRows.length > 0;
+  const hasTrafficDaily = dailyTraffic.length > 0;
+  const hasTrafficHourly = hourlyTraffic.length > 0;
+  const hasNewCustomerSignal = monthlyNewCustomers.length > 0;
+  const hasCityPlanSignal = topCities.length > 0;
+
+  const macroCoverageMatrix = [
+    { block: "Dinamica general de ventas", status: hasCoreSales ? "ok" : "faltante_datos", reason: hasCoreSales ? "Se cargaron ventas Macro/Hoja8." : "No hay registros en metrocas_sales_records." },
+    { block: "Ranking por cliente/segmento/linea/categoria/producto/ciudad", status: hasCoreSales ? "ok" : "faltante_datos", reason: hasCoreSales ? "Se calcularon rankings desde ventas." : "Sin base para rankings." },
+    { block: "KPI cliente nuevo", status: hasNewCustomerSignal ? "ok" : "faltante_datos", reason: hasNewCustomerSignal ? "Se infiere por primera compra por cliente y mes." : "No hay fechas validas por cliente para inferir nuevos." },
+    { block: "KPI cotizaciones", status: "faltante_datos", reason: "No existe tabla/medida estructurada de cotizaciones persistida en este flujo." },
+    { block: "KPI profundizacion de mercado", status: hasCoreSales ? "ok" : "faltante_datos", reason: hasCoreSales ? "Se usa concentracion, mix y recurrencia como proxy." : "Sin ventas para medir profundidad." },
+    { block: "Analisis POS", status: hasPos ? "ok" : "faltante_datos", reason: hasPos ? "Se cargaron registros Macro POS." : "No hay registros en metrocas_pos_sales_records." },
+    { block: "Trafico por dia", status: hasTrafficDaily ? "ok" : "faltante_datos", reason: hasTrafficDaily ? "Se cargaron visitas diarias por sede." : "No hay registros en metrocas_daily_traffic." },
+    { block: "Trafico por horas", status: hasTrafficHourly ? "ok" : "faltante_datos", reason: hasTrafficHourly ? "Se cargaron visitas por franja horaria." : "No hay registros en metrocas_hourly_traffic." },
+    { block: "Plan de trabajo por ciudad", status: hasCityPlanSignal ? "ok" : "faltante_datos", reason: hasCityPlanSignal ? "Se prioriza por ranking de ciudades y participacion." : "No hay base de ciudades para priorizar." },
+  ];
+
   return {
     dataQuality: {
       totalRows: rows.length,
@@ -205,12 +224,20 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
         trafficBranchRanking,
         peakHours,
       },
+      workPlanByCityBase: topCities.slice(0, 6).map((x, idx) => ({
+        city: x.city,
+        priority: idx < 2 ? "P1" : idx < 4 ? "P2" : "P3",
+        sales: x.sales,
+        participation: x.participation,
+        objective: idx < 2 ? "Defender y escalar frecuencia de cartera top." : "Recuperar participacion con foco en categorias en caida.",
+      })),
       concentration: {
         topCustomerShare: topCustomers[0]?.participation || 0,
         topProductShare: topProducts[0]?.participation || 0,
         top3CustomerShare,
         top5ProductShare,
       },
+      macroCoverageMatrix,
     },
   };
 }
