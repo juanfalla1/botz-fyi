@@ -499,6 +499,7 @@ export function MetrocasDashboard() {
         status: delta > 0 ? "crecio" : delta < 0 ? "disminuyo" : "igual",
       };
     });
+    const hasAnnualData = yoyByMonth.some((r) => r.prev > 0);
 
     const buildEntityYoY = (key: "customer" | "product") => {
       const byEntity = new Map<string, { prev: number; curr: number }>();
@@ -533,6 +534,7 @@ export function MetrocasDashboard() {
     return {
       latestYear,
       prevYear,
+      hasAnnualData,
       selected,
       monthOptions: monthsLatestYear,
       yoyByMonth,
@@ -1106,14 +1108,18 @@ export function MetrocasDashboard() {
                     {variationModel.months.map((mm) => (<option key={`vm-to-${mm}`} value={mm}>{mm}</option>))}
                   </select>
                 </div>
-                <div className={s.navActions} style={{ marginBottom: 10 }}>
-                  <span className={s.muted}>Comparativo anual:</span>
-                  <select className={s.input} value={compareMonth} onChange={(e) => setCompareMonth(e.target.value)} style={{ maxWidth: 220 }}>
-                    {yoyModel.monthOptions.map((mm) => (
-                      <option key={`cmp-${mm}`} value={mm}>{`${mm} (${yoyModel.prevYear}-${mm} vs ${yoyModel.latestYear}-${mm})`}</option>
-                    ))}
-                  </select>
-                </div>
+                {yoyModel.hasAnnualData ? (
+                  <div className={s.navActions} style={{ marginBottom: 10 }}>
+                    <span className={s.muted}>Comparativo anual:</span>
+                    <select className={s.input} value={compareMonth} onChange={(e) => setCompareMonth(e.target.value)} style={{ maxWidth: 220 }}>
+                      {yoyModel.monthOptions.map((mm) => (
+                        <option key={`cmp-${mm}`} value={mm}>{`${mm} (${yoyModel.prevYear}-${mm} vs ${yoyModel.latestYear}-${mm})`}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <p className={s.muted} style={{ marginBottom: 10 }}>Comparativo anual oculto: este dataset no tiene datos del año anterior para comparar.</p>
+                )}
                 <p className={s.muted}>
                   Comparativo entre <strong>{variationModel.prevMonth || "N/A"}</strong> y <strong>{variationModel.currMonth || "N/A"}</strong>.
                 </p>
@@ -1180,15 +1186,15 @@ export function MetrocasDashboard() {
                       </ResponsiveContainer>
                     </div>
                   </div>
-                  <div className={s.card}>
+                  {yoyModel.hasAnnualData ? <div className={s.card}>
                     <h4 style={{ marginTop: 0 }}>Enero-Abril: comparativo anual (crecio/disminuyo)</h4>
                     {yoyModel.yoyByMonth.map((m) => (
                       <div key={`yoy-${m.monthNum}`} className={s.muted}>
                         - {m.month}: {m.status.toUpperCase()} | {yoyModel.prevYear}: {money(m.prev)} | {yoyModel.latestYear}: {money(m.curr)} | Delta: {money(m.delta)} | DeltaPct: {pct(m.deltaPct)}
                       </div>
                     ))}
-                  </div>
-                  <div className={s.card}>
+                  </div> : null}
+                  {yoyModel.hasAnnualData ? <div className={s.card}>
                     <h4 style={{ marginTop: 0 }}>Clientes ({yoyModel.prevYear}-{yoyModel.selected} vs {yoyModel.latestYear}-{yoyModel.selected})</h4>
                     {(yoyModel.customer.up || []).slice(0, 4).map((r) => (
                       <div key={`cy-up-${r.name}`} className={s.muted}>- Sube: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
@@ -1196,8 +1202,8 @@ export function MetrocasDashboard() {
                     {(yoyModel.customer.down || []).slice(0, 4).map((r) => (
                       <div key={`cy-dn-${r.name}`} className={s.muted}>- Baja: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
                     ))}
-                  </div>
-                  <div className={s.card}>
+                  </div> : null}
+                  {yoyModel.hasAnnualData ? <div className={s.card}>
                     <h4 style={{ marginTop: 0 }}>Productos ({yoyModel.prevYear}-{yoyModel.selected} vs {yoyModel.latestYear}-{yoyModel.selected})</h4>
                     {(yoyModel.product.up || []).slice(0, 4).map((r) => (
                       <div key={`py-up-${r.name}`} className={s.muted}>- Sube: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
@@ -1205,7 +1211,7 @@ export function MetrocasDashboard() {
                     {(yoyModel.product.down || []).slice(0, 4).map((r) => (
                       <div key={`py-dn-${r.name}`} className={s.muted}>- Baja: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
                     ))}
-                  </div>
+                  </div> : null}
                 </div>
               </div>
             ) : null}
