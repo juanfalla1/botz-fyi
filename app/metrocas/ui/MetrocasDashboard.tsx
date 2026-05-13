@@ -1179,10 +1179,54 @@ export function MetrocasDashboard() {
                     <div className={s.muted}>- Mes base: {variationModel.prevMonth || "N/A"}</div>
                     <div className={s.muted}>- Mes comparado: {variationModel.currMonth || "N/A"}</div>
                     <div className={s.muted}>- Segmento mayor alza: {String(variationModel.segment.topGrowth[0]?.name || "N/A")}</div>
+                    <div className={s.muted}>- Segmento mayor baja: {String(variationModel.segment.topDrop[0]?.name || "N/A")}</div>
                     <div className={s.muted}>- Cliente mayor alza: {String(variationModel.customer.topGrowth[0]?.name || "N/A")}</div>
+                    <div className={s.muted}>- Cliente mayor baja: {String(variationModel.customer.topDrop[0]?.name || "N/A")}</div>
                     <div className={s.muted}>- Producto mayor alza: {String(variationModel.product.topGrowth[0]?.name || "N/A")}</div>
+                    <div className={s.muted}>- Producto mayor baja: {String(variationModel.product.topDrop[0]?.name || "N/A")}</div>
                   </div>
                 </div>
+
+                {yoyModel.hasAnnualData ? (
+                  <>
+                    <div className={s.navActions} style={{ marginTop: 12, marginBottom: 8 }}>
+                      <span className={s.muted}>Comparativo anual (mismo mes entre años):</span>
+                      <select className={s.input} value={compareMonth} onChange={(e) => setCompareMonth(e.target.value)} style={{ maxWidth: 240 }}>
+                        {yoyModel.monthOptions.map((mm) => (
+                          <option key={`cmp-${mm}`} value={mm}>{`${mm} (${yoyModel.prevYear}-${mm} vs ${yoyModel.latestYear}-${mm})`}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className={s.grid2}>
+                      <div className={s.card}>
+                        <h4 style={{ marginTop: 0 }}>Anual Enero-Abril: crece/baja por mes</h4>
+                        {yoyModel.yoyByMonth.map((m) => (
+                          <div key={`yoy-${m.monthNum}`} className={s.muted}>
+                            - {m.month}: {m.status.toUpperCase()} | {yoyModel.prevYear}: {money(m.prev)} | {yoyModel.latestYear}: {money(m.curr)} | Delta: {money(m.delta)} | {pct(m.deltaPct)}
+                          </div>
+                        ))}
+                      </div>
+                      <div className={s.card}>
+                        <h4 style={{ marginTop: 0 }}>Clientes anual ({yoyModel.prevYear}-{yoyModel.selected} vs {yoyModel.latestYear}-{yoyModel.selected})</h4>
+                        {(yoyModel.customer.up || []).slice(0, 4).map((r) => (
+                          <div key={`cy-up-${r.name}`} className={s.muted}>- Sube: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
+                        ))}
+                        {(yoyModel.customer.down || []).slice(0, 4).map((r) => (
+                          <div key={`cy-dn-${r.name}`} className={s.muted}>- Baja: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
+                        ))}
+                      </div>
+                      <div className={s.card}>
+                        <h4 style={{ marginTop: 0 }}>Productos anual ({yoyModel.prevYear}-{yoyModel.selected} vs {yoyModel.latestYear}-{yoyModel.selected})</h4>
+                        {(yoyModel.product.up || []).slice(0, 4).map((r) => (
+                          <div key={`py-up-${r.name}`} className={s.muted}>- Sube: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
+                        ))}
+                        {(yoyModel.product.down || []).slice(0, 4).map((r) => (
+                          <div key={`py-dn-${r.name}`} className={s.muted}>- Baja: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                ) : null}
               </div>
             ) : null}
           </section>
