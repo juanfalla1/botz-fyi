@@ -1118,12 +1118,20 @@ export function MetrocasDashboard() {
                     <p className={s.muted}>Insight: mayor alza en {String(variationModel.segment.topGrowth[0]?.name || "N/A")}; mayor caida en {String(variationModel.segment.topDrop[0]?.name || "N/A")}.</p>
                     <div style={chartBoxStyle}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={[...variationModel.segment.topGrowth.slice(0, 4), ...variationModel.segment.topDrop.slice(0, 4)].map((x) => ({ name: String(x.name).slice(0, 18), delta: x.delta }))}>
+                        <BarChart data={[...variationModel.segment.topGrowth.slice(0, 4), ...variationModel.segment.topDrop.slice(0, 4)].map((x) => ({ name: String(x.name).slice(0, 18), prev: x.prev, curr: x.curr, delta: x.delta }))}>
                           <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
                           <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
-                          <Tooltip formatter={(v: any) => money(Number(v))} contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }} />
-                          <Bar dataKey="delta" fill="#0284c7" radius={[8, 8, 0, 0]} />
+                          <Tooltip
+                            formatter={(v: any, key: any, p: any) => {
+                              if (key === "delta") return [money(Number(v)), "Delta"];
+                              return [money(Number(v)), key === "prev" ? `Mes base (${variationModel.prevMonth || "Base"})` : `Mes comparado (${variationModel.currMonth || "Actual"})`];
+                            }}
+                            contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }}
+                          />
+                          <Legend />
+                          <Bar dataKey="prev" name={`Base ${variationModel.prevMonth || ""}`} fill="#94a3b8" radius={[8, 8, 0, 0]} />
+                          <Bar dataKey="curr" name={`Comparado ${variationModel.currMonth || ""}`} fill="#0284c7" radius={[8, 8, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1150,12 +1158,20 @@ export function MetrocasDashboard() {
                     <p className={s.muted}>Insight: cliente con mayor alza: {String(variationModel.customer.topGrowth[0]?.name || "N/A")}.</p>
                     <div style={chartBoxStyle}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={[...variationModel.customer.topGrowth.slice(0, 4), ...variationModel.customer.topDrop.slice(0, 4)].map((x) => ({ name: String(x.name).slice(0, 18), delta: x.delta }))}>
+                        <BarChart data={[...variationModel.customer.topGrowth.slice(0, 4), ...variationModel.customer.topDrop.slice(0, 4)].map((x) => ({ name: String(x.name).slice(0, 18), prev: x.prev, curr: x.curr, delta: x.delta }))}>
                           <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
                           <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
-                          <Tooltip formatter={(v: any) => money(Number(v))} contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }} />
-                          <Bar dataKey="delta" fill="#2563eb" radius={[8, 8, 0, 0]} />
+                          <Tooltip
+                            formatter={(v: any, key: any) => {
+                              if (key === "delta") return [money(Number(v)), "Delta"];
+                              return [money(Number(v)), key === "prev" ? `Mes base (${variationModel.prevMonth || "Base"})` : `Mes comparado (${variationModel.currMonth || "Actual"})`];
+                            }}
+                            contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }}
+                          />
+                          <Legend />
+                          <Bar dataKey="prev" name={`Base ${variationModel.prevMonth || ""}`} fill="#93c5fd" radius={[8, 8, 0, 0]} />
+                          <Bar dataKey="curr" name={`Comparado ${variationModel.currMonth || ""}`} fill="#2563eb" radius={[8, 8, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1165,12 +1181,20 @@ export function MetrocasDashboard() {
                     <p className={s.muted}>Insight: producto con mayor alza: {String(variationModel.product.topGrowth[0]?.name || "N/A")}; mayor caida: {String(variationModel.product.topDrop[0]?.name || "N/A")}.</p>
                     <div style={chartBoxStyle}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={[...variationModel.product.topGrowth.slice(0, 4), ...variationModel.product.topDrop.slice(0, 4)].map((x) => ({ name: String(x.name).slice(0, 18), delta: x.delta }))}>
+                        <BarChart data={[...variationModel.product.topGrowth.slice(0, 4), ...variationModel.product.topDrop.slice(0, 4)].map((x) => ({ name: String(x.name).slice(0, 18), prev: x.prev, curr: x.curr, delta: x.delta }))}>
                           <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
                           <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
-                          <Tooltip formatter={(v: any) => money(Number(v))} contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }} />
-                          <Bar dataKey="delta" fill="#f59e0b" radius={[8, 8, 0, 0]} />
+                          <Tooltip
+                            formatter={(v: any, key: any) => {
+                              if (key === "delta") return [money(Number(v)), "Delta"];
+                              return [money(Number(v)), key === "prev" ? `Mes base (${variationModel.prevMonth || "Base"})` : `Mes comparado (${variationModel.currMonth || "Actual"})`];
+                            }}
+                            contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }}
+                          />
+                          <Legend />
+                          <Bar dataKey="prev" name={`Base ${variationModel.prevMonth || ""}`} fill="#fcd34d" radius={[8, 8, 0, 0]} />
+                          <Bar dataKey="curr" name={`Comparado ${variationModel.currMonth || ""}`} fill="#f59e0b" radius={[8, 8, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
