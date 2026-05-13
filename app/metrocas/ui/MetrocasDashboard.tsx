@@ -764,6 +764,14 @@ export function MetrocasDashboard() {
                         <strong>Cobertura macro</strong>
                         {ensureArray(normalized.macro_coverage_check).slice(0, 10).map((x: any, idx: number) => <div key={`mc-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
                       </div>
+                      <div className={s.card}>
+                        <strong>Top 5 acciones priorizadas</strong>
+                        {ensureArray(normalized.priority_actions_top5).slice(0, 5).map((x: any, idx: number) => <div key={`pa-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
+                      </div>
+                      <div className={s.card}>
+                        <strong>Semaforo por ciudad</strong>
+                        {ensureArray(normalized.city_traffic_light).slice(0, 10).map((x: any, idx: number) => <div key={`tl-${idx}`} className={s.muted}>- {renderItem(x)}</div>)}
+                      </div>
                     </div>
                         </>
                       );

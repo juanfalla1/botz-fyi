@@ -175,6 +175,42 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
   const top3CustomerShare = topCustomers.slice(0, 3).reduce((acc, x) => acc + toNum(x.participation), 0);
   const top5ProductShare = topProducts.slice(0, 5).reduce((acc, x) => acc + toNum(x.participation), 0);
 
+  const estimatedRecoveryBase = totalSales * 0.08;
+  const cityOpportunities = topCities.slice(0, 8).map((c, idx) => {
+    const citySales = toNum(c.sales);
+    const impact = Math.round(citySales * (idx < 2 ? 0.06 : idx < 5 ? 0.04 : 0.025));
+    return {
+      city: c.city,
+      sales: citySales,
+      participation: c.participation,
+      estimated_impact_cop: impact,
+      priority: idx < 2 ? "P1" : idx < 5 ? "P2" : "P3",
+    };
+  });
+
+  const productOpportunities = lowRotationProducts.slice(0, 10).map((p, idx) => {
+    const estimated = Math.max(0, Math.round((estimatedRecoveryBase / 10) * (1 - idx * 0.05)));
+    return {
+      product: p.name,
+      sales: p.sales,
+      qty: p.qty,
+      estimated_recovery_cop: estimated,
+      priority: idx < 3 ? "P1" : idx < 7 ? "P2" : "P3",
+    };
+  });
+
+  const cityTrafficLight = topCities.slice(0, 8).map((c, idx) => {
+    const share = toNum(c.participation);
+    const color = share >= 0.12 ? "verde" : share >= 0.07 ? "amarillo" : "rojo";
+    return {
+      city: c.city,
+      color,
+      rule: "participacion_en_ventas",
+      value: share,
+      priority: idx < 2 ? "P1" : idx < 5 ? "P2" : "P3",
+    };
+  });
+
   const hasCoreSales = rows.length > 0;
   const hasPos = posRows.length > 0;
   const hasTrafficDaily = dailyTraffic.length > 0;
@@ -236,6 +272,12 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
         topProductShare: topProducts[0]?.participation || 0,
         top3CustomerShare,
         top5ProductShare,
+      },
+      opportunityModel: {
+        estimatedRecoveryBase,
+        cityOpportunities,
+        productOpportunities,
+        cityTrafficLight,
       },
       macroCoverageMatrix,
     },
