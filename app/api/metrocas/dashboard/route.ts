@@ -283,6 +283,9 @@ export async function GET(req: Request) {
     ...cityRanking.map((x, idx) => ({ ranking_type: "city", ranking_label: x.city, quantity_total: 0, balance_total: x.sales, participation: totalSales ? x.sales / totalSales : 0, ranking_order: idx + 1 })),
     ];
 
+    const MAX_FACTS = 12000;
+    const facts = items.length > MAX_FACTS ? items.slice(items.length - MAX_FACTS) : items;
+
     return NextResponse.json({
       ok: true,
       dashboard,
@@ -290,7 +293,9 @@ export async function GET(req: Request) {
       daily_sales: dailySales,
       branch_sales: branchRanking.map((x) => ({ branch: x.label, sales: x.sales, quantity: x.quantity })),
       branch_analysis,
-      facts: items,
+      facts,
+      facts_truncated: items.length > MAX_FACTS,
+      facts_total: items.length,
       months_detected: monthlySales.map((m) => m.period),
       growth_context: meaningfulMonths.length < 2 ? "insufficient_periods" : "ok",
       date_diagnostics: {
