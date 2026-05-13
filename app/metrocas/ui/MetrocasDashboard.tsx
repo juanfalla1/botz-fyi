@@ -93,6 +93,7 @@ export function MetrocasDashboard() {
   const [showAllCities, setShowAllCities] = useState(false);
   const [hideBlankCity, setHideBlankCity] = useState(true);
   const [accessKey, setAccessKey] = useState("");
+  const [compareMonth, setCompareMonth] = useState<string>("");
 
   const normalizeInsights = (raw: any) => {
     if (!raw) return null;
@@ -430,6 +431,94 @@ export function MetrocasDashboard() {
       product: build("product"),
     };
   }, [filteredFacts]);
+
+  const yoyModel = useMemo(() => {
+    const monthNameEs = (monthNum: string) => {
+      const map: Record<string, string> = {
+        "01": "Enero",
+        "02": "Febrero",
+        "03": "Marzo",
+        "04": "Abril",
+        "05": "Mayo",
+        "06": "Junio",
+        "07": "Julio",
+        "08": "Agosto",
+        "09": "Septiembre",
+        "10": "Octubre",
+        "11": "Noviembre",
+        "12": "Diciembre",
+      };
+      return map[monthNum] || monthNum;
+    };
+
+    const months = Array.from(new Set(filteredFacts.map((f) => String(f.month || "")).filter((m) => /^\d{4}-\d{2}$/.test(m)))).sort();
+    const years = Array.from(new Set(months.map((m) => m.slice(0, 4)))).sort();
+    const latestYear = years[years.length - 1] || "";
+    const prevYear = latestYear ? String(Number(latestYear) - 1) : "";
+    const monthsLatestYear = months.filter((m) => m.startsWith(`${latestYear}-`)).map((m) => m.slice(5, 7));
+    const selected = compareMonth || monthsLatestYear[monthsLatestYear.length - 1] || "04";
+
+    const sumFor = (monthKey: string) =>
+      filteredFacts
+        .filter((f) => String(f.month || "") === monthKey)
+        .reduce((acc, f) => acc + Number(f.amount || 0), 0);
+
+    const yoyByMonth = monthsLatestYear.map((mm) => {
+      const curr = sumFor(`${latestYear}-${mm}`);
+      const prev = sumFor(`${prevYear}-${mm}`);
+      const delta = curr - prev;
+      const deltaPct = prev > 0 ? (delta / prev) * 100 : 0;
+      return {
+        monthNum: mm,
+        month: monthNameEs(mm),
+        curr,
+        prev,
+        delta,
+        deltaPct,
+        status: delta > 0 ? "crecio" : delta < 0 ? "disminuyo" : "igual",
+      };
+    });
+
+    const buildEntityYoY = (key: "customer" | "product") => {
+      const byEntity = new Map<string, { prev: number; curr: number }>();
+      filteredFacts.forEach((f) => {
+        const entity = String(f[key] || "EN BLANCO");
+        const month = String(f.month || "");
+        if (month === `${latestYear}-${selected}`) {
+          const row = byEntity.get(entity) || { prev: 0, curr: 0 };
+          row.curr += Number(f.amount || 0);
+          byEntity.set(entity, row);
+        }
+        if (month === `${prevYear}-${selected}`) {
+          const row = byEntity.get(entity) || { prev: 0, curr: 0 };
+          row.prev += Number(f.amount || 0);
+          byEntity.set(entity, row);
+        }
+      });
+      const rows = [...byEntity.entries()]
+        .map(([name, v]) => {
+          const delta = v.curr - v.prev;
+          const deltaPct = v.prev > 0 ? (delta / v.prev) * 100 : 0;
+          return { name, prev: v.prev, curr: v.curr, delta, deltaPct };
+        })
+        .filter((r) => r.prev > 0 || r.curr > 0)
+        .sort((a, b) => b.delta - a.delta);
+      return {
+        up: rows.slice(0, 8),
+        down: [...rows].sort((a, b) => a.delta - b.delta).slice(0, 8),
+      };
+    };
+
+    return {
+      latestYear,
+      prevYear,
+      selected,
+      monthOptions: monthsLatestYear,
+      yoyByMonth,
+      customer: buildEntityYoY("customer"),
+      product: buildEntityYoY("product"),
+    };
+  }, [filteredFacts, compareMonth]);
 
   const annexes = useMemo(() => {
     return aggregate.byBranch.slice(0, 8).map((b) => {
@@ -965,6 +1054,14 @@ export function MetrocasDashboard() {
             ) : null}
             {tab === "Variaciones Pro" ? (
               <div style={{ marginTop: 10 }}>
+                <div className={s.navActions} style={{ marginBottom: 10 }}>
+                  <span className={s.muted}>Comparativo anual:</span>
+                  <select className={s.input} value={compareMonth} onChange={(e) => setCompareMonth(e.target.value)} style={{ maxWidth: 220 }}>
+                    {yoyModel.monthOptions.map((mm) => (
+                      <option key={`cmp-${mm}`} value={mm}>{`${mm} (${yoyModel.prevYear}-${mm} vs ${yoyModel.latestYear}-${mm})`}</option>
+                    ))}
+                  </select>
+                </div>
                 <p className={s.muted}>
                   Comparativo entre <strong>{variationModel.prevMonth || "N/A"}</strong> y <strong>{variationModel.currMonth || "N/A"}</strong>.
                 </p>
@@ -1026,6 +1123,32 @@ export function MetrocasDashboard() {
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
+                  </div>
+                  <div className={s.card}>
+                    <h4 style={{ marginTop: 0 }}>Enero-Abril: comparativo anual (crecio/disminuyo)</h4>
+                    {yoyModel.yoyByMonth.map((m) => (
+                      <div key={`yoy-${m.monthNum}`} className={s.muted}>
+                        - {m.month}: {m.status.toUpperCase()} | {yoyModel.prevYear}: {money(m.prev)} | {yoyModel.latestYear}: {money(m.curr)} | Delta: {money(m.delta)} | DeltaPct: {pct(m.deltaPct)}
+                      </div>
+                    ))}
+                  </div>
+                  <div className={s.card}>
+                    <h4 style={{ marginTop: 0 }}>Clientes ({yoyModel.prevYear}-{yoyModel.selected} vs {yoyModel.latestYear}-{yoyModel.selected})</h4>
+                    {(yoyModel.customer.up || []).slice(0, 4).map((r) => (
+                      <div key={`cy-up-${r.name}`} className={s.muted}>- Sube: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
+                    ))}
+                    {(yoyModel.customer.down || []).slice(0, 4).map((r) => (
+                      <div key={`cy-dn-${r.name}`} className={s.muted}>- Baja: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
+                    ))}
+                  </div>
+                  <div className={s.card}>
+                    <h4 style={{ marginTop: 0 }}>Productos ({yoyModel.prevYear}-{yoyModel.selected} vs {yoyModel.latestYear}-{yoyModel.selected})</h4>
+                    {(yoyModel.product.up || []).slice(0, 4).map((r) => (
+                      <div key={`py-up-${r.name}`} className={s.muted}>- Sube: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
+                    ))}
+                    {(yoyModel.product.down || []).slice(0, 4).map((r) => (
+                      <div key={`py-dn-${r.name}`} className={s.muted}>- Baja: {r.name} | Prev: {money(r.prev)} | Actual: {money(r.curr)} | Delta: {money(r.delta)} | {pct(r.deltaPct)}</div>
+                    ))}
                   </div>
                 </div>
               </div>
