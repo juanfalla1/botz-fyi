@@ -422,7 +422,7 @@ export function MetrocasDashboard() {
         const delta = curr - prev;
         const deltaPct = prev > 0 ? (delta / prev) * 100 : 0;
         return { name, prev, curr, delta, deltaPct };
-      });
+      }).filter((r) => r.prev > 0 || r.curr > 0);
 
       const topGrowth = [...rows].sort((a, b) => b.delta - a.delta).slice(0, 8);
       const topDrop = [...rows].sort((a, b) => a.delta - b.delta).slice(0, 8);
@@ -440,7 +440,8 @@ export function MetrocasDashboard() {
         return row;
       });
 
-      return { topGrowth, topDrop, topLines, lineSeries };
+      const pivotRows = [...rows].sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 12);
+      return { topGrowth, topDrop, topLines, lineSeries, pivotRows };
     };
 
     return {
@@ -1184,6 +1185,97 @@ export function MetrocasDashboard() {
                     <div className={s.muted}>- Cliente mayor baja: {String(variationModel.customer.topDrop[0]?.name || "N/A")}</div>
                     <div className={s.muted}>- Producto mayor alza: {String(variationModel.product.topGrowth[0]?.name || "N/A")}</div>
                     <div className={s.muted}>- Producto mayor baja: {String(variationModel.product.topDrop[0]?.name || "N/A")}</div>
+                  </div>
+                </div>
+
+                <div className={s.grid2} style={{ marginTop: 12 }}>
+                  <div className={s.card}>
+                    <h4 style={{ marginTop: 0 }}>Tabla dinamica - Segmento</h4>
+                    <p className={s.muted}>Compara {variationModel.prevMonth || "N/A"} vs {variationModel.currMonth || "N/A"} con variacion visible.</p>
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
+                        <thead>
+                          <tr>
+                            <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #d5e2f7" }}>Etiquetas de fila</th>
+                            <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #d5e2f7" }}>{variationModel.currMonth || "Actual"}</th>
+                            <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #d5e2f7" }}>{variationModel.prevMonth || "Base"}</th>
+                            <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #d5e2f7" }}>Variacion</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {variationModel.segment.pivotRows.map((r) => {
+                            const tone = r.delta > 0 ? "#15803d" : r.delta < 0 ? "#b91c1c" : "#6b7280";
+                            return (
+                              <tr key={`seg-pivot-${r.name}`}>
+                                <td style={{ padding: 8, borderBottom: "1px solid #eef4ff" }}>{r.name}</td>
+                                <td style={{ padding: 8, borderBottom: "1px solid #eef4ff", textAlign: "right" }}>{money(r.curr)}</td>
+                                <td style={{ padding: 8, borderBottom: "1px solid #eef4ff", textAlign: "right" }}>{money(r.prev)}</td>
+                                <td style={{ padding: 8, borderBottom: "1px solid #eef4ff", textAlign: "right", color: tone }}>{pct(r.deltaPct)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div className={s.card}>
+                    <h4 style={{ marginTop: 0 }}>Tabla dinamica - Cliente</h4>
+                    <p className={s.muted}>Top clientes con mayor movimiento entre meses seleccionados.</p>
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
+                        <thead>
+                          <tr>
+                            <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #d5e2f7" }}>Etiquetas de fila</th>
+                            <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #d5e2f7" }}>{variationModel.currMonth || "Actual"}</th>
+                            <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #d5e2f7" }}>{variationModel.prevMonth || "Base"}</th>
+                            <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #d5e2f7" }}>Variacion</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {variationModel.customer.pivotRows.map((r) => {
+                            const tone = r.delta > 0 ? "#15803d" : r.delta < 0 ? "#b91c1c" : "#6b7280";
+                            return (
+                              <tr key={`cust-pivot-${r.name}`}>
+                                <td style={{ padding: 8, borderBottom: "1px solid #eef4ff" }}>{r.name}</td>
+                                <td style={{ padding: 8, borderBottom: "1px solid #eef4ff", textAlign: "right" }}>{money(r.curr)}</td>
+                                <td style={{ padding: 8, borderBottom: "1px solid #eef4ff", textAlign: "right" }}>{money(r.prev)}</td>
+                                <td style={{ padding: 8, borderBottom: "1px solid #eef4ff", textAlign: "right", color: tone }}>{pct(r.deltaPct)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={s.card} style={{ marginTop: 12 }}>
+                  <h4 style={{ marginTop: 0 }}>Tabla dinamica - Producto</h4>
+                  <p className={s.muted}>Productos con mayor variacion entre {variationModel.prevMonth || "N/A"} y {variationModel.currMonth || "N/A"}.</p>
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #d5e2f7" }}>Etiquetas de fila</th>
+                          <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #d5e2f7" }}>{variationModel.currMonth || "Actual"}</th>
+                          <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #d5e2f7" }}>{variationModel.prevMonth || "Base"}</th>
+                          <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #d5e2f7" }}>Variacion</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {variationModel.product.pivotRows.map((r) => {
+                          const tone = r.delta > 0 ? "#15803d" : r.delta < 0 ? "#b91c1c" : "#6b7280";
+                          return (
+                            <tr key={`prod-pivot-${r.name}`}>
+                              <td style={{ padding: 8, borderBottom: "1px solid #eef4ff" }}>{r.name}</td>
+                              <td style={{ padding: 8, borderBottom: "1px solid #eef4ff", textAlign: "right" }}>{money(r.curr)}</td>
+                              <td style={{ padding: 8, borderBottom: "1px solid #eef4ff", textAlign: "right" }}>{money(r.prev)}</td>
+                              <td style={{ padding: 8, borderBottom: "1px solid #eef4ff", textAlign: "right", color: tone }}>{pct(r.deltaPct)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
