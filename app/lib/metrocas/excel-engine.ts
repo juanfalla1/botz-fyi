@@ -59,8 +59,20 @@ function normalizeDate(value: unknown): string | null {
   }
   const str = String(value || "").trim();
   if (!str) return null;
+  const latamMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (latamMatch) {
+    const d = Number(latamMatch[1]);
+    const m = Number(latamMatch[2]);
+    let y = Number(latamMatch[3]);
+    if (y < 100) y += 2000;
+    if (d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 2000 && y <= 2100) {
+      return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
   const iso = str.slice(0, 10);
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  const parsed = new Date(str);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
   return null;
 }
 const num = (v: unknown) => {
