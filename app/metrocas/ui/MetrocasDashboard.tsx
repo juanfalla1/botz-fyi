@@ -231,6 +231,24 @@ export function MetrocasDashboard() {
     [effectiveDashboard],
   );
 
+  const kpiHighlights = useMemo(() => {
+    const topSegment = (segmentRanking[0]?.label || aggregate.bySegment[0]?.label || "N/A").toString();
+    const topCustomer = (effectiveDashboard.topCustomers?.[0]?.name || customersData[0]?.label || "N/A").toString();
+    const topProduct = (effectiveDashboard.topProducts?.[0]?.name || productsData.stars[0]?.label || aggregate.byProduct[0]?.label || "N/A").toString();
+    const variationLabel = growthContext === "insufficient_periods"
+      ? "N/A"
+      : pct(Number(effectiveDashboard.kpis.monthlyGrowth || effectiveDashboard.kpis.monthlyDrop || 0));
+    const trend = Number(effectiveDashboard.kpis.monthlyGrowth || 0) > 0 ? "Alcista" : Number(effectiveDashboard.kpis.monthlyDrop || 0) < 0 ? "Ajuste" : "Estable";
+    return [
+      { label: "Total ventas", value: money(Number(effectiveDashboard.kpis.totalSales || 0)), helper: "Volumen acumulado" },
+      { label: "Variacion periodo", value: variationLabel, helper: monthsDetected.length > 1 ? `${monthsDetected[monthsDetected.length - 2]} vs ${monthsDetected[monthsDetected.length - 1]}` : "Comparativo pendiente" },
+      { label: "Segmento lider", value: topSegment, helper: "Mayor facturacion" },
+      { label: "Cliente top", value: topCustomer, helper: "Mayor contribucion" },
+      { label: "Producto top", value: topProduct, helper: "Mayor ingreso" },
+      { label: "Tendencia", value: trend, helper: "Estado general" },
+    ];
+  }, [segmentRanking, aggregate.bySegment, aggregate.byProduct, effectiveDashboard, customersData, productsData.stars, growthContext, monthsDetected]);
+
   const money = (v: number) =>
     new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(
       Number(v || 0),
@@ -605,9 +623,29 @@ export function MetrocasDashboard() {
         </div>
       </div>
       <div className={s.container} style={{ padding: "18px 0 34px" }}>
-        <h1 className={s.sectionTitle}>Dashboard Ejecutivo</h1>
-        <p className={s.muted}>Dataset activo: {activeDatasetId}</p>
-        <p className={s.muted}>Meses detectados: {monthsDetected.length ? monthsDetected.join(", ") : "Sin fecha valida"}</p>
+        <section className={s.executiveHero}>
+          <div>
+            <p className={s.eyebrow}>Enterprise Analytics</p>
+            <h1 className={s.sectionTitle} style={{ marginBottom: 6 }}>Dashboard Ejecutivo</h1>
+            <p className={s.muted}>Dataset activo: {activeDatasetId}</p>
+            <p className={s.muted}>Meses detectados: {monthsDetected.length ? monthsDetected.join(", ") : "Sin fecha valida"}</p>
+          </div>
+          <div className={s.heroPill}>
+            <span>Estado</span>
+            <strong>{growthContext === "insufficient_periods" ? "Datos en consolidacion" : "Operacion monitoreada"}</strong>
+          </div>
+        </section>
+
+        <section className={s.kpiPremiumGrid}>
+          {kpiHighlights.map((k) => (
+            <article key={k.label} className={s.kpiPremiumCard}>
+              <p className={s.kpiLabel}>{k.label}</p>
+              <p className={s.kpiValue}>{k.value}</p>
+              <p className={s.kpiHint}>{k.helper}</p>
+            </article>
+          ))}
+        </section>
+
         <div className={s.navActions} style={{ marginBottom: 8 }}>
           <button className={granularity === "acumulado" ? s.btnPrimary : s.btnSecondary} onClick={() => setGranularity("acumulado")}>Acumulado</button>
           <button className={granularity === "mensual" ? s.btnPrimary : s.btnSecondary} onClick={() => setGranularity("mensual")}>Mensual</button>
@@ -630,7 +668,7 @@ export function MetrocasDashboard() {
           </p>
         ) : null}
         {growthContext === "insufficient_periods" ? <p className={s.muted}>Crecimiento/Caida mensual requiere al menos 2 meses con ventas.</p> : null}
-        <section className={s.card} style={{ marginBottom: 12 }}>
+        <section className={`${s.card} ${s.panelCard}`} style={{ marginBottom: 12 }}>
           <button className={s.btnSecondary} onClick={() => setShowFilters((v) => !v)}>
             {showFilters ? "Ocultar filtros" : "Mostrar filtros"}
           </button>
@@ -652,14 +690,14 @@ export function MetrocasDashboard() {
             </div>
           </div> : null}
         </section>
-        <div className={s.navActions} style={{ marginBottom: 12 }}>
+        <div className={s.tabRail} style={{ marginBottom: 12 }}>
           {tabs.map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={tab === t ? s.btnPrimary : s.btnSecondary}
-              style={{ cursor: "pointer" }}
-            >
+               className={tab === t ? s.btnPrimary : s.btnSecondary}
+               style={{ cursor: "pointer" }}
+             >
               {t}
             </button>
           ))}

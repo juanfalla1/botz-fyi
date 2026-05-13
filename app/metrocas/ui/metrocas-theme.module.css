@@ -11,6 +11,45 @@
   margin: 0 auto;
 }
 
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5b84c6;
+  font-weight: 700;
+}
+
+.executiveHero {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.heroPill {
+  min-width: 240px;
+  background: linear-gradient(135deg, #f4f8ff, #e9f1ff);
+  border: 1px solid #c9daf5;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 4px;
+}
+
+.heroPill span {
+  color: #5f769b;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.heroPill strong {
+  color: #122947;
+  font-size: 0.95rem;
+}
+
 .topNav {
   position: sticky;
   top: 0;
@@ -112,6 +151,13 @@
   border-radius: 14px;
   padding: 14px;
   overflow-wrap: anywhere;
+  box-shadow: 0 8px 24px rgba(15, 32, 64, 0.06);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(15, 32, 64, 0.1);
 }
 
 ol.grid4 {
@@ -128,6 +174,59 @@ ol.grid4 {
 .lightSurface .card {
   background: #ffffff;
   border-color: #d5e2f7;
+}
+
+.panelCard {
+  border-radius: 16px;
+  border-color: #cadefb;
+  background: linear-gradient(180deg, #ffffff, #fbfdff);
+}
+
+.tabRail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #d6e4fb;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.kpiPremiumGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+
+.kpiPremiumCard {
+  background: linear-gradient(160deg, #ffffff 0%, #f3f8ff 100%);
+  border: 1px solid #cfe0fb;
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 8px 18px rgba(19, 47, 84, 0.08);
+}
+
+.kpiLabel {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #5d7398;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kpiValue {
+  margin: 6px 0 4px;
+  color: #0f2342;
+  font-size: 1.08rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.kpiHint {
+  margin: 0;
+  color: #6f84a7;
+  font-size: 0.78rem;
 }
 
 .kpi {
@@ -187,10 +286,13 @@ ol.grid4 {
 @media (max-width: 960px) {
   .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpiPremiumGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 700px) {
   .container { width: min(1200px, 95%); }
+  .executiveHero { flex-direction: column; }
+  .heroPill { min-width: 0; width: 100%; }
   .topNavInner { align-items: flex-start; }
   .brand { font-size: 0.98rem; }
   .navActions { width: 100%; }
@@ -199,5 +301,6 @@ ol.grid4 {
   .title { font-size: clamp(1.65rem, 8.3vw, 2.05rem); max-width: none; text-wrap: wrap; }
   .subtitle { font-size: 1rem; }
   .grid2, .grid3, .grid4, .form { grid-template-columns: 1fr; }
+  .kpiPremiumGrid { grid-template-columns: 1fr; }
   .textarea, .full { grid-column: auto; }
 }
