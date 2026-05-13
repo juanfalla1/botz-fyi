@@ -92,6 +92,7 @@ export function MetrocasDashboard() {
   const [citySearch, setCitySearch] = useState("");
   const [showAllCities, setShowAllCities] = useState(false);
   const [hideBlankCity, setHideBlankCity] = useState(true);
+  const [accessKey, setAccessKey] = useState("");
   const tabs = [
     "Resumen Ejecutivo",
     "Ventas por Dia",
@@ -105,6 +106,9 @@ export function MetrocasDashboard() {
     "Anexos",
     "IA Estrategica",
   ];
+
+  const withAccessKey = (path: string) =>
+    accessKey ? `${path}${path.includes("?") ? "&" : "?"}access_key=${encodeURIComponent(accessKey)}` : path;
 
   const loadAnalytics = async (datasetId: string) => {
     setTrafficLoading(true);
@@ -120,7 +124,7 @@ export function MetrocasDashboard() {
     ];
 
     const settled = await Promise.allSettled(
-      endpoints.map((endpoint) => fetch(`${endpoint}?dataset_id=${encodeURIComponent(datasetId)}`).then((r) => r.json())),
+      endpoints.map((endpoint) => fetch(withAccessKey(`${endpoint}?dataset_id=${encodeURIComponent(datasetId)}`)).then((r) => r.json())),
     );
 
     const [prices, segments, categories, products, customers, cities, branches, traffic] = settled.map((r) =>
@@ -187,8 +191,11 @@ export function MetrocasDashboard() {
   };
 
   useEffect(() => {
+    const sp = new URL(window.location.href).searchParams;
+    setAccessKey(sp.get("access_key") || "");
+
     const loadById = (datasetId: string) => {
-      fetch(`/api/metrocas/dashboard?dataset_id=${encodeURIComponent(datasetId)}`)
+      fetch(withAccessKey(`/api/metrocas/dashboard?dataset_id=${encodeURIComponent(datasetId)}`))
         .then((r) => r.json())
         .then((json) => {
           if (!json?.ok) return;
@@ -227,7 +234,7 @@ export function MetrocasDashboard() {
           setSelSegments(allSegments);
           setSelCities(allCities);
 
-          fetch(`/api/metrocas/insights?dataset_id=${encodeURIComponent(datasetId)}`)
+          fetch(withAccessKey(`/api/metrocas/insights?dataset_id=${encodeURIComponent(datasetId)}`))
             .then((r) => r.json())
             .then((ins) => {
               const latest = ins?.data?.[0]?.data || null;
@@ -247,14 +254,14 @@ export function MetrocasDashboard() {
       return;
     }
 
-    fetch("/api/metrocas/datasets?page=1&page_size=1")
+    fetch(withAccessKey("/api/metrocas/datasets?page=1&page_size=1"))
       .then((r) => r.json())
       .then((json) => {
         const latest = json?.data?.[0]?.id;
         if (latest) loadById(latest);
       })
       .catch(() => {});
-  }, []);
+  }, [accessKey]);
 
   const filteredFacts = useMemo(() => {
     if (!facts.length) return [];
