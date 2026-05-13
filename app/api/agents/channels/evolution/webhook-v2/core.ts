@@ -9676,6 +9676,16 @@ export async function POST(req: Request) {
         }
 
         if (!String(strictReply || "").trim() && !(cap > 0) && !(read > 0)) {
+          const asksMilligramPrecision = /(miligram|miligram|\bmg\b|microgram|\bug\b)/.test(textNorm);
+          if (asksMilligramPrecision) {
+            strictMemory.awaiting_action = "strict_need_spec";
+            strictReply = [
+              "Perfecto, para trabajar en miligramos te guío con alta precisión.",
+              "Confírmame capacidad y resolución objetivo en formato: 220 g x 0.0001 g.",
+              "Opciones típicas: 0.001 g, 0.0001 g o 0.00001 g.",
+            ].join("\n");
+          }
+
           const dimensionHint = parseDimensionHint(text);
           if (dimensionHint) {
             const criterionLabel = formatDimensionTripletMm(dimensionHint.dimsMm);
