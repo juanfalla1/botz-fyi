@@ -94,6 +94,8 @@ export function MetrocasDashboard() {
   const [hideBlankCity, setHideBlankCity] = useState(true);
   const [accessKey, setAccessKey] = useState("");
   const [compareMonth, setCompareMonth] = useState<string>("");
+  const [variationFromMonth, setVariationFromMonth] = useState<string>("");
+  const [variationToMonth, setVariationToMonth] = useState<string>("");
 
   const normalizeInsights = (raw: any) => {
     if (!raw) return null;
@@ -399,9 +401,9 @@ export function MetrocasDashboard() {
   }, [aggregate.byBranch, filteredFacts]);
 
   const variationModel = useMemo(() => {
-    const months = Array.from(new Set(filteredFacts.map((f) => String(f.month || "")).filter(Boolean))).sort();
-    const prevMonth = months[months.length - 2] || "";
-    const currMonth = months[months.length - 1] || "";
+    const months = Array.from(new Set(filteredFacts.map((f) => String(f.month || "")).filter((m) => /^\d{4}-\d{2}$/.test(m)))).sort();
+    const prevMonth = variationFromMonth || months[months.length - 2] || "";
+    const currMonth = variationToMonth || months[months.length - 1] || "";
 
     const build = (key: "segment" | "customer" | "product") => {
       const byEntityMonth = new Map<string, Map<string, number>>();
@@ -442,13 +444,14 @@ export function MetrocasDashboard() {
     };
 
     return {
+      months,
       prevMonth,
       currMonth,
       segment: build("segment"),
       customer: build("customer"),
       product: build("product"),
     };
-  }, [filteredFacts]);
+  }, [filteredFacts, variationFromMonth, variationToMonth]);
 
   const yoyModel = useMemo(() => {
     const monthNameEs = (monthNum: string) => {
@@ -1093,6 +1096,17 @@ export function MetrocasDashboard() {
             {tab === "Variaciones Pro" ? (
               <div style={{ marginTop: 10 }}>
                 <div className={s.navActions} style={{ marginBottom: 10 }}>
+                  <span className={s.muted}>Comparativo mensual:</span>
+                  <select className={s.input} value={variationFromMonth} onChange={(e) => setVariationFromMonth(e.target.value)} style={{ maxWidth: 180 }}>
+                    <option value="">Mes base</option>
+                    {variationModel.months.map((mm) => (<option key={`vm-from-${mm}`} value={mm}>{mm}</option>))}
+                  </select>
+                  <select className={s.input} value={variationToMonth} onChange={(e) => setVariationToMonth(e.target.value)} style={{ maxWidth: 180 }}>
+                    <option value="">Mes comparado</option>
+                    {variationModel.months.map((mm) => (<option key={`vm-to-${mm}`} value={mm}>{mm}</option>))}
+                  </select>
+                </div>
+                <div className={s.navActions} style={{ marginBottom: 10 }}>
                   <span className={s.muted}>Comparativo anual:</span>
                   <select className={s.input} value={compareMonth} onChange={(e) => setCompareMonth(e.target.value)} style={{ maxWidth: 220 }}>
                     {yoyModel.monthOptions.map((mm) => (
@@ -1106,29 +1120,31 @@ export function MetrocasDashboard() {
                 <div className={s.grid2}>
                   <div className={s.card}>
                     <h4 style={{ marginTop: 0 }}>Segmento: top suben/bajan</h4>
+                    <p className={s.muted}>Insight: este bloque concentra la mayor variacion mensual por segmento.</p>
                     <div style={chartBoxStyle}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={[...variationModel.segment.topGrowth.slice(0, 4), ...variationModel.segment.topDrop.slice(0, 4)].map((x) => ({ name: String(x.name).slice(0, 18), delta: x.delta }))}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                          <YAxis tickFormatter={(v) => compactNum(Number(v))} />
-                          <Tooltip formatter={(v: any) => money(Number(v))} />
-                          <Bar dataKey="delta" fill="#0ea5e9" />
+                          <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#5f769b" }} />
+                          <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
+                          <Tooltip formatter={(v: any) => money(Number(v))} contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }} />
+                          <Bar dataKey="delta" fill="#0284c7" radius={[8, 8, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
                   <div className={s.card}>
                     <h4 style={{ marginTop: 0 }}>Segmento: tendencia mensual (Top 4)</h4>
+                    <p className={s.muted}>Insight: las lineas muestran estabilidad o quiebre de tendencia por segmento.</p>
                     <div style={chartBoxStyle}>
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={variationModel.segment.lineSeries}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="month" />
-                          <YAxis tickFormatter={(v) => compactNum(Number(v))} />
-                          <Tooltip formatter={(v: any) => money(Number(v))} />
+                          <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
+                          <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#5f769b" }} />
+                          <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
+                          <Tooltip formatter={(v: any) => money(Number(v))} contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }} />
                           {variationModel.segment.topLines.map((n, i) => (
-                            <Line key={`seg-line-${n}`} type="monotone" dataKey={n} stroke={["#2563eb", "#16a34a", "#f59e0b", "#dc2626"][i % 4]} strokeWidth={2} dot={false} />
+                            <Line key={`seg-line-${n}`} type="monotone" dataKey={n} stroke={["#2563eb", "#16a34a", "#f59e0b", "#dc2626"][i % 4]} strokeWidth={2.5} dot={false} />
                           ))}
                         </LineChart>
                       </ResponsiveContainer>
@@ -1136,28 +1152,30 @@ export function MetrocasDashboard() {
                   </div>
                   <div className={s.card}>
                     <h4 style={{ marginTop: 0 }}>Cliente: top suben/bajan</h4>
+                    <p className={s.muted}>Insight: cliente top explica la mayor diferencia del periodo.</p>
                     <div style={chartBoxStyle}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={[...variationModel.customer.topGrowth.slice(0, 4), ...variationModel.customer.topDrop.slice(0, 4)].map((x) => ({ name: String(x.name).slice(0, 18), delta: x.delta }))}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                          <YAxis tickFormatter={(v) => compactNum(Number(v))} />
-                          <Tooltip formatter={(v: any) => money(Number(v))} />
-                          <Bar dataKey="delta" fill="#2563eb" />
+                          <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#5f769b" }} />
+                          <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
+                          <Tooltip formatter={(v: any) => money(Number(v))} contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }} />
+                          <Bar dataKey="delta" fill="#2563eb" radius={[8, 8, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
                   <div className={s.card}>
                     <h4 style={{ marginTop: 0 }}>Producto: top suben/bajan</h4>
+                    <p className={s.muted}>Insight: aqui se ve el producto con mayor crecimiento y los de mayor caida.</p>
                     <div style={chartBoxStyle}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={[...variationModel.product.topGrowth.slice(0, 4), ...variationModel.product.topDrop.slice(0, 4)].map((x) => ({ name: String(x.name).slice(0, 18), delta: x.delta }))}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                          <YAxis tickFormatter={(v) => compactNum(Number(v))} />
-                          <Tooltip formatter={(v: any) => money(Number(v))} />
-                          <Bar dataKey="delta" fill="#f59e0b" />
+                          <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#5f769b" }} />
+                          <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
+                          <Tooltip formatter={(v: any) => money(Number(v))} contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }} />
+                          <Bar dataKey="delta" fill="#f59e0b" radius={[8, 8, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
