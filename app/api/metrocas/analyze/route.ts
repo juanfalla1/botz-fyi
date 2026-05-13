@@ -36,18 +36,19 @@ function weekdayEs(iso: string) {
   return ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"][idx] || "N/A";
 }
 
-async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId: string | null }) {
-  const { svc, datasetId, tenantId } = params;
-  const batchSize = 1000;
+async function fetchAllRows(params: {
+  svc: any;
+  table: string;
+  datasetId: string;
+  tenantId: string | null;
+  batchSize?: number;
+  maxRows?: number;
+}) {
+  const { svc, table, datasetId, tenantId, batchSize = 1000, maxRows = 50000 } = params;
   const rows: any[] = [];
   let offset = 0;
-
   while (true) {
-    let q = svc
-      .from("metrocas_sales_records")
-      .select("*")
-      .eq("dataset_id", datasetId)
-      .range(offset, offset + batchSize - 1);
+    let q = svc.from(table).select("*").eq("dataset_id", datasetId).range(offset, offset + batchSize - 1);
     q = tenantId ? q.eq("tenant_id", tenantId) : q.is("tenant_id", null);
     const page = await q;
     if (page.error) break;
@@ -55,15 +56,26 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
     rows.push(...chunk);
     if (chunk.length < batchSize) break;
     offset += batchSize;
-    if (offset > 50000) break;
+    if (offset > maxRows) break;
   }
+  return rows;
+}
+
+async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId: string | null }) {
+  const { svc, datasetId, tenantId } = params;
+  const rows = await fetchAllRows({ svc, table: "metrocas_sales_records", datasetId, tenantId });
+  const posRows = await fetchAllRows({ svc, table: "metrocas_pos_sales_records", datasetId, tenantId, maxRows: 20000 });
+  const dailyTraffic = await fetchAllRows({ svc, table: "metrocas_daily_traffic", datasetId, tenantId, maxRows: 20000 });
+  const hourlyTraffic = await fetchAllRows({ svc, table: "metrocas_hourly_traffic", datasetId, tenantId, maxRows: 20000 });
 
   const byDay = new Map<string, number>();
   const byWeekday = new Map<string, number>();
   const byProduct = new Map<string, { sales: number; qty: number }>();
   const byCategoryMonth = new Map<string, Map<string, number>>();
+  const byBranch = new Map<string, number>();
   const byCustomer = new Map<string, number>();
   const byCity = new Map<string, number>();
+  const firstPurchaseByCustomer = new Map<string, string>();
 
   let totalSales = 0;
   let validDateRows = 0;
@@ -78,10 +90,12 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
     const category = String(row.category || row.product_category || raw.categoria || raw.product_category || "Sin categoria").trim() || "Sin categoria";
     const customer = String(row.customer_name || raw.customer_name || raw.cliente || "Sin cliente").trim() || "Sin cliente";
     const city = String(row.city || raw.city || raw.ciudad || "EN BLANCO").trim() || "EN BLANCO";
+    const branch = String(row.journal || row.seller || row.channel || raw.journal || raw.canal || "SIN SEDE").trim() || "SIN SEDE";
 
     totalSales += amount;
     byCustomer.set(customer, (byCustomer.get(customer) || 0) + amount);
     byCity.set(city, (byCity.get(city) || 0) + amount);
+    byBranch.set(branch, (byBranch.get(branch) || 0) + amount);
 
     const p = byProduct.get(product) || { sales: 0, qty: 0 };
     p.sales += amount;
@@ -97,6 +111,8 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
       byDay.set(date, (byDay.get(date) || 0) + amount);
       const wd = weekdayEs(date);
       byWeekday.set(wd, (byWeekday.get(wd) || 0) + amount);
+      const prev = firstPurchaseByCustomer.get(customer);
+      if (!prev || date < prev) firstPurchaseByCustomer.set(customer, date);
     }
   }
 
@@ -107,6 +123,7 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
   const lowRotationProducts = [...byProduct.entries()].map(([name, v]) => ({ name, sales: v.sales, qty: v.qty })).filter((x) => x.qty > 0).sort((a, b) => a.qty - b.qty).slice(0, 15);
   const topCustomers = [...byCustomer.entries()].map(([name, sales]) => ({ name, sales, participation: totalSales ? sales / totalSales : 0 })).sort((a, b) => b.sales - a.sales).slice(0, 10);
   const topCities = [...byCity.entries()].map(([city, sales]) => ({ city, sales, participation: totalSales ? sales / totalSales : 0 })).sort((a, b) => b.sales - a.sales).slice(0, 15);
+  const branchRanking = [...byBranch.entries()].map(([branch, sales]) => ({ branch, sales, participation: totalSales ? sales / totalSales : 0 })).sort((a, b) => b.sales - a.sales).slice(0, 15);
 
   const months = [...new Set([...byDay.keys()].map((d) => d.slice(0, 7)))].sort();
   const latest = months[months.length - 1];
@@ -122,6 +139,42 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
     .sort((a, b) => a.delta - b.delta)
     .slice(0, 8);
 
+  const sortedNewCustomers = [...firstPurchaseByCustomer.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  const newCustomersByMonth = new Map<string, number>();
+  for (const [, dt] of sortedNewCustomers) {
+    const m = dt.slice(0, 7);
+    newCustomersByMonth.set(m, (newCustomersByMonth.get(m) || 0) + 1);
+  }
+  const monthlyNewCustomers = [...newCustomersByMonth.entries()].map(([monthKey, count]) => ({ month: monthKey, count })).sort((a, b) => a.month.localeCompare(b.month));
+
+  const posTotal = posRows.reduce((acc, r) => acc + toNum(r.balance ?? r.total_sale ?? r.amount_currency), 0);
+  const posByCity = new Map<string, number>();
+  for (const r of posRows) {
+    const c = String(r.city || "EN BLANCO").trim() || "EN BLANCO";
+    const a = toNum(r.balance ?? r.total_sale ?? r.amount_currency);
+    posByCity.set(c, (posByCity.get(c) || 0) + a);
+  }
+  const posCityRanking = [...posByCity.entries()].map(([city, sales]) => ({ city, sales, participation: posTotal ? sales / posTotal : 0 })).sort((a, b) => b.sales - a.sales).slice(0, 10);
+
+  const trafficTotalVisits = dailyTraffic.reduce((acc, r) => acc + toNum(r.visits), 0);
+  const trafficByBranch = new Map<string, number>();
+  for (const r of dailyTraffic) {
+    const b = String(r.branch || "SIN SEDE").trim() || "SIN SEDE";
+    trafficByBranch.set(b, (trafficByBranch.get(b) || 0) + toNum(r.visits));
+  }
+  const trafficBranchRanking = [...trafficByBranch.entries()].map(([branch, visits]) => ({ branch, visits, participation: trafficTotalVisits ? visits / trafficTotalVisits : 0 })).sort((a, b) => b.visits - a.visits).slice(0, 10);
+
+  const trafficByHour = new Map<string, number>();
+  for (const r of hourlyTraffic) {
+    const h = String(r.hour_slot || "N/A").trim();
+    if (!h || h === "N/A") continue;
+    trafficByHour.set(h, (trafficByHour.get(h) || 0) + toNum(r.visits));
+  }
+  const peakHours = [...trafficByHour.entries()].map(([hour, visits]) => ({ hour, visits })).sort((a, b) => b.visits - a.visits).slice(0, 8);
+
+  const top3CustomerShare = topCustomers.slice(0, 3).reduce((acc, x) => acc + toNum(x.participation), 0);
+  const top5ProductShare = topProducts.slice(0, 5).reduce((acc, x) => acc + toNum(x.participation), 0);
+
   return {
     dataQuality: {
       totalRows: rows.length,
@@ -133,13 +186,30 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
       lowDays,
       weekdayRanking,
       topCities,
+      branchRanking,
       topCustomers,
       topProducts,
       lowRotationProducts,
       categoriesToStrengthen,
+      monthlyNewCustomers,
+      posSummary: {
+        posRows: posRows.length,
+        posTotal,
+        posVsMainShare: totalSales ? posTotal / totalSales : 0,
+        posCityRanking,
+      },
+      trafficSummary: {
+        dailyRows: dailyTraffic.length,
+        hourlyRows: hourlyTraffic.length,
+        totalVisits: trafficTotalVisits,
+        trafficBranchRanking,
+        peakHours,
+      },
       concentration: {
         topCustomerShare: topCustomers[0]?.participation || 0,
         topProductShare: topProducts[0]?.participation || 0,
+        top3CustomerShare,
+        top5ProductShare,
       },
     },
   };
