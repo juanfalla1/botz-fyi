@@ -155,8 +155,8 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
     .sort((a, b) => a.delta - b.delta)
     .slice(0, 8);
 
-  const buildVariation = (source: Map<string, Map<string, number>>, top = 8) =>
-    [...source.entries()]
+  const buildVariation = (source: Map<string, Map<string, number>>, top = 8) => {
+    const rows = [...source.entries()]
       .map(([name, m]) => {
         const curr = toNum(m.get(latest));
         const prev = toNum(m.get(previous));
@@ -164,9 +164,13 @@ async function buildDeepSummary(params: { svc: any; datasetId: string; tenantId:
         const deltaPct = prev > 0 ? (delta / prev) * 100 : 0;
         return { name, prev, curr, delta, deltaPct };
       })
-      .filter((x) => Number.isFinite(x.deltaPct) && (x.prev > 0 || x.curr > 0))
-      .sort((a, b) => b.delta - a.delta)
-      .slice(0, top);
+      .filter((x) => Number.isFinite(x.deltaPct) && (x.prev > 0 || x.curr > 0));
+
+    return {
+      topGrowth: [...rows].sort((a, b) => b.delta - a.delta).slice(0, top),
+      topDrop: [...rows].sort((a, b) => a.delta - b.delta).slice(0, top),
+    };
+  };
 
   const segmentVariation = buildVariation(bySegmentMonth, 10);
   const customerVariation = buildVariation(byCustomerMonth, 10);
