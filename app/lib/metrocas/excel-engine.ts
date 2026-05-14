@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 
-export const REQUIRED_SHEETS = ["Macro|Macro 2026|Macro 2025|macro 2025 -2026"];
+export const REQUIRED_SHEETS = ["Macro|Macro 2026|Macro2026|Macro 2025|Macro2025|macro 2025 -2026|macro2025-2026"];
 
 export const EXPECTED_SHEETS = [
   "Abril",
@@ -227,8 +227,11 @@ export function parseWorkbook(buffer: ArrayBuffer): ParsedSheetData {
   const missingRequired = REQUIRED_SHEETS.filter((s) => !hasAny(s));
   const hasAnyMacroConsolidated =
     normalizedNames.has(normalize("Macro 2026")) ||
+    normalizedNames.has(normalize("Macro2026")) ||
     normalizedNames.has(normalize("Macro 2025")) ||
-    normalizedNames.has(normalize("macro 2025 -2026"));
+    normalizedNames.has(normalize("Macro2025")) ||
+    normalizedNames.has(normalize("macro 2025 -2026")) ||
+    normalizedNames.has(normalize("macro2025-2026"));
   const isMonthlyConsolidated = hasAnyMacroConsolidated && !normalizedNames.has(normalize("Abril"));
   const expectedForFile = isMonthlyConsolidated
     ? ["Macro 2026", "Macro 2025", "macro 2025 -2026", "Dinamica", "Cliente 2026", "Cliente 2025"]
@@ -243,7 +246,7 @@ export function parseWorkbook(buffer: ArrayBuffer): ParsedSheetData {
     return XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: null });
   };
 
-  const macroRaw = getRows(["Macro", "Macro 2026", "Macro 2025", "macro 2025 -2026"]);
+  const macroRaw = getRows(["Macro", "Macro 2026", "Macro2026", "Macro 2025", "Macro2025", "macro 2025 -2026", "macro2025-2026"]);
   const hoja8Raw = getRows("Hoja8");
   const posRaw = getRows("Macro Pos");
   const trafficDailyRaw = getRows(["Trafico por dia", "Tráfico por dia"]);
