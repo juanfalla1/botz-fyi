@@ -107,10 +107,13 @@ export function MetrocasDashboard() {
     const prevTitle = document.title;
     const stamp = new Date().toISOString().slice(0, 10);
     document.title = `metrocas-visible-${activeDatasetId || "dataset"}-${stamp}`;
-    window.print();
+    setIsPrinting(true);
     window.setTimeout(() => {
-      document.title = prevTitle;
-    }, 500);
+      window.print();
+      window.setTimeout(() => {
+        document.title = prevTitle;
+      }, 500);
+    }, 180);
   };
 
   useEffect(() => {
@@ -1416,7 +1419,7 @@ export function MetrocasDashboard() {
                           ))}
                         </BarChart>
                       ) : (
-                        <BarChart data={printSafePairRows} margin={{ top: 16, right: isPrinting ? 64 : 28, left: 8, bottom: isPrinting ? 68 : 36 }} barCategoryGap={isPrinting ? "30%" : "16%"}>
+                        <BarChart key={isPrinting ? "print" : "screen"} data={printSafePairRows} margin={{ top: 16, right: isPrinting ? 64 : 28, left: 8, bottom: isPrinting ? 68 : 36 }} barCategoryGap={isPrinting ? "30%" : "16%"}>
                           <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
                           <XAxis dataKey="name" tick={{ fontSize: isPrinting ? 10 : 11, fill: "#5f769b" }} />
                           <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />

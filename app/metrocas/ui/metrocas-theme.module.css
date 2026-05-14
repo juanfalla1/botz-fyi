@@ -371,6 +371,12 @@ ol.grid4 {
   .printChartSafe {
     height: 390px !important;
     padding-bottom: 34px;
+    width: 100% !important;
+    overflow: hidden !important;
+  }
+  .printChartSafe :global(.recharts-responsive-container) {
+    width: 100% !important;
+    height: 340px !important;
   }
   .printChartSafe :global(.recharts-wrapper),
   .printChartSafe :global(.recharts-surface),
