@@ -13,6 +13,9 @@ const recentMessageIds = new Map<string, number>();
 const ADVISOR_NUMBER = String(process.env.COLOMBIACHEF_ADVISOR_NUMBER || "573176408961").replace(/\D/g, "");
 const ADVISOR_NAME = String(process.env.COLOMBIACHEF_ADVISOR_NAME || "Andres Castillo").trim();
 const ADVISOR_LINK = ADVISOR_NUMBER ? `https://wa.me/${ADVISOR_NUMBER}` : "";
+const LOGO_URL = String(process.env.COLOMBIACHEF_LOGO_URL || "https://colombiachef.com/wp-content/uploads/2024/05/by-colombia-chef.png").trim();
+let logoBase64Cache = "";
+let logoMimeCache = "image/png";
 
 function isDuplicateMessage(messageId: string): boolean {
   const now = Date.now();
@@ -197,6 +200,50 @@ async function sendToInbound(outboundInstance: string, inbound: { from: string; 
   await evolutionService.sendMessage(outboundInstance, inbound.from, message);
 }
 
+async function getLogoBase64(): Promise<{ base64: string; mimetype: string } | null> {
+  if (logoBase64Cache) return { base64: logoBase64Cache, mimetype: logoMimeCache };
+  if (!LOGO_URL) return null;
+  try {
+    const res = await fetch(LOGO_URL, { method: "GET" });
+    if (!res.ok) return null;
+    const arr = await res.arrayBuffer();
+    const b64 = Buffer.from(arr).toString("base64");
+    const ct = String(res.headers.get("content-type") || "image/png");
+    logoBase64Cache = b64;
+    logoMimeCache = ct;
+    return { base64: b64, mimetype: ct };
+  } catch {
+    return null;
+  }
+}
+
+async function sendLogoIfNeeded(outboundInstance: string, inbound: { from: string; remoteJid: string; participant: string; rawFrom: string }, customerId: string, text: string): Promise<void> {
+  if (!isGreeting(text)) return;
+  const session = getSession(customerId);
+  if (session?.welcomed) return;
+
+  const logo = await getLogoBase64();
+  if (!logo) {
+    saveSession(customerId, { welcomed: true });
+    return;
+  }
+
+  try {
+    const jidDestination = pickJidDestination(inbound);
+    const destination = jidDestination.includes("@") ? jidDestination : inbound.from;
+    await evolutionService.sendImage(outboundInstance, destination, {
+      base64: logo.base64,
+      fileName: "colombia-chef-logo.png",
+      caption: "by Colombia Chef",
+      mimetype: logo.mimetype,
+    });
+  } catch {
+    // non-blocking
+  } finally {
+    saveSession(customerId, { welcomed: true });
+  }
+}
+
 export async function GET() {
   return NextResponse.json({ ok: true, service: "colombiachef-evolution-webhook", version: "1.0.0" });
 }
@@ -256,6 +303,8 @@ export async function POST(req: NextRequest) {
   const customerId = inbound.from || inbound.remoteJid || inbound.participant || "sin-id";
   const normalizedText = String(inbound.text || "").trim();
   const isPurchase = isPurchaseIntent(normalizedText);
+
+  await sendLogoIfNeeded(outboundInstance, inbound, customerId, normalizedText);
 
   if (isMoreOptionsIntent(normalizedText)) {
     const more = buildMoreOptionsAnswer(customerId);

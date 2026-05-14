@@ -9,6 +9,7 @@ type CustomerSession = {
   lastShownUrls: string[];
   lastResults: ProductLite[];
   lastUserMessage: string;
+  welcomed: boolean;
   updatedAt: number;
 };
 
@@ -33,6 +34,7 @@ export function saveSession(customerId: string, patch: Partial<CustomerSession>)
     lastShownUrls: [],
     lastResults: [],
     lastUserMessage: "",
+    welcomed: false,
     updatedAt: Date.now(),
   };
   const next = {
