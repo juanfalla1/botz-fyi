@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 
 const RECENT_MESSAGE_TTL_MS = 3 * 60 * 1000;
 const recentMessageIds = new Map<string, number>();
+const ADVISOR_NUMBER = String(process.env.COLOMBIACHEF_ADVISOR_NUMBER || "573176408961").replace(/\D/g, "");
+const ADVISOR_NAME = String(process.env.COLOMBIACHEF_ADVISOR_NAME || "Andres Castillo").trim();
 
 function isDuplicateMessage(messageId: string): boolean {
   const now = Date.now();
@@ -58,7 +60,7 @@ function buildPromoAnswer(): string {
 }
 
 function buildSearchAnswer(input: string): string {
-  const found = findProductsByText(input, 5);
+  const found = findProductsByText(input, 3);
   if (!found.length) {
     return "No encontré coincidencias exactas. Dime categoría (chaquetas, pantalones, delantales, gorros, combos o accesorios), talla y presupuesto y te ayudo a elegir.";
   }
@@ -67,6 +69,39 @@ function buildSearchAnswer(input: string): string {
     return `- ${p.name} | ${p.price || "Precio por confirmar"} | ${p.url}${notes ? ` | ${notes}` : ""}`;
   });
   return `Te encontré estas opciones:\n${lines.join("\n")}`;
+}
+
+function detectPurchaseIntent(input: string): boolean {
+  const t = input.toLowerCase();
+  return /(comprar|compra|pedido|pedir|agregar al carrito|como pago|como hago el pedido|quiero este|me gusta.*como compro|quiero llevar)/.test(t);
+}
+
+function buildPurchaseSummary(input: string, customerId: string): { customerReply: string; advisorSummary: string } {
+  const candidates = findProductsByText(input, 3);
+  const selected = candidates[0];
+  const selectedBlock = selected
+    ? `Producto principal: ${selected.name} | Precio visible: ${selected.price || "No visible"} | URL: ${selected.url}`
+    : "Producto principal: No identificado con exactitud";
+
+  const customerReply = [
+    "Perfecto, ya registré tu intención de compra.",
+    "Para cerrar el pedido, te conecto con un asesor comercial ahora mismo.",
+    "Por favor comparte en un solo mensaje: talla, color, cantidad y ciudad de entrega.",
+  ].join(" ");
+
+  const advisorSummary = [
+    `Nuevo pedido para ${ADVISOR_NAME}`,
+    `Canal: WhatsApp Colombia Chef`,
+    `Cliente: ${customerId}`,
+    `Mensaje cliente: ${input}`,
+    selectedBlock,
+    selected && selected.availability_notes ? `Disponibilidad: ${selected.availability_notes}` : "",
+    selected && selected.shipping_notes ? `Notas envio: ${selected.shipping_notes}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return { customerReply, advisorSummary };
 }
 
 function buildFallback(): string {
@@ -106,6 +141,19 @@ function pickJidDestination(inbound: { remoteJid: string; participant: string; r
     .filter(Boolean);
   const explicit = candidates.find((v) => v.includes("@"));
   return explicit || "";
+}
+
+async function sendToInbound(outboundInstance: string, inbound: { from: string; remoteJid: string; participant: string; rawFrom: string }, message: string) {
+  if (looksLikeRealMsisdn(inbound.from)) {
+    await evolutionService.sendMessage(outboundInstance, inbound.from, message);
+    return;
+  }
+  const jidDestination = pickJidDestination(inbound);
+  if (jidDestination.includes("@")) {
+    await evolutionService.sendMessageToJid(outboundInstance, jidDestination, message);
+    return;
+  }
+  await evolutionService.sendMessage(outboundInstance, inbound.from, message);
 }
 
 export async function GET() {
@@ -154,29 +202,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, ignored: true, reason: "test_mode_number_restricted", to: inbound.from });
   }
 
+  if (ADVISOR_NUMBER && inbound.from.replace(/\D/g, "") === ADVISOR_NUMBER) {
+    return NextResponse.json({ ok: true, ignored: true, reason: "advisor_inbound_ignored" });
+  }
+
   const outboundInstance = String(process.env.COLOMBIACHEF_EVOLUTION_INSTANCE || inbound.instance || "").trim();
   if (!outboundInstance) {
     console.error("[colombiachef-webhook] missing_instance_name");
     return NextResponse.json({ ok: false, error: "missing_instance_name" }, { status: 500 });
   }
 
-  const reply = composeReply(inbound.text);
+  const customerId = inbound.from || inbound.remoteJid || inbound.participant || "sin-id";
+  const isPurchase = detectPurchaseIntent(inbound.text);
+
   try {
-    if (looksLikeRealMsisdn(inbound.from)) {
-      await evolutionService.sendMessage(outboundInstance, inbound.from, reply);
-    } else {
-      const jidDestination = pickJidDestination(inbound);
-      if (jidDestination.includes("@")) {
-        await evolutionService.sendMessageToJid(outboundInstance, jidDestination, reply);
-      } else {
-        await evolutionService.sendMessage(outboundInstance, inbound.from, reply);
+    if (isPurchase) {
+      const handoff = buildPurchaseSummary(inbound.text, customerId);
+      await sendToInbound(outboundInstance, inbound, handoff.customerReply);
+      if (ADVISOR_NUMBER) {
+        await evolutionService.sendMessage(outboundInstance, ADVISOR_NUMBER, handoff.advisorSummary);
       }
+      console.log("[colombiachef-webhook] purchase_handoff_sent", {
+        outboundInstance,
+        customerId,
+        advisorNumber: ADVISOR_NUMBER,
+      });
+    } else {
+      const reply = composeReply(inbound.text);
+      await sendToInbound(outboundInstance, inbound, reply);
+      console.log("[colombiachef-webhook] sent", {
+        outboundInstance,
+        to: inbound.from,
+        replyPreview: reply.slice(0, 120),
+      });
     }
-    console.log("[colombiachef-webhook] sent", {
-      outboundInstance,
-      to: inbound.from,
-      replyPreview: reply.slice(0, 120),
-    });
   } catch (error: any) {
     console.error("[colombiachef-webhook] send_failed", {
       outboundInstance,
