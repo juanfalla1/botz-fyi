@@ -6,6 +6,20 @@ import { parseInbound } from "../_lib/evolution-payload";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const RECENT_MESSAGE_TTL_MS = 3 * 60 * 1000;
+const recentMessageIds = new Map<string, number>();
+
+function isDuplicateMessage(messageId: string): boolean {
+  const now = Date.now();
+  for (const [id, ts] of recentMessageIds.entries()) {
+    if (now - ts > RECENT_MESSAGE_TTL_MS) recentMessageIds.delete(id);
+  }
+  if (!messageId) return false;
+  if (recentMessageIds.has(messageId)) return true;
+  recentMessageIds.set(messageId, now);
+  return false;
+}
+
 function buildCategoryAnswer(input: string): string | null {
   const category = categoryMatches(input);
   if (!category) return null;
@@ -66,6 +80,9 @@ function buildFallback(): string {
 
 function composeReply(input: string): string {
   const low = input.toLowerCase();
+  if (/^(hola|buenas|buenos dias|buen dia|buenas tardes|buenas noches|hey|hello)\b/.test(low.trim())) {
+    return "Hola, soy el Asesor IA Colombia Chef. Que buscas hoy: chaqueta, pantalon, delantal, gorro, combo o accesorio?";
+  }
   if (/(promo|oferta|descuento)/.test(low)) return buildPromoAnswer();
   const policy = buildPolicyAnswer(low);
   if (policy) return policy;
@@ -121,6 +138,11 @@ export async function POST(req: NextRequest) {
     text: inbound.text.slice(0, 120),
     messageId: inbound.messageId,
   });
+
+  if (isDuplicateMessage(inbound.messageId)) {
+    console.log("[colombiachef-webhook] ignored duplicate_message", { messageId: inbound.messageId });
+    return NextResponse.json({ ok: true, ignored: true, reason: "duplicate_message" });
+  }
 
   const allowedTestNumber = String(process.env.COLOMBIACHEF_ALLOWED_TEST_NUMBER || "573154829949").replace(/\D/g, "");
   const testMode = String(process.env.COLOMBIACHEF_TEST_MODE || "true").toLowerCase() !== "false";
