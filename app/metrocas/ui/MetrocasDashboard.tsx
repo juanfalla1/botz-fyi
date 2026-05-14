@@ -101,6 +101,17 @@ export function MetrocasDashboard() {
   const [tableGraphTopN, setTableGraphTopN] = useState(6);
   const [deltaLabelMode, setDeltaLabelMode] = useState<"pct" | "cop">("pct");
 
+  const exportVisibleAsPdf = () => {
+    if (typeof window === "undefined") return;
+    const prevTitle = document.title;
+    const stamp = new Date().toISOString().slice(0, 10);
+    document.title = `metrocas-visible-${activeDatasetId || "dataset"}-${stamp}`;
+    window.print();
+    window.setTimeout(() => {
+      document.title = prevTitle;
+    }, 500);
+  };
+
   const normalizeInsights = (raw: any) => {
     if (!raw) return null;
     if (typeof raw === "object") {
@@ -662,7 +673,7 @@ export function MetrocasDashboard() {
 
   return (
     <main className={`${s.metrocasRoot} ${s.lightSurface}`}>
-      <div className={s.topNav}>
+      <div className={`${s.topNav} ${s.noPrint}`}>
         <div className={`${s.container} ${s.topNavInner}`}>
           <div className={s.brand}>Metricas Intelligence</div>
           <div className={s.navActions}>
@@ -695,9 +706,10 @@ export function MetrocasDashboard() {
           ))}
         </section>
 
-        <div className={s.navActions} style={{ marginBottom: 8 }}>
+        <div className={`${s.navActions} ${s.noPrint}`} style={{ marginBottom: 8 }}>
           <button className={granularity === "acumulado" ? s.btnPrimary : s.btnSecondary} onClick={() => setGranularity("acumulado")}>Acumulado</button>
           <button className={granularity === "mensual" ? s.btnPrimary : s.btnSecondary} onClick={() => setGranularity("mensual")}>Mensual</button>
+          <button className={s.btnSecondary} onClick={exportVisibleAsPdf}>Descargar PDF visible</button>
           {granularity === "mensual" ? (
             <select
               className={s.input}
@@ -1403,8 +1415,12 @@ export function MetrocasDashboard() {
                               const currRaw = Number((payload as any)?.curr || 0);
                               const delta = currRaw - prevRaw;
                               const pct = prevRaw === 0 ? (currRaw > 0 ? 100 : 0) : (delta / prevRaw) * 100;
+                              const absPct = Math.abs(pct);
+                              const pctText = absPct < 0.05
+                                ? (delta === 0 ? "0.0%" : `${pct >= 0 ? "+" : "-"}<0.1%`)
+                                : `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
                               const txt = deltaLabelMode === "pct"
-                                ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`
+                                ? pctText
                                 : `${delta >= 0 ? "+" : "-"}${money(Math.abs(delta))}`;
                               const color = pct >= 0 ? "#0f766e" : "#b91c1c";
                               return (

@@ -304,6 +304,8 @@ ol.grid4 {
   height: 18px;
 }
 
+.noPrint {}
+
 @keyframes metrocas-spin {
   to { transform: rotate(360deg); }
 }
@@ -331,4 +333,24 @@ ol.grid4 {
   .variationToolbar { padding: 8px; }
   .variationGraphControls { width: 100%; }
   .variationGraphControls .input { min-width: 0; width: 100%; }
+}
+
+@media print {
+  .noPrint { display: none !important; }
+  .metrocasRoot {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+  .container {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+  .card,
+  .kpiPremiumCard,
+  .panelCard {
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }
