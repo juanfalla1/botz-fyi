@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { evolutionService } from "@/lib/services/evolution.service";
+import { evolutionService } from "../../../../../../../lib/services/evolution.service";
 import { categoryMatches, findProductsByCategory, findProductsByText, loadCatalog } from "../_lib/catalog";
 import { parseInbound } from "../_lib/evolution-payload";
 
