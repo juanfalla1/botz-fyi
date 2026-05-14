@@ -12,6 +12,7 @@ const RECENT_MESSAGE_TTL_MS = 3 * 60 * 1000;
 const recentMessageIds = new Map<string, number>();
 const ADVISOR_NUMBER = String(process.env.COLOMBIACHEF_ADVISOR_NUMBER || "573176408961").replace(/\D/g, "");
 const ADVISOR_NAME = String(process.env.COLOMBIACHEF_ADVISOR_NAME || "Andres Castillo").trim();
+const ADVISOR_LINK = ADVISOR_NUMBER ? `https://wa.me/${ADVISOR_NUMBER}` : "";
 
 function isDuplicateMessage(messageId: string): boolean {
   const now = Date.now();
@@ -84,6 +85,7 @@ function buildPurchaseSummary(input: string, customerId: string): { customerRepl
   const customerReply = [
     "Perfecto, ya registré tu intención de compra.",
     "Para cerrar el pedido, te conecto con un asesor comercial ahora mismo.",
+    ADVISOR_LINK ? `Enlace directo asesor: ${ADVISOR_LINK}` : "",
     "Por favor comparte en un solo mensaje: talla, color, cantidad y ciudad de entrega.",
   ].join(" ");
 
