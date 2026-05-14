@@ -33,11 +33,13 @@ function buildCategoryAnswer(input: string): string | null {
     return `Por ahora no tengo productos listados en ${category}. ¿Quieres que te pase otras categorías?`;
   }
 
-  const lines = items.map((p) => {
-    const price = p.price || "Precio por confirmar";
-    return `${p.name} | ${price} | ${p.url}`;
-  });
-  return `Perfecto, te comparto opciones en ${category}:\n${lines.join("\n")}\n\nSi me dices talla, color y presupuesto te recomiendo la mejor opción.`;
+  const lines = items.map((p, i) => formatOptionLine(i + 1, p.name, p.price, p.url));
+  return [
+    `Perfecto. Opciones en ${category}:`,
+    ...lines,
+    "",
+    "Si me dices talla, color y presupuesto te recomiendo mejor.",
+  ].join("\n");
 }
 
 function buildPolicyAnswer(input: string): string | null {
@@ -58,8 +60,8 @@ function buildPolicyAnswer(input: string): string | null {
 function buildPromoAnswer(): string {
   const promos = findProductsByCategory("Promos", 3);
   if (!promos.length) return "En este momento no me aparecen promos activas. Si quieres, te busco por categoría.";
-  const lines = promos.map((p) => `${p.name} | ${p.price || "Precio por confirmar"} | ${p.url}`);
-  return `Estas son algunas promociones activas:\n${lines.join("\n")}`;
+  const lines = promos.map((p, i) => formatOptionLine(i + 1, p.name, p.price, p.url));
+  return ["Promociones activas:", ...lines].join("\n");
 }
 
 function buildSearchAnswer(input: string): string {
@@ -67,11 +69,11 @@ function buildSearchAnswer(input: string): string {
   if (!found.length) {
     return "No encontré coincidencias exactas. Dime categoría (chaquetas, pantalones, delantales, gorros, combos o accesorios), talla y presupuesto y te ayudo a elegir.";
   }
-  const lines = found.map((p) => {
-    const notes = [p.availability_notes, p.shipping_notes].filter(Boolean).join(" | ");
-    return `${p.name} | ${p.price || "Precio por confirmar"} | ${p.url}${notes ? ` | ${notes}` : ""}`;
+  const lines = found.map((p, i) => {
+    const notes = [p.availability_notes, p.shipping_notes].filter(Boolean).join(". ");
+    return formatOptionLine(i + 1, p.name, p.price, p.url, notes);
   });
-  return `Te encontré estas opciones:\n${lines.join("\n")}`;
+  return ["Te encontré estas opciones:", ...lines].join("\n");
 }
 
 function buildPurchaseSummary(input: string, customerId: string): { customerReply: string; advisorSummary: string } {
@@ -106,8 +108,23 @@ function buildPurchaseSummary(input: string, customerId: string): { customerRepl
 
 function formatProductsList(items: Array<{ name: string; price: string; url: string }>, prefix: string): string {
   if (!items.length) return "";
-  const lines = items.map((p) => `${p.name} | ${p.price || "No veo precio visible para ese producto en este momento."} | ${p.url}`);
+  const lines = items.map((p, i) => formatOptionLine(i + 1, p.name, p.price, p.url));
   return `${prefix}\n${lines.join("\n")}`;
+}
+
+function compactName(name: string): string {
+  const cleaned = String(name || "").replace(/[\s\t\n]+/g, " ").trim();
+  return cleaned.length > 52 ? `${cleaned.slice(0, 52)}...` : cleaned;
+}
+
+function visiblePrice(price: string): string {
+  return price && String(price).trim() ? String(price).trim() : "No veo precio visible para ese producto en este momento.";
+}
+
+function formatOptionLine(index: number, name: string, price: string, url: string, notes?: string): string {
+  const row = `${index}) ${compactName(name)} | ${visiblePrice(price)}\n${url}`;
+  if (!notes) return row;
+  return `${row}\nNota: ${compactName(notes)}`;
 }
 
 function buildMoreOptionsAnswer(customerId: string): string | null {
