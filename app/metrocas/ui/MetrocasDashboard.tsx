@@ -1385,10 +1385,10 @@ export function MetrocasDashboard() {
                       </>
                     ) : null}
                   </div>
-                  <div style={chartBoxStyle}>
+                  <div style={chartBoxStyle} className={s.printChartSafe}>
                     <ResponsiveContainer width="100%" height="100%">
                       {compareAllMonths ? (
-                        <BarChart data={variationGraphModel.allMonthsSeries}>
+                        <BarChart data={variationGraphModel.allMonthsSeries} margin={{ top: 16, right: 28, left: 8, bottom: 36 }}>
                           <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
                           <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
@@ -1399,7 +1399,7 @@ export function MetrocasDashboard() {
                           ))}
                         </BarChart>
                       ) : (
-                        <BarChart data={variationGraphModel.pairRows}>
+                        <BarChart data={variationGraphModel.pairRows} margin={{ top: 16, right: 28, left: 8, bottom: 36 }}>
                           <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
                           <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />

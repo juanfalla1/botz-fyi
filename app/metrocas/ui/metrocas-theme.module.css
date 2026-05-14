@@ -306,6 +306,8 @@ ol.grid4 {
 
 .noPrint {}
 
+.printChartSafe {}
+
 @keyframes metrocas-spin {
   to { transform: rotate(360deg); }
 }
@@ -365,5 +367,17 @@ ol.grid4 {
   }
   .card svg {
     overflow: visible !important;
+  }
+  .printChartSafe {
+    height: 360px !important;
+    padding-bottom: 22px;
+  }
+  .printChartSafe :global(.recharts-wrapper),
+  .printChartSafe :global(.recharts-surface),
+  .printChartSafe :global(.recharts-legend-wrapper) {
+    overflow: visible !important;
+  }
+  .printChartSafe :global(.recharts-legend-wrapper) {
+    bottom: -8px !important;
   }
 }
