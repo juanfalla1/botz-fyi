@@ -1383,7 +1383,7 @@ export function MetrocasDashboard() {
 
                 <div className={`${s.card} ${s.variationGraphCard}`} style={{ marginTop: 12 }}>
                   <h4 style={{ marginTop: 0 }}>Grafico desde tabla dinamica</h4>
-                  <div className={`${s.navActions} ${s.variationGraphControls}`} style={{ marginBottom: 8 }}>
+                  <div className={`${s.navActions} ${s.variationGraphControls} ${s.noPrint}`} style={{ marginBottom: 8 }}>
                     <select className={s.input} value={tableGraphSource} onChange={(e) => setTableGraphSource(e.target.value as any)} style={{ maxWidth: 180 }}>
                       <option value="segment">Segmento</option>
                       <option value="customer">Cliente</option>
@@ -1416,16 +1416,16 @@ export function MetrocasDashboard() {
                           ))}
                         </BarChart>
                       ) : (
-                        <BarChart data={printSafePairRows} margin={{ top: 16, right: isPrinting ? 48 : 28, left: 8, bottom: isPrinting ? 58 : 36 }} barCategoryGap={isPrinting ? "26%" : "16%"}>
+                        <BarChart data={printSafePairRows} margin={{ top: 16, right: isPrinting ? 64 : 28, left: 8, bottom: isPrinting ? 68 : 36 }} barCategoryGap={isPrinting ? "30%" : "16%"}>
                           <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
                           <XAxis dataKey="name" tick={{ fontSize: isPrinting ? 10 : 11, fill: "#5f769b" }} />
                           <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <Tooltip formatter={(v: any, name: any) => [money(Number(v)), String(name)]} contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }} />
-                          <Legend wrapperStyle={isPrinting ? { fontSize: 11, bottom: -8 } : undefined} />
-                          <Bar dataKey="prev" name={`Mes base (${variationModel.prevMonth || ""})`} fill="#94a3b8" radius={[6, 6, 0, 0]} />
+                          <Legend wrapperStyle={isPrinting ? { fontSize: 11, bottom: -18, left: 0, right: 0 } : undefined} />
+                          <Bar dataKey="prev" name={isPrinting ? `Base (${variationModel.prevMonth || ""})` : `Mes base (${variationModel.prevMonth || ""})`} fill="#94a3b8" radius={[6, 6, 0, 0]} />
                           <Bar
                             dataKey="curr"
-                            name={`Mes comparado (${variationModel.currMonth || ""})`}
+                            name={isPrinting ? `Comp (${variationModel.currMonth || ""})` : `Mes comparado (${variationModel.currMonth || ""})`}
                             radius={[6, 6, 0, 0]}
                             label={({ x, y, width, index }) => {
                               const idx = Number(index ?? -1);
