@@ -353,4 +353,17 @@ ol.grid4 {
     break-inside: avoid;
     page-break-inside: avoid;
   }
+  .grid2,
+  .grid3,
+  .grid4,
+  .kpiPremiumGrid,
+  .form {
+    grid-template-columns: 1fr !important;
+  }
+  .card {
+    overflow: visible !important;
+  }
+  .card svg {
+    overflow: visible !important;
+  }
 }

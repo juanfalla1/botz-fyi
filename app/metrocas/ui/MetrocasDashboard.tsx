@@ -1410,9 +1410,11 @@ export function MetrocasDashboard() {
                             dataKey="curr"
                             name={`Mes comparado (${variationModel.currMonth || ""})`}
                             radius={[6, 6, 0, 0]}
-                            label={({ x, y, width, payload }) => {
-                              const prevRaw = Number((payload as any)?.prev || 0);
-                              const currRaw = Number((payload as any)?.curr || 0);
+                            label={({ x, y, width, index }) => {
+                              const idx = Number(index ?? -1);
+                              const row = idx >= 0 ? variationGraphModel.pairRows[idx] : null;
+                              const prevRaw = Number(row?.prev || 0);
+                              const currRaw = Number(row?.curr || 0);
                               const delta = currRaw - prevRaw;
                               const pct = prevRaw === 0 ? (currRaw > 0 ? 100 : 0) : (delta / prevRaw) * 100;
                               const absPct = Math.abs(pct);
