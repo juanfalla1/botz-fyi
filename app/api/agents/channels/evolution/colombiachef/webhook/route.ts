@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import fs from "node:fs";
+import path from "node:path";
 import { evolutionService } from "../../../../../../../lib/services/evolution.service";
 import { categoryMatches, findProductsByCategory, findProductsByText, loadCatalog } from "../_lib/catalog";
 import { parseInbound } from "../_lib/evolution-payload";
@@ -14,6 +16,7 @@ const ADVISOR_NUMBER = String(process.env.COLOMBIACHEF_ADVISOR_NUMBER || "573176
 const ADVISOR_NAME = String(process.env.COLOMBIACHEF_ADVISOR_NAME || "Andres Castillo").trim();
 const ADVISOR_LINK = ADVISOR_NUMBER ? `https://wa.me/${ADVISOR_NUMBER}` : "";
 const LOGO_URL = String(process.env.COLOMBIACHEF_LOGO_URL || "https://colombiachef.com/wp-content/uploads/2024/05/by-colombia-chef.png").trim();
+const LOGO_LOCAL_PATH = String(process.env.COLOMBIACHEF_LOGO_LOCAL_PATH || "src/logo colombiachef.png").trim();
 let logoBase64Cache = "";
 let logoMimeCache = "image/png";
 
@@ -202,6 +205,20 @@ async function sendToInbound(outboundInstance: string, inbound: { from: string; 
 
 async function getLogoBase64(): Promise<{ base64: string; mimetype: string } | null> {
   if (logoBase64Cache) return { base64: logoBase64Cache, mimetype: logoMimeCache };
+  const localPath = path.isAbsolute(LOGO_LOCAL_PATH)
+    ? LOGO_LOCAL_PATH
+    : path.join(process.cwd(), LOGO_LOCAL_PATH);
+  if (fs.existsSync(localPath)) {
+    try {
+      const file = fs.readFileSync(localPath);
+      logoBase64Cache = file.toString("base64");
+      logoMimeCache = "image/png";
+      return { base64: logoBase64Cache, mimetype: logoMimeCache };
+    } catch {
+      // fallback to URL fetch
+    }
+  }
+
   if (!LOGO_URL) return null;
   try {
     const res = await fetch(LOGO_URL, { method: "GET" });
