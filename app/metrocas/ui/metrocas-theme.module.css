@@ -105,6 +105,31 @@
   border-color: #bfd2ef;
 }
 
+.variationToolbar {
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid #d5e2f7;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+.variationGraphCard {
+  border-color: #cadefb;
+  background: linear-gradient(180deg, #ffffff, #f9fcff);
+}
+
+.variationGraphControls {
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #dbe7fa;
+  border-radius: 10px;
+  background: #f9fcff;
+}
+
+.variationGraphControls .input {
+  background: #ffffff;
+  min-width: 150px;
+}
+
 .hero {
   padding: 56px 0 26px;
 }
@@ -303,4 +328,7 @@ ol.grid4 {
   .grid2, .grid3, .grid4, .form { grid-template-columns: 1fr; }
   .kpiPremiumGrid { grid-template-columns: 1fr; }
   .textarea, .full { grid-column: auto; }
+  .variationToolbar { padding: 8px; }
+  .variationGraphControls { width: 100%; }
+  .variationGraphControls .input { min-width: 0; width: 100%; }
 }

@@ -96,6 +96,9 @@ export function MetrocasDashboard() {
   const [compareMonth, setCompareMonth] = useState<string>("");
   const [variationFromMonth, setVariationFromMonth] = useState<string>("");
   const [variationToMonth, setVariationToMonth] = useState<string>("");
+  const [compareAllMonths, setCompareAllMonths] = useState(false);
+  const [tableGraphSource, setTableGraphSource] = useState<"segment" | "customer" | "product">("segment");
+  const [tableGraphTopN, setTableGraphTopN] = useState(6);
 
   const normalizeInsights = (raw: any) => {
     if (!raw) return null;
@@ -543,6 +546,38 @@ export function MetrocasDashboard() {
       product: buildEntityYoY("product"),
     };
   }, [filteredFacts, compareMonth]);
+
+  const variationGraphModel = useMemo(() => {
+    const source = variationModel[tableGraphSource];
+    const pairRows = (source?.pivotRows || []).slice(0, tableGraphTopN).map((r: any) => ({
+      name: String(r.name).slice(0, 24),
+      prev: Number(r.prev || 0),
+      curr: Number(r.curr || 0),
+      delta: Number(r.delta || 0),
+    }));
+
+    const keyBySource = tableGraphSource === "segment" ? "segment" : tableGraphSource === "customer" ? "customer" : "product";
+    const months = variationModel.months || [];
+    const topEntities = (source?.pivotRows || [])
+      .slice(0, Math.min(4, tableGraphTopN))
+      .map((r: any) => String(r.name));
+
+    const allMonthsSeries = months.map((m: string) => {
+      const row: Record<string, any> = { month: m };
+      topEntities.forEach((entity) => {
+        row[entity] = filteredFacts
+          .filter((f) => String(f.month || "") === m && String((f as any)[keyBySource] || "EN BLANCO") === entity)
+          .reduce((acc, f) => acc + Number((f as any).amount || 0), 0);
+      });
+      return row;
+    });
+
+    return {
+      pairRows,
+      allMonthsSeries,
+      topEntities,
+    };
+  }, [variationModel, tableGraphSource, tableGraphTopN, filteredFacts]);
 
   const annexes = useMemo(() => {
     return aggregate.byBranch.slice(0, 8).map((b) => {
@@ -1098,8 +1133,10 @@ export function MetrocasDashboard() {
             ) : null}
             {tab === "Variaciones Pro" ? (
               <div style={{ marginTop: 10 }}>
-                <div className={s.navActions} style={{ marginBottom: 10 }}>
+                <div className={`${s.navActions} ${s.variationToolbar}`} style={{ marginBottom: 10 }}>
                   <span className={s.muted}>Comparativo mensual:</span>
+                  <button className={compareAllMonths ? s.btnPrimary : s.btnSecondary} onClick={() => setCompareAllMonths(true)}>Comparar todo</button>
+                  <button className={!compareAllMonths ? s.btnPrimary : s.btnSecondary} onClick={() => setCompareAllMonths(false)}>Comparacion puntual</button>
                   <select className={s.input} value={variationFromMonth} onChange={(e) => setVariationFromMonth(e.target.value)} style={{ maxWidth: 180 }}>
                     <option value="">Mes base</option>
                     {variationModel.months.map((mm) => (<option key={`vm-from-${mm}`} value={mm}>{mm}</option>))}
@@ -1110,7 +1147,9 @@ export function MetrocasDashboard() {
                   </select>
                 </div>
                 <p className={s.muted}>
-                  Comparativo mensual entre <strong>{variationModel.prevMonth || "N/A"}</strong> y <strong>{variationModel.currMonth || "N/A"}</strong>.
+                  {compareAllMonths
+                    ? "Panorama completo por meses (segun filtros activos)."
+                    : <>Comparativo mensual entre <strong>{variationModel.prevMonth || "N/A"}</strong> y <strong>{variationModel.currMonth || "N/A"}</strong>.</>}
                 </p>
                 <div className={s.grid2}>
                   <div className={s.card}>
@@ -1123,15 +1162,15 @@ export function MetrocasDashboard() {
                           <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <Tooltip
-                            formatter={(v: any, key: any, p: any) => {
-                              if (key === "delta") return [money(Number(v)), "Delta"];
-                              return [money(Number(v)), key === "prev" ? `Mes base (${variationModel.prevMonth || "Base"})` : `Mes comparado (${variationModel.currMonth || "Actual"})`];
+                            formatter={(v: any, name: any) => {
+                              if (name === "Delta") return [money(Number(v)), "Delta"];
+                              return [money(Number(v)), String(name)];
                             }}
                             contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }}
                           />
                           <Legend />
-                          <Bar dataKey="prev" name={`Base ${variationModel.prevMonth || ""}`} fill="#94a3b8" radius={[8, 8, 0, 0]} />
-                          <Bar dataKey="curr" name={`Comparado ${variationModel.currMonth || ""}`} fill="#0284c7" radius={[8, 8, 0, 0]} />
+                          <Bar dataKey="prev" name={`Mes base (${variationModel.prevMonth || ""})`} fill="#94a3b8" radius={[8, 8, 0, 0]} />
+                          <Bar dataKey="curr" name={`Mes comparado (${variationModel.currMonth || ""})`} fill="#0284c7" radius={[8, 8, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1300,6 +1339,49 @@ export function MetrocasDashboard() {
                         })}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+
+                <div className={`${s.card} ${s.variationGraphCard}`} style={{ marginTop: 12 }}>
+                  <h4 style={{ marginTop: 0 }}>Grafico desde tabla dinamica</h4>
+                  <div className={`${s.navActions} ${s.variationGraphControls}`} style={{ marginBottom: 8 }}>
+                    <select className={s.input} value={tableGraphSource} onChange={(e) => setTableGraphSource(e.target.value as any)} style={{ maxWidth: 180 }}>
+                      <option value="segment">Segmento</option>
+                      <option value="customer">Cliente</option>
+                      <option value="product">Producto</option>
+                    </select>
+                    <select className={s.input} value={String(tableGraphTopN)} onChange={(e) => setTableGraphTopN(Number(e.target.value || 6))} style={{ maxWidth: 140 }}>
+                      <option value="4">Top 4</option>
+                      <option value="6">Top 6</option>
+                      <option value="8">Top 8</option>
+                      <option value="10">Top 10</option>
+                    </select>
+                  </div>
+                  <div style={chartBoxStyle}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      {compareAllMonths ? (
+                        <BarChart data={variationGraphModel.allMonthsSeries}>
+                          <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
+                          <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#5f769b" }} />
+                          <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
+                          <Tooltip formatter={(v: any) => money(Number(v))} contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }} />
+                          <Legend />
+                          {variationGraphModel.topEntities.map((key, i) => (
+                            <Bar key={`allm-${key}`} dataKey={key} name={String(key).slice(0, 24)} fill={["#2563eb", "#16a34a", "#f59e0b", "#dc2626"][i % 4]} radius={[6, 6, 0, 0]} />
+                          ))}
+                        </BarChart>
+                      ) : (
+                        <BarChart data={variationGraphModel.pairRows}>
+                          <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#5f769b" }} />
+                          <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
+                          <Tooltip formatter={(v: any, name: any) => [money(Number(v)), String(name)]} contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }} />
+                          <Legend />
+                          <Bar dataKey="prev" name={`Mes base (${variationModel.prevMonth || ""})`} fill="#94a3b8" radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="curr" name={`Mes comparado (${variationModel.currMonth || ""})`} fill="#0284c7" radius={[6, 6, 0, 0]} />
+                        </BarChart>
+                      )}
+                    </ResponsiveContainer>
                   </div>
                 </div>
 
