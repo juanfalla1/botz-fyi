@@ -15,3 +15,15 @@ export function isMoreOptionsIntent(text: string): boolean {
     String(text || "").trim()
   );
 }
+
+export function isCatalogScopeQuestion(text: string): boolean {
+  return /(que venden|que manejan|que productos|que tienen|que ofrecen|catalogo|portafolio)/i.test(
+    String(text || "")
+  );
+}
+
+export function isUnsupportedRequest(text: string): boolean {
+  return /(carne|pollo|res|cerdo|pescado|verdura|fruta|arroz|aceite|huevo|leche|queso)/i.test(
+    String(text || "")
+  );
+}

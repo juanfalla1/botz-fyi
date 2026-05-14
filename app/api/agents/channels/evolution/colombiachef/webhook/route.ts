@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { evolutionService } from "../../../../../../../lib/services/evolution.service";
 import { categoryMatches, findProductsByCategory, findProductsByText, loadCatalog } from "../_lib/catalog";
 import { parseInbound } from "../_lib/evolution-payload";
-import { isGreeting, isMoreOptionsIntent, isPurchaseIntent } from "../_lib/intent";
+import { isCatalogScopeQuestion, isGreeting, isMoreOptionsIntent, isPurchaseIntent, isUnsupportedRequest } from "../_lib/intent";
 import { getSession, saveSession } from "../_lib/session";
 
 export const runtime = "nodejs";
@@ -154,11 +154,29 @@ function buildFallback(): string {
   ].join(" ");
 }
 
+function buildCatalogScopeAnswer(): string {
+  return [
+    "Vendemos uniformes y accesorios para cocina.",
+    "Categorias: chaquetas, pantalones, delantales, gorros, combos, accesorios y promociones.",
+    "Dime una categoria y te comparto hasta 3 opciones con enlace directo.",
+  ].join(" ");
+}
+
+function buildUnsupportedAnswer(): string {
+  return [
+    "En este momento no vendemos ese tipo de producto.",
+    "Si quieres, te ayudo con productos que si manejamos: chaquetas, pantalones, delantales, gorros, combos y accesorios.",
+    "Dime que categoria te interesa y te muestro opciones reales.",
+  ].join(" ");
+}
+
 function composeReply(input: string): string {
   const low = input.toLowerCase();
   if (isGreeting(low)) {
     return "Hola, soy el Asesor IA Colombia Chef. Que buscas hoy: chaqueta, pantalon, delantal, gorro, combo o accesorio?";
   }
+  if (isUnsupportedRequest(low)) return buildUnsupportedAnswer();
+  if (isCatalogScopeQuestion(low)) return buildCatalogScopeAnswer();
   if (/(promo|oferta|descuento)/.test(low)) return buildPromoAnswer();
   const policy = buildPolicyAnswer(low);
   if (policy) return policy;
