@@ -1399,8 +1399,10 @@ export function MetrocasDashboard() {
                             name={`Mes comparado (${variationModel.currMonth || ""})`}
                             radius={[6, 6, 0, 0]}
                             label={({ x, y, width, payload }) => {
-                              const pct = Number((payload as any)?.deltaPct || 0);
-                              const delta = Number((payload as any)?.delta || 0);
+                              const prevRaw = Number((payload as any)?.prev || 0);
+                              const currRaw = Number((payload as any)?.curr || 0);
+                              const delta = currRaw - prevRaw;
+                              const pct = prevRaw === 0 ? (currRaw > 0 ? 100 : 0) : (delta / prevRaw) * 100;
                               const txt = deltaLabelMode === "pct"
                                 ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`
                                 : `${delta >= 0 ? "+" : "-"}${money(Math.abs(delta))}`;
