@@ -1,6 +1,9 @@
 export type InboundMessage = {
   instance: string;
   from: string;
+  rawFrom: string;
+  remoteJid: string;
+  participant: string;
   text: string;
   messageId: string;
 };
@@ -33,9 +36,14 @@ export function parseInbound(payload: any): InboundMessage | null {
   const fromMe = Boolean(key?.fromMe || data?.fromMe);
   if (fromMe) return null;
 
+  const remoteJid = String(key?.remoteJid || data?.remoteJid || "").trim();
+  const participant = String(key?.participant || data?.participant || "").trim();
+
   const fromRaw = String(
     key?.remoteJid ||
       data?.remoteJid ||
+      key?.participant ||
+      data?.participant ||
       data?.from ||
       payload?.sender ||
       ""
@@ -47,6 +55,9 @@ export function parseInbound(payload: any): InboundMessage | null {
   return {
     instance: String(payload?.instance || payload?.instanceName || data?.instance || "").trim(),
     from,
+    rawFrom: fromRaw,
+    remoteJid,
+    participant,
     text,
     messageId: String(key?.id || data?.id || "").trim(),
   };

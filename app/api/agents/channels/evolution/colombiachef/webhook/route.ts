@@ -75,6 +75,22 @@ function composeReply(input: string): string {
   return buildFallback();
 }
 
+function looksLikeRealMsisdn(value: string): boolean {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return false;
+  if (digits.length === 10) return true;
+  if (digits.length === 12 && digits.startsWith("57")) return true;
+  return false;
+}
+
+function pickJidDestination(inbound: { remoteJid: string; participant: string; rawFrom: string }): string {
+  const candidates = [inbound.remoteJid, inbound.participant, inbound.rawFrom]
+    .map((v) => String(v || "").trim())
+    .filter(Boolean);
+  const explicit = candidates.find((v) => v.includes("@"));
+  return explicit || "";
+}
+
 export async function GET() {
   return NextResponse.json({ ok: true, service: "colombiachef-evolution-webhook", version: "1.0.0" });
 }
@@ -100,6 +116,8 @@ export async function POST(req: NextRequest) {
   console.log("[colombiachef-webhook] inbound", {
     instance: inbound.instance,
     from: inbound.from,
+    remoteJid: inbound.remoteJid,
+    participant: inbound.participant,
     text: inbound.text.slice(0, 120),
     messageId: inbound.messageId,
   });
@@ -122,7 +140,16 @@ export async function POST(req: NextRequest) {
 
   const reply = composeReply(inbound.text);
   try {
-    await evolutionService.sendMessage(outboundInstance, inbound.from, reply);
+    if (looksLikeRealMsisdn(inbound.from)) {
+      await evolutionService.sendMessage(outboundInstance, inbound.from, reply);
+    } else {
+      const jidDestination = pickJidDestination(inbound);
+      if (jidDestination.includes("@")) {
+        await evolutionService.sendMessageToJid(outboundInstance, jidDestination, reply);
+      } else {
+        await evolutionService.sendMessage(outboundInstance, inbound.from, reply);
+      }
+    }
     console.log("[colombiachef-webhook] sent", {
       outboundInstance,
       to: inbound.from,
