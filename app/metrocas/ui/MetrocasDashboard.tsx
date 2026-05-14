@@ -554,6 +554,7 @@ export function MetrocasDashboard() {
       prev: Number(r.prev || 0),
       curr: Number(r.curr || 0),
       delta: Number(r.delta || 0),
+      deltaPct: Number(r.prev || 0) === 0 ? 0 : (Number(r.delta || 0) / Number(r.prev || 1)) * 100,
     }));
 
     const keyBySource = tableGraphSource === "segment" ? "segment" : tableGraphSource === "customer" ? "customer" : "product";
@@ -1378,11 +1379,34 @@ export function MetrocasDashboard() {
                           <Tooltip formatter={(v: any, name: any) => [money(Number(v)), String(name)]} contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }} />
                           <Legend />
                           <Bar dataKey="prev" name={`Mes base (${variationModel.prevMonth || ""})`} fill="#94a3b8" radius={[6, 6, 0, 0]} />
-                          <Bar dataKey="curr" name={`Mes comparado (${variationModel.currMonth || ""})`} fill="#0284c7" radius={[6, 6, 0, 0]} />
+                          <Bar
+                            dataKey="curr"
+                            name={`Mes comparado (${variationModel.currMonth || ""})`}
+                            radius={[6, 6, 0, 0]}
+                            label={({ x, y, width, payload }) => {
+                              const pct = Number((payload as any)?.deltaPct || 0);
+                              const txt = `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+                              const color = pct >= 0 ? "#0f766e" : "#b91c1c";
+                              return (
+                                <text x={Number(x) + Number(width) / 2} y={Number(y) - 8} textAnchor="middle" fill={color} fontSize={11} fontWeight={700}>
+                                  {txt}
+                                </text>
+                              );
+                            }}
+                          >
+                            {variationGraphModel.pairRows.map((row, idx) => (
+                              <Cell key={`curr-cell-${idx}`} fill={Number(row.delta || 0) >= 0 ? "#16a34a" : "#dc2626"} />
+                            ))}
+                          </Bar>
                         </BarChart>
                       )}
                     </ResponsiveContainer>
                   </div>
+                  {!compareAllMonths ? (
+                    <p className={s.muted} style={{ marginTop: 8, marginBottom: 0 }}>
+                      Verde = top sube, rojo = top baja. La etiqueta indica variacion porcentual frente al mes base.
+                    </p>
+                  ) : null}
                 </div>
 
                 {yoyModel.hasAnnualData ? (
