@@ -1,6 +1,4 @@
-import fs from "node:fs";
-import path from "node:path";
-import { colombiaChefAgentConfig } from "./config";
+import dataJson from "./data/colombiachef_bot_data.json";
 
 export type ChefProduct = {
   name: string;
@@ -24,7 +22,7 @@ type DataFile = {
   products?: ChefProduct[];
 };
 
-let cached: DataFile | null = null;
+let cached: DataFile | null = (dataJson as DataFile);
 
 function normalize(value: string): string {
   return String(value || "")
@@ -35,14 +33,7 @@ function normalize(value: string): string {
 }
 
 export function loadChefData(): DataFile {
-  if (cached) return cached;
-  const configuredPath = colombiaChefAgentConfig.dataPaths.json;
-  const filePath = path.isAbsolute(configuredPath)
-    ? configuredPath
-    : path.join(process.cwd(), configuredPath);
-  const raw = fs.readFileSync(filePath, "utf-8");
-  cached = JSON.parse(raw) as DataFile;
-  return cached;
+  return cached || { products: [] };
 }
 
 export function getPolicies(): string[] {

@@ -1,5 +1,4 @@
-import fs from "node:fs";
-import path from "node:path";
+import catalogJson from "@/src/agents/colombia-chef/data/colombiachef_bot_data.json";
 
 export type ColombiaChefProduct = {
   name: string;
@@ -29,7 +28,7 @@ type CatalogData = {
   };
 };
 
-let cached: CatalogData | null = null;
+let cached: CatalogData | null = (catalogJson as CatalogData);
 
 function normalize(value: string): string {
   return String(value || "")
@@ -40,12 +39,7 @@ function normalize(value: string): string {
 }
 
 export function loadCatalog(): CatalogData {
-  if (cached) return cached;
-  const configured = process.env.COLOMBIACHEF_CATALOG_PATH || path.join(process.cwd(), "colombiachef_bot_data.json");
-  const file = path.isAbsolute(configured) ? configured : path.join(process.cwd(), configured);
-  const raw = fs.readFileSync(file, "utf-8");
-  cached = JSON.parse(raw) as CatalogData;
-  return cached;
+  return cached || { products: [] };
 }
 
 export function categoryMatches(input: string): string | null {
