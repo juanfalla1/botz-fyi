@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { evolutionService } from "../../../../../../../lib/services/evolution.service";
 import { categoryMatches, findProductsByCategory, findProductsByText, loadCatalog } from "../_lib/catalog";
 import { parseInbound } from "../_lib/evolution-payload";
+import { isGreeting, isMoreOptionsIntent, isPurchaseIntent } from "../_lib/intent";
+import { getSession, saveSession } from "../_lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,16 +27,16 @@ function isDuplicateMessage(messageId: string): boolean {
 function buildCategoryAnswer(input: string): string | null {
   const category = categoryMatches(input);
   if (!category) return null;
-  const items = findProductsByCategory(category, 6);
+  const items = findProductsByCategory(category, 3);
   if (!items.length) {
     return `Por ahora no tengo productos listados en ${category}. ¿Quieres que te pase otras categorías?`;
   }
 
   const lines = items.map((p) => {
     const price = p.price || "Precio por confirmar";
-    return `- ${p.name} | ${price} | ${p.url}`;
+    return `${p.name} | ${price} | ${p.url}`;
   });
-  return `Perfecto, te comparto opciones en *${category}*:\n${lines.join("\n")}\n\nSi me dices talla, color y presupuesto te recomiendo la mejor opción.`;
+  return `Perfecto, te comparto opciones en ${category}:\n${lines.join("\n")}\n\nSi me dices talla, color y presupuesto te recomiendo la mejor opción.`;
 }
 
 function buildPolicyAnswer(input: string): string | null {
@@ -53,9 +55,9 @@ function buildPolicyAnswer(input: string): string | null {
 }
 
 function buildPromoAnswer(): string {
-  const promos = findProductsByCategory("Promos", 8);
+  const promos = findProductsByCategory("Promos", 3);
   if (!promos.length) return "En este momento no me aparecen promos activas. Si quieres, te busco por categoría.";
-  const lines = promos.map((p) => `- ${p.name} | ${p.price || "Precio por confirmar"} | ${p.url}`);
+  const lines = promos.map((p) => `${p.name} | ${p.price || "Precio por confirmar"} | ${p.url}`);
   return `Estas son algunas promociones activas:\n${lines.join("\n")}`;
 }
 
@@ -66,19 +68,15 @@ function buildSearchAnswer(input: string): string {
   }
   const lines = found.map((p) => {
     const notes = [p.availability_notes, p.shipping_notes].filter(Boolean).join(" | ");
-    return `- ${p.name} | ${p.price || "Precio por confirmar"} | ${p.url}${notes ? ` | ${notes}` : ""}`;
+    return `${p.name} | ${p.price || "Precio por confirmar"} | ${p.url}${notes ? ` | ${notes}` : ""}`;
   });
   return `Te encontré estas opciones:\n${lines.join("\n")}`;
 }
 
-function detectPurchaseIntent(input: string): boolean {
-  const t = input.toLowerCase();
-  return /(comprar|compra|pedido|pedir|agregar al carrito|como pago|como hago el pedido|quiero este|me gusta.*como compro|quiero llevar)/.test(t);
-}
-
 function buildPurchaseSummary(input: string, customerId: string): { customerReply: string; advisorSummary: string } {
   const candidates = findProductsByText(input, 3);
-  const selected = candidates[0];
+  const session = getSession(customerId);
+  const selected = candidates[0] || session?.lastResults?.[0] || null;
   const selectedBlock = selected
     ? `Producto principal: ${selected.name} | Precio visible: ${selected.price || "No visible"} | URL: ${selected.url}`
     : "Producto principal: No identificado con exactitud";
@@ -104,6 +102,30 @@ function buildPurchaseSummary(input: string, customerId: string): { customerRepl
   return { customerReply, advisorSummary };
 }
 
+function formatProductsList(items: Array<{ name: string; price: string; url: string }>, prefix: string): string {
+  if (!items.length) return "";
+  const lines = items.map((p) => `${p.name} | ${p.price || "No veo precio visible para ese producto en este momento."} | ${p.url}`);
+  return `${prefix}\n${lines.join("\n")}`;
+}
+
+function buildMoreOptionsAnswer(customerId: string): string | null {
+  const session = getSession(customerId);
+  if (!session?.lastCategory) return null;
+
+  const all = findProductsByCategory(session.lastCategory, 20);
+  const fresh = all.filter((p) => !session.lastShownUrls.includes(p.url)).slice(0, 3);
+  if (!fresh.length) {
+    return `Ya te mostré las opciones principales de ${session.lastCategory}. Si quieres, te filtro por talla, color o presupuesto.`;
+  }
+
+  saveSession(customerId, {
+    lastShownUrls: [...session.lastShownUrls, ...fresh.map((x) => x.url)].slice(-30),
+    lastResults: fresh.map((x) => ({ name: x.name, price: x.price, url: x.url })),
+  });
+
+  return formatProductsList(fresh, `Claro, aquí tienes más opciones de ${session.lastCategory}:`);
+}
+
 function buildFallback(): string {
   return [
     "Hola, soy el asistente comercial de Colombia Chef.",
@@ -115,7 +137,7 @@ function buildFallback(): string {
 
 function composeReply(input: string): string {
   const low = input.toLowerCase();
-  if (/^(hola|buenas|buenos dias|buen dia|buenas tardes|buenas noches|hey|hello)\b/.test(low.trim())) {
+  if (isGreeting(low)) {
     return "Hola, soy el Asesor IA Colombia Chef. Que buscas hoy: chaqueta, pantalon, delantal, gorro, combo o accesorio?";
   }
   if (/(promo|oferta|descuento)/.test(low)) return buildPromoAnswer();
@@ -213,7 +235,22 @@ export async function POST(req: NextRequest) {
   }
 
   const customerId = inbound.from || inbound.remoteJid || inbound.participant || "sin-id";
-  const isPurchase = detectPurchaseIntent(inbound.text);
+  const normalizedText = String(inbound.text || "").trim();
+  const isPurchase = isPurchaseIntent(normalizedText);
+
+  if (isMoreOptionsIntent(normalizedText)) {
+    const more = buildMoreOptionsAnswer(customerId);
+    if (more) {
+      try {
+        await sendToInbound(outboundInstance, inbound, more);
+        console.log("[colombiachef-webhook] sent_more_options", { customerId });
+        return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+      } catch (error: any) {
+        console.error("[colombiachef-webhook] send_more_options_failed", { error: error?.message || String(error) });
+        return NextResponse.json({ ok: false, error: "send_failed" }, { status: 500 });
+      }
+    }
+  }
 
   try {
     if (isPurchase) {
@@ -230,6 +267,16 @@ export async function POST(req: NextRequest) {
     } else {
       const reply = composeReply(inbound.text);
       await sendToInbound(outboundInstance, inbound, reply);
+
+      const category = categoryMatches(inbound.text) || getSession(customerId)?.lastCategory || "";
+      const found = category ? findProductsByCategory(category, 3) : findProductsByText(inbound.text, 3);
+      saveSession(customerId, {
+        lastCategory: category,
+        lastShownUrls: found.map((x) => x.url),
+        lastResults: found.map((x) => ({ name: x.name, price: x.price, url: x.url })),
+        lastUserMessage: inbound.text,
+      });
+
       console.log("[colombiachef-webhook] sent", {
         outboundInstance,
         to: inbound.from,
