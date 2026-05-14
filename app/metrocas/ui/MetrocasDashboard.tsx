@@ -550,13 +550,19 @@ export function MetrocasDashboard() {
 
   const variationGraphModel = useMemo(() => {
     const source = variationModel[tableGraphSource];
-    const pairRows = (source?.pivotRows || []).slice(0, tableGraphTopN).map((r: any) => ({
-      name: String(r.name).slice(0, 24),
-      prev: Number(r.prev || 0),
-      curr: Number(r.curr || 0),
-      delta: Number(r.delta || 0),
-      deltaPct: Number(r.prev || 0) === 0 ? 0 : (Number(r.delta || 0) / Number(r.prev || 1)) * 100,
-    }));
+    const pairRows = (source?.pivotRows || []).slice(0, tableGraphTopN).map((r: any) => {
+      const prev = Number(r.prev || 0);
+      const curr = Number(r.curr || 0);
+      const delta = curr - prev;
+      const deltaPct = prev === 0 ? (curr > 0 ? 100 : 0) : (delta / prev) * 100;
+      return {
+        name: String(r.name).slice(0, 24),
+        prev,
+        curr,
+        delta,
+        deltaPct,
+      };
+    });
 
     const keyBySource = tableGraphSource === "segment" ? "segment" : tableGraphSource === "customer" ? "customer" : "product";
     const months = variationModel.months || [];
