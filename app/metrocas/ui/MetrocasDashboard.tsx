@@ -100,6 +100,7 @@ export function MetrocasDashboard() {
   const [tableGraphSource, setTableGraphSource] = useState<"segment" | "customer" | "product">("segment");
   const [tableGraphTopN, setTableGraphTopN] = useState(6);
   const [deltaLabelMode, setDeltaLabelMode] = useState<"pct" | "cop">("pct");
+  const [isPrinting, setIsPrinting] = useState(false);
 
   const exportVisibleAsPdf = () => {
     if (typeof window === "undefined") return;
@@ -111,6 +112,18 @@ export function MetrocasDashboard() {
       document.title = prevTitle;
     }, 500);
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onBeforePrint = () => setIsPrinting(true);
+    const onAfterPrint = () => setIsPrinting(false);
+    window.addEventListener("beforeprint", onBeforePrint);
+    window.addEventListener("afterprint", onAfterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", onBeforePrint);
+      window.removeEventListener("afterprint", onAfterPrint);
+    };
+  }, []);
 
   const normalizeInsights = (raw: any) => {
     if (!raw) return null;
@@ -597,6 +610,10 @@ export function MetrocasDashboard() {
       topEntities,
     };
   }, [variationModel, tableGraphSource, tableGraphTopN, filteredFacts]);
+
+  const printSafePairRows = useMemo(() => {
+    return isPrinting ? variationGraphModel.pairRows.slice(0, Math.min(5, variationGraphModel.pairRows.length)) : variationGraphModel.pairRows;
+  }, [variationGraphModel.pairRows, isPrinting]);
 
   const annexes = useMemo(() => {
     return aggregate.byBranch.slice(0, 8).map((b) => {
@@ -1388,7 +1405,7 @@ export function MetrocasDashboard() {
                   <div style={chartBoxStyle} className={s.printChartSafe}>
                     <ResponsiveContainer width="100%" height="100%">
                       {compareAllMonths ? (
-                        <BarChart data={variationGraphModel.allMonthsSeries} margin={{ top: 16, right: 28, left: 8, bottom: 36 }}>
+                        <BarChart data={variationGraphModel.allMonthsSeries} margin={{ top: 16, right: isPrinting ? 44 : 28, left: 8, bottom: isPrinting ? 52 : 36 }}>
                           <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
                           <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
@@ -1399,12 +1416,12 @@ export function MetrocasDashboard() {
                           ))}
                         </BarChart>
                       ) : (
-                        <BarChart data={variationGraphModel.pairRows} margin={{ top: 16, right: 28, left: 8, bottom: 36 }}>
+                        <BarChart data={printSafePairRows} margin={{ top: 16, right: isPrinting ? 48 : 28, left: 8, bottom: isPrinting ? 58 : 36 }} barCategoryGap={isPrinting ? "26%" : "16%"}>
                           <CartesianGrid strokeDasharray="2 6" stroke="#dbeafe" />
-                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#5f769b" }} />
+                          <XAxis dataKey="name" tick={{ fontSize: isPrinting ? 10 : 11, fill: "#5f769b" }} />
                           <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <Tooltip formatter={(v: any, name: any) => [money(Number(v)), String(name)]} contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }} />
-                          <Legend />
+                          <Legend wrapperStyle={isPrinting ? { fontSize: 11, bottom: -8 } : undefined} />
                           <Bar dataKey="prev" name={`Mes base (${variationModel.prevMonth || ""})`} fill="#94a3b8" radius={[6, 6, 0, 0]} />
                           <Bar
                             dataKey="curr"
@@ -1412,7 +1429,7 @@ export function MetrocasDashboard() {
                             radius={[6, 6, 0, 0]}
                             label={({ x, y, width, index }) => {
                               const idx = Number(index ?? -1);
-                              const row = idx >= 0 ? variationGraphModel.pairRows[idx] : null;
+                              const row = idx >= 0 ? printSafePairRows[idx] : null;
                               const prevRaw = Number(row?.prev || 0);
                               const currRaw = Number(row?.curr || 0);
                               const delta = currRaw - prevRaw;
@@ -1432,7 +1449,7 @@ export function MetrocasDashboard() {
                               );
                             }}
                           >
-                            {variationGraphModel.pairRows.map((row, idx) => (
+                            {printSafePairRows.map((row, idx) => (
                               <Cell key={`curr-cell-${idx}`} fill={Number(row.delta || 0) >= 0 ? "#16a34a" : "#dc2626"} />
                             ))}
                           </Bar>
