@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import { colombiaChefAgentConfig } from "./config";
 
 export type ChefProduct = {
@@ -35,7 +36,11 @@ function normalize(value: string): string {
 
 export function loadChefData(): DataFile {
   if (cached) return cached;
-  const raw = fs.readFileSync(colombiaChefAgentConfig.dataPaths.json, "utf-8");
+  const configuredPath = colombiaChefAgentConfig.dataPaths.json;
+  const filePath = path.isAbsolute(configuredPath)
+    ? configuredPath
+    : path.join(process.cwd(), configuredPath);
+  const raw = fs.readFileSync(filePath, "utf-8");
   cached = JSON.parse(raw) as DataFile;
   return cached;
 }

@@ -41,7 +41,8 @@ function normalize(value: string): string {
 
 export function loadCatalog(): CatalogData {
   if (cached) return cached;
-  const file = process.env.COLOMBIACHEF_CATALOG_PATH || path.join(process.cwd(), "colombiachef_bot_data.json");
+  const configured = process.env.COLOMBIACHEF_CATALOG_PATH || path.join(process.cwd(), "colombiachef_bot_data.json");
+  const file = path.isAbsolute(configured) ? configured : path.join(process.cwd(), configured);
   const raw = fs.readFileSync(file, "utf-8");
   cached = JSON.parse(raw) as CatalogData;
   return cached;
