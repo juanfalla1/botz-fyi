@@ -1203,9 +1203,10 @@ export function MetrocasDashboard() {
                           <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <Tooltip
-                            formatter={(v: any, key: any) => {
-                              if (key === "delta") return [money(Number(v)), "Delta"];
-                              return [money(Number(v)), key === "prev" ? `Mes base (${variationModel.prevMonth || "Base"})` : `Mes comparado (${variationModel.currMonth || "Actual"})`];
+                            formatter={(v: any, _name: any, entry: any) => {
+                              const dataKey = String(entry?.dataKey || "");
+                              if (dataKey === "delta") return [money(Number(v)), "Delta"];
+                              return [money(Number(v)), dataKey === "prev" ? `Mes base (${variationModel.prevMonth || "Base"})` : `Mes comparado (${variationModel.currMonth || "Actual"})`];
                             }}
                             contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }}
                           />
@@ -1226,9 +1227,10 @@ export function MetrocasDashboard() {
                           <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <YAxis tickFormatter={(v) => compactNum(Number(v))} tick={{ fontSize: 11, fill: "#5f769b" }} />
                           <Tooltip
-                            formatter={(v: any, key: any) => {
-                              if (key === "delta") return [money(Number(v)), "Delta"];
-                              return [money(Number(v)), key === "prev" ? `Mes base (${variationModel.prevMonth || "Base"})` : `Mes comparado (${variationModel.currMonth || "Actual"})`];
+                            formatter={(v: any, _name: any, entry: any) => {
+                              const dataKey = String(entry?.dataKey || "");
+                              if (dataKey === "delta") return [money(Number(v)), "Delta"];
+                              return [money(Number(v)), dataKey === "prev" ? `Mes base (${variationModel.prevMonth || "Base"})` : `Mes comparado (${variationModel.currMonth || "Actual"})`];
                             }}
                             contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }}
                           />
