@@ -99,6 +99,7 @@ export function MetrocasDashboard() {
   const [compareAllMonths, setCompareAllMonths] = useState(false);
   const [tableGraphSource, setTableGraphSource] = useState<"segment" | "customer" | "product">("segment");
   const [tableGraphTopN, setTableGraphTopN] = useState(6);
+  const [deltaLabelMode, setDeltaLabelMode] = useState<"pct" | "cop">("pct");
 
   const normalizeInsights = (raw: any) => {
     if (!raw) return null;
@@ -1211,8 +1212,8 @@ export function MetrocasDashboard() {
                             contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }}
                           />
                           <Legend />
-                          <Bar dataKey="prev" name={`Base ${variationModel.prevMonth || ""}`} fill="#93c5fd" radius={[8, 8, 0, 0]} />
-                          <Bar dataKey="curr" name={`Comparado ${variationModel.currMonth || ""}`} fill="#2563eb" radius={[8, 8, 0, 0]} />
+                          <Bar dataKey="prev" name={`Mes base (${variationModel.prevMonth || ""})`} fill="#93c5fd" radius={[8, 8, 0, 0]} />
+                          <Bar dataKey="curr" name={`Mes comparado (${variationModel.currMonth || ""})`} fill="#2563eb" radius={[8, 8, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1235,8 +1236,8 @@ export function MetrocasDashboard() {
                             contentStyle={{ borderRadius: 10, border: "1px solid #d5e2f7" }}
                           />
                           <Legend />
-                          <Bar dataKey="prev" name={`Base ${variationModel.prevMonth || ""}`} fill="#fcd34d" radius={[8, 8, 0, 0]} />
-                          <Bar dataKey="curr" name={`Comparado ${variationModel.currMonth || ""}`} fill="#f59e0b" radius={[8, 8, 0, 0]} />
+                          <Bar dataKey="prev" name={`Mes base (${variationModel.prevMonth || ""})`} fill="#fcd34d" radius={[8, 8, 0, 0]} />
+                          <Bar dataKey="curr" name={`Mes comparado (${variationModel.currMonth || ""})`} fill="#f59e0b" radius={[8, 8, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1359,6 +1360,12 @@ export function MetrocasDashboard() {
                       <option value="8">Top 8</option>
                       <option value="10">Top 10</option>
                     </select>
+                    {!compareAllMonths ? (
+                      <>
+                        <button className={deltaLabelMode === "pct" ? s.btnPrimary : s.btnSecondary} onClick={() => setDeltaLabelMode("pct")}>Delta %</button>
+                        <button className={deltaLabelMode === "cop" ? s.btnPrimary : s.btnSecondary} onClick={() => setDeltaLabelMode("cop")}>Delta COP</button>
+                      </>
+                    ) : null}
                   </div>
                   <div style={chartBoxStyle}>
                     <ResponsiveContainer width="100%" height="100%">
@@ -1387,7 +1394,10 @@ export function MetrocasDashboard() {
                             radius={[6, 6, 0, 0]}
                             label={({ x, y, width, payload }) => {
                               const pct = Number((payload as any)?.deltaPct || 0);
-                              const txt = `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+                              const delta = Number((payload as any)?.delta || 0);
+                              const txt = deltaLabelMode === "pct"
+                                ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`
+                                : `${delta >= 0 ? "+" : "-"}${money(Math.abs(delta))}`;
                               const color = pct >= 0 ? "#0f766e" : "#b91c1c";
                               return (
                                 <text x={Number(x) + Number(width) / 2} y={Number(y) - 8} textAnchor="middle" fill={color} fontSize={11} fontWeight={700}>
@@ -1406,7 +1416,7 @@ export function MetrocasDashboard() {
                   </div>
                   {!compareAllMonths ? (
                     <p className={s.muted} style={{ marginTop: 8, marginBottom: 0 }}>
-                      Verde = top sube, rojo = top baja. La etiqueta indica variacion porcentual frente al mes base.
+                      Verde = top sube, rojo = top baja. La etiqueta muestra {deltaLabelMode === "pct" ? "variacion porcentual" : "delta en COP"} frente al mes base.
                     </p>
                   ) : null}
                 </div>
