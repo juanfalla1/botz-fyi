@@ -55,15 +55,44 @@ export function UniversalUploadWorkbench() {
         return;
       }
       setUploadId(j.upload_id || "");
-      setDatasetId(j.dataset_id || "");
+      const dsId = String(j.dataset_id || "");
+      setDatasetId(dsId);
       setProfile(j.profile || null);
       setMappingDraft(j?.semanticMap || {});
       setOut(j);
       setStep(2);
+      if (dsId) {
+        await runFullAnalysisFor(dsId);
+      }
     } catch (e: any) {
       setError(e?.message || "No se pudo subir el archivo");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function runFullAnalysisFor(dsId: string) {
+    setActionLoading("full");
+    setActionMessage("Generando analisis visual...");
+    try {
+      await fetch(`/api/datasets/${dsId}/map-schema`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mapping: mappingDraft }),
+      });
+      await fetch(`/api/datasets/${dsId}/build-model`, { method: "POST" });
+      await fetch(`/api/analysis/variance?dataset_id=${encodeURIComponent(dsId)}&dimension=category&from_month=${encodeURIComponent(fromMonth)}&to_month=${encodeURIComponent(toMonth)}`);
+      await fetch("/api/insights/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataset_id: dsId, mode: insightMode, from_month: fromMonth, to_month: toMonth }),
+      });
+      markActionDone("Analisis completo", "Analisis listo. Redirigiendo al dashboard...");
+      window.location.href = `/intelligence?universal_dataset_id=${encodeURIComponent(dsId)}`;
+    } catch (e: any) {
+      setError(e?.message || "No se pudo generar analisis completo");
+    } finally {
+      setActionLoading("");
     }
   }
 
@@ -137,14 +166,7 @@ export function UniversalUploadWorkbench() {
 
   async function runFullAnalysis() {
     if (!datasetId) return;
-    setActionLoading("full");
-    setActionMessage("Ejecutando analisis completo...");
-    await saveMapping();
-    await buildModel();
-    await runVariance();
-    await runInsights();
-    markActionDone("Analisis completo", "Analisis completo finalizado.");
-    setActionLoading("");
+    await runFullAnalysisFor(datasetId);
   }
 
   async function runSqlDemo() {
@@ -190,9 +212,9 @@ export function UniversalUploadWorkbench() {
           <div className={s.mono} style={{ marginTop: 8 }}>
             upload_id: {uploadId || "-"} | dataset_id: {datasetId || "-"}
           </div>
-          <div className={s.note}>Este flujo calcula ventas directamente desde la columna mapeada como revenue (ej. `VALOR VENTAS`).</div>
+          <div className={s.note}>Este flujo carga y redirige automaticamente al dashboard visual con el dataset procesado.</div>
           <div className={s.row} style={{ marginTop: 8 }}>
-            <button className={s.btn} onClick={fetchProfile} disabled={!datasetId}>Refrescar perfilado</button>
+            <button className={s.btn} onClick={fetchProfile} disabled={!datasetId || !!actionLoading}>Refrescar perfilado</button>
             <button className={s.btnPrimary} onClick={runFullAnalysis} disabled={!datasetId || loading || !!actionLoading}>{actionLoading === "full" ? "Procesando analisis..." : "Generar analisis completo"}</button>
             <button className={s.btn} onClick={() => setShowTechnical((v) => !v)}>{showTechnical ? "Ocultar detalle tecnico" : "Ver detalle tecnico"}</button>
           </div>
@@ -218,6 +240,7 @@ export function UniversalUploadWorkbench() {
           </div>
         ) : null}
 
+        {showTechnical ? (
         <div className={s.grid}>
           <div className={s.card}>
             <h3 style={{ marginTop: 0 }}>Perfilado del dataset</h3>
@@ -250,8 +273,9 @@ export function UniversalUploadWorkbench() {
             {showTechnical ? <pre className={s.mono} style={{ marginTop: 10 }}>{JSON.stringify(out || {}, null, 2)}</pre> : null}
           </div>
         </div>
+        ) : null}
 
-        {analysisSummary?.executive ? (
+        {analysisSummary?.executive && showTechnical ? (
           <div className={s.card}>
             <h3 className={s.sectionTitle}>Resultado del analisis</h3>
             <p><strong>Resumen:</strong> {analysisSummary.executive}</p>

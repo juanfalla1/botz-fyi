@@ -79,6 +79,45 @@ export async function getDataset(id: string) {
   return ds;
 }
 
+export async function getVisualDashboard(datasetId: string) {
+  const ds = await getDataset(datasetId);
+  if (!ds) return null;
+  const facts = Array.isArray(ds.facts) ? ds.facts : [];
+  const byMonthMap = new Map<string, number>();
+  const byCategory = new Map<string, number>();
+  const byCustomer = new Map<string, number>();
+  const byProduct = new Map<string, number>();
+  const byCity = new Map<string, number>();
+
+  for (const f of facts) {
+    const rev = Number(f.revenue || 0);
+    const month = String(f.month || "");
+    if (month) byMonthMap.set(month, (byMonthMap.get(month) || 0) + rev);
+    byCategory.set(String(f.category || "EN BLANCO"), (byCategory.get(String(f.category || "EN BLANCO")) || 0) + rev);
+    byCustomer.set(String(f.customer || "EN BLANCO"), (byCustomer.get(String(f.customer || "EN BLANCO")) || 0) + rev);
+    byProduct.set(String(f.product || "EN BLANCO"), (byProduct.get(String(f.product || "EN BLANCO")) || 0) + rev);
+    byCity.set(String(f.city || "EN BLANCO"), (byCity.get(String(f.city || "EN BLANCO")) || 0) + rev);
+  }
+
+  const toTop = (m: Map<string, number>, key: string) =>
+    [...m.entries()]
+      .map(([name, sales]) => ({ [key]: name, sales }))
+      .sort((a: any, b: any) => Number(b.sales) - Number(a.sales));
+
+  return {
+    dataset_id: ds.id,
+    dataset_name: ds.fileName,
+    kpis: ds.kpis,
+    monthlySales: [...byMonthMap.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([period, sales]) => ({ period, sales })),
+    salesByCategory: toTop(byCategory, "name").slice(0, 10),
+    topCustomers: toTop(byCustomer, "name").slice(0, 10),
+    topProducts: toTop(byProduct, "name").slice(0, 10),
+    cityRanking: toTop(byCity, "city").slice(0, 10),
+  };
+}
+
 export async function runSql(datasetId: string, sql: string) {
   const ds = await getDataset(datasetId);
   if (!ds) return NextResponse.json({ error: "Dataset no encontrado" }, { status: 404 });
