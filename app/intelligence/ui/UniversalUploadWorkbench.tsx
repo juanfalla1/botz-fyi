@@ -17,6 +17,7 @@ export function UniversalUploadWorkbench() {
   const [fromMonth, setFromMonth] = useState("2026-01");
   const [toMonth, setToMonth] = useState("2026-02");
   const [insightMode, setInsightMode] = useState("ejecutivo");
+  const [analysisSummary, setAnalysisSummary] = useState<any>(null);
 
   async function submitUpload() {
     if (!file) return;
@@ -95,8 +96,18 @@ export function UniversalUploadWorkbench() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ dataset_id: datasetId, mode: insightMode, from_month: fromMonth, to_month: toMonth }),
     });
-    setOut(await r.json());
+    const j = await r.json();
+    setOut(j);
+    setAnalysisSummary(j);
     setStep(5);
+  }
+
+  async function runFullAnalysis() {
+    if (!datasetId) return;
+    await saveMapping();
+    await buildModel();
+    await runVariance();
+    await runInsights();
   }
 
   async function runSqlDemo() {
@@ -138,8 +149,12 @@ export function UniversalUploadWorkbench() {
           <div className={s.mono} style={{ marginTop: 8 }}>
             upload_id: {uploadId || "-"} | dataset_id: {datasetId || "-"}
           </div>
+          <div className={s.note}>
+            Este modulo es el flujo universal nuevo. El panel clasico de `/intelligence` sigue mostrando el dashboard legado de Metrocas.
+          </div>
           <div className={s.row} style={{ marginTop: 8 }}>
             <button className={s.btn} onClick={fetchProfile} disabled={!datasetId}>Refrescar perfilado</button>
+            <button className={s.btnPrimary} onClick={runFullAnalysis} disabled={!datasetId || loading}>Generar analisis completo</button>
           </div>
         </div>
 
@@ -182,6 +197,15 @@ export function UniversalUploadWorkbench() {
             <pre className={s.mono} style={{ marginTop: 10 }}>{JSON.stringify(out || {}, null, 2)}</pre>
           </div>
         </div>
+
+        {analysisSummary?.executive ? (
+          <div className={s.card}>
+            <h3 className={s.sectionTitle}>Resultado del analisis</h3>
+            <p><strong>Resumen:</strong> {analysisSummary.executive}</p>
+            <p><strong>Soporte numerico:</strong> ventas {Number(analysisSummary?.numeric_support?.total_sales || 0).toLocaleString("es-CO")}, ticket {Number(analysisSummary?.numeric_support?.avg_ticket || 0).toLocaleString("es-CO")}</p>
+            <p><strong>Acciones:</strong> {Array.isArray(analysisSummary.actions) ? analysisSummary.actions.join(" | ") : "-"}</p>
+          </div>
+        ) : null}
 
         <div className={s.card}>
           <h3 className={s.sectionTitle}>Paso 3: Mapeo semantico</h3>

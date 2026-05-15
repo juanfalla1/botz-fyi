@@ -103,6 +103,15 @@
 .kpiLabel { margin: 0; color: #5b7197; font-size: 0.78rem; text-transform: uppercase; }
 .kpiValue { margin: 6px 0 0; font-weight: 800; font-size: 1.2rem; }
 
+.note {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid #d5e2f7;
+  border-radius: 10px;
+  background: #f8fbff;
+  color: #3f577d;
+}
+
 .robotBox {
   display: inline-flex;
   align-items: center;
