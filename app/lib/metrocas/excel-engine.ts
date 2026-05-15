@@ -75,6 +75,32 @@ function normalizeDate(value: unknown): string | null {
   if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
   return null;
 }
+
+function monthNameToNumber(value: unknown): number | null {
+  const m = clean(String(value || ""));
+  if (!m) return null;
+  if (m.startsWith("ENE")) return 1;
+  if (m.startsWith("FEB")) return 2;
+  if (m.startsWith("MAR")) return 3;
+  if (m.startsWith("ABR")) return 4;
+  if (m.startsWith("MAY")) return 5;
+  if (m.startsWith("JUN")) return 6;
+  if (m.startsWith("JUL")) return 7;
+  if (m.startsWith("AGO")) return 8;
+  if (m.startsWith("SEP") || m.startsWith("SET")) return 9;
+  if (m.startsWith("OCT")) return 10;
+  if (m.startsWith("NOV")) return 11;
+  if (m.startsWith("DIC")) return 12;
+  return null;
+}
+
+function buildMonthDateFromYearMonth(yearValue: unknown, monthValue: unknown): string | null {
+  const y = Number(String(yearValue || "").trim());
+  const m = monthNameToNumber(monthValue) ?? Number(String(monthValue || "").trim());
+  if (!Number.isFinite(y) || y < 2000 || y > 2100) return null;
+  if (!Number.isFinite(m) || m < 1 || m > 12) return null;
+  return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-01`;
+}
 const num = (v: unknown) => {
   const n = Number(String(v ?? "").replace(/,/g, "."));
   return Number.isFinite(n) ? n : 0;
@@ -264,26 +290,26 @@ export function parseWorkbook(buffer: ArrayBuffer): ParsedSheetData {
           "Líneas de factura/Categoría del producto",
         ]) || "",
       );
-      const invoiceDateRaw = pick(r, ["Fecha de factura", "Fecha factura", "Fecha", "Líneas de factura/Fecha de factura", "Lineas de factura/Fecha de factura"]);
-      const invoiceDate = normalizeDate(invoiceDateRaw);
+      const invoiceDateRaw = pick(r, ["Fecha de factura", "Fecha factura", "Fecha", "FECHA", "Líneas de factura/Fecha de factura", "Lineas de factura/Fecha de factura"]);
+      const invoiceDate = normalizeDate(invoiceDateRaw) || buildMonthDateFromYearMonth(pick(r, ["AÑO", "ANO", "Año", "Anio"]), invoiceDateRaw);
       return {
         invoice_number: String(pick(r, ["Numero de factura", "Número de factura", "Número factura", "Líneas de factura/Número", "Lineas de factura/Numero"]) || ""),
         journal: String(pick(r, ["Diario", "Comercio", "Sede", "Líneas de factura/Diario", "Lineas de factura/Diario"]) || ""),
-        customer_name: String(pick(r, ["Contacto / cliente", "Cliente", "Contacto", "Líneas de factura/Contacto", "Lineas de factura/Contacto"]) || ""),
+        customer_name: String(pick(r, ["Contacto / cliente", "Cliente", "Contacto", "NOMBRE", "Líneas de factura/Contacto", "Lineas de factura/Contacto"]) || ""),
         state_department: String(pick(r, ["Estado / departamento", "Departamento", "Estado", "Líneas de factura/Contacto/Estado", "Lineas de factura/Contacto/Estado"]) || ""),
-        city: normalizeCity(String(pick(r, ["Ciudad", "Líneas de factura/Contacto/Ciudad", "Lineas de factura/Contacto/Ciudad"]) || "")),
+        city: normalizeCity(String(pick(r, ["Ciudad", "CIUDAD", "Líneas de factura/Contacto/Ciudad", "Lineas de factura/Contacto/Ciudad"]) || "")),
         country: String(pick(r, ["Pais", "País", "Líneas de factura/País del contacto comercial", "Lineas de factura/Pais del contacto comercial"]) || "Colombia"),
-        segment: normalizeSegment(String(pick(r, ["Etiquetas / segmento", "Segmento", "Etiqueta", "Líneas de factura/Contacto/Etiquetas", "Lineas de factura/Contacto/Etiquetas"]) || "")),
+        segment: normalizeSegment(String(pick(r, ["Etiquetas / segmento", "Segmento", "SEGM", "Etiqueta", "Líneas de factura/Contacto/Etiquetas", "Lineas de factura/Contacto/Etiquetas"]) || "")),
         invoice_date: invoiceDate,
         product_category: category,
-        product_line: lineFromCategory(category),
-        product_name: String(pick(r, ["Producto", "Líneas de factura/Producto", "Lineas de factura/Producto"]) || ""),
+        product_line: String(pick(r, ["LINEA"]) || lineFromCategory(category)),
+        product_name: String(pick(r, ["Producto", "DESCRIPCION", "REFERENCIA", "Líneas de factura/Producto", "Lineas de factura/Producto"]) || ""),
         analytic_distribution: String(pick(r, ["Distribucion analitica", "Distribución analítica", "Líneas de factura/Distribución analítica", "Lineas de factura/Distribucion analitica"]) || ""),
         currency: String(pick(r, ["Moneda", "Líneas de factura/Moneda", "Lineas de factura/Moneda"]) || "COP"),
-        quantity: num(pick(r, ["Cantidad", "Líneas de factura/Cantidad", "Lineas de factura/Cantidad"])),
+        quantity: num(pick(r, ["Cantidad", "CANTIDAD VENTAS", "Líneas de factura/Cantidad", "Lineas de factura/Cantidad"])),
         unit_price: num(pick(r, ["Precio unitario", "Líneas de factura/Precio unitario", "Lineas de factura/Precio unitario"])),
-        amount_currency: num(pick(r, ["Importe en moneda", "Importe moneda", "Líneas de factura/Importe en moneda", "Lineas de factura/Importe en moneda"])),
-        balance: num(pick(r, ["Balance", "Líneas de factura/Balance", "Lineas de factura/Balance"])),
+        amount_currency: num(pick(r, ["Importe en moneda", "Importe moneda", "VALOR VENTAS", "Líneas de factura/Importe en moneda", "Lineas de factura/Importe en moneda"])),
+        balance: num(pick(r, ["Balance", "VALOR VENTAS", "Líneas de factura/Balance", "Lineas de factura/Balance"])),
         analytic_account: String(pick(r, ["Cuenta analitica de distribucion", "Cuenta analítica de distribución", "Cuenta analítica", "Líneas de factura/Cuenta analítica de distribución", "Lineas de factura/Cuenta analitica de distribucion"]) || ""),
         origin: String(pick(r, ["Origen", "Líneas de factura/Origen", "Lineas de factura/Origen"]) || ""),
       };
