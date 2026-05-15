@@ -93,7 +93,28 @@ export function findProductsByText(input: string, limit = 5): ColombiaChefProduc
 
 export function findProductsByCategory(category: string, limit = 8): ColombiaChefProduct[] {
   const data = loadCatalog();
-  return (data.products || []).filter((p) => p.category === category).slice(0, limit);
+  const wanted = normalize(category);
+  const keywords: Record<string, string[]> = {
+    chaquetas: ["chaqueta"],
+    pantalones: ["pantalon", "pant"],
+    delantales: ["delantal", "peto"],
+    gorros: ["gorro", "pirata", "champignon", "beisbol", "toca"],
+    combos: ["combo"],
+    accesorios: ["accesorio"],
+    promos: ["promo", "oferta", "descuento"],
+  };
+  const k = keywords[wanted] || [];
+
+  const scored = (data.products || [])
+    .filter((p) => normalize(p.category) === wanted)
+    .map((p) => {
+      const hay = normalize(`${p.name} ${p.subcategory}`);
+      const score = k.reduce((acc, term) => (hay.includes(term) ? acc + 1 : acc), 0);
+      return { p, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return scored.slice(0, limit).map((x) => x.p);
 }
 
 export function findProductByUrl(url: string): ColombiaChefProduct | null {

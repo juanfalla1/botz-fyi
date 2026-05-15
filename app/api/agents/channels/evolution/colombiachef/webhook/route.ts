@@ -212,8 +212,19 @@ function isProductDetailQuestion(text: string): boolean {
 function cleanDescription(text: string): string {
   return String(text || "")
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1")
+    .replace(/SKU:\s*/gi, "SKU: ")
+    .replace(/categor[ií]as?:/gi, " | Categorias: ")
+    .replace(/etiquetas?:/gi, " | Etiquetas: ")
+    .replace(/\|\s*\|/g, " | ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function shortTechnicalDescription(raw: string): string {
+  const txt = cleanDescription(raw);
+  if (!txt) return "";
+  const cut = txt.split(" | ").slice(0, 2).join(" | ").trim();
+  return cut.length > 220 ? `${cut.slice(0, 220)}...` : cut;
 }
 
 function hasExplicitProductHint(text: string): boolean {
@@ -239,7 +250,7 @@ function buildProductDetailAnswer(customerId: string, input: string): string | n
     ].join(" ");
   }
 
-  const desc = cleanDescription(picked.description);
+  const desc = shortTechnicalDescription(picked.description);
   const sizeText = picked.sizes?.length ? `Tallas visibles: ${picked.sizes.join(", ")}.` : "No veo talla visible en la ficha.";
   const colorText = picked.colors?.length ? `Colores visibles: ${picked.colors.join(", ")}.` : "No veo colores visibles en la ficha.";
   const notes = [picked.availability_notes, picked.shipping_notes].filter(Boolean).join(" ");
@@ -251,7 +262,7 @@ function buildProductDetailAnswer(customerId: string, input: string): string | n
     colorText,
     notes ? `Nota de ficha: ${notes}` : "",
     `URL: ${picked.url}`,
-    "Si necesitas confirmar si se puede mojar o nivel de antifluido exacto, te lo valido con asesor antes de comprar.",
+    "Importante: solo te confirmo datos visibles en la ficha. Si necesitas validar antifluido o resistencia al agua exacta, te lo confirmo con asesor.",
   ]
     .filter(Boolean)
     .join(" ");
