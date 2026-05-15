@@ -18,7 +18,37 @@
   margin-bottom: 12px;
 }
 
+.title {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+}
+
+.sub {
+  margin-top: 6px;
+  color: #4b6287;
+}
+
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+.wizard {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.step {
+  border: 1px solid #bfd2ef;
+  background: #f8fbff;
+  border-radius: 10px;
+  padding: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.stepActive {
+  border-color: #f1bc00;
+  background: #fff6cf;
+}
 
 .btn {
   border: 1px solid #a8c0ea;
@@ -42,6 +72,40 @@
 
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 
+.kpiGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+
+.kpi {
+  border: 1px solid #d4e3fa;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fbfdff;
+}
+
+.kpiLabel { margin: 0; color: #5b7197; font-size: 0.78rem; text-transform: uppercase; }
+.kpiValue { margin: 6px 0 0; font-weight: 800; font-size: 1.2rem; }
+
+.robotBox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #bfd2ef;
+  background: #f6faff;
+}
+
+.robot {
+  display: inline-block;
+  animation: robotPulse 1s ease-in-out infinite;
+}
+
+@keyframes robotPulse {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1px) scale(1.06); }
+}
+
 @media (max-width: 820px) {
+  .wizard { grid-template-columns: 1fr; }
+  .kpiGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid { grid-template-columns: 1fr; }
 }
