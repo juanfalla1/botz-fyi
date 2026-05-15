@@ -356,31 +356,42 @@ export function MetrocasDashboard() {
       month: m,
       sales: filteredFacts.filter((f) => String(f.month || "") === m).reduce((a, f) => a + Number(f.amount || 0), 0),
     }));
-    const deltas: number[] = [];
+    const deltas: Array<{ from: string; to: string; pct: number }> = [];
     for (let i = 1; i < salesByMonth.length; i++) {
       const prev = salesByMonth[i - 1].sales;
       const curr = salesByMonth[i].sales;
-      if (prev > 0) deltas.push(((curr - prev) / prev) * 100);
+      if (prev > 0) {
+        deltas.push({
+          from: salesByMonth[i - 1].month,
+          to: salesByMonth[i].month,
+          pct: ((curr - prev) / prev) * 100,
+        });
+      }
     }
-    const latestDelta = deltas.length ? deltas[deltas.length - 1] : 0;
-    const worstDrop = deltas.length ? Math.abs(Math.min(0, ...deltas)) : 0;
+    const latestDelta = deltas.length ? deltas[deltas.length - 1] : null;
+    const worstDelta = deltas.reduce<{ from: string; to: string; pct: number } | null>((acc, row) => {
+      if (!acc) return row;
+      return row.pct < acc.pct ? row : acc;
+    }, null);
     return {
       hasComparisons: deltas.length > 0,
-      latestGrowthPct: latestDelta > 0 ? latestDelta : 0,
-      worstDropPct: worstDrop,
+      latestGrowthPct: latestDelta && latestDelta.pct > 0 ? latestDelta.pct : 0,
+      latestPairLabel: latestDelta ? `${latestDelta.from} -> ${latestDelta.to}` : "N/A",
+      worstDropPct: worstDelta && worstDelta.pct < 0 ? Math.abs(worstDelta.pct) : 0,
+      worstDropPairLabel: worstDelta ? `${worstDelta.from} -> ${worstDelta.to}` : "N/A",
     };
   }, [filteredFacts]);
 
   const cards = useMemo(
     () => [
-      ["Ventas totales", effectiveDashboard.kpis.totalSales],
-      ["Margen bruto", effectiveDashboard.kpis.grossMargin || 0],
-      ["Ticket promedio", effectiveDashboard.kpis.avgTicket],
-      ["Crecimiento mensual", `${monthTrendStats.latestGrowthPct}%`],
-      ["Caida mensual", `${monthTrendStats.worstDropPct}%`],
-      ["Alertas criticas", effectiveDashboard.kpis.criticalAlerts],
-      ["Ciudad top ventas", effectiveDashboard.kpis.cityTopSales],
-      ["Ciudad mayor oportunidad", effectiveDashboard.kpis.cityTopOpportunity],
+      { title: "Ventas totales", value: effectiveDashboard.kpis.totalSales },
+      { title: "Margen bruto", value: effectiveDashboard.kpis.grossMargin || 0 },
+      { title: "Ticket promedio", value: effectiveDashboard.kpis.avgTicket },
+      { title: "Crecimiento mensual", value: `${monthTrendStats.latestGrowthPct}%`, hint: monthTrendStats.latestPairLabel },
+      { title: "Caida mensual", value: `${monthTrendStats.worstDropPct}%`, hint: monthTrendStats.worstDropPairLabel },
+      { title: "Alertas criticas", value: effectiveDashboard.kpis.criticalAlerts },
+      { title: "Ciudad top ventas", value: effectiveDashboard.kpis.cityTopSales },
+      { title: "Ciudad mayor oportunidad", value: effectiveDashboard.kpis.cityTopOpportunity },
     ],
     [effectiveDashboard, monthTrendStats],
   );
@@ -1539,7 +1550,7 @@ export function MetrocasDashboard() {
         {tab === "Resumen Ejecutivo" ? (
           <>
         <div className={s.grid4}>
-          {cards.map(([title, value]) => {
+          {cards.map(({ title, value, hint }) => {
             let display = String(value);
             if (["Ventas totales", "Margen bruto", "Ticket promedio"].includes(String(title))) {
               display = money(Number(value));
@@ -1550,7 +1561,8 @@ export function MetrocasDashboard() {
             if (["Crecimiento mensual", "Caida mensual"].includes(String(title))) {
               display = !monthTrendStats.hasComparisons ? "N/A" : pct(Number(String(value).replace("%", "")));
             }
-            return <div key={String(title)} className={s.card}><p className={s.muted}>{title}</p><p className={s.kpi}>{display}</p></div>;
+            const hintLabel = !monthTrendStats.hasComparisons && ["Crecimiento mensual", "Caida mensual"].includes(String(title)) ? "Sin meses comparables" : hint;
+            return <div key={String(title)} className={s.card}><p className={s.muted}>{title}</p><p className={s.kpi}>{display}</p>{hintLabel ? <p className={s.muted} style={{ marginTop: 6, marginBottom: 0 }}>{hintLabel}</p> : null}</div>;
           })}
         </div>
 
