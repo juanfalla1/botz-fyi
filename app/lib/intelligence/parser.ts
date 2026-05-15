@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 
 const CANDIDATES: Record<string, string[]> = {
-  revenue: ["ventas", "revenue", "ingreso", "valor ventas", "total venta", "balance", "valor"],
+  revenue: ["revenue", "ingreso", "valor ventas", "venta neta", "total venta", "importe", "balance", "monto"],
   quantity: ["cantidad", "qty", "units", "unidades", "cantidad ventas"],
   date: ["fecha", "date", "fecha factura", "invoice date", "mes"],
   customer: ["cliente", "customer", "razon social", "nombre"],
@@ -78,8 +78,21 @@ function parseDateLoose(v: unknown, yearHint?: number | null) {
 export function detectSemanticMap(columns: string[]) {
   const map: Record<string, string | null> = {};
   for (const key of Object.keys(CANDIDATES)) {
-    const found = columns.find((c) => CANDIDATES[key].some((k) => canon(c).includes(k)));
-    map[key] = found || null;
+    const found = [...columns]
+      .map((c) => {
+        const cc = canon(c);
+        let score = -1;
+        for (const k of CANDIDATES[key]) {
+          if (cc === k) score = Math.max(score, 100);
+          else if (cc.startsWith(k)) score = Math.max(score, 80);
+          else if (cc.includes(k)) score = Math.max(score, 60);
+        }
+        if (key === "revenue" && cc.includes("cantidad")) score = -1;
+        if (key === "quantity" && (cc.includes("valor") || cc.includes("revenue") || cc.includes("ingreso"))) score = -1;
+        return { c, score };
+      })
+      .sort((a, b) => b.score - a.score)[0];
+    map[key] = (found && found.score >= 0) ? found.c : null;
   }
   return map;
 }
