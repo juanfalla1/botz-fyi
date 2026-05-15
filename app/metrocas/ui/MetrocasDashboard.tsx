@@ -392,19 +392,23 @@ export function MetrocasDashboard() {
     const topSegment = (segmentRanking[0]?.label || aggregate.bySegment[0]?.label || "N/A").toString();
     const topCustomer = (effectiveDashboard.topCustomers?.[0]?.name || customersData[0]?.label || "N/A").toString();
     const topProduct = (effectiveDashboard.topProducts?.[0]?.name || productsData.stars[0]?.label || aggregate.byProduct[0]?.label || "N/A").toString();
-    const variationLabel = growthContext === "insufficient_periods"
-      ? "N/A"
-      : pct(Number(effectiveDashboard.kpis.monthlyGrowth || effectiveDashboard.kpis.monthlyDrop || 0));
+    const monthKeys = Array.from(new Set(filteredFacts.map((f) => String(f.month || "")).filter((m) => /^\d{4}-\d{2}$/.test(m)))).sort();
+    const firstMonth = monthKeys[0] || "";
+    const lastMonth = monthKeys[monthKeys.length - 1] || "";
+    const firstSales = filteredFacts.filter((f) => String(f.month || "") === firstMonth).reduce((a, f) => a + Number(f.amount || 0), 0);
+    const lastSales = filteredFacts.filter((f) => String(f.month || "") === lastMonth).reduce((a, f) => a + Number(f.amount || 0), 0);
+    const periodGrowthPct = firstSales > 0 ? ((lastSales - firstSales) / firstSales) * 100 : 0;
+    const variationLabel = monthKeys.length > 1 ? pct(periodGrowthPct) : "N/A";
     const trend = Number(effectiveDashboard.kpis.monthlyGrowth || 0) > 0 ? "Alcista" : Number(effectiveDashboard.kpis.monthlyDrop || 0) < 0 ? "Ajuste" : "Estable";
     return [
       { label: "Total ventas", value: money(Number(effectiveDashboard.kpis.totalSales || 0)), helper: "Volumen acumulado" },
-      { label: "Variacion periodo", value: variationLabel, helper: monthsDetected.length > 1 ? `${monthsDetected[monthsDetected.length - 2]} vs ${monthsDetected[monthsDetected.length - 1]}` : "Comparativo pendiente" },
+      { label: "Variacion periodo", value: variationLabel, helper: monthKeys.length > 1 ? `${firstMonth} vs ${lastMonth}` : "Comparativo pendiente" },
       { label: "Segmento lider", value: topSegment, helper: "Mayor facturacion" },
       { label: "Cliente top", value: topCustomer, helper: "Mayor contribucion" },
       { label: "Producto top", value: topProduct, helper: "Mayor ingreso" },
       { label: "Tendencia", value: trend, helper: "Estado general" },
     ];
-  }, [segmentRanking, aggregate.bySegment, aggregate.byProduct, effectiveDashboard, customersData, productsData.stars, growthContext, monthsDetected]);
+  }, [segmentRanking, aggregate.bySegment, aggregate.byProduct, effectiveDashboard, customersData, productsData.stars, filteredFacts]);
 
   const workPlans = useMemo(() => {
     return aggregate.byBranch.slice(0, 8).map((b) => {
