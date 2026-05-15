@@ -305,28 +305,80 @@ function buildUnsupportedAnswer(): string {
   ].join(" ");
 }
 
-function composeReply(input: string, customerId: string): string {
+type ReplyPlan = {
+  text: string;
+  expectedAction: string;
+  assistantType: string;
+};
+
+function composeReply(input: string, customerId: string): ReplyPlan {
   const low = input.toLowerCase();
   if (isGreeting(low)) {
-    return "Hola, soy el Asesor IA Colombia Chef. Que buscas hoy: chaqueta, pantalon, delantal, gorro, combo o accesorio?";
+    return {
+      text: "Hola, soy el Asesor IA Colombia Chef. Que buscas hoy: chaqueta, pantalon, delantal, gorro, combo o accesorio?",
+      expectedAction: "choose_category",
+      assistantType: "greeting",
+    };
   }
-  if (isUnsupportedRequest(low)) return buildUnsupportedAnswer();
-  if (isCatalogScopeQuestion(low)) return buildCatalogScopeAnswer();
-  if (/(promo|oferta|descuento)/.test(low)) return buildPromoAnswer();
+  if (isUnsupportedRequest(low)) {
+    return {
+      text: buildUnsupportedAnswer(),
+      expectedAction: "offer_supported_categories",
+      assistantType: "unsupported_redirect",
+    };
+  }
+  if (isCatalogScopeQuestion(low)) {
+    return {
+      text: buildCatalogScopeAnswer(),
+      expectedAction: "choose_category",
+      assistantType: "catalog_scope",
+    };
+  }
+  if (/(promo|oferta|descuento)/.test(low)) {
+    return {
+      text: buildPromoAnswer(),
+      expectedAction: "offer_more_options",
+      assistantType: "promo_results",
+    };
+  }
   const policy = buildPolicyAnswer(low);
-  if (policy) return policy;
+  if (policy) {
+    return {
+      text: policy,
+      expectedAction: "refine_or_buy",
+      assistantType: "policy",
+    };
+  }
   const byCategory = buildCategoryAnswer(low);
-  if (byCategory) return byCategory;
+  if (byCategory) {
+    return {
+      text: byCategory,
+      expectedAction: "offer_more_options",
+      assistantType: "category_results",
+    };
+  }
   const session = getSession(customerId);
   if (session?.lastCategory && /(este|ese|esa|eso|incluye|material|se puede mojar|antifluido)/i.test(low)) {
     const retryDetail = buildProductDetailAnswer(customerId, low);
-    if (retryDetail) return retryDetail;
+    if (retryDetail) {
+      return {
+        text: retryDetail,
+        expectedAction: "buy_or_more",
+        assistantType: "product_detail",
+      };
+    }
   }
-  if (low.trim().length < 3) return buildClarifyAnswer();
-  if (!isLikelyCatalogQuery(low) && !session?.lastCategory) return buildClarifyAnswer();
+  if (low.trim().length < 3) {
+    return { text: buildClarifyAnswer(), expectedAction: "clarify", assistantType: "clarify" };
+  }
+  if (!isLikelyCatalogQuery(low) && !session?.lastCategory) {
+    return { text: buildClarifyAnswer(), expectedAction: "clarify", assistantType: "clarify" };
+  }
   const searched = buildSearchAnswer(low);
-  if (/^No encontre coincidencias exactas\./i.test(searched)) return buildClarifyAnswer();
-  return searched;
+  if (/^No encontre coincidencias exactas\./i.test(searched)) {
+    return { text: buildClarifyAnswer(), expectedAction: "clarify", assistantType: "clarify" };
+  }
+  return { text: searched, expectedAction: "offer_more_options", assistantType: "search_results" };
 }
 
 function looksLikeRealMsisdn(value: string): boolean {
@@ -488,6 +540,12 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ ok: true, sent: true, to: inbound.from });
         }
       }
+      if (isAffirmative(normalizedText) && sessionBeforeReply?.expectedAction === "offer_supported_categories") {
+        const supported = "Perfecto. Te ayudo con gusto. Manejamos: chaquetas, pantalones, delantales, gorros, combos y accesorios. Cual te interesa?";
+        await sendToInbound(outboundInstance, inbound, supported);
+        saveSession(customerId, { expectedAction: "choose_category", lastAssistantType: "supported_categories" });
+        return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+      }
       if (isNegative(normalizedText) && sessionBeforeReply?.expectedAction === "offer_more_options") {
         const closeReply = "Perfecto. Si quieres, te filtro por talla, color y presupuesto para darte una recomendacion exacta.";
         await sendToInbound(outboundInstance, inbound, closeReply);
@@ -495,8 +553,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, sent: true, to: inbound.from });
       }
 
-      const reply = composeReply(inbound.text, customerId);
-      await sendToInbound(outboundInstance, inbound, reply);
+      const plan = composeReply(inbound.text, customerId);
+      await sendToInbound(outboundInstance, inbound, plan.text);
 
       const category = categoryMatches(inbound.text) || getSession(customerId)?.lastCategory || "";
       const found = category ? findProductsByCategory(category, 3) : findProductsByText(inbound.text, 3);
@@ -505,14 +563,14 @@ export async function POST(req: NextRequest) {
         lastShownUrls: found.map((x) => x.url),
         lastResults: found.map((x) => ({ name: x.name, price: x.price, url: x.url })),
         lastUserMessage: inbound.text,
-        expectedAction: category ? "offer_more_options" : "clarify",
-        lastAssistantType: category ? "category_or_search_results" : "clarify",
+        expectedAction: plan.expectedAction,
+        lastAssistantType: plan.assistantType,
       });
 
       console.log("[colombiachef-webhook] sent", {
         outboundInstance,
         to: inbound.from,
-        replyPreview: reply.slice(0, 120),
+         replyPreview: plan.text.slice(0, 120),
       });
     }
   } catch (error: any) {
