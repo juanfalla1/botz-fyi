@@ -88,7 +88,7 @@ export function UniversalUploadWorkbench() {
         body: JSON.stringify({ dataset_id: dsId, mode: insightMode, from_month: fromMonth, to_month: toMonth }),
       });
       markActionDone("Analisis completo", "Analisis listo. Redirigiendo al dashboard...");
-      window.location.href = `/intelligence?universal_dataset_id=${encodeURIComponent(dsId)}`;
+      window.location.href = `/intelligence/universal/${encodeURIComponent(dsId)}`;
     } catch (e: any) {
       setError(e?.message || "No se pudo generar analisis completo");
     } finally {
