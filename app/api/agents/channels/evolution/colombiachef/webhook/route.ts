@@ -210,7 +210,17 @@ function isProductDetailQuestion(text: string): boolean {
 }
 
 function cleanDescription(text: string): string {
-  return String(text || "").replace(/\s+/g, " ").trim();
+  return String(text || "")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasExplicitProductHint(text: string): boolean {
+  const t = String(text || "").toLowerCase();
+  if (/\bref\s*[:#-]?\s*[a-z0-9-]{2,}\b/.test(t)) return true;
+  if (/\b(chaqueta|pantalon|delantal|gorro|combo|accesorio)\b/.test(t) && t.length >= 24) return true;
+  return false;
 }
 
 function buildProductDetailAnswer(customerId: string, input: string): string | null {
@@ -218,8 +228,8 @@ function buildProductDetailAnswer(customerId: string, input: string): string | n
 
   const session = getSession(customerId);
   const fromSession = session?.lastResults?.[0]?.url ? findProductByUrl(session.lastResults[0].url) : null;
-  const fromText = findProductsByText(input, 1)[0] || null;
-  const picked = fromText || fromSession;
+  const fromText = hasExplicitProductHint(input) ? findProductsByText(input, 1)[0] || null : null;
+  const picked = fromSession || fromText;
 
   if (!picked) {
     return [
