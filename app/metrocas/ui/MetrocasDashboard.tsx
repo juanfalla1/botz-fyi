@@ -250,20 +250,6 @@ export function MetrocasDashboard() {
     return sample;
   }, [dashboard]);
 
-  const cards = useMemo(
-    () => [
-      ["Ventas totales", effectiveDashboard.kpis.totalSales],
-      ["Margen bruto", effectiveDashboard.kpis.grossMargin || 0],
-      ["Ticket promedio", effectiveDashboard.kpis.avgTicket],
-      ["Crecimiento mensual", `${monthTrendStats.latestGrowthPct}%`],
-      ["Caida mensual", `${monthTrendStats.worstDropPct}%`],
-      ["Alertas criticas", effectiveDashboard.kpis.criticalAlerts],
-      ["Ciudad top ventas", effectiveDashboard.kpis.cityTopSales],
-      ["Ciudad mayor oportunidad", effectiveDashboard.kpis.cityTopOpportunity],
-    ],
-    [effectiveDashboard, monthTrendStats],
-  );
-
   const money = (v: number) =>
     new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(
       Number(v || 0),
@@ -384,6 +370,20 @@ export function MetrocasDashboard() {
       worstDropPct: worstDrop,
     };
   }, [filteredFacts]);
+
+  const cards = useMemo(
+    () => [
+      ["Ventas totales", effectiveDashboard.kpis.totalSales],
+      ["Margen bruto", effectiveDashboard.kpis.grossMargin || 0],
+      ["Ticket promedio", effectiveDashboard.kpis.avgTicket],
+      ["Crecimiento mensual", `${monthTrendStats.latestGrowthPct}%`],
+      ["Caida mensual", `${monthTrendStats.worstDropPct}%`],
+      ["Alertas criticas", effectiveDashboard.kpis.criticalAlerts],
+      ["Ciudad top ventas", effectiveDashboard.kpis.cityTopSales],
+      ["Ciudad mayor oportunidad", effectiveDashboard.kpis.cityTopOpportunity],
+    ],
+    [effectiveDashboard, monthTrendStats],
+  );
 
   const aggregate = useMemo(() => {
     const byKey = (key: string) => {
