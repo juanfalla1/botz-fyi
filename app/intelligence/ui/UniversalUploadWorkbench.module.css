@@ -122,6 +122,18 @@
   background: #f6faff;
 }
 
+.statusOk {
+  margin-top: 8px;
+  color: #0f766e;
+  font-weight: 600;
+}
+
+.statusInfo {
+  margin-top: 8px;
+  color: #335a88;
+  font-weight: 600;
+}
+
 .robot {
   display: inline-block;
   animation: robotPulse 1s ease-in-out infinite;

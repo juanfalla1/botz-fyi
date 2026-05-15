@@ -19,6 +19,8 @@ export function UniversalUploadWorkbench() {
   const [insightMode, setInsightMode] = useState("ejecutivo");
   const [analysisSummary, setAnalysisSummary] = useState<any>(null);
   const [showTechnical, setShowTechnical] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string>("");
+  const [actionMessage, setActionMessage] = useState("");
 
   async function submitUpload() {
     if (!file) return;
@@ -57,23 +59,33 @@ export function UniversalUploadWorkbench() {
 
   async function buildModel() {
     if (!datasetId) return;
+    setActionLoading("build");
+    setActionMessage("");
     const r = await fetch(`/api/datasets/${datasetId}/build-model`, { method: "POST" });
     setOut(await r.json());
+    setActionMessage("Modelo construido correctamente.");
     setStep(4);
+    setActionLoading("");
   }
 
   async function fetchProfile() {
     if (!datasetId) return;
+    setActionLoading("profile");
+    setActionMessage("");
     const r = await fetch(`/api/datasets/${datasetId}/profile`);
     const j = await r.json();
     setProfile(j.profile || null);
     setMappingDraft(j.semanticMap || {});
     setOut(j);
     setStep(3);
+    setActionMessage("Perfilado actualizado.");
+    setActionLoading("");
   }
 
   async function saveMapping() {
     if (!datasetId) return;
+    setActionLoading("mapping");
+    setActionMessage("");
     const r = await fetch(`/api/datasets/${datasetId}/map-schema`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -81,17 +93,25 @@ export function UniversalUploadWorkbench() {
     });
     setOut(await r.json());
     setStep(4);
+    setActionMessage("Mapeo guardado.");
+    setActionLoading("");
   }
 
   async function runVariance() {
     if (!datasetId) return;
+    setActionLoading("variance");
+    setActionMessage("");
     const r = await fetch(`/api/analysis/variance?dataset_id=${encodeURIComponent(datasetId)}&dimension=category&from_month=${encodeURIComponent(fromMonth)}&to_month=${encodeURIComponent(toMonth)}`);
     setOut(await r.json());
     setStep(5);
+    setActionMessage("Analisis de variacion generado.");
+    setActionLoading("");
   }
 
   async function runInsights() {
     if (!datasetId) return;
+    setActionLoading("copilot");
+    setActionMessage("");
     const r = await fetch("/api/insights/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -101,24 +121,34 @@ export function UniversalUploadWorkbench() {
     setOut(j);
     setAnalysisSummary(j);
     setStep(5);
+    setActionMessage("Copiloto generado con exito.");
+    setActionLoading("");
   }
 
   async function runFullAnalysis() {
     if (!datasetId) return;
+    setActionLoading("full");
+    setActionMessage("Ejecutando analisis completo...");
     await saveMapping();
     await buildModel();
     await runVariance();
     await runInsights();
+    setActionMessage("Analisis completo finalizado.");
+    setActionLoading("");
   }
 
   async function runSqlDemo() {
     if (!datasetId) return;
+    setActionLoading("sql");
+    setActionMessage("");
     const r = await fetch("/api/sql/query", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ dataset_id: datasetId, sql: "select month, sum(revenue) from facts_sales group by month" }),
     });
     setOut(await r.json());
+    setActionMessage("Consulta SQL demo ejecutada.");
+    setActionLoading("");
   }
 
   return (
@@ -153,9 +183,11 @@ export function UniversalUploadWorkbench() {
           <div className={s.note}>Este flujo calcula ventas directamente desde la columna mapeada como revenue (ej. `VALOR VENTAS`).</div>
           <div className={s.row} style={{ marginTop: 8 }}>
             <button className={s.btn} onClick={fetchProfile} disabled={!datasetId}>Refrescar perfilado</button>
-            <button className={s.btnPrimary} onClick={runFullAnalysis} disabled={!datasetId || loading}>Generar analisis completo</button>
+            <button className={s.btnPrimary} onClick={runFullAnalysis} disabled={!datasetId || loading || !!actionLoading}>{actionLoading === "full" ? "Procesando analisis..." : "Generar analisis completo"}</button>
             <button className={s.btn} onClick={() => setShowTechnical((v) => !v)}>{showTechnical ? "Ocultar detalle tecnico" : "Ver detalle tecnico"}</button>
           </div>
+          {actionLoading && actionLoading !== "full" ? <p className={s.statusInfo}>Procesando accion: {actionLoading}...</p> : null}
+          {actionMessage ? <p className={s.statusOk}>{actionMessage}</p> : null}
         </div>
 
         {profile ? (
@@ -178,9 +210,9 @@ export function UniversalUploadWorkbench() {
           <div className={s.card}>
             <h3 style={{ marginTop: 0 }}>Siguientes acciones</h3>
             <div className={s.row}>
-              <button className={s.btn} onClick={saveMapping} disabled={!datasetId}>Guardar mapeo</button>
-              <button className={s.btn} onClick={buildModel} disabled={!datasetId}>Build model</button>
-              <button className={s.btn} onClick={runSqlDemo} disabled={!datasetId}>SQL demo</button>
+              <button className={s.btn} onClick={saveMapping} disabled={!datasetId || !!actionLoading}>{actionLoading === "mapping" ? "Guardando..." : "Guardar mapeo"}</button>
+              <button className={s.btn} onClick={buildModel} disabled={!datasetId || !!actionLoading}>{actionLoading === "build" ? "Construyendo..." : "Build model"}</button>
+              <button className={s.btn} onClick={runSqlDemo} disabled={!datasetId || !!actionLoading}>{actionLoading === "sql" ? "Consultando..." : "SQL demo"}</button>
             </div>
             <div className={s.row} style={{ marginTop: 8 }}>
               <input className={s.input} value={fromMonth} onChange={(e) => setFromMonth(e.target.value)} placeholder="from_month YYYY-MM" />
@@ -191,8 +223,8 @@ export function UniversalUploadWorkbench() {
                 <option value="comercial">Comercial</option>
                 <option value="inventario">Inventario</option>
               </select>
-              <button className={s.btn} onClick={runVariance} disabled={!datasetId}>Variance</button>
-              <button className={s.btn} onClick={runInsights} disabled={!datasetId}>Copiloto</button>
+              <button className={s.btn} onClick={runVariance} disabled={!datasetId || !!actionLoading}>{actionLoading === "variance" ? "Analizando..." : "Variance"}</button>
+              <button className={s.btn} onClick={runInsights} disabled={!datasetId || !!actionLoading}>{actionLoading === "copilot" ? "Generando..." : "Copiloto"}</button>
             </div>
             {showTechnical ? <pre className={s.mono} style={{ marginTop: 10 }}>{JSON.stringify(out || {}, null, 2)}</pre> : null}
           </div>
