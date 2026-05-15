@@ -48,13 +48,51 @@ function buildPolicyAnswer(input: string): string | null {
   const policies = data.business?.policies || [];
   if (!policies.length) return null;
 
-  if (/(envio|envios|entrega|domicilio)/.test(t)) {
-    return `Claro. Para envíos y condiciones de compra revisa:\n${policies.join("\n")}`;
+  if (/(envio|envios|entrega|domicilio|despachan|despacho|ciudad)/.test(t)) {
+    return [
+      "Si, hacemos despachos nacionales sujetos a cobertura y tiempos de transportadora.",
+      "Para confirmar Monteria o tu ciudad exacta, te ayudo a validar con asesor y costo de envio.",
+      `Politicas oficiales: ${policies.join(" | ")}`,
+    ].join(" ");
   }
   if (/(cambio|devolucion|garantia|politica|faq)/.test(t)) {
     return `Te comparto políticas oficiales de Colombia Chef:\n${policies.join("\n")}`;
   }
   return null;
+}
+
+function parseSizeAndColor(text: string): { size: string; colors: string[] } {
+  const src = String(text || "").toLowerCase();
+  const sizeMatch = src.match(/\b(xs|s|m|l|xl|xxl|xxxl|talla\s+[a-z0-9]+)\b/i);
+  const size = sizeMatch ? sizeMatch[1].toUpperCase().replace("TALLA ", "") : "";
+  const colorWords = ["negro", "blanco", "verde", "azul", "gris", "rojo", "rosado", "mostaza", "mocca", "naranja", "crudo"];
+  const colors = colorWords.filter((c) => src.includes(c));
+  return { size, colors };
+}
+
+function buildRefinedFromSession(customerId: string, userText: string): string | null {
+  const session = getSession(customerId);
+  if (!session?.lastCategory) return null;
+  const { size, colors } = parseSizeAndColor(userText);
+  if (!size && !colors.length) return null;
+
+  const all = findProductsByCategory(session.lastCategory, 60);
+  const refined = all.filter((p) => {
+    const okSize = size ? (p.sizes || []).map((s) => s.toUpperCase()).includes(size) : true;
+    const okColor = colors.length ? colors.some((c) => (p.colors || []).map((x) => x.toLowerCase()).includes(c)) : true;
+    return okSize && okColor;
+  }).slice(0, 3);
+
+  if (!refined.length) {
+    return `No veo opciones exactas para talla ${size || ""}${colors.length ? ` y color ${colors.join("/")}` : ""} en ${session.lastCategory}. Te puedo mostrar alternativas cercanas o validar disponibilidad con asesor.`;
+  }
+
+  saveSession(customerId, {
+    lastShownUrls: [...session.lastShownUrls, ...refined.map((x) => x.url)].slice(-30),
+    lastResults: refined.map((x) => ({ name: x.name, price: x.price, url: x.url })),
+  });
+
+  return formatProductsList(refined, `Perfecto, con esos datos te recomiendo en ${session.lastCategory}:`);
 }
 
 function buildPromoAnswer(): string {
@@ -292,6 +330,18 @@ export async function POST(req: NextRequest) {
         console.error("[colombiachef-webhook] send_more_options_failed", { error: error?.message || String(error) });
         return NextResponse.json({ ok: false, error: "send_failed" }, { status: 500 });
       }
+    }
+  }
+
+  const refinedReply = buildRefinedFromSession(customerId, normalizedText);
+  if (refinedReply) {
+    try {
+      await sendToInbound(outboundInstance, inbound, refinedReply);
+      console.log("[colombiachef-webhook] sent_refined_options", { customerId });
+      return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+    } catch (error: any) {
+      console.error("[colombiachef-webhook] send_refined_options_failed", { error: error?.message || String(error) });
+      return NextResponse.json({ ok: false, error: "send_failed" }, { status: 500 });
     }
   }
 
