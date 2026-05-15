@@ -10,6 +10,8 @@ type CustomerSession = {
   lastResults: ProductLite[];
   lastUserMessage: string;
   welcomed: boolean;
+  expectedAction: string;
+  lastAssistantType: string;
   updatedAt: number;
 };
 
@@ -32,11 +34,13 @@ export function saveSession(customerId: string, patch: Partial<CustomerSession>)
   const previous = getSession(customerId) || {
     lastCategory: "",
     lastShownUrls: [],
-    lastResults: [],
-    lastUserMessage: "",
-    welcomed: false,
-    updatedAt: Date.now(),
-  };
+      lastResults: [],
+      lastUserMessage: "",
+      welcomed: false,
+      expectedAction: "",
+      lastAssistantType: "",
+      updatedAt: Date.now(),
+    };
   const next = {
     ...previous,
     ...patch,

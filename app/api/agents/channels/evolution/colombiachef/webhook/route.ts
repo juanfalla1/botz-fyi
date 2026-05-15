@@ -284,6 +284,14 @@ function buildClarifyAnswer(): string {
   ].join(" ");
 }
 
+function isAffirmative(text: string): boolean {
+  return /^(si|sí|dale|ok|listo|de una|hagale|h[aá]gale)$/i.test(String(text || "").trim());
+}
+
+function isNegative(text: string): boolean {
+  return /^(no|negativo|ya no|mejor no)$/i.test(String(text || "").trim());
+}
+
 function isLikelyCatalogQuery(text: string): boolean {
   const t = String(text || "").toLowerCase();
   return /(chaqueta|pantalon|delantal|gorro|combo|accesorio|talla|color|presupuesto|uniforme|chef|cocina|antifluido|referencia|ref)/i.test(t);
@@ -421,6 +429,7 @@ export async function POST(req: NextRequest) {
     if (more) {
       try {
         await sendToInbound(outboundInstance, inbound, more);
+        saveSession(customerId, { expectedAction: "refine_or_buy", lastAssistantType: "more_options" });
         console.log("[colombiachef-webhook] sent_more_options", { customerId });
         return NextResponse.json({ ok: true, sent: true, to: inbound.from });
       } catch (error: any) {
@@ -434,6 +443,7 @@ export async function POST(req: NextRequest) {
   if (refinedReply) {
     try {
       await sendToInbound(outboundInstance, inbound, refinedReply);
+      saveSession(customerId, { expectedAction: "buy_or_more", lastAssistantType: "refined_options" });
       console.log("[colombiachef-webhook] sent_refined_options", { customerId });
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
     } catch (error: any) {
@@ -446,6 +456,7 @@ export async function POST(req: NextRequest) {
   if (detailReply) {
     try {
       await sendToInbound(outboundInstance, inbound, detailReply);
+      saveSession(customerId, { expectedAction: "buy_or_more", lastAssistantType: "product_detail" });
       console.log("[colombiachef-webhook] sent_product_detail", { customerId });
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
     } catch (error: any) {
@@ -458,6 +469,7 @@ export async function POST(req: NextRequest) {
     if (isPurchase) {
       const handoff = buildPurchaseSummary(inbound.text, customerId);
       await sendToInbound(outboundInstance, inbound, handoff.customerReply);
+      saveSession(customerId, { expectedAction: "advisor_followup", lastAssistantType: "purchase_handoff" });
       if (ADVISOR_NUMBER) {
         await evolutionService.sendMessage(outboundInstance, ADVISOR_NUMBER, handoff.advisorSummary);
       }
@@ -467,6 +479,22 @@ export async function POST(req: NextRequest) {
         advisorNumber: ADVISOR_NUMBER,
       });
     } else {
+      const sessionBeforeReply = getSession(customerId);
+      if (isAffirmative(normalizedText) && sessionBeforeReply?.expectedAction === "offer_more_options") {
+        const forcedMore = buildMoreOptionsAnswer(customerId);
+        if (forcedMore) {
+          await sendToInbound(outboundInstance, inbound, forcedMore);
+          saveSession(customerId, { expectedAction: "refine_or_buy", lastAssistantType: "more_options" });
+          return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+        }
+      }
+      if (isNegative(normalizedText) && sessionBeforeReply?.expectedAction === "offer_more_options") {
+        const closeReply = "Perfecto. Si quieres, te filtro por talla, color y presupuesto para darte una recomendacion exacta.";
+        await sendToInbound(outboundInstance, inbound, closeReply);
+        saveSession(customerId, { expectedAction: "refine", lastAssistantType: "guided_refine" });
+        return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+      }
+
       const reply = composeReply(inbound.text, customerId);
       await sendToInbound(outboundInstance, inbound, reply);
 
@@ -477,6 +505,8 @@ export async function POST(req: NextRequest) {
         lastShownUrls: found.map((x) => x.url),
         lastResults: found.map((x) => ({ name: x.name, price: x.price, url: x.url })),
         lastUserMessage: inbound.text,
+        expectedAction: category ? "offer_more_options" : "clarify",
+        lastAssistantType: category ? "category_or_search_results" : "clarify",
       });
 
       console.log("[colombiachef-webhook] sent", {
