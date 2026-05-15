@@ -250,27 +250,6 @@ export function MetrocasDashboard() {
     return sample;
   }, [dashboard]);
 
-  const monthTrendStats = useMemo(() => {
-    const months = Array.from(new Set(filteredFacts.map((f) => String(f.month || "")).filter((m) => /^\d{4}-\d{2}$/.test(m)))).sort();
-    const salesByMonth = months.map((m) => ({
-      month: m,
-      sales: filteredFacts.filter((f) => String(f.month || "") === m).reduce((a, f) => a + Number(f.amount || 0), 0),
-    }));
-    const deltas: number[] = [];
-    for (let i = 1; i < salesByMonth.length; i++) {
-      const prev = salesByMonth[i - 1].sales;
-      const curr = salesByMonth[i].sales;
-      if (prev > 0) deltas.push(((curr - prev) / prev) * 100);
-    }
-    const latestDelta = deltas.length ? deltas[deltas.length - 1] : 0;
-    const worstDrop = deltas.length ? Math.abs(Math.min(0, ...deltas)) : 0;
-    return {
-      hasComparisons: deltas.length > 0,
-      latestGrowthPct: latestDelta > 0 ? latestDelta : 0,
-      worstDropPct: worstDrop,
-    };
-  }, [filteredFacts]);
-
   const cards = useMemo(
     () => [
       ["Ventas totales", effectiveDashboard.kpis.totalSales],
@@ -384,6 +363,27 @@ export function MetrocasDashboard() {
       return String(f.month || "") === selectedMonth;
     });
   }, [facts, selBranches, selSegments, selCities, granularity, selectedMonth]);
+
+  const monthTrendStats = useMemo(() => {
+    const months = Array.from(new Set(filteredFacts.map((f) => String(f.month || "")).filter((m) => /^\d{4}-\d{2}$/.test(m)))).sort();
+    const salesByMonth = months.map((m) => ({
+      month: m,
+      sales: filteredFacts.filter((f) => String(f.month || "") === m).reduce((a, f) => a + Number(f.amount || 0), 0),
+    }));
+    const deltas: number[] = [];
+    for (let i = 1; i < salesByMonth.length; i++) {
+      const prev = salesByMonth[i - 1].sales;
+      const curr = salesByMonth[i].sales;
+      if (prev > 0) deltas.push(((curr - prev) / prev) * 100);
+    }
+    const latestDelta = deltas.length ? deltas[deltas.length - 1] : 0;
+    const worstDrop = deltas.length ? Math.abs(Math.min(0, ...deltas)) : 0;
+    return {
+      hasComparisons: deltas.length > 0,
+      latestGrowthPct: latestDelta > 0 ? latestDelta : 0,
+      worstDropPct: worstDrop,
+    };
+  }, [filteredFacts]);
 
   const aggregate = useMemo(() => {
     const byKey = (key: string) => {
