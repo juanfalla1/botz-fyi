@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { MetrocasDashboard } from "@/app/metrocas/ui/MetrocasDashboard";
 
 export default function IntelligencePage() {
-  redirect("/metricas");
+  return <MetrocasDashboard />;
 }
