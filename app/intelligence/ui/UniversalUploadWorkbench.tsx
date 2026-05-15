@@ -18,6 +18,7 @@ export function UniversalUploadWorkbench() {
   const [toMonth, setToMonth] = useState("2026-02");
   const [insightMode, setInsightMode] = useState("ejecutivo");
   const [analysisSummary, setAnalysisSummary] = useState<any>(null);
+  const [showTechnical, setShowTechnical] = useState(false);
 
   async function submitUpload() {
     if (!file) return;
@@ -149,12 +150,11 @@ export function UniversalUploadWorkbench() {
           <div className={s.mono} style={{ marginTop: 8 }}>
             upload_id: {uploadId || "-"} | dataset_id: {datasetId || "-"}
           </div>
-          <div className={s.note}>
-            Este modulo es el flujo universal nuevo. El panel clasico de `/intelligence` sigue mostrando el dashboard legado de Metrocas.
-          </div>
+          <div className={s.note}>Este flujo calcula ventas directamente desde la columna mapeada como revenue (ej. `VALOR VENTAS`).</div>
           <div className={s.row} style={{ marginTop: 8 }}>
             <button className={s.btn} onClick={fetchProfile} disabled={!datasetId}>Refrescar perfilado</button>
             <button className={s.btnPrimary} onClick={runFullAnalysis} disabled={!datasetId || loading}>Generar analisis completo</button>
+            <button className={s.btn} onClick={() => setShowTechnical((v) => !v)}>{showTechnical ? "Ocultar detalle tecnico" : "Ver detalle tecnico"}</button>
           </div>
         </div>
 
@@ -173,7 +173,7 @@ export function UniversalUploadWorkbench() {
         <div className={s.grid}>
           <div className={s.card}>
             <h3 style={{ marginTop: 0 }}>Perfilado del dataset</h3>
-            <pre className={s.mono}>{JSON.stringify(profile || {}, null, 2)}</pre>
+            {showTechnical ? <pre className={s.mono}>{JSON.stringify(profile || {}, null, 2)}</pre> : <p>Archivo perfilado correctamente. Usa "Generar analisis completo" para ver resultados de negocio.</p>}
           </div>
           <div className={s.card}>
             <h3 style={{ marginTop: 0 }}>Siguientes acciones</h3>
@@ -194,7 +194,7 @@ export function UniversalUploadWorkbench() {
               <button className={s.btn} onClick={runVariance} disabled={!datasetId}>Variance</button>
               <button className={s.btn} onClick={runInsights} disabled={!datasetId}>Copiloto</button>
             </div>
-            <pre className={s.mono} style={{ marginTop: 10 }}>{JSON.stringify(out || {}, null, 2)}</pre>
+            {showTechnical ? <pre className={s.mono} style={{ marginTop: 10 }}>{JSON.stringify(out || {}, null, 2)}</pre> : null}
           </div>
         </div>
 
@@ -207,17 +207,19 @@ export function UniversalUploadWorkbench() {
           </div>
         ) : null}
 
-        <div className={s.card}>
-          <h3 className={s.sectionTitle}>Paso 3: Mapeo semantico</h3>
-          <div className={s.grid}>
-            {Object.entries(mappingDraft || {}).map(([k, v]) => (
-              <label className={s.field} key={k}>
-                <span>{k}</span>
-                <input className={s.input} value={String(v || "")} onChange={(e) => setMappingDraft((prev) => ({ ...prev, [k]: e.target.value }))} />
-              </label>
-            ))}
+        {showTechnical ? (
+          <div className={s.card}>
+            <h3 className={s.sectionTitle}>Paso 3: Mapeo semantico</h3>
+            <div className={s.grid}>
+              {Object.entries(mappingDraft || {}).map(([k, v]) => (
+                <label className={s.field} key={k}>
+                  <span>{k}</span>
+                  <input className={s.input} value={String(v || "")} onChange={(e) => setMappingDraft((prev) => ({ ...prev, [k]: e.target.value }))} />
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
     </main>
   );
