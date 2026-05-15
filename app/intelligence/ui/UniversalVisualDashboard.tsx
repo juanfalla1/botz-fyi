@@ -9,6 +9,7 @@ const box = { height: 300, width: "100%" } as const;
 export function UniversalVisualDashboard({ datasetId }: { datasetId: string }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("Resumen Ejecutivo");
 
   useEffect(() => {
     let on = true;
@@ -45,16 +46,53 @@ export function UniversalVisualDashboard({ datasetId }: { datasetId: string }) {
           <article className={s.card}><p className={s.kpiLabel}>Ticket promedio</p><p className={s.kpiValue}>{Number(data?.kpis?.avgTicket || 0).toLocaleString("es-CO")}</p></article>
         </section>
 
-        <section className={s.grid2} style={{ marginTop: 12 }}>
-          <div className={s.card}>
-            <h3 style={{ marginTop: 0 }}>Ventas por mes</h3>
-            <div style={box}><ResponsiveContainer width="100%" height="100%"><LineChart data={data.monthlySales}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="period" /><YAxis /><Tooltip formatter={(v: any) => Number(v).toLocaleString("es-CO")} /><Line type="monotone" dataKey="sales" stroke="#2563eb" /></LineChart></ResponsiveContainer></div>
-          </div>
-          <div className={s.card}>
-            <h3 style={{ marginTop: 0 }}>Ventas por categoria</h3>
-            <div style={box}><ResponsiveContainer width="100%" height="100%"><BarChart data={data.salesByCategory}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis /><Tooltip formatter={(v: any) => Number(v).toLocaleString("es-CO")} /><Bar dataKey="sales" fill="#0ea5e9" /></BarChart></ResponsiveContainer></div>
+        <section className={`${s.card} ${s.panelCard}`} style={{ marginTop: 12 }}>
+          <div className={s.tabRail}>
+            {[
+              "Resumen Ejecutivo",
+              "Top Clientes",
+              "Top Productos",
+              "Ciudades",
+            ].map((t) => (
+              <button key={t} className={tab === t ? s.btnPrimary : s.btnSecondary} onClick={() => setTab(t)}>{t}</button>
+            ))}
+            <a className={s.btnSecondary} href="/intelligence">Ver dashboard legado</a>
           </div>
         </section>
+
+        {tab === "Resumen Ejecutivo" ? (
+          <section className={s.grid2} style={{ marginTop: 12 }}>
+            <div className={s.card}>
+              <h3 style={{ marginTop: 0 }}>Ventas por mes</h3>
+              <div style={box}><ResponsiveContainer width="100%" height="100%"><LineChart data={data.monthlySales}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="period" /><YAxis /><Tooltip formatter={(v: any) => Number(v).toLocaleString("es-CO")} /><Line type="monotone" dataKey="sales" stroke="#2563eb" /></LineChart></ResponsiveContainer></div>
+            </div>
+            <div className={s.card}>
+              <h3 style={{ marginTop: 0 }}>Ventas por categoria</h3>
+              <div style={box}><ResponsiveContainer width="100%" height="100%"><BarChart data={data.salesByCategory}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis /><Tooltip formatter={(v: any) => Number(v).toLocaleString("es-CO")} /><Bar dataKey="sales" fill="#0ea5e9" /></BarChart></ResponsiveContainer></div>
+            </div>
+          </section>
+        ) : null}
+
+        {tab === "Top Clientes" ? (
+          <section className={s.card} style={{ marginTop: 12 }}>
+            <h3 style={{ marginTop: 0 }}>Top clientes por ventas</h3>
+            <div style={box}><ResponsiveContainer width="100%" height="100%"><BarChart data={data.topCustomers}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis /><Tooltip formatter={(v: any) => Number(v).toLocaleString("es-CO")} /><Bar dataKey="sales" fill="#16a34a" /></BarChart></ResponsiveContainer></div>
+          </section>
+        ) : null}
+
+        {tab === "Top Productos" ? (
+          <section className={s.card} style={{ marginTop: 12 }}>
+            <h3 style={{ marginTop: 0 }}>Top productos por ventas</h3>
+            <div style={box}><ResponsiveContainer width="100%" height="100%"><BarChart data={data.topProducts}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis /><Tooltip formatter={(v: any) => Number(v).toLocaleString("es-CO")} /><Bar dataKey="sales" fill="#f59e0b" /></BarChart></ResponsiveContainer></div>
+          </section>
+        ) : null}
+
+        {tab === "Ciudades" ? (
+          <section className={s.card} style={{ marginTop: 12 }}>
+            <h3 style={{ marginTop: 0 }}>Ranking por ciudad</h3>
+            <div style={box}><ResponsiveContainer width="100%" height="100%"><BarChart data={data.cityRanking}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="city" tick={{ fontSize: 11 }} /><YAxis /><Tooltip formatter={(v: any) => Number(v).toLocaleString("es-CO")} /><Bar dataKey="sales" fill="#2563eb" /></BarChart></ResponsiveContainer></div>
+          </section>
+        ) : null}
       </div>
     </main>
   );
