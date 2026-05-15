@@ -13,6 +13,10 @@ export function UniversalUploadWorkbench() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
+  const [mappingDraft, setMappingDraft] = useState<Record<string, string>>({});
+  const [fromMonth, setFromMonth] = useState("2026-01");
+  const [toMonth, setToMonth] = useState("2026-02");
+  const [insightMode, setInsightMode] = useState("ejecutivo");
 
   async function submitUpload() {
     if (!file) return;
@@ -39,6 +43,7 @@ export function UniversalUploadWorkbench() {
       setUploadId(j.upload_id || "");
       setDatasetId(j.dataset_id || "");
       setProfile(j.profile || null);
+      setMappingDraft(j?.semanticMap || {});
       setOut(j);
       setStep(2);
     } catch (e: any) {
@@ -55,11 +60,53 @@ export function UniversalUploadWorkbench() {
     setStep(4);
   }
 
+  async function fetchProfile() {
+    if (!datasetId) return;
+    const r = await fetch(`/api/datasets/${datasetId}/profile`);
+    const j = await r.json();
+    setProfile(j.profile || null);
+    setMappingDraft(j.semanticMap || {});
+    setOut(j);
+    setStep(3);
+  }
+
+  async function saveMapping() {
+    if (!datasetId) return;
+    const r = await fetch(`/api/datasets/${datasetId}/map-schema`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mapping: mappingDraft }),
+    });
+    setOut(await r.json());
+    setStep(4);
+  }
+
   async function runVariance() {
     if (!datasetId) return;
-    const r = await fetch(`/api/analysis/variance?dataset_id=${encodeURIComponent(datasetId)}&dimension=category&from_month=2026-01&to_month=2026-02`);
+    const r = await fetch(`/api/analysis/variance?dataset_id=${encodeURIComponent(datasetId)}&dimension=category&from_month=${encodeURIComponent(fromMonth)}&to_month=${encodeURIComponent(toMonth)}`);
     setOut(await r.json());
     setStep(5);
+  }
+
+  async function runInsights() {
+    if (!datasetId) return;
+    const r = await fetch("/api/insights/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataset_id: datasetId, mode: insightMode, from_month: fromMonth, to_month: toMonth }),
+    });
+    setOut(await r.json());
+    setStep(5);
+  }
+
+  async function runSqlDemo() {
+    if (!datasetId) return;
+    const r = await fetch("/api/sql/query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataset_id: datasetId, sql: "select month, sum(revenue) from facts_sales group by month" }),
+    });
+    setOut(await r.json());
   }
 
   return (
@@ -91,6 +138,9 @@ export function UniversalUploadWorkbench() {
           <div className={s.mono} style={{ marginTop: 8 }}>
             upload_id: {uploadId || "-"} | dataset_id: {datasetId || "-"}
           </div>
+          <div className={s.row} style={{ marginTop: 8 }}>
+            <button className={s.btn} onClick={fetchProfile} disabled={!datasetId}>Refrescar perfilado</button>
+          </div>
         </div>
 
         {profile ? (
@@ -113,10 +163,35 @@ export function UniversalUploadWorkbench() {
           <div className={s.card}>
             <h3 style={{ marginTop: 0 }}>Siguientes acciones</h3>
             <div className={s.row}>
+              <button className={s.btn} onClick={saveMapping} disabled={!datasetId}>Guardar mapeo</button>
               <button className={s.btn} onClick={buildModel} disabled={!datasetId}>Build model</button>
-              <button className={s.btn} onClick={runVariance} disabled={!datasetId}>Variance demo</button>
+              <button className={s.btn} onClick={runSqlDemo} disabled={!datasetId}>SQL demo</button>
+            </div>
+            <div className={s.row} style={{ marginTop: 8 }}>
+              <input className={s.input} value={fromMonth} onChange={(e) => setFromMonth(e.target.value)} placeholder="from_month YYYY-MM" />
+              <input className={s.input} value={toMonth} onChange={(e) => setToMonth(e.target.value)} placeholder="to_month YYYY-MM" />
+              <select className={s.select} value={insightMode} onChange={(e) => setInsightMode(e.target.value)}>
+                <option value="ejecutivo">Ejecutivo</option>
+                <option value="analista">Analista</option>
+                <option value="comercial">Comercial</option>
+                <option value="inventario">Inventario</option>
+              </select>
+              <button className={s.btn} onClick={runVariance} disabled={!datasetId}>Variance</button>
+              <button className={s.btn} onClick={runInsights} disabled={!datasetId}>Copiloto</button>
             </div>
             <pre className={s.mono} style={{ marginTop: 10 }}>{JSON.stringify(out || {}, null, 2)}</pre>
+          </div>
+        </div>
+
+        <div className={s.card}>
+          <h3 className={s.sectionTitle}>Paso 3: Mapeo semantico</h3>
+          <div className={s.grid}>
+            {Object.entries(mappingDraft || {}).map(([k, v]) => (
+              <label className={s.field} key={k}>
+                <span>{k}</span>
+                <input className={s.input} value={String(v || "")} onChange={(e) => setMappingDraft((prev) => ({ ...prev, [k]: e.target.value }))} />
+              </label>
+            ))}
           </div>
         </div>
       </div>

@@ -50,6 +50,25 @@
   background: #fff6cf;
 }
 
+.sectionTitle {
+  margin: 0 0 10px;
+  font-size: 1.1rem;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.input,
+.select {
+  border: 1px solid #bfd2ef;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
 .btn {
   border: 1px solid #a8c0ea;
   background: #f3f8ff;
