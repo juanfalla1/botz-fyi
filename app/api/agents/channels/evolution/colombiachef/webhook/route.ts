@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { evolutionService } from "../../../../../../../lib/services/evolution.service";
-import { categoryMatches, findProductsByCategory, findProductsByText, loadCatalog } from "../_lib/catalog";
+import { categoryMatches, findProductByUrl, findProductsByCategory, findProductsByText, loadCatalog } from "../_lib/catalog";
 import { parseInbound } from "../_lib/evolution-payload";
 import { isCatalogScopeQuestion, isGreeting, isMoreOptionsIntent, isPurchaseIntent, isUnsupportedRequest } from "../_lib/intent";
 import { getSession, saveSession } from "../_lib/session";
@@ -203,6 +203,50 @@ function buildFallback(): string {
   ].join(" ");
 }
 
+function isProductDetailQuestion(text: string): boolean {
+  return /(que es|que incluye|que trae|de que material|material|composicion|antifluido|impermeable|se puede mojar|resiste agua|como es la tela)/i.test(
+    String(text || "")
+  );
+}
+
+function cleanDescription(text: string): string {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+function buildProductDetailAnswer(customerId: string, input: string): string | null {
+  if (!isProductDetailQuestion(input)) return null;
+
+  const session = getSession(customerId);
+  const fromSession = session?.lastResults?.[0]?.url ? findProductByUrl(session.lastResults[0].url) : null;
+  const fromText = findProductsByText(input, 1)[0] || null;
+  const picked = fromText || fromSession;
+
+  if (!picked) {
+    return [
+      "Te ayudo con eso.",
+      "Dime el nombre o referencia exacta del producto y te confirmo que incluye, material y cuidados.",
+      "Si quieres, tambien te muestro opciones por categoria.",
+    ].join(" ");
+  }
+
+  const desc = cleanDescription(picked.description);
+  const sizeText = picked.sizes?.length ? `Tallas visibles: ${picked.sizes.join(", ")}.` : "No veo talla visible en la ficha.";
+  const colorText = picked.colors?.length ? `Colores visibles: ${picked.colors.join(", ")}.` : "No veo colores visibles en la ficha.";
+  const notes = [picked.availability_notes, picked.shipping_notes].filter(Boolean).join(" ");
+
+  return [
+    `Sobre ${picked.name}:`,
+    desc ? desc : "No veo descripcion tecnica completa en la ficha publica.",
+    sizeText,
+    colorText,
+    notes ? `Nota de ficha: ${notes}` : "",
+    `URL: ${picked.url}`,
+    "Si necesitas confirmar si se puede mojar o nivel de antifluido exacto, te lo valido con asesor antes de comprar.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function buildCatalogScopeAnswer(): string {
   return [
     "Vendemos uniformes y accesorios para cocina.",
@@ -352,6 +396,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
     } catch (error: any) {
       console.error("[colombiachef-webhook] send_refined_options_failed", { error: error?.message || String(error) });
+      return NextResponse.json({ ok: false, error: "send_failed" }, { status: 500 });
+    }
+  }
+
+  const detailReply = buildProductDetailAnswer(customerId, normalizedText);
+  if (detailReply) {
+    try {
+      await sendToInbound(outboundInstance, inbound, detailReply);
+      console.log("[colombiachef-webhook] sent_product_detail", { customerId });
+      return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+    } catch (error: any) {
+      console.error("[colombiachef-webhook] send_product_detail_failed", { error: error?.message || String(error) });
       return NextResponse.json({ ok: false, error: "send_failed" }, { status: 500 });
     }
   }

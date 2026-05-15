@@ -86,3 +86,10 @@ export function findProductsByCategory(category: string, limit = 8): ColombiaChe
   const data = loadCatalog();
   return (data.products || []).filter((p) => p.category === category).slice(0, limit);
 }
+
+export function findProductByUrl(url: string): ColombiaChefProduct | null {
+  const data = loadCatalog();
+  const target = normalize(url);
+  if (!target) return null;
+  return (data.products || []).find((p) => normalize(p.url) === target) || null;
+}
