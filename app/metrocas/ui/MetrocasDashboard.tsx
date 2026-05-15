@@ -422,6 +422,22 @@ export function MetrocasDashboard() {
     };
   }, [filteredFacts]);
 
+  const summarySeries = useMemo(() => {
+    const monthSales = aggregate.byDate
+      .filter((r) => /^\d{4}-\d{2}/.test(String(r.label || "")))
+      .map((r) => ({ period: String(r.label).slice(0, 7), sales: Number(r.sales || 0) }));
+    const byMonth = new Map<string, number>();
+    monthSales.forEach((r) => byMonth.set(r.period, (byMonth.get(r.period) || 0) + r.sales));
+    const monthly = [...byMonth.entries()]
+      .map(([period, sales]) => ({ period, sales }))
+      .sort((a, b) => a.period.localeCompare(b.period));
+
+    const categories = aggregate.byCategory.slice(0, 8).map((r) => ({ name: r.label, sales: Number(r.sales || 0) }));
+    const cities = aggregate.byCity.slice(0, 8).map((r) => ({ city: r.label, sales: Number(r.sales || 0) }));
+    const segments = aggregate.bySegment.slice(0, 10).map((r) => ({ label: r.label, balance: Number(r.sales || 0) }));
+    return { monthly, categories, cities, segments };
+  }, [aggregate]);
+
   const kpiHighlights = useMemo(() => {
     const topSegment = (segmentRanking[0]?.label || aggregate.bySegment[0]?.label || "N/A").toString();
     const topCustomer = (effectiveDashboard.topCustomers?.[0]?.name || customersData[0]?.label || "N/A").toString();
@@ -1570,20 +1586,20 @@ export function MetrocasDashboard() {
 
         <section className={s.grid2} style={{ marginTop: 12 }}>
           <div className={s.card}>
-            <h3 className="mb-3 font-semibold">Linea de ventas ({effectiveDashboard.monthlySales.length <= 1 ? "diaria" : "mensual"})</h3>
-            <div style={chartBoxStyle}><ResponsiveContainer width="100%" height="100%"><LineChart data={effectiveDashboard.monthlySales.length <= 1 ? aggregate.byDate.map((d) => ({ period: d.label, sales: d.sales })) : effectiveDashboard.monthlySales}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="period" /><YAxis tickFormatter={(v) => compactNum(Number(v))} /><Tooltip formatter={(v: any) => money(Number(v))} /><Line type="monotone" dataKey="sales" stroke="#22d3ee" /></LineChart></ResponsiveContainer></div>
+            <h3 className="mb-3 font-semibold">Linea de ventas mensual</h3>
+            <div style={chartBoxStyle}><ResponsiveContainer width="100%" height="100%"><LineChart data={summarySeries.monthly}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="period" /><YAxis tickFormatter={(v) => compactNum(Number(v))} /><Tooltip formatter={(v: any) => money(Number(v))} /><Line type="monotone" dataKey="sales" stroke="#22d3ee" /></LineChart></ResponsiveContainer></div>
           </div>
           <div className={s.card}>
             <h3 className="mb-3 font-semibold">Ventas por categoria</h3>
-            <div style={chartBoxStyle}><ResponsiveContainer width="100%" height="100%"><BarChart data={effectiveDashboard.salesByCategory.slice(0, 8)}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tickFormatter={(v) => compactNum(Number(v))} /><Tooltip formatter={(v: any) => money(Number(v))} /><Bar dataKey="sales" fill="#38bdf8" /></BarChart></ResponsiveContainer></div>
+            <div style={chartBoxStyle}><ResponsiveContainer width="100%" height="100%"><BarChart data={summarySeries.categories}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tickFormatter={(v) => compactNum(Number(v))} /><Tooltip formatter={(v: any) => money(Number(v))} /><Bar dataKey="sales" fill="#38bdf8" /></BarChart></ResponsiveContainer></div>
           </div>
           <div className={s.card}>
             <h3 className="mb-3 font-semibold">Participacion por categoria</h3>
-            <div style={chartBoxStyle}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={effectiveDashboard.salesByCategory.slice(0, 6)} dataKey="sales" nameKey="name" outerRadius={85} label>{effectiveDashboard.salesByCategory.slice(0, 6).map((_, idx) => <Cell key={idx} fill={["#22d3ee", "#34d399", "#f59e0b", "#2563eb", "#a855f7", "#ef4444"][idx % 6]} />)}</Pie><Legend verticalAlign="bottom" height={50} /><Tooltip formatter={(v: any) => money(Number(v))} /></PieChart></ResponsiveContainer></div>
+            <div style={chartBoxStyle}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={summarySeries.categories.slice(0, 6)} dataKey="sales" nameKey="name" outerRadius={85} labelLine={false} label={({ percent }: any) => (percent >= 0.05 ? `${(percent * 100).toFixed(0)}%` : "")}>{summarySeries.categories.slice(0, 6).map((_, idx) => <Cell key={idx} fill={["#22d3ee", "#34d399", "#f59e0b", "#2563eb", "#a855f7", "#ef4444"][idx % 6]} />)}</Pie><Legend verticalAlign="bottom" height={50} /><Tooltip formatter={(v: any) => money(Number(v))} /></PieChart></ResponsiveContainer></div>
           </div>
           <div className={s.card}>
             <h3 className="mb-3 font-semibold">Ranking de ciudades</h3>
-            <div style={chartBoxStyle}><ResponsiveContainer width="100%" height="100%"><BarChart data={effectiveDashboard.cityRanking.slice(0, 8)}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="city" tick={{ fontSize: 11 }} /><YAxis tickFormatter={(v) => compactNum(Number(v))} /><Tooltip formatter={(v: any) => money(Number(v))} /><Bar dataKey="sales" fill="#22d3ee" /></BarChart></ResponsiveContainer></div>
+            <div style={chartBoxStyle}><ResponsiveContainer width="100%" height="100%"><BarChart data={summarySeries.cities}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="city" tick={{ fontSize: 11 }} /><YAxis tickFormatter={(v) => compactNum(Number(v))} /><Tooltip formatter={(v: any) => money(Number(v))} /><Bar dataKey="sales" fill="#22d3ee" /></BarChart></ResponsiveContainer></div>
           </div>
         </section>
 
@@ -1594,12 +1610,12 @@ export function MetrocasDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={segmentRanking.length ? segmentRanking : [{ label: "Sin datos", balance: 1 }]}
+                    data={summarySeries.segments.length ? summarySeries.segments : [{ label: "Sin datos", balance: 1 }]}
                     dataKey="balance"
                     nameKey="label"
                     outerRadius={90}
                   >
-                    {(segmentRanking.length ? segmentRanking : [{ label: "Sin datos", balance: 1 }]).map((_, idx) => (
+                    {(summarySeries.segments.length ? summarySeries.segments : [{ label: "Sin datos", balance: 1 }]).map((_, idx) => (
                       <Cell key={idx} fill={["#2563eb", "#0ea5e9", "#22c55e", "#f59e0b", "#ef4444", "#a855f7"][idx % 6]} />
                     ))}
                   </Pie>
@@ -1612,7 +1628,7 @@ export function MetrocasDashboard() {
           <div className={s.card}>
             <h3 className="mb-3 font-semibold">Top segmentos por facturacion</h3>
             <div>
-              {(segmentRanking.length ? segmentRanking : [{ label: "Sin datos", balance: 0 }]).map((row) => (
+              {(summarySeries.segments.length ? summarySeries.segments : [{ label: "Sin datos", balance: 0 }]).map((row) => (
                 <div key={row.label} className={s.card}>
                   <strong>{row.label}</strong>
                   <p className={s.muted}>${row.balance.toLocaleString("es-CO")}</p>
