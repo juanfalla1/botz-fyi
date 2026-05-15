@@ -25,20 +25,39 @@ function isDuplicateMessage(messageId: string): boolean {
   return false;
 }
 
+function parseSizeAndColor(text: string): { size: string; colors: string[] } {
+  const src = String(text || "").toLowerCase();
+  const sizeMatch = src.match(/\b(xs|s|m|l|xl|xxl|xxxl|talla\s+[a-z0-9]+)\b/i);
+  const size = sizeMatch ? sizeMatch[1].toUpperCase().replace("TALLA ", "") : "";
+  const colorWords = ["negro", "blanco", "verde", "azul", "gris", "rojo", "rosado", "mostaza", "mocca", "naranja", "crudo"];
+  const colors = colorWords.filter((c) => src.includes(c));
+  return { size, colors };
+}
+
 function buildCategoryAnswer(input: string): string | null {
   const category = categoryMatches(input);
   if (!category) return null;
-  const items = findProductsByCategory(category, 3);
+  const { size, colors } = parseSizeAndColor(input);
+  const candidates = findProductsByCategory(category, 60);
+  const filtered = candidates.filter((p) => {
+    const okSize = size ? (p.sizes || []).map((s) => s.toUpperCase()).includes(size) : true;
+    const okColor = colors.length ? colors.some((c) => (p.colors || []).map((x) => x.toLowerCase()).includes(c)) : true;
+    return okSize && okColor;
+  });
+  const items = (filtered.length ? filtered : candidates).slice(0, 3);
   if (!items.length) {
     return `Por ahora no tengo productos listados en ${category}. ¿Quieres que te pase otras categorías?`;
   }
 
-  const lines = items.map((p, i) => formatOptionLine(i + 1, p.name, p.price, p.url));
+  const lines = items.map((p, i) => formatOptionLine(i + 1, p.name, p.price, p.url, undefined, p.sizes));
+  const guidance = size || colors.length
+    ? "Si quieres, te paso mas opciones o validamos disponibilidad exacta con asesor."
+    : "Si me dices talla, color y presupuesto te recomiendo mejor.";
   return [
     `Perfecto. Opciones en ${category}:`,
     ...lines,
     "",
-    "Si me dices talla, color y presupuesto te recomiendo mejor.",
+    guidance,
   ].join("\n");
 }
 
@@ -59,15 +78,6 @@ function buildPolicyAnswer(input: string): string | null {
     return `Te comparto políticas oficiales de Colombia Chef:\n${policies.join("\n")}`;
   }
   return null;
-}
-
-function parseSizeAndColor(text: string): { size: string; colors: string[] } {
-  const src = String(text || "").toLowerCase();
-  const sizeMatch = src.match(/\b(xs|s|m|l|xl|xxl|xxxl|talla\s+[a-z0-9]+)\b/i);
-  const size = sizeMatch ? sizeMatch[1].toUpperCase().replace("TALLA ", "") : "";
-  const colorWords = ["negro", "blanco", "verde", "azul", "gris", "rojo", "rosado", "mostaza", "mocca", "naranja", "crudo"];
-  const colors = colorWords.filter((c) => src.includes(c));
-  return { size, colors };
 }
 
 function buildRefinedFromSession(customerId: string, userText: string): string | null {
@@ -98,7 +108,7 @@ function buildRefinedFromSession(customerId: string, userText: string): string |
 function buildPromoAnswer(): string {
   const promos = findProductsByCategory("Promos", 3);
   if (!promos.length) return "En este momento no me aparecen promos activas. Si quieres, te busco por categoría.";
-  const lines = promos.map((p, i) => formatOptionLine(i + 1, p.name, p.price, p.url));
+  const lines = promos.map((p, i) => formatOptionLine(i + 1, p.name, p.price, p.url, undefined, p.sizes));
   return ["Promociones activas:", ...lines].join("\n");
 }
 
@@ -109,7 +119,7 @@ function buildSearchAnswer(input: string): string {
   }
   const lines = found.map((p, i) => {
     const notes = [p.availability_notes, p.shipping_notes].filter(Boolean).join(". ");
-    return formatOptionLine(i + 1, p.name, p.price, p.url, notes);
+    return formatOptionLine(i + 1, p.name, p.price, p.url, notes, p.sizes);
   });
   return ["Te encontré estas opciones:", ...lines].join("\n");
 }
@@ -144,9 +154,9 @@ function buildPurchaseSummary(input: string, customerId: string): { customerRepl
   return { customerReply, advisorSummary };
 }
 
-function formatProductsList(items: Array<{ name: string; price: string; url: string }>, prefix: string): string {
+function formatProductsList(items: Array<{ name: string; price: string; url: string; sizes?: string[] }>, prefix: string): string {
   if (!items.length) return "";
-  const lines = items.map((p, i) => formatOptionLine(i + 1, p.name, p.price, p.url));
+  const lines = items.map((p, i) => formatOptionLine(i + 1, p.name, p.price, p.url, undefined, p.sizes));
   return `${prefix}\n${lines.join("\n")}`;
 }
 
@@ -159,10 +169,11 @@ function visiblePrice(price: string): string {
   return price && String(price).trim() ? String(price).trim() : "No veo precio visible para ese producto en este momento.";
 }
 
-function formatOptionLine(index: number, name: string, price: string, url: string, notes?: string): string {
+function formatOptionLine(index: number, name: string, price: string, url: string, notes?: string, sizes?: string[]): string {
+  const sizeLabel = sizes && sizes.length ? `Tallas visibles: ${sizes.join(", ")}` : "No veo talla visible para ese producto en este momento.";
   const row = `${index}) ${compactName(name)} | ${visiblePrice(price)}\n${url}`;
-  if (!notes) return row;
-  return `${row}\nNota: ${compactName(notes)}`;
+  if (!notes) return `${row}\n${sizeLabel}`;
+  return `${row}\n${sizeLabel}\nNota: ${compactName(notes)}`;
 }
 
 function buildMoreOptionsAnswer(customerId: string): string | null {
