@@ -368,13 +368,15 @@ export function MetrocasDashboard() {
         });
       }
     }
-    const latestDelta = deltas.length ? deltas[deltas.length - 1] : null;
-    const worstDelta = deltas.reduce<{ from: string; to: string; pct: number } | null>((acc, row) => {
+    const latestYear = months.length ? Number(months[months.length - 1].slice(0, 4)) : null;
+    const deltasLatestYear = deltas.filter((d) => Number(d.to.slice(0, 4)) === latestYear);
+    const latestDelta = deltasLatestYear.length ? deltasLatestYear[deltasLatestYear.length - 1] : null;
+    const worstDelta = deltasLatestYear.reduce<{ from: string; to: string; pct: number } | null>((acc, row) => {
       if (!acc) return row;
       return row.pct < acc.pct ? row : acc;
     }, null);
     return {
-      hasComparisons: deltas.length > 0,
+      hasComparisons: deltasLatestYear.length > 0,
       latestGrowthPct: latestDelta && latestDelta.pct > 0 ? latestDelta.pct : 0,
       latestPairLabel: latestDelta ? `${latestDelta.from} -> ${latestDelta.to}` : "N/A",
       worstDropPct: worstDelta && worstDelta.pct < 0 ? Math.abs(worstDelta.pct) : 0,
