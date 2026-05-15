@@ -11,9 +11,9 @@ export function isPurchaseIntent(text: string): boolean {
 }
 
 export function isMoreOptionsIntent(text: string): boolean {
-  return /^(otra|quiero otra|dame opciones|mas opciones|mas|otra opcion|otra referencia)$/i.test(
-    String(text || "").trim()
-  );
+  const t = String(text || "").trim();
+  if (/^(otra|quiero otra|dame opciones|mas opciones|mas|otra opcion|otra referencia)$/i.test(t)) return true;
+  return /(dame|quiero|si|sí|muestrame|mu[eé]strame)\s+.*(mas|m[aá]s)\s+opciones/i.test(t);
 }
 
 export function isCatalogScopeQuestion(text: string): boolean {
