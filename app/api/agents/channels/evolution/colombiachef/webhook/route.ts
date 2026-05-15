@@ -265,6 +265,19 @@ function buildCatalogScopeAnswer(): string {
   ].join(" ");
 }
 
+function buildClarifyAnswer(): string {
+  return [
+    "Quiero ayudarte bien, pero no me quedo totalmente clara tu solicitud.",
+    "Escribeme en este formato para responderte exacto: categoria + talla + color + presupuesto.",
+    "Ejemplo: combo institucional talla L blanco/negro hasta 220000.",
+  ].join(" ");
+}
+
+function isLikelyCatalogQuery(text: string): boolean {
+  const t = String(text || "").toLowerCase();
+  return /(chaqueta|pantalon|delantal|gorro|combo|accesorio|talla|color|presupuesto|uniforme|chef|cocina|antifluido|referencia|ref)/i.test(t);
+}
+
 function buildUnsupportedAnswer(): string {
   return [
     "En este momento no vendemos ese tipo de producto.",
@@ -273,7 +286,7 @@ function buildUnsupportedAnswer(): string {
   ].join(" ");
 }
 
-function composeReply(input: string): string {
+function composeReply(input: string, customerId: string): string {
   const low = input.toLowerCase();
   if (isGreeting(low)) {
     return "Hola, soy el Asesor IA Colombia Chef. Que buscas hoy: chaqueta, pantalon, delantal, gorro, combo o accesorio?";
@@ -285,8 +298,16 @@ function composeReply(input: string): string {
   if (policy) return policy;
   const byCategory = buildCategoryAnswer(low);
   if (byCategory) return byCategory;
-  if (low.trim().length >= 3) return buildSearchAnswer(low);
-  return buildFallback();
+  const session = getSession(customerId);
+  if (session?.lastCategory && /(este|ese|esa|eso|incluye|material|se puede mojar|antifluido)/i.test(low)) {
+    const retryDetail = buildProductDetailAnswer(customerId, low);
+    if (retryDetail) return retryDetail;
+  }
+  if (low.trim().length < 3) return buildClarifyAnswer();
+  if (!isLikelyCatalogQuery(low) && !session?.lastCategory) return buildClarifyAnswer();
+  const searched = buildSearchAnswer(low);
+  if (/^No encontre coincidencias exactas\./i.test(searched)) return buildClarifyAnswer();
+  return searched;
 }
 
 function looksLikeRealMsisdn(value: string): boolean {
@@ -435,7 +456,7 @@ export async function POST(req: NextRequest) {
         advisorNumber: ADVISOR_NUMBER,
       });
     } else {
-      const reply = composeReply(inbound.text);
+      const reply = composeReply(inbound.text, customerId);
       await sendToInbound(outboundInstance, inbound, reply);
 
       const category = categoryMatches(inbound.text) || getSession(customerId)?.lastCategory || "";

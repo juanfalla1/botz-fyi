@@ -74,9 +74,18 @@ export function findProductsByText(input: string, limit = 5): ColombiaChefProduc
         if (hay.includes(t)) score += 1;
       }
       if (score === 0 && hay.includes(query)) score = 1;
+      if (query.includes("combo") && normalize(p.category) === "combos") score += 1;
+      if (query.includes("chaqueta") && normalize(p.category) === "chaquetas") score += 1;
+      if (query.includes("pantalon") && normalize(p.category) === "pantalones") score += 1;
+      if (query.includes("delantal") && normalize(p.category) === "delantales") score += 1;
+      if (query.includes("gorro") && normalize(p.category) === "gorros") score += 1;
+      if (query.includes("accesorio") && normalize(p.category) === "accesorios") score += 1;
       return { p, score };
     })
-    .filter((x) => x.score > 0)
+    .filter((x) => {
+      if (tokens.length >= 3) return x.score >= 2;
+      return x.score >= 1;
+    })
     .sort((a, b) => b.score - a.score);
 
   return scored.slice(0, limit).map((x) => x.p);
