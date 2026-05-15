@@ -250,18 +250,39 @@ export function MetrocasDashboard() {
     return sample;
   }, [dashboard]);
 
+  const monthTrendStats = useMemo(() => {
+    const months = Array.from(new Set(filteredFacts.map((f) => String(f.month || "")).filter((m) => /^\d{4}-\d{2}$/.test(m)))).sort();
+    const salesByMonth = months.map((m) => ({
+      month: m,
+      sales: filteredFacts.filter((f) => String(f.month || "") === m).reduce((a, f) => a + Number(f.amount || 0), 0),
+    }));
+    const deltas: number[] = [];
+    for (let i = 1; i < salesByMonth.length; i++) {
+      const prev = salesByMonth[i - 1].sales;
+      const curr = salesByMonth[i].sales;
+      if (prev > 0) deltas.push(((curr - prev) / prev) * 100);
+    }
+    const latestDelta = deltas.length ? deltas[deltas.length - 1] : 0;
+    const worstDrop = deltas.length ? Math.abs(Math.min(0, ...deltas)) : 0;
+    return {
+      hasComparisons: deltas.length > 0,
+      latestGrowthPct: latestDelta > 0 ? latestDelta : 0,
+      worstDropPct: worstDrop,
+    };
+  }, [filteredFacts]);
+
   const cards = useMemo(
     () => [
       ["Ventas totales", effectiveDashboard.kpis.totalSales],
       ["Margen bruto", effectiveDashboard.kpis.grossMargin || 0],
       ["Ticket promedio", effectiveDashboard.kpis.avgTicket],
-      ["Crecimiento mensual", `${effectiveDashboard.kpis.monthlyGrowth}%`],
-      ["Caida mensual", `${effectiveDashboard.kpis.monthlyDrop}%`],
+      ["Crecimiento mensual", `${monthTrendStats.latestGrowthPct}%`],
+      ["Caida mensual", `${monthTrendStats.worstDropPct}%`],
       ["Alertas criticas", effectiveDashboard.kpis.criticalAlerts],
       ["Ciudad top ventas", effectiveDashboard.kpis.cityTopSales],
       ["Ciudad mayor oportunidad", effectiveDashboard.kpis.cityTopOpportunity],
     ],
-    [effectiveDashboard],
+    [effectiveDashboard, monthTrendStats],
   );
 
   const money = (v: number) =>
@@ -1527,7 +1548,7 @@ export function MetrocasDashboard() {
               display = compactNum(Number(value));
             }
             if (["Crecimiento mensual", "Caida mensual"].includes(String(title))) {
-              display = growthContext === "insufficient_periods" ? "N/A" : pct(Number(String(value).replace("%", "")));
+              display = !monthTrendStats.hasComparisons ? "N/A" : pct(Number(String(value).replace("%", "")));
             }
             return <div key={String(title)} className={s.card}><p className={s.muted}>{title}</p><p className={s.kpi}>{display}</p></div>;
           })}
