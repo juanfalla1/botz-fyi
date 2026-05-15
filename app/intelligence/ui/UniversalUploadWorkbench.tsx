@@ -21,6 +21,16 @@ export function UniversalUploadWorkbench() {
   const [showTechnical, setShowTechnical] = useState(false);
   const [actionLoading, setActionLoading] = useState<string>("");
   const [actionMessage, setActionMessage] = useState("");
+  const [lastAction, setLastAction] = useState("");
+  const [lastActionAt, setLastActionAt] = useState("");
+  const [actionTick, setActionTick] = useState(0);
+
+  const markActionDone = (name: string, message: string) => {
+    setLastAction(name);
+    setLastActionAt(new Date().toLocaleTimeString("es-CO"));
+    setActionMessage(message);
+    setActionTick((v) => v + 1);
+  };
 
   async function submitUpload() {
     if (!file) return;
@@ -63,7 +73,7 @@ export function UniversalUploadWorkbench() {
     setActionMessage("");
     const r = await fetch(`/api/datasets/${datasetId}/build-model`, { method: "POST" });
     setOut(await r.json());
-    setActionMessage("Modelo construido correctamente.");
+    markActionDone("Build model", "Modelo construido correctamente.");
     setStep(4);
     setActionLoading("");
   }
@@ -78,7 +88,7 @@ export function UniversalUploadWorkbench() {
     setMappingDraft(j.semanticMap || {});
     setOut(j);
     setStep(3);
-    setActionMessage("Perfilado actualizado.");
+    markActionDone("Refrescar perfilado", "Perfilado actualizado.");
     setActionLoading("");
   }
 
@@ -93,7 +103,7 @@ export function UniversalUploadWorkbench() {
     });
     setOut(await r.json());
     setStep(4);
-    setActionMessage("Mapeo guardado.");
+    markActionDone("Guardar mapeo", "Mapeo guardado.");
     setActionLoading("");
   }
 
@@ -104,7 +114,7 @@ export function UniversalUploadWorkbench() {
     const r = await fetch(`/api/analysis/variance?dataset_id=${encodeURIComponent(datasetId)}&dimension=category&from_month=${encodeURIComponent(fromMonth)}&to_month=${encodeURIComponent(toMonth)}`);
     setOut(await r.json());
     setStep(5);
-    setActionMessage("Analisis de variacion generado.");
+    markActionDone("Variance", "Analisis de variacion generado.");
     setActionLoading("");
   }
 
@@ -121,7 +131,7 @@ export function UniversalUploadWorkbench() {
     setOut(j);
     setAnalysisSummary(j);
     setStep(5);
-    setActionMessage("Copiloto generado con exito.");
+    markActionDone("Copiloto", "Copiloto generado con exito.");
     setActionLoading("");
   }
 
@@ -133,7 +143,7 @@ export function UniversalUploadWorkbench() {
     await buildModel();
     await runVariance();
     await runInsights();
-    setActionMessage("Analisis completo finalizado.");
+    markActionDone("Analisis completo", "Analisis completo finalizado.");
     setActionLoading("");
   }
 
@@ -147,7 +157,7 @@ export function UniversalUploadWorkbench() {
       body: JSON.stringify({ dataset_id: datasetId, sql: "select month, sum(revenue) from facts_sales group by month" }),
     });
     setOut(await r.json());
-    setActionMessage("Consulta SQL demo ejecutada.");
+    markActionDone("SQL demo", "Consulta SQL demo ejecutada.");
     setActionLoading("");
   }
 
@@ -188,6 +198,12 @@ export function UniversalUploadWorkbench() {
           </div>
           {actionLoading && actionLoading !== "full" ? <p className={s.statusInfo}>Procesando accion: {actionLoading}...</p> : null}
           {actionMessage ? <p className={s.statusOk}>{actionMessage}</p> : null}
+          {(lastAction || lastActionAt) ? (
+            <div key={actionTick} className={`${s.actionBar} ${s.pulse}`}>
+              <span className={s.pill}>Ultima accion: {lastAction || "-"}</span>
+              <span className={s.pill}>Hora: {lastActionAt || "-"}</span>
+            </div>
+          ) : null}
         </div>
 
         {profile ? (
@@ -210,9 +226,9 @@ export function UniversalUploadWorkbench() {
           <div className={s.card}>
             <h3 style={{ marginTop: 0 }}>Siguientes acciones</h3>
             <div className={s.row}>
-              <button className={s.btn} onClick={saveMapping} disabled={!datasetId || !!actionLoading}>{actionLoading === "mapping" ? "Guardando..." : "Guardar mapeo"}</button>
-              <button className={s.btn} onClick={buildModel} disabled={!datasetId || !!actionLoading}>{actionLoading === "build" ? "Construyendo..." : "Build model"}</button>
-              <button className={s.btn} onClick={runSqlDemo} disabled={!datasetId || !!actionLoading}>{actionLoading === "sql" ? "Consultando..." : "SQL demo"}</button>
+              <button className={s.btn} onClick={saveMapping} disabled={!datasetId || !!actionLoading}>{actionLoading === "mapping" ? "Guardando..." : lastAction === "Guardar mapeo" ? "Guardar mapeo ✓" : "Guardar mapeo"}</button>
+              <button className={s.btn} onClick={buildModel} disabled={!datasetId || !!actionLoading}>{actionLoading === "build" ? "Construyendo..." : lastAction === "Build model" ? "Build model ✓" : "Build model"}</button>
+              <button className={s.btn} onClick={runSqlDemo} disabled={!datasetId || !!actionLoading}>{actionLoading === "sql" ? "Consultando..." : lastAction === "SQL demo" ? "SQL demo ✓" : "SQL demo"}</button>
             </div>
             <div className={s.row} style={{ marginTop: 8 }}>
               <input className={s.input} value={fromMonth} onChange={(e) => setFromMonth(e.target.value)} placeholder="from_month YYYY-MM" />
@@ -223,9 +239,14 @@ export function UniversalUploadWorkbench() {
                 <option value="comercial">Comercial</option>
                 <option value="inventario">Inventario</option>
               </select>
-              <button className={s.btn} onClick={runVariance} disabled={!datasetId || !!actionLoading}>{actionLoading === "variance" ? "Analizando..." : "Variance"}</button>
-              <button className={s.btn} onClick={runInsights} disabled={!datasetId || !!actionLoading}>{actionLoading === "copilot" ? "Generando..." : "Copiloto"}</button>
+              <button className={s.btn} onClick={runVariance} disabled={!datasetId || !!actionLoading}>{actionLoading === "variance" ? "Analizando..." : lastAction === "Variance" ? "Variance ✓" : "Variance"}</button>
+              <button className={s.btn} onClick={runInsights} disabled={!datasetId || !!actionLoading}>{actionLoading === "copilot" ? "Generando..." : lastAction === "Copiloto" ? "Copiloto ✓" : "Copiloto"}</button>
             </div>
+            {(actionLoading || actionMessage) ? (
+              <div className={s.inlineStatus}>
+                {actionLoading ? `Procesando: ${actionLoading}...` : actionMessage}
+              </div>
+            ) : null}
             {showTechnical ? <pre className={s.mono} style={{ marginTop: 10 }}>{JSON.stringify(out || {}, null, 2)}</pre> : null}
           </div>
         </div>

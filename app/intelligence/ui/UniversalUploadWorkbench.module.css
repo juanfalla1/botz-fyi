@@ -134,6 +134,42 @@
   font-weight: 600;
 }
 
+.actionBar {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.pill {
+  border: 1px solid #c8dbf7;
+  background: #f5f9ff;
+  color: #234875;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}
+
+.pulse {
+  animation: actionPulse 480ms ease;
+}
+
+.inlineStatus {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #cfe0fb;
+  background: #f8fbff;
+  color: #234875;
+  font-weight: 600;
+}
+
+@keyframes actionPulse {
+  0% { transform: scale(1); background: #fff6cf; }
+  100% { transform: scale(1); background: #f5f9ff; }
+}
+
 .robot {
   display: inline-block;
   animation: robotPulse 1s ease-in-out infinite;
