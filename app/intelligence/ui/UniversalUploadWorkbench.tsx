@@ -12,21 +12,40 @@ export function UniversalUploadWorkbench() {
   const [out, setOut] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [error, setError] = useState("");
 
   async function submitUpload() {
     if (!file) return;
     setLoading(true);
+    setError("");
     const fd = new FormData();
     fd.set("file", file);
     fd.set("workspace_id", workspaceId || "default");
-    const r = await fetch("/api/uploads", { method: "POST", body: fd });
-    const j = await r.json();
-    setLoading(false);
-    setUploadId(j.upload_id || "");
-    setDatasetId(j.dataset_id || "");
-    setProfile(j.profile || null);
-    setOut(j);
-    setStep(2);
+    try {
+      const r = await fetch("/api/uploads", { method: "POST", body: fd });
+      const txt = await r.text();
+      let j: any = {};
+      try {
+        j = txt ? JSON.parse(txt) : {};
+      } catch {
+        j = { error: txt || "Respuesta no JSON" };
+      }
+      if (!r.ok) {
+        setError(String(j?.details || j?.error || `Error HTTP ${r.status}`));
+        setOut(j);
+        setLoading(false);
+        return;
+      }
+      setUploadId(j.upload_id || "");
+      setDatasetId(j.dataset_id || "");
+      setProfile(j.profile || null);
+      setOut(j);
+      setStep(2);
+    } catch (e: any) {
+      setError(e?.message || "No se pudo subir el archivo");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function buildModel() {
@@ -68,6 +87,7 @@ export function UniversalUploadWorkbench() {
               <span className={s.robotBox}><span className={s.robot}>🤖</span> Robot analitico procesando archivo...</span>
             ) : null}
           </div>
+          {error ? <p style={{ color: "#b91c1c", marginTop: 8, marginBottom: 0 }}>Error: {error}</p> : null}
           <div className={s.mono} style={{ marginTop: 8 }}>
             upload_id: {uploadId || "-"} | dataset_id: {datasetId || "-"}
           </div>
@@ -87,11 +107,11 @@ export function UniversalUploadWorkbench() {
 
         <div className={s.grid}>
           <div className={s.card}>
-            <h3 style={{ marginTop: 0 }}>Perfil</h3>
+            <h3 style={{ marginTop: 0 }}>Perfilado del dataset</h3>
             <pre className={s.mono}>{JSON.stringify(profile || {}, null, 2)}</pre>
           </div>
           <div className={s.card}>
-            <h3 style={{ marginTop: 0 }}>Acciones</h3>
+            <h3 style={{ marginTop: 0 }}>Siguientes acciones</h3>
             <div className={s.row}>
               <button className={s.btn} onClick={buildModel} disabled={!datasetId}>Build model</button>
               <button className={s.btn} onClick={runVariance} disabled={!datasetId}>Variance demo</button>

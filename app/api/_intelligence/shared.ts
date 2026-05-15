@@ -10,9 +10,22 @@ export async function handleUpload(req: Request) {
   if (!(file instanceof File)) return NextResponse.json({ error: "file es requerido" }, { status: 400 });
   const id = newId();
   const bytes = await file.arrayBuffer();
+  const sizeMb = bytes.byteLength / (1024 * 1024);
+  if (sizeMb > 30) {
+    return NextResponse.json({ error: "Archivo demasiado grande", details: `Tamano ${sizeMb.toFixed(1)}MB. Limite v1: 30MB.` }, { status: 413 });
+  }
   const parsed = parseUniversalFile(file.name, bytes);
   const db = await readDb();
-  const filePath = await saveUploadFile(id, file.name, bytes);
+  let filePath: string | null = null;
+  try {
+    filePath = await saveUploadFile(id, file.name, bytes);
+  } catch {
+    filePath = null;
+  }
+
+  if (!parsed.rows.length) {
+    return NextResponse.json({ error: "No se detectaron filas", details: "Revisa encabezados o delimitador del archivo." }, { status: 422 });
+  }
 
   db.uploads[id] = {
     id,
