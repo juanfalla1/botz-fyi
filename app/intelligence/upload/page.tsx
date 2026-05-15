@@ -1,5 +1,5 @@
-import { MetrocasUploadCenter } from "@/app/metrocas/ui/MetrocasUploadCenter";
+import { UniversalUploadWorkbench } from "@/app/intelligence/ui/UniversalUploadWorkbench";
 
 export default function IntelligenceUploadPage() {
-  return <MetrocasUploadCenter />;
+  return <UniversalUploadWorkbench />;
 }
