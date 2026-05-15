@@ -54,7 +54,29 @@ function inferHeaderRow(lines: string[], d: string) {
 }
 
 function toNumber(v: unknown) {
-  const n = Number(String(v ?? "").replace(/\./g, "").replace(/,/g, ".").replace(/[^0-9.-]/g, ""));
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  const raw = String(v ?? "").trim();
+  if (!raw) return null;
+
+  // If value contains both separators, assume es-CO style: 12.345,67
+  // If contains only comma, treat comma as decimal separator.
+  // If contains only dot, keep it as decimal separator unless it matches strict thousands grouping.
+  let cleaned = raw.replace(/[^0-9,.-]/g, "");
+  const hasComma = cleaned.includes(",");
+  const hasDot = cleaned.includes(".");
+
+  if (hasComma && hasDot) {
+    cleaned = cleaned.replace(/\./g, "").replace(/,/g, ".");
+  } else if (hasComma && !hasDot) {
+    cleaned = cleaned.replace(/,/g, ".");
+  } else if (!hasComma && hasDot) {
+    // thousands pattern: 1.234 or 12.345.678
+    if (/^-?\d{1,3}(\.\d{3})+$/.test(cleaned)) {
+      cleaned = cleaned.replace(/\./g, "");
+    }
+  }
+
+  const n = Number(cleaned);
   return Number.isFinite(n) ? n : null;
 }
 
