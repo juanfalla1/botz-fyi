@@ -16,6 +16,10 @@ export function isMoreOptionsIntent(text: string): boolean {
   return /(dame|quiero|si|sí|muestrame|mu[eé]strame)\s+.*(mas|m[aá]s)\s+opciones/i.test(t);
 }
 
+export function isMoreInCategoryIntent(text: string): boolean {
+  return /(que|qué)\s+m[aá]s\s+.*(tienes|manejan|hay)/i.test(String(text || "").trim());
+}
+
 export function isCatalogScopeQuestion(text: string): boolean {
   return /(que venden|que manejan|que productos|que tienen|que ofrecen|catalogo|portafolio)/i.test(
     String(text || "")

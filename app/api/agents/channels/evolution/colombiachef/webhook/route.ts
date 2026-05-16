@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { evolutionService } from "../../../../../../../lib/services/evolution.service";
 import { categoryMatches, findProductByUrl, findProductsByCategory, findProductsByText, loadCatalog } from "../_lib/catalog";
 import { parseInbound } from "../_lib/evolution-payload";
-import { isCatalogScopeQuestion, isGreeting, isMoreOptionsIntent, isPurchaseIntent, isUnsupportedRequest } from "../_lib/intent";
+import { isCatalogScopeQuestion, isGreeting, isMoreInCategoryIntent, isMoreOptionsIntent, isPurchaseIntent, isUnsupportedRequest } from "../_lib/intent";
 import { getSession, saveSession } from "../_lib/session";
 
 export const runtime = "nodejs";
@@ -52,7 +52,9 @@ function buildCategoryAnswer(input: string): string | null {
   const lines = items.map((p, i) => formatOptionLine(i + 1, p.name, p.price, p.url, undefined, p.sizes));
   const guidance = size || colors.length
     ? "Si quieres, te paso mas opciones o validamos disponibilidad exacta con asesor."
-    : "Si me dices talla, color y presupuesto te recomiendo mejor.";
+    : category === "Accesorios"
+      ? "Si me dices uso, referencia o presupuesto te recomiendo mejor."
+      : "Si me dices talla, color y presupuesto te recomiendo mejor.";
   return [
     `Perfecto. Opciones en ${category}:`,
     ...lines,
@@ -476,7 +478,7 @@ export async function POST(req: NextRequest) {
     saveSession(customerId, { welcomed: true });
   }
 
-  if (isMoreOptionsIntent(normalizedText)) {
+  if (isMoreOptionsIntent(normalizedText) || (isMoreInCategoryIntent(normalizedText) && Boolean(getSession(customerId)?.lastCategory))) {
     const more = buildMoreOptionsAnswer(customerId);
     if (more) {
       try {
