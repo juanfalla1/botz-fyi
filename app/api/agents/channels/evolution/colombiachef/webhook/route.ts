@@ -328,11 +328,6 @@ function isNegative(text: string): boolean {
   return /^(no|negativo|ya no|mejor no)$/i.test(String(text || "").trim());
 }
 
-function isLikelyCatalogQuery(text: string): boolean {
-  const t = String(text || "").toLowerCase();
-  return /(chaqueta|pantalon|delantal|gorro|combo|accesorio|talla|color|presupuesto|uniforme|chef|cocina|antifluido|referencia|ref)/i.test(t);
-}
-
 function buildChooseCategoryAnswer(): string {
   return "Perfecto. Para ayudarte exacto, dime una categoria: chaquetas, pantalones, delantales, gorros, combos o accesorios.";
 }
@@ -409,9 +404,6 @@ function composeReply(input: string, customerId: string): ReplyPlan {
     }
   }
   if (low.trim().length < 3) {
-    return { text: buildClarifyAnswer(), expectedAction: "clarify", assistantType: "clarify" };
-  }
-  if (!isLikelyCatalogQuery(low) && !session?.lastCategory) {
     return { text: buildClarifyAnswer(), expectedAction: "clarify", assistantType: "clarify" };
   }
   const searched = buildSearchAnswer(low);
@@ -586,7 +578,12 @@ export async function POST(req: NextRequest) {
         saveSession(customerId, { expectedAction: "choose_category", lastAssistantType: "supported_categories" });
         return NextResponse.json({ ok: true, sent: true, to: inbound.from });
       }
-      if (sessionBeforeReply?.expectedAction === "choose_category" && !categoryMatches(normalizedText) && !isCatalogScopeQuestion(normalizedText)) {
+      if (
+        sessionBeforeReply?.expectedAction === "choose_category"
+        && normalizedText.length <= 12
+        && !categoryMatches(normalizedText)
+        && !isCatalogScopeQuestion(normalizedText)
+      ) {
         const chooseCategory = buildChooseCategoryAnswer();
         await sendToInbound(outboundInstance, inbound, chooseCategory);
         saveSession(customerId, { expectedAction: "choose_category", lastAssistantType: "choose_category" });
