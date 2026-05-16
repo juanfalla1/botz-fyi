@@ -12,6 +12,15 @@ type CustomerSession = {
   welcomed: boolean;
   expectedAction: string;
   lastAssistantType: string;
+  pendingOrder?: {
+    productName: string;
+    productUrl: string;
+    productPrice: string;
+    talla: string;
+    color: string;
+    cantidad: string;
+    ciudad: string;
+  };
   updatedAt: number;
 };
 

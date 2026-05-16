@@ -328,6 +328,34 @@ function isNegative(text: string): boolean {
   return /^(no|negativo|ya no|mejor no)$/i.test(String(text || "").trim());
 }
 
+function isAdvisorIntent(text: string): boolean {
+  return /(asesor|humano|agente|hablar con alguien|hablar con asesor)/i.test(String(text || ""));
+}
+
+function isBuyNowIntent(text: string): boolean {
+  return /(comprar ahora|comprar|quiero comprar|lo compro|pagar|checkout|finalizar)/i.test(String(text || ""));
+}
+
+function parseCheckoutFields(text: string): Partial<{ talla: string; color: string; cantidad: string; ciudad: string }> {
+  const src = String(text || "");
+  const low = src.toLowerCase();
+  const talla = (low.match(/\b(?:talla\s*)?(xs|s|m|l|xl|xxl|xxxl)\b/i)?.[1] || "").toUpperCase();
+  const color = low.match(/\b(negro|blanco|verde|azul|gris|rojo|rosado|mostaza|mocca|naranja|crudo)\b/i)?.[1] || "";
+  const cantidad = low.match(/\b(\d{1,3})\s*(unidades?|uds?|u)?\b/i)?.[1] || "";
+  const ciudadMatch = src.match(/(?:ciudad|en)\s*[:\-]?\s*([a-zA-ZáéíóúÁÉÍÓÚñÑ ]{3,})/i);
+  const ciudad = ciudadMatch?.[1]?.trim() || "";
+  return {
+    talla,
+    color,
+    cantidad,
+    ciudad,
+  };
+}
+
+function buildBuyChoicePrompt(): string {
+  return "Si te interesa, lo compramos aqui mismo. Responde: 1) Comprar ahora 2) Hablar con asesor";
+}
+
 function buildChooseCategoryAnswer(): string {
   return "Perfecto. Para ayudarte exacto, dime una categoria: chaquetas, pantalones, delantales, gorros, combos o accesorios.";
 }
@@ -502,6 +530,84 @@ export async function POST(req: NextRequest) {
   const customerId = inbound.from || inbound.remoteJid || inbound.participant || "sin-id";
   const normalizedText = String(inbound.text || "").trim();
   const isPurchase = isPurchaseIntent(normalizedText);
+  const sessionNow = getSession(customerId);
+
+  if (isAdvisorIntent(normalizedText)) {
+    const handoff = buildPurchaseSummary(inbound.text, customerId);
+    await sendToInbound(outboundInstance, inbound, `${handoff.customerReply} Si prefieres, tambien puedes escribirle directo: ${ADVISOR_LINK}`);
+    if (ADVISOR_NUMBER) await evolutionService.sendMessage(outboundInstance, ADVISOR_NUMBER, handoff.advisorSummary);
+    saveSession(customerId, { expectedAction: "advisor_followup", lastAssistantType: "manual_handoff" });
+    return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+  }
+
+  if (isBuyNowIntent(normalizedText) && (sessionNow?.lastResults?.length || sessionNow?.pendingOrder?.productUrl)) {
+    const selected = sessionNow?.lastResults?.[0];
+    const pending = sessionNow?.pendingOrder || {
+      productName: selected?.name || "Producto seleccionado",
+      productUrl: selected?.url || "",
+      productPrice: selected?.price || "No visible",
+      talla: "",
+      color: "",
+      cantidad: "",
+      ciudad: "",
+    };
+    saveSession(customerId, { pendingOrder: pending, expectedAction: "checkout_collect", lastAssistantType: "checkout_start" });
+    await sendToInbound(outboundInstance, inbound, "Perfecto. Para cerrar el pedido necesito: talla, color, cantidad y ciudad. Ejemplo: talla L, color negro, 2 unidades, ciudad Monteria.");
+    return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+  }
+
+  if (sessionNow?.expectedAction === "checkout_collect") {
+    const fields = parseCheckoutFields(normalizedText);
+    const pending = {
+      ...(sessionNow.pendingOrder || {
+        productName: sessionNow?.lastResults?.[0]?.name || "Producto seleccionado",
+        productUrl: sessionNow?.lastResults?.[0]?.url || "",
+        productPrice: sessionNow?.lastResults?.[0]?.price || "No visible",
+        talla: "",
+        color: "",
+        cantidad: "",
+        ciudad: "",
+      }),
+      ...Object.fromEntries(Object.entries(fields).filter(([, v]) => Boolean(v))),
+    };
+    const missing: string[] = [];
+    if (!pending.talla) missing.push("talla");
+    if (!pending.color) missing.push("color");
+    if (!pending.cantidad) missing.push("cantidad");
+    if (!pending.ciudad) missing.push("ciudad");
+    saveSession(customerId, { pendingOrder: pending });
+    if (missing.length) {
+      await sendToInbound(outboundInstance, inbound, `Gracias. Para continuar me falta: ${missing.join(", ")}.`);
+      return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+    }
+    const summary = [
+      "Resumen de tu pedido:",
+      `Producto: ${pending.productName}`,
+      `Referencia/URL: ${pending.productUrl}`,
+      `Precio visible: ${pending.productPrice}`,
+      `Talla: ${pending.talla} | Color: ${pending.color} | Cantidad: ${pending.cantidad}`,
+      `Ciudad: ${pending.ciudad}`,
+      "Responde: 1) Pagar ahora 2) Hablar con asesor",
+    ].join("\n");
+    saveSession(customerId, { expectedAction: "payment_choice", lastAssistantType: "checkout_summary", pendingOrder: pending });
+    await sendToInbound(outboundInstance, inbound, summary);
+    return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+  }
+
+  if (sessionNow?.expectedAction === "payment_choice" && /^(1|pagar|pagar ahora)$/i.test(normalizedText)) {
+    const payMsg = "Perfecto. Te comparto el enlace de pago seguro para continuar: https://colombiachef.com/finalizar-compra/ Si prefieres, tambien te paso con asesor.";
+    saveSession(customerId, { expectedAction: "payment_pending", lastAssistantType: "payment_link" });
+    await sendToInbound(outboundInstance, inbound, payMsg);
+    return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+  }
+
+  if (sessionNow?.expectedAction === "payment_choice" && /^(2|asesor|hablar con asesor)$/i.test(normalizedText)) {
+    const handoff = buildPurchaseSummary(inbound.text, customerId);
+    await sendToInbound(outboundInstance, inbound, handoff.customerReply);
+    if (ADVISOR_NUMBER) await evolutionService.sendMessage(outboundInstance, ADVISOR_NUMBER, handoff.advisorSummary);
+    saveSession(customerId, { expectedAction: "advisor_followup", lastAssistantType: "manual_handoff" });
+    return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+  }
 
   const session = getSession(customerId);
   if (!session?.welcomed && isGreeting(normalizedText)) {
@@ -527,6 +633,7 @@ export async function POST(req: NextRequest) {
   if (refinedReply) {
     try {
       await sendToInbound(outboundInstance, inbound, refinedReply);
+      await sendToInbound(outboundInstance, inbound, buildBuyChoicePrompt());
       saveSession(customerId, { expectedAction: "buy_or_more", lastAssistantType: "refined_options" });
       console.log("[colombiachef-webhook] sent_refined_options", { customerId });
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
@@ -540,6 +647,7 @@ export async function POST(req: NextRequest) {
   if (detailReply) {
     try {
       await sendToInbound(outboundInstance, inbound, detailReply);
+      await sendToInbound(outboundInstance, inbound, buildBuyChoicePrompt());
       saveSession(customerId, { expectedAction: "buy_or_more", lastAssistantType: "product_detail" });
       console.log("[colombiachef-webhook] sent_product_detail", { customerId });
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
@@ -598,6 +706,9 @@ export async function POST(req: NextRequest) {
 
       const plan = composeReply(inbound.text, customerId);
       await sendToInbound(outboundInstance, inbound, plan.text);
+      if (["category_results", "search_results", "promo_results"].includes(plan.assistantType)) {
+        await sendToInbound(outboundInstance, inbound, buildBuyChoicePrompt());
+      }
 
       const category = categoryMatches(inbound.text) || getSession(customerId)?.lastCategory || "";
       const found = category ? findProductsByCategory(category, 3) : findProductsByText(inbound.text, 3);
