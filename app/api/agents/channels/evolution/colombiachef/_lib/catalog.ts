@@ -38,6 +38,14 @@ function normalize(value: string): string {
     .trim();
 }
 
+function productFamilyKey(name: string): string {
+  return normalize(name)
+    .replace(/\bref\.?\s*[a-z0-9-]+\b/g, "")
+    .replace(/[«»"'()]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function loadCatalog(): CatalogData {
   return cached || { products: [] };
 }
@@ -114,7 +122,19 @@ export function findProductsByCategory(category: string, limit = 8): ColombiaChe
     })
     .sort((a, b) => b.score - a.score);
 
-  return scored.slice(0, limit).map((x) => x.p);
+  const ranked = scored.map((x) => x.p);
+  if (wanted !== "accesorios") return ranked.slice(0, limit);
+
+  const unique: ColombiaChefProduct[] = [];
+  const seen = new Set<string>();
+  for (const p of ranked) {
+    const key = productFamilyKey(p.name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(p);
+    if (unique.length >= limit) break;
+  }
+  return unique;
 }
 
 export function findProductByUrl(url: string): ColombiaChefProduct | null {
