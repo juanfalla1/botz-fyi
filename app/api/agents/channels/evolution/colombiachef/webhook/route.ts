@@ -249,6 +249,18 @@ function shortTechnicalDescription(raw: string): string {
   return cut.length > 220 ? `${cut.slice(0, 220)}...` : cut;
 }
 
+function extractTechFacts(raw: string): string[] {
+  const t = cleanDescription(raw).toLowerCase();
+  const facts: string[] = [];
+  if (/antifluido/.test(t)) facts.push("Antifluido: visible en ficha");
+  if (/gabardina/.test(t)) facts.push("Material visible: gabardina");
+  if (/algodon|algod[oó]n/.test(t)) facts.push("Material visible: algodon");
+  if (/poliester|poli[eé]ster/.test(t)) facts.push("Material visible: poliester");
+  if (/impermeable/.test(t)) facts.push("Impermeable: visible en ficha");
+  if (/talla unica|talla única/.test(t)) facts.push("Talla visible: unica");
+  return facts;
+}
+
 function hasExplicitProductHint(text: string): boolean {
   const t = String(text || "").toLowerCase();
   if (/\bref\s*[:#-]?\s*[a-z0-9-]{2,}\b/.test(t)) return true;
@@ -273,6 +285,7 @@ function buildProductDetailAnswer(customerId: string, input: string): string | n
   }
 
   const desc = shortTechnicalDescription(picked.description);
+  const techFacts = extractTechFacts(picked.description);
   const sizeText = picked.sizes?.length ? `Tallas visibles: ${picked.sizes.join(", ")}.` : "No veo talla visible en la ficha.";
   const colorText = picked.colors?.length ? `Colores visibles: ${picked.colors.join(", ")}.` : "No veo colores visibles en la ficha.";
   const notes = [picked.availability_notes, picked.shipping_notes].filter(Boolean).join(" ");
@@ -282,6 +295,7 @@ function buildProductDetailAnswer(customerId: string, input: string): string | n
     desc ? desc : "No veo descripcion tecnica completa en la ficha publica.",
     sizeText,
     colorText,
+    techFacts.length ? `Datos tecnicos visibles: ${techFacts.join(" | ")}.` : "",
     notes ? `Nota de ficha: ${notes}` : "",
     `URL: ${picked.url}`,
     "Importante: solo te confirmo datos visibles en la ficha. Si necesitas validar antifluido o resistencia al agua exacta, te lo confirmo con asesor.",
@@ -317,6 +331,10 @@ function isNegative(text: string): boolean {
 function isLikelyCatalogQuery(text: string): boolean {
   const t = String(text || "").toLowerCase();
   return /(chaqueta|pantalon|delantal|gorro|combo|accesorio|talla|color|presupuesto|uniforme|chef|cocina|antifluido|referencia|ref)/i.test(t);
+}
+
+function buildChooseCategoryAnswer(): string {
+  return "Perfecto. Para ayudarte exacto, dime una categoria: chaquetas, pantalones, delantales, gorros, combos o accesorios.";
 }
 
 function buildUnsupportedAnswer(): string {
@@ -566,6 +584,12 @@ export async function POST(req: NextRequest) {
         const supported = "Perfecto. Te ayudo con gusto. Manejamos: chaquetas, pantalones, delantales, gorros, combos y accesorios. Cual te interesa?";
         await sendToInbound(outboundInstance, inbound, supported);
         saveSession(customerId, { expectedAction: "choose_category", lastAssistantType: "supported_categories" });
+        return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+      }
+      if (sessionBeforeReply?.expectedAction === "choose_category" && !categoryMatches(normalizedText) && !isCatalogScopeQuestion(normalizedText)) {
+        const chooseCategory = buildChooseCategoryAnswer();
+        await sendToInbound(outboundInstance, inbound, chooseCategory);
+        saveSession(customerId, { expectedAction: "choose_category", lastAssistantType: "choose_category" });
         return NextResponse.json({ ok: true, sent: true, to: inbound.from });
       }
       if (isNegative(normalizedText) && sessionBeforeReply?.expectedAction === "offer_more_options") {

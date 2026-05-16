@@ -11,6 +11,12 @@ function run(): void {
   const delantales = answerColombiaChef("busco delantales baratos");
   assert(delantales.toLowerCase().includes("delantal") || delantales.toLowerCase().includes("peto"), "Debe responder delantales");
 
+  const accesorios = answerColombiaChef("accesorios");
+  assert(accesorios.toLowerCase().includes("url:"), "Debe responder accesorios con URL");
+
+  const material = answerColombiaChef("de que material es el combo institucional");
+  assert(material.length > 20, "Debe responder detalle o pedir precision de producto");
+
   const cambios = answerColombiaChef("cual es la politica de cambios");
   assert(cambios.toLowerCase().includes("politicas oficiales"), "Debe responder politica de cambios");
 
