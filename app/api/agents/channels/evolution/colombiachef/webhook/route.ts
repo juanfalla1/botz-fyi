@@ -179,10 +179,20 @@ function extractReference(name: string): string {
   return m2?.[1] || "";
 }
 
+function slugFromUrl(url: string): string {
+  try {
+    const u = new URL(String(url || ""));
+    const parts = u.pathname.split("/").filter(Boolean);
+    return (parts[parts.length - 1] || "").toUpperCase();
+  } catch {
+    return "";
+  }
+}
+
 function formatOptionLine(index: number, name: string, price: string, url: string, notes?: string, sizes?: string[]): string {
   const sizeLabel = sizes && sizes.length ? `Tallas visibles: ${sizes.join(", ")}` : "No veo talla visible para ese producto en este momento.";
   const ref = extractReference(name);
-  const refLabel = ref ? `Referencia: ${ref}` : "Referencia: no visible";
+  const refLabel = ref ? `Referencia: ${ref}` : `Referencia: ${slugFromUrl(url) || "no visible"}`;
   const row = `${index}) ${compactName(name)} | ${visiblePrice(price)}\n${refLabel}\n${url}`;
   if (!notes) return `${row}\n${sizeLabel}`;
   return `${row}\n${sizeLabel}\nNota: ${compactName(notes)}`;

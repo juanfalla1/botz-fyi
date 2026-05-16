@@ -131,7 +131,13 @@ export function findProductsByCategory(category: string, limit = 8): ColombiaChe
     .filter((p) => normalize(p.category) === wanted)
     .map((p) => {
       const hay = normalize(`${p.name} ${p.subcategory}`);
-      const score = k.reduce((acc, term) => (hay.includes(term) ? acc + 1 : acc), 0);
+      let score = k.reduce((acc, term) => (hay.includes(term) ? acc + 1 : acc), 0);
+      if (wanted === "accesorios") {
+        const accessoryBoost = /(cuchillo|kit|funda|tabla|chaira|termometro|tula|limpion|bolsa)/.test(hay);
+        const apparelPenalty = /(camiseta|chaleco|chaqueta|pantalon)/.test(hay);
+        if (accessoryBoost) score += 2;
+        if (apparelPenalty) score -= 2;
+      }
       return { p, score };
     })
     .sort((a, b) => b.score - a.score);
