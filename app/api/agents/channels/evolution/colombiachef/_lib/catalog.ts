@@ -46,6 +46,19 @@ function productFamilyKey(name: string): string {
     .trim();
 }
 
+function dedupeByFamily(products: ColombiaChefProduct[], limit: number): ColombiaChefProduct[] {
+  const unique: ColombiaChefProduct[] = [];
+  const seen = new Set<string>();
+  for (const p of products) {
+    const key = productFamilyKey(p.name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(p);
+    if (unique.length >= limit) break;
+  }
+  return unique;
+}
+
 export function loadCatalog(): CatalogData {
   return cached || { products: [] };
 }
@@ -96,7 +109,8 @@ export function findProductsByText(input: string, limit = 5): ColombiaChefProduc
     })
     .sort((a, b) => b.score - a.score);
 
-  return scored.slice(0, limit).map((x) => x.p);
+  const ranked = scored.map((x) => x.p);
+  return dedupeByFamily(ranked, limit);
 }
 
 export function findProductsByCategory(category: string, limit = 8): ColombiaChefProduct[] {
@@ -123,18 +137,7 @@ export function findProductsByCategory(category: string, limit = 8): ColombiaChe
     .sort((a, b) => b.score - a.score);
 
   const ranked = scored.map((x) => x.p);
-  if (wanted !== "accesorios") return ranked.slice(0, limit);
-
-  const unique: ColombiaChefProduct[] = [];
-  const seen = new Set<string>();
-  for (const p of ranked) {
-    const key = productFamilyKey(p.name);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(p);
-    if (unique.length >= limit) break;
-  }
-  return unique;
+  return dedupeByFamily(ranked, limit);
 }
 
 export function findProductByUrl(url: string): ColombiaChefProduct | null {

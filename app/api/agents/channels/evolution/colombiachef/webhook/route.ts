@@ -171,9 +171,19 @@ function visiblePrice(price: string): string {
   return price && String(price).trim() ? String(price).trim() : "No veo precio visible para ese producto en este momento.";
 }
 
+function extractReference(name: string): string {
+  const n = String(name || "");
+  const m = n.match(/\bREF\.?\s*([A-Z0-9-]+)/i);
+  if (m?.[1]) return m[1].toUpperCase();
+  const m2 = n.match(/\b(\d{2,6})\b/);
+  return m2?.[1] || "";
+}
+
 function formatOptionLine(index: number, name: string, price: string, url: string, notes?: string, sizes?: string[]): string {
   const sizeLabel = sizes && sizes.length ? `Tallas visibles: ${sizes.join(", ")}` : "No veo talla visible para ese producto en este momento.";
-  const row = `${index}) ${compactName(name)} | ${visiblePrice(price)}\n${url}`;
+  const ref = extractReference(name);
+  const refLabel = ref ? `Referencia: ${ref}` : "Referencia: no visible";
+  const row = `${index}) ${compactName(name)} | ${visiblePrice(price)}\n${refLabel}\n${url}`;
   if (!notes) return `${row}\n${sizeLabel}`;
   return `${row}\n${sizeLabel}\nNota: ${compactName(notes)}`;
 }
