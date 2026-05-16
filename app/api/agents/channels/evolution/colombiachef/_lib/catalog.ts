@@ -59,6 +59,21 @@ function dedupeByFamily(products: ColombiaChefProduct[], limit: number): Colombi
   return unique;
 }
 
+function accessoryType(name: string): string {
+  const n = normalize(name);
+  if (n.includes("kit")) return "kit";
+  if (n.includes("cuchillo")) return "cuchillo";
+  if (n.includes("chaira")) return "chaira";
+  if (n.includes("funda")) return "funda";
+  if (n.includes("tabla")) return "tabla";
+  if (n.includes("termometro")) return "termometro";
+  if (n.includes("tula")) return "tula";
+  if (n.includes("limpion")) return "limpion";
+  if (n.includes("calzado")) return "calzado";
+  if (n.includes("bolsa")) return "bolsa";
+  return "otro";
+}
+
 export function loadCatalog(): CatalogData {
   return cached || { products: [] };
 }
@@ -143,7 +158,19 @@ export function findProductsByCategory(category: string, limit = 8): ColombiaChe
     .sort((a, b) => b.score - a.score);
 
   const ranked = scored.map((x) => x.p);
-  return dedupeByFamily(ranked, limit);
+  const deduped = dedupeByFamily(ranked, limit * 3);
+  if (wanted !== "accesorios") return deduped.slice(0, limit);
+
+  const picked: ColombiaChefProduct[] = [];
+  const seenTypes = new Set<string>();
+  for (const p of deduped) {
+    const t = accessoryType(p.name);
+    if (seenTypes.has(t) && t !== "otro") continue;
+    seenTypes.add(t);
+    picked.push(p);
+    if (picked.length >= limit) break;
+  }
+  return picked;
 }
 
 export function findProductByUrl(url: string): ColombiaChefProduct | null {
