@@ -132,6 +132,16 @@ function buildSearchAnswer(input: string): string {
 
   if (exact) {
     found = [exact, ...found.filter((p) => p.url !== exact.url)];
+    const lines = found.slice(0, 3).map((p, i) => {
+      const notes = [p.availability_notes, p.shipping_notes].filter(Boolean).join(". ");
+      return formatOptionLine(i + 1, p.name, p.price, p.url, notes, p.sizes);
+    });
+    return [
+      "Encontre exacto lo que pediste. Te lo dejo primero:",
+      ...lines,
+      "",
+      "Si quieres, te muestro mas opciones similares.",
+    ].join("\n");
   }
 
   found = found.slice(0, 3);
