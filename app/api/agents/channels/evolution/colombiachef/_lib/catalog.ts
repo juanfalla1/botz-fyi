@@ -42,6 +42,25 @@ function normalizeLoose(value: string): string {
   return normalize(value).replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 }
 
+export function findExactProductByName(input: string): ColombiaChefProduct | null {
+  const data = loadCatalog();
+  const products = data.products || [];
+  const q = normalizeLoose(input);
+  if (!q || q.length < 6) return null;
+
+  let best: { p: ColombiaChefProduct; score: number } | null = null;
+  for (const p of products) {
+    const n = normalizeLoose(p.name);
+    let score = 0;
+    if (n === q) score = 100;
+    else if (n.includes(q)) score = 70;
+    else if (q.includes(n) && n.length >= 8) score = 50;
+    if (!score) continue;
+    if (!best || score > best.score) best = { p, score };
+  }
+  return best?.p || null;
+}
+
 function productFamilyKey(name: string): string {
   return normalize(name)
     .replace(/\bref\.?\s*[a-z0-9-]+\b/g, "")

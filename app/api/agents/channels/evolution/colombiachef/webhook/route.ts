@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { evolutionService } from "../../../../../../../lib/services/evolution.service";
-import { categoryMatches, findProductByUrl, findProductsByCategory, findProductsByText, loadCatalog } from "../_lib/catalog";
+import { categoryMatches, findExactProductByName, findProductByUrl, findProductsByCategory, findProductsByText, loadCatalog } from "../_lib/catalog";
 import { parseInbound } from "../_lib/evolution-payload";
 import { isCatalogScopeQuestion, isConfusionSignal, isGreeting, isMoreInCategoryIntent, isMoreOptionsIntent, isPurchaseIntent, isUnsupportedRequest } from "../_lib/intent";
 import { getSession, saveSession } from "../_lib/session";
@@ -117,6 +117,7 @@ function buildPromoAnswer(): string {
 function buildSearchAnswer(input: string): string {
   const category = categoryMatches(input);
   const { size, colors } = parseSizeAndColor(input);
+  const exact = findExactProductByName(input);
   let found = findProductsByText(input, 8);
 
   if (category) {
@@ -127,6 +128,10 @@ function buildSearchAnswer(input: string): string {
       return okSize && okColor;
     });
     found = (refined.length ? refined : inCategory).slice(0, 8);
+  }
+
+  if (exact) {
+    found = [exact, ...found.filter((p) => p.url !== exact.url)];
   }
 
   found = found.slice(0, 3);
