@@ -60,6 +60,7 @@ function buildCategoryAnswer(input: string): string | null {
     ...lines,
     "",
     guidance,
+    buildOptionActionsHint(),
   ].join("\n");
 }
 
@@ -152,7 +153,7 @@ function buildSearchAnswer(input: string): string {
     const notes = [p.availability_notes, p.shipping_notes].filter(Boolean).join(". ");
     return formatOptionLine(i + 1, p.name, p.price, p.url, notes, p.sizes);
   });
-  return ["Te encontré estas opciones:", ...lines, "", "Si quieres, te muestro mas opciones de esta misma busqueda."].join("\n");
+  return ["Te encontré estas opciones:", ...lines, "", "Si quieres, te muestro mas opciones de esta misma busqueda.", buildOptionActionsHint()].join("\n");
 }
 
 function buildPurchaseSummary(input: string, customerId: string): { customerReply: string; advisorSummary: string } {
@@ -188,7 +189,7 @@ function buildPurchaseSummary(input: string, customerId: string): { customerRepl
 function formatProductsList(items: Array<{ name: string; price: string; url: string; sizes?: string[] }>, prefix: string): string {
   if (!items.length) return "";
   const lines = items.map((p, i) => formatOptionLine(i + 1, p.name, p.price, p.url, undefined, p.sizes));
-  return `${prefix}\n${lines.join("\n")}`;
+  return `${prefix}\n${lines.join("\n")}\n\n${buildOptionActionsHint()}`;
 }
 
 function compactName(name: string): string {
@@ -231,6 +232,14 @@ function isCheckoutCartIntent(text: string): boolean {
   return /(finalizar carrito|checkout carrito|finalizar compra|cerrar pedido)/i.test(String(text || ""));
 }
 
+function parseOptionQuickAction(text: string): { action: "add" | "buy" | "detail"; index: number } | null {
+  const t = String(text || "").trim().toUpperCase();
+  const m = t.match(/^(A|C|D)([1-3])$/);
+  if (!m) return null;
+  const map: Record<string, "add" | "buy" | "detail"> = { A: "add", C: "buy", D: "detail" };
+  return { action: map[m[1]], index: Number(m[2]) - 1 };
+}
+
 function addFirstResultToCart(customerId: string): { ok: boolean; message: string } {
   const session = getSession(customerId);
   const selected = session?.lastResults?.[0];
@@ -254,6 +263,20 @@ function addFirstResultToCart(customerId: string): { ok: boolean; message: strin
   return { ok: true, message: `Listo, agregue al carrito: ${selected.name}. Escribe 'carrito' para verlo o 'finalizar carrito' para cerrar pedido.` };
 }
 
+function addResultByIndexToCart(customerId: string, index: number): { ok: boolean; message: string } {
+  const session = getSession(customerId);
+  const selected = (session?.lastResults || [])[index];
+  if (!selected) return { ok: false, message: "No encuentro esa opcion. Responde con A1, A2 o A3." };
+  const cart = session?.cartItems || [];
+  const idx = cart.findIndex((x) => x.productUrl === selected.url);
+  if (idx >= 0) cart[idx] = { ...cart[idx], quantity: cart[idx].quantity + 1 };
+  else {
+    cart.push({ productName: selected.name, productUrl: selected.url, productPrice: selected.price || "No visible", quantity: 1 });
+  }
+  saveSession(customerId, { cartItems: cart, expectedAction: "browsing", lastAssistantType: "cart_add" });
+  return { ok: true, message: `Listo, agregue al carrito la opcion ${index + 1}: ${selected.name}. Escribe 'carrito' para verlo.` };
+}
+
 function buildCartSummary(customerId: string): string {
   const session = getSession(customerId);
   const items = session?.cartItems || [];
@@ -271,6 +294,10 @@ function buildCartSummary(customerId: string): string {
     `Subtotal productos: ${formatCOP(subtotal)}`,
     "Responde: 'finalizar carrito' para cerrar pedido o 'seguir viendo' para mas opciones.",
   ].join("\n");
+}
+
+function buildOptionActionsHint(): string {
+  return "Atajos: A1/A2/A3 agregar al carrito | D1/D2/D3 ver detalle | C1/C2/C3 comprar esa opcion.";
 }
 
 function slugFromUrl(url: string): string {
@@ -673,6 +700,39 @@ export async function POST(req: NextRequest) {
   const normalizedText = String(inbound.text || "").trim();
   const isPurchase = isPurchaseIntent(normalizedText);
   const sessionNow = getSession(customerId);
+  const quick = parseOptionQuickAction(normalizedText);
+  if (quick) {
+    const selected = (sessionNow?.lastResults || [])[quick.index];
+    if (!selected) {
+      await sendToInbound(outboundInstance, inbound, "No encuentro esa opcion. Usa A1/A2/A3, D1/D2/D3 o C1/C2/C3 segun la lista.");
+      return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+    }
+    if (quick.action === "add") {
+      const res = addResultByIndexToCart(customerId, quick.index);
+      await sendToInbound(outboundInstance, inbound, res.message);
+      return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+    }
+    if (quick.action === "buy") {
+      const pending = {
+        productName: selected.name,
+        productUrl: selected.url,
+        productPrice: selected.price || "No visible",
+        talla: "",
+        color: "",
+        cantidad: "",
+        ciudad: "",
+      };
+      saveSession(customerId, { pendingOrder: pending, expectedAction: "checkout_collect", lastAssistantType: "checkout_start" });
+      await sendToInbound(outboundInstance, inbound, "Perfecto. Para cerrar esa opcion necesito: talla, color, cantidad y ciudad.");
+      return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+    }
+    const p = findProductByUrl(selected.url);
+    const detail = p
+      ? [`Detalle de ${p.name}:`, cleanDescription(p.description) || "No veo descripcion tecnica completa en la ficha publica.", `URL: ${p.url}`].join(" ")
+      : "No pude cargar detalle tecnico en este momento.";
+    await sendToInbound(outboundInstance, inbound, `${detail} ${buildOptionActionsHint()}`);
+    return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+  }
 
   if (isAddToCartIntent(normalizedText)) {
     const res = addFirstResultToCart(customerId);
