@@ -406,6 +406,24 @@ function isSpecificProductQuery(text: string): boolean {
   return !genericOnly;
 }
 
+function buildExactRequestedAnswer(input: string): string | null {
+  if (!isSpecificProductQuery(input)) return null;
+  const exact = findExactProductByName(input);
+  if (!exact) return null;
+  const similar = findProductsByText(input, 6).filter((p) => p.url !== exact.url).slice(0, 2);
+  const list = [exact, ...similar];
+  const lines = list.map((p, i) => {
+    const notes = [p.availability_notes, p.shipping_notes].filter(Boolean).join(". ");
+    return formatOptionLine(i + 1, p.name, p.price, p.url, notes, p.sizes);
+  });
+  return [
+    "Perfecto. Encontre exacto lo que pediste y te dejo opciones relacionadas:",
+    ...lines,
+    "",
+    "Si quieres, te muestro mas referencias de esta misma linea.",
+  ].join("\n");
+}
+
 function buildUnsupportedAnswer(): string {
   return [
     "En este momento no vendemos ese tipo de producto.",
@@ -695,6 +713,27 @@ export async function POST(req: NextRequest) {
   const session = getSession(customerId);
   if (!session?.welcomed && isGreeting(normalizedText)) {
     saveSession(customerId, { welcomed: true });
+  }
+
+  const exactRequestedReply = buildExactRequestedAnswer(normalizedText);
+  if (exactRequestedReply) {
+    try {
+      await sendToInbound(outboundInstance, inbound, exactRequestedReply);
+      const exact = findExactProductByName(normalizedText);
+      const related = findProductsByText(normalizedText, 3);
+      const ordered = exact ? [exact, ...related.filter((p) => p.url !== exact.url)] : related;
+      saveSession(customerId, {
+        lastCategory: ordered[0]?.category || getSession(customerId)?.lastCategory || "",
+        lastShownUrls: ordered.map((x) => x.url).slice(0, 3),
+        lastResults: ordered.map((x) => ({ name: x.name, price: x.price, url: x.url })).slice(0, 3),
+        expectedAction: "offer_more_options",
+        lastAssistantType: "exact_request_results",
+      });
+      return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+    } catch (error: any) {
+      console.error("[colombiachef-webhook] send_exact_request_failed", { error: error?.message || String(error) });
+      return NextResponse.json({ ok: false, error: "send_failed" }, { status: 500 });
+    }
   }
 
   if (isMoreOptionsIntent(normalizedText) || (isMoreInCategoryIntent(normalizedText) && Boolean(getSession(customerId)?.lastCategory))) {
