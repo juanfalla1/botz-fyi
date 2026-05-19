@@ -31,3 +31,9 @@ export function isUnsupportedRequest(text: string): boolean {
     String(text || "")
   );
 }
+
+export function isConfusionSignal(text: string): boolean {
+  return /(no te entiendo|no entendi|no entend[ií]|no comprendo|no comprendi|no me queda claro|no se)/i.test(
+    String(text || "")
+  );
+}

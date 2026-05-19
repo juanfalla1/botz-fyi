@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { evolutionService } from "../../../../../../../lib/services/evolution.service";
 import { categoryMatches, findProductByUrl, findProductsByCategory, findProductsByText, loadCatalog } from "../_lib/catalog";
 import { parseInbound } from "../_lib/evolution-payload";
-import { isCatalogScopeQuestion, isGreeting, isMoreInCategoryIntent, isMoreOptionsIntent, isPurchaseIntent, isUnsupportedRequest } from "../_lib/intent";
+import { isCatalogScopeQuestion, isConfusionSignal, isGreeting, isMoreInCategoryIntent, isMoreOptionsIntent, isPurchaseIntent, isUnsupportedRequest } from "../_lib/intent";
 import { getSession, saveSession } from "../_lib/session";
 
 export const runtime = "nodejs";
@@ -334,6 +334,17 @@ function buildClarifyAnswer(): string {
   ].join(" ");
 }
 
+function buildGuidedHelpAnswer(): string {
+  return [
+    "Tranquilo, te guio rapido.",
+    "Dime que buscas y yo te muestro opciones reales del catalogo.",
+    "Puedes escribir por ejemplo:",
+    "1) chaqueta negra talla M",
+    "2) combo institucional gris talla L",
+    "3) accesorios para cocina hasta 80000",
+  ].join(" \n");
+}
+
 function isAffirmative(text: string): boolean {
   return /^(si|sí|dale|ok|listo|de una|hagale|h[aá]gale)$/i.test(String(text || "").trim());
 }
@@ -398,6 +409,13 @@ function composeReply(input: string, customerId: string): ReplyPlan {
       text: buildUnsupportedAnswer(),
       expectedAction: "offer_supported_categories",
       assistantType: "unsupported_redirect",
+    };
+  }
+  if (isConfusionSignal(low)) {
+    return {
+      text: buildGuidedHelpAnswer(),
+      expectedAction: "choose_category",
+      assistantType: "guided_help",
     };
   }
   if (isCatalogScopeQuestion(low)) {
