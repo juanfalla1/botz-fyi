@@ -381,6 +381,16 @@ function buildChooseCategoryAnswer(): string {
   return "Perfecto. Para ayudarte exacto, dime una categoria: chaquetas, pantalones, delantales, gorros, combos o accesorios.";
 }
 
+function isSpecificProductQuery(text: string): boolean {
+  const t = String(text || "").toLowerCase();
+  const tokens = t.split(/\s+/).filter((x) => x.length >= 3);
+  if (tokens.length < 3) return false;
+  const genericOnly = /^(chaqueta|chaquetas|pantalon|pantalones|delantal|delantales|gorro|gorros|combo|combos|accesorio|accesorios|promo|promos|oferta|ofertas)$/i.test(
+    t.trim()
+  );
+  return !genericOnly;
+}
+
 function buildUnsupportedAnswer(): string {
   return [
     "En este momento no vendemos ese tipo de producto.",
@@ -439,6 +449,12 @@ function composeReply(input: string, customerId: string): ReplyPlan {
       expectedAction: "refine_or_buy",
       assistantType: "policy",
     };
+  }
+  if (isSpecificProductQuery(low)) {
+    const searched = buildSearchAnswer(low);
+    if (!/^No encontr[eé] coincidencias exactas\./i.test(searched)) {
+      return { text: searched, expectedAction: "offer_more_options", assistantType: "search_results" };
+    }
   }
   const byCategory = buildCategoryAnswer(low);
   if (byCategory) {
