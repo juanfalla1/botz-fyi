@@ -27,6 +27,17 @@ type CustomerSession = {
     productPrice: string;
     quantity: number;
   }>;
+  billingData?: {
+    nombres: string;
+    apellidos: string;
+    tipoIdentificacion: string;
+    numeroIdentificacion: string;
+    ciudad: string;
+    departamento: string;
+    direccion: string;
+    telefono: string;
+    correo: string;
+  };
   updatedAt: number;
 };
 

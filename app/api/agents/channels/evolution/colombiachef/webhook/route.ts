@@ -523,6 +523,45 @@ function parseCheckoutFields(text: string): Partial<{ talla: string; color: stri
   };
 }
 
+function parseBillingFields(text: string): Partial<{
+  nombres: string;
+  apellidos: string;
+  tipoIdentificacion: string;
+  numeroIdentificacion: string;
+  ciudad: string;
+  departamento: string;
+  direccion: string;
+  telefono: string;
+  correo: string;
+}> {
+  const src = String(text || "");
+  const get = (label: string) => {
+    const m = src.match(new RegExp(`${label}\\s*[:\\-]\\s*([^,\\n]+)`, "i"));
+    return m?.[1]?.trim() || "";
+  };
+  const correo = src.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
+  const telefono = src.match(/(?:\+57\s*)?(3\d{9})/)?.[1] || "";
+  return {
+    nombres: get("nombres"),
+    apellidos: get("apellidos"),
+    tipoIdentificacion: get("tipo identificacion"),
+    numeroIdentificacion: get("numero identificacion") || get("cedula") || get("nit"),
+    ciudad: get("ciudad"),
+    departamento: get("departamento"),
+    direccion: get("direccion"),
+    telefono: get("telefono") || telefono,
+    correo: get("correo") || correo,
+  };
+}
+
+function buildBillingRequestMessage(): string {
+  return [
+    "Perfecto. Para finalizar tu carrito, enviame estos datos de facturacion en un solo mensaje:",
+    "Nombres, Apellidos, Tipo identificacion, Numero identificacion, Ciudad, Departamento, Direccion, Telefono, Correo.",
+    "Ejemplo: Nombres: Juan, Apellidos: Perez, Tipo identificacion: Cedula, Numero identificacion: 12345678, Ciudad: Monteria, Departamento: Cordoba, Direccion: Calle 10 #20-30 Barrio Centro, Telefono: 3001234567, Correo: juan@mail.com",
+  ].join("\n");
+}
+
 function buildChooseCategoryAnswer(): string {
   return "Perfecto. Para ayudarte exacto, dime una categoria: chaquetas, pantalones, delantales, gorros, combos o accesorios.";
 }
@@ -806,8 +845,52 @@ export async function POST(req: NextRequest) {
       await sendToInbound(outboundInstance, inbound, "Tu carrito esta vacio. Dime un producto para agregarlo primero.");
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
     }
-    saveSession(customerId, { expectedAction: "checkout_collect", lastAssistantType: "checkout_start_from_cart" });
-    await sendToInbound(outboundInstance, inbound, "Perfecto. Para cerrar tu carrito necesito: talla, color, cantidad total y ciudad de entrega.");
+    saveSession(customerId, { expectedAction: "billing_collect", lastAssistantType: "checkout_start_from_cart" });
+    await sendToInbound(outboundInstance, inbound, buildBillingRequestMessage());
+    return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+  }
+
+  if (sessionNow?.expectedAction === "billing_collect") {
+    const fields = parseBillingFields(normalizedText);
+    const previous = sessionNow?.billingData || {
+      nombres: "",
+      apellidos: "",
+      tipoIdentificacion: "",
+      numeroIdentificacion: "",
+      ciudad: "",
+      departamento: "",
+      direccion: "",
+      telefono: "",
+      correo: "",
+    };
+    const merged = { ...previous, ...Object.fromEntries(Object.entries(fields).filter(([, v]) => Boolean(v))) };
+    const missing = Object.entries(merged).filter(([, v]) => !v).map(([k]) => k);
+    saveSession(customerId, { billingData: merged });
+    if (missing.length) {
+      await sendToInbound(outboundInstance, inbound, `Gracias. Para finalizar me falta: ${missing.join(", ")}.`);
+      return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+    }
+
+    const items = sessionNow?.cartItems || [];
+    const subtotal = items.reduce((acc, item) => acc + parsePriceToNumber(item.productPrice) * item.quantity, 0);
+    const impuestos = Math.round(subtotal * 0.19);
+    const total = subtotal + impuestos;
+    const lines = items.map((it, i) => `${i + 1}) ${it.productName} x${it.quantity} | ${formatCOP(parsePriceToNumber(it.productPrice) * it.quantity)}`);
+
+    const summary = [
+      "Tu pedido:",
+      ...lines,
+      `Subtotal: ${formatCOP(subtotal)}`,
+      `Impuestos: ${formatCOP(impuestos)}`,
+      `Total: ${formatCOP(total)}`,
+      `Cliente: ${merged.nombres} ${merged.apellidos} | ${merged.tipoIdentificacion} ${merged.numeroIdentificacion}`,
+      `Entrega: ${merged.direccion}, ${merged.ciudad}, ${merged.departamento}`,
+      `Contacto: ${merged.telefono} | ${merged.correo}`,
+      "Responde: 1) Pagar ahora 2) Hablar con asesor",
+    ].join("\n");
+
+    saveSession(customerId, { expectedAction: "payment_choice", lastAssistantType: "billing_completed", billingData: merged });
+    await sendToInbound(outboundInstance, inbound, summary);
     return NextResponse.json({ ok: true, sent: true, to: inbound.from });
   }
 
