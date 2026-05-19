@@ -208,6 +208,17 @@ function extractReference(name: string): string {
   return m2?.[1] || "";
 }
 
+function parsePriceToNumber(price: string): number {
+  const digits = String(price || "").replace(/[^0-9]/g, "");
+  const n = Number(digits);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatCOP(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "No visible";
+  return `$${Math.round(value).toLocaleString("es-CO")}`;
+}
+
 function slugFromUrl(url: string): string {
   try {
     const u = new URL(String(url || ""));
@@ -681,13 +692,19 @@ export async function POST(req: NextRequest) {
       await sendToInbound(outboundInstance, inbound, `Gracias. Para continuar me falta: ${missing.join(", ")}.`);
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
     }
+    const qty = Number(pending.cantidad || "0") || 0;
+    const unit = parsePriceToNumber(pending.productPrice);
+    const subtotal = qty > 0 && unit > 0 ? qty * unit : 0;
+
     const summary = [
       "Resumen de tu pedido:",
       `Producto: ${pending.productName}`,
       `Referencia/URL: ${pending.productUrl}`,
-      `Precio visible: ${pending.productPrice}`,
+      `Precio unitario visible: ${pending.productPrice}`,
       `Talla: ${pending.talla} | Color: ${pending.color} | Cantidad: ${pending.cantidad}`,
       `Ciudad: ${pending.ciudad}`,
+      `Subtotal productos: ${formatCOP(subtotal)}`,
+      "Envio: se confirma segun ciudad y transportadora.",
       "Responde: 1) Pagar ahora 2) Hablar con asesor",
     ].join("\n");
     saveSession(customerId, { expectedAction: "payment_choice", lastAssistantType: "checkout_summary", pendingOrder: pending });
@@ -779,17 +796,23 @@ export async function POST(req: NextRequest) {
 
   try {
     if (isPurchase) {
-      const handoff = buildPurchaseSummary(inbound.text, customerId);
-      await sendToInbound(outboundInstance, inbound, handoff.customerReply);
-      saveSession(customerId, { expectedAction: "advisor_followup", lastAssistantType: "purchase_handoff" });
-      if (ADVISOR_NUMBER) {
-        await evolutionService.sendMessage(outboundInstance, ADVISOR_NUMBER, handoff.advisorSummary);
+      const selected = getSession(customerId)?.lastResults?.[0];
+      if (selected) {
+        const pending = {
+          productName: selected.name,
+          productUrl: selected.url,
+          productPrice: selected.price || "No visible",
+          talla: "",
+          color: "",
+          cantidad: "",
+          ciudad: "",
+        };
+        saveSession(customerId, { pendingOrder: pending, expectedAction: "checkout_collect", lastAssistantType: "checkout_start" });
+        await sendToInbound(outboundInstance, inbound, "Perfecto. Lo cerramos aqui mismo. Enviame: talla, color, cantidad y ciudad para calcular tu pedido.");
+      } else {
+        await sendToInbound(outboundInstance, inbound, "Claro. Primero elige el producto que te gusto y te ayudo a cerrar el pedido con total.");
+        saveSession(customerId, { expectedAction: "choose_product", lastAssistantType: "purchase_without_product" });
       }
-      console.log("[colombiachef-webhook] purchase_handoff_sent", {
-        outboundInstance,
-        customerId,
-        advisorNumber: ADVISOR_NUMBER,
-      });
     } else {
       const sessionBeforeReply = getSession(customerId);
       if (isAffirmative(normalizedText) && sessionBeforeReply?.expectedAction === "offer_more_options") {
