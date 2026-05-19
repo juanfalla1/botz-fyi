@@ -234,6 +234,11 @@ function isCheckoutCartIntent(text: string): boolean {
 
 function parseOptionQuickAction(text: string): { action: "add" | "buy" | "detail"; index: number } | null {
   const t = String(text || "").trim().toUpperCase();
+  const short = t.match(/^(A|C|D)$/);
+  if (short) {
+    const map: Record<string, "add" | "buy" | "detail"> = { A: "add", C: "buy", D: "detail" };
+    return { action: map[short[1]], index: 0 };
+  }
   const m = t.match(/^(A|C|D)([1-3])$/);
   if (!m) return null;
   const map: Record<string, "add" | "buy" | "detail"> = { A: "add", C: "buy", D: "detail" };
