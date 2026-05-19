@@ -875,8 +875,35 @@ export async function POST(req: NextRequest) {
   const exactRequestedReply = buildExactRequestedAnswer(normalizedText);
   if (exactRequestedReply) {
     try {
-      await sendToInbound(outboundInstance, inbound, exactRequestedReply);
       const exact = findExactProductByName(normalizedText);
+      const sessionBeforeExact = getSession(customerId);
+      if (exact && sessionBeforeExact?.expectedAction === "choose_product") {
+        const pending = {
+          productName: exact.name,
+          productUrl: exact.url,
+          productPrice: exact.price || "No visible",
+          talla: "",
+          color: "",
+          cantidad: "",
+          ciudad: "",
+        };
+        saveSession(customerId, {
+          pendingOrder: pending,
+          lastCategory: exact.category || sessionBeforeExact?.lastCategory || "",
+          lastShownUrls: [exact.url],
+          lastResults: [{ name: exact.name, price: exact.price, url: exact.url }],
+          expectedAction: "checkout_collect",
+          lastAssistantType: "checkout_from_exact_selection",
+        });
+        await sendToInbound(
+          outboundInstance,
+          inbound,
+          `Perfecto, tomamos ${exact.name}. Para cerrar el pedido enviame: talla, color, cantidad y ciudad.`
+        );
+        return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+      }
+
+      await sendToInbound(outboundInstance, inbound, exactRequestedReply);
       const related = findProductsByText(normalizedText, 3);
       const ordered = exact ? [exact, ...related.filter((p) => p.url !== exact.url)] : related;
       saveSession(customerId, {
