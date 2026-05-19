@@ -21,6 +21,12 @@ type CustomerSession = {
     cantidad: string;
     ciudad: string;
   };
+  cartItems?: Array<{
+    productName: string;
+    productUrl: string;
+    productPrice: string;
+    quantity: number;
+  }>;
   updatedAt: number;
 };
 

@@ -219,6 +219,60 @@ function formatCOP(value: number): string {
   return `$${Math.round(value).toLocaleString("es-CO")}`;
 }
 
+function isAddToCartIntent(text: string): boolean {
+  return /(agregar al carrito|anadir al carrito|sumar al carrito|agregarlo|agregalo)/i.test(String(text || ""));
+}
+
+function isViewCartIntent(text: string): boolean {
+  return /^(carrito|ver carrito|mi carrito|mostrar carrito)$/i.test(String(text || "").trim());
+}
+
+function isCheckoutCartIntent(text: string): boolean {
+  return /(finalizar carrito|checkout carrito|finalizar compra|cerrar pedido)/i.test(String(text || ""));
+}
+
+function addFirstResultToCart(customerId: string): { ok: boolean; message: string } {
+  const session = getSession(customerId);
+  const selected = session?.lastResults?.[0];
+  if (!selected) {
+    return { ok: false, message: "Primero elige un producto y te lo agrego al carrito." };
+  }
+
+  const cart = session?.cartItems || [];
+  const idx = cart.findIndex((x) => x.productUrl === selected.url);
+  if (idx >= 0) {
+    cart[idx] = { ...cart[idx], quantity: cart[idx].quantity + 1 };
+  } else {
+    cart.push({
+      productName: selected.name,
+      productUrl: selected.url,
+      productPrice: selected.price || "No visible",
+      quantity: 1,
+    });
+  }
+  saveSession(customerId, { cartItems: cart, expectedAction: "browsing", lastAssistantType: "cart_add" });
+  return { ok: true, message: `Listo, agregue al carrito: ${selected.name}. Escribe 'carrito' para verlo o 'finalizar carrito' para cerrar pedido.` };
+}
+
+function buildCartSummary(customerId: string): string {
+  const session = getSession(customerId);
+  const items = session?.cartItems || [];
+  if (!items.length) return "Tu carrito esta vacio. Dime un producto y te ayudo a agregarlo.";
+  let subtotal = 0;
+  const lines = items.map((item, i) => {
+    const unit = parsePriceToNumber(item.productPrice);
+    const lineTotal = unit > 0 ? unit * item.quantity : 0;
+    subtotal += lineTotal;
+    return `${i + 1}) ${item.productName} | Cant: ${item.quantity} | Unit: ${item.productPrice} | Linea: ${formatCOP(lineTotal)}`;
+  });
+  return [
+    "Tu carrito:",
+    ...lines,
+    `Subtotal productos: ${formatCOP(subtotal)}`,
+    "Responde: 'finalizar carrito' para cerrar pedido o 'seguir viendo' para mas opciones.",
+  ].join("\n");
+}
+
 function slugFromUrl(url: string): string {
   try {
     const u = new URL(String(url || ""));
@@ -620,6 +674,30 @@ export async function POST(req: NextRequest) {
   const isPurchase = isPurchaseIntent(normalizedText);
   const sessionNow = getSession(customerId);
 
+  if (isAddToCartIntent(normalizedText)) {
+    const res = addFirstResultToCart(customerId);
+    await sendToInbound(outboundInstance, inbound, res.message);
+    return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+  }
+
+  if (isViewCartIntent(normalizedText)) {
+    const cart = buildCartSummary(customerId);
+    await sendToInbound(outboundInstance, inbound, cart);
+    saveSession(customerId, { expectedAction: "cart_review", lastAssistantType: "cart_view" });
+    return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+  }
+
+  if (isCheckoutCartIntent(normalizedText)) {
+    const items = sessionNow?.cartItems || [];
+    if (!items.length) {
+      await sendToInbound(outboundInstance, inbound, "Tu carrito esta vacio. Dime un producto para agregarlo primero.");
+      return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+    }
+    saveSession(customerId, { expectedAction: "checkout_collect", lastAssistantType: "checkout_start_from_cart" });
+    await sendToInbound(outboundInstance, inbound, "Perfecto. Para cerrar tu carrito necesito: talla, color, cantidad total y ciudad de entrega.");
+    return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+  }
+
   if (isAdvisorIntent(normalizedText)) {
     const handoff = buildPurchaseSummary(inbound.text, customerId);
     await sendToInbound(outboundInstance, inbound, `${handoff.customerReply} Si prefieres, tambien puedes escribirle directo: ${ADVISOR_LINK}`);
@@ -694,7 +772,9 @@ export async function POST(req: NextRequest) {
     }
     const qty = Number(pending.cantidad || "0") || 0;
     const unit = parsePriceToNumber(pending.productPrice);
-    const subtotal = qty > 0 && unit > 0 ? qty * unit : 0;
+    const sessionCart = getSession(customerId)?.cartItems || [];
+    const cartSubtotal = sessionCart.reduce((acc, item) => acc + parsePriceToNumber(item.productPrice) * item.quantity, 0);
+    const subtotal = cartSubtotal > 0 ? cartSubtotal : qty > 0 && unit > 0 ? qty * unit : 0;
 
     const summary = [
       "Resumen de tu pedido:",
