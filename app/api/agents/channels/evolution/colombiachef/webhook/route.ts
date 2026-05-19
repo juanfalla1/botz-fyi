@@ -338,6 +338,21 @@ function buildOptionActionsHint(): string {
   return "Atajos: A1/A2/A3 agregar al carrito | D1/D2/D3 ver detalle | C1/C2/C3 comprar esa opcion.";
 }
 
+function buildCheckoutDataPrompt(productUrl: string): string {
+  const p = findProductByUrl(productUrl);
+  const sizes = (p?.sizes || []).map((s) => s.toLowerCase());
+  const isSingleSize = sizes.includes("talla unica") || sizes.includes("unica") || sizes.length === 0;
+  const hasColors = (p?.colors || []).length > 0;
+
+  if (isSingleSize && !hasColors) {
+    return "Perfecto. Para cerrar esa opcion necesito: cantidad y ciudad de entrega.";
+  }
+  if (isSingleSize && hasColors) {
+    return "Perfecto. Para cerrar esa opcion necesito: color, cantidad y ciudad de entrega.";
+  }
+  return "Perfecto. Para cerrar esa opcion necesito: talla, color, cantidad y ciudad de entrega.";
+}
+
 function slugFromUrl(url: string): string {
   try {
     const u = new URL(String(url || ""));
@@ -827,7 +842,7 @@ export async function POST(req: NextRequest) {
         ciudad: "",
       };
       saveSession(customerId, { pendingOrder: pending, expectedAction: "checkout_collect", lastAssistantType: "checkout_start" });
-      await sendToInbound(outboundInstance, inbound, "Perfecto. Para cerrar esa opcion necesito: talla, color, cantidad y ciudad.");
+      await sendToInbound(outboundInstance, inbound, buildCheckoutDataPrompt(selected.url));
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
     }
     const p = findProductByUrl(selected.url);
