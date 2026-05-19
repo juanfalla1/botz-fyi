@@ -540,6 +540,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, sent: true, to: inbound.from });
   }
 
+  if (/^2$/.test(normalizedText) && ["offer_more_options", "buy_or_more", "refine_or_buy", "payment_choice"].includes(sessionNow?.expectedAction || "")) {
+    const handoff = buildPurchaseSummary(inbound.text, customerId);
+    await sendToInbound(outboundInstance, inbound, `${handoff.customerReply} Si prefieres, tambien puedes escribirle directo: ${ADVISOR_LINK}`);
+    if (ADVISOR_NUMBER) await evolutionService.sendMessage(outboundInstance, ADVISOR_NUMBER, handoff.advisorSummary);
+    saveSession(customerId, { expectedAction: "advisor_followup", lastAssistantType: "manual_handoff" });
+    return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+  }
+
+  if (/^1$/.test(normalizedText) && ["offer_more_options", "buy_or_more", "refine_or_buy"].includes(sessionNow?.expectedAction || "")) {
+    const selected = sessionNow?.lastResults?.[0];
+    const pending = {
+      productName: selected?.name || "Producto seleccionado",
+      productUrl: selected?.url || "",
+      productPrice: selected?.price || "No visible",
+      talla: "",
+      color: "",
+      cantidad: "",
+      ciudad: "",
+    };
+    saveSession(customerId, { pendingOrder: pending, expectedAction: "checkout_collect", lastAssistantType: "checkout_start" });
+    await sendToInbound(outboundInstance, inbound, "Perfecto. Para cerrar el pedido necesito: talla, color, cantidad y ciudad. Ejemplo: talla L, color negro, 2 unidades, ciudad Monteria.");
+    return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+  }
+
   if (isBuyNowIntent(normalizedText) && (sessionNow?.lastResults?.length || sessionNow?.pendingOrder?.productUrl)) {
     const selected = sessionNow?.lastResults?.[0];
     const pending = sessionNow?.pendingOrder || {
