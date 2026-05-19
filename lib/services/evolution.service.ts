@@ -537,6 +537,38 @@ export class EvolutionService {
       ],
     };
 
+    const baseC = {
+      listMessage: {
+        title: args.title,
+        description: args.description || "",
+        buttonText: args.buttonText || "Elegir opcion",
+        footerText: "Colombia Chef",
+        sections: [
+          {
+            title: args.sectionTitle || "Productos",
+            rows: rows.map((r) => ({ title: r.title, description: r.description || "", rowId: r.rowId })),
+          },
+        ],
+      },
+    };
+
+    const baseD = {
+      interactiveMessage: {
+        title: args.title,
+        body: { text: args.description || "" },
+        footer: { text: "Colombia Chef" },
+        action: {
+          button: args.buttonText || "Elegir opcion",
+          sections: [
+            {
+              title: args.sectionTitle || "Productos",
+              rows: rows.map((r) => ({ title: r.title, description: r.description || "", id: r.rowId })),
+            },
+          ],
+        },
+      },
+    };
+
     const paths = [
       `/message/sendList/${instanceName}`,
       `/message/sendInteractiveList/${instanceName}`,
@@ -546,7 +578,7 @@ export class EvolutionService {
     let lastErr: any = null;
     for (const dst of uniqueShapes) {
       for (const path of paths) {
-        for (const base of [baseA, baseB]) {
+        for (const base of [baseA, baseB, baseC, baseD]) {
           try {
             return await evolutionFetch(path, {
               method: "POST",
