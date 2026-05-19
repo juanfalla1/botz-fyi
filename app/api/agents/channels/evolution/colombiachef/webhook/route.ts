@@ -986,6 +986,18 @@ export async function POST(req: NextRequest) {
   }
 
   if (sessionNow?.expectedAction === "checkout_collect") {
+    if (isMoreOptionsIntent(normalizedText) || isMoreInCategoryIntent(normalizedText) || isContinueBrowsingIntent(normalizedText)) {
+      const more = buildMoreOptionsAnswer(customerId);
+      if (more) {
+        await sendToInbound(outboundInstance, inbound, `${more}\n\n${buildOptionActionsHint()}`);
+        saveSession(customerId, { expectedAction: "offer_more_options", lastAssistantType: "checkout_back_to_browsing" });
+        return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+      }
+      await sendToInbound(outboundInstance, inbound, "Perfecto, volvemos a explorar. Dime categoria o referencia y te muestro opciones.");
+      saveSession(customerId, { expectedAction: "choose_category", lastAssistantType: "checkout_back_to_browsing_empty" });
+      return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+    }
+
     const fields = parseCheckoutFields(normalizedText);
     const pending = {
       ...(sessionNow.pendingOrder || {
