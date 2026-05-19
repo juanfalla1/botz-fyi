@@ -1,3 +1,5 @@
+import { Redis } from "@upstash/redis";
+
 type ProductLite = {
   name: string;
   price: string;
@@ -45,6 +47,20 @@ type CustomerSession = {
 const TTL_MS = 30 * 60 * 1000;
 const memory = new Map<string, CustomerSession>();
 
+function getRedisClient(): Redis | null {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  try {
+    return new Redis({ url, token });
+  } catch {
+    return null;
+  }
+}
+
+const redis = getRedisClient();
+const REDIS_PREFIX = "colombiachef:session:";
+
 function cleanup() {
   const now = Date.now();
   for (const [key, value] of memory.entries()) {
@@ -55,6 +71,20 @@ function cleanup() {
 export function getSession(customerId: string): CustomerSession | null {
   cleanup();
   return memory.get(customerId) || null;
+}
+
+export async function hydrateSession(customerId: string): Promise<void> {
+  cleanup();
+  if (memory.has(customerId) || !redis) return;
+  try {
+    const key = `${REDIS_PREFIX}${customerId}`;
+    const data = (await redis.get(key)) as CustomerSession | null;
+    if (data && typeof data === "object") {
+      memory.set(customerId, data);
+    }
+  } catch {
+    // ignore redis read errors
+  }
 }
 
 export function saveSession(customerId: string, patch: Partial<CustomerSession>): CustomerSession {
@@ -74,5 +104,9 @@ export function saveSession(customerId: string, patch: Partial<CustomerSession>)
     updatedAt: Date.now(),
   };
   memory.set(customerId, next);
+  if (redis) {
+    const key = `${REDIS_PREFIX}${customerId}`;
+    void redis.set(key, next, { ex: Math.ceil(TTL_MS / 1000) }).catch(() => undefined);
+  }
   return next;
 }

@@ -3,7 +3,7 @@ import { evolutionService } from "../../../../../../../lib/services/evolution.se
 import { categoryMatches, findExactProductByName, findProductByUrl, findProductsByCategory, findProductsByText, loadCatalog } from "../_lib/catalog";
 import { parseInbound } from "../_lib/evolution-payload";
 import { isCatalogScopeQuestion, isConfusionSignal, isContinueBrowsingIntent, isGreeting, isMoreInCategoryIntent, isMoreOptionsIntent, isPurchaseIntent, isUnsupportedRequest } from "../_lib/intent";
-import { getSession, saveSession } from "../_lib/session";
+import { getSession, hydrateSession, saveSession } from "../_lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -798,6 +798,7 @@ export async function POST(req: NextRequest) {
   }
 
   const customerId = inbound.from || inbound.remoteJid || inbound.participant || "sin-id";
+  await hydrateSession(customerId);
   let normalizedText = String(inbound.text || "").trim();
   if (/^CARRITO$/i.test(normalizedText)) normalizedText = "carrito";
   if (/^FINALIZAR_CARRITO$/i.test(normalizedText)) normalizedText = "finalizar carrito";
