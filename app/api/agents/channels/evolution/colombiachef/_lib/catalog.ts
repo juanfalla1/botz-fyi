@@ -38,6 +38,10 @@ function normalize(value: string): string {
     .trim();
 }
 
+function normalizeLoose(value: string): string {
+  return normalize(value).replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
 function productFamilyKey(name: string): string {
   return normalize(name)
     .replace(/\bref\.?\s*[a-z0-9-]+\b/g, "")
@@ -99,16 +103,27 @@ export function findProductsByText(input: string, limit = 5): ColombiaChefProduc
   const data = loadCatalog();
   const products = data.products || [];
   const query = normalize(input);
+  const queryLoose = normalizeLoose(input);
   if (!query) return [];
 
   const tokens = query.split(/\s+/).filter((t) => t.length >= 2);
   const scored = products
     .map((p) => {
       const hay = normalize([p.name, p.category, p.subcategory, p.description, p.colors.join(" "), p.sizes.join(" ")].join(" "));
+      const nameLoose = normalizeLoose(p.name);
       let score = 0;
+      let overlap = 0;
+      if (nameLoose === queryLoose) score += 100;
+      else if (nameLoose.includes(queryLoose) && queryLoose.length >= 6) score += 30;
       for (const t of tokens) {
-        if (hay.includes(t)) score += t.length >= 4 ? 2 : 1;
+        if (hay.includes(t)) {
+          overlap += 1;
+          score += t.length >= 4 ? 2 : 1;
+        }
       }
+      const overlapRatio = tokens.length ? overlap / tokens.length : 0;
+      if (overlapRatio >= 0.75) score += 6;
+      else if (overlapRatio <= 0.34 && tokens.length >= 3) score -= 4;
       if (query.length >= 8 && hay.includes(query)) score += 4;
       if (score === 0 && hay.includes(query)) score = 1;
       if (query.includes("combo") && normalize(p.category) === "combos") score += 1;
@@ -120,9 +135,10 @@ export function findProductsByText(input: string, limit = 5): ColombiaChefProduc
       if (/\btalla\s*l\b|\bl\b/.test(query) && p.sizes.map((s) => normalize(s)).includes("l")) score += 1;
       if (/\bblanco\b/.test(query) && p.colors.map((c) => normalize(c)).includes("blanco")) score += 1;
       if (/\bnegro\b/.test(query) && p.colors.map((c) => normalize(c)).includes("negro")) score += 1;
-      return { p, score };
+      return { p, score, overlapRatio };
     })
     .filter((x) => {
+      if (tokens.length >= 4) return x.score >= 3 && x.overlapRatio >= 0.45;
       if (tokens.length >= 3) return x.score >= 2;
       return x.score >= 1;
     })
