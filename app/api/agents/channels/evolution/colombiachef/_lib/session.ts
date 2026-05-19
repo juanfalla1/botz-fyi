@@ -38,6 +38,7 @@ type CustomerSession = {
     telefono: string;
     correo: string;
   };
+  billingStep?: string;
   updatedAt: number;
 };
 

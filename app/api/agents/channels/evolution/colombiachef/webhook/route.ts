@@ -555,11 +555,34 @@ function parseBillingFields(text: string): Partial<{
 }
 
 function buildBillingRequestMessage(): string {
-  return [
-    "Perfecto. Para finalizar tu carrito, enviame estos datos de facturacion en un solo mensaje:",
-    "Nombres, Apellidos, Tipo identificacion, Numero identificacion, Ciudad, Departamento, Direccion, Telefono, Correo.",
-    "Ejemplo: Nombres: Juan, Apellidos: Perez, Tipo identificacion: Cedula, Numero identificacion: 12345678, Ciudad: Monteria, Departamento: Cordoba, Direccion: Calle 10 #20-30 Barrio Centro, Telefono: 3001234567, Correo: juan@mail.com",
-  ].join("\n");
+  return "Perfecto. Lo hacemos rapido paso a paso. 1/8: Cual es tu nombre?";
+}
+
+const BILLING_STEPS = [
+  "nombres",
+  "apellidos",
+  "tipoIdentificacion",
+  "numeroIdentificacion",
+  "ciudad",
+  "departamento",
+  "direccion",
+  "telefono",
+  "correo",
+] as const;
+
+function nextBillingQuestion(step: string): string {
+  const map: Record<string, string> = {
+    nombres: "2/9: Cuales son tus apellidos?",
+    apellidos: "3/9: Tipo de identificacion (Cedula o NIT)?",
+    tipoIdentificacion: "4/9: Numero de identificacion?",
+    numeroIdentificacion: "5/9: Ciudad de entrega?",
+    ciudad: "6/9: Departamento?",
+    departamento: "7/9: Direccion completa?",
+    direccion: "8/9: Telefono?",
+    telefono: "9/9: Correo electronico?",
+    correo: "Listo, estoy consolidando tu pedido...",
+  };
+  return map[step] || "Continuemos";
 }
 
 function buildChooseCategoryAnswer(): string {
@@ -845,14 +868,14 @@ export async function POST(req: NextRequest) {
       await sendToInbound(outboundInstance, inbound, "Tu carrito esta vacio. Dime un producto para agregarlo primero.");
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
     }
-    saveSession(customerId, { expectedAction: "billing_collect", lastAssistantType: "checkout_start_from_cart" });
+    saveSession(customerId, { expectedAction: "billing_collect", lastAssistantType: "checkout_start_from_cart", billingStep: "nombres" });
     await sendToInbound(outboundInstance, inbound, buildBillingRequestMessage());
     return NextResponse.json({ ok: true, sent: true, to: inbound.from });
   }
 
   if (sessionNow?.expectedAction === "billing_collect") {
-    const fields = parseBillingFields(normalizedText);
-    const previous = sessionNow?.billingData || {
+    const step = sessionNow.billingStep || "nombres";
+    const prev = sessionNow?.billingData || {
       nombres: "",
       apellidos: "",
       tipoIdentificacion: "",
@@ -863,13 +886,17 @@ export async function POST(req: NextRequest) {
       telefono: "",
       correo: "",
     };
-    const merged = { ...previous, ...Object.fromEntries(Object.entries(fields).filter(([, v]) => Boolean(v))) };
-    const missing = Object.entries(merged).filter(([, v]) => !v).map(([k]) => k);
-    saveSession(customerId, { billingData: merged });
-    if (missing.length) {
-      await sendToInbound(outboundInstance, inbound, `Gracias. Para finalizar me falta: ${missing.join(", ")}.`);
+    const value = normalizedText.trim();
+    const updated = { ...prev, [step]: value } as typeof prev;
+    const idx = BILLING_STEPS.indexOf(step as any);
+    const next = BILLING_STEPS[idx + 1];
+    if (next) {
+      saveSession(customerId, { billingData: updated, billingStep: next });
+      await sendToInbound(outboundInstance, inbound, nextBillingQuestion(step));
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
     }
+
+    const merged = updated;
 
     const items = sessionNow?.cartItems || [];
     const subtotal = items.reduce((acc, item) => acc + parsePriceToNumber(item.productPrice) * item.quantity, 0);
@@ -889,7 +916,7 @@ export async function POST(req: NextRequest) {
       "Responde: 1) Pagar ahora 2) Hablar con asesor",
     ].join("\n");
 
-    saveSession(customerId, { expectedAction: "payment_choice", lastAssistantType: "billing_completed", billingData: merged });
+    saveSession(customerId, { expectedAction: "payment_choice", lastAssistantType: "billing_completed", billingData: merged, billingStep: "" });
     await sendToInbound(outboundInstance, inbound, summary);
     return NextResponse.json({ ok: true, sent: true, to: inbound.from });
   }
