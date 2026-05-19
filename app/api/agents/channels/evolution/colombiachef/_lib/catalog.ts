@@ -101,14 +101,15 @@ export function findProductsByText(input: string, limit = 5): ColombiaChefProduc
   const query = normalize(input);
   if (!query) return [];
 
-  const tokens = query.split(/\s+/).filter((t) => t.length >= 3);
+  const tokens = query.split(/\s+/).filter((t) => t.length >= 2);
   const scored = products
     .map((p) => {
       const hay = normalize([p.name, p.category, p.subcategory, p.description, p.colors.join(" "), p.sizes.join(" ")].join(" "));
       let score = 0;
       for (const t of tokens) {
-        if (hay.includes(t)) score += 1;
+        if (hay.includes(t)) score += t.length >= 4 ? 2 : 1;
       }
+      if (query.length >= 8 && hay.includes(query)) score += 4;
       if (score === 0 && hay.includes(query)) score = 1;
       if (query.includes("combo") && normalize(p.category) === "combos") score += 1;
       if (query.includes("chaqueta") && normalize(p.category) === "chaquetas") score += 1;
@@ -116,6 +117,9 @@ export function findProductsByText(input: string, limit = 5): ColombiaChefProduc
       if (query.includes("delantal") && normalize(p.category) === "delantales") score += 1;
       if (query.includes("gorro") && normalize(p.category) === "gorros") score += 1;
       if (query.includes("accesorio") && normalize(p.category) === "accesorios") score += 1;
+      if (/\btalla\s*l\b|\bl\b/.test(query) && p.sizes.map((s) => normalize(s)).includes("l")) score += 1;
+      if (/\bblanco\b/.test(query) && p.colors.map((c) => normalize(c)).includes("blanco")) score += 1;
+      if (/\bnegro\b/.test(query) && p.colors.map((c) => normalize(c)).includes("negro")) score += 1;
       return { p, score };
     })
     .filter((x) => {

@@ -115,7 +115,21 @@ function buildPromoAnswer(): string {
 }
 
 function buildSearchAnswer(input: string): string {
-  const found = findProductsByText(input, 3);
+  const category = categoryMatches(input);
+  const { size, colors } = parseSizeAndColor(input);
+  let found = findProductsByText(input, 8);
+
+  if (category) {
+    const inCategory = findProductsByCategory(category, 80);
+    const refined = inCategory.filter((p) => {
+      const okSize = size ? (p.sizes || []).map((s) => s.toUpperCase()).includes(size) : true;
+      const okColor = colors.length ? colors.some((c) => (p.colors || []).map((x) => x.toLowerCase()).includes(c)) : true;
+      return okSize && okColor;
+    });
+    found = (refined.length ? refined : inCategory).slice(0, 8);
+  }
+
+  found = found.slice(0, 3);
   if (!found.length) {
     return "No encontré coincidencias exactas. Dime categoría (chaquetas, pantalones, delantales, gorros, combos o accesorios), talla y presupuesto y te ayudo a elegir.";
   }
@@ -123,7 +137,7 @@ function buildSearchAnswer(input: string): string {
     const notes = [p.availability_notes, p.shipping_notes].filter(Boolean).join(". ");
     return formatOptionLine(i + 1, p.name, p.price, p.url, notes, p.sizes);
   });
-  return ["Te encontré estas opciones:", ...lines].join("\n");
+  return ["Te encontré estas opciones:", ...lines, "", "Si quieres, te muestro mas opciones de esta misma busqueda."].join("\n");
 }
 
 function buildPurchaseSummary(input: string, customerId: string): { customerReply: string; advisorSummary: string } {
@@ -350,10 +364,6 @@ function parseCheckoutFields(text: string): Partial<{ talla: string; color: stri
     cantidad,
     ciudad,
   };
-}
-
-function buildBuyChoicePrompt(): string {
-  return "Si te interesa, lo compramos aqui mismo. Responde: 1) Comprar ahora 2) Hablar con asesor";
 }
 
 function buildChooseCategoryAnswer(): string {
@@ -657,7 +667,6 @@ export async function POST(req: NextRequest) {
   if (refinedReply) {
     try {
       await sendToInbound(outboundInstance, inbound, refinedReply);
-      await sendToInbound(outboundInstance, inbound, buildBuyChoicePrompt());
       saveSession(customerId, { expectedAction: "buy_or_more", lastAssistantType: "refined_options" });
       console.log("[colombiachef-webhook] sent_refined_options", { customerId });
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
@@ -671,7 +680,6 @@ export async function POST(req: NextRequest) {
   if (detailReply) {
     try {
       await sendToInbound(outboundInstance, inbound, detailReply);
-      await sendToInbound(outboundInstance, inbound, buildBuyChoicePrompt());
       saveSession(customerId, { expectedAction: "buy_or_more", lastAssistantType: "product_detail" });
       console.log("[colombiachef-webhook] sent_product_detail", { customerId });
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
@@ -730,9 +738,6 @@ export async function POST(req: NextRequest) {
 
       const plan = composeReply(inbound.text, customerId);
       await sendToInbound(outboundInstance, inbound, plan.text);
-      if (["category_results", "search_results", "promo_results"].includes(plan.assistantType)) {
-        await sendToInbound(outboundInstance, inbound, buildBuyChoicePrompt());
-      }
 
       const category = categoryMatches(inbound.text) || getSession(customerId)?.lastCategory || "";
       const found = category ? findProductsByCategory(category, 3) : findProductsByText(inbound.text, 3);
