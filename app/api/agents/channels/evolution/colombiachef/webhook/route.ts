@@ -957,8 +957,8 @@ export async function POST(req: NextRequest) {
       }
 
       await sendToInbound(outboundInstance, inbound, exactRequestedReply);
-      const related = findProductsByText(normalizedText, 3);
-      const ordered = exact ? [exact, ...related.filter((p) => p.url !== exact.url)] : related;
+      const related = findProductsByText(normalizedText, 6).filter((p) => !exact || p.url !== exact.url).slice(0, 2);
+      const ordered = exact ? [exact, ...related] : findProductsByText(normalizedText, 3);
       saveSession(customerId, {
         lastCategory: ordered[0]?.category || getSession(customerId)?.lastCategory || "",
         lastShownUrls: ordered.map((x) => x.url).slice(0, 3),
