@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { evolutionService } from "../../../../../../../lib/services/evolution.service";
 import { categoryMatches, findExactProductByName, findProductByUrl, findProductsByCategory, findProductsByText, loadCatalog } from "../_lib/catalog";
 import { parseInbound } from "../_lib/evolution-payload";
-import { isCatalogScopeQuestion, isConfusionSignal, isGreeting, isMoreInCategoryIntent, isMoreOptionsIntent, isPurchaseIntent, isUnsupportedRequest } from "../_lib/intent";
+import { isCatalogScopeQuestion, isConfusionSignal, isContinueBrowsingIntent, isGreeting, isMoreInCategoryIntent, isMoreOptionsIntent, isPurchaseIntent, isUnsupportedRequest } from "../_lib/intent";
 import { getSession, saveSession } from "../_lib/session";
 
 export const runtime = "nodejs";
@@ -265,7 +265,7 @@ function addFirstResultToCart(customerId: string): { ok: boolean; message: strin
     });
   }
   saveSession(customerId, { cartItems: cart, expectedAction: "browsing", lastAssistantType: "cart_add" });
-  return { ok: true, message: `Listo, agregue al carrito: ${selected.name}. Escribe 'carrito' para verlo o 'finalizar carrito' para cerrar pedido.` };
+  return { ok: true, message: `Listo, agregue al carrito: ${selected.name}. Quieres elegir otro producto? Responde: 'seguir viendo' o 'carrito'.` };
 }
 
 function addResultByIndexToCart(customerId: string, index: number): { ok: boolean; message: string } {
@@ -279,7 +279,7 @@ function addResultByIndexToCart(customerId: string, index: number): { ok: boolea
     cart.push({ productName: selected.name, productUrl: selected.url, productPrice: selected.price || "No visible", quantity: 1 });
   }
   saveSession(customerId, { cartItems: cart, expectedAction: "browsing", lastAssistantType: "cart_add" });
-  return { ok: true, message: `Listo, agregue al carrito la opcion ${index + 1}: ${selected.name}. Escribe 'carrito' para verlo.` };
+  return { ok: true, message: `Listo, agregue al carrito la opcion ${index + 1}: ${selected.name}. Quieres elegir otro producto? Responde: 'seguir viendo' o 'carrito'.` };
 }
 
 function buildCartSummary(customerId: string): string {
@@ -750,6 +750,18 @@ export async function POST(req: NextRequest) {
     const cart = buildCartSummary(customerId);
     await sendToInbound(outboundInstance, inbound, cart);
     saveSession(customerId, { expectedAction: "cart_review", lastAssistantType: "cart_view" });
+    return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+  }
+
+  if (isContinueBrowsingIntent(normalizedText)) {
+    const more = buildMoreOptionsAnswer(customerId);
+    if (more) {
+      await sendToInbound(outboundInstance, inbound, `${more}\n\n${buildOptionActionsHint()}`);
+      saveSession(customerId, { expectedAction: "offer_more_options", lastAssistantType: "continue_browsing" });
+      return NextResponse.json({ ok: true, sent: true, to: inbound.from });
+    }
+    await sendToInbound(outboundInstance, inbound, "Perfecto. Dime categoria o referencia y te muestro mas opciones.");
+    saveSession(customerId, { expectedAction: "choose_category", lastAssistantType: "continue_browsing_empty" });
     return NextResponse.json({ ok: true, sent: true, to: inbound.from });
   }
 
