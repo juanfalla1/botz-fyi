@@ -17,12 +17,18 @@ function pickText(msg: any): string {
   if (!msg) return "";
   if (typeof msg === "string") return msg.trim();
   return String(
-    msg?.conversation ||
+    msg?.buttonsResponseMessage?.selectedButtonId ||
+      msg?.buttonsResponseMessage?.selectedDisplayText ||
+      msg?.listResponseMessage?.singleSelectReply?.selectedRowId ||
+      msg?.listResponseMessage?.singleSelectReply?.title ||
+      msg?.listResponseMessage?.title ||
+      msg?.templateButtonReplyMessage?.selectedId ||
+      msg?.templateButtonReplyMessage?.selectedDisplayText ||
+      msg?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson ||
+      msg?.conversation ||
       msg?.extendedTextMessage?.text ||
       msg?.imageMessage?.caption ||
       msg?.videoMessage?.caption ||
-      msg?.buttonsResponseMessage?.selectedDisplayText ||
-      msg?.listResponseMessage?.title ||
       ""
   ).trim();
 }
