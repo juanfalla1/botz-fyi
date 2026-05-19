@@ -314,9 +314,10 @@ function formatOptionLine(index: number, name: string, price: string, url: strin
   const sizeLabel = sizes && sizes.length ? `Tallas visibles: ${sizes.join(", ")}` : "No veo talla visible para ese producto en este momento.";
   const ref = extractReference(name);
   const refLabel = ref ? `Referencia: ${ref}` : `Referencia: ${slugFromUrl(url) || "no visible"}`;
+  const actionLine = `Acciones opcion ${index}: A${index} agregar carrito | D${index} detalle | C${index} comprar`;
   const row = `${index}) ${compactName(name)} | ${visiblePrice(price)}\n${refLabel}\n${url}`;
-  if (!notes) return `${row}\n${sizeLabel}`;
-  return `${row}\n${sizeLabel}\nNota: ${compactName(notes)}`;
+  if (!notes) return `${row}\n${sizeLabel}\n${actionLine}`;
+  return `${row}\n${sizeLabel}\nNota: ${compactName(notes)}\n${actionLine}`;
 }
 
 function buildMoreOptionsAnswer(customerId: string): string | null {
