@@ -480,6 +480,88 @@ export class EvolutionService {
     throw lastErr || new Error("sendImage failed");
   }
 
+  async sendInteractiveList(
+    instanceName: string,
+    destination: string,
+    args: {
+      title: string;
+      description?: string;
+      buttonText?: string;
+      sectionTitle?: string;
+      rows: Array<{ title: string; description?: string; rowId: string }>;
+    }
+  ): Promise<any> {
+    const destinationRaw = String(destination || "").trim();
+    const number = destinationRaw.replace(/\D/g, "");
+    const hasJid = destinationRaw.includes("@");
+    const rows = (args.rows || []).slice(0, 10);
+    if (!rows.length) throw new Error("interactive list requires rows");
+
+    const destinationShapes: Array<Record<string, any>> = [];
+    if (hasJid) {
+      destinationShapes.push({ number: destinationRaw });
+      destinationShapes.push({ jid: destinationRaw });
+    }
+    if (number) {
+      destinationShapes.push({ number });
+      destinationShapes.push({ jid: `${number}@s.whatsapp.net` });
+    }
+
+    const uniqueShapes = destinationShapes.filter((v, i, arr) => {
+      const key = JSON.stringify(v);
+      return arr.findIndex((x) => JSON.stringify(x) === key) === i;
+    });
+
+    const baseA = {
+      title: args.title,
+      description: args.description || "",
+      buttonText: args.buttonText || "Elegir opcion",
+      sections: [
+        {
+          title: args.sectionTitle || "Productos",
+          rows: rows.map((r) => ({ title: r.title, description: r.description || "", rowId: r.rowId })),
+        },
+      ],
+    };
+
+    const baseB = {
+      title: args.title,
+      text: args.description || "",
+      footer: "Colombia Chef",
+      buttonText: args.buttonText || "Elegir opcion",
+      sections: [
+        {
+          title: args.sectionTitle || "Productos",
+          rows: rows.map((r) => ({ title: r.title, description: r.description || "", id: r.rowId })),
+        },
+      ],
+    };
+
+    const paths = [
+      `/message/sendList/${instanceName}`,
+      `/message/sendInteractiveList/${instanceName}`,
+      `/message/sendListMessage/${instanceName}`,
+    ];
+
+    let lastErr: any = null;
+    for (const dst of uniqueShapes) {
+      for (const path of paths) {
+        for (const base of [baseA, baseB]) {
+          try {
+            return await evolutionFetch(path, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...dst, ...base }),
+            });
+          } catch (e: any) {
+            lastErr = e;
+          }
+        }
+      }
+    }
+    throw lastErr || new Error("sendInteractiveList failed");
+  }
+
   async disconnect(instanceName: string): Promise<void> {
     await evolutionFetch(`/instance/logout/${instanceName}`, { method: "DELETE" });
   }

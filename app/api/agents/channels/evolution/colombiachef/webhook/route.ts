@@ -234,6 +234,12 @@ function isCheckoutCartIntent(text: string): boolean {
 
 function parseOptionQuickAction(text: string): { action: "add" | "buy" | "detail"; index: number } | null {
   const t = String(text || "").trim().toUpperCase();
+  const interactiveAdd = t.match(/^ADD_([1-3])$/);
+  if (interactiveAdd) return { action: "add", index: Number(interactiveAdd[1]) - 1 };
+  const interactiveBuy = t.match(/^BUY_([1-3])$/);
+  if (interactiveBuy) return { action: "buy", index: Number(interactiveBuy[1]) - 1 };
+  const interactiveDetail = t.match(/^DETAIL_([1-3])$/);
+  if (interactiveDetail) return { action: "detail", index: Number(interactiveDetail[1]) - 1 };
   const short = t.match(/^(A|C|D)$/);
   if (short) {
     const map: Record<string, "add" | "buy" | "detail"> = { A: "add", C: "buy", D: "detail" };
@@ -243,6 +249,33 @@ function parseOptionQuickAction(text: string): { action: "add" | "buy" | "detail
   if (!m) return null;
   const map: Record<string, "add" | "buy" | "detail"> = { A: "add", C: "buy", D: "detail" };
   return { action: map[m[1]], index: Number(m[2]) - 1 };
+}
+
+async function trySendProductInteractivePicker(
+  instanceName: string,
+  inbound: { from: string; remoteJid: string; participant: string; rawFrom: string },
+  items: Array<{ name: string; price: string }>
+): Promise<void> {
+  const rows = items.slice(0, 3).flatMap((p, i) => [
+    { title: `Agregar opcion ${i + 1}`, description: compactName(p.name), rowId: `ADD_${i + 1}` },
+    { title: `Comprar opcion ${i + 1}`, description: visiblePrice(p.price), rowId: `BUY_${i + 1}` },
+  ]);
+  rows.push({ title: "Ver carrito", description: "Revisar productos elegidos", rowId: "CARRITO" });
+  rows.push({ title: "Finalizar carrito", description: "Cerrar pedido", rowId: "FINALIZAR_CARRITO" });
+
+  const destination = looksLikeRealMsisdn(inbound.from) ? inbound.from : pickJidDestination(inbound);
+  if (!destination) return;
+  try {
+    await evolutionService.sendInteractiveList(instanceName, destination, {
+      title: "Acciones rapidas",
+      description: "Toca una opcion para agregar o comprar",
+      buttonText: "Elegir",
+      sectionTitle: "Carrito",
+      rows,
+    });
+  } catch {
+    return;
+  }
 }
 
 function addFirstResultToCart(customerId: string): { ok: boolean; message: string } {
@@ -703,7 +736,9 @@ export async function POST(req: NextRequest) {
   }
 
   const customerId = inbound.from || inbound.remoteJid || inbound.participant || "sin-id";
-  const normalizedText = String(inbound.text || "").trim();
+  let normalizedText = String(inbound.text || "").trim();
+  if (/^CARRITO$/i.test(normalizedText)) normalizedText = "carrito";
+  if (/^FINALIZAR_CARRITO$/i.test(normalizedText)) normalizedText = "finalizar carrito";
   const isPurchase = isPurchaseIntent(normalizedText);
   const sessionNow = getSession(customerId);
   const quick = parseOptionQuickAction(normalizedText);
@@ -931,6 +966,7 @@ export async function POST(req: NextRequest) {
         expectedAction: "offer_more_options",
         lastAssistantType: "exact_request_results",
       });
+      await trySendProductInteractivePicker(outboundInstance, inbound, ordered.slice(0, 3));
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
     } catch (error: any) {
       console.error("[colombiachef-webhook] send_exact_request_failed", { error: error?.message || String(error) });
@@ -943,6 +979,8 @@ export async function POST(req: NextRequest) {
     if (more) {
       try {
         await sendToInbound(outboundInstance, inbound, more);
+        const sessionAfter = getSession(customerId);
+        await trySendProductInteractivePicker(outboundInstance, inbound, sessionAfter?.lastResults || []);
         saveSession(customerId, { expectedAction: "refine_or_buy", lastAssistantType: "more_options" });
         console.log("[colombiachef-webhook] sent_more_options", { customerId });
         return NextResponse.json({ ok: true, sent: true, to: inbound.from });
@@ -957,6 +995,8 @@ export async function POST(req: NextRequest) {
   if (refinedReply) {
     try {
       await sendToInbound(outboundInstance, inbound, refinedReply);
+      const sessionAfter = getSession(customerId);
+      await trySendProductInteractivePicker(outboundInstance, inbound, sessionAfter?.lastResults || []);
       saveSession(customerId, { expectedAction: "buy_or_more", lastAssistantType: "refined_options" });
       console.log("[colombiachef-webhook] sent_refined_options", { customerId });
       return NextResponse.json({ ok: true, sent: true, to: inbound.from });
@@ -1034,9 +1074,11 @@ export async function POST(req: NextRequest) {
 
       const plan = composeReply(inbound.text, customerId);
       await sendToInbound(outboundInstance, inbound, plan.text);
-
       const category = categoryMatches(inbound.text) || getSession(customerId)?.lastCategory || "";
       const found = category ? findProductsByCategory(category, 3) : findProductsByText(inbound.text, 3);
+      if (["category_results", "search_results", "promo_results", "exact_request_results"].includes(plan.assistantType)) {
+        await trySendProductInteractivePicker(outboundInstance, inbound, found.map((x) => ({ name: x.name, price: x.price })));
+      }
       saveSession(customerId, {
         lastCategory: category,
         lastShownUrls: found.map((x) => x.url),
