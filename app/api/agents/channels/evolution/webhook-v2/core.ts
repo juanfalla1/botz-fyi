@@ -7893,13 +7893,23 @@ export async function POST(req: Request) {
             }
             strictMemory.awaiting_action = "strict_need_spec";
             strictMemory.strict_offer_category_menu = true;
-            return finalizeStrictTurn([
-              `Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD.`,
-              "Si quieres, te muestro categorías principales para continuar ahora:",
-              ...OFFICIAL_CATALOG_CATEGORIES.map((c, i) => `${i + 1}) ${c}`),
-              "",
-              "Escribe la categoría (o número) y te muestro referencias cercanas.",
-            ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
+            const balanzaRowsByCap = rankCatalogByCapacityOnly(balanzaFallbackPool as any[], cap).map((x: any) => x.row);
+            const balanzaFallbackByCap = buildNumberedProductOptions((balanzaRowsByCap.length ? balanzaRowsByCap : balanzaFallbackPool).slice(0, 8) as any[], 8);
+            if (balanzaFallbackByCap.length) {
+              strictMemory.pending_product_options = balanzaFallbackByCap;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictMemory.strict_offer_category_menu = false;
+              return finalizeStrictTurn([
+                `Para ${strictMemory.strict_spec_query} no tengo opciones activas con esa resolución exacta en BD.`,
+                "Estas son las referencias más cercanas en balanzas por capacidad:",
+                ...balanzaFallbackByCap.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+                "",
+                "Elige una con letra o número (A/1), o escribe 'más'.",
+              ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
+            return finalizeStrictTurn(`Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD. Si quieres, ajustamos capacidad/resolución.`, strictMemory, { pipeline: true, intent: pipelineIntent });
           }
 
           if (cap > 0 && !(read > 0)) {
@@ -9897,13 +9907,24 @@ export async function POST(req: Request) {
                 } else {
                   strictMemory.awaiting_action = "strict_need_spec";
                   strictMemory.strict_offer_category_menu = true;
-                  strictReply = [
-                    `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo.`,
-                    "Si quieres, te muestro categorías principales para continuar ahora:",
-                    ...OFFICIAL_CATALOG_CATEGORIES.map((c, i) => `${i + 1}) ${c}`),
-                    "",
-                    "Escribe la categoría (o número) y te muestro referencias cercanas.",
-                  ].join("\n");
+                  const balanzaRowsByCap = rankCatalogByCapacityOnly(balanzaFallbackPool as any[], rememberedCap).map((x: any) => x.row);
+                  const balanzaFallbackByCap = buildNumberedProductOptions((balanzaRowsByCap.length ? balanzaRowsByCap : balanzaFallbackPool).slice(0, 8) as any[], 8);
+                  if (balanzaFallbackByCap.length) {
+                    strictMemory.pending_product_options = balanzaFallbackByCap;
+                    strictMemory.pending_family_options = [];
+                    strictMemory.awaiting_action = "strict_choose_model";
+                    strictMemory.strict_model_offset = 0;
+                    strictMemory.strict_offer_category_menu = false;
+                    strictReply = [
+                      `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo.`,
+                      "Estas son las referencias más cercanas en balanzas por capacidad:",
+                      ...balanzaFallbackByCap.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+                      "",
+                      "Elige una con letra o número (A/1), o escribe 'más'.",
+                    ].join("\n");
+                  } else {
+                    strictReply = `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución.`;
+                  }
                 }
               }
             }
@@ -10127,13 +10148,24 @@ export async function POST(req: Request) {
               } else {
                 strictMemory.awaiting_action = "strict_need_spec";
                 strictMemory.strict_offer_category_menu = true;
-                strictReply = [
-                  `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo.`,
-                  "Si quieres, te muestro categorías principales para continuar ahora:",
-                  ...OFFICIAL_CATALOG_CATEGORIES.map((c, i) => `${i + 1}) ${c}`),
-                  "",
-                  "Escribe la categoría (o número) y te muestro referencias cercanas.",
-                ].join("\n");
+                const balanzaRowsByCap = rankCatalogByCapacityOnly(balanzaFallbackPool as any[], cap).map((x: any) => x.row);
+                const balanzaFallbackByCap = buildNumberedProductOptions((balanzaRowsByCap.length ? balanzaRowsByCap : balanzaFallbackPool).slice(0, 8) as any[], 8);
+                if (balanzaFallbackByCap.length) {
+                  strictMemory.pending_product_options = balanzaFallbackByCap;
+                  strictMemory.pending_family_options = [];
+                  strictMemory.awaiting_action = "strict_choose_model";
+                  strictMemory.strict_model_offset = 0;
+                  strictMemory.strict_offer_category_menu = false;
+                  strictReply = [
+                    `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo.`,
+                    "Estas son las referencias más cercanas en balanzas por capacidad:",
+                    ...balanzaFallbackByCap.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+                    "",
+                    "Elige una con letra o número (A/1), o escribe 'más'.",
+                  ].join("\n");
+                } else {
+                  strictReply = `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución.`;
+                }
               }
             } else {
               strictReply = [
