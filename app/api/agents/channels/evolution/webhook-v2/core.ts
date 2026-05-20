@@ -7873,6 +7873,20 @@ export async function POST(req: Request) {
               }
             }
 
+            const fallbackFamilies = buildNumberedFamilyOptions(ownerRows as any[], 8);
+            if (fallbackFamilies.length) {
+              strictMemory.pending_family_options = fallbackFamilies;
+              strictMemory.pending_product_options = [];
+              strictMemory.awaiting_action = "strict_choose_family";
+              strictMemory.strict_offer_category_menu = false;
+              return finalizeStrictTurn([
+                `Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD.`,
+                "Pero sí tengo estas categorías/familias para continuar ahora:",
+                ...fallbackFamilies.map((f) => `${f.code}) ${f.label} (${f.count})`),
+                "",
+                "Elige una con letra o número (A/1) y te muestro referencias cercanas.",
+              ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
             strictMemory.awaiting_action = "strict_need_spec";
             strictMemory.strict_offer_category_menu = true;
             return finalizeStrictTurn(`Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`, strictMemory, { pipeline: true, intent: pipelineIntent });
@@ -9844,12 +9858,26 @@ export async function POST(req: Request) {
                   "Elige una opción (A/1), o ajustamos capacidad/resolución.",
                 ].join("\n");
               } else {
+                const fallbackFamilies = buildNumberedFamilyOptions(ownerRows as any[], 8);
                 strictMemory.pending_product_options = [];
-                strictMemory.awaiting_action = "strict_need_spec";
                 strictMemory.strict_filter_capacity_g = rememberedCap;
                 strictMemory.strict_filter_readability_g = rememberedRead;
-                strictMemory.strict_offer_category_menu = true;
-                strictReply = `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
+                if (fallbackFamilies.length) {
+                  strictMemory.pending_family_options = fallbackFamilies;
+                  strictMemory.awaiting_action = "strict_choose_family";
+                  strictMemory.strict_offer_category_menu = false;
+                  strictReply = [
+                    `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo.`,
+                    "Pero sí tengo estas categorías/familias para continuar ahora:",
+                    ...fallbackFamilies.map((f) => `${f.code}) ${f.label} (${f.count})`),
+                    "",
+                    "Elige una con letra o número (A/1) y te muestro referencias cercanas.",
+                  ].join("\n");
+                } else {
+                  strictMemory.awaiting_action = "strict_need_spec";
+                  strictMemory.strict_offer_category_menu = true;
+                  strictReply = `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
+                }
               }
             }
           }
@@ -10051,10 +10079,24 @@ export async function POST(req: Request) {
             strictMemory.awaiting_action = "strict_choose_model";
             strictMemory.strict_model_offset = 0;
             if (!options.length) {
+              const fallbackFamilies = buildNumberedFamilyOptions(ownerRows as any[], 8);
               strictMemory.pending_product_options = [];
-              strictMemory.awaiting_action = "strict_need_spec";
-              strictMemory.strict_offer_category_menu = true;
-              strictReply = `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
+              if (fallbackFamilies.length) {
+                strictMemory.pending_family_options = fallbackFamilies;
+                strictMemory.awaiting_action = "strict_choose_family";
+                strictMemory.strict_offer_category_menu = false;
+                strictReply = [
+                  `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo.`,
+                  "Pero sí tengo estas categorías/familias para continuar ahora:",
+                  ...fallbackFamilies.map((f) => `${f.code}) ${f.label} (${f.count})`),
+                  "",
+                  "Elige una con letra o número (A/1) y te muestro referencias cercanas.",
+                ].join("\n");
+              } else {
+                strictMemory.awaiting_action = "strict_need_spec";
+                strictMemory.strict_offer_category_menu = true;
+                strictReply = `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
+              }
             } else {
               strictReply = [
                 `No encontré coincidencia exacta para ${strictMemory.strict_spec_query}.`,
