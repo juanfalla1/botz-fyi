@@ -9670,7 +9670,13 @@ export async function POST(req: Request) {
                 "",
                 "Elige una con letra o número (A/1) y te muestro referencias.",
               ].join("\n")
-            : "En este momento no tengo categorías activas para mostrar. Si quieres, ajustamos capacidad/resolución.";
+            : [
+                "En este momento no tengo familias activas para listar en esta sesión.",
+                "Pero sí puedo orientarte por categorías principales ahora:",
+                ...OFFICIAL_CATALOG_CATEGORIES.map((c, i) => `${i + 1}) ${c}`),
+                "",
+                "Escribe la categoría (o número) y te muestro las opciones cercanas disponibles.",
+              ].join("\n");
         }
 
         const parsed = parseLooseTechnicalHint(text);
