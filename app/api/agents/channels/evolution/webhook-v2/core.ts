@@ -7889,7 +7889,13 @@ export async function POST(req: Request) {
             }
             strictMemory.awaiting_action = "strict_need_spec";
             strictMemory.strict_offer_category_menu = true;
-            return finalizeStrictTurn(`Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`, strictMemory, { pipeline: true, intent: pipelineIntent });
+            return finalizeStrictTurn([
+              `Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD.`,
+              "Si quieres, te muestro categorías principales para continuar ahora:",
+              ...OFFICIAL_CATALOG_CATEGORIES.map((c, i) => `${i + 1}) ${c}`),
+              "",
+              "Escribe la categoría (o número) y te muestro referencias cercanas.",
+            ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
           }
 
           if (cap > 0 && !(read > 0)) {
@@ -9876,7 +9882,13 @@ export async function POST(req: Request) {
                 } else {
                   strictMemory.awaiting_action = "strict_need_spec";
                   strictMemory.strict_offer_category_menu = true;
-                  strictReply = `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
+                  strictReply = [
+                    `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo.`,
+                    "Si quieres, te muestro categorías principales para continuar ahora:",
+                    ...OFFICIAL_CATALOG_CATEGORIES.map((c, i) => `${i + 1}) ${c}`),
+                    "",
+                    "Escribe la categoría (o número) y te muestro referencias cercanas.",
+                  ].join("\n");
                 }
               }
             }
@@ -10095,7 +10107,13 @@ export async function POST(req: Request) {
               } else {
                 strictMemory.awaiting_action = "strict_need_spec";
                 strictMemory.strict_offer_category_menu = true;
-                strictReply = `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
+                strictReply = [
+                  `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo.`,
+                  "Si quieres, te muestro categorías principales para continuar ahora:",
+                  ...OFFICIAL_CATALOG_CATEGORIES.map((c, i) => `${i + 1}) ${c}`),
+                  "",
+                  "Escribe la categoría (o número) y te muestro referencias cercanas.",
+                ].join("\n");
               }
             } else {
               strictReply = [
