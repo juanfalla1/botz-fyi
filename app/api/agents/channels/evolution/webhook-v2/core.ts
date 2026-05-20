@@ -9651,10 +9651,13 @@ export async function POST(req: Request) {
 
         if (!String(strictReply || "").trim() && isAffirmativeShortIntent(text) && Boolean(previousMemory?.strict_offer_category_menu)) {
           const requestedCategoryForMenu = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || ""));
-          const rowsForMenu = requestedCategoryForMenu
+          const rowsForMenuScoped = requestedCategoryForMenu
             ? scopeCatalogRows(ownerRows as any[], requestedCategoryForMenu)
             : (ownerRows as any[]);
-          const families = buildNumberedFamilyOptions(rowsForMenu as any[], 8);
+          const familiesScoped = buildNumberedFamilyOptions(rowsForMenuScoped as any[], 8);
+          const families = familiesScoped.length
+            ? familiesScoped
+            : buildNumberedFamilyOptions(ownerRows as any[], 8);
           strictMemory.pending_family_options = families;
           strictMemory.pending_product_options = [];
           strictMemory.awaiting_action = families.length ? "strict_choose_family" : "strict_need_spec";
