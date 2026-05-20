@@ -7873,18 +7873,22 @@ export async function POST(req: Request) {
               }
             }
 
-            const fallbackFamilies = buildNumberedFamilyOptions(ownerRows as any[], 8);
-            if (fallbackFamilies.length) {
-              strictMemory.pending_family_options = fallbackFamilies;
-              strictMemory.pending_product_options = [];
-              strictMemory.awaiting_action = "strict_choose_family";
+            const balanzaFallbackPool = scopeCatalogRows(ownerRows as any[], "balanzas");
+            const rankedFallback = prioritizeTechnicalRows(balanzaFallbackPool as any[], { capacityG: cap, readabilityG: read });
+            const nearbyFallbackRows = filterNearbyTechnicalRows((rankedFallback.orderedRows.length ? rankedFallback.orderedRows : balanzaFallbackPool) as any[], { capacityG: cap, readabilityG: read });
+            const nearbyFallbackOptions = buildNumberedProductOptions((nearbyFallbackRows || []).slice(0, 8) as any[], 8);
+            if (nearbyFallbackOptions.length) {
+              strictMemory.pending_product_options = nearbyFallbackOptions;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
               strictMemory.strict_offer_category_menu = false;
               return finalizeStrictTurn([
                 `Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD.`,
-                "Pero sí tengo estas categorías/familias para continuar ahora:",
-                ...fallbackFamilies.map((f) => `${f.code}) ${f.label} (${f.count})`),
+                "Sí te puedo compartir referencias cercanas en balanzas:",
+                ...nearbyFallbackOptions.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
                 "",
-                "Elige una con letra o número (A/1) y te muestro referencias cercanas.",
+                "Elige una con letra o número (A/1), o escribe 'más'.",
               ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
             }
             strictMemory.awaiting_action = "strict_need_spec";
@@ -9864,20 +9868,31 @@ export async function POST(req: Request) {
                   "Elige una opción (A/1), o ajustamos capacidad/resolución.",
                 ].join("\n");
               } else {
-                const fallbackFamilies = buildNumberedFamilyOptions(ownerRows as any[], 8);
+                const balanzaFallbackPool = scopeCatalogRows(ownerRows as any[], "balanzas");
+                const rankedFallback = prioritizeTechnicalRows(balanzaFallbackPool as any[], {
+                  capacityG: rememberedCap,
+                  readabilityG: rememberedRead,
+                });
+                const nearbyFallbackRows = filterNearbyTechnicalRows((rankedFallback.orderedRows.length ? rankedFallback.orderedRows : balanzaFallbackPool) as any[], {
+                  capacityG: rememberedCap,
+                  readabilityG: rememberedRead,
+                });
+                const nearbyFallbackOptions = buildNumberedProductOptions((nearbyFallbackRows || []).slice(0, 8) as any[], 8);
                 strictMemory.pending_product_options = [];
                 strictMemory.strict_filter_capacity_g = rememberedCap;
                 strictMemory.strict_filter_readability_g = rememberedRead;
-                if (fallbackFamilies.length) {
-                  strictMemory.pending_family_options = fallbackFamilies;
-                  strictMemory.awaiting_action = "strict_choose_family";
+                if (nearbyFallbackOptions.length) {
+                  strictMemory.pending_product_options = nearbyFallbackOptions;
+                  strictMemory.pending_family_options = [];
+                  strictMemory.awaiting_action = "strict_choose_model";
+                  strictMemory.strict_model_offset = 0;
                   strictMemory.strict_offer_category_menu = false;
                   strictReply = [
                     `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo.`,
-                    "Pero sí tengo estas categorías/familias para continuar ahora:",
-                    ...fallbackFamilies.map((f) => `${f.code}) ${f.label} (${f.count})`),
+                    "Sí te puedo compartir referencias cercanas en balanzas:",
+                    ...nearbyFallbackOptions.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
                     "",
-                    "Elige una con letra o número (A/1) y te muestro referencias cercanas.",
+                    "Elige una con letra o número (A/1), o escribe 'más'.",
                   ].join("\n");
                 } else {
                   strictMemory.awaiting_action = "strict_need_spec";
@@ -10091,18 +10106,23 @@ export async function POST(req: Request) {
             strictMemory.awaiting_action = "strict_choose_model";
             strictMemory.strict_model_offset = 0;
             if (!options.length) {
-              const fallbackFamilies = buildNumberedFamilyOptions(ownerRows as any[], 8);
+              const balanzaFallbackPool = scopeCatalogRows(ownerRows as any[], "balanzas");
+              const rankedFallback = prioritizeTechnicalRows(balanzaFallbackPool as any[], { capacityG: cap, readabilityG: read });
+              const nearbyFallbackRows = filterNearbyTechnicalRows((rankedFallback.orderedRows.length ? rankedFallback.orderedRows : balanzaFallbackPool) as any[], { capacityG: cap, readabilityG: read });
+              const nearbyFallbackOptions = buildNumberedProductOptions((nearbyFallbackRows || []).slice(0, 8) as any[], 8);
               strictMemory.pending_product_options = [];
-              if (fallbackFamilies.length) {
-                strictMemory.pending_family_options = fallbackFamilies;
-                strictMemory.awaiting_action = "strict_choose_family";
+              if (nearbyFallbackOptions.length) {
+                strictMemory.pending_product_options = nearbyFallbackOptions;
+                strictMemory.pending_family_options = [];
+                strictMemory.awaiting_action = "strict_choose_model";
+                strictMemory.strict_model_offset = 0;
                 strictMemory.strict_offer_category_menu = false;
                 strictReply = [
                   `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo.`,
-                  "Pero sí tengo estas categorías/familias para continuar ahora:",
-                  ...fallbackFamilies.map((f) => `${f.code}) ${f.label} (${f.count})`),
+                  "Sí te puedo compartir referencias cercanas en balanzas:",
+                  ...nearbyFallbackOptions.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
                   "",
-                  "Elige una con letra o número (A/1) y te muestro referencias cercanas.",
+                  "Elige una con letra o número (A/1), o escribe 'más'.",
                 ].join("\n");
               } else {
                 strictMemory.awaiting_action = "strict_need_spec";
