@@ -7874,7 +7874,8 @@ export async function POST(req: Request) {
             }
 
             strictMemory.awaiting_action = "strict_need_spec";
-            return finalizeStrictTurn(`Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD. Si quieres, ajustamos capacidad/resolución.`, strictMemory, { pipeline: true, intent: pipelineIntent });
+            strictMemory.strict_offer_category_menu = true;
+            return finalizeStrictTurn(`Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`, strictMemory, { pipeline: true, intent: pipelineIntent });
           }
 
           if (cap > 0 && !(read > 0)) {
