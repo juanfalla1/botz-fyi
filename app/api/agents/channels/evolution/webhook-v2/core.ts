@@ -6565,14 +6565,28 @@ function buildStrictBalanzaTechnicalFallback(args: {
     };
   }
 
-  const precisionOptions = buildGuidedPendingOptions(args.ownerRows as any[], "balanza_precision_001", "");
-  if (precisionOptions.length) {
+  const guidedProfileFallback: GuidedBalanzaProfile = targetRead > 0 && targetRead <= 0.001
+    ? "balanza_precision_001"
+    : targetRead > 0 && targetRead <= 0.01
+      ? "balanza_oro_001"
+      : "balanza_industrial_portatil_conteo";
+  const guidedOptions = buildGuidedPendingOptions(
+    args.ownerRows as any[],
+    guidedProfileFallback,
+    guidedProfileFallback === "balanza_industrial_portatil_conteo" ? "estandar" : ""
+  );
+  if (guidedOptions.length) {
+    const guidedLabel = guidedProfileFallback === "balanza_precision_001"
+      ? "balanzas de precisión"
+      : guidedProfileFallback === "balanza_oro_001"
+        ? "balanzas 0.01 g"
+        : "balanzas industriales";
     return {
-      options: precisionOptions,
+      options: guidedOptions,
       reply: [
         `Para ${args.specQuery} no tengo opciones activas en BD con ese cruce exacto.`,
-        "Te comparto referencias cercanas de balanzas de precisión disponibles:",
-        ...precisionOptions.slice(0, 4).map((o: any) => `${o.code}) ${o.name}`),
+        `Te comparto referencias cercanas de ${guidedLabel} disponibles:`,
+        ...guidedOptions.slice(0, 4).map((o: any) => `${o.code}) ${o.name}`),
         "",
         "Elige una con letra o número (A/1), o escribe 'más'.",
       ].join("\n"),
