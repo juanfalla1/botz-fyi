@@ -8169,6 +8169,7 @@ export async function POST(req: Request) {
             if (/^\s*2\s*$/.test(textNorm)) {
               strictMemory.awaiting_action = "strict_choose_action";
               strictMemory.last_intent = "datasheet_request";
+              strictMemory.strict_force_sheet_now = true;
               // Deja que el flujo legacy maneje PDF de ficha (remoto/local) antes del resumen.
               return null;
             }
@@ -9494,6 +9495,9 @@ export async function POST(req: Request) {
         if (!selectedProduct && rememberedName) {
           selectedProduct = findCatalogProductByName(ownerRows as any[], rememberedName) || null;
         }
+        if (!selectedProduct && Boolean(previousMemory?.strict_force_sheet_now || strictMemory?.strict_force_sheet_now) && rememberedName) {
+          selectedProduct = { name: rememberedName } as any;
+        }
       }
 
       if (!selectedProduct && awaiting === "conversation_followup" && (/^1\b/.test(textNorm) || /^2\b/.test(textNorm))) {
@@ -10801,7 +10805,8 @@ export async function POST(req: Request) {
           }
           }
           }
-        } else if (!String(strictReply || "").trim() && (wantsSheet || /^2\b/.test(textNorm))) {
+        } else if (!String(strictReply || "").trim() && (wantsSheet || /^2\b/.test(textNorm) || Boolean(previousMemory?.strict_force_sheet_now || strictMemory?.strict_force_sheet_now))) {
+          strictMemory.strict_force_sheet_now = false;
           const appendSheetFromRow = async (row: any, modelLabel: string): Promise<boolean> => {
             const datasheetUrl = pickBestProductPdfUrl(row, text) || "";
             const localPdfPath = pickBestLocalPdfPath(row, text);
