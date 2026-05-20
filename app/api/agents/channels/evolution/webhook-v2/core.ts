@@ -6488,6 +6488,64 @@ function safeLogPhase1Invariants(args: {
   }
 }
 
+function buildStrictBalanzaTechnicalFallback(args: {
+  ownerRows: any[];
+  capacityG: number;
+  readabilityG: number;
+  specQuery: string;
+}) {
+  const pool = scopeCatalogRows(args.ownerRows as any[], "balanzas");
+  const ranked = prioritizeTechnicalRows(pool as any[], { capacityG: args.capacityG, readabilityG: args.readabilityG });
+  const nearbyRows = filterNearbyTechnicalRows((ranked.orderedRows.length ? ranked.orderedRows : pool) as any[], {
+    capacityG: args.capacityG,
+    readabilityG: args.readabilityG,
+  });
+  const nearbyOptions = buildNumberedProductOptions((nearbyRows || []).slice(0, 8) as any[], 8);
+  if (nearbyOptions.length) {
+    return {
+      options: nearbyOptions,
+      reply: [
+        `Para ${args.specQuery} no tengo opciones realmente compatibles en el catálogo activo.`,
+        "Sí te puedo compartir referencias cercanas en balanzas:",
+        ...nearbyOptions.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+        "",
+        "Elige una con letra o número (A/1), o escribe 'más'.",
+      ].join("\n"),
+    };
+  }
+
+  const byCapRows = rankCatalogByCapacityOnly(pool as any[], args.capacityG).map((x: any) => x.row);
+  const byCapOptions = buildNumberedProductOptions((byCapRows.length ? byCapRows : pool).slice(0, 8) as any[], 8);
+  if (byCapOptions.length) {
+    return {
+      options: byCapOptions,
+      reply: [
+        `Para ${args.specQuery} no tengo opciones activas con esa resolución exacta en BD.`,
+        "Estas son las referencias más cercanas en balanzas por capacidad:",
+        ...byCapOptions.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+        "",
+        "Elige una con letra o número (A/1), o escribe 'más'.",
+      ].join("\n"),
+    };
+  }
+
+  const precisionOptions = buildGuidedPendingOptions(args.ownerRows as any[], "balanza_precision_001", "");
+  if (precisionOptions.length) {
+    return {
+      options: precisionOptions,
+      reply: [
+        `Para ${args.specQuery} no tengo opciones activas en BD con ese cruce exacto.`,
+        "Te comparto referencias cercanas de balanzas de precisión disponibles:",
+        ...precisionOptions.slice(0, 4).map((o: any) => `${o.code}) ${o.name}`),
+        "",
+        "Elige una con letra o número (A/1), o escribe 'más'.",
+      ].join("\n"),
+    };
+  }
+
+  return null;
+}
+
 export async function POST(req: Request) {
   try {
     console.log("[evolution-webhook] --- WEBHOOK ENTRY ---", { time: new Date().toISOString(), version: QUOTE_FLOW_VERSION });
@@ -7873,57 +7931,22 @@ export async function POST(req: Request) {
               }
             }
 
-            const balanzaFallbackPool = scopeCatalogRows(ownerRows as any[], "balanzas");
-            const rankedFallback = prioritizeTechnicalRows(balanzaFallbackPool as any[], { capacityG: cap, readabilityG: read });
-            const nearbyFallbackRows = filterNearbyTechnicalRows((rankedFallback.orderedRows.length ? rankedFallback.orderedRows : balanzaFallbackPool) as any[], { capacityG: cap, readabilityG: read });
-            const nearbyFallbackOptions = buildNumberedProductOptions((nearbyFallbackRows || []).slice(0, 8) as any[], 8);
-            if (nearbyFallbackOptions.length) {
-              strictMemory.pending_product_options = nearbyFallbackOptions;
+            const balanzaFallback = buildStrictBalanzaTechnicalFallback({
+              ownerRows: ownerRows as any[],
+              capacityG: cap,
+              readabilityG: read,
+              specQuery: String(strictMemory.strict_spec_query || `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`),
+            });
+            if (balanzaFallback?.options?.length) {
+              strictMemory.pending_product_options = balanzaFallback.options;
               strictMemory.pending_family_options = [];
               strictMemory.awaiting_action = "strict_choose_model";
               strictMemory.strict_model_offset = 0;
               strictMemory.strict_offer_category_menu = false;
-              return finalizeStrictTurn([
-                `Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD.`,
-                "Sí te puedo compartir referencias cercanas en balanzas:",
-                ...nearbyFallbackOptions.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                "",
-                "Elige una con letra o número (A/1), o escribe 'más'.",
-              ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
+              return finalizeStrictTurn(balanzaFallback.reply, strictMemory, { pipeline: true, intent: pipelineIntent });
             }
             strictMemory.awaiting_action = "strict_need_spec";
             strictMemory.strict_offer_category_menu = true;
-            const balanzaRowsByCap = rankCatalogByCapacityOnly(balanzaFallbackPool as any[], cap).map((x: any) => x.row);
-            const balanzaFallbackByCap = buildNumberedProductOptions((balanzaRowsByCap.length ? balanzaRowsByCap : balanzaFallbackPool).slice(0, 8) as any[], 8);
-            if (balanzaFallbackByCap.length) {
-              strictMemory.pending_product_options = balanzaFallbackByCap;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
-              strictMemory.strict_offer_category_menu = false;
-              return finalizeStrictTurn([
-                `Para ${strictMemory.strict_spec_query} no tengo opciones activas con esa resolución exacta en BD.`,
-                "Estas son las referencias más cercanas en balanzas por capacidad:",
-                ...balanzaFallbackByCap.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                "",
-                "Elige una con letra o número (A/1), o escribe 'más'.",
-              ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
-            }
-            const guidedPrecisionFallback = buildGuidedPendingOptions(ownerRows as any[], "balanza_precision_001", "");
-            if (guidedPrecisionFallback.length) {
-              strictMemory.pending_product_options = guidedPrecisionFallback;
-              strictMemory.pending_family_options = [];
-              strictMemory.awaiting_action = "strict_choose_model";
-              strictMemory.strict_model_offset = 0;
-              strictMemory.strict_offer_category_menu = false;
-              return finalizeStrictTurn([
-                `Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD con ese cruce exacto.`,
-                "Te comparto referencias cercanas de balanzas de precisión disponibles:",
-                ...guidedPrecisionFallback.slice(0, 4).map((o: any) => `${o.code}) ${o.name}`),
-                "",
-                "Elige una con letra o número (A/1), o escribe 'más'.",
-              ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
-            }
             return finalizeStrictTurn(`Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD. Si quieres, ajustamos capacidad/resolución.`, strictMemory, { pipeline: true, intent: pipelineIntent });
           }
 
@@ -9893,53 +9916,26 @@ export async function POST(req: Request) {
                   "Elige una opción (A/1), o ajustamos capacidad/resolución.",
                 ].join("\n");
               } else {
-                const balanzaFallbackPool = scopeCatalogRows(ownerRows as any[], "balanzas");
-                const rankedFallback = prioritizeTechnicalRows(balanzaFallbackPool as any[], {
-                  capacityG: rememberedCap,
-                  readabilityG: rememberedRead,
-                });
-                const nearbyFallbackRows = filterNearbyTechnicalRows((rankedFallback.orderedRows.length ? rankedFallback.orderedRows : balanzaFallbackPool) as any[], {
-                  capacityG: rememberedCap,
-                  readabilityG: rememberedRead,
-                });
-                const nearbyFallbackOptions = buildNumberedProductOptions((nearbyFallbackRows || []).slice(0, 8) as any[], 8);
                 strictMemory.pending_product_options = [];
                 strictMemory.strict_filter_capacity_g = rememberedCap;
                 strictMemory.strict_filter_readability_g = rememberedRead;
-                if (nearbyFallbackOptions.length) {
-                  strictMemory.pending_product_options = nearbyFallbackOptions;
+                const balanzaFallback = buildStrictBalanzaTechnicalFallback({
+                  ownerRows: ownerRows as any[],
+                  capacityG: rememberedCap,
+                  readabilityG: rememberedRead,
+                  specQuery: `${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g`,
+                });
+                if (balanzaFallback?.options?.length) {
+                  strictMemory.pending_product_options = balanzaFallback.options;
                   strictMemory.pending_family_options = [];
                   strictMemory.awaiting_action = "strict_choose_model";
                   strictMemory.strict_model_offset = 0;
                   strictMemory.strict_offer_category_menu = false;
-                  strictReply = [
-                    `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo.`,
-                    "Sí te puedo compartir referencias cercanas en balanzas:",
-                    ...nearbyFallbackOptions.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                    "",
-                    "Elige una con letra o número (A/1), o escribe 'más'.",
-                  ].join("\n");
+                  strictReply = balanzaFallback.reply;
                 } else {
                   strictMemory.awaiting_action = "strict_need_spec";
                   strictMemory.strict_offer_category_menu = true;
-                  const balanzaRowsByCap = rankCatalogByCapacityOnly(balanzaFallbackPool as any[], rememberedCap).map((x: any) => x.row);
-                  const balanzaFallbackByCap = buildNumberedProductOptions((balanzaRowsByCap.length ? balanzaRowsByCap : balanzaFallbackPool).slice(0, 8) as any[], 8);
-                  if (balanzaFallbackByCap.length) {
-                    strictMemory.pending_product_options = balanzaFallbackByCap;
-                    strictMemory.pending_family_options = [];
-                    strictMemory.awaiting_action = "strict_choose_model";
-                    strictMemory.strict_model_offset = 0;
-                    strictMemory.strict_offer_category_menu = false;
-                    strictReply = [
-                      `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo.`,
-                      "Estas son las referencias más cercanas en balanzas por capacidad:",
-                      ...balanzaFallbackByCap.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                      "",
-                      "Elige una con letra o número (A/1), o escribe 'más'.",
-                    ].join("\n");
-                  } else {
-                    strictReply = `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución.`;
-                  }
+                  strictReply = `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución.`;
                 }
               }
             }
@@ -10142,45 +10138,24 @@ export async function POST(req: Request) {
             strictMemory.awaiting_action = "strict_choose_model";
             strictMemory.strict_model_offset = 0;
             if (!options.length) {
-              const balanzaFallbackPool = scopeCatalogRows(ownerRows as any[], "balanzas");
-              const rankedFallback = prioritizeTechnicalRows(balanzaFallbackPool as any[], { capacityG: cap, readabilityG: read });
-              const nearbyFallbackRows = filterNearbyTechnicalRows((rankedFallback.orderedRows.length ? rankedFallback.orderedRows : balanzaFallbackPool) as any[], { capacityG: cap, readabilityG: read });
-              const nearbyFallbackOptions = buildNumberedProductOptions((nearbyFallbackRows || []).slice(0, 8) as any[], 8);
               strictMemory.pending_product_options = [];
-              if (nearbyFallbackOptions.length) {
-                strictMemory.pending_product_options = nearbyFallbackOptions;
+              const balanzaFallback = buildStrictBalanzaTechnicalFallback({
+                ownerRows: ownerRows as any[],
+                capacityG: cap,
+                readabilityG: read,
+                specQuery: String(strictMemory.strict_spec_query || `${formatSpecNumber(cap)} g x ${formatSpecNumber(read)} g`),
+              });
+              if (balanzaFallback?.options?.length) {
+                strictMemory.pending_product_options = balanzaFallback.options;
                 strictMemory.pending_family_options = [];
                 strictMemory.awaiting_action = "strict_choose_model";
                 strictMemory.strict_model_offset = 0;
                 strictMemory.strict_offer_category_menu = false;
-                strictReply = [
-                  `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo.`,
-                  "Sí te puedo compartir referencias cercanas en balanzas:",
-                  ...nearbyFallbackOptions.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                  "",
-                  "Elige una con letra o número (A/1), o escribe 'más'.",
-                ].join("\n");
+                strictReply = balanzaFallback.reply;
               } else {
                 strictMemory.awaiting_action = "strict_need_spec";
                 strictMemory.strict_offer_category_menu = true;
-                const balanzaRowsByCap = rankCatalogByCapacityOnly(balanzaFallbackPool as any[], cap).map((x: any) => x.row);
-                const balanzaFallbackByCap = buildNumberedProductOptions((balanzaRowsByCap.length ? balanzaRowsByCap : balanzaFallbackPool).slice(0, 8) as any[], 8);
-                if (balanzaFallbackByCap.length) {
-                  strictMemory.pending_product_options = balanzaFallbackByCap;
-                  strictMemory.pending_family_options = [];
-                  strictMemory.awaiting_action = "strict_choose_model";
-                  strictMemory.strict_model_offset = 0;
-                  strictMemory.strict_offer_category_menu = false;
-                  strictReply = [
-                    `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo.`,
-                    "Estas son las referencias más cercanas en balanzas por capacidad:",
-                    ...balanzaFallbackByCap.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
-                    "",
-                    "Elige una con letra o número (A/1), o escribe 'más'.",
-                  ].join("\n");
-                } else {
-                  strictReply = `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución.`;
-                }
+                strictReply = `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución.`;
               }
             } else {
               strictReply = [
