@@ -2389,7 +2389,8 @@ function applyApplicationProfile(rows: any[], args: { application?: string; targ
 
     if (app === "joyeria_oro") {
       if (read > 0.01) return false;
-      if (cap > 6000) return false;
+      const jewelryMaxCap = targetCap > 0 ? Math.max(6200, targetCap * 1.1) : 6200;
+      if (cap > jewelryMaxCap) return false;
       if (/(industrial|plataforma|ranger|defender|valor|rc31|r71|ckw|td52p)/.test(txt)) return false;
     }
     if (app === "laboratorio") {
@@ -9647,6 +9648,27 @@ export async function POST(req: Request) {
               ].join("\n");
         }
 
+        if (!String(strictReply || "").trim() && isAffirmativeShortIntent(text) && Boolean(previousMemory?.strict_offer_category_menu)) {
+          const requestedCategoryForMenu = normalizeText(String(rememberedCategory || previousMemory?.last_category_intent || ""));
+          const rowsForMenu = requestedCategoryForMenu
+            ? scopeCatalogRows(ownerRows as any[], requestedCategoryForMenu)
+            : (ownerRows as any[]);
+          const families = buildNumberedFamilyOptions(rowsForMenu as any[], 8);
+          strictMemory.pending_family_options = families;
+          strictMemory.pending_product_options = [];
+          strictMemory.awaiting_action = families.length ? "strict_choose_family" : "strict_need_spec";
+          strictMemory.strict_family_label = "";
+          strictMemory.strict_offer_category_menu = false;
+          strictReply = families.length
+            ? [
+                "Perfecto. Estas son categorías/familias activas para continuar:",
+                ...families.map((f) => `${f.code}) ${f.label} (${f.count})`),
+                "",
+                "Elige una con letra o número (A/1) y te muestro referencias.",
+              ].join("\n")
+            : "En este momento no tengo categorías activas para mostrar. Si quieres, ajustamos capacidad/resolución.";
+        }
+
         const parsed = parseLooseTechnicalHint(text);
         const capacityRange = parseCapacityRangeHint(text);
         const asksCategoryMenuNow = isExplicitFamilyMenuAsk(text);
@@ -9816,6 +9838,7 @@ export async function POST(req: Request) {
                 strictMemory.awaiting_action = "strict_need_spec";
                 strictMemory.strict_filter_capacity_g = rememberedCap;
                 strictMemory.strict_filter_readability_g = rememberedRead;
+                strictMemory.strict_offer_category_menu = true;
                 strictReply = `Para ${formatSpecNumber(rememberedCap)} g x ${formatSpecNumber(rememberedRead)} g no tengo alternativas realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
               }
             }
@@ -10020,6 +10043,7 @@ export async function POST(req: Request) {
             if (!options.length) {
               strictMemory.pending_product_options = [];
               strictMemory.awaiting_action = "strict_need_spec";
+              strictMemory.strict_offer_category_menu = true;
               strictReply = `Para ${strictMemory.strict_spec_query} no tengo opciones realmente compatibles en el catálogo activo. Si quieres, ajustamos capacidad/resolución o te propongo otra categoría.`;
             } else {
               strictReply = [
