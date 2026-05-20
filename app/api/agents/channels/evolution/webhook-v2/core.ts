@@ -6494,7 +6494,19 @@ function buildStrictBalanzaTechnicalFallback(args: {
   readabilityG: number;
   specQuery: string;
 }) {
-  const pool = scopeCatalogRows(args.ownerRows as any[], "balanzas");
+  const strictBalanzaPool = scopeCatalogRows(args.ownerRows as any[], "balanzas");
+  const pool = strictBalanzaPool.length
+    ? strictBalanzaPool
+    : (Array.isArray(args.ownerRows) ? args.ownerRows : []).filter((row: any) => {
+        const cat = normalizeText(String(row?.category || ""));
+        const sub = catalogSubcategory(row);
+        if (/(humedad|electroquimica|conductivimetro|phmetro|centrifuga|agitador|plancha|impresora|pesas?\s*patron)/.test(`${cat} ${sub}`)) {
+          return false;
+        }
+        const cap = Number(getRowCapacityG(row) || 0);
+        const read = Number(getRowReadabilityG(row) || 0);
+        return cap > 0 && read > 0;
+      });
   const targetRead = Number(args.readabilityG || 0);
   const sameReadPool = targetRead > 0
     ? (pool || []).filter((row: any) => {
