@@ -6495,6 +6495,30 @@ function buildStrictBalanzaTechnicalFallback(args: {
   specQuery: string;
 }) {
   const pool = scopeCatalogRows(args.ownerRows as any[], "balanzas");
+  const targetRead = Number(args.readabilityG || 0);
+  const sameReadPool = targetRead > 0
+    ? (pool || []).filter((row: any) => {
+        const read = Number(getRowReadabilityG(row) || 0);
+        if (!(read > 0)) return false;
+        const ratio = Math.max(read, targetRead) / Math.max(1e-9, Math.min(read, targetRead));
+        return ratio <= 1.25;
+      })
+    : [];
+  const sameReadByCap = rankCatalogByCapacityOnly((sameReadPool.length ? sameReadPool : []) as any[], args.capacityG).map((x: any) => x.row);
+  const sameReadOptions = buildNumberedProductOptions((sameReadByCap || []).slice(0, 8) as any[], 8);
+  if (sameReadOptions.length) {
+    return {
+      options: sameReadOptions,
+      reply: [
+        `Para ${args.specQuery} no tengo cruce exacto en BD.`,
+        "Sí te puedo compartir referencias cercanas manteniendo la misma resolución:",
+        ...sameReadOptions.slice(0, 4).map((o) => `${o.code}) ${o.name}`),
+        "",
+        "Elige una con letra o número (A/1), o escribe 'más'.",
+      ].join("\n"),
+    };
+  }
+
   const ranked = prioritizeTechnicalRows(pool as any[], { capacityG: args.capacityG, readabilityG: args.readabilityG });
   const nearbyRows = filterNearbyTechnicalRows((ranked.orderedRows.length ? ranked.orderedRows : pool) as any[], {
     capacityG: args.capacityG,
