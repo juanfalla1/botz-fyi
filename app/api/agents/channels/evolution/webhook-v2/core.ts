@@ -14354,7 +14354,23 @@ export async function POST(req: Request) {
               nextMemory.awaiting_action = "product_option_selection";
               nextMemory.last_category_intent = inboundCategoryIntent;
             } else {
-              reply = `No encuentro referencias activas en la categoria ${categoryLabel} dentro de esta base. Si quieres, te muestro otra categoria disponible.`;
+              const nearbyFamilies = buildNumberedFamilyOptions(ownerRows as any[], 8)
+                .filter((f) => normalizeText(String(f?.label || "")) !== normalizeText(String(categoryLabel || "")))
+                .slice(0, 6);
+              if (nearbyFamilies.length) {
+                reply = [
+                  `No encuentro referencias activas en la categoria ${categoryLabel} dentro de esta base.`,
+                  "Pero si tengo estas categorias/familias cercanas disponibles ahora:",
+                  ...nearbyFamilies.map((o) => `${o.code}) ${o.label} (${o.count})`),
+                  "",
+                  "Elige una con letra o numero (A/1) y te muestro referencias de una.",
+                ].join("\n");
+                nextMemory.pending_family_options = nearbyFamilies;
+                nextMemory.pending_product_options = [];
+                nextMemory.awaiting_action = "family_option_selection";
+              } else {
+                reply = `No encuentro referencias activas en la categoria ${categoryLabel} dentro de esta base. Si quieres, ajustamos categoria o especificacion tecnica.`;
+              }
               nextMemory.last_category_intent = inboundCategoryIntent;
             }
           }
