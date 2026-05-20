@@ -7909,6 +7909,21 @@ export async function POST(req: Request) {
                 "Elige una con letra o número (A/1), o escribe 'más'.",
               ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
             }
+            const guidedPrecisionFallback = buildGuidedPendingOptions(ownerRows as any[], "balanza_precision_001", "");
+            if (guidedPrecisionFallback.length) {
+              strictMemory.pending_product_options = guidedPrecisionFallback;
+              strictMemory.pending_family_options = [];
+              strictMemory.awaiting_action = "strict_choose_model";
+              strictMemory.strict_model_offset = 0;
+              strictMemory.strict_offer_category_menu = false;
+              return finalizeStrictTurn([
+                `Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD con ese cruce exacto.`,
+                "Te comparto referencias cercanas de balanzas de precisión disponibles:",
+                ...guidedPrecisionFallback.slice(0, 4).map((o: any) => `${o.code}) ${o.name}`),
+                "",
+                "Elige una con letra o número (A/1), o escribe 'más'.",
+              ].join("\n"), strictMemory, { pipeline: true, intent: pipelineIntent });
+            }
             return finalizeStrictTurn(`Para ${strictMemory.strict_spec_query} no tengo opciones activas en BD. Si quieres, ajustamos capacidad/resolución.`, strictMemory, { pipeline: true, intent: pipelineIntent });
           }
 
