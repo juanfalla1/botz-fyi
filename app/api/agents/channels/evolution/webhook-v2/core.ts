@@ -9544,6 +9544,11 @@ export async function POST(req: Request) {
         }
       }
 
+      if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && /^\s*2\s*$/.test(textNorm)) {
+        strictMemory.last_intent = "datasheet_request";
+        strictMemory.strict_force_sheet_now = true;
+      }
+
       const selfHints = [
         agentPhone,
         normalizePhone(String(payload?.destination || "")),
