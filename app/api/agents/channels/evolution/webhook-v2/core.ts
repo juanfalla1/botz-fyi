@@ -5422,7 +5422,24 @@ function findCatalogProductByName(rows: any[], rememberedName: string): any | nu
   const exact = (rows || []).find((r: any) => normalizeText(String(r?.name || "")) === target);
   if (exact) return exact;
   const partial = (rows || []).find((r: any) => target.includes(normalizeText(String(r?.name || ""))) || normalizeText(String(r?.name || "")).includes(target));
-  return partial || null;
+  if (partial) return partial;
+
+  const canonical = (v: string) => normalizeCatalogQueryText(String(v || "")).replace(/[^a-z0-9]/g, "");
+  const modelTokens = expandModelAliasTokens(extractModelLikeTokens(String(rememberedName || ""))).map((t) => canonical(t));
+  if (!modelTokens.length) return null;
+
+  const byModel = (rows || []).find((r: any) => {
+    const payload = r?.source_payload && typeof r.source_payload === "object" ? r.source_payload : {};
+    const hay = canonical([
+      String(r?.name || ""),
+      String((payload as any)?.product_code || ""),
+      String((payload as any)?.sap || ""),
+      String((payload as any)?.numero_modelo || ""),
+      String((payload as any)?.model || ""),
+    ].join(" "));
+    return modelTokens.some((t) => t && hay.includes(t));
+  });
+  return byModel || null;
 }
 
 function parseRate(v: any) {
@@ -9494,9 +9511,6 @@ export async function POST(req: Request) {
         }
         if (!selectedProduct && rememberedName) {
           selectedProduct = findCatalogProductByName(ownerRows as any[], rememberedName) || null;
-        }
-        if (!selectedProduct && Boolean(previousMemory?.strict_force_sheet_now || strictMemory?.strict_force_sheet_now) && rememberedName) {
-          selectedProduct = { name: rememberedName } as any;
         }
       }
 
