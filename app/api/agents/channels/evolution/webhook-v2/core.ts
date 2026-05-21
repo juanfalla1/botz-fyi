@@ -12041,6 +12041,29 @@ export async function POST(req: Request) {
         const hasScopedContextInModelStep = Boolean(currentCategoryIntentInModelStep || familyLabel || pendingStrictOptions.length);
         const asksBalanzaOptionsInModelStep = /\b(tienes?\s+balanzas?|que\s+modelos\s+tienes?\s+de\s+balanzas?|que\s+balanzas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|muestrame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|dame\s+todas\s+las\s+opciones\s+de\s+balanzas?)\b/i.test(String(text || "")) || /^(balanza|balanzas)$/.test(textNorm);
         const asksBasculaOptionsInModelStep = /\b(tienes?\s+basculas?|que\s+modelos\s+tienes?\s+de\s+basculas?|que\s+basculas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos)|muestrame\s+(las\s+)?(opciones|modelos))\b/i.test(String(text || "")) || /^(bascula|basculas)$/.test(textNorm);
+        const explicitModelInModelStep = hasConcreteProductHint(text) && !isOptionOnlyReply(text)
+          ? (findExactModelProduct(text, ownerRows as any[]) || findExactModelProduct(text, categoryScoped as any[]) || pickBestCatalogProduct(text, ownerRows as any[]))
+          : null;
+        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && explicitModelInModelStep) {
+          const selectedNameModel = String((explicitModelInModelStep as any)?.name || "").trim();
+          strictMemory.last_product_id = String((explicitModelInModelStep as any)?.id || "").trim();
+          strictMemory.last_product_name = selectedNameModel;
+          strictMemory.last_selected_product_id = String((explicitModelInModelStep as any)?.id || "").trim();
+          strictMemory.last_selected_product_name = selectedNameModel;
+          strictMemory.awaiting_action = "strict_choose_action";
+          const technicalSummaryModel = buildTechnicalSummary(explicitModelInModelStep, 6);
+          strictReply = technicalSummaryModel
+            ? [
+                `Perfecto, encontré la referencia ${selectedNameModel}.`,
+                technicalSummaryModel,
+                "",
+                "Responde con: 1) Cotización  2) Ficha técnica  3) Ver otras opciones  4) Cambiar requerimiento",
+              ].join("\n")
+            : [
+                `Perfecto, encontré la referencia ${selectedNameModel}.`,
+                "Responde con: 1) Cotización  2) Ficha técnica  3) Ver otras opciones  4) Cambiar requerimiento",
+              ].join("\n");
+        }
         if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && asksBalanzaOptionsInModelStep) {
           const profileForList = (guidedProfileInModelStep || rememberedGuidedProfile || "balanza_precision_001") as GuidedBalanzaProfile;
           const industrialModeForList = profileForList === "balanza_industrial_portatil_conteo"
