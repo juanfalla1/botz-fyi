@@ -9567,6 +9567,9 @@ export async function POST(req: Request) {
         if (!selectedProduct && rememberedName) {
           selectedProduct = findCatalogProductByName(ownerRows as any[], rememberedName) || null;
         }
+        if (!selectedProduct && wantsSheet && rememberedName) {
+          selectedProduct = { name: rememberedName } as any;
+        }
       }
 
       if (!String(strictReply || "").trim() && awaiting === "strict_choose_action" && /^\s*2\s*$/.test(textNorm)) {
@@ -13275,7 +13278,7 @@ export async function POST(req: Request) {
             ].join("\n");
           }
         }
-        if (!String(strictReply || "").trim()) {
+        if (!String(strictReply || "").trim() && !actionMenuNumericReply) {
         strictReply = buildGuidedRecoveryMessage({
           awaiting,
           rememberedProduct: String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || ""),
