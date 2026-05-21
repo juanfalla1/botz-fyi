@@ -8320,15 +8320,37 @@ export async function POST(req: Request) {
           if (menuType === "model_selection_menu") {
             const selectedOption = resolvePendingProductOptionStrict(text, pendingForSlots);
             if (selectedOption) {
-              strictMemory.last_selected_product_id = String(selectedOption.id || "");
-              strictMemory.last_selected_product_name = String(selectedOption.raw_name || selectedOption.name || "");
-              strictMemory.last_product_id = String(selectedOption.id || "");
-              strictMemory.last_product_name = String(selectedOption.raw_name || selectedOption.name || "");
-              strictMemory.quote_target_model_token = normalizeCatalogQueryText(String(selectedOption.raw_name || selectedOption.name || "")).replace(/[^a-z0-9]/g, "");
+              const selectedModelName = String(selectedOption.raw_name || selectedOption.name || "").trim();
+              const resolvedSelectedRow =
+                (String(selectedOption.id || "").trim()
+                  ? (ownerRows as any[]).find((r: any) => String(r?.id || "").trim() === String(selectedOption.id || "").trim())
+                  : null)
+                || findCatalogRowByModelToken(ownerRows as any[], selectedModelName)
+                || findCatalogProductByName(ownerRows as any[], selectedModelName)
+                || null;
+              const resolvedId = String((resolvedSelectedRow as any)?.id || selectedOption.id || "").trim();
+              const resolvedName = String((resolvedSelectedRow as any)?.name || selectedModelName || "").trim();
+              strictMemory.last_selected_product_id = resolvedId;
+              strictMemory.last_selected_product_name = resolvedName;
+              strictMemory.last_product_id = resolvedId;
+              strictMemory.last_product_name = resolvedName;
+              strictMemory.quote_target_model_token = normalizeCatalogQueryText(String(resolvedName || selectedModelName || "")).replace(/[^a-z0-9]/g, "");
+              if (resolvedSelectedRow && typeof resolvedSelectedRow === "object") {
+                strictMemory.last_selected_product_snapshot = {
+                  id: String((resolvedSelectedRow as any)?.id || "").trim() || null,
+                  name: String((resolvedSelectedRow as any)?.name || "").trim() || null,
+                  category: String((resolvedSelectedRow as any)?.category || "").trim() || null,
+                  base_price_usd: Number((resolvedSelectedRow as any)?.base_price_usd || 0) || null,
+                  source_payload: ((resolvedSelectedRow as any)?.source_payload && typeof (resolvedSelectedRow as any).source_payload === "object")
+                    ? (resolvedSelectedRow as any).source_payload
+                    : null,
+                  datasheet_url: String((resolvedSelectedRow as any)?.datasheet_url || "").trim() || null,
+                };
+              }
               strictMemory.awaiting_action = "strict_choose_action";
               strictMemory.pending_product_options = [];
               strictMemory.last_menu_type = "model_action_menu";
-              const modelName = String(selectedOption.raw_name || selectedOption.name || "modelo");
+              const modelName = resolvedName || selectedModelName || "modelo";
               const reply = [
                 `Perfecto, tomé ${modelName}.`,
                 "¿Qué deseas ahora?",
