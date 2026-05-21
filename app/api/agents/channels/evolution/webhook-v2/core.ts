@@ -7638,6 +7638,53 @@ export async function POST(req: Request) {
         activeMenuType: slotPack.slots.active_menu_type,
       });
 
+      // Hard guard: when awaiting model selection and user sends a model reference,
+      // resolve immediately and exit this turn before entering deeper branches.
+      if (!String(strictReply || "").trim() && awaiting === "strict_choose_model") {
+        const hasDirectModelSignalNow = !isOptionOnlyReply(text) && (
+          hasConcreteProductHint(text) ||
+          extractModelLikeTokens(String(text || "")).length > 0 ||
+          /\b[a-z]{2,6}\d{2,6}(?:\/[a-z])?\b/i.test(String(text || ""))
+        );
+        if (hasDirectModelSignalNow) {
+          const directModelNow =
+            findCatalogRowByModelToken(ownerRows as any[], text) ||
+            findCatalogRowByModelToken(baseScoped as any[], text) ||
+            findExactModelProduct(text, ownerRows as any[]) ||
+            findExactModelProduct(text, baseScoped as any[]) ||
+            null;
+
+          if (directModelNow?.id) {
+            const modelNameNow = String((directModelNow as any)?.name || "").trim();
+            strictMemory.last_product_id = String((directModelNow as any)?.id || "").trim();
+            strictMemory.last_product_name = modelNameNow;
+            strictMemory.last_selected_product_id = String((directModelNow as any)?.id || "").trim();
+            strictMemory.last_selected_product_name = modelNameNow;
+            strictMemory.awaiting_action = "strict_choose_action";
+            const techNow = buildTechnicalSummary(directModelNow, 6);
+            const replyNow = techNow
+              ? [
+                  `Perfecto, encontré la referencia ${modelNameNow}.`,
+                  techNow,
+                  "",
+                  "Responde con: 1) Cotización  2) Ficha técnica  3) Ver otras opciones  4) Cambiar requerimiento",
+                ].join("\n")
+              : [
+                  `Perfecto, encontré la referencia ${modelNameNow}.`,
+                  "Responde con: 1) Cotización  2) Ficha técnica  3) Ver otras opciones  4) Cambiar requerimiento",
+                ].join("\n");
+            return finalizeStrictTurn(replyNow, strictMemory, { pipeline: true, intent: "direct_model_lookup" });
+          }
+
+          strictMemory.awaiting_action = "strict_choose_model";
+          return finalizeStrictTurn(
+            "No encontré esa referencia exacta en el catálogo activo. Si quieres, escribe solo el modelo (ej.: STX622 o EXP2202) y te confirmo disponibilidad, o responde A/1 para elegir del listado actual.",
+            strictMemory,
+            { pipeline: true, intent: "direct_model_lookup_miss" }
+          );
+        }
+      }
+
       if (!String(strictReply || "").trim() && isBluetoothAsk(text)) {
         const pendingOptions = Array.isArray(previousMemory?.pending_product_options)
           ? previousMemory.pending_product_options
