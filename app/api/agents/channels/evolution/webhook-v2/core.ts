@@ -7617,6 +7617,61 @@ export async function POST(req: Request) {
       let strictBypassAutoQuote = false;
       const asksLowerPriceGlobal = isLowerPriceAsk(textNorm);
       const asksHigherPriceGlobal = isHigherPriceAsk(textNorm);
+      const safeModelTokenNow = (() => {
+        const m = String(text || "").toUpperCase().match(/\b([A-Z]{2,6}\d{2,6}(?:\/[A-Z])?)\b/);
+        return String(m?.[1] || "").trim();
+      })();
+
+      if (!String(strictReply || "").trim() && awaiting === "strict_choose_model" && safeModelTokenNow && !isOptionOnlyReply(text)) {
+        const normCode = (v: string) => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const tokenNorm = normCode(safeModelTokenNow);
+        const pendingRaw = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
+        const pendingMatch = pendingRaw.find((o: any) => {
+          const nameNorm = normCode(String(o?.raw_name || o?.name || ""));
+          return Boolean(nameNorm) && (nameNorm.includes(tokenNorm) || tokenNorm.includes(nameNorm));
+        }) || null;
+
+        let directRow: any = null;
+        if (pendingMatch?.id) {
+          directRow = (Array.isArray(ownerRows) ? ownerRows : []).find((r: any) => String(r?.id || "") === String(pendingMatch.id || "")) || null;
+        }
+        if (!directRow) {
+          directRow = (Array.isArray(ownerRows) ? ownerRows : []).find((r: any) => {
+            const nameNorm = normCode(String(r?.name || ""));
+            return Boolean(nameNorm) && (nameNorm.includes(tokenNorm) || tokenNorm.includes(nameNorm));
+          }) || null;
+        }
+
+        if (directRow?.id) {
+          const directName = String(directRow?.name || safeModelTokenNow).trim();
+          strictMemory.last_product_id = String(directRow?.id || "").trim();
+          strictMemory.last_product_name = directName;
+          strictMemory.last_selected_product_id = String(directRow?.id || "").trim();
+          strictMemory.last_selected_product_name = directName;
+          strictMemory.awaiting_action = "strict_choose_action";
+          const tech = buildTechnicalSummary(directRow, 6);
+          const replyDirect = tech
+            ? [
+                `Perfecto, encontré la referencia ${directName}.`,
+                tech,
+                "",
+                "Responde con: 1) Cotización  2) Ficha técnica  3) Ver otras opciones  4) Cambiar requerimiento",
+              ].join("\n")
+            : [
+                `Perfecto, encontré la referencia ${directName}.`,
+                "Responde con: 1) Cotización  2) Ficha técnica  3) Ver otras opciones  4) Cambiar requerimiento",
+              ].join("\n");
+          return finalizeStrictTurn(replyDirect, strictMemory, { pipeline: true, intent: "direct_model_safe_path" });
+        }
+
+        strictMemory.awaiting_action = "strict_choose_model";
+        return finalizeStrictTurn(
+          `No encontré la referencia exacta ${safeModelTokenNow} en el catálogo activo. Si quieres, te muestro opciones del listado actual (A/1) o valida el código exacto para buscarla de nuevo.`,
+          strictMemory,
+          { pipeline: true, intent: "direct_model_safe_miss" }
+        );
+      }
+
       const selectedModelForSlots = String(
         previousMemory?.last_selected_product_name ||
         previousMemory?.last_product_name ||
