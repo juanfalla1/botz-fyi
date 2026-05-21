@@ -78,7 +78,7 @@ const ENABLE_RUNTIME_PDF_IMAGE_PARSE_FOR_QUOTE = String(
 const ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE = false;
 const ENABLE_QUOTE_PRODUCT_IMAGE = String(process.env.WHATSAPP_QUOTE_EMBED_PRODUCT_IMAGE || "true").toLowerCase() === "true";
 const STRICT_WHATSAPP_MODE = ENABLE_STRICT_WHATSAPP_MODE;
-const QUOTE_FLOW_VERSION = "quote-flow-2026-05-21-strict-model-ref-hotfix-04";
+const QUOTE_FLOW_VERSION = "quote-flow-2026-05-21-strict-model-ref-hotfix-05";
 const ALLOWED_BRAND_KEYS = ["ohaus"];
 const ALLOWED_NAME_KEYS = ["explorer", "adventurer", "pioneer", "ranger", "defender", "valor", "scout", "mb120", "mb90", "mb27", "mb23", "aquasearcher", "frontier"];
 const ALLOWED_CATEGORY_KEYS = ["balanzas", "basculas", "analizador_humedad", "electroquimica", "equipos_laboratorio", "documentos"];
@@ -7139,6 +7139,117 @@ export async function POST(req: Request) {
         last_user_at: new Date().toISOString(),
       };
       const text = String(inbound.text || "").trim();
+
+      // Emergency ultra-early path: resolve direct model references before entering
+      // the large strict flow branches that may throw runtime TDZ errors.
+      const emergencyModelToken = String(text.match(/\b([a-z]{2,6}\d{2,6}(?:\/[a-z]{1,3})?)\b/i)?.[1] || "").trim();
+      if (emergencyModelToken) {
+        const { data: emergencyRowsRaw } = await supabase
+          .from("agent_product_catalog")
+          .select("id,name,category,brand,base_price_usd,source_payload,is_active")
+          .eq("created_by", ownerId)
+          .eq("is_active", true)
+          .order("updated_at", { ascending: false })
+          .limit(360);
+        const emergencyRows = (Array.isArray(emergencyRowsRaw) ? emergencyRowsRaw : []).filter((r: any) => isCommercialCatalogRow(r));
+        const emergencyMatch =
+          findCatalogRowByModelToken(emergencyRows as any[], text) ||
+          findExactModelProduct(text, emergencyRows as any[]) ||
+          null;
+
+        const emergencyReply = emergencyMatch?.id
+          ? (() => {
+              const modelName = String((emergencyMatch as any)?.name || emergencyModelToken).trim();
+              strictMemory.last_product_id = String((emergencyMatch as any)?.id || "").trim();
+              strictMemory.last_product_name = modelName;
+              strictMemory.last_selected_product_id = String((emergencyMatch as any)?.id || "").trim();
+              strictMemory.last_selected_product_name = modelName;
+              strictMemory.awaiting_action = "strict_choose_action";
+              const tech = buildTechnicalSummary(emergencyMatch, 6);
+              return tech
+                ? [
+                    `Perfecto, encontré la referencia ${modelName}.`,
+                    tech,
+                    "",
+                    "Responde con: 1) Cotización  2) Ficha técnica  3) Ver otras opciones  4) Cambiar requerimiento",
+                  ].join("\n")
+                : [
+                    `Perfecto, encontré la referencia ${modelName}.`,
+                    "Responde con: 1) Cotización  2) Ficha técnica  3) Ver otras opciones  4) Cambiar requerimiento",
+                  ].join("\n");
+            })()
+          : `No encontré la referencia exacta ${emergencyModelToken} en el catálogo activo. Si quieres, te muestro opciones disponibles para balanzas o básculas.`;
+
+        const msg = withAvaSignature(enforceWhatsAppDelivery(emergencyReply, text));
+        let sent = false;
+        const directTo = [inbound.from, ...(inbound.alternates || [])]
+          .map((n) => normalizePhone(String(n || "")))
+          .filter((n, i, arr) => n && arr.indexOf(n) === i)
+          .filter((n) => n.length >= 10 && n.length <= 15);
+        for (const to of directTo) {
+          try {
+            await evolutionService.sendMessage(outboundInstance, to, msg);
+            sent = true;
+            break;
+          } catch {
+            continue;
+          }
+        }
+        if (!sent) {
+          const jids = (inbound.jidCandidates || [])
+            .map((v) => String(v || "").trim())
+            .filter((v, i, arr) => v && arr.indexOf(v) === i)
+            .filter((v) => /@(lid|s\.whatsapp\.net|c\.us)$/i.test(v));
+          for (const jid of jids) {
+            try {
+              await evolutionService.sendMessageToJid(outboundInstance, jid, msg);
+              sent = true;
+              break;
+            } catch {
+              continue;
+            }
+          }
+        }
+
+        await persistConversationTurn(supabase as any, {
+          agentId: String(agent.id),
+          ownerId,
+          tenantId: (agent as any)?.tenant_id || null,
+          from: inbound.from,
+          pushName: inbound.pushName,
+          contactName: knownCustomerName || inbound.pushName || inbound.from,
+          inboundText: inbound.text,
+          outboundText: emergencyReply,
+          messageId: inbound.messageId,
+          memory: strictMemory,
+        });
+
+        try {
+          await supabase.from("message_audit_log").insert({
+            provider: "evolution",
+            agent_id: String(agent.id),
+            owner_id: ownerId,
+            tenant_id: (agent as any)?.tenant_id || null,
+            phone: inbound.from,
+            message_id: incomingDedupKey,
+            intent: emergencyMatch?.id ? "direct_model_lookup" : "direct_model_lookup_miss",
+            category: String((emergencyMatch as any)?.category || ""),
+            product: String((emergencyMatch as any)?.name || emergencyModelToken),
+            action: emergencyMatch?.id ? "strict_choose_action" : "strict_choose_model",
+            request_payload: { text: inbound.text },
+            response_payload: { reply: emergencyReply },
+          });
+        } catch {}
+
+        await supabase
+          .from("incoming_messages")
+          .update({ status: "processed", processed_at: new Date().toISOString() })
+          .eq("provider", "evolution")
+          .eq("provider_message_id", incomingDedupKey);
+
+        return NextResponse.json({ ok: true, sent, emergency: true });
+      }
+
       updateCommercialValidation(strictMemory, text, inbound.pushName || "");
       const strictPrevAwaiting = String(previousMemory?.awaiting_action || "");
       const preParsedSpec = parseTechnicalSpecQuery(text);
