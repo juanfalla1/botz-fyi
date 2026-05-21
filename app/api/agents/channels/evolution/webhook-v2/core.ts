@@ -11004,13 +11004,23 @@ export async function POST(req: Request) {
               const guidedSummary = guidedSpec
                 ? dedupeOptionSpecSegments(`Cap: ${guidedSpec.capacity} | Res: ${guidedSpec.resolution} | Entrega: ${guidedSpec.delivery}`)
                 : "";
+              if (datasheetUrl) {
+                strictReply = [
+                  `No pude adjuntar el PDF de ${selectedName} por este canal, pero aquí tienes la ficha técnica directa:`,
+                  datasheetUrl,
+                  ...(guidedSummary ? ["", guidedSummary] : []),
+                ].join("\n");
+                strictMemory.awaiting_action = "conversation_followup";
+                strictMemory.last_intent = "tech_sheet_request";
+                strictMemory.conversation_status = "open";
+              } else {
               strictReply = technicalSummary
                 ? [
                   `No pude adjuntar la ficha técnica PDF de ${selectedName} en este momento por este canal, pero sí te comparto las especificaciones disponibles en catálogo:`,
                   technicalSummary,
                   "",
                   `${datasheetUrl ? `Enlace directo de ficha: ${datasheetUrl}` : `Repositorio de fichas: ${DATASHEET_REPOSITORY_URL}`}`,
-                  "Si quieres, te genero la cotización ahora.",
+                  "Si quieres, te envío la ficha exacta por este repositorio mientras reintento el adjunto.",
                 ].join("\n")
                 : guidedSummary
                   ? [
@@ -11018,12 +11028,13 @@ export async function POST(req: Request) {
                     guidedSummary,
                     "",
                     `${datasheetUrl ? `Enlace directo de ficha: ${datasheetUrl}` : `Repositorio de fichas: ${DATASHEET_REPOSITORY_URL}`}`,
-                    "Si quieres, te genero la cotización ahora.",
+                    "Te envío la ficha exacta desde ese enlace mientras reintento el adjunto.",
                   ].join("\n")
                 : `${
                   `No pude adjuntar la ficha técnica PDF de ${selectedName} en este momento por este canal.`
-                }${datasheetUrl ? `\nEnlace directo de ficha: ${datasheetUrl}` : `\nRepositorio de fichas: ${DATASHEET_REPOSITORY_URL}`}${guidedSummary ? `\n${guidedSummary}` : ""}\nSi quieres, te genero la cotización ahora.`;
+                }${datasheetUrl ? `\nEnlace directo de ficha: ${datasheetUrl}` : `\nRepositorio de fichas: ${DATASHEET_REPOSITORY_URL}`}${guidedSummary ? `\n${guidedSummary}` : ""}`;
               strictMemory.awaiting_action = "strict_confirm_quote_after_missing_sheet";
+              }
             }
           }
         } else if (!String(strictReply || "").trim()) {
