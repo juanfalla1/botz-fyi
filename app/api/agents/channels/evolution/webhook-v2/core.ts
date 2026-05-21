@@ -11594,7 +11594,20 @@ export async function POST(req: Request) {
             : (strictMemory?.last_selected_product_snapshot && typeof strictMemory.last_selected_product_snapshot === "object"
               ? strictMemory.last_selected_product_snapshot
               : null);
-          const selected = selectedById || selectedByName || selectedByToken || selectedByStoredToken || selectedSnapshot;
+          let selected: any = selectedById || selectedByName || selectedByToken || selectedByStoredToken || selectedSnapshot;
+
+          if (!selected && (selectedName || selectedModelToken)) {
+            const modelQueryToken = String(selectedModelToken || selectedName || "").trim();
+            const { data: ownerCatalogRows } = await supabase
+              .from("agent_product_catalog")
+              .select("id,name,category,base_price_usd,datasheet_url,source_payload")
+              .eq("created_by", ownerId)
+              .ilike("category", "%balanza%")
+              .limit(1200);
+            selected = findCatalogRowByModelToken(ownerCatalogRows as any[], modelQueryToken)
+              || (selectedName ? findCatalogProductByName(ownerCatalogRows as any[], selectedName) : null)
+              || null;
+          }
 
           const qty = Math.max(1, Number(previousMemory?.quote_quantity || strictMemory.quote_quantity || 1));
           const trm = await getOrFetchTrm(supabase, ownerId, (agent as any)?.tenant_id || null);
