@@ -11556,9 +11556,12 @@ export async function POST(req: Request) {
         {
           const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || strictMemory.last_selected_product_id || strictMemory.last_product_id || "").trim();
           const selectedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
-          const selected = selectedId
+          const selectedById = selectedId
             ? (ownerRows.find((r: any) => String(r?.id || "").trim() === selectedId) || null)
-            : (selectedName ? (findCatalogProductByName(ownerRows as any[], selectedName) || null) : null);
+            : null;
+          const selectedByName = selectedName ? (findCatalogProductByName(ownerRows as any[], selectedName) || null) : null;
+          const selectedByToken = selectedName ? (findCatalogRowByModelToken(ownerRows as any[], selectedName) || null) : null;
+          const selected = selectedById || selectedByName || selectedByToken;
 
           const qty = Math.max(1, Number(previousMemory?.quote_quantity || strictMemory.quote_quantity || 1));
           const trm = await getOrFetchTrm(supabase, ownerId, (agent as any)?.tenant_id || null);
