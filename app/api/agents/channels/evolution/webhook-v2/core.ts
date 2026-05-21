@@ -11565,13 +11565,16 @@ export async function POST(req: Request) {
 
           const qty = Math.max(1, Number(previousMemory?.quote_quantity || strictMemory.quote_quantity || 1));
           const trm = await getOrFetchTrm(supabase, ownerId, (agent as any)?.tenant_id || null);
-          const trmRate = Number(trm?.rate || 0);
+          const trmRateRaw = Number(trm?.rate || 0);
+          const trmRateFallback = Number(previousMemory?.last_trm_rate || strictMemory?.last_trm_rate || 4500);
+          const trmRate = trmRateRaw > 0 ? trmRateRaw : (trmRateFallback > 0 ? trmRateFallback : 0);
 
-          if (!selected || !(trmRate > 0)) {
+          if (!selected) {
             strictMemory.awaiting_action = "none";
             strictMemory.quote_data = {};
             strictReply = "Recibí tus datos. No pude cerrar la cotización automática en este intento, pero ya quedó registrado y te la envío enseguida por este mismo WhatsApp.";
           } else {
+            strictMemory.last_trm_rate = trmRate > 0 ? trmRate : (strictMemory.last_trm_rate || previousMemory?.last_trm_rate || "");
             const effectiveCity = normalizeCityLabel(customerCity || "Bogota");
             const effectiveCompany = customerCompany || "Persona natural";
             const effectiveNit = customerNit || "N/A";
