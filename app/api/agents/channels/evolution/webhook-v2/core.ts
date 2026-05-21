@@ -969,7 +969,13 @@ async function buildStrictConversationalReply(args: {
 
 function isAdvisorAppointmentIntent(text: string): boolean {
   const t = normalizeText(text || "");
-  return /(\bcita\b|\basesor\b|asesor humano|asesor comercial|agendar|agenda|llamada con asesor|quiero hablar con asesor|mariana|milena|transferir\s+asesor|pasame\s+con\s+asesor)/.test(t);
+  return /(\bcita\b|\basesor\b|asesor humano|asesor comercial|agendar|agenda|llamada con asesor|quiero hablar con asesor|transferir\s+asesor|pasame\s+con\s+asesor)/.test(t);
+}
+
+function isComplaintIntent(text: string): boolean {
+  const t = normalizeText(text || "");
+  if (!t) return false;
+  return /(queja|reclamo|inconforme|molest|embarrad|error|equivocad|mal\s+servicio|malo|fatal|terrible|precio\s+de\s+distribuidor|no\s+deberia|no\s+deberia|no\s+me\s+sirve)/.test(t);
 }
 
 function buildAdvisorMiniAgendaPrompt(): string {
@@ -8629,10 +8635,16 @@ export async function POST(req: Request) {
         strictMemory.commercial_existing_match = {};
       }
 
-      if (!String(strictReply || "").trim() && !clientType && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
+      if (!String(strictReply || "").trim() && !clientType && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting) && !isComplaintIntent(text)) {
         strictMemory.awaiting_action = "commercial_client_recognition";
         strictReply = buildCommercialWelcomeMessage();
         return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "commercial_recognition_required" });
+      }
+
+      if (!String(strictReply || "").trim() && !clientType && isComplaintIntent(text) && !/^(strict_quote_data|advisor_meeting_slot)$/i.test(awaiting)) {
+        strictMemory.awaiting_action = "conversation_followup";
+        strictReply = "Lamento la experiencia y gracias por reportarlo. Ya tomo tu caso para corregirlo ahora mismo. Si quieres, dime la referencia exacta o el número de cotización y lo reviso en este chat.";
+        return finalizeStrictTurn(strictReply, strictMemory, { strict_gate: "complaint_context" });
       }
 
       const isPlainCatalogAsk = isInventoryInfoIntent(text) || isCatalogBreadthQuestion(text) || isGlobalCatalogAsk(text);
@@ -9545,7 +9557,11 @@ export async function POST(req: Request) {
           ].join("\n");
         }
       }
-      if (!String(strictReply || "").trim() && isAdvisorAppointmentIntent(text)) {
+      const looksLikeRegistrationPayloadNow =
+        looksLikeBillingData(String(text || "")) ||
+        /@/.test(String(text || "")) ||
+        /\b(departamento|ciudad|empresa|documento|nit|contacto|correo|celular|telefono)\b/.test(textNorm);
+      if (!String(strictReply || "").trim() && isAdvisorAppointmentIntent(text) && !looksLikeRegistrationPayloadNow) {
         strictReply = buildAdvisorMiniAgendaPrompt();
         strictMemory.awaiting_action = "advisor_meeting_slot";
         strictMemory.conversation_status = "open";
