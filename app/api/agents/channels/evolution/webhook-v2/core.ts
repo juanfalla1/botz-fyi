@@ -3421,7 +3421,7 @@ function buildGroupedSpecReplyNoContext(args: {
   const nearCount = Math.max(0, allOptions.length - exactCount);
   const groupLines = orderedGroups.flatMap(([label, list]) => {
     const head = `${label}: ${list.length} referencia(s)`;
-    const preview = list.slice(0, 3).map((x) => `${x.code}) ${x.name}`);
+    const preview = list.slice(0, 4).map((x) => `${x.code}) ${x.name}`);
     return [head, ...preview, ""];
   });
 
