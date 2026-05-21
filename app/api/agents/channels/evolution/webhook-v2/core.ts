@@ -11556,7 +11556,14 @@ export async function POST(req: Request) {
         strictMemory.strict_quote_data_missing_attempts = 0;
         {
           const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || strictMemory.last_selected_product_id || strictMemory.last_product_id || "").trim();
-          const selectedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
+          const selectedNameFromMemory = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
+          const selectedNameFromHistory = (() => {
+            const lastAssistant = (historyMessages || []).slice(-8).reverse().find((m: any) => m?.role === "assistant" && m?.content);
+            const text = String(lastAssistant?.content || "");
+            const m = text.match(/tom[eé]\s+([A-Za-z0-9\/-]{4,})/i);
+            return String(m?.[1] || "").trim();
+          })();
+          const selectedName = selectedNameFromMemory || selectedNameFromHistory;
           const selectedModelToken = String(previousMemory?.quote_target_model_token || strictMemory?.quote_target_model_token || "").trim();
           const selectedById = selectedId
             ? (ownerRows.find((r: any) => String(r?.id || "").trim() === selectedId) || null)
