@@ -2671,6 +2671,20 @@ const GUIDED_BALANZA_CATALOG: Record<GuidedBalanzaProfile, Array<{ tier: string;
   ],
 };
 
+function findGuidedModelSpecByName(modelName: string): GuidedModelSpec | null {
+  const target = normalizeCatalogQueryText(String(modelName || "")).replace(/[^a-z0-9]/g, "");
+  if (!target) return null;
+  for (const groups of Object.values(GUIDED_BALANZA_CATALOG)) {
+    for (const g of groups || []) {
+      for (const m of g.models || []) {
+        const key = normalizeCatalogQueryText(String(m?.model || "")).replace(/[^a-z0-9]/g, "");
+        if (key && (key === target || key.includes(target) || target.includes(key))) return m;
+      }
+    }
+  }
+  return null;
+}
+
 function buildCommercialWelcomeMessage(): string {
   return [
     "¡Hola! Bienvenido a Avanza International Group. Representantes de la marca OHAUS en Colombia, con 120 años de trayectoria mundial en equipos de pesaje y laboratorio. Contamos con 25 años brindando respaldo y soporte especializado.",
@@ -10967,6 +10981,10 @@ export async function POST(req: Request) {
               strictReply = `Perfecto. Te envío por este WhatsApp la ficha técnica en PDF de ${selectedName}.`;
             } else {
               const technicalSummary = buildTechnicalSummary(selectedProduct, 6);
+              const guidedSpec = findGuidedModelSpecByName(selectedName);
+              const guidedSummary = guidedSpec
+                ? dedupeOptionSpecSegments(`Cap: ${guidedSpec.capacity} | Res: ${guidedSpec.resolution} | Entrega: ${guidedSpec.delivery}`)
+                : "";
               strictReply = technicalSummary
                 ? [
                   `No tengo un PDF válido para ${selectedName} en este momento, pero sí te comparto las especificaciones disponibles en catálogo:`,
@@ -10975,6 +10993,14 @@ export async function POST(req: Request) {
                   `${datasheetUrl ? `Enlace directo de ficha: ${datasheetUrl}` : ""}`,
                   "Si quieres, te genero la cotización ahora.",
                 ].join("\n")
+                : guidedSummary
+                  ? [
+                    `No pude adjuntar el PDF de ${selectedName} en este momento, pero sí te comparto su especificación de referencia:`,
+                    guidedSummary,
+                    "",
+                    `${datasheetUrl ? `Enlace directo de ficha: ${datasheetUrl}` : `Repositorio de fichas: ${DATASHEET_REPOSITORY_URL}`}`,
+                    "Si quieres, te genero la cotización ahora.",
+                  ].join("\n")
                 : `${
                   `No tengo un PDF válido para ${selectedName} en este momento y tampoco tengo especificaciones completas cargadas para este modelo.`
                 }${datasheetUrl ? `\nEnlace directo de ficha: ${datasheetUrl}` : ""}\nSi quieres, te genero la cotización ahora.`;
