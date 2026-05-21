@@ -78,7 +78,7 @@ const ENABLE_RUNTIME_PDF_IMAGE_PARSE_FOR_QUOTE = String(
 const ENABLE_RUNTIME_PDF_TEXT_PARSE_FOR_QUOTE = false;
 const ENABLE_QUOTE_PRODUCT_IMAGE = String(process.env.WHATSAPP_QUOTE_EMBED_PRODUCT_IMAGE || "true").toLowerCase() === "true";
 const STRICT_WHATSAPP_MODE = ENABLE_STRICT_WHATSAPP_MODE;
-const QUOTE_FLOW_VERSION = "quote-flow-2026-03-26-stability-hotfix-03";
+const QUOTE_FLOW_VERSION = "quote-flow-2026-05-21-strict-model-ref-hotfix-04";
 const ALLOWED_BRAND_KEYS = ["ohaus"];
 const ALLOWED_NAME_KEYS = ["explorer", "adventurer", "pioneer", "ranger", "defender", "valor", "scout", "mb120", "mb90", "mb27", "mb23", "aquasearcher", "frontier"];
 const ALLOWED_CATEGORY_KEYS = ["balanzas", "basculas", "analizador_humedad", "electroquimica", "equipos_laboratorio", "documentos"];
@@ -9697,6 +9697,19 @@ export async function POST(req: Request) {
       }
 
       if (!selectedProduct && awaiting === "strict_choose_model") {
+        const directByModelToken = (() => {
+          try {
+            return findCatalogRowByModelToken(ownerRows as any[], text) || findExactModelProduct(text, ownerRows as any[]) || null;
+          } catch {
+            return null;
+          }
+        })();
+        if (directByModelToken?.id) {
+          selectedProduct = ownerRows.find((r: any) => String(r?.id || "") === String((directByModelToken as any)?.id || "")) || directByModelToken;
+        }
+      }
+
+      if (!selectedProduct && awaiting === "strict_choose_model") {
         const pending = Array.isArray(previousMemory?.pending_product_options) ? previousMemory.pending_product_options : [];
         const selected = resolvePendingProductOptionStrict(text, pending);
         if (selected?.id) {
@@ -17557,7 +17570,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, sent: true });
   } catch (e: any) {
-    console.error("[evolution-webhook] error", e?.message || e);
+    console.error("[evolution-webhook] error", {
+      message: e?.message || String(e || ""),
+      stack: e?.stack || null,
+      name: e?.name || null,
+      cause: (e as any)?.cause || null,
+    });
     return NextResponse.json({ ok: false, error: e?.message || "Error en webhook Evolution" }, { status: 500 });
   }
 }
