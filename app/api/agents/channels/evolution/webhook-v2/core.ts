@@ -3399,8 +3399,20 @@ function buildGroupedSpecReplyNoContext(args: {
     byId.set(id, r);
   }
 
+  const parsedSpec = parseTechnicalSpecQuery(String(args.specQuery || ""));
+  const targetRead = Number(parsedSpec?.readabilityG || 0);
+  const visibleOptions = targetRead > 0
+    ? allOptions.filter((opt) => {
+        const row = byId.get(String(opt?.id || "").trim());
+        if (!row) return true;
+        const read = Number(getRowReadabilityG(row) || 0);
+        if (!(read > 0)) return true;
+        return read <= (targetRead * 1.0001);
+      })
+    : allOptions;
+
   const groups = new Map<string, Array<{ code: string; name: string }>>();
-  for (const opt of allOptions) {
+  for (const opt of visibleOptions) {
     const row = byId.get(String(opt?.id || "").trim());
     const label = inferSpecProcessLabel(row);
     const prev = groups.get(label) || [];
@@ -3409,16 +3421,15 @@ function buildGroupedSpecReplyNoContext(args: {
   }
 
   const orderedGroups = Array.from(groups.entries()).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
-  const parsedSpec = parseTechnicalSpecQuery(String(args.specQuery || ""));
   let exactCount = 0;
   if (parsedSpec) {
-    for (const opt of allOptions) {
+    for (const opt of visibleOptions) {
       const row = byId.get(String(opt?.id || "").trim());
       if (!row) continue;
       if (isExactTechnicalMatch(row, parsedSpec)) exactCount += 1;
     }
   }
-  const nearCount = Math.max(0, allOptions.length - exactCount);
+  const nearCount = Math.max(0, visibleOptions.length - exactCount);
   const groupLines = orderedGroups.flatMap(([label, list]) => {
     const head = `${label}: ${list.length} referencia(s)`;
     const preview = list.slice(0, 4).map((x) => `${x.code}) ${x.name}`);
@@ -3428,7 +3439,7 @@ function buildGroupedSpecReplyNoContext(args: {
   return [
     exactCount > 0
       ? `Para ${args.specQuery} encontré ${exactCount} referencia(s) exacta(s) y ${nearCount} alternativa(s) cercana(s) en base de datos.`
-      : `Para ${args.specQuery} no encontré coincidencia exacta; sí encontré ${allOptions.length} referencia(s) cercana(s) en base de datos.`,
+      : `Para ${args.specQuery} no encontré coincidencia exacta; sí encontré ${visibleOptions.length} referencia(s) cercana(s) en base de datos.`,
     "Como no me indicaste el proceso de uso, te las agrupo por tipo de aplicación:",
     ...(args.priceLine ? [args.priceLine] : []),
     ...groupLines,
