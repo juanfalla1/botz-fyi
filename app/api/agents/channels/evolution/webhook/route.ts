@@ -6,6 +6,7 @@ import path from "node:path";
 import { getServiceSupabase } from "@/app/api/_utils/supabase";
 import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from "@/app/api/_utils/entitlement";
 import { evolutionService } from "../../../../../../lib/services/evolution.service";
+import { POST as postWebhookV2 } from "../webhook-v2/core";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -5478,6 +5479,9 @@ async function buildBundleQuotePdf(args: {
 }
 
 export async function POST(req: Request) {
+  // Force legacy endpoint to use v2 engine to avoid split behavior across deployments.
+  return postWebhookV2(req);
+
   try {
     console.log("[evolution-webhook] --- WEBHOOK ENTRY ---", { time: new Date().toISOString(), version: QUOTE_FLOW_VERSION });
 
