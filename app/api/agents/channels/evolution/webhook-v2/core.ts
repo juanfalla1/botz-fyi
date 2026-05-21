@@ -12026,6 +12026,45 @@ export async function POST(req: Request) {
         const requestedCategoryIntentInModelStep = detectCatalogCategoryIntent(text);
         const appHintInModelStep = detectTargetApplication(text);
         const currentCategoryIntentInModelStep = normalizeText(String(previousMemory?.last_category_intent || rememberedCategory || ""));
+
+        // Deterministic fast-path: if user types an explicit model reference while choosing model,
+        // resolve it directly from active catalog and avoid conversational branches.
+        const directModelTokenInModelStep = extractModelLikeTokens(String(text || ""));
+        const hasDirectModelSignalInModelStep = !strictSelection && !askMore && !askBack && !askCancel && !isOptionOnlyReply(text) && (
+          hasConcreteProductHint(text) || directModelTokenInModelStep.length > 0 || /\b[a-z]{2,6}\d{2,6}(?:\/[a-z])?\b/i.test(String(text || ""))
+        );
+        if (!String(strictReply || "").trim() && hasDirectModelSignalInModelStep) {
+          const directMatch =
+            findCatalogRowByModelToken(ownerRows as any[], text) ||
+            findCatalogRowByModelToken(categoryScoped as any[], text) ||
+            findExactModelProduct(text, ownerRows as any[]) ||
+            findExactModelProduct(text, categoryScoped as any[]) ||
+            null;
+          if (directMatch?.id) {
+            const selectedNameModelStep = String((directMatch as any)?.name || "").trim();
+            strictMemory.last_product_id = String((directMatch as any)?.id || "").trim();
+            strictMemory.last_product_name = selectedNameModelStep;
+            strictMemory.last_selected_product_id = String((directMatch as any)?.id || "").trim();
+            strictMemory.last_selected_product_name = selectedNameModelStep;
+            strictMemory.awaiting_action = "strict_choose_action";
+            const technicalSummaryModelStep = buildTechnicalSummary(directMatch, 6);
+            strictReply = technicalSummaryModelStep
+              ? [
+                  `Perfecto, encontré la referencia ${selectedNameModelStep}.`,
+                  technicalSummaryModelStep,
+                  "",
+                  "Responde con: 1) Cotización  2) Ficha técnica  3) Ver otras opciones  4) Cambiar requerimiento",
+                ].join("\n")
+              : [
+                  `Perfecto, encontré la referencia ${selectedNameModelStep}.`,
+                  "Responde con: 1) Cotización  2) Ficha técnica  3) Ver otras opciones  4) Cambiar requerimiento",
+                ].join("\n");
+          } else {
+            strictMemory.awaiting_action = "strict_choose_model";
+            strictReply = "No encontré esa referencia exacta en el catálogo activo. Si quieres, escribe solo el modelo (ej.: STX622 o EXP2202) y te confirmo disponibilidad, o responde A/1 para elegir del listado actual.";
+          }
+        }
+
         const featureTermsInModelStep = extractFeatureTerms(text);
         const asksFeatureValidationInModelStep = Boolean(
           !strictSelection &&
