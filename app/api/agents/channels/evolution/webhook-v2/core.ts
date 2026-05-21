@@ -12041,10 +12041,24 @@ export async function POST(req: Request) {
         const hasScopedContextInModelStep = Boolean(currentCategoryIntentInModelStep || familyLabel || pendingStrictOptions.length);
         const asksBalanzaOptionsInModelStep = /\b(tienes?\s+balanzas?|que\s+modelos\s+tienes?\s+de\s+balanzas?|que\s+balanzas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|muestrame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|dame\s+todas\s+las\s+opciones\s+de\s+balanzas?|necesito\s+balanzas?|quiero\s+balanzas?|busco\s+balanzas?)\b/i.test(String(text || "")) || /^(balanza|balanzas)$/.test(textNorm);
         const asksBasculaOptionsInModelStep = /\b(tienes?\s+basculas?|que\s+modelos\s+tienes?\s+de\s+basculas?|que\s+basculas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos)|muestrame\s+(las\s+)?(opciones|modelos))\b/i.test(String(text || "")) || /^(bascula|basculas)$/.test(textNorm);
-        const explicitModelSignalInModelStep = hasConcreteProductHint(text) || extractModelLikeTokens(String(text || "")).length > 0;
-        const explicitModelInModelStep = explicitModelSignalInModelStep && !isOptionOnlyReply(text)
-          ? (findExactModelProduct(text, ownerRows as any[]) || findExactModelProduct(text, categoryScoped as any[]) || pickBestCatalogProduct(text, ownerRows as any[]))
-          : null;
+        const explicitModelSignalInModelStep = hasConcreteProductHint(text) || /\b[a-z]{2,6}\d{2,6}(?:\/[a-z])?\b/i.test(String(text || ""));
+        let explicitModelInModelStep: any = null;
+        if (explicitModelSignalInModelStep && !isOptionOnlyReply(text)) {
+          try {
+            explicitModelInModelStep =
+              findCatalogRowByModelToken(ownerRows as any[], text) ||
+              findCatalogRowByModelToken(categoryScoped as any[], text) ||
+              findExactModelProduct(text, ownerRows as any[]) ||
+              findExactModelProduct(text, categoryScoped as any[]) ||
+              pickBestCatalogProduct(text, ownerRows as any[]);
+          } catch (err: any) {
+            console.warn("[strict_choose_model][explicit_model_match_failed]", {
+              text: String(text || "").slice(0, 120),
+              error: err?.message || String(err || ""),
+            });
+            explicitModelInModelStep = null;
+          }
+        }
         if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && explicitModelInModelStep) {
           const selectedNameModel = String((explicitModelInModelStep as any)?.name || "").trim();
           strictMemory.last_product_id = String((explicitModelInModelStep as any)?.id || "").trim();
