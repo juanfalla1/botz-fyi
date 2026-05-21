@@ -62,6 +62,7 @@ const DATASHEET_REPOSITORY_URL = String(
   process.env.OHAUS_DATASHEET_DRIVE_URL ||
   "https://drive.google.com/drive/folders/15Ym8V02ds5iN24qoF855RULtQYcXmopc?usp=sharing"
 ).trim();
+const SUPABASE_PUBLIC_BASE_URL = String(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "").trim();
 const LOCAL_DATASHEET_DIR = String(
   process.env.OHAUS_LOCAL_DATASHEET_DIR ||
   path.join(process.cwd(), "app", "api", "agents", "channels", "evolution", "webhook", "Ohaus", "Cotizaciones")
@@ -4185,6 +4186,15 @@ function normalizeDatasheetUrl(url: string): string {
   return raw;
 }
 
+function isLikelyPdfUrl(url: string): boolean {
+  const raw = String(url || "").trim();
+  if (!raw) return false;
+  if (/\.pdf(\?|$)/i.test(raw)) return true;
+  const driveId = extractGoogleDriveFileId(raw);
+  if (driveId && !/\/folders\//i.test(raw)) return true;
+  return false;
+}
+
 function remotePayloadLooksPdf(remote: { base64?: string; mimetype?: string } | null, sourceUrl: string): boolean {
   if (!remote) return false;
   const mime = String(remote?.mimetype || "").toLowerCase();
@@ -5308,7 +5318,9 @@ function filterCatalogByTerms(text: string, rows: any[], forcedCategory?: string
 
 function pickBestProductPdfUrl(row: any, queryText: string): string {
   const directDatasheetUrl = String(row?.datasheet_url || "").trim();
-  if (/^https?:\/\//i.test(directDatasheetUrl)) return normalizeDatasheetUrl(directDatasheetUrl);
+  if (/^https?:\/\//i.test(directDatasheetUrl) && isLikelyPdfUrl(directDatasheetUrl)) {
+    return normalizeDatasheetUrl(directDatasheetUrl);
+  }
 
   const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const payloadPdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
@@ -5318,6 +5330,16 @@ function pickBestProductPdfUrl(row: any, queryText: string): string {
     [...payloadPdfLinks.map((u: any) => String(u || "").trim()), productUrlAsPdf]
       .filter(Boolean)
   ).filter((u) => /^https?:\/\//i.test(u) && /\.pdf(\?|$)/i.test(u));
+
+  const modelFromRow = String((row?.source_payload && typeof row.source_payload === "object" ? row.source_payload.model : "") || row?.name || queryText || "");
+  const modelToken = normalizeCatalogQueryText(modelFromRow).replace(/[^a-z0-9]/g, "");
+  const synthesizedSupabasePdf =
+    SUPABASE_PUBLIC_BASE_URL && modelToken
+      ? `${SUPABASE_PUBLIC_BASE_URL}/storage/v1/object/public/ohaus-cotizaciones/datasheets/${modelToken.toUpperCase()}.pdf`
+      : "";
+  if (synthesizedSupabasePdf) {
+    candidates.push(synthesizedSupabasePdf);
+  }
 
   if (!candidates.length) return "";
 
