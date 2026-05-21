@@ -8618,8 +8618,14 @@ export async function POST(req: Request) {
         recognitionNumericOnly && !recognitionStepActive
           ? ""
           : recognitionChoiceCandidate;
+      const inferredClientTypeFromPayload = (() => {
+        if (!looksLikeBillingData(String(text || ""))) return "";
+        if (/\btipo\s+de\s+cliente\s*[:\-]?\s*(empresa|persona\s+natural)\b/.test(textNorm)) return "new";
+        if (/\b(departamento|ciudad|empresa|documento|nit|contacto|correo|celular|telefono)\b/.test(textNorm) && /@/.test(String(text || ""))) return "new";
+        return "";
+      })();
       const currentClientType = String(strictMemory.commercial_client_type || previousMemory?.commercial_client_type || "").trim();
-      const clientType = currentClientType || recognitionChoice;
+      const clientType = currentClientType || recognitionChoice || inferredClientTypeFromPayload;
       if (clientType) strictMemory.commercial_client_type = clientType;
 
       if (recognitionChoice === "new") {
