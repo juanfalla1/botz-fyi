@@ -12039,9 +12039,10 @@ export async function POST(req: Request) {
           isGlobalCatalogAsk(text) ||
           /\b(dame|muestrame|mu[eé]strame|quiero|ver)\b.*\b(todo|todos|todas)\b.*\b(prod|producto|productos|prodcutos|catalogo)\b/.test(textNorm);
         const hasScopedContextInModelStep = Boolean(currentCategoryIntentInModelStep || familyLabel || pendingStrictOptions.length);
-        const asksBalanzaOptionsInModelStep = /\b(tienes?\s+balanzas?|que\s+modelos\s+tienes?\s+de\s+balanzas?|que\s+balanzas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|muestrame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|dame\s+todas\s+las\s+opciones\s+de\s+balanzas?)\b/i.test(String(text || "")) || /^(balanza|balanzas)$/.test(textNorm);
+        const asksBalanzaOptionsInModelStep = /\b(tienes?\s+balanzas?|que\s+modelos\s+tienes?\s+de\s+balanzas?|que\s+balanzas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|muestrame\s+(las\s+)?(opciones|modelos).*(balanza|balanzas)|dame\s+todas\s+las\s+opciones\s+de\s+balanzas?|necesito\s+balanzas?|quiero\s+balanzas?|busco\s+balanzas?)\b/i.test(String(text || "")) || /^(balanza|balanzas)$/.test(textNorm);
         const asksBasculaOptionsInModelStep = /\b(tienes?\s+basculas?|que\s+modelos\s+tienes?\s+de\s+basculas?|que\s+basculas?\s+tienes?|dame\s+(las\s+)?(opciones|modelos)|muestrame\s+(las\s+)?(opciones|modelos))\b/i.test(String(text || "")) || /^(bascula|basculas)$/.test(textNorm);
-        const explicitModelInModelStep = hasConcreteProductHint(text) && !isOptionOnlyReply(text)
+        const explicitModelSignalInModelStep = hasConcreteProductHint(text) || extractModelLikeTokens(String(text || "")).length > 0;
+        const explicitModelInModelStep = explicitModelSignalInModelStep && !isOptionOnlyReply(text)
           ? (findExactModelProduct(text, ownerRows as any[]) || findExactModelProduct(text, categoryScoped as any[]) || pickBestCatalogProduct(text, ownerRows as any[]))
           : null;
         if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && explicitModelInModelStep) {
@@ -12065,26 +12066,32 @@ export async function POST(req: Request) {
               ].join("\n");
         }
         if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && asksBalanzaOptionsInModelStep) {
-          const profileForList = (guidedProfileInModelStep || rememberedGuidedProfile || "balanza_precision_001") as GuidedBalanzaProfile;
-          const industrialModeForList = profileForList === "balanza_industrial_portatil_conteo"
-            ? (detectIndustrialGuidedMode(text) || String(previousMemory?.guided_industrial_mode || strictMemory.guided_industrial_mode || ""))
-            : "";
-          const options = buildGuidedPendingOptions(ownerRows as any[], profileForList, industrialModeForList as any);
+          const balanzaRows = scopeCatalogRows(ownerRows as any[], "balanzas");
+          const families = buildNumberedFamilyOptions(balanzaRows as any[], 10);
           strictMemory.last_category_intent = "balanzas";
           strictMemory.strict_family_label = "balanzas";
           strictMemory.strict_model_offset = 0;
           strictMemory.pending_family_options = [];
-          if (options.length) {
-            strictMemory.pending_product_options = options;
-            strictMemory.awaiting_action = "strict_choose_model";
-            strictMemory.guided_balanza_profile = profileForList;
-            strictMemory.guided_industrial_mode = industrialModeForList;
-            strictReply = buildGuidedBalanzaReplyWithMode(profileForList, industrialModeForList as any);
+          if (families.length) {
+            strictMemory.pending_product_options = [];
+            strictMemory.pending_family_options = families;
+            strictMemory.awaiting_action = "strict_choose_family";
+            strictReply = [
+              `Perfecto. En balanzas tengo ${balanzaRows.length} referencia(s) activas en base de datos.`,
+              "Elige familia para mostrarte modelos reales:",
+              ...families.map((o) => `${o.code}) ${o.label} (${o.count})`),
+              "",
+              "Responde con letra o número (A/1).",
+            ].join("\n");
           } else {
             strictMemory.pending_product_options = [];
             strictMemory.awaiting_action = "strict_need_spec";
             strictReply = "Ahora mismo no veo balanzas activas en base de datos. Si quieres, dime capacidad y resolución y te confirmo alternativas.";
           }
+        }
+        if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && explicitModelSignalInModelStep && !explicitModelInModelStep) {
+          strictMemory.awaiting_action = "strict_choose_model";
+          strictReply = "No encontré esa referencia exacta en el catálogo activo. Si quieres, escribe solo el modelo (ej.: STX622 o EXP2202) y te confirmo disponibilidad, o responde A/1 para elegir del listado actual.";
         }
         if (!String(strictReply || "").trim() && !strictSelection && !askMore && !askBack && !askCancel && asksBasculaOptionsInModelStep) {
           const basculaRows = scopeStrictBasculaRows(ownerRows as any[]);
