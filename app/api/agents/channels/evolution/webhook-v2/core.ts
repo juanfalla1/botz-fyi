@@ -3409,6 +3409,16 @@ function buildGroupedSpecReplyNoContext(args: {
   }
 
   const orderedGroups = Array.from(groups.entries()).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  const parsedSpec = parseTechnicalSpecQuery(String(args.specQuery || ""));
+  let exactCount = 0;
+  if (parsedSpec) {
+    for (const opt of allOptions) {
+      const row = byId.get(String(opt?.id || "").trim());
+      if (!row) continue;
+      if (isExactTechnicalMatch(row, parsedSpec)) exactCount += 1;
+    }
+  }
+  const nearCount = Math.max(0, allOptions.length - exactCount);
   const groupLines = orderedGroups.flatMap(([label, list]) => {
     const head = `${label}: ${list.length} referencia(s)`;
     const preview = list.slice(0, 3).map((x) => `${x.code}) ${x.name}`);
@@ -3416,8 +3426,10 @@ function buildGroupedSpecReplyNoContext(args: {
   });
 
   return [
-    `Para ${args.specQuery} encontré ${allOptions.length} referencia(s) compatibles en base de datos.`,
-    "Como no me indicaste el proceso de uso, te las agrupo por tipo de aplicación (pueden servir para usos distintos):",
+    exactCount > 0
+      ? `Para ${args.specQuery} encontré ${exactCount} referencia(s) exacta(s) y ${nearCount} alternativa(s) cercana(s) en base de datos.`
+      : `Para ${args.specQuery} no encontré coincidencia exacta; sí encontré ${allOptions.length} referencia(s) cercana(s) en base de datos.`,
+    "Como no me indicaste el proceso de uso, te las agrupo por tipo de aplicación:",
     ...(args.priceLine ? [args.priceLine] : []),
     ...groupLines,
     "Indícame tu proceso (laboratorio, joyería u operación industrial) y te dejo solo el grupo correcto.",
