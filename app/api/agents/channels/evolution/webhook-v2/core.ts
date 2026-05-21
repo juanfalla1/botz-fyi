@@ -10422,6 +10422,16 @@ export async function POST(req: Request) {
         strictMemory.last_product_id = String(selectedProduct?.id || "").trim();
         strictMemory.last_selected_product_name = selectedName;
         strictMemory.last_selected_product_id = String(selectedProduct?.id || "").trim();
+        strictMemory.last_selected_product_snapshot = {
+          id: String(selectedProduct?.id || "").trim() || null,
+          name: selectedName || null,
+          category: String((selectedProduct as any)?.category || "").trim() || null,
+          base_price_usd: Number((selectedProduct as any)?.base_price_usd || 0) || null,
+          source_payload: ((selectedProduct as any)?.source_payload && typeof (selectedProduct as any).source_payload === "object")
+            ? (selectedProduct as any).source_payload
+            : null,
+          datasheet_url: String((selectedProduct as any)?.datasheet_url || "").trim() || null,
+        };
         strictMemory.last_selection_at = new Date().toISOString();
         strictMemory.awaiting_action = "strict_choose_action";
         strictMemory.pending_family_options = [];
@@ -11571,7 +11581,12 @@ export async function POST(req: Request) {
           const selectedByName = selectedName ? (findCatalogProductByName(ownerRows as any[], selectedName) || null) : null;
           const selectedByToken = selectedName ? (findCatalogRowByModelToken(ownerRows as any[], selectedName) || null) : null;
           const selectedByStoredToken = selectedModelToken ? (findCatalogRowByModelToken(ownerRows as any[], selectedModelToken) || null) : null;
-          const selected = selectedById || selectedByName || selectedByToken || selectedByStoredToken;
+          const selectedSnapshot = previousMemory?.last_selected_product_snapshot && typeof previousMemory.last_selected_product_snapshot === "object"
+            ? previousMemory.last_selected_product_snapshot
+            : (strictMemory?.last_selected_product_snapshot && typeof strictMemory.last_selected_product_snapshot === "object"
+              ? strictMemory.last_selected_product_snapshot
+              : null);
+          const selected = selectedById || selectedByName || selectedByToken || selectedByStoredToken || selectedSnapshot;
 
           const qty = Math.max(1, Number(previousMemory?.quote_quantity || strictMemory.quote_quantity || 1));
           const trm = await getOrFetchTrm(supabase, ownerId, (agent as any)?.tenant_id || null);
