@@ -7442,9 +7442,15 @@ export async function POST(req: Request) {
         strictMemory.commercial_customer_type = "distributor";
       }
       const awaiting = deriveStrictAwaitingAction(previousMemory, strictPrevAwaiting);
-      const isDirectSheetOptionInAction = awaiting === "strict_choose_action" && /^\s*2\s*$/.test(textNorm);
+      const wasModelActionMenu = String(previousMemory?.last_menu_type || "").trim() === "model_action_menu";
+      const isDirectSheetOptionInAction = /^\s*2\s*$/.test(textNorm) && (awaiting === "strict_choose_action" || wasModelActionMenu);
+      const isDirectQuoteOptionInAction = /^\s*1\s*$/.test(textNorm) && (awaiting === "strict_choose_action" || wasModelActionMenu);
       const wantsSheet = isTechnicalSheetIntent(text) || isDirectSheetOptionInAction;
       const wantsQuote = asksQuoteIntent(text) || isPriceIntent(text);
+      if (wasModelActionMenu && (isDirectSheetOptionInAction || isDirectQuoteOptionInAction)) {
+        strictMemory.awaiting_action = "strict_choose_action";
+        strictMemory.last_menu_type = "";
+      }
       const isConversationFollowupAmbiguousQuote = awaiting === "conversation_followup" && isAnotherQuoteAmbiguousIntent(text);
       const isGreeting = isGreetingIntent(text);
       const explicitModel = hasConcreteProductHint(text) && !isOptionOnlyReply(text);
@@ -8203,6 +8209,7 @@ export async function POST(req: Request) {
               strictMemory.last_product_name = String(selectedOption.raw_name || selectedOption.name || "");
               strictMemory.awaiting_action = "strict_choose_action";
               strictMemory.pending_product_options = [];
+              strictMemory.last_menu_type = "model_action_menu";
               const modelName = String(selectedOption.raw_name || selectedOption.name || "modelo");
               const reply = [
                 `Perfecto, tomé ${modelName}.`,
