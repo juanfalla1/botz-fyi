@@ -8316,6 +8316,7 @@ export async function POST(req: Request) {
               strictMemory.last_selected_product_name = String(selectedOption.raw_name || selectedOption.name || "");
               strictMemory.last_product_id = String(selectedOption.id || "");
               strictMemory.last_product_name = String(selectedOption.raw_name || selectedOption.name || "");
+              strictMemory.quote_target_model_token = normalizeCatalogQueryText(String(selectedOption.raw_name || selectedOption.name || "")).replace(/[^a-z0-9]/g, "");
               strictMemory.awaiting_action = "strict_choose_action";
               strictMemory.pending_product_options = [];
               strictMemory.last_menu_type = "model_action_menu";
@@ -11556,12 +11557,14 @@ export async function POST(req: Request) {
         {
           const selectedId = String(previousMemory?.last_selected_product_id || previousMemory?.last_product_id || strictMemory.last_selected_product_id || strictMemory.last_product_id || "").trim();
           const selectedName = String(previousMemory?.last_selected_product_name || previousMemory?.last_product_name || strictMemory.last_selected_product_name || strictMemory.last_product_name || "").trim();
+          const selectedModelToken = String(previousMemory?.quote_target_model_token || strictMemory?.quote_target_model_token || "").trim();
           const selectedById = selectedId
             ? (ownerRows.find((r: any) => String(r?.id || "").trim() === selectedId) || null)
             : null;
           const selectedByName = selectedName ? (findCatalogProductByName(ownerRows as any[], selectedName) || null) : null;
           const selectedByToken = selectedName ? (findCatalogRowByModelToken(ownerRows as any[], selectedName) || null) : null;
-          const selected = selectedById || selectedByName || selectedByToken;
+          const selectedByStoredToken = selectedModelToken ? (findCatalogRowByModelToken(ownerRows as any[], selectedModelToken) || null) : null;
+          const selected = selectedById || selectedByName || selectedByToken || selectedByStoredToken;
 
           const qty = Math.max(1, Number(previousMemory?.quote_quantity || strictMemory.quote_quantity || 1));
           const trm = await getOrFetchTrm(supabase, ownerId, (agent as any)?.tenant_id || null);
