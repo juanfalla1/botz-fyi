@@ -5324,10 +5324,16 @@ function pickBestProductPdfUrl(row: any, queryText: string): string {
 
   const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const payloadPdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
+  const payloadQuotePdfFile = String((payload as any)?.quote_pdf_file || "").trim();
   const productUrlAsPdf = /\.pdf(\?|$)/i.test(String(row?.product_url || "")) ? String(row?.product_url || "") : "";
 
+  const quotedPdfUrl =
+    SUPABASE_PUBLIC_BASE_URL && payloadQuotePdfFile
+      ? `${SUPABASE_PUBLIC_BASE_URL}/storage/v1/object/public/ohaus-cotizaciones/datasheets/${encodeURIComponent(payloadQuotePdfFile)}`
+      : "";
+
   const candidates = uniqueNormalizedStrings(
-    [...payloadPdfLinks.map((u: any) => String(u || "").trim()), productUrlAsPdf]
+    [quotedPdfUrl, ...payloadPdfLinks.map((u: any) => String(u || "").trim()), productUrlAsPdf]
       .filter(Boolean)
   ).filter((u) => /^https?:\/\//i.test(u) && /\.pdf(\?|$)/i.test(u));
 
