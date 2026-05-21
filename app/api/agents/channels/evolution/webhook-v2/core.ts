@@ -4163,6 +4163,37 @@ async function fetchRemoteFileAsBase64(url: string): Promise<{ base64: string; m
   }
 }
 
+function extractGoogleDriveFileId(url: string): string {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  try {
+    const u = new URL(raw);
+    const idFromQuery = String(u.searchParams.get("id") || "").trim();
+    if (idFromQuery) return idFromQuery;
+    const m = u.pathname.match(/\/file\/d\/([^/]+)/i);
+    return String(m?.[1] || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function normalizeDatasheetUrl(url: string): string {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  const id = extractGoogleDriveFileId(raw);
+  if (id) return `https://drive.google.com/uc?export=download&id=${id}`;
+  return raw;
+}
+
+function remotePayloadLooksPdf(remote: { base64?: string; mimetype?: string } | null, sourceUrl: string): boolean {
+  if (!remote) return false;
+  const mime = String(remote?.mimetype || "").toLowerCase();
+  if (/application\/pdf/.test(mime)) return true;
+  if (/\.pdf(\?|$)/i.test(String(sourceUrl || ""))) return true;
+  const b64 = String(remote?.base64 || "").slice(0, 16);
+  return b64.startsWith("JVBERi0");
+}
+
 function isHistoryIntent(text: string): boolean {
   const t = normalizeText(text);
   return /(mi historial|que tengo en mi historial|historial|mis cotizaciones|cotizaciones anteriores|compras anteriores|mi ultima cotizacion)/.test(t);
@@ -5277,7 +5308,7 @@ function filterCatalogByTerms(text: string, rows: any[], forcedCategory?: string
 
 function pickBestProductPdfUrl(row: any, queryText: string): string {
   const directDatasheetUrl = String(row?.datasheet_url || "").trim();
-  if (/^https?:\/\//i.test(directDatasheetUrl)) return directDatasheetUrl;
+  if (/^https?:\/\//i.test(directDatasheetUrl)) return normalizeDatasheetUrl(directDatasheetUrl);
 
   const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
   const payloadPdfLinks = Array.isArray((payload as any)?.pdf_links) ? (payload as any).pdf_links : [];
@@ -10892,7 +10923,7 @@ export async function POST(req: Request) {
             const localPdfPath = pickBestLocalPdfPath(row, modelLabel);
             if (datasheetUrl) {
               const remote = await fetchRemoteFileAsBase64(datasheetUrl);
-              const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrl));
+              const remoteLooksPdf = remotePayloadLooksPdf(remote as any, datasheetUrl);
               if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
                 strictDocs.push({
                   base64: remote.base64,
@@ -10973,7 +11004,7 @@ export async function POST(req: Request) {
             let attached = false;
             if (datasheetUrl) {
               const remote = await fetchRemoteFileAsBase64(datasheetUrl);
-              const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrl));
+              const remoteLooksPdf = remotePayloadLooksPdf(remote as any, datasheetUrl);
               if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
                 strictDocs.push({
                   base64: remote.base64,
@@ -11715,7 +11746,7 @@ export async function POST(req: Request) {
                   const localPdfPathForQuote = pickBestLocalPdfPath(selected, `ficha tecnica ${selectedNameForQuote}`);
                   if (datasheetUrlForQuote) {
                     const remote = await fetchRemoteFileAsBase64(datasheetUrlForQuote);
-                    const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrlForQuote));
+                    const remoteLooksPdf = remotePayloadLooksPdf(remote as any, datasheetUrlForQuote);
                     if (remote && remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
                       strictDocs.push({
                         base64: remote.base64,
@@ -15303,10 +15334,7 @@ export async function POST(req: Request) {
             if (datasheetUrl) {
               const remote = await fetchRemoteFileAsBase64(datasheetUrl);
               if (remote) {
-                const remoteLooksPdf =
-                  /application\/pdf/i.test(String(remote.mimetype || "")) ||
-                  /\.pdf$/i.test(String(remote.fileName || "")) ||
-                  /\.pdf(\?|$)/i.test(String(datasheetUrl || ""));
+                const remoteLooksPdf = remotePayloadLooksPdf(remote as any, String(datasheetUrl || ""));
                 if (remoteLooksPdf && Number(remote.byteSize || 0) <= MAX_WHATSAPP_DOC_BYTES) {
                   technicalDocs.push({
                     kind: "document",
