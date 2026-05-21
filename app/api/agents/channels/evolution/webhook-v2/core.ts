@@ -2685,6 +2685,25 @@ function findGuidedModelSpecByName(modelName: string): GuidedModelSpec | null {
   return null;
 }
 
+function findCatalogRowByModelToken(rows: any[], modelLikeText: string): any | null {
+  const tokens = expandModelAliasTokens(extractModelLikeTokens(String(modelLikeText || "")))
+    .map((t) => normalizeCatalogQueryText(String(t || "")).replace(/[^a-z0-9]/g, ""))
+    .filter(Boolean);
+  if (!tokens.length) return null;
+  const list = Array.isArray(rows) ? rows : [];
+  return list.find((row: any) => {
+    const payload = row?.source_payload && typeof row.source_payload === "object" ? row.source_payload : {};
+    const hay = normalizeCatalogQueryText([
+      String(row?.name || ""),
+      String((payload as any)?.product_code || ""),
+      String((payload as any)?.sap || ""),
+      String((payload as any)?.numero_modelo || ""),
+      String((payload as any)?.model || ""),
+    ].join(" ")).replace(/[^a-z0-9]/g, "");
+    return tokens.some((t) => hay.includes(t));
+  }) || null;
+}
+
 function buildCommercialWelcomeMessage(): string {
   return [
     "¡Hola! Bienvenido a Avanza International Group. Representantes de la marca OHAUS en Colombia, con 120 años de trayectoria mundial en equipos de pesaje y laboratorio. Contamos con 25 años brindando respaldo y soporte especializado.",
@@ -10987,10 +11006,10 @@ export async function POST(req: Request) {
                 : "";
               strictReply = technicalSummary
                 ? [
-                  `No tengo un PDF válido para ${selectedName} en este momento, pero sí te comparto las especificaciones disponibles en catálogo:`,
+                  `No pude adjuntar la ficha técnica PDF de ${selectedName} en este momento por este canal, pero sí te comparto las especificaciones disponibles en catálogo:`,
                   technicalSummary,
                   "",
-                  `${datasheetUrl ? `Enlace directo de ficha: ${datasheetUrl}` : ""}`,
+                  `${datasheetUrl ? `Enlace directo de ficha: ${datasheetUrl}` : `Repositorio de fichas: ${DATASHEET_REPOSITORY_URL}`}`,
                   "Si quieres, te genero la cotización ahora.",
                 ].join("\n")
                 : guidedSummary
@@ -11002,8 +11021,8 @@ export async function POST(req: Request) {
                     "Si quieres, te genero la cotización ahora.",
                   ].join("\n")
                 : `${
-                  `No tengo un PDF válido para ${selectedName} en este momento y tampoco tengo especificaciones completas cargadas para este modelo.`
-                }${datasheetUrl ? `\nEnlace directo de ficha: ${datasheetUrl}` : ""}\nSi quieres, te genero la cotización ahora.`;
+                  `No pude adjuntar la ficha técnica PDF de ${selectedName} en este momento por este canal.`
+                }${datasheetUrl ? `\nEnlace directo de ficha: ${datasheetUrl}` : `\nRepositorio de fichas: ${DATASHEET_REPOSITORY_URL}`}${guidedSummary ? `\n${guidedSummary}` : ""}\nSi quieres, te genero la cotización ahora.`;
               strictMemory.awaiting_action = "strict_confirm_quote_after_missing_sheet";
             }
           }
