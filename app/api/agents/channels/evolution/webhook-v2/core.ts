@@ -10888,8 +10888,8 @@ export async function POST(req: Request) {
         } else if (!String(strictReply || "").trim() && (wantsSheet || /^2\b/.test(textNorm) || Boolean(previousMemory?.strict_force_sheet_now || strictMemory?.strict_force_sheet_now))) {
           strictMemory.strict_force_sheet_now = false;
           const appendSheetFromRow = async (row: any, modelLabel: string): Promise<boolean> => {
-            const datasheetUrl = pickBestProductPdfUrl(row, text) || "";
-            const localPdfPath = pickBestLocalPdfPath(row, text);
+            const datasheetUrl = pickBestProductPdfUrl(row, modelLabel) || "";
+            const localPdfPath = pickBestLocalPdfPath(row, modelLabel);
             if (datasheetUrl) {
               const remote = await fetchRemoteFileAsBase64(datasheetUrl);
               const remoteLooksPdf = Boolean(remote) && (/application\/pdf/i.test(String(remote?.mimetype || "")) || /\.pdf(\?|$)/i.test(datasheetUrl));
@@ -10968,8 +10968,8 @@ export async function POST(req: Request) {
               strictReply = "No encontré fichas PDF válidas para esas referencias en este momento. Si quieres, te comparto especificaciones o cotización de inmediato.";
             }
           } else {
-            const datasheetUrl = pickBestProductPdfUrl(selectedProduct, text) || "";
-            const localPdfPath = pickBestLocalPdfPath(selectedProduct, text);
+            const datasheetUrl = pickBestProductPdfUrl(selectedProduct, selectedName) || "";
+            const localPdfPath = pickBestLocalPdfPath(selectedProduct, selectedName);
             let attached = false;
             if (datasheetUrl) {
               const remote = await fetchRemoteFileAsBase64(datasheetUrl);
