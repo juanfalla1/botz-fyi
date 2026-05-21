@@ -10918,6 +10918,22 @@ export async function POST(req: Request) {
           }
         } else if (!String(strictReply || "").trim() && (wantsSheet || /^2\b/.test(textNorm) || Boolean(previousMemory?.strict_force_sheet_now || strictMemory?.strict_force_sheet_now))) {
           strictMemory.strict_force_sheet_now = false;
+          if (!selectedProduct) {
+            const rememberedModelName = String(
+              strictMemory.last_selected_product_name ||
+              strictMemory.last_product_name ||
+              previousMemory?.last_selected_product_name ||
+              previousMemory?.last_product_name ||
+              selectedName ||
+              ""
+            ).trim();
+            if (rememberedModelName) {
+              selectedProduct =
+                findCatalogRowByModelToken(ownerRows as any[], rememberedModelName) ||
+                findCatalogProductByName(ownerRows as any[], rememberedModelName) ||
+                null;
+            }
+          }
           const appendSheetFromRow = async (row: any, modelLabel: string): Promise<boolean> => {
             const datasheetUrl = pickBestProductPdfUrl(row, modelLabel) || "";
             const localPdfPath = pickBestLocalPdfPath(row, modelLabel);
