@@ -7443,11 +7443,16 @@ export async function POST(req: Request) {
       }
       const awaiting = deriveStrictAwaitingAction(previousMemory, strictPrevAwaiting);
       const wasModelActionMenu = String(previousMemory?.last_menu_type || "").trim() === "model_action_menu";
-      const isDirectSheetOptionInAction = /^\s*2\s*$/.test(textNorm) && (awaiting === "strict_choose_action" || wasModelActionMenu);
-      const isDirectQuoteOptionInAction = /^\s*1\s*$/.test(textNorm) && (awaiting === "strict_choose_action" || wasModelActionMenu);
+      const recentAssistantMenuHint = historyMessages
+        .slice(-2)
+        .some((m) => m?.role === "assistant" && /que deseas ahora\?|1\)\s*cotizaci[oó]n[\s\S]{0,80}2\)\s*ficha\s+t[eé]cnica/i.test(String(m?.content || "")));
+      const isActionMenuNumericReply = /^\s*[12]\s*$/.test(textNorm);
+      const forceActionMenuRouting = isActionMenuNumericReply && (awaiting === "strict_choose_action" || wasModelActionMenu || recentAssistantMenuHint);
+      const isDirectSheetOptionInAction = /^\s*2\s*$/.test(textNorm) && forceActionMenuRouting;
+      const isDirectQuoteOptionInAction = /^\s*1\s*$/.test(textNorm) && forceActionMenuRouting;
       const wantsSheet = isTechnicalSheetIntent(text) || isDirectSheetOptionInAction;
-      const wantsQuote = asksQuoteIntent(text) || isPriceIntent(text);
-      if (wasModelActionMenu && (isDirectSheetOptionInAction || isDirectQuoteOptionInAction)) {
+      const wantsQuote = asksQuoteIntent(text) || isPriceIntent(text) || isDirectQuoteOptionInAction;
+      if (forceActionMenuRouting) {
         strictMemory.awaiting_action = "strict_choose_action";
         strictMemory.last_menu_type = "";
       }
