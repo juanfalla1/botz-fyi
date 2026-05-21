@@ -2701,7 +2701,15 @@ function findCatalogRowByModelToken(rows: any[], modelLikeText: string): any | n
       String((payload as any)?.numero_modelo || ""),
       String((payload as any)?.model || ""),
     ].join(" ")).replace(/[^a-z0-9]/g, "");
-    return tokens.some((t) => hay.includes(t));
+    return tokens.some((t) => {
+      if (hay.includes(t)) return true;
+      const a = splitModelToken(t);
+      const b = splitModelToken(hay);
+      if (!a.letters || !a.digits || !b.letters || !b.digits) return false;
+      const lettersOk = b.letters.includes(a.letters) || a.letters.includes(b.letters);
+      const digitsOk = b.digits.includes(a.digits) || a.digits.includes(b.digits);
+      return lettersOk && digitsOk;
+    });
   }) || null;
 }
 
