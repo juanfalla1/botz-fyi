@@ -7442,7 +7442,8 @@ export async function POST(req: Request) {
         strictMemory.commercial_customer_type = "distributor";
       }
       const awaiting = deriveStrictAwaitingAction(previousMemory, strictPrevAwaiting);
-      const wantsSheet = isTechnicalSheetIntent(text);
+      const isDirectSheetOptionInAction = awaiting === "strict_choose_action" && /^\s*2\s*$/.test(textNorm);
+      const wantsSheet = isTechnicalSheetIntent(text) || isDirectSheetOptionInAction;
       const wantsQuote = asksQuoteIntent(text) || isPriceIntent(text);
       const isConversationFollowupAmbiguousQuote = awaiting === "conversation_followup" && isAnotherQuoteAmbiguousIntent(text);
       const isGreeting = isGreetingIntent(text);
