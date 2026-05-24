@@ -4,7 +4,6 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 import Vapi from "@vapi-ai/web";
-import "./Agentes.css";
 
 interface AgentCardProps {
   name: string;
@@ -26,18 +25,63 @@ const AgentCard = ({ name, avatar, imageSrc, color, capabilities, templateId, ag
   };
 
   return (
-    <article className="showcase-agent-card" onClick={handleClick}>
-      <div className="showcase-agent-glow" aria-hidden="true" />
-      <div className="showcase-agent-mockup" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </div>
-      <h3>{name}</h3>
+    <div
+      style={{
+        background: "linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%)",
+        borderRadius: "20px",
+        padding: "clamp(20px, 3vw, 32px) clamp(16px, 2.6vw, 24px)",
+        transition: "all 0.3s ease",
+        cursor: "pointer",
+        position: "relative",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        minHeight: "430px",
+        border: "2px solid rgba(34, 211, 238, 0.3)",
+      }}
+      onClick={handleClick}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-8px)";
+        e.currentTarget.style.borderColor = "#a3e635";
+        e.currentTarget.style.boxShadow = `0 20px 40px rgba(163, 230, 53, 0.2)`;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.borderColor = "rgba(34, 211, 238, 0.3)";
+        e.currentTarget.style.boxShadow = "none";
+      }}
+    >
+      {/* Name */}
+      <h3 
+        style={{ 
+          fontSize: "1.3em", 
+          fontWeight: "600", 
+          color: "#22d3ee", 
+          marginBottom: "24px",
+          textAlign: "center",
+          lineHeight: 1.3,
+        }}
+      >
+        {name}
+      </h3>
 
-      <div
-          className="showcase-agent-avatar"
-          style={{ borderColor: `${color}55` }}
+      {/* Avatar */}
+        <div
+          style={{
+            width: "clamp(102px, 18vw, 140px)",
+            height: "clamp(102px, 18vw, 140px)",
+            borderRadius: "50%",
+          background: `linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(34, 211, 238, 0.05))`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: "28px",
+            border: `2px solid ${color}40`,
+            fontSize: "clamp(42px, 7vw, 64px)",
+            boxShadow: `0 0 40px ${color}20`,
+            overflow: "hidden",
+          }}
         >
         {imageSrc ? (
           <img
@@ -57,26 +101,74 @@ const AgentCard = ({ name, avatar, imageSrc, color, capabilities, templateId, ag
         )}
       </div>
 
-      <div className="showcase-agent-capabilities">
+      {/* Capabilities list */}
+      <div style={{ width: "100%", marginBottom: "24px", flex: 1 }}>
         {capabilities.map((cap, idx) => (
-          <div key={idx} className="showcase-agent-capability">
-            <span>✓</span>
+          <div
+            key={idx}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "10px",
+              marginBottom: "14px",
+              fontSize: "clamp(14px, 1.7vw, 16px)",
+              color: "#e2e8f0",
+              lineHeight: 1.4,
+            }}
+          >
+            <span
+              style={{
+                width: "20px",
+                height: "20px",
+                borderRadius: "50%",
+                background: "rgba(34, 211, 238, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#22d3ee",
+                fontSize: "12px",
+                flexShrink: 0,
+                marginTop: "1px",
+              }}
+            >
+              ✓
+            </span>
             <span>{cap}</span>
           </div>
         ))}
       </div>
 
+      {/* CTA */}
       <button
-        className="showcase-agent-cta"
+        style={{
+          width: "100%",
+          background: "#fff",
+          color: "#0f172a",
+          border: "none",
+          padding: "14px 24px",
+          borderRadius: "12px",
+          fontWeight: "600",
+          fontSize: "14px",
+          cursor: "pointer",
+          transition: "all 0.3s ease",
+        }}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
           handleClick();
         }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = color;
+          e.currentTarget.style.color = "#0f172a";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "#fff";
+          e.currentTarget.style.color = "#0f172a";
+        }}
       >
         {ctaLabel}
       </button>
-    </article>
+    </div>
   );
 };
 
@@ -387,11 +479,9 @@ const Agentes = () => {
     },
   ];
 
-  const allAgents = [...topRowAgents, ...bottomRowAgents];
-
   return (
-    <section className="agentes-showcase-shell" style={{ padding: "clamp(42px, 8vw, 100px) clamp(12px, 4vw, 40px)", background: "#02040a" }}>
-      <div style={{ maxWidth: "1400px", margin: "0 auto", position: "relative", zIndex: 2 }}>
+    <section style={{ padding: "clamp(42px, 8vw, 100px) clamp(12px, 4vw, 40px)", background: "#02040a" }}>
+      <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: "60px" }}>
           <h2
             style={{
@@ -477,11 +567,32 @@ const Agentes = () => {
           ) : null}
         </div>
 
-         <div className="showcase-agent-grid">
-           {allAgents.map((agent, index) => (
-             <AgentCard key={`${agent.name}-${index}`} {...agent} ctaLabel={ctaLabel} />
-           ))}
-         </div>
+        {/* Top row */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: "24px",
+            marginBottom: "24px",
+          }}
+        >
+          {topRowAgents.map((agent, index) => (
+            <AgentCard key={index} {...agent} ctaLabel={ctaLabel} />
+          ))}
+        </div>
+
+        {/* Bottom row */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: "24px",
+          }}
+        >
+          {bottomRowAgents.map((agent, index) => (
+            <AgentCard key={index} {...agent} ctaLabel={ctaLabel} />
+          ))}
+        </div>
 
         <div style={{ marginTop: 40, marginBottom: 18, padding: "0 clamp(8px, 2vw, 28px)" }}>
           <h3 style={{ margin: 0, color: "#ffffff", fontSize: "clamp(1.8rem, 3.8vw, 3rem)", lineHeight: 1.05, fontWeight: 900 }}>

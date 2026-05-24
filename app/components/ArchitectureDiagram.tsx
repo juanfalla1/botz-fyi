@@ -1,133 +1,128 @@
 "use client";
-
-import React from "react";
+import React, { useState } from "react";
 import "./ArchitectureDiagram.css";
 import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
-type CoreCard = {
-  title: string;
-  subtitle: string;
-  desc: string;
-  accent: string;
-};
-
-const cardsEn: CoreCard[] = [
+const agentsEn = [
   {
-    title: "Signal Capture",
-    subtitle: "Multichannel intake",
-    desc: "Leads, forms, calls and messages enter one intelligent context.",
-    accent: "cyan",
+    title: "Intelligent Sensing",
+    subtitle: "Data capture",
+    icon: "🤖",
+    desc: "Collects data from forms, APIs and messaging channels in real time.",
+    borderClass: "agent-sensado"
   },
   {
-    title: "Context Memory",
-    subtitle: "Unified data layer",
-    desc: "Every interaction updates client memory and business state in real time.",
-    accent: "blue",
+    title: "Dynamic Storage",
+    subtitle: "Data management and retrieval",
+    icon: "💾",
+    desc: "Stores and retrieves information in Google Sheets, databases or external systems.",
+    borderClass: "agent-almacenamiento"
   },
   {
-    title: "Reasoning Layer",
-    subtitle: "Adaptive decisions",
-    desc: "The core evaluates intent, urgency and best next action for each scenario.",
-    accent: "emerald",
+    title: "Analytical Core",
+    subtitle: "Advanced decision processing",
+    icon: "🧠",
+    desc: "Analyzes patterns, makes smart decisions and learns continuously.",
+    borderClass: "agent-mente"
   },
   {
-    title: "Execution Studio",
-    subtitle: "Automated operations",
-    desc: "Tasks are orchestrated across CRM, messaging, docs and internal tools.",
-    accent: "indigo",
+    title: "Automation Engine",
+    subtitle: "Intelligent process execution",
+    icon: "⚙️",
+    desc: "Orchestrates tasks, applies rules and automates complex workflows.",
+    borderClass: "agent-motor"
   },
   {
-    title: "Live Response",
-    subtitle: "Human-like delivery",
-    desc: "Customers receive precise responses with seamless handoff when needed.",
-    accent: "teal",
-  },
+    title: "Instant Response",
+    subtitle: "Real-time output delivery",
+    icon: "⚡",
+    desc: "Informs, responds and executes actions directly for end users.",
+    borderClass: "agent-respuesta"
+  }
 ];
 
-const cardsEs: CoreCard[] = [
+const agentsEs = [
   {
-    title: "Captura de Senales",
-    subtitle: "Ingreso multicanal",
-    desc: "Leads, formularios, llamadas y mensajes entran en un mismo contexto inteligente.",
-    accent: "cyan",
+    title: "Sensado Inteligente",
+    subtitle: "Captura de informacion",
+    icon: "🤖",
+    desc: "Recopila datos desde formularios, APIs y canales de mensajeria en tiempo real.",
+    borderClass: "agent-sensado",
   },
   {
-    title: "Memoria Contextual",
-    subtitle: "Capa unificada de datos",
-    desc: "Cada interaccion actualiza la memoria del cliente y el estado del negocio.",
-    accent: "blue",
+    title: "Almacenamiento Dinamico",
+    subtitle: "Gestion y consulta de datos",
+    icon: "💾",
+    desc: "Registra y recupera informacion en Google Sheets, bases de datos o sistemas externos.",
+    borderClass: "agent-almacenamiento",
   },
   {
-    title: "Capa de Razonamiento",
-    subtitle: "Decisiones adaptativas",
-    desc: "El nucleo evalua intencion, urgencia y la mejor accion para cada caso.",
-    accent: "emerald",
+    title: "Mente Analitica",
+    subtitle: "Procesamiento avanzado de decisiones",
+    icon: "🧠",
+    desc: "Analiza patrones, toma decisiones inteligentes y aprende continuamente.",
+    borderClass: "agent-mente",
   },
   {
-    title: "Studio de Ejecucion",
-    subtitle: "Operacion automatizada",
-    desc: "Las tareas se orquestan entre CRM, mensajeria, documentos y herramientas.",
-    accent: "indigo",
+    title: "Motor de Automatizacion",
+    subtitle: "Ejecucion de procesos inteligentes",
+    icon: "⚙️",
+    desc: "Orquesta tareas, aplica reglas y automatiza flujos de trabajo complejos.",
+    borderClass: "agent-motor",
   },
   {
-    title: "Respuesta Viva",
-    subtitle: "Entrega natural",
-    desc: "Cada cliente recibe respuestas precisas con handoff humano cuando aplica.",
-    accent: "teal",
+    title: "Respuesta Instantanea",
+    subtitle: "Entrega en tiempo real",
+    icon: "⚡",
+    desc: "Informa, responde y ejecuta acciones directamente al cliente final.",
+    borderClass: "agent-respuesta",
   },
 ];
 
 export default function ArchitectureDiagram() {
   const language = useBotzLanguage("en");
   const isEn = language === "en";
-  const cards = isEn ? cardsEn : cardsEs;
+  const agents = isEn ? agentsEn : agentsEs;
+  const [selected, setSelected] = useState<number | null>(null);
 
   return (
-    <section className="core-showcase" aria-label={isEn ? "Cognitive core" : "Nucleo cognitivo"}>
-      <div className="core-bg-orb core-bg-orb-a" aria-hidden="true" />
-      <div className="core-bg-orb core-bg-orb-b" aria-hidden="true" />
-
-      <div className="core-header reveal-up">
-        <p className="core-kicker">{isEn ? "COGNITIVE CORE" : "NUCLEO COGNITIVO"}</p>
-        <h2>{isEn ? "Where intelligence becomes motion" : "Donde la inteligencia se convierte en movimiento"}</h2>
-        <p>
-          {isEn
-            ? "A cinematic AI nucleus orchestrating context, decisions and execution with premium visual flow."
-            : "Un nucleo de IA cinematografico que orquesta contexto, decisiones y ejecucion con un flujo visual premium."}
-        </p>
-      </div>
-
-      <div className="core-stage reveal-up">
-        <div className="core-lines" aria-hidden="true" />
-        <div className="core-particles" aria-hidden="true" />
-
-        <div className="core-center" role="img" aria-label={isEn ? "Animated AI core" : "Nucleo de IA animado"}>
-          <div className="core-center-ring" />
-          <div className="core-center-ring core-center-ring-soft" />
-          <div className="core-center-dot" />
-          <span>{isEn ? "AI Core" : "Nucleo IA"}</span>
-        </div>
-
-        {cards.map((card, index) => (
-          <article
-            key={card.title}
-            className={`core-card core-card-${index + 1} accent-${card.accent} reveal-up`}
-            style={{ animationDelay: `${index * 90}ms` }}
+    <section style={{ margin: "80px auto 40px", padding: "0 clamp(12px, 4vw, 40px)", width: "100%", maxWidth: "1400px", boxSizing: "border-box", display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <h2 className="section-title" style={{ textAlign: "center", fontSize: "clamp(1.6em, 4.8vw, 2.8em)", marginBottom: "16px", lineHeight: 1.2 }}>{isEn ? "Architecture of Our AI Agents" : "Arquitectura de Nuestros Agentes IA"}</h2>
+      <p className="section-subtitle" style={{ textAlign: "center", fontSize: "clamp(1em, 3.6vw, 1.3em)", maxWidth: "800px", margin: "0 auto 40px", color: "#ccc", padding: "0 6px" }}>
+        {isEn ? "Each agent acts as a specialized bot, working together to optimize your business process." : "Cada agente actua como un bot especializado para optimizar tu proceso de negocio."}
+      </p>
+      <div className="agentes-grid" style={{ width: "100%", position: "relative", zIndex: 1 }}>
+        {agents.map((a, idx) => (
+          <div
+            key={a.title}
+            className={`agente-card ${a.borderClass}`}
+            onClick={() => setSelected(idx)}
+            tabIndex={0}
+            role="button"
+            aria-label={a.title}
           >
-            <div className="core-card-icon" aria-hidden="true">
-              <i />
-            </div>
-            <h3>{card.title}</h3>
-            <p className="core-card-subtitle">{card.subtitle}</p>
-            <p className="core-card-desc">{card.desc}</p>
-            <div className="core-card-visual" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-          </article>
+            <div className="agente-icon">{a.icon}</div>
+            <div className="agente-title">{a.title}</div>
+            <div className="agente-subtitle">{a.subtitle}</div>
+          </div>
         ))}
       </div>
+
+      {selected !== null && (
+        <div className="agente-modal-bg" onClick={() => setSelected(null)}>
+          <div className="agente-modal" onClick={e => e.stopPropagation()}>
+            <button className="agente-close" onClick={() => setSelected(null)}>&times;</button>
+            <div className="agente-icon" style={{ fontSize: "2.6em" }}>
+              {agents[selected].icon}
+            </div>
+            <h3 style={{ margin: "12px 0 2px", color: "#22d3ee" }}>{agents[selected].title}</h3>
+            <div style={{ color: "#0aa6b8", fontSize: "1.1em", marginBottom: 12 }}>
+              {agents[selected].subtitle}
+            </div>
+            <p style={{ fontSize: "1.12em" }}>{agents[selected].desc}</p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
