@@ -13,15 +13,73 @@ type StoryCard = {
   tools: Array<{ name: string; logo: string }>;
 };
 
-const movingLogos = [
+const logosInput = [
+  { name: "WhatsApp", logo: "https://cdn.simpleicons.org/whatsapp/25D366" },
+  { name: "Meta", logo: "https://cdn.simpleicons.org/meta/0081FB" },
+  { name: "Instagram", logo: "https://cdn.simpleicons.org/instagram/E4405F" },
+  { name: "Messenger", logo: "https://cdn.simpleicons.org/messenger/00B2FF" },
+  { name: "Telegram", logo: "https://cdn.simpleicons.org/telegram/26A5E4" },
+  { name: "Typeform", logo: "https://cdn.simpleicons.org/typeform/ffffff" },
+  { name: "Gmail", logo: "https://cdn.simpleicons.org/gmail/EA4335" },
+  { name: "Google Ads", logo: "https://cdn.simpleicons.org/googleads/4285F4" },
+];
+
+const logosContext = [
+  { name: "HubSpot", logo: "https://cdn.simpleicons.org/hubspot/FF7A59" },
+  { name: "Salesforce", logo: "https://cdn.simpleicons.org/salesforce/00A1E0" },
+  { name: "Google Drive", logo: "https://cdn.simpleicons.org/googledrive/34A853" },
+  { name: "Google Sheets", logo: "https://cdn.simpleicons.org/googlesheets/34A853" },
+  { name: "Notion", logo: "https://cdn.simpleicons.org/notion/ffffff" },
+  { name: "Airtable", logo: "https://cdn.simpleicons.org/airtable/18BFFF" },
+  { name: "MySQL", logo: "https://cdn.simpleicons.org/mysql/4479A1" },
+  { name: "PostgreSQL", logo: "https://cdn.simpleicons.org/postgresql/4169E1" },
+];
+
+const logosDecision = [
+  { name: "OpenAI", logo: "https://cdn.simpleicons.org/openai/ffffff" },
+  { name: "Anthropic", logo: "https://cdn.simpleicons.org/anthropic/ffffff" },
+  { name: "Gemini", logo: "https://cdn.simpleicons.org/googlegemini/8E75B2" },
+  { name: "HuggingFace", logo: "https://cdn.simpleicons.org/huggingface/FFD21E" },
+  { name: "PyTorch", logo: "https://cdn.simpleicons.org/pytorch/EE4C2C" },
+  { name: "TensorFlow", logo: "https://cdn.simpleicons.org/tensorflow/FF6F00" },
+  { name: "Scikit-learn", logo: "https://cdn.simpleicons.org/scikitlearn/F7931E" },
+  { name: "Jupyter", logo: "https://cdn.simpleicons.org/jupyter/F37626" },
+];
+
+const logosExecution = [
   { name: "n8n", logo: "https://cdn.simpleicons.org/n8n/EA4B71" },
-  { name: "Zapier", logo: "https://cdn.simpleicons.org/zapier/FF4F00" },
   { name: "Make", logo: "https://cdn.simpleicons.org/make/6D3EF2" },
   { name: "Google Calendar", logo: "https://cdn.simpleicons.org/googlecalendar/4285F4" },
-  { name: "Google Drive", logo: "https://cdn.simpleicons.org/googledrive/34A853" },
+  { name: "Trello", logo: "https://cdn.simpleicons.org/trello/0079BF" },
+  { name: "Asana", logo: "https://cdn.simpleicons.org/asana/F06A6A" },
   { name: "Gmail", logo: "https://cdn.simpleicons.org/gmail/EA4335" },
+  { name: "Google Drive", logo: "https://cdn.simpleicons.org/googledrive/34A853" },
   { name: "Google Sheets", logo: "https://cdn.simpleicons.org/googlesheets/34A853" },
+  { name: "Google Docs", logo: "https://cdn.simpleicons.org/googledocs/4285F4" },
+  { name: "ClickUp", logo: "https://cdn.simpleicons.org/clickup/7B68EE" },
+  { name: "Monday", logo: "https://cdn.simpleicons.org/mondaydotcom/F7B318" },
+  { name: "Notion", logo: "https://cdn.simpleicons.org/notion/ffffff" },
+  { name: "Airtable", logo: "https://cdn.simpleicons.org/airtable/18BFFF" },
+  { name: "Twilio", logo: "https://cdn.simpleicons.org/twilio/F22F46" },
   { name: "Slack", logo: "https://cdn.simpleicons.org/slack/6E41E2" },
+];
+
+const logosOutcome = [
+  { name: "Power BI", logo: "https://cdn.simpleicons.org/powerbi/F2C811" },
+  { name: "Tableau", logo: "https://cdn.simpleicons.org/tableau/E97627" },
+  { name: "GA4", logo: "https://cdn.simpleicons.org/googleanalytics/E37400" },
+  { name: "Looker", logo: "https://cdn.simpleicons.org/looker/4285F4" },
+  { name: "Metabase", logo: "https://cdn.simpleicons.org/metabase/509EE3" },
+  { name: "Snowflake", logo: "https://cdn.simpleicons.org/snowflake/29B5E8" },
+  { name: "BigQuery", logo: "https://cdn.simpleicons.org/googlebigquery/669DF6" },
+  { name: "Databricks", logo: "https://cdn.simpleicons.org/databricks/FF3621" },
+  { name: "Segment", logo: "https://cdn.simpleicons.org/segment/52BD95" },
+  { name: "Mixpanel", logo: "https://cdn.simpleicons.org/mixpanel/7856FF" },
+  { name: "Stripe", logo: "https://cdn.simpleicons.org/stripe/635BFF" },
+  { name: "HubSpot", logo: "https://cdn.simpleicons.org/hubspot/FF7A59" },
+  { name: "Salesforce", logo: "https://cdn.simpleicons.org/salesforce/00A1E0" },
+  { name: "Airtable", logo: "https://cdn.simpleicons.org/airtable/18BFFF" },
+  { name: "Google Cloud", logo: "https://cdn.simpleicons.org/googlecloud/4285F4" },
 ];
 
 const cardsEn: StoryCard[] = [
@@ -31,7 +89,7 @@ const cardsEn: StoryCard[] = [
     desc: "Incoming requests from web, paid traffic, WhatsApp and calls arrive in a single visual stream.",
     metric: "24/7 live capture",
     mediaLabel: "Input channels connected",
-    tools: movingLogos,
+    tools: logosInput,
   },
   {
     title: "Context Expansion",
@@ -39,7 +97,7 @@ const cardsEn: StoryCard[] = [
     desc: "Your CRM, history and customer intent are fused into one rich profile before any response is sent.",
     metric: "Unified client memory",
     mediaLabel: "Context sources in sync",
-    tools: movingLogos,
+    tools: logosContext,
   },
   {
     title: "Decision Engine",
@@ -47,7 +105,7 @@ const cardsEn: StoryCard[] = [
     desc: "The core ranks urgency, predicts conversion potential and chooses the best next move automatically.",
     metric: "Adaptive intelligence",
     mediaLabel: "Decision intelligence stack",
-    tools: movingLogos,
+    tools: logosDecision,
   },
   {
     title: "Autonomous Execution",
@@ -55,7 +113,7 @@ const cardsEn: StoryCard[] = [
     desc: "Follow-ups, scheduling, routing and internal tasks are triggered with cinematic fluidity.",
     metric: "Hands-free operations",
     mediaLabel: "Execution automations",
-    tools: movingLogos,
+    tools: logosExecution,
   },
   {
     title: "Outcome Layer",
@@ -63,7 +121,7 @@ const cardsEn: StoryCard[] = [
     desc: "Each interaction ends as a measurable result: qualified lead, booked meeting or closed opportunity.",
     metric: "Business impact visible",
     mediaLabel: "Outcome dashboards",
-    tools: movingLogos,
+    tools: logosOutcome,
   },
 ];
 
@@ -74,7 +132,7 @@ const cardsEs: StoryCard[] = [
     desc: "Solicitudes desde web, pauta, WhatsApp y llamadas llegan en una sola corriente visual.",
     metric: "Captura 24/7 en vivo",
     mediaLabel: "Canales de entrada conectados",
-    tools: movingLogos,
+    tools: logosInput,
   },
   {
     title: "Expansion de Contexto",
@@ -82,7 +140,7 @@ const cardsEs: StoryCard[] = [
     desc: "Tu CRM, historial e intencion del cliente se fusionan en un perfil rico antes de responder.",
     metric: "Memoria unificada",
     mediaLabel: "Fuentes de contexto sincronizadas",
-    tools: movingLogos,
+    tools: logosContext,
   },
   {
     title: "Motor de Decisiones",
@@ -90,7 +148,7 @@ const cardsEs: StoryCard[] = [
     desc: "El nucleo prioriza urgencia, predice potencial de conversion y define la mejor accion.",
     metric: "Inteligencia adaptativa",
     mediaLabel: "Stack de decisiones IA",
-    tools: movingLogos,
+    tools: logosDecision,
   },
   {
     title: "Ejecucion Autonoma",
@@ -98,7 +156,7 @@ const cardsEs: StoryCard[] = [
     desc: "Seguimientos, agendas, enrutamiento y tareas internas se activan con fluidez cinematografica.",
     metric: "Operacion manos libres",
     mediaLabel: "Automatizaciones de ejecucion",
-    tools: movingLogos,
+    tools: logosExecution,
   },
   {
     title: "Capa de Resultados",
@@ -106,7 +164,7 @@ const cardsEs: StoryCard[] = [
     desc: "Cada interaccion termina en resultado medible: lead calificado, cita o oportunidad cerrada.",
     metric: "Impacto visible",
     mediaLabel: "Dashboards de resultados",
-    tools: movingLogos,
+    tools: logosOutcome,
   },
 ];
 
@@ -149,7 +207,8 @@ export default function FlujoVisual() {
                         loading="eager"
                         onError={(e) => {
                           const el = e.currentTarget as HTMLImageElement;
-                          el.src = "https://cdn.simpleicons.org/zapier/FF4F00";
+                          const chip = el.parentElement as HTMLElement | null;
+                          if (chip) chip.style.display = "none";
                         }}
                       />
                     </div>
