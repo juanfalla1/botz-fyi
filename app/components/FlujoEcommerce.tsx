@@ -5,34 +5,49 @@ import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
 const stepsEn = [
   {
-    icon: "🔎",
-    title: "Predictive\nAnalysis",
-    desc: "Detects patterns and anticipates demand peaks.",
-    usecase: "Detects when to increase inventory during high demand."
+    title: "Demand Radar",
+    desc: "Detect upcoming demand spikes before they impact inventory.",
+    usecase: "Botz warns your team early so top products never go out of stock.",
+    image: "/img/Calificador de Leads IA.png",
+    video: "/fondo-animado.mp4",
+    focalY: "30%",
+    scale: 1
   },
   {
-    icon: "🛰️",
-    title: "Global\nMonitoring",
-    desc: "Tracks sales and logistics in real time.",
-    usecase: "Automatically notifies customers about delivery delays."
+    title: "Live Operations",
+    desc: "Sales, shipping and customer messages are tracked in one live panel.",
+    usecase: "If a delivery is delayed, Botz notifies the customer and updates status instantly.",
+    image: "/img/soporte al cliente.png",
+    video: "/fondo-animado.mp4",
+    focalY: "30%",
+    scale: 1
   },
   {
-    icon: "🧬",
-    title: "AI\nPersonalization",
-    desc: "Adapts recommendations to each customer.",
-    usecase: "Suggests relevant products during checkout."
+    title: "Smart Personalization",
+    desc: "Every visitor receives recommendations based on behavior and intent.",
+    usecase: "Cart value increases with relevant upsells at checkout.",
+    image: "/img/seguimiento de ventas.png",
+    video: "/fondo-animado.mp4",
+    focalY: "30%",
+    scale: 1
   },
   {
-    icon: "🪙",
-    title: "Smart\nPayments",
-    desc: "Processes and validates payments instantly.",
-    usecase: "Retries failed charges without manual intervention."
+    title: "Payment Recovery",
+    desc: "Failed charges are recovered with automatic retries and follow-ups.",
+    usecase: "Botz recovers lost revenue without manual chasing.",
+    image: "/img/cobranza.png",
+    video: "/fondo-animado.mp4",
+    focalY: "30%",
+    scale: 1
   },
   {
-    icon: "🤝",
-    title: "Automated\nClosing",
-    desc: "Closes sales and notifies your team.",
-    usecase: "Automatically confirms successful sales and triggers thank-you messages." 
+    title: "Automatic Closing",
+    desc: "Each order closes with confirmation, CRM update and post-sale flow.",
+    usecase: "Customers receive instant confirmation while your team sees the sale in real time.",
+    image: "/img/Recepcionista.png",
+    video: "/fondo-animado.mp4",
+    focalY: "34%",
+    scale: 0.98
   }
 ];
 
@@ -111,11 +126,11 @@ const CALL_DEMOS_EN = [
 ] as const;
 
 const stepsEs = [
-  { icon: "🔎", title: "Analisis\nPredictivo", desc: "Detecta patrones y anticipa picos de demanda.", usecase: "Detecta cuando subir inventario por alta demanda." },
-  { icon: "🛰️", title: "Monitoreo\nGlobal", desc: "Observa ventas y logistica en tiempo real.", usecase: "Notifica retrasos de entregas a clientes automaticamente." },
-  { icon: "🧬", title: "Personalizacion\nIA", desc: "Ajusta recomendaciones a cada cliente.", usecase: "Sugiere productos relevantes durante la compra." },
-  { icon: "🪙", title: "Pagos\nInteligentes", desc: "Procesa y valida pagos instantaneamente.", usecase: "Reintenta cobros fallidos sin intervencion manual." },
-  { icon: "🤝", title: "Cierre\nAutomatico", desc: "Cierra ventas y notifica exito al equipo.", usecase: "Confirma ventas exitosas y dispara agradecimientos automaticamente." },
+  { title: "Radar de Demanda", desc: "Detecta picos de compra antes de que afecten tu inventario.", usecase: "Botz alerta a tu equipo para que no se agoten los productos clave.", image: "/img/Calificador de Leads IA.png", video: "/fondo-animado.mp4", focalY: "30%", scale: 1 },
+  { title: "Operacion en Vivo", desc: "Ventas, envios y mensajes de clientes en una sola vista en tiempo real.", usecase: "Si hay retraso, Botz avisa al cliente y actualiza el estado al instante.", image: "/img/soporte al cliente.png", video: "/fondo-animado.mp4", focalY: "30%", scale: 1 },
+  { title: "Personalizacion Inteligente", desc: "Cada visitante recibe recomendaciones segun su comportamiento.", usecase: "Aumenta el ticket promedio con sugerencias relevantes al pagar.", image: "/img/seguimiento de ventas.png", video: "/fondo-animado.mp4", focalY: "30%", scale: 1 },
+  { title: "Recuperacion de Pagos", desc: "Los pagos fallidos se recuperan con reintentos y seguimiento automatico.", usecase: "Botz recupera ingresos perdidos sin trabajo manual.", image: "/img/cobranza.png", video: "/fondo-animado.mp4", focalY: "30%", scale: 1 },
+  { title: "Cierre Automatico", desc: "Cada compra se cierra con confirmacion y actualizacion en CRM.", usecase: "El cliente recibe confirmacion inmediata y tu equipo ve la venta en tiempo real.", image: "/img/Recepcionista.png", video: "/fondo-animado.mp4", focalY: "34%", scale: 0.98 },
 ];
 
 const CALL_DEMOS_ES = [
@@ -190,52 +205,6 @@ const CALL_DEMOS_ES = [
   },
 ] as const;
 
-const getEcommerceLayout = (width: number) => {
-  const total = stepsEn.length;
-  if (width <= 700) {
-    return {
-      containerWidth: width,
-      containerHeight: total * 80 + 40,
-      showConnections: false,
-      isMobile: true,
-      nodeSize: 0,
-      nodePositions: [] as Array<{ x: number; y: number }>,
-    };
-  }
-
-  const nodeSize = width >= 1000 ? 196 : 170;
-  const centerX = width * 0.5;
-  const centerY = width >= 1000 ? 300 : 250;
-  const radius = Math.max(150, Math.min(width * 0.25, width >= 1000 ? 228 : 180));
-  const nodePositions = Array.from({ length: total }).map((_, i) => {
-    const angle = i * ((2 * Math.PI) / total) - Math.PI / 2;
-    return {
-      x: centerX + radius * Math.cos(angle),
-      y: centerY + radius * Math.sin(angle),
-    };
-  });
-
-  if (width <= 1000) {
-    return {
-      containerWidth: width,
-      containerHeight: 560,
-      showConnections: true,
-      isMobile: false,
-      nodeSize,
-      nodePositions,
-    };
-  }
-
-  return {
-    containerWidth: width,
-    containerHeight: 640,
-    showConnections: true,
-    isMobile: false,
-    nodeSize,
-    nodePositions,
-  };
-};
-
 const pickBestVoice = (voices: SpeechSynthesisVoice[], role: "cliente" | "bot") => {
   const score = (v: SpeechSynthesisVoice) => {
     const name = String(v.name || "").toLowerCase();
@@ -263,8 +232,6 @@ export default function FlujoEcommerce() {
   const isEn = language === "en";
   const steps = isEn ? stepsEn : stepsEs;
   const CALL_DEMOS = isEn ? CALL_DEMOS_EN : CALL_DEMOS_ES;
-  const [selected, setSelected] = useState<number | null>(null);
-  const [layout, setLayout] = useState(() => getEcommerceLayout(800));
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioAvailabilityByDemo, setAudioAvailabilityByDemo] = useState<Record<string, boolean>>({});
@@ -306,20 +273,6 @@ export default function FlujoEcommerce() {
     synth.addEventListener("voiceschanged", onVoicesChanged);
     return () => synth.removeEventListener("voiceschanged", onVoicesChanged);
   }, [ttsVoiceUris.client, ttsVoiceUris.bot]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      const container = document.querySelector(".flujo-e-container")?.parentElement;
-      if (container) {
-        const width = Math.min(container.clientWidth - 20, 1120);
-        setLayout(getEcommerceLayout(width));
-      }
-    };
-
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
 
   const playSyntheticCall = () => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -438,113 +391,30 @@ export default function FlujoEcommerce() {
       >
         {isEn ? "Discover how technology connects and automates every stage of modern e-commerce." : "Descubre como la tecnologia conecta y automatiza cada etapa del ecommerce moderno."}
       </p>
-      <div
-        className="flujo-e-container"
-        style={{
-          position: "relative",
-          width: "100%",
-          maxWidth: "1120px",
-          height: layout.containerHeight,
-          margin: layout.isMobile ? "0" : "0 auto"
-        }}
-      >
-        {!layout.isMobile && (
-          <svg className="flujo-e-svg" viewBox={`0 0 ${layout.containerWidth} ${layout.containerHeight}`} preserveAspectRatio="none">
-            {steps.map((_, i) => {
-              const current = layout.nodePositions[i];
-              const next = layout.nodePositions[(i + 1) % steps.length];
-              if (!current || !next) return null;
-              return (
-                <path
-                  key={`link-${i}`}
-                  className="flujo-e-line"
-                  d={`M ${current.x} ${current.y} Q ${(current.x + next.x) / 2} ${(current.y + next.y) / 2} ${next.x} ${next.y}`}
-                />
-              );
-            })}
-          </svg>
-        )}
-
-        {steps.map((step, i) => {
-          let nodeStyle: React.CSSProperties;
-
-          if (layout.isMobile) {
-            nodeStyle = {
-              position: "static",
-              display: "flex",
-              alignItems: "center",
-              textAlign: "left",
-              width: "100%",
-              maxWidth: "340px",
-              height: "auto",
-              margin: "0 auto 16px",
-              padding: "12px",
-              borderRadius: "16px",
-              gap: "12px"
-            };
-          } else {
-            const node = layout.nodePositions[i];
-            const size = layout.nodeSize;
-            nodeStyle = {
-              left: node.x - size / 2,
-              top: node.y - size / 2,
-              position: "absolute",
-              width: size,
-              height: size
-            };
-          }
-
-          return (
-            <div
-              key={i}
-              className="flujo-e-node"
-              style={nodeStyle}
-              onClick={() => setSelected(i)}
-            >
-              <div
+      <div className="ecom-process-grid" aria-label={isEn ? "E-commerce process cards" : "Cards de proceso ecommerce"}>
+        {steps.map((step, i) => (
+          <article key={`${step.title}-${i}`} className="ecom-process-card">
+            <div className="ecom-process-media" aria-hidden="true">
+              <video className="ecom-process-video" autoPlay muted loop playsInline preload="metadata">
+                <source src={step.video} type="video/mp4" />
+              </video>
+              <img
+                src={step.image}
+                alt={step.title}
                 style={{
-                  fontSize: layout.isMobile ? "2em" : "2.5em",
-                  marginBottom: layout.isMobile ? 0 : 6,
-                  flexShrink: 0,
-                  width: layout.isMobile ? "60px" : "72px",
-                  height: layout.isMobile ? "60px" : "72px",
-                  borderRadius: "50%",
-                  background: "rgba(34, 211, 238, 0.12)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  textAlign: "center"
+                  objectPosition: `50% ${step.focalY || "30%"}`,
+                  ["--img-scale" as any]: String(step.scale || 1),
                 }}
-              >
-                {step.icon}
-              </div>
-              <div className="flujo-e-content">
-                <div className="flujo-e-title">
-                  {step.title.split("\n").map((line, idx) => (
-                    <span key={idx}>
-                      {line}
-                      {!layout.isMobile && <br />}
-                      {layout.isMobile && idx < step.title.split("\n").length - 1 && " "}
-                    </span>
-                  ))}
-                </div>
-                {layout.isMobile && (
-                  <div
-                    className="flujo-e-desc"
-                    style={{
-                      fontSize: "0.9em",
-                      color: "#ccc",
-                      marginTop: "4px",
-                      lineHeight: 1.3
-                    }}
-                  >
-                    {step.desc}
-                  </div>
-                )}
-              </div>
+              />
+              <div className="ecom-process-shine" />
             </div>
-          );
-        })}
+            <div className="ecom-process-body">
+              <h3>{step.title}</h3>
+              <p>{step.desc}</p>
+              <span>{step.usecase}</span>
+            </div>
+          </article>
+        ))}
       </div>
 
       <div className="ecom-live" aria-label={isEn ? "Recorded call and stages" : "Llamada grabada y etapas"}>
@@ -650,32 +520,6 @@ export default function FlujoEcommerce() {
         </div>
       </div>
 
-      {selected !== null && (
-        <div className="flujo-e-modal" onClick={() => setSelected(null)}>
-          <div className="flujo-e-modal-content" onClick={e => e.stopPropagation()}>
-            <button
-              className="flujo-e-modal-close"
-              onClick={() => setSelected(null)}
-               title={isEn ? "Close" : "Cerrar"}
-            >
-              ×
-            </button>
-            <div style={{ fontSize: "2.5em", marginBottom: ".3em" }}>
-              {steps[selected].icon}
-            </div>
-            <h3 style={{ color: "#00fff2", marginTop: 0 }}>
-              {steps[selected].title.replace("\n", " ")}
-            </h3>
-            <div style={{ fontSize: "1.12em", margin: "1em 0" }}>
-              {steps[selected].desc}
-            </div>
-            <div style={{ fontWeight: 700, color: "#fff", marginBottom: ".4em" }}>
-               {isEn ? "Use Case:" : "Caso de Uso:"}
-            </div>
-            <div style={{ fontSize: "1.13em" }}>{steps[selected].usecase}</div>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

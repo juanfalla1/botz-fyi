@@ -1,367 +1,180 @@
-/* === Fondo de grilla estilo n8n === */
-.n8n-flowchart-bg {
-  position: absolute;
-  left: 0; right: 0; top: 135px;
-  height: 240px;
-  width: 100%;
-  z-index: 0;
-  background: radial-gradient(circle, #273146 1.2px, transparent 1.5px) 0 0/28px 28px;
-  border-radius: 16px;
-  pointer-events: none;
+.automation-cinematic {
+  max-width: 1400px;
+  margin: 70px auto 90px;
+  padding: 0 clamp(12px, 4vw, 40px);
+  font-family: "Segoe UI", sans-serif;
 }
 
-/* === Lienzo del flowchart n8n === */
-.n8n-flowchart-canvas {
+.automation-cinematic__header {
+  max-width: 860px;
+  margin: 0 auto 34px;
+  text-align: center;
+}
+
+.automation-cinematic__header p {
+  margin: 0;
+  font-size: 12px;
+  color: #8ad8ff;
+  letter-spacing: 0.24em;
+}
+
+.automation-cinematic__header h2 {
+  margin: 16px 0 12px;
+  color: #f2f8ff;
+  font-size: clamp(1.9rem, 4.8vw, 3.3rem);
+  line-height: 1.05;
+}
+
+.automation-cinematic__header span {
+  color: #aebed4;
+  line-height: 1.6;
+  font-size: clamp(1rem, 1.45vw, 1.16rem);
+}
+
+.automation-cinematic__track {
   position: relative;
-  width: 100%;
-  max-width: 1320px;
-  height: 250px;
-  margin: 0 auto 26px auto;
-  z-index: 2;
-}
-
-/* === Nodo n8n === */
-.n8n-flowchart-node {
-  width: 220px;
-  min-height: 220px;
-  background: #121b2b;
-  border: 3px solid #22d3ee;
-  box-shadow: 0 4px 25px rgba(34, 211, 238, 0.2);
-  border-radius: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 22px 14px 16px 14px;
-  font-family: inherit;
-  cursor: pointer;
-  z-index: 4;
-  transition: box-shadow 0.2s, border 0.2s, background 0.2s, transform 0.2s;
-  user-select: none;
-  box-sizing: border-box;
-  max-width: 100%;
-  animation: n8n-card-float 7s ease-in-out infinite;
-}
-.n8n-flowchart-node:hover {
-  box-shadow: 0 0 40px rgba(163, 230, 53, 0.4);
-  background: #1a2336;
-  border-color: #a3e635;
-  transform: translateY(-4px);
-}
-.n8n-flowchart-node:nth-child(2) { animation-delay: 0.12s; }
-.n8n-flowchart-node:nth-child(3) { animation-delay: 0.24s; }
-.n8n-flowchart-node:nth-child(4) { animation-delay: 0.36s; }
-.n8n-flowchart-node:nth-child(5) { animation-delay: 0.48s; }
-.n8n-flowchart-node:nth-child(6) { animation-delay: 0.6s; }
-
-@keyframes n8n-card-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-.n8n-flowchart-node-icon {
-  font-size: 3.2em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 80px; height: 80px;
-  border-radius: 50%;
-  background: rgba(34, 211, 238, 0.15);
-  box-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
-  color: #22d3ee;
-  margin-bottom: 12px;
-  line-height: 1;
-}
-.n8n-flowchart-node-label {
-  font-weight: 700;
-  font-size: 1.4em;
-  color: #22d3ee;
-  line-height: 1.2;
-  marginBottom: 6px;
-  text-align: center;
-}
-.n8n-flowchart-node-desc {
-  font-size: 1.16em;
-  color: #e2e8f0;
-  font-weight: 400;
-  line-height: 1.2;
-  text-align: center;
-  margin-bottom: 1px;
-}
-
-/* === SVG conexiones animadas === */
-.n8n-flowchart-svg {
-  position: absolute;
-  left: 0; top: 0;
-  width: 1000px;
-  height: 200px;
-  z-index: 3;
-  pointer-events: none;
-}
-.n8n-flowchart-connector {
-  stroke: #22d3ee;
-  stroke-width: 3.7;
-  fill: none;
-  filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.5));
-  opacity: 0.97;
-  stroke-dasharray: 12 7;
-  animation: n8n-pulse 1.7s linear infinite;
-}
-@keyframes n8n-pulse {
-  to { stroke-dashoffset: -34; }
-}
-
-/* ✅ Responsive mejorado para flowchart n8n */
-@media (max-width: 1200px) {
-  .n8n-flowchart-node { 
-    width: 186px; 
-    min-height: 186px; 
-    padding: 14px 10px; 
-  }
-  .n8n-flowchart-node-icon { 
-    font-size: 2.6em; 
-    width: 60px; 
-    height: 60px; 
-  }
-}
-
-@media (max-width: 1080px) {
-  .n8n-flowchart-canvas { 
-    width: 100% !important; 
-    min-width: 0;
-  }
-  .n8n-flowchart-svg { 
-    width: 100% !important; 
-  }
-  .n8n-flowchart-node { 
-    width: 120px; 
-    min-height: 120px; 
-    padding: 10px 6px; 
-    font-size: 0.9em; 
-  }
-  .n8n-flowchart-node-icon { 
-    font-size: 2.2em; 
-    width: 48px; 
-    height: 48px; 
-  }
-  .n8n-flowchart-node-label { 
-    font-size: 1.05em; 
-  }
-}
-
-@media (max-width: 650px) {
-  /* Layout móvil: nodos como tarjetas verticales */
-  .n8n-flowchart-canvas {
-    width: 100% !important;
-    height: auto !important;
-    padding: 0;
-    margin: 0 !important; /* ⬅️ quita centrado */
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-  }
-  
-  .n8n-flowchart-bg,
-  .n8n-flowchart-svg {
-    display: none !important;
-  }
-  
-  .n8n-flowchart-node {
-    position: static !important;
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: flex-start !important;
-    text-align: left !important;
-    border-radius: 16px !important;
-    margin: 0 0 16px 0 !important;
-    padding: 12px !important;
-    width: 100% !important;
-    max-width: 340px !important;
-    height: auto !important;
-    gap: 12px !important;
-    transform: none !important;
-    animation: none !important;
-  }
-  
-  .n8n-flowchart-node-content {
-    flex: 1;
-  }
-  
-  .n8n-flowchart-node-icon {
-    margin: 0 !important;
-    flex-shrink: 0;
-  }
-  
-  .n8n-flowchart-node-label {
-    font-size: 1.1em !important;
-    line-height: 1.2 !important;
-    margin-bottom: 4px !important;
-  }
-  
-  .n8n-flowchart-node-desc {
-    font-size: 0.95em !important;
-    margin-bottom: 0 !important;
-    line-height: 1.3 !important;
-  }
-  
-  .n8n-flowchart-node-detail {
-    margin-top: 4px;
-    font-size: 0.85em;
-    color: #b8b8b8;
-    line-height: 1.3;
-  }
-  
-  /* Modal más compacto en móvil */
-  .n8n-modal-content {
-    margin: 20px;
-    padding: 1.5em 1.2em 1.3em;
-    min-width: auto;
-    max-width: calc(100vw - 40px);
-  }
-}
-
-/* XS: móviles muy pequeños */
-@media (max-width: 480px) {
-  .n8n-flowchart-node {
-    width: 100% !important;
-    max-width: 320px !important;
-    padding: 12px !important;
-    gap: 12px !important;
-  }
-  
-  .n8n-flowchart-node-label {
-    font-size: 1em !important;
-  }
-  
-  .n8n-flowchart-node-desc {
-    font-size: 0.9em !important;
-  }
-  
-  .n8n-flowchart-node-detail {
-    font-size: 0.8em;
-  }
-}
-
-/* === Ventajas grid y cards === */
-.n8n-ventajas-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 32px;
-  margin: 0 auto;
-  margin-bottom: 15px;
-  width: 100%;
-  justify-content: space-between;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
 }
-.n8n-ventaja-card {
-  background: #121b2b;
-  border: 2px solid rgba(34, 211, 238, 0.3);
-  box-shadow: 0 0 25px rgba(34, 211, 238, 0.15);
-  border-radius: 20px;
-  padding: 2.4em 2em 2em;
+
+.automation-cinematic__line {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 160px;
+  height: 2px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, rgba(147, 197, 253, 0.2), rgba(45, 212, 191, 0.7), rgba(147, 197, 253, 0.2));
+}
+
+.automation-cinematic__line::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -1px;
+  width: 130px;
+  height: 4px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, rgba(186, 230, 253, 0.95), rgba(94, 234, 212, 0.2));
+  animation: dataRun 3.6s linear infinite;
+}
+
+.automation-step {
+  position: relative;
+  z-index: 2;
+  border-radius: 24px;
+  border: 1px solid rgba(148, 192, 255, 0.24);
+  background: linear-gradient(165deg, rgba(14, 23, 40, 0.9), rgba(8, 13, 24, 0.95));
+  padding: 16px;
+  min-height: 360px;
+  backdrop-filter: blur(8px);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  animation: revealUp 0.8s ease both;
+}
+
+.automation-step:hover {
+  transform: translateY(-8px);
+  border-color: rgba(140, 223, 255, 0.68);
+  box-shadow: 0 20px 44px rgba(17, 79, 131, 0.36);
+}
+
+.automation-step__media {
+  position: relative;
+  height: 170px;
+  border-radius: 18px;
+  border: 1px solid rgba(155, 211, 255, 0.24);
+  background: radial-gradient(circle at 30% 20%, rgba(56, 189, 248, 0.26), rgba(15, 23, 42, 0.4) 48%, rgba(15, 23, 42, 0.9));
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.automation-wave {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 0%, rgba(125, 211, 252, 0.3) 48%, transparent 100%);
+  transform: translateX(-120%);
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+
+.automation-bars {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  transition: box-shadow 0.25s, border 0.22s, transform 0.2s;
-  min-height: 280px;
-  box-sizing: border-box;
-  max-width: 100%;
-  animation: n8n-card-float 7.8s ease-in-out infinite;
-}
-.n8n-ventaja-card:hover {
-  box-shadow: 0 0 40px rgba(163, 230, 53, 0.3);
-  border-color: #a3e635;
-  transform: translateY(-5px);
-}
-.n8n-ventaja-card:nth-child(2) { animation-delay: 0.15s; }
-.n8n-ventaja-card:nth-child(3) { animation-delay: 0.3s; }
-.n8n-ventaja-card:nth-child(4) { animation-delay: 0.45s; }
-.n8n-ventaja-card:nth-child(5) { animation-delay: 0.6s; }
-.n8n-ventaja-card:nth-child(6) { animation-delay: 0.75s; }
-.n8n-ventaja-icon {
-  font-size: 3.3em;
-  margin-bottom: 0.5em;
-  color: #22d3ee;
-  filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.5));
-}
-.n8n-ventaja-title {
-  font-weight: 700;
-  font-size: 1.45em;
-  color: #22d3ee;
-  text-align: center;
-  margin-bottom: 0.4em;
-}
-.n8n-ventaja-desc {
-  color: #e2e8f0;
-  text-align: center;
-  font-size: 1.22em;
-  line-height: 1.45;
-  max-width: 24ch;
+  align-items: flex-end;
+  gap: 8px;
 }
 
-@media (max-width: 1200px) {
-  .n8n-ventajas-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 50px;
-    justify-content: space-between;
+.automation-bars span {
+  flex: 1;
+  border-radius: 8px 8px 2px 2px;
+  background: linear-gradient(180deg, rgba(142, 231, 255, 0.9), rgba(142, 231, 255, 0.2));
+  animation: barsMove 2.4s ease-in-out infinite;
+}
+
+.automation-bars span:nth-child(1) { height: 42px; }
+.automation-bars span:nth-child(2) { height: 74px; animation-delay: 0.18s; }
+.automation-bars span:nth-child(3) { height: 58px; animation-delay: 0.28s; }
+.automation-bars span:nth-child(4) { height: 90px; animation-delay: 0.44s; }
+
+.automation-step__media small {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  color: #dff4ff;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+}
+
+.automation-step h3 { margin: 0 0 6px; color: #f3f9ff; font-size: 1.45rem; }
+.automation-step__subtitle { margin: 0; color: #8dd6ff; font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.automation-step__desc { margin: 10px 0 14px; color: #b8c8dc; line-height: 1.5; }
+
+.automation-step__kpi {
+  display: inline-flex;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(139, 222, 255, 0.4);
+  color: #cbecff;
+  font-size: 0.84rem;
+  background: rgba(25, 57, 97, 0.35);
+}
+
+.reveal-up { animation: revealUp 0.8s ease both; }
+
+@keyframes revealUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes shimmer { 100% { transform: translateX(120%); } }
+@keyframes dataRun { from { transform: translateX(0); } to { transform: translateX(calc(100vw - 300px)); } }
+@keyframes barsMove { 0%,100% { opacity: 0.52; } 50% { opacity: 1; } }
+
+@media (max-width: 1100px) {
+  .automation-cinematic__track {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .n8n-ventaja-card {
-    min-height: 220px;
-    padding: 2.5em 2em 2em;
+
+  .automation-cinematic__line {
+    display: none;
   }
 }
 
-@media (max-width: 768px) {
-  .n8n-ventajas-grid {
-    grid-template-columns: 1fr !important;
-    gap: 30px;
-    width: 100% !important;
+@media (max-width: 700px) {
+  .automation-cinematic__track {
+    grid-template-columns: 1fr;
   }
-  .n8n-ventaja-card {
-    min-height: 200px;
-    width: 100% !important;
-    max-width: 100% !important;
-    animation: none !important;
+
+  .automation-step {
+    min-height: auto;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .n8n-flowchart-node,
-  .n8n-ventaja-card {
+  .automation-wave,
+  .automation-bars span,
+  .automation-cinematic__line::after,
+  .automation-step,
+  .reveal-up {
     animation: none !important;
   }
-}
-
-/* === Modal explicativo === */
-.n8n-modal {
-  position: fixed;
-  left: 0; top: 0; right: 0; bottom: 0;
-  background: rgba(10,18,34,0.98);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.n8n-modal-content {
-  background: #1a2336;
-  border-radius: 18px;
-  padding: 2.1em 2.4em 2em;
-  min-width: 310px;
-  max-width: 95vw;
-  text-align: center;
-  position: relative;
-  box-shadow: 0 8px 50px #00fff255;
-}
-.n8n-modal-close {
-  position: absolute;
-  top: 14px;
-  right: 26px;
-  background: transparent;
-  border: none;
-  font-size: 2.1em;
-  color: #10b2cb;
-  cursor: pointer;
-  transition: color 0.17s;
-  line-height: 1;
-}
-.n8n-modal-close:hover {
-  color: #ff6ec7;
 }
