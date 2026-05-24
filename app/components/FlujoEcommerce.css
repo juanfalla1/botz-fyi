@@ -579,3 +579,118 @@
     font-size: 0.85em;
   }
 }
+.ecom-process-grid {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto 26px;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.ecom-process-card {
+  grid-column: span 4;
+  border-radius: 26px;
+  border: 1px solid rgba(138, 209, 255, 0.26);
+  background: linear-gradient(160deg, rgba(14, 23, 40, 0.94), rgba(7, 12, 24, 0.95));
+  overflow: hidden;
+  transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.ecom-process-card:nth-child(4),
+.ecom-process-card:nth-child(5) {
+  grid-column: span 6;
+}
+
+.ecom-process-card:hover {
+  transform: translateY(-8px);
+  border-color: rgba(142, 225, 255, 0.7);
+  box-shadow: 0 20px 44px rgba(9, 70, 116, 0.35);
+}
+
+.ecom-process-media {
+  position: relative;
+  height: 190px;
+  overflow: hidden;
+  background: #050b17;
+}
+
+.ecom-process-video {
+  display: none;
+}
+
+.ecom-process-media img {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  padding: 0;
+  transform: scale(var(--img-scale, 1));
+  transition: transform 0.7s ease;
+  animation: none;
+}
+
+.ecom-process-card:hover .ecom-process-media img {
+  transform: scale(calc(var(--img-scale, 1) + 0.02));
+}
+
+.ecom-process-shine {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 0%, rgba(160, 231, 255, 0.24) 50%, transparent 100%);
+  transform: translateX(-120%);
+  animation: ecom-shine 3s ease-in-out infinite;
+}
+
+.ecom-process-body {
+  padding: 14px 16px 16px;
+}
+
+.ecom-process-body h3 {
+  margin: 0;
+  color: #eff8ff;
+  font-size: 1.24rem;
+}
+
+.ecom-process-body p {
+  margin: 8px 0 10px;
+  color: #bfd0e5;
+  line-height: 1.5;
+  font-size: 0.98rem;
+}
+
+.ecom-process-body span {
+  display: inline-flex;
+  border-radius: 999px;
+  border: 1px solid rgba(137, 218, 255, 0.42);
+  background: rgba(28, 66, 105, 0.35);
+  color: #d7f1ff;
+  font-size: 0.85rem;
+  padding: 7px 11px;
+}
+
+@keyframes ecom-shine {
+  100% { transform: translateX(120%); }
+}
+
+@media (max-width: 980px) {
+  .ecom-process-card,
+  .ecom-process-card:nth-child(4),
+  .ecom-process-card:nth-child(5) {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 700px) {
+  .ecom-process-card,
+  .ecom-process-card:nth-child(4),
+  .ecom-process-card:nth-child(5) {
+    grid-column: span 12;
+  }
+
+  .ecom-process-media {
+    height: 170px;
+  }
+}
