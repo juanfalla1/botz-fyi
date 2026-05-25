@@ -7145,6 +7145,7 @@ export async function POST(req: Request) {
         last_user_at: new Date().toISOString(),
       };
       const text = String(inbound.text || "").trim();
+      const explicitModelTokenInTurn = String(text.match(/\b([a-z]{2,6}\d{2,6}(?:\/[a-z]{1,3})?)\b/i)?.[1] || "").trim();
 
       // Emergency ultra-early path: resolve direct model references before entering
       // the large strict flow branches that may throw runtime TDZ errors.
@@ -7257,6 +7258,9 @@ export async function POST(req: Request) {
       }
 
       updateCommercialValidation(strictMemory, text, inbound.pushName || "");
+      if (explicitModelTokenInTurn) {
+        strictMemory.last_explicit_model_token = explicitModelTokenInTurn.toUpperCase();
+      }
       const strictPrevAwaiting = String(previousMemory?.awaiting_action || "");
       const preParsedSpec = parseTechnicalSpecQuery(text);
       console.log("[strict-inbound]", {
@@ -9963,6 +9967,28 @@ export async function POST(req: Request) {
         }
         if (!selectedProduct && wantsSheet && rememberedName) {
           selectedProduct = { name: rememberedName } as any;
+        }
+      }
+
+      // Safety: for quote/sheet intents, prioritize explicit model token from this turn,
+      // and if absent keep alignment with last explicit token captured in memory.
+      if (!String(strictReply || "").trim() && (wantsQuote || wantsSheet)) {
+        const tokenNow = String(text.match(/\b([a-z]{2,6}\d{2,6}(?:\/[a-z]{1,3})?)\b/i)?.[1] || "").trim();
+        const tokenRemembered = String(strictMemory?.last_explicit_model_token || previousMemory?.last_explicit_model_token || "").trim();
+        const tokenToEnforce = (tokenNow || tokenRemembered).toUpperCase();
+        if (tokenToEnforce) {
+          const forced =
+            findCatalogRowByModelToken(ownerRows as any[], tokenToEnforce) ||
+            findExactModelProduct(tokenToEnforce, ownerRows as any[]) ||
+            null;
+          if (forced?.id) {
+            selectedProduct = forced;
+            strictMemory.last_product_id = String((forced as any)?.id || "").trim();
+            strictMemory.last_product_name = String((forced as any)?.name || "").trim();
+            strictMemory.last_selected_product_id = String((forced as any)?.id || "").trim();
+            strictMemory.last_selected_product_name = String((forced as any)?.name || "").trim();
+            strictMemory.last_explicit_model_token = tokenToEnforce;
+          }
         }
       }
 
