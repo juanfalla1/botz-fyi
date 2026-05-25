@@ -2751,6 +2751,16 @@ function normalizeNitParts(rawNit: string): { base: string; dv: string } {
   return { base: digits.slice(0, -1), dv: digits.slice(-1) };
 }
 
+function pickSafeCommercialPhone(primaryPhone: string, nitDigits: string, fallbackPhone = ""): string {
+  const p = normalizePhone(String(primaryPhone || ""));
+  const n = String(nitDigits || "").replace(/\D/g, "");
+  const f = normalizePhone(String(fallbackPhone || ""));
+  const invalidPrimary = !p || p.length < 7 || (n && p === n);
+  if (!invalidPrimary) return p;
+  if (f && f.length >= 7 && (!n || f !== n)) return f;
+  return p || f || "";
+}
+
 function areEquivalentNitValues(aRaw: string, bRaw: string): boolean {
   const a = String(aRaw || "").replace(/\D/g, "").trim();
   const b = String(bRaw || "").replace(/\D/g, "").trim();
@@ -8692,7 +8702,11 @@ export async function POST(req: Request) {
             const matchedCity = normalizeCityLabel(String(matchedMeta?.billing_city || "").trim());
             const matchedName = sanitizeCustomerDisplayName(String(matchedContact?.name || ""));
             const matchedEmail = String(matchedContact?.email || "").trim().toLowerCase();
-            const matchedPhone = normalizePhone(String(matchedContact?.phone || ""));
+            const matchedPhone = pickSafeCommercialPhone(
+              String(matchedContact?.phone || ""),
+              matchedNit,
+              retryLookupPhone || normalizePhone(String(extractCustomerPhone(text, inbound.from) || ""))
+            );
             const matchedCompany = String(matchedContact?.company || "").trim();
 
             strictMemory.commercial_client_type = "existing";
@@ -8825,7 +8839,11 @@ export async function POST(req: Request) {
             const matchedCity = normalizeCityLabel(String(matchedMeta?.billing_city || "").trim());
             const matchedName = sanitizeCustomerDisplayName(String(matchedContact?.name || ""));
             const matchedEmail = String(matchedContact?.email || "").trim().toLowerCase();
-            const matchedPhone = normalizePhone(String(matchedContact?.phone || ""));
+            const matchedPhone = pickSafeCommercialPhone(
+              String(matchedContact?.phone || ""),
+              matchedNit,
+              phone || normalizePhone(String(extractCustomerPhone(text, inbound.from) || ""))
+            );
             const matchedCompany = String(matchedContact?.company || "").trim();
 
             strictMemory.commercial_client_type = "existing";
