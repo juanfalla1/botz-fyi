@@ -640,6 +640,53 @@ function buildUnsupportedAnswer(): string {
   ].join(" ");
 }
 
+function isInstitutionalMultiRequest(text: string): boolean {
+  const t = String(text || "").toLowerCase();
+  const asksMany = /(chaqueta).*(pantalon|gallineto).*(gorro|champignon|champiñon)/i.test(t)
+    || /(chaqueta).*(mico).*(gorro|champignon|champiñon)/i.test(t);
+  const hasInstitutionalSignals = /(bordado|logo|institucion|institución|estudiante|uniformes?\s+\d{2,3}|\b100\b)/i.test(t);
+  return asksMany || hasInstitutionalSignals;
+}
+
+function buildInstitutionalOpenAnswer(input: string): string {
+  const t = String(input || "").toLowerCase();
+  const wantsWhite = /(totalmente blanca|todo blanco|blanco total|blanca)/i.test(t);
+  const lines: string[] = [];
+
+  const wanted = [
+    { key: "chaqueta", label: "Chaqueta" },
+    { key: "pantalon", label: "Pantalon" },
+    { key: "gallineto", label: "Pantalon gallineto" },
+    { key: "mico", label: "Mico" },
+    { key: "gorro champignon", label: "Gorro champignon" },
+  ].filter((w) => t.includes(w.key));
+
+  const selected = wanted.length ? wanted : [{ key: "chaqueta", label: "Chaqueta" }, { key: "gorro", label: "Gorro" }];
+  for (const w of selected.slice(0, 5)) {
+    let candidates = findProductsByText(w.key, 8);
+    if (wantsWhite) {
+      candidates = candidates.filter((p) => {
+        const n = `${p.name} ${p.description}`.toLowerCase();
+        return n.includes("blanc") && !n.includes("negro") && !n.includes("vivo");
+      });
+    }
+    const top = candidates[0];
+    if (!top) {
+      lines.push(`- ${w.label}: no veo una referencia exacta visible ahora, te la cotizo con asesor.`);
+      continue;
+    }
+    lines.push(`- ${w.label}: ${top.name} | ${visiblePrice(top.price)} | ${top.url}`);
+  }
+
+  return [
+    "Perfecto, te entiendo. Te respondo abierto segun lo que pediste y con referencias reales:",
+    ...lines,
+    "",
+    "Si quieres, sigo mostrandote mas referencias por cada prenda (sin cerrar compra todavia).",
+    "Cuando tu me digas 'cotizar' o 'comprar', pasamos a cierre del pedido.",
+  ].join("\n");
+}
+
 type ReplyPlan = {
   text: string;
   expectedAction: string;
@@ -689,6 +736,13 @@ function composeReply(input: string, customerId: string): ReplyPlan {
       text: policy,
       expectedAction: "refine_or_buy",
       assistantType: "policy",
+    };
+  }
+  if (isInstitutionalMultiRequest(low)) {
+    return {
+      text: buildInstitutionalOpenAnswer(input),
+      expectedAction: "offer_more_options",
+      assistantType: "institutional_open",
     };
   }
   if (isSpecificProductQuery(low)) {
