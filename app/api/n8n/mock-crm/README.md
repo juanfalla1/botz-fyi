@@ -16,6 +16,11 @@ Mock API para probar los workflows VITA sin depender del CRM real del cliente.
 - `GET /api/eligibility/reactivated-replied`
 - `GET /api/eligibility/reactivation?cadence=60d|65d|70d`
 
+### Endpoints de debug (para validacion)
+
+- `GET /__debug/events` -> lista todas las llamadas recibidas por el mock
+- `POST /__debug/reset` -> limpia el historial de eventos
+
 ## Uso local
 
 ```bash
@@ -34,3 +39,18 @@ En tu servicio de n8n (Render), configura:
 - `CRM_API_KEY` = cualquier valor (ej. `test_key`)
 
 Con eso los workflows pueden ejecutarse end-to-end en modo prueba.
+
+## Validacion rapida
+
+1. Limpiar eventos:
+   - `POST https://<mock>/__debug/reset`
+2. Ejecutar un flujo n8n.
+3. Verificar llamadas:
+   - `GET https://<mock>/__debug/events`
+
+Debes ver eventos como:
+- `context_requested`
+- `message_sent`
+- `fields_patched`
+- `tag_added`
+- `mark_cold` / `mark_reactivated`

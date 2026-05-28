@@ -4,6 +4,15 @@ const app = express();
 app.use(express.json());
 
 const now = () => new Date().toISOString();
+const events = [];
+
+function pushEvent(type, payload) {
+  events.push({
+    at: now(),
+    type,
+    payload,
+  });
+}
 
 const fakeContext = (contactId = 'ghl_abc123') => ({
   contact_id: contactId,
@@ -57,7 +66,17 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'vita-crm-mock' });
 });
 
+app.get('/__debug/events', (_req, res) => {
+  res.json({ count: events.length, events });
+});
+
+app.post('/__debug/reset', (_req, res) => {
+  events.length = 0;
+  res.json({ ok: true });
+});
+
 app.get('/api/contacts/:contact_id/context', (req, res) => {
+  pushEvent('context_requested', { contact_id: req.params.contact_id });
   res.json(fakeContext(req.params.contact_id));
 });
 
@@ -66,6 +85,11 @@ app.post('/api/contacts/:contact_id/messages', (req, res) => {
   if (!idempotencyKey) {
     return res.status(400).json({ error: 'Missing Idempotency-Key header' });
   }
+  pushEvent('message_sent', {
+    contact_id: req.params.contact_id,
+    idempotency_key: idempotencyKey,
+    body: req.body,
+  });
   return res.status(200).json({
     success: true,
     contact_id: req.params.contact_id,
@@ -76,6 +100,10 @@ app.post('/api/contacts/:contact_id/messages', (req, res) => {
 });
 
 app.post('/api/contacts/:contact_id/tags', (req, res) => {
+  pushEvent('tag_added', {
+    contact_id: req.params.contact_id,
+    tag: req.body && req.body.tag ? req.body.tag : null,
+  });
   res.json({
     success: true,
     contact_id: req.params.contact_id,
@@ -85,6 +113,10 @@ app.post('/api/contacts/:contact_id/tags', (req, res) => {
 });
 
 app.patch('/api/contacts/:contact_id/fields', (req, res) => {
+  pushEvent('fields_patched', {
+    contact_id: req.params.contact_id,
+    body: req.body,
+  });
   res.json({
     success: true,
     contact_id: req.params.contact_id,
@@ -94,6 +126,7 @@ app.patch('/api/contacts/:contact_id/fields', (req, res) => {
 });
 
 app.post('/api/contacts/:contact_id/mark-cold', (req, res) => {
+  pushEvent('mark_cold', { contact_id: req.params.contact_id });
   res.json({
     success: true,
     contact_id: req.params.contact_id,
@@ -106,6 +139,7 @@ app.post('/api/contacts/:contact_id/mark-cold', (req, res) => {
 });
 
 app.post('/api/contacts/:contact_id/mark-reactivated', (req, res) => {
+  pushEvent('mark_reactivated', { contact_id: req.params.contact_id });
   res.json({
     success: true,
     contact_id: req.params.contact_id,
@@ -123,6 +157,7 @@ app.get('/api/eligibility/inactivity', (req, res) => {
     return res.status(400).json({ error: 'cadence must be 24h|48h|72h' });
   }
   const messageNumber = cadence === '24h' ? 1 : cadence === '48h' ? 2 : 3;
+  pushEvent('eligibility_inactivity_requested', { cadence });
   res.json({
     data: [
       makeLead(`inact_${cadence}_1`, 'generico', messageNumber),
@@ -132,6 +167,7 @@ app.get('/api/eligibility/inactivity', (req, res) => {
 });
 
 app.get('/api/eligibility/inactivity/cold-transition', (_req, res) => {
+  pushEvent('eligibility_cold_transition_requested', {});
   res.json({
     data: [
       {
@@ -143,6 +179,7 @@ app.get('/api/eligibility/inactivity/cold-transition', (_req, res) => {
 });
 
 app.get('/api/eligibility/reactivated-replied', (_req, res) => {
+  pushEvent('eligibility_reactivated_replied_requested', {});
   res.json({
     data: [
       {
@@ -160,6 +197,7 @@ app.get('/api/eligibility/reactivation', (req, res) => {
     return res.status(400).json({ error: 'cadence must be 60d|65d|70d' });
   }
   const messageNumber = cadence === '60d' ? 1 : cadence === '65d' ? 2 : 3;
+  pushEvent('eligibility_reactivation_requested', { cadence });
   res.json({
     data: [
       makeLead(`react_${cadence}_1`, 'determinada_intermitente', messageNumber),
