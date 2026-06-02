@@ -1,0 +1,27 @@
+/.git/**
+/.next/**
+/node_modules/**
+/.venv-faceswap/**
+/.data/**
+/.firecrawl/**
+/.opencode.bak/**
+/tmp/**
+/output/**
+/firecrawl_outputs/**
+/remotion-reels/**
+/viral-winners/**
+/Videos Marketing/**
+/tools/facefusion/**
+*.pdf
+*.pptx
+*.xlsx
+*.mp4
+!public/hook-showcase.mp4
+*.tsbuildinfo
+*.log
+GEO/node_modules
+GEO/.next
+app/api/n8n/*.pdf
+app/api/n8n/*.xlsx
+app/api/agents/channels/evolution/webhook-v2/*.xlsx
+app/api/agents/channels/evolution/webhook-v2/~$*.xlsx
