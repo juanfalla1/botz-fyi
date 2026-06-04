@@ -1,0 +1,103 @@
+:root {
+  --background: oklch(0.08 0.01 270);
+  --foreground: oklch(0.98 0 0);
+  --card: oklch(0.12 0.015 270);
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.1 0.01 270);
+  --popover-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.65 0.25 270);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.18 0.02 270);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.2 0.015 270);
+  --muted-foreground: oklch(0.65 0 0);
+  --accent: oklch(0.55 0.28 300);
+  --accent-foreground: oklch(0.98 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.25 0.02 270);
+  --input: oklch(0.18 0.015 270);
+  --ring: oklch(0.65 0.25 270);
+  --chart-1: oklch(0.65 0.25 270);
+  --chart-2: oklch(0.55 0.28 300);
+  --chart-3: oklch(0.7 0.2 200);
+  --chart-4: oklch(0.75 0.15 150);
+  --chart-5: oklch(0.6 0.22 330);
+}
+
+.geo-v0,
+.geo-v0 * {
+  box-sizing: border-box;
+}
+
+.geo-v0 {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.geo-v0 .bg-background { background-color: var(--background); }
+.geo-v0 .text-foreground { color: var(--foreground); }
+.geo-v0 .bg-card { background-color: var(--card); }
+.geo-v0 .text-card-foreground { color: var(--card-foreground); }
+.geo-v0 .bg-popover { background-color: var(--popover); }
+.geo-v0 .text-popover-foreground { color: var(--popover-foreground); }
+.geo-v0 .bg-primary { background-color: var(--primary); }
+.geo-v0 .text-primary { color: var(--primary); }
+.geo-v0 .text-primary-foreground { color: var(--primary-foreground); }
+.geo-v0 .bg-secondary { background-color: var(--secondary); }
+.geo-v0 .text-secondary-foreground { color: var(--secondary-foreground); }
+.geo-v0 .text-muted-foreground { color: var(--muted-foreground); }
+.geo-v0 .bg-accent { background-color: var(--accent); }
+.geo-v0 .text-accent-foreground { color: var(--accent-foreground); }
+.geo-v0 .text-destructive { color: var(--destructive); }
+.geo-v0 .border-border { border-color: var(--border); }
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.geo-v0 .animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 8s ease infinite;
+}
+
+.geo-v0 .animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.geo-v0 .animate-pulse-glow {
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+
+.geo-v0 .glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.geo-v0 .glow-primary {
+  box-shadow: 0 0 60px rgba(139, 92, 246, 0.3);
+}
+
+.geo-v0 .glow-accent {
+  box-shadow: 0 0 60px rgba(168, 85, 247, 0.3);
+}
+
+.geo-v0 .text-gradient {
+  background: linear-gradient(135deg, #a855f7 0%, #6366f1 50%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
