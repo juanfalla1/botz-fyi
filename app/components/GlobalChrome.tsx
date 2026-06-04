@@ -7,13 +7,15 @@ import CookieBanner from "./CookieBanner";
 
 export default function GlobalChrome() {
   const pathname = usePathname();
+  const isGeoHost = typeof window !== "undefined" && window.location.hostname === "geo.botz.fyi";
   const isAvanzaCrm = String(pathname || "").startsWith("/avanza-crm");
   const isWidgetRoute = String(pathname || "").startsWith("/widget/");
   const isMetrocas =
     String(pathname || "").startsWith("/metrocas") ||
     String(pathname || "").startsWith("/metricas") ||
     String(pathname || "").startsWith("/intelligence");
-  const hideGlobalChrome = isAvanzaCrm || isWidgetRoute || isMetrocas;
+  const isGeoEngine = String(pathname || "").startsWith("/geo");
+  const hideGlobalChrome = isAvanzaCrm || isWidgetRoute || isMetrocas || isGeoEngine || isGeoHost;
 
   useEffect(() => {
     if (typeof document === "undefined") return;
