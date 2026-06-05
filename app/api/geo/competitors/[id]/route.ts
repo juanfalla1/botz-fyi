@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getGeoApiClient } from "@/lib/geo/api-auth"
 import { competitorUpdateSchema } from "@/lib/validators/competitor.schema"
 import { deleteCompetitor, updateCompetitor } from "@/lib/geo/repositories/competitors.repo"
+import { assertProjectOwner } from "@/lib/geo/ownership"
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const body = await req.json()
@@ -11,6 +12,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     const { id } = await params
     const { supabase, user } = await getGeoApiClient(req)
+    await assertProjectOwner(supabase, user.id, parsed.data.project_id ?? null)
     const data = await updateCompetitor(supabase, user.id, id, parsed.data)
     return NextResponse.json({ data, mode: "live" })
   } catch (error) {

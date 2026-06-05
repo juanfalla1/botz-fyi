@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getGeoApiClient } from "@/lib/geo/api-auth"
 import { getProviderForEngine } from "@/lib/geo/engines/provider-registry"
 import { normalizeEngineResponse } from "@/lib/geo/engines/normalizer"
+import { consumeServerUsage } from "@/lib/geo/repositories/usage.repo"
 
 function normalizeEngineName(engine: string) {
   const value = engine.toLowerCase().trim()
@@ -17,6 +18,13 @@ function errorMessage(error: unknown) {
     return [value.message, value.details, value.hint, value.code].filter(Boolean).map(String).join(" | ") || "Unknown error"
   }
   return String(error || "Unknown error")
+}
+
+function statusForError(error: unknown) {
+  const message = errorMessage(error)
+  if (message.includes("limit reached")) return 402
+  if (message.includes("not found")) return 404
+  return 500
 }
 
 export async function POST(req: Request) {
@@ -52,6 +60,7 @@ export async function POST(req: Request) {
       .eq("project_id", projectId)
     const competitorNames = (competitors ?? []).map((item) => String(item.competitor_name)).filter(Boolean)
     const engines = Array.isArray(prompt.engines) ? prompt.engines.map((item) => normalizeEngineName(String(item))) : ["openai"]
+    await consumeServerUsage(supabase, user.id, "prompt", Math.max(1, engines.length), { source: "api_geo_prompts_run", prompt_id: promptId, project_id: projectId })
     const results = []
 
     for (const engine of engines) {
@@ -129,6 +138,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ data: { prompt: updated, results }, mode: "live" })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not run prompt" }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not run prompt" }, { status: statusForError(error) })
   }
 }

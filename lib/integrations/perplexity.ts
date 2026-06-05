@@ -3,6 +3,6 @@ export function hasPerplexityKey() {
 }
 
 export async function queryPerplexity(prompt: string) {
-  if (!hasPerplexityKey()) return { demo: true, text: `Demo Perplexity response for: ${prompt}` };
-  return { demo: false, text: "Perplexity integration placeholder" };
+  void prompt;
+  throw new Error("Legacy Perplexity adapter disabled. Use lib/geo/engines/providers/perplexity.provider.ts");
 }

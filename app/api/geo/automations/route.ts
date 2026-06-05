@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getGeoApiClient } from "@/lib/geo/api-auth"
 import { automationCreateSchema } from "@/lib/validators/automation.schema"
 import { createAutomation, listAutomations } from "@/lib/geo/repositories/automations.repo"
+import { assertCompetitorOwner, assertProjectOwner } from "@/lib/geo/ownership"
 
 function computeNextRun(frequency: "daily" | "weekly" | "monthly") {
   const date = new Date()
@@ -28,6 +29,8 @@ export async function POST(req: Request) {
 
   try {
     const { supabase, user } = await getGeoApiClient(req)
+    await assertProjectOwner(supabase, user.id, parsed.data.project_id ?? null)
+    await assertCompetitorOwner(supabase, user.id, parsed.data.competitor_id ?? null)
     const data = await createAutomation(supabase, {
       user_id: user.id,
       project_id: parsed.data.project_id ?? null,

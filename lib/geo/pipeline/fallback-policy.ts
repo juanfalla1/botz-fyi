@@ -1,4 +1,4 @@
-export function shouldFallbackToPlaceholder(input: {
+export function shouldReturnUnavailableAnalysis(input: {
   totalResults: number
   liveResults: number
   configuredProviders: number

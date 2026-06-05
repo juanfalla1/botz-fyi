@@ -3,6 +3,6 @@ export function hasGeminiKey() {
 }
 
 export async function queryGemini(prompt: string) {
-  if (!hasGeminiKey()) return { demo: true, text: `Demo Gemini response for: ${prompt}` };
-  return { demo: false, text: "Gemini integration placeholder" };
+  void prompt;
+  throw new Error("Legacy Gemini adapter disabled. Use lib/geo/engines/providers/gemini.provider.ts");
 }

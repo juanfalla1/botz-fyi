@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getGeoApiClient } from "@/lib/geo/api-auth";
+import { assertProjectOwner, listOwnedAuditIds } from "@/lib/geo/ownership";
+import { createUsageEvent } from "@/lib/geo/repositories/usage.repo";
 
 export async function GET(req: Request) {
   try {
@@ -21,12 +23,30 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   try {
     const { supabase, user } = await getGeoApiClient(req)
-    const { data: audit, error: auditError } = await supabase
+    const auditId = typeof body.audit_id === "string" ? body.audit_id : null
+    const projectId = typeof body.project_id === "string" ? body.project_id : null
+    await assertProjectOwner(supabase, user.id, projectId)
+
+    const ownedAuditIds = await listOwnedAuditIds(supabase, user.id)
+    if (auditId && !ownedAuditIds.includes(auditId)) {
+      return NextResponse.json({ error: "Audit not found or not owned by user" }, { status: 404 })
+    }
+    const candidateAuditIds = auditId ? [auditId] : ownedAuditIds
+    if (candidateAuditIds.length === 0) {
+      return NextResponse.json({ error: "No completed audits available to generate a report" }, { status: 404 })
+    }
+
+    let query = supabase
       .from("geo_audits")
       .select("id, project_id, base_url, engines, summary, final_score, created_at, completed_at, projects(company_name, website_url)")
       .eq("status", "completed")
+      .in("id", candidateAuditIds)
       .order("completed_at", { ascending: false, nullsFirst: false })
       .limit(1)
+
+    if (projectId) query = query.eq("project_id", projectId)
+
+    const { data: audit, error: auditError } = await query
       .maybeSingle()
     if (auditError) throw auditError
     if (!audit) return NextResponse.json({ error: "No completed audits available to generate a report" }, { status: 404 })
@@ -64,6 +84,12 @@ export async function POST(req: Request) {
       .select("id, name, report_type, status, created_at, snapshot")
       .single()
     if (error) throw error
+    await createUsageEvent(supabase, {
+      user_id: user.id,
+      event_type: "report_exported",
+      amount: 1,
+      metadata: { report_id: data.id, audit_id: audit.id, source: "api_geo_reports" },
+    })
     return NextResponse.json({ data, mode: "live" }, { status: 201 })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not generate report" }, { status: 500 })

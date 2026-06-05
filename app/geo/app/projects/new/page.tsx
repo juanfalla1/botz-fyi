@@ -41,7 +41,7 @@ export default function NewProjectPage() {
       })
       if (!res.ok) throw new Error(isEn ? "Could not create project." : "No se pudo crear el proyecto.")
       const json = (await res.json()) as { data?: { id?: string }; mode?: string }
-      if (json.mode !== "live") throw new Error(isEn ? "Project creation is unavailable in demo mode." : "La creación de proyectos no está disponible en modo demo.")
+      if (json.mode !== "live") throw new Error(isEn ? "Project creation is unavailable right now." : "La creación de proyectos no está disponible en este momento.")
       router.push(json.data?.id ? `/geo/app/projects/${json.data.id}` : "/geo/app")
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : isEn ? "Could not create project." : "No se pudo crear el proyecto.")

@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
-import { runAiQueries } from "@geo/geo/ai-query-runner";
+import { getGeoApiClient } from "@/lib/geo/api-auth";
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const data = await runAiQueries(body.prompts ?? [], body.engines ?? ["openai", "gemini", "perplexity"]);
-  return NextResponse.json({ data, mode: "demo_or_live" });
+  try {
+    await getGeoApiClient(req)
+    return NextResponse.json(
+      { error: "Legacy endpoint disabled. Use /api/geo/prompts/run or /api/geo/audits instead." },
+      { status: 410 }
+    )
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unauthorized" }, { status: 401 })
+  }
 }

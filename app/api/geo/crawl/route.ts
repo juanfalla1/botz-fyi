@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
-import { runCrawler } from "@geo/geo/crawler";
+import { getGeoApiClient } from "@/lib/geo/api-auth";
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const data = await runCrawler(body.base_url, body.max_pages ?? 20);
-  return NextResponse.json({ data, mode: data.demo ? "demo" : "live" });
+  try {
+    await getGeoApiClient(req)
+    return NextResponse.json(
+      { error: "Legacy crawl endpoint disabled. Use /api/geo/audits to run the production pipeline." },
+      { status: 410 }
+    )
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unauthorized" }, { status: 401 })
+  }
 }

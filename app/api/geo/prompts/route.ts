@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getGeoApiClient } from "@/lib/geo/api-auth"
 import { createGeoPrompt, deleteGeoPrompt, listGeoPrompts, updateGeoPrompt } from "@/lib/geo/repositories/geo-prompts.repo"
 import { geoPromptCreateSchema, geoPromptUpdateSchema } from "@/lib/validators/geo-prompts.schema"
+import { assertProjectOwner } from "@/lib/geo/ownership"
 
 export async function GET(req: Request) {
   try {
@@ -9,6 +10,7 @@ export async function GET(req: Request) {
     const projectId = searchParams.get("project_id")
     if (!projectId) return NextResponse.json({ error: "project_id is required" }, { status: 400 })
     const { supabase, user } = await getGeoApiClient(req)
+    await assertProjectOwner(supabase, user.id, projectId)
     const data = await listGeoPrompts(supabase, user.id, projectId)
     return NextResponse.json({ data, mode: "live" })
   } catch (error) {
@@ -25,6 +27,7 @@ export async function POST(req: Request) {
 
   try {
     const { supabase, user } = await getGeoApiClient(req)
+    await assertProjectOwner(supabase, user.id, projectId)
     const data = await createGeoPrompt(supabase, {
       user_id: user.id,
       project_id: projectId,
@@ -52,6 +55,7 @@ export async function PATCH(req: Request) {
 
   try {
     const { supabase, user } = await getGeoApiClient(req)
+    await assertProjectOwner(supabase, user.id, projectId)
     const { project_id, prompt_id, ...patch } = parsed.data as Record<string, unknown>
     const data = await updateGeoPrompt(supabase, user.id, projectId, promptId, patch)
     return NextResponse.json({ data, mode: "live" })
@@ -67,6 +71,7 @@ export async function DELETE(req: Request) {
     const promptId = searchParams.get("prompt_id")
     if (!projectId || !promptId) return NextResponse.json({ error: "project_id and prompt_id are required" }, { status: 400 })
     const { supabase, user } = await getGeoApiClient(req)
+    await assertProjectOwner(supabase, user.id, projectId)
     await deleteGeoPrompt(supabase, user.id, projectId, promptId)
     return NextResponse.json({ ok: true, mode: "live" })
   } catch (error) {

@@ -1,7 +1,4 @@
 export function generateReport(auditId: string) {
-  return {
-    auditId,
-    format: "pdf_placeholder",
-    message: "Export Report placeholder. Connect PDF engine in next phase.",
-  };
+  void auditId;
+  throw new Error("Legacy report generator disabled. Use /api/geo/reports for report snapshots.");
 }

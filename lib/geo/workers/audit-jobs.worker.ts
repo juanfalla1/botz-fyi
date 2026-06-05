@@ -58,7 +58,7 @@ async function processJobs(supabase: SupabaseClient, jobs: Awaited<ReturnType<ty
           job_id: runningJob.id,
           user_id: runningJob.user_id,
           stage: "analyzing",
-          message: "Running analysis placeholder",
+          message: "Running GEO analysis",
         })
 
         const result = await runBaseAuditPipeline(supabase, context)

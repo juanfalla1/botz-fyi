@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { auditSchema } from "@geo/validators/audit.schema";
 import { getGeoApiClient } from "@/lib/geo/api-auth";
 import { createAuditManual } from "@/lib/geo/repositories/audits.repo";
-import { createUsageEvent } from "@/lib/geo/repositories/usage.repo";
+import { consumeServerUsage } from "@/lib/geo/repositories/usage.repo";
 import { processAuditQueueForUser } from "@/lib/geo/services/audit-jobs.service";
+import { assertProjectOwner } from "@/lib/geo/ownership";
 
 export async function GET(req: Request) {
   try {
@@ -33,6 +34,13 @@ export async function GET(req: Request) {
   }
 }
 
+function statusForError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "")
+  if (message.includes("limit reached")) return 402
+  if (message.includes("not found or not owned")) return 404
+  return 401
+}
+
 export async function POST(req: Request) {
   const body = await req.json();
   const parsed = auditSchema.safeParse(body);
@@ -40,6 +48,8 @@ export async function POST(req: Request) {
 
   try {
     const { supabase, user } = await getGeoApiClient(req);
+    await assertProjectOwner(supabase, user.id, parsed.data.project_id)
+    await consumeServerUsage(supabase, user.id, "audit", 1, { source: "api_geo_audits", project_id: parsed.data.project_id })
     const created = await createAuditManual(
       supabase,
       user.id,
@@ -48,15 +58,9 @@ export async function POST(req: Request) {
       parsed.data.crawl_depth ?? 1,
       parsed.data.engines ?? ["openai", "gemini"]
     );
-    await createUsageEvent(supabase, {
-      user_id: user.id,
-      event_type: "geo_audit_created",
-      amount: 1,
-      metadata: { audit_id: created.audit.id, source: "api_geo_audits" },
-    });
     void processAuditQueueForUser(supabase, user.id, 1);
     return NextResponse.json({ data: { audit: created.audit, job: created.job }, mode: "live" }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unauthorized" }, { status: statusForError(error) });
   }
 }

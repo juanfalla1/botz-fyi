@@ -46,7 +46,7 @@ export default function BillingPage() {
   }, [])
 
   const handlePlanRequest = () => {
-    setFeedback(locale === "en" ? "Plan changes are handled through the billing flow. Stripe connection is pending." : "Los cambios de plan se gestionan desde el flujo de facturación. La conexión con Stripe está pendiente.")
+    setFeedback(locale === "en" ? "Plan changes are handled by the Botz GEO team for now." : "Por ahora los cambios de plan los gestiona el equipo de Botz GEO.")
   }
 
   const auditsUsed = subscription?.audits_used ?? 0
@@ -99,7 +99,7 @@ export default function BillingPage() {
         <Card className="glass border-border">
           <CardHeader>
             <CardTitle>{locale === "en" ? "Current plan" : "Plan actual"}</CardTitle>
-            <CardDescription>{locale === "en" ? "Trial starts with 3 free GEO Audits" : "El trial inicia con 3 GEO Audits gratis"}</CardDescription>
+            <CardDescription>{locale === "en" ? "Trial starts with 3 free GEO Audits. Paid plans are activated manually during beta." : "El trial inicia con 3 GEO Audits gratis. Los planes pagos se activan manualmente durante beta."}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="grid gap-3 md:grid-cols-3">
@@ -140,7 +140,9 @@ export default function BillingPage() {
               </p>
             )}
 
-            <Button className="mt-3 bg-primary hover:bg-primary/90">{locale === "en" ? "Upgrade" : "Upgrade"}</Button>
+            <Button className="mt-3 bg-primary hover:bg-primary/90" asChild>
+              <Link href="/geo/agendar-demo">{locale === "en" ? "Request plan upgrade" : "Solicitar mejora de plan"}</Link>
+            </Button>
           </CardContent>
         </Card>
 
@@ -176,8 +178,8 @@ export default function BillingPage() {
                 <li>{locale === "en" ? "Monthly reports" : "Reportes mensuales"}</li>
                 <li>{locale === "en" ? "Email support" : "Soporte por email"}</li>
               </ul>
-              <Button className="w-full" onClick={handlePlanRequest}>
-                {locale === "en" ? "Request plan change" : "Solicitar cambio de plan"}
+              <Button className="w-full" asChild onClick={handlePlanRequest}>
+                <Link href="/geo/agendar-demo">{locale === "en" ? "Request plan change" : "Solicitar cambio de plan"}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -199,8 +201,8 @@ export default function BillingPage() {
                 <li>{locale === "en" ? "Weekly reports" : "Reportes semanales"}</li>
                 <li>{locale === "en" ? "Priority support" : "Soporte prioritario"}</li>
               </ul>
-              <Button className="w-full" onClick={handlePlanRequest}>
-                {locale === "en" ? "Request plan change" : "Solicitar cambio de plan"}
+              <Button className="w-full" asChild onClick={handlePlanRequest}>
+                <Link href="/geo/agendar-demo">{locale === "en" ? "Request plan change" : "Solicitar cambio de plan"}</Link>
               </Button>
             </CardContent>
           </Card>

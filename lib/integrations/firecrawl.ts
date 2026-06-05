@@ -3,11 +3,7 @@ export function hasFirecrawlKey() {
 }
 
 export async function crawlSite(baseUrl: string, maxPages = 20) {
-  if (!hasFirecrawlKey()) {
-    return {
-      demo: true,
-      pages: [{ url: baseUrl, title: "Home", description: "Demo crawled page", content: "Demo content" }],
-    };
-  }
-  return { demo: false, pages: [] };
+  void baseUrl;
+  void maxPages;
+  throw new Error("Legacy crawl adapter disabled. Use the GEO audit pipeline instead.");
 }

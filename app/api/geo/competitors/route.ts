@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getGeoApiClient } from "@/lib/geo/api-auth"
 import { competitorCreateSchema } from "@/lib/validators/competitor.schema"
 import { createCompetitor, listCompetitors } from "@/lib/geo/repositories/competitors.repo"
+import { assertProjectOwner } from "@/lib/geo/ownership"
 
 export async function GET(req: Request) {
   try {
@@ -22,6 +23,7 @@ export async function POST(req: Request) {
 
   try {
     const { supabase, user } = await getGeoApiClient(req)
+    await assertProjectOwner(supabase, user.id, parsed.data.project_id ?? null)
     const data = await createCompetitor(supabase, {
       user_id: user.id,
       project_id: parsed.data.project_id ?? null,

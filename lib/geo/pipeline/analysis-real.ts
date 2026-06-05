@@ -2,8 +2,8 @@ import { normalizeEngineResponse } from "@/lib/geo/engines/normalizer"
 import { resolveProviders } from "@/lib/geo/engines/provider-registry"
 import { scoreSnapshotV1 } from "@/lib/geo/engines/scoring"
 import type { NormalizedEngineResult } from "@/lib/geo/engines/types"
-import { runStructuredPlaceholderAnalysis } from "@/lib/geo/pipeline/analysis-placeholder"
-import { shouldFallbackToPlaceholder } from "@/lib/geo/pipeline/fallback-policy"
+import { runUnavailableAnalysis } from "@/lib/geo/pipeline/analysis-unavailable"
+import { shouldReturnUnavailableAnalysis } from "@/lib/geo/pipeline/fallback-policy"
 import type { AnalysisOutput, GeneratedPrompt, PipelineContext } from "@/lib/geo/pipeline/types"
 import { runSemanticGeoAnalyzer } from "@/lib/geo/analysis/semantic-geo-analyzer"
 
@@ -102,8 +102,8 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
 
   const configuredCount = providers.filter((p) => p.status === "configured" && p.id !== "ai_overviews").length
   const liveCount = normalized.filter((x) => x.mode === "live").length
-  if (shouldFallbackToPlaceholder({ totalResults: normalized.length, liveResults: liveCount, configuredProviders: configuredCount })) {
-    const fallback = runStructuredPlaceholderAnalysis(ctx, prompts)
+  if (shouldReturnUnavailableAnalysis({ totalResults: normalized.length, liveResults: liveCount, configuredProviders: configuredCount })) {
+    const fallback = runUnavailableAnalysis(ctx, prompts)
     return {
       output: fallback,
       normalizedResults: normalized,
