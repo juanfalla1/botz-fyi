@@ -595,7 +595,7 @@ const Header = () => {
               </div>
 
               <Link
-                href="/start/agents?auth=login"
+                href="/start?auth=1"
                 className="auth-login-btn"
                 onClick={closeMenu}
                 onMouseMove={handleMouseGlowMove}
@@ -619,7 +619,7 @@ const Header = () => {
               </Link>
 
               <Link
-                href="/start/agents?auth=signup"
+                href="/pricing"
                 className="auth-signup-btn"
                 onClick={closeMenu}
                 onMouseMove={handleMouseGlowMove}

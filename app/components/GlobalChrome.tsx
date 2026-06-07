@@ -14,8 +14,9 @@ export default function GlobalChrome() {
     String(pathname || "").startsWith("/metrocas") ||
     String(pathname || "").startsWith("/metricas") ||
     String(pathname || "").startsWith("/intelligence");
+  const isStartApp = String(pathname || "").startsWith("/start");
   const isGeoEngine = String(pathname || "").startsWith("/geo");
-  const hideGlobalChrome = isAvanzaCrm || isWidgetRoute || isMetrocas || isGeoEngine || isGeoHost;
+  const hideGlobalChrome = isAvanzaCrm || isWidgetRoute || isMetrocas || isStartApp || isGeoEngine || isGeoHost;
 
   useEffect(() => {
     if (typeof document === "undefined") return;

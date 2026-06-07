@@ -495,25 +495,8 @@ export default function AgentsAuthModal({
                 {loading ? tr("Cargando...", "Loading...") : tr("Iniciar sesion", "Sign in")}
               </button>
               
-              <div style={{ marginTop: 8 }}>
-                <button
-                  type="button"
-                  onClick={handleGoogle}
-                  disabled={loading}
-                  style={{
-                    padding: 10,
-                    borderRadius: 8,
-                    border: "1px solid rgba(255,255,255,0.2)",
-                    background: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    fontSize: 14,
-                    cursor: loading ? "not-allowed" : "pointer",
-                    opacity: loading ? 0.5 : 1,
-                    width: "100%",
-                  }}
-                >
-                  {tr("Continuar con Google", "Continue with Google")}
-                </button>
+              <div style={{ marginTop: 4, color: "#94a3b8", fontSize: 12, textAlign: "center" }}>
+                {tr("Agentes usa una sesion independiente. Ingresa con correo.", "Agents uses a separate session. Sign in with email.")}
               </div>
             </form>
           )}
@@ -605,25 +588,8 @@ export default function AgentsAuthModal({
                   : tr("No llega el correo? Verificar con codigo OTP", "Email not arriving? Verify with OTP code")}
               </button>
 
-              <div style={{ marginTop: 8 }}>
-                <button
-                  type="button"
-                  onClick={handleGoogle}
-                  disabled={loading}
-                  style={{
-                    padding: 10,
-                    borderRadius: 8,
-                    border: "1px solid rgba(255,255,255,0.2)",
-                    background: "rgba(255,255,255,0.1)",
-                    color: "#fff",
-                    fontSize: 14,
-                    cursor: loading ? "not-allowed" : "pointer",
-                    opacity: loading ? 0.5 : 1,
-                    width: "100%",
-                  }}
-                >
-                  {tr("Crear cuenta con Google", "Create account with Google")}
-                </button>
+              <div style={{ marginTop: 4, color: "#94a3b8", fontSize: 12, textAlign: "center" }}>
+                {tr("Google esta desactivado aqui para mantener Agentes separado.", "Google is disabled here to keep Agents separate.")}
               </div>
             </form>
           )}

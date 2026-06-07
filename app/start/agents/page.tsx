@@ -165,17 +165,19 @@ export default function AgentStudio() {
       const u = session?.user || null;
       console.log("🔑 [Agentes] Auth event:", event, "User:", u?.email || "No user");
       
-      if (event === "SIGNED_IN" && u) {
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") && u) {
         // Marcar como modo Agentes al hacer login exitoso
         if (typeof window !== "undefined") {
           localStorage.setItem("botz-agents-mode", "true");
           console.log("✅ [Agentes] Login exitoso - Marcado como modo Agentes");
         }
         setUser(u);
+        setAuthLoading(false);
         setOpenAuth(false);
-        warmAfterLogin();
+        if (event === "SIGNED_IN") warmAfterLogin();
       } else if (event === "SIGNED_OUT") {
         setUser(null);
+        setAuthLoading(false);
         setChannelRows([]);
         setOpenAuth(false);
         router.push("/");
@@ -198,7 +200,8 @@ export default function AgentStudio() {
         if (!alive) return;
 
         setUser(u);
-        setOpenAuth(!u);
+        setAuthLoading(false);
+        setOpenAuth((current) => (u ? false : current));
       } catch {
         // ignore
       }
