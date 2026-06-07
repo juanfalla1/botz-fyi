@@ -23,7 +23,7 @@ import Agentes from '@/components/Agentes';
 export default function Home() {
   return (
     <>
-      <main className="landing-root" style={{ minHeight: '100vh', paddingTop: 92 }}>
+      <main className="landing-root" style={{ minHeight: '100vh' }}>
         <Hero />
         <Agentes />
         <Funcionalidades />
