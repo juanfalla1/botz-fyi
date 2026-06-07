@@ -5,6 +5,13 @@ import { supabase } from "../../supabaseClient"; // ✅ app/start/components -> 
 
 const START_LOGIN_MODE_KEY = "botz-start-mode";
 
+function normalizeLoginEmail(value: string) {
+  const email = String(value || "").trim().toLowerCase();
+  if (email === "info@botz") return "info@botz.fyi";
+  if (email === "botz.info@botz") return "botz.info@botz.fyi";
+  return email;
+}
+
 function markStartLoginMode() {
   try {
     if (typeof window !== "undefined") {
@@ -71,7 +78,7 @@ export default function AuthModal({
     try {
       // Marcar antes del login para evitar race condition con onAuthStateChange
       markStartLoginMode();
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email: normalizeLoginEmail(email), password });
       if (error) throw error;
       markStartLoginMode();
 
@@ -97,7 +104,7 @@ export default function AuthModal({
     try {
       // Marcar antes del signup para evitar cierre inmediato por guard de /start
       markStartLoginMode();
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({ email: normalizeLoginEmail(email), password });
       if (error) throw error;
 
       if (!data?.session) {
@@ -130,7 +137,7 @@ export default function AuthModal({
       const redirectTo =
         typeof window !== "undefined" ? `${window.location.origin}/auth/reset` : undefined;
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      const { error } = await supabase.auth.resetPasswordForEmail(normalizeLoginEmail(email), { redirectTo });
       if (error) throw error;
 
       setMsg("📩 Te enviamos un correo para restablecer tu contraseña.");

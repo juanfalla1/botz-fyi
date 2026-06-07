@@ -20,6 +20,13 @@ const LOGIN_TEXT: Record<AppLanguage, { signingIn: string; signIn: string; newTe
   },
 };
 
+function normalizeLoginEmail(value: string) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "info@botz") return "info@botz.fyi";
+  if (normalized === "botz.info@botz") return "botz.info@botz.fyi";
+  return normalized;
+}
+
 interface LoginFormProps {
   onSuccess: (userData?: { rol: string; nombre: string }) => void;
   onRegisterClick?: () => void; // Nuevo: para ir a registro
@@ -57,7 +64,7 @@ export default function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: normalizeLoginEmail(email),
         password,
       });
 
@@ -105,7 +112,7 @@ export default function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps
         // Pasar datos al callback (o valores por defecto si no tiene perfil)
         onSuccess({
           rol: profileData?.rol || "asesor",
-          nombre: profileData?.nombre || email.split("@")[0]
+          nombre: profileData?.nombre || normalizeLoginEmail(email).split("@")[0]
         });
       }
     } catch (err: any) {

@@ -13,6 +13,23 @@ const STRIPE_LINK_BASIC =
 const STRIPE_LINK_GROWTH =
   "https://buy.stripe.com/test_fZu5kwg2x7Lu0BF2W0frW00";
 
+const START_LOGIN_MODE_KEY = "botz-start-mode";
+
+function markStartLoginMode() {
+  try {
+    window.localStorage.setItem(START_LOGIN_MODE_KEY, "true");
+  } catch {
+    // ignore
+  }
+}
+
+function normalizeLoginEmail(value: string) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "info@botz") return "info@botz.fyi";
+  if (normalized === "botz.info@botz") return "botz.info@botz.fyi";
+  return normalized;
+}
+
 function getStripeLinkByPlan(planName: string) {
   const p = (planName || "").toLowerCase();
 
@@ -58,6 +75,7 @@ export default function PricingPage() {
       let tenantId = String(opts?.tenantId || "");
 
       if (!userId) {
+        markStartLoginMode();
         const { data: { user } } = await supabase.auth.getUser();
 
         if (!user) {
@@ -160,6 +178,7 @@ export default function PricingPage() {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
+        markStartLoginMode();
         console.log("Usuario logueado:", session.user.email);
       }
     };
@@ -285,8 +304,8 @@ export default function PricingPage() {
     setRegisterLoading(true);
     setRegisterError(null);
 
-    const normalizedEmail = String(email || "").trim().toLowerCase();
-    const normalizedConfirm = String(confirmEmail || "").trim().toLowerCase();
+    const normalizedEmail = normalizeLoginEmail(email);
+    const normalizedConfirm = normalizeLoginEmail(confirmEmail);
     if (!name.trim()) {
       setRegisterError("El nombre es requerido");
       setRegisterLoading(false);
@@ -311,13 +330,24 @@ export default function PricingPage() {
     // Generar tenant_id único
     const tenantId = crypto.randomUUID();
 
+    markStartLoginMode();
+
     const { data: signUpData, error } = await supabase.auth.signUp({
-      email,
+      email: normalizedEmail,
       password,
       options: { data: { full_name: name, plan_intento: selectedPlan, tenant_id: tenantId } }
     });
 
     if (error) {
+      if (/already|registered|exists|user.*exist/i.test(error.message || "")) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+        if (!signInError) {
+          setRegisterLoading(false);
+          setShowModal(false);
+          await handlePayWithStripe(selectedPlan);
+          return;
+        }
+      }
       setRegisterError("Error: " + error.message);
       setRegisterLoading(false);
     } else {
@@ -340,7 +370,7 @@ export default function PricingPage() {
         }
 
         // Fallback: si no vino user en signup, intentar login tradicional
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
         if (signInError) {
           const msg = signInError.message || "";
           if (/confirm|confirmed/i.test(msg)) {
@@ -362,10 +392,11 @@ export default function PricingPage() {
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
+    markStartLoginMode();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}`,
+        redirectTo: `${window.location.origin}/pricing`,
       },
     });
     if (error) {
