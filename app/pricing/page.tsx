@@ -39,6 +39,14 @@ function getStripeLinkByPlan(planName: string) {
   return "";
 }
 
+function redirectToStripeLink(planName: string) {
+  const fallbackUrl = getStripeLinkByPlan(planName);
+  if (!fallbackUrl) return false;
+
+  window.location.href = fallbackUrl;
+  return true;
+}
+
 export default function PricingPage() {
   const router = useRouter();
   const [isAnnual, setIsAnnual] = useState(true);
@@ -112,17 +120,20 @@ export default function PricingPage() {
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (data.url) {
         // 3. Redirigir a la sesión generada en tiempo real
         window.location.href = data.url;
       } else {
+        if (redirectToStripeLink(planToPay)) return;
         throw new Error(data.error || "Error al crear la sesión de pago");
       }
     } catch (error: any) {
       console.error("Error en Stripe:", error);
-      alert("No se pudo iniciar el pago: " + error.message);
+      if (!redirectToStripeLink(planToPay)) {
+        alert("No se pudo iniciar el pago: " + (error?.message || "intenta de nuevo"));
+      }
     } finally {
       setPaymentLoading(false);
     }
@@ -231,22 +242,26 @@ export default function PricingPage() {
 
   const handleOpenModal = async (planName: string) => {
     setSelectedPlan(planName);
+    setRegisterError(null);
 
     if (String(planName || "").toLowerCase().includes("medida")) {
       openSalesModal();
       return;
     }
 
-    // ✅ Si ya está logueado, NO muestres modal viejo: manda directo a Stripe
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await handlePayWithStripe(planName);
-      return;
-    }
-
-    // Si NO está logueado, abre SOLO el modal de registro/login
     setModalStep("register");
     setShowModal(true);
+
+    try {
+      // Si ya está logueado, redirige a Stripe; si Supabase tarda, el modal ya quedó visible.
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setModalStep("checkout");
+        await handlePayWithStripe(planName);
+      }
+    } catch (error) {
+      console.warn("No se pudo verificar la sesion antes del checkout:", error);
+    }
   };
 
   // ✅ ABRIR MODAL "A LA MEDIDA"
@@ -562,8 +577,8 @@ if (subError) {
 
         {/* TOGGLE MENSUAL / ANUAL */}
         <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.05)", padding: "4px", borderRadius: "30px", alignItems: "center", border: "1px solid rgba(255,255,255,0.1)" }}>
-          <button onClick={() => setIsAnnual(false)} style={{ padding: "8px 24px", borderRadius: "24px", border: "none", background: !isAnnual ? "#22d3ee" : "transparent", color: !isAnnual ? "#000" : "#94a3b8", fontWeight: "bold", cursor: "pointer", transition: "all 0.3s" }}>Mensual</button>
-          <button onClick={() => setIsAnnual(true)} style={{ padding: "8px 24px", borderRadius: "24px", border: "none", background: isAnnual ? "#22d3ee" : "transparent", color: isAnnual ? "#000" : "#94a3b8", fontWeight: "bold", cursor: "pointer", transition: "all 0.3s", display: "flex", alignItems: "center", gap: "6px" }}>Anual <span style={{ fontSize: "10px", background: "#10b981", color: "#fff", padding: "2px 6px", borderRadius: "10px" }}>-20%</span></button>
+          <button type="button" onClick={() => setIsAnnual(false)} style={{ padding: "8px 24px", borderRadius: "24px", border: "none", background: !isAnnual ? "#22d3ee" : "transparent", color: !isAnnual ? "#000" : "#94a3b8", fontWeight: "bold", cursor: "pointer", transition: "all 0.3s" }}>Mensual</button>
+          <button type="button" onClick={() => setIsAnnual(true)} style={{ padding: "8px 24px", borderRadius: "24px", border: "none", background: isAnnual ? "#22d3ee" : "transparent", color: isAnnual ? "#000" : "#94a3b8", fontWeight: "bold", cursor: "pointer", transition: "all 0.3s", display: "flex", alignItems: "center", gap: "6px" }}>Anual <span style={{ fontSize: "10px", background: "#10b981", color: "#fff", padding: "2px 6px", borderRadius: "10px" }}>-20%</span></button>
         </div>
       </div>
 
@@ -772,7 +787,7 @@ if (subError) {
                         <p style={{ fontSize: "15px", color: "#94a3b8", marginTop: "8px" }}>Para contratar <strong style={{ color: "#fff" }}>Plan {selectedPlan}</strong></p>
                     </div>
 
-                    <button onClick={handleGoogleLogin} disabled={googleLoading} style={{ width: "100%", padding: "14px", borderRadius: "12px", border: "none", background: "#fff", color: "#000", fontWeight: "bold", fontSize: "16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", marginBottom: "24px" }}>
+                    <button type="button" onClick={handleGoogleLogin} disabled={googleLoading} style={{ width: "100%", padding: "14px", borderRadius: "12px", border: "none", background: "#fff", color: "#000", fontWeight: "bold", fontSize: "16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", marginBottom: "24px" }}>
                         {googleLoading ? "Conectando..." : <><FaGoogle size={20} /> Continuar con Google</>}
                     </button>
 
@@ -873,6 +888,7 @@ if (subError) {
                     </p>
 
                     <button
+                      type="button"
                       onClick={() => handlePayWithStripe(selectedPlan)}
                       disabled={paymentLoading}
                       style={{
@@ -1374,7 +1390,12 @@ function PricingCard({ title, price, description, icon, features, missing, isPop
           )}
         </div>
         <button 
-          onClick={onBuy}
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onBuy();
+          }}
           style={{ 
             width: "100%", 
             padding: "14px", 

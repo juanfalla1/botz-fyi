@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 // Importamos Sparkles para el toque estelar visual
-import { Sparkles, Settings, Languages } from "lucide-react";
+import { Sparkles, Languages } from "lucide-react";
 
 const Header = () => {
   const pathname = usePathname();
@@ -247,7 +247,7 @@ const Header = () => {
           backdropFilter: "blur(6px)",
         }}
       >
-        <div className="bz-header-container" style={{ maxWidth: "100%", width: "100%", margin: 0, padding: isMobileView ? "10px 12px" : "12px 10px", display: isMobileView ? "flex" : "grid", gridTemplateColumns: isMobileView ? undefined : "auto minmax(0, 1fr)", columnGap: isMobileView ? 0 : "8px", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="bz-header-container" style={{ maxWidth: "100%", width: "100%", margin: 0, padding: isMobileView ? "10px 12px" : "12px 18px", display: isMobileView ? "flex" : "grid", gridTemplateColumns: isMobileView ? undefined : "auto minmax(0, 1fr)", columnGap: isMobileView ? 0 : "14px", alignItems: "center", justifyContent: "space-between" }}>
           <div className="bz-logo-nav" style={{ width: "auto", display: "flex", alignItems: "center", columnGap: 10, flex: "0 0 auto", justifySelf: "start" }}>
             {/* LOGO MANTENIDO EN LA ESQUINA IZQUIERDA */}
             <Link href="/" passHref style={{ textDecoration: "none", borderBottom: "none", display: "inline-block" }}>
@@ -421,7 +421,7 @@ const Header = () => {
                 opacity: hydrated ? 1 : 0,
               }}
             >
-            <div className="bz-main-nav" role="navigation" aria-label="Main navigation" style={{ marginLeft: "auto", justifyContent: isMobileView ? "flex-start" : "space-between", gap: isMobileView ? 0 : 6, display: "flex", alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", width: "100%" }}>
+            <div className="bz-main-nav" role="navigation" aria-label="Main navigation" style={{ marginLeft: "auto", justifyContent: isMobileView ? "flex-start" : "flex-end", gap: isMobileView ? 0 : 6, display: "flex", alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", width: "100%" }}>
 
               <div className="bz-nav-links-group" style={{ marginLeft: 0 }}>
 
@@ -741,9 +741,9 @@ const Header = () => {
         .bz-hamburger span { display: block; height: 4px; width: 100%; background: #10b2cb; border-radius: 2px; }
 
         .bz-nav-container { display: flex; gap: 12px; min-width: 0; flex: 1; justify-content: flex-end; margin-left: auto; padding-left: 0; }
-        .bz-main-nav { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; min-width: 0; justify-content: space-between; margin-left: auto; width: 100%; }
-        .bz-nav-links-group { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 auto; }
-        .bz-nav-cta-group { display: flex; align-items: center; gap: 3px; margin-left: 4px; flex-shrink: 0; }
+        .bz-main-nav { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; justify-content: flex-end; margin-left: auto; width: 100%; }
+        .bz-nav-links-group { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; }
+        .bz-nav-cta-group { display: flex; align-items: center; gap: 4px; margin-left: 4px; flex: 0 0 auto; }
 
         @media (min-width: 1025px) {
           .bz-header .bz-logo-nav {
@@ -763,7 +763,7 @@ const Header = () => {
           }
           .bz-header .bz-main-nav {
             display: flex !important;
-            justify-content: space-between !important;
+            justify-content: flex-end !important;
             align-items: center !important;
             flex-wrap: nowrap !important;
             gap: 8px !important;
@@ -787,12 +787,12 @@ const Header = () => {
 
         @media (min-width: 1025px) {
           .bz-header .bz-main-nav { width: 100% !important; }
-          .bz-header .bz-nav-links-group { flex: 1 1 auto !important; justify-content: center !important; }
+          .bz-header .bz-nav-links-group { flex: 0 1 auto !important; justify-content: flex-end !important; }
           .bz-header .bz-nav-cta-group { flex: 0 0 auto !important; margin-left: 6px !important; }
           .bz-header .bz-main-nav a,
           .bz-header .bz-main-nav :global(a) {
-            font-size: 15px !important;
-            padding: 7px 7px !important;
+            font-size: 13px !important;
+            padding: 6px 6px !important;
           }
           .bz-header .auth-login-btn,
           .bz-header .auth-signup-btn,
