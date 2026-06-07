@@ -251,7 +251,7 @@ const Header = () => {
           <div className="bz-logo-nav" style={{ width: "auto", display: "flex", alignItems: "center", columnGap: 10, flex: "0 0 auto", justifySelf: "start" }}>
             {/* LOGO MANTENIDO EN LA ESQUINA IZQUIERDA */}
             <Link href="/" passHref style={{ textDecoration: "none", borderBottom: "none", display: "inline-block" }}>
-              <h1 className="logo glow" style={{ cursor: "pointer", textDecoration: "none", borderBottom: "none" }}>
+              <h1 className="logo glow" style={{ cursor: "pointer", textDecoration: "none", borderBottom: "none", margin: 0, fontSize: "34px", fontWeight: 900, color: "#10b2cb", lineHeight: 1 }}>
                 botz
               </h1>
             </Link>

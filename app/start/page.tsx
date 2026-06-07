@@ -142,7 +142,7 @@ export default function BotzLandingExperience() {
   // ✅ Usar el contexto de autenticación
   const { user, loading: authLoading, isAdmin, isAsesor, isPlatformAdmin, hasPermission, tenantId, teamMemberId } = useAuth();
   
-  const [activeTab, setActiveTab] = useState<Tab>("demo");
+  const [activeTab, setActiveTab] = useState<Tab>(() => (searchParams.get("auth") === "1" ? "crm" : "demo"));
   const [hipotecaMode, setHipotecaMode] = useState<"manual" | "lead">("manual");
   const [hipotecaLeadId, setHipotecaLeadId] = useState<string>("");
   const [step, setStep] = useState(0);
@@ -150,7 +150,7 @@ export default function BotzLandingExperience() {
   const [showExplanation, setShowExplanation] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showDock, setShowDock] = useState(false);
-  const [openAuth, setOpenAuth] = useState(false);
+  const [openAuth, setOpenAuth] = useState(() => searchParams.get("auth") === "1");
 
   useEffect(() => {
     // If redirected from deprecated /login, force opening auth.
@@ -267,6 +267,7 @@ export default function BotzLandingExperience() {
   useEffect(() => {
     if (authLoading) return;
     if (user) return;
+    if (searchParams.get("auth") === "1") return;
 
     // Reset UI state when session ends
     setActiveTab("demo");
@@ -296,7 +297,7 @@ export default function BotzLandingExperience() {
       valorVivienda: 0,
       deudasExistentes: 0,
     });
-  }, [user, authLoading]);
+  }, [user, authLoading, searchParams]);
 
   useEffect(() => { window.scrollTo(0, 0); }, []);
 
