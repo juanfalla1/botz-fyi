@@ -59,7 +59,8 @@ export async function POST(req: Request) {
       email,
       password,
       email_confirm: true,
-      user_metadata: { product_key: "agents", full_name: fullName, name: fullName },
+      user_metadata: { product_key: "agents", auth_product: "agents", full_name: fullName, name: fullName },
+      app_metadata: { product_key: "agents" },
     });
 
     if (createErr) {
