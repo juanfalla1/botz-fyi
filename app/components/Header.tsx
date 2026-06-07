@@ -595,7 +595,7 @@ const Header = () => {
               </div>
 
               <Link
-                href="/start?auth=1"
+                href="/start/agents?auth=login"
                 className="auth-login-btn"
                 onClick={closeMenu}
                 onMouseMove={handleMouseGlowMove}
