@@ -237,6 +237,9 @@ export default function AgentsAuthModal({
       }
 
       console.log("[AgentsAuth] OAuth started successfully, redirecting to:", data.url);
+      if (data.url && typeof window !== "undefined") {
+        window.location.assign(data.url);
+      }
 
     } catch (e: any) {
       console.error("[AgentsAuth] Full error:", e);
@@ -446,6 +449,31 @@ export default function AgentsAuthModal({
 
           {mode === "login" && (
             <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <button
+                type="button"
+                onClick={handleGoogle}
+                disabled={loading}
+                style={{
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: "#fff",
+                  color: "#111827",
+                  fontSize: 14,
+                  fontWeight: 800,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.6 : 1,
+                }}
+              >
+                {loading ? tr("Conectando...", "Connecting...") : tr("Continuar con Google", "Continue with Google")}
+              </button>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#64748b", fontSize: 12, fontWeight: 700 }}>
+                <span style={{ flex: 1, height: 1, background: "rgba(148,163,184,0.25)" }} />
+                <span>{tr("O con correo", "Or with email")}</span>
+                <span style={{ flex: 1, height: 1, background: "rgba(148,163,184,0.25)" }} />
+              </div>
+
               <input
                 type="email"
                 placeholder="Email"
@@ -496,7 +524,7 @@ export default function AgentsAuthModal({
               </button>
               
               <div style={{ marginTop: 4, color: "#94a3b8", fontSize: 12, textAlign: "center" }}>
-                {tr("Agentes usa una sesion independiente. Ingresa con correo.", "Agents uses a separate session. Sign in with email.")}
+                {tr("Agentes usa una sesion independiente.", "Agents uses a separate session.")}
               </div>
             </form>
           )}
@@ -550,6 +578,24 @@ export default function AgentsAuthModal({
                 }}
               />
               <button
+                type="button"
+                onClick={handleGoogle}
+                disabled={loading}
+                style={{
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: "#fff",
+                  color: "#111827",
+                  fontSize: 14,
+                  fontWeight: 800,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.6 : 1,
+                }}
+              >
+                {loading ? tr("Conectando...", "Connecting...") : tr("Crear/entrar con Google", "Create/sign in with Google")}
+              </button>
+              <button
                 type="submit"
                 disabled={loading}
                 style={{
@@ -587,10 +633,6 @@ export default function AgentsAuthModal({
                   ? tr("Enviando codigo...", "Sending code...")
                   : tr("No llega el correo? Verificar con codigo OTP", "Email not arriving? Verify with OTP code")}
               </button>
-
-              <div style={{ marginTop: 4, color: "#94a3b8", fontSize: 12, textAlign: "center" }}>
-                {tr("Google esta desactivado aqui para mantener Agentes separado.", "Google is disabled here to keep Agents separate.")}
-              </div>
             </form>
           )}
 

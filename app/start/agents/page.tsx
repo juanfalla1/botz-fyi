@@ -108,6 +108,14 @@ export default function AgentStudio() {
     }, 400);
   }
 
+  async function ensureAgentsProfile() {
+    try {
+      await authedFetch("/api/agents/auth/ensure-profile", { method: "POST" });
+    } catch (error) {
+      console.warn("[Agentes] No se pudo marcar el perfil como Agents:", error);
+    }
+  }
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -150,6 +158,7 @@ export default function AgentStudio() {
         setUser(sessionUser);
         setAuthLoading(false);
         setOpenAuth(false);
+        void ensureAgentsProfile();
         warmAfterLogin();
         return;
       }
@@ -174,13 +183,13 @@ export default function AgentStudio() {
         setUser(u);
         setAuthLoading(false);
         setOpenAuth(false);
+        void ensureAgentsProfile();
         if (event === "SIGNED_IN") warmAfterLogin();
       } else if (event === "SIGNED_OUT") {
         setUser(null);
         setAuthLoading(false);
         setChannelRows([]);
-        setOpenAuth(false);
-        router.push("/");
+        setOpenAuth(true);
       }
     });
 
