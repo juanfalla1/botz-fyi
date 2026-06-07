@@ -831,7 +831,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
            console.log("👤 [Auth] Usuario logueado:", session.user.email);
            console.log("📋 [Auth] user_metadata:", JSON.stringify(session.user.user_metadata, null, 2));
            console.log("📋 [Auth] app_metadata:", JSON.stringify(session.user.app_metadata, null, 2));
-           setUser(session.user);
+          setUser(session.user);
+          setLoading(false);
 
             // 🔒 Prioridad absoluta: super admin por email nunca cae en expiración de trial
             if (isSuperAdminEmail(session.user.email)) {
@@ -1003,8 +1004,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
          }
 
          if (!alive) return;
-         console.log("✅ Auth event con sesión:", event, session.user.email);
-         setUser(session.user);
+          console.log("✅ Auth event con sesión:", event, session.user.email);
+          setUser(session.user);
+          setLoading(false);
 
           // 🔒 Prioridad absoluta: super admin por email nunca cae en expiración de trial
           if (isSuperAdminEmail(session.user.email)) {

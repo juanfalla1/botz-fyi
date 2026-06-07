@@ -128,6 +128,35 @@ export default function PricingPage() {
     }
   };
 
+  const handleExistingAccountCheckout = async () => {
+    setRegisterLoading(true);
+    setRegisterError(null);
+
+    const normalizedEmail = normalizeLoginEmail(email);
+    if (!isValidEmail(normalizedEmail)) {
+      setRegisterError("Ingresa tu correo para iniciar sesion.");
+      setRegisterLoading(false);
+      return;
+    }
+    if (!password) {
+      setRegisterError("Ingresa tu contrasena.");
+      setRegisterLoading(false);
+      return;
+    }
+
+    try {
+      markStartLoginMode();
+      const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+      if (error) throw error;
+      setShowModal(false);
+      await handlePayWithStripe(selectedPlan);
+    } catch (error: any) {
+      setRegisterError(error?.message || "No se pudo iniciar sesion.");
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
+
 
   // ✅ Modal bonito de éxito
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -821,6 +850,15 @@ if (subError) {
                         )}
 
                         <button type="submit" disabled={registerLoading} style={{ marginTop: "8px", width: "100%", padding: "16px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #22d3ee 0%, #3b82f6 100%)", color: "#fff", fontWeight: "bold", fontSize: "16px", cursor: "pointer" }}>{registerLoading ? "Cargando..." : "Continuar a Stripe →"}</button>
+
+                        <button
+                          type="button"
+                          onClick={handleExistingAccountCheckout}
+                          disabled={registerLoading}
+                          style={{ width: "100%", padding: "13px", borderRadius: "10px", border: "1px solid rgba(34,211,238,0.35)", background: "rgba(34,211,238,0.08)", color: "#67e8f9", fontWeight: "bold", fontSize: "14px", cursor: registerLoading ? "not-allowed" : "pointer" }}
+                        >
+                          Ya tengo cuenta, iniciar sesion y pagar
+                        </button>
                     </form>
                 </div>
               )}

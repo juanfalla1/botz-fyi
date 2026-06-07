@@ -82,14 +82,11 @@ export default function AuthModal({
       if (error) throw error;
       markStartLoginMode();
 
-      setMsg("✅ Sesión iniciada. Cargando...");
-      
-      // Cerrar modal y recargar página para asegurar estado correcto
-      setTimeout(() => {
-        onLoggedIn?.();
-        close();
-        window.location.reload();
-      }, 800);
+      setMsg("✅ Sesión iniciada.");
+      onLoggedIn?.();
+      close();
+      window.dispatchEvent(new CustomEvent("botz-auth-refresh"));
+      setLoading(false);
     } catch (e: any) {
       setErr(e?.message || "Error iniciando sesión");
       setLoading(false);
