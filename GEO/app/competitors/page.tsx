@@ -40,10 +40,36 @@ import Link from "next/link"
 
 const promptBuckets = ["Brand", "Product", "Category", "Comparison", "Intent"]
 
+type CompetitorInsight = {
+  id: string
+  name: string
+  domain: string | null
+  project_id: string | null
+  created_at?: string
+  geo_score: number
+  visibility: number
+  citations: number
+  prompts_won: number
+  mentions: number
+  total_checks: number
+  engines: string[]
+}
+
+type CompetitorSummary = {
+  your_geo_score: number
+  your_visibility: number
+  tracked_competitors: number
+  won_prompts: number
+  total_citations: number
+  leader: { id: string; name: string; geo_score: number; visibility: number } | null
+  completed_audits: number
+}
+
 export default function CompetitorsPage() {
   const { t, locale } = useGeoI18n()
   const isEn = locale === "en"
-  const [liveCompetitors, setLiveCompetitors] = useState<Array<{ id: string; name: string; domain: string; created_at?: string }>>([])
+  const [liveCompetitors, setLiveCompetitors] = useState<CompetitorInsight[]>([])
+  const [summary, setSummary] = useState<CompetitorSummary | null>(null)
   const [openAddModal, setOpenAddModal] = useState(false)
   const [expandedFields, setExpandedFields] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -55,10 +81,11 @@ export default function CompetitorsPage() {
       data: { session },
     } = await supabaseGeo.auth.getSession()
     if (!session?.access_token) return
-    const res = await fetch("/api/geo/competitors", { headers: { Authorization: `Bearer ${session.access_token}` } })
+    const res = await fetch("/api/geo/competitors/insights", { headers: { Authorization: `Bearer ${session.access_token}` } })
     if (!res.ok) return
-    const json = (await res.json()) as { data?: Array<{ id: string; name: string; domain: string | null; created_at?: string }> }
-    setLiveCompetitors((json.data ?? []).map((c) => ({ id: c.id, name: c.name, domain: c.domain ?? "", created_at: c.created_at })))
+    const json = (await res.json()) as { data?: { competitors?: CompetitorInsight[]; summary?: CompetitorSummary } }
+    setLiveCompetitors(json.data?.competitors ?? [])
+    setSummary(json.data?.summary ?? null)
   }
 
   useEffect(() => {
@@ -110,12 +137,13 @@ export default function CompetitorsPage() {
       id: c.id,
       name: c.name,
       domain: c.domain || "-",
-      geoScore: 0,
-      visibility: 0,
-      citations: 0,
+      projectId: c.project_id,
+      geoScore: c.geo_score,
+      visibility: c.visibility,
+      citations: c.citations,
       trend: "up",
-      change: "--",
-      promptsWon: 0,
+      change: c.total_checks > 0 ? `${c.mentions}/${c.total_checks}` : "--",
+      promptsWon: c.prompts_won,
     }))
   }, [liveCompetitors])
 
@@ -123,15 +151,15 @@ export default function CompetitorsPage() {
     () => [
       {
         title: isEn ? "Your GEO Score" : "Tu GEO Score",
-        value: "0",
+        value: String(summary?.your_geo_score ?? 0),
         suffix: "/100",
-        comparison: isEn ? "pending completed audits" : "pendiente de auditorias completadas",
+        comparison: summary?.completed_audits ? (isEn ? "latest completed audit" : "ultima auditoria completada") : (isEn ? "pending completed audits" : "pendiente de auditorias completadas"),
         icon: Target,
         color: "primary",
       },
       {
         title: isEn ? "Tracked Competitors" : "Competidores Tracked",
-        value: String(tableCompetitors.length),
+        value: String(summary?.tracked_competitors ?? tableCompetitors.length),
         suffix: "",
         comparison: isEn ? "real records" : "registros reales",
         icon: Eye,
@@ -139,39 +167,46 @@ export default function CompetitorsPage() {
       },
       {
         title: isEn ? "Won Prompts" : "Prompts Ganados",
-        value: "0",
+        value: String(summary?.won_prompts ?? 0),
         suffix: "",
-        comparison: isEn ? "pending matching data" : "pendiente de data de matching",
+        comparison: summary?.completed_audits ? (isEn ? "brand mentions found" : "menciones de marca detectadas") : (isEn ? "pending matching data" : "pendiente de data de matching"),
         icon: Trophy,
         color: "green-400",
       },
       {
         title: isEn ? "Total Citations" : "Citas Totales",
-        value: "0",
+        value: String(summary?.total_citations ?? 0),
         suffix: "",
         comparison: isEn ? "pending extraction" : "pendiente de extraccion",
         icon: Quote,
         color: "blue-400",
       },
     ],
-    [isEn, tableCompetitors.length]
+    [isEn, summary, tableCompetitors.length]
   )
 
   const radarData = useMemo(
-    () => [
-      { metric: "GEO Score", you: 0, leader: 0, average: 0 },
-      { metric: "Visibility", you: 0, leader: 0, average: 0 },
-      { metric: "Citations", you: 0, leader: 0, average: 0 },
-      { metric: "Authority", you: 0, leader: 0, average: 0 },
-      { metric: "Content", you: 0, leader: 0, average: 0 },
-      { metric: "Technical", you: 0, leader: 0, average: 0 },
-    ],
-    []
+    () => {
+      const avgScore = tableCompetitors.length > 0 ? Math.round(tableCompetitors.reduce((sum, item) => sum + item.geoScore, 0) / tableCompetitors.length) : 0
+      const avgVisibility = tableCompetitors.length > 0 ? Math.round(tableCompetitors.reduce((sum, item) => sum + item.visibility, 0) / tableCompetitors.length) : 0
+      return [
+        { metric: "GEO Score", you: summary?.your_geo_score ?? 0, leader: summary?.leader?.geo_score ?? 0, average: avgScore },
+        { metric: "Visibility", you: summary?.your_visibility ?? 0, leader: summary?.leader?.visibility ?? 0, average: avgVisibility },
+        { metric: "Citations", you: summary?.total_citations ?? 0, leader: 0, average: 0 },
+        { metric: "Authority", you: summary?.your_geo_score ?? 0, leader: summary?.leader?.geo_score ?? 0, average: avgScore },
+        { metric: "Content", you: summary?.your_visibility ?? 0, leader: summary?.leader?.visibility ?? 0, average: avgVisibility },
+        { metric: "Technical", you: summary?.your_geo_score ?? 0, leader: summary?.leader?.geo_score ?? 0, average: avgScore },
+      ]
+    },
+    [summary, tableCompetitors]
   )
 
   const promptsData = useMemo(
-    () => promptBuckets.map((prompt) => ({ prompt, you: 0, competitor: 0 })),
-    []
+    () => {
+      const competitorWins = Math.max(0, ...tableCompetitors.map((item) => item.promptsWon))
+      return promptBuckets.map((prompt, index) => ({ prompt, you: index === 0 ? summary?.won_prompts ?? 0 : 0, competitor: index === 0 ? competitorWins : 0 }))
+    },
+    [summary, tableCompetitors]
   )
 
   return (
@@ -312,7 +347,7 @@ export default function CompetitorsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-hidden lg:overflow-x-visible">
+              <div className="overflow-visible">
                 <table className="w-full table-fixed">
                   <thead>
                     <tr className="border-b border-border">
@@ -382,10 +417,11 @@ export default function CompetitorsPage() {
                             </div>
                           )}
                         </td>
-                        <td className="py-4 px-4 text-right">
+                        <td className="relative overflow-visible py-4 px-4 text-right">
                           <CompetitorActionsMenu
                             competitorId={typeof competitor.id === "number" ? String(competitor.id) : competitor.id}
                             competitorName={competitor.name}
+                            projectId={competitor.projectId}
                             locale={locale}
                           />
                         </td>

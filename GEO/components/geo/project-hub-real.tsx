@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { ArrowLeft, BarChart3, FileSearch, Globe, MessageSquare, Sparkles, Target, Users, Zap } from "lucide-react"
+import { ArrowLeft, BarChart3, FileSearch, Globe, MessageSquare, Sparkles, Target, Users, Wrench, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AppHeader } from "@/GEO/components/geo/app-shell"
@@ -40,6 +40,10 @@ export default function ProjectHubReal() {
   const [state, setState] = useState<LoadState>({ project: null, audits: [], competitors: [], prompts: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [competitorName, setCompetitorName] = useState("")
+  const [competitorDomain, setCompetitorDomain] = useState("")
+  const [savingCompetitor, setSavingCompetitor] = useState(false)
+  const [competitorFeedback, setCompetitorFeedback] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -90,6 +94,40 @@ export default function ProjectHubReal() {
   const score = latestAudit?.final_score ?? numberFrom(latestSummary.geo_score)
   const activePrompts = state.prompts.filter((prompt) => prompt.enabled).length
   const completedAudits = state.audits.filter((audit) => audit.status === "completed").length
+
+  const addProjectCompetitor = async () => {
+    if (!projectId || !competitorName.trim()) {
+      setCompetitorFeedback(isEn ? "Competitor name is required." : "El nombre del competidor es obligatorio.")
+      return
+    }
+    setSavingCompetitor(true)
+    setCompetitorFeedback(null)
+    try {
+      const {
+        data: { session },
+      } = await supabaseGeo.auth.getSession()
+      if (!session?.access_token) throw new Error(isEn ? "Sign in to add competitors." : "Inicia sesión para agregar competidores.")
+      const res = await fetch("/api/geo/competitors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          project_id: projectId,
+          name: competitorName.trim(),
+          domain: competitorDomain.trim() || null,
+        }),
+      })
+      const json = (await res.json().catch(() => null)) as { data?: CompetitorRecord; error?: string } | null
+      if (!res.ok || !json?.data) throw new Error(json?.error || (isEn ? "Could not add competitor." : "No se pudo agregar el competidor."))
+      setState((current) => ({ ...current, competitors: [json.data as CompetitorRecord, ...current.competitors] }))
+      setCompetitorName("")
+      setCompetitorDomain("")
+      setCompetitorFeedback(isEn ? "Competitor added to this project." : "Competidor agregado a este proyecto.")
+    } catch (err) {
+      setCompetitorFeedback(err instanceof Error ? err.message : isEn ? "Could not add competitor." : "No se pudo agregar el competidor.")
+    } finally {
+      setSavingCompetitor(false)
+    }
+  }
 
   return (
     <>
@@ -160,6 +198,41 @@ export default function ProjectHubReal() {
               </Card>
             </div>
 
+            <Card className="glass border-border">
+              <CardHeader><CardTitle>{isEn ? "Project Competitors" : "Competidores del proyecto"}</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+                  <input
+                    value={competitorName}
+                    onChange={(event) => setCompetitorName(event.target.value)}
+                    placeholder={isEn ? "Competitor name" : "Nombre del competidor"}
+                    className="rounded-xl border border-border bg-secondary/40 px-4 py-3 text-sm"
+                  />
+                  <input
+                    value={competitorDomain}
+                    onChange={(event) => setCompetitorDomain(event.target.value)}
+                    placeholder={isEn ? "Domain, optional" : "Dominio, opcional"}
+                    className="rounded-xl border border-border bg-secondary/40 px-4 py-3 text-sm"
+                  />
+                  <Button onClick={addProjectCompetitor} disabled={savingCompetitor} className="bg-primary hover:bg-primary/90">
+                    {savingCompetitor ? (isEn ? "Adding..." : "Agregando...") : isEn ? "Add" : "Agregar"}
+                  </Button>
+                </div>
+                {competitorFeedback && <p className="text-sm text-primary">{competitorFeedback}</p>}
+                {state.competitors.length === 0 && <p className="text-sm text-muted-foreground">{isEn ? "No competitors linked to this project yet." : "Aún no hay competidores vinculados a este proyecto."}</p>}
+                {state.competitors.length > 0 && (
+                  <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                    {state.competitors.map((competitor) => (
+                      <div key={competitor.id} className="rounded-xl border border-border bg-secondary/25 p-3 text-sm">
+                        <p className="font-medium">{competitor.name}</p>
+                        <p className="text-xs text-muted-foreground">{competitor.domain || "--"}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <div className="grid gap-6 lg:grid-cols-3">
               <Card className="glass border-border lg:col-span-2">
                 <CardHeader><CardTitle>{isEn ? "Recent Audits" : "Auditorías recientes"}</CardTitle></CardHeader>
@@ -179,6 +252,8 @@ export default function ProjectHubReal() {
                 <CardContent className="space-y-3">
                   <Button className="w-full justify-start" variant="outline" asChild><Link href={`/geo/app/projects/${projectId}/recommendations`}><BarChart3 className="mr-2 h-4 w-4" />{isEn ? "Recommendations" : "Recomendaciones"}</Link></Button>
                   <Button className="w-full justify-start" variant="outline" asChild><Link href={`/geo/app/projects/${projectId}/content-opportunities`}><Zap className="mr-2 h-4 w-4" />{isEn ? "Content Opportunities" : "Oportunidades"}</Link></Button>
+                  <Button className="w-full justify-start" variant="outline" asChild><Link href={`/geo/app/projects/${projectId}/technical-fixes`}><Wrench className="mr-2 h-4 w-4" />{isEn ? "Technical Fixes" : "Fixes técnicos"}</Link></Button>
+                  <Button className="w-full justify-start" variant="outline" asChild><Link href={`/geo/app/projects/${projectId}/impact`}><Target className="mr-2 h-4 w-4" />{isEn ? "Impact Tracking" : "Impacto"}</Link></Button>
                   <Button className="w-full justify-start" variant="outline" asChild><Link href="/geo/app/automations"><Target className="mr-2 h-4 w-4" />{isEn ? "Automations" : "Automatizaciones"}</Link></Button>
                 </CardContent>
               </Card>

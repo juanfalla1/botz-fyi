@@ -31,6 +31,16 @@ export async function POST(req: Request) {
     const { supabase, user } = await getGeoApiClient(req)
     await assertProjectOwner(supabase, user.id, parsed.data.project_id ?? null)
     await assertCompetitorOwner(supabase, user.id, parsed.data.competitor_id ?? null)
+    if (parsed.data.project_id && parsed.data.competitor_id) {
+      const { data: competitor, error: competitorError } = await supabase
+        .from("competitors")
+        .select("project_id")
+        .eq("id", parsed.data.competitor_id)
+        .eq("user_id", user.id)
+        .maybeSingle()
+      if (competitorError) throw competitorError
+      if (!competitor || competitor.project_id !== parsed.data.project_id) throw new Error("Competitor is not linked to this project")
+    }
     const data = await createAutomation(supabase, {
       user_id: user.id,
       project_id: parsed.data.project_id ?? null,

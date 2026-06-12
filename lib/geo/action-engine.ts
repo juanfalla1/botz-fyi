@@ -1,0 +1,191 @@
+import type { SupabaseClient } from "@supabase/supabase-js"
+
+export type GeoActionProject = {
+  id: string
+  user_id: string
+  company_name: string
+  website_url: string
+  industry?: string | null
+  country?: string | null
+  language?: string | null
+  business_goal?: string | null
+}
+
+export type GeoActionAudit = {
+  id: string
+  project_id: string
+  final_score: number | null
+  summary: string | null
+  completed_at: string | null
+  created_at: string
+}
+
+export type GeoActionCompetitor = {
+  id: string
+  name: string
+  domain: string | null
+}
+
+export type GeoCompetitorMention = {
+  audit_id: string
+  competitor_name: string
+  engine: string
+  mentioned: boolean
+  mention_context: string | null
+  position: number | null
+}
+
+export type GeoActionContext = {
+  project: GeoActionProject
+  audits: GeoActionAudit[]
+  latestAudit: GeoActionAudit | null
+  latestSummary: Record<string, unknown>
+  recommendations: Array<Record<string, unknown>>
+  opportunities: Array<Record<string, unknown>>
+  competitors: GeoActionCompetitor[]
+  competitorMentions: GeoCompetitorMention[]
+}
+
+export async function loadGeoActionContext(supabase: SupabaseClient, userId: string, projectId: string): Promise<GeoActionContext | null> {
+  const { data: project, error: projectError } = await supabase
+    .from("projects")
+    .select("id, user_id, company_name, website_url, industry, country, language, business_goal")
+    .eq("id", projectId)
+    .eq("user_id", userId)
+    .maybeSingle()
+  if (projectError) throw projectError
+  if (!project) return null
+
+  const { data: audits, error: auditsError } = await supabase
+    .from("geo_audits")
+    .select("id, project_id, final_score, summary, completed_at, created_at")
+    .eq("project_id", projectId)
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false, nullsFirst: false })
+    .limit(8)
+  if (auditsError) throw auditsError
+
+  const auditRows = (audits ?? []) as GeoActionAudit[]
+  const auditIds = auditRows.map((audit) => String(audit.id))
+  const { data: competitors, error: competitorsError } = await supabase
+    .from("competitors")
+    .select("id, name, domain")
+    .eq("project_id", projectId)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+  if (competitorsError) throw competitorsError
+
+  const [recommendationsResult, opportunitiesResult, competitorMentionsResult] = auditIds.length > 0
+    ? await Promise.all([
+        supabase
+          .from("recommendations")
+          .select("id, audit_id, title, description, priority, type, suggested_action, status, created_at")
+          .in("audit_id", auditIds)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("content_opportunities")
+          .select("id, audit_id, title, target_prompt, intent, recommended_format, priority, brief, created_at")
+          .in("audit_id", auditIds)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("competitor_mentions")
+          .select("audit_id, competitor_name, engine, mentioned, mention_context, position")
+          .in("audit_id", auditIds),
+      ])
+    : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }]
+  if (recommendationsResult.error) throw recommendationsResult.error
+  if (opportunitiesResult.error) throw opportunitiesResult.error
+  if (competitorMentionsResult.error) throw competitorMentionsResult.error
+
+  const latestAudit = auditRows[0] ?? null
+  return {
+    project: project as GeoActionProject,
+    audits: auditRows,
+    latestAudit,
+    latestSummary: parseSummary(latestAudit?.summary),
+    recommendations: (recommendationsResult.data ?? []) as Array<Record<string, unknown>>,
+    opportunities: (opportunitiesResult.data ?? []) as Array<Record<string, unknown>>,
+    competitors: (competitors ?? []).map((competitor) => ({
+      id: String(competitor.id),
+      name: String(competitor.name),
+      domain: competitor.domain ? String(competitor.domain) : null,
+    })),
+    competitorMentions: (competitorMentionsResult.data ?? []).map((mention) => ({
+      audit_id: String(mention.audit_id),
+      competitor_name: String(mention.competitor_name),
+      engine: String(mention.engine),
+      mentioned: Boolean(mention.mentioned),
+      mention_context: mention.mention_context ? String(mention.mention_context) : null,
+      position: typeof mention.position === "number" ? mention.position : null,
+    })),
+  }
+}
+
+export function competitiveSnapshot(ctx: GeoActionContext) {
+  const mentioned = ctx.competitorMentions.filter((mention) => mention.mentioned)
+  const counts = new Map<string, { name: string; mentions: number; engines: Set<string>; bestPosition: number | null }>()
+  for (const mention of mentioned) {
+    const current = counts.get(mention.competitor_name) ?? { name: mention.competitor_name, mentions: 0, engines: new Set<string>(), bestPosition: null }
+    current.mentions += 1
+    current.engines.add(mention.engine)
+    if (typeof mention.position === "number") current.bestPosition = current.bestPosition === null ? mention.position : Math.min(current.bestPosition, mention.position)
+    counts.set(mention.competitor_name, current)
+  }
+  const leaders = Array.from(counts.values())
+    .map((item) => ({ name: item.name, mentions: item.mentions, engines: Array.from(item.engines), best_position: item.bestPosition }))
+    .sort((a, b) => b.mentions - a.mentions)
+  return {
+    tracked_competitors: ctx.competitors.length,
+    mentioned_competitors: leaders.length,
+    top_competitor: leaders[0] ?? null,
+    competitors: leaders,
+  }
+}
+
+export function parseSummary(summary: unknown): Record<string, unknown> {
+  if (summary && typeof summary === "object" && !Array.isArray(summary)) return summary as Record<string, unknown>
+  if (!summary || typeof summary !== "string") return {}
+  try {
+    const parsed = JSON.parse(summary)
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+  } catch {
+    return {}
+  }
+}
+
+export function numberFrom(value: unknown) {
+  const numeric = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(numeric) ? Math.round(numeric) : 0
+}
+
+export function objectArray(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item)) : []
+}
+
+export function normalizePriority(value: unknown): "high" | "medium" | "low" {
+  const text = String(value ?? "medium").toLowerCase()
+  if (text.includes("alta") || text.includes("high")) return "high"
+  if (text.includes("baja") || text.includes("low")) return "low"
+  return "medium"
+}
+
+export function priorityRank(priority: "high" | "medium" | "low") {
+  return priority === "high" ? 0 : priority === "medium" ? 1 : 2
+}
+
+export function latestAuditSnapshot(ctx: GeoActionContext) {
+  const semantic = ctx.latestSummary.semantic_analysis && typeof ctx.latestSummary.semantic_analysis === "object"
+    ? ctx.latestSummary.semantic_analysis as Record<string, unknown>
+    : null
+  return ctx.latestAudit ? {
+    id: ctx.latestAudit.id,
+    final_score: ctx.latestAudit.final_score,
+    completed_at: ctx.latestAudit.completed_at,
+    geo_score: numberFrom(ctx.latestSummary.geo_score ?? ctx.latestAudit.final_score),
+    ai_visibility: numberFrom(ctx.latestSummary.ai_visibility ?? semantic?.brand_visibility),
+    prompts_won: numberFrom(ctx.latestSummary.prompts_won),
+    prompts_lost: numberFrom(ctx.latestSummary.prompts_lost),
+    citations_count: numberFrom(ctx.latestSummary.citations_count),
+    executive_summary: semantic ? String(semantic.executive_summary ?? ctx.latestSummary.summary ?? "") : String(ctx.latestSummary.summary ?? ""),
+  } : null
+}

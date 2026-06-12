@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
     const { data: project, error: projectError } = await supabase
       .from("projects")
-      .select("id, company_name, website_url, country, language, industry, business_goal")
+      .select("id, company_name, website_url, country, language, industry, business_goal, brand_aliases, domain_aliases, entity_stopwords")
       .eq("id", projectId)
       .eq("user_id", user.id)
       .maybeSingle()
@@ -55,10 +55,13 @@ export async function POST(req: Request) {
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 })
 
     const { data: competitors } = await supabase
-      .from("project_competitors")
-      .select("competitor_name")
+      .from("competitors")
+      .select("name, aliases, domain_aliases")
       .eq("project_id", projectId)
-    const competitorNames = (competitors ?? []).map((item) => String(item.competitor_name)).filter(Boolean)
+      .eq("user_id", user.id)
+    const competitorNames = (competitors ?? []).map((item) => String(item.name)).filter(Boolean)
+    const competitorAliases = Object.fromEntries((competitors ?? []).map((item) => [String(item.name), Array.isArray(item.aliases) ? item.aliases.map((alias) => String(alias)) : []]))
+    const competitorDomainAliases = Object.fromEntries((competitors ?? []).map((item) => [String(item.name), Array.isArray(item.domain_aliases) ? item.domain_aliases.map((alias) => String(alias)) : []]))
     const engines = Array.isArray(prompt.engines) ? prompt.engines.map((item) => normalizeEngineName(String(item))) : ["openai"]
     await consumeServerUsage(supabase, user.id, "prompt", Math.max(1, engines.length), { source: "api_geo_prompts_run", prompt_id: promptId, project_id: projectId })
     const results = []
@@ -85,12 +88,12 @@ export async function POST(req: Request) {
           raw,
           brandName: project.company_name,
           brandDomain: String(project.website_url).replace(/^https?:\/\//, ""),
-          brandAliases: [],
-          domainAliases: [],
+          brandAliases: Array.isArray(project.brand_aliases) ? project.brand_aliases.map((alias) => String(alias)) : [],
+          domainAliases: Array.isArray(project.domain_aliases) ? project.domain_aliases.map((alias) => String(alias)) : [],
           competitorNames,
-          competitorAliases: {},
-          competitorDomainAliases: {},
-          stopwords: [],
+          competitorAliases,
+          competitorDomainAliases,
+          stopwords: Array.isArray(project.entity_stopwords) ? project.entity_stopwords.map((word) => String(word)) : [],
           language: project.language,
           country: project.country,
         })

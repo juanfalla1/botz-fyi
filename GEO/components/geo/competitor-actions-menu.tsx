@@ -4,25 +4,21 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
 import {
+  Bell,
   MoreHorizontal,
-  FileText,
-  Scale,
- RotateCw,
- Sparkles,
- Download,
- Bell,
- Trash2,
-  Eye,
+  RotateCw,
+  Trash2,
 } from "lucide-react"
 import { supabaseGeo } from "@/app/geo/supabaseGeoClient"
 
 type Props = {
   competitorId: string
   competitorName: string
+  projectId?: string | null
   locale: "es" | "en"
 }
 
-export function CompetitorActionsMenu({ competitorId, competitorName, locale }: Props) {
+export function CompetitorActionsMenu({ competitorId, competitorName, projectId, locale }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
@@ -51,21 +47,22 @@ export function CompetitorActionsMenu({ competitorId, competitorName, locale }: 
 
   const startMonitoring = async () => {
     if (!isUuid) return notify(isEn ? "This action needs a real competitor record." : "Esta accion requiere un competidor real.")
+    if (!projectId) return notify(isEn ? "Link this competitor to a project before monitoring." : "Vincula este competidor a un proyecto antes de monitorear.")
     const headers = await authHeaders()
     const res = await fetch("/api/geo/automations", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify({
-        project_id: null,
+        project_id: projectId,
         competitor_id: competitorId,
         name: `Monitoring ${competitorName}`,
         frequency: "weekly",
         enabled: true,
-        config: { source: "competitors_actions", competitorId },
+        config: { source: "competitors_actions", competitorId, projectId },
       }),
     })
     if (!res.ok) return notify(isEn ? "Monitoring could not be started." : "No se pudo iniciar el monitoreo.")
-    notify(isEn ? "Monitoring started." : "Monitoreo iniciado.")
+    notify(isEn ? "Monitoring started for this project." : "Monitoreo iniciado para este proyecto.")
   }
 
   const deleteCompetitorReal = async () => {
@@ -81,22 +78,19 @@ export function CompetitorActionsMenu({ competitorId, competitorName, locale }: 
 
   const actions = useMemo(
     () => [
-      { key: "view", label: isEn ? "View Audit" : "Ver Auditoria", icon: Eye, onClick: () => (isUuid ? router.push(`/geo/app/audits?competitor=${competitorId}`) : notify(isEn ? "No linked audit yet." : "Aun no hay auditoria vinculada.")) },
-      { key: "compare", label: isEn ? "Compare" : "Comparar", icon: Scale, onClick: () => router.push(`/geo/app/competitors?compare=${competitorId}`) },
       { key: "run", label: isEn ? "Run Again" : "Ejecutar de nuevo", icon: RotateCw, onClick: runAgain },
-      { key: "ai", label: isEn ? "AI Recommendations" : "Recomendaciones IA", icon: Sparkles, onClick: () => router.push("/geo/app/reports?tab=recommendations") },
-      { key: "export", label: isEn ? "Export Report" : "Exportar reporte", icon: Download, onClick: () => router.push(`/geo/app/reports?competitor=${competitorId}`) },
       { key: "monitor", label: isEn ? "Start Monitoring" : "Iniciar monitoreo", icon: Bell, onClick: startMonitoring },
       { key: "delete", label: isEn ? "Delete" : "Eliminar", icon: Trash2, destructive: true, onClick: deleteCompetitorReal },
     ],
-    [competitorId, isEn, router]
+    [competitorId, isEn, projectId, router]
   )
 
   useEffect(() => {
     if (!open) return
 
     const onPointerDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+      const target = event.target as Node
+      if (!rootRef.current?.contains(target)) setOpen(false)
     }
     const onEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false)
@@ -154,7 +148,7 @@ export function CompetitorActionsMenu({ competitorId, competitorName, locale }: 
             transition={{ duration: 0.16, ease: "easeOut" }}
             role="menu"
             onKeyDown={onMenuKeyDown}
-            className="absolute right-0 top-11 z-50 w-60 overflow-hidden rounded-xl border border-primary/20 bg-[#0b1020]/95 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-md"
+            className="absolute bottom-11 right-0 z-[120] w-60 overflow-hidden rounded-xl border border-primary/20 bg-[#0b1020]/95 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-md"
           >
             {actions.map((action, index) => (
               <button

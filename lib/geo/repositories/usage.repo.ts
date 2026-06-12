@@ -11,6 +11,11 @@ type SubscriptionRecord = {
   prompts_used: number
 }
 
+function isUsageSchemaMismatch(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "")
+  return message.includes("subscriptions.audits_limit") || message.includes("subscriptions.prompts_limit") || message.includes("subscriptions.audits_used") || message.includes("subscriptions.prompts_used") || message.includes("42703")
+}
+
 export async function listUsageEvents(supabase: SupabaseClient, userId: string, limit = 100) {
   const { data, error } = await supabase
     .from("usage_events")
@@ -66,7 +71,19 @@ export async function consumeServerUsage(
   amount: number,
   metadata: Record<string, unknown>
 ) {
-  const subscription = await ensureServerSubscription(supabase, userId)
+  let subscription: SubscriptionRecord
+  try {
+    subscription = await ensureServerSubscription(supabase, userId)
+  } catch (error) {
+    if (!isUsageSchemaMismatch(error)) throw error
+    await createUsageEvent(supabase, {
+      user_id: userId,
+      event_type: type === "audit" ? "geo_audit_created" : "prompt_used",
+      amount,
+      metadata: { ...metadata, limit_check_skipped: true, reason: "legacy_subscription_schema" },
+    })
+    return
+  }
   if (subscription.status !== "active") throw new Error("Subscription is not active")
 
   const usedKey = type === "audit" ? "audits_used" : "prompts_used"

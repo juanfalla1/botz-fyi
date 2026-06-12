@@ -35,10 +35,20 @@ export async function GET(req: Request) {
 }
 
 function statusForError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error || "")
+  const message = errorMessage(error)
   if (message.includes("limit reached")) return 402
   if (message.includes("not found or not owned")) return 404
+  if (message.includes("row-level security") || message.includes("permission denied")) return 403
   return 401
+}
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === "object") {
+    const value = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown }
+    return [value.message, value.details, value.hint, value.code].filter(Boolean).map(String).join(" | ") || "Unexpected audit error"
+  }
+  return String(error || "Unexpected audit error")
 }
 
 export async function POST(req: Request) {
@@ -61,6 +71,6 @@ export async function POST(req: Request) {
     void processAuditQueueForUser(supabase, user.id, 1);
     return NextResponse.json({ data: { audit: created.audit, job: created.job }, mode: "live" }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Unauthorized" }, { status: statusForError(error) });
+    return NextResponse.json({ error: errorMessage(error) }, { status: statusForError(error) });
   }
 }
