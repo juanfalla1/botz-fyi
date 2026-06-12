@@ -193,11 +193,25 @@ export async function listTimedOutRunningJobs(supabase: SupabaseClient, lockTime
   return (data ?? []) as AuditJobRecord[]
 }
 
-export async function recoverTimedOutJob(supabase: SupabaseClient, job: AuditJobRecord, reason: string) {
+export async function listTimedOutRunningJobsForUser(supabase: SupabaseClient, userId: string, lockTimeoutMinutes: number, limit = 25) {
+  const cutoff = getTimeoutCutoffIso(lockTimeoutMinutes)
+  const { data, error } = await supabase
+    .from("audit_jobs")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("status", "running")
+    .or(`heartbeat_at.lte.${cutoff},and(heartbeat_at.is.null,locked_at.lte.${cutoff})`)
+    .order("locked_at", { ascending: true })
+    .limit(limit)
+  if (error) throw error
+  return (data ?? []) as AuditJobRecord[]
+}
+
+export async function recoverTimedOutJob(supabase: SupabaseClient, job: AuditJobRecord, reason: string, immediateRetry = false) {
   const nextRetryCount = Number(job.retry_count ?? 0) + 1
   const maxRetries = Number(job.max_retries ?? 3)
   const shouldTerminalFail = nextRetryCount >= maxRetries
-  const nextRetryAt = shouldTerminalFail ? null : computeNextRetryAt(nextRetryCount)
+  const nextRetryAt = shouldTerminalFail ? null : immediateRetry ? new Date().toISOString() : computeNextRetryAt(nextRetryCount)
 
   const { data, error } = await supabase
     .from("audit_jobs")

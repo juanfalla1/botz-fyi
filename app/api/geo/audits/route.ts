@@ -11,7 +11,7 @@ export async function GET(req: Request) {
     const { supabase, user } = await getGeoApiClient(req)
     const { data: jobs, error: jobsError } = await supabase
       .from("audit_jobs")
-      .select("id, audit_id, status, created_at, started_at, completed_at, error_message")
+      .select("id, audit_id, status, created_at, started_at, completed_at, error_message, failed_reason")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(100)
@@ -68,7 +68,9 @@ export async function POST(req: Request) {
       parsed.data.crawl_depth ?? 1,
       parsed.data.engines ?? ["openai", "gemini"]
     );
-    void processAuditQueueForUser(supabase, user.id, 1);
+    if (process.env.NODE_ENV !== "production") {
+      void processAuditQueueForUser(supabase, user.id, 1);
+    }
     return NextResponse.json({ data: { audit: created.audit, job: created.job }, mode: "live" }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error) }, { status: statusForError(error) });

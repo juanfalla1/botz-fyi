@@ -21,7 +21,7 @@ export default function AuditsPage() {
   const { locale } = useGeoI18n()
   const isEn = locale === "en"
   const [apiAudits, setApiAudits] = useState<Array<{ id: string; base_url: string; final_score: number | null; created_at: string; engines?: unknown }>>([])
-  const [apiJobs, setApiJobs] = useState<Array<{ id: string; audit_id: string | null; status: string; created_at: string }>>([])
+  const [apiJobs, setApiJobs] = useState<Array<{ id: string; audit_id: string | null; status: string; created_at: string; error_message?: string | null; failed_reason?: string | null }>>([])
   const [usageTotals, setUsageTotals] = useState<Record<string, number>>({})
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; brand: string } | null>(null)
@@ -42,7 +42,7 @@ export default function AuditsPage() {
       const json = (await auditsRes.json()) as {
         data?: {
           audits?: Array<{ id: string; base_url: string; final_score: number | null; created_at: string; engines?: unknown }>
-          jobs?: Array<{ id: string; audit_id: string | null; status: string; created_at: string }>
+          jobs?: Array<{ id: string; audit_id: string | null; status: string; created_at: string; error_message?: string | null; failed_reason?: string | null }>
         }
       }
       const usageJson = usageRes.ok ? (await usageRes.json()) as { data?: { totals?: Record<string, number> } } : { data: { totals: {} } }
@@ -83,6 +83,7 @@ export default function AuditsPage() {
       score: a.final_score,
       visibility: a.final_score ? `${Math.min(100, Math.round(a.final_score))}%` : "--",
       status: job?.status === "completed" ? "Completed" : job?.status === "running" || job?.status === "queued" ? "Running" : job?.status === "failed" ? "Failed" : "Running",
+      error: job?.error_message || job?.failed_reason || null,
       engines: engines.length > 0 ? engines : ["openai", "gemini"],
       createdAt: new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-CO", { dateStyle: "medium", timeStyle: "short" }).format(new Date(a.created_at)),
     }
@@ -221,6 +222,11 @@ export default function AuditsPage() {
                   <Button size="sm" variant="outline" className="border-border" asChild><Link href={`/geo/app/audits/detail?id=${audit.id}`}>{isEn ? "View" : "Ver"}<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
                   <Button size="sm" variant="outline" className="border-red-500/30 text-red-300 hover:bg-red-500/10 hover:text-red-200" onClick={() => { setDeleteError(""); setDeleteTarget({ id: audit.id, brand: audit.brand }) }} disabled={deletingId === audit.id}><Trash2 className="h-4 w-4" /></Button>
                 </div>
+                {audit.status === "Failed" && audit.error && (
+                  <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200 xl:col-span-7">
+                    {audit.error}
+                  </div>
+                )}
               </div>
             ))}
           </CardContent>

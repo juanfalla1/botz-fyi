@@ -1,8 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { listTimedOutRunningJobs, recoverTimedOutJob } from "@/lib/geo/repositories/audits.repo"
+import { listTimedOutRunningJobs, listTimedOutRunningJobsForUser, recoverTimedOutJob } from "@/lib/geo/repositories/audits.repo"
 import { processGlobalQueuedAuditJobs, processQueuedAuditJobs } from "@/lib/geo/workers/audit-jobs.worker"
 
 export async function processAuditQueueForUser(supabase: SupabaseClient, userId: string, limit = 5) {
+  const orphanJobs = await listTimedOutRunningJobsForUser(supabase, userId, 3, limit)
+  for (const orphan of orphanJobs) {
+    await recoverTimedOutJob(supabase, orphan, "Audit worker timed out while running", true)
+  }
   return processQueuedAuditJobs(supabase, userId, limit)
 }
 
@@ -15,7 +19,7 @@ export type GlobalAuditQueueSummary = {
   jobs: Array<{ job_id: string; status: "completed" | "failed"; retried?: boolean; error?: string }>
 }
 
-export async function processGlobalAuditQueue(supabase: SupabaseClient, limit = 10, lockTimeoutMinutes = 10): Promise<GlobalAuditQueueSummary> {
+export async function processGlobalAuditQueue(supabase: SupabaseClient, limit = 10, lockTimeoutMinutes = 3): Promise<GlobalAuditQueueSummary> {
   const orphanJobs = await listTimedOutRunningJobs(supabase, lockTimeoutMinutes, limit)
   let orphanRecovered = 0
   let retried = 0
@@ -24,7 +28,8 @@ export async function processGlobalAuditQueue(supabase: SupabaseClient, limit = 
     const result = await recoverTimedOutJob(
       supabase,
       orphan,
-      `Lock timeout exceeded (${lockTimeoutMinutes} minutes) while running`
+      `Lock timeout exceeded (${lockTimeoutMinutes} minutes) while running`,
+      true
     )
     if (result.recovered) orphanRecovered += 1
     if (result.retried) retried += 1
