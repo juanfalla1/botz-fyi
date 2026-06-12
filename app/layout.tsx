@@ -2,6 +2,7 @@ import "./styles/globals.css";
 import ClientProvider from "./start/client-provider";
 import GlobalChrome from "./components/GlobalChrome";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 
 
 export const dynamic = "force-dynamic";
@@ -71,12 +72,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   // 🔹 Schema de Organization (ya validado)
+  const headersList = await headers();
+  const host = headersList.get("host")?.split(":")[0]?.toLowerCase() ?? "";
+  const isGeoHost = host === "geo.botz.fyi";
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -215,7 +220,7 @@ export default function RootLayout({
           }}
         />
 
-        <GlobalChrome />
+        {!isGeoHost && <GlobalChrome />}
         <ClientProvider>
           {children}
         </ClientProvider>
