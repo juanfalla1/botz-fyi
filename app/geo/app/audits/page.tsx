@@ -83,7 +83,7 @@ export default function AuditsPage() {
       visibility: a.final_score ? `${Math.min(100, Math.round(a.final_score))}%` : "--",
       status: job?.status === "completed" ? "Completed" : job?.status === "running" || job?.status === "queued" ? "Running" : job?.status === "failed" ? "Failed" : "Running",
       engines: engines.length > 0 ? engines : ["openai", "gemini"],
-      createdAt: new Date(a.created_at).toLocaleString(),
+      createdAt: new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-CO", { dateStyle: "medium", timeStyle: "short" }).format(new Date(a.created_at)),
     }
   })
 
@@ -128,7 +128,7 @@ export default function AuditsPage() {
     <>
       <AppHeader />
       <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-2xl font-bold">GEO Audits</h2>
             <p className="text-muted-foreground">{isEn ? "Complete history of AI visibility audits" : "Historial completo de auditorias de visibilidad IA"}</p>
@@ -183,19 +183,29 @@ export default function AuditsPage() {
               <CardTitle className="text-3xl">{isEn ? "All Audits" : "Todas las Auditorias"}</CardTitle>
               <p className="text-muted-foreground">{localizedAudits.length} {isEn ? "audits" : "auditorias"}</p>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-x-hidden">
-              <table className="w-full table-fixed">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="min-w-[1220px] table-fixed">
+                <colgroup>
+                  <col className="w-[250px]" />
+                  <col className="w-[240px]" />
+                  <col className="w-[160px]" />
+                  <col className="w-[130px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[160px]" />
+                  <col className="w-[170px]" />
+                  <col className="w-[210px]" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-4 px-3">Brand</th>
-                    <th className="py-4 px-3">Domain</th>
-                    <th className="py-4 px-3">GEO Score</th>
-                    <th className="py-4 px-3">AI Visibility</th>
-                    <th className="py-4 px-3">Status</th>
-                    <th className="py-4 px-3">Engines</th>
-                    <th className="py-4 px-3">Created At</th>
-                    <th className="py-4 px-3 text-right">Accion</th>
+                    <th className="px-5 py-4">Brand</th>
+                    <th className="px-5 py-4">Domain</th>
+                    <th className="px-5 py-4">GEO Score</th>
+                    <th className="px-5 py-4">AI Visibility</th>
+                    <th className="px-5 py-4">Status</th>
+                    <th className="px-5 py-4">Engines</th>
+                    <th className="px-5 py-4">Created At</th>
+                    <th className="px-5 py-4 text-right">{isEn ? "Actions" : "Acciones"}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -212,39 +222,39 @@ export default function AuditsPage() {
                   )}
                   {localizedAudits.map((audit) => (
                     <tr key={audit.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td className="py-5 px-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                      <td className="px-5 py-5">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="w-10 h-10 shrink-0 rounded-xl bg-primary/20 flex items-center justify-center">
                             <FileSearch className="w-5 h-5 text-primary" />
                           </div>
-                          <Link href={`/geo/app/audits/detail?id=${audit.id}`} className="font-medium text-xl hover:text-primary hover:underline">
+                          <Link href={`/geo/app/audits/detail?id=${audit.id}`} className="truncate font-medium text-lg hover:text-primary hover:underline" title={audit.brand}>
                             {audit.brand}
                           </Link>
                         </div>
                       </td>
-                      <td className="py-5 px-3 text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <Globe className="w-4 h-4" />
-                          {audit.domain}
+                      <td className="px-5 py-5 text-muted-foreground">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <Globe className="w-4 h-4 shrink-0" />
+                          <span className="truncate" title={audit.domain}>{audit.domain}</span>
                         </div>
                       </td>
-                      <td className="py-5 px-3">
+                      <td className="px-5 py-5">
                         {audit.score === null ? (
                           <span className="text-muted-foreground">--</span>
                         ) : (
-                          <div className="flex items-center gap-3">
-                            <div className="w-20 h-2 rounded-full bg-secondary overflow-hidden">
+                          <div className="flex items-center gap-3 whitespace-nowrap">
+                            <div className="w-20 h-2 shrink-0 rounded-full bg-secondary overflow-hidden">
                               <div className="h-full bg-gradient-to-r from-primary to-accent" style={{ width: `${audit.score}%` }} />
                             </div>
                             <span className="font-semibold">{audit.score}</span>
                           </div>
                         )}
                       </td>
-                      <td className="py-5 px-3 font-semibold">{audit.visibility}</td>
-                      <td className="py-5 px-3">
-                        <span className={`inline-flex px-3 py-1 rounded-full border text-sm ${statusClass(audit.status)}`}>{audit.status}</span>
+                      <td className="px-5 py-5 font-semibold whitespace-nowrap">{audit.visibility}</td>
+                      <td className="px-5 py-5">
+                        <span className={`inline-flex whitespace-nowrap px-3 py-1 rounded-full border text-sm ${statusClass(audit.status)}`}>{audit.status}</span>
                       </td>
-                      <td className="py-5 px-3">
+                      <td className="px-5 py-5">
                         <div className="flex flex-wrap gap-2">
                           {audit.engines.map((engine) => (
                             <span key={`${audit.brand}-${engine}`} className="text-xs px-2 py-1 rounded bg-primary/15 text-primary">
@@ -253,8 +263,8 @@ export default function AuditsPage() {
                           ))}
                         </div>
                       </td>
-                      <td className="py-5 px-3 text-muted-foreground">{audit.createdAt}</td>
-                      <td className="py-5 px-3 text-right">
+                      <td className="px-5 py-5 text-sm text-muted-foreground">{audit.createdAt}</td>
+                      <td className="px-5 py-5 text-right">
                         <div className="flex justify-end gap-2">
                           <Button size="sm" variant="outline" className="border-border" asChild>
                             <Link href={`/geo/app/audits/detail?id=${audit.id}`}>
