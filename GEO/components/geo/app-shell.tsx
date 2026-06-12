@@ -60,12 +60,12 @@ export function AppSidebar() {
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       className={cn(
-        "fixed left-0 top-0 h-screen bg-sidebar border-r border-sidebar-border flex flex-col z-50 transition-all duration-300 overflow-y-auto overflow-x-visible",
+        "fixed left-0 top-0 h-screen bg-sidebar border-r border-sidebar-border flex flex-col z-50 transition-all duration-300",
         collapsed ? "w-20" : "w-64"
       )}
     >
       {/* Logo */}
-      <div className="p-5 flex items-center gap-3">
+      <div className="px-5 py-4 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-[#0b1020] border border-border flex items-center justify-center shrink-0 overflow-hidden">
           <Image src="/botz-logo.png" alt="Botz" width={22} height={22} className="object-contain" />
         </div>
@@ -81,7 +81,7 @@ export function AppSidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-2 space-y-1">
+      <nav className="flex-1 px-3 py-1 space-y-0.5">
         {navigation.map((item) => {
           const isActive = pathname === item.href || (item.href !== "/geo/app" && pathname.startsWith(item.href))
           return (
@@ -89,7 +89,7 @@ export function AppSidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all",
+                "w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium transition-all",
                 isActive
                   ? "bg-primary/20 text-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
@@ -103,12 +103,12 @@ export function AppSidebar() {
       </nav>
 
       {/* Bottom nav */}
-      <div className="mt-auto px-3 py-3 border-t border-sidebar-border space-y-1">
+      <div className="mt-auto px-3 py-2 border-t border-sidebar-border space-y-0.5">
         {bottomNav.map((item) => (
           <Link
             key={item.name}
             href={item.href}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-all"
+            className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-all"
           >
             <item.icon className="w-5 h-5 shrink-0" />
             {!collapsed && <span>{item.name}</span>}
@@ -117,7 +117,7 @@ export function AppSidebar() {
         <button
           type="button"
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+          className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
         >
           <LogOut className="w-5 h-5 shrink-0" />
           {!collapsed && <span>{t("logout")}</span>}

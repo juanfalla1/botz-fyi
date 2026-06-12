@@ -184,34 +184,32 @@ export default function AuditsPage() {
               <p className="text-muted-foreground">{localizedAudits.length} {isEn ? "audits" : "auditorias"}</p>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="min-w-[1220px] table-fixed">
+            <div className="overflow-hidden">
+              <table className="w-full table-fixed">
                 <colgroup>
-                  <col className="w-[250px]" />
-                  <col className="w-[240px]" />
-                  <col className="w-[160px]" />
-                  <col className="w-[130px]" />
-                  <col className="w-[150px]" />
-                  <col className="w-[160px]" />
-                  <col className="w-[170px]" />
-                  <col className="w-[210px]" />
+                  <col className="w-[28%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[12%]" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="px-5 py-4">Brand</th>
-                    <th className="px-5 py-4">Domain</th>
-                    <th className="px-5 py-4">GEO Score</th>
-                    <th className="px-5 py-4">AI Visibility</th>
-                    <th className="px-5 py-4">Status</th>
-                    <th className="px-5 py-4">Engines</th>
-                    <th className="px-5 py-4">Created At</th>
-                    <th className="px-5 py-4 text-right">{isEn ? "Actions" : "Acciones"}</th>
+                    <th className="px-4 py-4">Brand</th>
+                    <th className="px-3 py-4">GEO Score</th>
+                    <th className="px-3 py-4">Visibility</th>
+                    <th className="px-3 py-4">Status</th>
+                    <th className="px-3 py-4">Engines</th>
+                    <th className="px-3 py-4">Created</th>
+                    <th className="px-4 py-4 text-right">{isEn ? "Actions" : "Acciones"}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {localizedAudits.length === 0 && (
                     <tr>
-                        <td colSpan={8} className="py-12 text-center">
+                        <td colSpan={7} className="py-12 text-center">
                         <p className="text-base font-medium">{isEn ? "No audits yet" : "Sin auditorias aun"}</p>
                         <p className="mt-1 text-sm text-muted-foreground">{isEn ? "Create your first GEO audit to start tracking visibility." : "Crea tu primera auditoria GEO para empezar a medir visibilidad."}</p>
                         <Button className="mt-4" asChild>
@@ -222,53 +220,54 @@ export default function AuditsPage() {
                   )}
                   {localizedAudits.map((audit) => (
                     <tr key={audit.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td className="px-5 py-5">
+                      <td className="px-4 py-5">
                         <div className="flex min-w-0 items-center gap-3">
                           <div className="w-10 h-10 shrink-0 rounded-xl bg-primary/20 flex items-center justify-center">
                             <FileSearch className="w-5 h-5 text-primary" />
                           </div>
-                          <Link href={`/geo/app/audits/detail?id=${audit.id}`} className="truncate font-medium text-lg hover:text-primary hover:underline" title={audit.brand}>
-                            {audit.brand}
-                          </Link>
+                          <div className="min-w-0">
+                            <Link href={`/geo/app/audits/detail?id=${audit.id}`} className="block truncate font-medium text-lg hover:text-primary hover:underline" title={audit.brand}>
+                              {audit.brand}
+                            </Link>
+                            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                              <Globe className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate" title={audit.domain}>{audit.domain}</span>
+                            </div>
+                          </div>
                         </div>
                       </td>
-                      <td className="px-5 py-5 text-muted-foreground">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <Globe className="w-4 h-4 shrink-0" />
-                          <span className="truncate" title={audit.domain}>{audit.domain}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-5">
+                      <td className="px-3 py-5">
                         {audit.score === null ? (
                           <span className="text-muted-foreground">--</span>
                         ) : (
-                          <div className="flex items-center gap-3 whitespace-nowrap">
-                            <div className="w-20 h-2 shrink-0 rounded-full bg-secondary overflow-hidden">
+                          <div className="flex items-center gap-2 whitespace-nowrap">
+                            <div className="h-2 w-14 shrink-0 overflow-hidden rounded-full bg-secondary">
                               <div className="h-full bg-gradient-to-r from-primary to-accent" style={{ width: `${audit.score}%` }} />
                             </div>
                             <span className="font-semibold">{audit.score}</span>
                           </div>
                         )}
                       </td>
-                      <td className="px-5 py-5 font-semibold whitespace-nowrap">{audit.visibility}</td>
-                      <td className="px-5 py-5">
-                        <span className={`inline-flex whitespace-nowrap px-3 py-1 rounded-full border text-sm ${statusClass(audit.status)}`}>{audit.status}</span>
+                      <td className="px-3 py-5 font-semibold whitespace-nowrap">{audit.visibility}</td>
+                      <td className="px-3 py-5">
+                        <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs ${statusClass(audit.status)}`}>{audit.status}</span>
                       </td>
-                      <td className="px-5 py-5">
-                        <div className="flex flex-wrap gap-2">
-                          {audit.engines.map((engine) => (
+                      <td className="px-3 py-5">
+                        <div className="flex flex-wrap gap-1.5">
+                          {audit.engines.slice(0, 2).map((engine) => (
                             <span key={`${audit.brand}-${engine}`} className="text-xs px-2 py-1 rounded bg-primary/15 text-primary">
                               {engine === "openai" ? "ChatGPT" : engine === "gemini" ? "Gemini" : engine === "perplexity" ? "Perplexity" : engine}
                             </span>
                           ))}
+                          {audit.engines.length > 2 && <span className="rounded bg-secondary px-2 py-1 text-xs text-muted-foreground">+{audit.engines.length - 2}</span>}
                         </div>
                       </td>
-                      <td className="px-5 py-5 text-sm text-muted-foreground">{audit.createdAt}</td>
-                      <td className="px-5 py-5 text-right">
-                        <div className="flex justify-end gap-2">
+                      <td className="px-3 py-5 text-xs text-muted-foreground">{audit.createdAt}</td>
+                      <td className="px-4 py-5 text-right">
+                        <div className="flex justify-end gap-1.5">
                           <Button size="sm" variant="outline" className="border-border" asChild>
                             <Link href={`/geo/app/audits/detail?id=${audit.id}`}>
-                              {isEn ? "View" : "Ver detalle"}
+                              {isEn ? "View" : "Ver"}
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Link>
                           </Button>
