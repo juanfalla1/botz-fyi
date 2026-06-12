@@ -12,7 +12,11 @@ type SubscriptionRecord = {
 }
 
 function isUsageSchemaMismatch(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error || "")
+  const message = error instanceof Error
+    ? error.message
+    : error && typeof error === "object"
+      ? Object.values(error as Record<string, unknown>).filter(Boolean).map(String).join(" | ")
+      : String(error || "")
   return message.includes("subscriptions.audits_limit") || message.includes("subscriptions.prompts_limit") || message.includes("subscriptions.audits_used") || message.includes("subscriptions.prompts_used") || message.includes("42703")
 }
 
