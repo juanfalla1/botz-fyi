@@ -94,7 +94,7 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
           stopwords,
           language: ctx.project.language,
           country: ctx.project.country,
-          error: error instanceof Error ? error.message : "Provider error",
+          error: providerErrorMessage(error),
         })
       )
     }
@@ -174,6 +174,15 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
           (ctx.competitors.some((c) => (c.aliases?.length ?? 0) > 0 || (c.domain_aliases?.length ?? 0) > 0) ?? false),
       },
     }
+}
+
+function providerErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === "object") {
+    const value = error as Record<string, unknown>
+    return [value.message, value.details, value.hint, value.code].filter(Boolean).map(String).join(" | ") || JSON.stringify(value)
+  }
+  return String(error || "Provider error")
 }
 
 function summarizeConfidenceReasons(results: NormalizedEngineResult[]) {

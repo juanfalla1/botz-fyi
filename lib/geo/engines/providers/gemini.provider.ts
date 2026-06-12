@@ -20,11 +20,21 @@ function base64Url(input: string | Buffer) {
 }
 
 function getServiceAccount(): ServiceAccount | null {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64
-    ? Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64, "base64").toString("utf8")
-    : process.env.GOOGLE_SERVICE_ACCOUNT_JSON
+  let raw: string | undefined
+  try {
+    raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64
+      ? Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64, "base64").toString("utf8")
+      : process.env.GOOGLE_SERVICE_ACCOUNT_JSON
+  } catch {
+    return null
+  }
   if (!raw) return null
-  const parsed = JSON.parse(raw) as Partial<ServiceAccount>
+  let parsed: Partial<ServiceAccount>
+  try {
+    parsed = JSON.parse(raw) as Partial<ServiceAccount>
+  } catch {
+    return null
+  }
   if (!parsed.client_email || !parsed.private_key) return null
   return {
     client_email: parsed.client_email,
