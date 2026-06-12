@@ -114,7 +114,7 @@ export default function ContentOpportunitiesPage() {
 }
 
 function EmptyState({ isEn }: { isEn: boolean }) {
-  return <Card className="glass border-border"><CardContent className="flex flex-col items-center justify-center py-16 text-center"><div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/15 text-primary"><FileText className="h-8 w-8" /></div><h3 className="text-lg font-semibold">{isEn ? "No content gaps yet" : "Sin brechas de contenido todavía"}</h3><p className="mt-2 max-w-md text-sm text-muted-foreground">{isEn ? "Run a completed audit to generate prioritized content opportunities from real evidence." : "Ejecuta una auditoría completada para generar oportunidades priorizadas desde evidencia real."}</p></CardContent></Card>
+  return <Card className="glass border-border"><CardContent className="flex flex-col items-center justify-center py-10 text-center"><div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary"><FileText className="h-7 w-7" /></div><h3 className="text-lg font-semibold">{isEn ? "No content gaps yet" : "Sin brechas de contenido todavía"}</h3><p className="mt-2 max-w-md text-sm text-muted-foreground">{isEn ? "Run a completed audit to generate prioritized content opportunities from real evidence." : "Ejecuta una auditoría completada para generar oportunidades priorizadas desde evidencia real."}</p></CardContent></Card>
 }
 
 function priorityLabel(priority: Opportunity["priority"], isEn: boolean) {

@@ -122,9 +122,9 @@ export default function RecommendationsPage() {
 
         {!loading && !error && plan && !plan.latest_audit && (
           <Card className="glass border-border">
-            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-                <Lightbulb className="h-8 w-8" />
+            <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+                <Lightbulb className="h-7 w-7" />
               </div>
               <h3 className="text-lg font-semibold">{isEn ? "No action plan yet" : "Aún no hay plan de acción"}</h3>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">

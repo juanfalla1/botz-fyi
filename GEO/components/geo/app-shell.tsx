@@ -10,7 +10,6 @@ import {
   Settings,
   HelpCircle,
   LogOut,
-  ChevronLeft,
   BarChart3,
   Target,
   Bell,
@@ -29,7 +28,6 @@ import { useGeoI18n } from "@/GEO/components/geo/i18n"
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const [collapsed, setCollapsed] = useState(false)
   const router = useRouter()
   const { t, locale } = useGeoI18n()
 
@@ -60,8 +58,7 @@ export function AppSidebar() {
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       className={cn(
-        "fixed left-0 top-0 h-screen bg-sidebar border-r border-sidebar-border flex flex-col z-50 transition-all duration-300",
-        collapsed ? "w-20" : "w-64"
+        "fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col z-50 transition-all duration-300"
       )}
     >
       {/* Logo */}
@@ -69,15 +66,13 @@ export function AppSidebar() {
         <div className="w-10 h-10 rounded-xl bg-[#0b1020] border border-border flex items-center justify-center shrink-0 overflow-hidden">
           <Image src="/botz-logo.png" alt="Botz" width={22} height={22} className="object-contain" />
         </div>
-        {!collapsed && (
-          <motion.span
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-lg font-bold whitespace-nowrap"
-          >
-            Botz GEO
-          </motion.span>
-        )}
+        <motion.span
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-lg font-bold whitespace-nowrap"
+        >
+          Botz GEO
+        </motion.span>
       </div>
 
       {/* Navigation */}
@@ -96,7 +91,7 @@ export function AppSidebar() {
               )}
             >
               <item.icon className="w-5 h-5 shrink-0" />
-              {!collapsed && <span>{item.name}</span>}
+              <span>{item.name}</span>
             </Link>
           )
         })}
@@ -111,7 +106,7 @@ export function AppSidebar() {
             className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-all"
           >
             <item.icon className="w-5 h-5 shrink-0" />
-            {!collapsed && <span>{item.name}</span>}
+            <span>{item.name}</span>
           </Link>
         ))}
         <button
@@ -120,17 +115,9 @@ export function AppSidebar() {
           className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
         >
           <LogOut className="w-5 h-5 shrink-0" />
-          {!collapsed && <span>{t("logout")}</span>}
+          <span>{t("logout")}</span>
         </button>
       </div>
-
-      {/* Collapse button */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-sidebar border border-sidebar-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ChevronLeft className={cn("w-4 h-4 transition-transform", collapsed && "rotate-180")} />
-      </button>
     </motion.aside>
   )
 }
