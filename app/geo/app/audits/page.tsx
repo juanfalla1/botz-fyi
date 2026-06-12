@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Activity, ArrowRight, BarChart3, FileSearch, MessageSquare, Plus, Search, SlidersHorizontal, Globe, Trash2 } from "lucide-react"
 import { useGeoI18n } from "@/GEO/components/geo/i18n"
+import type { ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { supabaseGeo } from "@/app/geo/supabaseGeoClient"
 
@@ -183,113 +184,45 @@ export default function AuditsPage() {
               <CardTitle className="text-3xl">{isEn ? "All Audits" : "Todas las Auditorias"}</CardTitle>
               <p className="text-muted-foreground">{localizedAudits.length} {isEn ? "audits" : "auditorias"}</p>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-hidden">
-              <table className="w-full table-fixed">
-                <colgroup>
-                  <col className="w-[28%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[12%]" />
-                </colgroup>
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="px-4 py-4">Brand</th>
-                    <th className="px-3 py-4">GEO Score</th>
-                    <th className="px-3 py-4">Visibility</th>
-                    <th className="px-3 py-4">Status</th>
-                    <th className="px-3 py-4">Engines</th>
-                    <th className="px-3 py-4">Created</th>
-                    <th className="px-4 py-4 text-right">{isEn ? "Actions" : "Acciones"}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {localizedAudits.length === 0 && (
-                    <tr>
-                        <td colSpan={7} className="py-12 text-center">
-                        <p className="text-base font-medium">{isEn ? "No audits yet" : "Sin auditorias aun"}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">{isEn ? "Create your first GEO audit to start tracking visibility." : "Crea tu primera auditoria GEO para empezar a medir visibilidad."}</p>
-                        <Button className="mt-4" asChild>
-                          <Link href="/geo/app/audits/new">{isEn ? "Create Audit" : "Crear auditoria"}</Link>
-                        </Button>
-                      </td>
-                    </tr>
-                  )}
-                  {localizedAudits.map((audit) => (
-                    <tr key={audit.id} className="border-b border-border/50 hover:bg-secondary/20">
-                      <td className="px-4 py-5">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div className="w-10 h-10 shrink-0 rounded-xl bg-primary/20 flex items-center justify-center">
-                            <FileSearch className="w-5 h-5 text-primary" />
-                          </div>
-                          <div className="min-w-0">
-                            <Link href={`/geo/app/audits/detail?id=${audit.id}`} className="block truncate font-medium text-lg hover:text-primary hover:underline" title={audit.brand}>
-                              {audit.brand}
-                            </Link>
-                            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                              <Globe className="h-3.5 w-3.5 shrink-0" />
-                              <span className="truncate" title={audit.domain}>{audit.domain}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-5">
-                        {audit.score === null ? (
-                          <span className="text-muted-foreground">--</span>
-                        ) : (
-                          <div className="flex items-center gap-2 whitespace-nowrap">
-                            <div className="h-2 w-14 shrink-0 overflow-hidden rounded-full bg-secondary">
-                              <div className="h-full bg-gradient-to-r from-primary to-accent" style={{ width: `${audit.score}%` }} />
-                            </div>
-                            <span className="font-semibold">{audit.score}</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-5 font-semibold whitespace-nowrap">{audit.visibility}</td>
-                      <td className="px-3 py-5">
-                        <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs ${statusClass(audit.status)}`}>{audit.status}</span>
-                      </td>
-                      <td className="px-3 py-5">
-                        <div className="flex flex-wrap gap-1.5">
-                          {audit.engines.slice(0, 2).map((engine) => (
-                            <span key={`${audit.brand}-${engine}`} className="text-xs px-2 py-1 rounded bg-primary/15 text-primary">
-                              {engine === "openai" ? "ChatGPT" : engine === "gemini" ? "Gemini" : engine === "perplexity" ? "Perplexity" : engine}
-                            </span>
-                          ))}
-                          {audit.engines.length > 2 && <span className="rounded bg-secondary px-2 py-1 text-xs text-muted-foreground">+{audit.engines.length - 2}</span>}
-                        </div>
-                      </td>
-                      <td className="px-3 py-5 text-xs text-muted-foreground">{audit.createdAt}</td>
-                      <td className="px-4 py-5 text-right">
-                        <div className="flex justify-end gap-1.5">
-                          <Button size="sm" variant="outline" className="border-border" asChild>
-                            <Link href={`/geo/app/audits/detail?id=${audit.id}`}>
-                              {isEn ? "View" : "Ver"}
-                              <ArrowRight className="ml-2 h-4 w-4" />
-                            </Link>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-red-500/30 text-red-300 hover:bg-red-500/10 hover:text-red-200"
-                            onClick={() => {
-                              setDeleteError("")
-                              setDeleteTarget({ id: audit.id, brand: audit.brand })
-                            }}
-                            disabled={deletingId === audit.id}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <CardContent className="space-y-3 p-5">
+            {localizedAudits.length === 0 && (
+              <div className="py-12 text-center">
+                <p className="text-base font-medium">{isEn ? "No audits yet" : "Sin auditorias aun"}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{isEn ? "Create your first GEO audit to start tracking visibility." : "Crea tu primera auditoria GEO para empezar a medir visibilidad."}</p>
+                <Button className="mt-4" asChild>
+                  <Link href="/geo/app/audits/new">{isEn ? "Create Audit" : "Crear auditoria"}</Link>
+                </Button>
+              </div>
+            )}
+            {localizedAudits.map((audit) => (
+              <div key={audit.id} className="grid min-w-0 gap-4 rounded-2xl border border-border/70 bg-secondary/10 p-4 transition-colors hover:bg-secondary/20 xl:grid-cols-[minmax(220px,1.5fr)_120px_110px_130px_150px_150px_150px] xl:items-center">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/20">
+                    <FileSearch className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <Link href={`/geo/app/audits/detail?id=${audit.id}`} className="block truncate text-lg font-medium hover:text-primary hover:underline" title={audit.brand}>
+                      {audit.brand}
+                    </Link>
+                    <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                      <Globe className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate" title={audit.domain}>{audit.domain}</span>
+                    </div>
+                  </div>
+                </div>
+                <AuditField label="GEO Score">
+                  {audit.score === null ? <span className="text-muted-foreground">--</span> : <div className="flex items-center gap-2"><div className="h-2 w-16 overflow-hidden rounded-full bg-secondary"><div className="h-full bg-gradient-to-r from-primary to-accent" style={{ width: `${audit.score}%` }} /></div><span className="font-semibold">{audit.score}</span></div>}
+                </AuditField>
+                <AuditField label="Visibility"><span className="font-semibold">{audit.visibility}</span></AuditField>
+                <AuditField label="Status"><span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs ${statusClass(audit.status)}`}>{audit.status}</span></AuditField>
+                <AuditField label="Engines"><div className="flex flex-wrap gap-1.5">{audit.engines.slice(0, 2).map((engine) => <span key={`${audit.brand}-${engine}`} className="rounded bg-primary/15 px-2 py-1 text-xs text-primary">{engine === "openai" ? "ChatGPT" : engine === "gemini" ? "Gemini" : engine === "perplexity" ? "Perplexity" : engine}</span>)}{audit.engines.length > 2 && <span className="rounded bg-secondary px-2 py-1 text-xs text-muted-foreground">+{audit.engines.length - 2}</span>}</div></AuditField>
+                <AuditField label="Created"><span className="text-xs text-muted-foreground">{audit.createdAt}</span></AuditField>
+                <div className="flex justify-end gap-2 xl:justify-self-end">
+                  <Button size="sm" variant="outline" className="border-border" asChild><Link href={`/geo/app/audits/detail?id=${audit.id}`}>{isEn ? "View" : "Ver"}<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+                  <Button size="sm" variant="outline" className="border-red-500/30 text-red-300 hover:bg-red-500/10 hover:text-red-200" onClick={() => { setDeleteError(""); setDeleteTarget({ id: audit.id, brand: audit.brand }) }} disabled={deletingId === audit.id}><Trash2 className="h-4 w-4" /></Button>
+                </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
 
@@ -331,5 +264,14 @@ export default function AuditsPage() {
         )}
       </div>
     </>
+  )
+}
+
+function AuditField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground xl:hidden">{label}</p>
+      <div className="min-w-0">{children}</div>
+    </div>
   )
 }
