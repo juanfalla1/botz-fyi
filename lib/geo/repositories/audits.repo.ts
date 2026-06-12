@@ -7,6 +7,13 @@ function getTimeoutCutoffIso(lockTimeoutMinutes: number) {
   return new Date(Date.now() - lockTimeoutMinutes * 60_000).toISOString()
 }
 
+function isMissingColumn(error: unknown) {
+  if (!error || typeof error !== "object") return false
+  const value = error as Record<string, unknown>
+  const text = [value.message, value.details, value.hint, value.code].filter(Boolean).map(String).join(" | ")
+  return text.includes("42703") || text.toLowerCase().includes("does not exist")
+}
+
 export async function createAuditManual(
   supabase: SupabaseClient,
   userId: string,
@@ -267,17 +274,32 @@ export async function getProjectContextByJob(supabase: SupabaseClient, job: Audi
   if (!job.project_id) throw new Error("Job missing project_id")
   if (!job.audit_id) throw new Error("Job missing audit_id")
 
-  const { data: project, error: projectError } = await supabase
+  let projectResult = await supabase
     .from("projects")
     .select("id, company_name, website_url, industry, language, country, business_goal, brand_aliases, domain_aliases, entity_stopwords")
     .eq("id", job.project_id)
     .single()
+  if (projectResult.error && isMissingColumn(projectResult.error)) {
+    projectResult = await supabase
+      .from("projects")
+      .select("id, company_name, website_url, industry, language, country, business_goal")
+      .eq("id", job.project_id)
+      .single()
+  }
+  const { data: project, error: projectError } = projectResult
   if (projectError || !project) throw new Error("Project not found for job")
 
-  const { data: competitors, error: competitorsError } = await supabase
+  let competitorsResult = await supabase
     .from("competitors")
     .select("id, name, domain, aliases, domain_aliases")
     .eq("project_id", job.project_id)
+  if (competitorsResult.error && isMissingColumn(competitorsResult.error)) {
+    competitorsResult = await supabase
+      .from("competitors")
+      .select("id, name, domain")
+      .eq("project_id", job.project_id)
+  }
+  const { data: competitors, error: competitorsError } = competitorsResult
   if (competitorsError) throw competitorsError
 
   const { data: audit, error: auditError } = await supabase

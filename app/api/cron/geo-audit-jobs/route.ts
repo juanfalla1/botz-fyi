@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { getSupabaseAdmin } from "@/lib/integrations/supabase"
 import { runAuditJobsScheduler } from "@/lib/geo/scheduler/audit-jobs.scheduler"
 
+export const maxDuration = 60
+
 async function handleCron(req: Request) {
   const secret = req.headers.get("x-cron-secret")
   const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "")

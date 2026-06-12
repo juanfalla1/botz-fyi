@@ -10,7 +10,7 @@ import { runSemanticGeoAnalyzer } from "@/lib/geo/analysis/semantic-geo-analyzer
 export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts: GeneratedPrompt[]) {
   const { providers } = resolveProviders(ctx.engines)
   const byEngine = new Map(providers.map((p) => [p.id, p]))
-  const maxPrompts = Number(process.env.GEO_MAX_PROMPTS_PER_ENGINE ?? 5)
+  const maxPrompts = Number(process.env.GEO_MAX_PROMPTS_PER_ENGINE ?? 2)
   const safeMaxPrompts = Number.isFinite(maxPrompts) && maxPrompts > 0 ? Math.min(Math.floor(maxPrompts), 10) : 5
 
   const promptCounts = new Map<string, number>()

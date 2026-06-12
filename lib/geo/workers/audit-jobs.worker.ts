@@ -16,6 +16,15 @@ import { runBaseAuditPipeline } from "@/lib/geo/pipeline/audit-pipeline.base"
 
 type ProcessResult = Array<{ job_id: string; status: "completed" | "failed"; retried?: boolean; error?: string }>
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === "object") {
+    const value = error as Record<string, unknown>
+    return [value.message, value.details, value.hint, value.code].filter(Boolean).map(String).join(" | ") || JSON.stringify(value)
+  }
+  return String(error || "Unknown worker error")
+}
+
 async function processJobs(supabase: SupabaseClient, jobs: Awaited<ReturnType<typeof listQueuedAuditJobs>>) {
   const processed: ProcessResult = []
 
@@ -76,7 +85,12 @@ async function processJobs(supabase: SupabaseClient, jobs: Awaited<ReturnType<ty
           event_type: "prompt_used",
           amount: result.prompts.length,
           metadata: { audit_id: runningJob.audit_id, job_id: runningJob.id, source: "worker_pipeline" },
-        })
+        }).catch((error) => createAuditJobLog(supabase, {
+          job_id: runningJob.id,
+          user_id: runningJob.user_id,
+          stage: "scoring",
+          message: `Non-critical usage event failed: ${errorMessage(error)}`,
+        }).catch(() => undefined))
 
         await createNotification(supabase, {
           user_id: runningJob.user_id,
@@ -84,7 +98,7 @@ async function processJobs(supabase: SupabaseClient, jobs: Awaited<ReturnType<ty
           body: `Your audit finished with GEO score ${result.output.geo_score}.`,
           level: "success",
           metadata: { job_id: runningJob.id, audit_id: runningJob.audit_id },
-        })
+        }).catch(() => undefined)
 
         await markAuditJobCompleted(supabase, runningJob.id)
         await createAuditJobLog(supabase, {
@@ -105,7 +119,7 @@ async function processJobs(supabase: SupabaseClient, jobs: Awaited<ReturnType<ty
         })
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown worker error"
+      const message = errorMessage(error)
       const failed = await failAuditJob(supabase, job.id, message)
       await createAuditJobLog(supabase, {
         job_id: job.id,
@@ -128,7 +142,7 @@ async function processJobs(supabase: SupabaseClient, jobs: Awaited<ReturnType<ty
         body: message,
         level: "error",
         metadata: { job_id: job.id, audit_id: job.audit_id },
-      })
+      }).catch(() => undefined)
       processed.push({ job_id: job.id, status: "failed", retried: (failed.next_retry_at ?? null) !== null, error: message })
     }
   }

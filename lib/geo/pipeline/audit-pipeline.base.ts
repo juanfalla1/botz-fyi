@@ -3,6 +3,25 @@ import { buildBasePrompts } from "@/lib/geo/pipeline/prompt-builder"
 import { runRealAnalysisWithFallback } from "@/lib/geo/pipeline/analysis-real"
 import type { PipelineContext } from "@/lib/geo/pipeline/types"
 import type { NormalizedEngineResult } from "@/lib/geo/engines/types"
+import { createAuditJobLog } from "@/lib/geo/repositories/audit-job-logs.repo"
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === "object") {
+    const value = error as Record<string, unknown>
+    return [value.message, value.details, value.hint, value.code].filter(Boolean).map(String).join(" | ") || JSON.stringify(value)
+  }
+  return String(error || "Unknown persistence error")
+}
+
+async function logNonCriticalPipelineError(supabase: SupabaseClient, context: PipelineContext, stage: string, error: unknown) {
+  await createAuditJobLog(supabase, {
+    job_id: context.job.id,
+    user_id: context.job.user_id,
+    stage: "scoring",
+    message: `Non-critical ${stage} persistence failed: ${errorMessage(error)}`,
+  }).catch(() => undefined)
+}
 
 export async function runBaseAuditPipeline(supabase: SupabaseClient, context: PipelineContext) {
   const prompts = buildBasePrompts(context)
@@ -50,7 +69,7 @@ export async function runBaseAuditPipeline(supabase: SupabaseClient, context: Pi
     final_score: output.geo_score,
     explanation: output.summary,
   })
-  if (scoreError) throw scoreError
+  if (scoreError) await logNonCriticalPipelineError(supabase, context, "geo_scores", scoreError)
 
   if (output.recommendations.length > 0) {
     const { error: recError } = await supabase.from("recommendations").insert(
@@ -64,11 +83,11 @@ export async function runBaseAuditPipeline(supabase: SupabaseClient, context: Pi
         status: "pending",
       }))
     )
-    if (recError) throw recError
+    if (recError) await logNonCriticalPipelineError(supabase, context, "recommendations", recError)
   }
 
-  await persistEngineEvidence(supabase, context, analysis.normalizedResults ?? [])
-  await persistContentOpportunities(supabase, context.job.audit_id, output.recommendations)
+  await persistEngineEvidence(supabase, context, analysis.normalizedResults ?? []).catch((error) => logNonCriticalPipelineError(supabase, context, "engine_evidence", error))
+  await persistContentOpportunities(supabase, context.job.audit_id, output.recommendations).catch((error) => logNonCriticalPipelineError(supabase, context, "content_opportunities", error))
 
   return { prompts, output }
 }
