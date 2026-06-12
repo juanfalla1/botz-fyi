@@ -24,6 +24,32 @@ import { supabaseGeo } from "@/app/geo/supabaseGeoClient"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 
+type ReportSnapshot = Record<string, unknown> & {
+  project_name?: string
+  base_url?: string
+  geo_score?: number
+  ai_visibility?: number
+  citations_count?: number
+  prompts_won?: number
+  prompts_lost?: number
+  executive_summary?: string
+  recommendations?: Array<unknown>
+  generated_at?: string
+  audit_id?: string
+}
+
+type ReportItem = {
+  id: string
+  name: string
+  type: string
+  date: string
+  status: string
+  geoScore: number | null
+  pages: number | null
+  format: string
+  snapshot?: ReportSnapshot
+}
+
 const reportTypes = [
   {
     title: "Reporte Mensual",
@@ -51,10 +77,15 @@ const reportTypes = [
   },
 ]
 
+function numberLabel(value: unknown) {
+  const numeric = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(numeric) ? String(Math.round(numeric)) : "0"
+}
+
 export default function ReportsPage() {
   const { t, locale } = useGeoI18n()
   const isEn = locale === "en"
-  const [reportsLive, setReportsLive] = useState<Array<{ id: string; name: string; type: string; date: string; status: string; geoScore: number | null; pages: number | null; format: string; snapshot?: unknown }>>([])
+  const [reportsLive, setReportsLive] = useState<ReportItem[]>([])
   const [snapshotsLive, setSnapshotsLive] = useState<Array<{ date: string; score: number; change: string }>>([])
   const [loadingReports, setLoadingReports] = useState(true)
   const [feedback, setFeedback] = useState<string | null>(null)
@@ -87,7 +118,7 @@ export default function ReportsPage() {
             geoScore: typeof r.snapshot?.geo_score === "number" ? r.snapshot.geo_score : null,
             pages: null,
             format: "PDF",
-            snapshot: (r as { snapshot?: unknown }).snapshot,
+            snapshot: r.snapshot as ReportSnapshot | undefined,
           })))
         }
       }
@@ -147,24 +178,108 @@ export default function ReportsPage() {
         status: payload.data!.status,
         geoScore: typeof payload.data!.snapshot?.geo_score === "number" ? payload.data!.snapshot.geo_score : null,
         pages: null,
-        format: "JSON",
-        snapshot: payload.data!.snapshot,
+        format: "PDF",
+        snapshot: payload.data!.snapshot as ReportSnapshot | undefined,
       }, ...current])
       setFeedback(isEn ? "Report generated." : "Reporte generado.")
     } else setFeedback(payload.error || (isEn ? "Could not generate report." : "No se pudo generar el reporte."))
     setTimeout(() => setFeedback(null), 3000)
   }
 
-  const downloadReport = (report: { name: string; snapshot?: unknown }) => {
-    const payload = JSON.stringify(report.snapshot ?? { name: report.name, note: "No snapshot payload available." }, null, 2)
-    const blob = new Blob([payload], { type: "application/json;charset=utf-8" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `${report.name.replace(/\s+/g, "-").toLowerCase()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    setFeedback(isEn ? "Download started." : "Descarga iniciada.")
+  const downloadReport = async (report: ReportItem) => {
+    const { jsPDF } = await import("jspdf/dist/jspdf.umd.min.js")
+    const doc = new jsPDF({ unit: "pt", format: "a4" })
+    const snapshot = report.snapshot ?? {}
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const margin = 44
+    let y = 52
+
+    const addText = (text: string, x: number, maxWidth = pageWidth - margin * 2, lineHeight = 14) => {
+      const lines = doc.splitTextToSize(text, maxWidth) as string[]
+      doc.text(lines, x, y)
+      y += lines.length * lineHeight
+    }
+
+    const addMetric = (label: string, value: string, x: number, boxY: number) => {
+      doc.setFillColor(247, 248, 255)
+      doc.roundedRect(x, boxY, 122, 62, 10, 10, "F")
+      doc.setTextColor(88, 93, 120)
+      doc.setFontSize(9)
+      doc.text(label, x + 12, boxY + 20)
+      doc.setTextColor(25, 29, 43)
+      doc.setFontSize(20)
+      doc.setFont("helvetica", "bold")
+      doc.text(value, x + 12, boxY + 45)
+      doc.setFont("helvetica", "normal")
+    }
+
+    doc.setFillColor(12, 16, 31)
+    doc.rect(0, 0, pageWidth, 132, "F")
+    doc.setTextColor(255, 255, 255)
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(22)
+    doc.text("Botz GEO Executive Report", margin, y)
+    y += 30
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(11)
+    doc.setTextColor(190, 198, 224)
+    addText(String(snapshot.project_name ?? report.name), margin, pageWidth - margin * 2, 14)
+    addText(String(snapshot.base_url ?? ""), margin, pageWidth - margin * 2, 14)
+    y = 156
+
+    addMetric("GEO Score", `${numberLabel(snapshot.geo_score)}/100`, margin, y)
+    addMetric("AI Visibility", `${numberLabel(snapshot.ai_visibility)}%`, margin + 136, y)
+    addMetric("Citations", numberLabel(snapshot.citations_count), margin + 272, y)
+    addMetric("Prompts Won", numberLabel(snapshot.prompts_won), margin + 408, y)
+    y += 100
+
+    doc.setTextColor(25, 29, 43)
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(15)
+    doc.text(isEn ? "Executive Summary" : "Resumen Ejecutivo", margin, y)
+    y += 22
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(10.5)
+    doc.setTextColor(70, 76, 98)
+    addText(String(snapshot.executive_summary ?? (isEn ? "No executive summary available for this report." : "No hay resumen ejecutivo disponible para este reporte.")), margin, pageWidth - margin * 2, 14)
+    y += 16
+
+    doc.setTextColor(25, 29, 43)
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(15)
+    doc.text(isEn ? "Recommended Actions" : "Acciones Recomendadas", margin, y)
+    y += 22
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(10.5)
+    const recommendations = Array.isArray(snapshot.recommendations) ? snapshot.recommendations.slice(0, 6) : []
+    if (recommendations.length === 0) {
+      addText(isEn ? "No recommendations were generated in this snapshot." : "No se generaron recomendaciones en este snapshot.", margin)
+    } else {
+      recommendations.forEach((item, index) => {
+        const rec = item && typeof item === "object" ? item as Record<string, unknown> : {}
+        const title = String(rec.title ?? rec.action_item ?? `${isEn ? "Action" : "Accion"} ${index + 1}`)
+        const description = String(rec.description ?? rec.details ?? "")
+        doc.setTextColor(25, 29, 43)
+        doc.setFont("helvetica", "bold")
+        addText(`${index + 1}. ${title}`, margin)
+        if (description) {
+          doc.setFont("helvetica", "normal")
+          doc.setTextColor(70, 76, 98)
+          addText(description, margin + 14, pageWidth - margin * 2 - 14)
+        }
+        y += 6
+      })
+    }
+
+    const footerY = doc.internal.pageSize.getHeight() - 42
+    doc.setDrawColor(230, 232, 240)
+    doc.line(margin, footerY - 18, pageWidth - margin, footerY - 18)
+    doc.setFontSize(8)
+    doc.setTextColor(120, 126, 145)
+    doc.text(`Audit ID: ${String(snapshot.audit_id ?? "N/A")}`, margin, footerY)
+    doc.text(`Generated: ${snapshot.generated_at ? new Date(String(snapshot.generated_at)).toLocaleString() : report.date}`, pageWidth - margin - 180, footerY)
+    doc.save(`${report.name.replace(/\s+/g, "-").toLowerCase()}.pdf`)
+    setFeedback(isEn ? "PDF download started." : "Descarga PDF iniciada.")
     setTimeout(() => setFeedback(null), 3000)
   }
 

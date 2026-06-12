@@ -18,6 +18,7 @@ import {
   Check,
   Zap,
   MessageSquare,
+  FolderKanban,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -30,10 +31,11 @@ export function AppSidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const router = useRouter()
-  const { t } = useGeoI18n()
+  const { t, locale } = useGeoI18n()
 
   const navigation = [
     { name: t("dashboard"), href: "/geo/app", icon: LayoutDashboard },
+    { name: locale === "en" ? "Projects" : "Proyectos", href: "/geo/app/projects", icon: FolderKanban },
     { name: t("geoAudits"), href: "/geo/app/audits", icon: FileSearch },
     { name: t("prompts"), href: "/geo/app/prompts", icon: MessageSquare },
     { name: t("competitors"), href: "/geo/app/competitors", icon: Target },
