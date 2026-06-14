@@ -39,7 +39,12 @@ const faqs = [
   {
     id: 1,
     question: "¿Qué es el GEO Score y cómo se calcula?",
-    answer: "El GEO Score es una métrica de 0-100 que mide la probabilidad de que tu marca sea citada por motores de IA como ChatGPT, Gemini y Perplexity. Se calcula analizando factores como autoridad de dominio, calidad del contenido, menciones en fuentes confiables y optimización técnica."
+    answer: "El GEO Score es una métrica estricta de 0-100 que prioriza la visibilidad espontánea: cuando tu marca aparece en respuestas de IA sin que la pregunta la mencione. Los prompts comparativos o asistidos ayudan al diagnóstico, pero no inflan el score principal."
+  },
+  {
+    id: 7,
+    question: "¿Qué diferencia hay entre visibilidad espontánea y visibilidad asistida?",
+    answer: "Visibilidad espontánea significa que la IA menciona tu marca en una pregunta neutral, por ejemplo: 'mejores proveedores de software en Canadá'. Visibilidad asistida significa que la pregunta ya nombraba tu marca, por ejemplo: 'compara Botz vs HubSpot'. La espontánea es la señal más fuerte de reconocimiento real."
   },
   {
     id: 2,
@@ -122,7 +127,12 @@ export default function HelpPage() {
         {
           id: 1,
           question: "What is the GEO Score and how is it calculated?",
-          answer: "The GEO Score is a 0-100 metric that measures how likely your brand is to be cited by AI engines like ChatGPT, Gemini and Perplexity. It analyzes domain authority, content quality, trusted-source mentions and technical optimization.",
+          answer: "The GEO Score is a strict 0-100 metric weighted toward spontaneous visibility: when your brand appears in AI answers without being named in the prompt. Assisted or comparative prompts help diagnosis, but they do not inflate the main score.",
+        },
+        {
+          id: 7,
+          question: "What is the difference between spontaneous and assisted visibility?",
+          answer: "Spontaneous visibility means AI mentions your brand in a neutral question, for example: 'best software providers in Canada'. Assisted visibility means the prompt already named your brand, for example: 'compare Botz vs HubSpot'. Spontaneous visibility is the strongest signal of real market recognition.",
         },
         {
           id: 2,

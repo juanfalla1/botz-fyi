@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
-import { ArrowLeft, CheckCircle2, FileText, Lightbulb, Rocket, Sparkles, Target, Trophy, Users } from "lucide-react"
+import { ArrowLeft, CheckCircle2, FileText, Globe, Lightbulb, Megaphone, Rocket, Search, Sparkles, Target, Trophy, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AppHeader } from "@/GEO/components/geo/app-shell"
@@ -41,6 +41,15 @@ type ActionPlan = {
     id: string
     geo_score: number
     ai_visibility: number
+    spontaneous_visibility?: number
+    assisted_visibility?: number
+    competitive_visibility?: number
+    citation_coverage?: number
+    total_results?: number
+    spontaneous_results?: number
+    assisted_results?: number
+    competitive_results?: number
+    citation_results?: number
     prompts_won: number
     prompts_lost: number
     citations_count: number
@@ -63,6 +72,13 @@ type ActionPlan = {
       best_position: number | null
     }>
   }
+  execution_framework?: Array<{
+    id: string
+    name: string
+    solves: string
+    improves: string[]
+    deliverables: string[]
+  }>
   actions: ActionItem[]
 }
 
@@ -144,20 +160,55 @@ export default function RecommendationsPage() {
                 <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-center">
                   <div>
                     <p className="text-sm uppercase tracking-wide text-primary">{plan.project.company_name}</p>
-                    <h3 className="mt-2 text-2xl font-bold">{isEn ? "What should the client do next?" : "¿Qué debe hacer ahora el cliente?"}</h3>
+                    <h3 className="mt-2 text-2xl font-bold">{isEn ? "Audit result + execution plan" : "Resultado de auditoría + plan de ejecución"}</h3>
                     <p className="mt-3 text-muted-foreground">
-                      {isEn ? `Botz GEO found concrete opportunities to improve ${plan.project.company_name}'s AI visibility. This plan converts the latest audit into practical work across content, authority and technical GEO improvements.` : (plan.latest_audit.executive_summary || "Este plan convierte la última auditoría en trabajo práctico de contenido, autoridad y mejoras técnicas GEO.")}
+                      {isEn ? `Botz GEO separates neutral discovery from assisted or comparative prompts. The value is not only the diagnosis: it is the execution roadmap to improve the next audit.` : "Botz GEO separa descubrimiento neutral de prompts asistidos o comparativos. El valor no es solo el diagnóstico: es el roadmap de ejecución para mejorar la próxima auditoría."}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <Metric label="GEO Score" value={`${plan.latest_audit.geo_score || 0}/100`} />
-                    <Metric label={isEn ? "AI Visibility" : "Visibilidad IA"} value={`${plan.latest_audit.ai_visibility || 0}%`} />
-                    <Metric label={isEn ? "Prompts Won" : "Prompts ganados"} value={String(plan.latest_audit.prompts_won || 0)} />
-                    <Metric label={isEn ? "Citations" : "Citaciones"} value={String(plan.latest_audit.citations_count || 0)} />
+                    <Metric label={isEn ? "Spontaneous Visibility" : "Visibilidad espontánea"} value={`${plan.latest_audit.spontaneous_visibility ?? plan.latest_audit.ai_visibility ?? 0}%`} />
+                    <Metric label={isEn ? "Competitive Win Rate" : "Win rate competitivo"} value={`${plan.latest_audit.competitive_visibility ?? 0}%`} />
+                    <Metric label={isEn ? "Citation Coverage" : "Cobertura de citations"} value={`${plan.latest_audit.citation_coverage ?? 0}%`} />
                   </div>
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="glass border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg"><Search className="h-5 w-5 text-primary" />{isEn ? "Metric definitions" : "Definición de métricas"}</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-2">
+                <MetricDefinition title="GEO Score" text={isEn ? "Strict 0-100 score weighted toward neutral prompts. Assisted comparison prompts do not inflate the main score." : "Score estricto de 0 a 100 ponderado hacia prompts neutrales. Los prompts comparativos asistidos no inflan el score principal."} />
+                <MetricDefinition title={isEn ? "Spontaneous Visibility" : "Visibilidad espontánea"} text={isEn ? "Brand appeared without being named in the question. This is the strongest visibility signal." : "La marca apareció sin ser nombrada en la pregunta. Esta es la señal más fuerte de visibilidad real."} />
+                <MetricDefinition title={isEn ? "Assisted Visibility" : "Visibilidad asistida"} text={isEn ? "Brand appeared when the prompt already mentioned it. Useful, but not proof of market awareness." : "La marca apareció cuando el prompt ya la mencionaba. Es útil, pero no prueba reconocimiento espontáneo del mercado."} />
+                <MetricDefinition title={isEn ? "Citation Coverage" : "Cobertura de citations"} text={isEn ? "Citation/source prompts where evidence or citable URLs were found." : "Prompts de fuentes/citations donde se encontró evidencia o URLs citables."} />
+              </CardContent>
+            </Card>
+
+            {plan.execution_framework && plan.execution_framework.length > 0 && (
+              <Card className="glass border-primary/30 bg-primary/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg"><Megaphone className="h-5 w-5 text-primary" />{isEn ? "Execution with Botz" : "Ejecución con Botz"}</CardTitle>
+                  <p className="text-sm text-muted-foreground">{isEn ? "The audit shows the gap. These Botz execution products are how the gap is closed." : "La auditoría muestra la brecha. Estos productos de ejecución Botz son cómo se cierra esa brecha."}</p>
+                </CardHeader>
+                <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {plan.execution_framework.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-border bg-background/40 p-4">
+                      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                        {item.id.includes("website") ? <Globe className="h-5 w-5" /> : item.id.includes("landing") ? <FileText className="h-5 w-5" /> : item.id.includes("monitor") ? <Trophy className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
+                      </div>
+                      <h4 className="font-semibold">{item.name}</h4>
+                      <p className="mt-2 text-sm text-muted-foreground">{item.solves}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {item.improves.map((metric) => <span key={metric} className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{metric}</span>)}
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
 
             {topActions.length > 0 && (
               <Card className="glass border-border">
@@ -302,6 +353,10 @@ export default function RecommendationsPage() {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <div className="rounded-2xl border border-border bg-background/50 p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-bold">{value}</p></div>
+}
+
+function MetricDefinition({ title, text }: { title: string; text: string }) {
+  return <div className="rounded-2xl border border-border bg-background/40 p-4"><p className="font-medium">{title}</p><p className="mt-1 text-sm text-muted-foreground">{text}</p></div>
 }
 
 function priorityLabel(priority: ActionItem["priority"], isEn: boolean) {

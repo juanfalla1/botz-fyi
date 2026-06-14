@@ -33,6 +33,7 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
         normalizeEngineResponse({
           engine: provider.id,
           prompt: gp.prompt,
+          promptKind: classifyPrompt(gp, ctx),
           mode,
           raw: { text: "" },
           brandName: ctx.project.company_name,
@@ -63,6 +64,7 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
         normalizeEngineResponse({
           engine: provider.id,
           prompt: gp.prompt,
+          promptKind: classifyPrompt(gp, ctx),
           mode: "live",
           raw,
           brandName: ctx.project.company_name,
@@ -82,6 +84,7 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
         normalizeEngineResponse({
           engine: provider.id,
           prompt: gp.prompt,
+          promptKind: classifyPrompt(gp, ctx),
           mode: "fallback",
           raw: { text: "" },
           brandName: ctx.project.company_name,
@@ -128,12 +131,21 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
   })
 
   const output: AnalysisOutput = {
-    geo_score: semanticAnalysis?.geo_score ?? scored.geo_score,
-    ai_visibility: Math.round(semanticAnalysis?.brand_visibility ?? scored.ai_visibility),
+    geo_score: scored.geo_score,
+    ai_visibility: scored.ai_visibility,
     citations_count: scored.citations_count,
     citations_unique_domains: scored.citations_unique_domains,
     prompts_won: scored.prompts_won,
     prompts_lost: scored.prompts_lost,
+    spontaneous_visibility: scored.spontaneous_visibility,
+    assisted_visibility: scored.assisted_visibility,
+    competitive_visibility: scored.competitive_visibility,
+    citation_coverage: scored.citation_coverage,
+    total_results: scored.total_results,
+    spontaneous_results: scored.spontaneous_results,
+    assisted_results: scored.assisted_results,
+    competitive_results: scored.competitive_results,
+    citation_results: scored.citation_results,
     engines: scored.engines,
     recommendations: semanticAnalysis
       ? semanticAnalysis.recommendations.map((rec) => ({
@@ -149,6 +161,7 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
     evaluated_prompts: normalized.map((item) => ({
       engine: item.engine,
       prompt: item.prompt,
+      prompt_kind: item.promptKind,
       mentioned: item.brandMentioned,
       position: item.rankingPosition,
       won: item.won,
@@ -174,6 +187,19 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
           (ctx.competitors.some((c) => (c.aliases?.length ?? 0) > 0 || (c.domain_aliases?.length ?? 0) > 0) ?? false),
       },
     }
+}
+
+function classifyPrompt(gp: GeneratedPrompt, ctx: PipelineContext): "spontaneous" | "assisted" | "competitive" | "citation" {
+  const category = String(gp.category ?? "").toLowerCase()
+  if (category.includes("citation") || category.includes("trust")) return "citation"
+  if (category.includes("comparison") || category.includes("competitive") || category.includes("alternative")) return "competitive"
+  const prompt = gp.prompt.toLowerCase()
+  const brand = ctx.project.company_name.toLowerCase()
+  const domain = ctx.project.website_url.replace(/^https?:\/\//, "").replace(/^www\./, "").toLowerCase()
+  if (prompt.includes("trusted sources") || prompt.includes("fuentes confiables") || prompt.includes("cited") || prompt.includes("citadas")) return "citation"
+  if (prompt.includes("compare") || prompt.includes("compara") || prompt.includes(" vs ") || prompt.includes("alternatives") || prompt.includes("alternativas")) return "competitive"
+  if (prompt.includes(brand) || prompt.includes(domain)) return "assisted"
+  return "spontaneous"
 }
 
 function providerErrorMessage(error: unknown) {

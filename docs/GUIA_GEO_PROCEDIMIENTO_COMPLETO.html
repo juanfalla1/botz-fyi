@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Guia Completa GEO Botz</title>
+  <style>
+    @page { size: A4; margin: 18mm 16mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #111827;
+      background: #ffffff;
+      line-height: 1.48;
+      font-size: 12.4px;
+    }
+    h1, h2, h3 { color: #0f172a; line-height: 1.15; margin: 0 0 8px; }
+    h1 { font-size: 30px; letter-spacing: -0.03em; }
+    h2 { font-size: 19px; margin-top: 24px; padding-top: 8px; border-top: 1px solid #dbe3ef; }
+    h3 { font-size: 15px; margin-top: 15px; color: #1d4ed8; }
+    p { margin: 0 0 8px; }
+    ul, ol { margin: 6px 0 10px 18px; padding: 0; }
+    li { margin: 4px 0; }
+    strong { color: #0f172a; }
+    .cover {
+      min-height: 710px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border: 1px solid #dbe3ef;
+      border-radius: 22px;
+      padding: 44px;
+      background: linear-gradient(135deg, #eef2ff 0%, #ffffff 55%, #f5f3ff 100%);
+    }
+    .eyebrow { color: #4f46e5; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-size: 11px; margin-bottom: 14px; }
+    .subtitle { font-size: 18px; color: #475569; max-width: 620px; margin-top: 14px; }
+    .meta { margin-top: 40px; color: #64748b; font-size: 12px; }
+    .page-break { page-break-before: always; }
+    .box {
+      border: 1px solid #dbe3ef;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin: 12px 0;
+      background: #f8fafc;
+    }
+    .warning { border-color: #f59e0b; background: #fffbeb; }
+    .success { border-color: #22c55e; background: #f0fdf4; }
+    .danger { border-color: #ef4444; background: #fef2f2; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; background: #fff; }
+    .small { font-size: 11px; color: #64748b; }
+    .pill { display: inline-block; border-radius: 999px; padding: 2px 8px; background: #e0e7ff; color: #3730a3; font-size: 11px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0 14px; font-size: 11.5px; }
+    th, td { text-align: left; border: 1px solid #e2e8f0; padding: 7px; vertical-align: top; }
+    th { background: #f1f5f9; color: #0f172a; }
+    code { font-family: Consolas, monospace; font-size: 11px; background: #f1f5f9; padding: 1px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="eyebrow">Botz GEO</div>
+    <h1>Guia completa de uso y procedimiento GEO</h1>
+    <p class="subtitle">Explicacion sencilla, paso a paso, de que hace la herramienta, para que sirve, que pasa en cada modulo y como interpretar una auditoria.</p>
+    <div class="meta">
+      <p><strong>Objetivo:</strong> entender si una marca aparece en respuestas de IA como ChatGPT, Gemini y Perplexity, y saber que hacer para mejorar.</p>
+      <p><strong>Audiencia:</strong> usuario operativo, cliente, equipo comercial y equipo tecnico.</p>
+      <p><strong>Version:</strong> Junio 2026</p>
+    </div>
+  </section>
+
+  <section class="page-break">
+    <h2>1. Que es GEO</h2>
+    <p><strong>GEO</strong> significa optimizacion para motores generativos. En palabras simples: es SEO para respuestas de inteligencia artificial.</p>
+    <div class="box">
+      <p><strong>Explicado como para un nino:</strong> antes las personas buscaban en Google. Ahora muchas personas preguntan a ChatGPT, Gemini o Perplexity. GEO revisa si esas inteligencias artificiales conocen tu marca, si la recomiendan y si la comparan bien contra tus competidores.</p>
+    </div>
+    <h3>Que se quiere lograr</h3>
+    <ul>
+      <li>Que la marca aparezca cuando alguien pregunta por soluciones de su categoria.</li>
+      <li>Que la IA mencione la marca sin tener que forzarla.</li>
+      <li>Que la IA cite o reconozca el sitio web correcto.</li>
+      <li>Que la marca gane frente a competidores en prompts importantes.</li>
+      <li>Que el cliente sepa que contenido, comparativas y mejoras debe crear.</li>
+    </ul>
+
+    <h2>2. Idea principal del sistema</h2>
+    <p>GEO funciona con una secuencia simple de cuatro pasos. El cuarto paso, ejecucion, es donde esta el valor comercial principal.</p>
+    <ol>
+      <li>Creas un proyecto con marca, sitio web, categoria y competidores.</li>
+      <li>GEO crea o usa prompts, que son preguntas para la IA.</li>
+      <li>Ejecutas una auditoria que manda esas preguntas a motores IA como ChatGPT y Gemini.</li>
+      <li>GEO convierte el resultado en ejecucion: posicionamiento, web, SEO, landings, contenido, redes, citations y vigilancia competitiva.</li>
+    </ol>
+    <div class="box success"><p><strong>Formula comercial:</strong> Auditar -> Entender -> Priorizar -> Ejecutar. La auditoria muestra la brecha; la ejecucion con Botz cierra la brecha.</p></div>
+  </section>
+
+  <section class="page-break">
+    <h2>3. Conceptos clave</h2>
+    <table>
+      <tr><th>Concepto</th><th>Que significa</th><th>Ejemplo facil</th></tr>
+      <tr><td>Proyecto</td><td>La marca o sitio que se quiere medir.</td><td>Botz, www.botz.fyi</td></tr>
+      <tr><td>Prompt</td><td>Pregunta que GEO le hace a una IA.</td><td>"Cuales son los mejores proveedores de software en Colombia?"</td></tr>
+      <tr><td>Motor IA</td><td>La IA donde se ejecuta el prompt.</td><td>ChatGPT, Gemini, Perplexity</td></tr>
+      <tr><td>Auditoria</td><td>Proceso que ejecuta prompts en motores y mide resultados.</td><td>2 prompts x 2 motores = 4 respuestas medidas</td></tr>
+      <tr><td>Mencion</td><td>La IA nombro la marca.</td><td>"Botz es una opcion para automatizacion"</td></tr>
+      <tr><td>Cita/Fuente</td><td>La IA o el analisis detecto una URL o fuente relacionada.</td><td>https://www.botz.fyi</td></tr>
+      <tr><td>Visibilidad espontanea</td><td>La marca aparece sin ser nombrada en la pregunta.</td><td>"Mejores proveedores de software en Canada"</td></tr>
+      <tr><td>Visibilidad asistida</td><td>La marca aparece porque la pregunta ya la nombro.</td><td>"Compara Botz vs HubSpot"</td></tr>
+      <tr><td>Cobertura de citations</td><td>Prompts de fuentes donde se detecta evidencia o URLs citables.</td><td>Web, Google Business, medios, directorios</td></tr>
+      <tr><td>Competidor</td><td>Marca contra la que se compara el proyecto.</td><td>Make, HubSpot</td></tr>
+      <tr><td>Prompt ganado</td><td>Respuesta donde tu marca aparece mejor o en posicion relevante.</td><td>Botz aparece en posicion 1</td></tr>
+    </table>
+
+    <h2>4. Que es un prompt</h2>
+    <p>Un prompt es una pregunta que el sistema le hace a una IA para probar si la marca aparece.</p>
+    <div class="grid">
+      <div class="card">
+        <p><span class="pill">Prompt neutral</span></p>
+        <p><strong>Pregunta:</strong> Cuales son los mejores proveedores de automatizacion comercial en Colombia?</p>
+        <p><strong>Para que sirve:</strong> mide si la marca aparece espontaneamente, sin nombrarla.</p>
+      </div>
+      <div class="card">
+        <p><span class="pill">Prompt comparativo</span></p>
+        <p><strong>Pregunta:</strong> Compara Botz vs Make y HubSpot.</p>
+        <p><strong>Para que sirve:</strong> mide como la IA compara la marca contra competidores.</p>
+      </div>
+    </div>
+    <div class="warning box">
+      <p><strong>Importante:</strong> crear un prompt no significa que ya se ejecuto. Los prompts se ejecutan cuando corres una auditoria o cuando presionas "Ejecutar ahora" en un prompt.</p>
+    </div>
+  </section>
+
+  <section class="page-break">
+    <h2>5. Como corre una auditoria</h2>
+    <ol>
+      <li>El usuario selecciona o crea un proyecto.</li>
+      <li>El sistema toma los prompts activos del proyecto.</li>
+      <li>El sistema revisa que motores estan configurados: por ejemplo ChatGPT y Gemini.</li>
+      <li>Cada prompt se manda a cada motor.</li>
+      <li>Ejemplo: si hay 2 prompts y 2 motores, salen 4 respuestas.</li>
+      <li>GEO analiza cada respuesta y busca marca, competidores, URLs, posicion y menciones.</li>
+      <li>GEO guarda los resultados.</li>
+      <li>GEO calcula los indicadores finales.</li>
+    </ol>
+    <div class="box success">
+      <p><strong>Ejemplo real:</strong> si ves "1/4 prompts ganados" y "2 motores", significa que se evaluaron 4 respuestas y tu marca gano 1.</p>
+    </div>
+
+    <h2>6. Que significa encontrado, mencionado o citado</h2>
+    <ul>
+      <li><strong>Encontrado:</strong> GEO detecto la marca o competidor en la respuesta.</li>
+      <li><strong>Mencionado:</strong> la IA nombro la marca con texto.</li>
+      <li><strong>Citado:</strong> se encontro una fuente o URL asociada, como el sitio web.</li>
+      <li><strong>No aparece:</strong> la IA respondio, pero no nombro la marca.</li>
+    </ul>
+    <p>Ejemplo: si se pregunta "mejores proveedores de SaaS en Colombia" y la IA responde "HubSpot, Make y Botz", entonces Botz fue mencionado. Si ademas aparece "www.botz.fyi", tambien fue citado como fuente.</p>
+  </section>
+
+  <section class="page-break">
+    <h2>7. Menu principal de GEO</h2>
+    <table>
+      <tr><th>Menu</th><th>Para que sirve</th><th>Que debes mirar</th></tr>
+      <tr><td>Dashboard</td><td>Resumen general de todo GEO.</td><td>Score, visibilidad, auditorias recientes, tendencia y datos acumulados.</td></tr>
+      <tr><td>Proyectos</td><td>Gestiona marcas o sitios a medir.</td><td>Marca, URL, categoria, competidores y acceso al Action Plan.</td></tr>
+      <tr><td>GEO Audits</td><td>Lista y detalle de auditorias.</td><td>Estado, score, motores usados, prompts ganados y respuestas.</td></tr>
+      <tr><td>Prompts</td><td>Preguntas que se ejecutan en IA.</td><td>Si estan activos, idioma, categoria y motores.</td></tr>
+      <tr><td>Competidores</td><td>Comparacion contra marcas rivales.</td><td>Quien tiene mas score, visibilidad y prompts ganados.</td></tr>
+      <tr><td>Reportes</td><td>Reportes y documentos para presentar.</td><td>Resumen ejecutivo, Action Plan y PDF.</td></tr>
+      <tr><td>Automatizaciones</td><td>Monitoreos o trabajos automaticos.</td><td>Jobs activos, colas y seguimiento.</td></tr>
+      <tr><td>Facturacion</td><td>Plan y uso comercial.</td><td>Limites, plan, estado de cuenta.</td></tr>
+      <tr><td>Configuracion</td><td>Ajustes del producto o cuenta.</td><td>Datos del workspace y preferencias.</td></tr>
+      <tr><td>Ayuda</td><td>Soporte y explicaciones.</td><td>Guia para resolver dudas.</td></tr>
+    </table>
+  </section>
+
+  <section class="page-break">
+    <h2>8. Dashboard</h2>
+    <p>El Dashboard es la vista principal. Sirve para ver rapidamente si la marca esta bien o mal en IA.</p>
+    <h3>Tarjetas principales</h3>
+    <ul>
+      <li><strong>GEO Score:</strong> nota estricta de 0 a 100, basada principalmente en visibilidad espontanea.</li>
+      <li><strong>Visibilidad espontanea:</strong> porcentaje de respuestas neutrales donde aparece la marca sin nombrarla en la pregunta.</li>
+      <li><strong>Prompts ejecutados:</strong> metrica acumulada de uso o ejecuciones del sistema. No siempre representa solo la ultima auditoria.</li>
+      <li><strong>Competidores monitoreados:</strong> cantidad de competidores guardados o detectados.</li>
+    </ul>
+    <h3>Evolucion GEO Score</h3>
+    <p>Muestra si el score sube o baja con el tiempo. Con una sola auditoria solo se ve un punto. Con varias auditorias se ve tendencia.</p>
+    <h3>Auditorias recientes</h3>
+    <p>Lista las ultimas auditorias, su fecha, score y estado. El boton "Ver" abre el detalle.</p>
+
+    <h2>9. Proyectos</h2>
+    <p>Un proyecto es la marca que se va a medir.</p>
+    <h3>Que datos debe tener un proyecto</h3>
+    <ul>
+      <li>Nombre de marca.</li>
+      <li>URL oficial.</li>
+      <li>Categoria del negocio.</li>
+      <li>Descripcion clara de que vende.</li>
+      <li>Competidores principales.</li>
+    </ul>
+    <div class="box warning">
+      <p><strong>Buena practica:</strong> no duplicar competidores. Si Make y HubSpot aparecen dos veces, los resultados se pueden ver repetidos.</p>
+    </div>
+  </section>
+
+  <section class="page-break">
+    <h2>10. GEO Audits</h2>
+    <p>GEO Audits es donde ves las auditorias ejecutadas y su resultado.</p>
+    <h3>Estados posibles</h3>
+    <ul>
+      <li><strong>Completed / Completado:</strong> corrio bien y hay resultados.</li>
+      <li><strong>Processing:</strong> todavia esta corriendo.</li>
+      <li><strong>Failed:</strong> fallo algun motor, credencial o proceso.</li>
+    </ul>
+    <h3>En el detalle de auditoria ves</h3>
+    <ul>
+      <li>Score final.</li>
+      <li>Visibilidad espontanea.</li>
+      <li>Visibilidad asistida.</li>
+      <li>Win rate competitivo.</li>
+      <li>Cobertura de citations.</li>
+      <li>Confianza.</li>
+      <li>Prompts ganados.</li>
+      <li>Motores usados.</li>
+      <li>Resultados por prompt y motor.</li>
+      <li>Competidores detectados.</li>
+      <li>Fuentes citadas.</li>
+    </ul>
+
+    <h2>11. Como leer el resultado de una auditoria</h2>
+    <table>
+      <tr><th>Metrica</th><th>Que significa</th><th>Como interpretarla</th></tr>
+      <tr><td>GEO Score</td><td>Nota estricta de 0 a 100 basada principalmente en visibilidad espontanea.</td><td>No debe inflarse con prompts donde la marca ya fue nombrada.</td></tr>
+      <tr><td>Visibilidad espontanea</td><td>Porcentaje de respuestas neutrales donde aparece la marca.</td><td>Es la metrica mas importante de reconocimiento real.</td></tr>
+      <tr><td>Visibilidad asistida</td><td>Porcentaje de respuestas donde aparece la marca cuando el prompt ya la menciona.</td><td>Sirve para diagnostico, pero no prueba demanda espontanea.</td></tr>
+      <tr><td>Win rate competitivo</td><td>Porcentaje de prompts comparativos donde la marca gana o queda mejor posicionada.</td><td>Mide defensa frente a competidores.</td></tr>
+      <tr><td>Cobertura de citations</td><td>Porcentaje de prompts de fuentes donde se detecta evidencia citable.</td><td>Mide si hay pruebas que la IA pueda usar.</td></tr>
+      <tr><td>Confianza</td><td>Que tan solido es el analisis.</td><td>Sube con mas prompts, mas motores y mas datos.</td></tr>
+      <tr><td>Prompts ganados</td><td>Cuantas respuestas favorecieron a la marca.</td><td>1/4 significa que gano una de cuatro evaluaciones.</td></tr>
+      <tr><td>Motores</td><td>IAs usadas en la prueba.</td><td>ChatGPT y Gemini, por ejemplo.</td></tr>
+    </table>
+  </section>
+
+  <section class="page-break">
+    <h2>12. Prompts</h2>
+    <p>La pantalla de Prompts muestra las preguntas que GEO puede ejecutar.</p>
+    <h3>Que ves en una tarjeta de prompt</h3>
+    <ul>
+      <li><strong>Tipo:</strong> recomendacion, comparativa, alternativa, producto, categoria, etc.</li>
+      <li><strong>Estado:</strong> activo o inactivo.</li>
+      <li><strong>Texto del prompt:</strong> la pregunta que se va a enviar a la IA.</li>
+      <li><strong>Idioma:</strong> por ejemplo es o en.</li>
+      <li><strong>Motores:</strong> openai, gemini, perplexity.</li>
+      <li><strong>Posicion:</strong> posicion donde aparece la marca si fue detectada.</li>
+      <li><strong>Visibilidad:</strong> porcentaje de visibilidad para ese prompt.</li>
+      <li><strong>Menciones:</strong> cuantas veces aparece la marca.</li>
+    </ul>
+    <h3>Cuando se ejecuta un prompt</h3>
+    <ul>
+      <li>Cuando corres una auditoria completa.</li>
+      <li>Cuando presionas "Ejecutar ahora" en el prompt.</li>
+    </ul>
+    <div class="box">
+      <p><strong>Regla simple:</strong> prompt creado = pregunta guardada. Prompt ejecutado = pregunta enviada a IA y medida.</p>
+    </div>
+
+    <h2>13. Motores IA</h2>
+    <p>Los motores son las inteligencias artificiales donde se prueban los prompts.</p>
+    <ul>
+      <li><strong>OpenAI / ChatGPT:</strong> mide presencia en respuestas estilo ChatGPT.</li>
+      <li><strong>Gemini:</strong> mide presencia en Google Gemini o Vertex AI.</li>
+      <li><strong>Perplexity:</strong> mide respuestas con enfoque de busqueda y fuentes, si la API esta configurada.</li>
+    </ul>
+    <div class="warning box">
+      <p><strong>Importante:</strong> si un motor aparece en la interfaz pero no tiene API key configurada, no correra o no dara resultados reales.</p>
+    </div>
+  </section>
+
+  <section class="page-break">
+    <h2>14. Competidores</h2>
+    <p>La seccion de Competidores muestra contra quien esta peleando la marca en respuestas de IA.</p>
+    <h3>Donde ves la fuerza de competidores</h3>
+    <ul>
+      <li><strong>Presion competidora:</strong> indica si los competidores tienen mucha presencia frente a la marca.</li>
+      <li><strong>Competidores detectados:</strong> muestra marcas que aparecieron en respuestas.</li>
+      <li><strong>Tabla de competidores:</strong> compara score, visibilidad, citas y prompts ganados.</li>
+      <li><strong>Prompts ganados vs competencia:</strong> muestra si tu marca o el competidor gano mas en cada tipo de prompt.</li>
+      <li><strong>Radar de metricas:</strong> compara tu marca contra lider y promedio.</li>
+    </ul>
+    <h3>Como leer una tabla de competidores</h3>
+    <table>
+      <tr><th>Columna</th><th>Que significa</th></tr>
+      <tr><td>Competidor</td><td>Nombre del rival detectado o monitoreado.</td></tr>
+      <tr><td>GEO Score</td><td>Puntaje del competidor.</td></tr>
+      <tr><td>AI Visibility</td><td>Cuanto aparece el competidor en respuestas IA.</td></tr>
+      <tr><td>Citations</td><td>Fuentes o URLs asociadas al competidor.</td></tr>
+      <tr><td>Prompts Ganados</td><td>Cuantos prompts favorecieron a ese competidor.</td></tr>
+      <tr><td>Trend</td><td>Tendencia o avance del competidor.</td></tr>
+    </table>
+    <div class="box success">
+      <p><strong>Ejemplo:</strong> si Botz tiene score 24 y HubSpot tiene 26, HubSpot esta un poco arriba. No es una diferencia gigante, pero Botz debe mejorar contenido y autoridad.</p>
+    </div>
+  </section>
+
+  <section class="page-break">
+    <h2>15. Reportes</h2>
+    <p>Reportes sirve para convertir los datos en una entrega clara para cliente o equipo interno. La estructura recomendada tiene dos bloques fuertes.</p>
+    <h3>Bloque 1: Resultado de la auditoria</h3>
+    <ul>
+      <li>Resumen ejecutivo.</li>
+      <li>GEO Score.</li>
+      <li>Visibilidad espontanea.</li>
+      <li>Visibilidad asistida.</li>
+      <li>Win rate competitivo.</li>
+      <li>Cobertura de citations.</li>
+      <li>Competidores principales.</li>
+    </ul>
+    <h3>Bloque 2: Plan de accion propuesto</h3>
+    <ul>
+      <li>Primeros movimientos recomendados.</li>
+      <li>Plan de accion por prioridad.</li>
+      <li>Producto Botz que ejecuta cada accion.</li>
+      <li>Entregables concretos.</li>
+      <li>Metrica que cada accion busca mejorar.</li>
+    </ul>
+    <h3>Para que sirve el PDF</h3>
+    <p>El PDF sirve para explicar al cliente que esta pasando, que tan visible es su marca en IA y que debe hacer para mejorar.</p>
+
+    <h2>16. Automatizaciones</h2>
+    <p>Automatizaciones sirve para monitorear de forma recurrente sin hacerlo todo manual.</p>
+    <h3>Ejemplos de automatizaciones</h3>
+    <ul>
+      <li>Monitorear un competidor.</li>
+      <li>Ejecutar prompts recurrentes.</li>
+      <li>Detectar cambios en visibilidad.</li>
+      <li>Crear seguimiento para alertar si un competidor sube.</li>
+    </ul>
+    <p>Si aparece "Active Monitoring 0", significa que no hay monitoreos activos en cola o ejecucion.</p>
+  </section>
+
+  <section class="page-break">
+    <h2>17. Facturacion, Configuracion, Ayuda y Sesion</h2>
+    <h3>Facturacion</h3>
+    <p>Muestra plan, limites o estado comercial. En beta puede ser manual.</p>
+    <h3>Configuracion</h3>
+    <p>Permite ajustar datos de cuenta, workspace o preferencias.</p>
+    <h3>Ayuda</h3>
+    <p>Debe servir para explicar dudas frecuentes y soporte.</p>
+    <h3>Cerrar sesion</h3>
+    <p>Sale de la cuenta actual.</p>
+
+    <h2>18. Procedimiento para una nueva auditoria</h2>
+    <ol>
+      <li>Entrar a GEO.</li>
+      <li>Ir a Proyectos.</li>
+      <li>Crear o seleccionar el proyecto correcto.</li>
+      <li>Revisar que la URL oficial este bien escrita.</li>
+      <li>Revisar que la categoria describe correctamente el negocio.</li>
+      <li>Agregar competidores reales, sin duplicados.</li>
+      <li>Ir a Prompts.</li>
+      <li>Revisar que existan prompts neutrales y comparativos.</li>
+      <li>Activar solo prompts utiles.</li>
+      <li>Ir a GEO Audits.</li>
+      <li>Ejecutar una auditoria.</li>
+      <li>Esperar estado Completado.</li>
+      <li>Abrir el detalle.</li>
+      <li>Revisar GEO Score, visibilidad espontanea, visibilidad asistida, win rate competitivo y cobertura de citations.</li>
+      <li>Revisar si ChatGPT, Gemini y otros motores mencionan la marca.</li>
+      <li>Revisar competidores detectados.</li>
+      <li>Revisar fuentes citadas.</li>
+      <li>Ir al Action Plan o Reportes.</li>
+      <li>Exportar o imprimir PDF.</li>
+      <li>Convertir recomendaciones en tareas de ejecucion: producto, posicionamiento, web, SEO, landings, contenido, redes, citations y vigilancia.</li>
+    </ol>
+  </section>
+
+  <section class="page-break">
+    <h2>19. Como explicar un resultado a un cliente</h2>
+    <div class="box">
+      <p><strong>Frase simple:</strong> Esta auditoria muestra que tanto aparece tu marca cuando las personas le preguntan a una IA por soluciones como la tuya. Si apareces poco, la IA todavia no entiende o no reconoce suficientemente tu marca. El objetivo es crear contenido y autoridad para que la IA te mencione mas y mejor.</p>
+    </div>
+    <h3>Si el score es bajo</h3>
+    <ul>
+      <li>No significa que la herramienta fallo.</li>
+      <li>Significa que la IA no esta recomendando la marca con fuerza.</li>
+      <li>Hay que mejorar contenido, autoridad, comparativas, casos de uso y claridad del sitio.</li>
+    </ul>
+    <h3>Si un competidor aparece mas</h3>
+    <ul>
+      <li>Ese competidor tiene mas reconocimiento o contenido entendible para IA.</li>
+      <li>Se deben crear paginas comparativas y contenido que explique por que elegir la marca.</li>
+      <li>Tambien se deben reforzar fuentes externas, menciones y autoridad.</li>
+    </ul>
+
+    <h2>20. Checklist antes de entregar una auditoria</h2>
+    <ul>
+      <li>Proyecto correcto.</li>
+      <li>URL correcta.</li>
+      <li>Competidores sin duplicados.</li>
+      <li>Prompts activos y bien escritos.</li>
+      <li>Motores configurados.</li>
+      <li>Auditoria en estado Completado.</li>
+      <li>Revisar respuestas por motor.</li>
+      <li>Revisar competidores detectados.</li>
+      <li>Revisar fuentes citadas.</li>
+      <li>Generar Action Plan.</li>
+      <li>Exportar PDF si se necesita entregar.</li>
+    </ul>
+
+    <h2>21. Etapa de ejecucion con Botz</h2>
+    <p>Despues de auditar, el objetivo no es solo mirar el score. El objetivo es ejecutar acciones que cambien la proxima auditoria.</p>
+    <table>
+      <tr><th>Producto Botz</th><th>Que resuelve</th><th>Metrica que mejora</th></tr>
+      <tr><td>Analisis de producto y posicionamiento</td><td>Define categoria, propuesta de valor, diferenciales y claims verificables.</td><td>GEO Score, visibilidad espontanea, win rate competitivo.</td></tr>
+      <tr><td>Pagina web, SEO y estructura GEO</td><td>Convierte la web en una fuente clara para IA y buscadores.</td><td>Visibilidad espontanea, cobertura de citations.</td></tr>
+      <tr><td>Landings por industria o caso de uso</td><td>Responde preguntas especificas que hacen usuarios y motores IA.</td><td>Visibilidad espontanea, prompts ganados.</td></tr>
+      <tr><td>Contenido, redes y citations</td><td>Genera autoridad, menciones, fuentes externas y distribucion.</td><td>Cobertura de citations, autoridad, presion competitiva.</td></tr>
+      <tr><td>Vigilancia competitiva</td><td>Monitorea cambios y prioriza siguientes acciones.</td><td>GEO Score, win rate competitivo, roadmap.</td></tr>
+    </table>
+
+    <h2>22. Que hacer para mejorar GEO</h2>
+    <ol>
+      <li>Crear contenido claro sobre que vende la empresa.</li>
+      <li>Crear paginas por categoria y caso de uso.</li>
+      <li>Crear comparativas honestas contra competidores.</li>
+      <li>Crear paginas de alternativas a competidores.</li>
+      <li>Publicar casos de exito y testimonios.</li>
+      <li>Mejorar titulos, descripciones y estructura del sitio.</li>
+      <li>Conseguir menciones externas confiables.</li>
+      <li>Actualizar contenido con lenguaje que la IA pueda entender.</li>
+      <li>Repetir auditoria despues de cambios.</li>
+      <li>Comparar si el score sube.</li>
+    </ol>
+  </section>
+
+  <section class="page-break">
+    <h2>23. Glosario final</h2>
+    <table>
+      <tr><th>Palabra</th><th>Explicacion sencilla</th></tr>
+      <tr><td>GEO</td><td>Hacer que una marca aparezca mejor en respuestas de IA.</td></tr>
+      <tr><td>Prompt</td><td>Pregunta que se le hace a la IA.</td></tr>
+      <tr><td>Motor</td><td>La IA que responde.</td></tr>
+      <tr><td>Auditoria</td><td>Prueba completa de prompts y motores.</td></tr>
+      <tr><td>Visibilidad espontanea</td><td>La IA menciona la marca sin que el prompt la nombre.</td></tr>
+      <tr><td>Visibilidad asistida</td><td>La IA menciona la marca porque el prompt ya la nombro.</td></tr>
+      <tr><td>Cobertura de citations</td><td>Prompts donde aparecen fuentes o pruebas citables.</td></tr>
+      <tr><td>Competidor</td><td>Marca rival.</td></tr>
+      <tr><td>Action Plan</td><td>Plan de tareas para mejorar.</td></tr>
+      <tr><td>Score</td><td>Nota del rendimiento.</td></tr>
+      <tr><td>Prompt ganado</td><td>Respuesta donde la marca sale favorecida.</td></tr>
+    </table>
+    <div class="box success">
+      <p><strong>Resumen final:</strong> GEO no es solo un dashboard. Es un sistema para descubrir si la IA conoce una marca, compararla contra competidores y convertir ese diagnostico en acciones concretas para ganar presencia en ChatGPT, Gemini, Perplexity y otros motores.</p>
+    </div>
+  </section>
+</body>
+</html>

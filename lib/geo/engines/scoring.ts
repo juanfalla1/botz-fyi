@@ -3,6 +3,14 @@ import type { NormalizedEngineResult } from "@/lib/geo/engines/types"
 export type EngineBreakdown = {
   engine: string
   prompts_total: number
+  spontaneous_total: number
+  spontaneous_mentions: number
+  assisted_total: number
+  assisted_mentions: number
+  competitive_total: number
+  competitive_wins: number
+  citation_total: number
+  citation_hits: number
   mentions: number
   citations: number
   prompts_won: number
@@ -21,6 +29,15 @@ export type GeoSnapshotV1 = {
   citations_unique_domains: number
   prompts_won: number
   prompts_lost: number
+  spontaneous_visibility: number
+  assisted_visibility: number
+  competitive_visibility: number
+  citation_coverage: number
+  total_results: number
+  spontaneous_results: number
+  assisted_results: number
+  competitive_results: number
+  citation_results: number
   engines: string[]
   engine_breakdown: EngineBreakdown[]
   quality_flags_aggregate: {
@@ -37,6 +54,14 @@ function avg(values: number[]) {
   return values.reduce((a, b) => a + b, 0) / values.length
 }
 
+function pct(part: number, total: number) {
+  return total > 0 ? Math.min(100, Math.round((part / total) * 100)) : 0
+}
+
+function kindOf(result: NormalizedEngineResult) {
+  return result.promptKind ?? "spontaneous"
+}
+
 export function scoreSnapshotV1(results: NormalizedEngineResult[]): GeoSnapshotV1 {
   const byEngine = new Map<string, NormalizedEngineResult[]>()
   for (const r of results) {
@@ -47,9 +72,21 @@ export function scoreSnapshotV1(results: NormalizedEngineResult[]): GeoSnapshotV
 
   const breakdown: EngineBreakdown[] = Array.from(byEngine.entries()).map(([engine, list]) => {
     const rankValues = list.map((x) => x.rankingPosition).filter((x): x is number => typeof x === "number")
+    const spontaneous = list.filter((x) => kindOf(x) === "spontaneous")
+    const assisted = list.filter((x) => kindOf(x) === "assisted")
+    const competitive = list.filter((x) => kindOf(x) === "competitive")
+    const citation = list.filter((x) => kindOf(x) === "citation")
     return {
       engine,
       prompts_total: list.length,
+      spontaneous_total: spontaneous.length,
+      spontaneous_mentions: spontaneous.filter((x) => x.brandMentioned).length,
+      assisted_total: assisted.length,
+      assisted_mentions: assisted.filter((x) => x.brandMentioned).length,
+      competitive_total: competitive.length,
+      competitive_wins: competitive.filter((x) => x.won).length,
+      citation_total: citation.length,
+      citation_hits: citation.filter((x) => x.uniqueCitations > 0 || x.brandMentioned).length,
       mentions: list.filter((x) => x.brandMentioned).length,
       citations: list.reduce((acc, x) => acc + x.uniqueCitations, 0),
       prompts_won: list.filter((x) => x.won).length,
@@ -63,17 +100,26 @@ export function scoreSnapshotV1(results: NormalizedEngineResult[]): GeoSnapshotV
   })
 
   const promptsTotal = Math.max(1, results.length)
+  const spontaneous = results.filter((x) => kindOf(x) === "spontaneous")
+  const assisted = results.filter((x) => kindOf(x) === "assisted")
+  const competitive = results.filter((x) => kindOf(x) === "competitive")
+  const citationResults = results.filter((x) => kindOf(x) === "citation")
   const promptsWon = results.filter((x) => x.won).length
   const promptsLost = results.filter((x) => x.lost).length
   const mentions = results.filter((x) => x.brandMentioned).length
   const citations = results.reduce((acc, x) => acc + x.uniqueCitations, 0)
   const citationDomains = new Set(results.flatMap((x) => x.citationDomains)).size
 
-  const visibility = Math.min(100, Math.round((mentions / promptsTotal) * 100))
+  const visibility = pct(mentions, promptsTotal)
+  const spontaneousVisibility = pct(spontaneous.filter((x) => x.brandMentioned).length, spontaneous.length)
+  const assistedVisibility = pct(assisted.filter((x) => x.brandMentioned).length, assisted.length)
+  const competitiveVisibility = pct(competitive.filter((x) => x.won).length, competitive.length)
+  const citationCoverage = pct(citationResults.filter((x) => x.uniqueCitations > 0 || x.brandMentioned).length, citationResults.length)
   const winRate = (promptsWon / promptsTotal) * 100
   const lossPenalty = Math.min(20, Math.round((promptsLost / promptsTotal) * 20))
-  const citationScore = Math.min(100, Math.round((citations / promptsTotal) * 25))
-  const geoScore = Math.round(Math.max(0, Math.min(100, visibility * 0.5 + winRate * 0.35 + citationScore * 0.15 - lossPenalty)))
+  const citationScore = citationResults.length > 0 ? citationCoverage : Math.min(100, Math.round((citations / promptsTotal) * 25))
+  const discoveryBase = spontaneous.length > 0 ? spontaneousVisibility : visibility
+  const geoScore = Math.round(Math.max(0, Math.min(100, discoveryBase * 0.6 + assistedVisibility * 0.1 + competitiveVisibility * 0.15 + citationScore * 0.15 - lossPenalty)))
 
   const qualityFlagsAggregate = {
     low_confidence: results.filter((x) => x.quality_flags.low_confidence).length,
@@ -85,11 +131,20 @@ export function scoreSnapshotV1(results: NormalizedEngineResult[]): GeoSnapshotV
 
   return {
     geo_score: geoScore,
-    ai_visibility: visibility,
+    ai_visibility: discoveryBase,
     citations_count: citations,
     citations_unique_domains: citationDomains,
     prompts_won: promptsWon,
     prompts_lost: promptsLost,
+    spontaneous_visibility: spontaneousVisibility,
+    assisted_visibility: assistedVisibility,
+    competitive_visibility: competitiveVisibility,
+    citation_coverage: citationCoverage,
+    total_results: results.length,
+    spontaneous_results: spontaneous.length,
+    assisted_results: assisted.length,
+    competitive_results: competitive.length,
+    citation_results: citationResults.length,
     engines: Array.from(new Set(results.map((x) => x.engine))),
     engine_breakdown: breakdown,
     quality_flags_aggregate: qualityFlagsAggregate,

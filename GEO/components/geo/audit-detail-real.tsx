@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Eye, FileText, Lightbulb, MessageSquare, Quote, Target, Trash2, TrendingUp, Zap } from "lucide-react"
+import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Eye, FileText, Lightbulb, MessageSquare, Quote, Search, ShieldCheck, Target, Trash2, TrendingUp, Trophy, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AppHeader } from "@/GEO/components/geo/app-shell"
@@ -220,7 +220,16 @@ export default function AuditDetailReal() {
   const promptsTested = numberFrom(summary.prompts_tested ?? metadata.prompts_tested) || enginePromptsTested
   const promptsWon = numberFrom(summary.prompts_won ?? metadata.prompts_won) || enginePromptsWon
   const citations = numberFrom(summary.citations_count ?? metadata.citations_count) || engineCitations
-  const aiVisibility = Math.round(numberFrom(summary.ai_visibility ?? semantic?.brand_visibility ?? score))
+  const totalResults = numberFrom(summary.total_results ?? metadata.total_results) || promptsTested
+  const spontaneousResults = numberFrom(summary.spontaneous_results ?? metadata.spontaneous_results)
+  const assistedResults = numberFrom(summary.assisted_results ?? metadata.assisted_results)
+  const competitiveResults = numberFrom(summary.competitive_results ?? metadata.competitive_results)
+  const citationResults = numberFrom(summary.citation_results ?? metadata.citation_results)
+  const spontaneousVisibility = Math.round(numberFrom(summary.spontaneous_visibility ?? summary.ai_visibility ?? semantic?.brand_visibility ?? score))
+  const assistedVisibility = Math.round(numberFrom(summary.assisted_visibility))
+  const competitiveVisibility = Math.round(numberFrom(summary.competitive_visibility))
+  const citationCoverage = Math.round(numberFrom(summary.citation_coverage))
+  const aiVisibility = spontaneousVisibility
   const confidence = Math.round(numberFrom(sentiment?.score) * 100)
   const directMentions = aiMentions.filter((mention) => String(mention.position) !== "no_mencionada").length
   const competitorPressure = competitorVisibility.length ? Math.round(Math.max(...competitorVisibility.map((competitor) => numberFrom(competitor.visibility_score)))) : 0
@@ -249,6 +258,7 @@ export default function AuditDetailReal() {
         opportunity: rec.opportunity ?? opportunityScore(rec.priority ?? rec.impact, index),
       }))
   const engineCount = engines.length
+  const lowSample = totalResults > 0 && totalResults < 12
 
   const deleteAudit = async () => {
     if (!audit?.id) return
@@ -334,11 +344,11 @@ export default function AuditDetailReal() {
 
                   <div className="flex w-full gap-4 overflow-x-auto pb-2">
                     {[
-                      { label: isEn ? "AI Visibility" : "Visibilidad IA", value: aiVisibility > 0 ? `${aiVisibility}%` : "Sin datos", icon: Eye, color: "text-primary" },
-                      { label: isEn ? "Citations" : "Citaciones", value: citations > 0 ? String(citations) : "Sin datos", icon: Quote, color: "text-accent" },
-                      { label: isEn ? "Confidence" : "Confianza", value: confidence > 0 ? `${confidence}%` : "Sin datos", icon: Zap, color: "text-chart-3" },
-                      { label: isEn ? "Prompts Won" : "Prompts ganados", value: promptsTested > 0 ? `${promptsWon}/${promptsTested}` : "Sin datos", icon: Target, color: "text-chart-4" },
-                      { label: isEn ? "Engines" : "Motores", value: engineCount > 0 ? String(engineCount) : "Sin datos", icon: FileText, color: "text-chart-5" },
+                       { label: isEn ? "Spontaneous Visibility" : "Visibilidad espontánea", value: spontaneousResults > 0 ? `${spontaneousVisibility}%` : "Sin datos", note: isEn ? "Neutral prompts" : "Prompts neutrales", icon: Search, color: "text-primary" },
+                       { label: isEn ? "Assisted Visibility" : "Visibilidad asistida", value: assistedResults > 0 ? `${assistedVisibility}%` : "Sin datos", note: isEn ? "Brand named in prompt" : "Marca nombrada en el prompt", icon: Eye, color: "text-accent" },
+                       { label: isEn ? "Competitive Win Rate" : "Win rate competitivo", value: competitiveResults > 0 ? `${competitiveVisibility}%` : "Sin datos", note: promptsTested > 0 ? `${promptsWon}/${promptsTested}` : isEn ? "Won prompts" : "Prompts ganados", icon: Trophy, color: "text-chart-4" },
+                       { label: isEn ? "Citation Coverage" : "Cobertura de citations", value: citationResults > 0 ? `${citationCoverage}%` : citations > 0 ? String(citations) : "Sin datos", note: isEn ? "Sources found" : "Fuentes detectadas", icon: Quote, color: "text-chart-3" },
+                       { label: isEn ? "Engines" : "Motores", value: engineCount > 0 ? String(engineCount) : "Sin datos", note: totalResults > 0 ? `${totalResults} ${isEn ? "results" : "resultados"}` : "", icon: FileText, color: "text-chart-5" },
                     ].map((item) => (
                       <div key={item.label} className="glass min-w-[170px] flex-1 rounded-xl p-4 text-center">
                         <div className={`mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-secondary ${item.color}`}>
@@ -346,12 +356,22 @@ export default function AuditDetailReal() {
                         </div>
                         <div className="mb-1 text-2xl font-bold">{item.value}</div>
                         <p className="text-xs leading-tight text-muted-foreground">{item.label}</p>
+                        {item.note && <p className="mt-1 text-[11px] leading-tight text-muted-foreground/80">{item.note}</p>}
                       </div>
                     ))}
                   </div>
                 </div>
               </CardContent>
             </Card>
+
+            {lowSample && (
+              <Card className="glass border-yellow-500/30 bg-yellow-500/10">
+                <CardContent className="flex gap-3 p-4 text-sm text-yellow-100">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+                  <p>{isEn ? "This audit is directionally useful, but the sample is small. Use spontaneous visibility as the strongest signal and run more neutral prompts before making a final market claim." : "Esta auditoría sirve como señal inicial, pero la muestra es pequeña. Usa la visibilidad espontánea como la señal más importante y corre más prompts neutrales antes de hacer una conclusión fuerte de mercado."}</p>
+                </CardContent>
+              </Card>
+            )}
 
             {semantic && (
               <Card className="glass border-primary/30 bg-primary/5">
@@ -371,11 +391,12 @@ export default function AuditDetailReal() {
                 </CardHeader>
                 <CardContent className="space-y-5">
                   {[
-                    { label: "GEO Score", value: score },
-                    { label: isEn ? "AI Visibility" : "Visibilidad IA", value: aiVisibility },
-                    { label: isEn ? "Analysis Confidence" : "Confianza del análisis", value: confidence },
-                    { label: isEn ? "Competitor Pressure" : "Presión competidora", value: competitorPressure },
-                    { label: isEn ? "Brand Mentions" : "Menciones de marca", value: promptsTested > 0 ? Math.round((directMentions / Math.max(1, aiMentions.length)) * 100) : 0 },
+                    { label: "GEO Score", value: score, help: isEn ? "Strict score weighted toward neutral discovery prompts." : "Score estricto ponderado hacia prompts neutrales." },
+                    { label: isEn ? "Spontaneous Visibility" : "Visibilidad espontánea", value: spontaneousVisibility, help: isEn ? "Brand appeared without being named in the question." : "La marca apareció sin ser nombrada en la pregunta." },
+                    { label: isEn ? "Assisted Visibility" : "Visibilidad asistida", value: assistedVisibility, help: isEn ? "Brand appeared when the prompt already mentioned it." : "La marca apareció cuando el prompt ya la mencionaba." },
+                    { label: isEn ? "Competitive Win Rate" : "Win rate competitivo", value: competitiveVisibility, help: isEn ? "Comparative prompts where the brand beat competitors." : "Prompts comparativos donde la marca ganó frente a competidores." },
+                    { label: isEn ? "Citation Coverage" : "Cobertura de citations", value: citationCoverage, help: isEn ? "Citation/source prompts with evidence found." : "Prompts de fuentes/citations con evidencia encontrada." },
+                    { label: isEn ? "Competitor Pressure" : "Presión competidora", value: competitorPressure, help: isEn ? "How strongly tracked competitors appeared in this audit." : "Qué tan fuerte aparecieron los competidores en esta auditoría." },
                   ].map((item) => (
                     <div key={item.label}>
                       <div className="mb-2 flex items-center justify-between text-sm">
@@ -385,8 +406,13 @@ export default function AuditDetailReal() {
                       <div className="h-3 overflow-hidden rounded-full bg-secondary">
                         <div className="h-full rounded-full bg-gradient-to-r from-primary to-accent" style={{ width: `${Math.max(0, Math.min(100, item.value))}%` }} />
                       </div>
+                      <p className="mt-1 text-xs text-muted-foreground/80">{item.help}</p>
                     </div>
                   ))}
+                  <div className="rounded-xl border border-border bg-secondary/20 p-3 text-xs text-muted-foreground">
+                    <div className="mb-2 flex items-center gap-2 font-medium text-foreground"><ShieldCheck className="h-4 w-4 text-primary" />{isEn ? "Metric rule" : "Regla de lectura"}</div>
+                    <p>{isEn ? "A comparison prompt like 'Compare Botz vs HubSpot' does not count as spontaneous visibility. It is useful for positioning, but it should not be used as proof that the market already recommends the brand." : "Un prompt como 'Compara Botz vs HubSpot' no cuenta como visibilidad espontánea. Sirve para posicionamiento, pero no prueba que el mercado ya recomiende la marca."}</p>
+                  </div>
                   {competitorVisibility.length > 0 && (
                     <div className="border-t border-border pt-4">
                       <p className="mb-3 text-sm font-medium">{isEn ? "Tracked competitors" : "Competidores detectados"}</p>

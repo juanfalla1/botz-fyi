@@ -27,13 +27,14 @@ type ActionItem = {
 
 type ActionPlan = {
   project: { id: string; company_name: string; website_url: string; industry?: string | null }
-  latest_audit: { id: string; geo_score: number; ai_visibility: number; prompts_won: number; prompts_lost: number; citations_count: number; executive_summary: string; completed_at: string | null } | null
+  latest_audit: { id: string; geo_score: number; ai_visibility: number; spontaneous_visibility?: number; assisted_visibility?: number; competitive_visibility?: number; citation_coverage?: number; total_results?: number; prompts_won: number; prompts_lost: number; citations_count: number; executive_summary: string; completed_at: string | null } | null
   competitive_insights?: {
     tracked_competitors: number
     mentioned_competitors: number
     top_competitor: { name: string; mentions: number; engines: string[]; best_position: number | null } | null
     competitors: Array<{ name: string; mentions: number; engines: string[]; best_position: number | null }>
   }
+  execution_framework?: Array<{ id: string; name: string; solves: string; improves: string[]; deliverables: string[] }>
   actions: ActionItem[]
 }
 
@@ -69,7 +70,7 @@ export default function ActionPlanReportPage() {
     const audit = plan?.latest_audit
     const score = audit?.geo_score ?? 0
     const projected = Math.min(100, score + (plan?.actions ?? []).reduce((sum, action) => sum + (action.estimated_impact === "high" ? 8 : action.estimated_impact === "medium" ? 5 : 2), 0))
-    return { score, projected, visibility: audit?.ai_visibility ?? 0, promptsWon: audit?.prompts_won ?? 0, citations: audit?.citations_count ?? 0 }
+    return { score, projected, visibility: audit?.spontaneous_visibility ?? audit?.ai_visibility ?? 0, assistedVisibility: audit?.assisted_visibility ?? 0, competitiveVisibility: audit?.competitive_visibility ?? 0, citationCoverage: audit?.citation_coverage ?? 0, promptsWon: audit?.prompts_won ?? 0, citations: audit?.citations_count ?? 0, totalResults: audit?.total_results ?? 0 }
   }, [plan])
 
   const trendData = useMemo(() => {
@@ -97,19 +98,19 @@ export default function ActionPlanReportPage() {
   const copy = {
     eyebrow: isEn ? "Action Plan · GEO Strategy" : "Plan de Acción · GEO Strategy",
     coverDesc: isEn
-      ? `Executive strategy to improve ${plan.project.company_name}'s visibility in ChatGPT, Gemini, Perplexity and Google AI Overviews.`
-      : `Estrategia ejecutiva para mejorar la visibilidad de ${plan.project.company_name} en ChatGPT, Gemini, Perplexity y Google AI Overviews.`,
+      ? `Audit result and execution plan to improve ${plan.project.company_name}'s visibility in ChatGPT, Gemini, Perplexity and Google AI Overviews.`
+      : `Resultado de auditoría y plan de ejecución para mejorar la visibilidad de ${plan.project.company_name} en ChatGPT, Gemini, Perplexity y Google AI Overviews.`,
     client: isEn ? "Client" : "Cliente",
     date: isEn ? "Date" : "Fecha",
     summaryEyebrow: isEn ? "Executive Summary" : "Resumen Ejecutivo",
     summaryTitle: isEn ? "Where the brand stands in AI search" : "Dónde está hoy la marca en la búsqueda con IA",
     summaryFallback: isEn
-      ? `Botz GEO found concrete opportunities to increase ${plan.project.company_name}'s AI visibility. This report turns the audit into an implementation scope with pages, deliverables and priorities.`
-      : `Botz GEO detectó oportunidades concretas para aumentar la visibilidad de ${plan.project.company_name}. Este documento convierte la auditoría en un alcance de ejecución con páginas, entregables y prioridades.`,
+      ? `Botz GEO separates spontaneous visibility from assisted and comparative prompts, then turns the result into an execution scope with pages, deliverables and priorities.`
+      : `Botz GEO separa visibilidad espontánea de prompts asistidos y comparativos, y convierte el resultado en un alcance de ejecución con páginas, entregables y prioridades.`,
     metricsEyebrow: isEn ? "Metrics Panel" : "Panel de Métricas",
-    metricsTitle: isEn ? "Key visibility indicators" : "Indicadores clave de visibilidad",
+    metricsTitle: isEn ? "Consistent audit metrics" : "Métricas consistentes de auditoría",
     target: isEn ? "Target" : "Objetivo",
-    currentVisibility: isEn ? "Current visibility" : "Visibilidad actual",
+    currentVisibility: isEn ? "Neutral prompts only" : "Solo prompts neutrales",
     wonPrompts: isEn ? "Brand-visible prompts" : "Prompts con marca visible",
     citations: isEn ? "Cited sources" : "Fuentes citadas",
     projectionEyebrow: isEn ? "Projection" : "Proyección",
@@ -163,20 +164,20 @@ export default function ActionPlanReportPage() {
         </section>
       )}
 
-      <section className="report-page mt-8"><ReportTitle eyebrow={copy.metricsEyebrow} title={copy.metricsTitle} /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><MetricCard label="GEO Score" value={`${metrics.score}`} sub={`${copy.target}: ${metrics.projected}`} delta={`+${metrics.projected - metrics.score}`} icon={Gauge} /><MetricCard label="AI Visibility" value={`${metrics.visibility}%`} sub={copy.currentVisibility} icon={Eye} /><MetricCard label={isEn ? "Prompts Won" : "Prompts Ganados"} value={`${metrics.promptsWon}`} sub={copy.wonPrompts} icon={Trophy} /><MetricCard label="Citations" value={`${metrics.citations}`} sub={copy.citations} icon={Quote} /></div></section>
+      <section className="report-page mt-8"><ReportTitle eyebrow={copy.metricsEyebrow} title={copy.metricsTitle} /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><MetricCard label="GEO Score" value={`${metrics.score}`} sub={`${copy.target}: ${metrics.projected}`} delta={`+${metrics.projected - metrics.score}`} icon={Gauge} /><MetricCard label={isEn ? "Spontaneous Visibility" : "Visibilidad espontánea"} value={`${metrics.visibility}%`} sub={copy.currentVisibility} icon={Eye} /><MetricCard label={isEn ? "Competitive Win Rate" : "Win rate competitivo"} value={`${metrics.competitiveVisibility}%`} sub={isEn ? "Comparison prompts" : "Prompts comparativos"} icon={Trophy} /><MetricCard label={isEn ? "Citation Coverage" : "Cobertura de citations"} value={`${metrics.citationCoverage}%`} sub={copy.citations} icon={Quote} /></div></section>
       <section className="report-page mt-8"><ReportTitle eyebrow={copy.projectionEyebrow} title={copy.projectionTitle} desc={copy.projectionDesc} /><TrendChart data={trendData} currentLabel={copy.current} targetLabel={copy.estimatedTarget} /></section>
       <section className="report-page mt-8"><ReportTitle eyebrow={copy.priorityEyebrow} title={copy.priorityTitle} /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5"><Distribution label={copy.highImpact} count={impactHigh} color="bg-emerald-500" /><Distribution label={copy.mediumImpact} count={impactMedium} color="bg-primary" /><Distribution label={copy.easy} count={easy} color="bg-cyan-500" /><Distribution label={copy.medium} count={medium} color="bg-violet-500" /><Distribution label={copy.hard} count={hard} color="bg-muted-foreground" /></div></section>
       <section className="report-page mt-8"><ReportTitle eyebrow={copy.roadmapEyebrow} title={copy.roadmapTitle} desc={copy.roadmapDesc} /><div className="grid gap-4 lg:grid-cols-3"><RoadmapCard period={isEn ? "30 days" : "30 días"} title={isEn ? "GEO foundations" : "Fundamentos GEO"} items={isEn ? ["Rewrite key pages", "FAQ and schema in landing pages", "Fix brand messaging"] : ["Reescritura de páginas clave", "FAQ y schema en landings", "Corrección de mensajes de marca"]} /><RoadmapCard period={isEn ? "60 days" : "60 días"} title={isEn ? "Authority and content" : "Autoridad y contenido"} items={isEn ? ["Industry landing pages", "Comparison pages", "Citable cases and claims"] : ["Landings por industria", "Comparativas contra alternativas", "Casos y claims citables"]} /><RoadmapCard period={isEn ? "90 days" : "90 días"} title={isEn ? "Measurement and scale" : "Medición y escala"} items={isEn ? ["New comparative audit", "Optimize lost prompts", "Scale winning content"] : ["Nueva auditoría comparativa", "Optimización de prompts perdidos", "Escalar contenidos ganadores"]} /></div></section>
       <section className="report-page mt-8"><ReportTitle eyebrow={copy.diagnosisEyebrow} title={copy.diagnosisTitle} desc={copy.diagnosisDesc} /><div className="space-y-4"><Diagnosis title={isEn ? "Entity clarity and value proposition" : "Claridad de entidad y propuesta de valor"} desc={isEn ? "AI engines need to understand exactly what the company sells, who it serves and why it should be recommended." : "La IA necesita entender con precisión qué vende la empresa, para quién y por qué recomendarla."} icon={FileText} /><Diagnosis title={isEn ? "Intent-specific pages" : "Páginas específicas por intención"} desc={isEn ? "Models recommend brands more often when there are pages answering specific prompts: industry, comparisons, cases and FAQs." : "Los modelos recomiendan mejor cuando existen páginas que responden prompts concretos: industria, comparativas, casos y FAQs."} icon={Target} /><Diagnosis title={isEn ? "Citable authority signals" : "Señales de autoridad citables"} desc={isEn ? "Cases, sources, verifiable claims and external mentions help increase confidence and citations." : "Casos, fuentes, claims verificables y menciones externas ayudan a aumentar confianza y citaciones."} icon={ShieldCheck} /></div></section>
       <section className="report-page mt-8"><ReportTitle eyebrow={copy.recEyebrow} title={copy.recTitle} desc={copy.recDesc} /><div className="space-y-5">{reportActions.map((rec) => <Recommendation key={rec.id} rec={rec} isEn={isEn} />)}</div></section>
-      <section className="report-page mt-8"><ReportTitle eyebrow={copy.scopeEyebrow} title={copy.scopeTitle} /><div className="grid gap-4 sm:grid-cols-2"><Scope title={isEn ? "Continuous multi-engine audit" : "Auditoría continua multi-motor"} desc={isEn ? "Monitoring across ChatGPT, Gemini, Perplexity and AI Overviews." : "Monitoreo de ChatGPT, Gemini, Perplexity y AI Overviews."} icon={Gauge} /><Scope title={isEn ? "GEO content optimization" : "Optimización de contenido GEO"} desc={isEn ? "Creation and improvement of landing pages, FAQs, comparisons and citable pages." : "Creación y mejora de landings, FAQs, comparativas y páginas citables."} icon={FileText} /><Scope title={isEn ? "Authority strategy" : "Estrategia de autoridad"} desc={isEn ? "Case studies, verifiable claims and external trust signals." : "Casos de éxito, claims verificables y señales externas de confianza."} icon={ShieldCheck} /><Scope title={isEn ? "Executive reporting" : "Reporting ejecutivo"} desc={isEn ? "Recurring measurement of GEO Score, visibility, citations and prompts won." : "Medición recurrente de GEO Score, visibilidad, citaciones y prompts ganados."} icon={BarChart3} /></div></section>
+      <section className="report-page mt-8"><ReportTitle eyebrow={copy.scopeEyebrow} title={copy.scopeTitle} /><div className="grid gap-4 sm:grid-cols-2"><Scope title={isEn ? "Product and positioning analysis" : "Análisis de producto y posicionamiento"} desc={isEn ? "Clarify category, use cases, differentiators and claims AI can understand." : "Claridad de categoría, casos de uso, diferenciales y claims que la IA pueda entender."} icon={Sparkles} /><Scope title={isEn ? "Website, SEO and GEO structure" : "Página web, SEO y estructura GEO"} desc={isEn ? "Homepage, landing pages, FAQs, schema and citable pages." : "Home, landings, FAQs, schema y páginas citables."} icon={FileText} /><Scope title={isEn ? "Content, social and citations" : "Contenido, redes y citations"} desc={isEn ? "Authority content, social distribution, Google citations and external mentions." : "Contenido de autoridad, distribución en redes, citations en Google y menciones externas."} icon={ShieldCheck} /><Scope title={isEn ? "Competitive monitoring" : "Vigilancia competitiva"} desc={isEn ? "Recurring audits to measure whether execution improves the next result." : "Auditorías recurrentes para medir si la ejecución mejora el siguiente resultado."} icon={BarChart3} /></div></section>
       <section className="report-page mt-8 mb-10 print:mb-0"><div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/15 via-card to-accent/10 p-10 print:rounded-none print:border-slate-200 print:bg-white print:p-12"><span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Rocket className="h-6 w-6" /></span><h2 className="mt-6 text-3xl font-semibold print:text-slate-900">{copy.nextSteps}</h2><p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground print:text-slate-600">{copy.nextDesc}</p><div className="mt-8 space-y-3">{(isEn ? ["Approve the action plan", "Botz GEO implementation kick-off", "First results review after 30 days"] : ["Aprobar el plan de acción", "Kick-off de implementación Botz GEO", "Primera revisión de resultados a los 30 días"]).map((step, i) => <div key={step} className="flex items-center gap-3"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">{i + 1}</span><span className="text-sm print:text-slate-700">{step}</span></div>)}</div><div className="mt-8 flex flex-wrap items-center gap-4 border-t border-border pt-6 print:border-slate-200"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Mail className="h-4 w-4 text-primary" />info@botz.fyi</div><div className="flex items-center gap-2 text-sm text-muted-foreground"><Globe className="h-4 w-4 text-primary" />geo.botz.fyi</div></div></div></section>
       </div>
     </Shell>
   )
 }
 
-function PremiumPdf({ plan, metrics, actions, topActions, reportDate, summary, isEn }: { plan: ActionPlan; metrics: { score: number; projected: number; visibility: number; promptsWon: number; citations: number }; actions: ActionItem[]; topActions: ActionItem[]; reportDate: string; summary: string; isEn: boolean }) {
+function PremiumPdf({ plan, metrics, actions, topActions, reportDate, summary, isEn }: { plan: ActionPlan; metrics: { score: number; projected: number; visibility: number; assistedVisibility: number; competitiveVisibility: number; citationCoverage: number; promptsWon: number; citations: number; totalResults: number }; actions: ActionItem[]; topActions: ActionItem[]; reportDate: string; summary: string; isEn: boolean }) {
   const status = metrics.score <= 25 ? (isEn ? "Invisible" : "Invisible") : metrics.score <= 50 ? (isEn ? "Emerging" : "Emergente") : metrics.score <= 75 ? (isEn ? "Recognized" : "Reconocido") : (isEn ? "Dominant" : "Dominante")
   const competitive = plan.competitive_insights
   const topCompetitor = competitive?.top_competitor

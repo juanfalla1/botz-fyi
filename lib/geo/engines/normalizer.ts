@@ -20,6 +20,7 @@ export function normalizeEngineResponse(input: {
   language?: string
   country?: string
   error?: string
+  promptKind?: "spontaneous" | "assisted" | "competitive" | "citation"
 }): NormalizedEngineResult {
   const text = input.raw.text ?? ""
   const entityMatch = matchEntities({
@@ -80,6 +81,7 @@ export function normalizeEngineResponse(input: {
   return {
     engine: input.engine,
     prompt: input.prompt,
+    promptKind: input.promptKind,
     brandMentioned: entityMatch.brandFound,
     competitorMentions: entityMatch.competitorMentions,
     citations: citationData.urls,

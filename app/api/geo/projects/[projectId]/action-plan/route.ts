@@ -21,6 +21,14 @@ type ActionItem = {
   created_at: string | null
 }
 
+type ExecutionOffer = {
+  id: string
+  name: string
+  solves: string
+  improves: string[]
+  deliverables: string[]
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   try {
     const { projectId } = await params
@@ -36,6 +44,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ projectI
         project: context.project,
         latest_audit: latestAuditSnapshot(context),
         competitive_insights: competitive,
+        execution_framework: executionFramework(),
         actions,
         content_opportunities: context.opportunities,
       },
@@ -62,12 +71,12 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     actions.push(action)
   }
 
-  if (numberFrom(snapshot?.ai_visibility) < 60 || allSignals.includes("seo") || allSignals.includes("brand")) {
+  if (numberFrom(snapshot?.spontaneous_visibility) < 60 || allSignals.includes("seo") || allSignals.includes("brand")) {
     add({
       id: "homepage-ai-positioning",
       category: "Posicionamiento de marca",
       title: "Reescribir la home para que la IA entienda exactamente qué vende la empresa",
-      description: `La auditoria muestra baja visibilidad IA. La pagina principal debe explicar en lenguaje directo que hace ${project.company_name}, para quien, en que mercado y por que deberia recomendarse frente a alternativas.`,
+      description: `La auditoria muestra baja visibilidad espontanea. La pagina principal debe explicar en lenguaje directo que hace ${project.company_name}, para quien, en que mercado y por que deberia recomendarse frente a alternativas.`,
       why_important: "Los modelos generativos extraen entidades, casos de uso y diferenciadores desde paginas claras. Si la home es vaga, la IA no tiene razones fuertes para recomendar la marca.",
       priority: "high",
       estimated_impact: "high",
@@ -209,6 +218,46 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
   }
 
   return actions.sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority)).slice(0, 6)
+}
+
+function executionFramework(): ExecutionOffer[] {
+  return [
+    {
+      id: "positioning-product-analysis",
+      name: "Análisis de producto y posicionamiento",
+      solves: "Define qué debe entender la IA sobre la empresa, categoría, casos de uso, diferenciales y mercado objetivo.",
+      improves: ["GEO Score", "Visibilidad espontánea", "Win rate competitivo"],
+      deliverables: ["Mapa de posicionamiento", "Propuesta de valor", "Mensajes por segmento", "Claims verificables"],
+    },
+    {
+      id: "website-seo-geo",
+      name: "Página web, SEO y estructura GEO",
+      solves: "Convierte la web en una fuente clara para motores IA y buscadores.",
+      improves: ["Visibilidad espontánea", "Cobertura de citations", "Confianza del análisis"],
+      deliverables: ["Home optimizada", "SEO técnico", "FAQ Schema", "Páginas citables"],
+    },
+    {
+      id: "landing-pages",
+      name: "Landings por industria, producto o caso de uso",
+      solves: "Crea páginas específicas que responden preguntas reales de clientes y motores IA.",
+      improves: ["Visibilidad espontánea", "Prompts ganados", "Conversión"],
+      deliverables: ["Landing sectorial", "Copy completo", "FAQs", "CTA y medición"],
+    },
+    {
+      id: "content-social-citations",
+      name: "Contenido, redes y citations",
+      solves: "Genera señales externas e internas para que la marca sea mencionable, confiable y verificable.",
+      improves: ["Cobertura de citations", "Autoridad", "Presión competitiva"],
+      deliverables: ["Calendario de contenido", "Posts de autoridad", "Casos de éxito", "Citations en Google/medios/directorios"],
+    },
+    {
+      id: "competitive-monitoring",
+      name: "Vigilancia competitiva y mejora continua",
+      solves: "Monitorea si competidores suben y ajusta el plan de ejecución con nuevas auditorías.",
+      improves: ["GEO Score", "Win rate competitivo", "Roadmap de ejecución"],
+      deliverables: ["Monitoreo recurrente", "Alertas", "Reporte ejecutivo", "Backlog priorizado"],
+    },
+  ]
 }
 
 function normalizeUrl(url: string) {

@@ -48,6 +48,7 @@ export type ConfidenceReasons = {
 export type NormalizedEngineResult = {
   engine: EngineId
   prompt: string
+  promptKind?: "spontaneous" | "assisted" | "competitive" | "citation"
   brandMentioned: boolean
   competitorMentions: string[]
   citations: string[]

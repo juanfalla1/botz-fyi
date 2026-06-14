@@ -40,6 +40,16 @@ export async function runBaseAuditPipeline(supabase: SupabaseClient, context: Pi
         citations_unique_domains: output.citations_unique_domains ?? null,
         prompts_won: output.prompts_won,
         prompts_lost: output.prompts_lost ?? 0,
+        spontaneous_visibility: output.spontaneous_visibility ?? output.ai_visibility,
+        assisted_visibility: output.assisted_visibility ?? 0,
+        competitive_visibility: output.competitive_visibility ?? 0,
+        citation_coverage: output.citation_coverage ?? 0,
+        total_results: output.total_results ?? prompts.length,
+        spontaneous_results: output.spontaneous_results ?? 0,
+        assisted_results: output.assisted_results ?? 0,
+        competitive_results: output.competitive_results ?? 0,
+        citation_results: output.citation_results ?? 0,
+        metric_definitions: metricDefinitions(),
         engines: output.engines,
         engine_breakdown: output.engine_breakdown ?? [],
         quality_flags_aggregate: output.quality_flags_aggregate ?? null,
@@ -126,6 +136,7 @@ async function persistEngineEvidence(supabase: SupabaseClient, context: Pipeline
           won: result.won,
           lost: result.lost,
           quality_flags: result.quality_flags,
+          prompt_kind: result.promptKind ?? "spontaneous",
           confidence_reasons: result.confidence_reasons ?? null,
           error: result.error ?? null,
         },
@@ -160,6 +171,17 @@ async function persistEngineEvidence(supabase: SupabaseClient, context: Pipeline
   if (competitorMentions.length > 0) {
     const { error: competitorError } = await supabase.from("competitor_mentions").insert(competitorMentions)
     if (competitorError) throw competitorError
+  }
+}
+
+function metricDefinitions() {
+  return {
+    geo_score: "Score de 0 a 100 basado principalmente en visibilidad espontanea. Los prompts donde la marca ya fue nombrada pesan poco para evitar inflar el resultado.",
+    spontaneous_visibility: "Porcentaje de respuestas neutrales donde la marca aparece sin nombrarla en la pregunta.",
+    assisted_visibility: "Porcentaje de respuestas donde la marca aparece cuando la pregunta ya la menciona.",
+    competitive_visibility: "Porcentaje de prompts comparativos donde la marca gana o queda mejor posicionada frente a competidores.",
+    citation_coverage: "Porcentaje de prompts de fuentes/citaciones donde se detectan fuentes o pruebas citables.",
+    prompts_won: "Cantidad de respuestas donde la marca aparece en posicion favorable frente a competidores.",
   }
 }
 

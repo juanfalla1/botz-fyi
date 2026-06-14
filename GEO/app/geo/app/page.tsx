@@ -35,7 +35,7 @@ import {
 
 const metrics = [
   {
-    title: "AI Visibility Score",
+    title: "GEO Score",
     value: "0",
     suffix: "/100",
     change: "—",
@@ -43,7 +43,7 @@ const metrics = [
     icon: Eye,
   },
   {
-    title: "Citation Probability",
+    title: "Spontaneous Visibility",
     value: "0",
     suffix: "%",
     change: "—",
@@ -51,7 +51,7 @@ const metrics = [
     icon: Quote,
   },
   {
-    title: "Prompts used",
+    title: "Audits",
     value: "0",
     suffix: "",
     change: "—",
@@ -196,13 +196,17 @@ export default function DashboardPage() {
         const totals = uj.data?.totals ?? {}
         const completedScores = auditsList.map((a) => a.final_score).filter((s): s is number => s !== null)
         const avgScore = completedScores.length > 0 ? Math.round(completedScores.reduce((acc, score) => acc + score, 0) / completedScores.length) : 0
+        const spontaneousValues = auditsList
+          .map((audit) => numberFrom(parseSummary(audit.summary).spontaneous_visibility ?? parseSummary(audit.summary).ai_visibility))
+          .filter((value) => value > 0)
+        const avgSpontaneous = spontaneousValues.length > 0 ? Math.round(spontaneousValues.reduce((acc, value) => acc + value, 0) / spontaneousValues.length) : 0
         const auditsCount = totals.geo_audit_created ?? auditsList.length
         const promptCount = totals.prompt_used ?? 0
         const competitorsCount = (cj.data ?? []).length
         setMetricsLive([
-          { ...metrics[0], title: isEn ? "AI Visibility Score" : "Score de visibilidad IA", value: String(avgScore), change: auditsCount > 0 ? String(auditsCount) : "—" },
-          { ...metrics[1], title: isEn ? "AI Visibility" : "Visibilidad IA", value: String(Math.min(100, avgScore)), change: completedScores.length > 0 ? String(completedScores.length) : "—" },
-          { ...metrics[2], title: isEn ? "Prompts used" : "Prompts ejecutados", value: String(promptCount || 0), change: promptCount > 0 ? String(promptCount) : "—" },
+          { ...metrics[0], title: "GEO Score", value: String(avgScore), change: auditsCount > 0 ? String(auditsCount) : "—" },
+          { ...metrics[1], title: isEn ? "Spontaneous Visibility" : "Visibilidad espontánea", value: String(avgSpontaneous), change: completedScores.length > 0 ? String(completedScores.length) : "—" },
+          { ...metrics[2], title: isEn ? "Audits" : "Auditorías", value: String(auditsCount || 0), change: promptCount > 0 ? `${promptCount} ${isEn ? "prompt runs" : "ejecuciones"}` : "—" },
           { ...metrics[3], title: isEn ? "Competitors Tracked" : "Competidores monitoreados", value: String(competitorsCount || 0), change: "—" },
         ])
       }
@@ -491,9 +495,9 @@ export default function DashboardPage() {
 
 function localizeMetricTitle(title: string) {
   const labels: Record<string, string> = {
-    "AI Visibility Score": "Score de visibilidad IA",
-    "Citation Probability": "Visibilidad IA",
-    "Prompts used": "Prompts ejecutados",
+    "GEO Score": "GEO Score",
+    "Spontaneous Visibility": "Visibilidad espontánea",
+    "Audits": "Auditorías",
     "Competitors Tracked": "Competidores monitoreados",
   }
   return labels[title] ?? title

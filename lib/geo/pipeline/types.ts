@@ -22,6 +22,7 @@ export type PipelineContext = {
 export type GeneratedPrompt = {
   engine: string
   prompt: string
+  category?: string
 }
 
 export type AnalysisOutput = {
@@ -31,12 +32,29 @@ export type AnalysisOutput = {
   prompts_won: number
   prompts_lost?: number
   citations_unique_domains?: number
+  spontaneous_visibility?: number
+  assisted_visibility?: number
+  competitive_visibility?: number
+  citation_coverage?: number
+  total_results?: number
+  spontaneous_results?: number
+  assisted_results?: number
+  competitive_results?: number
+  citation_results?: number
   engines: string[]
   recommendations: Array<{ title: string; description: string; priority: "high" | "medium" | "low" }>
   summary: string
   engine_breakdown?: Array<{
     engine: string
     prompts_total: number
+    spontaneous_total?: number
+    spontaneous_mentions?: number
+    assisted_total?: number
+    assisted_mentions?: number
+    competitive_total?: number
+    competitive_wins?: number
+    citation_total?: number
+    citation_hits?: number
     prompts_won: number
     prompts_lost?: number
     mentions?: number
@@ -58,6 +76,7 @@ export type AnalysisOutput = {
   evaluated_prompts?: Array<{
     engine: string
     prompt: string
+    prompt_kind?: string
     mentioned: boolean
     position: number | null
     won: boolean
