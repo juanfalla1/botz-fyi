@@ -858,6 +858,7 @@ async function downloadDeliverablePdf(draft: DeliverableDraft, project: ActionPl
   const cleanText = (value: string) => value
     .replace(/^#{1,6}\s*/, "")
     .replace(/^[-*]\s*/, "")
+    .replace(/^\d+\.\s*/, "")
     .replace(/\*\*/g, "")
     .replace(/`/g, "")
     .trim()
@@ -916,6 +917,17 @@ async function downloadDeliverablePdf(draft: DeliverableDraft, project: ActionPl
     writeWrapped(text, margin + 18, contentWidth - 18, { size: 10.5, color: [30, 36, 54] })
   }
 
+  const orderedItem = (number: string, text: string) => {
+    ensureSpace(24)
+    doc.setFillColor(82, 112, 255)
+    doc.circle(margin + 7, y - 5, 7, "F")
+    doc.setTextColor(255, 255, 255)
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(7)
+    doc.text(number, margin + (number.length > 1 ? 3.5 : 5), y - 2)
+    writeWrapped(text, margin + 22, contentWidth - 22, { size: 10.5, color: [30, 36, 54] })
+  }
+
   const paragraph = (text: string) => {
     writeWrapped(text, margin, contentWidth, { size: 10.5, color: [30, 36, 54] })
     y += 6
@@ -926,6 +938,7 @@ async function downloadDeliverablePdf(draft: DeliverableDraft, project: ActionPl
 
   for (const rawLine of draft.content.split("\n")) {
     const line = rawLine.trim()
+    const orderedListMatch = line.match(/^(\d+)\.\s+(.+)/)
     if (!line) {
       y += 5
       continue
@@ -939,6 +952,10 @@ async function downloadDeliverablePdf(draft: DeliverableDraft, project: ActionPl
     }
     if (line.startsWith("- ")) {
       bullet(line)
+      continue
+    }
+    if (orderedListMatch) {
+      orderedItem(orderedListMatch[1], orderedListMatch[2])
       continue
     }
     if (line.includes("|")) {

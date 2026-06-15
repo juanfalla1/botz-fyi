@@ -27,6 +27,10 @@ assert.match(recommendations, /contentDeliverable/, "Content deliverable templat
 assert.match(recommendations, /faqDeliverable/, "FAQ deliverable template is missing")
 assert.match(recommendations, /Evidencia usada|Evidence used/, "Evidence block in drawer is missing")
 assert.match(recommendations, /Hay contexto limitado|Limited project context/, "Missing-context warning is missing")
+assert.match(recommendations, /localizedGoal/, "Localized goal guard is missing")
+assert.match(recommendations, /orderedListMatch/, "PDF ordered-list renderer is missing")
+assert.doesNotMatch(recommendations, /BOTZ GEO Deliverable Draft|Borrador de Entregable BOTZ GEO/, "Old PDF header should not be used")
+assert.doesNotMatch(recommendations, /Measure and improve/, "English business goal should not leak into Spanish deliverables")
 
 assert.match(actionPlan, /previous_audit/, "Previous audit payload is missing")
 assert.match(actionPlan, /crawl_evidence/, "Crawl evidence payload is missing")
