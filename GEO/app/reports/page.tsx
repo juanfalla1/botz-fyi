@@ -13,11 +13,10 @@ import {
   Plus,
   Eye,
   Share2,
-  MoreHorizontal,
-  TrendingUp,
   BarChart3,
   FileSpreadsheet,
   Printer,
+  Trash2,
 } from "lucide-react"
 import { useGeoI18n } from "@/GEO/components/geo/i18n"
 import { supabaseGeo } from "@/app/geo/supabaseGeoClient"
@@ -261,6 +260,27 @@ export default function ReportsPage() {
     showFeedback(isEn ? "Premium report opened. Use Export PDF there." : "Reporte premium abierto. Usa Exportar PDF ahí.")
   }
 
+  const deleteReport = async (report: ReportItem) => {
+    const {
+      data: { session },
+    } = await supabaseGeo.auth.getSession()
+    if (!session?.access_token) {
+      showFeedback(isEn ? "Login required to delete reports." : "Debes iniciar sesión para eliminar reportes.")
+      return
+    }
+    const res = await fetch(`/api/geo/reports?id=${encodeURIComponent(report.id)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null) as { error?: string } | null
+      showFeedback(payload?.error || (isEn ? "Could not delete report." : "No se pudo eliminar el reporte."))
+      return
+    }
+    setReportsLive((current) => current.filter((item) => item.id !== report.id))
+    showFeedback(isEn ? "Report deleted." : "Reporte eliminado.")
+  }
+
   return (
     <>
       <AppHeader />
@@ -389,9 +409,12 @@ export default function ReportsPage() {
                             <Button variant="outline" size="sm" className="border-border opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => downloadReport(report)}>
                               <Printer className="w-4 h-4" />
                             </Button>
+                            <Button variant="outline" size="sm" className="border-red-500/30 text-red-300 opacity-0 transition-opacity hover:bg-red-500/10 hover:text-red-200 group-hover:opacity-100" onClick={() => void deleteReport(report)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                              <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => downloadReport(report)}>
                                <Download className="w-4 h-4 mr-2" />
-                               {isEn ? "Download" : "Descargar"}
+                               {isEn ? "Open report" : "Abrir reporte"}
                             </Button>
                           </>
                         ) : (

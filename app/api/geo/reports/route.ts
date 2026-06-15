@@ -104,6 +104,24 @@ export async function POST(req: Request) {
   }
 }
 
+export async function DELETE(req: Request) {
+  try {
+    const { supabase, user } = await getGeoApiClient(req)
+    const { searchParams } = new URL(req.url)
+    const reportId = searchParams.get("id")
+    if (!reportId) return NextResponse.json({ error: "Missing report id" }, { status: 400 })
+    const { error } = await supabase
+      .from("reports")
+      .delete()
+      .eq("id", reportId)
+      .eq("user_id", user.id)
+    if (error) throw error
+    return NextResponse.json({ mode: "live", data: { id: reportId } })
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not delete report" }, { status: 500 })
+  }
+}
+
 function buildReportSnapshot(reportType: string, base: Record<string, unknown>, recommendations: unknown[], competitors: unknown[]) {
   if (reportType === "monthly") {
     return {
