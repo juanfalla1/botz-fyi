@@ -255,6 +255,62 @@ function formatDate(dateString: string | null) {
   }).format(date)
 }
 
+function normalizeEngineLabel(engine: string) {
+  const value = engine.toLowerCase().trim()
+  if (value === "openai" || value === "chatgpt") return "OpenAI"
+  if (value === "gemini") return "Gemini"
+  if (value === "perplexity") return "Perplexity"
+  if (value === "ai_overviews" || value === "ai overviews") return "AI Overviews"
+  return engine
+}
+
+function resultForEngine(prompt: PromptItem, engine: string) {
+  const normalized = normalizeEngineLabel(engine).toLowerCase()
+  return prompt.lastRunResults.find((result) => normalizeEngineLabel(String(result.engine ?? "")).toLowerCase() === normalized) ?? null
+}
+
+function resultCompetitors(result: Record<string, unknown> | null) {
+  const competitors = result?.competitors
+  return Array.isArray(competitors) ? competitors.map((item) => String(item)).filter(Boolean).slice(0, 4) : []
+}
+
+function resultPreview(result: Record<string, unknown> | null) {
+  const preview = String(result?.answer_preview ?? "").replace(/\s+/g, " ").trim()
+  return preview.length > 150 ? `${preview.slice(0, 150)}...` : preview
+}
+
+function PromptEngineBreakdown({ prompt, isEn }: { prompt: PromptItem; isEn: boolean }) {
+  return (
+    <div className="mt-3 rounded-xl border border-border/70 bg-background/35 p-3">
+      <p className="mb-2 text-xs font-medium text-muted-foreground">{isEn ? "AI recommendations by engine" : "Qué recomendó la IA por motor"}</p>
+      <div className="space-y-2">
+        {prompt.engines.map((engine) => {
+          const result = resultForEngine(prompt, engine)
+          const status = String(result?.status ?? "")
+          const mentioned = Boolean(result?.mentioned)
+          const competitors = resultCompetitors(result)
+          const preview = resultPreview(result)
+          return (
+            <div key={engine} className="rounded-lg border border-border/60 bg-secondary/20 p-2">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-foreground">{normalizeEngineLabel(engine)}</span>
+                {!result ? <span className="text-[11px] text-muted-foreground">{isEn ? "No run" : "Sin ejecución"}</span> : status !== "live" ? <span className="text-[11px] text-yellow-300">{isEn ? "Unavailable" : "No disponible"}</span> : mentioned ? <span className="text-[11px] text-emerald-400">{isEn ? "Brand mentioned" : "Marca mencionada"}</span> : <span className="text-[11px] text-red-300">{isEn ? "Brand not mentioned" : "Marca no aparece"}</span>}
+              </div>
+              {competitors.length > 0 ? (
+                <p className="text-xs text-muted-foreground"><span className="text-foreground">{isEn ? "Detected:" : "Detectó:"}</span> {competitors.join(", ")}</p>
+              ) : preview ? (
+                <p className="line-clamp-2 text-xs text-muted-foreground">{preview}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">{isEn ? "Run this prompt to see which brands the engine recommends." : "Ejecuta este prompt para ver qué marcas recomienda ese motor."}</p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function PromptsLibraryPage() {
   const params = useParams<{ projectId?: string }>()
   const scopedProjectId = params?.projectId
@@ -898,6 +954,8 @@ export default function PromptsLibraryPage() {
                             </div>
                           </div>
 
+                          <PromptEngineBreakdown prompt={prompt} isEn={isEn} />
+
                           {prompt.lastAudit && (
                             <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
                               <div className="flex items-center justify-between gap-3">
@@ -1423,6 +1481,7 @@ export default function PromptsLibraryPage() {
                 {viewingResultsPrompt.lastRunResults.map((result, index) => {
                   const status = String(result.status ?? "")
                   const mentioned = Boolean(result.mentioned)
+                  const competitors = resultCompetitors(result)
                   return (
                     <div key={index} className={`rounded-xl border p-4 ${status === "live" ? mentioned ? "border-green-500/30 bg-green-500/5" : "border-red-500/30 bg-red-500/5" : "border-yellow-500/30 bg-yellow-500/10"}`}>
                       <div className="mb-3 flex items-center justify-between gap-3">
@@ -1436,6 +1495,14 @@ export default function PromptsLibraryPage() {
                         </div>
                       </div>
                       {result.reason && <p className="text-sm text-muted-foreground">{String(result.reason)}</p>}
+                      {competitors.length > 0 && (
+                        <div className="mb-3 rounded-lg border border-border/70 bg-background/40 p-3">
+                          <p className="mb-1 text-xs font-medium text-muted-foreground">{isEn ? "Brands/competitors detected in the answer" : "Marcas/competidores detectados en la respuesta"}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {competitors.map((name) => <span key={name} className="rounded-full bg-secondary px-2 py-0.5 text-xs text-foreground">{name}</span>)}
+                          </div>
+                        </div>
+                      )}
                       {result.answer_preview && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{String(result.answer_preview)}</p>}
                     </div>
                   )
