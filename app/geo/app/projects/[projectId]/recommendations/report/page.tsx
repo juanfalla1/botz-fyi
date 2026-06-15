@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, BarChart3, Calendar, CheckCircle2, Download, Eye, FileText, Gauge, Globe, Mail, MapPin, Printer, Quote, Rocket, ShieldCheck, Sparkles, Target, TrendingUp, Trophy, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -40,6 +40,8 @@ type ActionPlan = {
 
 export default function ActionPlanReportPage() {
   const params = useParams<{ projectId: string }>()
+  const searchParams = useSearchParams()
+  const reportSource = normalizeReportSource(searchParams.get("source"))
   const { locale, setLocale } = useGeoI18n()
   const isEn = locale === "en"
   const [plan, setPlan] = useState<ActionPlan | null>(null)
@@ -96,7 +98,20 @@ export default function ActionPlanReportPage() {
   const reportActions = plan.actions.map((action) => localizeAction(action, isEn))
   const topActions = reportActions.filter((action) => action.priority === "high").slice(0, 3)
   const copy = {
-    eyebrow: isEn ? "Action Plan · GEO Strategy" : "Plan de Acción · GEO Strategy",
+    eyebrow: reportSource === "monthly"
+      ? isEn ? "Monthly Report · GEO Strategy" : "Reporte Mensual · GEO Strategy"
+      : reportSource === "competitive"
+      ? isEn ? "Competitive Report · GEO Strategy" : "Reporte Competitivo · GEO Strategy"
+      : reportSource === "snapshot"
+      ? isEn ? "Quick Snapshot · GEO Strategy" : "Snapshot Rápido · GEO Strategy"
+      : isEn ? "Action Plan · GEO Strategy" : "Plan de Acción · GEO Strategy",
+    title: reportSource === "monthly"
+      ? isEn ? "Monthly GEO Report" : "Reporte Mensual GEO"
+      : reportSource === "competitive"
+      ? isEn ? "Competitive GEO Analysis" : "Análisis Competitivo GEO"
+      : reportSource === "snapshot"
+      ? isEn ? "Quick GEO Snapshot" : "Snapshot Rápido GEO"
+      : "GEO Action Plan",
     coverDesc: isEn
       ? `Audit result and execution plan to improve ${plan.project.company_name}'s visibility in ChatGPT, Gemini, Perplexity and Google AI Overviews.`
       : `Resultado de auditoría y plan de ejecución para mejorar la visibilidad de ${plan.project.company_name} en ChatGPT, Gemini, Perplexity y Google AI Overviews.`,
@@ -142,13 +157,13 @@ export default function ActionPlanReportPage() {
 
   return (
     <Shell isEn={isEn} projectId={params.projectId} locale={locale} setLocale={setLocale}>
-      <PremiumPdf plan={plan} metrics={metrics} actions={reportActions} topActions={topActions} reportDate={reportDate} summary={isEn ? copy.summaryFallback : (plan.latest_audit?.executive_summary || copy.summaryFallback)} isEn={isEn} />
+      <PremiumPdf plan={plan} metrics={metrics} actions={reportActions} topActions={topActions} reportDate={reportDate} summary={isEn ? copy.summaryFallback : (plan.latest_audit?.executive_summary || copy.summaryFallback)} isEn={isEn} reportSource={reportSource} />
       <div className="screen-report-content">
       <section className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-background to-card p-10 print:rounded-none print:border-0 print:bg-white print:p-12">
         <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/20 blur-3xl print:hidden" />
         <div className="relative">
           <div className="flex items-center gap-2.5"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Sparkles className="h-5 w-5" /></span><span className="text-lg font-semibold print:text-slate-900">Botz GEO</span></div>
-          <div className="mt-20 print:mt-24"><p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary print:text-slate-500">{copy.eyebrow}</p><h1 className="mt-4 text-5xl font-semibold leading-tight tracking-tight print:text-slate-900">GEO Action Plan</h1><p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground print:text-slate-500">{copy.coverDesc}</p></div>
+          <div className="mt-20 print:mt-24"><p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary print:text-slate-500">{copy.eyebrow}</p><h1 className="mt-4 text-5xl font-semibold leading-tight tracking-tight print:text-slate-900">{copy.title}</h1><p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground print:text-slate-500">{copy.coverDesc}</p></div>
           <div className="mt-20 grid gap-6 border-t border-border pt-8 sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-2 print:border-slate-200"><Info label={copy.client} value={plan.project.company_name} /><Info label="URL" value={plan.project.website_url} icon={Globe} /><Info label={copy.date} value={reportDate} icon={Calendar} /><div className="min-w-0"><p className="text-xs uppercase tracking-wider text-muted-foreground print:text-slate-400">GEO Score</p><p className="mt-1 text-2xl font-semibold text-primary">{metrics.score}/100</p></div></div>
         </div>
       </section>
@@ -177,16 +192,48 @@ export default function ActionPlanReportPage() {
   )
 }
 
-function PremiumPdf({ plan, metrics, actions, topActions, reportDate, summary, isEn }: { plan: ActionPlan; metrics: { score: number; projected: number; visibility: number; assistedVisibility: number; competitiveVisibility: number; citationCoverage: number; promptsWon: number; citations: number; totalResults: number }; actions: ActionItem[]; topActions: ActionItem[]; reportDate: string; summary: string; isEn: boolean }) {
-  const status = metrics.score <= 25 ? (isEn ? "Invisible" : "Invisible") : metrics.score <= 50 ? (isEn ? "Emerging" : "Emergente") : metrics.score <= 75 ? (isEn ? "Recognized" : "Reconocido") : (isEn ? "Dominant" : "Dominante")
-  const competitive = plan.competitive_insights
-  const topCompetitor = competitive?.top_competitor
-  const t = {
+function normalizeReportSource(value: string | null) {
+  return value === "monthly" || value === "competitive" || value === "snapshot" ? value : "action-plan"
+}
+
+function reportSourceText(source: string, isEn: boolean) {
+  if (source === "monthly") return {
+    header: isEn ? "BOTZ GEO Monthly Report" : "Reporte Mensual BOTZ GEO",
+    subtitle: isEn ? "Monthly AI Search Performance" : "Rendimiento Mensual en Búsqueda IA",
+    title: isEn ? "Monthly GEO Report" : "Reporte Mensual GEO",
+    lead: isEn ? "Monthly view of GEO Score, AI visibility, citations and the execution priorities for the next cycle." : "Vista mensual del GEO Score, visibilidad IA, citaciones y prioridades de ejecución para el próximo ciclo.",
+  }
+  if (source === "competitive") return {
+    header: isEn ? "BOTZ GEO Competitive Report" : "Reporte Competitivo BOTZ GEO",
+    subtitle: isEn ? "Competitive AI Visibility Analysis" : "Análisis Competitivo de Visibilidad IA",
+    title: isEn ? "Competitive GEO Analysis" : "Análisis Competitivo GEO",
+    lead: isEn ? "Decision document focused on competitor pressure, comparison prompts and actions to win competitive recommendations." : "Documento de decisión enfocado en presión competitiva, prompts comparativos y acciones para ganar recomendaciones frente a competidores.",
+  }
+  if (source === "snapshot") return {
+    header: isEn ? "BOTZ GEO Quick Snapshot" : "Snapshot Rápido BOTZ GEO",
+    subtitle: isEn ? "Current AI Visibility Snapshot" : "Snapshot Actual de Visibilidad IA",
+    title: isEn ? "Quick GEO Snapshot" : "Snapshot Rápido GEO",
+    lead: isEn ? "Concise executive snapshot of the latest completed audit and the key signals that need attention." : "Snapshot ejecutivo conciso de la última auditoría completada y las señales clave que requieren atención.",
+  }
+  return {
     header: isEn ? "BOTZ GEO Intelligence Report" : "Reporte de Inteligencia BOTZ GEO",
-    confidential: isEn ? "Confidential" : "Confidencial",
     subtitle: isEn ? "AI Search Visibility & Action Plan" : "Visibilidad en Búsqueda IA & Plan de Acción",
     title: isEn ? "GEO Intelligence Report" : "Reporte de Inteligencia GEO",
     lead: isEn ? "Executive strategy to improve how AI engines understand, cite and recommend the brand." : "Estrategia ejecutiva para mejorar cómo los motores de IA entienden, citan y recomiendan la marca.",
+  }
+}
+
+function PremiumPdf({ plan, metrics, actions, topActions, reportDate, summary, isEn, reportSource }: { plan: ActionPlan; metrics: { score: number; projected: number; visibility: number; assistedVisibility: number; competitiveVisibility: number; citationCoverage: number; promptsWon: number; citations: number; totalResults: number }; actions: ActionItem[]; topActions: ActionItem[]; reportDate: string; summary: string; isEn: boolean; reportSource: string }) {
+  const status = metrics.score <= 25 ? (isEn ? "Invisible" : "Invisible") : metrics.score <= 50 ? (isEn ? "Emerging" : "Emergente") : metrics.score <= 75 ? (isEn ? "Recognized" : "Reconocido") : (isEn ? "Dominant" : "Dominante")
+  const competitive = plan.competitive_insights
+  const topCompetitor = competitive?.top_competitor
+  const sourceText = reportSourceText(reportSource, isEn)
+  const t = {
+    header: sourceText.header,
+    confidential: isEn ? "Confidential" : "Confidencial",
+    subtitle: sourceText.subtitle,
+    title: sourceText.title,
+    lead: sourceText.lead,
     client: isEn ? "Client" : "Cliente",
     url: isEn ? "Analyzed URL" : "URL analizada",
     date: isEn ? "Date" : "Fecha",

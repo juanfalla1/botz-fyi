@@ -51,10 +51,12 @@ export async function POST(req: Request) {
     if (auditError) throw auditError
     if (!audit) return NextResponse.json({ error: "No completed audits available to generate a report" }, { status: 404 })
 
+    const reportType = typeof body.report_type === "string" ? body.report_type : "snapshot"
     const summary = parseSummary(audit.summary)
     const semantic = summary.semantic_analysis && typeof summary.semantic_analysis === "object" ? summary.semantic_analysis as Record<string, unknown> : null
     const recommendations = Array.isArray(summary.recommendations) ? summary.recommendations : []
-    const snapshot = {
+    const competitorVisibility = Array.isArray(semantic?.competitor_visibility) ? semantic.competitor_visibility : []
+    const baseSnapshot = {
       audit_id: audit.id,
       project_id: audit.project_id,
       project_name: Array.isArray(audit.projects) ? audit.projects[0]?.company_name : audit.projects?.company_name,
@@ -74,6 +76,7 @@ export async function POST(req: Request) {
       recommendations: recommendations.slice(0, 5),
       generated_at: new Date().toISOString(),
     }
+    const snapshot = buildReportSnapshot(reportType, baseSnapshot, recommendations, competitorVisibility)
 
     const { data, error } = await supabase
       .from("reports")
@@ -82,7 +85,7 @@ export async function POST(req: Request) {
         project_id: audit.project_id,
         audit_id: audit.id,
         name: typeof body.name === "string" ? body.name : "Reporte GEO",
-        report_type: typeof body.report_type === "string" ? body.report_type : "snapshot",
+        report_type: reportType,
         status: "ready",
         snapshot,
       })
@@ -98,6 +101,71 @@ export async function POST(req: Request) {
     return NextResponse.json({ data, mode: "live" }, { status: 201 })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not generate report" }, { status: 500 })
+  }
+}
+
+function buildReportSnapshot(reportType: string, base: Record<string, unknown>, recommendations: unknown[], competitors: unknown[]) {
+  if (reportType === "monthly") {
+    return {
+      ...base,
+      report_focus: "monthly_performance",
+      title: "Reporte mensual de rendimiento GEO",
+      executive_angle: "Evolución del rendimiento, métricas principales y prioridades de ejecución del mes.",
+      sections: [
+        "Resumen ejecutivo mensual",
+        "GEO Score y visibilidad espontánea",
+        "Cobertura de citations y fuentes detectadas",
+        "Prioridades de ejecución para el próximo ciclo",
+      ],
+      monthly_summary: {
+        current_score: base.geo_score,
+        visibility: base.spontaneous_visibility,
+        citations: base.citations_count,
+        actions_to_prioritize: recommendations.slice(0, 3),
+      },
+      recommendations: recommendations.slice(0, 6),
+    }
+  }
+
+  if (reportType === "competitive") {
+    return {
+      ...base,
+      report_focus: "competitive_analysis",
+      title: "Análisis competitivo GEO",
+      executive_angle: "Comparación contra competidores, presión competitiva y acciones para ganar prompts de decisión.",
+      sections: [
+        "Win rate competitivo",
+        "Competidores mencionados por IA",
+        "Brechas de evidencia y comparación",
+        "Acciones para desplazar competidores",
+      ],
+      competitive_summary: {
+        win_rate: base.competitive_visibility,
+        competitors: competitors.slice(0, 8),
+        actions_to_prioritize: recommendations.filter((item) => JSON.stringify(item).toLowerCase().includes("compet")).slice(0, 5),
+      },
+      recommendations: recommendations.filter((item) => JSON.stringify(item).toLowerCase().includes("compet")).slice(0, 5),
+    }
+  }
+
+  return {
+    ...base,
+    report_focus: "quick_snapshot",
+    title: "Snapshot rápido GEO",
+    executive_angle: "Estado actual de visibilidad IA con las métricas clave de la última auditoría.",
+    sections: [
+      "GEO Score actual",
+      "Visibilidad espontánea",
+      "Win rate competitivo",
+      "Cobertura de citations",
+    ],
+    snapshot_summary: {
+      score: base.geo_score,
+      visibility: base.spontaneous_visibility,
+      competitive_visibility: base.competitive_visibility,
+      citation_coverage: base.citation_coverage,
+    },
+    recommendations: recommendations.slice(0, 3),
   }
 }
 

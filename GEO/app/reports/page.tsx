@@ -41,6 +41,10 @@ type ReportSnapshot = Record<string, unknown> & {
   recommendations?: Array<unknown>
   generated_at?: string
   audit_id?: string
+  project_id?: string
+  report_focus?: string
+  executive_angle?: string
+  sections?: string[]
 }
 
 type ReportItem = {
@@ -86,9 +90,10 @@ const reportTypes = [
   },
 ]
 
-function numberLabel(value: unknown) {
-  const numeric = typeof value === "number" ? value : Number(value)
-  return Number.isFinite(numeric) ? String(Math.round(numeric)) : "0"
+function reportTypeLabel(type: string, isEn: boolean) {
+  if (type === "monthly") return isEn ? "Monthly" : "Mensual"
+  if (type === "competitive") return isEn ? "Competitive" : "Competitivo"
+  return isEn ? "Snapshot" : "Snapshot"
 }
 
 export default function ReportsPage() {
@@ -245,101 +250,15 @@ export default function ReportsPage() {
     showFeedback(isEn ? "Report summary copied." : "Resumen del reporte copiado.")
   }
 
-  const downloadReport = async (report: ReportItem) => {
-    const { jsPDF } = await import("jspdf/dist/jspdf.umd.min.js")
-    const doc = new jsPDF({ unit: "pt", format: "a4" })
-    const snapshot = report.snapshot ?? {}
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const margin = 44
-    let y = 52
-
-    const addText = (text: string, x: number, maxWidth = pageWidth - margin * 2, lineHeight = 14) => {
-      const lines = doc.splitTextToSize(text, maxWidth) as string[]
-      doc.text(lines, x, y)
-      y += lines.length * lineHeight
+  const downloadReport = (report: ReportItem) => {
+    const projectId = report.snapshot?.project_id
+    if (!projectId) {
+      showFeedback(isEn ? "This report has no project linked to open the premium PDF." : "Este reporte no tiene proyecto vinculado para abrir el PDF premium.")
+      return
     }
-
-    const addMetric = (label: string, value: string, x: number, boxY: number) => {
-      doc.setFillColor(247, 248, 255)
-      doc.roundedRect(x, boxY, 122, 62, 10, 10, "F")
-      doc.setTextColor(88, 93, 120)
-      doc.setFontSize(9)
-      doc.text(label, x + 12, boxY + 20)
-      doc.setTextColor(25, 29, 43)
-      doc.setFontSize(20)
-      doc.setFont("helvetica", "bold")
-      doc.text(value, x + 12, boxY + 45)
-      doc.setFont("helvetica", "normal")
-    }
-
-    doc.setFillColor(12, 16, 31)
-    doc.rect(0, 0, pageWidth, 132, "F")
-    doc.setTextColor(255, 255, 255)
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(22)
-    doc.text("Botz GEO Executive Report", margin, y)
-    y += 30
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(11)
-    doc.setTextColor(190, 198, 224)
-    addText(String(snapshot.project_name ?? report.name), margin, pageWidth - margin * 2, 14)
-    addText(String(snapshot.base_url ?? ""), margin, pageWidth - margin * 2, 14)
-    y = 156
-
-    addMetric("GEO Score", `${numberLabel(snapshot.geo_score)}/100`, margin, y)
-    addMetric(isEn ? "Spontaneous" : "Espontanea", `${numberLabel(snapshot.spontaneous_visibility ?? snapshot.ai_visibility)}%`, margin + 136, y)
-    addMetric(isEn ? "Win Rate" : "Win Rate", `${numberLabel(snapshot.competitive_visibility)}%`, margin + 272, y)
-    addMetric(isEn ? "Sources" : "Fuentes", numberLabel(snapshot.citations_count), margin + 408, y)
-    y += 100
-
-    doc.setTextColor(25, 29, 43)
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(15)
-    doc.text(isEn ? "Executive Summary" : "Resumen Ejecutivo", margin, y)
-    y += 22
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(10.5)
-    doc.setTextColor(70, 76, 98)
-    addText(String(snapshot.executive_summary ?? (isEn ? "No executive summary available for this report." : "No hay resumen ejecutivo disponible para este reporte.")), margin, pageWidth - margin * 2, 14)
-    y += 16
-
-    doc.setTextColor(25, 29, 43)
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(15)
-    doc.text(isEn ? "Recommended Actions" : "Acciones Recomendadas", margin, y)
-    y += 22
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(10.5)
-    const recommendations = Array.isArray(snapshot.recommendations) ? snapshot.recommendations.slice(0, 6) : []
-    if (recommendations.length === 0) {
-      addText(isEn ? "No recommendations were generated in this snapshot." : "No se generaron recomendaciones en este snapshot.", margin)
-    } else {
-      recommendations.forEach((item, index) => {
-        const rec = item && typeof item === "object" ? item as Record<string, unknown> : {}
-        const title = String(rec.title ?? rec.action_item ?? `${isEn ? "Action" : "Accion"} ${index + 1}`)
-        const description = String(rec.description ?? rec.details ?? "")
-        doc.setTextColor(25, 29, 43)
-        doc.setFont("helvetica", "bold")
-        addText(`${index + 1}. ${title}`, margin)
-        if (description) {
-          doc.setFont("helvetica", "normal")
-          doc.setTextColor(70, 76, 98)
-          addText(description, margin + 14, pageWidth - margin * 2 - 14)
-        }
-        y += 6
-      })
-    }
-
-    const footerY = doc.internal.pageSize.getHeight() - 42
-    doc.setDrawColor(230, 232, 240)
-    doc.line(margin, footerY - 18, pageWidth - margin, footerY - 18)
-    doc.setFontSize(8)
-    doc.setTextColor(120, 126, 145)
-    doc.text(`Audit ID: ${String(snapshot.audit_id ?? "N/A")}`, margin, footerY)
-    doc.text(`Generated: ${snapshot.generated_at ? new Date(String(snapshot.generated_at)).toLocaleString() : report.date}`, pageWidth - margin - 180, footerY)
-    doc.save(`${report.name.replace(/\s+/g, "-").toLowerCase()}.pdf`)
-    setFeedback(isEn ? "PDF download started." : "Descarga PDF iniciada.")
-    setTimeout(() => setFeedback(null), 3000)
+    const url = `/geo/app/projects/${projectId}/recommendations/report?source=${encodeURIComponent(report.type)}`
+    window.open(url, "_blank", "noopener,noreferrer")
+    showFeedback(isEn ? "Premium report opened. Use Export PDF there." : "Reporte premium abierto. Usa Exportar PDF ahí.")
   }
 
   return (
@@ -429,9 +348,18 @@ export default function ReportsPage() {
                         }`}>
                           <FileText className="w-6 h-6" />
                         </div>
-                        <div>
-                          <h4 className="font-medium">{report.name}</h4>
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-medium">{report.name}</h4>
+                            <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">{reportTypeLabel(report.type, isEn)}</span>
+                          </div>
+                          <p className="mt-1 max-w-xl text-sm text-muted-foreground">{String(report.snapshot?.executive_angle ?? (isEn ? "Generated from the latest completed GEO audit." : "Generado desde la última auditoría GEO completada."))}</p>
+                          {Array.isArray(report.snapshot?.sections) && report.snapshot.sections.length > 0 && (
+                            <div className="mt-2 flex max-w-xl flex-wrap gap-1.5">
+                              {report.snapshot.sections.slice(0, 4).map((section) => <span key={section} className="rounded-md bg-background/50 px-2 py-0.5 text-[11px] text-muted-foreground">{section}</span>)}
+                            </div>
+                          )}
+                          <div className="mt-2 flex items-center gap-3 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3.5 h-3.5" />
                               {report.date}
