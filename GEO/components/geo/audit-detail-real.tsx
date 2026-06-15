@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Eye, FileText, Lightbulb, MessageSquare, Quote, Search, ShieldCheck, Target, Trash2, TrendingUp, Trophy, Zap } from "lucide-react"
+import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Download, Eye, FileText, Lightbulb, MessageSquare, Quote, Search, ShieldCheck, Target, Trash2, TrendingUp, Trophy, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AppHeader } from "@/GEO/components/geo/app-shell"
@@ -259,6 +259,37 @@ export default function AuditDetailReal() {
       }))
   const engineCount = engines.length
   const lowSample = totalResults > 0 && totalResults < 12
+  const scoreTarget = score < 60 ? 60 : score < 75 ? 75 : 90
+  const scoreGap = Math.max(0, scoreTarget - score)
+  const targetProgress = scoreTarget > 0 ? Math.min(100, Math.round((score / scoreTarget) * 100)) : 0
+  const authorityValue = confidence || Math.min(100, citations * 10)
+  const positioningValue = Math.round((spontaneousVisibility + Math.min(100, citationCoverage || citations * 10)) / 2)
+  const scoreComponents = [
+    { label: isEn ? "Spontaneous visibility" : "Visibilidad espontánea", weight: 60, value: spontaneousVisibility, note: isEn ? "Neutral prompts where the brand appeared." : "Prompts neutrales donde apareció la marca." },
+    { label: isEn ? "Citation coverage" : "Cobertura de citaciones", weight: 15, value: citationCoverage || Math.min(100, citations * 10), note: isEn ? "Evidence or sources found in AI answers." : "Evidencia o fuentes encontradas en respuestas IA." },
+    { label: isEn ? "Competitive win rate" : "Win rate competitivo", weight: 15, value: competitiveVisibility, note: isEn ? "Comparative prompts won against competitors." : "Prompts comparativos ganados frente a competidores." },
+    { label: isEn ? "Authority / trust" : "Autoridad / confianza", weight: 5, value: authorityValue, note: isEn ? "Confidence, citations and proof signals." : "Confianza, citaciones y señales de prueba." },
+    { label: isEn ? "Positioning clarity" : "Claridad del posicionamiento", weight: 5, value: positioningValue, note: isEn ? "How clearly AI can classify the brand." : "Qué tan claro puede clasificar la IA a la marca." },
+  ]
+  const scoreReason = score < 35
+    ? isEn ? "The score is low because the brand is still weak in neutral prompts, citations or competitive answers." : "El score es bajo porque la marca aún está débil en prompts neutrales, citaciones o respuestas competitivas."
+    : score < 60
+    ? isEn ? "The brand has early visibility, but it still needs stronger evidence, clearer positioning and more wins against competitors." : "La marca ya tiene señales iniciales, pero necesita más evidencia, posicionamiento más claro y más victorias frente a competidores."
+    : isEn ? "The brand has a useful visibility base. The next step is scaling citations and defending competitive prompts." : "La marca tiene una base útil de visibilidad. El siguiente paso es escalar citaciones y defender prompts competitivos."
+  const competitorLosses = competitorVisibility.slice(0, 4).map((competitor) => {
+    const name = String(competitor.name ?? "Competidor")
+    const wonPrompts = evaluatedPrompts.filter((item) => String(item.prompt ?? "").toLowerCase().includes(name.toLowerCase()))
+    return {
+      name,
+      score: Math.round(numberFrom(competitor.visibility_score)),
+      prompts: wonPrompts.map((item) => String(item.prompt ?? "")).slice(0, 3),
+      why: wonPrompts.length > 0
+        ? isEn ? "AI had explicit comparison context and enough evidence to mention this competitor." : "La IA tuvo contexto comparativo explícito y suficiente evidencia para mencionar a este competidor."
+        : isEn ? "There is not enough prompt-level evidence stored to explain the exact win yet." : "Aún no hay suficiente evidencia por prompt para explicar la victoria exacta.",
+      missing: isEn ? "Your brand needs clearer comparison content, proof assets and citable pages." : "Tu marca necesita comparativas más claras, pruebas verificables y páginas citables.",
+      action: isEn ? `Create a comparison page against ${name} and add verifiable proof.` : `Crear una página comparativa contra ${name} y agregar evidencia verificable.`,
+    }
+  })
 
   const deleteAudit = async () => {
     if (!audit?.id) return
@@ -300,6 +331,11 @@ export default function AuditDetailReal() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             {audit?.status && <span className="w-fit rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-sm font-medium text-primary">{audit.status}</span>}
+            {audit?.project_id && (
+              <Button variant="outline" className="border-border" asChild>
+                <Link href={`/geo/app/projects/${audit.project_id}/recommendations/report`}><Download className="mr-2 h-4 w-4" />{isEn ? "Download PDF report" : "Descargar reporte PDF"}</Link>
+              </Button>
+            )}
             {audit && (
               <Button variant="outline" className="border-red-500/30 text-red-300 hover:bg-red-500/10 hover:text-red-200" onClick={() => setShowDeleteModal(true)}>
                 <Trash2 className="mr-2 h-4 w-4" />
@@ -372,6 +408,37 @@ export default function AuditDetailReal() {
                 </CardContent>
               </Card>
             )}
+
+            <Card className="glass border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg"><ShieldCheck className="h-5 w-5 text-primary" />{isEn ? "How the GEO Score is calculated" : "Cómo se calcula el GEO Score"}</CardTitle>
+                <p className="text-sm text-muted-foreground">{scoreReason}</p>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid gap-4 md:grid-cols-[240px_1fr]">
+                  <div className="rounded-2xl border border-border bg-secondary/20 p-4">
+                    <p className="text-sm text-muted-foreground">GEO Score</p>
+                    <p className="mt-1 text-4xl font-bold">{score}/100</p>
+                    <p className="mt-3 text-sm text-muted-foreground">{isEn ? "Recommended target" : "Objetivo recomendado"}: <span className="font-medium text-foreground">{scoreTarget}/100</span></p>
+                  </div>
+                  <div className="rounded-2xl border border-border bg-secondary/20 p-4">
+                    <div className="mb-2 flex items-center justify-between text-sm"><span className="text-muted-foreground">{isEn ? "Progress toward target" : "Progreso hacia objetivo"}</span><span className="font-medium">{targetProgress}%</span></div>
+                    <div className="h-3 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-gradient-to-r from-primary to-accent" style={{ width: `${targetProgress}%` }} /></div>
+                    <p className="mt-3 text-sm text-muted-foreground">{scoreGap > 0 ? (isEn ? `You are ${scoreGap} points away from your initial target.` : `Estás a ${scoreGap} puntos de tu objetivo inicial.`) : (isEn ? "You reached the current target. The next goal is to scale." : "Ya alcanzaste el objetivo actual. La siguiente meta es escalar.")}</p>
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                  {scoreComponents.map((component) => (
+                    <div key={component.label} className="rounded-2xl border border-border bg-background/40 p-4">
+                      <p className="text-xs text-muted-foreground">{component.label}</p>
+                      <p className="mt-1 text-2xl font-bold">{component.value}%</p>
+                      <p className="mt-1 text-xs text-primary">{isEn ? "Weight" : "Peso"}: {component.weight}%</p>
+                      <p className="mt-2 text-xs text-muted-foreground">{component.note}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
 
             {semantic && (
               <Card className="glass border-primary/30 bg-primary/5">
@@ -448,6 +515,30 @@ export default function AuditDetailReal() {
                 </CardContent>
               </Card>
             </div>
+
+            <Card className="glass border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg"><Trophy className="h-5 w-5 text-primary" />{isEn ? "Why your competitors are winning" : "Por qué están ganando tus competidores"}</CardTitle>
+                <p className="text-sm text-muted-foreground">{isEn ? "Based on competitor mentions and prompt evidence stored in this audit." : "Basado en menciones competitivas y evidencia de prompts guardada en esta auditoría."}</p>
+              </CardHeader>
+              <CardContent>
+                {competitorLosses.length === 0 ? (
+                  <p className="rounded-2xl border border-dashed border-border p-5 text-sm text-muted-foreground">{isEn ? "No competitor evidence was stored for this audit." : "No se guardó evidencia competitiva suficiente para esta auditoría."}</p>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {competitorLosses.map((item) => (
+                      <div key={item.name} className="rounded-2xl border border-border bg-secondary/20 p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3"><h3 className="font-semibold">{item.name}</h3><span className="rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">{item.score}%</span></div>
+                        <p className="text-sm text-muted-foreground"><span className="text-foreground">{isEn ? "Won prompts" : "Prompts ganados"}:</span> {item.prompts.length > 0 ? item.prompts.join(" · ") : (isEn ? "No prompt-level detail available" : "Sin detalle por prompt disponible")}</p>
+                        <p className="mt-2 text-sm text-muted-foreground"><span className="text-foreground">{isEn ? "Why it won" : "Por qué ganó"}:</span> {item.why}</p>
+                        <p className="mt-2 text-sm text-muted-foreground"><span className="text-foreground">{isEn ? "What your brand lacks" : "Qué le falta a tu marca"}:</span> {item.missing}</p>
+                        <p className="mt-3 rounded-xl bg-background/50 p-3 text-sm text-muted-foreground"><span className="text-foreground">{isEn ? "Recommended action" : "Acción recomendada"}:</span> {item.action}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             <Card className="glass border-border">
               <CardHeader>

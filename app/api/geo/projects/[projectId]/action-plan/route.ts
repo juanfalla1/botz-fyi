@@ -16,6 +16,9 @@ type ActionItem = {
   affected_pages: string[]
   suggested_action: string
   deliverables: string[]
+  improves_metric: string
+  estimated_score_lift: { min: number; max: number }
+  estimated_time: string
   status: "pending" | "in_progress" | "implemented"
   audit_id: string
   created_at: string | null
@@ -90,6 +93,9 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       affected_pages: [baseUrl],
       suggested_action: `Agregar arriba del fold una propuesta de valor clara para ${project.company_name}, una seccion 'para quien es', diferenciadores, casos de uso, prueba social y preguntas frecuentes orientadas a IA.`,
       deliverables: ["Nuevo hero con propuesta de valor", "Seccion de casos de uso", "Bloque 'por que elegirnos'", "FAQs orientadas a prompts de IA"],
+      improves_metric: "Visibilidad espontánea + claridad del posicionamiento",
+      estimated_score_lift: { min: 5, max: 12 },
+      estimated_time: "3 a 5 días",
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
       created_at: context.latestAudit?.completed_at ?? null,
@@ -114,6 +120,9 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       affected_pages: [`${baseUrl}/comparativas`, `${baseUrl}/alternativas`, `${baseUrl}/${slugify(project.company_name)}-vs-${slugify(competitorName)}`],
       suggested_action: `Publicar una pagina '${project.company_name} vs ${competitorName}' y una matriz de alternativas con diferencias, casos de uso, alcance, FAQs y prueba social verificable.`,
       deliverables: [`Pagina ${project.company_name} vs ${competitorName}`, "Pagina de alternativas", "Tabla comparativa", "FAQs de decision"],
+      improves_metric: "Win rate competitivo",
+      estimated_score_lift: { min: 4, max: 10 },
+      estimated_time: "4 a 7 días",
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
       created_at: context.latestAudit?.completed_at ?? null,
@@ -135,6 +144,9 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       affected_pages: [`${baseUrl}/${industrySlug}`],
       suggested_action: `Crear una pagina para ${project.industry || "la industria objetivo"} con problema, solucion, beneficios, casos de uso, FAQs, prueba social y CTA.`,
       deliverables: ["Landing por industria", "Copy completo", "FAQs del nicho", "Metadata SEO/GEO"],
+      improves_metric: "Visibilidad espontánea",
+      estimated_score_lift: { min: 5, max: 12 },
+      estimated_time: "3 a 6 días",
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
       created_at: context.latestAudit?.completed_at ?? null,
@@ -156,6 +168,9 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       affected_pages: [`${baseUrl}/casos-de-exito`, `${baseUrl}/comparativas`, baseUrl],
       suggested_action: `Agregar secciones que demuestren por que elegir ${project.company_name} frente a ${topCompetitor.name}: resultados, diferenciadores, integraciones, soporte, velocidad, cobertura y casos reales.`,
       deliverables: ["Bloque de diferenciadores", "Claims con evidencia", "Casos o pruebas verificables", "FAQs contra objeciones competitivas"],
+      improves_metric: "Win rate competitivo + autoridad/confianza",
+      estimated_score_lift: { min: 4, max: 9 },
+      estimated_time: "5 a 8 días",
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
       created_at: context.latestAudit?.completed_at ?? null,
@@ -176,6 +191,9 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     affected_pages: [baseUrl, `${baseUrl}/${industrySlug}`],
     suggested_action: "Agregar 6 a 10 preguntas reales por pagina: que es, para quien sirve, diferencia vs alternativas, beneficios, integraciones, precios o siguiente paso. Publicar FAQPage JSON-LD donde aplique.",
     deliverables: ["Bloque FAQ", "FAQPage JSON-LD", "Preguntas por intencion de busqueda", "Validacion de schema"],
+    improves_metric: "Claridad del posicionamiento",
+    estimated_score_lift: { min: 2, max: 6 },
+    estimated_time: "1 a 3 días",
     status: "pending",
     audit_id: context.latestAudit?.id ?? "",
     created_at: context.latestAudit?.completed_at ?? null,
@@ -196,6 +214,9 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       affected_pages: [`${baseUrl}/casos-de-exito`, `${baseUrl}/recursos`],
       suggested_action: "Crear al menos un caso de exito, una pagina de recursos y bloques de prueba social en home/landings con resultados concretos y verificables.",
       deliverables: ["Caso de exito", "Bloque de prueba social", "Claims con fuente", "Pagina de recursos citables"],
+      improves_metric: "Cobertura de citations + autoridad/confianza",
+      estimated_score_lift: { min: 3, max: 8 },
+      estimated_time: "4 a 8 días",
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
       created_at: context.latestAudit?.completed_at ?? null,
@@ -217,6 +238,9 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       affected_pages: [`${baseUrl}/recursos`, `${baseUrl}/alianzas`],
       suggested_action: "Crear una pagina de alianzas/participaciones y convertir colaboraciones locales en articulos, menciones y backlinks verificables.",
       deliverables: ["Pagina de alianzas", "Brief de PR local", "Lista de medios/partners", "Contenido indexable por colaboracion"],
+      improves_metric: "Cobertura de citations + autoridad/confianza",
+      estimated_score_lift: { min: 3, max: 7 },
+      estimated_time: "7 a 14 días",
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
       created_at: context.latestAudit?.completed_at ?? null,

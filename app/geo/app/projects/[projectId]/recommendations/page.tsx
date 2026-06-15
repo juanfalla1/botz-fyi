@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
-import { ArrowLeft, CheckCircle2, FileText, Globe, Lightbulb, Megaphone, Rocket, Search, Sparkles, Target, Trophy, Users } from "lucide-react"
+import { ArrowLeft, CheckCircle2, Clipboard, FileText, Globe, Lightbulb, Megaphone, Rocket, Search, Sparkles, Target, Trophy, Users, Wand2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AppHeader } from "@/GEO/components/geo/app-shell"
@@ -24,6 +24,9 @@ type ActionItem = {
   affected_pages: string[]
   suggested_action: string
   deliverables: string[]
+  improves_metric?: string
+  estimated_score_lift?: { min: number; max: number }
+  estimated_time?: string
   status: "pending" | "in_progress" | "implemented"
   audit_id: string
   created_at: string | null
@@ -89,6 +92,7 @@ export default function RecommendationsPage() {
   const [plan, setPlan] = useState<ActionPlan | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [generatedDeliverables, setGeneratedDeliverables] = useState<Record<string, string>>({})
 
   useEffect(() => {
     let mounted = true
@@ -299,6 +303,12 @@ export default function RecommendationsPage() {
                           <p className="mb-1 flex items-center gap-2 text-sm font-medium"><Target className="h-4 w-4 text-primary" />{isEn ? "Recommended action" : "Acción recomendada"}</p>
                           <p className="text-sm text-muted-foreground">{action.suggested_action || action.description}</p>
                         </div>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                          <ActionStat label={isEn ? "Metric improved" : "Métrica que mejora"} value={action.improves_metric ?? metricFromType(action.type, isEn)} />
+                          <ActionStat label={isEn ? "Potential lift" : "Mejora potencial"} value={scoreLiftLabel(action, isEn)} />
+                          <ActionStat label={isEn ? "Estimated time" : "Tiempo estimado"} value={action.estimated_time ?? defaultTime(action.difficulty, isEn)} />
+                          <ActionStat label={isEn ? "Expected impact" : "Impacto esperado"} value={`${levelLabel(action.estimated_impact, isEn)} · ${difficultyLabel(action.difficulty, isEn)}`} />
+                        </div>
                         <div className="mt-4 rounded-xl border border-border bg-secondary/20 p-4">
                           <p className="mb-2 text-sm font-medium">{isEn ? "Affected pages" : "Páginas afectadas"}</p>
                           <div className="flex flex-wrap gap-2">
@@ -324,8 +334,22 @@ export default function RecommendationsPage() {
                           <p className="text-xs uppercase tracking-wide text-muted-foreground">{isEn ? "Status" : "Estado"}</p>
                           <p className="mt-1 font-medium">{statusLabel(action.status, isEn)}</p>
                         </div>
+                        <Button className="mt-4 w-full bg-primary hover:bg-primary/90" onClick={() => setGeneratedDeliverables((current) => ({ ...current, [action.id]: generateDeliverable(action, plan.project, isEn) }))}>
+                          <Wand2 className="mr-2 h-4 w-4" />{isEn ? "Generate deliverable" : "Generar entregable"}
+                        </Button>
                       </div>
                     </div>
+                    {generatedDeliverables[action.id] && (
+                      <div className="mt-5 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+                        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div><p className="text-sm font-semibold">{isEn ? "Generated deliverable" : "Entregable generado"}</p><p className="text-xs text-muted-foreground">{isEn ? "Editable draft based on this action." : "Borrador editable basado en esta acción."}</p></div>
+                          <Button variant="outline" size="sm" className="border-border" onClick={() => void navigator.clipboard?.writeText(generatedDeliverables[action.id])}>
+                            <Clipboard className="mr-2 h-4 w-4" />{isEn ? "Copy" : "Copiar"}
+                          </Button>
+                        </div>
+                        <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap rounded-xl bg-background/70 p-4 text-sm leading-relaxed text-muted-foreground">{generatedDeliverables[action.id]}</pre>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -357,6 +381,119 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function MetricDefinition({ title, text }: { title: string; text: string }) {
   return <div className="rounded-2xl border border-border bg-background/40 p-4"><p className="font-medium">{title}</p><p className="mt-1 text-sm text-muted-foreground">{text}</p></div>
+}
+
+function ActionStat({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl border border-border bg-background/40 p-3"><p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm font-medium">{value}</p></div>
+}
+
+function scoreLiftLabel(action: ActionItem, isEn: boolean) {
+  const lift = action.estimated_score_lift
+  if (!lift) return isEn ? "Estimated after implementation" : "Estimado tras implementación"
+  return isEn ? `+${lift.min} to +${lift.max} GEO points` : `+${lift.min} a +${lift.max} puntos GEO`
+}
+
+function defaultTime(difficulty: ActionItem["difficulty"], isEn: boolean) {
+  if (difficulty === "easy") return isEn ? "1 to 3 days" : "1 a 3 días"
+  if (difficulty === "hard") return isEn ? "7 to 14 days" : "7 a 14 días"
+  return isEn ? "3 to 7 days" : "3 a 7 días"
+}
+
+function metricFromType(type: string, isEn: boolean) {
+  const value = type.toLowerCase()
+  if (value.includes("competitive")) return isEn ? "Competitive win rate" : "Win rate competitivo"
+  if (value.includes("authority")) return isEn ? "Citation coverage" : "Cobertura de citations"
+  if (value.includes("technical")) return isEn ? "Positioning clarity" : "Claridad del posicionamiento"
+  return isEn ? "Spontaneous visibility" : "Visibilidad espontánea"
+}
+
+function generateDeliverable(action: ActionItem, project: ActionPlan["project"], isEn: boolean) {
+  const brand = project.company_name
+  const industry = project.industry || (isEn ? "the target category" : "la categoría objetivo")
+  const type = `${action.type} ${action.implementation_type} ${action.category}`.toLowerCase()
+  if (type.includes("compar") || type.includes("competitive")) {
+    return `${isEn ? "COMPARISON DELIVERABLE" : "ENTREGABLE COMPARATIVO"}
+
+${isEn ? "Page title" : "Título de página"}: ${brand} vs competidor principal: diferencias, casos de uso y cuándo elegir cada opción
+
+${isEn ? "Suggested structure" : "Estructura sugerida"}:
+1. ${isEn ? "Executive summary: who each option is for" : "Resumen ejecutivo: para quién sirve cada opción"}
+2. ${isEn ? "Comparison table: use case, scope, integrations, support, pricing model, implementation time" : "Tabla comparativa: caso de uso, alcance, integraciones, soporte, modelo de precio, tiempo de implementación"}
+3. ${isEn ? "Why choose" : "Por qué elegir"} ${brand}
+4. ${isEn ? "When another alternative may fit better" : "Cuándo otra alternativa puede encajar mejor"}
+5. FAQs para intención de decisión
+6. CTA: ${isEn ? "Request a GEO/implementation diagnosis" : "Solicitar diagnóstico GEO/implementación"}
+
+${isEn ? "SEO/GEO copy base" : "Copy base SEO/GEO"}:
+${brand} is an option for companies in ${industry} that need a clear, implementable solution with measurable outcomes. This page compares alternatives using practical criteria and verifiable proof.
+
+FAQs:
+- ¿Qué diferencia a ${brand} frente a alternativas?
+- ¿Para qué tipo de empresa conviene ${brand}?
+- ¿Qué resultados se pueden medir?
+- ¿Cuánto tarda implementar la solución?`
+  }
+  if (type.includes("landing") || type.includes("content")) {
+    return `${isEn ? "LANDING / CONTENT DELIVERABLE" : "ENTREGABLE LANDING / CONTENIDO"}
+
+${isEn ? "Page objective" : "Objetivo de la página"}: aumentar visibilidad espontánea para prompts de ${industry}.
+
+${isEn ? "Suggested sections" : "Secciones sugeridas"}:
+1. Hero: qué hace ${brand}, para quién y resultado principal.
+2. Problema del cliente en ${industry}.
+3. Solución de ${brand}.
+4. Casos de uso principales.
+5. Diferenciadores verificables.
+6. Prueba social o evidencia.
+7. FAQs optimizadas para IA.
+8. CTA claro.
+
+${isEn ? "Base copy" : "Copy base"}:
+${brand} ayuda a empresas de ${industry} a resolver problemas concretos con una propuesta clara, medible y fácil de implementar. La página debe explicar el contexto, los beneficios y las razones por las que un motor de IA debería recomendar la marca.
+
+FAQs:
+- ¿Qué es ${brand}?
+- ¿Para quién sirve ${brand}?
+- ¿Qué problema resuelve en ${industry}?
+- ¿Qué diferencia a ${brand} de otras alternativas?
+- ¿Cómo se mide el resultado?`
+  }
+  if (type.includes("faq") || type.includes("technical")) {
+    return `${isEn ? "FAQ / AI STRUCTURE DELIVERABLE" : "ENTREGABLE FAQ / ESTRUCTURA IA"}
+
+${isEn ? "Goal" : "Objetivo"}: mejorar claridad del posicionamiento y facilitar extracción de respuestas por motores IA.
+
+Preguntas y respuestas sugeridas:
+1. ¿Qué es ${brand}?
+Respuesta: ${brand} es una solución para ${industry} enfocada en resolver un problema específico con resultados medibles.
+
+2. ¿Para quién es ${brand}?
+Respuesta: Para empresas que necesitan una solución clara, implementable y orientada a resultados.
+
+3. ¿Qué problema resuelve ${brand}?
+Respuesta: Resuelve brechas de claridad, ejecución o visibilidad dentro de ${industry}.
+
+4. ¿Por qué elegir ${brand}?
+Respuesta: Por su enfoque práctico, entregables concretos y capacidad de medir avance.
+
+5. ¿Cómo se mide el éxito?
+Respuesta: Con métricas como GEO Score, visibilidad espontánea, win rate competitivo y cobertura de citations.
+
+${isEn ? "Implementation" : "Implementación"}: publicar estas FAQs visibles en la página y agregar FAQPage JSON-LD si aplica.`
+  }
+  return `${isEn ? "ACTION DELIVERABLE" : "ENTREGABLE DE ACCIÓN"}
+
+${isEn ? "Action" : "Acción"}: ${action.title}
+
+${isEn ? "What to create" : "Qué crear"}:
+${action.deliverables.map((item) => `- ${item}`).join("\n")}
+
+${isEn ? "Recommended execution" : "Ejecución recomendada"}:
+${action.suggested_action}
+
+${isEn ? "Metric to improve" : "Métrica a mejorar"}: ${action.improves_metric ?? metricFromType(action.type, isEn)}
+
+${isEn ? "Expected impact" : "Impacto esperado"}: ${scoreLiftLabel(action, isEn)} si se implementa correctamente.`
 }
 
 function priorityLabel(priority: ActionItem["priority"], isEn: boolean) {
