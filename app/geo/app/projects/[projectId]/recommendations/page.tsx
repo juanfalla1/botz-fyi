@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
-import { ArrowLeft, CheckCircle2, Clipboard, FileText, Globe, Lightbulb, Megaphone, Rocket, Search, Sparkles, Target, Trophy, Users, Wand2 } from "lucide-react"
+import { ArrowLeft, CheckCircle2, Clipboard, Download, FileText, Globe, Lightbulb, Megaphone, Rocket, Search, Sparkles, Target, Trophy, Users, Wand2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AppHeader } from "@/GEO/components/geo/app-shell"
@@ -85,6 +85,15 @@ type ActionPlan = {
   actions: ActionItem[]
 }
 
+type DeliverableKind = "landing" | "comparison" | "alternative" | "content" | "faq" | "generic"
+
+type DeliverableDraft = {
+  action: ActionItem
+  kind: DeliverableKind
+  content: string
+  warning: string | null
+}
+
 export default function RecommendationsPage() {
   const params = useParams<{ projectId: string }>()
   const { locale } = useGeoI18n()
@@ -92,7 +101,7 @@ export default function RecommendationsPage() {
   const [plan, setPlan] = useState<ActionPlan | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [generatedDeliverables, setGeneratedDeliverables] = useState<Record<string, string>>({})
+  const [deliverableDraft, setDeliverableDraft] = useState<DeliverableDraft | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -334,22 +343,11 @@ export default function RecommendationsPage() {
                           <p className="text-xs uppercase tracking-wide text-muted-foreground">{isEn ? "Status" : "Estado"}</p>
                           <p className="mt-1 font-medium">{statusLabel(action.status, isEn)}</p>
                         </div>
-                        <Button className="mt-4 w-full bg-primary hover:bg-primary/90" onClick={() => setGeneratedDeliverables((current) => ({ ...current, [action.id]: generateDeliverable(action, plan.project, isEn) }))}>
+                        <Button className="mt-4 w-full bg-primary hover:bg-primary/90" onClick={() => setDeliverableDraft(createDeliverableDraft(action, plan.project, isEn))}>
                           <Wand2 className="mr-2 h-4 w-4" />{isEn ? "Generate deliverable" : "Generar entregable"}
                         </Button>
                       </div>
                     </div>
-                    {generatedDeliverables[action.id] && (
-                      <div className="mt-5 rounded-2xl border border-primary/30 bg-primary/5 p-4">
-                        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div><p className="text-sm font-semibold">{isEn ? "Generated deliverable" : "Entregable generado"}</p><p className="text-xs text-muted-foreground">{isEn ? "Editable draft based on this action." : "Borrador editable basado en esta acción."}</p></div>
-                          <Button variant="outline" size="sm" className="border-border" onClick={() => void navigator.clipboard?.writeText(generatedDeliverables[action.id])}>
-                            <Clipboard className="mr-2 h-4 w-4" />{isEn ? "Copy" : "Copiar"}
-                          </Button>
-                        </div>
-                        <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap rounded-xl bg-background/70 p-4 text-sm leading-relaxed text-muted-foreground">{generatedDeliverables[action.id]}</pre>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -371,6 +369,15 @@ export default function RecommendationsPage() {
           </>
         )}
       </div>
+      {deliverableDraft && plan && (
+        <DeliverableDrawer
+          draft={deliverableDraft}
+          project={plan.project}
+          isEn={isEn}
+          onChange={(content) => setDeliverableDraft((current) => current ? { ...current, content } : current)}
+          onClose={() => setDeliverableDraft(null)}
+        />
+      )}
     </>
   )
 }
@@ -381,6 +388,56 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function MetricDefinition({ title, text }: { title: string; text: string }) {
   return <div className="rounded-2xl border border-border bg-background/40 p-4"><p className="font-medium">{title}</p><p className="mt-1 text-sm text-muted-foreground">{text}</p></div>
+}
+
+function DeliverableDrawer({ draft, project, isEn, onChange, onClose }: { draft: DeliverableDraft; project: ActionPlan["project"]; isEn: boolean; onChange: (content: string) => void; onClose: () => void }) {
+  const action = draft.action
+  return (
+    <div className="fixed inset-0 z-[80] bg-background/70 backdrop-blur-sm">
+      <button type="button" className="absolute inset-0 cursor-default" aria-label={isEn ? "Close deliverable" : "Cerrar entregable"} onClick={onClose} />
+      <aside className="absolute right-0 top-0 flex h-full w-full max-w-3xl flex-col border-l border-border bg-background shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+          <div>
+            <p className="text-xs uppercase tracking-[0.24em] text-primary">{deliverableKindLabel(draft.kind, isEn)}</p>
+            <h3 className="mt-2 text-xl font-semibold">{isEn ? "Generated deliverable" : "Entregable generado"}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{isEn ? "Editable first draft ready to refine, publish or share." : "Primer borrador editable listo para refinar, publicar o compartir."}</p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose}><X className="h-4 w-4" /></Button>
+        </div>
+
+        <div className="grid gap-4 border-b border-border p-5 sm:grid-cols-2 xl:grid-cols-4">
+          <ActionStat label={isEn ? "Original action" : "Acción original"} value={action.title} />
+          <ActionStat label={isEn ? "Expected impact" : "Impacto esperado"} value={levelLabel(action.estimated_impact, isEn)} />
+          <ActionStat label={isEn ? "Difficulty" : "Dificultad"} value={difficultyLabel(action.difficulty, isEn)} />
+          <ActionStat label={isEn ? "Potential GEO Score" : "GEO Score potencial"} value={scoreLiftLabel(action, isEn)} />
+        </div>
+
+        {draft.warning && (
+          <div className="mx-5 mt-5 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-100">
+            {draft.warning}
+          </div>
+        )}
+
+        <div className="flex-1 overflow-auto p-5">
+          <textarea
+            value={draft.content}
+            onChange={(event) => onChange(event.target.value)}
+            className="min-h-[620px] w-full resize-none rounded-2xl border border-border bg-card/50 p-5 font-mono text-sm leading-relaxed text-foreground outline-none transition focus:border-primary/50"
+            spellCheck={false}
+          />
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-border p-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">{isEn ? `Based on ${project.company_name} audit evidence. Review before publishing.` : `Basado en evidencia de auditoría de ${project.company_name}. Revisar antes de publicar.`}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" className="border-border" onClick={() => void navigator.clipboard?.writeText(draft.content)}><Clipboard className="mr-2 h-4 w-4" />{isEn ? "Copy" : "Copiar"}</Button>
+            <Button variant="outline" className="border-border" onClick={() => downloadMarkdown(draft, project)}><Download className="mr-2 h-4 w-4" />Markdown</Button>
+            <Button className="bg-primary hover:bg-primary/90" onClick={() => void downloadDeliverablePdf(draft, project, isEn)}><Download className="mr-2 h-4 w-4" />PDF</Button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  )
 }
 
 function ActionStat({ label, value }: { label: string; value: string }) {
@@ -407,93 +464,294 @@ function metricFromType(type: string, isEn: boolean) {
   return isEn ? "Spontaneous visibility" : "Visibilidad espontánea"
 }
 
-function generateDeliverable(action: ActionItem, project: ActionPlan["project"], isEn: boolean) {
+function createDeliverableDraft(action: ActionItem, project: ActionPlan["project"], isEn: boolean): DeliverableDraft {
+  const kind = detectDeliverableKind(action)
+  return {
+    action,
+    kind,
+    content: generateDeliverable(action, project, isEn, kind),
+    warning: deliverableWarning(project, action, isEn),
+  }
+}
+
+function detectDeliverableKind(action: ActionItem): DeliverableKind {
+  const text = `${action.id} ${action.category} ${action.title} ${action.type} ${action.implementation_type} ${action.suggested_action} ${action.deliverables.join(" ")}`.toLowerCase()
+  if (text.includes("faq") || text.includes("json-ld") || text.includes("schema")) return "faq"
+  if (text.includes("alternativa") || text.includes("alternative")) return text.includes(" vs ") || text.includes("frente a") || text.includes("compet") ? "comparison" : "alternative"
+  if (text.includes("compar") || text.includes("competitive") || text.includes("competidor") || text.includes("competitor") || text.includes(" vs ")) return "comparison"
+  if (text.includes("landing") || text.includes("home") || text.includes("homepage")) return "landing"
+  if (text.includes("contenido") || text.includes("content") || text.includes("recursos") || text.includes("authority")) return "content"
+  return "generic"
+}
+
+function deliverableKindLabel(kind: DeliverableKind, isEn: boolean) {
+  const labels: Record<DeliverableKind, string> = {
+    landing: isEn ? "Landing draft" : "Borrador de landing",
+    comparison: isEn ? "Comparison draft" : "Borrador comparativo",
+    alternative: isEn ? "Alternative page draft" : "Borrador de alternativas",
+    content: isEn ? "Content draft" : "Borrador de contenido",
+    faq: isEn ? "FAQ draft" : "Borrador FAQ",
+    generic: isEn ? "Execution draft" : "Borrador de ejecución",
+  }
+  return labels[kind]
+}
+
+function deliverableWarning(project: ActionPlan["project"], action: ActionItem, isEn: boolean) {
+  const missing = [!project.industry, !project.business_goal, action.affected_pages.length === 0].filter(Boolean).length
+  if (missing === 0) return null
+  return isEn
+    ? "Limited project context is available. This draft uses only audit data and action details; validate positioning, proof and claims before publishing."
+    : "Hay contexto limitado del proyecto. Este borrador usa únicamente datos de auditoría y detalles de la acción; valida posicionamiento, pruebas y claims antes de publicar."
+}
+
+function generateDeliverable(action: ActionItem, project: ActionPlan["project"], isEn: boolean, kind = detectDeliverableKind(action)) {
   const brand = project.company_name
   const industry = project.industry || (isEn ? "the target category" : "la categoría objetivo")
-  const type = `${action.type} ${action.implementation_type} ${action.category}`.toLowerCase()
-  if (type.includes("compar") || type.includes("competitive")) {
-    return `${isEn ? "COMPARISON DELIVERABLE" : "ENTREGABLE COMPARATIVO"}
+  const goal = project.business_goal || (isEn ? "improve AI visibility and qualified demand" : "mejorar visibilidad IA y demanda calificada")
+  if (kind === "landing") return landingDeliverable(brand, industry, goal, isEn)
+  if (kind === "comparison") return comparisonDeliverable(brand, industry, goal, action, isEn)
+  if (kind === "alternative") return alternativeDeliverable(brand, industry, goal, isEn)
+  if (kind === "content") return contentDeliverable(brand, industry, goal, action, isEn)
+  if (kind === "faq") return faqDeliverable(brand, industry, goal, isEn)
+  return genericDeliverable(action, brand, isEn)
+}
 
-${isEn ? "Page title" : "Título de página"}: ${brand} vs competidor principal: diferencias, casos de uso y cuándo elegir cada opción
+function landingDeliverable(brand: string, industry: string, goal: string, isEn: boolean) {
+  return `# ${isEn ? "Landing Page Draft" : "Borrador de Landing"}: ${brand}
 
-${isEn ? "Suggested structure" : "Estructura sugerida"}:
-1. ${isEn ? "Executive summary: who each option is for" : "Resumen ejecutivo: para quién sirve cada opción"}
-2. ${isEn ? "Comparison table: use case, scope, integrations, support, pricing model, implementation time" : "Tabla comparativa: caso de uso, alcance, integraciones, soporte, modelo de precio, tiempo de implementación"}
-3. ${isEn ? "Why choose" : "Por qué elegir"} ${brand}
-4. ${isEn ? "When another alternative may fit better" : "Cuándo otra alternativa puede encajar mejor"}
-5. FAQs para intención de decisión
-6. CTA: ${isEn ? "Request a GEO/implementation diagnosis" : "Solicitar diagnóstico GEO/implementación"}
+## Hero
+${brand} ${isEn ? `helps companies in ${industry} solve priority growth and visibility problems with a clear, measurable execution plan.` : `ayuda a empresas en ${industry} a resolver problemas prioritarios de crecimiento y visibilidad con un plan de ejecución claro y medible.`}
 
-${isEn ? "SEO/GEO copy base" : "Copy base SEO/GEO"}:
-${brand} is an option for companies in ${industry} that need a clear, implementable solution with measurable outcomes. This page compares alternatives using practical criteria and verifiable proof.
+**Subheadline:** ${isEn ? `Turn AI visibility gaps into pages, proof and actions that can be measured in the next GEO audit.` : `Convierte brechas de visibilidad IA en páginas, pruebas y acciones medibles en la próxima auditoría GEO.`}
 
-FAQs:
-- ¿Qué diferencia a ${brand} frente a alternativas?
-- ¿Para qué tipo de empresa conviene ${brand}?
-- ¿Qué resultados se pueden medir?
-- ¿Cuánto tarda implementar la solución?`
-  }
-  if (type.includes("landing") || type.includes("content")) {
-    return `${isEn ? "LANDING / CONTENT DELIVERABLE" : "ENTREGABLE LANDING / CONTENIDO"}
+## ${isEn ? "Problem" : "Problema"}
+${isEn ? `Potential clients ask AI engines for solutions in ${industry}, but the brand may not appear when the prompt does not mention it directly.` : `Los clientes potenciales preguntan a motores IA por soluciones en ${industry}, pero la marca puede no aparecer cuando el prompt no la menciona directamente.`}
 
-${isEn ? "Page objective" : "Objetivo de la página"}: aumentar visibilidad espontánea para prompts de ${industry}.
+## ${isEn ? "Solution" : "Solución"}
+${brand} ${isEn ? `should present a direct category definition, use cases, differentiators, proof and decision FAQs that AI engines can understand and cite.` : `debe presentar una definición clara de categoría, casos de uso, diferenciadores, pruebas y FAQs de decisión que los motores IA puedan entender y citar.`}
 
-${isEn ? "Suggested sections" : "Secciones sugeridas"}:
-1. Hero: qué hace ${brand}, para quién y resultado principal.
-2. Problema del cliente en ${industry}.
-3. Solución de ${brand}.
-4. Casos de uso principales.
-5. Diferenciadores verificables.
-6. Prueba social o evidencia.
-7. FAQs optimizadas para IA.
-8. CTA claro.
+## ${isEn ? "Benefits" : "Beneficios"}
+- ${isEn ? "Clearer positioning for neutral AI prompts." : "Posicionamiento más claro para prompts neutrales de IA."}
+- ${isEn ? "Better fit for industry-specific discovery queries." : "Mejor encaje con consultas de descubrimiento por industria."}
+- ${isEn ? "More citable proof for recommendation answers." : "Más evidencia citable para respuestas de recomendación."}
+- ${isEn ? "A direct CTA connected to the business goal." : "CTA directo conectado al objetivo comercial."}
 
-${isEn ? "Base copy" : "Copy base"}:
-${brand} ayuda a empresas de ${industry} a resolver problemas concretos con una propuesta clara, medible y fácil de implementar. La página debe explicar el contexto, los beneficios y las razones por las que un motor de IA debería recomendar la marca.
+## ${isEn ? "Use Cases" : "Casos de uso"}
+- ${isEn ? `Companies evaluating solutions in ${industry}.` : `Empresas evaluando soluciones en ${industry}.`}
+- ${isEn ? "Teams comparing providers before booking a call." : "Equipos comparando proveedores antes de agendar una llamada."}
+- ${isEn ? "Buyers looking for a measurable implementation path." : "Compradores buscando una ruta de implementación medible."}
 
-FAQs:
-- ¿Qué es ${brand}?
-- ¿Para quién sirve ${brand}?
-- ¿Qué problema resuelve en ${industry}?
-- ¿Qué diferencia a ${brand} de otras alternativas?
-- ¿Cómo se mide el resultado?`
-  }
-  if (type.includes("faq") || type.includes("technical")) {
-    return `${isEn ? "FAQ / AI STRUCTURE DELIVERABLE" : "ENTREGABLE FAQ / ESTRUCTURA IA"}
+## FAQs GEO
+${faqList(brand, industry, goal, isEn)}
 
-${isEn ? "Goal" : "Objetivo"}: mejorar claridad del posicionamiento y facilitar extracción de respuestas por motores IA.
+## CTA
+${isEn ? `Request a GEO diagnosis for ${brand} and identify which pages, comparisons and proof assets should be shipped first.` : `Solicita un diagnóstico GEO para ${brand} e identifica qué páginas, comparativas y pruebas deben ejecutarse primero.`}`
+}
 
-Preguntas y respuestas sugeridas:
-1. ¿Qué es ${brand}?
-Respuesta: ${brand} es una solución para ${industry} enfocada en resolver un problema específico con resultados medibles.
+function comparisonDeliverable(brand: string, industry: string, goal: string, action: ActionItem, isEn: boolean) {
+  const competitor = extractCompetitorName(action) || (isEn ? "the main competitor" : "el competidor principal")
+  return `# ${brand} vs ${competitor}: ${isEn ? "Comparison Draft" : "Borrador Comparativo"}
 
-2. ¿Para quién es ${brand}?
-Respuesta: Para empresas que necesitan una solución clara, implementable y orientada a resultados.
+## ${isEn ? "Title" : "Título"}
+${brand} vs ${competitor}: ${isEn ? `which option is better for companies in ${industry}?` : `¿qué opción conviene más para empresas en ${industry}?`}
 
-3. ¿Qué problema resuelve ${brand}?
-Respuesta: Resuelve brechas de claridad, ejecución o visibilidad dentro de ${industry}.
+## ${isEn ? "Introduction" : "Introducción"}
+${isEn ? `If you are comparing ${brand} and ${competitor}, the right choice depends on use case, implementation speed, proof, support and measurable outcomes.` : `Si estás comparando ${brand} y ${competitor}, la mejor decisión depende del caso de uso, velocidad de implementación, evidencia, soporte y resultados medibles.`}
 
-4. ¿Por qué elegir ${brand}?
-Respuesta: Por su enfoque práctico, entregables concretos y capacidad de medir avance.
+## ${isEn ? "Comparison Table" : "Tabla comparativa"}
+| ${isEn ? "Criterion" : "Criterio"} | ${brand} | ${competitor} |
+| --- | --- | --- |
+| ${isEn ? "Best fit" : "Mejor para"} | ${isEn ? `Teams that need a measurable execution path for ${goal}.` : `Equipos que necesitan una ruta medible para ${goal}.`} | ${isEn ? "Validate against public proof and product scope." : "Validar según evidencia pública y alcance del producto."} |
+| ${isEn ? "Implementation" : "Implementación"} | ${isEn ? "Focused on concrete deliverables and next audit improvement." : "Enfocada en entregables concretos y mejora de la próxima auditoría."} | ${isEn ? "Depends on provider scope." : "Depende del alcance del proveedor."} |
+| ${isEn ? "AI visibility" : "Visibilidad IA"} | ${isEn ? "Requires landing, FAQ, comparison and proof pages." : "Requiere landing, FAQ, comparativas y páginas de prueba."} | ${isEn ? "Benchmark with recurring prompts." : "Comparar con prompts recurrentes."} |
+| ${isEn ? "Proof" : "Evidencia"} | ${isEn ? "Use cases, claims, citations and case studies should be visible." : "Casos de uso, claims, citas y casos deben estar visibles."} | ${isEn ? "Check available evidence." : "Revisar evidencia disponible."} |
 
-5. ¿Cómo se mide el éxito?
-Respuesta: Con métricas como GEO Score, visibilidad espontánea, win rate competitivo y cobertura de citations.
+## ${isEn ? "Differentiators" : "Diferenciadores"}
+- ${isEn ? `${brand} should explain its category and use cases in language AI can reuse.` : `${brand} debe explicar su categoría y casos de uso en lenguaje que la IA pueda reutilizar.`}
+- ${isEn ? "The page should include verifiable proof, not generic claims." : "La página debe incluir evidencia verificable, no claims genéricos."}
+- ${isEn ? "FAQs should answer buyer objections directly." : "Las FAQs deben responder objeciones de compra directamente."}
 
-${isEn ? "Implementation" : "Implementación"}: publicar estas FAQs visibles en la página y agregar FAQPage JSON-LD si aplica.`
-  }
-  return `${isEn ? "ACTION DELIVERABLE" : "ENTREGABLE DE ACCIÓN"}
+## ${isEn ? "Use Cases" : "Casos de uso"}
+- ${isEn ? "When the buyer needs a clear implementation scope." : "Cuando el comprador necesita un alcance claro de implementación."}
+- ${isEn ? "When the decision depends on measurable outcomes." : "Cuando la decisión depende de resultados medibles."}
+- ${isEn ? "When AI engines need structured comparison evidence." : "Cuando los motores IA necesitan evidencia comparativa estructurada."}
 
-${isEn ? "Action" : "Acción"}: ${action.title}
+## FAQs
+${faqList(brand, industry, goal, isEn)}
 
-${isEn ? "What to create" : "Qué crear"}:
+## CTA
+${isEn ? `Compare ${brand} against your current alternatives and request a GEO action plan.` : `Compara ${brand} contra tus alternativas actuales y solicita un plan de acción GEO.`}`
+}
+
+function alternativeDeliverable(brand: string, industry: string, goal: string, isEn: boolean) {
+  return `# ${isEn ? "Alternatives Page Draft" : "Borrador Página de Alternativas"}: ${isEn ? `Best alternatives in ${industry}` : `Mejores alternativas en ${industry}`}
+
+## ${isEn ? "Alternative List" : "Lista de alternativas"}
+- ${brand}
+- ${isEn ? "Alternative 1: add verified competitor name" : "Alternativa 1: agregar competidor verificado"}
+- ${isEn ? "Alternative 2: add verified competitor name" : "Alternativa 2: agregar competidor verificado"}
+- ${isEn ? "Alternative 3: add verified competitor name" : "Alternativa 3: agregar competidor verificado"}
+
+## ${isEn ? `${brand} Advantages` : `Ventajas de ${brand}`}
+- ${isEn ? `Clear path to ${goal}.` : `Ruta clara para ${goal}.`}
+- ${isEn ? "Execution-oriented deliverables, not only diagnosis." : "Entregables orientados a ejecución, no solo diagnóstico."}
+- ${isEn ? "Content structure designed to improve AI understanding." : "Estructura de contenido diseñada para mejorar comprensión por IA."}
+
+## ${isEn ? `When to choose ${brand}` : `Cuándo elegir ${brand}`}
+${isEn ? `Choose ${brand} when your team needs a practical, measurable way to improve visibility in AI answers and create assets that can be cited.` : `Elige ${brand} cuando tu equipo necesita una forma práctica y medible de mejorar visibilidad en respuestas IA y crear activos citables.`}
+
+## FAQs
+${faqList(brand, industry, goal, isEn)}
+
+## CTA
+${isEn ? `Get a GEO audit and identify which alternative pages should be published first.` : `Obtén una auditoría GEO e identifica qué páginas de alternativas deben publicarse primero.`}`
+}
+
+function contentDeliverable(brand: string, industry: string, goal: string, action: ActionItem, isEn: boolean) {
+  return `# ${isEn ? "Content Draft" : "Borrador de Contenido"}: ${action.title}
+
+## ${isEn ? "Title" : "Título"}
+${isEn ? `How to choose a solution in ${industry} that improves AI visibility and measurable growth` : `Cómo elegir una solución en ${industry} que mejore visibilidad IA y crecimiento medible`}
+
+## Outline
+1. ${isEn ? `Why AI visibility matters in ${industry}` : `Por qué importa la visibilidad IA en ${industry}`}
+2. ${isEn ? "The problem with generic positioning" : "El problema del posicionamiento genérico"}
+3. ${isEn ? `How ${brand} should be evaluated` : `Cómo evaluar ${brand}`}
+4. ${isEn ? "Proof, citations and comparison pages" : "Evidencia, citations y páginas comparativas"}
+5. ${isEn ? "Next steps" : "Próximos pasos"}
+
+## ${isEn ? "Initial Text" : "Texto inicial"}
+${isEn ? `Companies in ${industry} are increasingly discovered through AI engines. If those engines cannot clearly understand what a brand does, who it serves and why it should be recommended, the brand loses visibility even before a buyer reaches Google or the website.` : `Las empresas en ${industry} están siendo descubiertas cada vez más a través de motores IA. Si esos motores no entienden con claridad qué hace una marca, para quién sirve y por qué debería recomendarse, la marca pierde visibilidad incluso antes de que el comprador llegue a Google o al sitio web.`}
+
+${isEn ? `${brand} should use content to clarify its category, use cases, differentiators and proof. The goal is not to publish more content; it is to create pages that answer real decision prompts and can be cited by AI systems.` : `${brand} debe usar contenido para aclarar su categoría, casos de uso, diferenciadores y evidencia. El objetivo no es publicar más contenido; es crear páginas que respondan prompts reales de decisión y puedan ser citadas por sistemas IA.`}
+
+## FAQs
+${faqList(brand, industry, goal, isEn)}
+
+## CTA
+${isEn ? `Request a GEO content plan for ${brand}.` : `Solicita un plan de contenido GEO para ${brand}.`}`
+}
+
+function faqDeliverable(brand: string, industry: string, goal: string, isEn: boolean) {
+  return `# ${isEn ? "FAQ Draft Optimized for AI Engines" : "Borrador FAQ optimizado para motores IA"}: ${brand}
+
+${faqList(brand, industry, goal, isEn)}
+
+## ${isEn ? "Implementation Notes" : "Notas de implementación"}
+- ${isEn ? "Publish answers visibly on the page, not only inside schema." : "Publicar respuestas visibles en la página, no solo dentro del schema."}
+- ${isEn ? "Use FAQPage JSON-LD only when the content is visible to users." : "Usar FAQPage JSON-LD solo cuando el contenido esté visible para usuarios."}
+- ${isEn ? "Avoid claims that are not supported by evidence in the page." : "Evitar claims que no estén respaldados por evidencia en la página."}`
+}
+
+function genericDeliverable(action: ActionItem, brand: string, isEn: boolean) {
+  return `# ${isEn ? "Execution Deliverable" : "Entregable de ejecución"}: ${action.title}
+
+## ${isEn ? "Original Action" : "Acción original"}
+${action.suggested_action || action.description}
+
+## ${isEn ? "What to create" : "Qué crear"}
 ${action.deliverables.map((item) => `- ${item}`).join("\n")}
 
-${isEn ? "Recommended execution" : "Ejecución recomendada"}:
-${action.suggested_action}
+## ${isEn ? "Recommended Structure" : "Estructura recomendada"}
+1. ${isEn ? "Context and problem" : "Contexto y problema"}
+2. ${isEn ? `How ${brand} solves it` : `Cómo ${brand} lo resuelve`}
+3. ${isEn ? "Proof or evidence" : "Prueba o evidencia"}
+4. ${isEn ? "FAQs for AI engines" : "FAQs para motores IA"}
+5. CTA
 
-${isEn ? "Metric to improve" : "Métrica a mejorar"}: ${action.improves_metric ?? metricFromType(action.type, isEn)}
+## ${isEn ? "Metric to improve" : "Métrica a mejorar"}
+${action.improves_metric ?? metricFromType(action.type, isEn)}
 
-${isEn ? "Expected impact" : "Impacto esperado"}: ${scoreLiftLabel(action, isEn)} si se implementa correctamente.`
+## ${isEn ? "Expected impact" : "Impacto esperado"}
+${scoreLiftLabel(action, isEn)} ${isEn ? "if implemented correctly." : "si se implementa correctamente."}`
+}
+
+function faqList(brand: string, industry: string, goal: string, isEn: boolean) {
+  if (isEn) return `### What is ${brand}?
+${brand} is a solution for companies in ${industry} that need a clearer, measurable path to ${goal}.
+
+### Who is ${brand} for?
+${brand} is for teams that need practical execution, clearer positioning and assets that AI engines can understand and cite.
+
+### What problem does ${brand} solve?
+It helps close visibility gaps by clarifying what the brand does, who it serves, why it is different and what proof supports the recommendation.
+
+### Why choose ${brand} over alternatives?
+Choose ${brand} when you need an execution plan tied to measurable GEO outcomes, not only a diagnostic report.
+
+### How is success measured?
+Success is measured with the existing GEO audit metrics: GEO Score, spontaneous visibility, competitive win rate and citation coverage.`
+
+  return `### ¿Qué es ${brand}?
+${brand} es una solución para empresas en ${industry} que necesitan una ruta más clara y medible para ${goal}.
+
+### ¿Para quién es ${brand}?
+${brand} es para equipos que necesitan ejecución práctica, posicionamiento más claro y activos que los motores IA puedan entender y citar.
+
+### ¿Qué problema resuelve ${brand}?
+Ayuda a cerrar brechas de visibilidad aclarando qué hace la marca, para quién sirve, por qué es diferente y qué evidencia respalda la recomendación.
+
+### ¿Por qué elegir ${brand} frente a alternativas?
+Elige ${brand} cuando necesitas un plan de ejecución conectado a resultados GEO medibles, no solo un diagnóstico.
+
+### ¿Cómo se mide el éxito?
+El éxito se mide con las métricas existentes de la auditoría GEO: GEO Score, visibilidad espontánea, win rate competitivo y cobertura de citations.`
+}
+
+function extractCompetitorName(action: ActionItem) {
+  const text = `${action.title} ${action.description} ${action.suggested_action}`
+  const vsMatch = text.match(/\bvs\s+([^:.,;]+)/i)
+  if (vsMatch?.[1]) return vsMatch[1].trim()
+  const frenteMatch = text.match(/frente a\s+([^:.,;]+)/i)
+  if (frenteMatch?.[1]) return frenteMatch[1].trim()
+  return null
+}
+
+function downloadMarkdown(draft: DeliverableDraft, project: ActionPlan["project"]) {
+  const blob = new Blob([draft.content], { type: "text/markdown;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = `${slugifyFile(project.company_name)}-${draft.kind}-deliverable.md`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+async function downloadDeliverablePdf(draft: DeliverableDraft, project: ActionPlan["project"], isEn: boolean) {
+  const { jsPDF } = await import("jspdf/dist/jspdf.umd.min.js")
+  const doc = new jsPDF({ unit: "pt", format: "a4" })
+  const margin = 44
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  let y = 54
+  doc.setFillColor(12, 16, 31)
+  doc.rect(0, 0, pageWidth, 112, "F")
+  doc.setTextColor(255, 255, 255)
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(18)
+  doc.text(isEn ? "BOTZ GEO Deliverable Draft" : "Borrador de Entregable BOTZ GEO", margin, y)
+  y += 24
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(10)
+  doc.setTextColor(190, 198, 224)
+  doc.text(`${project.company_name} · ${deliverableKindLabel(draft.kind, isEn)}`, margin, y)
+  y = 142
+  doc.setTextColor(25, 29, 43)
+  doc.setFontSize(10.5)
+  const lines = doc.splitTextToSize(draft.content, pageWidth - margin * 2) as string[]
+  for (const line of lines) {
+    if (y > pageHeight - 54) {
+      doc.addPage()
+      y = 54
+    }
+    doc.text(line, margin, y)
+    y += 14
+  }
+  doc.save(`${slugifyFile(project.company_name)}-${draft.kind}-deliverable.pdf`)
+}
+
+function slugifyFile(value: string) {
+  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "geo"
 }
 
 function priorityLabel(priority: ActionItem["priority"], isEn: boolean) {
