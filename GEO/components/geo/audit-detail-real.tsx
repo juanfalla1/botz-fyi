@@ -234,7 +234,6 @@ export default function AuditDetailReal() {
     : Object.entries(engineBreakdown).map(([engine, value]) => ({ engine, ...(value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : { value }) }))
   const recommendations = Array.isArray(summary.recommendations) ? summary.recommendations as Array<Record<string, unknown>> : []
   const storedContentOpportunities = objectArray(summary.content_opportunities)
-  const risks = objectArray(semantic?.risks)
   const aiMentions = objectArray(semantic?.ai_mentions)
   const competitorVisibility = objectArray(semantic?.competitor_visibility)
   const crawledPages = objectArray(audit?.crawled_pages)
@@ -264,6 +263,25 @@ export default function AuditDetailReal() {
     }
   })
   const evaluatedPrompts = evaluatedPromptsFromQueries.length > 0 ? evaluatedPromptsFromQueries : objectArray(summary.evaluated_prompts)
+  const sentiment = (semantic?.sentiment && typeof semantic.sentiment === "object" ? semantic.sentiment : null) as Record<string, unknown> | null
+  const engines = stringArray(audit?.engines)
+  const scoreValue = optionalNumber(audit?.final_score) ?? optionalNumber(summary.geo_score)
+  const score = scoreValue ?? 0
+  const enginePromptsTested = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.prompts_total), 0)
+  const enginePromptsWon = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.prompts_won), 0)
+  const engineCitations = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.citations ?? item.citations_count), 0)
+  const promptsTested = numberFrom(summary.prompts_tested ?? metadata.prompts_tested) || enginePromptsTested
+  const promptsWon = numberFrom(summary.prompts_won ?? metadata.prompts_won) || enginePromptsWon
+  const citations = numberFrom(summary.citations_count ?? metadata.citations_count) || engineCitations
+  const totalResults = numberFrom(summary.total_results ?? metadata.total_results) || promptsTested
+  const spontaneousResults = numberFrom(summary.spontaneous_results ?? metadata.spontaneous_results)
+  const assistedResults = numberFrom(summary.assisted_results ?? metadata.assisted_results)
+  const competitiveResults = numberFrom(summary.competitive_results ?? metadata.competitive_results)
+  const citationResults = numberFrom(summary.citation_results ?? metadata.citation_results)
+  const spontaneousVisibility = spontaneousResults > 0 ? Math.round(numberFrom(summary.spontaneous_visibility ?? summary.ai_visibility ?? semantic?.brand_visibility)) : null
+  const assistedVisibility = assistedResults > 0 ? Math.round(numberFrom(summary.assisted_visibility)) : null
+  const competitiveVisibility = competitiveResults > 0 ? Math.round(numberFrom(summary.competitive_visibility)) : null
+  const citationCoverage = citationResults > 0 ? Math.round(numberFrom(summary.citation_coverage)) : null
   const metricRisks = [
     spontaneousVisibility === null || spontaneousVisibility === 0
       ? {
@@ -296,25 +314,6 @@ export default function AuditDetailReal() {
       ? (isEn ? "Add comparison/alternatives content and run a competitive prompt sample before making competitor claims." : "Agregar contenido de comparativas/alternativas y correr una muestra competitiva antes de concluir sobre competidores.")
       : (isEn ? "Prioritize comparison pages for competitors that appear in prompt evidence." : "Priorizar páginas comparativas para competidores que aparezcan en evidencia por prompt."),
   ]
-  const sentiment = (semantic?.sentiment && typeof semantic.sentiment === "object" ? semantic.sentiment : null) as Record<string, unknown> | null
-  const engines = stringArray(audit?.engines)
-  const scoreValue = optionalNumber(audit?.final_score) ?? optionalNumber(summary.geo_score)
-  const score = scoreValue ?? 0
-  const enginePromptsTested = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.prompts_total), 0)
-  const enginePromptsWon = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.prompts_won), 0)
-  const engineCitations = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.citations ?? item.citations_count), 0)
-  const promptsTested = numberFrom(summary.prompts_tested ?? metadata.prompts_tested) || enginePromptsTested
-  const promptsWon = numberFrom(summary.prompts_won ?? metadata.prompts_won) || enginePromptsWon
-  const citations = numberFrom(summary.citations_count ?? metadata.citations_count) || engineCitations
-  const totalResults = numberFrom(summary.total_results ?? metadata.total_results) || promptsTested
-  const spontaneousResults = numberFrom(summary.spontaneous_results ?? metadata.spontaneous_results)
-  const assistedResults = numberFrom(summary.assisted_results ?? metadata.assisted_results)
-  const competitiveResults = numberFrom(summary.competitive_results ?? metadata.competitive_results)
-  const citationResults = numberFrom(summary.citation_results ?? metadata.citation_results)
-  const spontaneousVisibility = spontaneousResults > 0 ? Math.round(numberFrom(summary.spontaneous_visibility ?? summary.ai_visibility ?? semantic?.brand_visibility)) : null
-  const assistedVisibility = assistedResults > 0 ? Math.round(numberFrom(summary.assisted_visibility)) : null
-  const competitiveVisibility = competitiveResults > 0 ? Math.round(numberFrom(summary.competitive_visibility)) : null
-  const citationCoverage = citationResults > 0 ? Math.round(numberFrom(summary.citation_coverage)) : null
   const aiVisibility = spontaneousVisibility ?? 0
   const confidence = Math.round(numberFrom(sentiment?.score) * 100)
   const directMentions = aiMentions.filter((mention) => String(mention.position) !== "no_mencionada").length
