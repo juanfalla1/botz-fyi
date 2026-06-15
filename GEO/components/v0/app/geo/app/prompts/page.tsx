@@ -279,29 +279,52 @@ function resultPreview(result: Record<string, unknown> | null) {
   return preview.length > 150 ? `${preview.slice(0, 150)}...` : preview
 }
 
+function extractCompanyCandidates(text: string) {
+  const clean = text.replace(/\s+/g, " ").trim()
+  if (!clean) return []
+  const chunks = clean
+    .split(/(?:^|\s)(?:\d+[.)]\s+|[-•]\s+)/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+  const candidates = chunks.length > 1 ? chunks : clean.split(/,|;|\by\b|\band\b/i)
+  const blocked = /^(en colombia|algunos|incluyen|proveedores|empresas|soluciones|opciones|entre|como|por ejemplo|the best|some of|providers|companies)$/i
+  return Array.from(new Set(candidates.map((item) => {
+    const name = item
+      .replace(/^(en colombia|algunos de los mejores proveedores de saas incluyen:?|incluyen:?|como:?|por ejemplo:?)/i, "")
+      .split(/:| - | – | — |\(/)[0]
+      .replace(/^\d+[.)]\s*/, "")
+      .trim()
+    return name
+  }).filter((name) => name.length >= 2 && name.length <= 60 && !blocked.test(name)).slice(0, 5)))
+}
+
+function mentionedCompanies(result: Record<string, unknown> | null) {
+  return Array.from(new Set([...resultCompetitors(result), ...extractCompanyCandidates(String(result?.answer_preview ?? ""))])).slice(0, 5)
+}
+
 function PromptEngineBreakdown({ prompt, isEn }: { prompt: PromptItem; isEn: boolean }) {
   return (
     <div className="mt-3 rounded-xl border border-border/70 bg-background/35 p-3">
-      <p className="mb-2 text-xs font-medium text-muted-foreground">{isEn ? "AI recommendations by engine" : "Qué recomendó la IA por motor"}</p>
+      <p className="mb-2 text-xs font-medium text-muted-foreground">{isEn ? "Companies mentioned by engine" : "Empresas mencionadas por motor"}</p>
       <div className="space-y-2">
         {prompt.engines.map((engine) => {
           const result = resultForEngine(prompt, engine)
           const status = String(result?.status ?? "")
           const mentioned = Boolean(result?.mentioned)
-          const competitors = resultCompetitors(result)
+          const companies = mentionedCompanies(result)
           const preview = resultPreview(result)
           return (
             <div key={engine} className="rounded-lg border border-border/60 bg-secondary/20 p-2">
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-foreground">{normalizeEngineLabel(engine)}</span>
-                {!result ? <span className="text-[11px] text-muted-foreground">{isEn ? "No run" : "Sin ejecución"}</span> : status !== "live" ? <span className="text-[11px] text-yellow-300">{isEn ? "Unavailable" : "No disponible"}</span> : mentioned ? <span className="text-[11px] text-emerald-400">{isEn ? "Brand mentioned" : "Marca mencionada"}</span> : <span className="text-[11px] text-red-300">{isEn ? "Brand not mentioned" : "Marca no aparece"}</span>}
+                {!result ? <span className="text-[11px] text-muted-foreground">{isEn ? "No run" : "Sin ejecución"}</span> : status !== "live" ? <span className="text-[11px] text-yellow-300">{isEn ? "Unavailable" : "No disponible"}</span> : mentioned ? <span className="text-[11px] text-emerald-400">{isEn ? "Target brand mentioned" : "Marca objetivo mencionada"}</span> : <span className="text-[11px] text-red-300">{isEn ? "Target brand not mentioned" : "Marca objetivo no aparece"}</span>}
               </div>
-              {competitors.length > 0 ? (
-                <p className="text-xs text-muted-foreground"><span className="text-foreground">{isEn ? "Detected:" : "Detectó:"}</span> {competitors.join(", ")}</p>
+              {companies.length > 0 ? (
+                <p className="text-xs text-muted-foreground"><span className="text-foreground">{isEn ? "Mentioned companies:" : "Empresas mencionadas:"}</span> {companies.join(", ")}</p>
               ) : preview ? (
                 <p className="line-clamp-2 text-xs text-muted-foreground">{preview}</p>
               ) : (
-                <p className="text-xs text-muted-foreground">{isEn ? "Run this prompt to see which brands the engine recommends." : "Ejecuta este prompt para ver qué marcas recomienda ese motor."}</p>
+                <p className="text-xs text-muted-foreground">{isEn ? "Run this prompt to see which companies the engine mentions." : "Ejecuta este prompt para ver qué empresas menciona ese motor."}</p>
               )}
             </div>
           )
@@ -1481,7 +1504,7 @@ export default function PromptsLibraryPage() {
                 {viewingResultsPrompt.lastRunResults.map((result, index) => {
                   const status = String(result.status ?? "")
                   const mentioned = Boolean(result.mentioned)
-                  const competitors = resultCompetitors(result)
+                  const companies = mentionedCompanies(result)
                   return (
                     <div key={index} className={`rounded-xl border p-4 ${status === "live" ? mentioned ? "border-green-500/30 bg-green-500/5" : "border-red-500/30 bg-red-500/5" : "border-yellow-500/30 bg-yellow-500/10"}`}>
                       <div className="mb-3 flex items-center justify-between gap-3">
@@ -1495,11 +1518,11 @@ export default function PromptsLibraryPage() {
                         </div>
                       </div>
                       {result.reason && <p className="text-sm text-muted-foreground">{String(result.reason)}</p>}
-                      {competitors.length > 0 && (
+                      {companies.length > 0 && (
                         <div className="mb-3 rounded-lg border border-border/70 bg-background/40 p-3">
-                          <p className="mb-1 text-xs font-medium text-muted-foreground">{isEn ? "Brands/competitors detected in the answer" : "Marcas/competidores detectados en la respuesta"}</p>
+                          <p className="mb-1 text-xs font-medium text-muted-foreground">{isEn ? "Companies mentioned in the answer" : "Empresas mencionadas en la respuesta"}</p>
                           <div className="flex flex-wrap gap-2">
-                            {competitors.map((name) => <span key={name} className="rounded-full bg-secondary px-2 py-0.5 text-xs text-foreground">{name}</span>)}
+                            {companies.map((name) => <span key={name} className="rounded-full bg-secondary px-2 py-0.5 text-xs text-foreground">{name}</span>)}
                           </div>
                         </div>
                       )}
