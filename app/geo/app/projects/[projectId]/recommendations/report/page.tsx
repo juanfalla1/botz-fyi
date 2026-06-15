@@ -375,14 +375,14 @@ const reportPrintCss = `
   .premium-pdf { display: none; }
   @media print {
     @page { size: A4; margin: 0; }
-    body { background: #fff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    html, body { width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 0 !important; background: #fff !important; overflow: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     aside, .screen-report-content, .print\\:hidden, .sticky, .fixed, [class*="chat"], [class*="Chat"], [class*="assistant"], [class*="Assistant"] { display: none !important; }
-    main { margin-left: 0 !important; }
-    .report-shell { width: 210mm !important; max-width: 210mm !important; padding: 0 !important; margin: 0 !important; }
+    main, main > div, .min-h-screen { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; background: #fff !important; overflow: visible !important; }
+    .report-shell { width: 100% !important; max-width: none !important; padding: 0 !important; margin: 0 !important; background: #fff !important; overflow: visible !important; }
     .premium-pdf, .premium-pdf * { font-family: Arial, Helvetica, sans-serif !important; box-sizing: border-box; }
-    .premium-pdf { display: block !important; color: #0f172a; }
+    .premium-pdf { display: block !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; color: #0f172a; background: #fff !important; overflow: visible !important; }
     .premium-pdf::after { content: none !important; display: none !important; }
-    .pdf-page-premium { position: relative; width: 210mm; min-height: auto; overflow: visible; page-break-after: auto; break-after: auto; padding: 9mm 14mm; background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%); }
+    .pdf-page-premium { position: relative; width: 100% !important; max-width: 100% !important; min-height: auto; overflow: hidden; page-break-after: auto; break-after: auto; padding: 9mm 12mm; background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%); }
     .pdf-page-premium:last-child { page-break-after: avoid !important; break-after: avoid !important; margin-bottom: 0 !important; padding-bottom: 6mm; }
     .pdf-cover { min-height: 297mm; page-break-after: always; break-after: page; overflow: hidden; }
     .pdf-page-fluid { height: auto; overflow: visible; }
@@ -394,11 +394,11 @@ const reportPrintCss = `
     .pdf-title { margin: 10px 0 10px; }
     .pdf-title p, .pdf-kicker { margin: 0 0 8px; color: #4f7cff; font-size: 10px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
     .pdf-title h2 { margin: 0; color: #0f172a; font-size: 23px; line-height: 1.08; letter-spacing: -.02em; }
-    .pdf-cover-grid { display: grid; grid-template-columns: 1.25fr .75fr; gap: 28px; align-items: center; margin-top: 44px; }
+    .pdf-cover-grid { display: grid; grid-template-columns: minmax(0, 1fr) 58mm; gap: 14px; align-items: center; margin-top: 38px; }
     .pdf-brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 900; }
     .pdf-brand span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: linear-gradient(135deg, #4f7cff, #22d3ee); }
-    .pdf-cover h1 { margin: 18px 0 0; max-width: 500px; font-size: 58px; line-height: .95; letter-spacing: -.07em; }
-    .pdf-lead { max-width: 480px; color: #c8d5ee; font-size: 15px; line-height: 1.55; }
+    .pdf-cover h1 { margin: 18px 0 0; max-width: 118mm; font-size: 50px; line-height: .96; letter-spacing: -.07em; }
+    .pdf-lead { max-width: 116mm; color: #c8d5ee; font-size: 14px; line-height: 1.5; }
     .pdf-meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 34px; }
     .pdf-info { border: 1px solid rgba(79,124,255,.18); background: rgba(255,255,255,.78); border-radius: 16px; padding: 12px; }
     .pdf-cover .pdf-info { border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.09); }
@@ -406,10 +406,10 @@ const reportPrintCss = `
     .pdf-cover .pdf-info span { color: #b7c4dc; }
     .pdf-info strong { display: block; margin-top: 5px; color: #0f172a; font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; }
     .pdf-cover .pdf-info strong { color: #fff; }
-    .pdf-score-panel { border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.08); border-radius: 28px; padding: 24px 16px; text-align: center; }
+    .pdf-score-panel { width: 100%; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.08); border-radius: 24px; padding: 18px 12px; text-align: center; overflow: hidden; }
     .pdf-score-panel strong { display: inline-block; margin-top: 8px; border-radius: 999px; padding: 7px 14px; background: rgba(34,211,238,.16); color: #bff6ff; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
     .pdf-score-panel p { color: #c8d5ee; font-size: 12px; line-height: 1.5; }
-    .pdf-gauge { width: 180px; height: 180px; }
+    .pdf-gauge { width: 150px; height: 150px; }
     .pdf-gauge text:first-of-type { fill: #fff; font-size: 40px; font-weight: 900; }
     .pdf-gauge text:last-of-type { fill: #c8d5ee; font-size: 11px; font-weight: 800; text-transform: uppercase; }
     .pdf-bullets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 48px; }
