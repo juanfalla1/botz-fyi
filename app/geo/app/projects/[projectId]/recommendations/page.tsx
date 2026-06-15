@@ -569,24 +569,37 @@ function generateDeliverable(action: ActionItem, project: ActionPlan["project"],
   const goal = project.business_goal || (isEn ? "improve AI visibility and qualified demand" : "mejorar visibilidad IA y demanda calificada")
   if (kind === "landing") return landingDeliverable(brand, industry, goal, action, isEn)
   if (kind === "comparison") return comparisonDeliverable(brand, industry, goal, action, isEn)
-  if (kind === "alternative") return alternativeDeliverable(brand, industry, goal, isEn)
+  if (kind === "alternative") return alternativeDeliverable(brand, industry, goal, action, isEn)
   if (kind === "content") return contentDeliverable(brand, industry, goal, action, isEn)
-  if (kind === "faq") return faqDeliverable(brand, industry, goal, isEn)
+  if (kind === "faq") return faqDeliverable(brand, industry, goal, action, isEn)
   return genericDeliverable(action, brand, isEn)
 }
 
-function landingDeliverable(brand: string, industry: string, goal: string, action: ActionItem, isEn: boolean) {
-  const brief = action.suggested_action || action.description
+function actionBrief(action: ActionItem) {
+  return action.suggested_action || action.description || action.title
+}
+
+function evidenceMarkdown(action: ActionItem, isEn: boolean) {
   const evidence = action.evidence?.length
     ? action.evidence.map((item) => `- ${item.label}: ${item.value}`).join("\n")
     : `- ${isEn ? "Audit action" : "Acción de auditoría"}: ${action.title}`
-  return `# ${isEn ? "Landing Page Draft" : "Borrador de Landing"}: ${brand}
-
-## ${isEn ? "Evidence Used" : "Evidencia usada"}
+  const deliverables = action.deliverables.length
+    ? action.deliverables.map((item) => `- ${item}`).join("\n")
+    : `- ${isEn ? "No specific deliverables listed" : "Sin entregables específicos listados"}`
+  return `## ${isEn ? "Evidence Used" : "Evidencia usada"}
 ${evidence}
 
 ## Brief
-${brief}
+${actionBrief(action)}
+
+## ${isEn ? "Requested Deliverables" : "Entregables solicitados"}
+${deliverables}`
+}
+
+function landingDeliverable(brand: string, industry: string, goal: string, action: ActionItem, isEn: boolean) {
+  return `# ${isEn ? "Landing Page Draft" : "Borrador de Landing"}: ${brand}
+
+${evidenceMarkdown(action, isEn)}
 
 ## Hero
 ${brand} ${isEn ? `should explain its offer for companies in ${industry} with a clear, measurable execution path.` : `debe explicar su oferta para empresas en ${industry} con una ruta de ejecución clara y medible.`}
@@ -618,17 +631,22 @@ ${isEn ? `Request a GEO diagnosis for ${brand} and identify which pages, compari
 }
 
 function comparisonDeliverable(brand: string, industry: string, goal: string, action: ActionItem, isEn: boolean) {
-  const competitor = extractCompetitorName(action) || (isEn ? "the main competitor" : "el competidor principal")
-  return `# ${brand} vs ${competitor}: ${isEn ? "Comparison Draft" : "Borrador Comparativo"}
+  const competitor = extractCompetitorName(action)
+  const competitorLabel = competitor || (isEn ? "verified alternative" : "alternativa verificada")
+  return `# ${brand} vs ${competitorLabel}: ${isEn ? "Comparison Draft" : "Borrador Comparativo"}
+
+${evidenceMarkdown(action, isEn)}
+
+${competitor ? "" : isEn ? "**Evidence note:** No specific competitor was verified in this action. Replace the alternative only after validating it in audit data or public evidence.\n" : "**Nota de evidencia:** Esta acción no trae un competidor específico verificado. Reemplaza la alternativa solo después de validarla con datos de auditoría o evidencia pública.\n"}
 
 ## ${isEn ? "Title" : "Título"}
-${brand} vs ${competitor}: ${isEn ? `which option is better for companies in ${industry}?` : `¿qué opción conviene más para empresas en ${industry}?`}
+${brand} vs ${competitorLabel}: ${isEn ? `which option is better for companies in ${industry}?` : `¿qué opción conviene más para empresas en ${industry}?`}
 
 ## ${isEn ? "Introduction" : "Introducción"}
-${isEn ? `If you are comparing ${brand} and ${competitor}, the right choice depends on use case, implementation speed, proof, support and measurable outcomes.` : `Si estás comparando ${brand} y ${competitor}, la mejor decisión depende del caso de uso, velocidad de implementación, evidencia, soporte y resultados medibles.`}
+${isEn ? `If you are comparing ${brand} and ${competitorLabel}, the right choice depends on use case, implementation speed, proof, support and measurable outcomes.` : `Si estás comparando ${brand} y ${competitorLabel}, la mejor decisión depende del caso de uso, velocidad de implementación, evidencia, soporte y resultados medibles.`}
 
 ## ${isEn ? "Comparison Table" : "Tabla comparativa"}
-| ${isEn ? "Criterion" : "Criterio"} | ${brand} | ${competitor} |
+| ${isEn ? "Criterion" : "Criterio"} | ${brand} | ${competitorLabel} |
 | --- | --- | --- |
 | ${isEn ? "Best fit" : "Mejor para"} | ${isEn ? `Teams that need a measurable execution path for ${goal}.` : `Equipos que necesitan una ruta medible para ${goal}.`} | ${isEn ? "Validate against public proof and product scope." : "Validar según evidencia pública y alcance del producto."} |
 | ${isEn ? "Implementation" : "Implementación"} | ${isEn ? "Focused on concrete deliverables and next audit improvement." : "Enfocada en entregables concretos y mejora de la próxima auditoría."} | ${isEn ? "Depends on provider scope." : "Depende del alcance del proveedor."} |
@@ -652,14 +670,16 @@ ${faqList(brand, industry, goal, isEn)}
 ${isEn ? `Compare ${brand} against your current alternatives and request a GEO action plan.` : `Compara ${brand} contra tus alternativas actuales y solicita un plan de acción GEO.`}`
 }
 
-function alternativeDeliverable(brand: string, industry: string, goal: string, isEn: boolean) {
+function alternativeDeliverable(brand: string, industry: string, goal: string, action: ActionItem, isEn: boolean) {
   return `# ${isEn ? "Alternatives Page Draft" : "Borrador Página de Alternativas"}: ${isEn ? `Best alternatives in ${industry}` : `Mejores alternativas en ${industry}`}
+
+${evidenceMarkdown(action, isEn)}
 
 ## ${isEn ? "Alternative List" : "Lista de alternativas"}
 - ${brand}
-- ${isEn ? "Alternative 1: add verified competitor name" : "Alternativa 1: agregar competidor verificado"}
-- ${isEn ? "Alternative 2: add verified competitor name" : "Alternativa 2: agregar competidor verificado"}
-- ${isEn ? "Alternative 3: add verified competitor name" : "Alternativa 3: agregar competidor verificado"}
+- ${isEn ? "Verified alternative: add only after audit/public evidence confirms it" : "Alternativa verificada: agregar solo cuando la auditoría o evidencia pública la confirme"}
+- ${isEn ? "Verified alternative: add only after audit/public evidence confirms it" : "Alternativa verificada: agregar solo cuando la auditoría o evidencia pública la confirme"}
+- ${isEn ? "Verified alternative: add only after audit/public evidence confirms it" : "Alternativa verificada: agregar solo cuando la auditoría o evidencia pública la confirme"}
 
 ## ${isEn ? `${brand} Advantages` : `Ventajas de ${brand}`}
 - ${isEn ? `Clear path to ${goal}.` : `Ruta clara para ${goal}.`}
@@ -679,20 +699,22 @@ ${isEn ? `Get a GEO audit and identify which alternative pages should be publish
 function contentDeliverable(brand: string, industry: string, goal: string, action: ActionItem, isEn: boolean) {
   return `# ${isEn ? "Content Draft" : "Borrador de Contenido"}: ${action.title}
 
+${evidenceMarkdown(action, isEn)}
+
 ## ${isEn ? "Title" : "Título"}
-${isEn ? `How to choose a solution in ${industry} that improves AI visibility and measurable growth` : `Cómo elegir una solución en ${industry} que mejore visibilidad IA y crecimiento medible`}
+${action.title}
 
 ## Outline
-1. ${isEn ? `Why AI visibility matters in ${industry}` : `Por qué importa la visibilidad IA en ${industry}`}
-2. ${isEn ? "The problem with generic positioning" : "El problema del posicionamiento genérico"}
-3. ${isEn ? `How ${brand} should be evaluated` : `Cómo evaluar ${brand}`}
-4. ${isEn ? "Proof, citations and comparison pages" : "Evidencia, citations y páginas comparativas"}
-5. ${isEn ? "Next steps" : "Próximos pasos"}
+1. ${isEn ? "Audit context" : "Contexto de auditoría"}: ${action.description}
+2. ${isEn ? "What needs to be published" : "Qué debe publicarse"}: ${actionBrief(action)}
+3. ${isEn ? "Proof required" : "Evidencia requerida"}: ${isEn ? "use only verifiable claims, sources, cases or site pages." : "usar solo claims, fuentes, casos o páginas verificables del sitio."}
+4. ${isEn ? "How it improves the metric" : "Cómo mejora la métrica"}: ${action.improves_metric ?? metricFromType(action.type, isEn)}
+5. ${isEn ? "Next step" : "Siguiente paso"}: ${isEn ? "publish, validate and compare against the next audit." : "publicar, validar y comparar contra la próxima auditoría."}
 
 ## ${isEn ? "Initial Text" : "Texto inicial"}
-${isEn ? `Companies in ${industry} are increasingly discovered through AI engines. If those engines cannot clearly understand what a brand does, who it serves and why it should be recommended, the brand loses visibility even before a buyer reaches Google or the website.` : `Las empresas en ${industry} están siendo descubiertas cada vez más a través de motores IA. Si esos motores no entienden con claridad qué hace una marca, para quién sirve y por qué debería recomendarse, la marca pierde visibilidad incluso antes de que el comprador llegue a Google o al sitio web.`}
+${isEn ? `${brand} should publish this asset because the audit identified a gap connected to ${action.improves_metric ?? metricFromType(action.type, isEn)}.` : `${brand} debe publicar este activo porque la auditoría identificó una brecha conectada con ${action.improves_metric ?? metricFromType(action.type, isEn)}.`}
 
-${isEn ? `${brand} should use content to clarify its category, use cases, differentiators and proof. The goal is not to publish more content; it is to create pages that answer real decision prompts and can be cited by AI systems.` : `${brand} debe usar contenido para aclarar su categoría, casos de uso, diferenciadores y evidencia. El objetivo no es publicar más contenido; es crear páginas que respondan prompts reales de decisión y puedan ser citadas por sistemas IA.`}
+${isEn ? `The content must stay inside the available evidence: audit metrics, crawled pages, action details and verifiable proof from ${brand}. Do not add unsupported results, clients, rankings or competitor claims.` : `El contenido debe mantenerse dentro de la evidencia disponible: métricas de auditoría, páginas leídas, detalles de la acción y pruebas verificables de ${brand}. No agregar resultados, clientes, rankings ni claims competitivos sin respaldo.`}
 
 ## FAQs
 ${faqList(brand, industry, goal, isEn)}
@@ -701,8 +723,10 @@ ${faqList(brand, industry, goal, isEn)}
 ${isEn ? `Request a GEO content plan for ${brand}.` : `Solicita un plan de contenido GEO para ${brand}.`}`
 }
 
-function faqDeliverable(brand: string, industry: string, goal: string, isEn: boolean) {
+function faqDeliverable(brand: string, industry: string, goal: string, action: ActionItem, isEn: boolean) {
   return `# ${isEn ? "FAQ Draft Optimized for AI Engines" : "Borrador FAQ optimizado para motores IA"}: ${brand}
+
+${evidenceMarkdown(action, isEn)}
 
 ${faqList(brand, industry, goal, isEn)}
 
