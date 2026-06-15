@@ -612,7 +612,7 @@ ${evidenceMarkdown(action, isEn)}
 ## Hero
 ${brand} ${isEn ? `should explain its offer for companies in ${industry} with a clear, measurable execution path.` : `debe explicar su oferta para empresas en ${industry} con una ruta de ejecución clara y medible.`}
 
-**Subheadline:** ${isEn ? `Turn AI visibility gaps into pages, proof and actions that can be measured in the next GEO audit.` : `Convierte brechas de visibilidad IA en páginas, pruebas y acciones medibles en la próxima auditoría GEO.`}
+${isEn ? "Subheadline" : "Subtítulo"}: ${isEn ? `Turn AI visibility gaps into pages, proof and actions that can be measured in the next GEO audit.` : `Convierte brechas de visibilidad IA en páginas, pruebas y acciones medibles en la próxima auditoría GEO.`}
 
 ## ${isEn ? "Problem" : "Problema"}
 ${isEn ? `The audit action indicates that ${brand} needs a clearer landing page for neutral discovery prompts in ${industry}.` : `La acción de auditoría indica que ${brand} necesita una landing más clara para prompts neutrales de descubrimiento en ${industry}.`}
@@ -712,7 +712,7 @@ ${evidenceMarkdown(action, isEn)}
 ## ${isEn ? "Title" : "Título"}
 ${action.title}
 
-## Outline
+## ${isEn ? "Outline" : "Estructura"}
 1. ${isEn ? "Audit context" : "Contexto de auditoría"}: ${action.description}
 2. ${isEn ? "What needs to be published" : "Qué debe publicarse"}: ${actionBrief(action)}
 3. ${isEn ? "Proof required" : "Evidencia requerida"}: ${isEn ? "use only verifiable claims, sources, cases or site pages." : "usar solo claims, fuentes, casos o páginas verificables del sitio."}
@@ -897,7 +897,7 @@ async function downloadDeliverablePdf(draft: DeliverableDraft, project: ActionPl
     drawCard(isEn ? "Expected impact" : "Impacto esperado", levelLabel(draft.action.estimated_impact, isEn), margin + cardWidth + gap, y, cardWidth)
     y += 78
     drawCard(isEn ? "Difficulty" : "Dificultad", difficultyLabel(draft.action.difficulty, isEn), margin, y, cardWidth)
-    drawCard("GEO", scoreLiftLabel(draft.action, isEn), margin + cardWidth + gap, y, cardWidth)
+    drawCard(isEn ? "Potential GEO lift" : "Mejora GEO potencial", scoreLiftLabel(draft.action, isEn), margin + cardWidth + gap, y, cardWidth)
     y += 92
   }
 
