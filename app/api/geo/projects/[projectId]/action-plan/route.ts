@@ -39,15 +39,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ projectI
     const { supabase, user } = await getGeoApiClient(req)
     const context = await loadGeoActionContext(supabase, user.id, projectId)
     if (!context) return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    const latest = latestAuditSnapshot(context)
     const actions = buildActions(context)
-    const competitive = competitiveSnapshot(context)
+    const competitive = hasCompetitiveSample(latest) ? competitiveSnapshot(context) : emptyCompetitiveSnapshot(context.competitors.length)
     const crawl = latestCrawlEvidence(context)
 
     return NextResponse.json({
       mode: "live",
       data: {
         project: context.project,
-        latest_audit: latestAuditSnapshot(context),
+        latest_audit: latest,
         previous_audit: previousAuditSnapshot(context),
         crawl_evidence: crawl,
         competitive_insights: competitive,
@@ -72,10 +73,11 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
   const industrySlug = slugify(project.industry || "industria")
   const competitive = competitiveSnapshot(context)
   const validCompetitors = context.competitors.filter((competitor) => !isSameEntity(project, competitor.name, competitor.domain))
-  const topCompetitor = competitive.top_competitor && !isSameEntity(project, competitive.top_competitor.name, null) ? competitive.top_competitor : null
   const spontaneousVisibility = numberFrom(snapshot?.spontaneous_visibility)
   const citationCoverage = numberFrom(snapshot?.citation_coverage)
   const competitiveVisibility = numberFrom(snapshot?.competitive_visibility)
+  const hasCompetitive = hasCompetitiveSample(snapshot)
+  const topCompetitor = hasCompetitive && competitive.top_competitor && !isSameEntity(project, competitive.top_competitor.name, null) ? competitive.top_competitor : null
   const crawl = latestCrawlEvidence(context)
   const previous = previousAuditSnapshot(context)
   const actions: ActionItem[] = []
@@ -109,7 +111,7 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     })
   }
 
-  if ((allSignals.includes("competitor") || allSignals.includes("compar") || numberFrom(snapshot?.prompts_lost) > 0 || topCompetitor || validCompetitors.length > 0) && (topCompetitor || validCompetitors.length > 0)) {
+  if (hasCompetitive && (allSignals.includes("competitor") || allSignals.includes("compar") || numberFrom(snapshot?.prompts_lost) > 0 || topCompetitor || validCompetitors.length > 0) && (topCompetitor || validCompetitors.length > 0)) {
     const competitorName = topCompetitor?.name ?? validCompetitors[0]?.name ?? "competidores principales"
     add({
       id: "comparison-page",
@@ -162,7 +164,7 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     })
   }
 
-  if (topCompetitor) {
+  if (hasCompetitive && topCompetitor) {
     add({
       id: "competitive-evidence-gap",
       category: "Brecha frente al competidor",
@@ -263,6 +265,19 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
   return actions.sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority)).slice(0, 6)
 }
 
+function hasCompetitiveSample(snapshot: ReturnType<typeof latestAuditSnapshot>) {
+  return numberFrom(snapshot?.competitive_results) > 0
+}
+
+function emptyCompetitiveSnapshot(trackedCompetitors: number) {
+  return {
+    tracked_competitors: trackedCompetitors,
+    mentioned_competitors: 0,
+    top_competitor: null,
+    competitors: [],
+  }
+}
+
 function evidenceFor(kind: string, context: Awaited<ReturnType<typeof loadGeoActionContext>> extends infer T ? NonNullable<T> : never, crawl: ReturnType<typeof latestCrawlEvidence>, previous: ReturnType<typeof previousAuditSnapshot>): Array<{ label: string; value: string }> {
   const snapshot = latestAuditSnapshot(context)
   const evidence: Array<{ label: string; value: string }> = []
@@ -272,7 +287,7 @@ function evidenceFor(kind: string, context: Awaited<ReturnType<typeof loadGeoAct
   else evidence.push({ label: "Sitio analizado", value: "No se pudo leer el sitio aún; recomendación basada en auditoría IA y prompts guardados" })
   if (kind === "competitive") {
     const competitive = competitiveSnapshot(context)
-    evidence.push({ label: "Competencia", value: competitive.top_competitor ? `${competitive.top_competitor.name} apareció ${competitive.top_competitor.mentions} vez/veces` : "Sin competidor dominante detectado" })
+    evidence.push({ label: "Competencia", value: hasCompetitiveSample(snapshot) && competitive.top_competitor ? `${competitive.top_competitor.name} apareció ${competitive.top_competitor.mentions} vez/veces` : "Sin muestra competitiva suficiente" })
   }
   if (kind === "authority") evidence.push({ label: "Citations", value: `Cobertura ${numberFrom(snapshot?.citation_coverage)}%, fuentes detectadas ${numberFrom(snapshot?.citations_count)}` })
   return evidence

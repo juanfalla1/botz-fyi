@@ -146,6 +146,7 @@ export default function RecommendationsPage() {
 
   const actions = useMemo(() => plan?.actions.map((action) => localizeAction(action, isEn)) ?? [], [isEn, plan?.actions])
   const topActions = useMemo(() => actions.filter((action) => action.priority === "high").slice(0, 3), [actions])
+  const hasCompetitiveSample = (plan?.latest_audit?.competitive_results ?? 0) > 0
 
   return (
     <>
@@ -196,7 +197,7 @@ export default function RecommendationsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <Metric label="GEO Score" value={`${plan.latest_audit.geo_score || 0}/100`} />
                     <Metric label={isEn ? "Spontaneous Visibility" : "Visibilidad espontánea"} value={`${plan.latest_audit.spontaneous_visibility ?? plan.latest_audit.ai_visibility ?? 0}%`} />
-                    <Metric label={isEn ? "Competitive Win Rate" : "Win rate competitivo"} value={`${plan.latest_audit.competitive_visibility ?? 0}%`} />
+                    <Metric label={isEn ? "Competitive Win Rate" : "Win rate competitivo"} value={hasCompetitiveSample ? `${plan.latest_audit.competitive_visibility ?? 0}%` : (isEn ? "No sample" : "Sin muestra")} />
                     <Metric label={isEn ? "Citation Coverage" : "Cobertura de citations"} value={`${plan.latest_audit.citation_coverage ?? 0}%`} />
                   </div>
                 </div>
@@ -281,8 +282,8 @@ export default function RecommendationsPage() {
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 md:grid-cols-3">
                     <Metric label={isEn ? "Tracked competitors" : "Competidores trackeados"} value={String(plan.competitive_insights.tracked_competitors || 0)} />
-                    <Metric label={isEn ? "Mentioned by AI" : "Mencionados por IA"} value={String(plan.competitive_insights.mentioned_competitors || 0)} />
-                    <Metric label={isEn ? "Top competitor" : "Competidor principal"} value={plan.competitive_insights.top_competitor?.name ?? "--"} />
+                    <Metric label={isEn ? "Mentioned in competitive sample" : "Mencionados en muestra competitiva"} value={hasCompetitiveSample ? String(plan.competitive_insights.mentioned_competitors || 0) : (isEn ? "No sample" : "Sin muestra")} />
+                    <Metric label={isEn ? "Top competitor" : "Competidor principal"} value={hasCompetitiveSample ? (plan.competitive_insights.top_competitor?.name ?? "--") : (isEn ? "No sample" : "Sin muestra")} />
                   </div>
                   {plan.competitive_insights.top_competitor ? (
                     <div className="rounded-2xl border border-primary/25 bg-primary/5 p-4">
@@ -305,7 +306,9 @@ export default function RecommendationsPage() {
                   ) : (
                     <p className="rounded-2xl border border-border bg-background/40 p-4 text-sm text-muted-foreground">
                       {plan.competitive_insights.tracked_competitors > 0
-                        ? isEn ? "Competitors are linked to this project. Run an audit to detect which ones AI mentions." : "Hay competidores vinculados a este proyecto. Ejecuta una auditoría para detectar cuáles menciona la IA."
+                        ? hasCompetitiveSample
+                          ? (isEn ? "No dominant competitor was detected in this competitive sample." : "No se detectó un competidor dominante en esta muestra competitiva.")
+                          : (isEn ? "Competitors are linked, but this audit did not collect a competitive sample. Add or run comparison prompts before drawing competitor conclusions." : "Hay competidores vinculados, pero esta auditoría no recolectó muestra competitiva. Agrega o corre prompts comparativos antes de concluir sobre competidores.")
                         : isEn ? "Add competitors to this project to unlock competitive recommendations." : "Agrega competidores a este proyecto para activar recomendaciones competitivas."}
                     </p>
                   )}
