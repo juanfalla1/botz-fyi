@@ -28,19 +28,20 @@ function normalizeCompetitorInput(value: string) {
 
 function buildInitialPrompts(input: { company: string; industry: string; country: string; language: string; businessGoal: string; competitors: Array<{ name: string }> }) {
   const isEnglish = input.language.toLowerCase().startsWith("en") || input.language.toLowerCase().includes("ingl")
-  const competitorNames = input.competitors.map((competitor) => competitor.name).filter(Boolean).slice(0, 3)
+  const companyKey = normalizeEntity(input.company)
+  const competitorNames = input.competitors.map((competitor) => competitor.name).filter((name) => Boolean(name) && normalizeEntity(name) !== companyKey).slice(0, 3)
   const competitorText = competitorNames.length > 0 ? competitorNames.join(", ") : isEnglish ? "market alternatives" : "alternativas del mercado"
   const templates = isEnglish
     ? [
         { category: "recommendation", prompt: `What are the best ${input.industry} providers in ${input.country}?` },
-        { category: "comparison", prompt: `Compare ${input.company} vs ${competitorText} for ${input.businessGoal}.` },
+        ...(competitorNames.length > 0 ? [{ category: "comparison", prompt: `Compare ${input.company} vs ${competitorText} for ${input.businessGoal}.` }] : []),
         { category: "alternative", prompt: `What are the best alternatives to ${competitorText} for ${input.industry}?` },
         { category: "product", prompt: `Which company do you recommend for ${input.industry} solutions in ${input.country}?` },
         { category: "trust", prompt: `What trusted sources mention ${input.company} in the ${input.industry} market?` },
       ]
     : [
         { category: "recommendation", prompt: `Cuales son los mejores proveedores de ${input.industry} en ${input.country}?` },
-        { category: "comparison", prompt: `Compara ${input.company} vs ${competitorText} para ${input.businessGoal}.` },
+        ...(competitorNames.length > 0 ? [{ category: "comparison", prompt: `Compara ${input.company} vs ${competitorText} para ${input.businessGoal}.` }] : []),
         { category: "alternative", prompt: `Cuales son las mejores alternativas a ${competitorText} para ${input.industry}?` },
         { category: "product", prompt: `Que empresa recomiendas para soluciones de ${input.industry} en ${input.country}?` },
         { category: "trust", prompt: `Que fuentes confiables mencionan a ${input.company} en el mercado de ${input.industry}?` },
@@ -53,6 +54,10 @@ function buildInitialPrompts(input: { company: string; industry: string; country
     seen.add(key)
     return true
   })
+}
+
+function normalizeEntity(value: string) {
+  return value.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split(/[/.?#]/)[0].replace(/[^a-z0-9]+/g, "").trim()
 }
 
 export async function GET(req: Request) {

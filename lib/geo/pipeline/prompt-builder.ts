@@ -2,14 +2,18 @@ import type { GeneratedPrompt, PipelineContext } from "@/lib/geo/pipeline/types"
 
 export function buildBasePrompts(ctx: PipelineContext): GeneratedPrompt[] {
   const domain = ctx.project.website_url.replace(/^https?:\/\//, "")
-  const competitorNames = ctx.competitors.map((c) => c.name).slice(0, 3).join(", ") || "market alternatives"
+  const competitorNames = ctx.competitors
+    .filter((competitor) => !isSameEntity(ctx.project.company_name, ctx.project.website_url, competitor.name, competitor.domain))
+    .map((c) => c.name)
+    .slice(0, 3)
+  const competitorText = competitorNames.join(", ")
 
   const templates = [
     { category: "spontaneous", prompt: `What are the best ${ctx.project.industry} providers in ${ctx.project.country}?` },
-    { category: "competitive", prompt: `Compare ${ctx.project.company_name} vs ${competitorNames} for ${ctx.project.business_goal}.` },
     { category: "spontaneous", prompt: `Which brand is most cited for ${ctx.project.industry} solutions?` },
     { category: "spontaneous", prompt: `What company do you recommend for ${ctx.project.industry} and why?` },
     { category: "citation", prompt: `Find trusted sources mentioning ${domain}.` },
+    ...(competitorText ? [{ category: "competitive", prompt: `Compare ${ctx.project.company_name} vs ${competitorText} for ${ctx.project.business_goal}.` }] : []),
   ]
 
   const prompts: GeneratedPrompt[] = []
@@ -19,4 +23,21 @@ export function buildBasePrompts(ctx: PipelineContext): GeneratedPrompt[] {
     }
   }
   return prompts
+}
+
+function isSameEntity(companyName: string, websiteUrl: string, competitorName: string, competitorDomain: string | null) {
+  const projectName = normalizeEntity(companyName)
+  const projectHost = normalizeHost(websiteUrl)
+  const projectHostName = normalizeEntity(projectHost.split(".")[0] ?? "")
+  const candidateName = normalizeEntity(competitorName)
+  const candidateHost = normalizeHost(competitorDomain ?? competitorName)
+  return Boolean(candidateName && (candidateName === projectName || candidateName === projectHostName)) || Boolean(candidateHost && projectHost && candidateHost === projectHost)
+}
+
+function normalizeEntity(value: string) {
+  return value.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split(/[/.?#]/)[0].replace(/[^a-z0-9]+/g, "").trim()
+}
+
+function normalizeHost(value: string) {
+  return value.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split(/[/?#]/)[0]
 }
