@@ -313,13 +313,16 @@ function PromptEngineBreakdown({ prompt, isEn }: { prompt: PromptItem; isEn: boo
           const mentioned = Boolean(result?.mentioned)
           const companies = mentionedCompanies(result)
           const preview = resultPreview(result)
+          const reason = String(result?.reason ?? "")
           return (
             <div key={engine} className="rounded-lg border border-border/60 bg-secondary/20 p-2">
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-foreground">{normalizeEngineLabel(engine)}</span>
-                {!result ? <span className="text-[11px] text-muted-foreground">{isEn ? "No run" : "Sin ejecución"}</span> : status !== "live" ? <span className="text-[11px] text-yellow-300">{isEn ? "Unavailable" : "No disponible"}</span> : mentioned ? <span className="text-[11px] text-emerald-400">{isEn ? "Target brand mentioned" : "Marca objetivo mencionada"}</span> : <span className="text-[11px] text-red-300">{isEn ? "Target brand not mentioned" : "Marca objetivo no aparece"}</span>}
+                {!result ? <span className="text-[11px] text-muted-foreground">{isEn ? "No run" : "Sin ejecución"}</span> : status !== "live" ? <span className="text-[11px] text-yellow-300">{isEn ? "Configuration error" : "Error de configuración"}</span> : mentioned ? <span className="text-[11px] text-emerald-400">{isEn ? "Target brand mentioned" : "Marca objetivo mencionada"}</span> : <span className="text-[11px] text-red-300">{isEn ? "Target brand not mentioned" : "Marca objetivo no aparece"}</span>}
               </div>
-              {companies.length > 0 ? (
+              {status !== "live" && reason ? (
+                <p className="line-clamp-2 text-xs text-yellow-200/90">{reason}</p>
+              ) : companies.length > 0 ? (
                 <p className="text-xs text-muted-foreground"><span className="text-foreground">{isEn ? "Mentioned companies:" : "Empresas mencionadas:"}</span> {companies.join(", ")}</p>
               ) : preview ? (
                 <p className="line-clamp-2 text-xs text-muted-foreground">{preview}</p>
@@ -1513,7 +1516,7 @@ export default function PromptsLibraryPage() {
                           <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{String(result.engine ?? "Motor IA")}</span>
                         </div>
                         <div className="text-right text-sm">
-                          {status !== "live" ? <span className="text-yellow-300">{isEn ? "Not configured" : "No configurado"}</span> : mentioned ? <span className="text-green-400">Mencionado</span> : <span className="text-red-400">No aparece</span>}
+                          {status !== "live" ? <span className="text-yellow-300">{isEn ? "Configuration error" : "Error de configuración"}</span> : mentioned ? <span className="text-green-400">Mencionado</span> : <span className="text-red-400">No aparece</span>}
                           {typeof result.position === "number" && result.position > 0 && <p className="text-xs text-muted-foreground">Posición {result.position}</p>}
                         </div>
                       </div>

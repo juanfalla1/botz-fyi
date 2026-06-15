@@ -126,6 +126,7 @@ async function runVertexGeminiPrompt(serviceAccount: ServiceAccount, model: stri
     })
     if (!response.ok) {
       const details = await response.text().catch(() => "")
+      if (response.status === 404 && model !== "gemini-2.0-flash") return runVertexGeminiPrompt(serviceAccount, "gemini-2.0-flash", input)
       throw new Error(`Vertex Gemini error ${response.status}${details ? `: ${details.slice(0, 240)}` : ""}`)
     }
     const data = (await response.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
@@ -140,7 +141,7 @@ export function buildGeminiProvider(): EngineProvider {
   const provider = (process.env.GEMINI_PROVIDER ?? "api_key").toLowerCase()
   if (provider === "vertex") {
     const serviceAccount = getServiceAccount()
-    const model = process.env.VERTEX_GEMINI_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-1.5-flash"
+    const model = process.env.VERTEX_GEMINI_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-2.0-flash"
     if (!serviceAccount) {
       return {
         id: "gemini",
@@ -157,7 +158,7 @@ export function buildGeminiProvider(): EngineProvider {
   }
 
   const apiKey = process.env.GEMINI_API_KEY
-  const model = process.env.GEMINI_MODEL ?? "gemini-1.5-flash"
+  const model = process.env.GEMINI_MODEL ?? "gemini-2.0-flash"
   if (!apiKey) {
     return {
       id: "gemini",
