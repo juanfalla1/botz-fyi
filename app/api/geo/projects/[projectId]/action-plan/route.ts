@@ -64,19 +64,23 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
   const baseUrl = normalizeUrl(project.website_url)
   const industrySlug = slugify(project.industry || "industria")
   const competitive = competitiveSnapshot(context)
-  const topCompetitor = competitive.top_competitor
+  const validCompetitors = context.competitors.filter((competitor) => !isSameEntity(project, competitor.name, competitor.domain))
+  const topCompetitor = competitive.top_competitor && !isSameEntity(project, competitive.top_competitor.name, null) ? competitive.top_competitor : null
+  const spontaneousVisibility = numberFrom(snapshot?.spontaneous_visibility)
+  const citationCoverage = numberFrom(snapshot?.citation_coverage)
+  const competitiveVisibility = numberFrom(snapshot?.competitive_visibility)
   const actions: ActionItem[] = []
   const add = (action: ActionItem) => {
     if (actions.some((item) => item.category === action.category)) return
     actions.push(action)
   }
 
-  if (numberFrom(snapshot?.spontaneous_visibility) < 60 || allSignals.includes("seo") || allSignals.includes("brand")) {
+  if (spontaneousVisibility < 60 || allSignals.includes("seo") || allSignals.includes("brand")) {
     add({
       id: "homepage-ai-positioning",
       category: "Posicionamiento de marca",
-      title: "Reescribir la home para que la IA entienda exactamente qué vende la empresa",
-      description: `La auditoria muestra baja visibilidad espontanea. La pagina principal debe explicar en lenguaje directo que hace ${project.company_name}, para quien, en que mercado y por que deberia recomendarse frente a alternativas.`,
+      title: `Clarificar el posicionamiento de ${project.company_name} en la home`,
+      description: `La auditoria muestra ${spontaneousVisibility}% de visibilidad espontanea. La pagina principal debe explicar en lenguaje directo que hace ${project.company_name}, para quien, en que mercado y por que deberia recomendarse frente a alternativas.`,
       why_important: "Los modelos generativos extraen entidades, casos de uso y diferenciadores desde paginas claras. Si la home es vaga, la IA no tiene razones fuertes para recomendar la marca.",
       priority: "high",
       estimated_impact: "high",
@@ -84,7 +88,7 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       type: "content",
       implementation_type: "Copy + estructura de landing",
       affected_pages: [baseUrl],
-      suggested_action: "Agregar arriba del fold una propuesta de valor clara, una seccion 'para quien es', diferenciadores, casos de uso, prueba social y preguntas frecuentes orientadas a IA.",
+      suggested_action: `Agregar arriba del fold una propuesta de valor clara para ${project.company_name}, una seccion 'para quien es', diferenciadores, casos de uso, prueba social y preguntas frecuentes orientadas a IA.`,
       deliverables: ["Nuevo hero con propuesta de valor", "Seccion de casos de uso", "Bloque 'por que elegirnos'", "FAQs orientadas a prompts de IA"],
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
@@ -92,34 +96,15 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     })
   }
 
-  add({
-    id: "industry-landing",
-    category: "Contenido por industria",
-    title: `Crear una landing especifica para ${project.industry || "el nicho principal"}`,
-    description: "Hoy el cliente necesita paginas que respondan prompts especificos, no solo una pagina general. Una landing por industria ayuda a capturar recomendaciones de IA cuando el usuario pregunta por soluciones para un sector concreto.",
-    why_important: "ChatGPT, Gemini y Perplexity tienden a recomendar marcas que tienen contenido explicito para el caso de uso o industria mencionada en el prompt.",
-    priority: "high",
-    estimated_impact: "high",
-    difficulty: "medium",
-    type: "content",
-    implementation_type: "Nueva pagina/landing",
-    affected_pages: [`${baseUrl}/${industrySlug}`],
-    suggested_action: `Crear una pagina para ${project.industry || "la industria objetivo"} con problema, solucion, beneficios, casos de uso, FAQs, prueba social y CTA.`,
-    deliverables: ["Landing por industria", "Copy completo", "FAQs del nicho", "Metadata SEO/GEO"],
-    status: "pending",
-    audit_id: context.latestAudit?.id ?? "",
-    created_at: context.latestAudit?.completed_at ?? null,
-  })
-
-  if (allSignals.includes("competitor") || allSignals.includes("compar") || numberFrom(snapshot?.prompts_lost) > 0 || topCompetitor || context.competitors.length > 0) {
-    const competitorName = topCompetitor?.name ?? context.competitors[0]?.name ?? "competidores principales"
+  if ((allSignals.includes("competitor") || allSignals.includes("compar") || numberFrom(snapshot?.prompts_lost) > 0 || topCompetitor || validCompetitors.length > 0) && (topCompetitor || validCompetitors.length > 0)) {
+    const competitorName = topCompetitor?.name ?? validCompetitors[0]?.name ?? "competidores principales"
     add({
       id: "comparison-page",
       category: "Comparación competitiva",
-      title: `Crear comparativas directas contra ${competitorName}`,
+      title: `Defender a ${project.company_name} frente a ${competitorName}`,
       description: topCompetitor
-        ? `${competitorName} aparece como competidor mencionado en ${topCompetitor.mentions} resultado(s) de IA. La marca necesita contenido de decision que explique diferencias, fortalezas y casos de uso frente a ese competidor.`
-        : "La marca ya tiene competidores definidos. Falta contenido de decision para prompts donde el usuario compara opciones, alternativas o proveedores.",
+        ? `${competitorName} aparece como competidor mencionado en ${topCompetitor.mentions} resultado(s) de IA y el win rate competitivo actual es ${competitiveVisibility}%. La marca necesita contenido de decision que explique diferencias, fortalezas y casos de uso frente a ese competidor.`
+        : `La marca tiene competidores definidos y el win rate competitivo actual es ${competitiveVisibility}%. Falta contenido de decision para prompts donde el usuario compara opciones, alternativas o proveedores.`,
       why_important: "Las consultas tipo 'mejores', 'alternativas', 'vs' y 'comparar' son prompts de alta intencion comercial. Si la marca no tiene contenido comparativo, los motores de IA se apoyan en competidores con mejor evidencia.",
       priority: "high",
       estimated_impact: "high",
@@ -129,6 +114,27 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       affected_pages: [`${baseUrl}/comparativas`, `${baseUrl}/alternativas`, `${baseUrl}/${slugify(project.company_name)}-vs-${slugify(competitorName)}`],
       suggested_action: `Publicar una pagina '${project.company_name} vs ${competitorName}' y una matriz de alternativas con diferencias, casos de uso, alcance, FAQs y prueba social verificable.`,
       deliverables: [`Pagina ${project.company_name} vs ${competitorName}`, "Pagina de alternativas", "Tabla comparativa", "FAQs de decision"],
+      status: "pending",
+      audit_id: context.latestAudit?.id ?? "",
+      created_at: context.latestAudit?.completed_at ?? null,
+    })
+  }
+
+  if (spontaneousVisibility < 70 || allSignals.includes("content") || allSignals.includes("landing")) {
+    add({
+      id: "industry-landing",
+      category: "Contenido por industria",
+      title: `Crear una landing para ${project.industry || "el nicho principal"} enfocada en prompts neutrales`,
+      description: `Hoy ${project.company_name} necesita paginas que respondan prompts neutrales especificos, no solo una pagina general. Una landing por industria ayuda a aparecer cuando el usuario pregunta por soluciones para un sector concreto sin nombrar la marca.`,
+      why_important: "ChatGPT, Gemini y Perplexity tienden a recomendar marcas que tienen contenido explicito para el caso de uso o industria mencionada en el prompt.",
+      priority: spontaneousVisibility < 40 ? "high" : "medium",
+      estimated_impact: "high",
+      difficulty: "medium",
+      type: "content",
+      implementation_type: "Nueva pagina/landing",
+      affected_pages: [`${baseUrl}/${industrySlug}`],
+      suggested_action: `Crear una pagina para ${project.industry || "la industria objetivo"} con problema, solucion, beneficios, casos de uso, FAQs, prueba social y CTA.`,
+      deliverables: ["Landing por industria", "Copy completo", "FAQs del nicho", "Metadata SEO/GEO"],
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
       created_at: context.latestAudit?.completed_at ?? null,
@@ -162,7 +168,7 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     title: "Agregar FAQs y Schema JSON-LD en las paginas principales",
     description: "Las paginas deben responder preguntas concretas que usuarios hacen a motores de IA. Esas respuestas deben estar visibles y estructuradas.",
     why_important: "Las FAQs ayudan a los modelos a extraer respuestas directas y el schema mejora la claridad semantica para buscadores y sistemas de recuperacion.",
-    priority: "high",
+    priority: spontaneousVisibility < 35 ? "high" : "medium",
     estimated_impact: "medium",
     difficulty: "easy",
     type: "technical",
@@ -175,14 +181,14 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     created_at: context.latestAudit?.completed_at ?? null,
   })
 
-  if (numberFrom(snapshot?.citations_count) < 3 || allSignals.includes("source") || allSignals.includes("citation") || allSignals.includes("authority")) {
+  if (numberFrom(snapshot?.citations_count) < 3 || citationCoverage < 50 || allSignals.includes("source") || allSignals.includes("citation") || allSignals.includes("authority")) {
     add({
       id: "authority-proof",
       category: "Autoridad y confianza",
-      title: "Publicar pruebas verificables: casos de éxito, resultados y fuentes citables",
-      description: "La auditoria muestra pocas citaciones. La marca necesita activos que la IA pueda usar como evidencia: casos, metricas, clientes, integraciones, certificaciones o articulos fuente.",
+      title: `Crear evidencia citable para ${project.company_name}`,
+      description: `La auditoria muestra baja cobertura de citations (${citationCoverage}%) o pocas fuentes detectadas. La marca necesita activos que la IA pueda usar como evidencia: casos, metricas, clientes, integraciones, certificaciones o articulos fuente.`,
       why_important: "Los motores de IA citan y recomiendan con mas confianza cuando encuentran evidencia externa o paginas con claims verificables.",
-      priority: "medium",
+      priority: citationCoverage < 30 ? "high" : "medium",
       estimated_impact: "medium",
       difficulty: "medium",
       type: "authority",
@@ -218,6 +224,24 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
   }
 
   return actions.sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority)).slice(0, 6)
+}
+
+function isSameEntity(project: { company_name: string; website_url: string }, name: string | null | undefined, domain: string | null | undefined) {
+  const projectName = normalizeEntity(project.company_name)
+  const projectDomain = normalizeHost(project.website_url)
+  const candidateName = normalizeEntity(name ?? "")
+  const candidateDomain = normalizeHost(domain ?? "")
+  if (candidateName && (candidateName === projectName || candidateName === normalizeEntity(projectDomain.split(".")[0] ?? ""))) return true
+  if (candidateDomain && projectDomain && candidateDomain === projectDomain) return true
+  return false
+}
+
+function normalizeEntity(value: string) {
+  return value.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split(/[/.?#]/)[0].replace(/[^a-z0-9]+/g, "").trim()
+}
+
+function normalizeHost(value: string) {
+  return value.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split(/[/?#]/)[0]
 }
 
 function executionFramework(): ExecutionOffer[] {
