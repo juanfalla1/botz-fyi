@@ -512,22 +512,22 @@ export default function AuditDetailReal() {
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/20"><TrendingUp className="h-5 w-5 text-accent" /></div>
                   <div>
-                    <CardTitle className="text-lg">{isEn ? "Content Opportunities" : "Oportunidades de Contenido"}</CardTitle>
-                    <p className="text-sm text-muted-foreground">{isEn ? "Topics where you can improve AI visibility" : "Keywords donde puedes mejorar tu visibilidad IA"}</p>
+                    <CardTitle className="text-lg">{isEn ? "Recommended Actions" : "Acciones recomendadas"}</CardTitle>
+                    <p className="text-sm text-muted-foreground">{isEn ? "Execution ideas generated from this audit. These are not SEO volume metrics." : "Ideas de ejecución generadas desde esta auditoría. No son métricas de volumen SEO."}</p>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                {contentOpportunities.length === 0 && <p className="text-sm text-muted-foreground">{isEn ? "No content opportunities were generated." : "No se generaron oportunidades de contenido."}</p>}
+                {contentOpportunities.length === 0 && <p className="text-sm text-muted-foreground">{isEn ? "No recommended actions were generated." : "No se generaron acciones recomendadas."}</p>}
                 {contentOpportunities.length > 0 && (
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-border">
-                          <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Keyword</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Volumen</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Dificultad</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Posición Actual</th>
+                          <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">{isEn ? "Recommended action" : "Acción recomendada"}</th>
+                          <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">{isEn ? "Type" : "Tipo"}</th>
+                          <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">{isEn ? "Priority" : "Prioridad"}</th>
+                          <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">{isEn ? "Status" : "Estado"}</th>
                           <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Oportunidad</th>
                         </tr>
                       </thead>
@@ -537,9 +537,9 @@ export default function AuditDetailReal() {
                           return (
                             <tr key={index} className="border-b border-border/50 hover:bg-secondary/30">
                               <td className="px-4 py-4 font-medium">{String(opp.keyword ?? opp.title ?? "Oportunidad")}</td>
-                              <td className="px-4 py-4 text-muted-foreground">{opp.volume ? String(opp.volume) : "Sin datos"}</td>
+                              <td className="px-4 py-4 text-muted-foreground">{String(opp.recommended_format ?? opp.intent ?? opp.type ?? (isEn ? "Execution" : "Ejecución"))}</td>
                               <td className="px-4 py-4"><span className={`rounded-full px-2 py-1 text-xs font-medium ${difficultyTone(opp.difficulty)}`}>{String(opp.difficulty ?? "Media")}</span></td>
-                              <td className="px-4 py-4 text-muted-foreground">{String(opp.current_rank ?? opp.currentRank ?? "No aparece")}</td>
+                              <td className="px-4 py-4 text-muted-foreground">{String(opp.status ?? (isEn ? "Pending" : "Pendiente"))}</td>
                               <td className="px-4 py-4">
                                 <div className="flex items-center gap-2">
                                   <div className="h-2 w-16 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-gradient-to-r from-primary to-accent" style={{ width: `${Math.max(0, Math.min(100, opportunity))}%` }} /></div>
