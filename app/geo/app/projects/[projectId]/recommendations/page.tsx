@@ -566,13 +566,21 @@ function deliverableWarning(project: ActionPlan["project"], action: ActionItem, 
 function generateDeliverable(action: ActionItem, project: ActionPlan["project"], isEn: boolean, kind = detectDeliverableKind(action)) {
   const brand = project.company_name
   const industry = project.industry || (isEn ? "the target category" : "la categoría objetivo")
-  const goal = project.business_goal || (isEn ? "improve AI visibility and qualified demand" : "mejorar visibilidad IA y demanda calificada")
+  const goal = localizedGoal(project, isEn)
   if (kind === "landing") return landingDeliverable(brand, industry, goal, action, isEn)
   if (kind === "comparison") return comparisonDeliverable(brand, industry, goal, action, isEn)
   if (kind === "alternative") return alternativeDeliverable(brand, industry, goal, action, isEn)
   if (kind === "content") return contentDeliverable(brand, industry, goal, action, isEn)
   if (kind === "faq") return faqDeliverable(brand, industry, goal, action, isEn)
   return genericDeliverable(action, brand, isEn)
+}
+
+function localizedGoal(project: ActionPlan["project"], isEn: boolean) {
+  const fallback = isEn ? "improve AI visibility and qualified demand" : "mejorar visibilidad IA y demanda calificada"
+  const goal = project.business_goal?.trim()
+  if (!goal) return fallback
+  if (!isEn && /measure and improve|ai answers|visibility in ai/i.test(goal)) return `mejorar la visibilidad de ${project.company_name} en respuestas de IA y demanda calificada`
+  return goal
 }
 
 function actionBrief(action: ActionItem) {
@@ -813,33 +821,143 @@ function downloadMarkdown(draft: DeliverableDraft, project: ActionPlan["project"
 async function downloadDeliverablePdf(draft: DeliverableDraft, project: ActionPlan["project"], isEn: boolean) {
   const { jsPDF } = await import("jspdf/dist/jspdf.umd.min.js")
   const doc = new jsPDF({ unit: "pt", format: "a4" })
-  const margin = 44
+  const margin = 48
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-  let y = 54
-  doc.setFillColor(12, 16, 31)
-  doc.rect(0, 0, pageWidth, 112, "F")
-  doc.setTextColor(255, 255, 255)
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(18)
-  doc.text(isEn ? "BOTZ GEO Deliverable Draft" : "Borrador de Entregable BOTZ GEO", margin, y)
-  y += 24
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(10)
-  doc.setTextColor(190, 198, 224)
-  doc.text(`${project.company_name} · ${deliverableKindLabel(draft.kind, isEn)}`, margin, y)
-  y = 142
-  doc.setTextColor(25, 29, 43)
-  doc.setFontSize(10.5)
-  const lines = doc.splitTextToSize(draft.content, pageWidth - margin * 2) as string[]
-  for (const line of lines) {
-    if (y > pageHeight - 54) {
-      doc.addPage()
-      y = 54
-    }
-    doc.text(line, margin, y)
-    y += 14
+  const contentWidth = pageWidth - margin * 2
+  let y = 0
+
+  const drawHeader = () => {
+    doc.setFillColor(9, 13, 28)
+    doc.rect(0, 0, pageWidth, 132, "F")
+    doc.setFillColor(82, 112, 255)
+    doc.rect(0, 0, 7, 132, "F")
+    doc.setTextColor(115, 143, 255)
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(9)
+    doc.text(deliverableKindLabel(draft.kind, isEn).toUpperCase(), margin, 42, { charSpace: 2 })
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(24)
+    doc.text(isEn ? "BOTZ GEO Deliverable" : "Entregable BOTZ GEO", margin, 75)
+    doc.setTextColor(190, 198, 224)
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(11)
+    doc.text(`${project.company_name} · ${draft.action.title}`, margin, 101, { maxWidth: contentWidth })
+    y = 164
   }
+
+  const addPage = () => {
+    doc.addPage()
+    drawHeader()
+  }
+
+  const ensureSpace = (height: number) => {
+    if (y + height > pageHeight - 54) addPage()
+  }
+
+  const cleanText = (value: string) => value
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/^[-*]\s*/, "")
+    .replace(/\*\*/g, "")
+    .replace(/`/g, "")
+    .trim()
+
+  const writeWrapped = (text: string, x: number, width: number, options?: { size?: number; bold?: boolean; color?: [number, number, number]; lineGap?: number }) => {
+    const size = options?.size ?? 10.5
+    doc.setFont("helvetica", options?.bold ? "bold" : "normal")
+    doc.setFontSize(size)
+    doc.setTextColor(...(options?.color ?? [24, 29, 43]))
+    const lines = doc.splitTextToSize(cleanText(text), width) as string[]
+    for (const line of lines) {
+      ensureSpace(size + 8)
+      doc.text(line, x, y)
+      y += size + (options?.lineGap ?? 4)
+    }
+  }
+
+  const drawCard = (label: string, value: string, x: number, cardY: number, width: number) => {
+    doc.setFillColor(246, 248, 255)
+    doc.setDrawColor(222, 228, 245)
+    doc.roundedRect(x, cardY, width, 64, 12, 12, "FD")
+    doc.setTextColor(91, 106, 143)
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(8)
+    doc.text(label.toUpperCase(), x + 14, cardY + 22)
+    doc.setTextColor(20, 24, 36)
+    doc.setFontSize(11)
+    doc.text(doc.splitTextToSize(value, width - 28) as string[], x + 14, cardY + 43)
+  }
+
+  const drawActionSummary = () => {
+    ensureSpace(158)
+    const gap = 12
+    const cardWidth = (contentWidth - gap) / 2
+    drawCard(isEn ? "Original action" : "Acción original", draft.action.title, margin, y, cardWidth)
+    drawCard(isEn ? "Expected impact" : "Impacto esperado", levelLabel(draft.action.estimated_impact, isEn), margin + cardWidth + gap, y, cardWidth)
+    y += 78
+    drawCard(isEn ? "Difficulty" : "Dificultad", difficultyLabel(draft.action.difficulty, isEn), margin, y, cardWidth)
+    drawCard("GEO", scoreLiftLabel(draft.action, isEn), margin + cardWidth + gap, y, cardWidth)
+    y += 92
+  }
+
+  const sectionTitle = (text: string) => {
+    ensureSpace(34)
+    y += 8
+    doc.setFillColor(82, 112, 255)
+    doc.circle(margin + 4, y - 4, 3, "F")
+    writeWrapped(cleanText(text), margin + 16, contentWidth - 16, { size: 14, bold: true, color: [10, 16, 31], lineGap: 5 })
+    y += 4
+  }
+
+  const bullet = (text: string) => {
+    ensureSpace(24)
+    doc.setFillColor(16, 185, 129)
+    doc.circle(margin + 5, y - 4, 4, "F")
+    writeWrapped(text, margin + 18, contentWidth - 18, { size: 10.5, color: [30, 36, 54] })
+  }
+
+  const paragraph = (text: string) => {
+    writeWrapped(text, margin, contentWidth, { size: 10.5, color: [30, 36, 54] })
+    y += 6
+  }
+
+  drawHeader()
+  drawActionSummary()
+
+  for (const rawLine of draft.content.split("\n")) {
+    const line = rawLine.trim()
+    if (!line) {
+      y += 5
+      continue
+    }
+    if (line.startsWith("# ")) {
+      continue
+    }
+    if (line.startsWith("## ") || line.startsWith("### ")) {
+      sectionTitle(line)
+      continue
+    }
+    if (line.startsWith("- ")) {
+      bullet(line)
+      continue
+    }
+    if (line.includes("|")) {
+      paragraph(line.replace(/\|/g, "  "))
+      continue
+    }
+    paragraph(line)
+  }
+
+  const pages = doc.getNumberOfPages()
+  for (let page = 1; page <= pages; page += 1) {
+    doc.setPage(page)
+    doc.setTextColor(128, 139, 168)
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(8)
+    doc.text(isEn ? "Generated from real GEO audit evidence. Review before publishing." : "Generado desde evidencia real de auditoría GEO. Revisar antes de publicar.", margin, pageHeight - 28)
+    doc.text(`${page}/${pages}`, pageWidth - margin - 18, pageHeight - 28)
+  }
+
   doc.save(`${slugifyFile(project.company_name)}-${draft.kind}-deliverable.pdf`)
 }
 
