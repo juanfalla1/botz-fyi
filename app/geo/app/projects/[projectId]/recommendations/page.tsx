@@ -27,6 +27,7 @@ type ActionItem = {
   improves_metric?: string
   estimated_score_lift?: { min: number; max: number }
   estimated_time?: string
+  evidence?: Array<{ label: string; value: string }>
   status: "pending" | "in_progress" | "implemented"
   audit_id: string
   created_at: string | null
@@ -59,6 +60,20 @@ type ActionPlan = {
     executive_summary: string
     completed_at: string | null
   } | null
+  previous_audit?: {
+    id: string
+    completed_at: string | null
+    geo_score: number
+    spontaneous_visibility: number
+    competitive_visibility: number
+    citation_coverage: number
+    delta: { geo_score: number; spontaneous_visibility: number; competitive_visibility: number; citation_coverage: number } | null
+  } | null
+  crawl_evidence?: {
+    pages_crawled: number
+    total_words: number
+    pages: Array<{ url: string; title: string | null; description: string | null; word_count: number | null }>
+  }
   competitive_insights?: {
     tracked_competitors: number
     mentioned_competitors: number
@@ -200,6 +215,18 @@ export default function RecommendationsPage() {
               </CardContent>
             </Card>
 
+            <Card className="glass border-border bg-secondary/10">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg"><CheckCircle2 className="h-5 w-5 text-primary" />{isEn ? "Evidence and progress validation" : "Evidencia y validación de progreso"}</CardTitle>
+                <p className="text-sm text-muted-foreground">{isEn ? "Recommendations below are tied to audit evidence, crawled pages when available, and the previous audit baseline." : "Las recomendaciones de abajo se conectan con evidencia de auditoría, páginas leídas cuando estén disponibles y la auditoría anterior como baseline."}</p>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-3">
+                <Metric label={isEn ? "Crawled pages" : "Páginas leídas"} value={String(plan.crawl_evidence?.pages_crawled ?? 0)} />
+                <Metric label={isEn ? "Crawled words" : "Palabras leídas"} value={String(plan.crawl_evidence?.total_words ?? 0)} />
+                <Metric label={isEn ? "GEO change" : "Cambio GEO"} value={plan.previous_audit?.delta ? formatUiDelta(plan.previous_audit.delta.geo_score) : (isEn ? "No baseline" : "Sin baseline")} />
+              </CardContent>
+            </Card>
+
             {plan.execution_framework && plan.execution_framework.length > 0 && (
               <Card className="glass border-primary/30 bg-primary/5">
                 <CardHeader>
@@ -318,6 +345,14 @@ export default function RecommendationsPage() {
                           <ActionStat label={isEn ? "Estimated time" : "Tiempo estimado"} value={action.estimated_time ?? defaultTime(action.difficulty, isEn)} />
                           <ActionStat label={isEn ? "Expected impact" : "Impacto esperado"} value={`${levelLabel(action.estimated_impact, isEn)} · ${difficultyLabel(action.difficulty, isEn)}`} />
                         </div>
+                        {action.evidence && action.evidence.length > 0 && (
+                          <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                            <p className="mb-2 text-sm font-medium text-primary">{isEn ? "Evidence behind this action" : "Evidencia detrás de esta acción"}</p>
+                            <div className="space-y-2">
+                              {action.evidence.map((item) => <div key={`${action.id}-${item.label}`} className="text-sm text-muted-foreground"><span className="font-medium text-foreground">{item.label}:</span> {item.value}</div>)}
+                            </div>
+                          </div>
+                        )}
                         <div className="mt-4 rounded-xl border border-border bg-secondary/20 p-4">
                           <p className="mb-2 text-sm font-medium">{isEn ? "Affected pages" : "Páginas afectadas"}</p>
                           <div className="flex flex-wrap gap-2">
@@ -418,6 +453,15 @@ function DeliverableDrawer({ draft, project, isEn, onChange, onClose }: { draft:
           </div>
         )}
 
+        {action.evidence && action.evidence.length > 0 && (
+          <div className="mx-5 mt-5 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <p className="mb-2 text-sm font-medium text-primary">{isEn ? "Evidence used" : "Evidencia usada"}</p>
+            <div className="space-y-1.5">
+              {action.evidence.map((item) => <p key={`${item.label}-${item.value}`} className="text-sm text-muted-foreground"><span className="font-medium text-foreground">{item.label}:</span> {item.value}</p>)}
+            </div>
+          </div>
+        )}
+
         <div className="flex-1 overflow-auto p-5">
           <textarea
             value={draft.content}
@@ -442,6 +486,10 @@ function DeliverableDrawer({ draft, project, isEn, onChange, onClose }: { draft:
 
 function ActionStat({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl border border-border bg-background/40 p-3"><p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-sm font-medium">{value}</p></div>
+}
+
+function formatUiDelta(value: number) {
+  return `${value > 0 ? "+" : ""}${value}`
 }
 
 function scoreLiftLabel(action: ActionItem, isEn: boolean) {

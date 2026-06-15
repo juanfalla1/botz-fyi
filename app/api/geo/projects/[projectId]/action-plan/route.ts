@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getGeoApiClient } from "@/lib/geo/api-auth"
-import { competitiveSnapshot, latestAuditSnapshot, loadGeoActionContext, normalizePriority, numberFrom, priorityRank } from "@/lib/geo/action-engine"
+import { competitiveSnapshot, latestAuditSnapshot, latestCrawlEvidence, loadGeoActionContext, normalizePriority, numberFrom, previousAuditSnapshot, priorityRank } from "@/lib/geo/action-engine"
 
 type ActionItem = {
   id: string
@@ -19,6 +19,7 @@ type ActionItem = {
   improves_metric: string
   estimated_score_lift: { min: number; max: number }
   estimated_time: string
+  evidence: Array<{ label: string; value: string }>
   status: "pending" | "in_progress" | "implemented"
   audit_id: string
   created_at: string | null
@@ -40,12 +41,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ projectI
     if (!context) return NextResponse.json({ error: "Project not found" }, { status: 404 })
     const actions = buildActions(context)
     const competitive = competitiveSnapshot(context)
+    const crawl = latestCrawlEvidence(context)
 
     return NextResponse.json({
       mode: "live",
       data: {
         project: context.project,
         latest_audit: latestAuditSnapshot(context),
+        previous_audit: previousAuditSnapshot(context),
+        crawl_evidence: crawl,
         competitive_insights: competitive,
         execution_framework: executionFramework(),
         actions,
@@ -72,6 +76,8 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
   const spontaneousVisibility = numberFrom(snapshot?.spontaneous_visibility)
   const citationCoverage = numberFrom(snapshot?.citation_coverage)
   const competitiveVisibility = numberFrom(snapshot?.competitive_visibility)
+  const crawl = latestCrawlEvidence(context)
+  const previous = previousAuditSnapshot(context)
   const actions: ActionItem[] = []
   const add = (action: ActionItem) => {
     if (actions.some((item) => item.category === action.category)) return
@@ -96,6 +102,7 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       improves_metric: "Visibilidad espontánea + claridad del posicionamiento",
       estimated_score_lift: { min: 5, max: 12 },
       estimated_time: "3 a 5 días",
+      evidence: evidenceFor("positioning", context, crawl, previous),
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
       created_at: context.latestAudit?.completed_at ?? null,
@@ -123,6 +130,7 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       improves_metric: "Win rate competitivo",
       estimated_score_lift: { min: 4, max: 10 },
       estimated_time: "4 a 7 días",
+      evidence: evidenceFor("competitive", context, crawl, previous),
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
       created_at: context.latestAudit?.completed_at ?? null,
@@ -147,6 +155,7 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       improves_metric: "Visibilidad espontánea",
       estimated_score_lift: { min: 5, max: 12 },
       estimated_time: "3 a 6 días",
+      evidence: evidenceFor("landing", context, crawl, previous),
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
       created_at: context.latestAudit?.completed_at ?? null,
@@ -171,6 +180,7 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       improves_metric: "Win rate competitivo + autoridad/confianza",
       estimated_score_lift: { min: 4, max: 9 },
       estimated_time: "5 a 8 días",
+      evidence: evidenceFor("competitive", context, crawl, previous),
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
       created_at: context.latestAudit?.completed_at ?? null,
@@ -194,6 +204,7 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     improves_metric: "Claridad del posicionamiento",
     estimated_score_lift: { min: 2, max: 6 },
     estimated_time: "1 a 3 días",
+    evidence: evidenceFor("faq", context, crawl, previous),
     status: "pending",
     audit_id: context.latestAudit?.id ?? "",
     created_at: context.latestAudit?.completed_at ?? null,
@@ -217,6 +228,7 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       improves_metric: "Cobertura de citations + autoridad/confianza",
       estimated_score_lift: { min: 3, max: 8 },
       estimated_time: "4 a 8 días",
+      evidence: evidenceFor("authority", context, crawl, previous),
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
       created_at: context.latestAudit?.completed_at ?? null,
@@ -241,6 +253,7 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       improves_metric: "Cobertura de citations + autoridad/confianza",
       estimated_score_lift: { min: 3, max: 7 },
       estimated_time: "7 a 14 días",
+      evidence: evidenceFor("authority", context, crawl, previous),
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
       created_at: context.latestAudit?.completed_at ?? null,
@@ -248,6 +261,25 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
   }
 
   return actions.sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority)).slice(0, 6)
+}
+
+function evidenceFor(kind: string, context: Awaited<ReturnType<typeof loadGeoActionContext>> extends infer T ? NonNullable<T> : never, crawl: ReturnType<typeof latestCrawlEvidence>, previous: ReturnType<typeof previousAuditSnapshot>): Array<{ label: string; value: string }> {
+  const snapshot = latestAuditSnapshot(context)
+  const evidence: Array<{ label: string; value: string }> = []
+  evidence.push({ label: "Auditoría", value: snapshot ? `GEO Score ${snapshot.geo_score}/100, visibilidad espontánea ${snapshot.spontaneous_visibility}%` : "Sin auditoría completada" })
+  if (previous?.delta) evidence.push({ label: "Cambio vs auditoría anterior", value: `GEO ${formatDelta(previous.delta.geo_score)}, espontánea ${formatDelta(previous.delta.spontaneous_visibility)}, competitivo ${formatDelta(previous.delta.competitive_visibility)}` })
+  if (crawl.pages_crawled > 0) evidence.push({ label: "Sitio analizado", value: `${crawl.pages_crawled} página(s), ${crawl.total_words} palabras detectadas` })
+  else evidence.push({ label: "Sitio analizado", value: "No se pudo leer el sitio aún; recomendación basada en auditoría IA y prompts guardados" })
+  if (kind === "competitive") {
+    const competitive = competitiveSnapshot(context)
+    evidence.push({ label: "Competencia", value: competitive.top_competitor ? `${competitive.top_competitor.name} apareció ${competitive.top_competitor.mentions} vez/veces` : "Sin competidor dominante detectado" })
+  }
+  if (kind === "authority") evidence.push({ label: "Citations", value: `Cobertura ${numberFrom(snapshot?.citation_coverage)}%, fuentes detectadas ${numberFrom(snapshot?.citations_count)}` })
+  return evidence
+}
+
+function formatDelta(value: number) {
+  return `${value > 0 ? "+" : ""}${value}`
 }
 
 function isSameEntity(project: { company_name: string; website_url: string }, name: string | null | undefined, domain: string | null | undefined) {

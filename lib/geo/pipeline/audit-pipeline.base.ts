@@ -4,6 +4,7 @@ import { runRealAnalysisWithFallback } from "@/lib/geo/pipeline/analysis-real"
 import type { PipelineContext } from "@/lib/geo/pipeline/types"
 import type { NormalizedEngineResult } from "@/lib/geo/engines/types"
 import { createAuditJobLog } from "@/lib/geo/repositories/audit-job-logs.repo"
+import { runCrawler, type CrawledPage } from "@/lib/geo/crawler"
 
 function errorMessage(error: unknown) {
   if (error instanceof Error) return error.message
@@ -27,6 +28,10 @@ export async function runBaseAuditPipeline(supabase: SupabaseClient, context: Pi
   const prompts = buildBasePrompts(context)
   const analysis = await runRealAnalysisWithFallback(context, prompts)
   const output = analysis.output
+  const crawledPages = await runCrawlerWithBudget(context.project.website_url, context.job.crawl_depth).catch((error) => {
+    void logNonCriticalPipelineError(supabase, context, "crawl", error)
+    return [] as CrawledPage[]
+  })
 
   const { error: auditError } = await supabase
     .from("geo_audits")
@@ -62,6 +67,7 @@ export async function runBaseAuditPipeline(supabase: SupabaseClient, context: Pi
           opportunity: rec.priority === "high" ? 85 : rec.priority === "medium" ? 72 : 65,
         })),
         recommendations: output.recommendations,
+        crawl_evidence: crawlEvidence(crawledPages),
         mode: analysis.mode,
         provider_metadata: analysis.metadata,
         normalizer_version: "7.9",
@@ -97,9 +103,44 @@ export async function runBaseAuditPipeline(supabase: SupabaseClient, context: Pi
   }
 
   await persistEngineEvidence(supabase, context, analysis.normalizedResults ?? []).catch((error) => logNonCriticalPipelineError(supabase, context, "engine_evidence", error))
+  await persistCrawledPages(supabase, context.job.audit_id, crawledPages).catch((error) => logNonCriticalPipelineError(supabase, context, "crawled_pages", error))
   await persistContentOpportunities(supabase, context.job.audit_id, output.recommendations).catch((error) => logNonCriticalPipelineError(supabase, context, "content_opportunities", error))
 
   return { prompts, output }
+}
+
+async function runCrawlerWithBudget(baseUrl: string, crawlDepth: number) {
+  const maxPages = Math.max(3, Math.min(10, crawlDepth * 3))
+  const timeout = new Promise<CrawledPage[]>((resolve) => setTimeout(() => resolve([]), 10000))
+  return Promise.race([runCrawler(baseUrl, maxPages), timeout])
+}
+
+async function persistCrawledPages(supabase: SupabaseClient, auditId: string, pages: CrawledPage[]) {
+  if (pages.length === 0) return
+  const { error } = await supabase.from("crawled_pages").insert(pages.map((page) => ({
+    audit_id: auditId,
+    url: page.url,
+    title: page.title,
+    description: page.description,
+    content: page.content,
+    status_code: page.status_code,
+    word_count: page.word_count,
+    metadata: page.metadata,
+  })))
+  if (error) throw error
+}
+
+function crawlEvidence(pages: CrawledPage[]) {
+  return {
+    pages_crawled: pages.length,
+    total_words: pages.reduce((total, page) => total + page.word_count, 0),
+    pages: pages.slice(0, 10).map((page) => ({
+      url: page.url,
+      title: page.title,
+      description: page.description,
+      word_count: page.word_count,
+    })),
+  }
 }
 
 async function persistEngineEvidence(supabase: SupabaseClient, context: PipelineContext, results: NormalizedEngineResult[]) {

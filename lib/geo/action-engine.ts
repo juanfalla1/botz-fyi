@@ -35,6 +35,14 @@ export type GeoCompetitorMention = {
   position: number | null
 }
 
+export type GeoCrawledPage = {
+  audit_id: string
+  url: string
+  title: string | null
+  description: string | null
+  word_count: number | null
+}
+
 export type GeoActionContext = {
   project: GeoActionProject
   audits: GeoActionAudit[]
@@ -44,6 +52,7 @@ export type GeoActionContext = {
   opportunities: Array<Record<string, unknown>>
   competitors: GeoActionCompetitor[]
   competitorMentions: GeoCompetitorMention[]
+  crawledPages: GeoCrawledPage[]
 }
 
 export async function loadGeoActionContext(supabase: SupabaseClient, userId: string, projectId: string): Promise<GeoActionContext | null> {
@@ -75,7 +84,7 @@ export async function loadGeoActionContext(supabase: SupabaseClient, userId: str
     .order("created_at", { ascending: false })
   if (competitorsError) throw competitorsError
 
-  const [recommendationsResult, opportunitiesResult, competitorMentionsResult] = auditIds.length > 0
+  const [recommendationsResult, opportunitiesResult, competitorMentionsResult, crawledPagesResult] = auditIds.length > 0
     ? await Promise.all([
         supabase
           .from("recommendations")
@@ -91,11 +100,16 @@ export async function loadGeoActionContext(supabase: SupabaseClient, userId: str
           .from("competitor_mentions")
           .select("audit_id, competitor_name, engine, mentioned, mention_context, position")
           .in("audit_id", auditIds),
+        supabase
+          .from("crawled_pages")
+          .select("audit_id, url, title, description, word_count")
+          .in("audit_id", auditIds),
       ])
-    : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }]
+    : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }, { data: [], error: null }]
   if (recommendationsResult.error) throw recommendationsResult.error
   if (opportunitiesResult.error) throw opportunitiesResult.error
   if (competitorMentionsResult.error) throw competitorMentionsResult.error
+  if (crawledPagesResult.error) throw crawledPagesResult.error
 
   const latestAudit = auditRows[0] ?? null
   return {
@@ -117,6 +131,13 @@ export async function loadGeoActionContext(supabase: SupabaseClient, userId: str
       mentioned: Boolean(mention.mentioned),
       mention_context: mention.mention_context ? String(mention.mention_context) : null,
       position: typeof mention.position === "number" ? mention.position : null,
+    })),
+    crawledPages: (crawledPagesResult.data ?? []).map((page) => ({
+      audit_id: String(page.audit_id),
+      url: String(page.url),
+      title: page.title ? String(page.title) : null,
+      description: page.description ? String(page.description) : null,
+      word_count: typeof page.word_count === "number" ? page.word_count : null,
     })),
   }
 }
@@ -197,4 +218,37 @@ export function latestAuditSnapshot(ctx: GeoActionContext) {
     citations_count: numberFrom(ctx.latestSummary.citations_count),
     executive_summary: semantic ? String(semantic.executive_summary ?? ctx.latestSummary.summary ?? "") : String(ctx.latestSummary.summary ?? ""),
   } : null
+}
+
+export function previousAuditSnapshot(ctx: GeoActionContext) {
+  const previous = ctx.audits[1]
+  if (!previous) return null
+  const summary = parseSummary(previous.summary)
+  const current = latestAuditSnapshot(ctx)
+  const previousScore = numberFrom(summary.geo_score ?? previous.final_score)
+  const previousSpontaneous = numberFrom(summary.spontaneous_visibility ?? summary.ai_visibility)
+  return {
+    id: previous.id,
+    completed_at: previous.completed_at,
+    geo_score: previousScore,
+    spontaneous_visibility: previousSpontaneous,
+    competitive_visibility: numberFrom(summary.competitive_visibility),
+    citation_coverage: numberFrom(summary.citation_coverage),
+    delta: current ? {
+      geo_score: numberFrom(current.geo_score) - previousScore,
+      spontaneous_visibility: numberFrom(current.spontaneous_visibility) - previousSpontaneous,
+      competitive_visibility: numberFrom(current.competitive_visibility) - numberFrom(summary.competitive_visibility),
+      citation_coverage: numberFrom(current.citation_coverage) - numberFrom(summary.citation_coverage),
+    } : null,
+  }
+}
+
+export function latestCrawlEvidence(ctx: GeoActionContext) {
+  const auditId = ctx.latestAudit?.id
+  const pages = auditId ? ctx.crawledPages.filter((page) => page.audit_id === auditId) : []
+  return {
+    pages_crawled: pages.length,
+    total_words: pages.reduce((total, page) => total + (page.word_count ?? 0), 0),
+    pages: pages.slice(0, 10),
+  }
 }
