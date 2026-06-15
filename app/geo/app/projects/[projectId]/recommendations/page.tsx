@@ -526,12 +526,20 @@ function createDeliverableDraft(action: ActionItem, project: ActionPlan["project
 }
 
 function detectDeliverableKind(action: ActionItem): DeliverableKind {
-  const text = `${action.id} ${action.category} ${action.title} ${action.type} ${action.implementation_type} ${action.suggested_action} ${action.deliverables.join(" ")}`.toLowerCase()
-  if (text.includes("faq") || text.includes("json-ld") || text.includes("schema")) return "faq"
-  if (text.includes("alternativa") || text.includes("alternative")) return text.includes(" vs ") || text.includes("frente a") || text.includes("compet") ? "comparison" : "alternative"
-  if (text.includes("compar") || text.includes("competitive") || text.includes("competidor") || text.includes("competitor") || text.includes(" vs ")) return "comparison"
-  if (text.includes("landing") || text.includes("home") || text.includes("homepage")) return "landing"
-  if (text.includes("contenido") || text.includes("content") || text.includes("recursos") || text.includes("authority")) return "content"
+  const primaryText = `${action.id} ${action.category} ${action.title} ${action.type} ${action.implementation_type} ${action.deliverables.join(" ")}`.toLowerCase()
+  const fullText = `${primaryText} ${action.description} ${action.suggested_action}`.toLowerCase()
+
+  if (primaryText.includes("landing") || primaryText.includes("home") || primaryText.includes("homepage")) return "landing"
+  if (primaryText.includes("alternativa") || primaryText.includes("alternative")) return primaryText.includes(" vs ") || primaryText.includes("frente a") || primaryText.includes("compet") ? "comparison" : "alternative"
+  if (primaryText.includes("compar") || primaryText.includes("competitive") || primaryText.includes("competidor") || primaryText.includes("competitor") || primaryText.includes(" vs ")) return "comparison"
+  if (primaryText.includes("faq") || primaryText.includes("json-ld") || primaryText.includes("schema")) return "faq"
+  if (primaryText.includes("contenido") || primaryText.includes("content") || primaryText.includes("recursos") || primaryText.includes("authority")) return "content"
+
+  if (fullText.includes("landing") || fullText.includes("home") || fullText.includes("homepage")) return "landing"
+  if (fullText.includes("alternativa") || fullText.includes("alternative")) return fullText.includes(" vs ") || fullText.includes("frente a") || fullText.includes("compet") ? "comparison" : "alternative"
+  if (fullText.includes("compar") || fullText.includes("competitive") || fullText.includes("competidor") || fullText.includes("competitor") || fullText.includes(" vs ")) return "comparison"
+  if (fullText.includes("faq") || fullText.includes("json-ld") || fullText.includes("schema")) return "faq"
+  if (fullText.includes("contenido") || fullText.includes("content") || fullText.includes("recursos") || fullText.includes("authority")) return "content"
   return "generic"
 }
 
@@ -559,7 +567,7 @@ function generateDeliverable(action: ActionItem, project: ActionPlan["project"],
   const brand = project.company_name
   const industry = project.industry || (isEn ? "the target category" : "la categoría objetivo")
   const goal = project.business_goal || (isEn ? "improve AI visibility and qualified demand" : "mejorar visibilidad IA y demanda calificada")
-  if (kind === "landing") return landingDeliverable(brand, industry, goal, isEn)
+  if (kind === "landing") return landingDeliverable(brand, industry, goal, action, isEn)
   if (kind === "comparison") return comparisonDeliverable(brand, industry, goal, action, isEn)
   if (kind === "alternative") return alternativeDeliverable(brand, industry, goal, isEn)
   if (kind === "content") return contentDeliverable(brand, industry, goal, action, isEn)
@@ -567,16 +575,26 @@ function generateDeliverable(action: ActionItem, project: ActionPlan["project"],
   return genericDeliverable(action, brand, isEn)
 }
 
-function landingDeliverable(brand: string, industry: string, goal: string, isEn: boolean) {
+function landingDeliverable(brand: string, industry: string, goal: string, action: ActionItem, isEn: boolean) {
+  const brief = action.suggested_action || action.description
+  const evidence = action.evidence?.length
+    ? action.evidence.map((item) => `- ${item.label}: ${item.value}`).join("\n")
+    : `- ${isEn ? "Audit action" : "Acción de auditoría"}: ${action.title}`
   return `# ${isEn ? "Landing Page Draft" : "Borrador de Landing"}: ${brand}
 
+## ${isEn ? "Evidence Used" : "Evidencia usada"}
+${evidence}
+
+## Brief
+${brief}
+
 ## Hero
-${brand} ${isEn ? `helps companies in ${industry} solve priority growth and visibility problems with a clear, measurable execution plan.` : `ayuda a empresas en ${industry} a resolver problemas prioritarios de crecimiento y visibilidad con un plan de ejecución claro y medible.`}
+${brand} ${isEn ? `should explain its offer for companies in ${industry} with a clear, measurable execution path.` : `debe explicar su oferta para empresas en ${industry} con una ruta de ejecución clara y medible.`}
 
 **Subheadline:** ${isEn ? `Turn AI visibility gaps into pages, proof and actions that can be measured in the next GEO audit.` : `Convierte brechas de visibilidad IA en páginas, pruebas y acciones medibles en la próxima auditoría GEO.`}
 
 ## ${isEn ? "Problem" : "Problema"}
-${isEn ? `Potential clients ask AI engines for solutions in ${industry}, but the brand may not appear when the prompt does not mention it directly.` : `Los clientes potenciales preguntan a motores IA por soluciones en ${industry}, pero la marca puede no aparecer cuando el prompt no la menciona directamente.`}
+${isEn ? `The audit action indicates that ${brand} needs a clearer landing page for neutral discovery prompts in ${industry}.` : `La acción de auditoría indica que ${brand} necesita una landing más clara para prompts neutrales de descubrimiento en ${industry}.`}
 
 ## ${isEn ? "Solution" : "Solución"}
 ${brand} ${isEn ? `should present a direct category definition, use cases, differentiators, proof and decision FAQs that AI engines can understand and cite.` : `debe presentar una definición clara de categoría, casos de uso, diferenciadores, pruebas y FAQs de decisión que los motores IA puedan entender y citar.`}
