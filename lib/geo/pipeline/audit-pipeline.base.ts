@@ -110,7 +110,8 @@ export async function runBaseAuditPipeline(supabase: SupabaseClient, context: Pi
 }
 
 async function runCrawlerWithBudget(baseUrl: string, crawlDepth: number) {
-  const maxPages = Math.max(3, Math.min(10, crawlDepth * 3))
+  const depth = Number.isFinite(crawlDepth) && crawlDepth > 0 ? crawlDepth : 1
+  const maxPages = Math.max(3, Math.min(10, depth * 3))
   const timeout = new Promise<CrawledPage[]>((resolve) => setTimeout(() => resolve([]), 10000))
   return Promise.race([runCrawler(baseUrl, maxPages), timeout])
 }

@@ -78,6 +78,39 @@ function objectArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item)) : []
 }
 
+function citationItemsFrom(value: unknown) {
+  if (Array.isArray(value)) return value
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>
+    if (Array.isArray(record.citations)) return record.citations
+    if (Array.isArray(record.sources)) return record.sources
+    if (Array.isArray(record.urls)) return record.urls
+  }
+  return []
+}
+
+function citationUrl(value: unknown) {
+  if (typeof value === "string") return value
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>
+    return String(record.url ?? record.link ?? record.source_url ?? "")
+  }
+  return ""
+}
+
+function citationName(value: unknown, url: string) {
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>
+    const explicit = String(record.title ?? record.name ?? record.source_name ?? record.source ?? "").trim()
+    if (explicit) return explicit
+  }
+  try {
+    return new URL(url).hostname.replace(/^www\./, "")
+  } catch {
+    return url || "Fuente"
+  }
+}
+
 function engineLabel(engine: unknown) {
   const value = String(engine || "").toLowerCase()
   if (value === "openai") return "ChatGPT"
@@ -208,12 +241,23 @@ export default function AuditDetailReal() {
   const recommendations = Array.isArray(summary.recommendations) ? summary.recommendations as Array<Record<string, unknown>> : []
   const storedContentOpportunities = objectArray(summary.content_opportunities)
   const risks = objectArray(semantic?.risks)
-  const citedSources = objectArray(semantic?.cited_sources)
   const aiMentions = objectArray(semantic?.ai_mentions)
   const competitorVisibility = objectArray(semantic?.competitor_visibility)
   const crawledPages = objectArray(audit?.crawled_pages)
   const crawlEvidence = objectArray(summary.crawl_evidence)
   const storedQueries = Array.isArray(audit?.ai_queries) ? audit.ai_queries : []
+  const citedSources = Array.from(
+    storedQueries.reduce((acc, query) => {
+      for (const answer of query.ai_answers ?? []) {
+        for (const citation of citationItemsFrom(answer.citations)) {
+          const url = citationUrl(citation).trim()
+          if (!url || acc.has(url)) continue
+          acc.set(url, { source_name: citationName(citation, url), url, influence: "trazable" })
+        }
+      }
+      return acc
+    }, new Map<string, Record<string, unknown>>()).values()
+  )
   const evaluatedPromptsFromQueries = storedQueries.map((query) => {
     const answer = Array.isArray(query.ai_answers) ? query.ai_answers[0] : null
     const raw = answer?.raw_response && typeof answer.raw_response === "object" ? answer.raw_response : {}
@@ -318,8 +362,8 @@ export default function AuditDetailReal() {
   const scoreTarget = score < 60 ? 60 : score < 75 ? 75 : 90
   const scoreGap = Math.max(0, scoreTarget - score)
   const targetProgress = scoreTarget > 0 ? Math.min(100, Math.round((score / scoreTarget) * 100)) : 0
-  const authorityValue = confidence || Math.min(100, citations * 10)
   const citationProxy = citationCoverage ?? (citations > 0 ? Math.min(100, citations * 10) : null)
+  const authorityValue = citationProxy
   const positioningValue = spontaneousVisibility === null && citationProxy === null ? null : Math.round(((spontaneousVisibility ?? 0) + (citationProxy ?? 0)) / ((spontaneousVisibility === null || citationProxy === null) ? 1 : 2))
   const scoreComponents = [
     { label: isEn ? "Spontaneous visibility" : "Visibilidad espontánea", weight: 60, value: spontaneousVisibility, note: isEn ? "Neutral prompts where the brand appeared." : "Prompts neutrales donde apareció la marca." },
