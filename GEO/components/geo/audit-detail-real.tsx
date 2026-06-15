@@ -264,7 +264,38 @@ export default function AuditDetailReal() {
     }
   })
   const evaluatedPrompts = evaluatedPromptsFromQueries.length > 0 ? evaluatedPromptsFromQueries : objectArray(summary.evaluated_prompts)
-  const nextActions = stringArray(semantic?.next_actions)
+  const metricRisks = [
+    spontaneousVisibility === null || spontaneousVisibility === 0
+      ? {
+          risk_type: isEn ? "No spontaneous visibility" : "Sin visibilidad espontánea",
+          description: isEn ? "The brand did not appear in neutral discovery prompts. This is the strongest signal to improve first." : "La marca no apareció en prompts neutrales de descubrimiento. Esta es la señal más importante a mejorar primero.",
+        }
+      : spontaneousVisibility < 40
+      ? {
+          risk_type: isEn ? "Low spontaneous visibility" : "Baja visibilidad espontánea",
+          description: isEn ? "The brand appears in some neutral prompts, but not often enough to claim strong AI discovery." : "La marca aparece en algunos prompts neutrales, pero todavía no lo suficiente para afirmar descubrimiento fuerte en IA.",
+        }
+      : null,
+    citationCoverage === null || citationCoverage < 50
+      ? {
+          risk_type: isEn ? "Weak citation coverage" : "Cobertura de citations débil",
+          description: isEn ? "AI responses have limited traceable sources for this brand. Add pages and proof assets that engines can cite." : "Las respuestas IA tienen pocas fuentes trazables para esta marca. Agrega páginas y activos de prueba que los motores puedan citar.",
+        }
+      : null,
+    competitiveVisibility === null
+      ? {
+          risk_type: isEn ? "No competitive sample" : "Sin muestra competitiva",
+          description: isEn ? "This audit cannot explain competitive wins or losses because no competitive sample was collected." : "Esta auditoría no puede explicar victorias o pérdidas competitivas porque no se recolectó muestra competitiva.",
+        }
+      : null,
+  ].filter((item): item is Record<string, unknown> => Boolean(item))
+  const nextActions = [
+    isEn ? "Create or improve service, category and use-case pages for neutral discovery prompts." : "Crear o mejorar páginas de servicios, categorías y casos de uso para prompts neutrales de descubrimiento.",
+    isEn ? "Add citable proof assets: methodology, FAQs, customer examples and verifiable claims." : "Agregar activos citables: metodología, FAQs, ejemplos de clientes y afirmaciones verificables.",
+    competitiveVisibility === null
+      ? (isEn ? "Add comparison/alternatives content and run a competitive prompt sample before making competitor claims." : "Agregar contenido de comparativas/alternativas y correr una muestra competitiva antes de concluir sobre competidores.")
+      : (isEn ? "Prioritize comparison pages for competitors that appear in prompt evidence." : "Priorizar páginas comparativas para competidores que aparezcan en evidencia por prompt."),
+  ]
   const sentiment = (semantic?.sentiment && typeof semantic.sentiment === "object" ? semantic.sentiment : null) as Record<string, unknown> | null
   const engines = stringArray(audit?.engines)
   const scoreValue = optionalNumber(audit?.final_score) ?? optionalNumber(summary.geo_score)
@@ -826,13 +857,13 @@ export default function AuditDetailReal() {
               </Card>
             )}
 
-            {semantic && (risks.length > 0 || nextActions.length > 0) && (
+            {(metricRisks.length > 0 || nextActions.length > 0) && (
               <div className="grid gap-6 lg:grid-cols-2">
                 <Card className="glass border-border">
                   <CardHeader><CardTitle>{isEn ? "Risks" : "Riesgos"}</CardTitle></CardHeader>
                   <CardContent className="space-y-3">
-                    {risks.length === 0 && <p className="text-sm text-muted-foreground">No se detectaron riesgos GEO relevantes.</p>}
-                    {risks.map((risk, index) => (
+                    {metricRisks.length === 0 && <p className="text-sm text-muted-foreground">No se detectaron riesgos GEO relevantes.</p>}
+                    {metricRisks.map((risk, index) => (
                       <div key={index} className="rounded-xl border border-red-500/25 bg-red-500/10 p-4">
                         <div className="flex items-center gap-2 font-medium text-red-200"><AlertTriangle className="h-4 w-4" />{String(risk.risk_type ?? "Riesgo")}</div>
                         <p className="mt-2 text-sm text-muted-foreground">{String(risk.description ?? "")}</p>
