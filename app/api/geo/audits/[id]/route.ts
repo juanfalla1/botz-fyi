@@ -29,7 +29,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (projectError) throw projectError
     if (!isAdmin && !job && (!project || project.user_id !== user.id)) return NextResponse.json({ error: "Audit not found for current user" }, { status: 404 })
 
-    const [queriesResult, brandMentionsResult, competitorMentionsResult, contentOpportunitiesResult] = await Promise.all([
+    const [queriesResult, brandMentionsResult, competitorMentionsResult, contentOpportunitiesResult, crawledPagesResult] = await Promise.all([
       supabase
         .from("ai_queries")
         .select("id, prompt, engine, intent, created_at, ai_answers(id, engine, answer_text, citations, raw_response, created_at)")
@@ -38,6 +38,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       supabase.from("brand_mentions").select("*").eq("audit_id", id),
       supabase.from("competitor_mentions").select("*").eq("audit_id", id),
       supabase.from("content_opportunities").select("*").eq("audit_id", id).order("created_at", { ascending: true }),
+      supabase.from("crawled_pages").select("url, title, description, status_code, word_count, metadata, created_at").eq("audit_id", id).order("created_at", { ascending: true }),
     ])
 
     const related = {
@@ -45,6 +46,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       brand_mentions: brandMentionsResult.error ? [] : brandMentionsResult.data ?? [],
       competitor_mentions: competitorMentionsResult.error ? [] : competitorMentionsResult.data ?? [],
       content_opportunities: contentOpportunitiesResult.error ? [] : contentOpportunitiesResult.data ?? [],
+      crawled_pages: crawledPagesResult.error ? [] : crawledPagesResult.data ?? [],
     }
 
     return NextResponse.json({ data: { ...audit, projects: project, ...related }, mode: "live" })

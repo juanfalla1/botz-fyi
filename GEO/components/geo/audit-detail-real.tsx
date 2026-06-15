@@ -26,6 +26,7 @@ type AuditDetail = {
   brand_mentions?: Array<Record<string, unknown>>
   competitor_mentions?: Array<Record<string, unknown>>
   content_opportunities?: Array<Record<string, unknown>>
+  crawled_pages?: Array<Record<string, unknown>>
 }
 
 type AuditListItem = {
@@ -53,6 +54,14 @@ function parseSummary(summary: string | null): Record<string, unknown> {
 
 function numberFrom(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0
+}
+
+function optionalNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function percentOrEmpty(value: number | null, empty: string) {
+  return value === null ? empty : `${value}%`
 }
 
 function stringArray(value: unknown) {
@@ -197,6 +206,9 @@ export default function AuditDetailReal() {
   const citedSources = objectArray(semantic?.cited_sources)
   const aiMentions = objectArray(semantic?.ai_mentions)
   const competitorVisibility = objectArray(semantic?.competitor_visibility)
+  const storedCompetitorMentions = objectArray(audit?.competitor_mentions)
+  const crawledPages = objectArray(audit?.crawled_pages)
+  const crawlEvidence = objectArray(summary.crawl_evidence)
   const storedQueries = Array.isArray(audit?.ai_queries) ? audit.ai_queries : []
   const evaluatedPromptsFromQueries = storedQueries.map((query) => {
     const answer = Array.isArray(query.ai_answers) ? query.ai_answers[0] : null
@@ -213,7 +225,8 @@ export default function AuditDetailReal() {
   const nextActions = stringArray(semantic?.next_actions)
   const sentiment = (semantic?.sentiment && typeof semantic.sentiment === "object" ? semantic.sentiment : null) as Record<string, unknown> | null
   const engines = stringArray(audit?.engines)
-  const score = audit?.final_score ?? numberFrom(summary.geo_score)
+  const scoreValue = optionalNumber(audit?.final_score) ?? optionalNumber(summary.geo_score)
+  const score = scoreValue ?? 0
   const enginePromptsTested = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.prompts_total), 0)
   const enginePromptsWon = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.prompts_won), 0)
   const engineCitations = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.citations ?? item.citations_count), 0)
@@ -225,11 +238,11 @@ export default function AuditDetailReal() {
   const assistedResults = numberFrom(summary.assisted_results ?? metadata.assisted_results)
   const competitiveResults = numberFrom(summary.competitive_results ?? metadata.competitive_results)
   const citationResults = numberFrom(summary.citation_results ?? metadata.citation_results)
-  const spontaneousVisibility = Math.round(numberFrom(summary.spontaneous_visibility ?? summary.ai_visibility ?? semantic?.brand_visibility ?? score))
-  const assistedVisibility = Math.round(numberFrom(summary.assisted_visibility))
-  const competitiveVisibility = Math.round(numberFrom(summary.competitive_visibility))
-  const citationCoverage = Math.round(numberFrom(summary.citation_coverage))
-  const aiVisibility = spontaneousVisibility
+  const spontaneousVisibility = spontaneousResults > 0 ? Math.round(numberFrom(summary.spontaneous_visibility ?? summary.ai_visibility ?? semantic?.brand_visibility)) : null
+  const assistedVisibility = assistedResults > 0 ? Math.round(numberFrom(summary.assisted_visibility)) : null
+  const competitiveVisibility = competitiveResults > 0 ? Math.round(numberFrom(summary.competitive_visibility)) : null
+  const citationCoverage = citationResults > 0 ? Math.round(numberFrom(summary.citation_coverage)) : null
+  const aiVisibility = spontaneousVisibility ?? 0
   const confidence = Math.round(numberFrom(sentiment?.score) * 100)
   const directMentions = aiMentions.filter((mention) => String(mention.position) !== "no_mencionada").length
   const competitorPressure = competitorVisibility.length ? Math.round(Math.max(...competitorVisibility.map((competitor) => numberFrom(competitor.visibility_score)))) : 0
@@ -263,10 +276,11 @@ export default function AuditDetailReal() {
   const scoreGap = Math.max(0, scoreTarget - score)
   const targetProgress = scoreTarget > 0 ? Math.min(100, Math.round((score / scoreTarget) * 100)) : 0
   const authorityValue = confidence || Math.min(100, citations * 10)
-  const positioningValue = Math.round((spontaneousVisibility + Math.min(100, citationCoverage || citations * 10)) / 2)
+  const citationProxy = citationCoverage ?? (citations > 0 ? Math.min(100, citations * 10) : null)
+  const positioningValue = spontaneousVisibility === null && citationProxy === null ? null : Math.round(((spontaneousVisibility ?? 0) + (citationProxy ?? 0)) / ((spontaneousVisibility === null || citationProxy === null) ? 1 : 2))
   const scoreComponents = [
     { label: isEn ? "Spontaneous visibility" : "Visibilidad espontánea", weight: 60, value: spontaneousVisibility, note: isEn ? "Neutral prompts where the brand appeared." : "Prompts neutrales donde apareció la marca." },
-    { label: isEn ? "Citation coverage" : "Cobertura de citaciones", weight: 15, value: citationCoverage || Math.min(100, citations * 10), note: isEn ? "Evidence or sources found in AI answers." : "Evidencia o fuentes encontradas en respuestas IA." },
+    { label: isEn ? "Citation coverage" : "Cobertura de citaciones", weight: 15, value: citationProxy, note: isEn ? "Evidence or sources found in AI answers." : "Evidencia o fuentes encontradas en respuestas IA." },
     { label: isEn ? "Competitive win rate" : "Win rate competitivo", weight: 15, value: competitiveVisibility, note: isEn ? "Comparative prompts won against competitors." : "Prompts comparativos ganados frente a competidores." },
     { label: isEn ? "Authority / trust" : "Autoridad / confianza", weight: 5, value: authorityValue, note: isEn ? "Confidence, citations and proof signals." : "Confianza, citaciones y señales de prueba." },
     { label: isEn ? "Positioning clarity" : "Claridad del posicionamiento", weight: 5, value: positioningValue, note: isEn ? "How clearly AI can classify the brand." : "Qué tan claro puede clasificar la IA a la marca." },
@@ -279,9 +293,11 @@ export default function AuditDetailReal() {
   const competitorLosses = competitorVisibility.slice(0, 4).map((competitor) => {
     const name = String(competitor.name ?? "Competidor")
     const wonPrompts = evaluatedPrompts.filter((item) => String(item.prompt ?? "").toLowerCase().includes(name.toLowerCase()))
+    const storedMentions = storedCompetitorMentions.filter((item) => String(item.competitor_name ?? item.name ?? item.competitor ?? "").toLowerCase() === name.toLowerCase())
+    const hasPromptEvidence = wonPrompts.length > 0 || storedMentions.length > 0
     return {
       name,
-      score: Math.round(numberFrom(competitor.visibility_score)),
+      score: hasPromptEvidence ? Math.round(numberFrom(competitor.visibility_score)) : null,
       prompts: wonPrompts.map((item) => String(item.prompt ?? "")).slice(0, 3),
       why: wonPrompts.length > 0
         ? isEn ? "AI had explicit comparison context and enough evidence to mention this competitor." : "La IA tuvo contexto comparativo explícito y suficiente evidencia para mencionar a este competidor."
@@ -368,7 +384,7 @@ export default function AuditDetailReal() {
                         </defs>
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-gradient text-6xl font-bold">{score || "--"}</span>
+                        <span className="text-gradient text-6xl font-bold">{scoreValue === null ? "--" : score}</span>
                         <span className="text-sm text-muted-foreground">de 100</span>
                       </div>
                     </div>
@@ -380,10 +396,10 @@ export default function AuditDetailReal() {
 
                   <div className="flex w-full gap-4 overflow-x-auto pb-2">
                     {[
-                       { label: isEn ? "Spontaneous Visibility" : "Visibilidad espontánea", value: spontaneousResults > 0 ? `${spontaneousVisibility}%` : "Sin datos", note: isEn ? "Neutral prompts" : "Prompts neutrales", icon: Search, color: "text-primary" },
-                       { label: isEn ? "Assisted Visibility" : "Visibilidad asistida", value: assistedResults > 0 ? `${assistedVisibility}%` : "Sin datos", note: isEn ? "Brand named in prompt" : "Marca nombrada en el prompt", icon: Eye, color: "text-accent" },
-                       { label: isEn ? "Competitive Win Rate" : "Win rate competitivo", value: competitiveResults > 0 ? `${competitiveVisibility}%` : "Sin datos", note: promptsTested > 0 ? `${promptsWon}/${promptsTested}` : isEn ? "Won prompts" : "Prompts ganados", icon: Trophy, color: "text-chart-4" },
-                       { label: citationResults > 0 ? (isEn ? "Citation Coverage" : "Cobertura de citations") : (isEn ? "Detected Sources" : "Fuentes detectadas"), value: citationResults > 0 ? `${citationCoverage}%` : citations > 0 ? String(citations) : "Sin datos", note: citationResults > 0 ? (isEn ? "Citation prompts" : "Prompts de citations") : (isEn ? "Sources found in AI answers" : "Fuentes encontradas en respuestas IA"), icon: Quote, color: "text-chart-3" },
+                       { label: isEn ? "Spontaneous Visibility" : "Visibilidad espontánea", value: percentOrEmpty(spontaneousVisibility, isEn ? "No sample" : "Sin muestra"), note: isEn ? "Neutral prompts" : "Prompts neutrales", icon: Search, color: "text-primary" },
+                       { label: isEn ? "Assisted Visibility" : "Visibilidad asistida", value: percentOrEmpty(assistedVisibility, isEn ? "No sample" : "Sin muestra"), note: isEn ? "Brand named in prompt" : "Marca nombrada en el prompt", icon: Eye, color: "text-accent" },
+                       { label: isEn ? "Competitive Win Rate" : "Win rate competitivo", value: percentOrEmpty(competitiveVisibility, isEn ? "No competitive sample" : "Sin muestra competitiva"), note: competitiveResults > 0 ? `${competitiveResults} ${isEn ? "competitive results" : "resultados competitivos"}` : (isEn ? "Comparative prompts only" : "Solo prompts comparativos"), icon: Trophy, color: "text-chart-4" },
+                       { label: citationResults > 0 ? (isEn ? "Citation Coverage" : "Cobertura de citations") : (isEn ? "Detected Sources" : "Fuentes detectadas"), value: citationCoverage !== null ? `${citationCoverage}%` : citations > 0 ? String(citations) : (isEn ? "No sample" : "Sin muestra"), note: citationResults > 0 ? (isEn ? "Citation prompts" : "Prompts de citations") : (isEn ? "Sources found in AI answers" : "Fuentes encontradas en respuestas IA"), icon: Quote, color: "text-chart-3" },
                        { label: isEn ? "Engines" : "Motores", value: engineCount > 0 ? String(engineCount) : "Sin datos", note: totalResults > 0 ? `${totalResults} ${isEn ? "results" : "resultados"}` : "", icon: FileText, color: "text-chart-5" },
                     ].map((item) => (
                       <div key={item.label} className="glass min-w-[170px] flex-1 rounded-xl p-4 text-center">
@@ -418,7 +434,7 @@ export default function AuditDetailReal() {
                 <div className="grid gap-4 md:grid-cols-[240px_1fr]">
                   <div className="rounded-2xl border border-border bg-secondary/20 p-4">
                     <p className="text-sm text-muted-foreground">GEO Score</p>
-                    <p className="mt-1 text-4xl font-bold">{score}/100</p>
+                    <p className="mt-1 text-4xl font-bold">{scoreValue === null ? "--" : score}/100</p>
                     <p className="mt-3 text-sm text-muted-foreground">{isEn ? "Recommended target" : "Objetivo recomendado"}: <span className="font-medium text-foreground">{scoreTarget}/100</span></p>
                   </div>
                   <div className="rounded-2xl border border-border bg-secondary/20 p-4">
@@ -431,7 +447,7 @@ export default function AuditDetailReal() {
                   {scoreComponents.map((component) => (
                     <div key={component.label} className="rounded-2xl border border-border bg-background/40 p-4">
                       <p className="text-xs text-muted-foreground">{component.label}</p>
-                      <p className="mt-1 text-2xl font-bold">{component.value}%</p>
+                      <p className="mt-1 text-2xl font-bold">{component.value === null ? (isEn ? "No sample" : "Sin muestra") : `${component.value}%`}</p>
                       <p className="mt-1 text-xs text-primary">{isEn ? "Weight" : "Peso"}: {component.weight}%</p>
                       <p className="mt-2 text-xs text-muted-foreground">{component.note}</p>
                     </div>
@@ -445,6 +461,11 @@ export default function AuditDetailReal() {
                 <CardHeader><CardTitle>{isEn ? "Executive Summary" : "Resumen ejecutivo"}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-base text-foreground">{String(semantic.executive_summary ?? "")}</p>
+                  <p className="rounded-xl border border-border bg-secondary/20 p-3 text-sm text-muted-foreground">
+                    {isEn
+                      ? `Canonical score used by this screen: ${scoreValue === null ? "not available" : `${score}/100`}. Older generated summaries may mention a different score if they were created before the current scoring model.`
+                      : `Score canónico usado por esta pantalla: ${scoreValue === null ? "no disponible" : `${score}/100`}. Resúmenes generados antes del modelo actual pueden mencionar otro puntaje.`}
+                  </p>
                   {sentiment?.summary && <p className="text-sm text-muted-foreground">{String(sentiment.summary)}</p>}
                 </CardContent>
               </Card>
@@ -468,10 +489,10 @@ export default function AuditDetailReal() {
                     <div key={item.label}>
                       <div className="mb-2 flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">{item.label}</span>
-                        <span className="font-medium">{item.value > 0 ? `${item.value}%` : "Sin datos"}</span>
+                        <span className="font-medium">{item.value === null ? (isEn ? "No sample" : "Sin muestra") : `${item.value}%`}</span>
                       </div>
                       <div className="h-3 overflow-hidden rounded-full bg-secondary">
-                        <div className="h-full rounded-full bg-gradient-to-r from-primary to-accent" style={{ width: `${Math.max(0, Math.min(100, item.value))}%` }} />
+                        <div className="h-full rounded-full bg-gradient-to-r from-primary to-accent" style={{ width: `${Math.max(0, Math.min(100, item.value ?? 0))}%` }} />
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground/80">{item.help}</p>
                     </div>
@@ -487,7 +508,7 @@ export default function AuditDetailReal() {
                         {competitorVisibility.slice(0, 5).map((competitor, index) => (
                           <div key={index} className="flex items-center justify-between rounded-lg bg-secondary/30 px-3 py-2 text-sm">
                             <span>{String(competitor.name ?? "Competidor")}</span>
-                            <span className="text-muted-foreground">{Math.round(numberFrom(competitor.visibility_score))}%</span>
+                            <span className="text-muted-foreground">{storedCompetitorMentions.length > 0 ? `${Math.round(numberFrom(competitor.visibility_score))}%` : (isEn ? "Insufficient evidence" : "Evidencia insuficiente")}</span>
                           </div>
                         ))}
                       </div>
@@ -528,7 +549,7 @@ export default function AuditDetailReal() {
                   <div className="grid gap-4 md:grid-cols-2">
                     {competitorLosses.map((item) => (
                       <div key={item.name} className="rounded-2xl border border-border bg-secondary/20 p-4">
-                        <div className="mb-3 flex items-center justify-between gap-3"><h3 className="font-semibold">{item.name}</h3><span className="rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">{item.score}%</span></div>
+                        <div className="mb-3 flex items-center justify-between gap-3"><h3 className="font-semibold">{item.name}</h3><span className="rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">{item.score === null ? (isEn ? "Evidence pending" : "Evidencia pendiente") : `${item.score}%`}</span></div>
                         <p className="text-sm text-muted-foreground"><span className="text-foreground">{isEn ? "Won prompts" : "Prompts ganados"}:</span> {item.prompts.length > 0 ? item.prompts.join(" · ") : (isEn ? "No prompt-level detail available" : "Sin detalle por prompt disponible")}</p>
                         <p className="mt-2 text-sm text-muted-foreground"><span className="text-foreground">{isEn ? "Why it won" : "Por qué ganó"}:</span> {item.why}</p>
                         <p className="mt-2 text-sm text-muted-foreground"><span className="text-foreground">{isEn ? "What your brand lacks" : "Qué le falta a tu marca"}:</span> {item.missing}</p>
@@ -597,6 +618,40 @@ export default function AuditDetailReal() {
                 </CardContent>
               </Card>
             )}
+
+            <Card className="glass border-border">
+              <CardHeader>
+                <CardTitle className="text-lg">{isEn ? "Crawl Evidence" : "Evidencia de crawl"}</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {isEn ? "Pages inspected from the audited website. Crawl is best-effort and only follows same-domain pages." : "Páginas inspeccionadas del sitio auditado. El crawl es best-effort y solo sigue páginas del mismo dominio."}
+                </p>
+              </CardHeader>
+              <CardContent>
+                {crawledPages.length === 0 && crawlEvidence.length === 0 ? (
+                  <p className="rounded-2xl border border-dashed border-border p-5 text-sm text-muted-foreground">
+                    {isEn ? "No crawl evidence is available for this audit. It may be an older audit or the website could not be crawled within the execution budget." : "No hay evidencia de crawl disponible para esta auditoría. Puede ser una auditoría anterior o el sitio no pudo rastrearse dentro del presupuesto de ejecución."}
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {(crawledPages.length > 0 ? crawledPages : crawlEvidence).slice(0, 10).map((page, index) => (
+                      <div key={index} className="rounded-xl border border-border bg-secondary/20 p-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="font-medium">{String(page.title ?? page.url ?? `Página ${index + 1}`)}</p>
+                            <p className="break-all text-sm text-muted-foreground">{String(page.url ?? page.path ?? "")}</p>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap gap-2 text-xs text-muted-foreground">
+                            {page.status_code && <span className="rounded-full bg-background px-2 py-1">HTTP {String(page.status_code)}</span>}
+                            {page.word_count && <span className="rounded-full bg-background px-2 py-1">{String(page.word_count)} words</span>}
+                          </div>
+                        </div>
+                        {page.description && <p className="mt-2 text-sm text-muted-foreground">{String(page.description)}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             <Card className="glass border-border">
               <CardHeader>
