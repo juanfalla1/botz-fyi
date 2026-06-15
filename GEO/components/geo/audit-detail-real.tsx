@@ -64,12 +64,6 @@ function percentOrEmpty(value: number | null, empty: string) {
   return value === null ? empty : `${value}%`
 }
 
-function mentionsDifferentScore(text: string, score: number | null) {
-  if (score === null) return false
-  const matches = Array.from(text.matchAll(/(?:score|puntaje)\s+(?:geo\s+)?(?:de\s+)?(\d{1,3})/gi))
-  return matches.some((match) => Number(match[1]) !== score)
-}
-
 function stringArray(value: unknown) {
   return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : []
 }
@@ -392,8 +386,6 @@ export default function AuditDetailReal() {
       action: isEn ? `Create a comparison page against ${name} and add verifiable proof.` : `Crear una página comparativa contra ${name} y agregar evidencia verificable.`,
     }
   }) : []
-  const semanticExecutiveSummary = String(semantic?.executive_summary ?? "")
-  const showSemanticExecutiveSummary = semanticExecutiveSummary.length > 0 && !mentionsDifferentScore(semanticExecutiveSummary, scoreValue)
   const canonicalExecutiveSummary = isEn
     ? `This audit produced a GEO Score of ${scoreValue === null ? "not available" : `${score}/100`}. Spontaneous visibility is ${percentOrEmpty(spontaneousVisibility, "not sampled")}, citation coverage is ${percentOrEmpty(citationCoverage, "not sampled")}, and competitive win rate is ${percentOrEmpty(competitiveVisibility, "not sampled")}. Treat this as directional evidence until more prompts are collected.`
     : `Esta auditoría produjo un GEO Score de ${scoreValue === null ? "no disponible" : `${score}/100`}. La visibilidad espontánea es ${percentOrEmpty(spontaneousVisibility, "sin muestra")}, la cobertura de citations es ${percentOrEmpty(citationCoverage, "sin muestra")} y el win rate competitivo está ${percentOrEmpty(competitiveVisibility, "sin muestra")}. Úsalo como evidencia direccional hasta recolectar más prompts.`
@@ -485,7 +477,7 @@ export default function AuditDetailReal() {
                     </div>
                   </div>
 
-                  <div className="flex w-full gap-4 overflow-x-auto pb-2">
+                  <div className="grid w-full gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
                     {[
                        { label: isEn ? "Spontaneous Visibility" : "Visibilidad espontánea", value: percentOrEmpty(spontaneousVisibility, isEn ? "No sample" : "Sin muestra"), note: isEn ? "Neutral prompts" : "Prompts neutrales", icon: Search, color: "text-primary" },
                        { label: isEn ? "Assisted Visibility" : "Visibilidad asistida", value: percentOrEmpty(assistedVisibility, isEn ? "No sample" : "Sin muestra"), note: isEn ? "Brand named in prompt" : "Marca nombrada en el prompt", icon: Eye, color: "text-accent" },
@@ -493,7 +485,7 @@ export default function AuditDetailReal() {
                        { label: citationResults > 0 ? (isEn ? "Citation Coverage" : "Cobertura de citations") : (isEn ? "Detected Sources" : "Fuentes detectadas"), value: citationCoverage !== null ? `${citationCoverage}%` : citations > 0 ? String(citations) : (isEn ? "No sample" : "Sin muestra"), note: citationResults > 0 ? (isEn ? "Citation prompts" : "Prompts de citations") : (isEn ? "Sources found in AI answers" : "Fuentes encontradas en respuestas IA"), icon: Quote, color: "text-chart-3" },
                        { label: isEn ? "Engines" : "Motores", value: engineCount > 0 ? String(engineCount) : "Sin datos", note: totalResults > 0 ? `${totalResults} ${isEn ? "results" : "resultados"}` : "", icon: FileText, color: "text-chart-5" },
                     ].map((item) => (
-                      <div key={item.label} className="glass min-w-[170px] flex-1 rounded-xl p-4 text-center">
+                      <div key={item.label} className="glass rounded-xl p-4 text-center">
                         <div className={`mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-secondary ${item.color}`}>
                           <item.icon className="h-5 w-5" />
                         </div>
@@ -551,13 +543,12 @@ export default function AuditDetailReal() {
               <Card className="glass border-primary/30 bg-primary/5">
                 <CardHeader><CardTitle>{isEn ? "Executive Summary" : "Resumen ejecutivo"}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-base text-foreground">{showSemanticExecutiveSummary ? semanticExecutiveSummary : canonicalExecutiveSummary}</p>
+                  <p className="text-base text-foreground">{canonicalExecutiveSummary}</p>
                   <p className="rounded-xl border border-border bg-secondary/20 p-3 text-sm text-muted-foreground">
                     {isEn
                       ? `Canonical score used by this screen: ${scoreValue === null ? "not available" : `${score}/100`}. Older generated summaries may mention a different score if they were created before the current scoring model.`
                       : `Score canónico usado por esta pantalla: ${scoreValue === null ? "no disponible" : `${score}/100`}. Resúmenes generados antes del modelo actual pueden mencionar otro puntaje.`}
                   </p>
-                  {sentiment?.summary && <p className="text-sm text-muted-foreground">{String(sentiment.summary)}</p>}
                 </CardContent>
               </Card>
             )}

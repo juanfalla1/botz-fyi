@@ -70,7 +70,7 @@ export default function AuditsPage() {
     { title: "Total Audits", value: String(apiAudits.length), sub: isEn ? "real records" : "registros reales", icon: FileSearch, iconClass: "text-primary", badgeClass: "bg-primary/20" },
     { title: "Avg GEO Score", value: String(averageScore), sub: isEn ? "from completed audits" : "de auditorias completadas", icon: BarChart3, iconClass: "text-accent", badgeClass: "bg-accent/20" },
     { title: "Active Monitoring", value: String(activeMonitoring), sub: isEn ? "queued/running jobs" : "jobs en cola/ejecucion", icon: Activity, iconClass: "text-emerald-400", badgeClass: "bg-emerald-500/10" },
-    { title: "AI Mentions", value: String(usageTotals.prompt_used ?? 0), sub: isEn ? "usage events" : "eventos de uso", icon: MessageSquare, iconClass: "text-blue-400", badgeClass: "bg-blue-500/10" },
+    { title: isEn ? "Prompts Run" : "Prompts ejecutados", value: String(usageTotals.prompt_used ?? 0), sub: isEn ? "usage events" : "eventos de uso", icon: MessageSquare, iconClass: "text-blue-400", badgeClass: "bg-blue-500/10" },
   ]
 
   const baseAudits = apiAudits.map((a) => {
