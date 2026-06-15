@@ -127,6 +127,10 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
       citations_count: scored.citations_count,
       prompts_won: scored.prompts_won,
       prompts_lost: scored.prompts_lost,
+      spontaneous_visibility: scored.spontaneous_visibility,
+      assisted_visibility: scored.assisted_visibility,
+      competitive_visibility: scored.competitive_visibility,
+      citation_coverage: scored.citation_coverage,
     },
   })
 

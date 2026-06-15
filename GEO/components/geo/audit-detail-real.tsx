@@ -64,6 +64,12 @@ function percentOrEmpty(value: number | null, empty: string) {
   return value === null ? empty : `${value}%`
 }
 
+function mentionsDifferentScore(text: string, score: number | null) {
+  if (score === null) return false
+  const matches = Array.from(text.matchAll(/(?:score|puntaje)\s+(?:geo\s+)?(?:de\s+)?(\d{1,3})/gi))
+  return matches.some((match) => Number(match[1]) !== score)
+}
+
 function stringArray(value: unknown) {
   return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : []
 }
@@ -200,13 +206,11 @@ export default function AuditDetailReal() {
     ? objectArray(summary.engine_breakdown)
     : Object.entries(engineBreakdown).map(([engine, value]) => ({ engine, ...(value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : { value }) }))
   const recommendations = Array.isArray(summary.recommendations) ? summary.recommendations as Array<Record<string, unknown>> : []
-  const semanticRecommendations = objectArray(semantic?.recommendations)
   const storedContentOpportunities = objectArray(summary.content_opportunities)
   const risks = objectArray(semantic?.risks)
   const citedSources = objectArray(semantic?.cited_sources)
   const aiMentions = objectArray(semantic?.ai_mentions)
   const competitorVisibility = objectArray(semantic?.competitor_visibility)
-  const storedCompetitorMentions = objectArray(audit?.competitor_mentions)
   const crawledPages = objectArray(audit?.crawled_pages)
   const crawlEvidence = objectArray(summary.crawl_evidence)
   const storedQueries = Array.isArray(audit?.ai_queries) ? audit.ai_queries : []
@@ -245,15 +249,54 @@ export default function AuditDetailReal() {
   const aiVisibility = spontaneousVisibility ?? 0
   const confidence = Math.round(numberFrom(sentiment?.score) * 100)
   const directMentions = aiMentions.filter((mention) => String(mention.position) !== "no_mencionada").length
-  const competitorPressure = competitorVisibility.length ? Math.round(Math.max(...competitorVisibility.map((competitor) => numberFrom(competitor.visibility_score)))) : 0
+  const competitorPressure = competitiveResults > 0 && competitorVisibility.length ? Math.round(Math.max(...competitorVisibility.map((competitor) => numberFrom(competitor.visibility_score)))) : null
   const enginePerformance = engineBreakdownItems.map((item) => {
     const total = numberFrom(item.prompts_total)
     const won = numberFrom(item.prompts_won)
-    return { name: engineLabel(item.engine), score: total > 0 ? Math.round((won / total) * 100) : 0, total, won }
-  })
-  const recommendationSource = semanticRecommendations.length ? semanticRecommendations : recommendations
+    const live = numberFrom(item.live_count)
+    const fallback = numberFrom(item.fallback_count)
+    return { name: engineLabel(item.engine), score: total > 0 ? Math.round((won / total) * 100) : null, total, won, live, fallback }
+  }).filter((item) => item.total > 0)
+  const metricRecommendations = [
+    spontaneousVisibility === null || spontaneousVisibility < 40
+      ? {
+          title: isEn ? "Strengthen neutral discovery pages" : "Fortalecer páginas para descubrimiento neutral",
+          description: isEn ? "Create clearer service, use-case and category pages so AI can recommend the brand without the prompt naming it." : "Crear páginas más claras de servicios, casos de uso y categorías para que la IA pueda recomendar la marca sin que el prompt la nombre.",
+          priority: "high",
+        }
+      : null,
+    citationCoverage === null || citationCoverage < 60
+      ? {
+          title: isEn ? "Add citable proof assets" : "Agregar activos citables de prueba",
+          description: isEn ? "Publish evidence-backed pages with client examples, methodology, FAQs and verifiable claims that AI can cite." : "Publicar páginas con evidencia, ejemplos de clientes, metodología, FAQs y afirmaciones verificables que la IA pueda citar.",
+          priority: "medium",
+        }
+      : null,
+    competitiveVisibility === null
+      ? {
+          title: isEn ? "Run and support competitive prompts" : "Activar y soportar prompts competitivos",
+          description: isEn ? "Add comparison and alternatives content before drawing competitive conclusions from this audit." : "Agregar contenido de comparativas y alternativas antes de sacar conclusiones competitivas de esta auditoría.",
+          priority: "medium",
+        }
+      : competitiveVisibility < 50
+      ? {
+          title: isEn ? "Improve comparison proof" : "Mejorar evidencia comparativa",
+          description: isEn ? "Create comparison pages against tracked competitors with differentiators, proof and citations." : "Crear páginas comparativas contra competidores monitoreados con diferenciales, pruebas y fuentes citables.",
+          priority: "high",
+        }
+      : null,
+  ].filter((item): item is Record<string, unknown> => Boolean(item))
+  const recommendationSource = metricRecommendations.length ? metricRecommendations : recommendations
   const relatedContentOpportunities = objectArray(audit?.content_opportunities)
-  const contentOpportunities = relatedContentOpportunities.length > 0
+  const contentOpportunities = metricRecommendations.length > 0
+    ? metricRecommendations.map((item, index) => ({
+        keyword: item.title,
+        volume: null,
+        difficulty: item.priority,
+        current_rank: null,
+        opportunity: opportunityScore(item.priority, index),
+      }))
+    : relatedContentOpportunities.length > 0
     ? relatedContentOpportunities.map((item) => ({
         keyword: item.title,
         volume: null,
@@ -290,11 +333,10 @@ export default function AuditDetailReal() {
     : score < 60
     ? isEn ? "The brand has early visibility, but it still needs stronger evidence, clearer positioning and more wins against competitors." : "La marca ya tiene señales iniciales, pero necesita más evidencia, posicionamiento más claro y más victorias frente a competidores."
     : isEn ? "The brand has a useful visibility base. The next step is scaling citations and defending competitive prompts." : "La marca tiene una base útil de visibilidad. El siguiente paso es escalar citaciones y defender prompts competitivos."
-  const competitorLosses = competitorVisibility.slice(0, 4).map((competitor) => {
+  const competitorLosses = competitiveResults > 0 ? competitorVisibility.slice(0, 4).map((competitor) => {
     const name = String(competitor.name ?? "Competidor")
     const wonPrompts = evaluatedPrompts.filter((item) => String(item.prompt ?? "").toLowerCase().includes(name.toLowerCase()))
-    const storedMentions = storedCompetitorMentions.filter((item) => String(item.competitor_name ?? item.name ?? item.competitor ?? "").toLowerCase() === name.toLowerCase())
-    const hasPromptEvidence = wonPrompts.length > 0 || storedMentions.length > 0
+    const hasPromptEvidence = wonPrompts.length > 0
     return {
       name,
       score: hasPromptEvidence ? Math.round(numberFrom(competitor.visibility_score)) : null,
@@ -305,7 +347,12 @@ export default function AuditDetailReal() {
       missing: isEn ? "Your brand needs clearer comparison content, proof assets and citable pages." : "Tu marca necesita comparativas más claras, pruebas verificables y páginas citables.",
       action: isEn ? `Create a comparison page against ${name} and add verifiable proof.` : `Crear una página comparativa contra ${name} y agregar evidencia verificable.`,
     }
-  })
+  }) : []
+  const semanticExecutiveSummary = String(semantic?.executive_summary ?? "")
+  const showSemanticExecutiveSummary = semanticExecutiveSummary.length > 0 && !mentionsDifferentScore(semanticExecutiveSummary, scoreValue)
+  const canonicalExecutiveSummary = isEn
+    ? `This audit produced a GEO Score of ${scoreValue === null ? "not available" : `${score}/100`}. Spontaneous visibility is ${percentOrEmpty(spontaneousVisibility, "not sampled")}, citation coverage is ${percentOrEmpty(citationCoverage, "not sampled")}, and competitive win rate is ${percentOrEmpty(competitiveVisibility, "not sampled")}. Treat this as directional evidence until more prompts are collected.`
+    : `Esta auditoría produjo un GEO Score de ${scoreValue === null ? "no disponible" : `${score}/100`}. La visibilidad espontánea es ${percentOrEmpty(spontaneousVisibility, "sin muestra")}, la cobertura de citations es ${percentOrEmpty(citationCoverage, "sin muestra")} y el win rate competitivo está ${percentOrEmpty(competitiveVisibility, "sin muestra")}. Úsalo como evidencia direccional hasta recolectar más prompts.`
 
   const deleteAudit = async () => {
     if (!audit?.id) return
@@ -460,7 +507,7 @@ export default function AuditDetailReal() {
               <Card className="glass border-primary/30 bg-primary/5">
                 <CardHeader><CardTitle>{isEn ? "Executive Summary" : "Resumen ejecutivo"}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-base text-foreground">{String(semantic.executive_summary ?? "")}</p>
+                  <p className="text-base text-foreground">{showSemanticExecutiveSummary ? semanticExecutiveSummary : canonicalExecutiveSummary}</p>
                   <p className="rounded-xl border border-border bg-secondary/20 p-3 text-sm text-muted-foreground">
                     {isEn
                       ? `Canonical score used by this screen: ${scoreValue === null ? "not available" : `${score}/100`}. Older generated summaries may mention a different score if they were created before the current scoring model.`
@@ -508,7 +555,7 @@ export default function AuditDetailReal() {
                         {competitorVisibility.slice(0, 5).map((competitor, index) => (
                           <div key={index} className="flex items-center justify-between rounded-lg bg-secondary/30 px-3 py-2 text-sm">
                             <span>{String(competitor.name ?? "Competidor")}</span>
-                            <span className="text-muted-foreground">{storedCompetitorMentions.length > 0 ? `${Math.round(numberFrom(competitor.visibility_score))}%` : (isEn ? "Insufficient evidence" : "Evidencia insuficiente")}</span>
+                            <span className="text-muted-foreground">{competitiveResults > 0 ? `${Math.round(numberFrom(competitor.visibility_score))}%` : (isEn ? "No competitive sample" : "Sin muestra competitiva")}</span>
                           </div>
                         ))}
                       </div>
@@ -530,7 +577,7 @@ export default function AuditDetailReal() {
                       <div className="h-9 overflow-hidden rounded bg-secondary">
                         <div className="h-full rounded bg-gradient-to-r from-primary to-accent" style={{ width: `${engine.score}%` }} />
                       </div>
-                      <span className="text-right font-medium">{engine.total > 0 ? `${engine.score}%` : "Sin datos"}</span>
+                      <span className="text-right font-medium">{engine.live === 0 && engine.fallback > 0 ? (isEn ? "No live data" : "Sin datos reales") : engine.score === null ? "Sin datos" : `${engine.score}%`}</span>
                     </div>
                   ))}
                 </CardContent>
@@ -572,9 +619,9 @@ export default function AuditDetailReal() {
                 </div>
               </CardHeader>
               <CardContent>
-                {(semanticRecommendations.length || recommendations.length) === 0 && <p className="text-sm text-muted-foreground">{isEn ? "No recommendations were generated for this audit." : "No se generaron recomendaciones para esta auditoría."}</p>}
+                {recommendationSource.length === 0 && <p className="text-sm text-muted-foreground">{isEn ? "No recommendations were generated for this audit." : "No se generaron recomendaciones para esta auditoría."}</p>}
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {(semanticRecommendations.length ? semanticRecommendations : recommendations).map((rec, index) => (
+                  {recommendationSource.map((rec, index) => (
                     <div key={index} className={`rounded-xl border p-4 ${recommendationTone(rec.priority ?? rec.impact)}`}>
                       <div className="flex items-start gap-3">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary/70">

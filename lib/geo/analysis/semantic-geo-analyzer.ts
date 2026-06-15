@@ -16,6 +16,10 @@ type AnalyzerInput = {
     citations_count: number
     prompts_won: number
     prompts_lost?: number
+    spontaneous_visibility?: number
+    assisted_visibility?: number
+    competitive_visibility?: number
+    citation_coverage?: number
   }
 }
 
@@ -95,9 +99,9 @@ function buildAnalyzerPrompt({ context, normalizedResults, hardScore }: Analyzer
     hard_metrics_for_calibration: hardScore,
     ai_raw_responses_and_citations: compactResponses,
     analysis_instructions: [
-      "Calcula geo_score de 0 a 100 considerando visibilidad, orden de aparicion, sentimiento y autoridad de fuentes.",
+      "Usa exactamente hard_metrics_for_calibration.geo_score como geo_score. No recalcules ni menciones otro puntaje GEO en el resumen ejecutivo.",
       "Extrae menciones directas o indirectas de la marca con snippet, contexto y posicion.",
-      "Compara visibilidad de marca contra competidores rastreados y competidores descubiertos.",
+      "Compara visibilidad solo cuando exista evidencia en ai_raw_responses_and_citations. Si falta evidencia, usa valores conservadores y explica la limitacion.",
       "Genera recomendaciones, riesgos, siguientes acciones y resumen ejecutivo en español profesional.",
     ],
   })
