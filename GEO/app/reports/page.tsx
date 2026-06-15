@@ -29,6 +29,11 @@ type ReportSnapshot = Record<string, unknown> & {
   base_url?: string
   geo_score?: number
   ai_visibility?: number
+  spontaneous_visibility?: number
+  assisted_visibility?: number
+  competitive_visibility?: number
+  citation_coverage?: number
+  total_results?: number
   citations_count?: number
   prompts_won?: number
   prompts_lost?: number
@@ -52,28 +57,32 @@ type ReportItem = {
 
 const reportTypes = [
   {
+    key: "monthly",
     title: "Reporte Mensual",
     description: "Resumen completo de rendimiento GEO",
     icon: Calendar,
-    color: "primary",
+    iconClass: "bg-primary/20 text-primary",
   },
   {
+    key: "competitive",
     title: "Análisis Competitivo",
     description: "Comparación detallada con competencia",
     icon: BarChart3,
-    color: "accent",
+    iconClass: "bg-accent/20 text-accent",
   },
   {
+    key: "snapshot",
     title: "Snapshot Rápido",
     description: "Estado actual de visibilidad IA",
     icon: Eye,
-    color: "green-400",
+    iconClass: "bg-green-500/20 text-green-400",
   },
   {
+    key: "export",
     title: "Export Datos",
     description: "Descarga datos en Excel/CSV",
     icon: FileSpreadsheet,
-    color: "blue-400",
+    iconClass: "bg-blue-500/20 text-blue-400",
   },
 ]
 
@@ -89,6 +98,7 @@ export default function ReportsPage() {
   const [snapshotsLive, setSnapshotsLive] = useState<Array<{ date: string; score: number; change: string }>>([])
   const [loadingReports, setLoadingReports] = useState(true)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [generatingType, setGeneratingType] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -151,22 +161,32 @@ export default function ReportsPage() {
     return { ...type, ...en }
   })
 
-  const generateReport = async () => {
+  const showFeedback = (message: string) => {
+    setFeedback(message)
+    setTimeout(() => setFeedback(null), 3000)
+  }
+
+  const generateReport = async (reportType = "snapshot") => {
     const {
       data: { session },
     } = await supabaseGeo.auth.getSession()
     if (!session?.access_token) {
-      setFeedback(isEn ? "Login required to generate reports." : "Debes iniciar sesion para generar reportes.")
-      setTimeout(() => setFeedback(null), 3000)
+      showFeedback(isEn ? "Login required to generate reports." : "Debes iniciar sesion para generar reportes.")
       return
     }
+    setGeneratingType(reportType)
+    const reportName = reportType === "monthly"
+      ? isEn ? "Monthly GEO report" : "Reporte mensual GEO"
+      : reportType === "competitive"
+      ? isEn ? "Competitive GEO analysis" : "Análisis competitivo GEO"
+      : isEn ? "Quick GEO snapshot" : "Snapshot rápido GEO"
     const res = await fetch("/api/geo/reports", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ report_type: "snapshot", name: isEn ? "On-demand report" : "Reporte bajo demanda", format: "pdf" }),
+      body: JSON.stringify({ report_type: reportType, name: reportName, format: "pdf" }),
     })
     const payload = (await res.json()) as { mode?: string; data?: { id: string; name: string; report_type: string; status: string; created_at: string; snapshot?: Record<string, unknown> }; error?: string }
     if (res.ok && payload.mode === "live" && payload.data) {
@@ -181,9 +201,48 @@ export default function ReportsPage() {
         format: "PDF",
         snapshot: payload.data!.snapshot as ReportSnapshot | undefined,
       }, ...current])
-      setFeedback(isEn ? "Report generated." : "Reporte generado.")
-    } else setFeedback(payload.error || (isEn ? "Could not generate report." : "No se pudo generar el reporte."))
-    setTimeout(() => setFeedback(null), 3000)
+      showFeedback(isEn ? "Report generated." : "Reporte generado.")
+    } else showFeedback(payload.error || (isEn ? "Could not generate report." : "No se pudo generar el reporte."))
+    setGeneratingType(null)
+  }
+
+  const exportCsv = () => {
+    const rows = reportsLive.map((report) => ({
+      name: report.name,
+      type: report.type,
+      date: report.date,
+      status: report.status,
+      geo_score: report.geoScore ?? "",
+      spontaneous_visibility: report.snapshot?.spontaneous_visibility ?? report.snapshot?.ai_visibility ?? "",
+      citations_count: report.snapshot?.citations_count ?? "",
+      prompts_won: report.snapshot?.prompts_won ?? "",
+      base_url: report.snapshot?.base_url ?? "",
+    }))
+    if (rows.length === 0) {
+      showFeedback(isEn ? "Generate at least one report before exporting CSV." : "Genera al menos un reporte antes de exportar CSV.")
+      return
+    }
+    const headers = Object.keys(rows[0])
+    const csv = [headers.join(","), ...rows.map((row) => headers.map((header) => `"${String(row[header as keyof typeof row] ?? "").replace(/"/g, '""')}"`).join(","))].join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "geo-reports.csv"
+    link.click()
+    URL.revokeObjectURL(url)
+    showFeedback(isEn ? "CSV export started." : "Export CSV iniciado.")
+  }
+
+  const handleReportType = (key: string) => {
+    if (key === "export") exportCsv()
+    else void generateReport(key)
+  }
+
+  const shareReport = async (report: ReportItem) => {
+    const text = `${report.name} · GEO Score ${report.geoScore ?? "N/A"}`
+    await navigator.clipboard?.writeText(text).catch(() => undefined)
+    showFeedback(isEn ? "Report summary copied." : "Resumen del reporte copiado.")
   }
 
   const downloadReport = async (report: ReportItem) => {
@@ -228,9 +287,9 @@ export default function ReportsPage() {
     y = 156
 
     addMetric("GEO Score", `${numberLabel(snapshot.geo_score)}/100`, margin, y)
-    addMetric("AI Visibility", `${numberLabel(snapshot.ai_visibility)}%`, margin + 136, y)
-    addMetric("Citations", numberLabel(snapshot.citations_count), margin + 272, y)
-    addMetric("Prompts Won", numberLabel(snapshot.prompts_won), margin + 408, y)
+    addMetric(isEn ? "Spontaneous" : "Espontanea", `${numberLabel(snapshot.spontaneous_visibility ?? snapshot.ai_visibility)}%`, margin + 136, y)
+    addMetric(isEn ? "Win Rate" : "Win Rate", `${numberLabel(snapshot.competitive_visibility)}%`, margin + 272, y)
+    addMetric(isEn ? "Sources" : "Fuentes", numberLabel(snapshot.citations_count), margin + 408, y)
     y += 100
 
     doc.setTextColor(25, 29, 43)
@@ -295,11 +354,11 @@ export default function ReportsPage() {
             <p className="text-muted-foreground">{isEn ? "Generate and download reports for your AI visibility" : "Genera y descarga reportes de tu visibilidad IA"}</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="border-border">
+            <Button variant="outline" className="border-border" onClick={() => showFeedback(isEn ? "Filters are not needed yet: reports are ordered by newest first." : "Aún no se necesitan filtros: los reportes están ordenados del más reciente al más antiguo.")}>
               <Filter className="w-4 h-4 mr-2" />
               {isEn ? "Filter" : "Filtrar"}
             </Button>
-            <Button className="bg-primary hover:bg-primary/90 glow-primary" onClick={generateReport}>
+            <Button className="bg-primary hover:bg-primary/90 glow-primary" onClick={() => generateReport("snapshot")} disabled={generatingType !== null}>
               <Plus className="w-4 h-4 mr-2" />
               {isEn ? "Generate Report" : "Generar Reporte"}
             </Button>
@@ -315,15 +374,17 @@ export default function ReportsPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: index * 0.1 }}
             >
-              <Card className="glass border-border hover:border-primary/50 transition-all cursor-pointer group h-full">
+              <Card className="glass border-border hover:border-primary/50 transition-all cursor-pointer group h-full" onClick={() => handleReportType(type.key)}>
                 <CardContent className="min-h-[170px] p-5 sm:p-6 flex flex-col justify-center">
                   <div className="flex items-start justify-between mb-6">
-                    <div className={`w-12 h-12 rounded-2xl bg-${type.color}/20 flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                    <type.icon className={`w-6 h-6 text-${type.color}`} />
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform ${type.iconClass}`}>
+                    <type.icon className="w-6 h-6" />
                     </div>
+                    {generatingType === type.key && <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />}
                   </div>
                   <h3 className="text-xl font-semibold leading-tight mb-2">{type.title}</h3>
                   <p className="text-sm text-muted-foreground">{type.description}</p>
+                  <p className="mt-4 text-xs text-primary">{type.key === "export" ? (isEn ? "Download CSV" : "Descargar CSV") : (isEn ? "Generate now" : "Generar ahora")}</p>
                 </CardContent>
               </Card>
             </motion.div>
@@ -352,7 +413,7 @@ export default function ReportsPage() {
                     <div className="rounded-xl border border-dashed border-border p-8 text-center">
                       <p className="text-base font-medium">{isEn ? "No reports yet" : "Sin reportes aun"}</p>
                       <p className="mt-1 text-sm text-muted-foreground">{isEn ? "Generate your first report from current audits." : "Genera tu primer reporte desde las auditorias actuales."}</p>
-                      <Button className="mt-4" onClick={generateReport}>{isEn ? "Generate Report" : "Generar Reporte"}</Button>
+                       <Button className="mt-4" onClick={() => generateReport("snapshot")}>{isEn ? "Generate Report" : "Generar Reporte"}</Button>
                     </div>
                   )}
                   {reportsLive.map((report) => (
@@ -394,10 +455,10 @@ export default function ReportsPage() {
                                 <p className="font-bold text-lg">{report.geoScore}</p>
                               </div>
                             )}
-                            <Button variant="outline" size="sm" className="border-border opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="outline" size="sm" className="border-border opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => shareReport(report)}>
                               <Share2 className="w-4 h-4" />
                             </Button>
-                            <Button variant="outline" size="sm" className="border-border opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="outline" size="sm" className="border-border opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => downloadReport(report)}>
                               <Printer className="w-4 h-4" />
                             </Button>
                              <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => downloadReport(report)}>
