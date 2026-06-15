@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getGeoApiClient } from "@/lib/geo/api-auth"
-import { competitiveSnapshot, latestAuditSnapshot, latestCrawlEvidence, loadGeoActionContext, normalizePriority, numberFrom, previousAuditSnapshot, priorityRank } from "@/lib/geo/action-engine"
+import { competitiveSnapshot, latestAuditSnapshot, latestCrawlEvidence, loadGeoActionContext, normalizePriority, numberFrom, objectArray, previousAuditSnapshot, priorityRank } from "@/lib/geo/action-engine"
 
 type ActionItem = {
   id: string
@@ -65,10 +65,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ projectI
 function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> extends infer T ? NonNullable<T> : never): ActionItem[] {
   const project = context.project
   const snapshot = latestAuditSnapshot(context)
-  const allSignals = [...context.recommendations, ...context.opportunities]
-    .map((item) => `${item.title ?? ""} ${item.description ?? ""} ${item.suggested_action ?? ""} ${item.brief ?? ""} ${item.target_prompt ?? ""}`)
-    .join(" ")
-    .toLowerCase()
   const baseUrl = normalizeUrl(project.website_url)
   const industrySlug = slugify(project.industry || "industria")
   const competitive = competitiveSnapshot(context)
@@ -80,26 +76,29 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
   const topCompetitor = hasCompetitive && competitive.top_competitor && !isSameEntity(project, competitive.top_competitor.name, null) ? competitive.top_competitor : null
   const crawl = latestCrawlEvidence(context)
   const previous = previousAuditSnapshot(context)
+  const crawlText = summarizeCrawl(crawl)
+  const promptText = summarizePrompts(context)
+  const marketContext = [project.industry, project.country].filter(Boolean).join(" en ") || "su mercado"
   const actions: ActionItem[] = []
   const add = (action: ActionItem) => {
     if (actions.some((item) => item.category === action.category)) return
     actions.push(action)
   }
 
-  if (spontaneousVisibility < 60 || allSignals.includes("seo") || allSignals.includes("brand")) {
+  if (spontaneousVisibility < 60) {
     add({
       id: "homepage-ai-positioning",
       category: "Posicionamiento de marca",
       title: `Clarificar el posicionamiento de ${project.company_name} en la home`,
-      description: `La auditoria muestra ${spontaneousVisibility}% de visibilidad espontanea. La pagina principal debe explicar en lenguaje directo que hace ${project.company_name}, para quien, en que mercado y por que deberia recomendarse frente a alternativas.`,
-      why_important: "Los modelos generativos extraen entidades, casos de uso y diferenciadores desde paginas claras. Si la home es vaga, la IA no tiene razones fuertes para recomendar la marca.",
+      description: `La auditoria muestra ${spontaneousVisibility}% de visibilidad espontanea para ${project.company_name}. ${promptText} ${crawlText}`,
+      why_important: `Los modelos generativos necesitan entender entidad, casos de uso, mercado y diferenciales desde paginas rastreables. Para ${project.company_name}, la prioridad es convertir el sitio en una fuente clara sobre ${marketContext}.`,
       priority: "high",
       estimated_impact: "high",
       difficulty: "medium",
       type: "content",
       implementation_type: "Copy + estructura de landing",
       affected_pages: [baseUrl],
-      suggested_action: `Agregar arriba del fold una propuesta de valor clara para ${project.company_name}, una seccion 'para quien es', diferenciadores, casos de uso, prueba social y preguntas frecuentes orientadas a IA.`,
+      suggested_action: `Actualizar la home de ${project.company_name} con una propuesta de valor verificable, para quien es, casos de uso, diferenciales y FAQs alineadas con los prompts evaluados de esta auditoria.`,
       deliverables: ["Nuevo hero con propuesta de valor", "Seccion de casos de uso", "Bloque 'por que elegirnos'", "FAQs orientadas a prompts de IA"],
       improves_metric: "Visibilidad espontánea + claridad del posicionamiento",
       estimated_score_lift: { min: 5, max: 12 },
@@ -111,7 +110,7 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     })
   }
 
-  if (hasCompetitive && (allSignals.includes("competitor") || allSignals.includes("compar") || numberFrom(snapshot?.prompts_lost) > 0 || topCompetitor || validCompetitors.length > 0) && (topCompetitor || validCompetitors.length > 0)) {
+  if (hasCompetitive && (numberFrom(snapshot?.prompts_lost) > 0 || topCompetitor || validCompetitors.length > 0) && (topCompetitor || validCompetitors.length > 0)) {
     const competitorName = topCompetitor?.name ?? validCompetitors[0]?.name ?? "competidores principales"
     add({
       id: "comparison-page",
@@ -139,20 +138,20 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     })
   }
 
-  if (spontaneousVisibility < 70 || allSignals.includes("content") || allSignals.includes("landing")) {
+  if (spontaneousVisibility < 70) {
     add({
       id: "industry-landing",
       category: "Contenido por industria",
       title: `Crear una landing para ${project.industry || "el nicho principal"} enfocada en prompts neutrales`,
-      description: `Hoy ${project.company_name} necesita paginas que respondan prompts neutrales especificos, no solo una pagina general. Una landing por industria ayuda a aparecer cuando el usuario pregunta por soluciones para un sector concreto sin nombrar la marca.`,
-      why_important: "ChatGPT, Gemini y Perplexity tienden a recomendar marcas que tienen contenido explicito para el caso de uso o industria mencionada en el prompt.",
+      description: `La muestra neutral no esta recomendando a ${project.company_name}. ${promptText} Una landing especifica debe responder esa intencion sin depender de que el usuario nombre la marca.`,
+      why_important: `Si la IA no encuentra una pagina clara sobre ${marketContext}, tiende a recomendar alternativas con mejor evidencia publica o contenido mas especifico.`,
       priority: spontaneousVisibility < 40 ? "high" : "medium",
       estimated_impact: "high",
       difficulty: "medium",
       type: "content",
       implementation_type: "Nueva pagina/landing",
       affected_pages: [`${baseUrl}/${industrySlug}`],
-      suggested_action: `Crear una pagina para ${project.industry || "la industria objetivo"} con problema, solucion, beneficios, casos de uso, FAQs, prueba social y CTA.`,
+      suggested_action: `Crear una pagina para ${project.industry || "la industria objetivo"} que responda los prompts neutrales evaluados, con problema, solucion, casos de uso, FAQs, evidencia y CTA.`,
       deliverables: ["Landing por industria", "Copy completo", "FAQs del nicho", "Metadata SEO/GEO"],
       improves_metric: "Visibilidad espontánea",
       estimated_score_lift: { min: 5, max: 12 },
@@ -212,49 +211,24 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     created_at: context.latestAudit?.completed_at ?? null,
   })
 
-  if (numberFrom(snapshot?.citations_count) < 3 || citationCoverage < 50 || allSignals.includes("source") || allSignals.includes("citation") || allSignals.includes("authority")) {
+  if (numberFrom(snapshot?.citations_count) < 3 || citationCoverage < 50) {
     add({
       id: "authority-proof",
       category: "Autoridad y confianza",
       title: `Crear evidencia citable para ${project.company_name}`,
-      description: `La auditoria muestra baja cobertura de citations (${citationCoverage}%) o pocas fuentes detectadas. La marca necesita activos que la IA pueda usar como evidencia: casos, metricas, clientes, integraciones, certificaciones o articulos fuente.`,
-      why_important: "Los motores de IA citan y recomiendan con mas confianza cuando encuentran evidencia externa o paginas con claims verificables.",
+      description: `La auditoria muestra cobertura de citations de ${citationCoverage}%. ${project.company_name} necesita activos que puedan verificarse y citarse desde respuestas IA.`,
+      why_important: `Sin evidencia verificable, las respuestas pueden mencionar fuentes de terceros o no citar a ${project.company_name}. Las citas deben salir de paginas reales, casos, datos y claims comprobables.`,
       priority: citationCoverage < 30 ? "high" : "medium",
       estimated_impact: "medium",
       difficulty: "medium",
       type: "authority",
       implementation_type: "Contenido de autoridad",
       affected_pages: [`${baseUrl}/casos-de-exito`, `${baseUrl}/recursos`],
-      suggested_action: "Crear al menos un caso de exito, una pagina de recursos y bloques de prueba social en home/landings con resultados concretos y verificables.",
+      suggested_action: `Crear activos citables para ${project.company_name}: caso de uso, metodologia, FAQs con respuestas directas y claims verificables conectados al sitio auditado.`,
       deliverables: ["Caso de exito", "Bloque de prueba social", "Claims con fuente", "Pagina de recursos citables"],
       improves_metric: "Cobertura de citations + autoridad/confianza",
       estimated_score_lift: { min: 3, max: 8 },
       estimated_time: "4 a 8 días",
-      evidence: evidenceFor("authority", context, crawl, previous),
-      status: "pending",
-      audit_id: context.latestAudit?.id ?? "",
-      created_at: context.latestAudit?.completed_at ?? null,
-    })
-  }
-
-  if (allSignals.includes("social") || allSignals.includes("influencer") || allSignals.includes("local")) {
-    add({
-      id: "local-authority-distribution",
-      category: "Distribución y autoridad local",
-      title: "Convertir presencia local en señales citables, no solo publicar en redes",
-      description: "La recomendacion de redes/influencers debe traducirse en activos que la IA pueda encontrar: menciones, articulos, alianzas, eventos y paginas enlazables.",
-      why_important: "Las redes ayudan a distribucion, pero la visibilidad GEO mejora cuando esas acciones generan paginas, menciones y fuentes indexables.",
-      priority: "medium",
-      estimated_impact: "medium",
-      difficulty: "hard",
-      type: "authority",
-      implementation_type: "PR + contenido indexable",
-      affected_pages: [`${baseUrl}/recursos`, `${baseUrl}/alianzas`],
-      suggested_action: "Crear una pagina de alianzas/participaciones y convertir colaboraciones locales en articulos, menciones y backlinks verificables.",
-      deliverables: ["Pagina de alianzas", "Brief de PR local", "Lista de medios/partners", "Contenido indexable por colaboracion"],
-      improves_metric: "Cobertura de citations + autoridad/confianza",
-      estimated_score_lift: { min: 3, max: 7 },
-      estimated_time: "7 a 14 días",
       evidence: evidenceFor("authority", context, crawl, previous),
       status: "pending",
       audit_id: context.latestAudit?.id ?? "",
@@ -276,6 +250,24 @@ function emptyCompetitiveSnapshot(trackedCompetitors: number) {
     top_competitor: null,
     competitors: [],
   }
+}
+
+function summarizeCrawl(crawl: ReturnType<typeof latestCrawlEvidence>) {
+  if (crawl.pages_crawled === 0) return "No hay paginas crawl disponibles para respaldar cambios especificos del sitio."
+  const pages = crawl.pages
+    .slice(0, 3)
+    .map((page) => page.title || page.url)
+    .filter(Boolean)
+  return `El crawl leyo ${crawl.pages_crawled} pagina(s), ${crawl.total_words} palabras, incluyendo: ${pages.join("; ")}.`
+}
+
+function summarizePrompts(context: Awaited<ReturnType<typeof loadGeoActionContext>> extends infer T ? NonNullable<T> : never) {
+  const prompts = objectArray(context.latestSummary.evaluated_prompts)
+  const neutral = prompts.filter((item) => String(item.prompt_kind ?? "spontaneous") === "spontaneous")
+  const missed = neutral.filter((item) => item.mentioned === false).map((item) => String(item.prompt ?? "")).filter(Boolean)
+  if (missed.length > 0) return `No aparecio en prompts neutrales como: "${missed.slice(0, 2).join('" y "')}".`
+  if (neutral.length > 0) return `La auditoria evaluo ${neutral.length} prompt(s) neutrales.`
+  return "La auditoria no guardo detalle suficiente de prompts neutrales para citar ejemplos especificos."
 }
 
 function evidenceFor(kind: string, context: Awaited<ReturnType<typeof loadGeoActionContext>> extends infer T ? NonNullable<T> : never, crawl: ReturnType<typeof latestCrawlEvidence>, previous: ReturnType<typeof previousAuditSnapshot>): Array<{ label: string; value: string }> {
