@@ -3,9 +3,9 @@ import type { EnginePromptInput, EngineProvider, EngineRawResponse } from "@/lib
 const SERPAPI_URL = "https://serpapi.com/search.json"
 
 async function runAiOverviewsPrompt(apiKey: string, input: EnginePromptInput): Promise<EngineRawResponse> {
-  const timeoutMs = Number(process.env.GEO_ENGINE_TIMEOUT_MS ?? 20000)
+  const timeoutMs = Number(process.env.GEO_SERPAPI_TIMEOUT_MS ?? process.env.GEO_ENGINE_TIMEOUT_MS ?? 45000)
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 20000)
+  const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 45000)
   const params = new URLSearchParams({
     engine: "google",
     q: input.prompt,
@@ -30,6 +30,11 @@ async function runAiOverviewsPrompt(apiKey: string, input: EnginePromptInput): P
     ].filter((item): item is string => Boolean(item))
 
     return { text, citations, meta: { provider: "serpapi", has_ai_overview: Boolean(aiOverviewText) } }
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("AI Overviews SerpApi timed out. Increase GEO_SERPAPI_TIMEOUT_MS or retry the prompt.")
+    }
+    throw error
   } finally {
     clearTimeout(timer)
   }

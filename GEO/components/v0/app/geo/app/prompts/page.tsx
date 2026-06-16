@@ -57,6 +57,12 @@ type PromptItem = {
   lastRunResults: Array<Record<string, unknown>>
 }
 
+type PromptQuality = {
+  level: "high" | "medium" | "low"
+  reason: string
+  optimizedPrompt: string | null
+}
+
 // Mock data for prompts
 const prompts = [
   {
@@ -327,6 +333,86 @@ function extractCompanyCandidates(text: string) {
 
 function mentionedCompanies(result: Record<string, unknown> | null) {
   return Array.from(new Set([...resultCompetitors(result), ...extractCompanyCandidates(String(result?.answer_preview ?? ""))])).slice(0, 5)
+}
+
+function wordCount(value: string) {
+  return value.trim().split(/\s+/).filter(Boolean).length
+}
+
+function hasAny(value: string, terms: string[]) {
+  return terms.some((term) => value.includes(term))
+}
+
+function optimizePromptSuggestion(prompt: string, isEn: boolean) {
+  const lower = prompt.toLowerCase()
+  const trimmed = prompt.trim().replace(/[?¿!¡.]+$/g, "")
+  if (hasAny(lower, ["agente de voz", "agentes de voz", "voice agent", "voice agents", "voice ai", "voz ia"])) {
+    return isEn
+      ? "Which companies offer the best AI-powered voice agents for automating calls, sales, and customer support in business environments?"
+      : "¿Qué empresas ofrecen los mejores agentes de voz impulsados por IA para automatizar llamadas, ventas y atención al cliente en entornos empresariales?"
+  }
+  if (hasAny(lower, ["software", "plataforma", "platform", "herramienta", "tool", "solución", "solution"])) {
+    return isEn
+      ? `${trimmed} for business use cases, specifying the category, target users, and evaluation criteria?`
+      : `${trimmed} para casos de uso empresariales, especificando la categoría, los usuarios objetivo y los criterios de evaluación?`
+  }
+  return isEn
+    ? `${trimmed} in a clearly defined business category, specifying the use case, target customer, and evaluation criteria?`
+    : `${trimmed} en una categoría empresarial claramente definida, especificando el caso de uso, el cliente objetivo y los criterios de evaluación?`
+}
+
+function evaluatePromptQuality(prompt: string, isEn: boolean): PromptQuality {
+  const lower = prompt.toLowerCase().trim()
+  const words = wordCount(prompt)
+  const hasContext = hasAny(lower, [" para ", " for ", " en ", " in ", " de ", " del ", " con ", " with ", "b2b", "saas", "enterprise", "empresarial", "ventas", "soporte", "atención", "customer", "support"])
+  const broadBest = hasAny(lower, ["mejor", "mejores", "best", "top", "recomiendan", "recommend"])
+  const broadSubject = hasAny(lower, ["empresa", "empresas", "company", "companies", "herramienta", "herramientas", "tool", "tools", "software", "plataforma", "platform"])
+  const ambiguousVoice = hasAny(lower, ["agente de voz", "agentes de voz", "voice agent", "voice agents"])
+
+  if (words <= 8 || (broadBest && broadSubject && !hasContext) || ambiguousVoice && !hasAny(lower, ["llamadas", "ventas", "atención", "soporte", "contact center", "call", "sales", "support", "enterprise", "empresarial"])) {
+    return {
+      level: "low",
+      reason: isEn
+        ? "The query is too broad and can point different engines to different product categories or evaluation criteria."
+        : "La consulta es demasiado amplia y puede llevar a cada motor a categorías o criterios de evaluación distintos.",
+      optimizedPrompt: optimizePromptSuggestion(prompt, isEn),
+    }
+  }
+
+  if (broadBest && broadSubject && !hasAny(lower, ["criterio", "criteria", "precio", "integración", "integration", "industry", "industria", "país", "country", "segmento", "segment"])) {
+    return {
+      level: "medium",
+      reason: isEn
+        ? "The intent is understandable, but it may still be interpreted with different ranking criteria across engines."
+        : "La intención se entiende, pero todavía puede interpretarse con criterios de ranking distintos entre motores.",
+      optimizedPrompt: optimizePromptSuggestion(prompt, isEn),
+    }
+  }
+
+  return {
+    level: "high",
+    reason: isEn ? "The query has a clear and specific intent." : "La consulta tiene una intención clara y específica.",
+    optimizedPrompt: null,
+  }
+}
+
+function PromptQualityWarning({ prompt, isEn, className = "" }: { prompt: string; isEn: boolean; className?: string }) {
+  const quality = evaluatePromptQuality(prompt, isEn)
+  if (quality.level === "high") return null
+  return (
+    <div className={`rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3 text-xs text-yellow-100 ${className}`}>
+      <div className="mb-2 flex items-center gap-2 font-medium text-yellow-300">
+        <AlertCircle className="h-4 w-4" />
+        {isEn ? "Prompt quality" : "Calidad del prompt"}: {quality.level === "medium" ? (isEn ? "Medium" : "Media") : (isEn ? "Low" : "Baja")}
+      </div>
+      <p className="text-yellow-100/80">{quality.reason}</p>
+      {quality.optimizedPrompt && (
+        <p className="mt-2 text-muted-foreground">
+          <span className="text-foreground">{isEn ? "Suggested optimized version:" : "Versión optimizada sugerida:"}</span> {quality.optimizedPrompt}
+        </p>
+      )}
+    </div>
+  )
 }
 
 function PromptEngineBreakdown({ prompt, isEn }: { prompt: PromptItem; isEn: boolean }) {
@@ -954,6 +1040,8 @@ export default function PromptsLibraryPage() {
                             {prompt.text}
                           </p>
 
+                          <PromptQualityWarning prompt={prompt.text} isEn={isEn} className="mb-4" />
+
                           {/* Country/Language */}
                           <div className="flex items-center gap-2 mb-4">
                             <span className="text-lg">{countryFlags[prompt.country] ?? "🌐"}</span>
@@ -1354,6 +1442,7 @@ export default function PromptsLibraryPage() {
                     rows={3}
                     className="w-full px-4 py-3 bg-secondary/50 border border-border rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-colors resize-none"
                   />
+                  {formData.text.trim() && <PromptQualityWarning prompt={formData.text} isEn={isEn} />}
                 </div>
 
                 {/* Category */}
