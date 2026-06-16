@@ -3,6 +3,7 @@ import { auditSchema } from "@geo/validators/audit.schema";
 import { getGeoApiClient } from "@/lib/geo/api-auth";
 import { createAuditManual } from "@/lib/geo/repositories/audits.repo";
 import { consumeServerUsage } from "@/lib/geo/repositories/usage.repo";
+import { processAuditQueueForUser } from "@/lib/geo/services/audit-jobs.service";
 import { assertProjectOwner } from "@/lib/geo/ownership";
 
 export const maxDuration = 60
@@ -69,7 +70,12 @@ export async function POST(req: Request) {
       parsed.data.crawl_depth ?? 1,
       parsed.data.engines ?? ["openai", "gemini"]
     );
-    return NextResponse.json({ data: { audit: created.audit, job: created.job }, mode: "live" }, { status: 201 });
+    try {
+      const processed = await processAuditQueueForUser(supabase, user.id, 1);
+      return NextResponse.json({ data: { audit: created.audit, job: created.job, processed }, mode: "live" }, { status: 201 });
+    } catch (processError) {
+      return NextResponse.json({ data: { audit: created.audit, job: created.job, processing_error: errorMessage(processError) }, mode: "live" }, { status: 201 });
+    }
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error) }, { status: statusForError(error) });
   }
