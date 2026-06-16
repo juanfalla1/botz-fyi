@@ -2,19 +2,28 @@ import type { GeneratedPrompt, PipelineContext } from "@/lib/geo/pipeline/types"
 
 export function buildBasePrompts(ctx: PipelineContext): GeneratedPrompt[] {
   const domain = ctx.project.website_url.replace(/^https?:\/\//, "")
+  const isEnglish = isEnglishLanguage(ctx.project.language)
   const competitorNames = ctx.competitors
     .filter((competitor) => !isSameEntity(ctx.project.company_name, ctx.project.website_url, competitor.name, competitor.domain))
     .map((c) => c.name)
     .slice(0, 3)
   const competitorText = competitorNames.join(", ")
 
-  const templates = [
-    { category: "spontaneous", prompt: `What are the best ${ctx.project.industry} providers in ${ctx.project.country}?` },
-    { category: "spontaneous", prompt: `Which brand is most cited for ${ctx.project.industry} solutions?` },
-    { category: "spontaneous", prompt: `What company do you recommend for ${ctx.project.industry} and why?` },
-    { category: "citation", prompt: `Find trusted sources mentioning ${domain}.` },
-    ...(competitorText ? [{ category: "competitive", prompt: `Compare ${ctx.project.company_name} vs ${competitorText} for ${ctx.project.business_goal}.` }] : []),
-  ]
+  const templates = isEnglish
+    ? [
+        { category: "spontaneous", prompt: `What are the best ${ctx.project.industry} providers in ${ctx.project.country}?` },
+        { category: "spontaneous", prompt: `Which brand is most cited for ${ctx.project.industry} solutions?` },
+        { category: "spontaneous", prompt: `What company do you recommend for ${ctx.project.industry} and why?` },
+        { category: "citation", prompt: `Find trusted sources mentioning ${domain}.` },
+        ...(competitorText ? [{ category: "competitive", prompt: `Compare ${ctx.project.company_name} vs ${competitorText} for ${ctx.project.business_goal}.` }] : []),
+      ]
+    : [
+        { category: "spontaneous", prompt: `¿Cuáles son los mejores proveedores de ${ctx.project.industry} en ${ctx.project.country}?` },
+        { category: "spontaneous", prompt: `¿Qué marca es más citada para soluciones de ${ctx.project.industry}?` },
+        { category: "spontaneous", prompt: `¿Qué empresa recomiendas para ${ctx.project.industry} y por qué?` },
+        { category: "citation", prompt: `Encuentra fuentes confiables que mencionen ${domain}.` },
+        ...(competitorText ? [{ category: "competitive", prompt: `Compara ${ctx.project.company_name} vs ${competitorText} para ${ctx.project.business_goal}.` }] : []),
+      ]
 
   const prompts: GeneratedPrompt[] = []
   for (const engine of ctx.engines) {
@@ -23,6 +32,11 @@ export function buildBasePrompts(ctx: PipelineContext): GeneratedPrompt[] {
     }
   }
   return prompts
+}
+
+function isEnglishLanguage(value: string) {
+  const language = value.toLowerCase().trim()
+  return language === "en" || language.startsWith("en-") || language.includes("ingl") || language.includes("english")
 }
 
 function isSameEntity(companyName: string, websiteUrl: string, competitorName: string, competitorDomain: string | null) {
