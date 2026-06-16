@@ -282,20 +282,38 @@ function resultPreview(result: Record<string, unknown> | null) {
 function extractCompanyCandidates(text: string) {
   const clean = text.replace(/\s+/g, " ").trim()
   if (!clean) return []
+
+  const blocked = /^(en colombia|algunos|incluyen|proveedores|empresas|soluciones|opciones|entre|como|por ejemplo|the best|some of|providers|companies|depende|que|qué|porque|tambien|también|ademas|además|fuente|g2|capterra|saas|software)$/i
+  const isCandidate = (name: string) => {
+    const words = name.split(/\s+/).filter(Boolean)
+    return name.length >= 2 &&
+      name.length <= 45 &&
+      words.length <= 4 &&
+      !name.includes(",") &&
+      !name.includes(":") &&
+      !blocked.test(name) &&
+      !/\b(necesitas|ofrece|permite|incluye|integra|consulta|reseñas|plataformas|suscripcion|suscripción|onboarding|automatizado|escalabilidad|gestion|gestión|logistica|logística|talento|recursos humanos)\b/i.test(name)
+  }
+
+  const boldMatches = Array.from(clean.matchAll(/\*\*([^*]+)\*\*/g))
+    .map((match) => match[1].replace(/^\d+[.)]\s*/, "").trim())
+    .filter(isCandidate)
+  if (boldMatches.length > 0) return Array.from(new Set(boldMatches)).slice(0, 6)
+
   const chunks = clean
     .split(/(?:^|\s)(?:\d+[.)]\s+|[-•]\s+)/)
     .map((item) => item.trim())
     .filter(Boolean)
   const candidates = chunks.length > 1 ? chunks : clean.split(/,|;|\by\b|\band\b/i)
-  const blocked = /^(en colombia|algunos|incluyen|proveedores|empresas|soluciones|opciones|entre|como|por ejemplo|the best|some of|providers|companies)$/i
   return Array.from(new Set(candidates.map((item) => {
     const name = item
       .replace(/^(en colombia|algunos de los mejores proveedores de saas incluyen:?|incluyen:?|como:?|por ejemplo:?)/i, "")
       .split(/:| - | – | — |\(/)[0]
       .replace(/^\d+[.)]\s*/, "")
+      .replace(/\*\*/g, "")
       .trim()
     return name
-  }).filter((name) => name.length >= 2 && name.length <= 60 && !blocked.test(name)).slice(0, 5)))
+  }).filter(isCandidate).slice(0, 5)))
 }
 
 function mentionedCompanies(result: Record<string, unknown> | null) {
