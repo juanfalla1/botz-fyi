@@ -115,7 +115,8 @@ async function runVertexGeminiPrompt(serviceAccount: ServiceAccount, model: stri
   const project = process.env.GOOGLE_CLOUD_PROJECT ?? serviceAccount.project_id
   const location = process.env.GOOGLE_CLOUD_LOCATION ?? "us-central1"
   if (!project) throw new Error("GOOGLE_CLOUD_PROJECT is missing")
-  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`
+  const host = location === "global" ? "aiplatform.googleapis.com" : `${location}-aiplatform.googleapis.com`
+  const url = `https://${host}/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`
 
   try {
     const response = await fetch(url, {
