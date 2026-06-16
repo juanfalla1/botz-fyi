@@ -32,7 +32,7 @@ export function Navbar() {
       className="fixed top-0 left-0 right-0 z-50 px-4 py-4"
     >
       <div className="max-w-7xl mx-auto">
-        <div className="glass rounded-2xl px-6 py-3 flex items-center justify-between">
+        <div className="glass rounded-2xl px-4 py-3 flex items-center justify-between md:px-6">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-[#0b1020] border border-border flex items-center justify-center overflow-hidden">
@@ -42,7 +42,7 @@ export function Navbar() {
           </Link>
 
           {/* Desktop nav */}
-          <div className="flex items-center gap-8">
+          <div className="hidden items-center gap-8 md:flex">
             {navLinks.map((link) => (
               <a
                 key={link.label}
@@ -55,7 +55,7 @@ export function Navbar() {
           </div>
 
           {/* Desktop CTA */}
-          <div className="flex items-center gap-3">
+          <div className="hidden items-center gap-3 md:flex">
             <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" asChild>
               <Link href="/geo/login">{t("signIn")}</Link>
             </Button>
@@ -71,7 +71,7 @@ export function Navbar() {
           {/* Mobile menu button */}
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="hidden p-2 text-foreground"
+            className="p-2 text-foreground md:hidden"
             aria-label="Toggle menu"
           >
             {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
