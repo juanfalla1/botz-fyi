@@ -73,9 +73,9 @@ async function getVertexAccessToken(serviceAccount: ServiceAccount) {
 }
 
 async function runGeminiPrompt(apiKey: string, model: string, input: EnginePromptInput): Promise<EngineRawResponse> {
-  const timeoutMs = Number(process.env.GEO_ENGINE_TIMEOUT_MS ?? 20000)
+  const timeoutMs = Number(process.env.GEO_GEMINI_TIMEOUT_MS ?? process.env.GEO_ENGINE_TIMEOUT_MS ?? 30000)
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 20000)
+  const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 30000)
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`
 
   try {
@@ -108,9 +108,9 @@ async function runGeminiPrompt(apiKey: string, model: string, input: EnginePromp
 }
 
 async function runVertexGeminiPrompt(serviceAccount: ServiceAccount, model: string, input: EnginePromptInput): Promise<EngineRawResponse> {
-  const timeoutMs = Number(process.env.GEO_ENGINE_TIMEOUT_MS ?? 20000)
+  const timeoutMs = Number(process.env.GEO_GEMINI_TIMEOUT_MS ?? process.env.GEO_ENGINE_TIMEOUT_MS ?? 30000)
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 20000)
+  const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 30000)
   const token = await getVertexAccessToken(serviceAccount)
   const project = process.env.GOOGLE_CLOUD_PROJECT ?? serviceAccount.project_id
   const location = process.env.GOOGLE_CLOUD_LOCATION ?? "us-central1"

@@ -15,14 +15,14 @@ export function buildBasePrompts(ctx: PipelineContext): GeneratedPrompt[] {
         { category: "spontaneous", prompt: `Which brand is most cited for ${ctx.project.industry} solutions?` },
         { category: "spontaneous", prompt: `What company do you recommend for ${ctx.project.industry} and why?` },
         { category: "citation", prompt: `Find trusted sources mentioning ${domain}.` },
-        ...(competitorText ? [{ category: "competitive", prompt: `Compare ${ctx.project.company_name} vs ${competitorText} for ${ctx.project.business_goal}.` }] : []),
+        ...(competitorText ? [{ category: "competitive", prompt: `Compare ${ctx.project.company_name} vs ${competitorText} as ${ctx.project.industry} providers in ${ctx.project.country}. Which option is stronger for buyers and why?` }] : []),
       ]
     : [
         { category: "spontaneous", prompt: `¿Cuáles son los mejores proveedores de ${ctx.project.industry} en ${ctx.project.country}?` },
         { category: "spontaneous", prompt: `¿Qué marca es más citada para soluciones de ${ctx.project.industry}?` },
         { category: "spontaneous", prompt: `¿Qué empresa recomiendas para ${ctx.project.industry} y por qué?` },
         { category: "citation", prompt: `Encuentra fuentes confiables que mencionen ${domain}.` },
-        ...(competitorText ? [{ category: "competitive", prompt: `Compara ${ctx.project.company_name} vs ${competitorText} para ${ctx.project.business_goal}.` }] : []),
+        ...(competitorText ? [{ category: "competitive", prompt: `Compara ${ctx.project.company_name} vs ${competitorText} como proveedores de ${ctx.project.industry} en ${ctx.project.country}. ¿Qué opción es más fuerte para compradores y por qué?` }] : []),
       ]
 
   const prompts: GeneratedPrompt[] = []

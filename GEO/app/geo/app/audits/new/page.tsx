@@ -78,7 +78,7 @@ export default function NewAuditPage() {
   const [website, setWebsite] = useState("")
   const [country, setCountry] = useState("Colombia")
   const [language, setLanguage] = useState("es")
-  const [industry, setIndustry] = useState("SaaS / Software")
+  const [industry, setIndustry] = useState("E-commerce")
   const [competitors, setCompetitors] = useState(["", "", "", "", ""])
   const [selectedEngines, setSelectedEngines] = useState(["openai", "gemini", "perplexity"])
   const [submitError, setSubmitError] = useState("")
@@ -137,7 +137,9 @@ export default function NewAuditPage() {
           country,
           language,
           industry,
-          business_goal: `Measure and improve ${cleanBrand} visibility in AI answers for ${country}.`,
+          business_goal: locale === "en"
+            ? `Measure and improve ${cleanBrand} visibility in AI answers for ${country}.`
+            : `Medir y mejorar la visibilidad de ${cleanBrand} en respuestas de IA para ${country}.`,
           competitors: cleanCompetitors,
         }),
       })

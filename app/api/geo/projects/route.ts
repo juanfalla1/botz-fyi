@@ -34,14 +34,14 @@ function buildInitialPrompts(input: { company: string; industry: string; country
   const templates = isEnglish
     ? [
         { category: "recommendation", prompt: `What are the best ${input.industry} providers in ${input.country}?` },
-        ...(competitorNames.length > 0 ? [{ category: "comparison", prompt: `Compare ${input.company} vs ${competitorText} for ${input.businessGoal}.` }] : []),
+        ...(competitorNames.length > 0 ? [{ category: "comparison", prompt: `Compare ${input.company} vs ${competitorText} as ${input.industry} providers in ${input.country}. Which option is stronger for buyers and why?` }] : []),
         { category: "alternative", prompt: `What are the best alternatives to ${competitorText} for ${input.industry}?` },
         { category: "product", prompt: `Which company do you recommend for ${input.industry} solutions in ${input.country}?` },
         { category: "trust", prompt: `What trusted sources mention ${input.company} in the ${input.industry} market?` },
       ]
     : [
         { category: "recommendation", prompt: `Cuales son los mejores proveedores de ${input.industry} en ${input.country}?` },
-        ...(competitorNames.length > 0 ? [{ category: "comparison", prompt: `Compara ${input.company} vs ${competitorText} para ${input.businessGoal}.` }] : []),
+        ...(competitorNames.length > 0 ? [{ category: "comparison", prompt: `Compara ${input.company} vs ${competitorText} como proveedores de ${input.industry} en ${input.country}. ¿Qué opción es más fuerte para compradores y por qué?` }] : []),
         { category: "alternative", prompt: `Cuales son las mejores alternativas a ${competitorText} para ${input.industry}?` },
         { category: "product", prompt: `Que empresa recomiendas para soluciones de ${input.industry} en ${input.country}?` },
         { category: "trust", prompt: `Que fuentes confiables mencionan a ${input.company} en el mercado de ${input.industry}?` },
