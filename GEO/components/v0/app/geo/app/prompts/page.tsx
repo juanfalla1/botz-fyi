@@ -271,32 +271,41 @@ function resultForEngine(prompt: PromptItem, engine: string) {
 
 function resultCompetitors(result: Record<string, unknown> | null) {
   const competitors = result?.competitors
-  return Array.isArray(competitors) ? competitors.map((item) => String(item)).filter(Boolean).slice(0, 4) : []
+  return Array.isArray(competitors) ? competitors.map((item) => cleanAiText(String(item))).filter(Boolean).slice(0, 4) : []
 }
 
 function resultPreview(result: Record<string, unknown> | null) {
-  const preview = String(result?.answer_preview ?? "").replace(/\s+/g, " ").trim()
+  const preview = cleanAiText(String(result?.answer_preview ?? "").replace(/\s+/g, " ").trim())
   return preview.length > 150 ? `${preview.slice(0, 150)}...` : preview
+}
+
+function cleanAiText(value: string) {
+  return value.replace(/\*\*/g, "").replace(/`/g, "").trim()
 }
 
 function extractCompanyCandidates(text: string) {
   const clean = text.replace(/\s+/g, " ").trim()
   if (!clean) return []
 
-  const blocked = /^(en colombia|algunos|incluyen|proveedores|empresas|soluciones|opciones|entre|como|por ejemplo|the best|some of|providers|companies|depende|que|qué|porque|tambien|también|ademas|además|fuente|g2|capterra|saas|software)$/i
+  const blocked = /^(en colombia|algunos|incluyen|proveedores|empresas|soluciones|opciones|entre|como|por ejemplo|the best|some of|providers|companies|depende|que|qué|porque|aunque|tambien|también|ademas|además|fuente|g2|capterra|saas|software)$/i
   const isCandidate = (name: string) => {
+    const lower = name.toLowerCase()
     const words = name.split(/\s+/).filter(Boolean)
     return name.length >= 2 &&
       name.length <= 45 &&
       words.length <= 4 &&
+      /^[A-ZÁÉÍÓÚÑ0-9]/.test(name) &&
       !name.includes(",") &&
       !name.includes(":") &&
       !blocked.test(name) &&
-      !/\b(necesitas|ofrece|permite|incluye|integra|consulta|reseñas|plataformas|suscripcion|suscripción|onboarding|automatizado|escalabilidad|gestion|gestión|logistica|logística|talento|recursos humanos)\b/i.test(name)
+      !/\b(necesitas|ofrece|permite|incluye|integra|consulta|reseñas|plataformas|suscripcion|suscripción|onboarding|automatizado|escalabilidad|gestion|gestión|logistica|logística|talento|recursos humanos|conocida|delivery|servicios|tecnologicos|tecnológicos|expandido)\b/i.test(name) &&
+      !lower.startsWith("que ") &&
+      !lower.startsWith("aunque ") &&
+      !lower.startsWith("ha ")
   }
 
   const boldMatches = Array.from(clean.matchAll(/\*\*([^*]+)\*\*/g))
-    .map((match) => match[1].replace(/^\d+[.)]\s*/, "").trim())
+    .map((match) => cleanAiText(match[1].replace(/^\d+[.)]\s*/, "").trim()))
     .filter(isCandidate)
   if (boldMatches.length > 0) return Array.from(new Set(boldMatches)).slice(0, 6)
 
@@ -1547,7 +1556,7 @@ export default function PromptsLibraryPage() {
                           </div>
                         </div>
                       )}
-                      {result.answer_preview && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{String(result.answer_preview)}</p>}
+                      {result.answer_preview && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{cleanAiText(String(result.answer_preview))}</p>}
                     </div>
                   )
                 })}
