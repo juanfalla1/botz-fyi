@@ -15,9 +15,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     const { data: job, error: jobError } = await supabase
       .from("audit_jobs")
-      .select("id, user_id")
+      .select("id, user_id, status, created_at, started_at, completed_at, error_message, failed_reason")
       .eq("audit_id", audit.id)
       .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
       .maybeSingle()
     if (jobError) throw jobError
 
@@ -49,7 +50,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       crawled_pages: crawledPagesResult.error ? [] : crawledPagesResult.data ?? [],
     }
 
-    return NextResponse.json({ data: { ...audit, projects: project, ...related }, mode: "live" })
+    return NextResponse.json({ data: { ...audit, audit_job: job, projects: project, ...related }, mode: "live" })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unauthorized" }, { status: 401 })
   }

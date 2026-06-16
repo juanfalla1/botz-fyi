@@ -21,6 +21,7 @@ type AuditDetail = {
   final_score: number | null
   created_at: string
   completed_at: string | null
+  audit_job?: { id: string; status: string; error_message?: string | null; failed_reason?: string | null; created_at?: string | null; started_at?: string | null; completed_at?: string | null } | null
   projects?: { company_name?: string; website_url?: string; country?: string; language?: string; industry?: string }
   ai_queries?: Array<{ id: string; prompt: string; engine: string; intent?: string | null; ai_answers?: Array<{ answer_text?: string; citations?: unknown; raw_response?: Record<string, unknown> }> }>
   brand_mentions?: Array<Record<string, unknown>>
@@ -220,8 +221,10 @@ export default function AuditDetailReal() {
       }
     }
     void load()
+    const interval = setInterval(() => void load(), 5000)
     return () => {
       mounted = false
+      clearInterval(interval)
     }
   }, [auditId, isEn])
 
@@ -265,6 +268,10 @@ export default function AuditDetailReal() {
   const evaluatedPrompts = evaluatedPromptsFromQueries.length > 0 ? evaluatedPromptsFromQueries : objectArray(summary.evaluated_prompts)
   const sentiment = (semantic?.sentiment && typeof semantic.sentiment === "object" ? semantic.sentiment : null) as Record<string, unknown> | null
   const engines = stringArray(audit?.engines)
+  const auditJobStatus = String(audit?.audit_job?.status ?? audit?.status ?? "").toLowerCase()
+  const auditProcessing = Boolean(audit) && !audit?.completed_at && ["pending", "queued", "running"].includes(auditJobStatus)
+  const auditFailed = Boolean(audit) && auditJobStatus === "failed"
+  const auditJobError = audit?.audit_job?.error_message ?? audit?.audit_job?.failed_reason ?? null
   const scoreValue = optionalNumber(audit?.final_score) ?? optionalNumber(summary.geo_score)
   const score = scoreValue ?? 0
   const enginePromptsTested = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.prompts_total), 0)
@@ -478,7 +485,34 @@ export default function AuditDetailReal() {
         {!loading && error && <Card className="glass border-border"><CardContent className="py-14 text-center text-muted-foreground">{error}</CardContent></Card>}
         {!loading && !error && !audit && <Card className="glass border-border"><CardContent className="py-14 text-center text-muted-foreground">{isEn ? "No audit data available." : "No hay datos de auditoría disponibles."}</CardContent></Card>}
 
-        {audit && (
+        {!loading && !error && audit && auditProcessing && (
+          <Card className="glass border-border">
+            <CardContent className="py-14 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+                <Zap className="h-7 w-7 animate-pulse" />
+              </div>
+              <h3 className="text-xl font-semibold">{isEn ? "Audit processing" : "Auditoría en procesamiento"}</h3>
+              <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
+                {isEn
+                  ? "Botz GEO is querying all selected engines and collecting real evidence. This page updates automatically."
+                  : "Botz GEO está consultando todos los motores seleccionados y recolectando evidencia real. Esta página se actualiza automáticamente."}
+              </p>
+              <p className="mt-4 text-xs text-muted-foreground">{isEn ? "Current status" : "Estado actual"}: {auditJobStatus || audit.status}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {!loading && !error && audit && auditFailed && !audit.completed_at && (
+          <Card className="glass border-red-500/30 bg-red-500/5">
+            <CardContent className="py-10 text-center text-red-200">
+              <AlertTriangle className="mx-auto mb-3 h-8 w-8" />
+              <h3 className="text-lg font-semibold">{isEn ? "Audit processing failed" : "Falló el procesamiento de la auditoría"}</h3>
+              <p className="mx-auto mt-2 max-w-xl text-sm text-red-100/80">{auditJobError || (isEn ? "One or more engines failed before producing enough evidence." : "Uno o más motores fallaron antes de producir evidencia suficiente.")}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {audit && !auditProcessing && !(auditFailed && !audit.completed_at) && (
           <>
             <Card className="glass glow-primary overflow-hidden border-border">
               <CardContent className="p-8">

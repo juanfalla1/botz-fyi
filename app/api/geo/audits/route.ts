@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { auditSchema } from "@geo/validators/audit.schema";
 import { getGeoApiClient } from "@/lib/geo/api-auth";
 import { createAuditManual } from "@/lib/geo/repositories/audits.repo";
@@ -70,12 +70,14 @@ export async function POST(req: Request) {
       parsed.data.crawl_depth ?? 1,
       parsed.data.engines ?? ["openai", "gemini"]
     );
-    try {
-      const processed = await processAuditQueueForUser(supabase, user.id, 1);
-      return NextResponse.json({ data: { audit: created.audit, job: created.job, processed }, mode: "live" }, { status: 201 });
-    } catch (processError) {
-      return NextResponse.json({ data: { audit: created.audit, job: created.job, processing_error: errorMessage(processError) }, mode: "live" }, { status: 201 });
-    }
+    after(async () => {
+      try {
+        await processAuditQueueForUser(supabase, user.id, 1);
+      } catch (processError) {
+        console.error("GEO audit background processing failed", processError);
+      }
+    });
+    return NextResponse.json({ data: { audit: created.audit, job: created.job }, mode: "live" }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: errorMessage(error) }, { status: statusForError(error) });
   }
