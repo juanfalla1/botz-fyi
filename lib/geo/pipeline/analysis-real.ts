@@ -12,9 +12,11 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
   const byEngine = new Map(providers.map((p) => [p.id, p]))
   const maxPrompts = Number(process.env.GEO_MAX_PROMPTS_PER_ENGINE ?? 4)
   const safeMaxPrompts = Number.isFinite(maxPrompts) && maxPrompts > 0 ? Math.min(Math.floor(maxPrompts), 10) : 5
+  const concurrency = Number(process.env.GEO_ENGINE_CONCURRENCY ?? 6)
+  const safeConcurrency = Number.isFinite(concurrency) && concurrency > 0 ? Math.min(Math.floor(concurrency), 12) : 6
 
   const promptCounts = new Map<string, number>()
-  const normalized: NormalizedEngineResult[] = []
+  const tasks: Array<{ gp: GeneratedPrompt; provider: NonNullable<ReturnType<typeof byEngine.get>>; mode: "live" | "fallback"; error?: string }> = []
   const competitorAliases = Object.fromEntries(ctx.competitors.map((c) => [c.name, c.aliases ?? []]))
   const competitorDomainAliases = Object.fromEntries(ctx.competitors.map((c) => [c.name, c.domain_aliases ?? []]))
   const stopwords = ctx.project.entity_stopwords ?? []
@@ -29,79 +31,51 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
 
     const mode = provider.status === "configured" ? "live" : "fallback"
     if (provider.status !== "configured") {
-      normalized.push(
-        normalizeEngineResponse({
-          engine: provider.id,
-          prompt: gp.prompt,
-          promptKind: classifyPrompt(gp, ctx),
-          mode,
-          raw: { text: "" },
-          brandName: ctx.project.company_name,
-          brandDomain: ctx.project.website_url.replace(/^https?:\/\//, ""),
-          brandAliases: ctx.project.brand_aliases ?? [],
-          domainAliases: ctx.project.domain_aliases ?? [],
-          competitorNames: ctx.competitors.map((c) => c.name),
-          competitorAliases,
-          competitorDomainAliases,
-          stopwords,
-          language: ctx.project.language,
-          country: ctx.project.country,
-          error: provider.reason ?? "Provider not configured",
-        })
-      )
+      tasks.push({ gp, provider, mode, error: provider.reason ?? "Provider not configured" })
       continue
     }
 
-    try {
-      const raw = await provider.runPrompt({
-        prompt: gp.prompt,
-        brandName: ctx.project.company_name,
-        brandDomain: ctx.project.website_url.replace(/^https?:\/\//, ""),
-        competitorNames: ctx.competitors.map((c) => c.name),
-      })
-
-      normalized.push(
-        normalizeEngineResponse({
-          engine: provider.id,
-          prompt: gp.prompt,
-          promptKind: classifyPrompt(gp, ctx),
-          mode: "live",
-          raw,
-          brandName: ctx.project.company_name,
-          brandDomain: ctx.project.website_url.replace(/^https?:\/\//, ""),
-          brandAliases: ctx.project.brand_aliases ?? [],
-          domainAliases: ctx.project.domain_aliases ?? [],
-          competitorNames: ctx.competitors.map((c) => c.name),
-          competitorAliases,
-          competitorDomainAliases,
-          stopwords,
-          language: ctx.project.language,
-          country: ctx.project.country,
-        })
-      )
-    } catch (error) {
-      normalized.push(
-        normalizeEngineResponse({
-          engine: provider.id,
-          prompt: gp.prompt,
-          promptKind: classifyPrompt(gp, ctx),
-          mode: "fallback",
-          raw: { text: "" },
-          brandName: ctx.project.company_name,
-          brandDomain: ctx.project.website_url.replace(/^https?:\/\//, ""),
-          brandAliases: ctx.project.brand_aliases ?? [],
-          domainAliases: ctx.project.domain_aliases ?? [],
-          competitorNames: ctx.competitors.map((c) => c.name),
-          competitorAliases,
-          competitorDomainAliases,
-          stopwords,
-          language: ctx.project.language,
-          country: ctx.project.country,
-          error: providerErrorMessage(error),
-        })
-      )
-    }
+    tasks.push({ gp, provider, mode })
   }
+
+  const normalizeResult = (task: (typeof tasks)[number], raw: { text?: string; citations?: string[]; meta?: Record<string, unknown> }, mode: "live" | "fallback", error?: string) => normalizeEngineResponse({
+    engine: task.provider.id,
+    prompt: task.gp.prompt,
+    promptKind: classifyPrompt(task.gp, ctx),
+    mode,
+    raw,
+    brandName: ctx.project.company_name,
+    brandDomain: ctx.project.website_url.replace(/^https?:\/\//, ""),
+    brandAliases: ctx.project.brand_aliases ?? [],
+    domainAliases: ctx.project.domain_aliases ?? [],
+    competitorNames: ctx.competitors.map((c) => c.name),
+    competitorAliases,
+    competitorDomainAliases,
+    stopwords,
+    language: ctx.project.language,
+    country: ctx.project.country,
+    error,
+  })
+
+  const normalizedChunks: NormalizedEngineResult[][] = []
+  for (let index = 0; index < tasks.length; index += safeConcurrency) {
+    const chunk = tasks.slice(index, index + safeConcurrency)
+    normalizedChunks.push(await Promise.all(chunk.map(async (task) => {
+      if (task.mode !== "live") return normalizeResult(task, { text: "" }, "fallback", task.error)
+      try {
+        const raw = await task.provider.runPrompt({
+          prompt: task.gp.prompt,
+          brandName: ctx.project.company_name,
+          brandDomain: ctx.project.website_url.replace(/^https?:\/\//, ""),
+          competitorNames: ctx.competitors.map((c) => c.name),
+        })
+        return normalizeResult(task, raw, "live")
+      } catch (error) {
+        return normalizeResult(task, { text: "" }, "fallback", providerErrorMessage(error))
+      }
+    })))
+  }
+  const normalized = normalizedChunks.flat()
 
   const configuredCount = providers.filter((p) => p.status === "configured" && p.id !== "ai_overviews").length
   const liveCount = normalized.filter((x) => x.mode === "live").length
