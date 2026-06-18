@@ -2,384 +2,407 @@
 
 ## Guia comercial premium para clientes
 
-**BOTZ GEO diagnostica, explica y mejora la visibilidad de una empresa en motores de inteligencia artificial como ChatGPT, Gemini, Perplexity y AI Overviews.**
+BOTZ GEO ayuda a que una empresa sea encontrada, entendida, citada y recomendada por motores de inteligencia artificial como ChatGPT, Gemini, Perplexity y AI Overviews.
 
-Audiencia: CEOs, gerentes generales, marketing, ventas, growth y agencias.  
-Objetivo: entender que mide BOTZ GEO, que significa cada indicador, que problema revela y que solucion ejecutamos para que la empresa crezca.
+Esta guia explica que problema resuelve, como funcionan los indicadores, que soluciones ejecutamos, que resultados esperamos y en que tiempos se puede medir progreso.
 
 ---
 
-## 1. La oportunidad
+## 1. El problema que esta cambiando el crecimiento
 
-Los clientes ya no descubren empresas solo en Google. Hoy preguntan directamente a motores de IA:
+Antes, el comprador buscaba en Google, comparaba enlaces y llegaba al sitio web.
 
-- Cual proveedor recomiendas?
-- Cual empresa es mejor para mi necesidad?
+Ahora el comprador pregunta a la IA:
+
+- Quien es el mejor proveedor?
+- Que empresa recomiendas en mi pais?
 - Que alternativas existen?
+- Cual marca tiene mejor soporte?
 - Donde compro con garantia?
-- Que marca tiene mas experiencia?
-- Que empresa tiene mejor soporte?
+- Que opcion es mejor para mi industria?
 
-Si la IA no menciona una empresa, esa empresa pierde influencia antes de que el comprador visite su web o hable con ventas.
+La IA responde con una lista corta. Si la empresa no aparece ahi, queda fuera de una parte creciente de la decision de compra.
 
-BOTZ GEO resuelve este problema convirtiendo la visibilidad en IA en un proceso medible:
-
-1. Diagnostica si la marca aparece.
-2. Explica por que aparece o por que no aparece.
-3. Detecta competidores que estan ganando la recomendacion.
-4. Prioriza acciones para mejorar.
-5. Produce entregables: landings, comparativas, FAQs, contenido y evidencia.
-6. Reaudita para medir avance.
+BOTZ GEO existe para solucionar eso: medir si la marca aparece en esas respuestas y construir las señales necesarias para aumentar su probabilidad de aparecer, ser citada y ser recomendada.
 
 ---
 
-## 2. Que soluciona BOTZ GEO
+## 2. Que hace BOTZ GEO
 
-BOTZ GEO soluciona cinco brechas comerciales.
+BOTZ GEO convierte la visibilidad en IA en un proceso comercial.
 
-### Brecha 1: La IA no entiende la empresa
+1. Audita como aparece la marca en motores IA.
+2. Detecta si la IA entiende la empresa.
+3. Identifica competidores que aparecen antes o mejor.
+4. Revisa si existen fuentes citables.
+5. Explica que significa cada indicador.
+6. Recomienda acciones concretas.
+7. Produce entregables de contenido, web y evidencia.
+8. Reaudita para medir progreso.
 
-Problema: el sitio web no explica claramente categoria, mercado, propuesta de valor, casos de uso o diferenciadores.
-
-Solucion BOTZ GEO: redefinir posicionamiento GEO y crear contenido claro para motores IA.
-
-### Brecha 2: La empresa no aparece en preguntas neutrales
-
-Problema: cuando el usuario pregunta por una categoria, la IA recomienda competidores.
-
-Solucion BOTZ GEO: crear landing GEO por categoria, industria o caso de uso.
-
-### Brecha 3: No hay evidencia citable
-
-Problema: la IA no encuentra fuentes confiables, URLs, FAQs, casos o pruebas para respaldar la marca.
-
-Solucion BOTZ GEO: construir activos citables: casos, FAQs, testimonios, garantias, fichas, comparativas y guias.
-
-### Brecha 4: Los competidores tienen mejor presencia generativa
-
-Problema: otras marcas aparecen mas, antes o con mejor contexto.
-
-Solucion BOTZ GEO: inteligencia competitiva, comparativas, contenido de alternativas y monitoreo continuo.
-
-### Brecha 5: El equipo no sabe que hacer primero
-
-Problema: marketing produce contenido por intuicion, sin saber que movera la visibilidad IA.
-
-Solucion BOTZ GEO: Action Plan priorizado por impacto, dificultad, metrica que mejora y tiempo estimado.
+La meta no es solo “hacer contenido”. La meta es construir una presencia digital que la IA pueda entender, verificar, citar y recomendar.
 
 ---
 
-## 3. Como funciona BOTZ GEO
+## 3. Flujo grafico de crecimiento GEO
 
-BOTZ GEO opera en ciclos.
+El crecimiento con BOTZ GEO ocurre en ciclos.
 
-### Ciclo 1: Auditoria
+1. Diagnostico inicial.
+2. Deteccion de brechas.
+3. Action Plan.
+4. Ejecucion de activos.
+5. Reauditoria.
+6. Escalamiento por categoria, industria y pais.
 
-Se configura la marca, web, pais, idioma, industria, competidores y motores IA. Luego se ejecutan prompts reales de mercado.
+Cada ciclo debe producir activos reales:
 
-### Ciclo 2: Diagnostico
-
-Se mide si la marca aparece, si fue citada, si competidores aparecen y que motores reconocen mejor o peor la empresa.
-
-### Ciclo 3: Action Plan
-
-BOTZ GEO convierte los hallazgos en acciones concretas: landing, comparativa, contenido, FAQs, evidencia, metadatos y prompts mejorados.
-
-### Ciclo 4: Ejecucion
-
-Se crean o ajustan activos digitales para que la IA entienda, cite y recomiende mejor la empresa.
-
-### Ciclo 5: Reauditoria
-
-Se mide si la empresa mejoro: mas menciones, mas citations, mayor GEO Score, mejor AI Visibility y menor brecha competitiva.
-
----
-
-## 4. Indicadores principales y que significan
-
-### GEO Score
-
-Que mide: salud general de visibilidad generativa de la empresa, de 0 a 100.
-
-Como interpretarlo:
-
-- 80 a 100: posicion fuerte.
-- 50 a 79: oportunidad activa.
-- 0 a 49: visibilidad debil.
-
-Si esta bajo, significa que la IA no encuentra suficientes señales para entender, mencionar, citar o recomendar la marca.
-
-Solucion:
-
-- Mejorar posicionamiento web.
-- Crear landing GEO por categoria.
-- Crear contenido citable.
-- Publicar FAQs y casos de uso.
-- Ejecutar comparativas contra competidores.
-
-Tiempo estimado de mejora visible: 4 a 8 semanas despues de publicar los activos principales y reauditar.
-
-### AI Visibility
-
-Que mide: presencia de la marca en respuestas de IA por motor.
-
-Como interpretarlo:
-
-- Alta visibilidad: la marca aparece con frecuencia.
-- Media visibilidad: aparece en algunos motores o prompts.
-- Baja visibilidad: la marca no aparece o aparece solo cuando se la nombra.
-
-Si esta baja, significa que la empresa no esta siendo considerada por motores IA en conversaciones de compra.
-
-Solucion:
-
-- Crear paginas que respondan preguntas reales.
-- Incluir lenguaje de categoria, pais, industria y caso de uso.
-- Generar contenido para prompts neutrales y comparativos.
-- Aumentar evidencia externa e interna.
-
-Tiempo estimado: primeras señales en 4 a 6 semanas; consolidacion en 60 a 90 dias.
-
-### Visibilidad espontanea
-
-Que mide: si la marca aparece sin que el usuario la nombre.
-
-Ejemplo: “mejores proveedores de software contable en Colombia”.
-
-Si la marca aparece ahi, tiene descubrimiento real. Si no aparece, depende de que el usuario ya la conozca.
-
-Solucion:
-
-- Landing por categoria.
-- Paginas “mejores proveedores”, “como elegir”, “alternativas”, “comparativa”.
-- Contenido orientado a intencion de compra.
-
-Tiempo estimado: 4 a 8 semanas para medir cambios iniciales.
-
-### Visibilidad asistida
-
-Que mide: si la marca aparece cuando el prompt ya menciona la empresa.
-
-Ejemplo: “compara Marca X con otras alternativas”.
-
-Si es alta pero la espontanea es baja, la IA entiende la marca solo cuando el usuario ya la conoce.
-
-Solucion:
-
-- Convertir reconocimiento asistido en reconocimiento de categoria.
-- Publicar contenido donde la marca se conecte claramente con problemas, industrias y casos de uso.
-
-Tiempo estimado: 3 a 6 semanas para mejorar claridad de marca.
-
-### Citation Coverage
-
-Que mide: si las respuestas tienen fuentes, URLs o evidencia citable.
-
-Si es baja, la IA puede no confiar lo suficiente para respaldar la marca.
-
-Solucion:
-
-- Crear paginas con estructura clara.
-- Publicar FAQs, guias, casos, datos y comparativas.
-- Mejorar metadata SEO/GEO.
-- Hacer que cada pagina responda una pregunta concreta.
-
-Tiempo estimado: 2 a 4 semanas para crear activos; 4 a 8 semanas para medir impacto.
-
-### Mentions
-
-Que mide: cuantas veces aparece la marca en respuestas IA y en que contexto.
-
-No todas las menciones valen igual. Una mencion como “recomendado” vale mas que una mencion neutral.
-
-Solucion:
-
-- Crear contenido que posicione la marca como respuesta, no solo como empresa.
-- Fortalecer diferenciadores y pruebas.
-- Crear comparativas y casos.
-
-Tiempo estimado: 4 a 8 semanas.
-
-### Competitors
-
-Que mide: que marcas alternativas aparecen frente a la empresa.
-
-Si competidores aparecen mas, la empresa pierde territorio generativo.
-
-Solucion:
-
-- Mapear competidores visibles.
-- Crear paginas comparativas.
-- Responder objeciones comerciales.
-- Publicar contenido de alternativas.
-
-Tiempo estimado: 4 a 6 semanas para crear comparativas; 60 a 90 dias para monitoreo sostenido.
-
-### Prompts ganados
-
-Que mide: preguntas donde la marca aparece o compite favorablemente.
-
-Si hay pocos prompts ganados, la empresa no esta presente en suficientes conversaciones de compra.
-
-Solucion:
-
-- Ampliar biblioteca de prompts.
-- Crear contenido para cada intencion.
-- Reauditar por categoria, industria y pais.
-
-Tiempo estimado: mejora progresiva por ciclos de 30 a 45 dias.
-
----
-
-## 5. Matriz indicador-solucion
-
-Indicador bajo: GEO Score  
-Problema probable: baja autoridad generativa.  
-Solucion: reposicionamiento, landing GEO, evidencia y comparativas.
-
-Indicador bajo: AI Visibility  
-Problema probable: la marca no aparece en motores IA.  
-Solucion: contenido por categoria, prompts neutrales, FAQs y casos de uso.
-
-Indicador bajo: Visibilidad espontanea  
-Problema probable: la empresa depende de que el usuario ya la conozca.  
-Solucion: landings “mejores proveedores”, “como elegir”, “alternativas” y “soluciones para industria”.
-
-Indicador bajo: Citation Coverage  
-Problema probable: faltan fuentes confiables.  
-Solucion: paginas citables, guias, casos, testimonios y metadata.
-
-Indicador bajo: Mentions  
-Problema probable: la IA no asocia la marca con la categoria.  
-Solucion: contenido semantico, estructura web, comparativas y autoridad externa.
-
-Indicador bajo: Prompts ganados  
-Problema probable: competidores estan mejor posicionados en conversaciones IA.  
-Solucion: inteligencia competitiva, contenido de alternativas y reauditoria.
-
----
-
-## 6. Paquetes de solucion BOTZ GEO
-
-### 1. Diagnostico GEO
-
-Incluye:
-
-- Auditoria de marca.
-- Prompts por motor.
-- GEO Score.
-- AI Visibility.
-- Mentions.
-- Citations.
-- Competidores detectados.
-- Lectura ejecutiva.
-
-Resultado: saber donde esta parada la empresa.
-
-### 2. GEO Action Plan
-
-Incluye:
-
-- Prioridades por impacto.
-- Metrica que mejora cada accion.
-- Tiempo estimado.
-- Dificultad.
-- Entregables requeridos.
-
-Resultado: saber que hacer primero.
-
-### 3. Landing GEO
-
-Incluye:
-
-- Copy completo.
-- Estructura SEO/GEO.
+- Landing GEO.
 - FAQs.
-- Secciones de prueba.
-- CTA comercial.
-- Metadata.
-
-Resultado: crear una pagina que responda la intencion que hoy gana un competidor.
-
-### 4. Contenido comparativo
-
-Incluye:
-
-- Marca vs alternativas.
-- Criterios de compra.
-- Ventajas y diferenciales.
-- Objeciones comerciales.
+- Comparativas.
 - Casos de uso.
+- Guias de compra.
+- Evidence Pack.
+- Prompts refinados.
+- Reporte de progreso.
 
-Resultado: competir en prompts donde el usuario compara opciones.
-
-### 5. Evidence Pack
-
-Incluye:
-
-- Casos.
-- Testimonios.
-- Garantias.
-- Cobertura.
-- Industrias atendidas.
-- Preguntas frecuentes.
-- Fuentes citables.
-
-Resultado: aumentar confianza y capacidad de citacion.
-
-### 6. Monitoreo continuo
-
-Incluye:
-
-- Reauditorias.
-- Tracking de competidores.
-- Nuevos prompts.
-- Ajuste del roadmap.
-
-Resultado: mejorar por ciclos, no por intuicion.
+El resultado esperado es una mejora progresiva en GEO Score, AI Visibility, citations, mentions y prompts ganados.
 
 ---
 
-## 7. Que aseguramos y que no prometemos
+## 4. Indicador: GEO Score
 
-Ninguna empresa puede garantizar que ChatGPT, Gemini, Perplexity o AI Overviews recomienden siempre una marca. Son motores externos y sus respuestas cambian.
+Que mide:
 
-Lo que BOTZ GEO si asegura como proceso:
+El GEO Score es el indicador ejecutivo de salud generativa. Resume que tan preparada esta la marca para aparecer en respuestas de IA.
 
-- Auditoria clara.
-- Diagnostico por motor.
-- Identificacion de brechas.
-- Competidores visibles.
-- Action Plan priorizado.
-- Entregables concretos.
-- Reauditoria para medir avance.
-- Sistema de mejora continua.
+Como se interpreta:
 
-Lo que buscamos lograr:
+- 80 a 100: la marca tiene posicion fuerte.
+- 50 a 79: hay oportunidad activa.
+- 0 a 49: la visibilidad es debil.
 
-- Aumentar probabilidad de aparicion.
-- Aumentar probabilidad de citacion.
-- Mejorar claridad de marca.
-- Reducir ventaja de competidores.
-- Convertir contenido en activos comerciales.
+Que revela si esta bajo:
+
+- La IA no entiende bien la empresa.
+- Faltan fuentes citables.
+- Los competidores tienen mejor presencia.
+- El sitio no responde preguntas comerciales reales.
+
+Solucion BOTZ GEO:
+
+- Reposicionamiento GEO.
+- Landing por categoria.
+- Evidence Pack.
+- Comparativas.
+- FAQs y contenido de compra.
+
+Tiempo esperado:
+
+- Primeras mejoras medibles: 4 a 8 semanas.
+- Consolidacion: 60 a 90 dias.
 
 ---
 
-## 8. Tiempos estimados
+## 5. Indicador: AI Visibility
+
+Que mide:
+
+AI Visibility mide si la marca aparece dentro de respuestas de ChatGPT, Gemini, Perplexity y AI Overviews.
+
+Por que importa:
+
+Una empresa puede tener buena web, pero baja visibilidad IA si los motores no la asocian con una categoria, problema o mercado.
+
+Que revela si esta baja:
+
+- La marca no esta siendo considerada en conversaciones de compra.
+- Los motores no encuentran suficiente contexto.
+- La propuesta de valor no esta conectada con preguntas reales.
+
+Solucion BOTZ GEO:
+
+- Crear contenido por categoria e industria.
+- Mejorar estructura de paginas clave.
+- Crear preguntas frecuentes orientadas a compra.
+- Publicar casos y evidencia.
+- Ejecutar prompts por motor y reauditar.
+
+Ejemplo:
+
+Si una empresa vende software contable, no basta con decir “software contable”. Debe responder preguntas como “mejor software contable para pymes en Colombia”, “alternativas a X”, “como elegir software contable con soporte local”.
+
+---
+
+## 6. Indicador: Visibilidad espontanea
+
+Que mide:
+
+La marca aparece sin que el usuario la nombre.
+
+Ejemplo:
+
+El usuario pregunta “mejores proveedores de automatizacion para ventas en Colombia” y la IA menciona la empresa.
+
+Por que es clave:
+
+Es la señal mas parecida al descubrimiento real. Significa que la marca puede aparecer aunque el comprador todavia no la conozca.
+
+Que revela si esta baja:
+
+- La marca depende de busquedas directas.
+- La IA no la asocia con la categoria.
+- Competidores tienen mejor contenido de categoria.
+
+Solucion BOTZ GEO:
+
+- Landing “mejores proveedores de X”.
+- Landing por industria.
+- Pagina “como elegir X”.
+- Contenido de alternativas.
+- Comparativas con competidores.
+
+Tiempo esperado:
+
+- 4 a 8 semanas despues de publicar landings y reauditar.
+
+---
+
+## 7. Indicador: Visibilidad asistida
+
+Que mide:
+
+La marca aparece cuando el prompt ya menciona la empresa.
+
+Ejemplo:
+
+“Compara Marca X con otras alternativas para e-commerce”.
+
+Como se interpreta:
+
+Si la visibilidad asistida es alta pero la espontanea es baja, la IA puede hablar de la marca cuando se la nombran, pero no la recomienda cuando el comprador pregunta de forma neutral.
+
+Problema comercial:
+
+La empresa tiene reconocimiento asistido, no descubrimiento generativo.
+
+Solucion BOTZ GEO:
+
+- Conectar marca con categoria.
+- Crear paginas por caso de uso.
+- Reforzar diferenciadores.
+- Publicar contenido donde la marca responda problemas concretos.
+
+Tiempo esperado:
+
+- 3 a 6 semanas para mejorar claridad y asociacion semantica.
+
+---
+
+## 8. Indicador: Citations
+
+Que mide:
+
+Citations son fuentes, URLs o paginas que respaldan una respuesta de IA.
+
+Por que importa:
+
+La IA confia mas en marcas que tienen contenido claro, verificable y facil de citar.
+
+Que revela si esta bajo:
+
+- Faltan paginas con informacion clara.
+- No hay FAQs utiles.
+- No hay casos o pruebas.
+- La web no responde preguntas especificas.
+
+Solucion BOTZ GEO:
+
+- Evidence Pack.
+- Guias de compra.
+- Casos de exito.
+- FAQs por categoria.
+- Paginas de comparacion.
+- Metadata SEO/GEO.
+
+Ejemplo:
+
+Una clinica no solo debe decir “servicios medicos”. Debe tener paginas citables como “tratamiento X en Bogota”, “preguntas frecuentes”, “equipo medico”, “precios orientativos”, “casos y resultados”.
+
+---
+
+## 9. Indicador: Mentions
+
+Que mide:
+
+Mentions son apariciones de la marca dentro de respuestas de IA.
+
+No todas las menciones valen igual:
+
+- Mencion como recomendacion: alta calidad.
+- Mencion como alternativa: media.
+- Mencion neutral: baja.
+- Mencion negativa o confusa: riesgo.
+
+Que revela si esta bajo:
+
+- La IA no asocia la marca con la categoria.
+- El contenido no tiene suficiente autoridad.
+- La marca no aparece en fuentes relevantes.
+
+Solucion BOTZ GEO:
+
+- Contenido semantico por categoria.
+- Casos de uso.
+- Comparativas.
+- Autoridad externa.
+- Consistencia de mensajes entre web, redes y fuentes publicas.
+
+Tiempo esperado:
+
+- 4 a 8 semanas para primeras mejoras.
+
+---
+
+## 10. Indicador: Competitors
+
+Que mide:
+
+Competitors son las marcas que la IA menciona frente a la empresa.
+
+Por que importa:
+
+Si la IA menciona competidores y no menciona la marca, el comprador puede avanzar con otras opciones antes de conocer la empresa.
+
+Que revela:
+
+- Quien esta ganando la conversacion.
+- Que tipo de contenido favorece la IA.
+- Donde hay oportunidades de comparacion.
+- Que marcas tienen mejor evidencia publica.
+
+Solucion BOTZ GEO:
+
+- Paginas “Marca vs Competidor”.
+- Paginas “alternativas a X”.
+- Contenido de criterios de compra.
+- Respuesta a objeciones.
+- Monitoreo de cambios por motor.
+
+Tiempo esperado:
+
+- 4 a 6 semanas para crear comparativas.
+- 60 a 90 dias para seguimiento competitivo.
+
+---
+
+## 11. Indicador: Prompts ganados
+
+Que mide:
+
+Prompts ganados son preguntas donde la marca aparece o compite favorablemente.
+
+Por que importa:
+
+Cada prompt representa una intencion de compra, investigacion o comparacion.
+
+Ejemplos de prompts:
+
+- “Mejores proveedores de CRM con IA para pymes”.
+- “Agencias de automatizacion para ventas en Colombia”.
+- “Alternativas a HubSpot para empresas pequeñas”.
+- “Donde comprar balanzas industriales con soporte local”.
+
+Que revela si hay pocos prompts ganados:
+
+- La marca no participa en suficientes conversaciones.
+- El contenido no cubre intenciones clave.
+- Los prompts estan mal definidos o son demasiado amplios.
+
+Solucion BOTZ GEO:
+
+- Biblioteca de prompts por categoria.
+- Prompts por industria.
+- Prompts comparativos.
+- Prompts por pais.
+- Contenido para cada intencion.
+
+---
+
+## 12. Matriz indicador-solucion
+
+Si GEO Score esta bajo:
+
+- Problema: baja autoridad generativa.
+- Solucion: reposicionamiento, landing GEO, evidence pack y comparativas.
+
+Si AI Visibility esta bajo:
+
+- Problema: la marca no aparece en respuestas IA.
+- Solucion: contenido por categoria, prompts neutrales y FAQs.
+
+Si Visibilidad espontanea esta baja:
+
+- Problema: la empresa depende de que el usuario ya la conozca.
+- Solucion: landings de categoria, mejores proveedores, alternativas y guias.
+
+Si Citation Coverage esta bajo:
+
+- Problema: faltan fuentes confiables.
+- Solucion: casos, testimonios, guias, FAQs y metadata.
+
+Si Mentions esta bajo:
+
+- Problema: la IA no asocia marca con categoria.
+- Solucion: contenido semantico, comparativas y autoridad externa.
+
+Si Prompts ganados esta bajo:
+
+- Problema: competidores estan mejor posicionados.
+- Solucion: inteligencia competitiva, contenido de alternativas y reauditoria.
+
+---
+
+## 13. Soluciones que entregamos
+
+### Diagnostico GEO
+
+Entrega una linea base: donde aparece la marca, donde no aparece, que motores responden mejor y que competidores ganan.
+
+### GEO Action Plan
+
+Prioriza acciones por impacto, dificultad, metrica que mejora, tiempo estimado y entregable.
+
+### Landing GEO
+
+Pagina diseñada para responder una intencion de compra especifica y ser entendible por IA.
+
+### Contenido comparativo
+
+Activos para competir contra alternativas, responder objeciones y mejorar prompts comparativos.
+
+### Evidence Pack
+
+FAQs, casos, testimonios, garantias, cobertura, datos de producto, industrias atendidas y fuentes citables.
+
+### Monitoreo continuo
+
+Reauditorias, seguimiento de competidores, nuevos prompts y ajustes de roadmap.
+
+---
+
+## 14. Roadmap de 90 dias
 
 ### Semana 1: Diagnostico
 
-Entregables:
-
 - Auditoria inicial.
-- Indicadores base.
+- GEO Score.
+- AI Visibility.
 - Competidores detectados.
 - Prompts criticos.
 - Action Plan.
 
 ### Semanas 2 a 3: Fundacion GEO
-
-Entregables:
 
 - Posicionamiento.
 - Landing principal.
@@ -389,17 +412,13 @@ Entregables:
 
 ### Semanas 4 a 6: Autoridad y competencia
 
-Entregables:
-
 - Comparativas.
 - Casos de uso.
 - Evidence Pack.
 - Contenido por industria.
 - Prompts refinados.
 
-### 60 a 90 dias: Crecimiento y monitoreo
-
-Entregables:
+### Dias 60 a 90: Escalamiento
 
 - Reauditorias.
 - Nuevas landings.
@@ -409,71 +428,133 @@ Entregables:
 
 ---
 
-## 9. Ejemplo practico
+## 15. Flujo de crecimiento esperado
 
-Caso: una empresa quiere aparecer cuando un comprador pregunta:
+1. La empresa entiende su posicion actual.
+2. Se identifican brechas por motor.
+3. Se crean activos citables.
+4. La IA tiene mejores fuentes para entender la marca.
+5. Aumentan menciones y citations.
+6. Mejoran prompts ganados.
+7. Se reduce la ventaja competitiva.
+8. Se repite el ciclo por nuevas categorias.
+
+Resultado esperado:
+
+- Mas visibilidad en preguntas de compra.
+- Mayor claridad de marca.
+- Mas fuentes citables.
+- Mejor posicion frente a competidores.
+- Contenido reutilizable por ventas y marketing.
+
+---
+
+## 16. Ejemplo practico
+
+Pregunta del comprador:
 
 **“Quien vende las mejores balanzas en Colombia?”**
 
 Resultado observado:
 
-- La marca objetivo no aparece en 4 motores.
-- La IA menciona competidores.
-- El prompt es amplio.
-- Faltan paginas claras y citables para esa intencion.
+- La marca objetivo no aparecio en 4 motores.
+- La IA menciono alternativas.
+- El prompt era amplio.
+- Faltaban paginas claras y citables para esa intencion.
 
 Diagnostico:
 
 - Baja visibilidad espontanea.
-- Baja asociacion entre marca y categoria.
-- Competidores con mejor contenido visible.
+- Baja asociacion marca-categoria.
+- Competidores con mejor evidencia publica.
 
 Solucion:
 
-- Crear landing “balanzas para empresas en Colombia”.
-- Crear comparativa contra alternativas.
-- Publicar FAQs de compra.
-- Agregar evidencia de garantia, soporte, cobertura e industrias.
-- Reauditar en 4 a 6 semanas.
-
-Este mismo modelo aplica para software, salud, educacion, industria, retail, servicios profesionales, inmobiliario, tecnologia y B2B.
+- Landing “balanzas para empresas en Colombia”.
+- Comparativa contra alternativas.
+- FAQs de compra.
+- Evidencia de soporte, garantia y cobertura.
+- Reauditoria en 4 a 6 semanas.
 
 ---
 
-## 10. Antes y despues
+## 17. Ejemplos por industria
+
+### Software B2B
+
+Prompt: “mejor CRM con IA para pymes en Colombia”.  
+Solucion: landing CRM con IA, comparativa con HubSpot, FAQs de implementacion, casos de uso.
+
+### Salud
+
+Prompt: “mejor clinica para tratamiento X en Bogota”.  
+Solucion: pagina de tratamiento, equipo medico, preguntas frecuentes, evidencia y testimonios.
+
+### Industria
+
+Prompt: “proveedores de equipos industriales con soporte local”.  
+Solucion: landing por equipo, garantia, cobertura, fichas tecnicas y comparativas.
+
+### Educacion
+
+Prompt: “mejores cursos de IA para empresas”.  
+Solucion: programa, metodologia, certificacion, casos corporativos y FAQs.
+
+### Servicios profesionales
+
+Prompt: “firma recomendada para automatizacion comercial”.  
+Solucion: landing de servicio, casos, proceso de trabajo, industrias y resultados.
+
+---
+
+## 18. Que aseguramos
+
+No prometemos controlar respuestas de motores externos. Nadie puede garantizar que ChatGPT, Gemini, Perplexity o AI Overviews recomienden siempre una marca.
+
+Si aseguramos:
+
+- Auditoria clara.
+- Diagnostico por motor.
+- Lectura de indicadores.
+- Brechas accionables.
+- Entregables concretos.
+- Roadmap de mejora.
+- Reauditoria antes/despues.
+- Sistema de mejora continua.
+
+El objetivo es aumentar la probabilidad de aparicion, citacion y recomendacion con activos digitales mejor diseñados.
+
+---
+
+## 19. Antes y despues
 
 Antes:
 
-- No se sabe si la empresa aparece en IA.
-- Los competidores pueden ganar recomendaciones.
+- No se sabe si la marca aparece en IA.
+- No se conocen competidores visibles.
+- No hay citations claras.
 - El contenido se crea por intuicion.
-- No hay lectura de citations.
-- No hay reauditoria.
+- No hay medicion de progreso.
 
 Despues:
 
-- La empresa sabe donde aparece.
-- Conoce competidores visibles.
-- Tiene Action Plan.
-- Crea activos citables.
-- Mide avance por ciclos.
+- La marca tiene linea base.
+- Hay indicadores por motor.
+- Hay Action Plan.
+- Hay landings y evidencia.
+- Hay reauditorias.
+- Hay roadmap por categoria.
 
 ---
 
-## 11. Decision ejecutiva
+## 20. Decision ejecutiva
 
-BOTZ GEO no es solo un reporte. Es un sistema para crecer en la nueva capa de descubrimiento: respuestas generadas por inteligencia artificial.
+BOTZ GEO no es solo una auditoria. Es una metodologia para crecer en la nueva capa de descubrimiento: respuestas generadas por IA.
 
-La empresa que actua primero construye señales antes que sus competidores.
+El cliente compra tres cosas:
 
-Plan recomendado:
-
-1. Auditar.
-2. Diagnosticar indicadores.
-3. Ejecutar Action Plan.
-4. Crear landings y evidencia.
-5. Publicar comparativas.
-6. Reauditar.
-7. Repetir por categoria e industria.
+1. Claridad: saber donde esta parado.
+2. Solucion: saber que debe construir.
+3. Progreso: medir si la empresa gana visibilidad.
 
 **BOTZ GEO convierte la visibilidad en IA en un proceso comercial medible, accionable y orientado a crecimiento.**
