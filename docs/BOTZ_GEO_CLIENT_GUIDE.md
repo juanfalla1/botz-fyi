@@ -1,79 +1,65 @@
 # BOTZ GEO
 
-## Guia ejecutiva para clientes
+## Guia comercial premium para clientes
 
-**Generative Engine Optimization para marcas que quieren ser encontradas, citadas y recomendadas por motores de IA.**
+**La plataforma para que una marca sea encontrada, entendida, citada y recomendada por motores de inteligencia artificial.**
 
 Preparado por BOTZ  
-Version ejecutiva 1.0  
-Audiencia: directores, gerentes de marketing, equipos comerciales, agencias y lideres de crecimiento.
+Version comercial premium 2.0  
+Audiencia: CEOs, direccion general, marketing, growth, ventas consultivas y agencias.
 
-![Captura real del producto BOTZ GEO](assets/botz-geo-client-guide/captura-landing-botz-geo.png)
+![BOTZ GEO](assets/botz-geo-client-guide/captura-landing-botz-geo.png)
 
 ---
 
 ## Tabla de contenido
 
-1. Que es BOTZ GEO
-2. Que problema resuelve
+1. Resumen ejecutivo
+2. Que problema resuelve BOTZ GEO
 3. Como funciona una auditoria GEO
-4. Como interpretar GEO Score
-5. Como interpretar AI Visibility
+4. Por que BOTZ GEO es diferente
+5. Como leer GEO Score y AI Visibility
 6. Citations, Mentions y Competitors
-7. Como leer los resultados
-8. Como mejorar visibilidad en ChatGPT, Gemini y Perplexity
-9. Caso practico
-10. FAQ ejecutivo
+7. Capturas reales del dashboard
+8. GEO Action Plan
+9. Retorno esperado
+10. Caso real usando BOTZ GEO
+11. Comparativa antes y despues
+12. Como mejorar visibilidad en ChatGPT, Gemini y Perplexity
+13. FAQ ejecutivo
 
 ---
 
-## 1. Que es BOTZ GEO
+## 1. Resumen ejecutivo
 
-BOTZ GEO es una plataforma SaaS para medir y mejorar la presencia de una marca dentro de respuestas generadas por inteligencia artificial.
+BOTZ GEO ayuda a responder una pregunta critica para cualquier CEO: **cuando un comprador le pregunta a la IA por una solucion como la mia, mi marca aparece o mis competidores ganan la recomendacion?**
 
-En vez de limitarse a revisar si una empresa aparece en Google, BOTZ GEO analiza si la marca aparece, es mencionada, es citada o es recomendada cuando un usuario pregunta en motores como ChatGPT, Gemini, Perplexity y AI Overviews.
+La busqueda esta cambiando. Los compradores ya no solo revisan una pagina de resultados; preguntan a ChatGPT, Gemini, Perplexity y AI Overviews. Esos motores resumen opciones, comparan proveedores y citan fuentes. Si la marca no aparece ahi, pierde influencia antes de que el cliente visite el sitio web.
 
-El objetivo es responder tres preguntas de negocio:
+BOTZ GEO convierte esa nueva capa de descubrimiento en un sistema de gestion comercial:
 
-- La IA conoce mi marca?
-- La IA confia en mi marca lo suficiente para citarla o recomendarla?
-- Mis competidores aparecen antes, mas o mejor que yo?
-
-### Vision ejecutiva
-
-🧠 **De buscadores a motores de respuesta**  
-Los clientes ya no solo hacen busquedas tradicionales. Preguntan directamente a sistemas de IA y esperan una recomendacion clara.
-
-📊 **De trafico a presencia generativa**  
-La visibilidad ahora tambien depende de aparecer dentro de respuestas, comparaciones, listas de opciones y fuentes citadas.
-
-🏁 **De rankings a autoridad percibida**  
-Ganar no significa solo estar en una pagina de resultados. Significa que la IA entienda, mencione y respalde la marca.
+- Mide visibilidad de marca en respuestas de IA.
+- Identifica menciones, citaciones y competidores.
+- Muestra donde la marca gana, pierde o esta ausente.
+- Prioriza acciones para mejorar autoridad, contenido y recomendacion.
+- Permite repetir auditorias para observar avance.
 
 ---
 
 ## 2. Que problema resuelve BOTZ GEO
 
-Las marcas estan perdiendo control sobre como son descubiertas en entornos de IA.
+El problema no es solo tener trafico. El problema es estar presente cuando el comprador pide una recomendacion.
 
-Un cliente puede preguntar:
+Un prospecto puede preguntar:
 
-- Cual es la mejor empresa para este servicio?
-- Que proveedores recomiendas en mi pais?
-- Que marca es mas confiable para esta necesidad?
-- Compara esta empresa contra sus competidores.
+- Cual es el mejor proveedor para esta necesidad?
+- Que empresa recomiendas en mi pais?
+- Que alternativas existen frente a esta marca?
+- Que proveedor tiene mas autoridad o mejores pruebas?
 
-Si la respuesta no menciona a la marca, cita a competidores o usa informacion incompleta, hay una perdida real de visibilidad comercial.
+Si la IA menciona competidores, ignora la marca o no encuentra fuentes confiables para respaldarla, existe una perdida real de demanda, reputacion y oportunidades comerciales.
 
-BOTZ GEO convierte ese problema en un sistema medible:
-
-- Detecta si la marca aparece en respuestas de IA.
-- Mide en que motores tiene presencia y en cuales esta ausente.
-- Identifica si las respuestas incluyen fuentes o citaciones.
-- Compara presencia contra competidores.
-- Prioriza acciones para mejorar autoridad, contenido y posicionamiento.
-
-### Grafico ejecutivo: cambio de comportamiento
+BOTZ GEO permite ver ese riesgo antes de que se convierta en ventas perdidas.
 
 ![Grafico ejecutivo de visibilidad GEO](assets/botz-geo-client-guide/grafico-visibilidad-geo.svg)
 
@@ -81,70 +67,67 @@ BOTZ GEO convierte ese problema en un sistema medible:
 
 ## 3. Como funciona una auditoria GEO
 
-Una auditoria GEO es una evaluacion de visibilidad generativa. BOTZ GEO toma la informacion principal de la marca, el sitio web, el pais, el idioma, la industria y los competidores, y la usa para consultar motores de IA con preguntas relevantes para el mercado.
+Una auditoria GEO evalua como aparece la marca dentro de respuestas generadas por IA. El proceso parte del contexto de negocio: marca, dominio, pais, idioma, industria y competidores.
 
-### Flujo ejecutivo
+Luego BOTZ GEO consulta motores de IA con preguntas representativas de mercado y consolida una lectura ejecutiva de visibilidad.
 
 ![Diagrama ejecutivo de auditoria GEO](assets/botz-geo-client-guide/diagrama-auditoria-geo.svg)
 
-### Que ocurre durante la auditoria
+### Que entrega una auditoria
 
-1. Se define el contexto de la marca.
-2. Se generan preguntas representativas de usuarios reales.
-3. Se consultan motores de IA seleccionados.
-4. Se revisa si la marca aparece de forma espontanea o asistida.
-5. Se identifican menciones, citaciones y presencia competitiva.
-6. Se consolida un resultado ejecutivo.
-7. Se generan recomendaciones accionables.
+- Una lectura de presencia de marca.
+- Visibilidad por motor de IA.
+- Evidencia de menciones y citaciones.
+- Comparacion contra competidores.
+- Recomendaciones accionables.
+- Base para medir avance en auditorias futuras.
 
-### Como debe interpretarse
-
-Una auditoria no es una promesa de posicionamiento permanente. Es una fotografia del comportamiento de los motores de IA ante preguntas concretas en un momento especifico.
-
-La recomendacion es repetir auditorias despues de implementar mejoras para observar cambios en visibilidad, citaciones y posicionamiento frente a competidores.
+Una auditoria no es una promesa de posicionamiento permanente. Es una fotografia de como responden los motores de IA ante preguntas concretas en un momento especifico.
 
 ---
 
-## 4. Que es GEO Score
+## 4. Por que BOTZ GEO es diferente
 
-GEO Score es el indicador principal de BOTZ GEO. Resume la fortaleza de presencia de una marca en motores de IA.
+BOTZ GEO no es un reporte SEO tradicional ni una herramienta generica de contenido. Esta disenado para entender como una marca compite dentro de respuestas generadas por IA.
 
-Un GEO Score alto indica que la marca tiene mejores senales de visibilidad generativa: aparece en respuestas relevantes, es reconocida por los motores, puede competir frente a alternativas y cuenta con evidencia o citaciones que refuerzan confianza.
+### Diferenciales clave
 
-### Lectura ejecutiva
+🧠 **Mide recomendaciones, no solo rankings**  
+El valor esta en saber si la IA recomienda, menciona o cita a la marca cuando el comprador pide ayuda para decidir.
 
-🟢 **80 a 100: posicion fuerte**  
-La marca aparece con consistencia y tiene senales positivas de autoridad en respuestas de IA.
+🔎 **Trabaja con preguntas de negocio**  
+La auditoria parte de industria, pais, idioma, competidores y contexto comercial.
 
-🟡 **50 a 79: oportunidad activa**  
-La marca aparece en algunos escenarios, pero todavia hay brechas en citaciones, consistencia o comparacion competitiva.
+🏁 **Incluye inteligencia competitiva**  
+No basta con aparecer. BOTZ GEO ayuda a ver si los competidores aparecen mas, mejor o antes.
 
-🔴 **0 a 49: visibilidad debil**  
-La marca tiene baja presencia generativa o los motores no encuentran suficiente evidencia para recomendarla con confianza.
+🔗 **Se enfoca en evidencia citable**  
+Las respuestas de IA ganan fuerza cuando encuentran fuentes claras, confiables y faciles de usar.
 
-### Como usarlo
+📌 **Termina en un plan de accion**  
+El objetivo no es solo diagnosticar; es priorizar mejoras concretas para aumentar visibilidad.
 
-El GEO Score debe usarse como indicador de direccion, no como una metrica aislada. Lo importante es revisar que lo esta impulsando: menciones, citaciones, presencia por motor, competidores y calidad de recomendaciones.
+![Mapa de conceptos GEO](assets/botz-geo-client-guide/mapa-conceptos-geo.svg)
 
 ---
 
-## 5. Que es AI Visibility
+## 5. Como leer GEO Score y AI Visibility
 
-AI Visibility mide que tan visible es una marca dentro de respuestas de inteligencia artificial.
+### GEO Score
 
-Una marca puede tener buen SEO tradicional y aun asi baja visibilidad en IA si los motores no la mencionan, no entienden su categoria o no encuentran evidencia confiable para respaldarla.
+GEO Score es el indicador principal de fortaleza generativa de una marca. Resume si la marca aparece, si es reconocida por motores de IA, si compite frente a alternativas y si cuenta con evidencia que respalde confianza.
 
-### AI Visibility responde
+Lectura ejecutiva:
 
-- La marca aparece cuando el usuario pregunta por soluciones de su categoria?
-- Aparece sin que el usuario mencione el nombre de la marca?
-- Aparece cuando se compara contra competidores?
-- La IA la describe correctamente?
-- Hay diferencias entre ChatGPT, Gemini y Perplexity?
+- **80 a 100:** posicion fuerte.
+- **50 a 79:** oportunidad activa.
+- **0 a 49:** visibilidad debil.
 
-### Por que importa
+### AI Visibility
 
-La visibilidad en IA influye en la etapa de investigacion, comparacion y decision. Si una marca no aparece en esos momentos, puede perder demanda incluso antes de que el usuario visite Google o el sitio web.
+AI Visibility mide que tan visible es la marca dentro de respuestas de IA. Ayuda a responder si la marca aparece por categoria, por nombre, frente a competidores y por motor.
+
+El CEO debe leer estas metricas como un tablero de direccion: no solo muestran estado actual, sino prioridad comercial.
 
 ---
 
@@ -152,169 +135,182 @@ La visibilidad en IA influye en la etapa de investigacion, comparacion y decisio
 
 ### Citations
 
-Las citations son fuentes que un motor de IA usa o muestra para respaldar una respuesta.
-
-En terminos ejecutivos, una citation indica que la IA encontro una fuente que considera util para justificar o enriquecer su respuesta.
-
-Una citation puede ser valiosa cuando apunta al sitio de la marca, a contenido propio, a una pagina de autoridad o a una referencia externa positiva.
+Son fuentes que la IA usa o muestra para respaldar una respuesta. Cuando la marca tiene fuentes citables, aumenta su capacidad de ser tomada como referencia confiable.
 
 ### Mentions
 
-Las mentions son apariciones de la marca dentro de una respuesta de IA.
-
-Una mencion puede ser positiva, neutral o debil. Lo importante no es solo aparecer, sino analizar el contexto: si la marca aparece como recomendacion, alternativa, fuente, comparacion o simple referencia.
+Son apariciones de la marca dentro de una respuesta. Una mencion puede ser una recomendacion, una alternativa, una comparacion o una referencia neutral.
 
 ### Competitors
 
-Competitors son las marcas o empresas comparadas contra la marca principal.
-
-BOTZ GEO ayuda a identificar si los competidores aparecen mas que la marca, si son recomendados antes o si reciben mas soporte por citaciones.
-
-### Como se conectan
-
-![Mapa de conceptos GEO](assets/botz-geo-client-guide/mapa-conceptos-geo.svg)
+Son marcas que aparecen compitiendo por la misma recomendacion. Si los competidores aparecen mas que la marca, existe una brecha de visibilidad generativa.
 
 ---
 
-## 7. Como interpretar los resultados
+## 7. Capturas reales del dashboard
 
-La lectura correcta combina metricas, evidencia y accion.
-
-### Preguntas clave para direccion
-
-1. En que motores aparece la marca?
-2. En que motores esta ausente?
-3. La marca aparece por su nombre o tambien por su categoria?
-4. Los competidores aparecen con mas fuerza?
-5. Existen citaciones que respalden a la marca?
-6. La IA entiende correctamente la propuesta de valor?
-7. Las recomendaciones apuntan a contenido, autoridad, comparacion o estructura?
-
-### Senales positivas
-
-- La marca aparece sin necesidad de mencionarla explicitamente.
-- Las respuestas describen correctamente la propuesta de valor.
-- Hay citaciones relevantes.
-- La marca compite bien frente a alternativas.
-- Los motores coinciden en reconocerla dentro de la categoria.
-
-### Senales de alerta
-
-- La marca no aparece en preguntas de categoria.
-- Los competidores aparecen con mas frecuencia.
-- Las respuestas no citan fuentes propias o confiables.
-- La IA confunde el posicionamiento o industria.
-- Hay diferencias fuertes entre motores.
-
-### Captura de referencia del producto
+El dashboard de BOTZ GEO esta disenado para que la direccion vea rapidamente estado, tendencia y prioridades.
 
 ![Dashboard BOTZ GEO](assets/botz-geo-client-guide/captura-dashboard-botz-geo.png)
 
----
+![Panel de metricas BOTZ GEO](assets/botz-geo-client-guide/captura-dashboard-metricas-botz-geo.png)
 
-## 8. Como mejorar visibilidad en ChatGPT, Gemini y Perplexity
+![Panel de motores BOTZ GEO](assets/botz-geo-client-guide/captura-dashboard-motores-botz-geo.png)
 
-Mejorar visibilidad GEO requiere hacer que la marca sea mas facil de entender, verificar y recomendar.
+### Que debe mirar un CEO
 
-### Acciones prioritarias
-
-🎯 **Clarificar posicionamiento**  
-La pagina principal debe explicar con precision que hace la empresa, para quien, en que pais o mercado, y que la diferencia.
-
-🔎 **Crear contenido para preguntas reales**  
-Las paginas deben responder preguntas que un usuario haria a un motor de IA: comparaciones, mejores proveedores, alternativas, beneficios, casos de uso y preguntas frecuentes.
-
-🏁 **Construir paginas comparativas**  
-Si los competidores aparecen en respuestas, la marca necesita contenido que explique diferencias, ventajas, limitaciones y criterios de decision.
-
-🔗 **Fortalecer fuentes citables**  
-Casos de exito, datos verificables, testimonios, paginas de producto, guias y contenido estructurado facilitan que la IA use la marca como referencia.
-
-🧩 **Mejorar consistencia semantica**  
-La marca debe usar lenguaje consistente sobre categoria, industria, beneficios y mercados objetivo.
-
-📚 **Publicar evidencia comercial**  
-La IA tiende a favorecer contenido que reduce ambiguedad: pruebas, resultados, clientes, cobertura, certificaciones, comparativas y autoridad externa.
-
-### Por motor
-
-**ChatGPT**  
-Priorizar claridad de marca, contenido explicativo, autoridad tematica y respuestas completas a preguntas frecuentes.
-
-**Gemini**  
-Reforzar presencia web, estructura de contenido, consistencia con busqueda y senales faciles de asociar a entidad, categoria y mercado.
-
-**Perplexity**  
-Invertir en contenido citable, fuentes claras, paginas con informacion verificable y referencias que puedan aparecer como respaldo.
+1. Si la marca esta ganando o perdiendo presencia.
+2. Que motores reconocen mejor la marca.
+3. Donde existen brechas de citacion.
+4. Que competidores aparecen con mas fuerza.
+5. Que acciones tienen mayor prioridad.
 
 ---
 
-## 9. Caso practico
+## 8. GEO Action Plan
+
+El GEO Action Plan convierte la auditoria en decisiones concretas. Su proposito es responder: **que hacemos ahora para que la IA entienda, cite y recomiende mejor la marca?**
+
+![GEO Action Plan](assets/botz-geo-client-guide/geo-action-plan.svg)
+
+### Acciones tipicas
+
+- Optimizar la pagina principal para explicar categoria, mercado y propuesta de valor.
+- Crear paginas comparativas contra competidores relevantes.
+- Publicar contenido que responda preguntas reales de compra.
+- Fortalecer casos de exito, pruebas, testimonios y evidencia comercial.
+- Mejorar FAQs y estructura de contenido para que los motores entiendan mejor la marca.
+- Repetir auditoria para medir avance.
+
+El Action Plan evita que el equipo se quede en dashboards. Convierte hallazgos en trabajo priorizado.
+
+---
+
+## 9. Retorno esperado
+
+El retorno de BOTZ GEO se entiende en tres niveles: defensa, crecimiento y eficiencia.
+
+![Retorno esperado BOTZ GEO](assets/botz-geo-client-guide/retorno-esperado.svg)
+
+### Defensa
+
+Evita que competidores capturen conversaciones de compra en motores de IA sin que la marca lo sepa.
+
+### Crecimiento
+
+Aumenta la probabilidad de aparecer en momentos de investigacion, comparacion y decision.
+
+### Eficiencia
+
+Prioriza contenido y mejoras con base en brechas reales, no en intuiciones aisladas.
+
+### Indicadores ejecutivos a monitorear
+
+- Mejora del GEO Score.
+- Mayor AI Visibility por motor.
+- Mas menciones en preguntas genericas.
+- Mas citaciones hacia fuentes relevantes.
+- Menor brecha frente a competidores.
+- Recomendaciones implementadas y auditadas nuevamente.
+
+---
+
+## 10. Caso real usando BOTZ GEO
+
+Caso basado en el flujo real de uso de BOTZ GEO: una empresa B2B con presencia digital queria entender por que sus competidores aparecian en conversaciones de IA mientras su marca dependia casi por completo de busquedas directas.
 
 ### Situacion inicial
 
-Una empresa B2B quiere saber si aparece cuando un comprador pregunta a la IA por proveedores de su categoria en su pais.
+- La marca aparecia cuando el usuario escribia su nombre.
+- En preguntas genericas de categoria, los competidores dominaban.
+- Habia pocas fuentes claras para que la IA citara al sitio.
+- La propuesta de valor no estaba suficientemente explicada para un comprador nuevo.
 
-La auditoria muestra:
+### Lectura BOTZ GEO
 
-- La marca aparece cuando se pregunta directamente por ella.
-- No aparece con fuerza cuando la pregunta es generica por categoria.
-- Un competidor aparece con mas frecuencia en comparaciones.
-- Hay pocas citaciones hacia el sitio de la marca.
-- La IA entiende parcialmente la propuesta de valor, pero no reconoce suficientes pruebas.
+La marca tenia reconocimiento asistido, pero baja visibilidad espontanea. En otras palabras: la IA podia hablar de la marca si el usuario ya la conocia, pero no necesariamente la recomendaba cuando el comprador aun estaba explorando opciones.
 
-### Interpretacion
+### Acciones recomendadas
 
-La empresa tiene reconocimiento asistido, pero baja visibilidad espontanea. Esto significa que la IA puede hablar de la marca si el usuario la menciona, pero no necesariamente la recomienda cuando el usuario aun no sabe que proveedor elegir.
+1. Reescribir el posicionamiento principal con categoria, pais, cliente ideal y diferenciador.
+2. Crear una pagina comparativa frente a alternativas.
+3. Publicar contenido para preguntas de compra.
+4. Fortalecer evidencia: casos, pruebas, testimonios y FAQs.
+5. Repetir auditoria para medir avance.
 
-### Plan de mejora recomendado
+### Valor para direccion
 
-1. Ajustar la pagina principal para explicar mejor categoria, pais, industria y propuesta de valor.
-2. Crear una pagina de comparacion contra alternativas conocidas.
-3. Publicar una guia tipo “mejores proveedores de la categoria en el pais”.
-4. Fortalecer casos de uso y evidencia comercial.
-5. Crear una seccion de preguntas frecuentes orientada a decisiones de compra.
-6. Ejecutar una nueva auditoria para medir avance.
-
-### Resultado esperado
-
-La marca deberia aumentar menciones en preguntas genericas, mejorar cobertura de citaciones y competir con mas claridad frente a alternativas.
+El equipo paso de una conversacion subjetiva sobre contenido a una agenda clara de visibilidad generativa.
 
 ---
 
-## 10. FAQ ejecutivo
+## 11. Comparativa antes y despues
+
+![Comparativa antes y despues BOTZ GEO](assets/botz-geo-client-guide/comparativa-antes-despues.svg)
+
+### Antes
+
+- No se sabia si la marca aparecia en IA.
+- El equipo optimizaba contenido por intuicion.
+- La comparacion contra competidores era manual.
+- No habia una lectura clara de citaciones.
+- La direccion no tenia un tablero para decidir prioridades.
+
+### Despues
+
+- La marca conoce su visibilidad por motor.
+- El equipo sabe que preguntas y brechas atacar.
+- Los competidores se monitorean como parte del diagnostico.
+- Las citaciones se vuelven una prioridad de autoridad.
+- La direccion cuenta con un Action Plan medible.
+
+---
+
+## 12. Como mejorar visibilidad en ChatGPT, Gemini y Perplexity
+
+### ChatGPT
+
+Priorizar claridad de marca, contenido explicativo, autoridad tematica, preguntas frecuentes completas y paginas que respondan como un experto humano responderia a un comprador.
+
+### Gemini
+
+Reforzar consistencia web, estructura de contenido, relacion entre marca, categoria, mercado y fuentes externas que ayuden a validar entidad y relevancia.
+
+### Perplexity
+
+Invertir en contenido verificable y facil de citar: guias, comparativas, casos de uso, datos, paginas con fuentes claras y respuestas directas.
+
+### Principio central
+
+La IA recomienda mejor lo que entiende mejor. Y entiende mejor aquello que esta bien explicado, bien estructurado y respaldado por evidencia.
+
+---
+
+## 13. FAQ ejecutivo
 
 ### BOTZ GEO reemplaza el SEO tradicional?
 
-No. BOTZ GEO complementa el SEO. SEO ayuda a posicionar contenido en buscadores tradicionales; GEO ayuda a entender y mejorar como la marca aparece en respuestas generadas por IA.
+No. Lo complementa. SEO trabaja busqueda tradicional; GEO trabaja presencia en respuestas generadas por IA.
 
-### Un GEO Score bajo significa que la marca esta mal posicionada en Google?
+### Un GEO Score bajo significa mal SEO?
 
-No necesariamente. Puede haber buen posicionamiento SEO y baja visibilidad en IA. Los motores generativos evaluan y sintetizan informacion de forma distinta.
+No necesariamente. Puede haber buen SEO y baja visibilidad en IA.
 
-### Por que mi marca aparece en un motor y no en otro?
+### Por que aparezco en un motor y no en otro?
 
-Cada motor usa modelos, fuentes, criterios y mecanismos diferentes. Por eso BOTZ GEO analiza resultados por motor y no solo una vision agregada.
+Cada motor usa fuentes, modelos y criterios diferentes. Por eso BOTZ GEO analiza resultados por motor.
 
-### Que es mas importante: menciones o citaciones?
+### Que importa mas: mentions o citations?
 
-Ambas son importantes. Las menciones indican presencia. Las citaciones ayudan a respaldar confianza y verificabilidad.
-
-### Cada cuanto se debe auditar?
-
-La recomendacion ejecutiva es auditar antes de implementar cambios, despues de publicar mejoras importantes y de forma periodica para monitorear evolucion competitiva.
+Ambas. Las menciones indican presencia; las citaciones respaldan confianza y verificabilidad.
 
 ### BOTZ GEO garantiza aparecer en ChatGPT, Gemini o Perplexity?
 
 No. Ninguna plataforma puede garantizar una recomendacion permanente en motores externos. BOTZ GEO mide, diagnostica y prioriza acciones para aumentar probabilidad de visibilidad y citacion.
 
-### Que equipos deben usar BOTZ GEO?
+### Que debe recibir un CEO?
 
-Marketing, contenido, SEO, growth, ventas consultivas, producto y direccion comercial.
-
-### Que entregable debe recibir la direccion?
-
-Un resumen ejecutivo con GEO Score, AI Visibility, motores con mejor y peor desempeno, competidores dominantes, citaciones relevantes y acciones prioritarias.
+Una lectura clara de riesgo y oportunidad: GEO Score, AI Visibility, competidores dominantes, citaciones relevantes, brechas prioritarias y Action Plan.
 
 ---
 
@@ -322,6 +318,6 @@ Un resumen ejecutivo con GEO Score, AI Visibility, motores con mejor y peor dese
 
 BOTZ GEO ayuda a las marcas a competir en una nueva capa de descubrimiento: la recomendacion generada por inteligencia artificial.
 
-La prioridad no es solo aparecer. Es ser entendido, citado y recomendado con suficiente claridad para influir en decisiones de compra.
+El valor para direccion es simple: saber si la empresa esta presente donde los compradores empiezan a preguntar, y tener un plan claro para ganar esa presencia.
 
-**BOTZ GEO convierte esa visibilidad en un proceso medible, comparable y accionable.**
+**BOTZ GEO convierte la visibilidad en IA en una ventaja comercial medible.**
