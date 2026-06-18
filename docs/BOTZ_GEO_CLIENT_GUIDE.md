@@ -1,323 +1,217 @@
-# BOTZ GEO
+# BOTZ GEO x AVANZA
 
-## Guia comercial premium para clientes
+## Guia comercial premium basada en auditoria real
 
-**La plataforma para que una marca sea encontrada, entendida, citada y recomendada por motores de inteligencia artificial.**
+**Objetivo:** que un CEO entienda en menos de 10 minutos que esta pasando con la visibilidad IA de Avanza, que riesgos comerciales existen y que plan de accion debe ejecutarse.
 
-Preparado por BOTZ  
-Version comercial premium 2.0  
-Audiencia: CEOs, direccion general, marketing, growth, ventas consultivas y agencias.
-
-![BOTZ GEO](assets/botz-geo-client-guide/captura-landing-botz-geo.png)
-
----
-
-## Tabla de contenido
-
-1. Resumen ejecutivo
-2. Que problema resuelve BOTZ GEO
-3. Como funciona una auditoria GEO
-4. Por que BOTZ GEO es diferente
-5. Como leer GEO Score y AI Visibility
-6. Citations, Mentions y Competitors
-7. Capturas reales del dashboard
-8. GEO Action Plan
-9. Retorno esperado
-10. Caso real usando BOTZ GEO
-11. Comparativa antes y despues
-12. Como mejorar visibilidad en ChatGPT, Gemini y Perplexity
-13. FAQ ejecutivo
+Marca analizada: **Avanza**  
+Mercado: **Colombia**  
+Idioma: **Español**  
+Categoria observada: **E-commerce / balanzas / proveedores especializados**  
+Estado ejecutivo: **oportunidad activa de GEO**
 
 ---
 
 ## 1. Resumen ejecutivo
 
-BOTZ GEO ayuda a responder una pregunta critica para cualquier CEO: **cuando un comprador le pregunta a la IA por una solucion como la mia, mi marca aparece o mis competidores ganan la recomendacion?**
+BOTZ GEO muestra que Avanza tiene una base medible de visibilidad IA, pero todavia no domina las preguntas neutrales de mercado.
 
-La busqueda esta cambiando. Los compradores ya no solo revisan una pagina de resultados; preguntan a ChatGPT, Gemini, Perplexity y AI Overviews. Esos motores resumen opciones, comparan proveedores y citan fuentes. Si la marca no aparece ahi, pierde influencia antes de que el cliente visite el sitio web.
+Lectura CEO:
 
-BOTZ GEO convierte esa nueva capa de descubrimiento en un sistema de gestion comercial:
+- **GEO Score:** 55/100.
+- **Visibilidad espontanea:** 67%.
+- **Auditorias registradas:** 26.
+- **Competidores monitoreados:** 3.
+- **Prompts ejecutados:** 348.
+- **Cobertura de citations:** 100% en la muestra disponible.
+- **Win rate competitivo:** sin muestra suficiente.
 
-- Mide visibilidad de marca en respuestas de IA.
-- Identifica menciones, citaciones y competidores.
-- Muestra donde la marca gana, pierde o esta ausente.
-- Prioriza acciones para mejorar autoridad, contenido y recomendacion.
-- Permite repetir auditorias para observar avance.
-
----
-
-## 2. Que problema resuelve BOTZ GEO
-
-El problema no es solo tener trafico. El problema es estar presente cuando el comprador pide una recomendacion.
-
-Un prospecto puede preguntar:
-
-- Cual es el mejor proveedor para esta necesidad?
-- Que empresa recomiendas en mi pais?
-- Que alternativas existen frente a esta marca?
-- Que proveedor tiene mas autoridad o mejores pruebas?
-
-Si la IA menciona competidores, ignora la marca o no encuentra fuentes confiables para respaldarla, existe una perdida real de demanda, reputacion y oportunidades comerciales.
-
-BOTZ GEO permite ver ese riesgo antes de que se convierta en ventas perdidas.
-
-![Grafico ejecutivo de visibilidad GEO](assets/botz-geo-client-guide/grafico-visibilidad-geo.svg)
+La señal mas importante no es el numero aislado. Es que en prompts neutrales como **“Quien vende las mejores balanzas en Colombia?”**, la marca objetivo no aparece y la IA menciona alternativas como Balanzas Tijuana, Calesa, Grupo Pesa, Bascúla Digital Colombia, Badecol, Disglobal y Balanzas Precisur.
 
 ---
 
-## 3. Como funciona una auditoria GEO
+## 2. Que significa para Avanza
 
-Una auditoria GEO evalua como aparece la marca dentro de respuestas generadas por IA. El proceso parte del contexto de negocio: marca, dominio, pais, idioma, industria y competidores.
+Avanza aparece como una marca con oportunidad activa: hay estructura, medicion y ejecucion, pero la IA todavia no la reconoce consistentemente como respuesta espontanea en preguntas comerciales neutrales.
 
-Luego BOTZ GEO consulta motores de IA con preguntas representativas de mercado y consolida una lectura ejecutiva de visibilidad.
+Esto significa:
 
-![Diagrama ejecutivo de auditoria GEO](assets/botz-geo-client-guide/diagrama-auditoria-geo.svg)
+- Si el comprador ya conoce Avanza, la marca puede entrar en la conversacion.
+- Si el comprador pregunta de forma neutral por proveedores de balanzas, la IA puede recomendar competidores.
+- La brecha no es solo SEO; es claridad de categoria, evidencia publica, contenido citable y posicionamiento GEO.
 
-### Que entrega una auditoria
+---
 
-- Una lectura de presencia de marca.
-- Visibilidad por motor de IA.
-- Evidencia de menciones y citaciones.
-- Comparacion contra competidores.
-- Recomendaciones accionables.
-- Base para medir avance en auditorias futuras.
+## 3. Dashboard ejecutivo
 
-Una auditoria no es una promesa de posicionamiento permanente. Es una fotografia de como responden los motores de IA ante preguntas concretas en un momento especifico.
+El dashboard real muestra una lectura clara:
+
+- Avanza tiene **GEO Score 55/100**.
+- La visibilidad espontanea llega a **67%**.
+- Existen **26 auditorias** y **3 competidores monitoreados**.
+- El plan actual esta en modo **Trial**, con uso visible de auditorias y prompts.
+
+Interpretacion:
+
+- El producto ya esta midiendo señales reales.
+- Hay base suficiente para priorizar acciones.
+- La oportunidad principal esta en convertir auditoria en ejecucion: landings, contenidos, evidencia y comparativas.
 
 ---
 
 ## 4. Por que BOTZ GEO es diferente
 
-BOTZ GEO no es un reporte SEO tradicional ni una herramienta generica de contenido. Esta disenado para entender como una marca compite dentro de respuestas generadas por IA.
+BOTZ GEO no se queda en “tu marca aparece o no aparece”. Separa tipos de visibilidad y los conecta con un roadmap de ejecucion.
 
-### Diferenciales clave
+Diferenciales clave:
 
-🧠 **Mide recomendaciones, no solo rankings**  
-El valor esta en saber si la IA recomienda, menciona o cita a la marca cuando el comprador pide ayuda para decidir.
-
-🔎 **Trabaja con preguntas de negocio**  
-La auditoria parte de industria, pais, idioma, competidores y contexto comercial.
-
-🏁 **Incluye inteligencia competitiva**  
-No basta con aparecer. BOTZ GEO ayuda a ver si los competidores aparecen mas, mejor o antes.
-
-🔗 **Se enfoca en evidencia citable**  
-Las respuestas de IA ganan fuerza cuando encuentran fuentes claras, confiables y faciles de usar.
-
-📌 **Termina en un plan de accion**  
-El objetivo no es solo diagnosticar; es priorizar mejoras concretas para aumentar visibilidad.
-
-![Mapa de conceptos GEO](assets/botz-geo-client-guide/mapa-conceptos-geo.svg)
+- **Prompts neutrales:** miden si la marca aparece sin ser nombrada.
+- **Prompts asistidos:** miden si la IA responde cuando la marca ya esta en la pregunta.
+- **Prompts comparativos:** miden posicion frente a competidores.
+- **Citations:** revisan si hay evidencia o URLs citables.
+- **Action Plan:** convierte hallazgos en piezas vendibles y ejecutables.
 
 ---
 
-## 5. Como leer GEO Score y AI Visibility
+## 5. Definicion de metricas
 
-### GEO Score
+**GEO Score**  
+Score ejecutivo de 0 a 100. Resume presencia generativa, calidad de evidencia, visibilidad y desempeño competitivo.
 
-GEO Score es el indicador principal de fortaleza generativa de una marca. Resume si la marca aparece, si es reconocida por motores de IA, si compite frente a alternativas y si cuenta con evidencia que respalde confianza.
+**Visibilidad espontanea**  
+La marca aparece sin ser nombrada en la pregunta. Es la señal mas fuerte de visibilidad real.
 
-Lectura ejecutiva:
+**Visibilidad asistida**  
+La marca aparece cuando el prompt ya la menciona. Es util, pero no prueba reconocimiento espontaneo del mercado.
 
-- **80 a 100:** posicion fuerte.
-- **50 a 79:** oportunidad activa.
-- **0 a 49:** visibilidad debil.
+**Cobertura de citations**  
+Indica si se encontraron fuentes, URLs o evidencia citable en los prompts donde aplicaba.
 
-### AI Visibility
-
-AI Visibility mide que tan visible es la marca dentro de respuestas de IA. Ayuda a responder si la marca aparece por categoria, por nombre, frente a competidores y por motor.
-
-El CEO debe leer estas metricas como un tablero de direccion: no solo muestran estado actual, sino prioridad comercial.
-
----
-
-## 6. Citations, Mentions y Competitors
-
-### Citations
-
-Son fuentes que la IA usa o muestra para respaldar una respuesta. Cuando la marca tiene fuentes citables, aumenta su capacidad de ser tomada como referencia confiable.
-
-### Mentions
-
-Son apariciones de la marca dentro de una respuesta. Una mencion puede ser una recomendacion, una alternativa, una comparacion o una referencia neutral.
-
-### Competitors
-
-Son marcas que aparecen compitiendo por la misma recomendacion. Si los competidores aparecen mas que la marca, existe una brecha de visibilidad generativa.
+**Prompts ganados**  
+Preguntas donde la marca objetivo aparece o compite favorablemente frente a alternativas.
 
 ---
 
-## 7. Capturas reales del dashboard
+## 6. Hallazgo critico: prompt neutral
 
-El dashboard de BOTZ GEO esta disenado para que la direccion vea rapidamente estado, tendencia y prioridades.
+Prompt observado:
 
-![Dashboard BOTZ GEO](assets/botz-geo-client-guide/captura-dashboard-botz-geo.png)
+**“Quien vende las mejores balanzas en Colombia?”**
 
-![Panel de metricas BOTZ GEO](assets/botz-geo-client-guide/captura-dashboard-metricas-botz-geo.png)
+Resultado observado:
 
-![Panel de motores BOTZ GEO](assets/botz-geo-client-guide/captura-dashboard-motores-botz-geo.png)
+- 0/4 motores mencionaron la marca objetivo.
+- OpenAI menciono: Balanzas Tijuana, Calesa, Grupo Pesa.
+- Gemini menciono: Bascúla Digital Colombia.
+- Perplexity menciono: Badecol, Disglobal, Balanzas Precisur.
+- AI Overviews menciono: Badecol.
 
-### Que debe mirar un CEO
+Lectura CEO:
 
-1. Si la marca esta ganando o perdiendo presencia.
-2. Que motores reconocen mejor la marca.
-3. Donde existen brechas de citacion.
-4. Que competidores aparecen con mas fuerza.
-5. Que acciones tienen mayor prioridad.
+Avanza tiene una brecha en visibilidad espontanea para una pregunta comercial de alta intencion. Ese tipo de pregunta es exactamente donde un comprador nuevo descubre proveedores.
 
 ---
 
-## 8. GEO Action Plan
+## 7. Competidores detectados
 
-El GEO Action Plan convierte la auditoria en decisiones concretas. Su proposito es responder: **que hacemos ahora para que la IA entienda, cite y recomiende mejor la marca?**
+Competidores visibles en el analisis:
 
-![GEO Action Plan](assets/botz-geo-client-guide/geo-action-plan.svg)
+- Equilab S.A.S.
+- KASSEL Group Colombia.
+- Lab Brands S.A.S.
+- Badecol.
+- Disglobal.
+- Balanzas Precisur.
+- Balanzas Tijuana.
+- Calesa.
+- Grupo Pesa.
+- Bascúla Digital Colombia.
 
-### Acciones tipicas
+Lectura:
 
-- Optimizar la pagina principal para explicar categoria, mercado y propuesta de valor.
-- Crear paginas comparativas contra competidores relevantes.
-- Publicar contenido que responda preguntas reales de compra.
-- Fortalecer casos de exito, pruebas, testimonios y evidencia comercial.
-- Mejorar FAQs y estructura de contenido para que los motores entiendan mejor la marca.
-- Repetir auditoria para medir avance.
+La IA no solo esta respondiendo con marcas tradicionales. Tambien mezcla distribuidores, paginas con contenido citable y fuentes que parecen resolver mejor la intencion “mejores balanzas en Colombia”.
 
-El Action Plan evita que el equipo se quede en dashboards. Convierte hallazgos en trabajo priorizado.
+---
+
+## 8. GEO Action Plan para Avanza
+
+El Action Plan recomendado se enfoca en cerrar la brecha entre auditoria y recomendacion IA.
+
+Prioridad 1: Landing por categoria  
+Crear una landing enfocada en “balanzas en Colombia” o “proveedores de balanzas para empresas en Colombia”.
+
+Prioridad 2: Contenido comparativo  
+Crear comparativas honestas entre Avanza y alternativas del mercado: Badecol, Disglobal, Precisur y otros jugadores visibles.
+
+Prioridad 3: Evidencia citable  
+Publicar casos, especificaciones, cobertura, industrias atendidas, FAQs, garantias, soporte y criterios de seleccion.
+
+Prioridad 4: Prompts de monitoreo  
+Refinar prompts demasiado amplios. Ejemplo: cambiar “quien vende las mejores balanzas” por prompts con industria, caso de uso, cliente objetivo y criterios.
+
+Prioridad 5: Reauditoria  
+Ejecutar una nueva auditoria despues de publicar las piezas para medir si Avanza empieza a aparecer en prompts neutrales.
 
 ---
 
 ## 9. Retorno esperado
 
-El retorno de BOTZ GEO se entiende en tres niveles: defensa, crecimiento y eficiencia.
+El retorno esperado no debe leerse como garantia de ranking. Debe leerse como aumento de probabilidad de presencia en conversaciones IA.
 
-![Retorno esperado BOTZ GEO](assets/botz-geo-client-guide/retorno-esperado.svg)
+Impactos esperados:
 
-### Defensa
+- Mayor aparicion en prompts neutrales de compra.
+- Mejor asociacion entre Avanza y la categoria “balanzas en Colombia”.
+- Mas fuentes propias citables.
+- Menor ventaja de competidores en respuestas generativas.
+- Mejor material comercial para ventas consultivas.
 
-Evita que competidores capturen conversaciones de compra en motores de IA sin que la marca lo sepa.
+Indicadores a revisar en la siguiente auditoria:
 
-### Crecimiento
-
-Aumenta la probabilidad de aparecer en momentos de investigacion, comparacion y decision.
-
-### Eficiencia
-
-Prioriza contenido y mejoras con base en brechas reales, no en intuiciones aisladas.
-
-### Indicadores ejecutivos a monitorear
-
-- Mejora del GEO Score.
-- Mayor AI Visibility por motor.
-- Mas menciones en preguntas genericas.
-- Mas citaciones hacia fuentes relevantes.
-- Menor brecha frente a competidores.
-- Recomendaciones implementadas y auditadas nuevamente.
+- Cambio en GEO Score.
+- Cambio en visibilidad espontanea.
+- Nuevas menciones de Avanza por motor.
+- Citations hacia contenido propio.
+- Reduccion de prompts donde solo aparecen competidores.
 
 ---
 
-## 10. Caso real usando BOTZ GEO
+## 10. Antes y despues
 
-Caso basado en el flujo real de uso de BOTZ GEO: una empresa B2B con presencia digital queria entender por que sus competidores aparecian en conversaciones de IA mientras su marca dependia casi por completo de busquedas directas.
+Antes:
 
-### Situacion inicial
+- La IA responde preguntas neutrales con competidores.
+- Avanza no aparece en 0/4 motores para el prompt observado.
+- El contenido no parece suficientemente citable para esa intencion.
+- Los prompts amplios generan resultados dispersos.
 
-- La marca aparecia cuando el usuario escribia su nombre.
-- En preguntas genericas de categoria, los competidores dominaban.
-- Habia pocas fuentes claras para que la IA citara al sitio.
-- La propuesta de valor no estaba suficientemente explicada para un comprador nuevo.
+Despues esperado:
 
-### Lectura BOTZ GEO
-
-La marca tenia reconocimiento asistido, pero baja visibilidad espontanea. En otras palabras: la IA podia hablar de la marca si el usuario ya la conocia, pero no necesariamente la recomendaba cuando el comprador aun estaba explorando opciones.
-
-### Acciones recomendadas
-
-1. Reescribir el posicionamiento principal con categoria, pais, cliente ideal y diferenciador.
-2. Crear una pagina comparativa frente a alternativas.
-3. Publicar contenido para preguntas de compra.
-4. Fortalecer evidencia: casos, pruebas, testimonios y FAQs.
-5. Repetir auditoria para medir avance.
-
-### Valor para direccion
-
-El equipo paso de una conversacion subjetiva sobre contenido a una agenda clara de visibilidad generativa.
+- Avanza aparece en prompts de categoria.
+- La IA encuentra una pagina clara sobre balanzas en Colombia.
+- Las respuestas citan fuentes propias o evidencia controlada.
+- Ventas usa landings y comparativas como material comercial.
 
 ---
 
-## 11. Comparativa antes y despues
+## 11. Decision ejecutiva
 
-![Comparativa antes y despues BOTZ GEO](assets/botz-geo-client-guide/comparativa-antes-despues.svg)
+La decision no es si Avanza debe “hacer mas contenido”. La decision es si Avanza quiere competir por ser una respuesta recomendada cuando el comprador pregunta a la IA.
 
-### Antes
+BOTZ GEO ya identifico la brecha. El siguiente paso es ejecutar el plan:
 
-- No se sabia si la marca aparecia en IA.
-- El equipo optimizaba contenido por intuicion.
-- La comparacion contra competidores era manual.
-- No habia una lectura clara de citaciones.
-- La direccion no tenia un tablero para decidir prioridades.
-
-### Despues
-
-- La marca conoce su visibilidad por motor.
-- El equipo sabe que preguntas y brechas atacar.
-- Los competidores se monitorean como parte del diagnostico.
-- Las citaciones se vuelven una prioridad de autoridad.
-- La direccion cuenta con un Action Plan medible.
+1. Landing de categoria.
+2. Contenido comparativo.
+3. Evidencia citable.
+4. Prompts mejor definidos.
+5. Nueva auditoria.
 
 ---
 
-## 12. Como mejorar visibilidad en ChatGPT, Gemini y Perplexity
+## 12. Cierre
 
-### ChatGPT
+Avanza tiene una oportunidad clara: transformar su presencia digital en una presencia entendible para motores de IA.
 
-Priorizar claridad de marca, contenido explicativo, autoridad tematica, preguntas frecuentes completas y paginas que respondan como un experto humano responderia a un comprador.
+BOTZ GEO permite medir esa oportunidad, priorizar acciones y validar si el mercado generativo empieza a reconocer la marca.
 
-### Gemini
-
-Reforzar consistencia web, estructura de contenido, relacion entre marca, categoria, mercado y fuentes externas que ayuden a validar entidad y relevancia.
-
-### Perplexity
-
-Invertir en contenido verificable y facil de citar: guias, comparativas, casos de uso, datos, paginas con fuentes claras y respuestas directas.
-
-### Principio central
-
-La IA recomienda mejor lo que entiende mejor. Y entiende mejor aquello que esta bien explicado, bien estructurado y respaldado por evidencia.
-
----
-
-## 13. FAQ ejecutivo
-
-### BOTZ GEO reemplaza el SEO tradicional?
-
-No. Lo complementa. SEO trabaja busqueda tradicional; GEO trabaja presencia en respuestas generadas por IA.
-
-### Un GEO Score bajo significa mal SEO?
-
-No necesariamente. Puede haber buen SEO y baja visibilidad en IA.
-
-### Por que aparezco en un motor y no en otro?
-
-Cada motor usa fuentes, modelos y criterios diferentes. Por eso BOTZ GEO analiza resultados por motor.
-
-### Que importa mas: mentions o citations?
-
-Ambas. Las menciones indican presencia; las citaciones respaldan confianza y verificabilidad.
-
-### BOTZ GEO garantiza aparecer en ChatGPT, Gemini o Perplexity?
-
-No. Ninguna plataforma puede garantizar una recomendacion permanente en motores externos. BOTZ GEO mide, diagnostica y prioriza acciones para aumentar probabilidad de visibilidad y citacion.
-
-### Que debe recibir un CEO?
-
-Una lectura clara de riesgo y oportunidad: GEO Score, AI Visibility, competidores dominantes, citaciones relevantes, brechas prioritarias y Action Plan.
-
----
-
-## Cierre
-
-BOTZ GEO ayuda a las marcas a competir en una nueva capa de descubrimiento: la recomendacion generada por inteligencia artificial.
-
-El valor para direccion es simple: saber si la empresa esta presente donde los compradores empiezan a preguntar, y tener un plan claro para ganar esa presencia.
-
-**BOTZ GEO convierte la visibilidad en IA en una ventaja comercial medible.**
+**La meta no es solo aparecer. La meta es que Avanza sea una respuesta confiable cuando el comprador pregunta por soluciones de balanzas en Colombia.**
