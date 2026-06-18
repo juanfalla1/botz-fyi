@@ -3,6 +3,7 @@ import type { GeneratedPrompt, PipelineContext } from "@/lib/geo/pipeline/types"
 export function buildBasePrompts(ctx: PipelineContext): GeneratedPrompt[] {
   const domain = ctx.project.website_url.replace(/^https?:\/\//, "")
   const isEnglish = isEnglishLanguage(ctx.project.language)
+  const categoryContext = buildCategoryContext(ctx.project.industry, ctx.project.business_goal, isEnglish)
   const competitorNames = ctx.competitors
     .filter((competitor) => !isSameEntity(ctx.project.company_name, ctx.project.website_url, competitor.name, competitor.domain))
     .map((c) => c.name)
@@ -11,18 +12,18 @@ export function buildBasePrompts(ctx: PipelineContext): GeneratedPrompt[] {
 
   const templates = isEnglish
     ? [
-        { category: "spontaneous", prompt: `What are the best ${ctx.project.industry} providers in ${ctx.project.country}?` },
-        { category: "spontaneous", prompt: `Which brand is most cited for ${ctx.project.industry} solutions?` },
-        { category: "spontaneous", prompt: `What company do you recommend for ${ctx.project.industry} and why?` },
+        { category: "spontaneous", prompt: `What are the best providers for ${categoryContext} in ${ctx.project.country}?` },
+        { category: "spontaneous", prompt: `Which brands are most cited for ${categoryContext}?` },
+        { category: "spontaneous", prompt: `What company do you recommend for ${categoryContext} in ${ctx.project.country}, and why?` },
         { category: "citation", prompt: `Find trusted sources mentioning ${domain}.` },
-        ...(competitorText ? [{ category: "competitive", prompt: `Compare ${ctx.project.company_name} vs ${competitorText} as ${ctx.project.industry} providers in ${ctx.project.country}. Which option is stronger for buyers and why?` }] : []),
+        ...(competitorText ? [{ category: "competitive", prompt: `Compare ${ctx.project.company_name} vs ${competitorText} for ${categoryContext} in ${ctx.project.country}. Which option is stronger for buyers and why?` }] : []),
       ]
     : [
-        { category: "spontaneous", prompt: `¿Cuáles son los mejores proveedores de ${ctx.project.industry} en ${ctx.project.country}?` },
-        { category: "spontaneous", prompt: `¿Qué marca es más citada para soluciones de ${ctx.project.industry}?` },
-        { category: "spontaneous", prompt: `¿Qué empresa recomiendas para ${ctx.project.industry} y por qué?` },
+        { category: "spontaneous", prompt: `¿Cuáles son los mejores proveedores para ${categoryContext} en ${ctx.project.country}?` },
+        { category: "spontaneous", prompt: `¿Qué marcas son más citadas para ${categoryContext}?` },
+        { category: "spontaneous", prompt: `¿Qué empresa recomiendas para ${categoryContext} en ${ctx.project.country} y por qué?` },
         { category: "citation", prompt: `Encuentra fuentes confiables que mencionen ${domain}.` },
-        ...(competitorText ? [{ category: "competitive", prompt: `Compara ${ctx.project.company_name} vs ${competitorText} como proveedores de ${ctx.project.industry} en ${ctx.project.country}. ¿Qué opción es más fuerte para compradores y por qué?` }] : []),
+        ...(competitorText ? [{ category: "competitive", prompt: `Compara ${ctx.project.company_name} vs ${competitorText} para ${categoryContext} en ${ctx.project.country}. ¿Qué opción es más fuerte para compradores y por qué?` }] : []),
       ]
 
   const prompts: GeneratedPrompt[] = []
@@ -32,6 +33,30 @@ export function buildBasePrompts(ctx: PipelineContext): GeneratedPrompt[] {
     }
   }
   return prompts
+}
+
+function buildCategoryContext(industry: string, businessGoal: string, isEnglish: boolean) {
+  const cleanIndustry = cleanup(industry)
+  const cleanGoal = cleanup(businessGoal)
+  const genericGoal = /^(measure and improve|medir y mejorar|mejorar visibilidad|ai visibility|geo visibility|visibilidad)/i.test(cleanGoal)
+  const genericIndustry = /^(saas\s*\/\s*software|software|saas|technology|tecnologia|tecnología|services|servicios)$/i.test(cleanIndustry)
+
+  if (cleanGoal && !genericGoal) {
+    if (!cleanIndustry || cleanGoal.toLowerCase().includes(cleanIndustry.toLowerCase())) return cleanGoal
+    return isEnglish ? `${cleanGoal} in ${cleanIndustry}` : `${cleanGoal} en ${cleanIndustry}`
+  }
+
+  if (genericIndustry) {
+    return isEnglish
+      ? `${cleanIndustry || "the target category"} solutions for the specific business use case described on the company's website`
+      : `soluciones de ${cleanIndustry || "la categoría objetivo"} para el caso de uso específico descrito en el sitio web de la empresa`
+  }
+
+  return cleanIndustry || (isEnglish ? "the target business category" : "la categoría empresarial objetivo")
+}
+
+function cleanup(value: string) {
+  return String(value || "").replace(/\s+/g, " ").trim()
 }
 
 function isEnglishLanguage(value: string) {

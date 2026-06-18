@@ -272,15 +272,18 @@ export default function AuditDetailReal() {
   const auditProcessing = Boolean(audit) && !audit?.completed_at && ["pending", "queued", "running"].includes(auditJobStatus)
   const auditFailed = Boolean(audit) && auditJobStatus === "failed"
   const auditJobError = audit?.audit_job?.error_message ?? audit?.audit_job?.failed_reason ?? null
-  const scoreValue = optionalNumber(audit?.final_score) ?? optionalNumber(summary.geo_score)
-  const score = scoreValue ?? 0
   const enginePromptsTested = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.prompts_total), 0)
+  const engineLiveResults = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.live_count), 0)
   const enginePromptsWon = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.prompts_won), 0)
   const engineCitations = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.citations ?? item.citations_count), 0)
   const promptsTested = numberFrom(summary.prompts_tested ?? metadata.prompts_tested) || enginePromptsTested
   const promptsWon = numberFrom(summary.prompts_won ?? metadata.prompts_won) || enginePromptsWon
   const citations = numberFrom(summary.citations_count ?? metadata.citations_count) || engineCitations
   const totalResults = numberFrom(summary.total_results ?? metadata.total_results) || promptsTested
+  const hasScoreEvidence = totalResults > 0 || engineLiveResults > 0
+  const rawScoreValue = optionalNumber(audit?.final_score) ?? optionalNumber(summary.geo_score)
+  const scoreValue = hasScoreEvidence ? rawScoreValue : null
+  const score = scoreValue ?? 0
   const spontaneousResults = numberFrom(summary.spontaneous_results ?? metadata.spontaneous_results)
   const assistedResults = numberFrom(summary.assisted_results ?? metadata.assisted_results)
   const competitiveResults = numberFrom(summary.competitive_results ?? metadata.competitive_results)
@@ -403,7 +406,9 @@ export default function AuditDetailReal() {
     { label: isEn ? "Authority / trust" : "Autoridad / confianza", weight: 5, value: authorityValue, note: isEn ? "Confidence, citations and proof signals." : "Confianza, citaciones y señales de prueba." },
     { label: isEn ? "Positioning clarity" : "Claridad del posicionamiento", weight: 5, value: positioningValue, note: isEn ? "How clearly AI can classify the brand." : "Qué tan claro puede clasificar la IA a la marca." },
   ]
-  const scoreReason = score < 35
+  const scoreReason = !hasScoreEvidence
+    ? isEn ? "No GEO Score is available yet because this audit has no executed prompt evidence." : "Aún no hay GEO Score disponible porque esta auditoría no tiene evidencia de prompts ejecutados."
+    : score < 35
     ? isEn ? "The score is low because the brand is still weak in neutral prompts, citations or competitive answers." : "El score es bajo porque la marca aún está débil en prompts neutrales, citaciones o respuestas competitivas."
     : score < 60
     ? isEn ? "The brand has early visibility, but it still needs stronger evidence, clearer positioning and more wins against competitors." : "La marca ya tiene señales iniciales, pero necesita más evidencia, posicionamiento más claro y más victorias frente a competidores."
@@ -532,7 +537,7 @@ export default function AuditDetailReal() {
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
                         <span className="text-gradient text-6xl font-bold">{scoreValue === null ? "--" : score}</span>
-                        <span className="text-sm text-muted-foreground">de 100</span>
+                        <span className="text-sm text-muted-foreground">{scoreValue === null ? (isEn ? "pending" : "pendiente") : "de 100"}</span>
                       </div>
                     </div>
                     <div className="mt-4">
@@ -581,7 +586,7 @@ export default function AuditDetailReal() {
                 <div className="grid gap-4 md:grid-cols-[240px_1fr]">
                   <div className="rounded-2xl border border-border bg-secondary/20 p-4">
                     <p className="text-sm text-muted-foreground">GEO Score</p>
-                    <p className="mt-1 text-4xl font-bold">{scoreValue === null ? "--" : score}/100</p>
+                    <p className="mt-1 text-4xl font-bold">{scoreValue === null ? (isEn ? "Pending" : "Pendiente") : `${score}/100`}</p>
                     <p className="mt-3 text-sm text-muted-foreground">{isEn ? "Recommended target" : "Objetivo recomendado"}: <span className="font-medium text-foreground">{scoreTarget}/100</span></p>
                   </div>
                   <div className="rounded-2xl border border-border bg-secondary/20 p-4">

@@ -28,23 +28,24 @@ function normalizeCompetitorInput(value: string) {
 
 function buildInitialPrompts(input: { company: string; industry: string; country: string; language: string; businessGoal: string; competitors: Array<{ name: string }> }) {
   const isEnglish = input.language.toLowerCase().startsWith("en") || input.language.toLowerCase().includes("ingl")
+  const categoryContext = buildCategoryContext(input.industry, input.businessGoal, isEnglish)
   const companyKey = normalizeEntity(input.company)
   const competitorNames = input.competitors.map((competitor) => competitor.name).filter((name) => Boolean(name) && normalizeEntity(name) !== companyKey).slice(0, 3)
   const competitorText = competitorNames.length > 0 ? competitorNames.join(", ") : isEnglish ? "market alternatives" : "alternativas del mercado"
   const templates = isEnglish
     ? [
-        { category: "recommendation", prompt: `What are the best ${input.industry} providers in ${input.country}?` },
-        ...(competitorNames.length > 0 ? [{ category: "comparison", prompt: `Compare ${input.company} vs ${competitorText} as ${input.industry} providers in ${input.country}. Which option is stronger for buyers and why?` }] : []),
-        { category: "alternative", prompt: `What are the best alternatives to ${competitorText} for ${input.industry}?` },
-        { category: "product", prompt: `Which company do you recommend for ${input.industry} solutions in ${input.country}?` },
-        { category: "trust", prompt: `What trusted sources mention ${input.company} in the ${input.industry} market?` },
+        { category: "recommendation", prompt: `What are the best providers for ${categoryContext} in ${input.country}?` },
+        ...(competitorNames.length > 0 ? [{ category: "comparison", prompt: `Compare ${input.company} vs ${competitorText} for ${categoryContext} in ${input.country}. Which option is stronger for buyers and why?` }] : []),
+        { category: "alternative", prompt: `What are the best alternatives to ${competitorText} for ${categoryContext}?` },
+        { category: "product", prompt: `Which company do you recommend for ${categoryContext} in ${input.country}?` },
+        { category: "trust", prompt: `What trusted sources mention ${input.company} for ${categoryContext}?` },
       ]
     : [
-        { category: "recommendation", prompt: `Cuales son los mejores proveedores de ${input.industry} en ${input.country}?` },
-        ...(competitorNames.length > 0 ? [{ category: "comparison", prompt: `Compara ${input.company} vs ${competitorText} como proveedores de ${input.industry} en ${input.country}. ¿Qué opción es más fuerte para compradores y por qué?` }] : []),
-        { category: "alternative", prompt: `Cuales son las mejores alternativas a ${competitorText} para ${input.industry}?` },
-        { category: "product", prompt: `Que empresa recomiendas para soluciones de ${input.industry} en ${input.country}?` },
-        { category: "trust", prompt: `Que fuentes confiables mencionan a ${input.company} en el mercado de ${input.industry}?` },
+        { category: "recommendation", prompt: `Cuales son los mejores proveedores para ${categoryContext} en ${input.country}?` },
+        ...(competitorNames.length > 0 ? [{ category: "comparison", prompt: `Compara ${input.company} vs ${competitorText} para ${categoryContext} en ${input.country}. ¿Qué opción es más fuerte para compradores y por qué?` }] : []),
+        { category: "alternative", prompt: `Cuales son las mejores alternativas a ${competitorText} para ${categoryContext}?` },
+        { category: "product", prompt: `Que empresa recomiendas para ${categoryContext} en ${input.country}?` },
+        { category: "trust", prompt: `Que fuentes confiables mencionan a ${input.company} para ${categoryContext}?` },
       ]
 
   const seen = new Set<string>()
@@ -54,6 +55,30 @@ function buildInitialPrompts(input: { company: string; industry: string; country
     seen.add(key)
     return true
   })
+}
+
+function buildCategoryContext(industry: string, businessGoal: string, isEnglish: boolean) {
+  const cleanIndustry = cleanup(industry)
+  const cleanGoal = cleanup(businessGoal)
+  const genericGoal = /^(measure and improve|medir y mejorar|mejorar visibilidad|ai visibility|geo visibility|visibilidad)/i.test(cleanGoal)
+  const genericIndustry = /^(saas\s*\/\s*software|software|saas|technology|tecnologia|tecnología|services|servicios)$/i.test(cleanIndustry)
+
+  if (cleanGoal && !genericGoal) {
+    if (!cleanIndustry || cleanGoal.toLowerCase().includes(cleanIndustry.toLowerCase())) return cleanGoal
+    return isEnglish ? `${cleanGoal} in ${cleanIndustry}` : `${cleanGoal} en ${cleanIndustry}`
+  }
+
+  if (genericIndustry) {
+    return isEnglish
+      ? `${cleanIndustry || "the target category"} solutions for the company's specific business use case`
+      : `soluciones de ${cleanIndustry || "la categoría objetivo"} para el caso de uso específico de la empresa`
+  }
+
+  return cleanIndustry || (isEnglish ? "the target business category" : "la categoría empresarial objetivo")
+}
+
+function cleanup(value: string) {
+  return String(value || "").replace(/\s+/g, " ").trim()
 }
 
 function normalizeEntity(value: string) {

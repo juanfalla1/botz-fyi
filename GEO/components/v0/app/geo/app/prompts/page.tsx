@@ -275,6 +275,25 @@ function resultForEngine(prompt: PromptItem, engine: string) {
   return prompt.lastRunResults.find((result) => normalizeEngineLabel(String(result.engine ?? "")).toLowerCase() === normalized) ?? null
 }
 
+function liveResults(prompt: PromptItem) {
+  return prompt.lastRunResults.filter((result) => result?.status === "live")
+}
+
+function hasLiveRun(prompt: PromptItem) {
+  return liveResults(prompt).length > 0
+}
+
+function promptWon(prompt: PromptItem) {
+  return liveResults(prompt).some((result) => Boolean(result.won) || Boolean(result.mentioned))
+}
+
+function promptAveragePosition(prompt: PromptItem) {
+  const positions = liveResults(prompt)
+    .map((result) => typeof result.position === "number" ? result.position : Number(result.position))
+    .filter((position) => Number.isFinite(position) && position > 0)
+  return positions.length > 0 ? positions.reduce((sum, position) => sum + position, 0) / positions.length : 0
+}
+
 function resultCompetitors(result: Record<string, unknown> | null) {
   const competitors = result?.competitors
   return Array.isArray(competitors) ? competitors.map((item) => cleanAiText(String(item))).filter(Boolean).slice(0, 4) : []
@@ -553,13 +572,15 @@ export default function PromptsLibraryPage() {
 
   const metrics = useMemo(() => {
     const active = prompts.filter((p) => p.status === "active").length
-    const won = prompts.filter((p) => p.performance.position > 0 && p.performance.position <= 3).length
-    const avgPosition = prompts.length > 0 ? prompts.reduce((sum, p) => sum + (p.performance.position || 0), 0) / prompts.length : 0
+    const executed = prompts.filter(hasLiveRun)
+    const won = executed.filter(promptWon).length
+    const positions = executed.map(promptAveragePosition).filter((position) => position > 0)
+    const avgPosition = positions.length > 0 ? positions.reduce((sum, position) => sum + position, 0) / positions.length : 0
     return [
       { title: "Total Prompts", value: String(prompts.length), change: isEn ? "real records" : "registros reales", icon: MessageSquare, color: "primary" },
-      { title: isEn ? "Won Prompts" : "Prompts Ganados", value: String(won), change: prompts.length > 0 ? `${Math.round((won / prompts.length) * 100)}% win rate` : "0% win rate", icon: Award, color: "emerald-400" },
+      { title: isEn ? "Won Prompts" : "Prompts Ganados", value: String(won), change: executed.length > 0 ? `${Math.round((won / executed.length) * 100)}% win rate` : (isEn ? "No runs yet" : "Sin ejecuciones"), icon: Award, color: "emerald-400" },
       { title: isEn ? "Active Prompts" : "Prompts Activos", value: String(active), change: prompts.length > 0 ? `${Math.round((active / prompts.length) * 100)}% ${isEn ? "of total" : "del total"}` : "0%", icon: Zap, color: "blue-400" },
-      { title: isEn ? "Avg. Position" : "Avg. Posición", value: avgPosition > 0 ? `#${avgPosition.toFixed(1)}` : "--", change: isEn ? "from prompt metadata" : "desde metadata", icon: Target, color: "accent" },
+      { title: isEn ? "Avg. Position" : "Avg. Posición", value: avgPosition > 0 ? `#${avgPosition.toFixed(1)}` : "--", change: executed.length > 0 ? (isEn ? "from executed prompts" : "desde prompts ejecutados") : (isEn ? "No runs yet" : "Sin ejecuciones"), icon: Target, color: "accent" },
     ]
   }, [isEn, prompts])
 

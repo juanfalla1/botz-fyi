@@ -90,7 +90,7 @@ export default function DashboardPage() {
   const isEn = locale === "en"
   const [subscription, setSubscription] = useState<GeoSubscription | null>(null)
   const [projectsLive, setProjectsLive] = useState<Array<{ id: string; name: string; audits: number; lastAudit: string }>>([])
-  const [recentAuditsLive, setRecentAuditsLive] = useState<Array<{ id: string; brand: string; date: string; score: number; status: string }>>([])
+  const [recentAuditsLive, setRecentAuditsLive] = useState<Array<{ id: string; brand: string; date: string; score: number | null; status: string; scorePending: boolean }>>([])
   const [metricsLive, setMetricsLive] = useState(metrics.map((metric) => ({
     ...metric,
     title: locale === "en" ? metric.title : localizeMetricTitle(metric.title),
@@ -138,13 +138,18 @@ export default function DashboardPage() {
       if (auditsRes.ok) {
         const aj = (await auditsRes.json()) as { data?: { audits?: DashboardAudit[] } }
         auditsList = aj.data?.audits ?? []
-        const mapped = auditsList.slice(0, 5).map((a) => ({
-          id: a.id,
-          brand: a.base_url.replace(/^https?:\/\//, "").split("/")[0],
-          date: new Date(a.created_at).toLocaleString(),
-          score: a.final_score ?? 0,
-          status: a.status ?? "completed",
-        }))
+        const mapped = auditsList.slice(0, 5).map((a) => {
+          const summary = parseSummary(a.summary)
+          const hasEvidence = hasScoredEvidence(summary)
+          return {
+            id: a.id,
+            brand: a.base_url.replace(/^https?:\/\//, "").split("/")[0],
+            date: new Date(a.created_at).toLocaleString(),
+            score: hasEvidence && typeof a.final_score === "number" ? a.final_score : null,
+            status: a.status ?? "completed",
+            scorePending: !hasEvidence,
+          }
+        })
         if (mapped.length > 0) setRecentAuditsLive(mapped)
       }
 
@@ -177,7 +182,7 @@ export default function DashboardPage() {
       })).sort((a, b) => b.audits - a.audits).slice(0, 5))
 
       const completedChart = auditsList
-        .filter((audit) => audit.status === "completed" && typeof audit.final_score === "number")
+        .filter((audit) => audit.status === "completed" && typeof audit.final_score === "number" && hasScoredEvidence(parseSummary(audit.summary)))
         .sort((a, b) => new Date(a.completed_at ?? a.created_at).getTime() - new Date(b.completed_at ?? b.created_at).getTime())
         .slice(-8)
         .map((audit) => {
@@ -194,9 +199,10 @@ export default function DashboardPage() {
         const uj = (await usageRes.json()) as { data?: { totals?: Record<string, number> } }
         const cj = (await competitorsRes.json()) as { data?: Array<unknown> }
         const totals = uj.data?.totals ?? {}
-        const completedScores = auditsList.map((a) => a.final_score).filter((s): s is number => s !== null)
+        const scoredAudits = auditsList.filter((audit) => audit.status === "completed" && hasScoredEvidence(parseSummary(audit.summary)))
+        const completedScores = scoredAudits.map((a) => a.final_score).filter((s): s is number => s !== null)
         const avgScore = completedScores.length > 0 ? Math.round(completedScores.reduce((acc, score) => acc + score, 0) / completedScores.length) : 0
-        const spontaneousValues = auditsList
+        const spontaneousValues = scoredAudits
           .map((audit) => numberFrom(parseSummary(audit.summary).spontaneous_visibility ?? parseSummary(audit.summary).ai_visibility))
           .filter((value) => value > 0)
         const avgSpontaneous = spontaneousValues.length > 0 ? Math.round(spontaneousValues.reduce((acc, value) => acc + value, 0) / spontaneousValues.length) : 0
@@ -204,7 +210,7 @@ export default function DashboardPage() {
         const promptCount = totals.prompt_used ?? 0
         const competitorsCount = (cj.data ?? []).length
         setMetricsLive([
-          { ...metrics[0], title: "GEO Score", value: String(avgScore), change: auditsCount > 0 ? String(auditsCount) : "—" },
+          { ...metrics[0], title: "GEO Score", value: completedScores.length > 0 ? String(avgScore) : "--", suffix: completedScores.length > 0 ? "/100" : "", change: completedScores.length > 0 ? `${completedScores.length} ${isEn ? "scored audits" : "auditorías con evidencia"}` : (isEn ? "No executed audit evidence" : "Sin evidencia ejecutada") },
           { ...metrics[1], title: isEn ? "Spontaneous Visibility" : "Visibilidad espontánea", value: String(avgSpontaneous), change: completedScores.length > 0 ? String(completedScores.length) : "—" },
           { ...metrics[2], title: isEn ? "Audits" : "Auditorías", value: String(auditsCount || 0), change: promptCount > 0 ? `${promptCount} ${isEn ? "prompt runs" : "ejecuciones"}` : "—" },
           { ...metrics[3], title: isEn ? "Competitors Tracked" : "Competidores monitoreados", value: String(competitorsCount || 0), change: "—" },
@@ -461,10 +467,10 @@ export default function DashboardPage() {
                             <div className="w-20 h-2 rounded-full bg-secondary overflow-hidden">
                               <div
                                 className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
-                                style={{ width: `${audit.score}%` }}
+                                style={{ width: `${audit.score ?? 0}%` }}
                               />
                             </div>
-                            <span className="font-medium">{audit.score}</span>
+                            <span className="font-medium">{audit.scorePending ? (isEn ? "Pending" : "Pendiente") : audit.score}</span>
                           </div>
                         </td>
                         <td className="py-4 px-4">
@@ -516,4 +522,15 @@ function parseSummary(summary: unknown): Record<string, unknown> {
 
 function numberFrom(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : Number.isFinite(Number(value)) ? Number(value) : 0
+}
+
+function hasScoredEvidence(summary: Record<string, unknown>) {
+  const totalResults = numberFrom(summary.total_results)
+  if (totalResults > 0) return true
+  const breakdown = Array.isArray(summary.engine_breakdown) ? summary.engine_breakdown : []
+  return breakdown.some((item) => {
+    if (!item || typeof item !== "object") return false
+    const record = item as Record<string, unknown>
+    return numberFrom(record.live_count) > 0 || numberFrom(record.prompts_total) > 0
+  })
 }
