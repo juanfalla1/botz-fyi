@@ -1,217 +1,367 @@
-# BOTZ GEO x AVANZA
+# BOTZ GEO
 
-## Guia comercial premium basada en auditoria real
+## Guia comercial premium para clientes
 
-**Objetivo:** que un CEO entienda en menos de 10 minutos que esta pasando con la visibilidad IA de Avanza, que riesgos comerciales existen y que plan de accion debe ejecutarse.
+**BOTZ GEO ayuda a que una empresa sea encontrada, entendida, citada y recomendada por motores de inteligencia artificial.**
 
-Marca analizada: **Avanza**  
-Mercado: **Colombia**  
-Idioma: **Español**  
-Categoria observada: **E-commerce / balanzas / proveedores especializados**  
-Estado ejecutivo: **oportunidad activa de GEO**
+Audiencia: CEOs, gerentes generales, marketing, ventas, growth y agencias.  
+Objetivo: explicar que resuelve BOTZ GEO, como funciona, que significan las metricas, que recomendamos ejecutar y en que tiempos se puede ver progreso medible.
 
 ---
 
 ## 1. Resumen ejecutivo
 
-BOTZ GEO muestra que Avanza tiene una base medible de visibilidad IA, pero todavia no domina las preguntas neutrales de mercado.
+Los clientes ya no solo buscan en Google. Hoy preguntan en ChatGPT, Gemini, Perplexity y AI Overviews:
 
-Lectura CEO:
+- Cual es el mejor proveedor para esta necesidad?
+- Que empresa recomiendas en mi pais?
+- Que alternativas existen?
+- Cual marca tiene mas respaldo?
+- Donde compro con garantia, soporte y experiencia?
 
-- **GEO Score:** 55/100.
-- **Visibilidad espontanea:** 67%.
-- **Auditorias registradas:** 26.
-- **Competidores monitoreados:** 3.
-- **Prompts ejecutados:** 348.
-- **Cobertura de citations:** 100% en la muestra disponible.
-- **Win rate competitivo:** sin muestra suficiente.
+Si la inteligencia artificial no entiende, no menciona o no cita a una empresa, esa empresa puede perder demanda antes de que el cliente llegue al sitio web.
 
-La señal mas importante no es el numero aislado. Es que en prompts neutrales como **“Quien vende las mejores balanzas en Colombia?”**, la marca objetivo no aparece y la IA menciona alternativas como Balanzas Tijuana, Calesa, Grupo Pesa, Bascúla Digital Colombia, Badecol, Disglobal y Balanzas Precisur.
+BOTZ GEO convierte ese problema en un proceso de crecimiento:
 
----
-
-## 2. Que significa para Avanza
-
-Avanza aparece como una marca con oportunidad activa: hay estructura, medicion y ejecucion, pero la IA todavia no la reconoce consistentemente como respuesta espontanea en preguntas comerciales neutrales.
-
-Esto significa:
-
-- Si el comprador ya conoce Avanza, la marca puede entrar en la conversacion.
-- Si el comprador pregunta de forma neutral por proveedores de balanzas, la IA puede recomendar competidores.
-- La brecha no es solo SEO; es claridad de categoria, evidencia publica, contenido citable y posicionamiento GEO.
+1. Audita como aparece la marca en motores IA.
+2. Detecta menciones, citaciones, competidores y brechas.
+3. Prioriza acciones concretas de contenido, web, autoridad y comparativas.
+4. Ejecuta entregables comerciales para cerrar la brecha.
+5. Reaudita para medir si la visibilidad mejora.
 
 ---
 
-## 3. Dashboard ejecutivo
+## 2. Que problema soluciona BOTZ GEO
 
-El dashboard real muestra una lectura clara:
+BOTZ GEO soluciona una brecha nueva: muchas empresas tienen web, SEO, redes y pauta, pero no estan preparadas para ser recomendadas por la IA.
 
-- Avanza tiene **GEO Score 55/100**.
-- La visibilidad espontanea llega a **67%**.
-- Existen **26 auditorias** y **3 competidores monitoreados**.
-- El plan actual esta en modo **Trial**, con uso visible de auditorias y prompts.
+Problemas tipicos:
 
-Interpretacion:
+- La marca no aparece en preguntas neutrales de compra.
+- La IA recomienda competidores.
+- La IA no entiende claramente que vende la empresa.
+- No hay paginas citables para responder preguntas del mercado.
+- El contenido existe, pero no esta estructurado para motores generativos.
+- El equipo no sabe que mejorar primero.
 
-- El producto ya esta midiendo señales reales.
-- Hay base suficiente para priorizar acciones.
-- La oportunidad principal esta en convertir auditoria en ejecucion: landings, contenidos, evidencia y comparativas.
-
----
-
-## 4. Por que BOTZ GEO es diferente
-
-BOTZ GEO no se queda en “tu marca aparece o no aparece”. Separa tipos de visibilidad y los conecta con un roadmap de ejecucion.
-
-Diferenciales clave:
-
-- **Prompts neutrales:** miden si la marca aparece sin ser nombrada.
-- **Prompts asistidos:** miden si la IA responde cuando la marca ya esta en la pregunta.
-- **Prompts comparativos:** miden posicion frente a competidores.
-- **Citations:** revisan si hay evidencia o URLs citables.
-- **Action Plan:** convierte hallazgos en piezas vendibles y ejecutables.
+BOTZ GEO ayuda a transformar esa incertidumbre en un plan de ejecucion medible.
 
 ---
 
-## 5. Definicion de metricas
+## 3. Que hace BOTZ GEO
 
-**GEO Score**  
-Score ejecutivo de 0 a 100. Resume presencia generativa, calidad de evidencia, visibilidad y desempeño competitivo.
+BOTZ GEO funciona como una capa de inteligencia comercial para visibilidad en IA.
 
-**Visibilidad espontanea**  
-La marca aparece sin ser nombrada en la pregunta. Es la señal mas fuerte de visibilidad real.
+Hace cinco cosas:
 
-**Visibilidad asistida**  
-La marca aparece cuando el prompt ya la menciona. Es util, pero no prueba reconocimiento espontaneo del mercado.
+1. **Diagnostico:** analiza si la marca aparece en respuestas de IA.
+2. **Comparacion:** identifica competidores y marcas alternativas que si aparecen.
+3. **Evidencia:** revisa menciones, citations, URLs y fuentes que respaldan respuestas.
+4. **Plan de accion:** recomienda que paginas, contenidos y activos crear.
+5. **Medicion continua:** permite repetir auditorias para medir progreso.
 
-**Cobertura de citations**  
-Indica si se encontraron fuentes, URLs o evidencia citable en los prompts donde aplicaba.
-
-**Prompts ganados**  
-Preguntas donde la marca objetivo aparece o compite favorablemente frente a alternativas.
+La meta no es solo “hacer mas contenido”. La meta es crear activos que la IA pueda entender, confiar, citar y recomendar.
 
 ---
 
-## 6. Hallazgo critico: prompt neutral
+## 4. Como funciona una auditoria GEO
 
-Prompt observado:
+Una auditoria GEO toma el contexto de una empresa:
+
+- Marca.
+- Sitio web.
+- Pais.
+- Idioma.
+- Industria.
+- Competidores.
+- Prompts o preguntas de mercado.
+- Motores IA a evaluar.
+
+Luego BOTZ GEO consulta motores como ChatGPT, Gemini, Perplexity y AI Overviews para medir como aparece la marca ante preguntas reales.
+
+La auditoria responde:
+
+- La marca aparece sin ser nombrada?
+- La marca aparece cuando se la menciona?
+- Que competidores aparecen?
+- Hay fuentes citables?
+- La IA entiende la categoria y propuesta de valor?
+- Que contenido falta para mejorar la proxima auditoria?
+
+---
+
+## 5. Metricas principales
+
+### GEO Score
+
+Indicador ejecutivo de 0 a 100 que resume la fortaleza de visibilidad generativa de una marca.
+
+Como leerlo:
+
+- **80 a 100:** posicion fuerte.
+- **50 a 79:** oportunidad activa.
+- **0 a 49:** visibilidad debil.
+
+Que mejora el GEO Score:
+
+- Aparecer en prompts neutrales.
+- Tener citations o fuentes confiables.
+- Ser mencionado frente a competidores.
+- Tener contenido claro y especifico.
+- Tener evidencia publica que la IA pueda usar.
+
+### AI Visibility
+
+Mide que tan visible es la marca dentro de respuestas de IA.
+
+Sirve para saber en que motores la marca aparece y donde esta ausente. Una empresa puede aparecer en ChatGPT y no en Perplexity, o ser visible solo cuando el prompt ya menciona la marca.
+
+### Visibilidad espontanea
+
+La marca aparece sin que el usuario la nombre.
+
+Es una de las señales mas importantes porque representa descubrimiento real. Si alguien pregunta “mejores proveedores de X en Colombia” y la marca aparece, hay visibilidad espontanea.
+
+### Visibilidad asistida
+
+La marca aparece cuando el prompt ya la menciona.
+
+Es util para saber si la IA entiende la empresa, pero no prueba que el mercado la recomiende de forma natural.
+
+### Citations
+
+Son fuentes, paginas o URLs que respaldan una respuesta.
+
+Si la IA encuentra paginas claras, FAQs, casos, comparativas o evidencia publica, aumenta la probabilidad de que use la marca como referencia.
+
+### Mentions
+
+Son apariciones de la marca en la respuesta.
+
+Una mention puede ser recomendacion, comparacion, alternativa o referencia. Lo importante es revisar contexto y calidad, no solo cantidad.
+
+### Competitors
+
+Son marcas que aparecen compitiendo por la misma recomendacion.
+
+BOTZ GEO muestra si competidores aparecen mas, antes o con mejor evidencia que la marca objetivo.
+
+### Prompts ganados
+
+Preguntas donde la marca aparece o compite favorablemente.
+
+Ayudan a medir si la empresa empieza a ganar territorio en conversaciones de IA.
+
+---
+
+## 6. Que recomendamos ejecutar
+
+Las recomendaciones dependen de la auditoria, pero BOTZ GEO suele priorizar cinco frentes.
+
+### 1. Posicionamiento y claridad de marca
+
+Definir que debe entender la IA sobre la empresa:
+
+- Que vende.
+- Para quien.
+- En que pais o mercado.
+- Que problema resuelve.
+- Que la diferencia.
+- Que pruebas tiene.
+
+### 2. Landing GEO por categoria
+
+Crear paginas enfocadas en la intencion real del comprador.
+
+Ejemplos:
+
+- “proveedores de software contable en Colombia”.
+- “balanzas industriales para empresas en Colombia”.
+- “agencia de automatizacion con IA para ventas”.
+- “mejores opciones para implementar CRM con IA”.
+
+### 3. Contenido comparativo
+
+Crear contenido que ayude a la IA y al comprador a comparar opciones.
+
+Ejemplos:
+
+- Marca vs competidores.
+- Alternativas del mercado.
+- Criterios para elegir proveedor.
+- Ventajas, limitaciones y casos de uso.
+
+### 4. Evidencia citable
+
+Publicar activos que la IA pueda usar como respaldo:
+
+- Casos de exito.
+- FAQs.
+- Testimonios.
+- Certificaciones.
+- Cobertura geografica.
+- Garantias.
+- Industrias atendidas.
+- Datos de producto.
+- Guias de compra.
+
+### 5. Monitoreo y reauditoria
+
+Despues de ejecutar, se repite la auditoria para medir si mejoraron:
+
+- GEO Score.
+- AI Visibility.
+- Mentions.
+- Citations.
+- Prompts ganados.
+- Brecha frente a competidores.
+
+---
+
+## 7. Que puede asegurar BOTZ GEO
+
+Ninguna empresa puede garantizar control absoluto sobre lo que ChatGPT, Gemini, Perplexity o AI Overviews responderan siempre. Son motores externos y cambian sus respuestas.
+
+Lo que BOTZ GEO si puede asegurar como proceso:
+
+- Diagnostico claro de visibilidad IA.
+- Identificacion de brechas concretas.
+- Priorizacion de acciones por impacto.
+- Entregables de contenido, landing, comparativa y evidencia.
+- Medicion antes/despues con auditorias.
+- Roadmap para aumentar probabilidad de aparicion, citacion y recomendacion.
+
+El compromiso real es convertir una presencia invisible o desordenada en una presencia estructurada, medible y optimizada para IA.
+
+---
+
+## 8. Tiempos estimados de resultado
+
+Los tiempos dependen de industria, competencia, autoridad previa y velocidad de implementacion.
+
+Estimacion comercial:
+
+### Semana 1
+
+- Auditoria GEO inicial.
+- Lectura ejecutiva.
+- Deteccion de prompts, motores y competidores.
+- Priorizacion del Action Plan.
+
+### Semanas 2 a 3
+
+- Creacion de landing GEO principal.
+- Ajuste de posicionamiento.
+- FAQs y estructura de contenido.
+- Primeros activos citables.
+
+### Semanas 4 a 6
+
+- Contenido comparativo.
+- Casos de uso.
+- Evidencia comercial.
+- Reauditoria para medir cambio.
+
+### 60 a 90 dias
+
+- Monitoreo continuo.
+- Nuevas landings por categoria o industria.
+- Mayor cobertura de prompts.
+- Optimizacion frente a competidores.
+
+Resultado esperado: ver progreso medible en visibilidad, claridad de marca, fuentes citables y prompts ganados. No se promete control absoluto del motor IA, se promete un sistema para aumentar la probabilidad de ser mencionado y citado.
+
+---
+
+## 9. Ejemplo practico
+
+Una empresa pregunta si aparece cuando un comprador busca en IA:
 
 **“Quien vende las mejores balanzas en Colombia?”**
 
-Resultado observado:
+Resultado observado en un caso real de referencia:
 
-- 0/4 motores mencionaron la marca objetivo.
-- OpenAI menciono: Balanzas Tijuana, Calesa, Grupo Pesa.
-- Gemini menciono: Bascúla Digital Colombia.
-- Perplexity menciono: Badecol, Disglobal, Balanzas Precisur.
-- AI Overviews menciono: Badecol.
+- 0 de 4 motores mencionaron la marca objetivo.
+- Los motores mencionaron marcas alternativas.
+- El prompt era demasiado amplio.
+- Faltaba una pagina clara para responder esa intencion.
 
-Lectura CEO:
+Interpretacion:
 
-Avanza tiene una brecha en visibilidad espontanea para una pregunta comercial de alta intencion. Ese tipo de pregunta es exactamente donde un comprador nuevo descubre proveedores.
+La empresa puede tener web y presencia comercial, pero si la IA no encuentra una pagina clara sobre esa categoria, recomienda alternativas con mejor evidencia publica.
 
----
+Recomendacion:
 
-## 7. Competidores detectados
+- Crear landing “balanzas para empresas en Colombia”.
+- Crear comparativas contra alternativas.
+- Publicar FAQs, casos, soporte, garantia y criterios de seleccion.
+- Refinar prompts por industria y caso de uso.
+- Reauditar en 4 a 6 semanas.
 
-Competidores visibles en el analisis:
-
-- Equilab S.A.S.
-- KASSEL Group Colombia.
-- Lab Brands S.A.S.
-- Badecol.
-- Disglobal.
-- Balanzas Precisur.
-- Balanzas Tijuana.
-- Calesa.
-- Grupo Pesa.
-- Bascúla Digital Colombia.
-
-Lectura:
-
-La IA no solo esta respondiendo con marcas tradicionales. Tambien mezcla distribuidores, paginas con contenido citable y fuentes que parecen resolver mejor la intencion “mejores balanzas en Colombia”.
+Este ejemplo aplica a cualquier categoria: software, salud, industria, educacion, servicios profesionales, retail, inmobiliario o tecnologia.
 
 ---
 
-## 8. GEO Action Plan para Avanza
+## 10. Retorno esperado
 
-El Action Plan recomendado se enfoca en cerrar la brecha entre auditoria y recomendacion IA.
+BOTZ GEO impacta crecimiento en tres niveles.
 
-Prioridad 1: Landing por categoria  
-Crear una landing enfocada en “balanzas en Colombia” o “proveedores de balanzas para empresas en Colombia”.
+### Defensa competitiva
 
-Prioridad 2: Contenido comparativo  
-Crear comparativas honestas entre Avanza y alternativas del mercado: Badecol, Disglobal, Precisur y otros jugadores visibles.
+Evita que competidores ganen conversaciones de compra sin que la empresa lo sepa.
 
-Prioridad 3: Evidencia citable  
-Publicar casos, especificaciones, cobertura, industrias atendidas, FAQs, garantias, soporte y criterios de seleccion.
+### Generacion de demanda
 
-Prioridad 4: Prompts de monitoreo  
-Refinar prompts demasiado amplios. Ejemplo: cambiar “quien vende las mejores balanzas” por prompts con industria, caso de uso, cliente objetivo y criterios.
+Aumenta la probabilidad de aparecer cuando el cliente investiga, compara y pide recomendaciones.
 
-Prioridad 5: Reauditoria  
-Ejecutar una nueva auditoria despues de publicar las piezas para medir si Avanza empieza a aparecer en prompts neutrales.
+### Eficiencia comercial
 
----
+Convierte auditorias en entregables que ventas y marketing pueden usar:
 
-## 9. Retorno esperado
-
-El retorno esperado no debe leerse como garantia de ranking. Debe leerse como aumento de probabilidad de presencia en conversaciones IA.
-
-Impactos esperados:
-
-- Mayor aparicion en prompts neutrales de compra.
-- Mejor asociacion entre Avanza y la categoria “balanzas en Colombia”.
-- Mas fuentes propias citables.
-- Menor ventaja de competidores en respuestas generativas.
-- Mejor material comercial para ventas consultivas.
-
-Indicadores a revisar en la siguiente auditoria:
-
-- Cambio en GEO Score.
-- Cambio en visibilidad espontanea.
-- Nuevas menciones de Avanza por motor.
-- Citations hacia contenido propio.
-- Reduccion de prompts donde solo aparecen competidores.
+- Landings.
+- Comparativas.
+- FAQs.
+- Casos de uso.
+- Guias de compra.
+- Argumentarios comerciales.
 
 ---
 
-## 10. Antes y despues
+## 11. Antes y despues
 
-Antes:
+Antes de BOTZ GEO:
 
-- La IA responde preguntas neutrales con competidores.
-- Avanza no aparece en 0/4 motores para el prompt observado.
-- El contenido no parece suficientemente citable para esa intencion.
-- Los prompts amplios generan resultados dispersos.
+- No se sabe si la marca aparece en IA.
+- No se sabe que competidores recomienda la IA.
+- El contenido se crea por intuicion.
+- No hay medicion de prompts ganados.
+- La empresa no sabe que fuente falta.
 
-Despues esperado:
+Despues de BOTZ GEO:
 
-- Avanza aparece en prompts de categoria.
-- La IA encuentra una pagina clara sobre balanzas en Colombia.
-- Las respuestas citan fuentes propias o evidencia controlada.
-- Ventas usa landings y comparativas como material comercial.
-
----
-
-## 11. Decision ejecutiva
-
-La decision no es si Avanza debe “hacer mas contenido”. La decision es si Avanza quiere competir por ser una respuesta recomendada cuando el comprador pregunta a la IA.
-
-BOTZ GEO ya identifico la brecha. El siguiente paso es ejecutar el plan:
-
-1. Landing de categoria.
-2. Contenido comparativo.
-3. Evidencia citable.
-4. Prompts mejor definidos.
-5. Nueva auditoria.
+- Hay diagnostico por motor.
+- Hay lectura de GEO Score y AI Visibility.
+- Hay competidores identificados.
+- Hay brechas priorizadas.
+- Hay Action Plan.
+- Hay reauditoria para medir avance.
 
 ---
 
-## 12. Cierre
+## 12. Decision ejecutiva
 
-Avanza tiene una oportunidad clara: transformar su presencia digital en una presencia entendible para motores de IA.
+BOTZ GEO es para empresas que quieren crecer en la nueva capa de descubrimiento: respuestas generadas por inteligencia artificial.
 
-BOTZ GEO permite medir esa oportunidad, priorizar acciones y validar si el mercado generativo empieza a reconocer la marca.
+La decision no es “hacer mas contenido”. La decision es construir una presencia digital que la IA pueda entender, verificar y recomendar.
 
-**La meta no es solo aparecer. La meta es que Avanza sea una respuesta confiable cuando el comprador pregunta por soluciones de balanzas en Colombia.**
+Plan recomendado:
+
+1. Auditar.
+2. Priorizar brechas.
+3. Crear landing GEO.
+4. Crear contenido comparativo.
+5. Publicar evidencia citable.
+6. Reauditar.
+7. Repetir por categoria, industria y mercado.
+
+**BOTZ GEO convierte la visibilidad en IA en un proceso comercial medible para crecer.**
