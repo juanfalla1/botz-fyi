@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520">
+  <defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#00B4D8"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient><filter id="s" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#00172A" flood-opacity=".2"/></filter></defs>
+  <rect width="1200" height="520" rx="42" fill="#F8FBFF"/>
+  <text x="70" y="78" fill="#07111F" font-family="Inter,Arial" font-size="34" font-weight="800">De busqueda tradicional a visibilidad generativa</text>
+  <text x="70" y="116" fill="#64748B" font-family="Inter,Arial" font-size="19">El nuevo reto es aparecer dentro de respuestas, recomendaciones y fuentes citadas.</text>
+  <g filter="url(#s)">
+    <rect x="80" y="180" width="260" height="210" rx="28" fill="#FFFFFF"/><text x="120" y="238" fill="#07111F" font-family="Inter,Arial" font-size="24" font-weight="800">SEO</text><text x="120" y="278" fill="#64748B" font-family="Inter,Arial" font-size="17">Competir por rankings</text><text x="120" y="310" fill="#64748B" font-family="Inter,Arial" font-size="17">y clicks organicos</text><circle cx="275" cy="325" r="36" fill="#E0F7FE"/><text x="258" y="337" font-size="36">🔎</text>
+    <rect x="470" y="150" width="260" height="270" rx="28" fill="#FFFFFF"/><text x="510" y="208" fill="#07111F" font-family="Inter,Arial" font-size="24" font-weight="800">GEO</text><text x="510" y="248" fill="#64748B" font-family="Inter,Arial" font-size="17">Competir por ser</text><text x="510" y="280" fill="#64748B" font-family="Inter,Arial" font-size="17">la respuesta recomendada</text><circle cx="665" cy="342" r="42" fill="#EEF2FF"/><text x="644" y="356" font-size="42">🧠</text>
+    <rect x="860" y="110" width="260" height="330" rx="28" fill="#FFFFFF"/><text x="900" y="168" fill="#07111F" font-family="Inter,Arial" font-size="24" font-weight="800">AI Visibility</text><text x="900" y="208" fill="#64748B" font-family="Inter,Arial" font-size="17">Medir menciones,</text><text x="900" y="240" fill="#64748B" font-family="Inter,Arial" font-size="17">citaciones y competidores</text><circle cx="1055" cy="354" r="48" fill="#E9FBF6"/><text x="1030" y="371" font-size="48">📊</text>
+  </g>
+  <path d="M360 285 C400 245,420 245,450 245" fill="none" stroke="url(#g)" stroke-width="10" stroke-linecap="round"/><path d="M750 285 C790 245,810 230,840 220" fill="none" stroke="url(#g)" stroke-width="10" stroke-linecap="round"/>
+</svg>
