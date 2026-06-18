@@ -487,6 +487,7 @@ export default function PromptsLibraryPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingPrompt, setEditingPrompt] = useState<PromptItem | null>(null)
   const [viewingResultsPrompt, setViewingResultsPrompt] = useState<PromptItem | null>(null)
+  const [promptToDelete, setPromptToDelete] = useState<PromptItem | null>(null)
   const [runningPromptId, setRunningPromptId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards")
 
@@ -680,7 +681,7 @@ export default function PromptsLibraryPage() {
 
   const deletePrompt = async (prompt: PromptItem) => {
     const projectId = prompt.projectIds[0]
-    if (!projectId || !window.confirm(isEn ? "Delete this prompt?" : "Eliminar este prompt?")) return
+    if (!projectId) return
     try {
       const {
         data: { session },
@@ -692,6 +693,7 @@ export default function PromptsLibraryPage() {
       })
       if (!res.ok) throw new Error("Could not delete prompt")
       setFeedback(isEn ? "Prompt deleted." : "Prompt eliminado.")
+      setPromptToDelete(null)
       await loadPrompts()
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Could not delete prompt")
@@ -1048,7 +1050,7 @@ export default function PromptsLibraryPage() {
                                  <Copy className="w-3.5 h-3.5" />
                                </button>
                               <button
-                                onClick={() => deletePrompt(prompt)}
+                                onClick={() => setPromptToDelete(prompt)}
                                 className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-red-400 transition-colors"
                               >
                                  <Trash2 className="w-3.5 h-3.5" />
@@ -1329,7 +1331,7 @@ export default function PromptsLibraryPage() {
                                       variant="ghost"
                                       size="sm"
                                       className="text-muted-foreground hover:text-red-400 h-8 w-8 p-0"
-                                      onClick={() => deletePrompt(prompt)}
+                                      onClick={() => setPromptToDelete(prompt)}
                                     >
                                       <Trash2 className="w-4 h-4" />
                                     </Button>
@@ -1606,6 +1608,57 @@ export default function PromptsLibraryPage() {
                 </Button>
                 <Button className="bg-primary hover:bg-primary/90 glow-primary" onClick={savePrompt} disabled={saving}>
                   {saving ? (isEn ? "Saving..." : "Guardando...") : editingPrompt ? (isEn ? "Save changes" : "Guardar cambios") : (isEn ? "Create prompt" : "Crear prompt")}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {promptToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+            onClick={() => setPromptToDelete(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 12 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 12 }}
+              className="w-full max-w-lg rounded-2xl border border-border bg-background shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-border p-6">
+                <div>
+                  <h3 className="text-xl font-bold">{isEn ? "Delete prompt" : "Eliminar prompt"}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {isEn ? "This prompt will stop being monitored." : "Este prompt dejará de monitorearse."}
+                  </p>
+                </div>
+                <button className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => setPromptToDelete(null)}>
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="space-y-4 p-6">
+                <div className="rounded-xl border border-border bg-secondary/30 p-4">
+                  <p className="line-clamp-4 text-sm text-foreground">{promptToDelete.text}</p>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {isEn
+                    ? "This action cannot be undone. Historical audit evidence remains intact, but this prompt record will be removed from the library."
+                    : "Esta acción no se puede deshacer. La evidencia histórica de auditorías se mantiene, pero este prompt se eliminará de la biblioteca."}
+                </p>
+              </div>
+              <div className="flex justify-end gap-3 border-t border-border bg-secondary/20 p-6">
+                <Button variant="outline" onClick={() => setPromptToDelete(null)}>
+                  {isEn ? "Cancel" : "Cancelar"}
+                </Button>
+                <Button className="bg-red-500 text-white hover:bg-red-600" onClick={() => deletePrompt(promptToDelete)}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {isEn ? "Delete prompt" : "Eliminar prompt"}
                 </Button>
               </div>
             </motion.div>
