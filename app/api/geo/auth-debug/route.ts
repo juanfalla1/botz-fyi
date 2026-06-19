@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/app/api/_utils/supabase"
+import { GEO_SUPABASE_ANON_KEY, GEO_SUPABASE_URL } from "@/lib/geo/api-auth"
 
 export async function GET(req: Request) {
   const auth = req.headers.get("authorization") || ""
@@ -9,14 +9,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, reason: "MISSING_TOKEN" }, { status: 401 })
   }
 
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  if (!GEO_SUPABASE_URL || !GEO_SUPABASE_ANON_KEY) {
     return NextResponse.json({ ok: false, reason: "SERVER_SUPABASE_ENV_MISSING" }, { status: 500 })
   }
 
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+  const response = await fetch(`${GEO_SUPABASE_URL}/auth/v1/user`, {
     headers: {
       Authorization: `Bearer ${token}`,
-      apikey: SUPABASE_ANON_KEY,
+      apikey: GEO_SUPABASE_ANON_KEY,
     },
   })
   const data = await response.json().catch(() => null)

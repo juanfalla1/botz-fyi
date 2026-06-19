@@ -41,12 +41,12 @@ async function runAiOverviewsPrompt(apiKey: string, input: EnginePromptInput): P
 }
 
 export function buildAiOverviewsProvider(): EngineProvider {
-  const apiKey = process.env.SERPAPI_API_KEY ?? process.env.SERP_API_KEY
+  const apiKey = process.env.GEO_SERPAPI_API_KEY ?? process.env.GEO_SERP_API_KEY ?? process.env.SERPAPI_API_KEY ?? process.env.SERP_API_KEY
   if (!apiKey) {
     return {
       id: "ai_overviews",
       status: "disabled",
-      reason: "SERPAPI_API_KEY is missing",
+      reason: "GEO_SERPAPI_API_KEY, SERPAPI_API_KEY or SERP_API_KEY is missing",
       runPrompt: async () => ({ text: "" }),
     }
   }

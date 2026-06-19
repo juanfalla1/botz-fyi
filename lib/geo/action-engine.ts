@@ -43,6 +43,14 @@ export type GeoCrawledPage = {
   word_count: number | null
 }
 
+export type GeoActionAiQuery = {
+  id: string
+  prompt: string
+  engine: string
+  intent: string | null
+  ai_answers: Array<{ answer_text?: string | null; raw_response?: Record<string, unknown> | null }>
+}
+
 export type GeoActionContext = {
   project: GeoActionProject
   audits: GeoActionAudit[]
@@ -53,6 +61,7 @@ export type GeoActionContext = {
   competitors: GeoActionCompetitor[]
   competitorMentions: GeoCompetitorMention[]
   crawledPages: GeoCrawledPage[]
+  aiQueries: GeoActionAiQuery[]
 }
 
 export async function loadGeoActionContext(supabase: SupabaseClient, userId: string, projectId: string): Promise<GeoActionContext | null> {
@@ -76,6 +85,7 @@ export async function loadGeoActionContext(supabase: SupabaseClient, userId: str
 
   const auditRows = (audits ?? []) as GeoActionAudit[]
   const auditIds = auditRows.map((audit) => String(audit.id))
+  const latestAudit = auditRows[0] ?? null
   const { data: competitors, error: competitorsError } = await supabase
     .from("competitors")
     .select("id, name, domain")
@@ -111,7 +121,15 @@ export async function loadGeoActionContext(supabase: SupabaseClient, userId: str
   if (competitorMentionsResult.error) throw competitorMentionsResult.error
   if (crawledPagesResult.error) throw crawledPagesResult.error
 
-  const latestAudit = auditRows[0] ?? null
+  const { data: aiQueries, error: aiQueriesError } = latestAudit
+    ? await supabase
+        .from("ai_queries")
+        .select("id, prompt, engine, intent, ai_answers(answer_text, raw_response)")
+        .eq("audit_id", latestAudit.id)
+        .order("created_at", { ascending: true })
+    : { data: [], error: null }
+  if (aiQueriesError) throw aiQueriesError
+
   return {
     project: project as GeoActionProject,
     audits: auditRows,
@@ -138,6 +156,16 @@ export async function loadGeoActionContext(supabase: SupabaseClient, userId: str
       title: page.title ? String(page.title) : null,
       description: page.description ? String(page.description) : null,
       word_count: typeof page.word_count === "number" ? page.word_count : null,
+    })),
+    aiQueries: (aiQueries ?? []).map((query) => ({
+      id: String(query.id),
+      prompt: String(query.prompt ?? ""),
+      engine: String(query.engine ?? ""),
+      intent: query.intent ? String(query.intent) : null,
+      ai_answers: Array.isArray(query.ai_answers) ? query.ai_answers.map((answer) => ({
+        answer_text: answer.answer_text ? String(answer.answer_text) : null,
+        raw_response: answer.raw_response && typeof answer.raw_response === "object" && !Array.isArray(answer.raw_response) ? answer.raw_response as Record<string, unknown> : null,
+      })) : [],
     })),
   }
 }

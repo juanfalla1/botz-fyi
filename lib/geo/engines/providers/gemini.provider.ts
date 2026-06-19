@@ -8,6 +8,8 @@ type ServiceAccount = {
 }
 
 let vertexTokenCache: { token: string; expiresAt: number } | null = null
+const VERTEX_GEMINI_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash-001", "gemini-1.5-flash-002", "gemini-1.5-pro-002"]
+const VERTEX_GEMINI_FALLBACK_LOCATIONS = ["global", "us-central1"]
 
 function promptText(input: EnginePromptInput) {
   return input.neutral
@@ -107,16 +109,17 @@ async function runGeminiPrompt(apiKey: string, model: string, input: EnginePromp
   }
 }
 
-async function runVertexGeminiPrompt(serviceAccount: ServiceAccount, model: string, input: EnginePromptInput): Promise<EngineRawResponse> {
+async function runVertexGeminiPrompt(serviceAccount: ServiceAccount, model: string, input: EnginePromptInput, location?: string, attemptedTargets = new Set<string>()): Promise<EngineRawResponse> {
   const timeoutMs = Number(process.env.GEO_GEMINI_TIMEOUT_MS ?? process.env.GEO_ENGINE_TIMEOUT_MS ?? 30000)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 30000)
   const token = await getVertexAccessToken(serviceAccount)
   const project = process.env.GOOGLE_CLOUD_PROJECT ?? serviceAccount.project_id
-  const location = process.env.GOOGLE_CLOUD_LOCATION ?? "us-central1"
+  const resolvedLocation = location ?? process.env.GOOGLE_CLOUD_LOCATION ?? "global"
   if (!project) throw new Error("GOOGLE_CLOUD_PROJECT is missing")
-  const host = location === "global" ? "aiplatform.googleapis.com" : `${location}-aiplatform.googleapis.com`
-  const url = `https://${host}/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`
+  const host = resolvedLocation === "global" ? "aiplatform.googleapis.com" : `${resolvedLocation}-aiplatform.googleapis.com`
+  const url = `https://${host}/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(resolvedLocation)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`
+  attemptedTargets.add(`${resolvedLocation}:${model}`)
 
   try {
     const response = await fetch(url, {
@@ -127,22 +130,31 @@ async function runVertexGeminiPrompt(serviceAccount: ServiceAccount, model: stri
     })
     if (!response.ok) {
       const details = await response.text().catch(() => "")
-      if (response.status === 404 && model !== "gemini-2.0-flash") return runVertexGeminiPrompt(serviceAccount, "gemini-2.0-flash", input)
+      const fallbackLocations = Array.from(new Set([resolvedLocation, ...VERTEX_GEMINI_FALLBACK_LOCATIONS]))
+      const fallbackModels = Array.from(new Set([model, ...VERTEX_GEMINI_FALLBACK_MODELS]))
+      const fallbackTarget = fallbackLocations
+        .flatMap((candidateLocation) => fallbackModels.map((candidateModel) => ({ location: candidateLocation, model: candidateModel })))
+        .find((candidate) => !attemptedTargets.has(`${candidate.location}:${candidate.model}`))
+      if (response.status === 404 && fallbackTarget) {
+        return runVertexGeminiPrompt(serviceAccount, fallbackTarget.model, input, fallbackTarget.location, attemptedTargets)
+      }
       throw new Error(`Vertex Gemini error ${response.status}${details ? `: ${details.slice(0, 240)}` : ""}`)
     }
     const data = (await response.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
     const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("\n") ?? ""
-    return { text, meta: { provider: "vertex", project, location, model } }
+    return { text, meta: { provider: "vertex", project, location: resolvedLocation, model } }
   } finally {
     clearTimeout(timer)
   }
 }
 
 export function buildGeminiProvider(): EngineProvider {
-  const provider = (process.env.GEMINI_PROVIDER ?? "api_key").toLowerCase()
+  const providerValue = process.env.GEO_GEMINI_PROVIDER ?? process.env.GEMINI_PROVIDER
+  const provider = providerValue && ["api_key", "apikey", "vertex"].includes(providerValue.toLowerCase()) ? providerValue.toLowerCase() : "api_key"
+  const legacyProviderApiKey = providerValue && provider === "api_key" && !["api_key", "apikey", "vertex"].includes(providerValue.toLowerCase()) ? providerValue : undefined
   if (provider === "vertex") {
     const serviceAccount = getServiceAccount()
-    const model = process.env.VERTEX_GEMINI_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-2.0-flash"
+    const model = process.env.GEO_VERTEX_GEMINI_MODEL ?? process.env.VERTEX_GEMINI_MODEL ?? process.env.GEO_GEMINI_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-2.5-flash"
     if (!serviceAccount) {
       return {
         id: "gemini",
@@ -158,13 +170,13 @@ export function buildGeminiProvider(): EngineProvider {
     }
   }
 
-  const apiKey = process.env.GEMINI_API_KEY
-  const model = process.env.GEMINI_MODEL ?? "gemini-2.0-flash"
+  const apiKey = process.env.GEO_GEMINI_API_KEY ?? process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY ?? legacyProviderApiKey
+  const model = process.env.GEO_GEMINI_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-2.0-flash"
   if (!apiKey) {
     return {
       id: "gemini",
       status: "disabled",
-      reason: "GEMINI_API_KEY is missing",
+      reason: "GEO_GEMINI_API_KEY or GEMINI_API_KEY is missing",
       runPrompt: async () => ({ text: "" }),
     }
   }

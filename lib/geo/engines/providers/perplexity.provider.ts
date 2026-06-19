@@ -48,13 +48,13 @@ async function runPerplexityPrompt(apiKey: string, model: string, input: EngineP
 }
 
 export function buildPerplexityProvider(): EngineProvider {
-  const apiKey = process.env.PERPLEXITY_API_KEY
-  const model = process.env.PERPLEXITY_MODEL ?? "sonar"
+  const apiKey = process.env.GEO_PERPLEXITY_API_KEY ?? process.env.PERPLEXITY_API_KEY
+  const model = process.env.GEO_PERPLEXITY_MODEL ?? process.env.PERPLEXITY_MODEL ?? "sonar"
   if (!apiKey) {
     return {
       id: "perplexity",
       status: "disabled",
-      reason: "PERPLEXITY_API_KEY is missing",
+      reason: "GEO_PERPLEXITY_API_KEY or PERPLEXITY_API_KEY is missing",
       runPrompt: async () => ({ text: "" }),
     }
   }

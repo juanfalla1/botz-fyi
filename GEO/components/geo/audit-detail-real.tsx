@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AppHeader } from "@/GEO/components/geo/app-shell"
 import { useGeoI18n } from "@/GEO/components/geo/i18n"
 import { supabaseGeo } from "@/app/geo/supabaseGeoClient"
+import { isPositiveBrandEvidence } from "@/lib/geo/evidence-rules"
 
 type AuditDetail = {
   id: string
@@ -21,6 +22,10 @@ type AuditDetail = {
   final_score: number | null
   created_at: string
   completed_at: string | null
+  executed_ai_queries?: number | null
+  live_ai_queries?: number | null
+  live_engine_count?: number | null
+  scoreable_project_prompts?: number | null
   audit_job?: { id: string; status: string; error_message?: string | null; failed_reason?: string | null; created_at?: string | null; started_at?: string | null; completed_at?: string | null } | null
   projects?: { company_name?: string; website_url?: string; country?: string; language?: string; industry?: string }
   ai_queries?: Array<{ id: string; prompt: string; engine: string; intent?: string | null; ai_answers?: Array<{ answer_text?: string; citations?: unknown; raw_response?: Record<string, unknown> }> }>
@@ -257,12 +262,22 @@ export default function AuditDetailReal() {
   const evaluatedPromptsFromQueries = storedQueries.map((query) => {
     const answer = Array.isArray(query.ai_answers) ? query.ai_answers[0] : null
     const raw = answer?.raw_response && typeof answer.raw_response === "object" ? answer.raw_response : {}
+    const answerText = String(answer?.answer_text ?? "")
+    const promptKind = String(raw.prompt_kind ?? query.intent ?? "")
     return {
       engine: query.engine,
       prompt: query.prompt,
-      mentioned: Boolean(raw.brand_mentioned),
+      prompt_kind: promptKind,
+      mentioned: isPositiveBrandEvidence({
+        prompt: query.prompt,
+        answerText,
+        rawMentioned: Boolean(raw.brand_mentioned),
+        promptKind,
+        companyName: audit?.projects?.company_name,
+        websiteUrl: audit?.projects?.website_url ?? audit?.base_url,
+      }),
       position: raw.ranking_position,
-      answer_preview: String(answer?.answer_text ?? "").slice(0, 400),
+      answer_preview: answerText.slice(0, 400),
     }
   })
   const evaluatedPrompts = evaluatedPromptsFromQueries.length > 0 ? evaluatedPromptsFromQueries : objectArray(summary.evaluated_prompts)
@@ -280,7 +295,10 @@ export default function AuditDetailReal() {
   const promptsWon = numberFrom(summary.prompts_won ?? metadata.prompts_won) || enginePromptsWon
   const citations = numberFrom(summary.citations_count ?? metadata.citations_count) || engineCitations
   const totalResults = numberFrom(summary.total_results ?? metadata.total_results) || promptsTested
-  const hasScoreEvidence = totalResults > 0 || engineLiveResults > 0
+  const apiLiveResults = optionalNumber(audit?.live_ai_queries)
+  const apiLiveEngines = optionalNumber(audit?.live_engine_count)
+  const apiScoreablePrompts = optionalNumber(audit?.scoreable_project_prompts)
+  const hasScoreEvidence = apiLiveResults !== null || apiLiveEngines !== null || apiScoreablePrompts !== null ? (apiLiveResults ?? 0) >= 3 && (apiLiveEngines ?? 0) >= 2 && (apiScoreablePrompts ?? 0) > 0 : engineBreakdownItems.length > 0 ? engineLiveResults > 0 : totalResults > 0
   const rawScoreValue = optionalNumber(audit?.final_score) ?? optionalNumber(summary.geo_score)
   const scoreValue = hasScoreEvidence ? rawScoreValue : null
   const score = scoreValue ?? 0

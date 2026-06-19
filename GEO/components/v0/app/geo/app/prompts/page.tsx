@@ -35,6 +35,7 @@ import { useParams } from "next/navigation"
 import { supabaseGeo } from "@/app/geo/supabaseGeoClient"
 import { useGeoI18n } from "@/GEO/components/geo/i18n"
 import type { GeoPromptRecord, ProjectRecord } from "@/lib/geo/db-types"
+import { isPositiveBrandEvidence } from "@/lib/geo/evidence-rules"
 
 type PromptItem = {
   id: string
@@ -304,6 +305,88 @@ function resultPreview(result: Record<string, unknown> | null) {
   return preview.length > 150 ? `${preview.slice(0, 150)}...` : preview
 }
 
+function engineStatusLabel(result: Record<string, unknown> | null, isEn: boolean) {
+  if (!result) return isEn ? "No run" : "Sin ejecución"
+  if (String(result.status ?? "") === "live") return null
+
+  const reason = String(result.reason ?? "").toLowerCase()
+  if (reason.includes("is missing") || reason.includes("missing")) return isEn ? "Not configured" : "No configurado"
+  if (reason.includes("429") || reason.includes("rate limit") || reason.includes("quota")) return isEn ? "Quota limit" : "Límite de cuota"
+  return isEn ? "Engine error" : "Error del motor"
+}
+
+function promptKindForResult(prompt: PromptItem, result: Record<string, unknown> | null) {
+  const kind = String(result?.prompt_kind ?? prompt.category ?? "").toLowerCase()
+  if (kind.includes("citation") || kind.includes("trust")) return "citation"
+  if (kind.includes("assisted")) return "assisted"
+  if (kind.includes("comparison") || kind.includes("competitive") || kind.includes("alternative")) return "competitive"
+  return "spontaneous"
+}
+
+function normalizedEvidenceText(value: string) {
+  return value.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9.\s-]/g, " ").replace(/\s+/g, " ").trim()
+}
+
+function targetTermsForPrompt(prompt: PromptItem) {
+  const projectTerms = prompt.projects.flatMap((project) => {
+    const normalized = normalizedEvidenceText(project)
+    const root = normalized.split(/[.\s-]/)[0] ?? ""
+    return [normalized, root]
+  })
+  const domainTerms = Array.from(prompt.text.matchAll(/(?:https?:\/\/)?(?:www\.)?([a-z0-9.-]+\.[a-z]{2,})/gi)).flatMap((match) => {
+    const domain = match[1].toLowerCase().replace(/^www\./, "")
+    return [domain, domain.split(".")[0] ?? ""]
+  })
+  const assistedMatch = prompt.text.match(/(?:evaluar|evaluating)\s+([a-z0-9][a-z0-9.-]{2,})/i)
+  return Array.from(new Set([...projectTerms, ...domainTerms, normalizedEvidenceText(assistedMatch?.[1] ?? "")].filter((term) => term.length >= 3)))
+}
+
+function answerContainsTarget(prompt: PromptItem, result: Record<string, unknown> | null) {
+  const text = normalizedEvidenceText(String(result?.answer_preview ?? ""))
+  if (!text) return false
+  return targetTermsForPrompt(prompt).some((term) => new RegExp(`(^|\\W)${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|\\W)`, "i").test(text))
+}
+
+function answerHasPositiveTargetContext(prompt: PromptItem, result: Record<string, unknown> | null) {
+  const text = normalizedEvidenceText(String(result?.answer_preview ?? ""))
+  if (!text) return false
+  for (const term of targetTermsForPrompt(prompt)) {
+    const index = text.indexOf(term)
+    if (index < 0) continue
+    const snippet = text.slice(Math.max(0, index - 90), Math.min(text.length, index + term.length + 140))
+    const weakReference = /\b(alternativas?\s+a|alternatives?\s+to|competidores?\s+(?:o\s+)?alternativas?\s+a|competitors?\s+(?:or\s+)?alternatives?\s+to|en\s+lugar\s+de|instead\s+of|similar\s+a|similar\s+to|no\s+(?:aparece|menciona|recomienda)|not\s+(?:mentioned|recommended))\b/.test(snippet)
+    if (weakReference) continue
+    const positiveSignal = /\b(opci[oó]n|recomienda|recomendado|recomendar[ií]a|proveedor|plataforma|soluci[oó]n|fuerte|destaca|validar|fortalezas?|ideal|fant[aá]stica|leader|leading|recommended|recommend|provider|platform|solution|strong|stands?\s+out|good\s+fit|best\s+fit|strengths?|validate)\b/.test(snippet)
+    if (positiveSignal) return true
+  }
+  return false
+}
+
+function displayMentioned(prompt: PromptItem, result: Record<string, unknown> | null) {
+  if (!result) return false
+  const kind = promptKindForResult(prompt, result)
+  return isPositiveBrandEvidence({
+    prompt: prompt.text,
+    answerText: String(result.answer_preview ?? ""),
+    rawMentioned: Boolean(result.mentioned),
+    promptKind: kind,
+    projectNames: prompt.projects,
+  })
+}
+
+function positiveResultLabel(kind: string, mentioned: boolean, isEn: boolean) {
+  if (kind === "citation") return mentioned ? (isEn ? "External source found" : "Fuente externa encontrada") : (isEn ? "No external source" : "Sin fuente externa")
+  if (kind === "assisted") return mentioned ? (isEn ? "Brand validated" : "Marca validada") : (isEn ? "Brand not validated" : "Marca no validada")
+  return mentioned ? (isEn ? "Target brand mentioned" : "Marca objetivo mencionada") : (isEn ? "Target brand not mentioned" : "Marca objetivo no aparece")
+}
+
+function promptDisclosure(prompt: PromptItem, isEn: boolean) {
+  const kind = promptKindForResult(prompt, prompt.lastRunResults[0] ?? null)
+  if (kind === "assisted") return isEn ? "Assisted query: the brand is intentionally included to validate claims, gaps and proof points." : "Consulta asistida: la marca se incluye intencionalmente para validar afirmaciones, brechas y pruebas."
+  if (kind === "citation") return isEn ? "External-source query: own-site mentions are excluded from positive evidence." : "Consulta de fuentes externas: las menciones del sitio propio se excluyen como evidencia positiva."
+  return isEn ? "Neutral query: the brand is not injected into the AI prompt." : "Consulta neutral: la marca no se inyecta en el prompt enviado a la IA."
+}
+
 function cleanAiText(value: string) {
   return value.replace(/\*\*/g, "").replace(/`/g, "").trim()
 }
@@ -312,21 +395,29 @@ function extractCompanyCandidates(text: string) {
   const clean = text.replace(/\s+/g, " ").trim()
   if (!clean) return []
 
-  const blocked = /^(en colombia|algunos|incluyen|proveedores|empresas|soluciones|opciones|entre|como|por ejemplo|the best|some of|providers|companies|depende|que|qué|porque|aunque|tambien|también|ademas|además|fuente|g2|capterra|saas|software)$/i
+  const blocked = /^(canad[aá]|colombia|estados unidos|united states|usa|m[eé]xico|españa|latinoam[eé]rica|ai agents?|agentes de ia|automation|automatizaci[oó]n|revenue|ventas|leads?|whatsapp|soporte|support|customer support|b2b|en colombia|algunos|incluyen|proveedores|empresas|soluciones|opciones|entre|como|por ejemplo|the best|some of|providers|companies|depende|que|qué|porque|aunque|tambien|también|ademas|además|fuente|fuentes|sources?|revistas?|blogs?|foros?|comunidades?|plataformas?|herramientas?|g2|capterra|saas|software)$/i
+  const blockedPhrase = /\b(instagram|youtube|tiktok|reddit|twitter|x\.com|linkedin pulse|revistas? de|blogs? de|foros? y comunidades|side hustles|top picks|best ai agents|ranking every|gu[ií]a|guide|ultimate guide|servicios? en canad[aá]|services in canada)\b/i
+  const genericTerms = /\b(agentes? de ia|ai agents?|automation|automatizaci[oó]n|revenue|ventas|leads?|proveedores?|empresas?|plataformas?|soluciones?|servicios?|fuentes?|sources?|citadas?|trusted|confiables|compradores?|buyers?)\b/i
   const isCandidate = (name: string) => {
-    const lower = name.toLowerCase()
+    const normalized = cleanAiText(name).replace(/^[-•\d.)\s]+/, "").trim()
+    const lower = normalized.toLowerCase()
+    const compact = lower.replace(/[^a-z0-9áéíóúñ]+/gi, "").trim()
     const words = name.split(/\s+/).filter(Boolean)
-    return name.length >= 2 &&
-      name.length <= 45 &&
+    const hasBrandSignal = /\b(ai|io|crm|labs?|cloud|hub|force|soft|tech|systems?|solutions?|digital|group|agency|studio|partners?|consulting|copilot|agentforce|watson|azure|openai|shopify|hubspot|salesforce|microsoft|google|oracle|accenture|deloitte|ibm|zapier|make|n8n|intercom|zendesk|crunchbase|product hunt)\b/i.test(normalized) || /[A-Z][a-z]+[A-Z]/.test(normalized)
+    return normalized.length >= 2 &&
+      normalized.length <= 45 &&
       words.length <= 4 &&
-      /^[A-ZÁÉÍÓÚÑ0-9]/.test(name) &&
-      !name.includes(",") &&
-      !name.includes(":") &&
-      !blocked.test(name) &&
-      !/\b(necesitas|ofrece|permite|incluye|integra|consulta|reseñas|plataformas|suscripcion|suscripción|onboarding|automatizado|escalabilidad|gestion|gestión|logistica|logística|talento|recursos humanos|conocida|delivery|servicios|tecnologicos|tecnológicos|expandido)\b/i.test(name) &&
+      /^[A-ZÁÉÍÓÚÑ0-9]/.test(normalized) &&
+      !normalized.includes(",") &&
+      !normalized.includes(":") &&
+      !blocked.test(normalized) &&
+      !blockedPhrase.test(normalized) &&
+      !(genericTerms.test(normalized) && !hasBrandSignal) &&
+      !/\b(necesitas|ofrece|permite|incluye|integra|consulta|reseñas|plataformas|suscripcion|suscripción|onboarding|automatizado|escalabilidad|gestion|gestión|logistica|logística|talento|recursos humanos|conocida|delivery|servicios|tecnologicos|tecnológicos|expandido|conversaciones|seguimiento|compradores|buyer|businesses|empresa mediana|empresa grande)\b/i.test(normalized) &&
       !lower.startsWith("que ") &&
       !lower.startsWith("aunque ") &&
-      !lower.startsWith("ha ")
+      !lower.startsWith("ha ") &&
+      compact.length >= 3
   }
 
   const boldMatches = Array.from(clean.matchAll(/\*\*([^*]+)\*\*/g))
@@ -341,7 +432,7 @@ function extractCompanyCandidates(text: string) {
   const candidates = chunks.length > 1 ? chunks : clean.split(/,|;|\by\b|\band\b/i)
   return Array.from(new Set(candidates.map((item) => {
     const name = item
-      .replace(/^(en colombia|algunos de los mejores proveedores de saas incluyen:?|incluyen:?|como:?|por ejemplo:?)/i, "")
+      .replace(/^(en colombia|en canad[aá]|algunos de los mejores proveedores de saas incluyen:?|incluyen:?|como:?|por ejemplo:?)/i, "")
       .split(/:| - | – | — |\(/)[0]
       .replace(/^\d+[.)]\s*/, "")
       .replace(/\*\*/g, "")
@@ -442,15 +533,17 @@ function PromptEngineBreakdown({ prompt, isEn }: { prompt: PromptItem; isEn: boo
         {prompt.engines.map((engine) => {
           const result = resultForEngine(prompt, engine)
           const status = String(result?.status ?? "")
-          const mentioned = Boolean(result?.mentioned)
+          const mentioned = displayMentioned(prompt, result)
+          const kind = promptKindForResult(prompt, result)
           const companies = mentionedCompanies(result)
           const preview = resultPreview(result)
           const reason = String(result?.reason ?? "")
+          const statusLabel = engineStatusLabel(result, isEn)
           return (
             <div key={engine} className="rounded-lg border border-border/60 bg-secondary/20 p-2">
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-foreground">{normalizeEngineLabel(engine)}</span>
-                {!result ? <span className="text-[11px] text-muted-foreground">{isEn ? "No run" : "Sin ejecución"}</span> : status !== "live" ? <span className="text-[11px] text-yellow-300">{isEn ? "Configuration error" : "Error de configuración"}</span> : mentioned ? <span className="text-[11px] text-emerald-400">{isEn ? "Target brand mentioned" : "Marca objetivo mencionada"}</span> : <span className="text-[11px] text-red-300">{isEn ? "Target brand not mentioned" : "Marca objetivo no aparece"}</span>}
+                {statusLabel ? <span className={`text-[11px] ${result ? "text-yellow-300" : "text-muted-foreground"}`}>{statusLabel}</span> : mentioned ? <span className="text-[11px] text-emerald-400">{positiveResultLabel(kind, mentioned, isEn)}</span> : <span className="text-[11px] text-red-300">{positiveResultLabel(kind, mentioned, isEn)}</span>}
               </div>
               {status !== "live" && reason ? (
                 <p className="line-clamp-2 text-xs text-yellow-200/90">{reason}</p>
@@ -1686,7 +1779,7 @@ export default function PromptsLibraryPage() {
                 <div>
                   <h3 className="text-xl font-bold">{isEn ? "AI Answers" : "Respuestas IA"}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">{viewingResultsPrompt.text}</p>
-                  <p className="mt-2 text-xs text-primary">{isEn ? "Neutral query: the brand is not injected into the AI prompt." : "Consulta neutral: la marca no se inyecta en el prompt enviado a la IA."}</p>
+                  <p className="mt-2 text-xs text-primary">{promptDisclosure(viewingResultsPrompt, isEn)}</p>
                 </div>
                 <button className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => setViewingResultsPrompt(null)}>
                   <X className="h-5 w-5" />
@@ -1696,8 +1789,10 @@ export default function PromptsLibraryPage() {
                 {viewingResultsPrompt.lastRunResults.length === 0 && <p className="text-sm text-muted-foreground">{isEn ? "No run results yet." : "Aún no hay resultados de ejecución."}</p>}
                 {viewingResultsPrompt.lastRunResults.map((result, index) => {
                   const status = String(result.status ?? "")
-                  const mentioned = Boolean(result.mentioned)
+                  const mentioned = displayMentioned(viewingResultsPrompt, result)
                   const companies = mentionedCompanies(result)
+                  const statusLabel = engineStatusLabel(result, isEn)
+                  const kind = promptKindForResult(viewingResultsPrompt, result)
                   return (
                     <div key={index} className={`rounded-xl border p-4 ${status === "live" ? mentioned ? "border-green-500/30 bg-green-500/5" : "border-red-500/30 bg-red-500/5" : "border-yellow-500/30 bg-yellow-500/10"}`}>
                       <div className="mb-3 flex items-center justify-between gap-3">
@@ -1706,7 +1801,7 @@ export default function PromptsLibraryPage() {
                           <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{String(result.engine ?? "Motor IA")}</span>
                         </div>
                         <div className="text-right text-sm">
-                          {status !== "live" ? <span className="text-yellow-300">{isEn ? "Configuration error" : "Error de configuración"}</span> : mentioned ? <span className="text-green-400">Mencionado</span> : <span className="text-red-400">No aparece</span>}
+                          {statusLabel ? <span className="text-yellow-300">{statusLabel}</span> : mentioned ? <span className="text-green-400">{positiveResultLabel(kind, mentioned, isEn)}</span> : <span className="text-red-400">{positiveResultLabel(kind, mentioned, isEn)}</span>}
                           {typeof result.position === "number" && result.position > 0 && <p className="text-xs text-muted-foreground">Posición {result.position}</p>}
                         </div>
                       </div>

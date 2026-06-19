@@ -77,6 +77,10 @@ type DashboardAudit = {
   completed_at?: string | null
   status?: string
   summary?: unknown
+  executed_ai_queries?: number | null
+  live_ai_queries?: number | null
+  live_engine_count?: number | null
+  scoreable_project_prompts?: number | null
 }
 
 type DashboardProject = {
@@ -140,7 +144,7 @@ export default function DashboardPage() {
         auditsList = aj.data?.audits ?? []
         const mapped = auditsList.slice(0, 5).map((a) => {
           const summary = parseSummary(a.summary)
-          const hasEvidence = hasScoredEvidence(summary)
+          const hasEvidence = hasScoredEvidence(summary, a)
           return {
             id: a.id,
             brand: a.base_url.replace(/^https?:\/\//, "").split("/")[0],
@@ -182,7 +186,7 @@ export default function DashboardPage() {
       })).sort((a, b) => b.audits - a.audits).slice(0, 5))
 
       const completedChart = auditsList
-        .filter((audit) => audit.status === "completed" && typeof audit.final_score === "number" && hasScoredEvidence(parseSummary(audit.summary)))
+        .filter((audit) => audit.status === "completed" && typeof audit.final_score === "number" && hasScoredEvidence(parseSummary(audit.summary), audit))
         .sort((a, b) => new Date(a.completed_at ?? a.created_at).getTime() - new Date(b.completed_at ?? b.created_at).getTime())
         .slice(-8)
         .map((audit) => {
@@ -199,7 +203,7 @@ export default function DashboardPage() {
         const uj = (await usageRes.json()) as { data?: { totals?: Record<string, number> } }
         const cj = (await competitorsRes.json()) as { data?: Array<unknown> }
         const totals = uj.data?.totals ?? {}
-        const scoredAudits = auditsList.filter((audit) => audit.status === "completed" && hasScoredEvidence(parseSummary(audit.summary)))
+        const scoredAudits = auditsList.filter((audit) => audit.status === "completed" && hasScoredEvidence(parseSummary(audit.summary), audit))
         const completedScores = scoredAudits.map((a) => a.final_score).filter((s): s is number => s !== null)
         const avgScore = completedScores.length > 0 ? Math.round(completedScores.reduce((acc, score) => acc + score, 0) / completedScores.length) : 0
         const spontaneousValues = scoredAudits
@@ -524,13 +528,15 @@ function numberFrom(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : Number.isFinite(Number(value)) ? Number(value) : 0
 }
 
-function hasScoredEvidence(summary: Record<string, unknown>) {
-  const totalResults = numberFrom(summary.total_results)
-  if (totalResults > 0) return true
+function hasScoredEvidence(summary: Record<string, unknown>, audit?: Pick<DashboardAudit, "live_ai_queries" | "executed_ai_queries" | "live_engine_count" | "scoreable_project_prompts">) {
+  if (audit && numberFrom(audit.live_ai_queries) < 3) return false
+  if (audit && numberFrom(audit.live_engine_count) < 2) return false
+  if (audit && numberFrom(audit.scoreable_project_prompts) <= 0) return false
   const breakdown = Array.isArray(summary.engine_breakdown) ? summary.engine_breakdown : []
+  if (breakdown.length === 0) return numberFrom(summary.total_results) > 0
   return breakdown.some((item) => {
     if (!item || typeof item !== "object") return false
     const record = item as Record<string, unknown>
-    return numberFrom(record.live_count) > 0 || numberFrom(record.prompts_total) > 0
+    return numberFrom(record.live_count) > 0
   })
 }

@@ -54,6 +54,9 @@ export type NormalizedEngineResult = {
   citations: string[]
   citationDomains: string[]
   uniqueCitations: number
+  externalCitations?: string[]
+  externalCitationDomains?: string[]
+  externalUniqueCitations?: number
   rankingPosition: number | null
   competitorTopPosition: number | null
   won: boolean

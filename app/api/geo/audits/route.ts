@@ -30,10 +30,84 @@ export async function GET(req: Request) {
       : { data: [], error: null }
     if (auditsError) throw auditsError
 
-    return NextResponse.json({ data: { audits: audits ?? [], jobs: jobs ?? [] }, mode: "live" })
+    const { data: queries, error: queriesError } = auditIds.length > 0
+      ? await supabase.from("ai_queries").select("id, audit_id, prompt").in("audit_id", auditIds)
+      : { data: [], error: null }
+    if (queriesError) throw queriesError
+
+    const queryIds = (queries ?? []).map((query) => query.id).filter(Boolean)
+    const projectIds = Array.from(new Set((audits ?? []).map((audit) => audit.project_id).filter(Boolean)))
+    const { data: projectPrompts, error: promptsError } = projectIds.length > 0
+      ? await supabase.from("geo_prompts").select("project_id, prompt, enabled").in("project_id", projectIds)
+      : { data: [], error: null }
+    if (promptsError) throw promptsError
+
+    const { data: answers, error: answersError } = queryIds.length > 0
+      ? await supabase.from("ai_answers").select("query_id, engine, raw_response").in("query_id", queryIds)
+      : { data: [], error: null }
+    if (answersError) throw answersError
+
+    const queryAuditIds = new Map((queries ?? []).map((query) => [query.id, query.audit_id]))
+    const queryPrompts = new Map((queries ?? []).map((query) => [query.id, String(query.prompt ?? "")]))
+    const scoreablePromptsByProject = new Map<string, number>()
+    for (const prompt of projectPrompts ?? []) {
+      if (!prompt.project_id || !prompt.enabled || !isScoreablePrompt(String(prompt.prompt ?? ""))) continue
+      scoreablePromptsByProject.set(prompt.project_id, (scoreablePromptsByProject.get(prompt.project_id) ?? 0) + 1)
+    }
+    const executedByAudit = new Map<string, number>()
+    const liveByAudit = new Map<string, number>()
+    const liveEnginesByAudit = new Map<string, Set<string>>()
+    for (const query of queries ?? []) {
+      if (!query.audit_id) continue
+      executedByAudit.set(query.audit_id, (executedByAudit.get(query.audit_id) ?? 0) + 1)
+    }
+    for (const answer of answers ?? []) {
+      const auditId = queryAuditIds.get(answer.query_id)
+      if (!auditId) continue
+      if (!isScoreablePrompt(queryPrompts.get(answer.query_id) ?? "")) continue
+      const raw = answer.raw_response && typeof answer.raw_response === "object" ? answer.raw_response as Record<string, unknown> : {}
+      if (raw.mode === "live") {
+        liveByAudit.set(auditId, (liveByAudit.get(auditId) ?? 0) + 1)
+        const engines = liveEnginesByAudit.get(auditId) ?? new Set<string>()
+        const engine = String(answer.engine ?? "")
+        if (engine) engines.add(engine)
+        liveEnginesByAudit.set(auditId, engines)
+      }
+    }
+
+    const auditsWithEvidence = (audits ?? []).map((audit) => {
+      const liveAiQueries = liveByAudit.get(audit.id) ?? 0
+      const liveEngineCount = liveEnginesByAudit.get(audit.id)?.size ?? 0
+      const scoreableProjectPrompts = scoreablePromptsByProject.get(audit.project_id) ?? 0
+      const hasScoreEvidence = liveAiQueries >= 3 && liveEngineCount >= 2 && scoreableProjectPrompts > 0
+      return {
+        ...audit,
+        final_score: hasScoreEvidence ? audit.final_score : null,
+        executed_ai_queries: executedByAudit.get(audit.id) ?? 0,
+        live_ai_queries: liveAiQueries,
+        live_engine_count: liveEngineCount,
+        scoreable_project_prompts: scoreableProjectPrompts,
+      }
+    })
+
+    return NextResponse.json({ data: { audits: auditsWithEvidence, jobs: jobs ?? [] }, mode: "live" })
   } catch (error) {
     return NextResponse.json({ data: { audits: [], jobs: [] }, mode: "error", error: error instanceof Error ? error.message : "Unauthorized" }, { status: 401 })
   }
+}
+
+function isScoreablePrompt(prompt: string) {
+  const text = prompt.toLowerCase().replace(/[¿?]/g, "").replace(/\s+/g, " ").trim()
+  if (!text) return false
+  const genericMarketOnly = [
+    /mejores proveedores para e-?commerce(?: en [a-záéíóúñ\s]+)?$/i,
+    /mejores alternativas a alternativas del mercado para e-?commerce$/i,
+    /empresa recomiendas para e-?commerce(?: en [a-záéíóúñ\s]+)?$/i,
+    /best providers for e-?commerce(?: in [a-z\s]+)?$/i,
+    /best alternatives to market alternatives for e-?commerce$/i,
+    /company do you recommend for e-?commerce(?: in [a-z\s]+)?$/i,
+  ]
+  return !genericMarketOnly.some((pattern) => pattern.test(text))
 }
 
 function statusForError(error: unknown) {

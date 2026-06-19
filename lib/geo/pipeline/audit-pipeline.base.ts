@@ -25,13 +25,15 @@ async function logNonCriticalPipelineError(supabase: SupabaseClient, context: Pi
 }
 
 export async function runBaseAuditPipeline(supabase: SupabaseClient, context: PipelineContext) {
-  const prompts = buildBasePrompts(context)
-  const analysis = await runRealAnalysisWithFallback(context, prompts)
-  const output = analysis.output
   const crawledPages = await runCrawlerWithBudget(context.project.website_url, context.job.crawl_depth).catch((error) => {
     void logNonCriticalPipelineError(supabase, context, "crawl", error)
     return [] as CrawledPage[]
   })
+  const prompts = buildBasePrompts(context, crawledPages)
+  await persistGeneratedPrompts(supabase, context, prompts).catch((error) => logNonCriticalPipelineError(supabase, context, "geo_prompts", error))
+  const analysis = await runRealAnalysisWithFallback(context, prompts)
+  const output = analysis.output
+  await syncPromptRunResults(supabase, context, analysis.normalizedResults ?? []).catch((error) => logNonCriticalPipelineError(supabase, context, "geo_prompt_results", error))
 
   const { error: auditError } = await supabase
     .from("geo_audits")
@@ -165,6 +167,7 @@ async function persistEngineEvidence(supabase: SupabaseClient, context: Pipeline
   if (queryIds.length > 0) {
     const answers = queryIds.map((query, index) => {
       const result = results[index]
+      const evidenceMentioned = brandMentionedForEvidence(result, context)
       return {
         query_id: query.id,
         engine: result.engine,
@@ -173,12 +176,15 @@ async function persistEngineEvidence(supabase: SupabaseClient, context: Pipeline
         raw_response: {
           mode: result.mode,
           confidence: result.confidence,
-          brand_mentioned: result.brandMentioned,
+          brand_mentioned: evidenceMentioned,
           ranking_position: result.rankingPosition,
           won: result.won,
           lost: result.lost,
           quality_flags: result.quality_flags,
           prompt_kind: result.promptKind ?? "spontaneous",
+          external_citations: result.externalCitations ?? [],
+          external_citation_domains: result.externalCitationDomains ?? [],
+          external_unique_citations: result.externalUniqueCitations ?? 0,
           confidence_reasons: result.confidence_reasons ?? null,
           error: result.error ?? null,
         },
@@ -192,9 +198,9 @@ async function persistEngineEvidence(supabase: SupabaseClient, context: Pipeline
     audit_id: auditId,
     engine: result.engine,
     brand_name: context.project.company_name,
-    mentioned: result.brandMentioned,
+    mentioned: brandMentionedForEvidence(result, context),
     mention_context: result.rawText.slice(0, 800),
-    sentiment: result.brandMentioned ? "neutral" : null,
+    sentiment: brandMentionedForEvidence(result, context) ? "neutral" : null,
     confidence_score: result.confidence,
   }))
   const { error: brandError } = await supabase.from("brand_mentions").insert(brandMentions)
@@ -214,6 +220,36 @@ async function persistEngineEvidence(supabase: SupabaseClient, context: Pipeline
     const { error: competitorError } = await supabase.from("competitor_mentions").insert(competitorMentions)
     if (competitorError) throw competitorError
   }
+}
+
+function brandMentionedForEvidence(result: NormalizedEngineResult, context: PipelineContext) {
+  if (result.promptKind === "citation") {
+    const text = result.rawText.toLowerCase()
+    const prompt = result.prompt.toLowerCase()
+    const targetDomain = prompt.match(/(?:https?:\/\/)?(?:www\.)?([a-z0-9.-]+\.[a-z]{2,})/)?.[1]?.replace(/^www\./, "") ?? ""
+    const mentionsTargetDomain = Boolean(targetDomain && text.includes(targetDomain))
+    const negativeCitationAnswer = /no encontr[eé]|no encontr[oó]|no hay menciones|no existen menciones|ninguna fuente externa|no external|did not find|could not find|no reliable external/i.test(result.rawText)
+    return (result.externalUniqueCitations ?? 0) > 0 && mentionsTargetDomain && !negativeCitationAnswer
+  }
+  return result.brandMentioned && hasStrongBrandEvidence(result.rawText, context)
+}
+
+function hasStrongBrandEvidence(text: string, context: PipelineContext) {
+  const normalized = normalizeEvidenceText(text)
+  const brand = normalizeEvidenceText(context.project.company_name)
+  const domain = context.project.website_url.replace(/^https?:\/\//, "").replace(/^www\./, "").split(/[/?#]/)[0].toLowerCase()
+  const domainRoot = domain.split(".")[0] ?? ""
+  const terms = [brand, domain, domainRoot, ...(context.project.brand_aliases ?? []).map(normalizeEvidenceText), ...(context.project.domain_aliases ?? []).map(normalizeEvidenceText)]
+    .filter((term) => term.length >= 3)
+  return terms.some((term) => new RegExp(`(^|\\W)${escapeRegExp(term)}(?=$|\\W)`, "i").test(normalized))
+}
+
+function normalizeEvidenceText(value: string) {
+  return String(value || "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9.\s-]/g, " ").replace(/\s+/g, " ").trim()
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 function metricDefinitions() {
@@ -242,10 +278,100 @@ async function persistContentOpportunities(supabase: SupabaseClient, auditId: st
   if (error) throw error
 }
 
+async function persistGeneratedPrompts(supabase: SupabaseClient, context: PipelineContext, prompts: Array<{ prompt: string; category?: string; engine: string }>) {
+  if (prompts.length === 0) return
+  const uniquePrompts = new Map<string, { prompt: string; category?: string; engines: string[] }>()
+  for (const item of prompts) {
+    const key = item.prompt.toLowerCase().trim()
+    const existing = uniquePrompts.get(key)
+    if (existing) {
+      if (!existing.engines.includes(item.engine)) existing.engines.push(item.engine)
+      continue
+    }
+    uniquePrompts.set(key, { prompt: item.prompt, category: item.category, engines: [item.engine] })
+  }
+
+  const promptTexts = Array.from(uniquePrompts.values()).map((item) => item.prompt)
+  const { data: existing, error: existingError } = await supabase
+    .from("geo_prompts")
+    .select("prompt")
+    .eq("project_id", context.project.id)
+    .eq("user_id", context.job.user_id)
+    .in("prompt", promptTexts)
+  if (existingError) throw existingError
+
+  const existingTexts = new Set((existing ?? []).map((item) => String(item.prompt)))
+  const rows = Array.from(uniquePrompts.values())
+    .filter((item) => !existingTexts.has(item.prompt))
+    .map((item) => ({
+      user_id: context.job.user_id,
+      project_id: context.project.id,
+      prompt: item.prompt,
+      category: item.category ?? "audit",
+      engines: item.engines,
+      country: context.project.country,
+      language: context.project.language,
+      enabled: true,
+      metadata: { source: "audit_generated", audit_id: context.job.audit_id },
+    }))
+
+  if (rows.length === 0) return
+  const { error } = await supabase.from("geo_prompts").insert(rows)
+  if (error) throw error
+}
+
+async function syncPromptRunResults(supabase: SupabaseClient, context: PipelineContext, results: NormalizedEngineResult[]) {
+  if (results.length === 0) return
+  const byPrompt = new Map<string, NormalizedEngineResult[]>()
+  for (const result of results) {
+    const key = result.prompt.trim()
+    if (!key) continue
+    byPrompt.set(key, [...(byPrompt.get(key) ?? []), result])
+  }
+
+  for (const [prompt, promptResults] of byPrompt.entries()) {
+    const liveResults = promptResults.filter((item) => item.mode === "live")
+    const mentions = liveResults.filter((item) => item.brandMentioned).length
+    const positions = liveResults.map((item) => item.rankingPosition ?? 0).filter((position) => position > 0)
+    const metadata = {
+      source: "audit_generated",
+      audit_id: context.job.audit_id,
+      last_run: new Date().toISOString(),
+      last_run_results: promptResults.map((item) => ({
+        engine: item.engine,
+        status: item.mode === "live" ? "live" : "error",
+        prompt_kind: item.promptKind ?? "spontaneous",
+        reason: item.error ?? null,
+        mentioned: brandMentionedForEvidence(item, context),
+        position: item.rankingPosition,
+        won: item.won,
+        confidence: item.confidence,
+        answer_preview: item.rawText.slice(0, 600),
+        citations: item.citations,
+        external_citations: item.externalCitations ?? [],
+        external_citation_domains: item.externalCitationDomains ?? [],
+        competitors: item.competitorMentions,
+      })),
+      visibility: liveResults.length > 0 ? Math.round((mentions / liveResults.length) * 100) : 0,
+      mentions,
+      position: positions.length > 0 ? Math.round((positions.reduce((sum, item) => sum + item, 0) / positions.length) * 10) / 10 : 0,
+      trend: mentions > 0 ? "up" : "stable",
+    }
+
+    const { error } = await supabase
+      .from("geo_prompts")
+      .update({ metadata })
+      .eq("project_id", context.project.id)
+      .eq("user_id", context.job.user_id)
+      .eq("prompt", prompt)
+    if (error) throw error
+  }
+}
+
 function inferIntent(prompt: string) {
   const value = prompt.toLowerCase()
-  if (value.includes("compare")) return "comparison"
-  if (value.includes("trusted sources") || value.includes("cited")) return "citations"
-  if (value.includes("recommend")) return "recommendation"
+  if (/\b(compare|compara|comparar|vs\.?|versus)\b/.test(value)) return "comparison"
+  if (/trusted sources|fuentes (externas )?confiables|mencionan|mentioning|cited|citadas|citados|citas|citations/.test(value)) return "citations"
+  if (/recommend|recomienda|recomiendas|recomendar[ií]as|recomendaci[oó]n/.test(value)) return "recommendation"
   return "discovery"
 }

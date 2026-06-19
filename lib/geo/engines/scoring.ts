@@ -62,6 +62,16 @@ function kindOf(result: NormalizedEngineResult) {
   return result.promptKind ?? "spontaneous"
 }
 
+function citationEvidenceCount(result: NormalizedEngineResult) {
+  if (result.promptKind !== "citation") return result.uniqueCitations
+  const text = result.rawText.toLowerCase()
+  const prompt = result.prompt.toLowerCase()
+  const targetDomain = prompt.match(/(?:https?:\/\/)?(?:www\.)?([a-z0-9.-]+\.[a-z]{2,})/)?.[1]?.replace(/^www\./, "") ?? ""
+  const mentionsTargetDomain = Boolean(targetDomain && text.includes(targetDomain))
+  const negativeCitationAnswer = /no encontr[eé]|no encontr[oó]|no hay menciones|no existen menciones|ninguna fuente externa|no external|did not find|could not find|no reliable external/i.test(result.rawText)
+  return mentionsTargetDomain && !negativeCitationAnswer ? (result.externalUniqueCitations ?? 0) : 0
+}
+
 export function scoreSnapshotV1(results: NormalizedEngineResult[]): GeoSnapshotV1 {
   const byEngine = new Map<string, NormalizedEngineResult[]>()
   for (const r of results) {
@@ -86,35 +96,36 @@ export function scoreSnapshotV1(results: NormalizedEngineResult[]): GeoSnapshotV
       competitive_total: competitive.length,
       competitive_wins: competitive.filter((x) => x.won).length,
       citation_total: citation.length,
-      citation_hits: citation.filter((x) => x.uniqueCitations > 0 || x.brandMentioned).length,
+      citation_hits: citation.filter((x) => citationEvidenceCount(x) > 0).length,
       mentions: list.filter((x) => x.brandMentioned).length,
-      citations: list.reduce((acc, x) => acc + x.uniqueCitations, 0),
+      citations: list.reduce((acc, x) => acc + citationEvidenceCount(x), 0),
       prompts_won: list.filter((x) => x.won).length,
       prompts_lost: list.filter((x) => x.lost).length,
       brand_mentions: list.filter((x) => x.brandMentioned).length,
-      citations_count: list.reduce((acc, x) => acc + x.uniqueCitations, 0),
+      citations_count: list.reduce((acc, x) => acc + citationEvidenceCount(x), 0),
       avg_rank: avg(rankValues),
       fallback_count: list.filter((x) => x.mode === "fallback").length,
       live_count: list.filter((x) => x.mode === "live").length,
     }
   })
 
-  const promptsTotal = Math.max(1, results.length)
-  const spontaneous = results.filter((x) => kindOf(x) === "spontaneous")
-  const assisted = results.filter((x) => kindOf(x) === "assisted")
-  const competitive = results.filter((x) => kindOf(x) === "competitive")
-  const citationResults = results.filter((x) => kindOf(x) === "citation")
-  const promptsWon = results.filter((x) => x.won).length
-  const promptsLost = results.filter((x) => x.lost).length
-  const mentions = results.filter((x) => x.brandMentioned).length
-  const citations = results.reduce((acc, x) => acc + x.uniqueCitations, 0)
-  const citationDomains = new Set(results.flatMap((x) => x.citationDomains)).size
+  const scoredResults = results.filter((x) => x.mode === "live")
+  const promptsTotal = Math.max(1, scoredResults.length)
+  const spontaneous = scoredResults.filter((x) => kindOf(x) === "spontaneous")
+  const assisted = scoredResults.filter((x) => kindOf(x) === "assisted")
+  const competitive = scoredResults.filter((x) => kindOf(x) === "competitive")
+  const citationResults = scoredResults.filter((x) => kindOf(x) === "citation")
+  const promptsWon = scoredResults.filter((x) => x.won).length
+  const promptsLost = scoredResults.filter((x) => x.lost).length
+  const mentions = scoredResults.filter((x) => x.brandMentioned).length
+  const citations = scoredResults.reduce((acc, x) => acc + citationEvidenceCount(x), 0)
+  const citationDomains = new Set(scoredResults.flatMap((x) => x.promptKind === "citation" ? (x.externalCitationDomains ?? []) : x.citationDomains)).size
 
   const visibility = pct(mentions, promptsTotal)
   const spontaneousVisibility = pct(spontaneous.filter((x) => x.brandMentioned).length, spontaneous.length)
   const assistedVisibility = pct(assisted.filter((x) => x.brandMentioned).length, assisted.length)
   const competitiveVisibility = pct(competitive.filter((x) => x.won).length, competitive.length)
-  const citationCoverage = pct(citationResults.filter((x) => x.uniqueCitations > 0 || x.brandMentioned).length, citationResults.length)
+  const citationCoverage = pct(citationResults.filter((x) => citationEvidenceCount(x) > 0).length, citationResults.length)
   const winRate = (promptsWon / promptsTotal) * 100
   const lossPenalty = Math.min(20, Math.round((promptsLost / promptsTotal) * 20))
   const citationScore = citationResults.length > 0 ? citationCoverage : Math.min(100, Math.round((citations / promptsTotal) * 25))
@@ -140,12 +151,12 @@ export function scoreSnapshotV1(results: NormalizedEngineResult[]): GeoSnapshotV
     assisted_visibility: assistedVisibility,
     competitive_visibility: competitiveVisibility,
     citation_coverage: citationCoverage,
-    total_results: results.length,
+    total_results: scoredResults.length,
     spontaneous_results: spontaneous.length,
     assisted_results: assisted.length,
     competitive_results: competitive.length,
     citation_results: citationResults.length,
-    engines: Array.from(new Set(results.map((x) => x.engine))),
+    engines: Array.from(new Set(scoredResults.map((x) => x.engine))),
     engine_breakdown: breakdown,
     quality_flags_aggregate: qualityFlagsAggregate,
   }

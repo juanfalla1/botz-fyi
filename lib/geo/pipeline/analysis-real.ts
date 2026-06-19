@@ -6,11 +6,12 @@ import { runUnavailableAnalysis } from "@/lib/geo/pipeline/analysis-unavailable"
 import { shouldReturnUnavailableAnalysis } from "@/lib/geo/pipeline/fallback-policy"
 import type { AnalysisOutput, GeneratedPrompt, PipelineContext } from "@/lib/geo/pipeline/types"
 import { runSemanticGeoAnalyzer } from "@/lib/geo/analysis/semantic-geo-analyzer"
+import { isPositiveBrandEvidence } from "@/lib/geo/evidence-rules"
 
 export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts: GeneratedPrompt[]) {
   const { providers } = resolveProviders(ctx.engines)
   const byEngine = new Map(providers.map((p) => [p.id, p]))
-  const maxPrompts = Number(process.env.GEO_MAX_PROMPTS_PER_ENGINE ?? 4)
+  const maxPrompts = Number(process.env.GEO_MAX_PROMPTS_PER_ENGINE ?? 5)
   const safeMaxPrompts = Number.isFinite(maxPrompts) && maxPrompts > 0 ? Math.min(Math.floor(maxPrompts), 10) : 5
   const concurrency = Number(process.env.GEO_ENGINE_CONCURRENCY ?? 6)
   const safeConcurrency = Number.isFinite(concurrency) && concurrency > 0 ? Math.min(Math.floor(concurrency), 12) : 6
@@ -140,7 +141,14 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
       engine: item.engine,
       prompt: item.prompt,
       prompt_kind: item.promptKind,
-      mentioned: item.brandMentioned,
+      mentioned: isPositiveBrandEvidence({
+        prompt: item.prompt,
+        answerText: item.rawText,
+        rawMentioned: item.brandMentioned,
+        promptKind: item.promptKind,
+        companyName: ctx.project.company_name,
+        websiteUrl: ctx.project.website_url,
+      }),
       position: item.rankingPosition,
       won: item.won,
       answer_preview: item.rawText.slice(0, 400),
@@ -171,10 +179,11 @@ function classifyPrompt(gp: GeneratedPrompt, ctx: PipelineContext): "spontaneous
   const category = String(gp.category ?? "").toLowerCase()
   if (category.includes("citation") || category.includes("trust")) return "citation"
   if (category.includes("comparison") || category.includes("competitive") || category.includes("alternative")) return "competitive"
+  if (category.includes("assisted")) return "assisted"
   const prompt = gp.prompt.toLowerCase()
   const brand = ctx.project.company_name.toLowerCase()
   const domain = ctx.project.website_url.replace(/^https?:\/\//, "").replace(/^www\./, "").toLowerCase()
-  if (prompt.includes("trusted sources") || prompt.includes("fuentes confiables") || prompt.includes("cited") || prompt.includes("citadas")) return "citation"
+  if (prompt.includes("trusted sources") || prompt.includes("fuentes confiables") || prompt.includes("fuentes externas confiables") || prompt.includes("cited") || prompt.includes("citadas")) return "citation"
   if (prompt.includes("compare") || prompt.includes("compara") || prompt.includes(" vs ") || prompt.includes("alternatives") || prompt.includes("alternativas")) return "competitive"
   if (prompt.includes(brand) || prompt.includes(domain)) return "assisted"
   return "spontaneous"

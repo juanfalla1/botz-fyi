@@ -28,24 +28,29 @@ function normalizeCompetitorInput(value: string) {
 
 function buildInitialPrompts(input: { company: string; industry: string; country: string; language: string; businessGoal: string; competitors: Array<{ name: string }> }) {
   const isEnglish = input.language.toLowerCase().startsWith("en") || input.language.toLowerCase().includes("ingl")
-  const categoryContext = buildCategoryContext(input.industry, input.businessGoal, isEnglish)
+  const categoryContext = refineCategoryContext(buildCategoryContext(input.industry, input.businessGoal, isEnglish), isEnglish)
+  if (!categoryContext) return []
   const companyKey = normalizeEntity(input.company)
   const competitorNames = input.competitors.map((competitor) => competitor.name).filter((name) => Boolean(name) && normalizeEntity(name) !== companyKey).slice(0, 3)
-  const competitorText = competitorNames.length > 0 ? competitorNames.join(", ") : isEnglish ? "market alternatives" : "alternativas del mercado"
+  const competitorText = competitorNames.join(", ")
   const templates = isEnglish
     ? [
-        { category: "recommendation", prompt: `What are the best providers for ${categoryContext} in ${input.country}?` },
+        { category: "recommendation", prompt: `Which companies offer ${categoryContext} in ${input.country}?` },
+        { category: "product", prompt: `What platforms help B2B teams with ${categoryContext}?` },
+        { category: "product", prompt: `What company would you recommend for ${categoryContext} in ${input.country}, and why?` },
+        { category: "assisted", prompt: `When evaluating ${input.company} for ${categoryContext}, what strengths, gaps and proof points should a buyer verify?` },
         ...(competitorNames.length > 0 ? [{ category: "comparison", prompt: `Compare ${input.company} vs ${competitorText} for ${categoryContext} in ${input.country}. Which option is stronger for buyers and why?` }] : []),
-        { category: "alternative", prompt: `What are the best alternatives to ${competitorText} for ${categoryContext}?` },
-        { category: "product", prompt: `Which company do you recommend for ${categoryContext} in ${input.country}?` },
-        { category: "trust", prompt: `What trusted sources mention ${input.company} for ${categoryContext}?` },
+        ...(competitorNames.length > 0 ? [{ category: "alternative", prompt: `What are the best alternatives to ${competitorText} for ${categoryContext}?` }] : []),
+        { category: "trust", prompt: `What external trusted sources mention ${input.company} or ${input.company.toLowerCase()} for ${categoryContext}? Exclude the brand's own website.` },
       ]
     : [
-        { category: "recommendation", prompt: `Cuales son los mejores proveedores para ${categoryContext} en ${input.country}?` },
+        { category: "recommendation", prompt: `¿Qué empresas ofrecen ${categoryContext} en ${input.country}?` },
+        { category: "product", prompt: `¿Qué plataformas ayudan a equipos B2B con ${categoryContext}?` },
+        { category: "product", prompt: `¿Qué empresa recomendarías para ${categoryContext} en ${input.country} y por qué?` },
+        { category: "assisted", prompt: `Al evaluar ${input.company} para ${categoryContext}, ¿qué fortalezas, brechas y pruebas debería validar un comprador?` },
         ...(competitorNames.length > 0 ? [{ category: "comparison", prompt: `Compara ${input.company} vs ${competitorText} para ${categoryContext} en ${input.country}. ¿Qué opción es más fuerte para compradores y por qué?` }] : []),
-        { category: "alternative", prompt: `Cuales son las mejores alternativas a ${competitorText} para ${categoryContext}?` },
-        { category: "product", prompt: `Que empresa recomiendas para ${categoryContext} en ${input.country}?` },
-        { category: "trust", prompt: `Que fuentes confiables mencionan a ${input.company} para ${categoryContext}?` },
+        ...(competitorNames.length > 0 ? [{ category: "alternative", prompt: `¿Cuáles son las mejores alternativas a ${competitorText} para ${categoryContext}?` }] : []),
+        { category: "trust", prompt: `¿Qué fuentes externas confiables mencionan a ${input.company} para ${categoryContext}? Excluye el sitio propio de la marca.` },
       ]
 
   const seen = new Set<string>()
@@ -61,20 +66,38 @@ function buildCategoryContext(industry: string, businessGoal: string, isEnglish:
   const cleanIndustry = cleanup(industry)
   const cleanGoal = cleanup(businessGoal)
   const genericGoal = /^(measure and improve|medir y mejorar|mejorar visibilidad|ai visibility|geo visibility|visibilidad)/i.test(cleanGoal)
-  const genericIndustry = /^(saas\s*\/\s*software|software|saas|technology|tecnologia|tecnología|services|servicios)$/i.test(cleanIndustry)
+  const genericIndustry = isGenericCategory(cleanIndustry)
 
-  if (cleanGoal && !genericGoal) {
+  if (cleanGoal && !genericGoal && !isGenericCategory(cleanGoal)) {
     if (!cleanIndustry || cleanGoal.toLowerCase().includes(cleanIndustry.toLowerCase())) return cleanGoal
     return isEnglish ? `${cleanGoal} in ${cleanIndustry}` : `${cleanGoal} en ${cleanIndustry}`
   }
 
   if (genericIndustry) {
-    return isEnglish
-      ? `${cleanIndustry || "the target category"} solutions for the company's specific business use case`
-      : `soluciones de ${cleanIndustry || "la categoría objetivo"} para el caso de uso específico de la empresa`
+    return null
   }
 
   return cleanIndustry || (isEnglish ? "the target business category" : "la categoría empresarial objetivo")
+}
+
+function refineCategoryContext(value: string | null, isEnglish: boolean) {
+  const context = cleanup(value ?? "")
+  if (!context) return null
+  const lower = context.toLowerCase()
+  const isAiAutomationRevenue = /ai agents|agentes de ia|automation|automatiz|revenue|ventas|leads|whatsapp|soporte|support|sales/.test(lower) && /ai|ia|agent|agente|automat/.test(lower)
+  if (!isAiAutomationRevenue) return context
+  return isEnglish
+    ? "AI agents for automating sales, customer support, WhatsApp conversations and lead follow-up"
+    : "agentes de IA para automatizar ventas, soporte al cliente, conversaciones de WhatsApp y seguimiento de leads"
+}
+
+function isGenericCategory(value: string) {
+  const normalized = cleanup(value).toLowerCase()
+  if (!normalized) return true
+  const broadCategories = /^(saas\s*\/\s*software|software|saas|technology|tecnologia|tecnología|services|servicios|e-?commerce|comercio electronico|comercio electrónico|retail|marketplace|tienda online|ventas online)$/i
+  if (broadCategories.test(normalized)) return true
+  const words = normalized.split(/\s+/).filter(Boolean)
+  return words.length <= 2 && /(e-?commerce|software|saas|retail|marketplace|servicios|services|tecnolog)/i.test(normalized)
 }
 
 function cleanup(value: string) {

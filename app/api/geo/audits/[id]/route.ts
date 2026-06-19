@@ -30,7 +30,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (projectError) throw projectError
     if (!isAdmin && !job && (!project || project.user_id !== user.id)) return NextResponse.json({ error: "Audit not found for current user" }, { status: 404 })
 
-    const [queriesResult, brandMentionsResult, competitorMentionsResult, contentOpportunitiesResult, crawledPagesResult] = await Promise.all([
+    const [queriesResult, brandMentionsResult, competitorMentionsResult, contentOpportunitiesResult, crawledPagesResult, promptsResult] = await Promise.all([
       supabase
         .from("ai_queries")
         .select("id, prompt, engine, intent, created_at, ai_answers(id, engine, answer_text, citations, raw_response, created_at)")
@@ -40,20 +40,59 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       supabase.from("competitor_mentions").select("*").eq("audit_id", id),
       supabase.from("content_opportunities").select("*").eq("audit_id", id).order("created_at", { ascending: true }),
       supabase.from("crawled_pages").select("url, title, description, status_code, word_count, metadata, created_at").eq("audit_id", id).order("created_at", { ascending: true }),
+      supabase.from("geo_prompts").select("prompt, enabled").eq("project_id", audit.project_id),
     ])
 
+    const aiQueries = queriesResult.error ? [] : queriesResult.data ?? []
+    const scoreableProjectPrompts = (promptsResult.error ? [] : promptsResult.data ?? []).filter((prompt) => prompt.enabled && isScoreablePrompt(String(prompt.prompt ?? ""))).length
+    const liveAiQueries = aiQueries.filter((query) => {
+      if (!isScoreablePrompt(String(query.prompt ?? ""))) return false
+      const answers = Array.isArray(query.ai_answers) ? query.ai_answers : []
+      return answers.some((answer) => {
+        const raw = answer.raw_response && typeof answer.raw_response === "object" ? answer.raw_response as Record<string, unknown> : {}
+        return raw.mode === "live"
+      })
+    }).length
+    const liveEngineCount = new Set(aiQueries.flatMap((query) => {
+      if (!isScoreablePrompt(String(query.prompt ?? ""))) return []
+      const answers = Array.isArray(query.ai_answers) ? query.ai_answers : []
+      return answers.some((answer) => {
+        const raw = answer.raw_response && typeof answer.raw_response === "object" ? answer.raw_response as Record<string, unknown> : {}
+        return raw.mode === "live"
+      }) ? [String(query.engine ?? "")] : []
+    }).filter(Boolean)).size
+
     const related = {
-      ai_queries: queriesResult.error ? [] : queriesResult.data ?? [],
+      ai_queries: aiQueries,
+      executed_ai_queries: aiQueries.length,
+      live_ai_queries: liveAiQueries,
+      live_engine_count: liveEngineCount,
+      scoreable_project_prompts: scoreableProjectPrompts,
       brand_mentions: brandMentionsResult.error ? [] : brandMentionsResult.data ?? [],
       competitor_mentions: competitorMentionsResult.error ? [] : competitorMentionsResult.data ?? [],
       content_opportunities: contentOpportunitiesResult.error ? [] : contentOpportunitiesResult.data ?? [],
       crawled_pages: crawledPagesResult.error ? [] : crawledPagesResult.data ?? [],
     }
 
-    return NextResponse.json({ data: { ...audit, audit_job: job, projects: project, ...related }, mode: "live" })
+    const hasScoreEvidence = liveAiQueries >= 3 && liveEngineCount >= 2 && scoreableProjectPrompts > 0
+    return NextResponse.json({ data: { ...audit, final_score: hasScoreEvidence ? audit.final_score : null, audit_job: job, projects: project, ...related }, mode: "live" })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unauthorized" }, { status: 401 })
   }
+}
+
+function isScoreablePrompt(prompt: string) {
+  const text = prompt.toLowerCase().replace(/[¿?]/g, "").replace(/\s+/g, " ").trim()
+  if (!text) return false
+  const genericMarketOnly = [
+    /mejores proveedores para e-?commerce(?: en [a-záéíóúñ\s]+)?$/i,
+    /mejores alternativas a alternativas del mercado para e-?commerce$/i,
+    /empresa recomiendas para e-?commerce(?: en [a-záéíóúñ\s]+)?$/i,
+    /best providers for e-?commerce(?: in [a-z\s]+)?$/i,
+    /best alternatives to market alternatives for e-?commerce$/i,
+    /company do you recommend for e-?commerce(?: in [a-z\s]+)?$/i,
+  ]
+  return !genericMarketOnly.some((pattern) => pattern.test(text))
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {

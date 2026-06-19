@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getGeoApiClient } from "@/lib/geo/api-auth"
 import { competitiveSnapshot, latestAuditSnapshot, latestCrawlEvidence, loadGeoActionContext, normalizePriority, numberFrom, objectArray, previousAuditSnapshot, priorityRank } from "@/lib/geo/action-engine"
+import { isPositiveBrandEvidence } from "@/lib/geo/evidence-rules"
 
 type ActionItem = {
   id: string
@@ -66,7 +67,8 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
   const project = context.project
   const snapshot = latestAuditSnapshot(context)
   const baseUrl = normalizeUrl(project.website_url)
-  const industrySlug = slugify(project.industry || "industria")
+  const actionCategory = inferActionCategory(context)
+  const industrySlug = slugify(actionCategory)
   const competitive = competitiveSnapshot(context)
   const validCompetitors = context.competitors.filter((competitor) => !isSameEntity(project, competitor.name, competitor.domain))
   const spontaneousVisibility = numberFrom(snapshot?.spontaneous_visibility)
@@ -78,7 +80,8 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
   const previous = previousAuditSnapshot(context)
   const crawlText = summarizeCrawl(crawl)
   const promptText = summarizePrompts(context)
-  const marketContext = [project.industry, project.country].filter(Boolean).join(" en ") || "su mercado"
+  const marketContext = [actionCategory, project.country].filter(Boolean).join(" en ") || "su mercado"
+  const missedNeutralPrompts = missedNeutralPromptExamples(context)
   const actions: ActionItem[] = []
   const add = (action: ActionItem) => {
     if (actions.some((item) => item.category === action.category)) return
@@ -89,7 +92,7 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     add({
       id: "homepage-ai-positioning",
       category: "Posicionamiento de marca",
-      title: `Clarificar el posicionamiento de ${project.company_name} en la home`,
+      title: `Clarificar el posicionamiento de ${project.company_name} para ${actionCategory}`,
       description: `La auditoria muestra ${spontaneousVisibility}% de visibilidad espontanea para ${project.company_name}. ${promptText} ${crawlText}`,
       why_important: `Los modelos generativos necesitan entender entidad, casos de uso, mercado y diferenciales desde paginas rastreables. Para ${project.company_name}, la prioridad es convertir el sitio en una fuente clara sobre ${marketContext}.`,
       priority: "high",
@@ -98,8 +101,8 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
       type: "content",
       implementation_type: "Copy + estructura de landing",
       affected_pages: [baseUrl],
-      suggested_action: `Actualizar la home de ${project.company_name} con una propuesta de valor verificable, para quien es, casos de uso, diferenciales y FAQs alineadas con los prompts evaluados de esta auditoria.`,
-      deliverables: ["Nuevo hero con propuesta de valor", "Seccion de casos de uso", "Bloque 'por que elegirnos'", "FAQs orientadas a prompts de IA"],
+      suggested_action: `Actualizar la home de ${project.company_name} con una propuesta de valor verificable para ${actionCategory}: para quien es, casos de uso, diferenciales, pruebas y FAQs alineadas con los prompts evaluados de esta auditoria.`,
+      deliverables: [`Nuevo hero para ${actionCategory}`, "Seccion de casos de uso", "Bloque 'por que elegirnos'", "FAQs orientadas a prompts de IA"],
       improves_metric: "Visibilidad espontánea + claridad del posicionamiento",
       estimated_score_lift: { min: 5, max: 12 },
       estimated_time: "3 a 5 días",
@@ -142,17 +145,17 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     add({
       id: "industry-landing",
       category: "Contenido por industria",
-      title: `Crear una landing para ${project.industry || "el nicho principal"} enfocada en prompts neutrales`,
+      title: `Crear una landing para ${actionCategory} enfocada en prompts neutrales`,
       description: `La muestra neutral no esta recomendando a ${project.company_name}. ${promptText} Una landing especifica debe responder esa intencion sin depender de que el usuario nombre la marca.`,
-      why_important: `Si la IA no encuentra una pagina clara sobre ${marketContext}, tiende a recomendar alternativas con mejor evidencia publica o contenido mas especifico.`,
+      why_important: `Si la IA no encuentra una pagina clara sobre ${marketContext}, tiende a recomendar alternativas con mejor evidencia publica o contenido mas especifico. Esta accion debe responder las consultas reales donde la marca no aparecio.`,
       priority: spontaneousVisibility < 40 ? "high" : "medium",
       estimated_impact: "high",
       difficulty: "medium",
       type: "content",
       implementation_type: "Nueva pagina/landing",
       affected_pages: [`${baseUrl}/${industrySlug}`],
-      suggested_action: `Crear una pagina para ${project.industry || "la industria objetivo"} que responda los prompts neutrales evaluados, con problema, solucion, casos de uso, FAQs, evidencia y CTA.`,
-      deliverables: ["Landing por industria", "Copy completo", "FAQs del nicho", "Metadata SEO/GEO"],
+      suggested_action: `Crear una pagina para ${actionCategory} que responda los prompts neutrales evaluados${missedNeutralPrompts.length > 0 ? `, especialmente: ${missedNeutralPrompts.slice(0, 2).map((prompt) => `"${prompt}"`).join(" y ")}` : ""}. Debe incluir problema, solucion, casos de uso, FAQs, evidencia y CTA.`,
+      deliverables: [`Landing sobre ${actionCategory}`, "Copy completo", "FAQs del caso de uso", "Metadata SEO/GEO"],
       improves_metric: "Visibilidad espontánea",
       estimated_score_lift: { min: 5, max: 12 },
       estimated_time: "3 a 6 días",
@@ -191,8 +194,8 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
   add({
     id: "faq-schema",
     category: "Estructura para IA",
-    title: "Agregar FAQs y Schema JSON-LD en las paginas principales",
-    description: "Las paginas deben responder preguntas concretas que usuarios hacen a motores de IA. Esas respuestas deben estar visibles y estructuradas.",
+    title: `Agregar FAQs y Schema JSON-LD sobre ${actionCategory}`,
+    description: `Las paginas deben responder preguntas concretas que usuarios hacen a motores de IA sobre ${actionCategory}. Esas respuestas deben estar visibles y estructuradas.`,
     why_important: "Las FAQs ayudan a los modelos a extraer respuestas directas y el schema mejora la claridad semantica para buscadores y sistemas de recuperacion.",
     priority: spontaneousVisibility < 35 ? "high" : "medium",
     estimated_impact: "medium",
@@ -200,8 +203,8 @@ function buildActions(context: Awaited<ReturnType<typeof loadGeoActionContext>> 
     type: "technical",
     implementation_type: "Contenido + JSON-LD",
     affected_pages: [baseUrl, `${baseUrl}/${industrySlug}`],
-    suggested_action: "Agregar 6 a 10 preguntas reales por pagina: que es, para quien sirve, diferencia vs alternativas, beneficios, integraciones, precios o siguiente paso. Publicar FAQPage JSON-LD donde aplique.",
-    deliverables: ["Bloque FAQ", "FAQPage JSON-LD", "Preguntas por intencion de busqueda", "Validacion de schema"],
+    suggested_action: `Agregar 6 a 10 preguntas reales por pagina sobre ${actionCategory}: que es, para quien sirve, diferencia vs alternativas, beneficios, integraciones, precios o siguiente paso. Publicar FAQPage JSON-LD donde aplique.`,
+    deliverables: [`Bloque FAQ sobre ${actionCategory}`, "FAQPage JSON-LD", "Preguntas por intencion de busqueda", "Validacion de schema"],
     improves_metric: "Claridad del posicionamiento",
     estimated_score_lift: { min: 2, max: 6 },
     estimated_time: "1 a 3 días",
@@ -262,12 +265,111 @@ function summarizeCrawl(crawl: ReturnType<typeof latestCrawlEvidence>) {
 }
 
 function summarizePrompts(context: Awaited<ReturnType<typeof loadGeoActionContext>> extends infer T ? NonNullable<T> : never) {
+  const queryPrompts = context.aiQueries.map((query) => {
+    const answer = query.ai_answers[0]
+    const raw = answer?.raw_response && typeof answer.raw_response === "object" ? answer.raw_response : {}
+    const promptKind = String(raw.prompt_kind ?? query.intent ?? "spontaneous")
+    return {
+      prompt: query.prompt,
+      prompt_kind: promptKind,
+      mentioned: isPositiveBrandEvidence({
+        prompt: query.prompt,
+        answerText: String(answer?.answer_text ?? ""),
+        rawMentioned: Boolean(raw.brand_mentioned),
+        promptKind,
+        companyName: context.project.company_name,
+        websiteUrl: context.project.website_url,
+      }),
+    }
+  })
+  if (queryPrompts.length > 0) {
+    const neutral = queryPrompts.filter((item) => String(item.prompt_kind ?? "spontaneous") === "spontaneous")
+    const missed = neutral.filter((item) => item.mentioned === false).map((item) => String(item.prompt ?? "")).filter(Boolean)
+    if (missed.length > 0) return `No aparecio en prompts neutrales como: "${missed.slice(0, 2).join('" y "')}".`
+    if (neutral.length > 0) return `La auditoria evaluo ${neutral.length} prompt(s) neutrales.`
+  }
+
   const prompts = objectArray(context.latestSummary.evaluated_prompts)
   const neutral = prompts.filter((item) => String(item.prompt_kind ?? "spontaneous") === "spontaneous")
   const missed = neutral.filter((item) => item.mentioned === false).map((item) => String(item.prompt ?? "")).filter(Boolean)
   if (missed.length > 0) return `No aparecio en prompts neutrales como: "${missed.slice(0, 2).join('" y "')}".`
   if (neutral.length > 0) return `La auditoria evaluo ${neutral.length} prompt(s) neutrales.`
   return "La auditoria no guardo detalle suficiente de prompts neutrales para citar ejemplos especificos."
+}
+
+function missedNeutralPromptExamples(context: Awaited<ReturnType<typeof loadGeoActionContext>> extends infer T ? NonNullable<T> : never) {
+  const fromQueries = context.aiQueries.map((query) => {
+    const answer = query.ai_answers[0]
+    const raw = answer?.raw_response && typeof answer.raw_response === "object" ? answer.raw_response : {}
+    const promptKind = String(raw.prompt_kind ?? query.intent ?? "spontaneous")
+    return {
+      prompt: query.prompt,
+      prompt_kind: promptKind,
+      mentioned: isPositiveBrandEvidence({
+        prompt: query.prompt,
+        answerText: String(answer?.answer_text ?? ""),
+        rawMentioned: Boolean(raw.brand_mentioned),
+        promptKind,
+        companyName: context.project.company_name,
+        websiteUrl: context.project.website_url,
+      }),
+    }
+  })
+  const source = fromQueries.length > 0 ? fromQueries : objectArray(context.latestSummary.evaluated_prompts)
+  return source
+    .filter((item) => String(item.prompt_kind ?? "spontaneous") === "spontaneous" && item.mentioned === false)
+    .map((item) => String(item.prompt ?? "").trim())
+    .filter(Boolean)
+}
+
+function inferActionCategory(context: Awaited<ReturnType<typeof loadGeoActionContext>> extends infer T ? NonNullable<T> : never) {
+  const prompts = [
+    ...context.aiQueries.map((query) => query.prompt),
+    ...objectArray(context.latestSummary.evaluated_prompts).map((item) => String(item.prompt ?? "")),
+  ].map(cleanText).filter(Boolean)
+  const combined = prompts.join(" ").toLowerCase()
+
+  if (/agentes? de ia|ai agents?|whatsapp|seguimiento de leads|lead follow-up|soporte al cliente|customer support/.test(combined)) {
+    return "agentes de IA para ventas, soporte, WhatsApp y seguimiento de leads"
+  }
+
+  const country = cleanText(context.project.country ?? "")
+  for (const prompt of prompts) {
+    const extracted = extractCategoryFromPrompt(prompt, country)
+    if (extracted && !isGenericActionCategory(extracted)) return extracted
+  }
+
+  const goal = cleanText(context.project.business_goal ?? "")
+  if (goal && !isGenericActionCategory(goal)) return goal
+  const industry = cleanText(context.project.industry ?? "")
+  if (industry && !isGenericActionCategory(industry)) return industry
+  return "la categoria principal del negocio"
+}
+
+function extractCategoryFromPrompt(prompt: string, country: string) {
+  const normalized = cleanText(prompt).replace(/[¿?]/g, "")
+  const patterns = [
+    /(?:para|for)\s+(.+?)\s+(?:en|in)\s+[a-záéíóúñ\s]+$/i,
+    /(?:con|with)\s+(.+?)$/i,
+    /(?:ofrecen|offer)\s+(.+?)\s+(?:en|in)\s+[a-záéíóúñ\s]+$/i,
+  ]
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern)
+    const value = cleanText(match?.[1] ?? "")
+    if (!value) continue
+    return country ? value.replace(new RegExp(`\\s+${escapeRegExp(country)}$`, "i"), "").trim() : value
+  }
+  return ""
+}
+
+function isGenericActionCategory(value: string) {
+  const normalized = cleanText(value).toLowerCase()
+  if (!normalized) return true
+  return /^(e-?commerce|software|saas|servicios|services|technology|tecnologia|tecnología|retail|marketplace|industria|industry)$/i.test(normalized)
+}
+
+function cleanText(value: string) {
+  return String(value || "").replace(/\s+/g, " ").trim()
 }
 
 function evidenceFor(kind: string, context: Awaited<ReturnType<typeof loadGeoActionContext>> extends infer T ? NonNullable<T> : never, crawl: ReturnType<typeof latestCrawlEvidence>, previous: ReturnType<typeof previousAuditSnapshot>): Array<{ label: string; value: string }> {

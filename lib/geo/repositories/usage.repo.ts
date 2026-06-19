@@ -95,6 +95,15 @@ export async function consumeServerUsage(
   const nextUsed = Number(subscription[usedKey]) + amount
   const limit = Number(subscription[limitKey])
   if (nextUsed > limit) {
+    if (process.env.NODE_ENV === "development" && process.env.GEO_ENFORCE_DEV_USAGE_LIMITS !== "true") {
+      await createUsageEvent(supabase, {
+        user_id: userId,
+        event_type: type === "audit" ? "geo_audit_created" : "prompt_used",
+        amount,
+        metadata: { ...metadata, limit_check_skipped: true, reason: "local_development_usage_limit" },
+      })
+      return
+    }
     const label = type === "audit" ? "GEO audit" : "prompt"
     throw new Error(`${label} limit reached for current plan`)
   }
