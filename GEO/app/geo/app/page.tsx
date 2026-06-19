@@ -227,6 +227,13 @@ export default function DashboardPage() {
     }
   }, [isEn])
 
+  const trialEnd = subscription?.current_period_end ? new Date(subscription.current_period_end) : null
+  const trialDaysLeft = trialEnd ? Math.ceil((trialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
+  const trialEnded = subscription?.plan === "trial" && trialDaysLeft !== null && trialDaysLeft <= 0
+  const trialAlmostEnded = subscription?.plan === "trial" && trialDaysLeft !== null && trialDaysLeft > 0 && trialDaysLeft <= 3
+  const auditLimitReached = Boolean(subscription) && subscription!.audits_used >= subscription!.audits_limit
+  const promptLimitReached = Boolean(subscription) && subscription!.prompts_used >= subscription!.prompts_limit
+
   return (
     <>
       <AppHeader />
@@ -302,6 +309,23 @@ export default function DashboardPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {(trialEnded || trialAlmostEnded || auditLimitReached || promptLimitReached) && (
+          <Card className={`border ${trialEnded || auditLimitReached || promptLimitReached ? "border-red-500/30 bg-red-500/10" : "border-amber-400/30 bg-amber-400/10"}`}>
+            <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+              <p className={`text-sm ${trialEnded || auditLimitReached || promptLimitReached ? "text-red-100" : "text-amber-100"}`}>
+                {trialEnded
+                  ? locale === "en" ? "Your free trial ended. Upgrade to keep using GEO." : "Tu prueba gratis terminó. Mejora tu plan para seguir usando GEO."
+                  : auditLimitReached || promptLimitReached
+                    ? locale === "en" ? "You reached a free trial limit. Upgrade to continue." : "Alcanzaste un límite de la prueba gratis. Mejora tu plan para continuar."
+                    : locale === "en" ? `Your free trial ends in ${trialDaysLeft} day(s).` : `Tu prueba gratis termina en ${trialDaysLeft} día(s).`}
+              </p>
+              <Button asChild size="sm" className="bg-primary hover:bg-primary/90">
+                <Link href="/geo/app/billing">{locale === "en" ? "View plans" : "Ver planes"}</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Charts and Tables */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

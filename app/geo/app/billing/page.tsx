@@ -55,8 +55,14 @@ export default function BillingPage() {
   const promptsLimit = subscription?.prompts_limit ?? 25
   const auditPct = Math.min(100, Math.round((auditsUsed / Math.max(1, auditsLimit)) * 100))
   const promptPct = Math.min(100, Math.round((promptsUsed / Math.max(1, promptsLimit)) * 100))
-  const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end) : new Date(Date.now() + 1000 * 60 * 60 * 24 * 30)
+  const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end) : new Date(Date.now() + 1000 * 60 * 60 * 24 * 3)
   const resetLabel = periodEnd.toLocaleDateString(locale === "en" ? "en-US" : "es-ES", { month: "short", day: "numeric" })
+  const daysLeft = Math.ceil((periodEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  const trialEnded = subscription?.plan === "trial" && daysLeft <= 0
+  const trialAlmostEnded = subscription?.plan === "trial" && daysLeft > 0 && daysLeft <= 3
+  const auditLimitReached = auditsUsed >= auditsLimit
+  const promptLimitReached = promptsUsed >= promptsLimit
+  const requestedPlan = typeof subscription?.metadata?.requested_plan === "string" ? subscription.metadata.requested_plan : null
 
   const usageColor = (pct: number) => {
     if (pct > 95) return "bg-red-500"
@@ -99,14 +105,25 @@ export default function BillingPage() {
         <Card className="glass border-border">
           <CardHeader>
             <CardTitle>{locale === "en" ? "Current plan" : "Plan actual"}</CardTitle>
-            <CardDescription>{locale === "en" ? "Trial starts with 3 free GEO Audits. Paid plans are activated manually during beta." : "El trial inicia con 3 GEO Audits gratis. Los planes pagos se activan manualmente durante beta."}</CardDescription>
+            <CardDescription>{locale === "en" ? "Every account starts with a free trial. We notify you before it ends and when limits are reached." : "Cada cuenta inicia con una prueba gratis. Te avisamos antes de que termine y cuando alcances los límites."}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="grid gap-3 md:grid-cols-3">
               <p className="capitalize text-sm"><strong>{locale === "en" ? "Plan" : "Plan"}:</strong> {subscription?.plan ?? "trial"}</p>
               <p className="text-sm"><strong>{locale === "en" ? "Plan status" : "Estado del plan"}:</strong> {statusLabel}</p>
               <p className="text-sm"><strong>{locale === "en" ? "Monthly usage" : "Consumo mensual"}:</strong> {auditsUsed + promptsUsed}</p>
+              {requestedPlan && <p className="capitalize text-sm"><strong>{locale === "en" ? "Requested plan" : "Plan elegido"}:</strong> {requestedPlan}</p>}
             </div>
+
+            {(trialEnded || trialAlmostEnded || auditLimitReached || promptLimitReached) && (
+              <div className={`rounded-xl border px-4 py-3 text-sm ${trialEnded || auditLimitReached || promptLimitReached ? "border-red-500/30 bg-red-500/10 text-red-200" : "border-amber-400/30 bg-amber-400/10 text-amber-100"}`}>
+                {trialEnded
+                  ? locale === "en" ? "Your free trial ended. Upgrade to keep running audits and prompts." : "Tu prueba gratis terminó. Mejora tu plan para seguir ejecutando auditorías y prompts."
+                  : auditLimitReached || promptLimitReached
+                    ? locale === "en" ? "You reached a free trial limit. Upgrade to continue." : "Alcanzaste un límite de la prueba gratis. Mejora tu plan para continuar."
+                    : locale === "en" ? `Your free trial ends in ${daysLeft} day(s).` : `Tu prueba gratis termina en ${daysLeft} día(s).`}
+              </div>
+            )}
 
             <div className="space-y-4 rounded-xl border border-border/80 bg-secondary/20 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{locale === "en" ? "Monthly usage" : "Consumo mensual"}</p>
@@ -131,7 +148,7 @@ export default function BillingPage() {
                 </div>
               </div>
 
-              <p className="text-xs text-muted-foreground">{locale === "en" ? `Resets on ${resetLabel}` : `Reinicia el ${resetLabel}`}</p>
+              <p className="text-xs text-muted-foreground">{subscription?.plan === "trial" ? (locale === "en" ? `Free trial ends on ${resetLabel}` : `La prueba gratis termina el ${resetLabel}`) : (locale === "en" ? `Resets on ${resetLabel}` : `Reinicia el ${resetLabel}`)}</p>
             </div>
 
             {!!Object.keys(usageTotals).length && (
@@ -141,7 +158,7 @@ export default function BillingPage() {
             )}
 
             <Button className="mt-3 bg-primary hover:bg-primary/90" asChild>
-              <Link href="/geo/agendar-demo">{locale === "en" ? "Request plan upgrade" : "Solicitar mejora de plan"}</Link>
+                <Link href={`/geo/agendar-demo${requestedPlan ? `?plan=${requestedPlan}` : ""}`}>{locale === "en" ? "Request plan upgrade" : "Solicitar mejora de plan"}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -179,7 +196,7 @@ export default function BillingPage() {
                 <li>{locale === "en" ? "Email support" : "Soporte por email"}</li>
               </ul>
               <Button className="w-full" asChild onClick={handlePlanRequest}>
-                <Link href="/geo/agendar-demo">{locale === "en" ? "Request plan change" : "Solicitar cambio de plan"}</Link>
+                <Link href="/geo/agendar-demo?plan=starter">{locale === "en" ? "Request Starter" : "Solicitar Starter"}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -202,7 +219,7 @@ export default function BillingPage() {
                 <li>{locale === "en" ? "Priority support" : "Soporte prioritario"}</li>
               </ul>
               <Button className="w-full" asChild onClick={handlePlanRequest}>
-                <Link href="/geo/agendar-demo">{locale === "en" ? "Request plan change" : "Solicitar cambio de plan"}</Link>
+                <Link href="/geo/agendar-demo?plan=growth">{locale === "en" ? "Request Growth" : "Solicitar Growth"}</Link>
               </Button>
             </CardContent>
           </Card>
@@ -223,7 +240,7 @@ export default function BillingPage() {
                 <li>{locale === "en" ? "Maximum priority" : "Prioridad máxima"}</li>
               </ul>
               <Button className="w-full" asChild>
-                <Link href="/geo#pricing">{locale === "en" ? "Request early access" : "Solicitar acceso temprano"}</Link>
+                <Link href="/geo/agendar-demo?plan=enterprise">{locale === "en" ? "Request early access" : "Solicitar acceso temprano"}</Link>
               </Button>
             </CardContent>
           </Card>

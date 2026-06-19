@@ -9,10 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
  import { Sparkles, ArrowRight, Eye, EyeOff, Building2, Globe, Briefcase } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { supabaseGeo } from "@/app/geo/supabaseGeoClient"
 import { useGeoI18n } from "@/GEO/components/geo/i18n"
-import { ensureTrialSubscription } from "@/GEO/lib/billing"
+import { ensureTrialSubscription, normalizeRequestedPlan } from "@/GEO/lib/billing"
 
 const industries = [
   "E-commerce",
@@ -41,8 +41,12 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { locale, setLocale } = useGeoI18n()
   const lt = (es: string, en: string) => (locale === "en" ? en : es)
+  const requestedPlan = normalizeRequestedPlan(searchParams.get("plan"))
+  const planLabel = requestedPlan ? requestedPlan[0].toUpperCase() + requestedPlan.slice(1) : "Starter"
+  const trialCopy = lt(`Empieza tu prueba gratis de ${planLabel}: 3 GEO Audits incluidos, sin tarjeta.`, `Start your free ${planLabel} trial: 3 GEO Audits included, no card required.`)
 
   const handleCreateAccount = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -74,7 +78,7 @@ export default function RegisterPage() {
     if (!data.session) {
       if (data.user?.id) {
         try {
-          await ensureTrialSubscription(data.user.id)
+          await ensureTrialSubscription(data.user.id, requestedPlan)
         } catch {
           // no-op: phase 2 can run before migrations are applied
         }
@@ -90,7 +94,7 @@ export default function RegisterPage() {
 
     if (data.user?.id) {
       try {
-        await ensureTrialSubscription(data.user.id)
+        await ensureTrialSubscription(data.user.id, requestedPlan)
       } catch {
         // no-op: phase 2 can run before migrations are applied
       }
@@ -186,7 +190,7 @@ export default function RegisterPage() {
               <>
                 <h1 className="text-2xl font-bold mb-2">{lt("Crear cuenta", "Create account")}</h1>
                 <p className="text-muted-foreground mb-6">{lt("Comienza con tu informacion personal", "Start with your personal information")}</p>
-                <p className="text-sm text-primary mb-6">{lt("Empieza con 3 GEO Audits gratis, sin tarjeta.", "Start with 3 free GEO Audits, no card required.")}</p>
+                <p className="text-sm text-primary mb-6">{trialCopy}</p>
 
                  <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); setStep(2) }}>
                   <div className="space-y-2">
@@ -248,7 +252,7 @@ export default function RegisterPage() {
               <>
                 <h1 className="text-2xl font-bold mb-2">{lt("Tu empresa", "Your company")}</h1>
                 <p className="text-muted-foreground mb-6">{lt("Cuentanos sobre tu negocio", "Tell us about your business")}</p>
-                <p className="text-sm text-primary mb-6">{lt("Empieza con 3 GEO Audits gratis, sin tarjeta.", "Start with 3 free GEO Audits, no card required.")}</p>
+                <p className="text-sm text-primary mb-6">{trialCopy}</p>
 
                 <form className="space-y-5" onSubmit={handleCreateAccount}>
                   <div className="space-y-2">

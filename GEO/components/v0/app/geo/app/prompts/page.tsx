@@ -850,7 +850,12 @@ export default function PromptsLibraryPage() {
       setFeedback(isEn ? `Prompt executed: ${mentions}/${liveCount} engines mentioned the brand.` : `Prompt ejecutado: ${mentions}/${liveCount} motores mencionaron la marca.`)
       await loadPrompts()
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : isEn ? "Could not run prompt." : "No se pudo ejecutar el prompt.")
+      const message = error instanceof Error ? error.message : ""
+      setFeedback(
+        message.includes("limit reached") || message.includes("Free trial ended")
+          ? isEn ? "Your free trial ended or reached its prompt limit. Upgrade to keep running prompts." : "Tu prueba gratis terminó o alcanzó el límite de prompts. Mejora tu plan para seguir ejecutando prompts."
+          : error instanceof Error ? error.message : isEn ? "Could not run prompt." : "No se pudo ejecutar el prompt."
+      )
     } finally {
       setRunningPromptId(null)
     }

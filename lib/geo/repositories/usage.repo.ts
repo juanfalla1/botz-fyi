@@ -4,11 +4,13 @@ import type { UsageEventRecord } from "@/lib/geo/db-types"
 type SubscriptionRecord = {
   id: string
   user_id: string
+  plan?: string
   status: string
   audits_limit: number
   audits_used: number
   prompts_limit: number
   prompts_used: number
+  current_period_end?: string
 }
 
 function isUsageSchemaMismatch(error: unknown) {
@@ -43,7 +45,7 @@ export async function createUsageEvent(
 export async function ensureServerSubscription(supabase: SupabaseClient, userId: string) {
   const { data: existing, error: existingError } = await supabase
     .from("subscriptions")
-    .select("id, user_id, status, audits_limit, audits_used, prompts_limit, prompts_used")
+    .select("id, user_id, plan, status, audits_limit, audits_used, prompts_limit, prompts_used, current_period_end")
     .eq("user_id", userId)
     .maybeSingle()
   if (existingError) throw existingError
@@ -60,9 +62,9 @@ export async function ensureServerSubscription(supabase: SupabaseClient, userId:
       prompts_limit: 25,
       prompts_used: 0,
       current_period_start: new Date().toISOString(),
-      current_period_end: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
+      current_period_end: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3).toISOString(),
     })
-    .select("id, user_id, status, audits_limit, audits_used, prompts_limit, prompts_used")
+    .select("id, user_id, plan, status, audits_limit, audits_used, prompts_limit, prompts_used, current_period_end")
     .single()
   if (error) throw error
   return data as SubscriptionRecord
@@ -89,6 +91,9 @@ export async function consumeServerUsage(
     return
   }
   if (subscription.status !== "active") throw new Error("Subscription is not active")
+  if (subscription.plan === "trial" && subscription.current_period_end && new Date(subscription.current_period_end).getTime() < Date.now()) {
+    throw new Error("Free trial ended")
+  }
 
   const usedKey = type === "audit" ? "audits_used" : "prompts_used"
   const limitKey = type === "audit" ? "audits_limit" : "prompts_limit"

@@ -167,6 +167,10 @@ export default function NewAuditPage() {
 
       const auditJson = await auditRes.json().catch(() => null)
       if (!auditRes.ok || !auditJson?.data?.audit?.id) {
+        if (auditRes.status === 402) {
+          setShowUpgradeModal(true)
+          throw new Error(auditJson?.error || "TRIAL_LIMIT_REACHED")
+        }
         throw new Error(auditJson?.error || "AUDIT_CREATE_FAILED")
       }
 
@@ -174,8 +178,12 @@ export default function NewAuditPage() {
     } catch (error) {
       setSubmitError(
         locale === "en"
-          ? "The audit could not be created. Check your session and GEO backend configuration."
-          : `No se pudo crear la auditoría. ${error instanceof Error && error.message !== "AUDIT_CREATE_FAILED" && error.message !== "PROJECT_CREATE_FAILED" ? error.message : "Revisa la sesión y la configuración del backend GEO."}`,
+          ? error instanceof Error && (error.message.includes("limit reached") || error.message.includes("Free trial ended") || error.message === "TRIAL_LIMIT_REACHED")
+            ? "Your free trial limit was reached. Upgrade to create more GEO Audits."
+            : "The audit could not be created. Check your session and GEO backend configuration."
+          : error instanceof Error && (error.message.includes("limit reached") || error.message.includes("Free trial ended") || error.message === "TRIAL_LIMIT_REACHED")
+            ? "Alcanzaste el límite de tu prueba gratis. Mejora tu plan para crear más auditorías GEO."
+            : `No se pudo crear la auditoría. ${error instanceof Error && error.message !== "AUDIT_CREATE_FAILED" && error.message !== "PROJECT_CREATE_FAILED" ? error.message : "Revisa la sesión y la configuración del backend GEO."}`,
       )
     } finally {
       setIsSubmitting(false)
@@ -395,8 +403,8 @@ export default function NewAuditPage() {
                   <CardTitle>{locale === "en" ? "Upgrade required" : "Upgrade requerido"}</CardTitle>
                   <CardDescription>
                     {locale === "en"
-                      ? "You reached your GEO Audit limit for this plan."
-                      : "Alcanzaste el limite de GEO Audits para este plan."}
+                      ? "Your free trial ended or reached its GEO Audit limit. Choose a plan to continue."
+                      : "Tu prueba gratis terminó o alcanzó el límite de GEO Audits. Elige un plan para continuar."}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex gap-3">

@@ -2,6 +2,7 @@ import { supabaseGeo } from "@/app/geo/supabaseGeoClient"
 
 export type GeoPlan = "trial" | "starter" | "growth" | "enterprise"
 export type SubscriptionStatus = "active" | "inactive" | "canceled" | "past_due"
+export type RequestedGeoPlan = Exclude<GeoPlan, "trial">
 
 export type GeoSubscription = {
   id: string
@@ -14,6 +15,7 @@ export type GeoSubscription = {
   prompts_used: number
   current_period_start: string
   current_period_end: string
+  metadata?: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }
@@ -27,9 +29,38 @@ export type GeoUsageEvent = {
   created_at: string
 }
 
-const defaultPeriodEnd = () => new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString()
+const defaultPeriodEnd = () => new Date(Date.now() + 1000 * 60 * 60 * 24 * 3).toISOString()
 
-export async function ensureTrialSubscription(userId: string) {
+export function normalizeRequestedPlan(value: unknown): RequestedGeoPlan | null {
+  const plan = String(value || "").toLowerCase().trim()
+  return plan === "starter" || plan === "growth" || plan === "enterprise" ? plan : null
+}
+
+export async function ensureTrialSubscription(userId: string, requestedPlan?: RequestedGeoPlan | null) {
+  const { data: existing, error: existingError } = await supabaseGeo
+    .from("subscriptions")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle()
+
+  if (existingError) throw existingError
+  if (existing) {
+    if (!requestedPlan) return existing as GeoSubscription
+    const metadata = {
+      ...((existing.metadata && typeof existing.metadata === "object") ? existing.metadata as Record<string, unknown> : {}),
+      requested_plan: requestedPlan,
+      requested_plan_at: new Date().toISOString(),
+    }
+    const { data, error } = await supabaseGeo
+      .from("subscriptions")
+      .update({ metadata })
+      .eq("id", existing.id)
+      .select("*")
+      .single()
+    if (error) throw error
+    return data as GeoSubscription
+  }
+
   const payload = {
     user_id: userId,
     plan: "trial",
@@ -40,11 +71,12 @@ export async function ensureTrialSubscription(userId: string) {
     prompts_used: 0,
     current_period_start: new Date().toISOString(),
     current_period_end: defaultPeriodEnd(),
+    metadata: requestedPlan ? { requested_plan: requestedPlan, requested_plan_at: new Date().toISOString() } : {},
   }
 
   const { data, error } = await supabaseGeo
     .from("subscriptions")
-    .upsert(payload, { onConflict: "user_id" })
+    .insert(payload)
     .select("*")
     .single()
 

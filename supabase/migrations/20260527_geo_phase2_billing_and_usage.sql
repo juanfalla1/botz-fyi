@@ -34,7 +34,7 @@ create table if not exists public.subscriptions (
   prompts_limit integer not null default 25,
   prompts_used integer not null default 0,
   current_period_start timestamptz not null default now(),
-  current_period_end timestamptz not null default (now() + interval '30 days'),
+  current_period_end timestamptz not null default (now() + interval '3 days'),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint subscriptions_non_negative check (
@@ -97,7 +97,7 @@ begin
     25,
     0,
     now(),
-    now() + interval '30 days'
+    now() + interval '3 days'
   )
   on conflict (user_id) do nothing;
 

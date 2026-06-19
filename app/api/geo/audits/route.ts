@@ -113,6 +113,7 @@ function isScoreablePrompt(prompt: string) {
 function statusForError(error: unknown) {
   const message = errorMessage(error)
   if (message.includes("limit reached")) return 402
+  if (message.includes("Free trial ended")) return 402
   if (message.includes("not found or not owned")) return 404
   if (message.includes("row-level security") || message.includes("permission denied")) return 403
   return 401

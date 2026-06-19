@@ -19,7 +19,8 @@ export function PricingSection() {
         ? ["1 brand", "10 GEO audits/mo", "100 monitored prompts", "Basic dashboard", "Monthly reports", "Email support"]
         : ["1 marca", "10 GEO audits/mes", "100 prompts monitoreados", "Dashboard basico", "Reportes mensuales", "Soporte por email"],
       highlighted: false,
-      cta: isEn ? "Start trial" : "Comenzar prueba"
+      cta: isEn ? "Start free trial" : "Comenzar prueba gratis",
+      href: "/geo/register?plan=starter"
     },
     {
       name: "Growth",
@@ -30,7 +31,8 @@ export function PricingSection() {
         ? ["5 brands", "100 GEO audits/mo", "1000 monitored prompts", "Competitor tracking", "Content recommendations", "Advanced monitoring", "Weekly reports", "Priority support"]
         : ["5 marcas", "100 GEO audits/mes", "1000 prompts monitoreados", "Competitor tracking", "Content recommendations", "Monitoreo avanzado", "Reportes semanales", "Soporte prioritario"],
       highlighted: true,
-      cta: isEn ? "Start trial" : "Comenzar prueba"
+      cta: isEn ? "Start free trial" : "Comenzar prueba gratis",
+      href: "/geo/register?plan=growth"
     },
     {
       name: "Enterprise",
@@ -41,7 +43,8 @@ export function PricingSection() {
         ? ["Unlimited brands", "API access", "24/7 continuous monitoring", "Custom reports", "Custom integrations", "Dedicated account manager", "Maximum priority"]
         : ["Marcas ilimitadas", "API access", "Monitoreo continuo 24/7", "Reportes personalizados", "Integraciones custom", "Dedicated account manager", "Prioridad maxima"],
       highlighted: false,
-      cta: "Request early access"
+      cta: isEn ? "Request early access" : "Solicitar acceso",
+      href: "/geo/agendar-demo?plan=enterprise"
     }
   ]
 
@@ -136,7 +139,7 @@ export function PricingSection() {
                   }`}
                   asChild
                 >
-                  <Link href={plan.name === "Enterprise" ? "/geo#pricing" : "/geo/app/billing"}>{plan.cta}</Link>
+                  <Link href={plan.href}>{plan.cta}</Link>
                 </Button>
               </div>
             </motion.div>

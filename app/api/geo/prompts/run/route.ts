@@ -23,6 +23,7 @@ function errorMessage(error: unknown) {
 function statusForError(error: unknown) {
   const message = errorMessage(error)
   if (message.includes("limit reached")) return 402
+  if (message.includes("Free trial ended")) return 402
   if (message.includes("not found")) return 404
   return 500
 }

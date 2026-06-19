@@ -54,7 +54,7 @@ begin
     25,
     0,
     now(),
-    now() + interval '30 days'
+    now() + interval '3 days'
   )
   on conflict (user_id) do nothing;
 
