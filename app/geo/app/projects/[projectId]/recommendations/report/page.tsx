@@ -433,10 +433,10 @@ const reportPrintCss = `
     aside, .screen-report-content, .print\\:hidden, .sticky, .fixed, [class*="chat"], [class*="Chat"], [class*="assistant"], [class*="Assistant"] { display: none !important; }
     main, main > div, .min-h-screen { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; background: #fff !important; overflow: visible !important; }
     .report-shell { width: 100% !important; max-width: none !important; padding: 0 !important; margin: 0 !important; background: #fff !important; overflow: visible !important; }
-    .premium-pdf, .premium-pdf * { font-family: Arial, Helvetica, sans-serif !important; box-sizing: border-box; }
+    .premium-pdf, .premium-pdf * { font-family: Arial, Helvetica, sans-serif !important; box-sizing: border-box; min-width: 0; overflow-wrap: anywhere; word-break: normal; }
     .premium-pdf { display: block !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; color: #0f172a; background: #fff !important; overflow: visible !important; }
     .premium-pdf::after { content: none !important; display: none !important; }
-    .pdf-page-premium { position: relative; width: 100% !important; max-width: 100% !important; min-height: auto; overflow: hidden; page-break-after: auto; break-after: auto; padding: 9mm 12mm; background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%); }
+    .pdf-page-premium { position: relative; width: 210mm !important; max-width: 210mm !important; min-height: 297mm; margin: 0 auto !important; overflow: hidden; page-break-after: always; break-after: page; padding: 9mm 12mm; background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%); }
     .pdf-page-premium:last-child { page-break-after: avoid !important; break-after: avoid !important; margin-bottom: 0 !important; padding-bottom: 6mm; }
     .pdf-cover { min-height: 297mm; page-break-after: always; break-after: page; overflow: hidden; }
     .pdf-page-fluid { height: auto; overflow: visible; }
@@ -526,8 +526,9 @@ const reportPrintCss = `
     .pdf-roadmap strong { color: #0f766e; font-size: 10px; }
     .pdf-rec-intro { display: flex; gap: 10px; align-items: center; border: 1px solid #dbe5f5; border-radius: 16px; background: #f8fbff; padding: 12px 14px; margin-bottom: 10px; color: #475569; font-size: 11px; }
     .pdf-rec-intro strong { color: #0f172a; white-space: nowrap; }
-    .pdf-rec-stack { display: grid; gap: 8px; }
+    .pdf-rec-stack { display: block; }
     .pdf-rec { border: 1px solid #dbe5f5; background: #fff; border-radius: 18px; padding: 12px; break-inside: avoid; page-break-inside: avoid; }
+    .pdf-rec + .pdf-rec { margin-top: 8px; }
     .pdf-rec-head { display: flex; gap: 10px; align-items: flex-start; }
     .pdf-rec b { color: #4f7cff; font-weight: 900; }
     .pdf-rec small { display: block; color: #4f7cff; font-size: 8px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }

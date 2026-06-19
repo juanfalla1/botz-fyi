@@ -176,9 +176,9 @@ export default function AuditDetailReal() {
 
   useEffect(() => {
     let mounted = true
-    const load = async () => {
+    const load = async (showInitialLoading = false) => {
       if (!auditId) return
-      setLoading(true)
+      if (showInitialLoading) setLoading(true)
       setError(null)
       try {
         const {
@@ -225,8 +225,8 @@ export default function AuditDetailReal() {
         if (mounted) setLoading(false)
       }
     }
-    void load()
-    const interval = setInterval(() => void load(), 5000)
+    void load(true)
+    const interval = setInterval(() => void load(false), 5000)
     return () => {
       mounted = false
       clearInterval(interval)
@@ -504,7 +504,7 @@ export default function AuditDetailReal() {
           </div>
         </div>
 
-        {loading && <Card className="glass border-border"><CardContent className="py-14 text-center text-muted-foreground">{isEn ? "Loading audit..." : "Cargando auditoría..."}</CardContent></Card>}
+        {loading && !audit && <Card className="glass border-border"><CardContent className="py-14 text-center text-muted-foreground">{isEn ? "Loading audit..." : "Cargando auditoría..."}</CardContent></Card>}
         {!loading && error && <Card className="glass border-border"><CardContent className="py-14 text-center text-muted-foreground">{error}</CardContent></Card>}
         {!loading && !error && !audit && <Card className="glass border-border"><CardContent className="py-14 text-center text-muted-foreground">{isEn ? "No audit data available." : "No hay datos de auditoría disponibles."}</CardContent></Card>}
 
