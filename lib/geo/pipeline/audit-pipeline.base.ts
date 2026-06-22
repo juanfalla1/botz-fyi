@@ -177,9 +177,9 @@ async function persistEngineEvidence(supabase: SupabaseClient, context: Pipeline
           mode: result.mode,
           confidence: result.confidence,
           brand_mentioned: evidenceMentioned,
-          ranking_position: result.rankingPosition,
-          won: result.won,
-          lost: result.lost,
+          ranking_position: evidenceMentioned ? result.rankingPosition : null,
+          won: evidenceMentioned && result.won,
+          lost: !evidenceMentioned && result.mode === "live",
           quality_flags: result.quality_flags,
           prompt_kind: result.promptKind ?? "spontaneous",
           external_citations: result.externalCitations ?? [],
@@ -331,27 +331,31 @@ async function syncPromptRunResults(supabase: SupabaseClient, context: PipelineC
 
   for (const [prompt, promptResults] of byPrompt.entries()) {
     const liveResults = promptResults.filter((item) => item.mode === "live")
-    const mentions = liveResults.filter((item) => item.brandMentioned).length
-    const positions = liveResults.map((item) => item.rankingPosition ?? 0).filter((position) => position > 0)
+    const evidenceResults = liveResults.map((item) => ({ item, mentioned: brandMentionedForEvidence(item, context) }))
+    const mentions = evidenceResults.filter((entry) => entry.mentioned).length
+    const positions = evidenceResults.map((entry) => entry.mentioned ? entry.item.rankingPosition ?? 0 : 0).filter((position) => position > 0)
     const metadata = {
       source: "audit_generated",
       audit_id: context.job.audit_id,
       last_run: new Date().toISOString(),
-      last_run_results: promptResults.map((item) => ({
-        engine: item.engine,
-        status: item.mode === "live" ? "live" : "error",
-        prompt_kind: item.promptKind ?? "spontaneous",
-        reason: item.error ?? null,
-        mentioned: brandMentionedForEvidence(item, context),
-        position: item.rankingPosition,
-        won: item.won,
-        confidence: item.confidence,
-        answer_preview: item.rawText.slice(0, 600),
-        citations: item.citations,
-        external_citations: item.externalCitations ?? [],
-        external_citation_domains: item.externalCitationDomains ?? [],
-        competitors: item.competitorMentions,
-      })),
+      last_run_results: promptResults.map((item) => {
+        const mentioned = brandMentionedForEvidence(item, context)
+        return {
+          engine: item.engine,
+          status: item.mode === "live" ? "live" : "error",
+          prompt_kind: item.promptKind ?? "spontaneous",
+          reason: item.error ?? null,
+          mentioned,
+          position: mentioned ? item.rankingPosition : null,
+          won: mentioned && item.won,
+          confidence: item.confidence,
+          answer_preview: item.rawText.slice(0, 600),
+          citations: item.citations,
+          external_citations: item.externalCitations ?? [],
+          external_citation_domains: item.externalCitationDomains ?? [],
+          competitors: item.competitorMentions,
+        }
+      }),
       visibility: liveResults.length > 0 ? Math.round((mentions / liveResults.length) * 100) : 0,
       mentions,
       position: positions.length > 0 ? Math.round((positions.reduce((sum, item) => sum + item, 0) / positions.length) * 10) / 10 : 0,

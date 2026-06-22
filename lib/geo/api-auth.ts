@@ -1,11 +1,10 @@
 import { createClient } from "@supabase/supabase-js"
-import { SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from "@/app/api/_utils/supabase"
 import { isGeoAdminEmail } from "@/lib/geo/admin"
 
-const DEFAULT_PROD_SUPABASE_REF = "chyzxaspglbwnenagtjv"
-export const GEO_SUPABASE_URL = process.env.GEO_SUPABASE_URL || SUPABASE_URL
-export const GEO_SUPABASE_ANON_KEY = process.env.GEO_SUPABASE_ANON_KEY || SUPABASE_ANON_KEY
-const GEO_SUPABASE_SERVICE_ROLE_KEY = process.env.GEO_SUPABASE_SERVICE_ROLE_KEY || SUPABASE_SERVICE_ROLE_KEY
+const DEFAULT_PROD_SUPABASE_REF = "xgedzmeguukvqdotnqap"
+export const GEO_SUPABASE_URL = process.env.GEO_SUPABASE_URL || ""
+export const GEO_SUPABASE_ANON_KEY = process.env.GEO_SUPABASE_ANON_KEY || ""
+const GEO_SUPABASE_SERVICE_ROLE_KEY = process.env.GEO_SUPABASE_SERVICE_ROLE_KEY || ""
 
 function assertSafeGeoWrite(req: Request) {
   const method = req.method.toUpperCase()
@@ -65,6 +64,6 @@ export async function getGeoApiClient(req: Request) {
   }
 
   const supabase = getGeoAnonSupabaseWithToken(token)
-  if (!supabase) throw new Error("Supabase client unavailable: check GEO_SUPABASE_URL/GEO_SUPABASE_ANON_KEY or global Supabase env")
+  if (!supabase) throw new Error("Supabase client unavailable: check GEO_SUPABASE_URL/GEO_SUPABASE_ANON_KEY")
   return { supabase, user: userData, isAdmin: isGeoAdminEmail(userData.email) }
 }

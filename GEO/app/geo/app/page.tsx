@@ -23,7 +23,6 @@ import { getMySubscription, type GeoSubscription } from "@/GEO/lib/billing"
 import { supabaseGeo } from "@/app/geo/supabaseGeoClient"
 import {
   LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -99,7 +98,7 @@ export default function DashboardPage() {
     ...metric,
     title: locale === "en" ? metric.title : localizeMetricTitle(metric.title),
   })))
-  const [chartLive, setChartLive] = useState<Array<{ date: string; score: number; citations: number }>>([])
+  const [chartLive, setChartLive] = useState<Array<{ date: string; score: number }>>([])
 
   useEffect(() => {
     let mounted = true
@@ -194,7 +193,6 @@ export default function DashboardPage() {
           return {
             date: new Date(audit.completed_at ?? audit.created_at).toLocaleDateString(locale === "en" ? "en-US" : "es-ES", { month: "short", day: "numeric" }),
             score: audit.final_score ?? 0,
-            citations: numberFrom(summary.citations_count ?? summary.citations),
           }
         })
       setChartLive(completedChart)
@@ -358,10 +356,6 @@ export default function DashboardPage() {
                           <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
                           <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
                         </linearGradient>
-                        <linearGradient id="colorCitations" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                        </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                       <XAxis dataKey="date" stroke="#666" fontSize={12} />
@@ -381,15 +375,6 @@ export default function DashboardPage() {
                         fillOpacity={1}
                         fill="url(#colorScore)"
                         name="GEO Score"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="citations"
-                        stroke="#6366f1"
-                        strokeWidth={2}
-                        fillOpacity={1}
-                        fill="url(#colorCitations)"
-                        name={isEn ? "Citations" : "Citaciones"}
                       />
                     </AreaChart>
                   </ResponsiveContainer>

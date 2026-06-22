@@ -52,6 +52,7 @@ type PromptItem = {
     trend: "up" | "down" | "stable"
   }
   projects: string[]
+  projectDomains: string[]
   projectIds: string[]
   createdAt: string
   lastAudit: string | null
@@ -285,11 +286,12 @@ function hasLiveRun(prompt: PromptItem) {
 }
 
 function promptWon(prompt: PromptItem) {
-  return liveResults(prompt).some((result) => Boolean(result.won) || Boolean(result.mentioned))
+  return liveResults(prompt).some((result) => displayMentioned(prompt, result))
 }
 
 function promptAveragePosition(prompt: PromptItem) {
   const positions = liveResults(prompt)
+    .filter((result) => displayMentioned(prompt, result))
     .map((result) => typeof result.position === "number" ? result.position : Number(result.position))
     .filter((position) => Number.isFinite(position) && position > 0)
   return positions.length > 0 ? positions.reduce((sum, position) => sum + position, 0) / positions.length : 0
@@ -310,6 +312,7 @@ function engineStatusLabel(result: Record<string, unknown> | null, isEn: boolean
   if (String(result.status ?? "") === "live") return null
 
   const reason = String(result.reason ?? "").toLowerCase()
+  if (reason.includes("aborted") || reason.includes("timed out") || reason.includes("timeout")) return isEn ? "Timeout" : "Timeout"
   if (reason.includes("is missing") || reason.includes("missing")) return isEn ? "Not configured" : "No configurado"
   if (reason.includes("429") || reason.includes("rate limit") || reason.includes("quota")) return isEn ? "Quota limit" : "Límite de cuota"
   return isEn ? "Engine error" : "Error del motor"
@@ -337,8 +340,7 @@ function targetTermsForPrompt(prompt: PromptItem) {
     const domain = match[1].toLowerCase().replace(/^www\./, "")
     return [domain, domain.split(".")[0] ?? ""]
   })
-  const assistedMatch = prompt.text.match(/(?:evaluar|evaluating)\s+([a-z0-9][a-z0-9.-]{2,})/i)
-  return Array.from(new Set([...projectTerms, ...domainTerms, normalizedEvidenceText(assistedMatch?.[1] ?? "")].filter((term) => term.length >= 3)))
+  return Array.from(new Set([...projectTerms, ...domainTerms].filter((term) => term.length >= 3)))
 }
 
 function answerContainsTarget(prompt: PromptItem, result: Record<string, unknown> | null) {
@@ -365,12 +367,21 @@ function answerHasPositiveTargetContext(prompt: PromptItem, result: Record<strin
 function displayMentioned(prompt: PromptItem, result: Record<string, unknown> | null) {
   if (!result) return false
   const kind = promptKindForResult(prompt, result)
+  const externalCitationCount = typeof result.external_unique_citations === "number"
+    ? result.external_unique_citations
+    : Array.isArray(result.external_citations)
+      ? result.external_citations.length
+      : Array.isArray(result.external_citation_domains)
+        ? result.external_citation_domains.length
+        : 0
   return isPositiveBrandEvidence({
     prompt: prompt.text,
     answerText: String(result.answer_preview ?? ""),
     rawMentioned: Boolean(result.mentioned),
     promptKind: kind,
+    websiteUrl: prompt.projectDomains?.[0],
     projectNames: prompt.projects,
+    externalCitationCount,
   })
 }
 
@@ -535,7 +546,7 @@ function PromptEngineBreakdown({ prompt, isEn }: { prompt: PromptItem; isEn: boo
           const status = String(result?.status ?? "")
           const mentioned = displayMentioned(prompt, result)
           const kind = promptKindForResult(prompt, result)
-          const companies = mentionedCompanies(result)
+          const companies = mentioned ? mentionedCompanies(result) : []
           const preview = resultPreview(result)
           const reason = String(result?.reason ?? "")
           const statusLabel = engineStatusLabel(result, isEn)
@@ -594,13 +605,14 @@ export default function PromptsLibraryPage() {
     status: "active",
   })
 
-  const mapPrompt = (record: GeoPromptRecord, projectMap: Map<string, string>): PromptItem => {
+  const mapPrompt = (record: GeoPromptRecord, projectMap: Map<string, string>, projectDomainMap: Map<string, string>): PromptItem => {
     const metadata = record.metadata ?? {}
     const position = typeof metadata.position === "number" ? metadata.position : 0
     const visibility = typeof metadata.visibility === "number" ? metadata.visibility : 0
     const mentions = typeof metadata.mentions === "number" ? metadata.mentions : 0
     const trend = metadata.trend === "down" || metadata.trend === "stable" ? metadata.trend : "up"
-    return {
+    const lastRunResults = Array.isArray(metadata.last_run_results) ? metadata.last_run_results as Array<Record<string, unknown>> : []
+    const item: PromptItem = {
       id: record.id,
       text: record.prompt,
       category: record.category,
@@ -610,11 +622,24 @@ export default function PromptsLibraryPage() {
       language: record.language ?? "Español",
       performance: { position, visibility, mentions, trend },
       projects: [projectMap.get(record.project_id) ?? "Project"],
+      projectDomains: [projectDomainMap.get(record.project_id) ?? ""].filter(Boolean),
       projectIds: [record.project_id],
       createdAt: record.created_at,
       lastAudit: typeof metadata.last_run === "string" ? metadata.last_run : null,
-      lastRunResults: Array.isArray(metadata.last_run_results) ? metadata.last_run_results as Array<Record<string, unknown>> : [],
+      lastRunResults,
     }
+    if (lastRunResults.length > 0) {
+      const liveResults = lastRunResults.filter((result) => String(result.status ?? "") === "live")
+      const validResults = liveResults.filter((result) => displayMentioned(item, result))
+      const positions = validResults.map((result) => typeof result.position === "number" ? result.position : 0).filter((value) => value > 0)
+      item.performance = {
+        position: positions.length > 0 ? Math.round((positions.reduce((sum, value) => sum + value, 0) / positions.length) * 10) / 10 : 0,
+        visibility: liveResults.length > 0 ? Math.round((validResults.length / liveResults.length) * 100) : 0,
+        mentions: validResults.length,
+        trend: validResults.length > 0 ? "up" : "stable",
+      }
+    }
+    return item
   }
 
   const loadPrompts = async () => {
@@ -631,6 +656,7 @@ export default function PromptsLibraryPage() {
       const projectsList = projectsJson.data ?? []
       setProjectsLive(projectsList)
       const projectMap = new Map(projectsList.map((project) => [project.id, project.company_name]))
+      const projectDomainMap = new Map(projectsList.map((project) => [project.id, project.website_url]))
       const targetProjectIds = scopedProjectId ? [scopedProjectId] : projectsList.map((project) => project.id)
 
       const responses = await Promise.all(
@@ -641,7 +667,7 @@ export default function PromptsLibraryPage() {
           return json.data ?? []
         })
       )
-      setPromptsLive(responses.flat().map((record) => mapPrompt(record, projectMap)))
+      setPromptsLive(responses.flat().map((record) => mapPrompt(record, projectMap, projectDomainMap)))
     } catch (error) {
       setPromptsLive([])
       setFeedback(error instanceof Error ? error.message : "Could not load prompts")
@@ -1795,7 +1821,7 @@ export default function PromptsLibraryPage() {
                 {viewingResultsPrompt.lastRunResults.map((result, index) => {
                   const status = String(result.status ?? "")
                   const mentioned = displayMentioned(viewingResultsPrompt, result)
-                  const companies = mentionedCompanies(result)
+                  const companies = mentioned ? mentionedCompanies(result) : []
                   const statusLabel = engineStatusLabel(result, isEn)
                   const kind = promptKindForResult(viewingResultsPrompt, result)
                   return (
@@ -1807,7 +1833,7 @@ export default function PromptsLibraryPage() {
                         </div>
                         <div className="text-right text-sm">
                           {statusLabel ? <span className="text-yellow-300">{statusLabel}</span> : mentioned ? <span className="text-green-400">{positiveResultLabel(kind, mentioned, isEn)}</span> : <span className="text-red-400">{positiveResultLabel(kind, mentioned, isEn)}</span>}
-                          {typeof result.position === "number" && result.position > 0 && <p className="text-xs text-muted-foreground">Posición {result.position}</p>}
+                          {mentioned && typeof result.position === "number" && result.position > 0 && <p className="text-xs text-muted-foreground">Posición {result.position}</p>}
                         </div>
                       </div>
                       {result.reason && <p className="text-sm text-muted-foreground">{String(result.reason)}</p>}

@@ -279,6 +279,7 @@ function summarizePrompts(context: Awaited<ReturnType<typeof loadGeoActionContex
         promptKind,
         companyName: context.project.company_name,
         websiteUrl: context.project.website_url,
+        externalCitationCount: Number(raw.external_unique_citations ?? 0),
       }),
     }
   })
@@ -312,6 +313,7 @@ function missedNeutralPromptExamples(context: Awaited<ReturnType<typeof loadGeoA
         promptKind,
         companyName: context.project.company_name,
         websiteUrl: context.project.website_url,
+        externalCitationCount: Number(raw.external_unique_citations ?? 0),
       }),
     }
   })

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link"
 import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { supabaseGeo } from "@/app/geo/supabaseGeoClient"
+import { supabaseGeo, supabaseGeoProjectRef, supabaseGeoUrlConfigured } from "@/app/geo/supabaseGeoClient"
 import { useGeoI18n } from "@/GEO/components/geo/i18n"
 import { ensureTrialSubscription, normalizeRequestedPlan } from "@/GEO/lib/billing"
 
@@ -55,6 +55,16 @@ export default function RegisterPage() {
 
     const origin = typeof window !== "undefined" ? window.location.origin : ""
     const normalizedEmail = email.trim().toLowerCase()
+    if (!supabaseGeoUrlConfigured) {
+      setLoading(false)
+      setErrorMessage("GEO Supabase no esta configurado. Revisa NEXT_PUBLIC_GEO_SUPABASE_URL y NEXT_PUBLIC_GEO_SUPABASE_ANON_KEY.")
+      return
+    }
+    if (typeof window !== "undefined" && window.location.hostname !== "localhost" && supabaseGeoProjectRef !== "xgedzmeguukvqdotnqap") {
+      setLoading(false)
+      setErrorMessage(`GEO esta conectado al Supabase incorrecto (${supabaseGeoProjectRef}). Debe ser xgedzmeguukvqdotnqap.`)
+      return
+    }
     const { data, error } = await supabaseGeo.auth.signUp({
       email: normalizedEmail,
       password,
@@ -71,7 +81,7 @@ export default function RegisterPage() {
 
     if (error) {
       setLoading(false)
-      setErrorMessage(error.message)
+      setErrorMessage(/already registered/i.test(error.message) ? `Este email ya existe en Auth del proyecto conectado (${supabaseGeoProjectRef}). Inicia sesion o usa otro correo.` : `${error.message} (${supabaseGeoProjectRef})`)
       return
     }
 

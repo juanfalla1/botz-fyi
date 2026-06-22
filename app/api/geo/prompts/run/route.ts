@@ -3,6 +3,7 @@ import { getGeoApiClient } from "@/lib/geo/api-auth"
 import { getProviderForEngine } from "@/lib/geo/engines/provider-registry"
 import { normalizeEngineResponse } from "@/lib/geo/engines/normalizer"
 import { consumeServerUsage } from "@/lib/geo/repositories/usage.repo"
+import { isPositiveBrandEvidence } from "@/lib/geo/evidence-rules"
 
 function normalizeEngineName(engine: string) {
   const value = engine.toLowerCase().trim()
@@ -26,6 +27,14 @@ function statusForError(error: unknown) {
   if (message.includes("Free trial ended")) return 402
   if (message.includes("not found")) return 404
   return 500
+}
+
+function classifyPromptKind(prompt: string, category: string | null | undefined) {
+  const text = `${category ?? ""} ${prompt}`.toLowerCase()
+  if (/citation|trust|fuentes? (externas )?confiables|mencionen|mentioning|cited|citadas|citations/.test(text)) return "citation"
+  if (/assisted|evaluar|evaluating/.test(text)) return "assisted"
+  if (/comparison|competitive|alternative|compar(a|ar|e)|vs\b|alternativas?|competidores?/.test(text)) return "competitive"
+  return "spontaneous"
 }
 
 export async function POST(req: Request) {
@@ -98,16 +107,30 @@ export async function POST(req: Request) {
           language: project.language,
           country: project.country,
         })
+        const promptKind = classifyPromptKind(prompt.prompt, prompt.category)
+        const mentioned = isPositiveBrandEvidence({
+          prompt: prompt.prompt,
+          answerText: normalized.rawText,
+          rawMentioned: normalized.brandMentioned,
+          promptKind,
+          companyName: project.company_name,
+          websiteUrl: project.website_url,
+          externalCitationCount: normalized.externalUniqueCitations,
+        })
         results.push({
           engine: provider.id,
           status: "live",
-          mentioned: normalized.brandMentioned,
-          position: normalized.rankingPosition,
-          won: normalized.won,
+          mentioned,
+          position: mentioned ? normalized.rankingPosition : null,
+          won: mentioned && normalized.won,
           confidence: normalized.confidence,
           answer_preview: normalized.rawText.slice(0, 600),
           citations: normalized.citations,
+          external_citations: normalized.externalCitations,
+          external_citation_domains: normalized.externalCitationDomains,
+          external_unique_citations: normalized.externalUniqueCitations,
           competitors: normalized.competitorMentions,
+          prompt_kind: promptKind,
         })
       } catch (error) {
         results.push({ engine, status: "error", reason: errorMessage(error) })
@@ -116,7 +139,7 @@ export async function POST(req: Request) {
 
     const liveResults = results.filter((item) => item.status === "live")
     const mentions = liveResults.filter((item) => Boolean(item.mentioned)).length
-    const positions = liveResults.map((item) => typeof item.position === "number" ? item.position : 0).filter((item) => item > 0)
+    const positions = liveResults.filter((item) => Boolean(item.mentioned)).map((item) => typeof item.position === "number" ? item.position : 0).filter((item) => item > 0)
     const visibility = liveResults.length > 0 ? Math.round((mentions / liveResults.length) * 100) : 0
     const position = positions.length > 0 ? Math.round((positions.reduce((sum, item) => sum + item, 0) / positions.length) * 10) / 10 : 0
 

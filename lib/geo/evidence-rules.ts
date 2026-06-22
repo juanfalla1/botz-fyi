@@ -19,7 +19,6 @@ export function targetTermsForEvidence(input: { prompt: string; companyName?: st
     const domain = match[1].toLowerCase().replace(/^www\./, "")
     return [domain, domain.split(".")[0] ?? ""]
   })
-  const assistedMatch = input.prompt.match(/(?:evaluar|evaluating)\s+([a-z0-9][a-z0-9.-]{2,})/i)
   return Array.from(new Set([
     ...projectTerms,
     company,
@@ -27,8 +26,13 @@ export function targetTermsForEvidence(input: { prompt: string; companyName?: st
     websiteDomain,
     websiteDomain.split(".")[0] ?? "",
     ...promptDomains,
-    normalizeEvidenceText(assistedMatch?.[1] ?? ""),
   ].filter((term) => term.length >= 3)))
+}
+
+function answerContainsWebsiteDomain(input: { answerText: string; websiteUrl?: string | null }) {
+  const websiteDomain = String(input.websiteUrl ?? "").replace(/^https?:\/\//i, "").replace(/^www\./i, "").split(/[/?#]/)[0].toLowerCase()
+  if (!websiteDomain || !websiteDomain.includes(".")) return false
+  return normalizeEvidenceText(input.answerText).includes(websiteDomain)
 }
 
 export function answerContainsTarget(input: { prompt: string; answerText: string; companyName?: string | null; websiteUrl?: string | null; projectNames?: string[] }) {
@@ -53,9 +57,10 @@ export function answerHasPositiveTargetContext(input: { prompt: string; answerTe
   return false
 }
 
-export function isPositiveBrandEvidence(input: { prompt: string; answerText: string; rawMentioned?: boolean; promptKind?: string | null; companyName?: string | null; websiteUrl?: string | null; projectNames?: string[] }) {
+export function isPositiveBrandEvidence(input: { prompt: string; answerText: string; rawMentioned?: boolean; promptKind?: string | null; companyName?: string | null; websiteUrl?: string | null; projectNames?: string[]; externalCitationCount?: number }) {
   if (!input.rawMentioned) return false
   const kind = String(input.promptKind ?? "").toLowerCase()
-  if (kind.includes("citation") || kind.includes("trust")) return answerContainsTarget(input)
+  if (kind.includes("citation") || kind.includes("trust")) return (input.externalCitationCount ?? 0) > 0 && answerContainsWebsiteDomain(input)
+  if (kind.includes("assisted")) return answerContainsWebsiteDomain(input) && answerHasPositiveTargetContext(input)
   return answerContainsTarget(input) && answerHasPositiveTargetContext(input)
 }

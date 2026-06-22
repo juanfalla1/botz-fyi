@@ -104,6 +104,9 @@ async function runGeminiPrompt(apiKey: string, model: string, input: EnginePromp
     }
     const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("\n") ?? ""
     return { text }
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw new Error(`Gemini timed out after ${timeoutMs}ms. Increase GEO_GEMINI_TIMEOUT_MS or retry the prompt.`)
+    throw error
   } finally {
     clearTimeout(timer)
   }
@@ -143,6 +146,9 @@ async function runVertexGeminiPrompt(serviceAccount: ServiceAccount, model: stri
     const data = (await response.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
     const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("\n") ?? ""
     return { text, meta: { provider: "vertex", project, location: resolvedLocation, model } }
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw new Error(`Vertex Gemini timed out after ${timeoutMs}ms. Increase GEO_GEMINI_TIMEOUT_MS or retry the prompt.`)
+    throw error
   } finally {
     clearTimeout(timer)
   }

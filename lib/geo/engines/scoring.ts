@@ -81,7 +81,7 @@ export function scoreSnapshotV1(results: NormalizedEngineResult[]): GeoSnapshotV
   }
 
   const breakdown: EngineBreakdown[] = Array.from(byEngine.entries()).map(([engine, list]) => {
-    const rankValues = list.map((x) => x.rankingPosition).filter((x): x is number => typeof x === "number")
+    const rankValues = list.map((x) => x.brandMentioned ? x.rankingPosition : null).filter((x): x is number => typeof x === "number")
     const spontaneous = list.filter((x) => kindOf(x) === "spontaneous")
     const assisted = list.filter((x) => kindOf(x) === "assisted")
     const competitive = list.filter((x) => kindOf(x) === "competitive")

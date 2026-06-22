@@ -264,19 +264,21 @@ export default function AuditDetailReal() {
     const raw = answer?.raw_response && typeof answer.raw_response === "object" ? answer.raw_response : {}
     const answerText = String(answer?.answer_text ?? "")
     const promptKind = String(raw.prompt_kind ?? query.intent ?? "")
+    const mentioned = isPositiveBrandEvidence({
+      prompt: query.prompt,
+      answerText,
+      rawMentioned: Boolean(raw.brand_mentioned),
+      promptKind,
+      companyName: audit?.projects?.company_name,
+      websiteUrl: audit?.projects?.website_url ?? audit?.base_url,
+      externalCitationCount: Number(raw.external_unique_citations ?? 0),
+    })
     return {
       engine: query.engine,
       prompt: query.prompt,
       prompt_kind: promptKind,
-      mentioned: isPositiveBrandEvidence({
-        prompt: query.prompt,
-        answerText,
-        rawMentioned: Boolean(raw.brand_mentioned),
-        promptKind,
-        companyName: audit?.projects?.company_name,
-        websiteUrl: audit?.projects?.website_url ?? audit?.base_url,
-      }),
-      position: raw.ranking_position,
+      mentioned,
+      position: mentioned ? raw.ranking_position : null,
       answer_preview: answerText.slice(0, 400),
     }
   })

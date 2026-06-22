@@ -69,6 +69,7 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
           brandName: ctx.project.company_name,
           brandDomain: ctx.project.website_url.replace(/^https?:\/\//, ""),
           competitorNames: ctx.competitors.map((c) => c.name),
+          neutral: true,
         })
         return normalizeResult(task, raw, "live")
       } catch (error) {
@@ -76,7 +77,29 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
       }
     })))
   }
-  const normalized = normalizedChunks.flat()
+  const normalizedRaw = normalizedChunks.flat()
+  const normalized = normalizedRaw.map((item) => {
+    const mentioned = isPositiveBrandEvidence({
+      prompt: item.prompt,
+      answerText: item.rawText,
+      rawMentioned: item.brandMentioned,
+      promptKind: item.promptKind,
+      companyName: ctx.project.company_name,
+      websiteUrl: ctx.project.website_url,
+      externalCitationCount: item.externalUniqueCitations,
+    })
+    return {
+      ...item,
+      brandMentioned: mentioned,
+      rankingPosition: mentioned ? item.rankingPosition : null,
+      won: mentioned && item.won,
+      lost: !mentioned && item.mode === "live",
+      quality_flags: {
+        ...item.quality_flags,
+        brand_not_found: !mentioned,
+      },
+    }
+  })
 
   const configuredCount = providers.filter((p) => p.status === "configured" && p.id !== "ai_overviews").length
   const liveCount = normalized.filter((x) => x.mode === "live").length
@@ -141,16 +164,9 @@ export async function runRealAnalysisWithFallback(ctx: PipelineContext, prompts:
       engine: item.engine,
       prompt: item.prompt,
       prompt_kind: item.promptKind,
-      mentioned: isPositiveBrandEvidence({
-        prompt: item.prompt,
-        answerText: item.rawText,
-        rawMentioned: item.brandMentioned,
-        promptKind: item.promptKind,
-        companyName: ctx.project.company_name,
-        websiteUrl: ctx.project.website_url,
-      }),
-      position: item.rankingPosition,
-      won: item.won,
+      mentioned: item.brandMentioned,
+      position: item.brandMentioned ? item.rankingPosition : null,
+      won: item.brandMentioned && item.won,
       answer_preview: item.rawText.slice(0, 400),
       mode: item.mode,
     })),

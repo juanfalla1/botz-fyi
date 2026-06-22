@@ -100,7 +100,7 @@ export async function consumeServerUsage(
   const nextUsed = Number(subscription[usedKey]) + amount
   const limit = Number(subscription[limitKey])
   if (nextUsed > limit) {
-    if (process.env.NODE_ENV === "development" && process.env.GEO_ENFORCE_DEV_USAGE_LIMITS !== "true") {
+    if (type !== "audit" && process.env.NODE_ENV === "development" && process.env.GEO_ENFORCE_DEV_USAGE_LIMITS !== "true") {
       await createUsageEvent(supabase, {
         user_id: userId,
         event_type: type === "audit" ? "geo_audit_created" : "prompt_used",
