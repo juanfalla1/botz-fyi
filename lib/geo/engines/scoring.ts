@@ -1,4 +1,5 @@
 import type { NormalizedEngineResult } from "@/lib/geo/engines/types"
+import { hasValidExternalCitationEvidence } from "@/lib/geo/evidence-rules"
 
 export type EngineBreakdown = {
   engine: string
@@ -64,12 +65,14 @@ function kindOf(result: NormalizedEngineResult) {
 
 function citationEvidenceCount(result: NormalizedEngineResult) {
   if (result.promptKind !== "citation") return result.uniqueCitations
-  const text = result.rawText.toLowerCase()
   const prompt = result.prompt.toLowerCase()
   const targetDomain = prompt.match(/(?:https?:\/\/)?(?:www\.)?([a-z0-9.-]+\.[a-z]{2,})/)?.[1]?.replace(/^www\./, "") ?? ""
-  const mentionsTargetDomain = Boolean(targetDomain && text.includes(targetDomain))
-  const negativeCitationAnswer = /no encontr[eé]|no encontr[oó]|no hay menciones|no existen menciones|ninguna fuente externa|no external|did not find|could not find|no reliable external/i.test(result.rawText)
-  return mentionsTargetDomain && !negativeCitationAnswer ? (result.externalUniqueCitations ?? 0) : 0
+  const mentionsTargetDomain = hasValidExternalCitationEvidence({
+    answerText: result.rawText,
+    websiteUrl: targetDomain,
+    externalCitationCount: result.externalUniqueCitations ?? 0,
+  })
+  return mentionsTargetDomain ? (result.externalUniqueCitations ?? 0) : 0
 }
 
 export function scoreSnapshotV1(results: NormalizedEngineResult[]): GeoSnapshotV1 {

@@ -35,6 +35,17 @@ function answerContainsWebsiteDomain(input: { answerText: string; websiteUrl?: s
   return normalizeEvidenceText(input.answerText).includes(websiteDomain)
 }
 
+export function hasValidExternalCitationEvidence(input: { answerText: string; websiteUrl?: string | null; externalCitationCount?: number }) {
+  if ((input.externalCitationCount ?? 0) <= 0) return false
+  const text = normalizeEvidenceText(input.answerText)
+  if (!text || !answerContainsWebsiteDomain(input)) return false
+  const negativeCitationAnswer = /no encontr[eé]|no encontr[oó]|no hay menciones|no existen menciones|ninguna fuente externa|no external|did not find|could not find|no reliable external/i.test(input.answerText)
+  if (negativeCitationAnswer) return false
+  const homonymOrMarketData = /\b(global x|robotics artificial intelligence etf|etf|acciones|cotizacion|cotizaci[oó]n|stock|ticker|funds botz|otra marca distinta)\b/i.test(text)
+  if (homonymOrMarketData) return false
+  return true
+}
+
 export function answerContainsTarget(input: { prompt: string; answerText: string; companyName?: string | null; websiteUrl?: string | null; projectNames?: string[] }) {
   const text = normalizeEvidenceText(input.answerText)
   if (!text) return false
@@ -60,7 +71,7 @@ export function answerHasPositiveTargetContext(input: { prompt: string; answerTe
 export function isPositiveBrandEvidence(input: { prompt: string; answerText: string; rawMentioned?: boolean; promptKind?: string | null; companyName?: string | null; websiteUrl?: string | null; projectNames?: string[]; externalCitationCount?: number }) {
   if (!input.rawMentioned) return false
   const kind = String(input.promptKind ?? "").toLowerCase()
-  if (kind.includes("citation") || kind.includes("trust")) return (input.externalCitationCount ?? 0) > 0 && answerContainsWebsiteDomain(input)
+  if (kind.includes("citation") || kind.includes("trust")) return hasValidExternalCitationEvidence(input)
   if (kind.includes("assisted")) return answerContainsWebsiteDomain(input) && answerHasPositiveTargetContext(input)
   return answerContainsTarget(input) && answerHasPositiveTargetContext(input)
 }

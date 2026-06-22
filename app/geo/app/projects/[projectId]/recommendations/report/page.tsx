@@ -160,10 +160,11 @@ export default function ActionPlanReportPage() {
     nextSteps: isEn ? "Next steps" : "Próximos pasos",
     nextDesc: isEn ? "We recommend starting with high-impact actions in the first 30 days and measuring progress with a new GEO audit." : "Recomendamos iniciar con las acciones de alto impacto durante los primeros 30 días y medir evolución con una nueva auditoría GEO.",
   }
+  const executiveSummary = cleanRepeatedSummary(isEn ? copy.summaryFallback : (plan.latest_audit?.executive_summary || copy.summaryFallback))
 
   return (
     <Shell isEn={isEn} projectId={params.projectId} locale={locale} setLocale={setLocale}>
-      <PremiumPdf plan={plan} metrics={metrics} actions={reportActions} topActions={topActions} reportDate={reportDate} summary={isEn ? copy.summaryFallback : (plan.latest_audit?.executive_summary || copy.summaryFallback)} isEn={isEn} reportSource={reportSource} />
+      <PremiumPdf plan={plan} metrics={metrics} actions={reportActions} topActions={topActions} reportDate={reportDate} summary={executiveSummary} isEn={isEn} reportSource={reportSource} />
       <div className="screen-report-content">
       <section className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-background to-card p-10 print:rounded-none print:border-0 print:bg-white print:p-12">
         <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/20 blur-3xl print:hidden" />
@@ -174,7 +175,7 @@ export default function ActionPlanReportPage() {
         </div>
       </section>
 
-      <ReportSection eyebrow={copy.summaryEyebrow} title={reportSource === "competitive" ? (isEn ? "Competitive position in AI answers" : "Posición competitiva en respuestas IA") : reportSource === "monthly" ? (isEn ? "Monthly performance readout" : "Lectura mensual de rendimiento") : copy.summaryTitle} desc={isEn ? copy.summaryFallback : (plan.latest_audit?.executive_summary || copy.summaryFallback)} />
+      <ReportSection eyebrow={copy.summaryEyebrow} title={reportSource === "competitive" ? (isEn ? "Competitive position in AI answers" : "Posición competitiva en respuestas IA") : reportSource === "monthly" ? (isEn ? "Monthly performance readout" : "Lectura mensual de rendimiento") : copy.summaryTitle} desc={executiveSummary} />
 
       {topActions.length > 0 && (
         <section className="report-page mt-8">
@@ -227,6 +228,20 @@ function reportSourceText(source: string, isEn: boolean) {
     title: isEn ? "GEO Intelligence Report" : "Reporte de Inteligencia GEO",
     lead: isEn ? "Executive strategy to improve how AI engines understand, cite and recommend the brand." : "Estrategia ejecutiva para mejorar cómo los motores de IA entienden, citan y recomiendan la marca.",
   }
+}
+
+function cleanRepeatedSummary(value: string) {
+  const paragraphs = value.split(/\n{2,}/).map((item) => item.trim()).filter(Boolean)
+  if (paragraphs.length < 2) return value
+  const seen = new Set<string>()
+  const unique = []
+  for (const paragraph of paragraphs) {
+    const key = paragraph.toLowerCase().replace(/\s+/g, " ")
+    if (seen.has(key)) continue
+    seen.add(key)
+    unique.push(paragraph)
+  }
+  return unique.join("\n\n")
 }
 
 function PremiumPdf({ plan, metrics, actions, topActions, reportDate, summary, isEn, reportSource }: { plan: ActionPlan; metrics: { score: number; projected: number; visibility: number; assistedVisibility: number; competitiveVisibility: number; citationCoverage: number; promptsWon: number; citations: number; totalResults: number }; actions: ActionItem[]; topActions: ActionItem[]; reportDate: string; summary: string; isEn: boolean; reportSource: string }) {

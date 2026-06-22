@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { isPositiveBrandEvidence } from "@/lib/geo/evidence-rules"
 
 export type GeoActionProject = {
   id: string
@@ -226,6 +227,7 @@ export function latestAuditSnapshot(ctx: GeoActionContext) {
   const semantic = ctx.latestSummary.semantic_analysis && typeof ctx.latestSummary.semantic_analysis === "object"
     ? ctx.latestSummary.semantic_analysis as Record<string, unknown>
     : null
+  const citationStats = strictCitationStats(ctx)
   return ctx.latestAudit ? {
     id: ctx.latestAudit.id,
     final_score: ctx.latestAudit.final_score,
@@ -235,17 +237,42 @@ export function latestAuditSnapshot(ctx: GeoActionContext) {
     spontaneous_visibility: numberFrom(ctx.latestSummary.spontaneous_visibility ?? ctx.latestSummary.ai_visibility ?? semantic?.brand_visibility),
     assisted_visibility: numberFrom(ctx.latestSummary.assisted_visibility),
     competitive_visibility: numberFrom(ctx.latestSummary.competitive_visibility),
-    citation_coverage: numberFrom(ctx.latestSummary.citation_coverage),
+    citation_coverage: citationStats ? citationStats.coverage : numberFrom(ctx.latestSummary.citation_coverage),
     total_results: numberFrom(ctx.latestSummary.total_results),
     spontaneous_results: numberFrom(ctx.latestSummary.spontaneous_results),
     assisted_results: numberFrom(ctx.latestSummary.assisted_results),
     competitive_results: numberFrom(ctx.latestSummary.competitive_results),
-    citation_results: numberFrom(ctx.latestSummary.citation_results),
+    citation_results: citationStats ? citationStats.total : numberFrom(ctx.latestSummary.citation_results),
     prompts_won: numberFrom(ctx.latestSummary.prompts_won),
     prompts_lost: numberFrom(ctx.latestSummary.prompts_lost),
-    citations_count: numberFrom(ctx.latestSummary.citations_count),
+    citations_count: citationStats ? citationStats.hits : numberFrom(ctx.latestSummary.citations_count),
     executive_summary: semantic ? String(semantic.executive_summary ?? ctx.latestSummary.summary ?? "") : String(ctx.latestSummary.summary ?? ""),
   } : null
+}
+
+function strictCitationStats(ctx: GeoActionContext) {
+  let total = 0
+  let hits = 0
+  for (const query of ctx.aiQueries) {
+    const answer = query.ai_answers[0]
+    const raw = answer?.raw_response && typeof answer.raw_response === "object" ? answer.raw_response : {}
+    const promptKind = String(raw.prompt_kind ?? query.intent ?? "")
+    if (!promptKind.toLowerCase().includes("citation") && !promptKind.toLowerCase().includes("trust")) continue
+    total += 1
+    const externalCitationCount = Number(raw.external_unique_citations ?? 0)
+    if (isPositiveBrandEvidence({
+      prompt: query.prompt,
+      answerText: String(answer?.answer_text ?? ""),
+      rawMentioned: Boolean(raw.brand_mentioned),
+      promptKind,
+      companyName: ctx.project.company_name,
+      websiteUrl: ctx.project.website_url,
+      externalCitationCount,
+    })) {
+      hits += 1
+    }
+  }
+  return total > 0 ? { total, hits, coverage: Math.round((hits / total) * 100) } : null
 }
 
 export function previousAuditSnapshot(ctx: GeoActionContext) {

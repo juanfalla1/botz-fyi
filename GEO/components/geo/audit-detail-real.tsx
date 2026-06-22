@@ -283,6 +283,24 @@ export default function AuditDetailReal() {
     }
   })
   const evaluatedPrompts = evaluatedPromptsFromQueries.length > 0 ? evaluatedPromptsFromQueries : objectArray(summary.evaluated_prompts)
+  const strictCitationStats = storedQueries.reduce((acc, query) => {
+    const answer = Array.isArray(query.ai_answers) ? query.ai_answers[0] : null
+    const raw = answer?.raw_response && typeof answer.raw_response === "object" ? answer.raw_response : {}
+    const promptKind = String(raw.prompt_kind ?? query.intent ?? "")
+    if (!promptKind.toLowerCase().includes("citation") && !promptKind.toLowerCase().includes("trust")) return acc
+    acc.total += 1
+    const mentioned = isPositiveBrandEvidence({
+      prompt: query.prompt,
+      answerText: String(answer?.answer_text ?? ""),
+      rawMentioned: Boolean(raw.brand_mentioned),
+      promptKind,
+      companyName: audit?.projects?.company_name,
+      websiteUrl: audit?.projects?.website_url ?? audit?.base_url,
+      externalCitationCount: Number(raw.external_unique_citations ?? 0),
+    })
+    if (mentioned) acc.hits += 1
+    return acc
+  }, { total: 0, hits: 0 })
   const sentiment = (semantic?.sentiment && typeof semantic.sentiment === "object" ? semantic.sentiment : null) as Record<string, unknown> | null
   const engines = stringArray(audit?.engines)
   const auditJobStatus = String(audit?.audit_job?.status ?? audit?.status ?? "").toLowerCase()
@@ -295,7 +313,7 @@ export default function AuditDetailReal() {
   const engineCitations = engineBreakdownItems.reduce((total, item) => total + numberFrom(item.citations ?? item.citations_count), 0)
   const promptsTested = numberFrom(summary.prompts_tested ?? metadata.prompts_tested) || enginePromptsTested
   const promptsWon = numberFrom(summary.prompts_won ?? metadata.prompts_won) || enginePromptsWon
-  const citations = numberFrom(summary.citations_count ?? metadata.citations_count) || engineCitations
+  const citations = strictCitationStats.total > 0 ? strictCitationStats.hits : numberFrom(summary.citations_count ?? metadata.citations_count) || engineCitations
   const totalResults = numberFrom(summary.total_results ?? metadata.total_results) || promptsTested
   const apiLiveResults = optionalNumber(audit?.live_ai_queries)
   const apiLiveEngines = optionalNumber(audit?.live_engine_count)
@@ -307,11 +325,11 @@ export default function AuditDetailReal() {
   const spontaneousResults = numberFrom(summary.spontaneous_results ?? metadata.spontaneous_results)
   const assistedResults = numberFrom(summary.assisted_results ?? metadata.assisted_results)
   const competitiveResults = numberFrom(summary.competitive_results ?? metadata.competitive_results)
-  const citationResults = numberFrom(summary.citation_results ?? metadata.citation_results)
+  const citationResults = strictCitationStats.total > 0 ? strictCitationStats.total : numberFrom(summary.citation_results ?? metadata.citation_results)
   const spontaneousVisibility = spontaneousResults > 0 ? Math.round(numberFrom(summary.spontaneous_visibility ?? summary.ai_visibility ?? semantic?.brand_visibility)) : null
   const assistedVisibility = assistedResults > 0 ? Math.round(numberFrom(summary.assisted_visibility)) : null
   const competitiveVisibility = competitiveResults > 0 ? Math.round(numberFrom(summary.competitive_visibility)) : null
-  const citationCoverage = citationResults > 0 ? Math.round(numberFrom(summary.citation_coverage)) : null
+  const citationCoverage = strictCitationStats.total > 0 ? Math.round((strictCitationStats.hits / strictCitationStats.total) * 100) : citationResults > 0 ? Math.round(numberFrom(summary.citation_coverage)) : null
   const metricRisks = [
     spontaneousVisibility === null || spontaneousVisibility === 0
       ? {
