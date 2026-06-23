@@ -5,6 +5,28 @@ const DEFAULT_PROD_SUPABASE_REF = "xgedzmeguukvqdotnqap"
 export const GEO_SUPABASE_URL = process.env.GEO_SUPABASE_URL || ""
 export const GEO_SUPABASE_ANON_KEY = process.env.GEO_SUPABASE_ANON_KEY || ""
 const GEO_SUPABASE_SERVICE_ROLE_KEY = process.env.GEO_SUPABASE_SERVICE_ROLE_KEY || ""
+const MAIN_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ""
+const EXPLICIT_BLOCKED_REFS = (process.env.GEO_BLOCKED_SUPABASE_REFS || "")
+  .split(",")
+  .map((ref) => ref.trim())
+  .filter(Boolean)
+
+function getSupabaseProjectRef(url: string) {
+  try {
+    return new URL(url).hostname.split(".")[0] || ""
+  } catch {
+    return ""
+  }
+}
+
+function assertGeoProjectIsSeparated() {
+  const geoRef = getSupabaseProjectRef(GEO_SUPABASE_URL)
+  const mainRef = getSupabaseProjectRef(MAIN_SUPABASE_URL)
+  const blockedRefs = new Set([mainRef, ...EXPLICIT_BLOCKED_REFS].filter(Boolean))
+  if (geoRef && blockedRefs.has(geoRef)) {
+    throw new Error(`Blocked GEO Supabase: GEO is connected to a non-GEO Supabase project (${geoRef}). Set GEO_SUPABASE_URL to the dedicated GEO project.`)
+  }
+}
 
 function assertSafeGeoWrite(req: Request) {
   const method = req.method.toUpperCase()
@@ -28,8 +50,9 @@ function getGeoAnonSupabaseWithToken(accessToken: string) {
   })
 }
 
-function getGeoServiceSupabase() {
+export function getGeoServiceSupabase() {
   if (!GEO_SUPABASE_URL || !GEO_SUPABASE_SERVICE_ROLE_KEY) return null
+  assertGeoProjectIsSeparated()
   return createClient(GEO_SUPABASE_URL, GEO_SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   })
@@ -44,6 +67,7 @@ export async function getGeoApiClient(req: Request) {
     throw new Error("Supabase server env missing")
   }
 
+  assertGeoProjectIsSeparated()
   assertSafeGeoWrite(req)
 
   const userResponse = await fetch(`${GEO_SUPABASE_URL}/auth/v1/user`, {

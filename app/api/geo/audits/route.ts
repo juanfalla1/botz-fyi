@@ -6,7 +6,7 @@ import { consumeServerUsage } from "@/lib/geo/repositories/usage.repo";
 import { processAuditQueueForUser } from "@/lib/geo/services/audit-jobs.service";
 import { assertProjectOwner } from "@/lib/geo/ownership";
 
-export const maxDuration = 60
+export const maxDuration = 300
 
 export async function GET(req: Request) {
   try {

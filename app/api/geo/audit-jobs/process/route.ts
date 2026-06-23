@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { getGeoApiClient } from "@/lib/geo/api-auth"
 import { processAuditQueueForUser } from "@/lib/geo/services/audit-jobs.service"
 
+export const maxDuration = 300
+
 export async function POST(req: Request) {
   try {
     const { supabase, user } = await getGeoApiClient(req)
