@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { UsageEventRecord } from "@/lib/geo/db-types"
+import { GEO_PLAN_LIMITS, limitsForGeoPlan } from "@/lib/geo/plans"
 
 type SubscriptionRecord = {
   id: string
@@ -10,6 +11,7 @@ type SubscriptionRecord = {
   audits_used: number
   prompts_limit: number
   prompts_used: number
+  projects_limit?: number | null
   current_period_end?: string
 }
 
@@ -19,7 +21,7 @@ function isUsageSchemaMismatch(error: unknown) {
     : error && typeof error === "object"
       ? Object.values(error as Record<string, unknown>).filter(Boolean).map(String).join(" | ")
       : String(error || "")
-  return message.includes("subscriptions.audits_limit") || message.includes("subscriptions.prompts_limit") || message.includes("subscriptions.audits_used") || message.includes("subscriptions.prompts_used") || message.includes("42703")
+  return message.includes("subscriptions.audits_limit") || message.includes("subscriptions.prompts_limit") || message.includes("subscriptions.projects_limit") || message.includes("subscriptions.audits_used") || message.includes("subscriptions.prompts_used") || message.includes("42703")
 }
 
 export async function listUsageEvents(supabase: SupabaseClient, userId: string, limit = 100) {
@@ -45,7 +47,7 @@ export async function createUsageEvent(
 export async function ensureServerSubscription(supabase: SupabaseClient, userId: string) {
   const { data: existing, error: existingError } = await supabase
     .from("subscriptions")
-    .select("id, user_id, plan, status, audits_limit, audits_used, prompts_limit, prompts_used, current_period_end")
+    .select("id, user_id, plan, status, projects_limit, audits_limit, audits_used, prompts_limit, prompts_used, current_period_end")
     .eq("user_id", userId)
     .maybeSingle()
   if (existingError) throw existingError
@@ -57,14 +59,15 @@ export async function ensureServerSubscription(supabase: SupabaseClient, userId:
       user_id: userId,
       plan: "trial",
       status: "active",
-      audits_limit: 3,
+      projects_limit: GEO_PLAN_LIMITS.trial.projects_limit,
+      audits_limit: GEO_PLAN_LIMITS.trial.audits_limit,
       audits_used: 0,
-      prompts_limit: 25,
+      prompts_limit: GEO_PLAN_LIMITS.trial.prompts_limit,
       prompts_used: 0,
       current_period_start: new Date().toISOString(),
       current_period_end: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3).toISOString(),
     })
-    .select("id, user_id, plan, status, audits_limit, audits_used, prompts_limit, prompts_used, current_period_end")
+    .select("id, user_id, plan, status, projects_limit, audits_limit, audits_used, prompts_limit, prompts_used, current_period_end")
     .single()
   if (error) throw error
   return data as SubscriptionRecord
@@ -95,7 +98,17 @@ export async function consumeServerUsage(
     throw new Error("Free trial ended")
   }
 
-  const usedKey = type === "audit" ? "audits_used" : "prompts_used"
+  if (type === "prompt") {
+    await createUsageEvent(supabase, {
+      user_id: userId,
+      event_type: "prompt_used",
+      amount,
+      metadata,
+    })
+    return
+  }
+
+  const usedKey = "audits_used"
   const limitKey = type === "audit" ? "audits_limit" : "prompts_limit"
   const nextUsed = Number(subscription[usedKey]) + amount
   const limit = Number(subscription[limitKey])
@@ -125,4 +138,36 @@ export async function consumeServerUsage(
     amount,
     metadata,
   })
+}
+
+export async function assertProjectLimit(supabase: SupabaseClient, userId: string) {
+  const subscription = await ensureServerSubscription(supabase, userId)
+  if (subscription.status !== "active") throw new Error("Subscription is not active")
+  if (subscription.plan === "trial" && subscription.current_period_end && new Date(subscription.current_period_end).getTime() < Date.now()) {
+    throw new Error("Free trial ended")
+  }
+  const limits = limitsForGeoPlan(subscription.plan)
+  const limit = Number(subscription.projects_limit ?? limits.projects_limit)
+  const { count, error } = await supabase.from("projects").select("id", { count: "exact", head: true }).eq("user_id", userId)
+  if (error) throw error
+  if (Number(count ?? 0) >= limit) throw new Error("Brand limit reached for current plan")
+}
+
+export async function assertMonitoredPromptLimit(supabase: SupabaseClient, userId: string) {
+  const subscription = await ensureServerSubscription(supabase, userId)
+  if (subscription.status !== "active") throw new Error("Subscription is not active")
+  if (subscription.plan === "trial" && subscription.current_period_end && new Date(subscription.current_period_end).getTime() < Date.now()) {
+    throw new Error("Free trial ended")
+  }
+  const limit = Number(subscription.prompts_limit)
+  const { count, error } = await supabase.from("geo_prompts").select("id", { count: "exact", head: true }).eq("user_id", userId)
+  if (error) throw error
+  if (Number(count ?? 0) >= limit) throw new Error("Monitored prompt limit reached for current plan")
+}
+
+export async function syncMonitoredPromptUsage(supabase: SupabaseClient, userId: string) {
+  const { count, error } = await supabase.from("geo_prompts").select("id", { count: "exact", head: true }).eq("user_id", userId)
+  if (error) throw error
+  const { error: updateError } = await supabase.from("subscriptions").update({ prompts_used: Number(count ?? 0) }).eq("user_id", userId)
+  if (updateError && !isUsageSchemaMismatch(updateError)) throw updateError
 }

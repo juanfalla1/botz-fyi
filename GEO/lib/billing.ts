@@ -1,4 +1,5 @@
 import { supabaseGeo } from "@/app/geo/supabaseGeoClient"
+import { GEO_PLAN_LIMITS } from "@/lib/geo/plans"
 
 export type GeoPlan = "trial" | "starter" | "growth" | "enterprise"
 export type SubscriptionStatus = "active" | "inactive" | "canceled" | "past_due"
@@ -13,6 +14,10 @@ export type GeoSubscription = {
   audits_used: number
   prompts_limit: number
   prompts_used: number
+  projects_limit?: number | null
+  stripe_customer_id?: string | null
+  stripe_subscription_id?: string | null
+  stripe_price_id?: string | null
   current_period_start: string
   current_period_end: string
   metadata?: Record<string, unknown> | null
@@ -65,9 +70,10 @@ export async function ensureTrialSubscription(userId: string, requestedPlan?: Re
     user_id: userId,
     plan: "trial",
     status: "active",
-    audits_limit: 3,
+    projects_limit: GEO_PLAN_LIMITS.trial.projects_limit,
+    audits_limit: GEO_PLAN_LIMITS.trial.audits_limit,
     audits_used: 0,
-    prompts_limit: 25,
+    prompts_limit: GEO_PLAN_LIMITS.trial.prompts_limit,
     prompts_used: 0,
     current_period_start: new Date().toISOString(),
     current_period_end: defaultPeriodEnd(),
@@ -141,20 +147,21 @@ export async function updatePlanMock(plan: GeoPlan) {
   const subscription = await getMySubscription()
   if (!subscription) throw new Error("No active user")
 
-  const planLimits: Record<GeoPlan, { audits_limit: number; prompts_limit: number }> = {
-    trial: { audits_limit: 3, prompts_limit: 25 },
-    starter: { audits_limit: 20, prompts_limit: 200 },
-    growth: { audits_limit: 100, prompts_limit: 1000 },
-    enterprise: { audits_limit: 1000000, prompts_limit: 1000000 },
+  const planLimits: Record<GeoPlan, { projects_limit: number; audits_limit: number; prompts_limit: number }> = {
+    trial: GEO_PLAN_LIMITS.trial,
+    starter: GEO_PLAN_LIMITS.starter,
+    growth: GEO_PLAN_LIMITS.growth,
+    enterprise: GEO_PLAN_LIMITS.enterprise,
   }
 
-  const { audits_limit, prompts_limit } = planLimits[plan]
+  const { projects_limit, audits_limit, prompts_limit } = planLimits[plan]
 
   const { data, error } = await supabaseGeo
     .from("subscriptions")
     .update({
       plan,
       status: "active",
+      projects_limit,
       audits_limit,
       prompts_limit,
       current_period_start: new Date().toISOString(),

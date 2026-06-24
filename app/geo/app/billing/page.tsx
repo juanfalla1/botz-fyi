@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getMySubscription, type GeoSubscription, type GeoUsageEvent } from "@/GEO/lib/billing"
 import { useGeoI18n } from "@/GEO/components/geo/i18n"
 import { supabaseGeo } from "@/app/geo/supabaseGeoClient"
+import { GEO_PLAN_LIMITS } from "@/lib/geo/plans"
 
 export default function BillingPage() {
   const { locale } = useGeoI18n()
@@ -15,6 +16,7 @@ export default function BillingPage() {
   const [events, setEvents] = useState<GeoUsageEvent[]>([])
   const [usageTotals, setUsageTotals] = useState<Record<string, number>>({})
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -45,14 +47,51 @@ export default function BillingPage() {
     }
   }, [])
 
-  const handlePlanRequest = () => {
-    setFeedback(locale === "en" ? "Plan changes are handled by the Botz GEO team for now." : "Por ahora los cambios de plan los gestiona el equipo de Botz GEO.")
+  const startCheckout = async (plan: "starter" | "growth") => {
+    setLoadingPlan(plan)
+    setFeedback(null)
+    try {
+      const {
+        data: { session },
+      } = await supabaseGeo.auth.getSession()
+      if (!session?.access_token) throw new Error("Unauthorized")
+      const res = await fetch("/api/geo/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ plan }),
+      })
+      const json = (await res.json()) as { url?: string; error?: string }
+      if (!res.ok || !json.url) throw new Error(json.error || "Could not start checkout")
+      window.location.href = json.url
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : locale === "en" ? "Could not start checkout." : "No se pudo iniciar el checkout.")
+      setLoadingPlan(null)
+    }
+  }
+
+  const openBillingPortal = async () => {
+    setLoadingPlan("portal")
+    setFeedback(null)
+    try {
+      const {
+        data: { session },
+      } = await supabaseGeo.auth.getSession()
+      if (!session?.access_token) throw new Error("Unauthorized")
+      const res = await fetch("/api/geo/billing/portal", { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` } })
+      const json = (await res.json()) as { url?: string; error?: string }
+      if (!res.ok || !json.url) throw new Error(json.error || "Could not open billing portal")
+      window.location.href = json.url
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : locale === "en" ? "Could not open billing portal." : "No se pudo abrir el portal de facturacion.")
+      setLoadingPlan(null)
+    }
   }
 
   const auditsUsed = subscription?.audits_used ?? 0
   const auditsLimit = subscription?.audits_limit ?? 3
   const promptsUsed = subscription?.prompts_used ?? 0
   const promptsLimit = subscription?.prompts_limit ?? 25
+  const projectsLimit = subscription?.projects_limit ?? GEO_PLAN_LIMITS.trial.projects_limit
   const auditPct = Math.min(100, Math.round((auditsUsed / Math.max(1, auditsLimit)) * 100))
   const promptPct = Math.min(100, Math.round((promptsUsed / Math.max(1, promptsLimit)) * 100))
   const periodEnd = subscription?.current_period_end ? new Date(subscription.current_period_end) : new Date(Date.now() + 1000 * 60 * 60 * 24 * 3)
@@ -112,6 +151,7 @@ export default function BillingPage() {
               <p className="capitalize text-sm"><strong>{locale === "en" ? "Plan" : "Plan"}:</strong> {subscription?.plan ?? "trial"}</p>
               <p className="text-sm"><strong>{locale === "en" ? "Plan status" : "Estado del plan"}:</strong> {statusLabel}</p>
               <p className="text-sm"><strong>{locale === "en" ? "Monthly usage" : "Consumo mensual"}:</strong> {auditsUsed + promptsUsed}</p>
+              <p className="text-sm"><strong>{locale === "en" ? "Brand limit" : "Limite de marcas"}:</strong> {projectsLimit >= 1000000 ? (locale === "en" ? "Unlimited" : "Ilimitadas") : projectsLimit}</p>
               {requestedPlan && <p className="capitalize text-sm"><strong>{locale === "en" ? "Requested plan" : "Plan elegido"}:</strong> {requestedPlan}</p>}
             </div>
 
@@ -157,9 +197,11 @@ export default function BillingPage() {
               </p>
             )}
 
-            <Button className="mt-3 bg-primary hover:bg-primary/90" asChild>
-                <Link href={`/geo/agendar-demo${requestedPlan ? `?plan=${requestedPlan}` : ""}`}>{locale === "en" ? "Request plan upgrade" : "Solicitar mejora de plan"}</Link>
-            </Button>
+            {subscription?.stripe_customer_id && (
+              <Button className="mt-3 bg-primary hover:bg-primary/90" onClick={openBillingPortal} disabled={loadingPlan === "portal"}>
+                {loadingPlan === "portal" ? (locale === "en" ? "Opening..." : "Abriendo...") : locale === "en" ? "Manage billing" : "Gestionar facturación"}
+              </Button>
+            )}
           </CardContent>
         </Card>
 
@@ -195,8 +237,8 @@ export default function BillingPage() {
                 <li>{locale === "en" ? "Monthly reports" : "Reportes mensuales"}</li>
                 <li>{locale === "en" ? "Email support" : "Soporte por email"}</li>
               </ul>
-              <Button className="w-full" asChild onClick={handlePlanRequest}>
-                <Link href="/geo/agendar-demo?plan=starter">{locale === "en" ? "Request Starter" : "Solicitar Starter"}</Link>
+              <Button className="w-full" onClick={() => startCheckout("starter")} disabled={Boolean(loadingPlan)}>
+                {loadingPlan === "starter" ? (locale === "en" ? "Opening checkout..." : "Abriendo checkout...") : locale === "en" ? "Buy Starter" : "Comprar Starter"}
               </Button>
             </CardContent>
           </Card>
@@ -218,8 +260,8 @@ export default function BillingPage() {
                 <li>{locale === "en" ? "Weekly reports" : "Reportes semanales"}</li>
                 <li>{locale === "en" ? "Priority support" : "Soporte prioritario"}</li>
               </ul>
-              <Button className="w-full" asChild onClick={handlePlanRequest}>
-                <Link href="/geo/agendar-demo?plan=growth">{locale === "en" ? "Request Growth" : "Solicitar Growth"}</Link>
+              <Button className="w-full" onClick={() => startCheckout("growth")} disabled={Boolean(loadingPlan)}>
+                {loadingPlan === "growth" ? (locale === "en" ? "Opening checkout..." : "Abriendo checkout...") : locale === "en" ? "Buy Growth" : "Comprar Growth"}
               </Button>
             </CardContent>
           </Card>
@@ -247,7 +289,7 @@ export default function BillingPage() {
         </div>
 
         <div className="pt-2 text-center text-sm text-muted-foreground">
-          <p>{locale === "en" ? "No credit card required" : "No requiere tarjeta de crédito"}</p>
+          <p>{locale === "en" ? "Secure payment powered by Stripe for Starter and Growth" : "Pago seguro con Stripe para Starter y Growth"}</p>
           <p>{locale === "en" ? "Cancel anytime" : "Cancela cuando quieras"}</p>
           <p>{locale === "en" ? "Powered by GPT, Gemini & Perplexity" : "Impulsado por GPT, Gemini y Perplexity"}</p>
         </div>

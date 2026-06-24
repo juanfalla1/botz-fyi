@@ -2,11 +2,14 @@ import { NextResponse } from "next/server"
 import { getGeoApiClient } from "@/lib/geo/api-auth"
 import { createGeoPrompt, listGeoPrompts } from "@/lib/geo/repositories/geo-prompts.repo"
 import { geoPromptCreateSchema } from "@/lib/validators/geo-prompts.schema"
+import { assertMonitoredPromptLimit, syncMonitoredPromptUsage } from "@/lib/geo/repositories/usage.repo"
+import { assertProjectOwner } from "@/lib/geo/ownership"
 
 export async function GET(req: Request, { params }: { params: Promise<{ projectId: string }> }) {
   try {
     const { projectId } = await params
     const { supabase, user } = await getGeoApiClient(req)
+    await assertProjectOwner(supabase, user.id, projectId)
     const data = await listGeoPrompts(supabase, user.id, projectId)
     return NextResponse.json({ data, mode: "live" })
   } catch (error) {
@@ -22,6 +25,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
   try {
     const { projectId } = await params
     const { supabase, user } = await getGeoApiClient(req)
+    await assertProjectOwner(supabase, user.id, projectId)
+    await assertMonitoredPromptLimit(supabase, user.id)
     const data = await createGeoPrompt(supabase, {
       user_id: user.id,
       project_id: projectId,
@@ -33,6 +38,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ project
       enabled: parsed.data.enabled,
       metadata: parsed.data.metadata,
     })
+    await syncMonitoredPromptUsage(supabase, user.id)
     return NextResponse.json({ data, mode: "live" }, { status: 201 })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unauthorized" }, { status: 401 })

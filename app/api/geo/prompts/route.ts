@@ -3,6 +3,7 @@ import { getGeoApiClient } from "@/lib/geo/api-auth"
 import { createGeoPrompt, deleteGeoPrompt, listGeoPrompts, updateGeoPrompt } from "@/lib/geo/repositories/geo-prompts.repo"
 import { geoPromptCreateSchema, geoPromptUpdateSchema } from "@/lib/validators/geo-prompts.schema"
 import { assertProjectOwner } from "@/lib/geo/ownership"
+import { assertMonitoredPromptLimit, syncMonitoredPromptUsage } from "@/lib/geo/repositories/usage.repo"
 
 export async function GET(req: Request) {
   try {
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
   try {
     const { supabase, user } = await getGeoApiClient(req)
     await assertProjectOwner(supabase, user.id, projectId)
+    await assertMonitoredPromptLimit(supabase, user.id)
     const data = await createGeoPrompt(supabase, {
       user_id: user.id,
       project_id: projectId,
@@ -39,6 +41,7 @@ export async function POST(req: Request) {
       enabled: parsed.data.enabled,
       metadata: parsed.data.metadata,
     })
+    await syncMonitoredPromptUsage(supabase, user.id)
     return NextResponse.json({ data, mode: "live" }, { status: 201 })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unauthorized" }, { status: 401 })
@@ -73,6 +76,7 @@ export async function DELETE(req: Request) {
     const { supabase, user } = await getGeoApiClient(req)
     await assertProjectOwner(supabase, user.id, projectId)
     await deleteGeoPrompt(supabase, user.id, projectId, promptId)
+    await syncMonitoredPromptUsage(supabase, user.id)
     return NextResponse.json({ ok: true, mode: "live" })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unauthorized" }, { status: 401 })

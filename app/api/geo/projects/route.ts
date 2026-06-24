@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { projectSchema } from "@geo/validators/project.schema";
 import { getGeoApiClient } from "@/lib/geo/api-auth";
 import { createProject, listProjects } from "@/lib/geo/repositories/projects.repo";
+import { assertProjectLimit, syncMonitoredPromptUsage } from "@/lib/geo/repositories/usage.repo";
 
 function isAuthError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "")
@@ -124,6 +125,7 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   try {
     const { supabase, user } = await getGeoApiClient(req);
+    await assertProjectLimit(supabase, user.id)
     const data = await createProject(supabase, {
       user_id: user.id,
       workspace_id: body.workspace_id ?? null,
@@ -171,6 +173,7 @@ export async function POST(req: Request) {
         }))
       )
       if (promptsError) throw promptsError
+      await syncMonitoredPromptUsage(supabase, user.id)
     }
 
     return NextResponse.json({ data, mode: "live" }, { status: 201 });
