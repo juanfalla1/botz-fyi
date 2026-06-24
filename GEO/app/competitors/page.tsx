@@ -246,6 +246,8 @@ export default function CompetitorsPage() {
       geoScore: c.geo_score,
       visibility: c.visibility,
       citations: c.citations,
+      mentions: c.mentions,
+      totalChecks: c.total_checks,
       trend: "up",
       change: c.total_checks > 0 ? `${c.mentions}/${c.total_checks}` : "--",
       promptsWon: c.prompts_won,
@@ -464,6 +466,7 @@ export default function CompetitorsPage() {
                       <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">GEO Score</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">AI Visibility</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Citations</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Evaluaciones</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Prompts Ganados</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Trend</th>
                       <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Acciones</th>
@@ -472,7 +475,7 @@ export default function CompetitorsPage() {
                   <tbody>
                     {tableCompetitors.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="py-12 text-center">
+                          <td colSpan={8} className="py-12 text-center">
                           <p className="text-base font-medium">{isEn ? "No competitors yet" : "Sin competidores aun"}</p>
                           <p className="mt-1 text-sm text-muted-foreground">{isEn ? "Add a competitor to compare visibility and recommendations." : "Agrega un competidor para comparar visibilidad y recomendaciones."}</p>
                           <Button className="mt-4" asChild>
@@ -510,6 +513,19 @@ export default function CompetitorsPage() {
                         </td>
                         <td className="py-4 px-4">
                           <span className="font-medium">{competitor.citations}</span>
+                        </td>
+                        <td className="py-4 px-4">
+                          {competitor.totalChecks > 0 ? (
+                            <div>
+                              <p className="font-medium text-sm">{competitor.mentions}/{competitor.totalChecks}</p>
+                              <p className="text-xs text-muted-foreground">{isEn ? "mentions/checks" : "menciones/evaluaciones"}</p>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="font-medium text-sm text-muted-foreground">0</p>
+                              <p className="text-xs text-muted-foreground">{isEn ? "run a new audit" : "requiere auditoria nueva"}</p>
+                            </div>
+                          )}
                         </td>
                         <td className="py-4 px-4">
                           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary">

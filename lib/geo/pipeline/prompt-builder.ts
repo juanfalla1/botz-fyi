@@ -11,7 +11,12 @@ export function buildBasePrompts(ctx: PipelineContext, crawledPages: CrawledPage
     .filter((competitor) => !isSameEntity(ctx.project.company_name, ctx.project.website_url, competitor.name, competitor.domain))
     .map((c) => c.name)
     .slice(0, 3)
-  const competitorText = competitorNames.join(", ")
+  const competitorPrompts = competitorNames.map((competitorName) => ({
+    category: "comparison",
+    prompt: isEnglish
+      ? `Compare ${ctx.project.company_name} vs ${competitorName} for ${categoryContext} in ${ctx.project.country}. Which option is stronger for buyers and why?`
+      : `Compara ${ctx.project.company_name} vs ${competitorName} para ${categoryContext} en ${ctx.project.country}. ¿Qué opción es más fuerte para compradores y por qué?`,
+  }))
 
   const templates = isEnglish
     ? [
@@ -20,7 +25,7 @@ export function buildBasePrompts(ctx: PipelineContext, crawledPages: CrawledPage
         { category: "spontaneous", prompt: `What company would you recommend for ${categoryContext} in ${ctx.project.country}, and why?` },
         { category: "assisted", prompt: `When evaluating ${ctx.project.company_name} for ${categoryContext}, what strengths, gaps and proof points should a buyer verify?` },
         { category: "citation", prompt: `Find external trusted sources mentioning ${domain}. Exclude the brand's own website.` },
-        ...(competitorText ? [{ category: "competitive", prompt: `Compare ${ctx.project.company_name} vs ${competitorText} for ${categoryContext} in ${ctx.project.country}. Which option is stronger for buyers and why?` }] : []),
+        ...competitorPrompts,
       ]
     : [
         { category: "spontaneous", prompt: `¿Qué empresas ofrecen ${categoryContext} en ${ctx.project.country}?` },
@@ -28,7 +33,7 @@ export function buildBasePrompts(ctx: PipelineContext, crawledPages: CrawledPage
         { category: "spontaneous", prompt: `¿Qué empresa recomendarías para ${categoryContext} en ${ctx.project.country} y por qué?` },
         { category: "assisted", prompt: `Al evaluar ${ctx.project.company_name} para ${categoryContext}, ¿qué fortalezas, brechas y pruebas debería validar un comprador?` },
         { category: "citation", prompt: `Encuentra fuentes externas confiables que mencionen ${domain}. Excluye el sitio propio de la marca.` },
-        ...(competitorText ? [{ category: "competitive", prompt: `Compara ${ctx.project.company_name} vs ${competitorText} para ${categoryContext} en ${ctx.project.country}. ¿Qué opción es más fuerte para compradores y por qué?` }] : []),
+        ...competitorPrompts,
       ]
 
   const prompts: GeneratedPrompt[] = []

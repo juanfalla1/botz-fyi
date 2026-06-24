@@ -232,6 +232,7 @@ const statusConfig = {
 const categoryConfig: Record<string, { label: string; className: string }> = {
   product: { label: "Producto", className: "bg-blue-500/20 text-blue-400" },
   comparison: { label: "Comparativa", className: "bg-purple-500/20 text-purple-400" },
+  competitive: { label: "Comparativa", className: "bg-purple-500/20 text-purple-400" },
   recommendation: { label: "Recomendación", className: "bg-emerald-500/20 text-emerald-400" },
   alternative: { label: "Alternativa", className: "bg-orange-500/20 text-orange-400" },
 }
@@ -324,6 +325,12 @@ function promptKindForResult(prompt: PromptItem, result: Record<string, unknown>
   if (kind.includes("assisted")) return "assisted"
   if (kind.includes("comparison") || kind.includes("competitive") || kind.includes("alternative")) return "competitive"
   return "spontaneous"
+}
+
+function normalizedCategory(category: string) {
+  const value = category.toLowerCase().trim()
+  if (value === "competitive") return "comparison"
+  return value
 }
 
 function normalizedEvidenceText(value: string) {
@@ -685,7 +692,7 @@ export default function PromptsLibraryPage() {
   const categories = useMemo(() => [
     { id: "all", label: isEn ? "All" : "Todos", count: prompts.length },
     { id: "product", label: isEn ? "Product" : "Producto", count: prompts.filter((p) => p.category === "product").length },
-    { id: "comparison", label: isEn ? "Comparison" : "Comparativa", count: prompts.filter((p) => p.category === "comparison").length },
+    { id: "comparison", label: isEn ? "Comparison" : "Comparativa", count: prompts.filter((p) => normalizedCategory(p.category) === "comparison").length },
     { id: "recommendation", label: isEn ? "Recommendation" : "Recomendación", count: prompts.filter((p) => p.category === "recommendation").length },
     { id: "alternative", label: isEn ? "Alternative" : "Alternativa", count: prompts.filter((p) => p.category === "alternative").length },
   ], [isEn, prompts])
@@ -706,7 +713,7 @@ export default function PromptsLibraryPage() {
 
   const filteredPrompts = prompts.filter((prompt) => {
     const matchesSearch = prompt.text.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = categoryFilter === "all" || prompt.category === categoryFilter
+    const matchesCategory = categoryFilter === "all" || normalizedCategory(prompt.category) === categoryFilter
     const matchesStatus = !statusFilter || prompt.status === statusFilter
     const matchesEngine = !engineFilter || prompt.engines.includes(engineFilter)
     return matchesSearch && matchesCategory && matchesStatus && matchesEngine
