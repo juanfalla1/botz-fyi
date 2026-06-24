@@ -16,6 +16,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Filter,
+  Sparkles,
 } from "lucide-react"
 import {
   RadarChart,
@@ -65,6 +66,19 @@ type CompetitorSummary = {
   completed_audits: number
 }
 
+type GeoProject = {
+  id: string
+  company_name: string
+  website_url: string
+}
+
+type CompetitorSuggestion = {
+  name: string
+  domain: string | null
+  reason: string
+  selected: boolean
+}
+
 export default function CompetitorsPage() {
   const { t, locale } = useGeoI18n()
   const isEn = locale === "en"
@@ -73,8 +87,15 @@ export default function CompetitorsPage() {
   const [openAddModal, setOpenAddModal] = useState(false)
   const [expandedFields, setExpandedFields] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [detecting, setDetecting] = useState(false)
+  const [savingDetected, setSavingDetected] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [form, setForm] = useState({ name: "", domain: "", country: "", industry: "" })
+  const [projects, setProjects] = useState<GeoProject[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [openDetectModal, setOpenDetectModal] = useState(false)
+  const [suggestions, setSuggestions] = useState<CompetitorSuggestion[]>([])
+  const [manualDetected, setManualDetected] = useState({ name: "", domain: "" })
 
   const loadCompetitors = async () => {
     const {
@@ -88,9 +109,22 @@ export default function CompetitorsPage() {
     setSummary(json.data?.summary ?? null)
   }
 
+  const loadProjects = async () => {
+    const {
+      data: { session },
+    } = await supabaseGeo.auth.getSession()
+    if (!session?.access_token) return
+    const res = await fetch("/api/geo/projects", { headers: { Authorization: `Bearer ${session.access_token}` } })
+    if (!res.ok) return
+    const json = (await res.json()) as { data?: GeoProject[] }
+    const nextProjects = json.data ?? []
+    setProjects(nextProjects)
+    setSelectedProjectId((current) => current ?? nextProjects[0]?.id ?? null)
+  }
+
   useEffect(() => {
     let mounted = true
-    void loadCompetitors().then(() => {
+    void Promise.all([loadCompetitors(), loadProjects()]).then(() => {
       if (!mounted) return
     })
     return () => { mounted = false }
@@ -114,7 +148,7 @@ export default function CompetitorsPage() {
         body: JSON.stringify({
           name: form.name.trim(),
           domain: form.domain.trim().replace(/^https?:\/\//, ""),
-          project_id: null,
+          project_id: selectedProjectId,
         }),
       })
       if (!res.ok) throw new Error("Create failed")
@@ -129,6 +163,77 @@ export default function CompetitorsPage() {
       setTimeout(() => setFeedback(null), 2600)
     } finally {
       setAdding(false)
+    }
+  }
+
+  const detectCompetitors = async () => {
+    if (!selectedProjectId) {
+      setFeedback(isEn ? "Create a project before detecting competitors." : "Crea un proyecto antes de detectar competidores.")
+      setTimeout(() => setFeedback(null), 2600)
+      return
+    }
+    setDetecting(true)
+    try {
+      const {
+        data: { session },
+      } = await supabaseGeo.auth.getSession()
+      if (!session?.access_token) throw new Error("Unauthorized")
+      const res = await fetch("/api/geo/competitors/detect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ project_id: selectedProjectId }),
+      })
+      if (!res.ok) throw new Error("Detection failed")
+      const json = (await res.json()) as { data?: Array<{ name: string; domain: string | null; reason: string }> }
+      setSuggestions((json.data ?? []).map((item) => ({ ...item, selected: true })))
+      setOpenDetectModal(true)
+    } catch {
+      setFeedback(isEn ? "Could not detect competitors right now." : "No se pudieron detectar competidores ahora.")
+      setTimeout(() => setFeedback(null), 2600)
+    } finally {
+      setDetecting(false)
+    }
+  }
+
+  const addManualDetected = () => {
+    const name = manualDetected.name.trim()
+    const domain = manualDetected.domain.trim().replace(/^https?:\/\//, "").replace(/^www\./, "")
+    if (!name || !domain) return
+    setSuggestions((prev) => [...prev, { name, domain, reason: isEn ? "Added manually." : "Agregado manualmente.", selected: true }])
+    setManualDetected({ name: "", domain: "" })
+  }
+
+  const saveDetectedCompetitors = async () => {
+    const selected = suggestions.filter((item) => item.selected && item.name.trim() && item.domain?.trim())
+    if (!selectedProjectId || selected.length === 0) {
+      setFeedback(isEn ? "Select at least one competitor with domain." : "Selecciona al menos un competidor con dominio.")
+      setTimeout(() => setFeedback(null), 2600)
+      return
+    }
+    setSavingDetected(true)
+    try {
+      const {
+        data: { session },
+      } = await supabaseGeo.auth.getSession()
+      if (!session?.access_token) throw new Error("Unauthorized")
+      for (const competitor of selected) {
+        const res = await fetch("/api/geo/competitors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ name: competitor.name.trim(), domain: competitor.domain?.trim() ?? null, project_id: selectedProjectId }),
+        })
+        if (!res.ok) throw new Error("Create failed")
+      }
+      await loadCompetitors()
+      setOpenDetectModal(false)
+      setSuggestions([])
+      setFeedback(isEn ? "Competitors added successfully." : "Competidores agregados correctamente.")
+      setTimeout(() => setFeedback(null), 2600)
+    } catch {
+      setFeedback(isEn ? "Could not save selected competitors." : "No se pudieron guardar los competidores seleccionados.")
+      setTimeout(() => setFeedback(null), 2600)
+    } finally {
+      setSavingDetected(false)
     }
   }
 
@@ -223,6 +328,10 @@ export default function CompetitorsPage() {
             <Button variant="outline" className="border-border">
               <Filter className="w-4 h-4 mr-2" />
               {isEn ? "Filter" : "Filtrar"}
+            </Button>
+            <Button variant="outline" className="border-border" onClick={detectCompetitors} disabled={detecting || projects.length === 0}>
+              <Sparkles className="w-4 h-4 mr-2" />
+              {detecting ? (isEn ? "Detecting..." : "Detectando...") : isEn ? "Detect with AI" : "Detectar competidores con IA"}
             </Button>
             <Button className="bg-primary hover:bg-primary/90 glow-primary" onClick={() => setOpenAddModal(true)}>
               <span className="inline-flex items-center">
@@ -510,6 +619,110 @@ export default function CompetitorsPage() {
               </Button>
               <Button className="bg-primary hover:bg-primary/90" onClick={addCompetitor} disabled={adding}>
                 {adding ? (isEn ? "Adding..." : "Agregando...") : isEn ? "Add competitor" : "Agregar competidor"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {openDetectModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-primary/20 bg-gradient-to-b from-[#0c1224] to-[#0a0f1d] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-semibold tracking-tight text-white">{isEn ? "AI competitor detection" : "Deteccion de competidores con IA"}</h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  {isEn ? "Review each suggestion before adding it to your GEO project." : "Revisa cada sugerencia antes de agregarla a tu proyecto GEO."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenDetectModal(false)}
+                className="rounded-lg border border-border/60 px-2 py-1 text-xs text-slate-300 hover:bg-white/5"
+              >
+                {isEn ? "Close" : "Cerrar"}
+              </button>
+            </div>
+
+            <div className="mb-5 rounded-xl border border-border bg-[#111a2d]/60 p-4">
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-400">{isEn ? "Project" : "Proyecto"}</label>
+              <select
+                value={selectedProjectId ?? ""}
+                onChange={(e) => setSelectedProjectId(e.target.value || null)}
+                className="h-11 w-full rounded-xl border border-border bg-[#111a2d]/80 px-3 text-sm text-white focus:border-primary/50 focus:outline-none"
+              >
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.company_name} - {project.website_url}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="overflow-hidden rounded-xl border border-border">
+              <table className="w-full table-fixed">
+                <thead className="bg-white/5">
+                  <tr>
+                    <th className="w-16 px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-400">OK</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-400">{isEn ? "Name" : "Nombre"}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-400">{isEn ? "Domain" : "Dominio"}</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-400">{isEn ? "Reason" : "Motivo"}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {suggestions.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-400">
+                        {isEn ? "No suggestions returned. Add competitors manually below." : "No hubo sugerencias. Agrega competidores manualmente abajo."}
+                      </td>
+                    </tr>
+                  )}
+                  {suggestions.map((suggestion, index) => (
+                    <tr key={`${suggestion.name}-${suggestion.domain}-${index}`} className="border-t border-border/60">
+                      <td className="px-4 py-3 align-top">
+                        <input
+                          type="checkbox"
+                          checked={suggestion.selected}
+                          onChange={(e) => setSuggestions((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, selected: e.target.checked } : item))}
+                          className="h-4 w-4 accent-primary"
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top text-sm font-medium text-white">{suggestion.name}</td>
+                      <td className="px-4 py-3 align-top text-sm text-slate-300">{suggestion.domain ?? "-"}</td>
+                      <td className="px-4 py-3 align-top text-sm text-slate-400">{suggestion.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-5 rounded-xl border border-border bg-[#111a2d]/60 p-4">
+              <p className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-400">{isEn ? "Add another manually" : "Agregar otro manualmente"}</p>
+              <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                <input
+                  value={manualDetected.name}
+                  onChange={(e) => setManualDetected((prev) => ({ ...prev, name: e.target.value }))}
+                  className="h-10 rounded-xl border border-border bg-[#111a2d]/80 px-3 text-sm text-white placeholder:text-slate-500 focus:border-primary/50 focus:outline-none"
+                  placeholder={isEn ? "Competitor name" : "Nombre competidor"}
+                />
+                <input
+                  value={manualDetected.domain}
+                  onChange={(e) => setManualDetected((prev) => ({ ...prev, domain: e.target.value }))}
+                  className="h-10 rounded-xl border border-border bg-[#111a2d]/80 px-3 text-sm text-white placeholder:text-slate-500 focus:border-primary/50 focus:outline-none"
+                  placeholder={isEn ? "domain.com" : "dominio.com"}
+                />
+                <Button variant="outline" className="border-border" onClick={addManualDetected}>
+                  {isEn ? "Add" : "Agregar"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <Button variant="outline" className="border-border" onClick={() => setOpenDetectModal(false)}>
+                {isEn ? "Cancel" : "Cancelar"}
+              </Button>
+              <Button className="bg-primary hover:bg-primary/90" onClick={saveDetectedCompetitors} disabled={savingDetected}>
+                {savingDetected ? (isEn ? "Saving..." : "Guardando...") : isEn ? "Add selected" : "Agregar seleccionados"}
               </Button>
             </div>
           </div>
