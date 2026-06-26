@@ -1,0 +1,113 @@
+{
+  "name": "Dori - Simple WhatsApp Bridge",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-botz",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-520, 0],
+      "id": "webhook-dori-simple",
+      "name": "Webhook1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.botz.fyi/api/dori",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [-280, 0],
+      "id": "call-dori-api",
+      "name": "Call Dori API",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-message",
+              "leftValue": "={{$json.message}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-40, 0],
+      "id": "has-whatsapp-reply",
+      "name": "Has WhatsApp Reply"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://95.111.236.226:8080/message/sendText/Dori",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "FE7DD3F227E7-40E5-BD4E-BB5BC1972FC7" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Webhook1').first().json.body?.data?.key?.remoteJid, text: $json.message }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [220, -80],
+      "id": "send-whatsapp",
+      "name": "Enviar mensaje a Whatsapp",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [480, 0],
+      "id": "webhook-response",
+      "name": "Webhook Response"
+    }
+  ],
+  "connections": {
+    "Webhook1": { "main": [[{ "node": "Call Dori API", "type": "main", "index": 0 }]] },
+    "Call Dori API": { "main": [[{ "node": "Has WhatsApp Reply", "type": "main", "index": 0 }]] },
+    "Has WhatsApp Reply": {
+      "main": [
+        [{ "node": "Enviar mensaje a Whatsapp", "type": "main", "index": 0 }],
+        [{ "node": "Webhook Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Enviar mensaje a Whatsapp": { "main": [[{ "node": "Webhook Response", "type": "main", "index": 0 }]] },
+    "Webhook Response": { "main": [[]] }
+  },
+  "pinData": {},
+  "meta": { "templateCredsSetupCompleted": false }
+}
