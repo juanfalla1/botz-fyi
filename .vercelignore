@@ -18,6 +18,7 @@
 *.mp4
 !public/hook-showcase.mp4
 !public/fondo-animado.mp4
+!public/botz-clinic.mp4
 *.tsbuildinfo
 *.log
 GEO/node_modules
