@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
-const VIDEO_PATH = "/BOTZ%20Clinic(1).mp4";
+const VIDEO_PATH = "/botz-clinic.mp4";
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
