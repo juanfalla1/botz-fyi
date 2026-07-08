@@ -487,6 +487,9 @@ const Agentes = () => {
 
   const allAgents = [...topRowAgents, ...bottomRowAgents];
   const selectedAgent = selectedAgentIndex === null ? null : allAgents[selectedAgentIndex] || null;
+  const operatingStats = isEn
+    ? ["8 specialized agents", "1 connected workforce", "Every workflow in motion"]
+    : ["8 agentes especializados", "1 fuerza laboral conectada", "Cada flujo en movimiento"];
 
   return (
     <section className="agentes-showcase-shell" style={{ padding: "clamp(42px, 8vw, 100px) clamp(12px, 4vw, 40px)", background: "#02040a" }}>
@@ -584,11 +587,49 @@ const Agentes = () => {
            </div>
          </div>
 
-         <div className="showcase-agent-grid">
-            {allAgents.map((agent, index) => (
-              <AgentCard key={`${agent.name}-${index}`} {...agent} ctaLabel={ctaLabel} onSelect={() => setSelectedAgentIndex(index)} />
-            ))}
-          </div>
+          <div className="showcase-agent-grid">
+             {allAgents.map((agent, index) => (
+               <AgentCard key={`${agent.name}-${index}`} {...agent} ctaLabel={ctaLabel} onSelect={() => setSelectedAgentIndex(index)} />
+             ))}
+           </div>
+
+          <section className="agent-command-center" aria-label={isEn ? "BOTZ AI Workforce command center" : "Centro de comando AI Workforce BOTZ"}>
+            <div className="agent-command-copy">
+              <span>{isEn ? "BOTZ AI Workforce" : "AI Workforce BOTZ"}</span>
+              <h3>{isEn ? "One operating system for every agent." : "Un sistema operativo para todos tus agentes."}</h3>
+              <p>
+                {isEn
+                  ? "BOTZ connects reception, sales, support, onboarding, HR, collections and custom agents into one coordinated workforce that moves work from signal to outcome."
+                  : "BOTZ conecta recepción, ventas, soporte, onboarding, talento humano, cobranza y agentes personalizados en una fuerza laboral coordinada que convierte señales en resultados."}
+              </p>
+              <div className="agent-command-stats">
+                {operatingStats.map((item) => <strong key={item}>{item}</strong>)}
+              </div>
+            </div>
+
+            <div className="agent-command-screen">
+              <div className="agent-command-orb">
+                <span>BOTZ</span>
+                <strong>Orchestrator</strong>
+              </div>
+              <div className="agent-command-video-grid">
+                {allAgents.map((agent, index) => (
+                  <button
+                    key={`workforce-${agent.name}-${index}`}
+                    type="button"
+                    className="agent-command-video"
+                    onClick={() => agent.videoSrc && setVideoDemo({ src: agent.videoSrc, title: agent.name })}
+                    onMouseEnter={(event) => event.currentTarget.querySelector("video")?.play().catch(() => {})}
+                    onFocus={(event) => event.currentTarget.querySelector("video")?.play().catch(() => {})}
+                    aria-label={isEn ? `Watch ${agent.name} demo` : `Ver demo de ${agent.name}`}
+                  >
+                    {agent.videoSrc ? <video src={agent.videoSrc} muted loop playsInline preload="metadata" /> : null}
+                    <span>{agent.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
 
         {selectedAgent && (
           <AgentDetailModal
