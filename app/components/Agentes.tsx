@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 import Vapi from "@vapi-ai/web";
@@ -14,6 +15,7 @@ interface AgentCardProps {
   capabilities: string[];
   templateId?: string;
   agentType?: 'voice' | 'text' | 'flow';
+  videoSrc?: string;
   ctaLabel: string;
   onSelect: () => void;
 }
@@ -76,7 +78,7 @@ const AgentCard = ({ name, avatar, imageSrc, color, capabilities, ctaLabel, onSe
   );
 };
 
-function AgentDetailModal({ agent, isEn, onClose, onTryDemo, onOpenPlatform }: { agent: AgentItem; isEn: boolean; onClose: () => void; onTryDemo: () => void; onOpenPlatform: () => void }) {
+function AgentDetailModal({ agent, isEn, onClose, onViewDemo, onOpenPlatform }: { agent: AgentItem; isEn: boolean; onClose: () => void; onViewDemo: () => void; onOpenPlatform: () => void }) {
   const problems = isEn
     ? ["Manual handoffs between teams", "Slow response times", "Disconnected customer data"]
     : ["Handoffs manuales entre equipos", "Tiempos de respuesta lentos", "Datos del cliente desconectados"];
@@ -128,11 +130,33 @@ function AgentDetailModal({ agent, isEn, onClose, onTryDemo, onOpenPlatform }: {
         </section>
 
         <div className="agent-modal-actions">
-          <button type="button" onClick={onTryDemo}>{isEn ? "Try Demo" : "Probar demo del agente"}</button>
+          <button type="button" onClick={onViewDemo}>{isEn ? "Watch demo" : "Ver demo"}</button>
           <button type="button" onClick={onOpenPlatform}>{isEn ? "Open Platform" : "Abrir plataforma"}</button>
         </div>
       </div>
     </div>
+  );
+}
+
+function AgentVideoModal({ src, title, isEn, onClose }: { src: string; title: string; isEn: boolean; onClose: () => void }) {
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="agent-video-backdrop" role="dialog" aria-modal="true" aria-label={title} onClick={onClose}>
+      <div className="agent-video-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="agent-video-head">
+          <div>
+            <span>{isEn ? "Agent demo" : "Demo del agente"}</span>
+            <strong>{title}</strong>
+          </div>
+          <button type="button" onClick={onClose} aria-label={isEn ? "Close video" : "Cerrar video"}>×</button>
+        </div>
+        <div className="agent-video-frame">
+          <video key={src} src={src} controls autoPlay playsInline />
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -151,6 +175,7 @@ const Agentes = () => {
   const [webCallStatus, setWebCallStatus] = React.useState("");
   const [webCallError, setWebCallError] = React.useState("");
   const [selectedAgentIndex, setSelectedAgentIndex] = React.useState<number | null>(null);
+  const [videoDemo, setVideoDemo] = React.useState<{ src: string; title: string } | null>(null);
   const vapiRef = React.useRef<any>(null);
   const vapiEventsRef = React.useRef(false);
 
@@ -277,6 +302,7 @@ const Agentes = () => {
       ],
       templateId: "julia",
       agentType: "text" as const,
+      videoSrc: "/videos/Recepcionista.mp4",
     },
     {
       name: "AI Lead Qualifier",
@@ -291,6 +317,7 @@ const Agentes = () => {
       ],
       templateId: "lia",
       agentType: "voice" as const,
+      videoSrc: "/videos/lead calificador.mp4",
     },
     {
       name: "AI Sales Follow-up",
@@ -305,6 +332,7 @@ const Agentes = () => {
       ],
       templateId: "alex",
       agentType: "text" as const,
+      videoSrc: "/videos/seguimiento en ventas.mp4",
     },
     {
       name: "AI Customer Support",
@@ -318,6 +346,7 @@ const Agentes = () => {
         "Escalates to humans",
       ],
       agentType: "text" as const,
+      videoSrc: "/videos/soporte al cliente.mp4",
     },
   ] : [
     {
@@ -328,6 +357,7 @@ const Agentes = () => {
       capabilities: ["Atiende cada llamada", "Proporciona informacion", "Agenda citas", "Actualiza tu CRM"],
       templateId: "julia",
       agentType: "text" as const,
+      videoSrc: "/videos/Recepcionista.mp4",
     },
     {
       name: "Calificador de Leads IA",
@@ -337,6 +367,7 @@ const Agentes = () => {
       capabilities: ["Califica leads al instante", "Genera interaccion", "Puntua y enruta", "Actualiza tu CRM"],
       templateId: "lia",
       agentType: "voice" as const,
+      videoSrc: "/videos/lead calificador.mp4",
     },
     {
       name: "Seguimiento de Ventas IA",
@@ -346,6 +377,7 @@ const Agentes = () => {
       capabilities: ["Envia seguimientos", "Nutre prospectos", "Reactiva leads", "Actualiza tu CRM"],
       templateId: "alex",
       agentType: "text" as const,
+      videoSrc: "/videos/seguimiento en ventas.mp4",
     },
     {
       name: "Soporte al Cliente IA",
@@ -354,6 +386,7 @@ const Agentes = () => {
       color: "#a3e635",
       capabilities: ["Resuelve problemas", "Responde FAQs", "Gestiona incidencias", "Escala a humanos"],
       agentType: "text" as const,
+      videoSrc: "/videos/soporte al cliente.mp4",
     },
   ];
 
@@ -370,6 +403,7 @@ const Agentes = () => {
         "Tracks progress",
       ],
       agentType: "text" as const,
+      videoSrc: "/videos/onboarding.mp4",
     },
     {
       name: "AI Candidate Evaluator (HR)",
@@ -383,6 +417,7 @@ const Agentes = () => {
         "Updates ATS",
       ],
       agentType: "voice" as const,
+      videoSrc: "/videos/evaluador.mp4",
     },
     {
       name: "AI Collections Specialist",
@@ -396,6 +431,7 @@ const Agentes = () => {
         "Updates your CRM",
       ],
       agentType: "voice" as const,
+      videoSrc: "/videos/cobranza.mp4",
     },
     {
       name: "Build Your Own",
@@ -409,6 +445,7 @@ const Agentes = () => {
         "Botz builds it",
       ],
       // No template - goes to main studio
+      videoSrc: "/videos/crea el tuyo.mp4",
     },
   ] : [
     {
@@ -418,6 +455,7 @@ const Agentes = () => {
       color: "#a3e635",
       capabilities: ["Guia onboarding", "Impulsa adopcion", "Envia encuestas", "Rastrea progreso"],
       agentType: "text" as const,
+      videoSrc: "/videos/onboarding.mp4",
     },
     {
       name: "Evaluador de Candidatos IA (HR)",
@@ -426,6 +464,7 @@ const Agentes = () => {
       color: "#a3e635",
       capabilities: ["Filtra candidatos", "Hace preguntas estructuradas", "Identifica talento", "Actualiza ATS"],
       agentType: "voice" as const,
+      videoSrc: "/videos/evaluador.mp4",
     },
     {
       name: "Especialista de Cobranza IA",
@@ -434,6 +473,7 @@ const Agentes = () => {
       color: "#a3e635",
       capabilities: ["Llama por saldos", "Recupera pagos", "Envia recordatorios", "Actualiza tu CRM"],
       agentType: "voice" as const,
+      videoSrc: "/videos/cobranza.mp4",
     },
     {
       name: "Crea el Tuyo",
@@ -441,6 +481,7 @@ const Agentes = () => {
       imageSrc: "/img/crea%20el%20tuyo.png",
       color: "#a3e635",
       capabilities: ["Crea un agente IA personalizado", "Sin codigo", "Describe lo que necesitas", "Botz lo construye"],
+      videoSrc: "/videos/crea el tuyo.mp4",
     },
   ];
 
@@ -554,11 +595,25 @@ const Agentes = () => {
             agent={selectedAgent}
             isEn={isEn}
             onClose={() => setSelectedAgentIndex(null)}
-            onTryDemo={() => {
+            onViewDemo={() => {
+              if (selectedAgent.videoSrc) {
+                setSelectedAgentIndex(null);
+                setVideoDemo({ src: selectedAgent.videoSrc, title: selectedAgent.name });
+                return;
+              }
               setSelectedAgentIndex(null);
               document.getElementById("agents-live-demo")?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
             onOpenPlatform={goTrial}
+          />
+        )}
+
+        {videoDemo && (
+          <AgentVideoModal
+            src={videoDemo.src}
+            title={videoDemo.title}
+            isEn={isEn}
+            onClose={() => setVideoDemo(null)}
           />
         )}
 

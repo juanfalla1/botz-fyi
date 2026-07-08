@@ -422,6 +422,90 @@
   color: #07101e;
 }
 
+.agent-video-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(34, 211, 238, 0.22), transparent 28rem),
+    rgba(2, 6, 14, 0.94);
+  backdrop-filter: blur(14px);
+}
+
+.agent-video-modal {
+  width: min(390px, 90vw, 48dvh);
+  max-height: calc(100dvh - 28px);
+  border: 1px solid rgba(34, 211, 238, 0.42);
+  border-radius: 24px;
+  background: linear-gradient(160deg, rgba(7, 16, 30, 0.98), rgba(3, 7, 18, 0.98));
+  box-shadow: 0 32px 90px rgba(0, 0, 0, 0.72), 0 0 42px rgba(34, 211, 238, 0.18);
+  padding: 10px;
+  color: #f2f8ff;
+}
+
+.agent-video-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 44px;
+  padding: 2px 2px 8px;
+}
+
+.agent-video-head div {
+  display: grid;
+  gap: 3px;
+}
+
+.agent-video-head span {
+  color: #67e8f9;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.agent-video-head strong {
+  color: #f2f8ff;
+  font-size: 0.92rem;
+  line-height: 1.1;
+}
+
+.agent-video-head button {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  border-radius: 999px;
+  background: rgba(7, 16, 30, 0.96);
+  color: #67e8f9;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.18);
+}
+
+.agent-video-frame {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  border-radius: 18px;
+  background: #020617;
+}
+
+.agent-video-frame video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  background: #020617;
+}
+
 @keyframes stripPulse {
   0%, 100% { opacity: 0.42; }
   50% { opacity: 1; }
@@ -459,6 +543,16 @@
 
   .agent-modal-back {
     justify-content: center;
+  }
+
+  .agent-video-backdrop {
+    padding: 8px;
+  }
+
+  .agent-video-modal {
+    width: min(360px, 94vw, 47dvh);
+    border-radius: 20px;
+    padding: 8px;
   }
 }
 
