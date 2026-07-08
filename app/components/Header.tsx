@@ -187,6 +187,15 @@ const Header = () => {
   const closeMenu = () => {
     setOpen(false);
     setOpenDropdown(null);
+    setShowLangMenu(false);
+  };
+
+  const toggleMenu = () => {
+    setOpen((current) => {
+      setOpenDropdown(null);
+      setShowLangMenu(false);
+      return !current;
+    });
   };
 
   // Close menu on route change (prevents stuck overlay)
@@ -330,7 +339,7 @@ const Header = () => {
                 className={`bz-hamburger ${open ? "active" : ""}`}
                 aria-label={navCopy.menuAria}
                 aria-expanded={open}
-                onClick={() => setOpen(!open)}
+                onClick={toggleMenu}
                 style={{ visibility: hydrated ? "visible" : "hidden" }}
               >
                 <span />
@@ -731,7 +740,7 @@ const Header = () => {
           transform: translateY(-1px);
         }
 
-        .bz-hamburger { display: none; flex-direction: column; justify-content: space-between; width: 40px; height: 30px; background: none; border: none; cursor: pointer; z-index: 9999; }
+        .bz-hamburger { position: relative; display: none; flex-direction: column; justify-content: space-between; width: 40px; height: 30px; background: none; border: none; cursor: pointer; z-index: 9999; }
         .bz-hamburger span { display: block; height: 4px; width: 100%; background: #10b2cb; border-radius: 2px; }
 
         .bz-nav-container { display: flex; gap: 12px; min-width: 0; flex: 1; justify-content: flex-end; margin-left: auto; padding-left: 0; }
@@ -1321,7 +1330,7 @@ const Header = () => {
             opacity: 0 !important;
             pointer-events: none !important;
             transition: transform 0.22s ease, opacity 0.18s ease !important;
-            z-index: 4100 !important;
+            z-index: 3900 !important;
             overflow-y: auto !important;
             overflow-x: hidden !important;
             overscroll-behavior: contain !important;
