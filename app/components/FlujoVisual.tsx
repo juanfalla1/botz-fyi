@@ -127,7 +127,7 @@ const cardsEn: StoryCard[] = [
 
 const cardsEs: StoryCard[] = [
   {
-    title: "Entrada de Senales",
+    title: "Entrada de Señales",
     subtitle: "Todos los canales, un horizonte",
     desc: "Solicitudes desde web, pauta, WhatsApp y llamadas llegan en una sola corriente visual.",
     metric: "Captura 24/7 en vivo",
@@ -135,33 +135,33 @@ const cardsEs: StoryCard[] = [
     tools: logosInput,
   },
   {
-    title: "Expansion de Contexto",
+    title: "Expansión de Contexto",
     subtitle: "Memoria que realmente importa",
-    desc: "Tu CRM, historial e intencion del cliente se fusionan en un perfil rico antes de responder.",
+    desc: "Tu CRM, historial e intención del cliente se fusionan en un perfil rico antes de responder.",
     metric: "Memoria unificada",
     mediaLabel: "Fuentes de contexto sincronizadas",
     tools: logosContext,
   },
   {
     title: "Motor de Decisiones",
-    subtitle: "Precision por encima del ruido",
-    desc: "El nucleo prioriza urgencia, predice potencial de conversion y define la mejor accion.",
+    subtitle: "Precisión por encima del ruido",
+    desc: "El núcleo prioriza urgencia, predice potencial de conversión y define la mejor acción.",
     metric: "Inteligencia adaptativa",
     mediaLabel: "Stack de decisiones IA",
     tools: logosDecision,
   },
   {
-    title: "Ejecucion Autonoma",
-    subtitle: "Accion en movimiento",
-    desc: "Seguimientos, agendas, enrutamiento y tareas internas se activan con fluidez cinematografica.",
-    metric: "Operacion manos libres",
-    mediaLabel: "Automatizaciones de ejecucion",
+    title: "Ejecución Autónoma",
+    subtitle: "Acción en movimiento",
+    desc: "Seguimientos, agendas, enrutamiento y tareas internas se activan con fluidez cinematográfica.",
+    metric: "Operación manos libres",
+    mediaLabel: "Automatizaciones de ejecución",
     tools: logosExecution,
   },
   {
     title: "Capa de Resultados",
     subtitle: "Salida orientada a ingresos",
-    desc: "Cada interaccion termina en resultado medible: lead calificado, cita o oportunidad cerrada.",
+    desc: "Cada interacción termina en resultado medible: lead calificado, cita o oportunidad cerrada.",
     metric: "Impacto visible",
     mediaLabel: "Dashboards de resultados",
     tools: logosOutcome,
@@ -178,11 +178,11 @@ export default function FlujoVisual() {
     <section className="cognitive-story">
       <div className="cognitive-story__header reveal-up">
         <p>{isEn ? "VISUAL STORYTELLING" : "STORYTELLING VISUAL"}</p>
-        <h2>{isEn ? "A cognitive flow designed like a premium film sequence" : "Un flujo cognitivo disenado como una secuencia cinematografica premium"}</h2>
+        <h2>{isEn ? "A cognitive flow designed like a premium film sequence" : "Un flujo cognitivo diseñado como una secuencia cinematográfica premium"}</h2>
         <span>
           {isEn
             ? "No technical diagrams. Just a living narrative of how AI turns raw demand into high-value outcomes."
-            : "Sin diagramas tecnicos. Solo una narrativa viva de como la IA transforma demanda en resultados de alto valor."}
+            : "Sin diagramas técnicos. Solo una narrativa viva de cómo la IA transforma demanda en resultados de alto valor."}
         </span>
       </div>
 
