@@ -1305,24 +1305,29 @@ const Header = () => {
           .bz-hamburger { display: flex !important; }
           .bz-nav-container {
             position: fixed !important;
-            top: 64px !important;
-            left: 0 !important;
-            right: 0 !important;
-            width: 100vw !important;
+            top: 70px !important;
+            left: 12px !important;
+            right: 12px !important;
+            width: auto !important;
             height: auto !important;
-            max-height: calc(100vh - 64px) !important;
-            background: #112f46 !important;
+            max-height: calc(100dvh - 88px) !important;
+            background: linear-gradient(180deg, rgba(8, 18, 35, 0.98), rgba(6, 22, 36, 0.98)) !important;
             flex-direction: column !important;
-            padding: 8px 0 14px 0 !important;
-            transform: translateX(100%) !important;
+            padding: 10px !important;
+            border: 1px solid rgba(34, 211, 238, 0.22) !important;
+            border-radius: 22px !important;
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255,255,255,0.06) !important;
+            transform: translateY(-10px) scale(0.98) !important;
             opacity: 0 !important;
             pointer-events: none !important;
-            transition: transform 0.28s ease-in-out, opacity 0.2s ease-in-out !important;
-            z-index: 2000 !important;
+            transition: transform 0.22s ease, opacity 0.18s ease !important;
+            z-index: 4100 !important;
             overflow-y: auto !important;
+            overflow-x: hidden !important;
+            overscroll-behavior: contain !important;
           }
           .bz-nav-container.is-open {
-            transform: translateX(0) !important;
+            transform: translateY(0) scale(1) !important;
             opacity: 1 !important;
             pointer-events: auto !important;
           }
@@ -1348,41 +1353,121 @@ const Header = () => {
             margin: 0 !important;
             flex: 0 0 auto !important;
           }
+          .bz-nav-links-group {
+            gap: 6px !important;
+          }
           .bz-nav-links-group > .bz-dropdown > a,
           .bz-nav-links-group > .bz-mega-dropdown > a,
           .bz-nav-links-group > a {
-            font-size: 16px !important;
-            font-weight: 700 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            min-height: 46px !important;
+            border: 1px solid rgba(148, 163, 184, 0.14) !important;
+            border-radius: 14px !important;
+            background: rgba(15, 35, 55, 0.74) !important;
+            color: #f8fdff !important;
+            font-size: 14px !important;
+            font-weight: 850 !important;
+            letter-spacing: 0.01em !important;
             line-height: 1.25 !important;
+            padding: 0 14px !important;
+            text-align: left !important;
           }
-          .bz-main-nav a { font-size: 16px !important; padding: 12px 22px !important; width: 100% !important; border-bottom: 1px solid rgba(255,255,255,0.1) !important; }
+          .bz-main-nav a { width: 100% !important; border-bottom: 0 !important; }
+          .bz-nav-links-group > .bz-mega-dropdown.open > a {
+            border-color: rgba(34, 211, 238, 0.42) !important;
+            background: rgba(34, 211, 238, 0.13) !important;
+            color: #67e8f9 !important;
+          }
           .bz-mega-menu {
             position: static !important;
             display: none !important;
             width: 100% !important;
             transform: none !important;
             grid-template-columns: 1fr !important;
-            gap: 10px !important;
-            padding: 12px 18px 16px !important;
-            border-radius: 0 !important;
-            border-left: 0 !important;
-            border-right: 0 !important;
-            background: rgba(3, 11, 24, 0.55) !important;
+            gap: 8px !important;
+            margin: 6px 0 2px !important;
+            padding: 8px !important;
+            border: 1px solid rgba(34, 211, 238, 0.12) !important;
+            border-radius: 16px !important;
+            background: rgba(2, 6, 14, 0.38) !important;
             box-shadow: none !important;
           }
           .bz-mega-dropdown.open .bz-mega-menu { display: grid !important; }
-          .bz-mega-feature { min-height: auto !important; padding: 16px !important; }
-          .bz-mega-feature strong { font-size: 18px !important; }
-          .bz-mega-items { grid-template-columns: 1fr !important; }
-          .bz-main-nav .bz-mega-link { min-height: auto !important; padding: 14px 16px !important; border-bottom: 1px solid rgba(255,255,255,0.08) !important; }
+          .bz-mega-feature { display: none !important; }
+          .bz-mega-items { grid-template-columns: 1fr !important; gap: 6px !important; }
+          .bz-main-nav .bz-mega-link {
+            min-height: auto !important;
+            padding: 10px 12px !important;
+            border: 1px solid rgba(255,255,255,0.07) !important;
+            border-radius: 12px !important;
+            background: rgba(255,255,255,0.035) !important;
+          }
+          .bz-mega-link span {
+            font-size: 12px !important;
+            line-height: 1.2 !important;
+          }
+          .bz-mega-link small {
+            display: block !important;
+            margin-top: 3px !important;
+            font-size: 10px !important;
+            line-height: 1.3 !important;
+            color: rgba(226, 242, 255, 0.62) !important;
+          }
           .bz-dropdown-content { position: static !important; display: none !important; width: 100% !important; }
           .bz-dropdown.open .bz-dropdown-content { display: flex !important; flex-direction: column !important; }
           .bz-dropdown-content a { font-size: 15px !important; padding: 10px 24px !important; }
-          .stelar-btn-short { margin: 10px 22px 0 !important; justify-content: center !important; font-size: 14px !important; border-radius: 12px !important; }
-          .auth-login-btn { margin: 10px 22px 0 !important; justify-content: center !important; font-size: 14px !important; border-radius: 12px !important; }
-          .auth-signup-btn { margin: 8px 22px 0 !important; justify-content: center !important; font-size: 14px !important; border-radius: 12px !important; }
-          .lang-toggle { margin: 10px 22px 0 !important; width: calc(100% - 44px) !important; height: 40px !important; border-radius: 10px !important; justify-content: center !important; }
-          .lang-menu { left: 22px !important; right: 22px !important; top: calc(100% + 6px) !important; min-width: auto !important; }
+          .bz-nav-cta-group {
+            gap: 8px !important;
+            margin-top: 10px !important;
+            padding-top: 10px !important;
+            border-top: 1px solid rgba(148, 163, 184, 0.14) !important;
+          }
+          .stelar-btn-short,
+          .auth-login-btn,
+          .auth-signup-btn {
+            min-height: 42px !important;
+            margin: 0 !important;
+            justify-content: center !important;
+            font-size: 13px !important;
+            border-radius: 12px !important;
+            padding: 0 14px !important;
+          }
+          .lang-toggle { margin: 0 !important; width: 100% !important; height: 42px !important; border-radius: 12px !important; justify-content: center !important; }
+          .lang-menu { left: 0 !important; right: 0 !important; top: calc(100% + 6px) !important; min-width: auto !important; }
+        }
+
+        @media (max-width: 420px) {
+          .bz-nav-container {
+            left: 8px !important;
+            right: 8px !important;
+            top: 66px !important;
+            max-height: calc(100dvh - 78px) !important;
+            padding: 8px !important;
+            border-radius: 18px !important;
+          }
+          .bz-nav-links-group > .bz-dropdown > a,
+          .bz-nav-links-group > .bz-mega-dropdown > a,
+          .bz-nav-links-group > a {
+            min-height: 42px !important;
+            font-size: 13px !important;
+            padding: 0 12px !important;
+          }
+          .bz-mega-link small {
+            display: none !important;
+          }
+          .bz-main-nav .bz-mega-link {
+            padding: 9px 11px !important;
+          }
+          .stelar-btn-short,
+          .auth-login-btn,
+          .auth-signup-btn,
+          .lang-toggle {
+            min-height: 40px !important;
+            height: 40px !important;
+            font-size: 12px !important;
+          }
         }
 
         .bz-contacto-link { display: none; }
