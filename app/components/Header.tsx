@@ -58,6 +58,75 @@ const Header = () => {
     signUp: isEn ? "Create account" : "Crear una cuenta",
   };
 
+  const megaMenus = [
+    {
+      key: "platform",
+      label: isEn ? "Platform" : "Plataforma",
+      eyebrow: isEn ? "BOTZ platform" : "Plataforma BOTZ",
+      title: isEn ? "Enterprise AI workforce for business execution." : "AI Workforce empresarial para ejecutar procesos del negocio.",
+      items: [
+        { label: isEn ? "AI Agents Architecture" : "Arquitectura de Agentes IA", desc: isEn ? "How BOTZ coordinates agents, context and actions." : "Como BOTZ coordina agentes, contexto y acciones.", href: "/#arquitectura-agentes-ia" },
+        { label: isEn ? "Visual Cognitive Flow" : "Flujo Cognitivo Visual", desc: isEn ? "From signal intake to business outcome." : "De la senal inicial al resultado del negocio.", href: "/#flujo-cognitivo-visual" },
+        { label: isEn ? "Intelligent Operations" : "Operaciones Inteligentes", desc: isEn ? "Revenue, support and automation connected in one layer." : "Ventas, soporte y automatizacion conectados en una capa.", href: "/#vision" },
+      ],
+    },
+    {
+      key: "products",
+      label: isEn ? "Products" : "Productos",
+      eyebrow: isEn ? "BOTZ ecosystem" : "Ecosistema BOTZ",
+      title: isEn ? "Connected modules, not isolated services." : "Modulos conectados, no servicios aislados.",
+      items: [
+        { label: "Qualibotz", desc: isEn ? "Agent workspace and CRM experience." : "Workspace de agentes y experiencia CRM.", href: "/start" },
+        { label: "BOTZ GEO", desc: isEn ? "AI visibility, audits and recommendation reports." : "Visibilidad IA, auditorias y reportes de recomendacion.", href: "/geo" },
+        { label: "hotLead", desc: isEn ? "Lead intake, qualification and follow-up flows." : "Captura, calificacion y seguimiento de leads.", href: "/#caso-de-exito-hotlead" },
+      ],
+    },
+    {
+      key: "solutions",
+      label: isEn ? "Solutions" : "Soluciones",
+      eyebrow: isEn ? "Use BOTZ to execute" : "BOTZ para ejecutar",
+      title: isEn ? "Automate complete business workflows with AI agents." : "Automatiza workflows completos con agentes de IA.",
+      items: [
+        { label: isEn ? "Sales automation" : "Automatizacion comercial", desc: isEn ? "Capture, qualify and move leads to action." : "Captura, califica y lleva leads a la accion.", href: "/#funcionalidades" },
+        { label: isEn ? "Process automation" : "Automatizacion de procesos", desc: isEn ? "Connect teams, data and business systems." : "Conecta equipos, datos y sistemas del negocio.", href: "/#automatizaciones-n8n" },
+        { label: isEn ? "E-commerce workflows" : "Workflows e-commerce", desc: isEn ? "Automated purchase and customer journeys." : "Compras y recorridos de cliente automatizados.", href: "/#arquitectura-E-commerce-hook" },
+      ],
+    },
+    {
+      key: "industries",
+      label: isEn ? "Industries" : "Industrias",
+      eyebrow: isEn ? "Built for real operations" : "Para operaciones reales",
+      title: isEn ? "AI workflows for teams that need execution." : "Workflows IA para equipos que necesitan ejecucion.",
+      items: [
+        { label: isEn ? "Real Estate" : "Inmobiliaria", desc: isEn ? "AI agents for property leads and follow-up." : "Agentes IA para leads inmobiliarios y seguimiento.", href: "/agentes-ia-inmobiliaria" },
+        { label: isEn ? "Mortgage & Finance" : "Hipotecario y finanzas", desc: isEn ? "Lead qualification and commercial tracking." : "Calificacion de leads y seguimiento comercial.", href: "/ia-hipotecaria" },
+        { label: isEn ? "WhatsApp operations" : "Operaciones WhatsApp", desc: isEn ? "Customer intake and automated response flows." : "Ingreso de clientes y flujos de respuesta automatica.", href: "/bot-hipotecario-whatsapp" },
+      ],
+    },
+    {
+      key: "resources",
+      label: isEn ? "Resources" : "Recursos",
+      eyebrow: isEn ? "Learn and compare" : "Aprende y compara",
+      title: isEn ? "Guides, cases and product paths for decision makers." : "Guias, casos y rutas de producto para decisores.",
+      items: [
+        { label: "Blog", desc: isEn ? "Articles and market education from BOTZ." : "Articulos y educacion de mercado de BOTZ.", href: "/blog" },
+        { label: isEn ? "Success cases" : "Casos de exito", desc: isEn ? "Examples of BOTZ execution in action." : "Ejemplos de BOTZ ejecutando en accion.", href: "/#caso-de-exito-hook" },
+        { label: isEn ? "Pricing" : "Precios", desc: isEn ? "Explore plans and entry points." : "Explora planes y puntos de entrada.", href: "/pricing" },
+      ],
+    },
+    {
+      key: "company",
+      label: isEn ? "Company" : "Empresa",
+      eyebrow: isEn ? "About BOTZ" : "Sobre BOTZ",
+      title: isEn ? "A product company building enterprise AI operations." : "Una empresa de producto construyendo operaciones empresariales con IA.",
+      items: [
+        { label: isEn ? "About us" : "Sobre nosotros", desc: isEn ? "Who we are and how BOTZ works." : "Quienes somos y como trabaja BOTZ.", href: "/sobre-nosotros" },
+        { label: isEn ? "Contact" : "Contacto", desc: isEn ? "Talk with the BOTZ team." : "Habla con el equipo BOTZ.", href: "#contacto" },
+        { label: "Legal", desc: isEn ? "Privacy policy and terms." : "Politica de privacidad y terminos.", href: "/privacy" },
+      ],
+    },
+  ];
+
   // Close language menu on outside click / escape
   useEffect(() => {
     if (!showLangMenu) return;
@@ -425,111 +494,36 @@ const Header = () => {
 
               <div className="bz-nav-links-group" style={{ marginLeft: 0 }}>
 
-              {/* VALUE */}
-              <div 
-                className={`bz-dropdown ${openDropdown === "propuesta" ? "open" : ""}`}
-                onMouseEnter={() => handleDropdownHover("propuesta")}
-                onMouseLeave={handleDropdownLeave}
-              >
-                <a
-                  href="#"
-                  onClick={(e) => handleDropdownClick(e, "propuesta")}
+              {megaMenus.map((menu) => (
+                <div
+                  key={menu.key}
+                  className={`bz-mega-dropdown ${openDropdown === menu.key ? "open" : ""}`}
+                  onMouseEnter={() => handleDropdownHover(menu.key)}
+                  onMouseLeave={handleDropdownLeave}
                 >
-                  {navCopy.ourValue} {isMobileView ? (openDropdown === "propuesta" ? "▴" : "▾") : ""}
-                </a>
-                <div className="bz-dropdown-content" style={getDropdownPanelStyle("propuesta")}>
-                  <Link href="/#funcionalidades" onClick={closeMenu} style={submenuItemBaseStyle} onMouseEnter={handleSubmenuHoverEnter} onMouseLeave={handleSubmenuHoverLeave}>
-                    ⚡ {navCopy.capabilities}
-                  </Link>
-                  <Link href="/#beneficios" onClick={closeMenu} style={submenuItemBaseStyle} onMouseEnter={handleSubmenuHoverEnter} onMouseLeave={handleSubmenuHoverLeave}>
-                    🎯 {navCopy.benefits}
-                  </Link>
-                  <Link href="/#vision" onClick={closeMenu} style={submenuItemBaseStyle} onMouseEnter={handleSubmenuHoverEnter} onMouseLeave={handleSubmenuHoverLeave}>
-                    👁️ {navCopy.vision}
-                  </Link>
                   <a
-                    href="#caso-exito-hook"
-                    style={submenuItemBaseStyle}
-                    onMouseEnter={handleSubmenuHoverEnter}
-                    onMouseLeave={handleSubmenuHoverLeave}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      smoothScrollTo("caso-exito-hook");
-                      closeMenu();
-                    }}
+                    href="#"
+                    className="bz-mega-trigger"
+                    onClick={(e) => handleDropdownClick(e, menu.key)}
                   >
-                    🏆 {navCopy.successStories}
+                    {menu.label} {isMobileView ? (openDropdown === menu.key ? "▴" : "▾") : ""}
                   </a>
+                  <div className="bz-mega-menu">
+                    <div className="bz-mega-feature">
+                      <span>{menu.eyebrow}</span>
+                      <strong>{menu.title}</strong>
+                    </div>
+                    <div className="bz-mega-items">
+                      {menu.items.map((item) => (
+                        <Link key={item.label} href={item.href} onClick={closeMenu} className="bz-mega-link">
+                          <span>{item.label}</span>
+                          <small>{item.desc}</small>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
-
-              <div 
-                className={`bz-dropdown ${openDropdown === "nosotros" ? "open" : ""}`}
-                onMouseEnter={() => handleDropdownHover("nosotros")}
-                onMouseLeave={handleDropdownLeave}
-              >
-                <Link
-                  href="/sobre-nosotros"
-                  onClick={closeMenu}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    padding: isMobileView ? "12px 22px" : undefined,
-                    fontSize: isMobileView ? "16px" : undefined,
-                    fontWeight: 700,
-                    lineHeight: 1.25,
-                  }}
-                >
-                  {navCopy.aboutUs}
-                </Link>
-              </div>
-
-              {/* AUTOMATION */}
-              <div 
-                className={`bz-dropdown ${openDropdown === "auto" ? "open" : ""}`}
-                onMouseEnter={() => handleDropdownHover("auto")}
-                onMouseLeave={handleDropdownLeave}
-              >
-                <a
-                  href="#"
-                  onClick={(e) => handleDropdownClick(e, "auto")}
-                >
-                  {navCopy.automationSolutions} {isMobileView ? (openDropdown === "auto" ? "▴" : "▾") : ""}
-                </a>
-                <div className="bz-dropdown-content" style={getDropdownPanelStyle("auto")}>
-                  <Link href="/#arquitectura-E-commerce-hook" onClick={closeMenu} style={submenuItemBaseStyle} onMouseEnter={handleSubmenuHoverEnter} onMouseLeave={handleSubmenuHoverLeave}>
-                    🛍️ {navCopy.aiEcommerce}
-                  </Link>
-                  <Link href="/#automatizaciones-n8n" onClick={closeMenu} style={submenuItemBaseStyle} onMouseEnter={handleSubmenuHoverEnter} onMouseLeave={handleSubmenuHoverLeave}>
-                    🤖 {navCopy.flowAutomation}
-                  </Link>
-                  <Link href="/#caso-de-exito-hotlead" onClick={closeMenu} style={submenuItemBaseStyle} onMouseEnter={handleSubmenuHoverEnter} onMouseLeave={handleSubmenuHoverLeave}>
-                    🚀 {navCopy.leadMgmt}
-                  </Link>
-                </div>
-              </div>
-
-              {/* AI FLOWS */}
-              <div 
-                className={`bz-dropdown ${openDropdown === "ia" ? "open" : ""}`}
-                onMouseEnter={() => handleDropdownHover("ia")}
-                onMouseLeave={handleDropdownLeave}
-              >
-                <a
-                  href="#"
-                  onClick={(e) => handleDropdownClick(e, "ia")}
-                >
-                  {navCopy.aiFlows} {isMobileView ? (openDropdown === "ia" ? "▴" : "▾") : ""}
-                </a>
-                <div className="bz-dropdown-content" style={getDropdownPanelStyle("ia")}>
-                  <Link href="/#arquitectura-agentes-ia" onClick={closeMenu} style={submenuItemBaseStyle} onMouseEnter={handleSubmenuHoverEnter} onMouseLeave={handleSubmenuHoverLeave}>
-                    🧠 {navCopy.agentsArchitecture}
-                  </Link>
-                  <Link href="/#flujo-cognitivo-visual" onClick={closeMenu} style={submenuItemBaseStyle} onMouseEnter={handleSubmenuHoverEnter} onMouseLeave={handleSubmenuHoverLeave}>
-                    🧩 {navCopy.visualFlow}
-                  </Link>
-                </div>
-              </div>
+              ))}
 
               {/* CONTACT - MOBILE */}
               <a
@@ -741,8 +735,8 @@ const Header = () => {
         .bz-hamburger span { display: block; height: 4px; width: 100%; background: #10b2cb; border-radius: 2px; }
 
         .bz-nav-container { display: flex; gap: 12px; min-width: 0; flex: 1; justify-content: flex-end; margin-left: auto; padding-left: 0; }
-        .bz-main-nav { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; justify-content: flex-end; margin-left: auto; width: 100%; }
-        .bz-nav-links-group { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; }
+        .bz-main-nav { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; justify-content: flex-end; margin-left: auto; width: 100%; overflow: visible; }
+        .bz-nav-links-group { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 0 1 auto; overflow: visible; }
         .bz-nav-cta-group { display: flex; align-items: center; gap: 4px; margin-left: 4px; flex: 0 0 auto; }
 
         @media (min-width: 1025px) {
@@ -1128,6 +1122,132 @@ const Header = () => {
           .bz-main-nav { gap: 14px; }
         }
 
+        .bz-mega-dropdown {
+          position: relative;
+        }
+
+        .bz-mega-trigger {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .bz-mega-menu {
+          display: none;
+          position: fixed;
+          top: 86px;
+          left: 50vw;
+          width: min(920px, calc(100vw - 64px));
+          transform: translateX(-50%);
+          grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+          gap: 16px;
+          padding: 14px;
+          border: 1px solid rgba(34, 211, 238, 0.18);
+          border-radius: 22px;
+          background:
+            radial-gradient(circle at 18% 12%, rgba(34, 211, 238, 0.16), transparent 16rem),
+            linear-gradient(180deg, rgba(8, 18, 41, 0.98), rgba(5, 10, 24, 0.98));
+          box-shadow: 0 24px 80px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+          backdrop-filter: blur(18px);
+          z-index: 1300;
+          overflow: hidden;
+        }
+
+        .bz-mega-feature {
+          min-height: 148px;
+          padding: 18px;
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          border-radius: 18px;
+          background: linear-gradient(145deg, rgba(34, 211, 238, 0.14), rgba(255, 255, 255, 0.035));
+          min-width: 0;
+          overflow: hidden;
+        }
+
+        .bz-mega-feature span {
+          display: block;
+          margin-bottom: 14px;
+          color: #67e8f9;
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+        }
+
+        .bz-mega-feature strong {
+          display: block;
+          color: #f8fdff;
+          font-size: 18px;
+          line-height: 1.16;
+          letter-spacing: -0.03em;
+          max-width: 100%;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+
+        .bz-mega-items {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+          min-width: 0;
+        }
+
+        .bz-main-nav .bz-mega-link,
+        .bz-main-nav :global(.bz-mega-link) {
+          display: grid !important;
+          align-content: start;
+          gap: 8px;
+          min-height: 112px;
+          padding: 13px !important;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.035);
+          color: #ffffff;
+          white-space: normal !important;
+          box-shadow: none;
+          min-width: 0;
+          overflow: hidden;
+        }
+
+        .bz-main-nav .bz-mega-link::after,
+        .bz-main-nav :global(.bz-mega-link)::after {
+          display: none !important;
+        }
+
+        .bz-mega-link span {
+          color: #f8fdff;
+          font-size: 13px;
+          font-weight: 900;
+          line-height: 1.2;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+
+        .bz-mega-link small {
+          color: rgba(226, 242, 255, 0.68);
+          font-size: 11px;
+          font-weight: 600;
+          line-height: 1.45;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+
+        .bz-main-nav .bz-mega-link:hover,
+        .bz-main-nav :global(.bz-mega-link:hover) {
+          transform: translateY(-2px);
+          background: rgba(34, 211, 238, 0.10) !important;
+          border-color: rgba(34, 211, 238, 0.36);
+          color: #e6fdff !important;
+          box-shadow: 0 16px 38px rgba(0, 0, 0, 0.28), inset 0 0 0 1px rgba(34, 211, 238, 0.16);
+          text-decoration: none !important;
+        }
+
+        @media (min-width: 769px) {
+          .bz-mega-dropdown:hover .bz-mega-menu,
+          .bz-mega-dropdown.open .bz-mega-menu {
+            display: grid;
+          }
+        }
+
         .bz-dropdown { position: relative; }
         .bz-dropdown-content { display: none; position: absolute; background: #0d2537; min-width: 250px; box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3); border-radius: 8px; overflow: hidden; z-index: 1000; top: 100%; left: 0; border: 1px solid rgba(255,255,255,0.05); }
         .bz-dropdown-content a {
@@ -1229,12 +1349,32 @@ const Header = () => {
             flex: 0 0 auto !important;
           }
           .bz-nav-links-group > .bz-dropdown > a,
+          .bz-nav-links-group > .bz-mega-dropdown > a,
           .bz-nav-links-group > a {
             font-size: 16px !important;
             font-weight: 700 !important;
             line-height: 1.25 !important;
           }
           .bz-main-nav a { font-size: 16px !important; padding: 12px 22px !important; width: 100% !important; border-bottom: 1px solid rgba(255,255,255,0.1) !important; }
+          .bz-mega-menu {
+            position: static !important;
+            display: none !important;
+            width: 100% !important;
+            transform: none !important;
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+            padding: 12px 18px 16px !important;
+            border-radius: 0 !important;
+            border-left: 0 !important;
+            border-right: 0 !important;
+            background: rgba(3, 11, 24, 0.55) !important;
+            box-shadow: none !important;
+          }
+          .bz-mega-dropdown.open .bz-mega-menu { display: grid !important; }
+          .bz-mega-feature { min-height: auto !important; padding: 16px !important; }
+          .bz-mega-feature strong { font-size: 18px !important; }
+          .bz-mega-items { grid-template-columns: 1fr !important; }
+          .bz-main-nav .bz-mega-link { min-height: auto !important; padding: 14px 16px !important; border-bottom: 1px solid rgba(255,255,255,0.08) !important; }
           .bz-dropdown-content { position: static !important; display: none !important; width: 100% !important; }
           .bz-dropdown.open .bz-dropdown-content { display: flex !important; flex-direction: column !important; }
           .bz-dropdown-content a { font-size: 15px !important; padding: 10px 24px !important; }

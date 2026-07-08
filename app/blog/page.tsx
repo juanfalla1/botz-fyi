@@ -5,7 +5,7 @@ import { BLOG_POSTS } from "./posts";
 export const metadata: Metadata = {
   title: "Blog de IA, Agentes y Automatizacion",
   description:
-    "Articulos de Botz sobre IA hipotecaria, agentes IA para inmobiliaria y automatizacion comercial con WhatsApp y n8n.",
+    "Articulos de Botz sobre IA hipotecaria, agentes IA para inmobiliaria y automatizacion comercial con WhatsApp y flujos empresariales.",
   alternates: { canonical: "/blog" },
 };
 
@@ -17,7 +17,7 @@ export default function BlogIndexPage() {
           Blog Botz: IA para ventas y automatizacion
         </h1>
         <p style={{ marginTop: 12, color: "#9ca3af", fontSize: 17, maxWidth: 860 }}>
-          Guias practicas para captar, calificar y convertir mas leads con agentes IA, WhatsApp, n8n y flujos comerciales.
+          Guias practicas para captar, calificar y convertir mas leads con agentes IA, WhatsApp y flujos comerciales.
         </p>
 
         <div style={{ marginTop: 24, display: "grid", gap: 12 }}>
