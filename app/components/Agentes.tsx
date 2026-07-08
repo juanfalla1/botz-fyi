@@ -176,6 +176,7 @@ const Agentes = () => {
   const [webCallError, setWebCallError] = React.useState("");
   const [selectedAgentIndex, setSelectedAgentIndex] = React.useState<number | null>(null);
   const [videoDemo, setVideoDemo] = React.useState<{ src: string; title: string } | null>(null);
+  const [canPreviewVideos, setCanPreviewVideos] = React.useState(false);
   const vapiRef = React.useRef<any>(null);
   const vapiEventsRef = React.useRef(false);
 
@@ -279,7 +280,22 @@ const Agentes = () => {
   }, [isEn]);
 
   React.useEffect(() => {
+    const media = window.matchMedia("(min-width: 981px) and (hover: hover) and (pointer: fine)");
+    const updatePreviewMode = () => setCanPreviewVideos(media.matches);
+
+    updatePreviewMode();
+    if (media.addEventListener) {
+      media.addEventListener("change", updatePreviewMode);
+    } else {
+      media.addListener(updatePreviewMode);
+    }
+
     return () => {
+      if (media.removeEventListener) {
+        media.removeEventListener("change", updatePreviewMode);
+      } else {
+        media.removeListener(updatePreviewMode);
+      }
       if (vapiRef.current) {
         try {
           vapiRef.current.stop();
@@ -619,11 +635,21 @@ const Agentes = () => {
                     type="button"
                     className="agent-command-video"
                     onClick={() => agent.videoSrc && setVideoDemo({ src: agent.videoSrc, title: agent.name })}
-                    onMouseEnter={(event) => event.currentTarget.querySelector("video")?.play().catch(() => {})}
-                    onFocus={(event) => event.currentTarget.querySelector("video")?.play().catch(() => {})}
+                    onMouseEnter={(event) => {
+                      if (canPreviewVideos) event.currentTarget.querySelector("video")?.play().catch(() => {});
+                    }}
+                    onFocus={(event) => {
+                      if (canPreviewVideos) event.currentTarget.querySelector("video")?.play().catch(() => {});
+                    }}
                     aria-label={isEn ? `Watch ${agent.name} demo` : `Ver demo de ${agent.name}`}
                   >
-                    {agent.videoSrc ? <video src={agent.videoSrc} muted loop playsInline preload="metadata" /> : null}
+                    {canPreviewVideos && agent.videoSrc ? (
+                      <video src={agent.videoSrc} muted loop playsInline preload="none" />
+                    ) : agent.imageSrc ? (
+                      <img src={agent.imageSrc} alt="" loading="lazy" />
+                    ) : (
+                      <em aria-hidden="true">{agent.avatar}</em>
+                    )}
                     <span>{agent.name}</span>
                   </button>
                 ))}
