@@ -16,7 +16,8 @@ const Hero = () => {
         cta: "Try Live Demo",
         note: "Live demo - No card required",
         goTop: "Go to top",
-        words: ["AI Agents", "Automation", "Intelligent Processes", "Workflows", "Integrations", "Chatbots"],
+        words: ["AI Workforce", "AI Agents", "AI Sales", "AI Support", "Voice AI", "BOTZ GEO", "Intelligent Flows"],
+        flow: ["Lead", "AI Agent", "CRM", "Proposal", "Meeting"],
       }
     : {
         title: "que transforman tu negocio",
@@ -25,7 +26,8 @@ const Hero = () => {
         cta: "Prueba Demo en vivo",
         note: "Demo en vivo - Sin tarjeta",
         goTop: "Ir al inicio",
-        words: ["Agentes IA", "Automatizacion", "Procesos Inteligentes", "Flujos de Trabajo", "Integraciones", "Chatbots"],
+        words: ["AI Workforce", "Agentes de IA", "Ventas con IA", "Soporte con IA", "Voice AI", "BOTZ GEO", "Flujos Inteligentes"],
+        flow: ["Lead", "Agente IA", "CRM", "Propuesta", "Reunión"],
       };
 
   return (
@@ -81,6 +83,15 @@ const Hero = () => {
         >
           {t.note}
         </p>
+
+        <div className={styles.heroFlow} aria-label={language === "en" ? "BOTZ business flow" : "Flujo de negocio BOTZ"}>
+          {t.flow.map((step, index) => (
+            <React.Fragment key={step}>
+              <span className={styles.flowStep}>{step}</span>
+              {index < t.flow.length - 1 && <span className={styles.flowArrow}>→</span>}
+            </React.Fragment>
+          ))}
+        </div>
       </div>
 
       {showModal && <DemoModal onClose={() => setShowModal(false)} />}

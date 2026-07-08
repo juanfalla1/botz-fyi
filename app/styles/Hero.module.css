@@ -71,6 +71,37 @@
   transform: scale(1.05);
 }
 
+.heroFlow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1.6rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  border-radius: 999px;
+  background: rgba(3, 11, 24, 0.42);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+}
+
+.flowStep {
+  color: rgba(244, 250, 255, 0.9);
+  font-size: clamp(0.78rem, 1.1vw, 0.95rem);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.flowArrow {
+  color: #22d3ee;
+  font-size: 1rem;
+  font-weight: 900;
+  opacity: 0.8;
+  animation: arrowPulse 1.8s ease-in-out infinite;
+}
+
 /* Elementos flotantes */
 .floatingElements {
   position: absolute;
@@ -101,4 +132,16 @@
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-20px); }
+}
+
+@keyframes arrowPulse {
+  0%, 100% { opacity: 0.42; transform: translateX(0); }
+  50% { opacity: 1; transform: translateX(2px); }
+}
+
+@media (max-width: 640px) {
+  .heroFlow {
+    border-radius: 24px;
+    gap: 0.45rem;
+  }
 }

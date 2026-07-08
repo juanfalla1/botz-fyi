@@ -15,18 +15,14 @@ interface AgentCardProps {
   templateId?: string;
   agentType?: 'voice' | 'text' | 'flow';
   ctaLabel: string;
+  onSelect: () => void;
 }
 
-const AgentCard = ({ name, avatar, imageSrc, color, capabilities, templateId, agentType, ctaLabel }: AgentCardProps) => {
-  const router = useRouter();
+type AgentItem = Omit<AgentCardProps, "ctaLabel" | "onSelect">;
 
-  const handleClick = () => {
-    // Always send users to the Agent Studio dashboard (not the config wizard).
-    router.push("/start/agents");
-  };
-
+const AgentCard = ({ name, avatar, imageSrc, color, capabilities, ctaLabel, onSelect }: AgentCardProps) => {
   return (
-    <article className="showcase-agent-card" onClick={handleClick}>
+    <article className="showcase-agent-card" onClick={onSelect}>
       <div className="showcase-agent-glow" aria-hidden="true" />
       <div className="showcase-agent-mockup" aria-hidden="true">
         <span />
@@ -71,7 +67,7 @@ const AgentCard = ({ name, avatar, imageSrc, color, capabilities, templateId, ag
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          handleClick();
+          onSelect();
         }}
       >
         {ctaLabel}
@@ -79,6 +75,66 @@ const AgentCard = ({ name, avatar, imageSrc, color, capabilities, templateId, ag
     </article>
   );
 };
+
+function AgentDetailModal({ agent, isEn, onClose, onTryDemo, onOpenPlatform }: { agent: AgentItem; isEn: boolean; onClose: () => void; onTryDemo: () => void; onOpenPlatform: () => void }) {
+  const problems = isEn
+    ? ["Manual handoffs between teams", "Slow response times", "Disconnected customer data"]
+    : ["Handoffs manuales entre equipos", "Tiempos de respuesta lentos", "Datos del cliente desconectados"];
+  const flow = isEn
+    ? ["Customer signal", agent.name, "BOTZ Orchestrator", "Business system", "Next action"]
+    : ["Señal del cliente", agent.name, "BOTZ Orchestrator", "Sistema del negocio", "Siguiente acción"];
+
+  return (
+    <div className="agent-modal-backdrop" role="dialog" aria-modal="true" aria-label={agent.name} onClick={onClose}>
+      <div className="agent-modal" onClick={(event) => event.stopPropagation()}>
+        <button className="agent-modal-back" type="button" onClick={onClose}>{isEn ? "Back to agents" : "Volver a agentes"}</button>
+        <button className="agent-modal-close" type="button" onClick={onClose} aria-label={isEn ? "Close" : "Cerrar"}>×</button>
+        <div className="agent-modal-hero">
+          <div className="agent-modal-avatar" style={{ borderColor: `${agent.color}66` }}>
+            {agent.imageSrc ? <img src={agent.imageSrc} alt={agent.name} /> : agent.avatar}
+          </div>
+          <div>
+            <span className="agent-modal-kicker">{isEn ? "AI Workforce" : "Fuerza laboral IA"}</span>
+            <h3>{agent.name}</h3>
+            <p>
+              {isEn
+                ? `${agent.name} is a specialized AI agent that works with BOTZ Orchestrator to move work from request to action.`
+                : `${agent.name} es un agente de IA especializado que trabaja con BOTZ Orchestrator para mover el trabajo desde la solicitud hasta la accion.`}
+            </p>
+          </div>
+        </div>
+
+        <div className="agent-modal-grid">
+          <section>
+            <h4>{isEn ? "What it does" : "Qué hace"}</h4>
+            <ul>{agent.capabilities.map((item) => <li key={item}>{item}</li>)}</ul>
+          </section>
+          <section>
+            <h4>{isEn ? "Problems it solves" : "Problemas que resuelve"}</h4>
+            <ul>{problems.map((item) => <li key={item}>{item}</li>)}</ul>
+          </section>
+        </div>
+
+        <section className="agent-modal-flow">
+          <h4>{isEn ? "Workflow" : "Flujo de trabajo"}</h4>
+          <div>
+            {flow.map((step, index) => (
+              <React.Fragment key={`${step}-${index}`}>
+                <span>{step}</span>
+                {index < flow.length - 1 && <i>→</i>}
+              </React.Fragment>
+            ))}
+          </div>
+        </section>
+
+        <div className="agent-modal-actions">
+          <button type="button" onClick={onTryDemo}>{isEn ? "Try Demo" : "Probar demo del agente"}</button>
+          <button type="button" onClick={onOpenPlatform}>{isEn ? "Open Platform" : "Abrir plataforma"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const Agentes = () => {
   const router = useRouter();
@@ -94,6 +150,7 @@ const Agentes = () => {
   const [webCallBusy, setWebCallBusy] = React.useState(false);
   const [webCallStatus, setWebCallStatus] = React.useState("");
   const [webCallError, setWebCallError] = React.useState("");
+  const [selectedAgentIndex, setSelectedAgentIndex] = React.useState<number | null>(null);
   const vapiRef = React.useRef<any>(null);
   const vapiEventsRef = React.useRef(false);
 
@@ -106,7 +163,7 @@ const Agentes = () => {
     window.open(demoVideoUrl, "_blank");
   };
 
-  const ctaLabel = isEn ? "Start Now" : "Contratar Ahora";
+  const ctaLabel = isEn ? "Learn More" : "Conocer más";
 
   const bindVapiEvents = React.useCallback((instance: any) => {
     if (!instance || vapiEventsRef.current) return;
@@ -388,6 +445,7 @@ const Agentes = () => {
   ];
 
   const allAgents = [...topRowAgents, ...bottomRowAgents];
+  const selectedAgent = selectedAgentIndex === null ? null : allAgents[selectedAgentIndex] || null;
 
   return (
     <section className="agentes-showcase-shell" style={{ padding: "clamp(42px, 8vw, 100px) clamp(12px, 4vw, 40px)", background: "#02040a" }}>
@@ -402,9 +460,7 @@ const Agentes = () => {
               lineHeight: 1.2,
             }}
           >
-            {isEn ? "AI Agents for every" : "Agentes IA para cada"}
-            <br />
-            <span style={{ color: "#a3e635" }}>{isEn ? "stage of your business" : "etapa de tu negocio"}</span>
+            {isEn ? "Meet Your AI Workforce" : "Conoce tu AI Workforce"}
           </h2>
           
           <p
@@ -416,7 +472,9 @@ const Agentes = () => {
               lineHeight: 1.6,
             }}
           >
-            {isEn ? "Hire specialized agents that run 24/7 to scale your operation" : "Contrata agentes especializados que trabajan 24/7 para escalar tu operacion"}
+            {isEn
+              ? "Specialized AI agents work together through BOTZ Orchestrator to execute sales, support, onboarding, collections and operations workflows."
+              : "Agentes de IA especializados trabajan juntos a través de BOTZ Orchestrator para ejecutar flujos de ventas, soporte, onboarding, cobranza y operaciones."}
           </p>
 
           <div
@@ -477,13 +535,34 @@ const Agentes = () => {
           ) : null}
         </div>
 
-         <div className="showcase-agent-grid">
-           {allAgents.map((agent, index) => (
-             <AgentCard key={`${agent.name}-${index}`} {...agent} ctaLabel={ctaLabel} />
-           ))}
+         <div className="showcase-orchestrator-map" aria-hidden="true">
+           <span>{isEn ? "Connected by" : "Conectados por"}</span>
+           <strong>BOTZ Orchestrator</strong>
+           <div className="showcase-orchestrator-lines">
+             <i /><i /><i /><i />
+           </div>
          </div>
 
-        <div style={{ marginTop: 40, marginBottom: 18, padding: "0 clamp(8px, 2vw, 28px)" }}>
+         <div className="showcase-agent-grid">
+            {allAgents.map((agent, index) => (
+              <AgentCard key={`${agent.name}-${index}`} {...agent} ctaLabel={ctaLabel} onSelect={() => setSelectedAgentIndex(index)} />
+            ))}
+          </div>
+
+        {selectedAgent && (
+          <AgentDetailModal
+            agent={selectedAgent}
+            isEn={isEn}
+            onClose={() => setSelectedAgentIndex(null)}
+            onTryDemo={() => {
+              setSelectedAgentIndex(null);
+              document.getElementById("agents-live-demo")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            onOpenPlatform={goTrial}
+          />
+        )}
+
+        <div id="agents-live-demo" style={{ marginTop: 40, marginBottom: 18, padding: "0 clamp(8px, 2vw, 28px)" }}>
           <h3 style={{ margin: 0, color: "#ffffff", fontSize: "clamp(1.8rem, 3.8vw, 3rem)", lineHeight: 1.05, fontWeight: 900 }}>
             {isEn ? "Try our live demo." : "Prueba nuestra demostración en vivo."}
           </h3>
