@@ -51,7 +51,7 @@ export default function TextRotator({
   className = "",
 }: TextRotatorProps) {
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
-  const [displayText, setDisplayText] = useState("");
+  const [displayText, setDisplayText] = useState(words[0] || "");
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
