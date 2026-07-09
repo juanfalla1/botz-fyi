@@ -29,7 +29,7 @@ const Hero = () => {
       };
 
   return (
-    <section className={`${styles.hero} landing-hero`} style={{ paddingTop: "2rem", minHeight: "auto" }}>
+    <section className={`${styles.hero} landing-hero`} style={{ paddingTop: "0.25rem", minHeight: "auto" }}>
       <div className={styles.floatingElements}>
         <a href="#header">
           <div
@@ -45,7 +45,7 @@ const Hero = () => {
       </div>
 
       <div className={styles.heroContent}>
-        <h2 className={styles.heroTitle} style={{ fontSize: "48px", fontWeight: "bold", lineHeight: 1.2, color: "#fff", marginBottom: "20px" }}>
+        <h2 className={styles.heroTitle} style={{ fontSize: "48px", fontWeight: "bold", lineHeight: 1.2, color: "#fff", margin: "0 0 20px" }}>
           <div style={{ marginBottom: "8px" }}>
             <TextRotator
               words={t.words}
