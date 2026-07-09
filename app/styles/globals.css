@@ -316,7 +316,7 @@ nav a:hover::after {
 /* =========================
    SECCIONES Y CONTENT
  =========================== */
-.landing-root section {
+.landing-root section:not(.landing-hero) {
   padding: clamp(3rem, 5.5vw, 4.25rem) 1.25rem;
   position: relative;
   color: var(--light);
@@ -1041,6 +1041,12 @@ body.avanza-crm-no-header{ padding-top: 0 !important; overflow: hidden; }
 
 /* Metrocas/Intelligence run without global header, but keep normal scrolling */
 body.no-global-header{ padding-top: 0 !important; overflow-x: hidden; }
+
+/* Routes without global chrome should not reserve cookie/footer space */
+body.no-global-header,
+body.avanza-crm-no-header {
+  padding-bottom: 0 !important;
+}
 
 /* Avanza CRM own shell must not inherit compact header hacks */
 body.avanza-crm-no-header .avz-shell-header {

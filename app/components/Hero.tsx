@@ -29,7 +29,7 @@ const Hero = () => {
       };
 
   return (
-    <section className={styles.hero}>
+    <section className={`${styles.hero} landing-hero`}>
       <div className={styles.floatingElements}>
         <a href="#header">
           <div
