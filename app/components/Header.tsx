@@ -312,6 +312,7 @@ const Header = () => {
   return (
     <>
       <div
+        id="header"
         className="bz-header"
         role="banner"
         style={{
@@ -319,13 +320,16 @@ const Header = () => {
           top: 0,
           left: 0,
           right: 0,
+          height: isMobileView ? 64 : 72,
+          maxHeight: isMobileView ? 64 : 72,
           zIndex: 4000,
           background: "rgba(11,19,36,0.97)",
           borderBottom: "1px solid rgba(148,163,184,0.2)",
           backdropFilter: "blur(6px)",
+          overflow: "visible",
         }}
       >
-        <div className="bz-header-container" style={{ maxWidth: "100%", width: "100%", margin: 0, padding: isMobileView ? "10px 12px" : "12px 18px", display: isMobileView ? "flex" : "grid", gridTemplateColumns: isMobileView ? undefined : "auto minmax(0, 1fr)", columnGap: isMobileView ? 0 : "14px", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="bz-header-container" style={{ maxWidth: "100%", width: "100%", height: "100%", minHeight: 0, maxHeight: "100%", margin: 0, padding: isMobileView ? "8px 12px" : "10px 18px", display: isMobileView ? "flex" : "grid", gridTemplateColumns: isMobileView ? undefined : "auto minmax(0, 1fr)", columnGap: isMobileView ? 0 : "14px", alignItems: "center", justifyContent: "space-between" }}>
           <div className="bz-logo-nav" style={{ width: "auto", display: "flex", alignItems: "center", columnGap: 10, flex: "0 0 auto", justifySelf: "start" }}>
             {/* LOGO MANTENIDO EN LA ESQUINA IZQUIERDA */}
             <Link href="/" passHref style={{ textDecoration: "none", borderBottom: "none", display: "inline-block" }}>
@@ -681,13 +685,16 @@ const Header = () => {
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         .bz-header {
-          position: sticky;
+          position: fixed;
           top: 0;
           z-index: 1200;
           margin: 0;
           padding: 0;
+          height: var(--header-h);
+          max-height: var(--header-h);
           background: #05070d;
           border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+          overflow: visible;
         }
 
         .bz-header-container {
@@ -705,7 +712,9 @@ const Header = () => {
           overflow: visible;
           width: 100%;
           margin: 0;
-          min-height: 72px;
+          height: 100%;
+          min-height: 0;
+          max-height: 100%;
         }
 
         .bz-logo-nav { display: flex; justify-content: space-between; align-items: center; width: 100%; min-width: 0; gap: 12px; }
