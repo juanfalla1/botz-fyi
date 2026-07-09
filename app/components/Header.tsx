@@ -520,7 +520,7 @@ const Header = () => {
               style={{
                 marginLeft: isMobileView ? 0 : "auto",
                 paddingLeft: isMobileView ? 0 : "24px",
-                display: isMobileView ? undefined : "flex",
+                display: !hydrated ? "none" : isMobileView ? undefined : "flex",
                 justifyContent: isMobileView ? undefined : "flex-end",
                 width: isMobileView ? "100%" : "100%",
                 maxWidth: isMobileView ? "100%" : "none",
