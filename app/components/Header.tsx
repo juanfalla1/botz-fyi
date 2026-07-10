@@ -490,9 +490,9 @@ const Header = () => {
                 left: isMobileView ? 0 : undefined,
                 right: isMobileView ? 0 : undefined,
                 justifyContent: isMobileView ? undefined : "flex-end",
-                width: isMobileView ? "100vw" : "100%",
-                maxWidth: isMobileView ? "100vw" : "none",
-                flex: isMobileView ? undefined : "1 1 auto",
+                width: isMobileView ? "100vw" : "auto",
+                maxWidth: isMobileView ? "100vw" : "calc(100% - 280px)",
+                flex: isMobileView ? undefined : "0 0 auto",
                 transform: "none",
                 transformOrigin: "center",
                 minWidth: 0,
@@ -503,7 +503,7 @@ const Header = () => {
                 opacity: 1,
               }}
             >
-            <div className="bz-main-nav" role="navigation" aria-label="Main navigation" style={{ marginLeft: "auto", justifyContent: isMobileView ? "flex-start" : "flex-end", gap: isMobileView ? 0 : 6, display: "flex", alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", width: "100%" }}>
+            <div className="bz-main-nav" role="navigation" aria-label="Main navigation" style={{ marginLeft: "auto", justifyContent: isMobileView ? "flex-start" : "flex-end", gap: isMobileView ? 0 : 14, display: "flex", alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", width: isMobileView ? "100%" : "auto" }}>
 
               <div className="bz-nav-links-group" style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: 0, minWidth: 0, flex: "0 1 auto", flexDirection: "row", flexWrap: "nowrap" }}>
 
