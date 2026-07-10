@@ -186,6 +186,10 @@ function isSocialClose(text: string) {
   return /^(gracias|muchas gracias|ok gracias|vale gracias|listo gracias|perfecto gracias|super gracias|bien gracias|todo bien gracias|listo|ok|perfecto|excelente|entendido|genial|bueno)$/.test(clean);
 }
 
+function mentionsDori(text: string) {
+  return /\bdori\b/i.test(text);
+}
+
 function doriSocialClose(sender: string) {
   const name = sender && sender !== "Participante" ? ` ${sender}` : "";
   return `Con gusto${name}. Aquí estoy si necesitas revisar algo más de Origen.`;
@@ -2311,6 +2315,7 @@ export async function POST(req: Request) {
     if (text.trim() && getNotionKey()) {
       await saveChatMessage(payload, text).catch((error) => console.warn("[dori] chat history not saved", error?.message || error));
     }
+    if (!mentionsDori(text)) return json({ success: true, action: "ignore", message: "" });
     if (!process.env.OPENAI_API_KEY) return json({ success: false, error: "Missing OPENAI_API_KEY" }, 500);
     if (!getNotionKey()) return json({ success: false, error: "Missing NOTION_API_KEY or NOTION_TOKEN" }, 500);
 
