@@ -181,6 +181,16 @@ Soy Dori, asistente de Origen. Puedo ayudarte a revisar pendientes, tareas del e
 Dime qué necesitas y lo reviso.`;
 }
 
+function isSocialClose(text: string) {
+  const clean = normalizeKey(stripDoriCommand(text));
+  return /^(gracias|muchas gracias|ok gracias|vale gracias|listo gracias|perfecto gracias|super gracias|bien gracias|todo bien gracias|listo|ok|perfecto|excelente|entendido|genial|bueno)$/.test(clean);
+}
+
+function doriSocialClose(sender: string) {
+  const name = sender && sender !== "Participante" ? ` ${sender}` : "";
+  return `Con gusto${name}. Aquí estoy si necesitas revisar algo más de Origen.`;
+}
+
 function isImplicitBacklogFollowup(text: string, memory: DoriMemory) {
   const clean = normalizeKey(stripDoriCommand(text));
   const asksForPreviousList = /\b(damelas|dame las|pasamelas|pasame las|muestramelas|muestrame las|listalas|aqui|aca|por aqui)\b/.test(clean);
@@ -2314,6 +2324,7 @@ export async function POST(req: Request) {
     };
     const normalizedText = normalizeKey(text);
     if (isGreeting(text)) return reply("answer", doriGreeting(memory.sender));
+    if (isSocialClose(text)) return reply("answer", doriSocialClose(memory.sender));
     if (isImplicitBacklogFollowup(text, memory)) return reply("answer", await answerBacklogList());
     if (isTaskResponsibilityQuestion(text)) return reply("answer", await answerTaskResponsibilities());
     const decision = decideNextAction(text, payload, memory);
