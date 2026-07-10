@@ -666,7 +666,7 @@ const Header = () => {
               </Link>
 
               <Link
-                href="/pricing"
+                href="/start/agents?auth=signup"
                 className="auth-signup-btn"
                 onClick={closeMenu}
                 onMouseMove={handleMouseGlowMove}
