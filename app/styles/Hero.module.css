@@ -1,5 +1,5 @@
 .hero {
-  padding: 0.25rem 2em 3rem !important;
+  padding: 3.5rem 2em 3rem !important;
   text-align: center;
   background: linear-gradient(145deg, #0a0f1c, #001f3f);
   position: relative;
@@ -45,7 +45,7 @@
 
 @media (max-width: 768px) {
   .hero {
-    padding: 0.25rem 1.25rem 2.75rem !important;
+    padding: 2.75rem 1.25rem 2.75rem !important;
     min-height: auto;
   }
 }
