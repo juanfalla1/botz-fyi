@@ -1787,6 +1787,8 @@ function statusPropertyValue(property: any, status: string) {
 
 function propertyPlainText(prop: any) {
   if (!prop) return "";
+  if (prop.type === "string") return prop.string || "";
+  if (prop.type === "boolean") return prop.boolean ? "Sí" : "";
   if (prop.type === "title") return plainFromRich(prop.title);
   if (prop.type === "rich_text") return plainFromRich(prop.rich_text);
   if (prop.type === "select") return prop.select?.name || "";
