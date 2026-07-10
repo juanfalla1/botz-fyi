@@ -1657,8 +1657,12 @@ async function answerBacklogList() {
 
 function rowProp(row: any, patterns: RegExp[]) {
   const entries = Object.entries<any>(row?.properties || {});
-  const entry = entries.find(([name]) => patterns.some((pattern) => pattern.test(normalizeKey(name))));
-  return entry ? propertyPlainText(entry[1]).trim() : "";
+  const matches = entries.filter(([name]) => patterns.some((pattern) => pattern.test(normalizeKey(name))));
+  for (const [, property] of matches) {
+    const value = propertyPlainText(property).trim();
+    if (value) return value;
+  }
+  return "";
 }
 
 function backlogRowSummary(row: any) {
