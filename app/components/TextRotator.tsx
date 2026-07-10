@@ -11,6 +11,7 @@ interface TextRotatorProps {
   deletingSpeed?: number;
   pauseDuration?: number;
   className?: string;
+  typewriter?: boolean;
 }
 
 // Blinking cursor component
@@ -49,6 +50,7 @@ export default function TextRotator({
   deletingSpeed = 50,
   pauseDuration = 2000,
   className = "",
+  typewriter = true,
 }: TextRotatorProps) {
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [displayText, setDisplayText] = useState(words[0] || "");
@@ -85,10 +87,18 @@ export default function TextRotator({
   }, [displayText, currentWord, isDeleting, isPaused, pauseDuration, words.length]);
 
   useEffect(() => {
+    if (!typewriter) {
+      setDisplayText(currentWord || "");
+      const timer = setTimeout(() => {
+        setCurrentWordIndex((prev) => (prev + 1) % words.length);
+      }, pauseDuration);
+      return () => clearTimeout(timer);
+    }
+
     const speed = isDeleting ? deletingSpeed : typingSpeed;
     const timer = setTimeout(typeNextChar, speed);
     return () => clearTimeout(timer);
-  }, [displayText, isDeleting, typingSpeed, deletingSpeed, typeNextChar]);
+  }, [currentWord, displayText, isDeleting, typingSpeed, deletingSpeed, pauseDuration, typeNextChar, typewriter, words.length]);
 
   return (
     <span className={className} style={{ display: "inline", whiteSpace: "pre-wrap" }}>

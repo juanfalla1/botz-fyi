@@ -55,6 +55,7 @@ const Hero = () => {
               typingSpeed={50}
               deletingSpeed={25}
               pauseDuration={1500}
+              typewriter={false}
             />
           </div>
           <div>{t.title}</div>
