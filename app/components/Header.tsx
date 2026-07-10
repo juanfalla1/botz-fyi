@@ -309,6 +309,42 @@ const Header = () => {
     };
   };
 
+  const getMegaMenuStyle = (name: string): React.CSSProperties => {
+    if (isMobileView) {
+      return {
+        position: "static",
+        display: openDropdown === name ? "grid" : "none",
+        width: "100%",
+        gridTemplateColumns: "1fr",
+        gap: 8,
+        margin: "6px 0 2px",
+        padding: 8,
+        border: "1px solid rgba(34, 211, 238, 0.12)",
+        borderRadius: 16,
+        background: "rgba(2, 6, 14, 0.38)",
+        boxShadow: "none",
+      };
+    }
+
+    return {
+      position: "fixed",
+      top: 86,
+      left: "50vw",
+      width: "min(920px, calc(100vw - 64px))",
+      transform: "translateX(-50%)",
+      display: openDropdown === name ? "grid" : "none",
+      gridTemplateColumns: "minmax(240px, 300px) minmax(0, 1fr)",
+      gap: 16,
+      padding: 14,
+      border: "1px solid rgba(34, 211, 238, 0.18)",
+      borderRadius: 22,
+      background: "linear-gradient(180deg, rgba(8, 18, 41, 0.98), rgba(5, 10, 24, 0.98))",
+      boxShadow: "0 24px 80px rgba(0, 0, 0, 0.58)",
+      zIndex: 4200,
+      overflow: "hidden",
+    };
+  };
+
   return (
     <>
       <div
@@ -522,7 +558,7 @@ const Header = () => {
                   >
                     {menu.label} {isMobileView ? (openDropdown === menu.key ? "▴" : "▾") : ""}
                   </a>
-                  <div className="bz-mega-menu">
+                  <div className="bz-mega-menu" style={getMegaMenuStyle(menu.key)}>
                     <div className="bz-mega-feature">
                       <span>{menu.eyebrow}</span>
                       <strong>{menu.title}</strong>
