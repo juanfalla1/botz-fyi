@@ -35,7 +35,7 @@ const Header = () => {
   }, []);
 
   const isEn = botzLanguage === "en";
-  const isMobileView = hydrated && isMobile;
+  const isMobileView = isMobile;
   const navCopy = {
     menuAria: isEn ? "Open menu" : "Abrir menu",
     backToSite: isEn ? "Back to site" : "Volver al sitio",
@@ -163,7 +163,7 @@ const Header = () => {
   // Detectar si estamos en un dispositivo móvil
   useEffect(() => {
     const checkIsMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
+      setIsMobile(window.innerWidth <= 1024);
     };
     
     checkIsMobile();
@@ -325,7 +325,7 @@ const Header = () => {
           backdropFilter: "blur(6px)",
         }}
       >
-        <div className="bz-header-container" style={{ maxWidth: "100%", width: "100%", margin: 0, padding: isMobileView ? "10px 12px" : "12px 18px", display: isMobileView ? "flex" : "grid", gridTemplateColumns: isMobileView ? undefined : "auto minmax(0, 1fr)", columnGap: isMobileView ? 0 : "14px", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="bz-header-container" style={{ boxSizing: "border-box", maxWidth: "100%", width: "100%", minHeight: 72, margin: 0, padding: isMobileView ? "10px 12px" : "12px 18px", display: isMobileView ? "flex" : "grid", gridTemplateColumns: isMobileView ? undefined : "auto minmax(0, 1fr)", columnGap: isMobileView ? 0 : "14px", alignItems: "center", justifyContent: "space-between" }}>
           <div className="bz-logo-nav" style={{ width: "auto", display: "flex", alignItems: "center", columnGap: 10, flex: "0 0 auto", justifySelf: "start" }}>
             {/* LOGO MANTENIDO EN LA ESQUINA IZQUIERDA */}
             <Link href="/" passHref style={{ textDecoration: "none", borderBottom: "none", display: "inline-block" }}>
@@ -340,7 +340,7 @@ const Header = () => {
                 aria-label={navCopy.menuAria}
                 aria-expanded={open}
                 onClick={toggleMenu}
-                style={{ visibility: hydrated ? "visible" : "hidden" }}
+                style={{ display: isMobileView ? "flex" : "none", visibility: "visible" }}
               >
                 <span />
                 <span />
@@ -484,10 +484,14 @@ const Header = () => {
               style={{
                 marginLeft: isMobileView ? 0 : "auto",
                 paddingLeft: isMobileView ? 0 : "24px",
-                display: isMobileView ? undefined : "flex",
+                display: "flex",
+                position: isMobileView ? "fixed" : undefined,
+                top: isMobileView ? 72 : undefined,
+                left: isMobileView ? 0 : undefined,
+                right: isMobileView ? 0 : undefined,
                 justifyContent: isMobileView ? undefined : "flex-end",
-                width: isMobileView ? "100%" : "100%",
-                maxWidth: isMobileView ? "100%" : "none",
+                width: isMobileView ? "100vw" : "100%",
+                maxWidth: isMobileView ? "100vw" : "none",
                 flex: isMobileView ? undefined : "1 1 auto",
                 transform: "none",
                 transformOrigin: "center",
@@ -495,13 +499,13 @@ const Header = () => {
                 marginTop: 0,
                 alignItems: "center",
                 justifySelf: isMobileView ? "stretch" : "end",
-                visibility: hydrated ? "visible" : "hidden",
-                opacity: hydrated ? 1 : 0,
+                visibility: "visible",
+                opacity: 1,
               }}
             >
             <div className="bz-main-nav" role="navigation" aria-label="Main navigation" style={{ marginLeft: "auto", justifyContent: isMobileView ? "flex-start" : "flex-end", gap: isMobileView ? 0 : 6, display: "flex", alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", width: "100%" }}>
 
-              <div className="bz-nav-links-group" style={{ marginLeft: 0 }}>
+              <div className="bz-nav-links-group" style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: 0, minWidth: 0, flex: "0 1 auto", flexDirection: "row", flexWrap: "nowrap" }}>
 
               {megaMenus.map((menu) => (
                 <div
@@ -514,6 +518,7 @@ const Header = () => {
                     href="#"
                     className="bz-mega-trigger"
                     onClick={(e) => handleDropdownClick(e, menu.key)}
+                    style={{ color: "#ffffff", textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "6px 6px", borderRadius: 6, fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}
                   >
                     {menu.label} {isMobileView ? (openDropdown === menu.key ? "▴" : "▾") : ""}
                   </a>
@@ -535,21 +540,24 @@ const Header = () => {
               ))}
 
               {/* CONTACT - MOBILE */}
-              <a
-                href="#contacto"
-                onClick={(e) => {
-                  e.preventDefault();
-                  smoothScrollTo("contacto");
-                  closeMenu();
-                }}
-                className="bz-contacto-link font-semibold text-cyan-400"
-              >
-                {navCopy.contact}
-              </a>
+              {isMobileView && (
+                <a
+                  href="#contacto"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    smoothScrollTo("contacto");
+                    closeMenu();
+                  }}
+                  className="bz-contacto-link font-semibold text-cyan-400"
+                  style={{ color: "#22d3ee", textDecoration: "none" }}
+                >
+                  {navCopy.contact}
+                </a>
+              )}
 
               </div>
 
-              <div className="bz-nav-cta-group">
+              <div className="bz-nav-cta-group" style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 4, flex: "0 0 auto", flexDirection: "row" }}>
 
               <div className="bz-dropdown" data-botz-lang-switcher style={{ position: "relative" }}>
                 <button
@@ -1314,19 +1322,20 @@ const Header = () => {
           .bz-hamburger { display: flex !important; }
           .bz-nav-container {
             position: fixed !important;
-            top: 70px !important;
-            left: 12px !important;
-            right: 12px !important;
-            width: auto !important;
+            top: 72px !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100vw !important;
+            max-width: 100vw !important;
             height: auto !important;
             max-height: calc(100dvh - 88px) !important;
             background: linear-gradient(180deg, rgba(8, 18, 35, 0.98), rgba(6, 22, 36, 0.98)) !important;
             flex-direction: column !important;
             padding: 10px !important;
             border: 1px solid rgba(34, 211, 238, 0.22) !important;
-            border-radius: 22px !important;
+            border-radius: 0 0 22px 22px !important;
             box-shadow: 0 24px 70px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255,255,255,0.06) !important;
-            transform: translateY(-10px) scale(0.98) !important;
+            transform: translateY(-10px) !important;
             opacity: 0 !important;
             pointer-events: none !important;
             transition: transform 0.22s ease, opacity 0.18s ease !important;
@@ -1336,7 +1345,7 @@ const Header = () => {
             overscroll-behavior: contain !important;
           }
           .bz-nav-container.is-open {
-            transform: translateY(0) scale(1) !important;
+            transform: translateY(0) !important;
             opacity: 1 !important;
             pointer-events: auto !important;
           }
