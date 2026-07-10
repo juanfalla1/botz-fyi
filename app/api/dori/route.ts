@@ -161,8 +161,8 @@ function personFromText(text: string) {
 
 function isFollowupQuestion(text: string) {
   const normalized = normalizeKey(text);
-  const hasQuestionShape = /\b(que|qué|cual|cuál|cuales|cuáles|dime|muestra|mostrar|lista|listar|estado|como va|cómo va|pendiente|pendientes|tareas|seguimiento|bloqueos|bloquead|vencid|sin responsable|sin fecha)\b/.test(normalized);
-  const hasTeamTarget = Boolean(personFromText(text)) || /\b(equipo|todos|sin responsable|bloqueos|bloquead|vencid|sin fecha)\b/.test(normalized);
+  const hasQuestionShape = /\b(que|qué|quien|quién|cual|cuál|cuales|cuáles|dime|muestra|mostrar|lista|listar|estado|como va|cómo va|pendiente|pendientes|tarea|tareas|responsable|responsables|seguimiento|bloqueos|bloquead|vencid|sin responsable|sin fecha)\b/.test(normalized);
+  const hasTeamTarget = Boolean(personFromText(text)) || /\b(equipo|todos|tarea|tareas|backlog|product backlog|responsable|responsables|sin responsable|bloqueos|bloquead|vencid|sin fecha)\b/.test(normalized);
   const hasCreateVerb = /\b(crea|crear|agrega|agregar|guarda|guardar|deja|lleva|pon|poner|asigna|asignar|registra|registrar)\b/.test(normalized);
   return hasQuestionShape && hasTeamTarget && !hasCreateVerb;
 }
