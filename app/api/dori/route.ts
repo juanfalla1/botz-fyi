@@ -188,6 +188,15 @@ function isImplicitBacklogFollowup(text: string, memory: DoriMemory) {
   return asksForPreviousList && recentAskedTasks;
 }
 
+function isTaskResponsibilityQuestion(text: string) {
+  const normalized = normalizeKey(text);
+  return /\b(responsable|responsables|quien|quién)\b/.test(normalized) && /\b(tarea|tareas|backlog|pendiente|pendientes|cada)\b/.test(normalized);
+}
+
+function cleanNotionId(value: string) {
+  return asText(value).replace(/\\r|\\n|\r|\n/g, "").trim();
+}
+
 function isCreateTaskCommand(text: string) {
   const normalized = normalizeKey(text);
   return /\b(crea|crear|agrega|agregar|deja|lleva|pon|poner|asigna|asignar|registra|registrar|recuerdame|recuérdame)\b/.test(normalized) && /\b(tarea|tareas|backlog|pendiente|pendientes|action item|recordatorio)\b/.test(normalized);
@@ -1716,6 +1725,34 @@ async function answerTeamFollowup(text: string, memory: DoriMemory) {
   return standardActionResponse({ sender: memory.sender, intent: `revisar ${label}`, did: ["Leí Product Backlog", "Filtré tareas abiertas según la solicitud"], result: filtered.length ? filtered.slice(0, 15).map((row) => `${row.title} | Estado: ${row.status || "sin estado"} | Responsable: ${row.responsible || "sin responsable"} | Prioridad: ${row.priority || "sin prioridad"}`) : [`No encontré ${label} con los filtros actuales`], source: [titleFromNotion(target) || "Product Backlog"] });
 }
 
+async function answerTaskResponsibilities() {
+  const { target, rows } = await readBacklogRows(300);
+  if (!target) return "No pude revisar responsables porque no encontré Product Backlog accesible en Notion.";
+  const openRows = rows.filter((row) => !/done|complet|descart/i.test(row.status));
+  const resolved = openRows.map((row) => ({
+    ...row,
+    responsible: row.responsible || assigneeFromText(`${row.title} ${row.description}`),
+  }));
+  const assigned = resolved.filter((row) => row.responsible && !/sin asignar|sin responsable/i.test(row.responsible));
+  const missing = resolved.filter((row) => !row.responsible || /sin asignar|sin responsable/i.test(row.responsible));
+
+  const lines = [
+    `No todas las tareas tienen responsable.`,
+    `Con responsable: ${assigned.length}`,
+    `Sin responsable: ${missing.length}`,
+    "",
+    assigned.length ? "Tareas con responsable:" : "Tareas con responsable: ninguna en las filas revisadas",
+    ...assigned.slice(0, 15).map((row) => `- ${row.title} | Responsable: ${row.responsible} | Estado: ${row.status || "sin estado"}`),
+    "",
+    missing.length ? "Tareas sin responsable:" : "Tareas sin responsable: ninguna",
+    ...missing.slice(0, 15).map((row) => `- ${row.title} | Estado: ${row.status || "sin estado"}`),
+    "",
+    `Fuente: ${titleFromNotion(target) || "Product Backlog"}`,
+  ];
+
+  return cleanWhatsAppText(lines.join("\n"));
+}
+
 async function answerBacklogQuality(memory: DoriMemory) {
   const { target, rows } = await readBacklogRows(300);
   if (!target) return "Puedo revisar calidad del backlog, pero no encontré Product Backlog accesible en Notion.";
@@ -2166,7 +2203,7 @@ async function findBacklogTarget() {
 }
 
 async function findProductBacklogTarget() {
-  const configuredId = process.env.DORI_TASKS_DATABASE_ID || process.env.DORI_PRODUCT_BACKLOG_DATABASE_ID || "";
+  const configuredId = cleanNotionId(process.env.DORI_TASKS_DATABASE_ID || process.env.DORI_PRODUCT_BACKLOG_DATABASE_ID || "");
   if (configuredId.trim()) {
     const database = await notionFetch(`/databases/${configuredId.trim()}`).catch(() => null);
     if (database?.object === "database") return database;
@@ -2278,6 +2315,7 @@ export async function POST(req: Request) {
     const normalizedText = normalizeKey(text);
     if (isGreeting(text)) return reply("answer", doriGreeting(memory.sender));
     if (isImplicitBacklogFollowup(text, memory)) return reply("answer", await answerBacklogList());
+    if (isTaskResponsibilityQuestion(text)) return reply("answer", await answerTaskResponsibilities());
     const decision = decideNextAction(text, payload, memory);
     if (decision.needsClarification) {
       return reply("answer", standardActionResponse({ sender: memory.sender, intent: decision.expectedOutput, did: ["Analicé la solicitud antes de actuar"], result: ["Puedo hacerlo, pero falta un dato mínimo para no crear información incorrecta"], missing: [decision.clarificationQuestion], source: ["WhatsApp", "Memoria Dori"] }));
