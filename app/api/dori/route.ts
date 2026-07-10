@@ -1790,8 +1790,22 @@ function propertyPlainText(prop: any) {
   if (prop.type === "title") return plainFromRich(prop.title);
   if (prop.type === "rich_text") return plainFromRich(prop.rich_text);
   if (prop.type === "select") return prop.select?.name || "";
+  if (prop.type === "multi_select") return (prop.multi_select || []).map((item: any) => item?.name).filter(Boolean).join(", ");
   if (prop.type === "status") return prop.status?.name || "";
+  if (prop.type === "people") return (prop.people || []).map((person: any) => person?.name || person?.person?.email || person?.id).filter(Boolean).join(", ");
   if (prop.type === "number") return String(prop.number ?? "");
+  if (prop.type === "checkbox") return prop.checkbox ? "Sí" : "";
+  if (prop.type === "date") return prop.date?.start || "";
+  if (prop.type === "url") return prop.url || "";
+  if (prop.type === "email") return prop.email || "";
+  if (prop.type === "phone_number") return prop.phone_number || "";
+  if (prop.type === "formula") return propertyPlainText({ type: prop.formula?.type, [prop.formula?.type]: prop.formula?.[prop.formula?.type] });
+  if (prop.type === "rollup") {
+    const rollup = prop.rollup || {};
+    if (Array.isArray(rollup.array)) return rollup.array.map(propertyPlainText).filter(Boolean).join(", ");
+    if (rollup.type) return propertyPlainText({ type: rollup.type, [rollup.type]: rollup[rollup.type] });
+  }
+  if (prop.type === "relation") return (prop.relation || []).map((item: any) => item?.id).filter(Boolean).join(", ");
   return "";
 }
 
