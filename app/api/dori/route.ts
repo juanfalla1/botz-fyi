@@ -1897,9 +1897,12 @@ function decryptWhatsAppMedia(encrypted: Buffer, mediaKey: string, mimeType: str
 }
 
 async function extractPdfText(buffer: Buffer) {
-  const parser = requireNode("pdf-parse/lib/pdf-parse.js");
-  if (typeof parser === "function") {
-    const parsed = await parser(buffer);
+  const mod: any = await import("pdf-parse");
+  const PDFParse = mod?.PDFParse || mod?.default?.PDFParse;
+  if (PDFParse) {
+    const parser = new PDFParse({ data: buffer });
+    const parsed = await parser.getText();
+    await parser.destroy?.();
     return asText(parsed?.text || parsed).trim();
   }
   throw new Error("pdf-parse no expuso un parser compatible en runtime");
