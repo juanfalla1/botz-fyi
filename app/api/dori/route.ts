@@ -161,6 +161,33 @@ function getDocumentAttachment(payload: any): DocumentAttachment | null {
   return looksLikeDocument ? attachment : null;
 }
 
+function summarizeDocumentPayload(payload: any, attachment: DocumentAttachment | null) {
+  const body = payload?.body ?? payload;
+  const message = body?.data?.message || body?.message || {};
+  const document = attachment?.rawDocument || {};
+  return {
+    event: body?.event || body?.data?.event || "",
+    instance: attachment?.instance || body?.instance || body?.data?.instance || "",
+    key: {
+      id: attachment?.messageKey?.id || body?.data?.key?.id || body?.key?.id || "",
+      remoteJid: attachment?.messageKey?.remoteJid || body?.data?.key?.remoteJid || body?.key?.remoteJid || "",
+      fromMe: attachment?.messageKey?.fromMe ?? body?.data?.key?.fromMe ?? body?.key?.fromMe ?? null,
+    },
+    messageTypes: Object.keys(message || {}),
+    documentKeys: Object.keys(document || {}),
+    contextInfo: {
+      stanzaId: document?.contextInfo?.stanzaId || message?.extendedTextMessage?.contextInfo?.stanzaId || "",
+      participant: document?.contextInfo?.participant || message?.extendedTextMessage?.contextInfo?.participant || "",
+      quotedTypes: Object.keys(document?.contextInfo?.quotedMessage || message?.extendedTextMessage?.contextInfo?.quotedMessage || {}),
+    },
+    hasUrl: Boolean(attachment?.url),
+    hasBase64: Boolean(attachment?.base64),
+    hasMediaKey: Boolean(attachment?.mediaKey),
+    fileName: attachment?.fileName || "",
+    mimeType: attachment?.mimeType || "",
+  };
+}
+
 function isDocumentBacklogRequest(text: string, payload: any) {
   const normalized = normalizeKey(text);
   const attachment = getDocumentAttachment(payload);
@@ -1457,6 +1484,7 @@ function documentRepositoryBlocks(input: { attachment: DocumentAttachment; paylo
 async function archivePdfAttachmentInBackground(payload: any, text: string) {
   const attachment = getDocumentAttachment(payload);
   if (!isPdfAttachment(attachment)) return null;
+  doriLog("document", "PDF payload summary", summarizeDocumentPayload(payload, attachment));
 
   const title = documentRecordTitle(attachment!, payload);
   const existing = await findExactTitle(title).catch(() => null);
