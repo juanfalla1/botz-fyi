@@ -35,6 +35,8 @@ type DocumentAttachment = {
   base64: string;
   mediaKey: string;
   messageKey: any;
+  rawMessage: any;
+  rawDocument: any;
   instance: string;
 };
 
@@ -151,6 +153,8 @@ function getDocumentAttachment(payload: any): DocumentAttachment | null {
     base64,
     mediaKey,
     messageKey,
+    rawMessage: message,
+    rawDocument: document,
     instance,
   };
   const looksLikeDocument = Boolean(hasDocumentNode || attachment.url || attachment.base64 || /pdf|manual|archivo|documento/i.test(`${fileName} ${mimeType}`));
@@ -2071,19 +2075,26 @@ async function getEvolutionMediaBase64(attachment: DocumentAttachment) {
     doriLog("document", "Evolution media fetch skipped", { hasApiUrl: Boolean(apiUrl), hasApiKey: Boolean(apiKey), messageId: Boolean(messageId), instance: attachment.instance });
     return "";
   }
-  const response = await fetch(`${apiUrl}/chat/getBase64FromMediaMessage/${encodeURIComponent(attachment.instance || "Dori")}`, {
-    method: "POST",
-    headers: { apikey: apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message: { key: attachment.messageKey },
-      convertToMp4: false,
-    }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`Evolution getBase64 failed: ${response.status} ${asText(data?.message || data?.error || "")}`);
-  const base64 = pickFirstString(data?.base64, data?.data?.base64, data?.media, data?.data?.media, data?.file, data?.data?.file);
-  doriLog("document", "Evolution media fetched", { ok: Boolean(base64), instance: attachment.instance, messageId, mimeType: data?.mimetype || data?.data?.mimetype || "" });
-  return base64;
+  const endpoint = `${apiUrl}/chat/getBase64FromMediaMessage/${encodeURIComponent(attachment.instance || "Dori")}`;
+  const attempts = [
+    { label: "full-message", body: { message: { key: attachment.messageKey, message: attachment.rawMessage }, convertToMp4: false } },
+    { label: "document-message", body: { message: { key: attachment.messageKey, message: { documentMessage: attachment.rawDocument } }, convertToMp4: false } },
+    { label: "key-only", body: { message: { key: attachment.messageKey }, convertToMp4: false } },
+  ];
+  let lastError = "";
+  for (const attempt of attempts) {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { apikey: apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(attempt.body),
+    });
+    const data = await response.json().catch(() => ({}));
+    const base64 = pickFirstString(data?.base64, data?.data?.base64, data?.media, data?.data?.media, data?.file, data?.data?.file);
+    doriLog("document", "Evolution media fetch attempt", { attempt: attempt.label, ok: Boolean(base64), status: response.status, instance: attachment.instance, messageId, mimeType: data?.mimetype || data?.data?.mimetype || "" });
+    if (response.ok && base64) return base64;
+    lastError = `${response.status} ${asText(data?.message || data?.error || "")}`.trim();
+  }
+  throw new Error(`Evolution getBase64 failed: ${lastError || "sin base64"}`);
 }
 
 function bufferHeader(buffer: Buffer) {
@@ -2495,7 +2506,10 @@ export async function POST(req: Request) {
     if (isCorrectionWithoutIntent(text)) return reply("answer", clarificationFor(text));
     if (isLastPdfQuestion(text)) return reply("answer", answerLastPdfFromMemory(memory));
     if (isPdfSaveRequest(text) && archivedPdfPage) {
-      return reply("answer", `Listo ${memory.sender}. Guardé el PDF en Repositorio de Documentos Dori.\n${itemUrl(archivedPdfPage)}`);
+      const lastPdfLine = recentDoriChatLines.slice().reverse().find((line) => line.includes(`Notion: ${itemUrl(archivedPdfPage)}`)) || "";
+      const readable = /texto extraído|sin texto extraíble/i.test(lastPdfLine) && !/no legible/i.test(lastPdfLine);
+      const status = readable ? "Guardé el PDF en Repositorio de Documentos Dori." : "Registré el PDF en Repositorio de Documentos Dori, pero WhatsApp lo entregó cifrado y no pude leer su contenido todavía.";
+      return reply("answer", `Listo ${memory.sender}. ${status}\n${itemUrl(archivedPdfPage)}`);
     }
     if (isPdfSaveRequest(text) && !isPdfAttachment(getDocumentAttachment(payload))) {
       doriLog("document", "PDF save requested but no attachment detected", { text: text.slice(0, 300), messageKeys: Object.keys(payload?.data?.message || payload?.message || {}) });
