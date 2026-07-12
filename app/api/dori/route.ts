@@ -283,6 +283,20 @@ function isPdfSaveRequest(text: string) {
   return /\b(pdf|documento|archivo|adjunto)\b/.test(normalized) && /\b(guarda|guardar|registra|registrar|sube|subir|archiva|archivar|notion|repositorio)\b/.test(normalized);
 }
 
+function pdfUrlFromText(text: string) {
+  const url = text.match(/https?:\/\/\S+/i)?.[0]?.replace(/[).,;]+$/, "") || "";
+  return /\.pdf(?:\?|#|$)|application\/pdf|drive\.google\.com|dropbox\.com|supabase|storage/i.test(url) ? url : "";
+}
+
+function fileNameFromUrl(url: string) {
+  try {
+    const last = decodeURIComponent(new URL(url).pathname.split("/").filter(Boolean).pop() || "documento.pdf");
+    return /\.pdf$/i.test(last) ? last : "documento.pdf";
+  } catch {
+    return "documento.pdf";
+  }
+}
+
 function isPersonChatQuestion(text: string) {
   const normalized = normalizeKey(text);
   return Boolean(personFromText(text)) && /\b(dijo|dice|pregunto|pregunt[oó]|pidio|pidi[oó]|comento|coment[oó]|menciono|mencion[oó]|hablo|habl[oó])\b/.test(normalized);
@@ -1498,8 +1512,23 @@ function documentRepositoryBlocks(input: { attachment: DocumentAttachment; paylo
   return blocks;
 }
 
-async function archivePdfAttachmentInBackground(payload: any, text: string) {
-  const attachment = getDocumentAttachment(payload);
+function externalPdfAttachment(url: string, payload: any): DocumentAttachment {
+  return {
+    fileName: fileNameFromUrl(url),
+    mimeType: "application/pdf",
+    caption: getTextFromPayload(payload),
+    url,
+    base64: "",
+    mediaKey: "",
+    messageKey: (payload?.body ?? payload)?.data?.key || (payload?.body ?? payload)?.key || {},
+    rawMessage: {},
+    rawDocument: { url, mimetype: "application/pdf", fileName: fileNameFromUrl(url) },
+    instance: pickFirstString((payload?.body ?? payload)?.instance, (payload?.body ?? payload)?.data?.instance, process.env.EVOLUTION_INSTANCE, "Dori"),
+  };
+}
+
+async function archivePdfAttachmentInBackground(payload: any, text: string, providedAttachment?: DocumentAttachment) {
+  const attachment = providedAttachment || getDocumentAttachment(payload);
   if (!isPdfAttachment(attachment)) return null;
   doriLog("document", "PDF payload summary", summarizeDocumentPayload(payload, attachment));
 
@@ -2583,7 +2612,13 @@ export async function POST(req: Request) {
       await saveChatMessage(payload, text).catch((error) => console.warn("[dori] chat history not saved", error?.message || error));
     }
     let archivedPdfPage: any = null;
-    if (getNotionKey() && isPdfAttachment(getDocumentAttachment(payload))) {
+    const publicPdfUrl = pdfUrlFromText(text);
+    if (getNotionKey() && publicPdfUrl && isPdfSaveRequest(text)) {
+      archivedPdfPage = await archivePdfAttachmentInBackground(payload, text, externalPdfAttachment(publicPdfUrl, payload)).catch((error) => {
+        console.warn("[dori][document] PDF public URL archive failed", error?.message || error);
+        return null;
+      });
+    } else if (getNotionKey() && isPdfAttachment(getDocumentAttachment(payload))) {
       archivedPdfPage = await archivePdfAttachmentInBackground(payload, text).catch((error) => {
         console.warn("[dori][document] PDF auto archive failed", error?.message || error);
         return null;
