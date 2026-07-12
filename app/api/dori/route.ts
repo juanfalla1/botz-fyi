@@ -1859,7 +1859,7 @@ async function answerTaskResponsibilities() {
 function answerLastPdfFromMemory(memory: DoriMemory) {
   const docs = memory.recentHistory
     .split("\n")
-    .filter((line) => /PDF guardado|\.pdf|archivo pdf|documento pdf/i.test(line))
+    .filter((line) => /PDF guardado/i.test(line))
     .slice(-5);
 
   if (!docs.length) {
