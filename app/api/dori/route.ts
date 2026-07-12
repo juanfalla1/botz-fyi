@@ -207,6 +207,20 @@ function isTaskResponsibilityQuestion(text: string) {
   return /\b(responsable|responsables|quien|quién)\b/.test(normalized) && /\b(tarea|tareas|backlog|pendiente|pendientes|cada)\b/.test(normalized);
 }
 
+function isPersonChatQuestion(text: string) {
+  const normalized = normalizeKey(text);
+  return Boolean(personFromText(text)) && /\b(dijo|dice|pregunto|pregunt[oó]|pidio|pidi[oó]|comento|coment[oó]|menciono|mencion[oó]|hablo|habl[oó])\b/.test(normalized);
+}
+
+function clarificationFor(text: string) {
+  const clean = stripDoriCommand(text).trim();
+  return `No tengo suficiente contexto para responder eso con seguridad.
+
+¿Te refieres a revisar el chat, una tarea del Product Backlog, una reunión o una página específica de Notion?
+
+Mensaje que recibí: "${clean || text}"`;
+}
+
 function cleanNotionId(value: string) {
   return asText(value).replace(/\\r|\\n|\r|\n/g, "").trim();
 }
@@ -1767,6 +1781,32 @@ async function answerTaskResponsibilities() {
   return cleanWhatsAppText(lines.join("\n"));
 }
 
+async function answerPersonChatQuestion(openai: OpenAI, text: string, memory: DoriMemory) {
+  const person = personFromText(text);
+  const lines = memory.recentHistory
+    .split("\n")
+    .filter((line) => person && normalizeKey(line).includes(normalizeKey(person)))
+    .slice(-30);
+
+  if (!person || !lines.length) {
+    return `No encontré mensajes recientes de ${person || "esa persona"} en el historial que tengo disponible.
+
+¿Quieres que revise el chat completo, una fecha específica o una reunión?`;
+  }
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0,
+    max_tokens: 450,
+    messages: [
+      { role: "system", content: "Responde como Dori usando solo las líneas de historial entregadas. Si preguntan qué dijo o preguntó una persona, resume literal y brevemente. No inventes. Si no hay pregunta explícita, di qué comentó. Español natural, sin asteriscos." },
+      { role: "user", content: `Solicitud: ${text}\nPersona: ${person}\nHistorial reciente de esa persona:\n${lines.join("\n")}` },
+    ],
+  });
+
+  return cleanWhatsAppText(`${completion.choices[0]?.message?.content?.trim() || `Esto encontré de ${person}:\n${lines.slice(-5).join("\n")}`}\n\nFuente: Historial WhatsApp Dori`);
+}
+
 async function answerBacklogQuality(memory: DoriMemory) {
   const { target, rows } = await readBacklogRows(300);
   if (!target) return "Puedo revisar calidad del backlog, pero no encontré Product Backlog accesible en Notion.";
@@ -2097,7 +2137,11 @@ async function processDocumentToBacklog(openai: OpenAI, payload: any, text: stri
   const intro = sender ? `Listo ${sender}.` : "Listo.";
   if (!attachment?.url && !attachment?.base64) {
     console.warn(logPrefix, "archivo no recibido", { fileName: attachment?.fileName || "", mimeType: attachment?.mimeType || "" });
-    return standardActionResponse({ sender, intent: "procesar un manual/documento y llevar actividades al backlog", did: ["Revisé el mensaje y busqué un adjunto en el payload de WhatsApp"], result: ["No recibí un archivo descargable o base64"], missing: ["Reenvía el PDF como documento junto con la instrucción"], source: ["WhatsApp"] });
+    return `${intro} Entendí que quieres guardar o procesar un documento, pero no puedo acceder al archivo desde este mensaje.
+
+¿Te refieres al último PDF enviado en el chat${memory?.lastDocument ? ` (${memory.lastDocument.slice(0, 120)})` : ""}?
+
+Para hacerlo bien, reenvía el PDF como documento y escribe en el mismo mensaje: "Dori guarda este PDF en Notion" o "Dori extrae actividades de este PDF al backlog".`;
   }
 
   let documentText = "";
@@ -2330,6 +2374,7 @@ export async function POST(req: Request) {
     const normalizedText = normalizeKey(text);
     if (isGreeting(text)) return reply("answer", doriGreeting(memory.sender));
     if (isSocialClose(text)) return reply("answer", doriSocialClose(memory.sender));
+    if (isPersonChatQuestion(text)) return reply("answer", await answerPersonChatQuestion(openai, text, memory));
     if (isImplicitBacklogFollowup(text, memory)) return reply("answer", await answerBacklogList());
     if (isTaskResponsibilityQuestion(text)) return reply("answer", await answerTaskResponsibilities());
     const decision = decideNextAction(text, payload, memory);
@@ -2410,6 +2455,7 @@ export async function POST(req: Request) {
       return reply("process_document_to_backlog", message);
     } else if (intent.action === "answer") {
       message = await answerQuestion(openai, intent.query || text, intent.area);
+      if (/^No encontr[eé]/i.test(message)) message = clarificationFor(text);
     } else if (intent.action === "create_task" || intent.action === "create_bug" || intent.action === "create_idea") {
       const target = intent.action === "create_task" ? await findProductBacklogTarget() : await findBacklogTarget();
       const kind = intent.action === "create_task" ? "Tarea" : intent.action === "create_bug" ? "Bug" : "Idea";
@@ -2450,6 +2496,7 @@ export async function POST(req: Request) {
       message = `Información guardada en ${saved.where}.\n${saved.url || ""}`.trim();
     } else {
       message = await answerQuestion(openai, text, normalizeArea(text)).catch(() => "Estoy aquí. Puedo ayudarte a revisar Notion, pendientes, tareas del equipo, reuniones o decisiones de Origen. Dime qué quieres que revise.");
+      if (/^No encontr[eé]/i.test(message)) message = clarificationFor(text);
     }
 
     return reply(intent.action, message);
