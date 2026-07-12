@@ -118,11 +118,24 @@ function pickFirstString(...values: unknown[]) {
   return "";
 }
 
+function findDocumentNode(value: any, seen = new Set<any>()): any {
+  if (!value || typeof value !== "object" || seen.has(value)) return null;
+  seen.add(value);
+  if (value.documentMessage) return value.documentMessage;
+  if (value.documentWithCaptionMessage?.message?.documentMessage) return value.documentWithCaptionMessage.message.documentMessage;
+  if ((value.fileName || value.title || value.mimetype || value.mimeType) && (value.url || value.mediaUrl || value.base64 || value.mediaKey)) return value;
+  for (const child of Object.values(value)) {
+    const found = findDocumentNode(child, seen);
+    if (found) return found;
+  }
+  return null;
+}
+
 function getDocumentAttachment(payload: any): DocumentAttachment | null {
   const body = payload?.body ?? payload;
   const message = body?.data?.message || body?.message || {};
-  const document = message?.documentMessage || message?.documentWithCaptionMessage?.message?.documentMessage || body?.data?.documentMessage || body?.documentMessage || {};
-  const hasDocumentNode = Boolean(message?.documentMessage || message?.documentWithCaptionMessage || body?.data?.documentMessage || body?.documentMessage);
+  const document = message?.documentMessage || message?.documentWithCaptionMessage?.message?.documentMessage || body?.data?.documentMessage || body?.documentMessage || findDocumentNode(body) || {};
+  const hasDocumentNode = Boolean(message?.documentMessage || message?.documentWithCaptionMessage || body?.data?.documentMessage || body?.documentMessage || document?.fileName || document?.mimetype || document?.mimeType);
   const fileName = pickFirstString(document.fileName, document.title, body?.data?.fileName, body?.fileName);
   const mimeType = pickFirstString(document.mimetype, document.mimeType, body?.data?.mimetype, body?.mimetype, body?.mimeType);
   const url = pickFirstString(document.url, document.mediaUrl, body?.data?.mediaUrl, body?.data?.url, body?.mediaUrl, body?.url);
@@ -215,6 +228,11 @@ function isTaskResponsibilityQuestion(text: string) {
 function isLastPdfQuestion(text: string) {
   const normalized = normalizeKey(text);
   return /\b(pdf|documento|archivo|repositorio)\b/.test(normalized) && /\b(ultimo|último|anterior|reciente|guardado|donde|dónde|usar|usa|utiliza|llevalo|ll[eé]valo)\b/.test(normalized);
+}
+
+function isPdfSaveRequest(text: string) {
+  const normalized = normalizeKey(text);
+  return /\b(pdf|documento|archivo|adjunto)\b/.test(normalized) && /\b(guarda|guardar|registra|registrar|sube|subir|archiva|archivar|notion|repositorio)\b/.test(normalized);
 }
 
 function isPersonChatQuestion(text: string) {
@@ -2472,6 +2490,10 @@ export async function POST(req: Request) {
     if (isSocialClose(text)) return reply("answer", doriSocialClose(memory.sender));
     if (isCorrectionWithoutIntent(text)) return reply("answer", clarificationFor(text));
     if (isLastPdfQuestion(text)) return reply("answer", answerLastPdfFromMemory(memory));
+    if (isPdfSaveRequest(text) && !isPdfAttachment(getDocumentAttachment(payload))) {
+      doriLog("document", "PDF save requested but no attachment detected", { text: text.slice(0, 300), messageKeys: Object.keys(payload?.data?.message || payload?.message || {}) });
+      return reply("answer", "No recibí el archivo PDF en el webhook, solo el texto. Reenvíalo como documento adjunto y escribe en el mismo mensaje: Dori guarda este PDF.");
+    }
     if (isPersonChatQuestion(text)) return reply("answer", await answerPersonChatQuestion(openai, text, memory));
     if (isImplicitBacklogFollowup(text, memory)) return reply("answer", await answerBacklogList());
     if (isTaskResponsibilityQuestion(text)) return reply("answer", await answerTaskResponsibilities());
