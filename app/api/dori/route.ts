@@ -120,6 +120,23 @@ function pickFirstString(...values: unknown[]) {
   return "";
 }
 
+function pickFirstBase64ish(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (Array.isArray(value) && value.every((item) => typeof item === "number")) return Buffer.from(value).toString("base64");
+    if (value && typeof value === "object") {
+      const obj: any = value;
+      if (Array.isArray(obj.data) && obj.data.every((item: any) => typeof item === "number")) return Buffer.from(obj.data).toString("base64");
+      const numericKeys = Object.keys(obj).filter((key) => /^\d+$/.test(key));
+      if (numericKeys.length) {
+        const bytes = numericKeys.sort((a, b) => Number(a) - Number(b)).map((key) => obj[key]);
+        if (bytes.every((item) => typeof item === "number")) return Buffer.from(bytes).toString("base64");
+      }
+    }
+  }
+  return "";
+}
+
 function findDocumentNode(value: any, seen = new Set<any>()): any {
   if (!value || typeof value !== "object" || seen.has(value)) return null;
   seen.add(value);
@@ -142,7 +159,7 @@ function getDocumentAttachment(payload: any): DocumentAttachment | null {
   const mimeType = pickFirstString(document.mimetype, document.mimeType, body?.data?.mimetype, body?.mimetype, body?.mimeType);
   const url = pickFirstString(document.url, document.mediaUrl, body?.data?.mediaUrl, body?.data?.url, body?.mediaUrl, body?.url);
   const base64 = pickFirstString(document.base64, body?.data?.base64, body?.base64, body?.data?.message?.base64);
-  const mediaKey = pickFirstString(document.mediaKey, body?.data?.mediaKey, body?.mediaKey);
+  const mediaKey = pickFirstBase64ish(document.mediaKey, body?.data?.mediaKey, body?.mediaKey);
   const messageKey = body?.data?.key || body?.key || {};
   const instance = pickFirstString(body?.instance, body?.instanceName, body?.data?.instance, body?.data?.instanceName, process.env.EVOLUTION_INSTANCE, "Dori");
   const attachment: DocumentAttachment = {
