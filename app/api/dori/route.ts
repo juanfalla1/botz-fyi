@@ -493,6 +493,10 @@ function bulletBlock(text: string) {
   return { object: "block", type: "bulleted_list_item", bulleted_list_item: { rich_text: richText(text) } };
 }
 
+function fileBlock(name: string, url: string) {
+  return { object: "block", type: "file", file: { caption: richText(name), type: "external", external: { url } } };
+}
+
 function paragraphBlocksFromText(text: string, maxChars = 60000) {
   return asText(text)
     .slice(0, maxChars)
@@ -1385,7 +1389,49 @@ function documentRecordTitle(attachment: DocumentAttachment, payload: any) {
   return `${date} - ${cleanDocumentTitle(attachment.fileName || "PDF WhatsApp")}${messageId ? ` - ${messageId}` : ""}`.slice(0, 120);
 }
 
-function documentRepositoryBlocks(input: { attachment: DocumentAttachment; payload: any; instruction: string; status: string; documentText: string; error?: string }) {
+function getSupabaseStorageConfig() {
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL_BOTZ || "";
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_BOTZ || "";
+  const bucket = process.env.DORI_DOCUMENTS_BUCKET || "dori-documents";
+  return { url: url.replace(/\/$/, ""), key, bucket };
+}
+
+function safeStorageName(name: string) {
+  const clean = cleanDocumentTitle(name || "documento.pdf").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return /\.pdf$/i.test(clean) ? clean : `${clean || "documento"}.pdf`;
+}
+
+async function ensureSupabaseBucket(url: string, key: string, bucket: string) {
+  const response = await fetch(`${url}/storage/v1/bucket`, {
+    method: "POST",
+    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ id: bucket, name: bucket, public: true, file_size_limit: 52428800, allowed_mime_types: ["application/pdf"] }),
+  });
+  if (!response.ok && response.status !== 400 && response.status !== 409) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`no pude preparar bucket Supabase: ${response.status} ${body.slice(0, 200)}`);
+  }
+}
+
+async function uploadPdfToStorage(attachment: DocumentAttachment, payload: any, buffer: Buffer) {
+  const { url, key, bucket } = getSupabaseStorageConfig();
+  if (!url || !key) throw new Error("faltan variables Supabase para guardar el archivo PDF real");
+  await ensureSupabaseBucket(url, key, bucket);
+  const messageId = asText((payload?.body ?? payload)?.data?.key?.id || attachment.messageKey?.id || Date.now());
+  const path = `${new Date().toISOString().slice(0, 10)}/${messageId}-${safeStorageName(attachment.fileName)}`;
+  const response = await fetch(`${url}/storage/v1/object/${bucket}/${encodeURIComponent(path).replace(/%2F/g, "/")}`, {
+    method: "PUT",
+    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": attachment.mimeType || "application/pdf", "x-upsert": "true" },
+    body: buffer,
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`no pude subir PDF a Supabase: ${response.status} ${body.slice(0, 200)}`);
+  }
+  return `${url}/storage/v1/object/public/${bucket}/${encodeURIComponent(path).replace(/%2F/g, "/")}`;
+}
+
+function documentRepositoryBlocks(input: { attachment: DocumentAttachment; payload: any; instruction: string; status: string; documentText: string; storedFileUrl?: string; error?: string }) {
   const sender = getSenderFromPayload(input.payload);
   const chatId = getChatIdFromPayload(input.payload);
   const receivedAt = new Date().toISOString();
@@ -1397,8 +1443,10 @@ function documentRepositoryBlocks(input: { attachment: DocumentAttachment; paylo
     bulletBlock(`Chat: ${chatId}`),
     bulletBlock(`Fecha: ${receivedAt}`),
     input.instruction ? bulletBlock(`Mensaje asociado: ${stripDoriCommand(input.instruction)}`) : bulletBlock("Mensaje asociado: sin instrucción"),
+    input.storedFileUrl ? bulletBlock(`Archivo guardado: ${input.storedFileUrl}`) : bulletBlock("Archivo guardado: no disponible"),
     input.attachment.url ? bulletBlock(`URL original: ${input.attachment.url}`) : bulletBlock("URL original: no disponible en webhook"),
   ];
+  if (input.storedFileUrl) blocks.push(headingBlock("Archivo PDF"), fileBlock(input.attachment.fileName || "PDF WhatsApp", input.storedFileUrl));
   if (input.error) blocks.push(headingBlock("Observación"), paragraphBlock(input.error));
   if (input.documentText.trim()) {
     blocks.push(headingBlock("Texto extraído"), ...paragraphBlocksFromText(input.documentText, 30000));
@@ -1417,17 +1465,20 @@ async function archivePdfAttachmentInBackground(payload: any, text: string) {
   let documentText = "";
   let status = "registrado";
   let error = "";
+  let storedFileUrl = "";
   try {
-    documentText = await extractDocumentText(attachment!);
-    status = documentText.trim() ? "guardado con texto extraído" : "guardado sin texto extraíble";
+    const buffer = await downloadAttachmentBuffer(attachment!);
+    if (!isPdfBuffer(buffer)) throw new Error(`el archivo recibido no llegó como PDF guardable. header=${bufferHeader(buffer)}, bytes=${buffer.length}`);
+    storedFileUrl = await uploadPdfToStorage(attachment!, payload, buffer);
+    status = "archivo PDF guardado";
   } catch (err: any) {
-    status = "registrado, archivo no legible automáticamente";
-    error = `No pude extraer el texto automáticamente: ${String(err?.message || err).slice(0, 300)}`;
+    status = "registrado, archivo no guardado";
+    error = `No pude guardar el archivo PDF real: ${String(err?.message || err).slice(0, 300)}`;
   }
 
   const repository = await getDocumentRepositoryPage();
-  const page = await createPageWithBlocks(repository.id, title, documentRepositoryBlocks({ attachment: attachment!, payload, instruction: text, status, documentText, error }));
-  await appendChatHistoryLine(`[${new Date().toISOString()}] PDF guardado (${getChatIdFromPayload(payload)}): ${attachment!.fileName || "PDF WhatsApp"} | Enviado por: ${getSenderFromPayload(payload)} | Estado: ${status} | Notion: ${page.url || itemUrl(page)}`);
+  const page = await createPageWithBlocks(repository.id, title, documentRepositoryBlocks({ attachment: attachment!, payload, instruction: text, status, documentText, storedFileUrl, error }));
+  await appendChatHistoryLine(`[${new Date().toISOString()}] PDF guardado (${getChatIdFromPayload(payload)}): ${attachment!.fileName || "PDF WhatsApp"} | Enviado por: ${getSenderFromPayload(payload)} | Estado: ${status} | Archivo: ${storedFileUrl || "no disponible"} | Notion: ${page.url || itemUrl(page)}`);
   return page;
 }
 
@@ -2512,8 +2563,8 @@ export async function POST(req: Request) {
     if (isLastPdfQuestion(text)) return reply("answer", answerLastPdfFromMemory(memory));
     if (isPdfSaveRequest(text) && archivedPdfPage) {
       const lastPdfLine = recentDoriChatLines.slice().reverse().find((line) => line.includes(`Notion: ${itemUrl(archivedPdfPage)}`)) || "";
-      const readable = /texto extraído|sin texto extraíble/i.test(lastPdfLine) && !/no legible/i.test(lastPdfLine);
-      const status = readable ? "Guardé el PDF en Repositorio de Documentos Dori." : "Registré el PDF en Repositorio de Documentos Dori, pero WhatsApp lo entregó cifrado y no pude leer su contenido todavía.";
+      const saved = /Estado: archivo PDF guardado/i.test(lastPdfLine) && /Archivo: https?:\/\//i.test(lastPdfLine);
+      const status = saved ? "Guardé el PDF real en Repositorio de Documentos Dori." : "Registré el intento en Repositorio de Documentos Dori, pero no pude guardar el archivo PDF real.";
       return reply("answer", `Listo ${memory.sender}. ${status}\n${itemUrl(archivedPdfPage)}`);
     }
     if (isPdfSaveRequest(text) && !isPdfAttachment(getDocumentAttachment(payload))) {
