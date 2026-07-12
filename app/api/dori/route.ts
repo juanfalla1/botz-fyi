@@ -150,6 +150,11 @@ function isDocumentBacklogRequest(text: string, payload: any) {
   return Boolean(attachment || /pdf|manual|archivo|documento|adjunto/.test(normalized)) && /backlog|actividad|actividades|tarea|tareas|plan de negocio|notion/.test(normalized);
 }
 
+function isPdfAttachment(attachment: DocumentAttachment | null) {
+  if (!attachment) return false;
+  return /pdf|application\/pdf/i.test(`${attachment.fileName} ${attachment.mimeType}`);
+}
+
 function personFromText(text: string) {
   const normalized = normalizeKey(text);
   const people = ["sandra", "ruth", "ricardo", "juan", "monica", "mónica", "alianza", "icp", "todos", "equipo"];
@@ -1339,6 +1344,66 @@ async function getChatHistoryPage() {
   return createPage(parent, title, "Historial automático de mensajes del grupo de WhatsApp para que Dori pueda resumir conversaciones.");
 }
 
+async function getDocumentRepositoryPage() {
+  const title = process.env.DORI_DOCUMENT_REPOSITORY_TITLE || "Repositorio de Documentos Dori";
+  const existing = await findExactTitle(title).catch(() => null);
+  if (existing?.id && existing.object === "page" && isActiveNotionItem(existing)) return existing;
+  const parent = await getWritableParentPageId();
+  return createPage(parent, title, "Repositorio automático de PDFs compartidos en WhatsApp para que Dori pueda encontrarlos y usarlos como contexto.");
+}
+
+function documentRecordTitle(attachment: DocumentAttachment, payload: any) {
+  const messageId = asText((payload?.body ?? payload)?.data?.key?.id || attachment.messageKey?.id || "").slice(0, 10);
+  const date = new Date().toISOString().slice(0, 10);
+  return `${date} - ${cleanDocumentTitle(attachment.fileName || "PDF WhatsApp")}${messageId ? ` - ${messageId}` : ""}`.slice(0, 120);
+}
+
+function documentRepositoryBlocks(input: { attachment: DocumentAttachment; payload: any; instruction: string; status: string; documentText: string; error?: string }) {
+  const sender = getSenderFromPayload(input.payload);
+  const chatId = getChatIdFromPayload(input.payload);
+  const receivedAt = new Date().toISOString();
+  const blocks: any[] = [
+    headingBlock("Metadatos"),
+    bulletBlock(`Archivo: ${input.attachment.fileName || "PDF WhatsApp"}`),
+    bulletBlock(`Estado: ${input.status}`),
+    bulletBlock(`Enviado por: ${sender}`),
+    bulletBlock(`Chat: ${chatId}`),
+    bulletBlock(`Fecha: ${receivedAt}`),
+    input.instruction ? bulletBlock(`Mensaje asociado: ${stripDoriCommand(input.instruction)}`) : bulletBlock("Mensaje asociado: sin instrucción"),
+    input.attachment.url ? bulletBlock(`URL original: ${input.attachment.url}`) : bulletBlock("URL original: no disponible en webhook"),
+  ];
+  if (input.error) blocks.push(headingBlock("Observación"), paragraphBlock(input.error));
+  if (input.documentText.trim()) {
+    blocks.push(headingBlock("Texto extraído"), ...paragraphBlocksFromText(input.documentText, 30000));
+  }
+  return blocks;
+}
+
+async function archivePdfAttachmentInBackground(payload: any, text: string) {
+  const attachment = getDocumentAttachment(payload);
+  if (!isPdfAttachment(attachment)) return null;
+
+  const title = documentRecordTitle(attachment!, payload);
+  const existing = await findExactTitle(title).catch(() => null);
+  if (existing?.id && existing.object === "page" && isActiveNotionItem(existing)) return existing;
+
+  let documentText = "";
+  let status = "registrado";
+  let error = "";
+  try {
+    documentText = await extractDocumentText(attachment!);
+    status = documentText.trim() ? "guardado con texto extraído" : "guardado sin texto extraíble";
+  } catch (err: any) {
+    status = "registrado, archivo no legible automáticamente";
+    error = `No pude extraer el texto automáticamente: ${String(err?.message || err).slice(0, 300)}`;
+  }
+
+  const repository = await getDocumentRepositoryPage();
+  const page = await createPageWithBlocks(repository.id, title, documentRepositoryBlocks({ attachment: attachment!, payload, instruction: text, status, documentText, error }));
+  await appendChatHistoryLine(`[${new Date().toISOString()}] PDF guardado (${getChatIdFromPayload(payload)}): ${attachment!.fileName || "PDF WhatsApp"} | Enviado por: ${getSenderFromPayload(payload)} | Estado: ${status} | Notion: ${page.url || itemUrl(page)}`);
+  return page;
+}
+
 async function getChatHistoryPages() {
   const todayTitle = `${CHAT_HISTORY_PAGE_TITLE} - ${zonedDateString(new Date(), DEFAULT_TIME_ZONE)}`;
   const candidates = [
@@ -2363,6 +2428,9 @@ export async function POST(req: Request) {
     if (markDoriMessageProcessing(payload)) return json({ success: true, action: "ignore", message: "" });
     if (text.trim() && getNotionKey()) {
       await saveChatMessage(payload, text).catch((error) => console.warn("[dori] chat history not saved", error?.message || error));
+    }
+    if (getNotionKey() && isPdfAttachment(getDocumentAttachment(payload))) {
+      await archivePdfAttachmentInBackground(payload, text).catch((error) => console.warn("[dori][document] PDF auto archive failed", error?.message || error));
     }
     if (!mentionsDori(text)) return json({ success: true, action: "ignore", message: "" });
     if (!process.env.OPENAI_API_KEY) return json({ success: false, error: "Missing OPENAI_API_KEY" }, 500);
