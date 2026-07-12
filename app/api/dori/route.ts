@@ -2130,8 +2130,13 @@ function decryptWhatsAppMedia(encrypted: Buffer, mediaKey: string, mimeType: str
 }
 
 async function extractPdfText(buffer: Buffer) {
-  const mod: any = await import("pdf-parse");
-  const PDFParse = mod?.PDFParse || mod?.default?.PDFParse;
+  let mod: any;
+  try {
+    mod = await import("pdf-parse/node");
+  } catch {
+    mod = await import("pdf-parse");
+  }
+  const PDFParse = mod?.PDFParse || mod?.default?.PDFParse || mod?.NodePDFParse || mod?.default?.NodePDFParse;
   if (PDFParse) {
     const parser = new PDFParse({ data: buffer });
     const parsed = await parser.getText();
