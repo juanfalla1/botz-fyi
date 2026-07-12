@@ -221,6 +221,11 @@ function clarificationFor(text: string) {
 Mensaje que recibí: "${clean || text}"`;
 }
 
+function isCorrectionWithoutIntent(text: string) {
+  const normalized = normalizeKey(stripDoriCommand(text));
+  return /\b(no es eso|no te estoy diciendo eso|eso no|no dije eso|no entendiste|estas entendiendo mal|est[aá]s entendiendo mal|no era eso)\b/.test(normalized);
+}
+
 function cleanNotionId(value: string) {
   return asText(value).replace(/\\r|\\n|\r|\n/g, "").trim();
 }
@@ -2374,6 +2379,7 @@ export async function POST(req: Request) {
     const normalizedText = normalizeKey(text);
     if (isGreeting(text)) return reply("answer", doriGreeting(memory.sender));
     if (isSocialClose(text)) return reply("answer", doriSocialClose(memory.sender));
+    if (isCorrectionWithoutIntent(text)) return reply("answer", clarificationFor(text));
     if (isPersonChatQuestion(text)) return reply("answer", await answerPersonChatQuestion(openai, text, memory));
     if (isImplicitBacklogFollowup(text, memory)) return reply("answer", await answerBacklogList());
     if (isTaskResponsibilityQuestion(text)) return reply("answer", await answerTaskResponsibilities());
