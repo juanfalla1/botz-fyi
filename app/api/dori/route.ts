@@ -2470,8 +2470,12 @@ export async function POST(req: Request) {
     if (text.trim() && getNotionKey()) {
       await saveChatMessage(payload, text).catch((error) => console.warn("[dori] chat history not saved", error?.message || error));
     }
+    let archivedPdfPage: any = null;
     if (getNotionKey() && isPdfAttachment(getDocumentAttachment(payload))) {
-      await archivePdfAttachmentInBackground(payload, text).catch((error) => console.warn("[dori][document] PDF auto archive failed", error?.message || error));
+      archivedPdfPage = await archivePdfAttachmentInBackground(payload, text).catch((error) => {
+        console.warn("[dori][document] PDF auto archive failed", error?.message || error);
+        return null;
+      });
     }
     if (!mentionsDori(text)) return json({ success: true, action: "ignore", message: "" });
     if (!process.env.OPENAI_API_KEY) return json({ success: false, error: "Missing OPENAI_API_KEY" }, 500);
@@ -2490,6 +2494,9 @@ export async function POST(req: Request) {
     if (isSocialClose(text)) return reply("answer", doriSocialClose(memory.sender));
     if (isCorrectionWithoutIntent(text)) return reply("answer", clarificationFor(text));
     if (isLastPdfQuestion(text)) return reply("answer", answerLastPdfFromMemory(memory));
+    if (isPdfSaveRequest(text) && archivedPdfPage) {
+      return reply("answer", `Listo ${memory.sender}. Guardé el PDF en Repositorio de Documentos Dori.\n${itemUrl(archivedPdfPage)}`);
+    }
     if (isPdfSaveRequest(text) && !isPdfAttachment(getDocumentAttachment(payload))) {
       doriLog("document", "PDF save requested but no attachment detected", { text: text.slice(0, 300), messageKeys: Object.keys(payload?.data?.message || payload?.message || {}) });
       return reply("answer", "No recibí el archivo PDF en el webhook, solo el texto. Reenvíalo como documento adjunto y escribe en el mismo mensaje: Dori guarda este PDF.");
