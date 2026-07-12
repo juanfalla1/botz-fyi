@@ -212,6 +212,11 @@ function isTaskResponsibilityQuestion(text: string) {
   return /\b(responsable|responsables|quien|quién)\b/.test(normalized) && /\b(tarea|tareas|backlog|pendiente|pendientes|cada)\b/.test(normalized);
 }
 
+function isLastPdfQuestion(text: string) {
+  const normalized = normalizeKey(text);
+  return /\b(pdf|documento|archivo|repositorio)\b/.test(normalized) && /\b(ultimo|último|anterior|reciente|guardado|donde|dónde|usar|usa|utiliza|llevalo|ll[eé]valo)\b/.test(normalized);
+}
+
 function isPersonChatQuestion(text: string) {
   const normalized = normalizeKey(text);
   return Boolean(personFromText(text)) && /\b(dijo|dice|pregunto|pregunt[oó]|pidio|pidi[oó]|comento|coment[oó]|menciono|mencion[oó]|hablo|habl[oó])\b/.test(normalized);
@@ -1851,6 +1856,24 @@ async function answerTaskResponsibilities() {
   return cleanWhatsAppText(lines.join("\n"));
 }
 
+function answerLastPdfFromMemory(memory: DoriMemory) {
+  const docs = memory.recentHistory
+    .split("\n")
+    .filter((line) => /PDF guardado|\.pdf|archivo pdf|documento pdf/i.test(line))
+    .slice(-5);
+
+  if (!docs.length) {
+    return "No tengo un PDF reciente registrado en el historial. Reenvía el PDF al chat y lo archivo automáticamente en Notion.";
+  }
+
+  return cleanWhatsAppText([
+    "Sí. Tengo estos PDFs recientes registrados:",
+    ...docs.map((line) => `- ${line.replace(/^\[[^\]]+\]\s*/, "")}`),
+    "",
+    "Si quieres que trabaje sobre uno, dime por ejemplo: Dori usa el último PDF para crear tareas, o Dori guarda el último PDF en Investigación de mercado.",
+  ].join("\n"));
+}
+
 async function answerPersonChatQuestion(openai: OpenAI, text: string, memory: DoriMemory) {
   const person = personFromText(text);
   const lines = memory.recentHistory
@@ -2448,6 +2471,7 @@ export async function POST(req: Request) {
     if (isGreeting(text)) return reply("answer", doriGreeting(memory.sender));
     if (isSocialClose(text)) return reply("answer", doriSocialClose(memory.sender));
     if (isCorrectionWithoutIntent(text)) return reply("answer", clarificationFor(text));
+    if (isLastPdfQuestion(text)) return reply("answer", answerLastPdfFromMemory(memory));
     if (isPersonChatQuestion(text)) return reply("answer", await answerPersonChatQuestion(openai, text, memory));
     if (isImplicitBacklogFollowup(text, memory)) return reply("answer", await answerBacklogList());
     if (isTaskResponsibilityQuestion(text)) return reply("answer", await answerTaskResponsibilities());
