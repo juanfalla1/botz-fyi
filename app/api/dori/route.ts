@@ -2215,7 +2215,12 @@ async function getEvolutionMediaBase64(attachment: DocumentAttachment) {
     return "";
   }
   const endpoint = `${apiUrl}/chat/getBase64FromMediaMessage/${encodeURIComponent(attachment.instance || "Dori")}`;
+  const storedMessage = await findEvolutionStoredMessage(apiUrl, apiKey, attachment).catch((error) => {
+    doriLog("document", "Evolution stored message lookup failed", { messageId, error: error?.message || String(error) });
+    return null;
+  });
   const attempts = [
+    ...(storedMessage ? [{ label: "stored-record", body: { message: storedMessage, convertToMp4: false } }] : []),
     { label: "full-message", body: { message: { key: attachment.messageKey, message: attachment.rawMessage }, convertToMp4: false } },
     { label: "document-message", body: { message: { key: attachment.messageKey, message: { documentMessage: attachment.rawDocument } }, convertToMp4: false } },
     { label: "key-only", body: { message: { key: attachment.messageKey }, convertToMp4: false } },
@@ -2234,6 +2239,21 @@ async function getEvolutionMediaBase64(attachment: DocumentAttachment) {
     lastError = `${response.status} ${asText(data?.message || data?.error || "")}`.trim();
   }
   throw new Error(`Evolution getBase64 failed: ${lastError || "sin base64"}`);
+}
+
+async function findEvolutionStoredMessage(apiUrl: string, apiKey: string, attachment: DocumentAttachment) {
+  const messageId = attachment.messageKey?.id || attachment.messageKey?.messageId || "";
+  if (!messageId) return null;
+  const response = await fetch(`${apiUrl}/chat/findMessages/${encodeURIComponent(attachment.instance || "Dori")}`, {
+    method: "POST",
+    headers: { apikey: apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ where: { key: { id: messageId } }, limit: 1 }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(`findMessages failed: ${response.status} ${asText(data?.message || data?.error || "")}`);
+  const record = data?.messages?.records?.[0] || data?.records?.[0] || null;
+  doriLog("document", "Evolution stored message lookup", { found: Boolean(record), messageId, messageTypes: Object.keys(record?.message || {}) });
+  return record;
 }
 
 function bufferHeader(buffer: Buffer) {
