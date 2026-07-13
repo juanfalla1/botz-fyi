@@ -275,7 +275,7 @@ function isTaskResponsibilityQuestion(text: string) {
 
 function isLastPdfQuestion(text: string) {
   const normalized = normalizeKey(text);
-  return /\b(pdf|documento|archivo|repositorio)\b/.test(normalized) && /\b(ultimo|último|anterior|reciente|guardado|donde|dónde|usar|usa|utiliza|llevalo|ll[eé]valo)\b/.test(normalized);
+  return /\b(pdf|pdfs|documento|documentos|archivo|archivos|repositorio)\b/.test(normalized) && /\b(ultimo|último|anterior|reciente|guardado|guardados|donde|dónde|cuales|cuáles|que|qué|listar|lista|mostrar|muestra|usar|usa|utiliza|llevalo|ll[eé]valo)\b/.test(normalized);
 }
 
 function isPdfSaveRequest(text: string) {
@@ -2021,6 +2021,34 @@ function answerLastPdfFromMemory(memory: DoriMemory) {
   ].join("\n"));
 }
 
+async function answerPdfRepository() {
+  const repository = await getDocumentRepositoryPage();
+  const children = await readBlockChildren(repository.id);
+  const pages = children.filter((block: any) => block.type === "child_page" && block.id);
+
+  if (!pages.length) {
+    return `No encontré PDFs guardados dentro de Repositorio de Documentos Dori.\n\nFuente: ${titleFromNotion(repository) || "Repositorio de Documentos Dori"}\n${repository.url || itemUrl(repository)}`;
+  }
+
+  const rows = [];
+  for (const page of pages.slice(-20).reverse()) {
+    const title = page.child_page?.title || "Documento sin título";
+    const lines = (await readBlocks(page.id, 0, 1).catch(() => [])).join("\n");
+    const file = lines.match(/Archivo:\s*(.+)/i)?.[1]?.trim() || title;
+    const status = lines.match(/Estado:\s*(.+)/i)?.[1]?.trim() || "sin estado";
+    const stored = lines.match(/Archivo guardado:\s*(https?:\/\/\S+)/i)?.[1]?.trim() || "";
+    rows.push(`- ${file}\n  Estado: ${status}\n  Notion: ${notionUrl(page.id)}${stored ? `\n  Archivo: ${stored}` : ""}`);
+  }
+
+  return cleanWhatsAppText([
+    `Encontré ${pages.length} documento(s) en Repositorio de Documentos Dori:`,
+    ...rows,
+    "",
+    `Fuente: ${titleFromNotion(repository) || "Repositorio de Documentos Dori"}`,
+    repository.url || itemUrl(repository),
+  ].join("\n"));
+}
+
 async function answerPersonChatQuestion(openai: OpenAI, text: string, memory: DoriMemory) {
   const person = personFromText(text);
   const lines = memory.recentHistory
@@ -2674,7 +2702,7 @@ export async function POST(req: Request) {
     if (isGreeting(text)) return reply("answer", doriGreeting(memory.sender));
     if (isSocialClose(text)) return reply("answer", doriSocialClose(memory.sender));
     if (isCorrectionWithoutIntent(text)) return reply("answer", clarificationFor(text));
-    if (isLastPdfQuestion(text)) return reply("answer", answerLastPdfFromMemory(memory));
+    if (isLastPdfQuestion(text)) return reply("answer", await answerPdfRepository());
     if (isPdfSaveRequest(text) && archivedPdfPage) {
       const lastPdfLine = recentDoriChatLines.slice().reverse().find((line) => line.includes(`Notion: ${itemUrl(archivedPdfPage)}`)) || "";
       const saved = /Estado: archivo PDF guardado/i.test(lastPdfLine) && /Archivo: https?:\/\//i.test(lastPdfLine);
