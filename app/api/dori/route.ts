@@ -1000,7 +1000,12 @@ function isChatSummaryQuestion(text: string) {
 
 function isCalendarInfoQuestion(text: string) {
   const normalized = normalizeKey(text);
-  return /reuni|meet|meeting|calendar|calendario/.test(normalized) && /hor|link|enlace|donde|cuando|toronto|equipo/.test(normalized);
+  return /reuni|meet|meeting|calendar|calendario|evento|agenda/.test(normalized) && /hor|link|enlace|donde|cuando|toronto|equipo|tenemos|hay|programad|agendad|proxima|pr[oó]xima|pendiente|pendientes|lista|listar|dime|cu[aá]les|cuales|que|qué/.test(normalized);
+}
+
+function isCalendarCreateCommand(text: string) {
+  const normalized = normalizeKey(text);
+  return /\b(agenda|agendar|crear|crea|cita|citar|programa|programar)\b/.test(normalized) && /google calendar|google calendario|calendar|calendario|reuni|meet|meeting|evento/.test(normalized);
 }
 
 function isTaskRequest(text: string) {
@@ -1041,7 +1046,7 @@ function extractTaskStatusUpdate(text: string) {
 
 function isCalendarInfoOnlyQuestion(text: string) {
   const normalized = normalizeKey(text);
-  return isCalendarInfoQuestion(text) && !/agenda|agendar|crear|crea|cita|citar|programa|programar|cambi|mov|ajust|reprogram|modific|pasar|pasa (la|el|para)/.test(normalized);
+  return isCalendarInfoQuestion(text) && !isCalendarCreateCommand(text) && !/\b(cambi|mueve|mover|mov|ajust|reprogram|modific|pasar|pasa)\b/.test(normalized);
 }
 
 function formatCalendarTime(iso: string, timeZone: string) {
@@ -1152,8 +1157,7 @@ async function summarizeChatHistory(openai: OpenAI, question: string) {
 }
 
 function isGoogleCalendarRequest(text: string) {
-  const normalized = normalizeKey(text);
-  return /agenda|agendar|crear|crea|cita|citar|programa|programar/.test(normalized) && /google calendar|google calendario|calendar|calendario|reuni|meet|meeting|evento/.test(normalized);
+  return isCalendarCreateCommand(text);
 }
 
 function isCalendarUpdateRequest(text: string) {
@@ -2721,6 +2725,7 @@ export async function POST(req: Request) {
     if (isPersonChatQuestion(text)) return reply("answer", await answerPersonChatQuestion(openai, text, memory));
     if (isImplicitBacklogFollowup(text, memory)) return reply("answer", await answerBacklogList());
     if (isTaskResponsibilityQuestion(text)) return reply("answer", await answerTaskResponsibilities());
+    if (isCalendarInfoOnlyQuestion(text)) return reply("answer", await answerMeetingInfoFromNotion(openai, text));
     const decision = decideNextAction(text, payload, memory);
     if (decision.needsClarification) {
       return reply("answer", standardActionResponse({ sender: memory.sender, intent: decision.expectedOutput, did: ["Analicé la solicitud antes de actuar"], result: ["Puedo hacerlo, pero falta un dato mínimo para no crear información incorrecta"], missing: [decision.clarificationQuestion], source: ["WhatsApp", "Memoria Dori"] }));
@@ -2769,7 +2774,6 @@ export async function POST(req: Request) {
       const message = cleanWhatsAppText(calendar.message || "Entendí que quieres cambiar una reunión, pero necesito fecha y hora nueva.");
       return reply(calendar.event ? "update_calendar_event" : "answer", message, calendar.event ? { calendar: calendar.event, calendarUpdate: { mode: "update_existing_event", searchText: stripDoriCommand(text) } } : {});
     }
-    if (isCalendarInfoOnlyQuestion(text)) return reply("answer", await answerMeetingInfoFromNotion(openai, text));
     if (isGoogleCalendarRequest(text)) {
       const calendar = await buildCalendarEvent(openai, text);
       if (!calendar.event) {
