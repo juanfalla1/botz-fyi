@@ -1049,6 +1049,11 @@ function isCalendarInfoOnlyQuestion(text: string) {
   return isCalendarInfoQuestion(text) && !isCalendarCreateCommand(text) && !/\b(cambi|mueve|mover|mov|ajust|reprogram|modific|pasar|pasa)\b/.test(normalized);
 }
 
+function isScheduledMeetingQuestion(text: string) {
+  const normalized = normalizeKey(text);
+  return /reuni|meet|meeting|evento|calendar|calendario|agenda/.test(normalized) && /tenemos|hay|programad|agendad|pr[oó]xima|proxima|pendiente|pendientes/.test(normalized) && !isCalendarCreateCommand(text);
+}
+
 function formatCalendarTime(iso: string, timeZone: string) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
@@ -1117,6 +1122,22 @@ async function answerMeetingInfoFromNotion(openai: OpenAI, question: string) {
   const context = sections.join("\n\n---\n\n").trim();
   if (!context) {
     return "No encontré información de reuniones del equipo en Notion. Revisa que la reunión esté guardada en Notion o que Dori tenga acceso a esa página/base.";
+  }
+
+  if (isScheduledMeetingQuestion(question)) {
+    const scheduledLines = context
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => meetingPattern.test(line) && /(20\d{2}-\d{2}-\d{2}|\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*(am|pm)\b|calendar\.google|meet\.google|https?:\/\/)/i.test(line))
+      .slice(0, 12);
+    if (!scheduledLines.length) {
+      const sources = sections
+        .map((section) => section.split("\n").slice(0, 2).join("\n"))
+        .slice(0, 4)
+        .join("\n");
+      return cleanWhatsAppText(`No encontré reuniones programadas en las páginas y bases de Notion que Dori puede leer.\n\nEncontré información relacionada con reuniones, pero sin fecha, hora o link de evento programado.\n\nFuentes revisadas:\n${sources}`);
+    }
+    return cleanWhatsAppText(`Sí encontré posibles reuniones programadas:\n${scheduledLines.map((line) => `- ${line}`).join("\n")}`);
   }
 
   const completion = await openai.chat.completions.create({
