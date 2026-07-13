@@ -1448,7 +1448,7 @@ function documentRecordTitle(attachment: DocumentAttachment, payload: any) {
 }
 
 function getSupabaseStorageConfig() {
-  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL_BOTZ || "";
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL_BOTZ || process.env.SUPABASE_URL || "";
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_BOTZ || "";
   const bucket = process.env.DORI_DOCUMENTS_BUCKET || "dori-documents";
   return { url: url.replace(/\/$/, ""), key, bucket };
