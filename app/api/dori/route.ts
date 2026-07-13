@@ -2030,19 +2030,24 @@ async function answerPdfRepository() {
     return `No encontré PDFs guardados dentro de Repositorio de Documentos Dori.\n\nFuente: ${titleFromNotion(repository) || "Repositorio de Documentos Dori"}\n${repository.url || itemUrl(repository)}`;
   }
 
-  const rows = [];
+  const savedRows = [];
+  const failedRows = [];
   for (const page of pages.slice(-20).reverse()) {
     const title = page.child_page?.title || "Documento sin título";
     const lines = (await readBlocks(page.id, 0, 1).catch(() => [])).join("\n");
     const file = lines.match(/Archivo:\s*(.+)/i)?.[1]?.trim() || title;
     const status = lines.match(/Estado:\s*(.+)/i)?.[1]?.trim() || "sin estado";
     const stored = lines.match(/Archivo guardado:\s*(https?:\/\/\S+)/i)?.[1]?.trim() || "";
-    rows.push(`- ${file}\n  Estado: ${status}\n  Notion: ${notionUrl(page.id)}${stored ? `\n  Archivo: ${stored}` : ""}`);
+    const row = `- ${file}\n  Estado: ${status}\n  Notion: ${notionUrl(page.id)}${stored ? `\n  Archivo: ${stored}` : ""}`;
+    if (/archivo PDF guardado/i.test(status) && stored) savedRows.push(row);
+    else failedRows.push(row);
   }
 
   return cleanWhatsAppText([
-    `Encontré ${pages.length} documento(s) en Repositorio de Documentos Dori:`,
-    ...rows,
+    `PDFs guardados reales en Repositorio de Documentos Dori: ${savedRows.length}`,
+    ...(savedRows.length ? savedRows : ["- No encontré PDFs con archivo real guardado."]),
+    failedRows.length ? `\nIntentos registrados sin archivo real: ${failedRows.length}` : "",
+    ...failedRows.slice(0, 8),
     "",
     `Fuente: ${titleFromNotion(repository) || "Repositorio de Documentos Dori"}`,
     repository.url || itemUrl(repository),
