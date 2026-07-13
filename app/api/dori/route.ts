@@ -1092,7 +1092,9 @@ async function answerMeetingInfoFromNotion(openai: OpenAI, question: string) {
   const todayToronto = zonedDateString(new Date(), DEFAULT_TIME_ZONE);
   const asksToday = /\b(hoy|today|esta tarde|esta noche|ahora)\b/i.test(normalizeKey(question));
   const meetingPattern = /reuni[oó]n|reunion|meet|meeting|calendar|calendario|agenda|acta|evento|google calendar|horario|link/i;
-  const queries = [stripDoriCommand(question), "Historial WhatsApp Dori", "reunión", "reunion", "meet", "meeting", "calendario", "Google Calendar", "acta reunión", "acta reunion"];
+  const queries = isScheduledMeetingQuestion(question)
+    ? [stripDoriCommand(question), "reunión programada", "reunion programada", "meet", "meeting", "calendario", "Google Calendar", "agenda", "evento"]
+    : [stripDoriCommand(question), "Historial WhatsApp Dori", "reunión", "reunion", "meet", "meeting", "calendario", "Google Calendar", "acta reunión", "acta reunion"];
   const candidates = uniqueItems(
     (
       await Promise.all(
@@ -1105,8 +1107,9 @@ async function answerMeetingInfoFromNotion(openai: OpenAI, question: string) {
 
   const sections: string[] = [];
   for (const item of candidates) {
-    const title = titleFromNotion(item) || "Elemento Notion";
-    const url = itemUrl(item);
+      const title = titleFromNotion(item) || "Elemento Notion";
+      if (isScheduledMeetingQuestion(question) && /historial whatsapp/i.test(title)) continue;
+      const url = itemUrl(item);
     if (item.object === "database") {
       const rows = await queryDatabase(item.id).catch(() => []);
       const meetingRows = rows.filter((row) => meetingPattern.test(row));
@@ -1128,6 +1131,7 @@ async function answerMeetingInfoFromNotion(openai: OpenAI, question: string) {
     const scheduledLines = context
       .split("\n")
       .map((line) => line.trim())
+      .filter((line) => !/^\[20\d{2}-\d{2}-\d{2}T/.test(line) && !/\bDori \(|\bJuan Carlos \(/.test(line))
       .filter((line) => meetingPattern.test(line) && /(20\d{2}-\d{2}-\d{2}|\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*(am|pm)\b|calendar\.google|meet\.google|https?:\/\/)/i.test(line))
       .slice(0, 12);
     if (!scheduledLines.length) {
