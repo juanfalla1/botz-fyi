@@ -1085,6 +1085,7 @@ async function answerCalendarInfo(question: string) {
 
 async function answerMeetingInfoFromNotion(openai: OpenAI, question: string) {
   const todayToronto = zonedDateString(new Date(), DEFAULT_TIME_ZONE);
+  const asksToday = /\b(hoy|today|esta tarde|esta noche|ahora)\b/i.test(normalizeKey(question));
   const meetingPattern = /reuni[oó]n|reunion|meet|meeting|calendar|calendario|agenda|acta|evento|google calendar|horario|link/i;
   const queries = [stripDoriCommand(question), "Historial WhatsApp Dori", "reunión", "reunion", "meet", "meeting", "calendario", "Google Calendar", "acta reunión", "acta reunion"];
   const candidates = uniqueItems(
@@ -1126,9 +1127,9 @@ async function answerMeetingInfoFromNotion(openai: OpenAI, question: string) {
       {
         role: "system",
         content:
-          "Responde como Dori usando SOLO el contexto de Notion. El usuario pregunta por reuniones del equipo. Si pregunta por hoy, prioriza información fechada para hoy en America/Toronto, pero si no hay fecha explícita, entrega toda la información de reunión/equipo encontrada y aclara que no viste una fecha exacta de hoy. Incluye hora, asistentes, link, agenda, decisiones, pendientes y fuente cuando existan. No inventes. No uses asteriscos ni Markdown de negrita.",
+          "Responde como Dori usando SOLO el contexto de Notion. El usuario pregunta por reuniones del equipo. Contesta primero la pregunta directa: si hay reuniones programadas, lista cuáles; si no ves ninguna programada, dilo claro. No digas que es para hoy salvo que el usuario pregunte por hoy. Incluye hora, asistentes, link, agenda, decisiones, pendientes y fuente cuando existan. Si el contexto solo tiene actas, notas o páginas relacionadas pero no eventos programados, aclara que encontraste información relacionada pero no reuniones programadas. No inventes. No pidas fecha/hora ni ofrezcas crear evento a menos que el usuario lo pida. No uses asteriscos ni Markdown de negrita.",
       },
-      { role: "user", content: `Pregunta: ${question}\nFecha de hoy en Toronto: ${todayToronto}\n\nContexto de Notion:\n${context.slice(0, 24000)}` },
+      { role: "user", content: `Pregunta: ${question}\nPregunta por hoy: ${asksToday ? "sí" : "no"}\nFecha de hoy en Toronto: ${todayToronto}\n\nContexto de Notion:\n${context.slice(0, 24000)}` },
     ],
   });
   return cleanWhatsAppText(completion.choices[0]?.message?.content || "No pude responder con la información disponible en Notion.");
