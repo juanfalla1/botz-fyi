@@ -2184,7 +2184,21 @@ async function downloadAttachmentBuffer(attachment: DocumentAttachment) {
   const headers: Record<string, string> = {};
   const evolutionKey = process.env.EVOLUTION_API_KEY || process.env.EVOLUTION_TOKEN || process.env.BOTZ_EVOLUTION_API_KEY || "";
   if (evolutionKey) headers.apikey = evolutionKey;
-  const response = await fetch(attachment.url, { headers });
+  const directPathUrl = attachment.rawDocument?.directPath ? `https://mmg.whatsapp.net${attachment.rawDocument.directPath}` : "";
+  const urls = Array.from(new Set([attachment.url, directPathUrl].filter(Boolean)));
+  let response: Response | null = null;
+  let lastError: any = null;
+  for (const downloadUrl of urls) {
+    try {
+      response = await fetch(downloadUrl, { headers: { ...headers, "User-Agent": "WhatsApp/2.24.0" } });
+      if (response.ok) break;
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error: any) {
+      lastError = error;
+      doriLog("document", "WhatsApp media URL fetch failed", { name: error?.name || "", message: error?.message || String(error), code: error?.code || error?.cause?.code || "", cause: error?.cause?.message || "", host: (() => { try { return new URL(downloadUrl).host; } catch { return ""; } })() });
+    }
+  }
+  if (!response) throw lastError || new Error("fetch failed");
   if (!response.ok) throw new Error(`no se pudo descargar archivo: ${response.status}`);
   const buffer = Buffer.from(await response.arrayBuffer());
   if (isPdfBuffer(buffer) || !attachment.mediaKey) return buffer;
