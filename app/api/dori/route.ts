@@ -1132,7 +1132,7 @@ async function answerMeetingInfoFromNotion(openai: OpenAI, question: string) {
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => !/^\[20\d{2}-\d{2}-\d{2}T/.test(line) && !/\bDori \(|\bJuan Carlos \(/.test(line))
-      .filter((line) => meetingPattern.test(line) && /(20\d{2}-\d{2}-\d{2}|\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*(am|pm)\b|calendar\.google|meet\.google|https?:\/\/)/i.test(line))
+      .filter((line) => meetingPattern.test(line) && /(20\d{2}-\d{2}-\d{2}|\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*(am|pm)\b|calendar\.google|meet\.google)/i.test(line))
       .slice(0, 12);
     if (!scheduledLines.length) {
       const sources = sections
