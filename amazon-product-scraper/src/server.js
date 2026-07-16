@@ -23,6 +23,7 @@ app.post('/discover', async (req, res) => {
     const seenAsins = new Set();
 
     for (const sourceUrl of sourceUrls) {
+      if (products.length >= maxProducts) break;
       if (!isAmazonCanadaUrl(sourceUrl)) continue;
 
       let addedFromSource = 0;
@@ -58,6 +59,7 @@ app.post('/discover', async (req, res) => {
           });
           addedFromSource += 1;
 
+          if (products.length >= maxProducts) break;
           if (addedFromSource >= perSourceLimit) break;
         }
       } catch {
