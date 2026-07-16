@@ -13,10 +13,10 @@ export type SmartDealProduct = {
   publishedAt: string | null;
 };
 
-const fallbackTrackingId = "botzca-20";
+const trackingId = "botzca-20";
 
 export function getTrackingId() {
-  return process.env.AMAZON_ASSOCIATES_TRACKING_ID || fallbackTrackingId;
+  return trackingId;
 }
 
 export function getSiteUrl() {
