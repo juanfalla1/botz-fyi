@@ -1,5 +1,6 @@
 import express from 'express';
 import { chromium } from 'playwright';
+import sharp from 'sharp';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -15,75 +16,58 @@ app.post('/discover', async (req, res) => {
   const { limit = 24, sources = defaultDiscoverySources() } = req.body || {};
   const sourceUrls = Array.isArray(sources) && sources.length ? sources : defaultDiscoverySources();
   const maxProducts = Math.max(1, Math.min(Number(limit) || 24, 80));
-
-  let browser;
+  const perSourceLimit = Math.max(4, Math.ceil(maxProducts / Math.max(sourceUrls.length, 1)));
 
   try {
-    browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({
-      locale: 'en-CA',
-      userAgent:
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
-    });
-
     const products = [];
     const seenAsins = new Set();
 
     for (const sourceUrl of sourceUrls) {
-      if (products.length >= maxProducts) break;
       if (!isAmazonCanadaUrl(sourceUrl)) continue;
 
-      const page = await context.newPage();
-      page.setDefaultTimeout(extractTimeoutMs);
+      let addedFromSource = 0;
 
       try {
-        await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: extractTimeoutMs });
-        await page.waitForTimeout(1500);
-
-        const pageProducts = await page.evaluate(() => {
-          const links = Array.from(document.querySelectorAll('a[href*="/dp/"], a[href*="/gp/product/"]'));
-
-          return links.map(link => {
-            const href = link.href || '';
-            const card = link.closest('[data-asin], .zg-grid-general-faceout, .s-result-item, li') || link;
-            const title =
-              card.querySelector('img')?.getAttribute('alt') ||
-              card.querySelector('h2, .p13n-sc-truncate, .a-size-base-plus, .a-size-medium')?.textContent?.trim() ||
-              link.textContent?.trim() ||
-              '';
-            const image = card.querySelector('img')?.getAttribute('src') || '';
-
-            return { href, title, image };
-          });
+        const response = await fetch(sourceUrl, {
+          signal: AbortSignal.timeout(extractTimeoutMs),
+          headers: {
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'accept-language': 'en-CA,en;q=0.9',
+            'cache-control': 'no-cache',
+            'user-agent':
+              'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+          },
         });
 
+        if (!response.ok) continue;
+
+        const html = await response.text();
+        const pageProducts = discoverProductsFromHtml(html, sourceUrl);
+
         for (const product of pageProducts) {
-          const asin = extractAsin(product.href);
+          const asin = product.asin || extractAsin(product.href || product.product_url || '');
           const title = cleanWhitespace(product.title);
-          if (!asin || seenAsins.has(asin) || !title || !product.image || isExcludedDiscoveryTitle(title)) continue;
+          if (!asin || seenAsins.has(asin) || !title || !product.image_url || isExcludedDiscoveryTitle(title)) continue;
           seenAsins.add(asin);
           products.push({
             asin,
             product_url: `https://www.amazon.ca/dp/${asin}`,
             source_url: sourceUrl,
             title,
-            image_url: product.image || '',
+            image_url: product.image_url || '',
           });
+          addedFromSource += 1;
 
-          if (products.length >= maxProducts) break;
+          if (addedFromSource >= perSourceLimit) break;
         }
       } catch {
         // Keep discovery resilient. Amazon may throttle or change markup on any page.
-      } finally {
-        await page.close();
       }
     }
 
-    return res.json({ products, count: products.length, sources: sourceUrls });
+    return res.json({ products: products.slice(0, maxProducts), count: Math.min(products.length, maxProducts), sources: sourceUrls });
   } catch (error) {
     return res.status(422).json({ error: 'Unable to discover products' });
-  } finally {
-    if (browser) await browser.close();
   }
 });
 
@@ -99,7 +83,7 @@ app.post('/extract', async (req, res) => {
   let browser;
 
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch(chromiumLaunchOptions());
     const context = await browser.newContext({
       locale: 'en-CA',
       userAgent:
@@ -394,24 +378,13 @@ app.post('/creative', async (req, res) => {
     return res.status(400).json({ error: 'title and image_url are required' });
   }
 
-  let browser;
-
   try {
-    browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage({ viewport: { width: 1080, height: 1350 }, deviceScaleFactor: 1 });
-    await page.setContent(buildCreativeHtml({ title, price, rating, salesSignal, imageUrl, brand }), {
-      waitUntil: 'networkidle',
-      timeout: extractTimeoutMs,
-    });
-
-    const buffer = await page.screenshot({ type: 'jpeg', quality: 92, fullPage: false });
+    const buffer = await renderCreativeJpeg({ title, price, rating, salesSignal, imageUrl, brand });
     res.setHeader('Content-Type', 'image/jpeg');
     res.setHeader('Cache-Control', 'no-store');
     return res.send(buffer);
   } catch (error) {
-    return res.status(422).json({ error: 'Unable to generate creative' });
-  } finally {
-    if (browser) await browser.close();
+    return res.status(422).json({ error: 'Unable to generate creative', detail: error?.message || '' });
   }
 });
 
@@ -444,6 +417,20 @@ function validateAmazonCanadaUrl(value) {
   }
 }
 
+function chromiumLaunchOptions() {
+  return {
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--single-process',
+      '--no-zygote',
+    ],
+  };
+}
+
 function defaultDiscoverySources() {
   return [
     'https://www.amazon.ca/Best-Sellers-Electronics/zgbs/electronics',
@@ -451,10 +438,129 @@ function defaultDiscoverySources() {
     'https://www.amazon.ca/Best-Sellers-Home-Kitchen/zgbs/kitchen',
     'https://www.amazon.ca/Best-Sellers-Beauty/zgbs/beauty',
     'https://www.amazon.ca/Best-Sellers-Toys-Games/zgbs/toys',
+    'https://www.amazon.ca/Best-Sellers-Tools-Home-Improvement/zgbs/hi',
+    'https://www.amazon.ca/Best-Sellers-Sports-Outdoors/zgbs/sports',
+    'https://www.amazon.ca/Best-Sellers-Office-Products/zgbs/office-products',
+    'https://www.amazon.ca/Best-Sellers-Health-Personal-Care/zgbs/hpc',
+    'https://www.amazon.ca/Best-Sellers-Patio-Lawn-Garden/zgbs/lawn-garden',
     'https://www.amazon.ca/gp/movers-and-shakers/electronics',
     'https://www.amazon.ca/gp/movers-and-shakers/videogames',
+    'https://www.amazon.ca/gp/movers-and-shakers/kitchen',
+    'https://www.amazon.ca/gp/movers-and-shakers/home',
     'https://www.amazon.ca/gp/goldbox',
   ];
+}
+
+async function renderCreativeJpeg({ title, price, rating, salesSignal, imageUrl, brand }) {
+  const imageResponse = await fetch(imageUrl, {
+    signal: AbortSignal.timeout(extractTimeoutMs),
+    headers: {
+      accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      'user-agent':
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+    },
+  });
+
+  if (!imageResponse.ok) {
+    throw new Error(`Unable to fetch product image: ${imageResponse.status}`);
+  }
+
+  const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+  const imageMime = imageResponse.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
+  const imageDataUri = `data:${imageMime};base64,${imageBuffer.toString('base64')}`;
+  const svg = buildCreativeSvg({ title, price, rating, salesSignal, imageDataUri, brand });
+
+  return sharp(Buffer.from(svg)).jpeg({ quality: 92 }).toBuffer();
+}
+
+function buildCreativeSvg({ title, price, rating, salesSignal, imageDataUri, brand }) {
+  const titleLines = wrapSvgText(shortenProductTitle(title), 25, 3);
+  const safeBrand = escapeXml(brand || 'Smart Deals');
+  const safePrice = escapeXml(price || 'Check price');
+  const safeRating = escapeXml(formatRatingLabel(rating));
+  const safeSalesSignal = escapeXml(formatSalesSignal(salesSignal));
+  const titleSvg = titleLines
+    .map((line, index) => `<text x="64" y="${860 + index * 66}" class="title">${escapeXml(line)}</text>`)
+    .join('');
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#06111f"/>
+      <stop offset="0.52" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="18%" cy="12%" r="42%"><stop stop-color="#1d4ed8" stop-opacity="0.55"/><stop offset="1" stop-color="#1d4ed8" stop-opacity="0"/></radialGradient>
+    <radialGradient id="glow2" cx="88%" cy="22%" r="38%"><stop stop-color="#0ea5e9" stop-opacity="0.35"/><stop offset="1" stop-color="#0ea5e9" stop-opacity="0"/></radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="30" stdDeviation="38" flood-color="#000" flood-opacity="0.42"/></filter>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="26" stdDeviation="24" flood-color="#0f172a" flood-opacity="0.18"/></filter>
+    <style>
+      .font { font-family: Arial, Helvetica, sans-serif; }
+      .brand { font: 900 24px Arial, Helvetica, sans-serif; letter-spacing: 5px; fill: #f8fafc; }
+      .badge { font: 900 24px Arial, Helvetica, sans-serif; fill: #0f172a; }
+      .label { font: 900 27px Arial, Helvetica, sans-serif; letter-spacing: 3px; fill: #93c5fd; }
+      .price { font: 900 84px Arial, Helvetica, sans-serif; fill: #facc15; }
+      .cta { font: 900 31px Arial, Helvetica, sans-serif; fill: #020617; }
+      .title { font: 900 58px Arial, Helvetica, sans-serif; fill: #f8fafc; letter-spacing: -2px; }
+      .pill { font: 700 24px Arial, Helvetica, sans-serif; fill: #dbeafe; }
+      .footer { font: 400 20px Arial, Helvetica, sans-serif; fill: #cbd5e1; opacity: 0.82; }
+      .bio { font: 900 30px Arial, Helvetica, sans-serif; fill: #f8fafc; }
+    </style>
+  </defs>
+  <rect width="1080" height="1350" fill="url(#bg)"/>
+  <rect width="1080" height="1350" fill="url(#glow1)"/>
+  <rect width="1080" height="1350" fill="url(#glow2)"/>
+  <rect x="64" y="64" width="74" height="74" rx="22" fill="#1d4ed8"/>
+  <text x="101" y="111" text-anchor="middle" class="brand" style="letter-spacing:0">SD</text>
+  <text x="160" y="111" class="brand">${safeBrand.toUpperCase()}</text>
+  <rect x="820" y="76" width="196" height="58" rx="29" fill="#facc15"/>
+  <text x="918" y="113" text-anchor="middle" class="badge">Amazon.ca Find</text>
+  <rect x="64" y="172" width="696" height="620" rx="54" fill="#ffffff" opacity="0.96" filter="url(#shadow)"/>
+  <image href="${imageDataUri}" x="150" y="250" width="524" height="460" preserveAspectRatio="xMidYMid meet" filter="url(#soft)"/>
+  <text x="808" y="300" class="label">TODAY'S PRICE</text>
+  <text x="808" y="390" class="price">${safePrice}</text>
+  <rect x="792" y="700" width="230" height="76" rx="38" fill="#f8fafc"/>
+  <text x="907" y="748" text-anchor="middle" class="cta">Link in bio</text>
+  ${titleSvg}
+  <rect x="64" y="1088" width="190" height="50" rx="25" fill="#ffffff" opacity="0.09" stroke="#ffffff" stroke-opacity="0.16"/>
+  <text x="159" y="1122" text-anchor="middle" class="pill">${safeRating}</text>
+  ${safeSalesSignal ? `<rect x="274" y="1088" width="360" height="50" rx="25" fill="#ffffff" opacity="0.09" stroke="#ffffff" stroke-opacity="0.16"/><text x="454" y="1122" text-anchor="middle" class="pill">${safeSalesSignal}</text>` : ''}
+  <text x="64" y="1264" class="footer">As an Amazon Associate I earn from qualifying purchases. #ad</text>
+  <text x="1016" y="1264" text-anchor="end" class="bio">smart-deals-canada.com</text>
+</svg>`;
+}
+
+function wrapSvgText(value, maxChars, maxLines) {
+  const words = cleanWhitespace(value).split(' ').filter(Boolean);
+  const lines = [];
+  let line = '';
+
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (next.length > maxChars && line) {
+      lines.push(line);
+      line = word;
+      if (lines.length === maxLines) break;
+    } else {
+      line = next;
+    }
+  }
+
+  if (line && lines.length < maxLines) lines.push(line);
+  if (lines.length === maxLines && words.join(' ').length > lines.join(' ').length) {
+    lines[maxLines - 1] = `${lines[maxLines - 1].replace(/\.*$/, '')}...`;
+  }
+
+  return lines.length ? lines : ['Amazon.ca Deal'];
+}
+
+function escapeXml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 function buildCreativeHtml({ title, price, rating, salesSignal, imageUrl, brand }) {
@@ -613,8 +719,89 @@ function isAmazonCanadaUrl(value) {
 }
 
 function extractAsin(value) {
-  const match = value.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i);
+  const match = value.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?#]|$)/i);
   return match?.[1]?.toUpperCase() || '';
+}
+
+function discoverProductsFromHtml(html, sourceUrl) {
+  const products = [];
+  const seen = new Set();
+  const linkPattern = /href=["']([^"']*\/(?:dp|gp\/product)\/([A-Z0-9]{10})[^"']*)["']/gi;
+  let match;
+
+  while ((match = linkPattern.exec(html)) && products.length < 120) {
+    const asin = String(match[2] || '').toUpperCase();
+    if (!asin || seen.has(asin)) continue;
+
+    const start = Math.max(0, match.index - 4500);
+    const end = Math.min(html.length, match.index + 4500);
+    const chunk = html.slice(start, end);
+    const image = extractDiscoveryImage(chunk);
+    const title = extractDiscoveryTitle(chunk, asin);
+
+    if (!title || !image) continue;
+
+    seen.add(asin);
+    products.push({
+      asin,
+      href: absolutizeAmazonUrl(match[1], sourceUrl),
+      product_url: `https://www.amazon.ca/dp/${asin}`,
+      title,
+      image_url: image,
+    });
+  }
+
+  return products;
+}
+
+function extractDiscoveryImage(chunk) {
+  const srcsetMatch = chunk.match(/srcset=["']([^"']*m\.media-amazon\.com[^"']*)["']/i);
+  if (srcsetMatch) {
+    const first = srcsetMatch[1].split(',')[0]?.trim().split(/\s+/)[0];
+    if (first) return decodeHtml(first);
+  }
+
+  const srcMatch = chunk.match(/src=["']([^"']*m\.media-amazon\.com[^"']*)["']/i);
+  return srcMatch ? decodeHtml(srcMatch[1]) : '';
+}
+
+function extractDiscoveryTitle(chunk, asin) {
+  const altMatches = Array.from(chunk.matchAll(/<img\b[^>]*alt=["']([^"']{12,260})["'][^>]*>/gi));
+  for (const match of altMatches) {
+    const title = cleanWhitespace(decodeHtml(stripTags(match[1])));
+    if (title && !isExcludedDiscoveryTitle(title) && !/sponsored|advertisement/i.test(title)) return title;
+  }
+
+  const textMatches = Array.from(chunk.matchAll(/<(?:span|div|a|h2)[^>]*(?:class|id)=["'][^"']*(?:truncate|title|a-size-base-plus|a-size-medium|p13n)[^"']*["'][^>]*>([\s\S]{12,500}?)<\/(?:span|div|a|h2)>/gi));
+  for (const match of textMatches) {
+    const title = cleanWhitespace(decodeHtml(stripTags(match[1])));
+    if (title && title !== asin && !isExcludedDiscoveryTitle(title)) return title;
+  }
+
+  return '';
+}
+
+function absolutizeAmazonUrl(value, sourceUrl) {
+  try {
+    return new URL(decodeHtml(value), sourceUrl).href;
+  } catch {
+    return String(value || '');
+  }
+}
+
+function stripTags(value) {
+  return String(value || '').replace(/<[^>]+>/g, ' ');
+}
+
+function decodeHtml(value) {
+  return String(value || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
 }
 
 function cleanWhitespace(value) {
