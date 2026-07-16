@@ -165,7 +165,7 @@ function DealCard({ product, priority }: { product: SmartDealProduct; priority?:
         <img src={product.imageUrl} alt={product.title} loading={priority ? "eager" : "lazy"} />
       </div>
       <div className="deal-body">
-        <h3>{product.title}</h3>
+        <h3 title={product.title}>{shortProductTitle(product.title)}</h3>
         <ProductMeta product={product} compact />
         <BuyLink product={product} source="card" />
       </div>
@@ -177,9 +177,20 @@ function MiniDeal({ product }: { product: SmartDealProduct }) {
   return (
     <Link className="mini-deal" href={`/go/${product.asin}?source=trending`}>
       <img src={product.imageUrl} alt="" />
-      <span>{product.title}</span>
+      <span>{shortProductTitle(product.title, 6)}</span>
     </Link>
   );
+}
+
+function shortProductTitle(title: string, maxWords = 7) {
+  const cleaned = title
+    .replace(/\bwith\b.*$/i, "")
+    .replace(/\bfor\b.*$/i, "")
+    .replace(/,.*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const words = (cleaned || title).split(/\s+/).filter(Boolean);
+  return words.length > maxWords ? `${words.slice(0, maxWords).join(" ")}...` : words.join(" ");
 }
 
 function ProductMeta({ product, compact = false }: { product: SmartDealProduct; compact?: boolean }) {
