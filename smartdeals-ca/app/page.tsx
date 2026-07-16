@@ -165,8 +165,8 @@ function DealCard({ product, priority }: { product: SmartDealProduct; priority?:
         <img src={product.imageUrl} alt={product.title} loading={priority ? "eager" : "lazy"} />
       </div>
       <div className="deal-body">
-        <h3 title={product.title}>{shortProductTitle(product.title)}</h3>
         <ProductMeta product={product} compact />
+        <h3 title={product.title}>{shortProductTitle(product.title)}</h3>
         <BuyLink product={product} source="card" />
       </div>
     </article>
@@ -194,9 +194,11 @@ function shortProductTitle(title: string, maxWords = 7) {
 }
 
 function ProductMeta({ product, compact = false }: { product: SmartDealProduct; compact?: boolean }) {
+  const hasPrice = product.priceText && !/^check price$/i.test(product.priceText);
+
   return (
     <div className="product-meta">
-      <strong>{product.priceText}</strong>
+      {hasPrice ? <strong>{product.priceText}</strong> : null}
       {product.rating ? <span>{product.rating} rating</span> : null}
       {product.salesSignal && !compact ? <span>{product.salesSignal}</span> : null}
     </div>
