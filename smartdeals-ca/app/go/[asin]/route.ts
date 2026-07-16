@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ asi
 
   const source = request.nextUrl.searchParams.get("source") || "unknown";
   const product = await getProductByAsin(asin);
-  const destination = product?.affiliate_url || buildAmazonAffiliateUrl(asin);
+  const destination = buildAmazonAffiliateUrl(asin);
   const supabase = getSupabaseAdmin();
 
   if (supabase) {

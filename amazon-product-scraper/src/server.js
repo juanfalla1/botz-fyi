@@ -535,7 +535,6 @@ async function fetchProductDataFallback(url) {
   const image =
     extractMetaContent(html, 'og:image') ||
     html.match(/id=["']landingImage["'][^>]+src=["']([^"']+)["']/i)?.[1] ||
-    html.match(/src=["']([^"']*m\.media-amazon\.com[^"']*)["']/i)?.[1] ||
     '';
 
   return {
