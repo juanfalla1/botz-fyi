@@ -410,7 +410,17 @@ app.post('/extract', async (req, res) => {
 
     return res.json(response);
   } catch (error) {
-    const fallbackData = await fetchProductDataFallback(validation.url.href).catch(() => null);
+    console.error('extract failed', {
+      url: validation.url.href,
+      message: error?.message || String(error),
+      stack: error?.stack || '',
+    });
+
+    let fallbackError = null;
+    const fallbackData = await fetchProductDataFallback(validation.url.href).catch(error => {
+      fallbackError = error;
+      return null;
+    });
     if (fallbackData?.title && fallbackData?.price && fallbackData?.images?.length) {
       const fallbackAsin = extractAsin(fallbackData.product_url || '') || extractAsin(validation.url.href);
       return res.json({
@@ -428,9 +438,16 @@ app.post('/extract', async (req, res) => {
     }
 
     const timedOut = /timeout/i.test(error?.message || '');
-    return res.status(timedOut ? 504 : 422).json({
+    const response = {
       error: timedOut ? 'Extraction timed out' : 'Unable to extract product data',
-    });
+    };
+
+    if (debugMode) {
+      response.detail = error?.message || String(error);
+      response.fallback_detail = fallbackError?.message || '';
+    }
+
+    return res.status(timedOut ? 504 : 422).json(response);
   } finally {
     if (browser) await browser.close();
   }
