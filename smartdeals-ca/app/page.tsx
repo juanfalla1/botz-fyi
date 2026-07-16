@@ -9,9 +9,16 @@ export default async function Home() {
   const featured = products[0];
   const trending = products.slice(1, 5);
   const rest = products.slice(5);
+  const productJsonLd = buildProductJsonLd(products);
 
   return (
     <main className="site-shell">
+      {productJsonLd ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+        />
+      ) : null}
       <div className="announcement">Canada Amazon finds updated automatically. Prices and availability are checked on Amazon.ca.</div>
 
       <header className="topbar" aria-label="Smart Deals navigation">
@@ -211,4 +218,45 @@ function BuyLink({ product, source }: { product: SmartDealProduct; source: strin
       Shop on Amazon.ca
     </Link>
   );
+}
+
+function buildProductJsonLd(products: SmartDealProduct[]) {
+  const items = products
+    .map((product) => {
+      const price = parseCadPrice(product.priceText);
+      if (!price) return null;
+
+      return {
+        "@type": "Product",
+        name: product.title,
+        image: product.imageUrl,
+        description: product.title,
+        sku: product.asin,
+        brand: {
+          "@type": "Brand",
+          name: "Amazon.ca",
+        },
+        offers: {
+          "@type": "Offer",
+          priceCurrency: "CAD",
+          price,
+          availability: "https://schema.org/InStock",
+          url: `https://www.smart-deals-canada.com/go/${encodeURIComponent(product.asin)}?source=google-product-schema`,
+        },
+      };
+    })
+    .filter(Boolean);
+
+  if (!items.length) return null;
+
+  return {
+    "@context": "https://schema.org",
+    "@graph": items,
+  };
+}
+
+function parseCadPrice(value: string) {
+  const normalized = value.replace(/,/g, "");
+  const match = normalized.match(/\$\s*(\d+(?:\.\d{1,2})?)/) || normalized.match(/\b(\d+(?:\.\d{1,2})?)\b/);
+  return match?.[1] || "";
 }
