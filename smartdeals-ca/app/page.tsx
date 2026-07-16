@@ -7,33 +7,45 @@ export const revalidate = 0;
 export default async function Home() {
   const products = await listPublishedProducts(72);
   const featured = products[0];
-  const trending = products.slice(1, 7);
-  const rest = products.slice(7);
+  const trending = products.slice(1, 5);
+  const rest = products.slice(5);
 
   return (
     <main className="site-shell">
-      <section className="hero-wrap">
-        <nav className="topbar" aria-label="Smart Deals navigation">
+      <div className="announcement">Canada Amazon finds updated automatically. Prices and availability are checked on Amazon.ca.</div>
+
+      <header className="topbar" aria-label="Smart Deals navigation">
+        <div className="topbar-inner">
           <Link className="brand" href="/">
             <span className="brand-mark">SD</span>
             <span>
               <strong>Smart Deals</strong>
-              <small>Canada Amazon Finds</small>
+              <small>Canada</small>
             </span>
           </Link>
-          <a className="topbar-link" href="#deals">Today's picks</a>
-        </nav>
+          <nav className="nav-links" aria-label="Categories">
+            <a href="#deals">Today&apos;s Deals</a>
+            <a href="#trending">Trending</a>
+            <a href="#latest">Latest</a>
+          </nav>
+        </div>
+      </header>
+
+      <section className="hero-wrap">
+        <div className="category-bar" aria-label="Popular categories">
+          {['Electronics', 'Home', 'Beauty', 'Gaming', 'Kitchen', 'Gifts'].map((category) => <span key={category}>{category}</span>)}
+        </div>
 
         <div className="hero-grid">
           <section className="hero-copy">
-            <p className="eyebrow">Updated automatically from Amazon.ca finds</p>
-            <h1>Find trending Canada deals before they disappear.</h1>
+            <p className="eyebrow">Smart finds from Amazon.ca</p>
+            <h1>Daily Canada deals picked for fast shoppers.</h1>
             <p className="hero-text">
-              Smart Deals tracks products posted from our Instagram feed and sends you straight to Amazon.ca with the current product page.
+              Discover products people are buying now. Every button sends you directly to Amazon.ca with the current product page.
             </p>
             <div className="hero-actions">
               <a className="primary-action" href="#deals">Shop latest finds</a>
-              <span className="trust-pill">Amazon Associate disclosure included</span>
+              <span className="trust-pill">Amazon.ca checkout</span>
             </div>
           </section>
 
@@ -43,19 +55,19 @@ export default async function Home() {
 
       <section id="deals" className="content-section">
         <div className="section-heading">
-          <p className="eyebrow">Live deal board</p>
-          <h2>Latest products from Smart Deals</h2>
-          <p>New posts appear here automatically after the publishing workflow saves them.</p>
+          <p className="eyebrow">Live storefront</p>
+          <h2>Today&apos;s Smart Deals</h2>
+          <p>Products appear here automatically after they are posted on Smart Deals.</p>
         </div>
 
         {trending.length > 0 ? (
-          <div className="trend-strip">
+          <div id="trending" className="trend-strip">
             {trending.map((product) => <MiniDeal key={product.asin} product={product} />)}
           </div>
         ) : null}
 
         {products.length > 0 ? (
-          <div className="deal-grid">
+          <div id="latest" className="deal-grid">
             {products.map((product, index) => <DealCard key={product.asin} product={product} priority={index < 3} />)}
           </div>
         ) : (
@@ -77,11 +89,12 @@ export default async function Home() {
 function FeaturedProduct({ product }: { product: SmartDealProduct }) {
   return (
     <article className="featured-card">
+      <span className="corner-label">Featured</span>
       <div className="product-stage large">
         <img src={product.imageUrl} alt={product.title} />
       </div>
       <div className="featured-copy">
-        <span className="deal-badge">Latest find</span>
+        <span className="deal-badge">Latest Amazon.ca find</span>
         <h2>{product.title}</h2>
         <ProductMeta product={product} />
         <BuyLink product={product} source="hero" />
@@ -94,8 +107,8 @@ function EmptyHero() {
   return (
     <div className="featured-card empty-featured">
       <div className="brand-mark big">SD</div>
-      <h2>Deal board warming up</h2>
-      <p>Run the publishing workflow and products will populate this page automatically.</p>
+      <h2>Storefront warming up</h2>
+      <p>Published Amazon.ca products will populate this page automatically.</p>
     </div>
   );
 }
@@ -103,6 +116,10 @@ function EmptyHero() {
 function DealCard({ product, priority }: { product: SmartDealProduct; priority?: boolean }) {
   return (
     <article className="deal-card">
+      <div className="card-topline">
+        <span>Amazon.ca find</span>
+        {product.salesSignal ? <small>{product.salesSignal}</small> : null}
+      </div>
       <div className="product-stage">
         <img src={product.imageUrl} alt={product.title} loading={priority ? "eager" : "lazy"} />
       </div>
@@ -137,7 +154,7 @@ function ProductMeta({ product, compact = false }: { product: SmartDealProduct; 
 function BuyLink({ product, source }: { product: SmartDealProduct; source: string }) {
   return (
     <Link className="buy-link" href={`/go/${product.asin}?source=${encodeURIComponent(source)}`}>
-      Buy on Amazon.ca
+      Shop on Amazon.ca
     </Link>
   );
 }
