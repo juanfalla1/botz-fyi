@@ -182,13 +182,34 @@ app.post('/extract', async (req, res) => {
     const data = await page.evaluate(({ debug }) => {
       const text = selector => document.querySelector(selector)?.textContent?.trim() || '';
       const attr = (selector, name) => document.querySelector(selector)?.getAttribute(name) || '';
+      const priceFromParts = () => {
+        const containers = Array.from(document.querySelectorAll('.a-price, #corePriceDisplay_desktop_feature_div, #apex_desktop'));
+
+        for (const container of containers) {
+          const offscreen = container.querySelector('.a-offscreen')?.textContent?.trim();
+          if (/\$\s*\d/.test(offscreen || '')) return offscreen;
+
+          const whole = container.querySelector('.a-price-whole')?.textContent?.trim() || '';
+          const fraction = container.querySelector('.a-price-fraction')?.textContent?.trim() || '00';
+          const dollars = whole.replace(/[^0-9]/g, '');
+          const cents = fraction.replace(/[^0-9]/g, '').slice(0, 2).padEnd(2, '0');
+
+          if (dollars) return `$${dollars}.${cents}`;
+        }
+
+        const bodyMatch = document.body?.textContent?.match(/\$\s*\d{1,4}(?:[,.]\d{3})*(?:\.\d{2})?/);
+        return bodyMatch?.[0] || '';
+      };
 
       const title = text('#productTitle') || attr('meta[property="og:title"]', 'content');
       const price =
+        text('#corePriceDisplay_desktop_feature_div .a-price .a-offscreen') ||
+        text('#apex_desktop .a-price .a-offscreen') ||
         text('.a-price .a-offscreen') ||
         text('#priceblock_ourprice') ||
         text('#priceblock_dealprice') ||
-        text('#corePriceDisplay_desktop_feature_div .a-offscreen');
+        text('#corePriceDisplay_desktop_feature_div .a-offscreen') ||
+        priceFromParts();
       const rating =
         attr('#acrPopover', 'title') ||
         text('.a-icon-alt') ||
@@ -336,14 +357,24 @@ app.post('/extract', async (req, res) => {
       networkMediaRequests: uniqueByUrl(networkMediaRequests),
     };
     const video = extractMp4FromVideoTags(videoDebug.videoTags);
+    const fallbackData = !data.title || !data.price || !data.images?.length
+      ? await fetchProductDataFallback(validation.url.href).catch(() => null)
+      : null;
+
+    const mergedTitle = data.title || fallbackData?.title || '';
+    const mergedPrice = data.price || fallbackData?.price || '';
+    const mergedRating = normalizeRating(data.rating) || normalizeRating(fallbackData?.rating || '');
+    const mergedImages = data.images?.length ? data.images : fallbackData?.images || [];
+    const mergedSalesSignal = data.salesSignal || fallbackData?.salesSignal || '';
+
     const response = {
       asin: asin || '',
-      title: data.title || '',
-      price: data.price || '',
-      rating: normalizeRating(data.rating),
-      sales_signal: data.salesSignal || '',
-      bought_past_month: parseBoughtPastMonth(data.salesSignal),
-      images: data.images || [],
+      title: mergedTitle,
+      price: mergedPrice,
+      rating: mergedRating,
+      sales_signal: mergedSalesSignal,
+      bought_past_month: parseBoughtPastMonth(mergedSalesSignal),
+      images: mergedImages,
       video,
       product_url: productUrl,
       input_url: validation.url.href,
@@ -355,6 +386,23 @@ app.post('/extract', async (req, res) => {
 
     return res.json(response);
   } catch (error) {
+    const fallbackData = await fetchProductDataFallback(validation.url.href).catch(() => null);
+    if (fallbackData?.title && fallbackData?.price && fallbackData?.images?.length) {
+      const fallbackAsin = extractAsin(fallbackData.product_url || '') || extractAsin(validation.url.href);
+      return res.json({
+        asin: fallbackAsin || '',
+        title: fallbackData.title,
+        price: fallbackData.price,
+        rating: normalizeRating(fallbackData.rating),
+        sales_signal: fallbackData.salesSignal || '',
+        bought_past_month: parseBoughtPastMonth(fallbackData.salesSignal),
+        images: fallbackData.images,
+        video: { poster: '', source: '' },
+        product_url: fallbackAsin ? `https://www.amazon.ca/dp/${fallbackAsin}` : fallbackData.product_url || validation.url.href,
+        input_url: validation.url.href,
+      });
+    }
+
     const timedOut = /timeout/i.test(error?.message || '');
     return res.status(timedOut ? 504 : 422).json({
       error: timedOut ? 'Extraction timed out' : 'Unable to extract product data',
@@ -449,6 +497,102 @@ function defaultDiscoverySources() {
     'https://www.amazon.ca/gp/movers-and-shakers/home',
     'https://www.amazon.ca/gp/goldbox',
   ];
+}
+
+async function fetchProductDataFallback(url) {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(extractTimeoutMs),
+    headers: {
+      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'accept-language': 'en-CA,en;q=0.9',
+      'cache-control': 'no-cache',
+      'user-agent':
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+    },
+  });
+
+  if (!response.ok) throw new Error(`Fallback fetch failed: ${response.status}`);
+
+  const html = await response.text();
+  const canonical = extractHtmlAttribute(html, 'link', 'rel', 'canonical', 'href');
+  const asin = extractAsin(canonical) || extractAsin(url);
+  const title =
+    cleanWhitespace(decodeHtml(stripTags(extractById(html, 'productTitle')))) ||
+    cleanWhitespace(decodeHtml(extractMetaContent(html, 'og:title'))) ||
+    cleanWhitespace(decodeHtml(extractHtmlTitle(html)));
+  const price = extractHtmlPrice(html);
+  const rating =
+    cleanWhitespace(decodeHtml(extractHtmlAttribute(html, 'span', 'class', 'a-icon-alt'))) ||
+    cleanWhitespace(decodeHtml(extractHtmlAttribute(html, 'i', 'class', 'a-icon-star', 'title'))) ||
+    cleanWhitespace(decodeHtml(extractHtmlAttribute(html, 'span', 'data-hook', 'rating-out-of-text')));
+  const salesSignal = cleanWhitespace(
+    decodeHtml(
+      stripTags(
+        html.match(/([\d,.]+\+?\s+bought in past month)/i)?.[1] || ''
+      )
+    )
+  );
+  const image =
+    extractMetaContent(html, 'og:image') ||
+    html.match(/id=["']landingImage["'][^>]+src=["']([^"']+)["']/i)?.[1] ||
+    html.match(/src=["']([^"']*m\.media-amazon\.com[^"']*)["']/i)?.[1] ||
+    '';
+
+  return {
+    asin,
+    title,
+    price,
+    rating,
+    salesSignal,
+    images: image ? [decodeHtml(image)] : [],
+    product_url: asin ? `https://www.amazon.ca/dp/${asin}` : canonical || url,
+  };
+}
+
+function extractHtmlPrice(html) {
+  const patterns = [
+    /<span[^>]+class=["'][^"']*a-offscreen[^"']*["'][^>]*>\s*(\$\s*\d[\d,.]*)\s*<\/span>/i,
+    /<span[^>]+id=["']priceblock_(?:ourprice|dealprice|saleprice)["'][^>]*>\s*(\$\s*\d[\d,.]*)\s*<\/span>/i,
+    /"price"\s*:\s*"?(\d+(?:\.\d{1,2})?)"?/i,
+    /\$\s*\d{1,4}(?:,\d{3})*(?:\.\d{2})?/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (!match) continue;
+    const value = match[1] || match[0];
+    const normalized = cleanWhitespace(decodeHtml(stripTags(value)));
+    if (/^\$/.test(normalized)) return normalized;
+    if (/^\d/.test(normalized)) return `$${normalized}`;
+  }
+
+  const whole = html.match(/class=["'][^"']*a-price-whole[^"']*["'][^>]*>\s*([\d,.]+)/i)?.[1] || '';
+  const fraction = html.match(/class=["'][^"']*a-price-fraction[^"']*["'][^>]*>\s*(\d{2})/i)?.[1] || '00';
+  const dollars = whole.replace(/[^0-9]/g, '');
+  return dollars ? `$${dollars}.${fraction}` : '';
+}
+
+function extractById(html, id) {
+  const match = html.match(new RegExp(`<[^>]+id=["']${id}["'][^>]*>([\\s\\S]*?)<\\/[^>]+>`, 'i'));
+  return match?.[1] || '';
+}
+
+function extractMetaContent(html, property) {
+  const propertyMatch = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${escapeRegExp(property)}["'][^>]+content=["']([^"']+)["']`, 'i'));
+  if (propertyMatch) return decodeHtml(propertyMatch[1]);
+  const contentFirstMatch = html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${escapeRegExp(property)}["']`, 'i'));
+  return contentFirstMatch ? decodeHtml(contentFirstMatch[1]) : '';
+}
+
+function extractHtmlTitle(html) {
+  return stripTags(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '').replace(/\s*:\s*Amazon\.ca.*$/i, '');
+}
+
+function extractHtmlAttribute(html, tag, selectorAttr, selectorValue, outputAttr = selectorAttr) {
+  const tagMatch = html.match(new RegExp(`<${tag}[^>]+${selectorAttr}=["'][^"']*${escapeRegExp(selectorValue)}[^"']*["'][^>]*>`, 'i'));
+  if (!tagMatch) return '';
+  const attrMatch = tagMatch[0].match(new RegExp(`${outputAttr}=["']([^"']+)["']`, 'i'));
+  return attrMatch?.[1] || stripTags(tagMatch[0]);
 }
 
 async function renderCreativeJpeg({ title, price, rating, salesSignal, imageUrl, brand }) {
@@ -726,6 +870,14 @@ function extractAsin(value) {
 function discoverProductsFromHtml(html, sourceUrl) {
   const products = [];
   const seen = new Set();
+  const cardProducts = discoverProductCardsFromHtml(html, sourceUrl);
+
+  for (const product of cardProducts) {
+    if (seen.has(product.asin)) continue;
+    seen.add(product.asin);
+    products.push(product);
+  }
+
   const linkPattern = /href=["']([^"']*\/(?:dp|gp\/product)\/([A-Z0-9]{10})[^"']*)["']/gi;
   let match;
 
@@ -733,8 +885,8 @@ function discoverProductsFromHtml(html, sourceUrl) {
     const asin = String(match[2] || '').toUpperCase();
     if (!asin || seen.has(asin)) continue;
 
-    const start = Math.max(0, match.index - 4500);
-    const end = Math.min(html.length, match.index + 4500);
+    const start = Math.max(0, match.index - 1200);
+    const end = Math.min(html.length, match.index + 1800);
     const chunk = html.slice(start, end);
     const image = extractDiscoveryImage(chunk);
     const title = extractDiscoveryTitle(chunk, asin);
@@ -745,6 +897,32 @@ function discoverProductsFromHtml(html, sourceUrl) {
     products.push({
       asin,
       href: absolutizeAmazonUrl(match[1], sourceUrl),
+      product_url: `https://www.amazon.ca/dp/${asin}`,
+      title,
+      image_url: image,
+    });
+  }
+
+  return products;
+}
+
+function discoverProductCardsFromHtml(html, sourceUrl) {
+  const products = [];
+  const cardPattern = /<[^>]+data-asin=["']([A-Z0-9]{10})["'][^>]*>[\s\S]*?(?=<[^>]+data-asin=["'][A-Z0-9]{10}["']|<\/body>|$)/gi;
+  let match;
+
+  while ((match = cardPattern.exec(html)) && products.length < 120) {
+    const asin = String(match[1] || '').toUpperCase();
+    const card = match[0] || '';
+    const hrefMatch = card.match(new RegExp(`href=["']([^"']*/(?:dp|gp/product)/${asin}[^"']*)["']`, 'i'));
+    const image = extractDiscoveryImage(card);
+    const title = extractDiscoveryTitle(card, asin);
+
+    if (!asin || !hrefMatch || !title || !image || isExcludedDiscoveryTitle(title)) continue;
+
+    products.push({
+      asin,
+      href: absolutizeAmazonUrl(hrefMatch[1], sourceUrl),
       product_url: `https://www.amazon.ca/dp/${asin}`,
       title,
       image_url: image,
@@ -802,6 +980,10 @@ function decodeHtml(value) {
     .replace(/&gt;/g, '>')
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function cleanWhitespace(value) {
