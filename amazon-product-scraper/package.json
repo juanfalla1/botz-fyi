@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "playwright": "^1.46.0"
+    "playwright": "^1.46.0",
+    "sharp": "^0.33.5"
   },
   "engines": {
     "node": ">=20"

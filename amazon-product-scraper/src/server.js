@@ -1,5 +1,6 @@
 import express from 'express';
 import { chromium } from 'playwright';
+import sharp from 'sharp';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -377,24 +378,13 @@ app.post('/creative', async (req, res) => {
     return res.status(400).json({ error: 'title and image_url are required' });
   }
 
-  let browser;
-
   try {
-    browser = await chromium.launch(chromiumLaunchOptions());
-    const page = await browser.newPage({ viewport: { width: 1080, height: 1350 }, deviceScaleFactor: 1 });
-    await page.setContent(buildCreativeHtml({ title, price, rating, salesSignal, imageUrl, brand }), {
-      waitUntil: 'networkidle',
-      timeout: extractTimeoutMs,
-    });
-
-    const buffer = await page.screenshot({ type: 'jpeg', quality: 92, fullPage: false });
+    const buffer = await renderCreativeJpeg({ title, price, rating, salesSignal, imageUrl, brand });
     res.setHeader('Content-Type', 'image/jpeg');
     res.setHeader('Cache-Control', 'no-store');
     return res.send(buffer);
   } catch (error) {
-    return res.status(422).json({ error: 'Unable to generate creative' });
-  } finally {
-    if (browser) await browser.close();
+    return res.status(422).json({ error: 'Unable to generate creative', detail: error?.message || '' });
   }
 });
 
@@ -459,6 +449,118 @@ function defaultDiscoverySources() {
     'https://www.amazon.ca/gp/movers-and-shakers/home',
     'https://www.amazon.ca/gp/goldbox',
   ];
+}
+
+async function renderCreativeJpeg({ title, price, rating, salesSignal, imageUrl, brand }) {
+  const imageResponse = await fetch(imageUrl, {
+    signal: AbortSignal.timeout(extractTimeoutMs),
+    headers: {
+      accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      'user-agent':
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+    },
+  });
+
+  if (!imageResponse.ok) {
+    throw new Error(`Unable to fetch product image: ${imageResponse.status}`);
+  }
+
+  const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+  const imageMime = imageResponse.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
+  const imageDataUri = `data:${imageMime};base64,${imageBuffer.toString('base64')}`;
+  const svg = buildCreativeSvg({ title, price, rating, salesSignal, imageDataUri, brand });
+
+  return sharp(Buffer.from(svg)).jpeg({ quality: 92 }).toBuffer();
+}
+
+function buildCreativeSvg({ title, price, rating, salesSignal, imageDataUri, brand }) {
+  const titleLines = wrapSvgText(shortenProductTitle(title), 25, 3);
+  const safeBrand = escapeXml(brand || 'Smart Deals');
+  const safePrice = escapeXml(price || 'Check price');
+  const safeRating = escapeXml(formatRatingLabel(rating));
+  const safeSalesSignal = escapeXml(formatSalesSignal(salesSignal));
+  const titleSvg = titleLines
+    .map((line, index) => `<text x="64" y="${860 + index * 66}" class="title">${escapeXml(line)}</text>`)
+    .join('');
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#06111f"/>
+      <stop offset="0.52" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="18%" cy="12%" r="42%"><stop stop-color="#1d4ed8" stop-opacity="0.55"/><stop offset="1" stop-color="#1d4ed8" stop-opacity="0"/></radialGradient>
+    <radialGradient id="glow2" cx="88%" cy="22%" r="38%"><stop stop-color="#0ea5e9" stop-opacity="0.35"/><stop offset="1" stop-color="#0ea5e9" stop-opacity="0"/></radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="30" stdDeviation="38" flood-color="#000" flood-opacity="0.42"/></filter>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="26" stdDeviation="24" flood-color="#0f172a" flood-opacity="0.18"/></filter>
+    <style>
+      .font { font-family: Arial, Helvetica, sans-serif; }
+      .brand { font: 900 24px Arial, Helvetica, sans-serif; letter-spacing: 5px; fill: #f8fafc; }
+      .badge { font: 900 24px Arial, Helvetica, sans-serif; fill: #0f172a; }
+      .label { font: 900 27px Arial, Helvetica, sans-serif; letter-spacing: 3px; fill: #93c5fd; }
+      .price { font: 900 84px Arial, Helvetica, sans-serif; fill: #facc15; }
+      .cta { font: 900 31px Arial, Helvetica, sans-serif; fill: #020617; }
+      .title { font: 900 58px Arial, Helvetica, sans-serif; fill: #f8fafc; letter-spacing: -2px; }
+      .pill { font: 700 24px Arial, Helvetica, sans-serif; fill: #dbeafe; }
+      .footer { font: 400 20px Arial, Helvetica, sans-serif; fill: #cbd5e1; opacity: 0.82; }
+      .bio { font: 900 30px Arial, Helvetica, sans-serif; fill: #f8fafc; }
+    </style>
+  </defs>
+  <rect width="1080" height="1350" fill="url(#bg)"/>
+  <rect width="1080" height="1350" fill="url(#glow1)"/>
+  <rect width="1080" height="1350" fill="url(#glow2)"/>
+  <rect x="64" y="64" width="74" height="74" rx="22" fill="#1d4ed8"/>
+  <text x="101" y="111" text-anchor="middle" class="brand" style="letter-spacing:0">SD</text>
+  <text x="160" y="111" class="brand">${safeBrand.toUpperCase()}</text>
+  <rect x="820" y="76" width="196" height="58" rx="29" fill="#facc15"/>
+  <text x="918" y="113" text-anchor="middle" class="badge">Amazon.ca Find</text>
+  <rect x="64" y="172" width="696" height="620" rx="54" fill="#ffffff" opacity="0.96" filter="url(#shadow)"/>
+  <image href="${imageDataUri}" x="150" y="250" width="524" height="460" preserveAspectRatio="xMidYMid meet" filter="url(#soft)"/>
+  <text x="808" y="300" class="label">TODAY'S PRICE</text>
+  <text x="808" y="390" class="price">${safePrice}</text>
+  <rect x="792" y="700" width="230" height="76" rx="38" fill="#f8fafc"/>
+  <text x="907" y="748" text-anchor="middle" class="cta">Link in bio</text>
+  ${titleSvg}
+  <rect x="64" y="1088" width="190" height="50" rx="25" fill="#ffffff" opacity="0.09" stroke="#ffffff" stroke-opacity="0.16"/>
+  <text x="159" y="1122" text-anchor="middle" class="pill">${safeRating}</text>
+  ${safeSalesSignal ? `<rect x="274" y="1088" width="360" height="50" rx="25" fill="#ffffff" opacity="0.09" stroke="#ffffff" stroke-opacity="0.16"/><text x="454" y="1122" text-anchor="middle" class="pill">${safeSalesSignal}</text>` : ''}
+  <text x="64" y="1264" class="footer">As an Amazon Associate I earn from qualifying purchases. #ad</text>
+  <text x="1016" y="1264" text-anchor="end" class="bio">smart-deals-canada.com</text>
+</svg>`;
+}
+
+function wrapSvgText(value, maxChars, maxLines) {
+  const words = cleanWhitespace(value).split(' ').filter(Boolean);
+  const lines = [];
+  let line = '';
+
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (next.length > maxChars && line) {
+      lines.push(line);
+      line = word;
+      if (lines.length === maxLines) break;
+    } else {
+      line = next;
+    }
+  }
+
+  if (line && lines.length < maxLines) lines.push(line);
+  if (lines.length === maxLines && words.join(' ').length > lines.join(' ').length) {
+    lines[maxLines - 1] = `${lines[maxLines - 1].replace(/\.*$/, '')}...`;
+  }
+
+  return lines.length ? lines : ['Amazon.ca Deal'];
+}
+
+function escapeXml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 function buildCreativeHtml({ title, price, rating, salesSignal, imageUrl, brand }) {
