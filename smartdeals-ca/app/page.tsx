@@ -72,8 +72,14 @@ export default async function Home() {
           </div>
         ) : (
           <div className="empty-state">
-            <h2>No products yet</h2>
-            <p>Once the Instagram workflow publishes products, they will show up here automatically.</p>
+            <span className="deal-badge">Coming online</span>
+            <h2>Products are syncing</h2>
+            <p>Run the Smart Deals n8n workflow once and this storefront will fill with Amazon.ca products automatically.</p>
+            <div className="empty-grid" aria-hidden="true">
+              <span>Amazon.ca finds</span>
+              <span>Auto-updated prices</span>
+              <span>Tracked clicks</span>
+            </div>
           </div>
         )}
       </section>
@@ -107,8 +113,8 @@ function EmptyHero() {
   return (
     <div className="featured-card empty-featured">
       <div className="brand-mark big">SD</div>
-      <h2>Storefront warming up</h2>
-      <p>Published Amazon.ca products will populate this page automatically.</p>
+      <h2>Products are syncing</h2>
+      <p>As soon as Supabase returns Amazon.ca products, this area becomes the featured deal.</p>
     </div>
   );
 }

@@ -48,7 +48,7 @@ export async function listPublishedProducts(limit = 60): Promise<SmartDealProduc
     .limit(limit);
 
   const publishedUrls = [...new Set((publications || []).map((row) => row.affiliate_url).filter(Boolean))];
-  if (!publishedUrls.length) return [];
+  if (!publishedUrls.length) return listLatestProducts(limit);
 
   const { data: products, error } = await supabase
     .from("amazon_affiliate_products")
@@ -57,7 +57,7 @@ export async function listPublishedProducts(limit = 60): Promise<SmartDealProduc
     .not("asin", "is", null)
     .not("image_url", "is", null);
 
-  if (error || !products) return [];
+  if (error || !products || products.length === 0) return listLatestProducts(limit);
 
   const publishMap = new Map((publications || []).map((row) => [row.affiliate_url, row.published_at || null]));
   const orderMap = new Map(publishedUrls.map((url, index) => [url, index]));
@@ -76,6 +76,36 @@ export async function listPublishedProducts(limit = 60): Promise<SmartDealProduc
       salesSignal: String(product.sales_signal || ""),
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: publishMap.get(product.affiliate_url) || null,
+    }));
+}
+
+export async function listLatestProducts(limit = 60): Promise<SmartDealProduct[]> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return [];
+
+  const { data: products, error } = await supabase
+    .from("amazon_affiliate_products")
+    .select("asin,title,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score,last_scraped_at")
+    .not("asin", "is", null)
+    .not("image_url", "is", null)
+    .order("last_scraped_at", { ascending: false })
+    .limit(limit);
+
+  if (error || !products) return [];
+
+  return products
+    .filter((product) => product.asin && product.title)
+    .map((product) => ({
+      asin: String(product.asin),
+      title: String(product.title || "Amazon.ca find"),
+      affiliateUrl: String(product.affiliate_url || buildAmazonAffiliateUrl(String(product.asin))),
+      productUrl: String(product.product_url || `https://www.amazon.ca/dp/${product.asin}`),
+      imageUrl: String(product.image_url || ""),
+      priceText: String(product.price_text || "Check price"),
+      rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
+      salesSignal: String(product.sales_signal || ""),
+      opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
+      publishedAt: product.last_scraped_at ? String(product.last_scraped_at) : null,
     }));
 }
 
