@@ -530,6 +530,18 @@ function defaultDiscoverySources() {
     'https://www.amazon.ca/gp/movers-and-shakers/sports',
     'https://www.amazon.ca/gp/movers-and-shakers/tools',
     'https://www.amazon.ca/gp/goldbox',
+    'https://www.amazon.ca/s?k=wireless+earbuds&rh=p_72%3A11192170011',
+    'https://www.amazon.ca/s?k=phone+charger&rh=p_72%3A11192170011',
+    'https://www.amazon.ca/s?k=bluetooth+speaker&rh=p_72%3A11192170011',
+    'https://www.amazon.ca/s?k=kitchen+gadgets&rh=p_72%3A11192170011',
+    'https://www.amazon.ca/s?k=air+fryer+accessories&rh=p_72%3A11192170011',
+    'https://www.amazon.ca/s?k=home+organization&rh=p_72%3A11192170011',
+    'https://www.amazon.ca/s?k=vacuum+cleaner&rh=p_72%3A11192170011',
+    'https://www.amazon.ca/s?k=skin+care&rh=p_72%3A11192170011',
+    'https://www.amazon.ca/s?k=gaming+accessories&rh=p_72%3A11192170011',
+    'https://www.amazon.ca/s?k=pet+supplies&rh=p_72%3A11192170011',
+    'https://www.amazon.ca/s?k=camping+gear&rh=p_72%3A11192170011',
+    'https://www.amazon.ca/s?k=car+accessories&rh=p_72%3A11192170011',
   ];
 }
 
