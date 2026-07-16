@@ -182,6 +182,33 @@ app.post('/extract', async (req, res) => {
     const data = await page.evaluate(({ debug }) => {
       const text = selector => document.querySelector(selector)?.textContent?.trim() || '';
       const attr = (selector, name) => document.querySelector(selector)?.getAttribute(name) || '';
+      const ratingFromPage = () => {
+        const directCandidates = [
+          attr('#acrPopover', 'title'),
+          attr('#acrPopover', 'aria-label'),
+          text('#acrPopover .a-icon-alt'),
+          text('[data-hook="average-star-rating"] .a-icon-alt'),
+          text('[data-hook="rating-out-of-text"]'),
+          text('.reviewCountTextLinkedHistogram .a-icon-alt'),
+          text('i.a-icon-star .a-icon-alt'),
+          text('.a-icon-star .a-icon-alt'),
+        ];
+
+        for (const candidate of directCandidates) {
+          if (/\d+(?:\.\d+)?\s*out of\s*5|\d+(?:\.\d+)?\s*stars?/i.test(candidate || '')) return candidate;
+        }
+
+        const attributeCandidate = Array.from(document.querySelectorAll('[aria-label], [title], .a-icon-alt'))
+          .flatMap(element => [
+            element.getAttribute('aria-label') || '',
+            element.getAttribute('title') || '',
+            element.textContent || '',
+          ])
+          .map(value => value.trim())
+          .find(value => /\d+(?:\.\d+)?\s*out of\s*5\s*stars?|\d+(?:\.\d+)?\s*stars?/i.test(value));
+
+        return attributeCandidate || '';
+      };
       const priceFromParts = () => {
         const containers = Array.from(document.querySelectorAll('.a-price, #corePriceDisplay_desktop_feature_div, #apex_desktop'));
 
@@ -210,10 +237,7 @@ app.post('/extract', async (req, res) => {
         text('#priceblock_dealprice') ||
         text('#corePriceDisplay_desktop_feature_div .a-offscreen') ||
         priceFromParts();
-      const rating =
-        attr('#acrPopover', 'title') ||
-        text('.a-icon-alt') ||
-        text('[data-hook="rating-out-of-text"]');
+      const rating = ratingFromPage();
       const salesSignal =
         text('#socialProofingAsinFaceout_feature_div') ||
         text('#social-proofing-faceout-title-tk_bought') ||
@@ -521,10 +545,7 @@ async function fetchProductDataFallback(url) {
     cleanWhitespace(decodeHtml(extractMetaContent(html, 'og:title'))) ||
     cleanWhitespace(decodeHtml(extractHtmlTitle(html)));
   const price = extractHtmlPrice(html);
-  const rating =
-    cleanWhitespace(decodeHtml(extractHtmlAttribute(html, 'span', 'class', 'a-icon-alt'))) ||
-    cleanWhitespace(decodeHtml(extractHtmlAttribute(html, 'i', 'class', 'a-icon-star', 'title'))) ||
-    cleanWhitespace(decodeHtml(extractHtmlAttribute(html, 'span', 'data-hook', 'rating-out-of-text')));
+  const rating = extractHtmlRating(html);
   const salesSignal = cleanWhitespace(
     decodeHtml(
       stripTags(
@@ -569,6 +590,24 @@ function extractHtmlPrice(html) {
   const fraction = html.match(/class=["'][^"']*a-price-fraction[^"']*["'][^>]*>\s*(\d{2})/i)?.[1] || '00';
   const dollars = whole.replace(/[^0-9]/g, '');
   return dollars ? `$${dollars}.${fraction}` : '';
+}
+
+function extractHtmlRating(html) {
+  const patterns = [
+    /(?:title|aria-label)=["']([^"']*\d+(?:\.\d+)?\s*out of\s*5\s*stars?[^"']*)["']/i,
+    /<span[^>]+class=["'][^"']*a-icon-alt[^"']*["'][^>]*>\s*([^<]*\d+(?:\.\d+)?\s*out of\s*5\s*stars?[^<]*)\s*<\/span>/i,
+    /<span[^>]+data-hook=["']rating-out-of-text["'][^>]*>\s*([^<]*\d+(?:\.\d+)?[^<]*)\s*<\/span>/i,
+    /\b(\d+(?:\.\d+)?)\s*out of\s*5\s*stars?\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (!match) continue;
+    const value = cleanWhitespace(decodeHtml(stripTags(match[1] || match[0])));
+    if (normalizeRating(value)) return value;
+  }
+
+  return '';
 }
 
 function extractById(html, id) {
