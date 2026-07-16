@@ -23,7 +23,7 @@ Standalone landing for `smartdeals.ca`.
 ```text
 NEXT_PUBLIC_SUPABASE_URL=https://odjlbtfxxqdihqaswtky.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-AMAZON_ASSOCIATES_TRACKING_ID=bb1zca-20
+AMAZON_ASSOCIATES_TRACKING_ID=botzca-20
 NEXT_PUBLIC_SITE_URL=https://smartdeals.ca
 ```
 

@@ -13,7 +13,7 @@ export type SmartDealProduct = {
   publishedAt: string | null;
 };
 
-const fallbackTrackingId = "bb1zca-20";
+const fallbackTrackingId = "botzca-20";
 
 export function getTrackingId() {
   return process.env.AMAZON_ASSOCIATES_TRACKING_ID || fallbackTrackingId;
