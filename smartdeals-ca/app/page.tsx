@@ -33,7 +33,18 @@ export default async function Home() {
 
       <section className="hero-wrap">
         <div className="category-bar" aria-label="Popular categories">
-          {['Electronics', 'Home', 'Beauty', 'Gaming', 'Kitchen', 'Gifts'].map((category) => <span key={category}>{category}</span>)}
+          {[
+            ['Electronics', 'electronics deals'],
+            ['Home', 'home deals'],
+            ['Beauty', 'beauty deals'],
+            ['Gaming', 'gaming deals'],
+            ['Kitchen', 'kitchen deals'],
+            ['Gifts', 'gift ideas'],
+          ].map(([category, query]) => (
+            <Link key={category} href={`/go/search?q=${encodeURIComponent(query)}&source=category`}>
+              {category}
+            </Link>
+          ))}
         </div>
 
         <div className="hero-grid">
@@ -51,7 +62,7 @@ export default async function Home() {
             </p>
             <div className="hero-actions">
               <a className="primary-action" href="#deals">Shop latest finds</a>
-              <span className="trust-pill">Amazon.ca checkout</span>
+              <Link className="trust-pill" href="/go/search?q=amazon.ca%20deals&source=hero-pill">Amazon.ca checkout</Link>
             </div>
           </section>
 
@@ -59,9 +70,9 @@ export default async function Home() {
         </div>
 
         <section className="trust-row" aria-label="Smart Deals benefits">
-          <div><strong>Auto-updated</strong><span>Products sync from the publishing workflow.</span></div>
-          <div><strong>Amazon.ca checkout</strong><span>Buttons send shoppers directly to Amazon.</span></div>
-          <div><strong>Canada focused</strong><span>Built for Canadian Amazon shoppers.</span></div>
+          <a href="#latest"><strong>Auto-updated</strong><span>Products sync from the publishing workflow.</span></a>
+          <Link href="/go/search?q=amazon.ca%20deals&source=trust-row"><strong>Amazon.ca checkout</strong><span>Buttons send shoppers directly to Amazon.</span></Link>
+          <Link href="/go/search?q=canada%20deals&source=trust-row"><strong>Canada focused</strong><span>Built for Canadian Amazon shoppers.</span></Link>
         </section>
       </section>
 
