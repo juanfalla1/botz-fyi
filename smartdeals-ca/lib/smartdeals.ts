@@ -64,6 +64,7 @@ export async function listPublishedProducts(limit = 60): Promise<SmartDealProduc
 
   return products
     .filter((product) => product.asin && product.title)
+    .filter((product) => isDisplayableProduct(product))
     .sort((a, b) => (orderMap.get(a.affiliate_url) ?? 9999) - (orderMap.get(b.affiliate_url) ?? 9999))
     .map((product) => ({
       asin: String(product.asin),
@@ -95,6 +96,7 @@ export async function listLatestProducts(limit = 60): Promise<SmartDealProduct[]
 
   return products
     .filter((product) => product.asin && product.title)
+    .filter((product) => isDisplayableProduct(product))
     .map((product) => ({
       asin: String(product.asin),
       title: String(product.title || "Amazon.ca find"),
@@ -107,6 +109,31 @@ export async function listLatestProducts(limit = 60): Promise<SmartDealProduct[]
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: product.last_scraped_at ? String(product.last_scraped_at) : null,
     }));
+}
+
+function isDisplayableProduct(product: {
+  asin?: unknown;
+  affiliate_url?: unknown;
+  product_url?: unknown;
+  price_text?: unknown;
+}) {
+  const asin = String(product.asin || "").toUpperCase();
+  const priceText = String(product.price_text || "");
+  const urls = [product.affiliate_url, product.product_url].map((value) => String(value || ""));
+
+  if (!parseCadPrice(priceText)) return false;
+  return urls.every((url) => !url || extractAsin(url) === asin);
+}
+
+function parseCadPrice(value: string) {
+  const normalized = value.replace(/,/g, "");
+  const match = normalized.match(/\$\s*(\d+(?:\.\d{1,2})?)/);
+  return match?.[1] || "";
+}
+
+function extractAsin(value: string) {
+  const match = value.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?#]|$)/i);
+  return match?.[1]?.toUpperCase() || "";
 }
 
 export async function getProductByAsin(asin: string) {

@@ -182,13 +182,34 @@ app.post('/extract', async (req, res) => {
     const data = await page.evaluate(({ debug }) => {
       const text = selector => document.querySelector(selector)?.textContent?.trim() || '';
       const attr = (selector, name) => document.querySelector(selector)?.getAttribute(name) || '';
+      const priceFromParts = () => {
+        const containers = Array.from(document.querySelectorAll('.a-price, #corePriceDisplay_desktop_feature_div, #apex_desktop'));
+
+        for (const container of containers) {
+          const offscreen = container.querySelector('.a-offscreen')?.textContent?.trim();
+          if (/\$\s*\d/.test(offscreen || '')) return offscreen;
+
+          const whole = container.querySelector('.a-price-whole')?.textContent?.trim() || '';
+          const fraction = container.querySelector('.a-price-fraction')?.textContent?.trim() || '00';
+          const dollars = whole.replace(/[^0-9]/g, '');
+          const cents = fraction.replace(/[^0-9]/g, '').slice(0, 2).padEnd(2, '0');
+
+          if (dollars) return `$${dollars}.${cents}`;
+        }
+
+        const bodyMatch = document.body?.textContent?.match(/\$\s*\d{1,4}(?:[,.]\d{3})*(?:\.\d{2})?/);
+        return bodyMatch?.[0] || '';
+      };
 
       const title = text('#productTitle') || attr('meta[property="og:title"]', 'content');
       const price =
+        text('#corePriceDisplay_desktop_feature_div .a-price .a-offscreen') ||
+        text('#apex_desktop .a-price .a-offscreen') ||
         text('.a-price .a-offscreen') ||
         text('#priceblock_ourprice') ||
         text('#priceblock_dealprice') ||
-        text('#corePriceDisplay_desktop_feature_div .a-offscreen');
+        text('#corePriceDisplay_desktop_feature_div .a-offscreen') ||
+        priceFromParts();
       const rating =
         attr('#acrPopover', 'title') ||
         text('.a-icon-alt') ||
@@ -726,6 +747,14 @@ function extractAsin(value) {
 function discoverProductsFromHtml(html, sourceUrl) {
   const products = [];
   const seen = new Set();
+  const cardProducts = discoverProductCardsFromHtml(html, sourceUrl);
+
+  for (const product of cardProducts) {
+    if (seen.has(product.asin)) continue;
+    seen.add(product.asin);
+    products.push(product);
+  }
+
   const linkPattern = /href=["']([^"']*\/(?:dp|gp\/product)\/([A-Z0-9]{10})[^"']*)["']/gi;
   let match;
 
@@ -733,8 +762,8 @@ function discoverProductsFromHtml(html, sourceUrl) {
     const asin = String(match[2] || '').toUpperCase();
     if (!asin || seen.has(asin)) continue;
 
-    const start = Math.max(0, match.index - 4500);
-    const end = Math.min(html.length, match.index + 4500);
+    const start = Math.max(0, match.index - 1200);
+    const end = Math.min(html.length, match.index + 1800);
     const chunk = html.slice(start, end);
     const image = extractDiscoveryImage(chunk);
     const title = extractDiscoveryTitle(chunk, asin);
@@ -745,6 +774,32 @@ function discoverProductsFromHtml(html, sourceUrl) {
     products.push({
       asin,
       href: absolutizeAmazonUrl(match[1], sourceUrl),
+      product_url: `https://www.amazon.ca/dp/${asin}`,
+      title,
+      image_url: image,
+    });
+  }
+
+  return products;
+}
+
+function discoverProductCardsFromHtml(html, sourceUrl) {
+  const products = [];
+  const cardPattern = /<[^>]+data-asin=["']([A-Z0-9]{10})["'][^>]*>[\s\S]*?(?=<[^>]+data-asin=["'][A-Z0-9]{10}["']|<\/body>|$)/gi;
+  let match;
+
+  while ((match = cardPattern.exec(html)) && products.length < 120) {
+    const asin = String(match[1] || '').toUpperCase();
+    const card = match[0] || '';
+    const hrefMatch = card.match(new RegExp(`href=["']([^"']*/(?:dp|gp/product)/${asin}[^"']*)["']`, 'i'));
+    const image = extractDiscoveryImage(card);
+    const title = extractDiscoveryTitle(card, asin);
+
+    if (!asin || !hrefMatch || !title || !image || isExcludedDiscoveryTitle(title)) continue;
+
+    products.push({
+      asin,
+      href: absolutizeAmazonUrl(hrefMatch[1], sourceUrl),
       product_url: `https://www.amazon.ca/dp/${asin}`,
       title,
       image_url: image,
