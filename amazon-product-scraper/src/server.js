@@ -17,58 +17,43 @@ app.post('/discover', async (req, res) => {
   const maxProducts = Math.max(1, Math.min(Number(limit) || 24, 80));
   const perSourceLimit = Math.max(4, Math.ceil(maxProducts / Math.max(sourceUrls.length, 1)));
 
-  let browser;
-
   try {
-    browser = await chromium.launch(chromiumLaunchOptions());
-    const context = await browser.newContext({
-      locale: 'en-CA',
-      userAgent:
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
-    });
-
     const products = [];
     const seenAsins = new Set();
 
     for (const sourceUrl of sourceUrls) {
       if (!isAmazonCanadaUrl(sourceUrl)) continue;
 
-      const page = await context.newPage();
-      page.setDefaultTimeout(extractTimeoutMs);
       let addedFromSource = 0;
 
       try {
-        await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: extractTimeoutMs });
-        await page.waitForTimeout(1500);
-
-        const pageProducts = await page.evaluate(() => {
-          const links = Array.from(document.querySelectorAll('a[href*="/dp/"], a[href*="/gp/product/"]'));
-
-          return links.map(link => {
-            const href = link.href || '';
-            const card = link.closest('[data-asin], .zg-grid-general-faceout, .s-result-item, li') || link;
-            const title =
-              card.querySelector('img')?.getAttribute('alt') ||
-              card.querySelector('h2, .p13n-sc-truncate, .a-size-base-plus, .a-size-medium')?.textContent?.trim() ||
-              link.textContent?.trim() ||
-              '';
-            const image = card.querySelector('img')?.getAttribute('src') || '';
-
-            return { href, title, image };
-          });
+        const response = await fetch(sourceUrl, {
+          signal: AbortSignal.timeout(extractTimeoutMs),
+          headers: {
+            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'accept-language': 'en-CA,en;q=0.9',
+            'cache-control': 'no-cache',
+            'user-agent':
+              'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+          },
         });
 
+        if (!response.ok) continue;
+
+        const html = await response.text();
+        const pageProducts = discoverProductsFromHtml(html, sourceUrl);
+
         for (const product of pageProducts) {
-          const asin = extractAsin(product.href);
+          const asin = product.asin || extractAsin(product.href || product.product_url || '');
           const title = cleanWhitespace(product.title);
-          if (!asin || seenAsins.has(asin) || !title || !product.image || isExcludedDiscoveryTitle(title)) continue;
+          if (!asin || seenAsins.has(asin) || !title || !product.image_url || isExcludedDiscoveryTitle(title)) continue;
           seenAsins.add(asin);
           products.push({
             asin,
             product_url: `https://www.amazon.ca/dp/${asin}`,
             source_url: sourceUrl,
             title,
-            image_url: product.image || '',
+            image_url: product.image_url || '',
           });
           addedFromSource += 1;
 
@@ -76,16 +61,12 @@ app.post('/discover', async (req, res) => {
         }
       } catch {
         // Keep discovery resilient. Amazon may throttle or change markup on any page.
-      } finally {
-        await page.close();
       }
     }
 
     return res.json({ products: products.slice(0, maxProducts), count: Math.min(products.length, maxProducts), sources: sourceUrls });
   } catch (error) {
     return res.status(422).json({ error: 'Unable to discover products' });
-  } finally {
-    if (browser) await browser.close();
   }
 });
 
@@ -636,8 +617,89 @@ function isAmazonCanadaUrl(value) {
 }
 
 function extractAsin(value) {
-  const match = value.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i);
+  const match = value.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?#]|$)/i);
   return match?.[1]?.toUpperCase() || '';
+}
+
+function discoverProductsFromHtml(html, sourceUrl) {
+  const products = [];
+  const seen = new Set();
+  const linkPattern = /href=["']([^"']*\/(?:dp|gp\/product)\/([A-Z0-9]{10})[^"']*)["']/gi;
+  let match;
+
+  while ((match = linkPattern.exec(html)) && products.length < 120) {
+    const asin = String(match[2] || '').toUpperCase();
+    if (!asin || seen.has(asin)) continue;
+
+    const start = Math.max(0, match.index - 4500);
+    const end = Math.min(html.length, match.index + 4500);
+    const chunk = html.slice(start, end);
+    const image = extractDiscoveryImage(chunk);
+    const title = extractDiscoveryTitle(chunk, asin);
+
+    if (!title || !image) continue;
+
+    seen.add(asin);
+    products.push({
+      asin,
+      href: absolutizeAmazonUrl(match[1], sourceUrl),
+      product_url: `https://www.amazon.ca/dp/${asin}`,
+      title,
+      image_url: image,
+    });
+  }
+
+  return products;
+}
+
+function extractDiscoveryImage(chunk) {
+  const srcsetMatch = chunk.match(/srcset=["']([^"']*m\.media-amazon\.com[^"']*)["']/i);
+  if (srcsetMatch) {
+    const first = srcsetMatch[1].split(',')[0]?.trim().split(/\s+/)[0];
+    if (first) return decodeHtml(first);
+  }
+
+  const srcMatch = chunk.match(/src=["']([^"']*m\.media-amazon\.com[^"']*)["']/i);
+  return srcMatch ? decodeHtml(srcMatch[1]) : '';
+}
+
+function extractDiscoveryTitle(chunk, asin) {
+  const altMatches = Array.from(chunk.matchAll(/<img\b[^>]*alt=["']([^"']{12,260})["'][^>]*>/gi));
+  for (const match of altMatches) {
+    const title = cleanWhitespace(decodeHtml(stripTags(match[1])));
+    if (title && !isExcludedDiscoveryTitle(title) && !/sponsored|advertisement/i.test(title)) return title;
+  }
+
+  const textMatches = Array.from(chunk.matchAll(/<(?:span|div|a|h2)[^>]*(?:class|id)=["'][^"']*(?:truncate|title|a-size-base-plus|a-size-medium|p13n)[^"']*["'][^>]*>([\s\S]{12,500}?)<\/(?:span|div|a|h2)>/gi));
+  for (const match of textMatches) {
+    const title = cleanWhitespace(decodeHtml(stripTags(match[1])));
+    if (title && title !== asin && !isExcludedDiscoveryTitle(title)) return title;
+  }
+
+  return '';
+}
+
+function absolutizeAmazonUrl(value, sourceUrl) {
+  try {
+    return new URL(decodeHtml(value), sourceUrl).href;
+  } catch {
+    return String(value || '');
+  }
+}
+
+function stripTags(value) {
+  return String(value || '').replace(/<[^>]+>/g, ' ');
+}
+
+function decodeHtml(value) {
+  return String(value || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
 }
 
 function cleanWhitespace(value) {
