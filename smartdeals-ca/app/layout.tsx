@@ -2,16 +2,21 @@ import type { Metadata } from "next";
 import "./styles.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://smartdeals.ca"),
+  metadataBase: new URL("https://www.smart-deals-canada.com"),
   title: {
-    default: "Smart Deals Canada | Amazon.ca Finds",
+    default: "Smart Deals Canada",
     template: "%s | Smart Deals Canada",
   },
   description: "Fresh Amazon.ca finds, Canada deals and trending products curated automatically by Smart Deals.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
   openGraph: {
     title: "Smart Deals Canada",
     description: "Fresh Amazon.ca finds and Canada deals updated automatically.",
-    url: "https://smartdeals.ca",
+    url: "https://www.smart-deals-canada.com",
     siteName: "Smart Deals Canada",
     type: "website",
   },
