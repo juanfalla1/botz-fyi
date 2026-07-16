@@ -143,7 +143,7 @@ function FeaturedProduct({ product }: { product: SmartDealProduct }) {
       </div>
       <div className="featured-copy">
         <span className="deal-badge">Latest Amazon.ca find</span>
-        <h2>{product.title}</h2>
+        <h2 title={product.title}>{shortProductTitle(product.title, 8)}</h2>
         <ProductMeta product={product} />
         <BuyLink product={product} source="hero" />
       </div>
