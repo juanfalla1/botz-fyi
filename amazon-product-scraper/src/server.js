@@ -15,7 +15,7 @@ app.get('/health', (_req, res) => {
 app.post('/discover', async (req, res) => {
   const { limit = 24, sources = defaultDiscoverySources() } = req.body || {};
   const sourceUrls = Array.isArray(sources) && sources.length ? sources : defaultDiscoverySources();
-  const maxProducts = Math.max(1, Math.min(Number(limit) || 24, 80));
+  const maxProducts = Math.max(1, Math.min(Number(limit) || 24, 200));
   const perSourceLimit = Math.max(4, Math.ceil(maxProducts / Math.max(sourceUrls.length, 1)));
 
   try {
@@ -515,10 +515,20 @@ function defaultDiscoverySources() {
     'https://www.amazon.ca/Best-Sellers-Office-Products/zgbs/office-products',
     'https://www.amazon.ca/Best-Sellers-Health-Personal-Care/zgbs/hpc',
     'https://www.amazon.ca/Best-Sellers-Patio-Lawn-Garden/zgbs/lawn-garden',
+    'https://www.amazon.ca/Best-Sellers-Automotive/zgbs/automotive',
+    'https://www.amazon.ca/Best-Sellers-Baby/zgbs/baby',
+    'https://www.amazon.ca/Best-Sellers-Cell-Phones-Accessories/zgbs/wireless',
+    'https://www.amazon.ca/Best-Sellers-Clothing-Shoes-Jewelry/zgbs/fashion',
+    'https://www.amazon.ca/Best-Sellers-Musical-Instruments/zgbs/musical-instruments',
+    'https://www.amazon.ca/Best-Sellers-Pet-Supplies/zgbs/pet-supplies',
     'https://www.amazon.ca/gp/movers-and-shakers/electronics',
     'https://www.amazon.ca/gp/movers-and-shakers/videogames',
     'https://www.amazon.ca/gp/movers-and-shakers/kitchen',
     'https://www.amazon.ca/gp/movers-and-shakers/home',
+    'https://www.amazon.ca/gp/movers-and-shakers/beauty',
+    'https://www.amazon.ca/gp/movers-and-shakers/hpc',
+    'https://www.amazon.ca/gp/movers-and-shakers/sports',
+    'https://www.amazon.ca/gp/movers-and-shakers/tools',
     'https://www.amazon.ca/gp/goldbox',
   ];
 }
