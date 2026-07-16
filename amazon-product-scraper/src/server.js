@@ -15,6 +15,7 @@ app.post('/discover', async (req, res) => {
   const { limit = 24, sources = defaultDiscoverySources() } = req.body || {};
   const sourceUrls = Array.isArray(sources) && sources.length ? sources : defaultDiscoverySources();
   const maxProducts = Math.max(1, Math.min(Number(limit) || 24, 80));
+  const perSourceLimit = Math.max(4, Math.ceil(maxProducts / Math.max(sourceUrls.length, 1)));
 
   let browser;
 
@@ -30,11 +31,11 @@ app.post('/discover', async (req, res) => {
     const seenAsins = new Set();
 
     for (const sourceUrl of sourceUrls) {
-      if (products.length >= maxProducts) break;
       if (!isAmazonCanadaUrl(sourceUrl)) continue;
 
       const page = await context.newPage();
       page.setDefaultTimeout(extractTimeoutMs);
+      let addedFromSource = 0;
 
       try {
         await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: extractTimeoutMs });
@@ -69,8 +70,9 @@ app.post('/discover', async (req, res) => {
             title,
             image_url: product.image || '',
           });
+          addedFromSource += 1;
 
-          if (products.length >= maxProducts) break;
+          if (addedFromSource >= perSourceLimit) break;
         }
       } catch {
         // Keep discovery resilient. Amazon may throttle or change markup on any page.
@@ -79,7 +81,7 @@ app.post('/discover', async (req, res) => {
       }
     }
 
-    return res.json({ products, count: products.length, sources: sourceUrls });
+    return res.json({ products: products.slice(0, maxProducts), count: Math.min(products.length, maxProducts), sources: sourceUrls });
   } catch (error) {
     return res.status(422).json({ error: 'Unable to discover products' });
   } finally {
@@ -451,8 +453,15 @@ function defaultDiscoverySources() {
     'https://www.amazon.ca/Best-Sellers-Home-Kitchen/zgbs/kitchen',
     'https://www.amazon.ca/Best-Sellers-Beauty/zgbs/beauty',
     'https://www.amazon.ca/Best-Sellers-Toys-Games/zgbs/toys',
+    'https://www.amazon.ca/Best-Sellers-Tools-Home-Improvement/zgbs/hi',
+    'https://www.amazon.ca/Best-Sellers-Sports-Outdoors/zgbs/sports',
+    'https://www.amazon.ca/Best-Sellers-Office-Products/zgbs/office-products',
+    'https://www.amazon.ca/Best-Sellers-Health-Personal-Care/zgbs/hpc',
+    'https://www.amazon.ca/Best-Sellers-Patio-Lawn-Garden/zgbs/lawn-garden',
     'https://www.amazon.ca/gp/movers-and-shakers/electronics',
     'https://www.amazon.ca/gp/movers-and-shakers/videogames',
+    'https://www.amazon.ca/gp/movers-and-shakers/kitchen',
+    'https://www.amazon.ca/gp/movers-and-shakers/home',
     'https://www.amazon.ca/gp/goldbox',
   ];
 }
