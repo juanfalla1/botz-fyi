@@ -38,6 +38,12 @@ export default async function Home() {
 
         <div className="hero-grid">
           <section className="hero-copy">
+            <div className="hero-pattern" aria-hidden="true">
+              <span className="floating-card card-one">5K+ bought</span>
+              <span className="floating-card card-two">Canada pick</span>
+              <span className="shopping-orb orb-one" />
+              <span className="shopping-orb orb-two" />
+            </div>
             <p className="eyebrow">Smart finds from Amazon.ca</p>
             <h1>Daily Canada deals picked for fast shoppers.</h1>
             <p className="hero-text">
@@ -51,6 +57,12 @@ export default async function Home() {
 
           {featured ? <FeaturedProduct product={featured} /> : <EmptyHero />}
         </div>
+
+        <section className="trust-row" aria-label="Smart Deals benefits">
+          <div><strong>Auto-updated</strong><span>Products sync from the publishing workflow.</span></div>
+          <div><strong>Amazon.ca checkout</strong><span>Buttons send shoppers directly to Amazon.</span></div>
+          <div><strong>Canada focused</strong><span>Built for Canadian Amazon shoppers.</span></div>
+        </section>
       </section>
 
       <section id="deals" className="content-section">
@@ -59,6 +71,18 @@ export default async function Home() {
           <h2>Today&apos;s Smart Deals</h2>
           <p>Products appear here automatically after they are posted on Smart Deals.</p>
         </div>
+
+        <section className="visual-banner">
+          <div>
+            <p className="eyebrow">Shop smarter</p>
+            <h2>Fresh finds, clean layout, direct Amazon.ca checkout.</h2>
+          </div>
+          <div className="banner-art" aria-hidden="true">
+            <span className="bag bag-blue">SD</span>
+            <span className="bag bag-yellow">%</span>
+            <span className="bag bag-white">ca</span>
+          </div>
+        </section>
 
         {trending.length > 0 ? (
           <div id="trending" className="trend-strip">
