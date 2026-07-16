@@ -20,7 +20,7 @@ app.post('/discover', async (req, res) => {
   let browser;
 
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch(chromiumLaunchOptions());
     const context = await browser.newContext({
       locale: 'en-CA',
       userAgent:
@@ -101,7 +101,7 @@ app.post('/extract', async (req, res) => {
   let browser;
 
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch(chromiumLaunchOptions());
     const context = await browser.newContext({
       locale: 'en-CA',
       userAgent:
@@ -399,7 +399,7 @@ app.post('/creative', async (req, res) => {
   let browser;
 
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch(chromiumLaunchOptions());
     const page = await browser.newPage({ viewport: { width: 1080, height: 1350 }, deviceScaleFactor: 1 });
     await page.setContent(buildCreativeHtml({ title, price, rating, salesSignal, imageUrl, brand }), {
       waitUntil: 'networkidle',
@@ -444,6 +444,20 @@ function validateAmazonCanadaUrl(value) {
   } catch {
     return { valid: false, error: 'url must be a valid URL' };
   }
+}
+
+function chromiumLaunchOptions() {
+  return {
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--single-process',
+      '--no-zygote',
+    ],
+  };
 }
 
 function defaultDiscoverySources() {
