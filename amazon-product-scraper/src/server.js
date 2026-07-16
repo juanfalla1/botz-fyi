@@ -388,7 +388,7 @@ app.post('/extract', async (req, res) => {
     const mergedTitle = data.title || fallbackData?.title || '';
     const mergedPrice = data.price || fallbackData?.price || '';
     const mergedRating = normalizeRating(data.rating) || normalizeRating(fallbackData?.rating || '');
-    const mergedImages = data.images?.length ? data.images : fallbackData?.images || [];
+    const mergedImages = await filterProductImages(data.images?.length ? data.images : fallbackData?.images || []);
     const mergedSalesSignal = data.salesSignal || fallbackData?.salesSignal || '';
 
     const response = {
@@ -420,7 +420,7 @@ app.post('/extract', async (req, res) => {
         rating: normalizeRating(fallbackData.rating),
         sales_signal: fallbackData.salesSignal || '',
         bought_past_month: parseBoughtPastMonth(fallbackData.salesSignal),
-        images: fallbackData.images,
+        images: await filterProductImages(fallbackData.images),
         video: { poster: '', source: '' },
         product_url: fallbackAsin ? `https://www.amazon.ca/dp/${fallbackAsin}` : fallbackData.product_url || validation.url.href,
         input_url: validation.url.href,
@@ -553,11 +553,11 @@ async function fetchProductDataFallback(url) {
       )
     )
   );
-  const image =
-    extractMetaContent(html, 'og:image') ||
-    html.match(/id=["']landingImage["'][^>]+src=["']([^"']+)["']/i)?.[1] ||
-    html.match(/src=["']([^"']*m\.media-amazon\.com\/images\/I\/[^"']*)["']/i)?.[1] ||
-    '';
+  const image = await selectProductImage([
+    html.match(/id=["']landingImage["'][^>]+src=["']([^"']+)["']/i)?.[1] || '',
+    extractMetaContent(html, 'og:image'),
+    html.match(/src=["']([^"']*m\.media-amazon\.com\/images\/I\/[^"']*)["']/i)?.[1] || '',
+  ]);
 
   return {
     asin,
@@ -565,9 +565,57 @@ async function fetchProductDataFallback(url) {
     price,
     rating,
     salesSignal,
-    images: image ? [decodeHtml(image)] : [],
+    images: image ? [image] : [],
     product_url: asin ? `https://www.amazon.ca/dp/${asin}` : canonical || url,
   };
+}
+
+async function filterProductImages(images) {
+  const valid = [];
+  const seen = new Set();
+
+  for (const image of images || []) {
+    const url = decodeHtml(String(image || '').trim());
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+
+    if (await isValidProductImage(url)) valid.push(url);
+    if (valid.length >= 8) break;
+  }
+
+  return valid;
+}
+
+async function selectProductImage(images) {
+  const valid = await filterProductImages(images);
+  return valid[0] || '';
+}
+
+async function isValidProductImage(url) {
+  if (!/^https?:\/\/m\.media-amazon\.com\/images\/I\//i.test(url)) return false;
+
+  try {
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(Math.min(extractTimeoutMs, 15000)),
+      headers: {
+        accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        'user-agent':
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+      },
+    });
+
+    if (!response.ok) return false;
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const metadata = await sharp(buffer).metadata();
+    const width = Number(metadata.width || 0);
+    const height = Number(metadata.height || 0);
+    const ratio = width && height ? width / height : 0;
+
+    return width >= 200 && height >= 200 && ratio >= 0.35 && ratio <= 2.2;
+  } catch {
+    return false;
+  }
 }
 
 function extractHtmlPrice(html) {
