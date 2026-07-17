@@ -9,9 +9,9 @@ export const metadata: Metadata = {
   },
   description: "Fresh Amazon.ca finds, Canada deals and trending products curated automatically by Smart Deals.",
   icons: {
-    icon: "/smart-deals-logo.png",
-    shortcut: "/smart-deals-logo.png",
-    apple: "/smart-deals-logo.png",
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
   },
   openGraph: {
     title: "Smart Deals Canada",
