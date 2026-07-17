@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listPublishedProducts, type SmartDealProduct } from "@/lib/smartdeals";
+import { listPublishedProducts, smartDealCategories, type SmartDealProduct } from "@/lib/smartdeals";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -24,7 +24,9 @@ export default async function Home() {
       <header className="topbar" aria-label="Smart Deals navigation">
         <div className="topbar-inner">
           <Link className="brand" href="/">
-            <span className="brand-mark">SD</span>
+            <span className="brand-logo-wrap" aria-hidden="true">
+              <img className="brand-logo" src="/Smart%20Deals%20logo.png" alt="" />
+            </span>
             <span>
               <strong>Smart Deals</strong>
               <small>Canada</small>
@@ -40,16 +42,9 @@ export default async function Home() {
 
       <section className="hero-wrap">
         <div className="category-bar" aria-label="Popular categories">
-          {[
-            ['Electronics', 'electronics deals'],
-            ['Home', 'home deals'],
-            ['Beauty', 'beauty deals'],
-            ['Gaming', 'gaming deals'],
-            ['Kitchen', 'kitchen deals'],
-            ['Gifts', 'gift ideas'],
-          ].map(([category, query]) => (
-            <Link key={category} href={`/go/search?q=${encodeURIComponent(query)}&source=category`}>
-              {category}
+          {smartDealCategories.map((category) => (
+            <Link key={category.slug} href={`/deals/${category.slug}`}>
+              {category.label}
             </Link>
           ))}
         </div>
@@ -67,6 +62,10 @@ export default async function Home() {
             <p className="hero-text">
               Discover products people are buying now. Every button sends you directly to Amazon.ca with the current product page.
             </p>
+            <form className="search-form" action="/search">
+              <input name="q" type="search" placeholder="Search camping lanterns, headphones, kitchen finds..." aria-label="Search Smart Deals products" />
+              <button type="submit">Search</button>
+            </form>
             <div className="hero-actions">
               <a className="primary-action" href="#deals">Shop latest finds</a>
               <Link className="trust-pill" href="/go/search?q=amazon.ca%20deals&source=hero-pill">Amazon.ca checkout</Link>
@@ -221,37 +220,67 @@ function BuyLink({ product, source }: { product: SmartDealProduct; source: strin
 }
 
 function buildProductJsonLd(products: SmartDealProduct[]) {
-  const items = products
-    .map((product) => {
+  const itemListElement = products
+    .map((product, index) => {
       const price = parseCadPrice(product.priceText);
       if (!price) return null;
 
       return {
-        "@type": "Product",
-        name: product.title,
-        image: product.imageUrl,
-        description: product.title,
-        sku: product.asin,
-        brand: {
-          "@type": "Brand",
-          name: "Amazon.ca",
-        },
-        offers: {
-          "@type": "Offer",
-          priceCurrency: "CAD",
-          price,
-          availability: "https://schema.org/InStock",
-          url: `https://www.smart-deals-canada.com/go/${encodeURIComponent(product.asin)}?source=google-product-schema`,
+        "@type": "ListItem",
+        position: index + 1,
+        url: `https://www.smart-deals-canada.com/go/${encodeURIComponent(product.asin)}?source=google-product-schema`,
+        item: {
+          "@type": "Product",
+          name: product.title,
+          image: product.imageUrl,
+          description: product.title,
+          sku: product.asin,
+          category: product.category || undefined,
+          brand: {
+            "@type": "Brand",
+            name: "Amazon.ca",
+          },
+          offers: {
+            "@type": "Offer",
+            priceCurrency: "CAD",
+            price,
+            availability: "https://schema.org/InStock",
+            url: `https://www.smart-deals-canada.com/go/${encodeURIComponent(product.asin)}?source=google-product-schema`,
+          },
         },
       };
     })
     .filter(Boolean);
 
-  if (!items.length) return null;
+  if (!itemListElement.length) return null;
 
   return {
     "@context": "https://schema.org",
-    "@graph": items,
+    "@graph": [
+      {
+        "@type": "Organization",
+        name: "Smart Deals Canada",
+        url: "https://www.smart-deals-canada.com",
+        logo: "https://www.smart-deals-canada.com/Smart%20Deals%20logo.png",
+      },
+      {
+        "@type": "WebSite",
+        name: "Smart Deals Canada",
+        url: "https://www.smart-deals-canada.com",
+        potentialAction: {
+          "@type": "SearchAction",
+          target: "https://www.smart-deals-canada.com/search?q={search_term_string}",
+          "query-input": "required name=search_term_string",
+        },
+      },
+      {
+        "@type": "ItemList",
+        name: "Smart Deals Canada Amazon.ca Finds",
+        itemListOrder: "https://schema.org/ItemListOrderDescending",
+        numberOfItems: itemListElement.length,
+        itemListElement,
+      },
+    ],
   };
 }
 

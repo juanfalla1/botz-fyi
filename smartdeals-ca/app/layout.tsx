@@ -4,14 +4,14 @@ import "./styles.css";
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.smart-deals-canada.com"),
   title: {
-    default: "Smart Deals Canada",
-    template: "%s | Smart Deals Canada",
+    default: "SD Canada",
+    template: "%s | SD Canada",
   },
   description: "Fresh Amazon.ca finds, Canada deals and trending products curated automatically by Smart Deals.",
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
-    apple: "/icon.svg",
+    icon: "/Smart%20Deals%20logo.png",
+    shortcut: "/Smart%20Deals%20logo.png",
+    apple: "/Smart%20Deals%20logo.png",
   },
   openGraph: {
     title: "Smart Deals Canada",
