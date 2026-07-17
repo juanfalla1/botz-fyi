@@ -4,8 +4,8 @@ import "./styles.css";
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.smart-deals-canada.com"),
   title: {
-    default: "Smart Deals Canada",
-    template: "%s | Smart Deals Canada",
+    default: "SD Canada",
+    template: "%s | SD Canada",
   },
   description: "Fresh Amazon.ca finds, Canada deals and trending products curated automatically by Smart Deals.",
   icons: {
