@@ -35,9 +35,16 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
 
   const label = getCategoryLabel(category);
   const products = await listProductsByCategory(category, 72);
+  const productJsonLd = buildProductJsonLd(products, label, category);
 
   return (
     <main className="site-shell">
+      {productJsonLd ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+        />
+      ) : null}
       <div className="announcement">Canada Amazon finds updated automatically. Prices and availability are checked on Amazon.ca.</div>
 
       <header className="topbar" aria-label="Smart Deals navigation">
@@ -157,4 +164,55 @@ function shortProductTitle(title: string, maxWords = 7) {
     .trim();
   const words = (cleaned || title).split(/\s+/).filter(Boolean);
   return words.length > maxWords ? `${words.slice(0, maxWords).join(" ")}...` : words.join(" ");
+}
+
+function buildProductJsonLd(products: SmartDealProduct[], label: string, category: string) {
+  const itemListElement = products
+    .map((product, index) => {
+      const price = parseCadPrice(product.priceText);
+      if (!price) return null;
+
+      return {
+        "@type": "ListItem",
+        position: index + 1,
+        url: `https://www.smart-deals-canada.com/go/${encodeURIComponent(product.asin)}?source=google-category-schema`,
+        item: {
+          "@type": "Product",
+          name: product.title,
+          image: product.imageUrl,
+          description: product.title,
+          sku: product.asin,
+          category,
+          brand: {
+            "@type": "Brand",
+            name: "Amazon.ca",
+          },
+          offers: {
+            "@type": "Offer",
+            priceCurrency: "CAD",
+            price,
+            availability: "https://schema.org/InStock",
+            url: `https://www.smart-deals-canada.com/go/${encodeURIComponent(product.asin)}?source=google-category-schema`,
+          },
+        },
+      };
+    })
+    .filter(Boolean);
+
+  if (!itemListElement.length) return null;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: `Smart Deals Canada ${label} Finds`,
+    itemListOrder: "https://schema.org/ItemListOrderDescending",
+    numberOfItems: itemListElement.length,
+    itemListElement,
+  };
+}
+
+function parseCadPrice(value: string) {
+  const normalized = value.replace(/,/g, "");
+  const match = normalized.match(/\$\s*(\d+(?:\.\d{1,2})?)/) || normalized.match(/\b(\d+(?:\.\d{1,2})?)\b/);
+  return match?.[1] || "";
 }

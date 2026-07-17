@@ -220,37 +220,67 @@ function BuyLink({ product, source }: { product: SmartDealProduct; source: strin
 }
 
 function buildProductJsonLd(products: SmartDealProduct[]) {
-  const items = products
-    .map((product) => {
+  const itemListElement = products
+    .map((product, index) => {
       const price = parseCadPrice(product.priceText);
       if (!price) return null;
 
       return {
-        "@type": "Product",
-        name: product.title,
-        image: product.imageUrl,
-        description: product.title,
-        sku: product.asin,
-        brand: {
-          "@type": "Brand",
-          name: "Amazon.ca",
-        },
-        offers: {
-          "@type": "Offer",
-          priceCurrency: "CAD",
-          price,
-          availability: "https://schema.org/InStock",
-          url: `https://www.smart-deals-canada.com/go/${encodeURIComponent(product.asin)}?source=google-product-schema`,
+        "@type": "ListItem",
+        position: index + 1,
+        url: `https://www.smart-deals-canada.com/go/${encodeURIComponent(product.asin)}?source=google-product-schema`,
+        item: {
+          "@type": "Product",
+          name: product.title,
+          image: product.imageUrl,
+          description: product.title,
+          sku: product.asin,
+          category: product.category || undefined,
+          brand: {
+            "@type": "Brand",
+            name: "Amazon.ca",
+          },
+          offers: {
+            "@type": "Offer",
+            priceCurrency: "CAD",
+            price,
+            availability: "https://schema.org/InStock",
+            url: `https://www.smart-deals-canada.com/go/${encodeURIComponent(product.asin)}?source=google-product-schema`,
+          },
         },
       };
     })
     .filter(Boolean);
 
-  if (!items.length) return null;
+  if (!itemListElement.length) return null;
 
   return {
     "@context": "https://schema.org",
-    "@graph": items,
+    "@graph": [
+      {
+        "@type": "Organization",
+        name: "Smart Deals Canada",
+        url: "https://www.smart-deals-canada.com",
+        logo: "https://www.smart-deals-canada.com/Smart%20Deals%20logo.png",
+      },
+      {
+        "@type": "WebSite",
+        name: "Smart Deals Canada",
+        url: "https://www.smart-deals-canada.com",
+        potentialAction: {
+          "@type": "SearchAction",
+          target: "https://www.smart-deals-canada.com/search?q={search_term_string}",
+          "query-input": "required name=search_term_string",
+        },
+      },
+      {
+        "@type": "ItemList",
+        name: "Smart Deals Canada Amazon.ca Finds",
+        itemListOrder: "https://schema.org/ItemListOrderDescending",
+        numberOfItems: itemListElement.length,
+        itemListElement,
+      },
+    ],
   };
 }
 
