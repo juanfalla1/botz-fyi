@@ -62,6 +62,10 @@ export default async function Home() {
             <p className="hero-text">
               Discover products people are buying now. Every button sends you directly to Amazon.ca with the current product page.
             </p>
+            <form className="search-form" action="/search">
+              <input name="q" type="search" placeholder="Search camping lanterns, headphones, kitchen finds..." aria-label="Search Smart Deals products" />
+              <button type="submit">Search</button>
+            </form>
             <div className="hero-actions">
               <a className="primary-action" href="#deals">Shop latest finds</a>
               <Link className="trust-pill" href="/go/search?q=amazon.ca%20deals&source=hero-pill">Amazon.ca checkout</Link>

@@ -168,6 +168,49 @@ export async function listProductsByCategory(category: SmartDealCategory, limit 
     }));
 }
 
+export async function searchProducts(query: string, limit = 72): Promise<SmartDealProduct[]> {
+  const supabase = getSupabaseAdmin();
+  const term = cleanSearchQuery(query);
+  if (!supabase || !term) return [];
+
+  const escaped = escapeIlike(term);
+  const category = normalizeCategory(term);
+  const filters = [`title.ilike.%${escaped}%`, `sales_signal.ilike.%${escaped}%`];
+  if (category) filters.push(`category.eq.${category}`);
+
+  const { data: products, error } = await supabase
+    .from("amazon_affiliate_products")
+    .select("asin,title,category,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score,last_scraped_at")
+    .or(filters.join(","))
+    .not("asin", "is", null)
+    .not("image_url", "is", null)
+    .order("last_scraped_at", { ascending: false })
+    .limit(limit);
+
+  if (error || !products) return [];
+
+  return products
+    .filter((product) => product.asin && product.title)
+    .filter((product) => isDisplayableProduct(product))
+    .map((product) => ({
+      asin: String(product.asin),
+      title: String(product.title || "Amazon.ca find"),
+      category: String(product.category || ""),
+      affiliateUrl: String(product.affiliate_url || buildAmazonAffiliateUrl(String(product.asin))),
+      productUrl: String(product.product_url || `https://www.amazon.ca/dp/${product.asin}`),
+      imageUrl: String(product.image_url || ""),
+      priceText: String(product.price_text || "Check price"),
+      rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
+      salesSignal: String(product.sales_signal || ""),
+      opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
+      publishedAt: product.last_scraped_at ? String(product.last_scraped_at) : null,
+    }));
+}
+
+export function cleanSearchQuery(value: string) {
+  return value.replace(/[^a-zA-Z0-9\s+.'-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
 function isDisplayableProduct(product: {
   asin?: unknown;
   affiliate_url?: unknown;
@@ -191,6 +234,10 @@ function parseCadPrice(value: string) {
 function extractAsin(value: string) {
   const match = value.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?#]|$)/i);
   return match?.[1]?.toUpperCase() || "";
+}
+
+function escapeIlike(value: string) {
+  return value.replace(/[\\%_]/g, "\\$&");
 }
 
 export async function getProductByAsin(asin: string) {
