@@ -252,6 +252,31 @@ app.post('/extract', async (req, res) => {
         const bodyMatch = document.body?.textContent?.match(/\$\s*\d{1,4}(?:[,.]\d{3})*(?:\.\d{2})?/);
         return bodyMatch?.[0] || '';
       };
+      const productSpecifications = () => {
+        const specs = {};
+        const addSpec = (name, value) => {
+          const key = String(name || '').replace(/\s+/g, ' ').trim().replace(/[:：]+$/, '');
+          const text = String(value || '').replace(/\s+/g, ' ').trim();
+          if (key && text && key.length <= 80 && text.length <= 180 && !specs[key]) specs[key] = text;
+        };
+
+        for (const row of document.querySelectorAll('#productOverview_feature_div tr, #prodDetails tr, #productDetails_techSpec_section_1 tr, #productDetails_detailBullets_sections1 tr')) {
+          const cells = Array.from(row.querySelectorAll('th, td')).map(cell => cell.textContent || '');
+          if (cells.length >= 2) addSpec(cells[0], cells.slice(1).join(' '));
+        }
+
+        for (const item of document.querySelectorAll('#detailBullets_feature_div li, #detailBulletsWrapper_feature_div li')) {
+          const text = item.textContent || '';
+          const parts = text.split(/[:：]/);
+          if (parts.length >= 2) addSpec(parts[0], parts.slice(1).join(':'));
+        }
+
+        return Object.fromEntries(Object.entries(specs).slice(0, 12));
+      };
+      const aboutThisItemBullets = () => Array.from(document.querySelectorAll('#feature-bullets li, #featurebullets_feature_div li'))
+        .map(item => (item.textContent || '').replace(/\s+/g, ' ').trim())
+        .filter(value => value && !/make sure this fits|report an issue|show more|show less/i.test(value))
+        .slice(0, 6);
 
       const title = text('#productTitle') || attr('meta[property="og:title"]', 'content');
       const price =
@@ -264,6 +289,8 @@ app.post('/extract', async (req, res) => {
         priceFromParts();
       const rating = ratingFromPage();
       const reviewCount = reviewCountFromPage();
+      const specifications = productSpecifications();
+      const bullets = aboutThisItemBullets();
       const salesSignal =
         text('#socialProofingAsinFaceout_feature_div') ||
         text('#social-proofing-faceout-title-tk_bought') ||
@@ -389,6 +416,8 @@ app.post('/extract', async (req, res) => {
         price,
         rating,
         reviewCount,
+        specifications,
+        bullets,
         salesSignal,
         images,
         canonical,
@@ -416,6 +445,8 @@ app.post('/extract', async (req, res) => {
     const mergedPrice = data.price || fallbackData?.price || '';
     const mergedRating = normalizeRating(data.rating) || normalizeRating(fallbackData?.rating || '');
     const mergedReviewCount = parseReviewCount(data.reviewCount) || parseReviewCount(fallbackData?.reviewCount || '');
+    const mergedSpecifications = Object.keys(data.specifications || {}).length ? data.specifications : fallbackData?.specifications || {};
+    const mergedBullets = Array.isArray(data.bullets) && data.bullets.length ? data.bullets : fallbackData?.bullets || [];
     const mergedImages = await filterProductImages(data.images?.length ? data.images : fallbackData?.images || []);
     const mergedSalesSignal = data.salesSignal || fallbackData?.salesSignal || '';
 
@@ -425,6 +456,8 @@ app.post('/extract', async (req, res) => {
       price: mergedPrice,
       rating: mergedRating,
       review_count: mergedReviewCount,
+      specifications: mergedSpecifications,
+      bullets: mergedBullets,
       sales_signal: mergedSalesSignal,
       bought_past_month: parseBoughtPastMonth(mergedSalesSignal),
       images: mergedImages,
@@ -458,6 +491,8 @@ app.post('/extract', async (req, res) => {
         price: fallbackData.price,
         rating: normalizeRating(fallbackData.rating),
         review_count: parseReviewCount(fallbackData.reviewCount),
+        specifications: fallbackData.specifications || {},
+        bullets: fallbackData.bullets || [],
         sales_signal: fallbackData.salesSignal || '',
         bought_past_month: parseBoughtPastMonth(fallbackData.salesSignal),
         images: await filterProductImages(fallbackData.images),
@@ -616,6 +651,8 @@ async function fetchProductDataFallback(url) {
   const price = extractHtmlPrice(html);
   const rating = extractHtmlRating(html);
   const reviewCount = extractHtmlReviewCount(html);
+  const specifications = extractHtmlSpecifications(html);
+  const bullets = extractHtmlBullets(html);
   const salesSignal = cleanWhitespace(
     decodeHtml(
       stripTags(
@@ -635,6 +672,8 @@ async function fetchProductDataFallback(url) {
     price,
     rating,
     reviewCount,
+    specifications,
+    bullets,
     salesSignal,
     images: image ? [image] : [],
     product_url: asin ? `https://www.amazon.ca/dp/${asin}` : canonical || url,
@@ -746,6 +785,48 @@ function extractHtmlReviewCount(html) {
   }
 
   return '';
+}
+
+function extractHtmlSpecifications(html) {
+  const specs = {};
+  const sections = [
+    extractById(html, 'productOverview_feature_div'),
+    extractById(html, 'prodDetails'),
+    extractById(html, 'productDetails_techSpec_section_1'),
+    extractById(html, 'productDetails_detailBullets_sections1'),
+    extractById(html, 'detailBullets_feature_div'),
+  ].filter(Boolean).join('\n');
+
+  const addSpec = (name, value) => {
+    const key = cleanWhitespace(decodeHtml(stripTags(name))).replace(/[:：]+$/, '');
+    const text = cleanWhitespace(decodeHtml(stripTags(value)));
+    if (key && text && key.length <= 80 && text.length <= 180 && !specs[key]) specs[key] = text;
+  };
+
+  for (const match of sections.matchAll(/<tr[\s\S]*?<\/(?:tr)>/gi)) {
+    const row = match[0];
+    const header = row.match(/<th[^>]*>([\s\S]*?)<\/th>/i)?.[1] || row.match(/<td[^>]*class=["'][^"']*label[^"']*["'][^>]*>([\s\S]*?)<\/td>/i)?.[1] || '';
+    const value = row.match(/<td[^>]*>([\s\S]*?)<\/td>/i)?.[1] || '';
+    if (header && value) addSpec(header, value);
+  }
+
+  for (const match of sections.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)) {
+    const text = cleanWhitespace(decodeHtml(stripTags(match[1] || '')));
+    const parts = text.split(/[:：]/);
+    if (parts.length >= 2) addSpec(parts[0], parts.slice(1).join(':'));
+  }
+
+  return Object.fromEntries(Object.entries(specs).slice(0, 12));
+}
+
+function extractHtmlBullets(html) {
+  const section = extractById(html, 'feature-bullets') || extractById(html, 'featurebullets_feature_div');
+  if (!section) return [];
+
+  return Array.from(section.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi))
+    .map(match => cleanWhitespace(decodeHtml(stripTags(match[1] || ''))))
+    .filter(value => value && !/make sure this fits|report an issue|show more|show less/i.test(value))
+    .slice(0, 6);
 }
 
 function extractById(html, id) {

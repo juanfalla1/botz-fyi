@@ -130,8 +130,36 @@ function DealCard({ product, priority }: { product: SmartDealProduct; priority?:
         <ProductMeta product={product} compact />
         <h3 title={product.title}>{shortProductTitle(product.title)}</h3>
         <BuyLink product={product} source={`category-${product.category || "unknown"}`} />
+        <ProductDetails product={product} />
       </div>
     </article>
+  );
+}
+
+function ProductDetails({ product }: { product: SmartDealProduct }) {
+  const specs = product.specifications.slice(0, 4);
+  const bullets = product.bullets.slice(0, 3);
+  if (!specs.length && !bullets.length) return null;
+
+  return (
+    <details className="product-details">
+      <summary>Product details</summary>
+      {bullets.length ? (
+        <ul>
+          {bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}
+        </ul>
+      ) : null}
+      {specs.length ? (
+        <dl>
+          {specs.map((spec) => (
+            <div key={spec.name}>
+              <dt>{spec.name}</dt>
+              <dd>{spec.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </details>
   );
 }
 

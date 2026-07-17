@@ -426,7 +426,7 @@ a { color: inherit; text-decoration: none; }
 .card-topline small { overflow: hidden; max-width: 46%; text-overflow: ellipsis; white-space: nowrap; color: var(--green); }
 .deal-card .product-stage { min-height: 245px; height: 245px; margin: 14px 14px 0; border-radius: 22px; }
 .deal-card .product-stage img { max-height: 205px; }
-.deal-body { display: grid; grid-template-rows: minmax(38px, auto) minmax(64px, auto) auto; gap: 14px; min-width: 0; padding: 14px 18px 20px; }
+.deal-body { display: grid; grid-template-rows: minmax(38px, auto) minmax(64px, auto) auto auto; gap: 14px; min-width: 0; padding: 14px 18px 20px; }
 .deal-body h3 {
   margin: 0;
   max-height: 74px;
@@ -441,6 +441,14 @@ a { color: inherit; text-decoration: none; }
 }
 
 .deal-body .product-meta { min-height: 38px; align-content: start; }
+.product-details { border-top: 1px solid var(--line); padding-top: 2px; color: #344054; font-size: 12px; line-height: 1.35; }
+.product-details summary { cursor: pointer; color: var(--blue); font-weight: 950; list-style-position: inside; }
+.product-details ul { display: grid; gap: 6px; margin: 10px 0 0; padding-left: 18px; }
+.product-details li { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.product-details dl { display: grid; gap: 7px; margin: 10px 0 0; }
+.product-details dl div { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px; }
+.product-details dt { overflow: hidden; color: var(--muted); font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.product-details dd { margin: 0; overflow: hidden; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 
 .empty-state { border: 1px solid var(--line); border-radius: 30px; background: linear-gradient(135deg, #fff 0%, #f8fbff 100%); padding: 54px 24px; text-align: center; box-shadow: var(--shadow); }
 .empty-state h2 { margin: 0; font-size: 38px; letter-spacing: -0.05em; }

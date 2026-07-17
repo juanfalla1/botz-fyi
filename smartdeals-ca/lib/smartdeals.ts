@@ -10,6 +10,8 @@ export type SmartDealProduct = {
   priceText: string;
   rating: number | null;
   reviewCount: number | null;
+  specifications: { name: string; value: string }[];
+  bullets: string[];
   salesSignal: string;
   opportunityScore: number | null;
   publishedAt: string | null;
@@ -99,6 +101,8 @@ export async function listPublishedProducts(limit = 60): Promise<SmartDealProduc
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
       reviewCount: getReviewCount(product),
+      specifications: getSpecifications(product),
+      bullets: getBullets(product),
       salesSignal: String(product.sales_signal || ""),
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: publishMap.get(product.affiliate_url) || null,
@@ -132,6 +136,8 @@ export async function listLatestProducts(limit = 60): Promise<SmartDealProduct[]
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
       reviewCount: getReviewCount(product),
+      specifications: getSpecifications(product),
+      bullets: getBullets(product),
       salesSignal: String(product.sales_signal || ""),
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: product.last_scraped_at ? String(product.last_scraped_at) : null,
@@ -166,6 +172,8 @@ export async function listProductsByCategory(category: SmartDealCategory, limit 
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
       reviewCount: getReviewCount(product),
+      specifications: getSpecifications(product),
+      bullets: getBullets(product),
       salesSignal: String(product.sales_signal || ""),
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: product.last_scraped_at ? String(product.last_scraped_at) : null,
@@ -206,6 +214,8 @@ export async function searchProducts(query: string, limit = 72): Promise<SmartDe
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
       reviewCount: getReviewCount(product),
+      specifications: getSpecifications(product),
+      bullets: getBullets(product),
       salesSignal: String(product.sales_signal || ""),
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: product.last_scraped_at ? String(product.last_scraped_at) : null,
@@ -248,6 +258,32 @@ function getReviewCount(product: { scraper_response?: unknown }) {
   const value = response?.review_count ?? response?.reviewCount;
   const count = typeof value === "number" ? value : Number(String(value || "").replace(/,/g, ""));
   return Number.isFinite(count) && count > 0 ? Math.round(count) : null;
+}
+
+function getScraperResponse(product: { scraper_response?: unknown }) {
+  return product.scraper_response && typeof product.scraper_response === "object"
+    ? product.scraper_response as { specifications?: unknown; bullets?: unknown }
+    : null;
+}
+
+function getSpecifications(product: { scraper_response?: unknown }) {
+  const specs = getScraperResponse(product)?.specifications;
+  if (!specs || typeof specs !== "object" || Array.isArray(specs)) return [];
+
+  return Object.entries(specs)
+    .map(([name, value]) => ({ name: String(name || "").trim(), value: String(value || "").trim() }))
+    .filter((item) => item.name && item.value)
+    .slice(0, 6);
+}
+
+function getBullets(product: { scraper_response?: unknown }) {
+  const bullets = getScraperResponse(product)?.bullets;
+  if (!Array.isArray(bullets)) return [];
+
+  return bullets
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .slice(0, 4);
 }
 
 function escapeIlike(value: string) {
