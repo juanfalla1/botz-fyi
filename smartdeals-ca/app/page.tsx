@@ -24,7 +24,9 @@ export default async function Home() {
       <header className="topbar" aria-label="Smart Deals navigation">
         <div className="topbar-inner">
           <Link className="brand" href="/">
-            <span className="brand-mark">SD</span>
+            <span className="brand-logo-wrap" aria-hidden="true">
+              <img className="brand-logo" src="/Smart%20Deals%20logo.png" alt="" />
+            </span>
             <span>
               <strong>Smart Deals</strong>
               <small>Canada</small>
