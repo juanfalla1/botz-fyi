@@ -211,6 +211,29 @@ app.post('/extract', async (req, res) => {
 
         return attributeCandidate || '';
       };
+      const reviewCountFromPage = () => {
+        const directCandidates = [
+          text('#acrCustomerReviewText'),
+          text('[data-hook="total-review-count"]'),
+          text('[data-hook="total-review-count"] span'),
+          attr('#acrCustomerReviewLink', 'aria-label'),
+          attr('#acrCustomerReviewText', 'aria-label'),
+        ];
+
+        for (const candidate of directCandidates) {
+          if (/\d[\d,.]*\s+(?:ratings?|reviews?)/i.test(candidate || '')) return candidate;
+        }
+
+        const attributeCandidate = Array.from(document.querySelectorAll('[aria-label], #acrCustomerReviewText, [data-hook="total-review-count"]'))
+          .flatMap(element => [
+            element.getAttribute('aria-label') || '',
+            element.textContent || '',
+          ])
+          .map(value => value.trim())
+          .find(value => /\d[\d,.]*\s+(?:ratings?|reviews?)/i.test(value));
+
+        return attributeCandidate || '';
+      };
       const priceFromParts = () => {
         const containers = Array.from(document.querySelectorAll('.a-price, #corePriceDisplay_desktop_feature_div, #apex_desktop'));
 
@@ -240,6 +263,7 @@ app.post('/extract', async (req, res) => {
         text('#corePriceDisplay_desktop_feature_div .a-offscreen') ||
         priceFromParts();
       const rating = ratingFromPage();
+      const reviewCount = reviewCountFromPage();
       const salesSignal =
         text('#socialProofingAsinFaceout_feature_div') ||
         text('#social-proofing-faceout-title-tk_bought') ||
@@ -364,6 +388,7 @@ app.post('/extract', async (req, res) => {
         title,
         price,
         rating,
+        reviewCount,
         salesSignal,
         images,
         canonical,
@@ -390,6 +415,7 @@ app.post('/extract', async (req, res) => {
     const mergedTitle = data.title || fallbackData?.title || '';
     const mergedPrice = data.price || fallbackData?.price || '';
     const mergedRating = normalizeRating(data.rating) || normalizeRating(fallbackData?.rating || '');
+    const mergedReviewCount = parseReviewCount(data.reviewCount) || parseReviewCount(fallbackData?.reviewCount || '');
     const mergedImages = await filterProductImages(data.images?.length ? data.images : fallbackData?.images || []);
     const mergedSalesSignal = data.salesSignal || fallbackData?.salesSignal || '';
 
@@ -398,6 +424,7 @@ app.post('/extract', async (req, res) => {
       title: mergedTitle,
       price: mergedPrice,
       rating: mergedRating,
+      review_count: mergedReviewCount,
       sales_signal: mergedSalesSignal,
       bought_past_month: parseBoughtPastMonth(mergedSalesSignal),
       images: mergedImages,
@@ -430,6 +457,7 @@ app.post('/extract', async (req, res) => {
         title: fallbackData.title,
         price: fallbackData.price,
         rating: normalizeRating(fallbackData.rating),
+        review_count: parseReviewCount(fallbackData.reviewCount),
         sales_signal: fallbackData.salesSignal || '',
         bought_past_month: parseBoughtPastMonth(fallbackData.salesSignal),
         images: await filterProductImages(fallbackData.images),
@@ -587,6 +615,7 @@ async function fetchProductDataFallback(url) {
     cleanWhitespace(decodeHtml(extractHtmlTitle(html)));
   const price = extractHtmlPrice(html);
   const rating = extractHtmlRating(html);
+  const reviewCount = extractHtmlReviewCount(html);
   const salesSignal = cleanWhitespace(
     decodeHtml(
       stripTags(
@@ -605,6 +634,7 @@ async function fetchProductDataFallback(url) {
     title,
     price,
     rating,
+    reviewCount,
     salesSignal,
     images: image ? [image] : [],
     product_url: asin ? `https://www.amazon.ca/dp/${asin}` : canonical || url,
@@ -695,6 +725,24 @@ function extractHtmlRating(html) {
     if (!match) continue;
     const value = cleanWhitespace(decodeHtml(stripTags(match[1] || match[0])));
     if (normalizeRating(value)) return value;
+  }
+
+  return '';
+}
+
+function extractHtmlReviewCount(html) {
+  const patterns = [
+    /<span[^>]+id=["']acrCustomerReviewText["'][^>]*>\s*([^<]*\d[\d,.]*\s+(?:ratings?|reviews?)[^<]*)\s*<\/span>/i,
+    /<span[^>]+data-hook=["']total-review-count["'][^>]*>\s*([^<]*\d[\d,.]*\s+(?:ratings?|reviews?)[^<]*)\s*<\/span>/i,
+    /(?:aria-label|title)=["']([^"']*\d[\d,.]*\s+(?:ratings?|reviews?)[^"']*)["']/i,
+    /\b(\d[\d,.]*)\s+(?:global\s+)?(?:ratings?|reviews?)\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (!match) continue;
+    const value = cleanWhitespace(decodeHtml(stripTags(match[1] || match[0])));
+    if (parseReviewCount(value)) return value;
   }
 
   return '';
@@ -1128,6 +1176,19 @@ function normalizeRating(value) {
   if (!value) return '';
   const match = String(value).match(/\d+(?:\.\d+)?/);
   return match?.[0] || '';
+}
+
+function parseReviewCount(value) {
+  const text = String(value || '').replace(/,/g, '').trim();
+  const match = text.match(/(\d+(?:\.\d+)?)\s*([KkMm])?/);
+  if (!match) return null;
+
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const suffix = String(match[2] || '').toLowerCase();
+  const multiplier = suffix === 'm' ? 1000000 : suffix === 'k' ? 1000 : 1;
+  return Math.round(amount * multiplier);
 }
 
 function parseBoughtPastMonth(value) {
