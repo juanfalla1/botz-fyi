@@ -317,6 +317,9 @@ app.post('/extract', async (req, res) => {
         document.querySelector('video source')?.getAttribute('src') ||
         '';
       const videoPoster = videoElement?.poster || '';
+      const videoPageUrl = Array.from(document.querySelectorAll('a[href*="/vdp/"], [data-video-url], [data-videourl]'))
+        .map(element => element.getAttribute('href') || element.getAttribute('data-video-url') || element.getAttribute('data-videourl') || '')
+        .find(Boolean) || '';
 
       const scriptText = Array.from(document.scripts)
         .map(script => script.textContent || '')
@@ -424,6 +427,7 @@ app.post('/extract', async (req, res) => {
         video: {
           poster: scriptVideoPoster,
           source: scriptVideoSource,
+          page_url: videoPageUrl,
         },
         videoDebug: debug ? collectVideoDebug() : undefined,
       };
@@ -431,14 +435,21 @@ app.post('/extract', async (req, res) => {
 
     const asin = extractAsin(resolvedUrl) || extractAsin(data.canonical || '') || extractAsin(validation.url.href);
     const productUrl = asin ? `https://www.amazon.ca/dp/${asin}` : resolvedUrl;
+    const videoPageUrl = absolutizeAmazonVideoUrl(data.video?.page_url || '', resolvedUrl) || extractAmazonVideoPageUrl(resolvedUrl) || extractAmazonVideoPageUrl(validation.url.href);
     const videoDebug = {
       ...emptyVideoDebug(),
       ...(data.videoDebug || {}),
       networkMediaRequests: uniqueByUrl(networkMediaRequests),
     };
-    const video = extractMp4FromVideoTags(videoDebug.videoTags);
+    const directVideo = extractMp4FromVideoTags(videoDebug.videoTags, data.video);
+    const video = {
+      ...directVideo,
+      available: directVideo.available || Boolean(videoPageUrl),
+      page_url: videoPageUrl,
+    };
+    const fallbackUrl = asin ? `https://www.amazon.ca/dp/${asin}` : validation.url.href;
     const fallbackData = !data.title || !data.price || !data.images?.length
-      ? await fetchProductDataFallback(validation.url.href).catch(() => null)
+      ? await fetchProductDataFallback(fallbackUrl).catch(() => null)
       : null;
 
     const mergedTitle = data.title || fallbackData?.title || '';
@@ -496,7 +507,7 @@ app.post('/extract', async (req, res) => {
         sales_signal: fallbackData.salesSignal || '',
         bought_past_month: parseBoughtPastMonth(fallbackData.salesSignal),
         images: await filterProductImages(fallbackData.images),
-        video: { poster: '', source: '' },
+        video: { available: Boolean(extractAmazonVideoPageUrl(validation.url.href)), poster: '', source: '', page_url: extractAmazonVideoPageUrl(validation.url.href) },
         product_url: fallbackAsin ? `https://www.amazon.ca/dp/${fallbackAsin}` : fallbackData.product_url || validation.url.href,
         input_url: validation.url.href,
       });
@@ -1120,8 +1131,44 @@ function isAmazonCanadaUrl(value) {
 }
 
 function extractAsin(value) {
-  const match = value.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?#]|$)/i);
-  return match?.[1]?.toUpperCase() || '';
+  const text = String(value || '');
+  const pathMatch = text.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?#]|$)/i);
+  if (pathMatch?.[1]) return pathMatch[1].toUpperCase();
+
+  try {
+    const product = new URL(text).searchParams.get('product');
+    if (/^[A-Z0-9]{10}$/i.test(product || '')) return product.toUpperCase();
+  } catch {
+    const productMatch = text.match(/[?&]product=([A-Z0-9]{10})(?:[&#]|$)/i);
+    if (productMatch?.[1]) return productMatch[1].toUpperCase();
+  }
+
+  return '';
+}
+
+function extractAmazonVideoPageUrl(value) {
+  try {
+    const parsed = new URL(value);
+    const host = parsed.hostname.toLowerCase();
+    if ((host === 'amazon.ca' || host === 'www.amazon.ca') && /^\/vdp\//i.test(parsed.pathname)) return parsed.href;
+  } catch {
+    // Not a URL; no video page can be derived safely.
+  }
+
+  return '';
+}
+
+function absolutizeAmazonVideoUrl(value, baseUrl) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+
+  try {
+    const parsed = new URL(text, baseUrl);
+    const host = parsed.hostname.toLowerCase();
+    return host === 'amazon.ca' || host === 'www.amazon.ca' ? parsed.href : '';
+  } catch {
+    return '';
+  }
 }
 
 function discoverProductsFromHtml(html, sourceUrl) {
@@ -1361,19 +1408,21 @@ function normalizeVideo(video) {
   };
 }
 
-function extractMp4FromVideoTags(videoTags = []) {
+function extractMp4FromVideoTags(videoTags = [], fallbackVideo = null) {
   const match = videoTags.find(videoTag => isValidHttpMp4(videoTag?.src));
 
-  if (!match) {
-    return { available: false };
+  if (match) {
+    return {
+      available: true,
+      source: match.src,
+      poster: match.poster || fallbackVideo?.poster || '',
+      type: 'mp4',
+    };
   }
 
-  return {
-    available: true,
-    source: match.src,
-    poster: match.poster || '',
-    type: 'mp4',
-  };
+  if (isValidHttpMp4(fallbackVideo?.source)) return normalizeVideo(fallbackVideo);
+
+  return { available: false, source: '', poster: fallbackVideo?.poster || '', type: 'unknown' };
 }
 
 function isValidHttpMp4(value) {

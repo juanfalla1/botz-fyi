@@ -130,10 +130,17 @@ function DealCard({ product, priority }: { product: SmartDealProduct; priority?:
         <ProductMeta product={product} compact />
         <h3 title={product.title}>{shortProductTitle(product.title)}</h3>
         <BuyLink product={product} source={`category-${product.category || "unknown"}`} />
+        <InstagramLink product={product} />
         <ProductDetails product={product} />
       </div>
     </article>
   );
+}
+
+function InstagramLink({ product }: { product: SmartDealProduct }) {
+  if (!product.instagramUrl) return null;
+
+  return <a className="instagram-link" href={product.instagramUrl} target="_blank" rel="noopener noreferrer">Watch Instagram Reel</a>;
 }
 
 function ProductDetails({ product }: { product: SmartDealProduct }) {

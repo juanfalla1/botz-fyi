@@ -12,6 +12,7 @@ export type SmartDealProduct = {
   reviewCount: number | null;
   specifications: { name: string; value: string }[];
   bullets: string[];
+  instagramUrl: string;
   salesSignal: string;
   opportunityScore: number | null;
   publishedAt: string | null;
@@ -103,6 +104,7 @@ export async function listPublishedProducts(limit = 60): Promise<SmartDealProduc
       reviewCount: getReviewCount(product),
       specifications: getSpecifications(product),
       bullets: getBullets(product),
+      instagramUrl: getInstagramUrl(product),
       salesSignal: String(product.sales_signal || ""),
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: publishMap.get(product.affiliate_url) || null,
@@ -138,6 +140,7 @@ export async function listLatestProducts(limit = 60): Promise<SmartDealProduct[]
       reviewCount: getReviewCount(product),
       specifications: getSpecifications(product),
       bullets: getBullets(product),
+      instagramUrl: getInstagramUrl(product),
       salesSignal: String(product.sales_signal || ""),
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: product.last_scraped_at ? String(product.last_scraped_at) : null,
@@ -174,6 +177,7 @@ export async function listProductsByCategory(category: SmartDealCategory, limit 
       reviewCount: getReviewCount(product),
       specifications: getSpecifications(product),
       bullets: getBullets(product),
+      instagramUrl: getInstagramUrl(product),
       salesSignal: String(product.sales_signal || ""),
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: product.last_scraped_at ? String(product.last_scraped_at) : null,
@@ -216,6 +220,7 @@ export async function searchProducts(query: string, limit = 72): Promise<SmartDe
       reviewCount: getReviewCount(product),
       specifications: getSpecifications(product),
       bullets: getBullets(product),
+      instagramUrl: getInstagramUrl(product),
       salesSignal: String(product.sales_signal || ""),
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: product.last_scraped_at ? String(product.last_scraped_at) : null,
@@ -262,7 +267,7 @@ function getReviewCount(product: { scraper_response?: unknown }) {
 
 function getScraperResponse(product: { scraper_response?: unknown }) {
   return product.scraper_response && typeof product.scraper_response === "object"
-    ? product.scraper_response as { specifications?: unknown; bullets?: unknown }
+    ? product.scraper_response as { specifications?: unknown; bullets?: unknown; instagram_url?: unknown; instagram_reel_url?: unknown; instagram_permalink?: unknown }
     : null;
 }
 
@@ -284,6 +289,13 @@ function getBullets(product: { scraper_response?: unknown }) {
     .map((value) => String(value || "").trim())
     .filter(Boolean)
     .slice(0, 4);
+}
+
+function getInstagramUrl(product: { scraper_response?: unknown }) {
+  const response = getScraperResponse(product);
+  const value = response?.instagram_reel_url ?? response?.instagram_permalink ?? response?.instagram_url;
+  const url = String(value || "").trim();
+  return /^https:\/\/(www\.)?instagram\.com\//i.test(url) ? url : "";
 }
 
 function escapeIlike(value: string) {
