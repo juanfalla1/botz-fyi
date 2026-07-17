@@ -25,7 +25,7 @@ export default async function Home() {
         <div className="topbar-inner">
           <Link className="brand" href="/">
             <span className="brand-logo-wrap" aria-hidden="true">
-              <img className="brand-logo" src="/Smart%20Deals%20logo.png" alt="" />
+              <img className="brand-logo" src="/smart-deals-logo.png" alt="" />
             </span>
             <span>
               <strong>Smart Deals</strong>
@@ -261,7 +261,7 @@ function buildProductJsonLd(products: SmartDealProduct[]) {
         "@type": "Organization",
         name: "Smart Deals Canada",
         url: "https://www.smart-deals-canada.com",
-        logo: "https://www.smart-deals-canada.com/Smart%20Deals%20logo.png",
+        logo: "https://www.smart-deals-canada.com/smart-deals-logo.png",
       },
       {
         "@type": "WebSite",

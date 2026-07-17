@@ -34,7 +34,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         <div className="topbar-inner">
           <Link className="brand" href="/">
             <span className="brand-logo-wrap" aria-hidden="true">
-              <img className="brand-logo" src="/Smart%20Deals%20logo.png" alt="" />
+              <img className="brand-logo" src="/smart-deals-logo.png" alt="" />
             </span>
             <span>
               <strong>Smart Deals</strong>
