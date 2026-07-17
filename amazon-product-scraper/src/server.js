@@ -1066,17 +1066,23 @@ function discoverProductsFromHtml(html, sourceUrl) {
     const chunk = html.slice(start, end);
     const image = extractDiscoveryImage(chunk);
     const title = extractDiscoveryTitle(chunk, asin);
+    const rating = normalizeRating(extractDiscoveryRating(chunk));
+    const reviewCount = parseReviewCount(extractDiscoveryReviewCount(chunk));
 
     if (!title || !image) continue;
 
-    seen.add(asin);
-    products.push({
+    const product = {
       asin,
       href: absolutizeAmazonUrl(match[1], sourceUrl),
       product_url: `https://www.amazon.ca/dp/${asin}`,
       title,
       image_url: image,
-    });
+    };
+    if (rating) product.rating = rating;
+    if (reviewCount) product.review_count = reviewCount;
+
+    seen.add(asin);
+    products.push(product);
   }
 
   return products;
@@ -1093,16 +1099,22 @@ function discoverProductCardsFromHtml(html, sourceUrl) {
     const hrefMatch = card.match(new RegExp(`href=["']([^"']*/(?:dp|gp/product)/${asin}[^"']*)["']`, 'i'));
     const image = extractDiscoveryImage(card);
     const title = extractDiscoveryTitle(card, asin);
+    const rating = normalizeRating(extractDiscoveryRating(card));
+    const reviewCount = parseReviewCount(extractDiscoveryReviewCount(card));
 
     if (!asin || !hrefMatch || !title || !image || isExcludedDiscoveryTitle(title)) continue;
 
-    products.push({
+    const product = {
       asin,
       href: absolutizeAmazonUrl(hrefMatch[1], sourceUrl),
       product_url: `https://www.amazon.ca/dp/${asin}`,
       title,
       image_url: image,
-    });
+    };
+    if (rating) product.rating = rating;
+    if (reviewCount) product.review_count = reviewCount;
+
+    products.push(product);
   }
 
   return products;
@@ -1130,6 +1142,41 @@ function extractDiscoveryTitle(chunk, asin) {
   for (const match of textMatches) {
     const title = cleanWhitespace(decodeHtml(stripTags(match[1])));
     if (title && title !== asin && !isExcludedDiscoveryTitle(title)) return title;
+  }
+
+  return '';
+}
+
+function extractDiscoveryRating(chunk) {
+  const patterns = [
+    /<span[^>]+class=["'][^"']*a-icon-alt[^"']*["'][^>]*>\s*([^<]*\d+(?:\.\d+)?\s+out of\s+5\s+stars?[^<]*)\s*<\/span>/i,
+    /(?:aria-label|title)=["']([^"']*\d+(?:\.\d+)?\s+out of\s+5\s+stars?[^"']*)["']/i,
+    /\b(\d+(?:\.\d+)?)\s+out of\s+5\s+stars?\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = chunk.match(pattern);
+    if (!match) continue;
+    const value = cleanWhitespace(decodeHtml(stripTags(match[1] || match[0])));
+    if (normalizeRating(value)) return value;
+  }
+
+  return '';
+}
+
+function extractDiscoveryReviewCount(chunk) {
+  const patterns = [
+    /<span[^>]+class=["'][^"']*a-size-base[^"']*["'][^>]*>\s*([^<]*\d[\d,.]*[^<]*)\s*<\/span>/i,
+    /(?:aria-label|title)=["']([^"']*\d[\d,.]*\s+(?:global\s+)?(?:ratings?|reviews?)[^"']*)["']/i,
+    /\((\d[\d,.]*)\)/,
+    /\b(\d[\d,.]*)\s+(?:global\s+)?(?:ratings?|reviews?)\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = chunk.match(pattern);
+    if (!match) continue;
+    const value = cleanWhitespace(decodeHtml(stripTags(match[1] || match[0])));
+    if (parseReviewCount(value)) return value;
   }
 
   return '';
