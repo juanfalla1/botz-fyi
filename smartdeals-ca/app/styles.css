@@ -70,16 +70,6 @@ a { color: inherit; text-decoration: none; }
 .brand { display: inline-flex; align-items: center; gap: 13px; }
 .brand strong { display: block; font-size: 18px; font-weight: 950; letter-spacing: -0.03em; }
 .brand small { display: block; margin-top: 1px; color: var(--muted); font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: 0.16em; }
-.brand-logo-wrap {
-  display: grid;
-  width: 52px;
-  height: 52px;
-  place-items: center;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #06132a, #0b2f63);
-  box-shadow: 0 18px 40px rgba(37, 99, 235, 0.24);
-}
-.brand-logo { width: 44px; height: 44px; border-radius: 999px; object-fit: contain; display: block; }
 
 .brand-mark {
   display: grid;
@@ -126,12 +116,6 @@ a { color: inherit; text-decoration: none; }
   font-weight: 900;
   box-shadow: 0 8px 24px rgba(16, 24, 40, 0.05);
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
-}
-
-.category-bar a.active {
-  border-color: rgba(37, 99, 235, 0.32);
-  background: #dbeafe;
-  color: #1d4ed8;
 }
 
 .category-bar a:hover {
@@ -204,54 +188,6 @@ a { color: inherit; text-decoration: none; }
 .hero-copy h1 { position: relative; z-index: 1; margin: 0; max-width: 720px; font-size: clamp(44px, 6.2vw, 76px); line-height: 0.94; letter-spacing: -0.075em; }
 .hero-text { position: relative; z-index: 1; max-width: 590px; color: #dce8ff; font-size: 18px; line-height: 1.6; }
 .hero-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 30px; }
-
-.search-form {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  max-width: 660px;
-  margin-top: 26px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  padding: 8px;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(18px);
-}
-
-.search-form input {
-  min-width: 0;
-  border: 0;
-  border-radius: 999px;
-  background: #fff;
-  color: var(--ink);
-  padding: 15px 18px;
-  font: inherit;
-  font-weight: 800;
-  outline: none;
-}
-
-.search-form button {
-  border: 0;
-  border-radius: 999px;
-  background: var(--yellow);
-  color: #111827;
-  padding: 0 22px;
-  font: inherit;
-  font-weight: 950;
-  cursor: pointer;
-}
-
-.search-form.light {
-  margin-top: 22px;
-  border-color: var(--line);
-  background: #fff;
-  box-shadow: 0 16px 42px rgba(16, 24, 40, 0.08);
-}
-
-.search-form.light input { background: #f8fafc; }
 
 .primary-action,
 .buy-link {
@@ -376,8 +312,6 @@ a { color: inherit; text-decoration: none; }
   margin-bottom: 24px;
 }
 .visual-banner h2 { margin: 0; max-width: 760px; font-size: clamp(28px, 4vw, 48px); line-height: 1; letter-spacing: -0.06em; }
-.visual-banner h1 { margin: 0; max-width: 760px; font-size: clamp(32px, 5vw, 60px); line-height: 0.96; letter-spacing: -0.065em; }
-.visual-banner p:last-child { max-width: 620px; color: var(--muted); line-height: 1.55; }
 .banner-art { position: relative; height: 170px; }
 .bag {
   position: absolute;
