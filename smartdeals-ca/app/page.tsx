@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listPublishedProducts, type SmartDealProduct } from "@/lib/smartdeals";
+import { listPublishedProducts, smartDealCategories, type SmartDealProduct } from "@/lib/smartdeals";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -42,16 +42,9 @@ export default async function Home() {
 
       <section className="hero-wrap">
         <div className="category-bar" aria-label="Popular categories">
-          {[
-            ['Electronics', 'electronics deals'],
-            ['Home', 'home deals'],
-            ['Beauty', 'beauty deals'],
-            ['Gaming', 'gaming deals'],
-            ['Kitchen', 'kitchen deals'],
-            ['Gifts', 'gift ideas'],
-          ].map(([category, query]) => (
-            <Link key={category} href={`/go/search?q=${encodeURIComponent(query)}&source=category`}>
-              {category}
+          {smartDealCategories.map((category) => (
+            <Link key={category.slug} href={`/deals/${category.slug}`}>
+              {category.label}
             </Link>
           ))}
         </div>

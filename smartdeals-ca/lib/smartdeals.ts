@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 export type SmartDealProduct = {
   asin: string;
   title: string;
+  category: string;
   affiliateUrl: string;
   productUrl: string;
   imageUrl: string;
@@ -12,6 +13,18 @@ export type SmartDealProduct = {
   opportunityScore: number | null;
   publishedAt: string | null;
 };
+
+export const smartDealCategories = [
+  { slug: "electronics", label: "Electronics" },
+  { slug: "home", label: "Home" },
+  { slug: "beauty", label: "Beauty" },
+  { slug: "gaming", label: "Gaming" },
+  { slug: "kitchen", label: "Kitchen" },
+  { slug: "gifts", label: "Gifts" },
+  { slug: "camping", label: "Camping" },
+] as const;
+
+export type SmartDealCategory = (typeof smartDealCategories)[number]["slug"];
 
 const trackingId = "botzca-20";
 
@@ -25,6 +38,15 @@ export function getSiteUrl() {
 
 export function buildAmazonAffiliateUrl(asin: string) {
   return `https://www.amazon.ca/dp/${encodeURIComponent(asin)}?tag=${encodeURIComponent(getTrackingId())}`;
+}
+
+export function normalizeCategory(value: string): SmartDealCategory | null {
+  const slug = value.toLowerCase().replace(/[^a-z0-9-]/g, "");
+  return smartDealCategories.some((category) => category.slug === slug) ? (slug as SmartDealCategory) : null;
+}
+
+export function getCategoryLabel(slug: string) {
+  return smartDealCategories.find((category) => category.slug === slug)?.label || "Smart Deals";
 }
 
 export function getSupabaseAdmin() {
@@ -52,7 +74,7 @@ export async function listPublishedProducts(limit = 60): Promise<SmartDealProduc
 
   const { data: products, error } = await supabase
     .from("amazon_affiliate_products")
-    .select("asin,title,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score")
+    .select("asin,title,category,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score")
     .in("affiliate_url", publishedUrls)
     .not("asin", "is", null)
     .not("image_url", "is", null);
@@ -69,6 +91,7 @@ export async function listPublishedProducts(limit = 60): Promise<SmartDealProduc
     .map((product) => ({
       asin: String(product.asin),
       title: String(product.title || "Amazon.ca find"),
+      category: String(product.category || ""),
       affiliateUrl: String(product.affiliate_url || buildAmazonAffiliateUrl(String(product.asin))),
       productUrl: String(product.product_url || `https://www.amazon.ca/dp/${product.asin}`),
       imageUrl: String(product.image_url || ""),
@@ -86,7 +109,7 @@ export async function listLatestProducts(limit = 60): Promise<SmartDealProduct[]
 
   const { data: products, error } = await supabase
     .from("amazon_affiliate_products")
-    .select("asin,title,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score,last_scraped_at")
+    .select("asin,title,category,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score,last_scraped_at")
     .not("asin", "is", null)
     .not("image_url", "is", null)
     .order("last_scraped_at", { ascending: false })
@@ -100,6 +123,40 @@ export async function listLatestProducts(limit = 60): Promise<SmartDealProduct[]
     .map((product) => ({
       asin: String(product.asin),
       title: String(product.title || "Amazon.ca find"),
+      category: String(product.category || ""),
+      affiliateUrl: String(product.affiliate_url || buildAmazonAffiliateUrl(String(product.asin))),
+      productUrl: String(product.product_url || `https://www.amazon.ca/dp/${product.asin}`),
+      imageUrl: String(product.image_url || ""),
+      priceText: String(product.price_text || "Check price"),
+      rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
+      salesSignal: String(product.sales_signal || ""),
+      opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
+      publishedAt: product.last_scraped_at ? String(product.last_scraped_at) : null,
+    }));
+}
+
+export async function listProductsByCategory(category: SmartDealCategory, limit = 72): Promise<SmartDealProduct[]> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return [];
+
+  const { data: products, error } = await supabase
+    .from("amazon_affiliate_products")
+    .select("asin,title,category,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score,last_scraped_at")
+    .eq("category", category)
+    .not("asin", "is", null)
+    .not("image_url", "is", null)
+    .order("last_scraped_at", { ascending: false })
+    .limit(limit);
+
+  if (error || !products) return [];
+
+  return products
+    .filter((product) => product.asin && product.title)
+    .filter((product) => isDisplayableProduct(product))
+    .map((product) => ({
+      asin: String(product.asin),
+      title: String(product.title || "Amazon.ca find"),
+      category: String(product.category || category),
       affiliateUrl: String(product.affiliate_url || buildAmazonAffiliateUrl(String(product.asin))),
       productUrl: String(product.product_url || `https://www.amazon.ca/dp/${product.asin}`),
       imageUrl: String(product.image_url || ""),
