@@ -206,6 +206,7 @@ function ProductMeta({ product, compact = false }: { product: SmartDealProduct; 
     <div className="product-meta">
       {hasPrice ? <strong>{product.priceText}</strong> : null}
       {product.rating ? <span>{product.rating} rating</span> : null}
+      {product.reviewCount ? <span>{formatReviewCount(product.reviewCount)} global ratings</span> : null}
       {product.salesSignal && !compact ? <span>{product.salesSignal}</span> : null}
     </div>
   );
@@ -217,6 +218,10 @@ function BuyLink({ product, source }: { product: SmartDealProduct; source: strin
       Shop on Amazon.ca
     </Link>
   );
+}
+
+function formatReviewCount(value: number) {
+  return new Intl.NumberFormat("en-CA").format(value);
 }
 
 function buildProductJsonLd(products: SmartDealProduct[]) {

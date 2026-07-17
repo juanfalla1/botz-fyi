@@ -9,6 +9,7 @@ export type SmartDealProduct = {
   imageUrl: string;
   priceText: string;
   rating: number | null;
+  reviewCount: number | null;
   salesSignal: string;
   opportunityScore: number | null;
   publishedAt: string | null;
@@ -74,7 +75,7 @@ export async function listPublishedProducts(limit = 60): Promise<SmartDealProduc
 
   const { data: products, error } = await supabase
     .from("amazon_affiliate_products")
-    .select("asin,title,category,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score")
+    .select("asin,title,category,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score,scraper_response")
     .in("affiliate_url", publishedUrls)
     .not("asin", "is", null)
     .not("image_url", "is", null);
@@ -97,6 +98,7 @@ export async function listPublishedProducts(limit = 60): Promise<SmartDealProduc
       imageUrl: String(product.image_url || ""),
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
+      reviewCount: getReviewCount(product),
       salesSignal: String(product.sales_signal || ""),
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: publishMap.get(product.affiliate_url) || null,
@@ -109,7 +111,7 @@ export async function listLatestProducts(limit = 60): Promise<SmartDealProduct[]
 
   const { data: products, error } = await supabase
     .from("amazon_affiliate_products")
-    .select("asin,title,category,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score,last_scraped_at")
+    .select("asin,title,category,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score,scraper_response,last_scraped_at")
     .not("asin", "is", null)
     .not("image_url", "is", null)
     .order("last_scraped_at", { ascending: false })
@@ -129,6 +131,7 @@ export async function listLatestProducts(limit = 60): Promise<SmartDealProduct[]
       imageUrl: String(product.image_url || ""),
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
+      reviewCount: getReviewCount(product),
       salesSignal: String(product.sales_signal || ""),
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: product.last_scraped_at ? String(product.last_scraped_at) : null,
@@ -141,7 +144,7 @@ export async function listProductsByCategory(category: SmartDealCategory, limit 
 
   const { data: products, error } = await supabase
     .from("amazon_affiliate_products")
-    .select("asin,title,category,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score,last_scraped_at")
+    .select("asin,title,category,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score,scraper_response,last_scraped_at")
     .eq("category", category)
     .not("asin", "is", null)
     .not("image_url", "is", null)
@@ -162,6 +165,7 @@ export async function listProductsByCategory(category: SmartDealCategory, limit 
       imageUrl: String(product.image_url || ""),
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
+      reviewCount: getReviewCount(product),
       salesSignal: String(product.sales_signal || ""),
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: product.last_scraped_at ? String(product.last_scraped_at) : null,
@@ -180,7 +184,7 @@ export async function searchProducts(query: string, limit = 72): Promise<SmartDe
 
   const { data: products, error } = await supabase
     .from("amazon_affiliate_products")
-    .select("asin,title,category,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score,last_scraped_at")
+    .select("asin,title,category,affiliate_url,product_url,image_url,price_text,rating,sales_signal,opportunity_score,scraper_response,last_scraped_at")
     .or(filters.join(","))
     .not("asin", "is", null)
     .not("image_url", "is", null)
@@ -201,6 +205,7 @@ export async function searchProducts(query: string, limit = 72): Promise<SmartDe
       imageUrl: String(product.image_url || ""),
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
+      reviewCount: getReviewCount(product),
       salesSignal: String(product.sales_signal || ""),
       opportunityScore: typeof product.opportunity_score === "number" ? product.opportunity_score : Number(product.opportunity_score) || null,
       publishedAt: product.last_scraped_at ? String(product.last_scraped_at) : null,
@@ -234,6 +239,15 @@ function parseCadPrice(value: string) {
 function extractAsin(value: string) {
   const match = value.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?#]|$)/i);
   return match?.[1]?.toUpperCase() || "";
+}
+
+function getReviewCount(product: { scraper_response?: unknown }) {
+  const response = product.scraper_response && typeof product.scraper_response === "object"
+    ? product.scraper_response as { review_count?: unknown; reviewCount?: unknown }
+    : null;
+  const value = response?.review_count ?? response?.reviewCount;
+  const count = typeof value === "number" ? value : Number(String(value || "").replace(/,/g, ""));
+  return Number.isFinite(count) && count > 0 ? Math.round(count) : null;
 }
 
 function escapeIlike(value: string) {
