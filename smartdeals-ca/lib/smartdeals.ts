@@ -7,6 +7,7 @@ export type SmartDealProduct = {
   affiliateUrl: string;
   productUrl: string;
   imageUrl: string;
+  galleryImages: string[];
   priceText: string;
   rating: number | null;
   reviewCount: number | null;
@@ -99,6 +100,7 @@ export async function listPublishedProducts(limit = 60): Promise<SmartDealProduc
       affiliateUrl: String(product.affiliate_url || buildAmazonAffiliateUrl(String(product.asin))),
       productUrl: String(product.product_url || `https://www.amazon.ca/dp/${product.asin}`),
       imageUrl: String(product.image_url || ""),
+      galleryImages: getGalleryImages(product, String(product.image_url || "")),
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
       reviewCount: getReviewCount(product),
@@ -135,6 +137,7 @@ export async function listLatestProducts(limit = 60): Promise<SmartDealProduct[]
       affiliateUrl: String(product.affiliate_url || buildAmazonAffiliateUrl(String(product.asin))),
       productUrl: String(product.product_url || `https://www.amazon.ca/dp/${product.asin}`),
       imageUrl: String(product.image_url || ""),
+      galleryImages: getGalleryImages(product, String(product.image_url || "")),
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
       reviewCount: getReviewCount(product),
@@ -172,6 +175,7 @@ export async function listProductsByCategory(category: SmartDealCategory, limit 
       affiliateUrl: String(product.affiliate_url || buildAmazonAffiliateUrl(String(product.asin))),
       productUrl: String(product.product_url || `https://www.amazon.ca/dp/${product.asin}`),
       imageUrl: String(product.image_url || ""),
+      galleryImages: getGalleryImages(product, String(product.image_url || "")),
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
       reviewCount: getReviewCount(product),
@@ -215,6 +219,7 @@ export async function searchProducts(query: string, limit = 72): Promise<SmartDe
       affiliateUrl: String(product.affiliate_url || buildAmazonAffiliateUrl(String(product.asin))),
       productUrl: String(product.product_url || `https://www.amazon.ca/dp/${product.asin}`),
       imageUrl: String(product.image_url || ""),
+      galleryImages: getGalleryImages(product, String(product.image_url || "")),
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
       reviewCount: getReviewCount(product),
@@ -267,8 +272,18 @@ function getReviewCount(product: { scraper_response?: unknown }) {
 
 function getScraperResponse(product: { scraper_response?: unknown }) {
   return product.scraper_response && typeof product.scraper_response === "object"
-    ? product.scraper_response as { specifications?: unknown; bullets?: unknown; instagram_url?: unknown; instagram_reel_url?: unknown; instagram_permalink?: unknown }
+    ? product.scraper_response as { specifications?: unknown; bullets?: unknown; images?: unknown; instagram_url?: unknown; instagram_reel_url?: unknown; instagram_permalink?: unknown }
     : null;
+}
+
+function getGalleryImages(product: { scraper_response?: unknown }, primaryImage: string) {
+  const images = getScraperResponse(product)?.images;
+  const values = Array.isArray(images) ? images : [];
+  const normalized = [primaryImage, ...values]
+    .map((value) => String(value || "").trim())
+    .filter((value) => /^https?:\/\//i.test(value));
+
+  return [...new Set(normalized)].slice(0, 5);
 }
 
 function getSpecifications(product: { scraper_response?: unknown }) {

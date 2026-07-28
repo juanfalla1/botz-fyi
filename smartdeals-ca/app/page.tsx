@@ -137,9 +137,7 @@ function FeaturedProduct({ product }: { product: SmartDealProduct }) {
   return (
     <article className="featured-card">
       <span className="corner-label">Featured</span>
-      <div className="product-stage large">
-        <img src={product.imageUrl} alt={product.title} />
-      </div>
+      <ProductImageGallery product={product} priority large />
       <div className="featured-copy">
         <span className="deal-badge">Latest Amazon.ca find</span>
         <h2 title={product.title}>{shortProductTitle(product.title, 8)}</h2>
@@ -167,9 +165,7 @@ function DealCard({ product, priority }: { product: SmartDealProduct; priority?:
         <span>Amazon.ca find</span>
         {product.salesSignal ? <small>{product.salesSignal}</small> : null}
       </div>
-      <div className="product-stage">
-        <img src={product.imageUrl} alt={product.title} loading={priority ? "eager" : "lazy"} />
-      </div>
+      <ProductImageGallery product={product} priority={priority} />
       <div className="deal-body">
         <ProductMeta product={product} compact />
         <h3 title={product.title}>{shortProductTitle(product.title)}</h3>
@@ -220,6 +216,25 @@ function MiniDeal({ product }: { product: SmartDealProduct }) {
       <img src={product.imageUrl} alt="" />
       <span>{shortProductTitle(product.title, 6)}</span>
     </Link>
+  );
+}
+
+function ProductImageGallery({ product, priority = false, large = false }: { product: SmartDealProduct; priority?: boolean; large?: boolean }) {
+  const images = product.galleryImages.length ? product.galleryImages : [product.imageUrl];
+
+  return (
+    <div className={large ? "amazon-gallery large" : "amazon-gallery"}>
+      <div className={large ? "product-stage large" : "product-stage"}>
+        <img src={images[0]} alt={product.title} loading={priority ? "eager" : "lazy"} />
+      </div>
+      {images.length > 1 ? (
+        <div className="amazon-thumbnails" aria-label="Product image previews">
+          {images.slice(0, 5).map((image, index) => (
+            <img key={image} src={image} alt="" loading="lazy" className={index === 0 ? "active" : ""} />
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
