@@ -185,22 +185,9 @@ function ProductMeta({ product, compact = false }: { product: SmartDealProduct; 
 
 function BuyLink({ product, source }: { product: SmartDealProduct; source: string }) {
   return (
-    <div className="deal-actions">
-      <Link className="buy-link" href={`/go/${product.asin}?source=${encodeURIComponent(source)}`}>
-        Check price on Amazon.ca
-      </Link>
-      <button
-        className="save-deal-button"
-        type="button"
-        data-sdc-add-cart
-        data-asin={product.asin}
-        data-title={product.title}
-        data-price={product.priceText}
-        data-image={product.imageUrl}
-      >
-        Add to Smart Deals list
-      </button>
-    </div>
+    <Link className="buy-link" href={`/go/${product.asin}?source=${encodeURIComponent(source)}`}>
+      Check price on Amazon.ca
+    </Link>
   );
 }
 
