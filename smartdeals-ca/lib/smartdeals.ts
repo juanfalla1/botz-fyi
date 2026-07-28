@@ -30,10 +30,10 @@ export const smartDealCategories = [
 
 export type SmartDealCategory = (typeof smartDealCategories)[number]["slug"];
 
-const trackingId = "botzca-20";
+const fallbackTrackingId = "botzca-20";
 
 export function getTrackingId() {
-  return trackingId;
+  return (process.env.AMAZON_ASSOCIATES_TRACKING_ID || fallbackTrackingId).trim() || fallbackTrackingId;
 }
 
 export function getSiteUrl() {

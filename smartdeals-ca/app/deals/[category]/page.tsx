@@ -45,7 +45,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
         />
       ) : null}
-      <div className="announcement">Canada Amazon finds updated automatically. Prices and availability are checked on Amazon.ca.</div>
+      <div className="announcement">As an Amazon Associate, Smart Deals Canada may earn from qualifying purchases. Prices and availability are confirmed on Amazon.ca.</div>
 
       <header className="topbar" aria-label="Smart Deals navigation">
         <div className="topbar-inner">
@@ -78,7 +78,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
           <div>
             <p className="eyebrow">Amazon.ca category</p>
             <h1>{label} deals picked for Canada shoppers.</h1>
-            <p>Fresh products are added automatically when the Smart Deals workflow validates this category.</p>
+            <p>Click any product to verify the live Amazon.ca price, stock and delivery options before buying.</p>
           </div>
           <div className="banner-art" aria-hidden="true">
             <span className="bag bag-blue">SD</span>
@@ -92,7 +92,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
         <div className="section-heading">
           <p className="eyebrow">Live category</p>
           <h2>{label} finds</h2>
-          <p>Every button sends shoppers directly to Amazon.ca with the Smart Deals associate tag.</p>
+          <p>These links go directly to Amazon.ca with Smart Deals Canada tracking. There is no extra cost to shoppers.</p>
         </div>
 
         {products.length > 0 ? (
@@ -186,7 +186,7 @@ function ProductMeta({ product, compact = false }: { product: SmartDealProduct; 
 function BuyLink({ product, source }: { product: SmartDealProduct; source: string }) {
   return (
     <Link className="buy-link" href={`/go/${product.asin}?source=${encodeURIComponent(source)}`}>
-      Shop on Amazon.ca
+      Check price on Amazon.ca
     </Link>
   );
 }

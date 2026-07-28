@@ -19,7 +19,7 @@ export default async function Home() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
         />
       ) : null}
-      <div className="announcement">Canada Amazon finds updated automatically. Prices and availability are checked on Amazon.ca.</div>
+      <div className="announcement">As an Amazon Associate, Smart Deals Canada may earn from qualifying purchases. Prices and availability are confirmed on Amazon.ca.</div>
 
       <header className="topbar" aria-label="Smart Deals navigation">
         <div className="topbar-inner">
@@ -60,14 +60,14 @@ export default async function Home() {
             <p className="eyebrow">Smart finds from Amazon.ca</p>
             <h1>Daily Canada deals picked for fast shoppers.</h1>
             <p className="hero-text">
-              Discover products people are buying now. Every button sends you directly to Amazon.ca with the current product page.
+              Discover products people are buying now. Every button sends you directly to Amazon.ca so shoppers can confirm the current price, stock and delivery options.
             </p>
             <form className="search-form" action="/search">
               <input name="q" type="search" placeholder="Search camping lanterns, headphones, kitchen finds..." aria-label="Search Smart Deals products" />
               <button type="submit">Search</button>
             </form>
             <div className="hero-actions">
-              <a className="primary-action" href="#deals">Shop latest finds</a>
+              <a className="primary-action" href="#deals">Check today&apos;s Amazon.ca finds</a>
               <Link className="trust-pill" href="/go/search?q=amazon.ca%20deals&source=hero-pill">Amazon.ca checkout</Link>
             </div>
           </section>
@@ -76,8 +76,8 @@ export default async function Home() {
         </div>
 
         <section className="trust-row" aria-label="Smart Deals benefits">
-          <a href="#latest"><strong>Auto-updated</strong><span>Products sync from the publishing workflow.</span></a>
-          <Link href="/go/search?q=amazon.ca%20deals&source=trust-row"><strong>Amazon.ca checkout</strong><span>Buttons send shoppers directly to Amazon.</span></Link>
+          <a href="#latest"><strong>Auto-updated</strong><span>Fresh products from the publishing workflow.</span></a>
+          <Link href="/go/search?q=amazon.ca%20deals&source=trust-row"><strong>Direct Amazon.ca checkout</strong><span>No extra cost to shoppers when they buy through our links.</span></Link>
           <Link href="/go/search?q=canada%20deals&source=trust-row"><strong>Canada focused</strong><span>Built for Canadian Amazon shoppers.</span></Link>
         </section>
       </section>
@@ -86,13 +86,13 @@ export default async function Home() {
         <div className="section-heading">
           <p className="eyebrow">Live storefront</p>
           <h2>Today&apos;s Smart Deals</h2>
-          <p>Products appear here automatically after they are posted on Smart Deals.</p>
+          <p>Click through to Amazon.ca to verify live price, Prime availability and shipping before buying.</p>
         </div>
 
         <section className="visual-banner">
           <div>
             <p className="eyebrow">Shop smarter</p>
-            <h2>Fresh finds, clean layout, direct Amazon.ca checkout.</h2>
+            <h2>Fresh finds with direct Amazon.ca checkout.</h2>
           </div>
           <div className="banner-art" aria-hidden="true">
             <span className="bag bag-blue">SD</span>
@@ -250,7 +250,7 @@ function ProductMeta({ product, compact = false }: { product: SmartDealProduct; 
 function BuyLink({ product, source }: { product: SmartDealProduct; source: string }) {
   return (
     <Link className="buy-link" href={`/go/${product.asin}?source=${encodeURIComponent(source)}`}>
-      Shop on Amazon.ca
+      Check price on Amazon.ca
     </Link>
   );
 }
