@@ -476,15 +476,21 @@ app.post('/extract', async (req, res) => {
     const asin = extractAsin(resolvedUrl) || extractAsin(data.canonical || '') || extractAsin(validation.url.href);
     const productUrl = asin ? `https://www.amazon.ca/dp/${asin}` : resolvedUrl;
     const videoPageUrl = absolutizeAmazonVideoUrl(data.video?.page_url || '', resolvedUrl) || extractAmazonVideoPageUrl(resolvedUrl) || extractAmazonVideoPageUrl(validation.url.href);
+    const videoPageVideo = videoPageUrl
+      ? await extractVideoFromAmazonVideoPage(context, videoPageUrl).catch(() => null)
+      : null;
     const videoDebug = {
       ...emptyVideoDebug(),
       ...(data.videoDebug || {}),
       networkMediaRequests: uniqueByUrl(networkMediaRequests),
     };
-    const directVideo = extractMp4FromVideoTags(videoDebug.videoTags, data.video);
+    const directVideo = videoPageVideo?.source
+      ? normalizeVideo(videoPageVideo)
+      : extractMp4FromVideoTags(videoDebug.videoTags, data.video);
     const video = {
       ...directVideo,
       available: directVideo.available || Boolean(videoPageUrl),
+      poster: directVideo.poster || videoPageVideo?.poster || data.video?.poster || '',
       page_url: videoPageUrl,
     };
     const fallbackUrl = asin ? `https://www.amazon.ca/dp/${asin}` : validation.url.href;
@@ -1481,6 +1487,68 @@ function emptyVideoDebug() {
   };
 }
 
+async function extractVideoFromAmazonVideoPage(context, videoPageUrl) {
+  if (!extractAmazonVideoPageUrl(videoPageUrl)) return { available: false, source: '', poster: '', type: 'unknown' };
+
+  const page = await context.newPage();
+  const mediaRequests = [];
+  page.setDefaultTimeout(Math.min(extractTimeoutMs, 20000));
+  page.on('request', request => {
+    const requestUrl = request.url();
+    if (request.resourceType() === 'media' || isVideoSignalUrl(requestUrl)) {
+      mediaRequests.push({ url: requestUrl, resourceType: request.resourceType(), method: request.method() });
+    }
+  });
+
+  try {
+    await page.goto(videoPageUrl, { waitUntil: 'domcontentloaded', timeout: Math.min(extractTimeoutMs, 20000) });
+    await page.waitForTimeout(2500);
+    await page.evaluate(() => {
+      const playButton = Array.from(document.querySelectorAll('button, [role="button"], video'))
+        .find(element => /play|video/i.test(`${element.getAttribute('aria-label') || ''} ${element.getAttribute('title') || ''} ${element.textContent || ''} ${element.className || ''}`));
+      if (playButton && playButton.tagName.toLowerCase() !== 'video') {
+        playButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      }
+      const video = document.querySelector('video');
+      if (video) video.play?.().catch?.(() => {});
+    }).catch(() => null);
+    await page.waitForTimeout(4500);
+
+    const data = await page.evaluate(() => {
+      const videoElements = Array.from(document.querySelectorAll('video'));
+      const sources = videoElements.flatMap(video => [
+        video.currentSrc || '',
+        video.src || '',
+        ...Array.from(video.querySelectorAll('source')).map(source => source.src || source.getAttribute('src') || ''),
+      ]);
+      const poster = videoElements.map(video => video.poster || '').find(Boolean) || '';
+      const scriptText = Array.from(document.scripts).map(script => script.textContent || '').join('\n');
+      const scriptUrls = scriptText.match(/https?:\/\/[^"'\s]+(?:mp4|m3u8|videoplayback|playback|manifest|dash|hls)[^"'\s]*/gi) || [];
+      const performanceUrls = performance.getEntries()
+        .map(entry => entry.name || '')
+        .filter(url => /mp4|m3u8|videoplayback|playback|manifest|dash|hls/i.test(url));
+
+      return { sources, poster, scriptUrls, performanceUrls };
+    });
+
+    const source = chooseVideoSource([
+      ...(data.sources || []),
+      ...(data.scriptUrls || []),
+      ...(data.performanceUrls || []),
+      ...mediaRequests.map(request => request.url),
+    ]);
+
+    return {
+      available: Boolean(source),
+      source,
+      poster: data.poster || '',
+      type: getVideoType(source),
+    };
+  } finally {
+    await page.close().catch(() => null);
+  }
+}
+
 function normalizeVideo(video) {
   const source = video?.source || '';
 
@@ -1523,7 +1591,19 @@ function getVideoType(source) {
 
   if (cleanSource.endsWith('.mp4')) return 'mp4';
   if (cleanSource.endsWith('.m3u8')) return 'm3u8';
+  if (/videoplayback|playback|manifest|dash|hls/i.test(source || '')) return 'stream';
   return 'unknown';
+}
+
+function chooseVideoSource(values) {
+  const urls = [...new Set((values || [])
+    .map(value => decodeHtml(String(value || '').replace(/\\\//g, '/').trim()))
+    .filter(value => /^https?:\/\//i.test(value) && isVideoSignalUrl(value)))];
+
+  return urls.find(url => String(url).split('?')[0].toLowerCase().endsWith('.mp4')) ||
+    urls.find(url => String(url).split('?')[0].toLowerCase().endsWith('.m3u8')) ||
+    urls.find(url => /videoplayback|playback|manifest|dash|hls/i.test(url)) ||
+    '';
 }
 
 function isVideoSignalUrl(value) {
