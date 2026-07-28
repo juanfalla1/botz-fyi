@@ -599,6 +599,36 @@ app.post('/creative', async (req, res) => {
   }
 });
 
+app.post('/video', async (req, res) => {
+  const { source = '' } = req.body || {};
+  const videoUrl = String(source || '').trim();
+
+  if (!/^https?:\/\//i.test(videoUrl) || !isVideoSignalUrl(videoUrl)) {
+    return res.status(400).json({ error: 'valid video source is required' });
+  }
+
+  try {
+    const response = await fetch(videoUrl, {
+      signal: AbortSignal.timeout(extractTimeoutMs),
+      headers: {
+        accept: 'video/mp4,application/vnd.apple.mpegurl,application/x-mpegURL,video/*,*/*;q=0.8',
+        'user-agent':
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+      },
+    });
+
+    if (!response.ok) return res.status(422).json({ error: 'Unable to fetch video', status: response.status });
+
+    const contentType = response.headers.get('content-type') || (getVideoType(videoUrl) === 'm3u8' ? 'application/vnd.apple.mpegurl' : 'video/mp4');
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(buffer);
+  } catch (error) {
+    return res.status(422).json({ error: 'Unable to download video', detail: error?.message || '' });
+  }
+});
+
 app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });

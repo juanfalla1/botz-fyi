@@ -8,6 +8,7 @@ export type SmartDealProduct = {
   productUrl: string;
   imageUrl: string;
   galleryImages: string[];
+  video: { available: boolean; source: string; poster: string; type: string; pageUrl: string };
   priceText: string;
   rating: number | null;
   reviewCount: number | null;
@@ -101,6 +102,7 @@ export async function listPublishedProducts(limit = 60): Promise<SmartDealProduc
       productUrl: String(product.product_url || `https://www.amazon.ca/dp/${product.asin}`),
       imageUrl: String(product.image_url || ""),
       galleryImages: getGalleryImages(product, String(product.image_url || "")),
+      video: getVideo(product),
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
       reviewCount: getReviewCount(product),
@@ -138,6 +140,7 @@ export async function listLatestProducts(limit = 60): Promise<SmartDealProduct[]
       productUrl: String(product.product_url || `https://www.amazon.ca/dp/${product.asin}`),
       imageUrl: String(product.image_url || ""),
       galleryImages: getGalleryImages(product, String(product.image_url || "")),
+      video: getVideo(product),
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
       reviewCount: getReviewCount(product),
@@ -176,6 +179,7 @@ export async function listProductsByCategory(category: SmartDealCategory, limit 
       productUrl: String(product.product_url || `https://www.amazon.ca/dp/${product.asin}`),
       imageUrl: String(product.image_url || ""),
       galleryImages: getGalleryImages(product, String(product.image_url || "")),
+      video: getVideo(product),
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
       reviewCount: getReviewCount(product),
@@ -220,6 +224,7 @@ export async function searchProducts(query: string, limit = 72): Promise<SmartDe
       productUrl: String(product.product_url || `https://www.amazon.ca/dp/${product.asin}`),
       imageUrl: String(product.image_url || ""),
       galleryImages: getGalleryImages(product, String(product.image_url || "")),
+      video: getVideo(product),
       priceText: String(product.price_text || "Check price"),
       rating: typeof product.rating === "number" ? product.rating : Number(product.rating) || null,
       reviewCount: getReviewCount(product),
@@ -272,7 +277,7 @@ function getReviewCount(product: { scraper_response?: unknown }) {
 
 function getScraperResponse(product: { scraper_response?: unknown }) {
   return product.scraper_response && typeof product.scraper_response === "object"
-    ? product.scraper_response as { specifications?: unknown; bullets?: unknown; images?: unknown; instagram_url?: unknown; instagram_reel_url?: unknown; instagram_permalink?: unknown }
+    ? product.scraper_response as { specifications?: unknown; bullets?: unknown; images?: unknown; video?: unknown; instagram_url?: unknown; instagram_reel_url?: unknown; instagram_permalink?: unknown }
     : null;
 }
 
@@ -283,7 +288,24 @@ function getGalleryImages(product: { scraper_response?: unknown }, primaryImage:
     .map((value) => String(value || "").trim())
     .filter((value) => /^https?:\/\//i.test(value));
 
-  return [...new Set(normalized)].slice(0, 5);
+  return [...new Set(normalized)].slice(0, 8);
+}
+
+function getVideo(product: { scraper_response?: unknown }) {
+  const video = getScraperResponse(product)?.video;
+  const value = video && typeof video === "object"
+    ? video as { available?: unknown; source?: unknown; poster?: unknown; type?: unknown; page_url?: unknown; pageUrl?: unknown }
+    : null;
+  const source = String(value?.source || "").trim();
+  const pageUrl = String(value?.page_url || value?.pageUrl || "").trim();
+
+  return {
+    available: Boolean(value?.available || source || pageUrl),
+    source: /^https?:\/\//i.test(source) ? source : "",
+    poster: /^https?:\/\//i.test(String(value?.poster || "")) ? String(value?.poster) : "",
+    type: String(value?.type || "").trim(),
+    pageUrl: /^https?:\/\//i.test(pageUrl) ? pageUrl : "",
+  };
 }
 
 function getSpecifications(product: { scraper_response?: unknown }) {
@@ -293,7 +315,7 @@ function getSpecifications(product: { scraper_response?: unknown }) {
   return Object.entries(specs)
     .map(([name, value]) => ({ name: String(name || "").trim(), value: String(value || "").trim() }))
     .filter((item) => item.name && item.value)
-    .slice(0, 6);
+    .slice(0, 16);
 }
 
 function getBullets(product: { scraper_response?: unknown }) {
@@ -303,7 +325,7 @@ function getBullets(product: { scraper_response?: unknown }) {
   return bullets
     .map((value) => String(value || "").trim())
     .filter(Boolean)
-    .slice(0, 4);
+    .slice(0, 10);
 }
 
 function getInstagramUrl(product: { scraper_response?: unknown }) {

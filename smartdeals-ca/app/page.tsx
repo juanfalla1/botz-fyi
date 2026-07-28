@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ProductMedia } from "./ProductMedia";
 import { listPublishedProducts, smartDealCategories, type SmartDealProduct } from "@/lib/smartdeals";
 
 export const dynamic = "force-dynamic";
@@ -137,7 +138,7 @@ function FeaturedProduct({ product }: { product: SmartDealProduct }) {
   return (
     <article className="featured-card">
       <span className="corner-label">Featured</span>
-      <ProductImageGallery product={product} priority large />
+      <ProductMedia product={product} priority large />
       <div className="featured-copy">
         <span className="deal-badge">Latest Amazon.ca find</span>
         <h2 title={product.title}>{shortProductTitle(product.title, 8)}</h2>
@@ -165,7 +166,7 @@ function DealCard({ product, priority }: { product: SmartDealProduct; priority?:
         <span>Amazon.ca find</span>
         {product.salesSignal ? <small>{product.salesSignal}</small> : null}
       </div>
-      <ProductImageGallery product={product} priority={priority} />
+      <ProductMedia product={product} priority={priority} />
       <div className="deal-body">
         <ProductMeta product={product} compact />
         <h3 title={product.title}>{shortProductTitle(product.title)}</h3>
@@ -184,8 +185,8 @@ function InstagramLink({ product }: { product: SmartDealProduct }) {
 }
 
 function ProductDetails({ product }: { product: SmartDealProduct }) {
-  const specs = product.specifications.slice(0, 4);
-  const bullets = product.bullets.slice(0, 3);
+  const specs = product.specifications;
+  const bullets = product.bullets;
   if (!specs.length && !bullets.length) return null;
 
   return (
@@ -216,25 +217,6 @@ function MiniDeal({ product }: { product: SmartDealProduct }) {
       <img src={product.imageUrl} alt="" />
       <span>{shortProductTitle(product.title, 6)}</span>
     </Link>
-  );
-}
-
-function ProductImageGallery({ product, priority = false, large = false }: { product: SmartDealProduct; priority?: boolean; large?: boolean }) {
-  const images = product.galleryImages.length ? product.galleryImages : [product.imageUrl];
-
-  return (
-    <div className={large ? "amazon-gallery large" : "amazon-gallery"}>
-      <div className={large ? "product-stage large" : "product-stage"}>
-        <img src={images[0]} alt={product.title} loading={priority ? "eager" : "lazy"} />
-      </div>
-      {images.length > 1 ? (
-        <div className="amazon-thumbnails" aria-label="Product image previews">
-          {images.slice(0, 5).map((image, index) => (
-            <img key={image} src={image} alt="" loading="lazy" className={index === 0 ? "active" : ""} />
-          ))}
-        </div>
-      ) : null}
-    </div>
   );
 }
 
