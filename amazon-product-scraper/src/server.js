@@ -300,15 +300,55 @@ app.post('/extract', async (req, res) => {
           .find(value => /bought in past month/i.test(value)) ||
         '';
 
-      const imageCandidates = [
-        attr('#landingImage', 'src'),
-        attr('meta[property="og:image"]', 'content'),
-        ...Array.from(document.querySelectorAll('#altImages img'))
-          .map(img => img.getAttribute('src') || '')
-          .filter(Boolean),
-      ];
+      const collectImageCandidates = () => {
+        const candidates = [];
+        const push = value => {
+          if (!value) return;
+          candidates.push(value);
+        };
+        const pushDynamicImages = value => {
+          if (!value) return;
+          try {
+            Object.keys(JSON.parse(value)).forEach(push);
+          } catch {
+            push(value);
+          }
+        };
+        const pushSrcset = value => {
+          String(value || '')
+            .split(',')
+            .map(part => part.trim().split(/\s+/)[0])
+            .filter(Boolean)
+            .forEach(push);
+        };
 
-      const images = [...new Set(imageCandidates.filter(Boolean))];
+        push(attr('#landingImage', 'src'));
+        push(attr('#landingImage', 'data-old-hires'));
+        pushDynamicImages(attr('#landingImage', 'data-a-dynamic-image'));
+        push(attr('#imgTagWrapperId img', 'src'));
+        push(attr('#imgTagWrapperId img', 'data-old-hires'));
+        pushDynamicImages(attr('#imgTagWrapperId img', 'data-a-dynamic-image'));
+        push(attr('meta[property="og:image"]', 'content'));
+        push(attr('meta[name="twitter:image"]', 'content'));
+
+        Array.from(document.querySelectorAll('img')).forEach(img => {
+          push(img.getAttribute('data-old-hires'));
+          push(img.getAttribute('data-a-hires'));
+          push(img.getAttribute('src'));
+          pushDynamicImages(img.getAttribute('data-a-dynamic-image'));
+          pushSrcset(img.getAttribute('srcset'));
+        });
+
+        const scriptText = Array.from(document.scripts)
+          .map(script => script.textContent || '')
+          .join('\n');
+        (scriptText.match(/https?:\\?\/\\?\/m\.media-amazon\.com\\?\/images\\?\/I\\?\/[^"'\\s<>,}]+/gi) || [])
+          .forEach(push);
+
+        return candidates;
+      };
+
+      const images = [...new Set(collectImageCandidates().filter(Boolean))];
       const canonical = attr('link[rel="canonical"]', 'href');
       const videoElement = document.querySelector('video');
       const videoSource =
@@ -671,11 +711,7 @@ async function fetchProductDataFallback(url) {
       )
     )
   );
-  const image = await selectProductImage([
-    html.match(/id=["']landingImage["'][^>]+src=["']([^"']+)["']/i)?.[1] || '',
-    extractMetaContent(html, 'og:image'),
-    html.match(/src=["']([^"']*m\.media-amazon\.com\/images\/I\/[^"']*)["']/i)?.[1] || '',
-  ]);
+  const image = await selectProductImage(extractImageCandidatesFromHtml(html));
 
   return {
     asin,
@@ -696,7 +732,7 @@ async function filterProductImages(images) {
   const seen = new Set();
 
   for (const image of images || []) {
-    const url = decodeHtml(String(image || '').trim());
+    const url = normalizeAmazonImageUrl(image);
     if (!url || seen.has(url)) continue;
     seen.add(url);
 
@@ -737,6 +773,58 @@ async function isValidProductImage(url) {
   } catch {
     return false;
   }
+}
+
+function extractImageCandidatesFromHtml(html) {
+  const candidates = [
+    html.match(/id=["']landingImage["'][^>]+src=["']([^"']+)["']/i)?.[1] || '',
+    html.match(/id=["']landingImage["'][^>]+data-old-hires=["']([^"']+)["']/i)?.[1] || '',
+    html.match(/id=["']landingImage["'][^>]+data-a-dynamic-image=["']([^"']+)["']/i)?.[1] || '',
+    extractMetaContent(html, 'og:image'),
+    extractMetaContent(html, 'twitter:image'),
+  ];
+
+  const dynamicImageMatches = html.matchAll(/data-a-dynamic-image=["']([^"']+)["']/gi);
+  for (const match of dynamicImageMatches) candidates.push(...extractDynamicImageUrls(match[1]));
+
+  const srcsetMatches = html.matchAll(/srcset=["']([^"']+)["']/gi);
+  for (const match of srcsetMatches) {
+    String(match[1] || '')
+      .split(',')
+      .map(part => part.trim().split(/\s+/)[0])
+      .filter(Boolean)
+      .forEach(value => candidates.push(value));
+  }
+
+  candidates.push(...extractAmazonImageUrlsFromText(html));
+  return candidates;
+}
+
+function extractDynamicImageUrls(value) {
+  const decoded = decodeHtml(String(value || ''));
+  try {
+    return Object.keys(JSON.parse(decoded));
+  } catch {
+    return extractAmazonImageUrlsFromText(decoded);
+  }
+}
+
+function extractAmazonImageUrlsFromText(value) {
+  const text = decodeHtml(String(value || '')).replace(/\\\//g, '/');
+  return text.match(/https?:\/\/m\.media-amazon\.com\/images\/I\/[^"'\s<>,}]+/gi) || [];
+}
+
+function normalizeAmazonImageUrl(value) {
+  const decoded = decodeHtml(String(value || ''))
+    .replace(/\\\//g, '/')
+    .replace(/\\u002F/gi, '/')
+    .trim();
+  const match = decoded.match(/https?:\/\/m\.media-amazon\.com\/images\/I\/[^"'\s<>,}]+/i);
+  if (!match) return '';
+
+  let url = match[0].replace(/&amp;/gi, '&').split('?')[0];
+  url = url.replace(/\._[^./]+_\.(jpg|jpeg|png|webp)$/i, '.$1');
+  return url;
 }
 
 function extractHtmlPrice(html) {
