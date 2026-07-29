@@ -357,13 +357,14 @@ app.post('/extract', async (req, res) => {
         document.querySelector('video source')?.getAttribute('src') ||
         '';
       const videoPoster = videoElement?.poster || '';
-      const videoPageUrl = Array.from(document.querySelectorAll('a[href*="/vdp/"], [data-video-url], [data-videourl]'))
-        .map(element => element.getAttribute('href') || element.getAttribute('data-video-url') || element.getAttribute('data-videourl') || '')
-        .find(Boolean) || '';
-
       const scriptText = Array.from(document.scripts)
         .map(script => script.textContent || '')
         .join('\n');
+      const videoPageUrl = [
+        ...Array.from(document.querySelectorAll('a[href*="/vdp/"], [data-video-url], [data-videourl], [data-asin-video-url]'))
+          .map(element => element.getAttribute('href') || element.getAttribute('data-video-url') || element.getAttribute('data-videourl') || element.getAttribute('data-asin-video-url') || ''),
+        ...(scriptText.replace(/\\\//g, '/').match(/(?:https?:\/\/www\.amazon\.ca)?\/vdp\/[^"'\s<>,}]+/gi) || []),
+      ].find(Boolean) || '';
       const scriptVideoSource =
         videoSource ||
         scriptText.match(/https?:\/\/[^"'\s]+\.(?:mp4|m3u8)(?:\?[^"'\s]*)?/i)?.[0] ||
@@ -1283,7 +1284,7 @@ function extractAmazonVideoPageUrl(value) {
 }
 
 function absolutizeAmazonVideoUrl(value, baseUrl) {
-  const text = String(value || '').trim();
+  const text = decodeHtml(String(value || '')).replace(/\\\//g, '/').trim();
   if (!text) return '';
 
   try {

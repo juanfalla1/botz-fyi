@@ -7,15 +7,41 @@ export function ProductMedia({ product, priority = false, large = false }: { pro
   const images = product.galleryImages.length ? product.galleryImages : [product.imageUrl].filter(Boolean);
   const hasVideo = Boolean(product.video.source);
   const [selected, setSelected] = useState(hasVideo ? "video" : images[0] || "");
+  const [zoom, setZoom] = useState({ active: false, x: 50, y: 50 });
   const showVideo = selected === "video" && hasVideo;
+  const selectedImage = selected || images[0] || "";
 
   return (
     <div className={large ? "amazon-gallery large" : "amazon-gallery"}>
-      <div className={large ? "product-stage large" : "product-stage"}>
+      <div
+        className={large ? "product-stage large" : "product-stage"}
+        onMouseLeave={() => setZoom((current) => ({ ...current, active: false }))}
+        onMouseMove={(event) => {
+          if (showVideo || !selectedImage) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          setZoom({
+            active: true,
+            x: Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100)),
+            y: Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100)),
+          });
+        }}
+      >
         {showVideo ? (
           <video className="product-video" src={product.video.source} poster={product.video.poster || images[0]} controls playsInline preload="metadata" />
         ) : (
-          <img src={selected || images[0]} alt={product.title} loading={priority ? "eager" : "lazy"} />
+          <>
+            <img src={selectedImage} alt={product.title} loading={priority ? "eager" : "lazy"} />
+            {selectedImage ? (
+              <span
+                className={zoom.active ? "media-zoom-pane active" : "media-zoom-pane"}
+                aria-hidden="true"
+                style={{
+                  backgroundImage: `url(${selectedImage})`,
+                  backgroundPosition: `${zoom.x}% ${zoom.y}%`,
+                }}
+              />
+            ) : null}
+          </>
         )}
       </div>
       {(images.length > 1 || hasVideo) ? (
@@ -26,7 +52,7 @@ export function ProductMedia({ product, priority = false, large = false }: { pro
             </button>
           ) : null}
           {images.slice(0, 8).map((image, index) => (
-            <button key={image} type="button" className={!showVideo && selected === image ? "active" : ""} onClick={() => setSelected(image)}>
+            <button key={image} type="button" className={!showVideo && selectedImage === image ? "active" : ""} onClick={() => setSelected(image)}>
               <img src={image} alt={`${product.title} view ${index + 1}`} loading="lazy" />
             </button>
           ))}
