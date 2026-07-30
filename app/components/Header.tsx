@@ -782,15 +782,15 @@ const Header = () => {
         .logo-stack {
           display: inline-grid;
           place-items: center;
-          gap: 2px;
+          gap: 3px;
           width: 74px;
           color: #22d3ee;
           filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.48));
-          transition: transform 0.2s ease, filter 0.2s ease;
+          transition: filter 0.2s ease;
+          animation: logoFloat 3.2s ease-in-out infinite;
         }
 
         .logo-stack:hover {
-          transform: translateY(-1px) scale(1.03);
           filter: drop-shadow(0 0 18px rgba(34, 211, 238, 0.8));
         }
 
@@ -798,23 +798,23 @@ const Header = () => {
           position: relative;
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 6px;
+          gap: 8px;
           align-items: center;
           justify-items: center;
-          width: 34px;
-          height: 24px;
-          border: 3px solid currentColor;
-          border-radius: 10px;
-          box-shadow: inset 0 0 12px rgba(34, 211, 238, 0.22);
+          width: 39px;
+          height: 29px;
+          border: 4px solid currentColor;
+          border-radius: 14px;
+          box-shadow: inset 0 0 14px rgba(34, 211, 238, 0.2);
         }
 
         .logo-bot::before {
           content: "";
           position: absolute;
-          top: -10px;
+          top: -12px;
           left: 50%;
           width: 3px;
-          height: 8px;
+          height: 10px;
           background: currentColor;
           transform: translateX(-50%);
         }
@@ -822,29 +822,55 @@ const Header = () => {
         .logo-bot::after {
           content: "";
           position: absolute;
-          top: -14px;
+          top: -18px;
           left: 50%;
-          width: 8px;
-          height: 8px;
+          width: 11px;
+          height: 11px;
           border-radius: 999px;
           background: currentColor;
           transform: translateX(-50%);
         }
 
+        .logo-bot .logo-bot-eye:first-child::before,
+        .logo-bot .logo-bot-eye:nth-child(2)::before {
+          content: "";
+          position: absolute;
+          top: 7px;
+          width: 8px;
+          height: 14px;
+          border-radius: 4px;
+          background: currentColor;
+        }
+
+        .logo-bot .logo-bot-eye:first-child::before { left: -10px; }
+        .logo-bot .logo-bot-eye:nth-child(2)::before { right: -10px; }
+
+        .logo-bot-smile::before {
+          content: "";
+          position: absolute;
+          left: -18px;
+          bottom: -13px;
+          width: 12px;
+          height: 13px;
+          background: currentColor;
+          clip-path: polygon(0 0, 100% 0, 0 100%);
+        }
+
         .logo-bot-eye {
-          width: 5px;
-          height: 5px;
+          width: 7px;
+          height: 7px;
           border-radius: 999px;
           background: currentColor;
+          animation: logoBlink 5s ease-in-out infinite;
         }
 
         .logo-bot-smile {
           position: absolute;
-          bottom: 4px;
+          bottom: 5px;
           left: 50%;
-          width: 12px;
-          height: 5px;
-          border-bottom: 2px solid currentColor;
+          width: 14px;
+          height: 6px;
+          border-bottom: 3px solid currentColor;
           border-radius: 0 0 999px 999px;
           transform: translateX(-50%);
         }
@@ -854,6 +880,16 @@ const Header = () => {
           line-height: 1;
           font-weight: 950;
           letter-spacing: -0.08em;
+        }
+
+        @keyframes logoFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-3px); }
+        }
+
+        @keyframes logoBlink {
+          0%, 92%, 100% { transform: scaleY(1); }
+          95% { transform: scaleY(0.18); }
         }
 
         .settings-btn {
