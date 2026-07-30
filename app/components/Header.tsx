@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 // Importamos Sparkles para el toque estelar visual
@@ -11,6 +11,7 @@ const Header = () => {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const dropdownCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   type BotzLanguage = "es" | "en";
   const [botzLanguage, setBotzLanguage] = useState<BotzLanguage>("es");
@@ -32,6 +33,12 @@ const Header = () => {
 
     window.addEventListener("botz-language-change", onLangChange);
     return () => window.removeEventListener("botz-language-change", onLangChange);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (dropdownCloseTimer.current) clearTimeout(dropdownCloseTimer.current);
+    };
   }, []);
 
   const isEn = botzLanguage === "en";
@@ -185,6 +192,7 @@ const Header = () => {
   };
 
   const closeMenu = () => {
+    if (dropdownCloseTimer.current) clearTimeout(dropdownCloseTimer.current);
     setOpen(false);
     setOpenDropdown(null);
     setShowLangMenu(false);
@@ -213,13 +221,15 @@ const Header = () => {
 
   const handleDropdownHover = (name: string) => {
     if (!isMobileView) {
+      if (dropdownCloseTimer.current) clearTimeout(dropdownCloseTimer.current);
       setOpenDropdown(name);
     }
   };
 
   const handleDropdownLeave = () => {
     if (!isMobileView) {
-      setOpenDropdown(null);
+      if (dropdownCloseTimer.current) clearTimeout(dropdownCloseTimer.current);
+      dropdownCloseTimer.current = setTimeout(() => setOpenDropdown(null), 420);
     }
   };
 
@@ -365,9 +375,7 @@ const Header = () => {
           <div className="bz-logo-nav" style={{ width: "auto", display: "flex", alignItems: "center", columnGap: 10, flex: "0 0 auto", justifySelf: "start" }}>
             {/* LOGO MANTENIDO EN LA ESQUINA IZQUIERDA */}
             <Link href="/" passHref style={{ textDecoration: "none", borderBottom: "none", display: "inline-block" }}>
-              <h1 className="logo glow" style={{ cursor: "pointer", textDecoration: "none", borderBottom: "none", margin: 0, fontSize: "34px", fontWeight: 900, color: "#10b2cb", lineHeight: 1 }}>
-                botz
-              </h1>
+              <img className="logo-image" src="/logo%20botz.png" alt="botz" />
             </Link>
 
             {!inQualibotz && (
@@ -558,7 +566,7 @@ const Header = () => {
                   >
                     {menu.label} {isMobileView ? (openDropdown === menu.key ? "▴" : "▾") : ""}
                   </a>
-                  <div className="bz-mega-menu" style={getMegaMenuStyle(menu.key)}>
+                  <div className="bz-mega-menu" onMouseEnter={() => handleDropdownHover(menu.key)} onMouseLeave={handleDropdownLeave} style={getMegaMenuStyle(menu.key)}>
                     <div className="bz-mega-feature">
                       <span>{menu.eyebrow}</span>
                       <strong>{menu.title}</strong>
@@ -763,6 +771,21 @@ const Header = () => {
         }
 
         .logo:hover { text-shadow: 0 0 15px rgba(16, 178, 203, 1); transform: scale(1.05); }
+
+        .logo-image {
+          display: block;
+          width: 118px;
+          height: 42px;
+          object-fit: contain;
+          object-position: left center;
+          filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.55));
+          transition: transform 0.2s ease, filter 0.2s ease;
+        }
+
+        .logo-image:hover {
+          transform: scale(1.03);
+          filter: drop-shadow(0 0 18px rgba(34, 211, 238, 0.8));
+        }
 
         .settings-btn {
           display: flex;
