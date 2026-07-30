@@ -375,7 +375,14 @@ const Header = () => {
           <div className="bz-logo-nav" style={{ width: "auto", display: "flex", alignItems: "center", columnGap: 10, flex: "0 0 auto", justifySelf: "start" }}>
             {/* LOGO MANTENIDO EN LA ESQUINA IZQUIERDA */}
             <Link href="/" passHref style={{ textDecoration: "none", borderBottom: "none", display: "inline-block" }}>
-              <img className="logo-image" src="/logo%20botz.png" alt="botz" />
+              <span className="logo-stack" aria-label="botz">
+                <span className="logo-bot" aria-hidden="true">
+                  <span className="logo-bot-eye" />
+                  <span className="logo-bot-eye" />
+                  <span className="logo-bot-smile" />
+                </span>
+                <span className="logo-word">botz</span>
+              </span>
             </Link>
 
             {!inQualibotz && (
@@ -772,19 +779,81 @@ const Header = () => {
 
         .logo:hover { text-shadow: 0 0 15px rgba(16, 178, 203, 1); transform: scale(1.05); }
 
-        .logo-image {
-          display: block;
-          width: 118px;
-          height: 42px;
-          object-fit: contain;
-          object-position: left center;
-          filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.55));
+        .logo-stack {
+          display: inline-grid;
+          place-items: center;
+          gap: 2px;
+          width: 74px;
+          color: #22d3ee;
+          filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.48));
           transition: transform 0.2s ease, filter 0.2s ease;
         }
 
-        .logo-image:hover {
-          transform: scale(1.03);
+        .logo-stack:hover {
+          transform: translateY(-1px) scale(1.03);
           filter: drop-shadow(0 0 18px rgba(34, 211, 238, 0.8));
+        }
+
+        .logo-bot {
+          position: relative;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+          align-items: center;
+          justify-items: center;
+          width: 34px;
+          height: 24px;
+          border: 3px solid currentColor;
+          border-radius: 10px;
+          box-shadow: inset 0 0 12px rgba(34, 211, 238, 0.22);
+        }
+
+        .logo-bot::before {
+          content: "";
+          position: absolute;
+          top: -10px;
+          left: 50%;
+          width: 3px;
+          height: 8px;
+          background: currentColor;
+          transform: translateX(-50%);
+        }
+
+        .logo-bot::after {
+          content: "";
+          position: absolute;
+          top: -14px;
+          left: 50%;
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: currentColor;
+          transform: translateX(-50%);
+        }
+
+        .logo-bot-eye {
+          width: 5px;
+          height: 5px;
+          border-radius: 999px;
+          background: currentColor;
+        }
+
+        .logo-bot-smile {
+          position: absolute;
+          bottom: 4px;
+          left: 50%;
+          width: 12px;
+          height: 5px;
+          border-bottom: 2px solid currentColor;
+          border-radius: 0 0 999px 999px;
+          transform: translateX(-50%);
+        }
+
+        .logo-word {
+          font-size: 20px;
+          line-height: 1;
+          font-weight: 950;
+          letter-spacing: -0.08em;
         }
 
         .settings-btn {
