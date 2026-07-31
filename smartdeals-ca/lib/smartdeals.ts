@@ -284,11 +284,30 @@ function getScraperResponse(product: { scraper_response?: unknown }) {
 function getGalleryImages(product: { scraper_response?: unknown }, primaryImage: string) {
   const images = getScraperResponse(product)?.images;
   const values = Array.isArray(images) ? images : [];
-  const normalized = [primaryImage, ...values]
-    .map((value) => String(value || "").trim())
-    .filter((value) => /^https?:\/\//i.test(value));
+  const seen = new Set<string>();
+  const normalized = [];
 
-  return [...new Set(normalized)].slice(0, 8);
+  for (const value of [primaryImage, ...values]) {
+    const image = String(value || "").trim();
+    if (!/^https?:\/\//i.test(image)) continue;
+
+    const key = getAmazonImageKey(image);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(image);
+  }
+
+  return normalized.slice(0, 8);
+}
+
+function getAmazonImageKey(value: string) {
+  try {
+    const url = new URL(value);
+    const cleanPath = url.pathname.replace(/\._[^/]+_\.(jpg|jpeg|png|webp)$/i, ".$1");
+    return `${url.hostname}${cleanPath}`.toLowerCase();
+  } catch {
+    return value.toLowerCase();
+  }
 }
 
 function getVideo(product: { scraper_response?: unknown }) {
