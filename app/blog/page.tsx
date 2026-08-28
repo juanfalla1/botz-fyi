@@ -3,9 +3,9 @@ import Link from "next/link";
 import { BLOG_POSTS } from "./posts";
 
 export const metadata: Metadata = {
-  title: "Blog de IA, Agentes y Automatizacion",
+  title: "Insights de IA, Agentes y Automatizacion",
   description:
-    "Articulos de Botz sobre IA hipotecaria, agentes IA para inmobiliaria y automatizacion comercial con WhatsApp y flujos empresariales.",
+    "Analisis de Botz sobre modelos de IA, agentes, automatizacion, integraciones y resultados empresariales.",
   alternates: { canonical: "/blog" },
 };
 
@@ -14,13 +14,13 @@ export default function BlogIndexPage() {
     <main style={{ minHeight: "100vh", background: "#070f1d", color: "#e5e7eb", padding: "110px 16px 48px" }}>
       <section style={{ maxWidth: 980, margin: "0 auto" }}>
         <h1 style={{ margin: 0, color: "#fff", fontWeight: 900, fontSize: "clamp(32px,5vw,48px)", lineHeight: 1.08 }}>
-          Blog Botz: IA para ventas y automatizacion
+          Insights de IA, agentes y automatizacion
         </h1>
         <p style={{ marginTop: 12, color: "#9ca3af", fontSize: 17, maxWidth: 860 }}>
-          Guias practicas para captar, calificar y convertir mas leads con agentes IA, WhatsApp y flujos comerciales.
+          Modelos, arquitectura, tendencias y aprendizajes practicos para convertir la IA en resultados empresariales.
         </p>
 
-        <div style={{ marginTop: 24, display: "grid", gap: 12 }}>
+        <div id="guias-y-tendencias" style={{ marginTop: 24, display: "grid", gap: 12, scrollMarginTop: 100 }}>
           {BLOG_POSTS.map((post) => (
             <article key={post.slug} style={{ border: "1px solid rgba(148,163,184,.24)", borderRadius: 14, background: "rgba(15,23,42,.45)", padding: 14 }}>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>

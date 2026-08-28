@@ -43,5 +43,16 @@ next-env.d.ts
 .vercel
 .env*.local
 
+# Local research, personal files, and generated demo output
+/.firecrawl/
+/GRM/
+/juan personal/
+/artifacts/
+/demo-output/
+**/__pycache__/
+
+# Local n8n demo tooling may contain temporary credentials
+/app/api/n8n/scripts/
+
 .vercel
 .env*.local

@@ -50,6 +50,7 @@ const Footer = () => {
             <h3 className="botz-footer-title">Company</h3>
             <ul className="botz-footer-list">
               <li><a href="/sobre-nosotros">{isEn ? "About" : "Sobre nosotros"}</a></li>
+              <li><a href="/preguntas-frecuentes">{isEn ? "FAQ" : "Preguntas frecuentes"}</a></li>
               <li><a href="#contacto">{isEn ? "Contact" : "Contacto"}</a></li>
               <li><a href="/privacy">Privacy Policy</a></li>
               <li><a href="/terms">Terms & Conditions</a></li>

@@ -16,7 +16,10 @@ export default function GlobalChrome() {
     String(pathname || "").startsWith("/intelligence");
   const isStartApp = String(pathname || "").startsWith("/start");
   const isGeoEngine = String(pathname || "").startsWith("/geo");
-  const hideGlobalChrome = isAvanzaCrm || isWidgetRoute || isMetrocas || isStartApp || isGeoEngine || isGeoHost;
+  const isDigitalCard = String(pathname || "").startsWith("/sandra");
+  const isArabelaDemo = String(pathname || "").startsWith("/arabela-demo");
+  const isCieDemo = String(pathname || "").startsWith("/cie-demo");
+  const hideGlobalChrome = isAvanzaCrm || isWidgetRoute || isMetrocas || isStartApp || isGeoEngine || isDigitalCard || isArabelaDemo || isCieDemo || isGeoHost;
 
   useEffect(() => {
     if (typeof document === "undefined") return;

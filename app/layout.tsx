@@ -70,6 +70,9 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
+  other: {
+    "facebook-domain-verification": "xgjcyr2kje89rbrj4deannuscvuom8",
+  },
 };
 
 export default async function RootLayout({

@@ -11,6 +11,42 @@ export type BlogPost = {
 
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "como-elegir-modelos-ia-para-agentes-empresariales",
+    title: "Como elegir modelos de IA para agentes empresariales",
+    description:
+      "Criterios practicos para combinar capacidad, velocidad, costo y control al construir agentes que ejecutan procesos reales.",
+    date: "2026-08-10",
+    readTime: "7 min",
+    keyword: "modelos de IA",
+    sections: [
+      {
+        heading: "El mejor modelo depende de la tarea",
+        content:
+          "Un agente empresarial no necesita usar el modelo mas grande para cada paso. Clasificar una solicitud, extraer datos, consultar conocimiento y planear una accion tienen exigencias distintas. Una arquitectura responsable asigna cada tarea al modelo adecuado y reserva mayor capacidad para decisiones complejas.",
+      },
+      {
+        heading: "Evalua calidad, velocidad y control",
+        content:
+          "La seleccion debe basarse en pruebas con conversaciones, documentos y excepciones reales del negocio. Compara precision, latencia, costo por proceso, consistencia de formato, uso de herramientas y cumplimiento de reglas antes de llevar un modelo a produccion.",
+      },
+      {
+        heading: "Disena para cambiar de modelo",
+        content:
+          "La tecnologia evoluciona rapido. Separa prompts, herramientas, datos y evaluaciones del proveedor para poder probar nuevas opciones sin reconstruir toda la operacion. El valor sostenible esta en el proceso, el contexto y la medicion, no en depender de un solo modelo.",
+      },
+    ],
+    faq: [
+      {
+        q: "Debo usar siempre el modelo mas reciente?",
+        a: "No. Debes usar el modelo que cumpla los criterios de calidad, velocidad, seguridad y costo de cada tarea.",
+      },
+      {
+        q: "Como se valida un modelo antes de produccion?",
+        a: "Con un conjunto de casos reales, resultados esperados, limites de autonomia y metricas repetibles para comparar alternativas.",
+      },
+    ],
+  },
+  {
     slug: "ia-hipotecaria-para-calificar-leads",
     title: "IA hipotecaria para calificar leads en menos tiempo",
     description:

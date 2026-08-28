@@ -86,6 +86,9 @@ const Header = () => {
         { label: "Qualibotz", desc: isEn ? "Agent workspace and CRM experience." : "Workspace de agentes y experiencia CRM.", href: "/start" },
         { label: "BOTZ GEO", desc: isEn ? "AI visibility, audits and recommendation reports." : "Visibilidad IA, auditorias y reportes de recomendacion.", href: "/geo" },
         { label: "hotLead", desc: isEn ? "Lead intake, qualification and follow-up flows." : "Captura, calificacion y seguimiento de leads.", href: "/#caso-de-exito-hotlead" },
+        { label: "BOTZ Agents", desc: isEn ? "AI agents that sell, support and execute workflows." : "Agentes IA que venden, atienden y ejecutan workflows.", href: "https://www.botz.fyi/start/agents" },
+        { label: "RestaurantOS", desc: isEn ? "AI operations platform built for restaurants." : "Plataforma de operaciones con IA para restaurantes.", href: "https://restaurantos.botz.fyi/pricing" },
+        { label: "BOTZ Growth", desc: isEn ? "Social signals transformed into segmented growth." : "Senales sociales convertidas en crecimiento segmentado.", href: "/growth" },
       ],
     },
     {
@@ -103,22 +106,25 @@ const Header = () => {
       key: "industries",
       label: isEn ? "Industries" : "Industrias",
       eyebrow: isEn ? "Built for real operations" : "Para operaciones reales",
-      title: isEn ? "AI workflows for teams that need execution." : "Workflows IA para equipos que necesitan ejecucion.",
+      title: isEn ? "AI that adapts to the way every industry operates." : "IA que se adapta a la forma de operar de cada industria.",
       items: [
-        { label: isEn ? "Real Estate" : "Inmobiliaria", desc: isEn ? "AI agents for property leads and follow-up." : "Agentes IA para leads inmobiliarios y seguimiento.", href: "/agentes-ia-inmobiliaria" },
-        { label: isEn ? "Mortgage & Finance" : "Hipotecario y finanzas", desc: isEn ? "Lead qualification and commercial tracking." : "Calificacion de leads y seguimiento comercial.", href: "/ia-hipotecaria" },
-        { label: isEn ? "WhatsApp operations" : "Operaciones WhatsApp", desc: isEn ? "Customer intake and automated response flows." : "Ingreso de clientes y flujos de respuesta automatica.", href: "/bot-hipotecario-whatsapp" },
+        { label: isEn ? "Real Estate & Construction" : "Inmobiliaria y construccion", desc: isEn ? "Capture, qualify and follow up with buyers, sellers and investors." : "Captura, califica y da seguimiento a compradores, vendedores e inversionistas.", href: "/industrias/inmobiliaria-construccion", image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=900&q=82" },
+        { label: isEn ? "Finance, Mortgage & Insurance" : "Finanzas, hipotecas y seguros", desc: isEn ? "Validate prospects, documents and every commercial follow-up." : "Valida prospectos, documentos y cada seguimiento comercial.", href: "/industrias/finanzas-hipotecas-seguros", image: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=900&q=82" },
+        { label: isEn ? "Restaurants & Hospitality" : "Restaurantes y hospitalidad", desc: isEn ? "Automate reservations, orders, service and customer recovery." : "Automatiza reservas, pedidos, servicio y recuperacion de clientes.", href: "/industrias/restaurantes-hospitalidad", image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=82" },
+        { label: isEn ? "Professional Services & B2B" : "Servicios profesionales y B2B", desc: isEn ? "Connect CRM, AI agents and workflows that move every opportunity." : "Conecta CRM, agentes IA y workflows que mueven cada oportunidad.", href: "/industrias/servicios-profesionales-b2b", image: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&w=900&q=82" },
+        { label: isEn ? "Health & Wellness" : "Salud y bienestar", desc: isEn ? "Coordinate intake, appointments, reminders and patient service." : "Coordina admisiones, citas, recordatorios y atencion al paciente.", href: "/industrias/salud-bienestar", image: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=900&q=82" },
+        { label: isEn ? "E-commerce & Customer Care" : "E-commerce y atencion al cliente", desc: isEn ? "Turn conversations, orders and support into repeatable growth." : "Convierte conversaciones, pedidos y soporte en crecimiento recurrente.", href: "/industrias/ecommerce-atencion-cliente", image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=900&q=82" },
       ],
     },
     {
       key: "resources",
       label: isEn ? "Resources" : "Recursos",
-      eyebrow: isEn ? "Learn and compare" : "Aprende y compara",
-      title: isEn ? "Guides, cases and product paths for decision makers." : "Guias, casos y rutas de producto para decisores.",
+      eyebrow: isEn ? "Intelligence for decisions" : "Inteligencia para decidir",
+      title: isEn ? "Trends, cases and lessons to turn AI into real results." : "Tendencias, casos y aprendizajes para convertir la IA en resultados reales.",
       items: [
-        { label: "Blog", desc: isEn ? "Articles and market education from BOTZ." : "Articulos y educacion de mercado de BOTZ.", href: "/blog" },
-        { label: isEn ? "Success cases" : "Casos de exito", desc: isEn ? "Examples of BOTZ execution in action." : "Ejemplos de BOTZ ejecutando en accion.", href: "/#caso-de-exito-hook" },
-        { label: isEn ? "Pricing" : "Precios", desc: isEn ? "Explore plans and entry points." : "Explora planes y puntos de entrada.", href: "/pricing" },
+        { label: isEn ? "AI Insights" : "Insights de IA", desc: isEn ? "Models, agents, automation and relevant technology developments." : "Modelos, agentes, automatizacion y novedades tecnologicas relevantes.", href: "/blog" },
+        { label: isEn ? "Real results" : "Resultados reales", desc: isEn ? "Problems, solutions, metrics and lessons from real implementations." : "Problemas, soluciones, metricas y aprendizajes de implementaciones reales.", href: "/#caso-de-exito-hotlead" },
+        { label: isEn ? "Guides and trends" : "Guias y tendencias", desc: isEn ? "Comparisons and practical criteria for better AI decisions." : "Comparativas y criterios practicos para tomar mejores decisiones sobre IA.", href: "/blog#guias-y-tendencias" },
       ],
     },
     {
@@ -128,8 +134,7 @@ const Header = () => {
       title: isEn ? "A product company building enterprise AI operations." : "Una empresa de producto construyendo operaciones empresariales con IA.",
       items: [
         { label: isEn ? "About us" : "Sobre nosotros", desc: isEn ? "Who we are and how BOTZ works." : "Quienes somos y como trabaja BOTZ.", href: "/sobre-nosotros" },
-        { label: isEn ? "Contact" : "Contacto", desc: isEn ? "Talk with the BOTZ team." : "Habla con el equipo BOTZ.", href: "#contacto" },
-        { label: "Legal", desc: isEn ? "Privacy policy and terms." : "Politica de privacidad y terminos.", href: "/privacy" },
+        { label: isEn ? "Frequently asked questions" : "Preguntas frecuentes", desc: isEn ? "Implementation, integrations, security and support." : "Implementacion, integraciones, seguridad y soporte.", href: "/preguntas-frecuentes" },
       ],
     },
   ];
@@ -196,6 +201,21 @@ const Header = () => {
     setOpen(false);
     setOpenDropdown(null);
     setShowLangMenu(false);
+  };
+
+  const handleMegaItemClick = (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    const [targetPath, targetId] = href.split("#");
+    if (!targetId || targetPath !== pathname) {
+      closeMenu();
+      return;
+    }
+
+    event.preventDefault();
+    closeMenu();
+    window.history.pushState(null, "", href);
+    window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
   };
 
   const toggleMenu = () => {
@@ -340,7 +360,7 @@ const Header = () => {
       position: "fixed",
       top: 86,
       left: "50vw",
-      width: "min(920px, calc(100vw - 64px))",
+      width: name === "industries" ? "min(1120px, calc(100vw - 64px))" : "min(920px, calc(100vw - 64px))",
       transform: "translateX(-50%)",
       display: openDropdown === name ? "grid" : "none",
       gridTemplateColumns: "minmax(240px, 300px) minmax(0, 1fr)",
@@ -540,7 +560,7 @@ const Header = () => {
                 top: isMobileView ? 72 : undefined,
                 left: isMobileView ? 0 : undefined,
                 right: isMobileView ? 0 : undefined,
-                justifyContent: isMobileView ? undefined : "flex-end",
+                justifyContent: isMobileView ? "flex-start" : "flex-end",
                 width: isMobileView ? "100vw" : "auto",
                 maxWidth: isMobileView ? "100vw" : "calc(100% - 280px)",
                 flex: isMobileView ? undefined : "0 0 auto",
@@ -548,7 +568,7 @@ const Header = () => {
                 transformOrigin: "center",
                 minWidth: 0,
                 marginTop: 0,
-                alignItems: "center",
+                alignItems: isMobileView ? "stretch" : "center",
                 justifySelf: isMobileView ? "stretch" : "end",
                 visibility: "visible",
                 opacity: 1,
@@ -573,18 +593,22 @@ const Header = () => {
                   >
                     {menu.label} {isMobileView ? (openDropdown === menu.key ? "▴" : "▾") : ""}
                   </a>
-                  <div className="bz-mega-menu" onMouseEnter={() => handleDropdownHover(menu.key)} onMouseLeave={handleDropdownLeave} style={getMegaMenuStyle(menu.key)}>
+                  <div className={`bz-mega-menu ${menu.key === "industries" ? "bz-mega-menu--industries" : ""}`} onMouseEnter={() => handleDropdownHover(menu.key)} onMouseLeave={handleDropdownLeave} style={getMegaMenuStyle(menu.key)}>
                     <div className="bz-mega-feature">
                       <span>{menu.eyebrow}</span>
                       <strong>{menu.title}</strong>
                     </div>
                     <div className="bz-mega-items">
-                      {menu.items.map((item) => (
-                        <Link key={item.label} href={item.href} onClick={closeMenu} className="bz-mega-link">
-                          <span>{item.label}</span>
-                          <small>{item.desc}</small>
-                        </Link>
-                      ))}
+                      {menu.items.map((item) => {
+                        const image = "image" in item ? item.image : undefined;
+                        return (
+                          <Link key={item.label} href={item.href} onClick={(event) => handleMegaItemClick(event, item.href)} className={`bz-mega-link ${image ? "bz-mega-link--visual" : ""}`}>
+                            {image && <span className="bz-mega-link-image" style={{ backgroundImage: `linear-gradient(180deg, transparent 25%, rgba(4, 10, 22, 0.76)), url(${image})` }} aria-hidden="true" />}
+                            <span>{item.label}</span>
+                            <small>{item.desc}</small>
+                          </Link>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1422,6 +1446,38 @@ const Header = () => {
           text-decoration: none !important;
         }
 
+        .bz-mega-menu--industries .bz-mega-feature {
+          min-height: 100%;
+          background:
+            radial-gradient(circle at 20% 15%, rgba(34, 211, 238, 0.2), transparent 13rem),
+            linear-gradient(155deg, rgba(15, 48, 72, 0.9), rgba(8, 18, 41, 0.92));
+        }
+
+        .bz-main-nav .bz-mega-link--visual,
+        .bz-main-nav :global(.bz-mega-link--visual) {
+          display: flex !important;
+          min-height: 178px;
+          padding: 0 13px 13px !important;
+          align-content: initial;
+          flex-direction: column;
+        }
+
+        .bz-mega-link-image {
+          display: block;
+          width: calc(100% + 26px);
+          height: 78px;
+          flex: 0 0 78px;
+          margin: 0 -13px 10px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          background-position: center;
+          background-size: cover;
+          transition: transform 0.35s ease, filter 0.35s ease;
+        }
+
+        .bz-mega-link--visual:hover .bz-mega-link-image {
+          filter: saturate(1.14) brightness(1.06);
+        }
+
         @media (min-width: 769px) {
           .bz-mega-dropdown:hover .bz-mega-menu,
           .bz-mega-dropdown.open .bz-mega-menu {
@@ -1495,6 +1551,8 @@ const Header = () => {
             max-height: calc(100dvh - 88px) !important;
             background: linear-gradient(180deg, rgba(8, 18, 35, 0.98), rgba(6, 22, 36, 0.98)) !important;
             flex-direction: column !important;
+            justify-content: flex-start !important;
+            align-items: stretch !important;
             padding: 10px !important;
             border: 1px solid rgba(34, 211, 238, 0.22) !important;
             border-radius: 0 0 22px 22px !important;
@@ -1597,6 +1655,20 @@ const Header = () => {
             line-height: 1.3 !important;
             color: rgba(226, 242, 255, 0.62) !important;
           }
+          .bz-mega-menu--industries .bz-mega-items {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 7px !important;
+          }
+          .bz-main-nav .bz-mega-menu--industries .bz-mega-link--visual {
+            min-height: 148px !important;
+            padding: 0 9px 9px !important;
+          }
+          .bz-mega-menu--industries .bz-mega-link-image {
+            width: calc(100% + 18px);
+            height: 72px;
+            flex-basis: 72px;
+            margin: 0 -9px 8px;
+          }
           .bz-dropdown-content { position: static !important; display: none !important; width: 100% !important; }
           .bz-dropdown.open .bz-dropdown-content { display: flex !important; flex-direction: column !important; }
           .bz-dropdown-content a { font-size: 15px !important; padding: 10px 24px !important; }
@@ -1636,7 +1708,7 @@ const Header = () => {
             font-size: 13px !important;
             padding: 0 12px !important;
           }
-          .bz-mega-link small {
+          .bz-mega-menu--industries .bz-mega-link small {
             display: none !important;
           }
           .bz-main-nav .bz-mega-link {

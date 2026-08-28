@@ -51,76 +51,39 @@ const stepsEn = [
   }
 ];
 
-type DemoLine = { speaker: "cliente" | "bot"; text: string };
-
 const CALL_DEMOS_EN = [
   {
-    id: "reservas",
-    label: "Booking Agent",
-    title: "Sample conversation: reservation",
-    audioSrc: "/audio/demo-llamada-botz.mp3",
-    forceRealAudio: false,
-    script: [
-      { speaker: "cliente", text: "Hi, I want to book a table for tonight." },
-      { speaker: "bot", text: "Of course, happy to help. I can do this in under a minute. How many people is the reservation for?" },
-      { speaker: "cliente", text: "For four people at eight in the evening." },
-      { speaker: "bot", text: "Perfect. I have availability at eight or eight-thirty. Which do you prefer?" },
-      { speaker: "cliente", text: "Eight works great." },
-      { speaker: "bot", text: "Great. To confirm the booking, can you share your name and a contact number?" },
-      { speaker: "cliente", text: "Yes, Laura Gomez, number 300 555 0142." },
-      { speaker: "bot", text: "Perfect, Laura. Reservation confirmed for today at 8 PM, table for four. I will send the confirmation and location via WhatsApp." },
-      { speaker: "cliente", text: "Awesome, thanks." },
-      { speaker: "bot", text: "You are welcome. If you are delayed by more than fifteen minutes, please message us on this same channel so we can hold the table." },
-    ],
+    id: "discovering-botz",
+    label: "Discovering BOTZ",
+    title: "What BOTZ is and how it helps companies",
+    audioSrc: "/audio/audio/demo/que%20hace%20botz.wav",
+    duration: "2:34",
+    outcome: "Discovery scheduled",
+    eyebrow: "BOTZ overview",
     preview: [
-      { speaker: "Customer", text: "Hi, I want to book a table for today" },
-      { speaker: "BOTZ AI", text: "Perfect. For how many people and at what time would you like it?" },
-      { speaker: "Customer", text: "For 4 people at 8:00 pm" },
-      { speaker: "BOTZ AI", text: "Great. Can you share your name and phone number to confirm?" },
-      { speaker: "Customer", text: "Laura Gomez, 300 555 0142" },
-      { speaker: "BOTZ AI", text: "Done, reservation confirmed. I will send confirmation via WhatsApp." },
+      { speaker: "Operations Manager", text: "What does BOTZ actually do?" },
+      { speaker: "BOTZ AI", text: "BOTZ combines AI agents, CRM and workflow automation to execute repetitive work." },
+      { speaker: "Operations Manager", text: "Which process should we automate first?" },
+      { speaker: "BOTZ AI", text: "Start where delays, repeated steps or lost opportunities create the most friction." },
+      { speaker: "Operations Manager", text: "Our new leads sometimes wait hours for a response." },
+      { speaker: "BOTZ AI", text: "BOTZ can respond, qualify and route each opportunity immediately." },
     ],
   },
   {
-    id: "ventas",
-    label: "Sales Agent",
-    title: "Sample conversation: consultative sales",
-    audioSrc: "/audio/demos/ventas-real.mp3",
-    forceRealAudio: false,
-    script: [
-      { speaker: "cliente", text: "Hi, I want to automate WhatsApp for my sales team." },
-      { speaker: "bot", text: "Perfect. I will ask three quick questions to recommend the best option. How many leads do you receive per month?" },
-      { speaker: "cliente", text: "About twelve hundred leads from ads and referrals." },
-      { speaker: "bot", text: "Excellent. With that volume, Botz can respond, qualify and schedule automatically. I suggest a fifteen-minute demo today or tomorrow." },
-      { speaker: "cliente", text: "Tomorrow afternoon." },
-      { speaker: "bot", text: "Scheduled for tomorrow at 4 PM. I will send the invite and checklist via WhatsApp and email." },
-    ],
+    id: "purchase-orders",
+    label: "Purchase Order Automation",
+    title: "Finding and removing an approval bottleneck",
+    audioSrc: "/audio/audio/demo/Purchase%20Order%20Automation.wav",
+    duration: "2:32",
+    outcome: "Bottleneck removed",
+    eyebrow: "Process automation",
     preview: [
-      { speaker: "Customer", text: "I want to automate WhatsApp for sales" },
-      { speaker: "BOTZ AI", text: "Perfect. How many leads do you receive per month and which channel do you use most?" },
-      { speaker: "Customer", text: "Around 1200 leads per month" },
-      { speaker: "BOTZ AI", text: "With that volume, I recommend a 15-minute demo. I can schedule you today or tomorrow." },
-    ],
-  },
-  {
-    id: "soporte",
-    label: "Support Agent",
-    title: "Sample conversation: customer support",
-    audioSrc: "/audio/demos/soporte-real.mp3",
-    forceRealAudio: false,
-    script: [
-      { speaker: "cliente", text: "Hi, I placed an order and it has not arrived yet." },
-      { speaker: "bot", text: "I can help right away. Could you share your order number, please?" },
-      { speaker: "cliente", text: "Yes, it is order C R M dash three two one eight." },
-      { speaker: "bot", text: "Thanks. I checked it: it is in transit and arrives today between 4 and 6 PM. Do you want me to send the tracking link via WhatsApp?" },
-      { speaker: "cliente", text: "Yes, please." },
-      { speaker: "bot", text: "Done, sent. If it does not arrive in that time window, I will prioritize a human agent immediately." },
-    ],
-    preview: [
-      { speaker: "Customer", text: "My order has not arrived" },
-      { speaker: "BOTZ AI", text: "I can help. Can you share your order number?" },
-      { speaker: "Customer", text: "Order CRM-3218" },
-      { speaker: "BOTZ AI", text: "It is in transit and arrives today 4-6 PM. I will send tracking via WhatsApp." },
+      { speaker: "Procurement Manager", text: "Purchase orders can sit for three days without approval." },
+      { speaker: "BOTZ AI", text: "Requests enter incomplete and approvals depend on someone checking email." },
+      { speaker: "Procurement Manager", text: "We thought the procurement team was understaffed." },
+      { speaker: "BOTZ AI", text: "BOTZ validates each request, routes approval and escalates delays automatically." },
+      { speaker: "Procurement Manager", text: "Can managers still reject or request changes?" },
+      { speaker: "BOTZ AI", text: "Yes. Human control remains while repetitive checking and follow-up disappear." },
     ],
   },
 ] as const;
@@ -138,8 +101,10 @@ const CALL_DEMOS_ES = [
     id: "reservas",
     label: "Agente de reservas",
     title: "Conversacion ejemplo: reserva",
-    audioSrc: "/audio/demo-llamada-botz.mp3",
-    forceRealAudio: false,
+    audioSrc: "/audio/audio/demo/mesa%20para%204.wav",
+    duration: "0:27",
+    outcome: "Reserva confirmada",
+    eyebrow: "Hospitalidad",
     script: [
       { speaker: "cliente", text: "Hola, quiero reservar una mesa para esta noche." },
       { speaker: "bot", text: "Claro, con gusto. Te ayudo en menos de un minuto. Para cuantas personas seria la reserva?" },
@@ -165,8 +130,10 @@ const CALL_DEMOS_ES = [
     id: "ventas",
     label: "Agente de ventas",
     title: "Conversacion ejemplo: ventas consultiva",
-    audioSrc: "/audio/demos/ventas-real.mp3",
-    forceRealAudio: false,
+    audioSrc: "/audio/audio/demo/agenda%20botz.wav",
+    duration: "0:51",
+    outcome: "Demo agendada",
+    eyebrow: "Ventas",
     script: [
       { speaker: "cliente", text: "Hola, quiero automatizar WhatsApp para mi equipo comercial." },
       { speaker: "bot", text: "Perfecto. Te hago tres preguntas rapidas para recomendarte la mejor opcion. Cuantos leads reciben al mes?" },
@@ -186,8 +153,10 @@ const CALL_DEMOS_ES = [
     id: "soporte",
     label: "Agente de soporte",
     title: "Conversacion ejemplo: soporte al cliente",
-    audioSrc: "/audio/demos/soporte-real.mp3",
-    forceRealAudio: false,
+    audioSrc: "/audio/audio/demo/Soporte.wav",
+    duration: "2:11",
+    outcome: "Caso resuelto",
+    eyebrow: "Servicio al cliente",
     script: [
       { speaker: "cliente", text: "Hola, hice un pedido y todavia no me llega." },
       { speaker: "bot", text: "Te ayudo enseguida. Me compartes por favor tu numero de pedido?" },
@@ -203,31 +172,30 @@ const CALL_DEMOS_ES = [
       { speaker: "BOTZ IA", text: "Esta en ruta, llega hoy 4-6 PM. Te envio seguimiento por WhatsApp." },
     ],
   },
+  {
+    id: "procesos",
+    label: "Analista de procesos",
+    title: "Conversacion ejemplo: deteccion de cuello de botella",
+    audioSrc: "/audio/audio/demo/cotizacion.wav",
+    duration: "3:15",
+    outcome: "Cuello de botella encontrado",
+    eyebrow: "Operaciones",
+    script: [
+      { speaker: "cliente", text: "Las cotizaciones tardan hasta dos dias y estamos perdiendo clientes." },
+      { speaker: "bot", text: "Antes de automatizar, quiero identificar donde se detiene realmente el proceso." },
+      { speaker: "cliente", text: "Las solicitudes llegan incompletas y copiamos varias veces la misma informacion." },
+      { speaker: "bot", text: "Ese es el cuello de botella: reprocesos y solicitudes detenidas sin responsable ni alerta." },
+    ],
+    preview: [
+      { speaker: "Gerente", text: "Las cotizaciones tardan hasta dos dias" },
+      { speaker: "BOTZ IA", text: "El retraso comienza antes del precio: las solicitudes llegan incompletas" },
+      { speaker: "Gerente", text: "Pensabamos que necesitabamos contratar otra persona" },
+      { speaker: "BOTZ IA", text: "Primero eliminamos el reproceso y luego automatizamos la friccion exacta" },
+    ],
+  },
 ] as const;
 
-const pickBestVoice = (voices: SpeechSynthesisVoice[], role: "cliente" | "bot") => {
-  const score = (v: SpeechSynthesisVoice) => {
-    const name = String(v.name || "").toLowerCase();
-    const lang = String(v.lang || "").toLowerCase();
-    let s = 0;
-    if (/es-/.test(lang)) s += 30;
-    if (/es-mx|es-co|es-es|es-us/.test(lang)) s += 20;
-    if (/natural|neural|online/.test(name)) s += 40;
-    if (/microsoft|google/.test(name)) s += 18;
-    if (role === "bot" && /helena|elena|dalia|laura|isabella|sofia|lucia|maria/.test(name)) s += 14;
-    if (role === "cliente" && /pablo|jorge|carlos|diego|andres|mateo|sebastian/.test(name)) s += 12;
-    return s;
-  };
-
-  return [...voices].sort((a, b) => {
-    const byScore = score(b) - score(a);
-    if (byScore !== 0) return byScore;
-    return String(a.name || "").localeCompare(String(b.name || ""));
-  })[0] || null;
-};
-
 export default function FlujoEcommerce() {
-  const ALWAYS_SYNTHETIC_DEMO = true;
   const language = useBotzLanguage("en");
   const isEn = language === "en";
   const steps = isEn ? stepsEn : stepsEs;
@@ -236,115 +204,13 @@ export default function FlujoEcommerce() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioAvailabilityByDemo, setAudioAvailabilityByDemo] = useState<Record<string, boolean>>({});
   const [demoId, setDemoId] = useState<string>("reservas");
-  const [ttsVoiceUris, setTtsVoiceUris] = useState<{ client: string | null; bot: string | null }>({ client: null, bot: null });
+  const [progress, setProgress] = useState(0);
 
   const activeDemo = CALL_DEMOS.find((d) => d.id === demoId) || CALL_DEMOS[0];
   const hasRealAudio = audioAvailabilityByDemo[activeDemo.id] !== false;
-  const shouldForceDualTts = activeDemo.id === "reservas";
-
-  const getVoiceByUri = (uri: string | null): SpeechSynthesisVoice | null => {
-    if (!uri || typeof window === "undefined" || !("speechSynthesis" in window)) return null;
-    const voices = window.speechSynthesis.getVoices();
-    return voices.find((v) => v.voiceURI === uri) || null;
-  };
-
-  const selectStableVoices = () => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    const voices = window.speechSynthesis.getVoices();
-    if (!voices.length) return;
-    const esVoices = voices.filter((v) => String(v.lang || "").toLowerCase().startsWith("es"));
-    const pool = esVoices.length ? esVoices : voices;
-    const botVoice = pickBestVoice(pool, "bot");
-    const clientCandidates = pool.filter((v) => v.voiceURI !== botVoice?.voiceURI);
-    const clientVoice = pickBestVoice(clientCandidates.length ? clientCandidates : pool, "cliente");
-    setTtsVoiceUris({
-      client: clientVoice?.voiceURI || null,
-      bot: botVoice?.voiceURI || null,
-    });
-  };
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    selectStableVoices();
-    const synth = window.speechSynthesis;
-    const onVoicesChanged = () => {
-      if (!ttsVoiceUris.client && !ttsVoiceUris.bot) selectStableVoices();
-    };
-    synth.addEventListener("voiceschanged", onVoicesChanged);
-    return () => synth.removeEventListener("voiceschanged", onVoicesChanged);
-  }, [ttsVoiceUris.client, ttsVoiceUris.bot]);
-
-  const playSyntheticCall = () => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-
-    const synth = window.speechSynthesis;
-    const script = activeDemo.script;
-
-    setIsPlaying(true);
-    let index = 0;
-
-    const speakNext = () => {
-      if (index >= script.length) {
-        setIsPlaying(false);
-        return;
-      }
-
-      const line = script[index];
-      const utterance = new SpeechSynthesisUtterance(line.text);
-      utterance.lang = "es-ES";
-      utterance.rate = line.speaker === "bot" ? 0.94 : 1.0;
-      utterance.pitch = line.speaker === "bot" ? 0.82 : 1.03;
-      const botVoice = getVoiceByUri(ttsVoiceUris.bot);
-      const clientVoice = getVoiceByUri(ttsVoiceUris.client);
-      if (line.speaker === "bot" && botVoice) utterance.voice = botVoice;
-      if (line.speaker === "cliente" && clientVoice) utterance.voice = clientVoice;
-      utterance.onend = () => {
-        index += 1;
-        window.setTimeout(speakNext, 120);
-      };
-      utterance.onerror = () => {
-        setIsPlaying(false);
-      };
-      synth.speak(utterance);
-    };
-
-    synth.cancel();
-    speakNext();
-  };
-
   const toggleAudio = () => {
-    if (activeDemo.forceRealAudio && !hasRealAudio) {
-      setIsPlaying(false);
-      return;
-    }
-
-    if (shouldForceDualTts) {
-      if (typeof window !== "undefined" && "speechSynthesis" in window && isPlaying) {
-        window.speechSynthesis.cancel();
-        setIsPlaying(false);
-        return;
-      }
-      playSyntheticCall();
-      return;
-    }
-
-    if (ALWAYS_SYNTHETIC_DEMO && !hasRealAudio) {
-      if (typeof window !== "undefined" && "speechSynthesis" in window && isPlaying) {
-        window.speechSynthesis.cancel();
-        setIsPlaying(false);
-        return;
-      }
-      playSyntheticCall();
-      return;
-    }
-
     if (!hasRealAudio) {
-      if (typeof window !== "undefined" && "speechSynthesis" in window && isPlaying) {
-        window.speechSynthesis.cancel();
-        setIsPlaying(false);
-        return;
-      }
-      playSyntheticCall();
+      setIsPlaying(false);
       return;
     }
 
@@ -358,15 +224,17 @@ export default function FlujoEcommerce() {
   };
 
   useEffect(() => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
     setIsPlaying(false);
+    setProgress(0);
   }, [demoId]);
+
+  useEffect(() => {
+    setDemoId(isEn ? "discovering-botz" : "reservas");
+  }, [isEn]);
 
   return (
     <section style={{ margin: "54px 0 54px 0", padding: "0 1rem" }}>
@@ -417,106 +285,97 @@ export default function FlujoEcommerce() {
         ))}
       </div>
 
-      <div className="ecom-live" aria-label={isEn ? "Recorded call and stages" : "Llamada grabada y etapas"}>
-          <div className="ecom-live-head">
-          <div className="ecom-live-kicker">{isEn ? "Demo call + stage orchestration" : "Llamada demo + orquestacion por etapas"}</div>
-          <div className="ecom-live-sub">{isEn ? "Realistic conversation demos to showcase professional quality." : "Demos realistas de conversacion para mostrar calidad profesional."}</div>
+      <div className="ecom-live" aria-label={isEn ? "BOTZ voice conversations" : "Conversaciones de voz BOTZ"}>
+        <div className="ecom-live-head">
+          <div>
+            <div className="ecom-live-kicker">{isEn ? "Listen to BOTZ at work" : "Escucha a BOTZ trabajando"}</div>
+            <div className="ecom-live-sub">{isEn ? "Two real conversations. From the first request to a measurable outcome." : "Cuatro conversaciones reales. Desde la primera solicitud hasta un resultado medible."}</div>
+          </div>
+          <span className="ecom-live-badge"><i /> {isEn ? "Real recorded voices" : "Voces reales grabadas"}</span>
+        </div>
+
+        <div className="ecom-demo-tabs" role="tablist" aria-label={isEn ? "Choose a conversation" : "Elige una conversacion"} style={{ "--demo-count": CALL_DEMOS.length } as React.CSSProperties}>
+          {CALL_DEMOS.map((demo, index) => (
+            <button
+              key={demo.id}
+              type="button"
+              role="tab"
+              aria-selected={demo.id === activeDemo.id}
+              className={`ecom-demo-tab ${demo.id === activeDemo.id ? "active" : ""}`}
+              onClick={() => setDemoId(demo.id)}
+            >
+              <span className="ecom-demo-index">0{index + 1}</span>
+              <span><small>{demo.eyebrow}</small><strong>{demo.label}</strong></span>
+              <em>{demo.duration}</em>
+            </button>
+          ))}
         </div>
 
         <div className="ecom-call-scene">
-          <div className="ecom-contact-card">
-            <img src="/img/agent-icon.png" alt="Robot BOTZ" className="ecom-contact-photo" />
-            <div className="ecom-contact-name">{isEn ? "Botz Voice AI" : "Botz Voice IA"}</div>
-            <div className="ecom-contact-phone">+52 8900-9293</div>
-            <div className="ecom-contact-actions">
-              <span className="ok">📞</span>
-              <span className="end">☎️</span>
+          <div className={`ecom-voice-stage ${isPlaying ? "is-playing" : ""}`}>
+            <div className="ecom-stage-top">
+              <span className="ecom-stage-status"><i /> {isPlaying ? (isEn ? "Conversation playing" : "Conversacion en curso") : (isEn ? "Ready to listen" : "Lista para escuchar")}</span>
+              <span>{activeDemo.duration}</span>
             </div>
-          </div>
-
-          <div className="ecom-wave-wrap">
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-              <select
-                value={demoId}
-                onChange={(e) => setDemoId(e.target.value)}
-                style={{
-                  flex: "1 1 230px",
-                  minWidth: 200,
-                  maxWidth: 320,
-                  borderRadius: 10,
-                  border: "1px solid rgba(34,211,238,0.35)",
-                  background: "rgba(8,16,34,0.9)",
-                  color: "#dbeafe",
-                  padding: "9px 12px",
-                  fontWeight: 700,
-                }}
-              >
-                {CALL_DEMOS.map((d) => (
-                  <option key={d.id} value={d.id}>{d.label}</option>
-                ))}
-              </select>
-              <button className="ecom-audio-toggle" onClick={toggleAudio} style={{ marginBottom: 0, position: "static" }}>
-                 {isPlaying ? (isEn ? "Pause demo" : "Pausar demo") : (isEn ? `Listen to ${activeDemo.label.toLowerCase()}` : `Escuchar ${activeDemo.label.toLowerCase()}`)}
-              </button>
+            <div className="ecom-speakers" aria-hidden="true">
+              <div className="ecom-speaker client"><span>{isEn ? "Customer" : "Cliente"}</span><i /></div>
+              <div className="ecom-sound-bars">{Array.from({ length: 22 }, (_, i) => <i key={i} style={{ animationDelay: `${i * 55}ms` }} />)}</div>
+              <div className="ecom-speaker bot"><span>BOTZ IA</span><i /></div>
             </div>
-            {activeDemo.forceRealAudio && !hasRealAudio && (
-              <div style={{ color: "#fca5a5", fontSize: 12, fontWeight: 700, margin: "0 0 8px 2px" }}>
-                 {isEn ? "Real audio pending: upload a human+bot mp3 at" : "Audio real pendiente: carga un mp3 humano+bot en"} {activeDemo.audioSrc}
-              </div>
-            )}
-            <button className="ecom-play" onClick={toggleAudio} aria-label={isEn ? "Play call" : "Reproducir llamada"}>
+            <button className="ecom-play" onClick={toggleAudio} disabled={!hasRealAudio} aria-label={isPlaying ? (isEn ? "Pause conversation" : "Pausar conversacion") : (isEn ? "Play conversation" : "Reproducir conversacion")}>
               {isPlaying ? "❚❚" : "▶"}
             </button>
+            <div className="ecom-player-copy">
+              <small>{activeDemo.eyebrow}</small>
+              <strong>{activeDemo.title}</strong>
+            </div>
+            <input
+              className="ecom-progress"
+              type="range"
+              min="0"
+              max="100"
+              value={progress}
+              aria-label={isEn ? "Audio progress" : "Progreso del audio"}
+              style={{ "--audio-progress": `${progress}%` } as React.CSSProperties}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                const audio = audioRef.current;
+                if (audio && Number.isFinite(audio.duration)) audio.currentTime = (next / 100) * audio.duration;
+                setProgress(next);
+              }}
+            />
             <audio
               ref={audioRef}
               className="ecom-call-audio-hidden"
-              preload="none"
+              preload="metadata"
               src={activeDemo.audioSrc}
               onError={() => setAudioAvailabilityByDemo((prev) => ({ ...prev, [activeDemo.id]: false }))}
               onCanPlay={() => setAudioAvailabilityByDemo((prev) => ({ ...prev, [activeDemo.id]: true }))}
+              onTimeUpdate={(event) => {
+                const audio = event.currentTarget;
+                setProgress(audio.duration ? (audio.currentTime / audio.duration) * 100 : 0);
+              }}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
-              onEnded={() => setIsPlaying(false)}
+              onEnded={() => { setIsPlaying(false); setProgress(0); }}
             />
-            <svg className="ecom-wave-svg" viewBox="0 0 900 220" preserveAspectRatio="none" aria-hidden="true">
-              <defs>
-                <linearGradient id="ecom-wave-grad" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.6" />
-                  <stop offset="45%" stopColor="#22d3ee" stopOpacity="0.85" />
-                  <stop offset="100%" stopColor="#f0abfc" stopOpacity="0.62" />
-                </linearGradient>
-              </defs>
-              <path className="ecom-wave a" d="M0 120 C120 40, 220 45, 320 120 S520 195, 640 125 S820 50, 900 120" />
-              <path className="ecom-wave b" d="M0 130 C130 70, 230 80, 320 128 S520 170, 640 130 S820 80, 900 130" />
-              <path className="ecom-wave c" d="M0 115 C115 62, 220 70, 320 118 S520 165, 640 122 S820 62, 900 115" />
-            </svg>
+            {!hasRealAudio && <p className="ecom-audio-error">{isEn ? "Audio unavailable." : "Audio no disponible."}</p>}
           </div>
 
           <div className="ecom-details-card">
-            <div className="ecom-details-title">{activeDemo.title}</div>
-            {activeDemo.preview.map((line, idx) => (
-              <div key={`${line.speaker}-${idx}`} className="ecom-details-line">
-                <strong>{line.speaker}:</strong> "{line.text}"
-              </div>
-            ))}
+            <div className="ecom-details-head"><span>{isEn ? "Conversation highlights" : "Momentos clave"}</span><em>{activeDemo.outcome}</em></div>
+            <div className="ecom-transcript">
+              {activeDemo.preview.map((line, idx) => {
+                const isBot = line.speaker.includes("BOTZ");
+                return <div key={`${line.speaker}-${idx}`} className={`ecom-details-line ${isBot ? "bot" : "client"}`}><strong>{line.speaker}</strong><p>{line.text}</p></div>;
+              })}
+            </div>
+            {isEn && <p className="ecom-language-note">Original English audio and transcript</p>}
           </div>
         </div>
 
-        <div className="ecom-live-track" aria-hidden="true">
-          <svg className="ecom-live-svg" viewBox="0 0 1120 140" preserveAspectRatio="none">
-            <path className="ecom-live-path" d="M40 75 C 240 15, 380 15, 520 75 S 820 135, 940 75 S 1080 15, 1120 75" />
-          </svg>
-
-          <div className="ecom-live-bot bot-a" />
-          <div className="ecom-live-bot bot-b" />
-          <div className="ecom-live-bot bot-c" />
-        </div>
-
-        <div className="ecom-live-labels" aria-hidden="true">
-           <span>{isEn ? "Input" : "Entrada"}</span>
-           <span>{isEn ? "AI processing" : "Procesamiento IA"}</span>
-           <span>{isEn ? "Validation" : "Validacion"}</span>
-           <span>{isEn ? "Closing" : "Cierre"}</span>
+        <div className="ecom-outcome-strip" aria-label={isEn ? "Conversation stages" : "Etapas de la conversacion"}>
+          {[isEn ? "Listen" : "Escucha", isEn ? "Understand" : "Comprende", isEn ? "Act" : "Actua", activeDemo.outcome].map((label, index) => <div key={label} className={index === 3 ? "result" : ""}><span>0{index + 1}</span><strong>{label}</strong></div>)}
         </div>
       </div>
 

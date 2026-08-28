@@ -45,6 +45,7 @@ const Hero = () => {
       </div>
 
       <div className={styles.heroContent}>
+        <p className={styles.heroSlogan}>AUTOMATE. GROW. SCALE.</p>
         <h2 className={styles.heroTitle} style={{ fontSize: "48px", fontWeight: "bold", lineHeight: 1.2, color: "#fff", marginBottom: "20px" }}>
           <div style={{ marginBottom: "8px" }}>
             <TextRotator
