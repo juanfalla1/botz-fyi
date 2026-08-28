@@ -1,0 +1,524 @@
+{
+  "name": "BOTZ Job Hunter",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger - Every 1 Hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const roles = ['Project Manager','Senior Project Manager','Technical Project Manager','Product Owner','Technical Product Owner','Product Manager','Scrum Master','Delivery Manager','Implementation Manager','Program Manager','Agile roles','AI Project Manager','AI Product Manager','AI Project/Product roles'];\nconst locations = ['Canada','Colombia','Argentina','Mexico','Chile','Peru','Spain','LATAM','Worldwide Remote','remote Canada allowed','remote from Canada'];\nconst sources = ['LinkedIn Jobs','Indeed','Greenhouse','Lever','Workable','Ashby','GetOnBoard','Torre','company careers'];\nconst items = [];\nfor (const role of roles) {\n  for (const location of locations) {\n    const portalQuery = sources.map(source => `${role} ${location} ${source}`).join(' OR ');\n    items.push({\n      json: {\n        query: `${role} jobs ${location} remote (${portalQuery})`,\n        role,\n        location,\n        searched: 1\n      }\n    });\n  }\n}\nreturn items;"
+      },
+      "id": "build-search-queries",
+      "name": "JOB SEARCH - Build Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SEARCH_API_URL}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SEARCH_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={\n  \"q\": $json.query,\n  \"query\": $json.query,\n  \"role\": $json.role,\n  \"location\": $json.location,\n  \"num\": 10,\n  \"freshness\": \"day\"\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "search-api-request",
+      "name": "JOB SEARCH - Configurable Search API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -820,
+        0
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "function asArray(value) {\n  if (Array.isArray(value)) return value;\n  if (!value || typeof value !== 'object') return [];\n  return value.results || value.items || value.organic_results || value.webPages?.value || value.data || [];\n}\nfunction pick(obj, keys) {\n  for (const key of keys) {\n    if (obj && obj[key] !== undefined && obj[key] !== null && String(obj[key]).trim() !== '') return String(obj[key]).trim();\n  }\n  return '';\n}\nconst seen = new Set();\nconst out = [];\nfor (const item of items) {\n  const raw = item.json.body || item.json;\n  for (const result of asArray(raw)) {\n    const url = pick(result, ['url','link','href','job_url','apply_url']);\n    if (!url) continue;\n    let normalizedUrl;\n    try {\n      const parsed = new URL(url);\n      parsed.hash = '';\n      normalizedUrl = parsed.toString();\n    } catch {\n      continue;\n    }\n    if (seen.has(normalizedUrl)) continue;\n    seen.add(normalizedUrl);\n    out.push({ json: {\n      title: pick(result, ['title','name','job_title']) || 'Unknown title',\n      company: pick(result, ['company','company_name','organization']) || 'Unknown company',\n      url: normalizedUrl,\n      source: pick(result, ['source','displayLink','site','engine']) || new URL(normalizedUrl).hostname,\n      location: pick(result, ['location','job_location','formattedLocation']) || '',\n      snippet: pick(result, ['snippet','description','summary','content']) || ''\n    }});\n  }\n}\nreturn out;"
+      },
+      "id": "normalize-results",
+      "name": "NORMALIZE RESULTS - Deduplicate URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO job_hunter_jobs (title, company, url, source, location, status, found_at)\nVALUES (\n  '{{String($json.title || '').replace(/'/g, \"''\")}}',\n  '{{String($json.company || '').replace(/'/g, \"''\")}}',\n  '{{String($json.url || '').replace(/'/g, \"''\")}}',\n  '{{String($json.source || '').replace(/'/g, \"''\")}}',\n  '{{String($json.location || '').replace(/'/g, \"''\")}}',\n  'FOUND',\n  NOW()\n)\nON CONFLICT (url) DO NOTHING\nRETURNING *, '{{String($json.snippet || '').replace(/'/g, \"''\")}}' AS snippet;",
+        "options": {}
+      },
+      "id": "upsert-found-skip-existing",
+      "name": "DATABASE - Insert FOUND / Skip Existing URLs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -380,
+        0
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "function htmlToText(html) {\n  return String(html || '')\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/&amp;/g, '&')\n    .replace(/&lt;/g, '<')\n    .replace(/&gt;/g, '>')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\nconst out = [];\nfor (const item of items) {\n  const job = { ...item.json };\n  try {\n    const controller = new AbortController();\n    const timeout = setTimeout(() => controller.abort(), 25000);\n    const response = await fetch(job.url, { signal: controller.signal, headers: { 'User-Agent': 'BOTZ Job Hunter n8n workflow' } });\n    clearTimeout(timeout);\n    const body = await response.text();\n    const text = htmlToText(body);\n    job.full_job_text = text;\n    job.extraction_status = response.ok && text.length >= 1200 ? 'OK' : 'NEEDS_REVIEW';\n    if (!response.ok) job.extraction_error = `HTTP ${response.status}`;\n  } catch (error) {\n    job.full_job_text = '';\n    job.extraction_status = 'NEEDS_REVIEW';\n    job.extraction_error = error.message;\n  }\n  out.push({ json: job });\n}\nreturn out;"
+      },
+      "id": "extract-full-job",
+      "name": "EXTRACT FULL JOB - Read Full Description",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        0
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const englishTerms = [\n  /\\benglish\\b/i, /fluent\\s+english/i, /advanced\\s+english/i, /professional\\s+english/i, /business\\s+english/i, /english\\s+proficiency/i, /\\bbilingual\\b/i, /\\bA1\\b/i, /\\bA2\\b/i, /\\bB1\\b/i, /\\bB2\\b/i, /\\bC1\\b/i, /\\bC2\\b/i\n];\nconst negatedNoEnglish = /\\b(no|not|without|sin|no se requiere|no requiere|não requer)\\b.{0,30}\\benglish|ingl[eé]s\\b/i;\nconst out = [];\nfor (const item of items) {\n  const job = { ...item.json };\n  const text = String(job.full_job_text || '');\n  const lower = text.toLowerCase();\n  const evidence = [];\n  for (const pattern of englishTerms) {\n    const match = text.match(pattern);\n    if (!match) continue;\n    const index = Math.max(0, match.index - 120);\n    const excerpt = text.slice(index, Math.min(text.length, match.index + 180));\n    if (/no english required|english not required|sin ingl[eé]s|no requiere ingl[eé]s/i.test(excerpt)) continue;\n    evidence.push(excerpt.trim());\n  }\n  const fullChecked = job.extraction_status === 'OK' && text.length >= 1200;\n  job.english_prefilter_evidence = evidence;\n  job.english_required = evidence.length > 0;\n  job.english_preferred = /english.{0,40}(preferred|nice to have|deseable|preferido)|(?:preferred|deseable|preferido).{0,40}english/i.test(text);\n  job.bilingual_required = /\\bbilingual\\b|biling[uü]e/i.test(text) && !negatedNoEnglish.test(text);\n  job.english_level_found = (text.match(/\\b(A1|A2|B1|B2|C1|C2)\\b.{0,50}(english|ingl[eé]s)|(?:english|ingl[eé]s).{0,50}\\b(A1|A2|B1|B2|C1|C2)\\b/i) || [null])[0];\n  if (!fullChecked) {\n    job.prefilter_decision = 'NEEDS_REVIEW';\n  } else if (evidence.length || job.english_preferred || job.bilingual_required || job.english_level_found) {\n    job.prefilter_decision = 'REJECT';\n  } else {\n    job.prefilter_decision = 'CONTINUE';\n  }\n  job.english_certification = {\n    status: job.prefilter_decision === 'REJECT' ? 'ENGLISH_FOUND' : 'UNVERIFIED',\n    full_description_checked: fullChecked,\n    english_required: Boolean(job.english_required),\n    english_preferred: Boolean(job.english_preferred),\n    bilingual_required: Boolean(job.bilingual_required),\n    english_level_found: job.english_level_found || null,\n    evidence,\n    validator_1: null,\n    validator_2: null\n  };\n  out.push({ json: job });\n}\nreturn out;"
+      },
+      "id": "hard-prefilter",
+      "name": "HARD PRE-FILTER - Zero English Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        60,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "prefilter-continue",
+              "leftValue": "={{$json.prefilter_decision}}",
+              "rightValue": "CONTINUE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-ai-candidate",
+      "name": "IF - AI Validation Candidate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE job_hunter_jobs\nSET full_job_text = '{{String($json.full_job_text || '').replace(/'/g, \"''\")}}',\n    english_required = {{$json.english_required ? 'true' : 'false'}},\n    english_preferred = {{$json.english_preferred ? 'true' : 'false'}},\n    bilingual_required = {{$json.bilingual_required ? 'true' : 'false'}},\n    decision = 'FAIL',\n    validation_reason = '{{String($json.prefilter_decision === 'REJECT' ? 'Hard pre-filter found English/bilingual requirement or preference' : 'Full description unavailable or insufficient').replace(/'/g, \"''\")}}',\n    validation_evidence = '{{JSON.stringify($json.english_prefilter_evidence || []).replace(/'/g, \"''\")}}'::jsonb,\n    english_certification = '{{JSON.stringify($json.english_certification || {}).replace(/'/g, \"''\")}}'::jsonb,\n    extraction_status = '{{String($json.extraction_status || '').replace(/'/g, \"''\")}}',\n    status = CASE WHEN '{{String($json.prefilter_decision)}}' = 'REJECT' THEN 'REJECTED' ELSE 'NEEDS_REVIEW' END,\n    validated_at = NOW()\nWHERE url = '{{String($json.url || '').replace(/'/g, \"''\")}}'\nRETURNING *;",
+        "options": {}
+      },
+      "id": "persist-pre-ai-closed",
+      "name": "DATABASE - Persist Rejected or Needs Review",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        520,
+        220
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://{{$env.GOOGLE_CLOUD_LOCATION}}-aiplatform.googleapis.com/v1/projects/{{$env.GOOGLE_CLOUD_PROJECT}}/locations/{{$env.GOOGLE_CLOUD_LOCATION}}/reasoningEngines/{{$env.GOOGLE_AGENT_ID}}:query",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={\n  \"input\": {\n    \"title\": $json.title,\n    \"company\": $json.company,\n    \"url\": $json.url,\n    \"location\": $json.location,\n    \"full_job_text\": $json.full_job_text\n  }\n}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json",
+              "outputPropertyName": "validator_1_raw"
+            }
+          }
+        }
+      },
+      "id": "google-agent-validator",
+      "name": "GOOGLE AGENT VALIDATOR - BOTZ Job Validator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        -120
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "function responseOf(item) {\n  const j = item.json;\n  return j.validator_1_raw || j.output || j.response || j.body || j;\n}\nfunction parseMaybe(value) {\n  if (typeof value === 'string') {\n    try { return JSON.parse(value); } catch { return { decision: 'FAIL', reason: value }; }\n  }\n  return value || {};\n}\nreturn items.map(item => {\n  const job = { ...item.json };\n  const raw = parseMaybe(responseOf(item));\n  const candidate = raw.decision ? raw : raw.output || raw.result || raw.response || raw.content || {};\n  job.validator_1 = parseMaybe(candidate);\n  job.english_certification = job.english_certification || {};\n  job.english_certification.validator_1 = job.validator_1.decision || 'FAIL';\n  return { json: job };\n});"
+      },
+      "id": "normalize-validator-1",
+      "name": "NORMALIZE - Validator 1 Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SECOND_VALIDATOR_URL}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SECOND_VALIDATOR_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={\n  \"task\": \"independent_job_validation_zero_english_fail_closed\",\n  \"job\": {\n    \"title\": $json.title,\n    \"company\": $json.company,\n    \"url\": $json.url,\n    \"location\": $json.location,\n    \"full_job_text\": $json.full_job_text\n  },\n  \"required_output\": {\n    \"decision\": \"PASS|FAIL\",\n    \"english_required\": false,\n    \"english_preferred\": false,\n    \"bilingual_required\": false,\n    \"canada_allowed\": true,\n    \"remote\": true,\n    \"active\": true,\n    \"role_match\": 0,\n    \"english_certification\": {\n      \"status\": \"CERTIFIED_NO_ENGLISH|ENGLISH_FOUND|UNVERIFIED\",\n      \"full_description_checked\": true,\n      \"english_required\": false,\n      \"english_preferred\": false,\n      \"bilingual_required\": false,\n      \"english_level_found\": null,\n      \"evidence\": []\n    }\n  }\n}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json",
+              "outputPropertyName": "validator_2_raw"
+            }
+          }
+        }
+      },
+      "id": "second-ai-validator",
+      "name": "SECOND VALIDATION - Configurable AI Validator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        -120
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "function parseMaybe(value) {\n  if (typeof value === 'string') {\n    try { return JSON.parse(value); } catch { return { decision: 'FAIL', reason: value }; }\n  }\n  return value || {};\n}\nfunction unwrap(value) {\n  const raw = parseMaybe(value);\n  return raw.decision ? raw : parseMaybe(raw.output || raw.result || raw.response || raw.content || raw.body || raw);\n}\nreturn items.map(item => {\n  const job = { ...item.json };\n  const v1 = unwrap(job.validator_1);\n  const v2 = unwrap(job.validator_2_raw || job.output || job.response || job.body);\n  const c1 = v1.english_certification || {};\n  const c2 = v2.english_certification || {};\n  const fullChecked = c1.full_description_checked === true && c2.full_description_checked === true && job.extraction_status === 'OK';\n  const noEnglish = c1.status === 'CERTIFIED_NO_ENGLISH' && c2.status === 'CERTIFIED_NO_ENGLISH' &&\n    c1.english_required === false && c2.english_required === false &&\n    c1.english_preferred === false && c2.english_preferred === false &&\n    c1.bilingual_required === false && c2.bilingual_required === false &&\n    !c1.english_level_found && !c2.english_level_found;\n  const validatorsAgree = v1.decision === v2.decision;\n  const passCore = v1.decision === 'PASS' && v2.decision === 'PASS' &&\n    v1.english_required === false && v2.english_required === false &&\n    v1.canada_allowed === true && v2.canada_allowed === true &&\n    v1.remote === true && v2.remote === true &&\n    v1.active === true && v2.active === true &&\n    Number(v1.role_match || 0) >= 75 && Number(v2.role_match || 0) >= 75;\n  const certifiedReady = passCore && fullChecked && noEnglish && validatorsAgree;\n  job.validator_1 = v1;\n  job.validator_2 = v2;\n  job.english_required = Boolean(v1.english_required || v2.english_required || !noEnglish);\n  job.english_preferred = Boolean(c1.english_preferred || c2.english_preferred);\n  job.bilingual_required = Boolean(c1.bilingual_required || c2.bilingual_required);\n  job.canada_allowed = v1.canada_allowed === true && v2.canada_allowed === true;\n  job.remote = v1.remote === true && v2.remote === true;\n  job.active = v1.active === true && v2.active === true;\n  job.role_match = Math.min(Number(v1.role_match || 0), Number(v2.role_match || 0));\n  job.decision = certifiedReady ? 'PASS' : (validatorsAgree ? 'FAIL' : 'NEEDS_REVIEW');\n  job.validation_reason = certifiedReady ? 'Passed both validators with certified no-English requirement' : (!validatorsAgree ? 'Validators did not agree' : (v1.reason || v2.reason || 'Fail-closed validation failed'));\n  job.validation_evidence = [...(Array.isArray(v1.evidence) ? v1.evidence : []), ...(Array.isArray(v2.evidence) ? v2.evidence : []), ...(Array.isArray(c1.evidence) ? c1.evidence : []), ...(Array.isArray(c2.evidence) ? c2.evidence : [])];\n  job.english_certification = {\n    status: certifiedReady ? 'CERTIFIED_NO_ENGLISH' : ((c1.status === 'ENGLISH_FOUND' || c2.status === 'ENGLISH_FOUND') ? 'ENGLISH_FOUND' : 'UNVERIFIED'),\n    full_description_checked: fullChecked,\n    english_required: Boolean(v1.english_required || v2.english_required || c1.english_required || c2.english_required),\n    english_preferred: Boolean(c1.english_preferred || c2.english_preferred),\n    bilingual_required: Boolean(c1.bilingual_required || c2.bilingual_required),\n    english_level_found: c1.english_level_found || c2.english_level_found || null,\n    evidence: job.validation_evidence,\n    validator_1: v1.decision || 'FAIL',\n    validator_2: v2.decision || 'FAIL'\n  };\n  job.status = certifiedReady ? 'READY_TO_APPLY' : (job.english_certification.status === 'ENGLISH_FOUND' ? 'REJECTED' : 'NEEDS_REVIEW');\n  return { json: job };\n});"
+      },
+      "id": "final-decision",
+      "name": "FAIL CLOSED - Final Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE job_hunter_jobs\nSET full_job_text = '{{String($json.full_job_text || '').replace(/'/g, \"''\")}}',\n    english_required = {{$json.english_required ? 'true' : 'false'}},\n    english_preferred = {{$json.english_preferred ? 'true' : 'false'}},\n    bilingual_required = {{$json.bilingual_required ? 'true' : 'false'}},\n    canada_allowed = {{$json.canada_allowed ? 'true' : 'false'}},\n    remote = {{$json.remote ? 'true' : 'false'}},\n    active = {{$json.active ? 'true' : 'false'}},\n    role_match = {{Number($json.role_match || 0)}},\n    decision = '{{String($json.decision || '').replace(/'/g, \"''\")}}',\n    validation_reason = '{{String($json.validation_reason || '').replace(/'/g, \"''\")}}',\n    validation_evidence = '{{JSON.stringify($json.validation_evidence || []).replace(/'/g, \"''\")}}'::jsonb,\n    english_certification = '{{JSON.stringify($json.english_certification || {}).replace(/'/g, \"''\")}}'::jsonb,\n    extraction_status = '{{String($json.extraction_status || '').replace(/'/g, \"''\")}}',\n    status = '{{String($json.status || 'NEEDS_REVIEW').replace(/'/g, \"''\")}}',\n    validated_at = NOW()\nWHERE url = '{{String($json.url || '').replace(/'/g, \"''\")}}'\nRETURNING *;",
+        "options": {}
+      },
+      "id": "persist-final",
+      "name": "DATABASE - Persist Final Decision",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1400,
+        -120
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => ({ json: { ...item.json, apply_phase_2_placeholder: true, note: 'PLAYWRIGHT APPLY - PHASE 2. Auto-apply is intentionally not implemented in this version.' } }));"
+      },
+      "id": "playwright-apply-phase-2",
+      "name": "PLAYWRIGHT APPLY - PHASE 2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1620,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "merge-processed",
+      "name": "MERGE - Processed Jobs",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1840,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const report = { searched: items.length, new_jobs: items.length, rejected: 0, validated: 0, ready_to_apply: 0, needs_review: 0, errors: 0 };\nfor (const item of items) {\n  const status = item.json.status;\n  if (status === 'REJECTED') report.rejected += 1;\n  if (status === 'VALIDATED') report.validated += 1;\n  if (status === 'READY_TO_APPLY') { report.ready_to_apply += 1; report.validated += 1; }\n  if (status === 'NEEDS_REVIEW') report.needs_review += 1;\n  if (status === 'ERROR' || item.json.error || item.json.extraction_error) report.errors += 1;\n}\nreturn [{ json: report }];"
+      },
+      "id": "execution-report",
+      "name": "OUTPUT / REPORT - Execution Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        40
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger - Every 1 Hour": {
+      "main": [
+        [
+          {
+            "node": "JOB SEARCH - Build Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JOB SEARCH - Build Queries": {
+      "main": [
+        [
+          {
+            "node": "JOB SEARCH - Configurable Search API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JOB SEARCH - Configurable Search API": {
+      "main": [
+        [
+          {
+            "node": "NORMALIZE RESULTS - Deduplicate URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NORMALIZE RESULTS - Deduplicate URLs": {
+      "main": [
+        [
+          {
+            "node": "DATABASE - Insert FOUND / Skip Existing URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DATABASE - Insert FOUND / Skip Existing URLs": {
+      "main": [
+        [
+          {
+            "node": "EXTRACT FULL JOB - Read Full Description",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXTRACT FULL JOB - Read Full Description": {
+      "main": [
+        [
+          {
+            "node": "HARD PRE-FILTER - Zero English Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HARD PRE-FILTER - Zero English Gate": {
+      "main": [
+        [
+          {
+            "node": "IF - AI Validation Candidate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - AI Validation Candidate": {
+      "main": [
+        [
+          {
+            "node": "GOOGLE AGENT VALIDATOR - BOTZ Job Validator",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DATABASE - Persist Rejected or Needs Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DATABASE - Persist Rejected or Needs Review": {
+      "main": [
+        [
+          {
+            "node": "MERGE - Processed Jobs",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "GOOGLE AGENT VALIDATOR - BOTZ Job Validator": {
+      "main": [
+        [
+          {
+            "node": "NORMALIZE - Validator 1 Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NORMALIZE - Validator 1 Response": {
+      "main": [
+        [
+          {
+            "node": "SECOND VALIDATION - Configurable AI Validator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SECOND VALIDATION - Configurable AI Validator": {
+      "main": [
+        [
+          {
+            "node": "FAIL CLOSED - Final Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAIL CLOSED - Final Decision": {
+      "main": [
+        [
+          {
+            "node": "DATABASE - Persist Final Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DATABASE - Persist Final Decision": {
+      "main": [
+        [
+          {
+            "node": "PLAYWRIGHT APPLY - PHASE 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PLAYWRIGHT APPLY - PHASE 2": {
+      "main": [
+        [
+          {
+            "node": "MERGE - Processed Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MERGE - Processed Jobs": {
+      "main": [
+        [
+          {
+            "node": "OUTPUT / REPORT - Execution Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "versionId": "b4af7df3-0e09-4b56-9b63-1e875de63d5f"
+}
