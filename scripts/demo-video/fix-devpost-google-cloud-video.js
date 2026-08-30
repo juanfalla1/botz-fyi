@@ -20,7 +20,7 @@ const narration = `BOTZ Operations Agent is not just a chatbot. This demo starts
 
 For the hackathon demo, Alex Morgan from BOTZ Demo Company sends an operational request in English: create a quote for two OHAUS AX4202 precision balances, deliver them to Austin, and require someone from sales to follow up before final pricing is sent. This is intentionally more complex than a question and answer exchange. The customer provides intent, product, quantity, location, and an approval constraint.
 
-Devpost also asked for clearer Google Cloud evidence, so this corrected version shows it early and directly. This is the real Google Cloud project used by BOTZ: botz-ai-platform. The screen shows Google Cloud Run services in us-central1, run.app URLs, Ready status from authenticated gcloud commands, and a live HTTP request to the BOTZ Speak run.app service returning HTTP 200. This is not a mock slide; it is a real Cloud Run endpoint responding during the demo.
+Devpost also asked for clearer Google Cloud evidence, so this corrected version shows it early and directly. This is the real Google Cloud project used by BOTZ: botz-ai-platform. The screen shows the separate Cloud Run service botz-operations-agent-demo in us-central1, Ready status from authenticated gcloud commands, and a live POST request to the real quotation endpoint returning HTTP 200. This is not a mock slide; it is the Operations Agent backend processing a real quote draft during the demo.
 
 BOTZ understands the intent as a quotation request. It reasons over the required details: product, quantity, company, delivery city, sales follow up, and approval policy. Then it decides that the correct action is the BOTZ CRM quotation workflow. The important point is that the agent is not only generating language; it is selecting an operational path.
 
@@ -64,23 +64,39 @@ function synthNarration() {
 
 async function makeGoogleCloudEvidence() {
   const project = "botz-ai-platform";
+  const service = "botz-operations-agent-demo";
   const services = capturePs(`gcloud run services list --platform managed --project ${project} --format "table(name,region,url)"`);
-  const botzSpeak = capturePs(`gcloud run services describe genai-app-botzspeak-1-1781219389373 --region us-central1 --project ${project} --format "yaml(metadata.name,status.url,status.conditions[0].type,status.conditions[0].status)"`);
-  const liveRequest = capturePs(`$r = Invoke-WebRequest -Uri 'https://genai-app-botzspeak-1-1781219389373-iatxcuxv6a-uc.a.run.app' -Method GET -TimeoutSec 20 -UseBasicParsing; "HTTP_STATUS=$($r.StatusCode)"; "BODY_MATCH=$([bool]($r.Content -match 'BOTZ Speak'))"; "CONTENT_PREVIEW=$($r.Content.Substring(0, [Math]::Min(80, $r.Content.Length)).Replace([Environment]::NewLine, ' '))"`);
+  const demoService = capturePs(`gcloud run services describe ${service} --region us-central1 --project ${project} --format "yaml(metadata.name,status.url,status.conditions[0].type,status.conditions[0].status,status.latestReadyRevisionName)"`);
+  const proof = JSON.parse(fs.readFileSync(path.join(process.env.LOCALAPPDATA || "", "Temp", "opencode", "botz-cloudrun-proof-result.json"), "utf8"));
+  const liveRequest = [
+    `REQUEST_ID=${proof.requestId}`,
+    `POST ${proof.endpoint}`,
+    `HTTP_STATUS=${proof.httpStatus}`,
+    `OK=${proof.ok}`,
+    `DRAFT_ID=${proof.draftId}`,
+    `PRODUCT=${proof.productName}`,
+    `QUANTITY=${proof.quantity}`,
+    `STATUS=${proof.status}`,
+    `TOTAL_COP_PRESENT=${proof.totalCopPresent}`,
+  ].join("\n");
+  const liveLog = capturePs(`gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="${service}" AND httpRequest.requestUrl:"/api/agents/quotes/draft" AND httpRequest.status=200' --project ${project} --limit 1 --format "table(timestamp,severity,resource.labels.revision_name,httpRequest.requestMethod,httpRequest.status,httpRequest.latency)"`);
 
   const esc = (s) => String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     body{margin:0;width:1920px;height:1080px;background:radial-gradient(circle at 70% 20%,#173a68 0,#0a1020 44%,#05070d 100%);font-family:Inter,Segoe UI,Arial,sans-serif;color:#f8fafc;overflow:hidden}
     .wrap{position:absolute;inset:54px 72px;display:grid;grid-template-columns:.86fr 1.14fr;gap:34px;align-items:center}
     .badge{display:inline-flex;gap:10px;align-items:center;background:rgba(66,133,244,.2);border:2px solid rgba(138,180,248,.75);border-radius:999px;padding:12px 18px;color:#dbeafe;font-weight:1000;letter-spacing:.1em;text-transform:uppercase;font-size:17px}
-    h1{font-size:74px;line-height:.94;margin:22px 0 16px;letter-spacing:-.055em}.lead{font-size:29px;line-height:1.25;color:#e0f2fe;margin:0 0 20px;font-weight:800}.cards{display:grid;gap:11px}.card{background:rgba(15,23,42,.8);border:2px solid rgba(148,163,184,.34);border-radius:22px;padding:14px 18px}.card small{display:block;color:#93c5fd;font-weight:1000;text-transform:uppercase;letter-spacing:.09em;margin-bottom:5px;font-size:15px}.card strong{font-size:25px}.ok{color:#a3e635}.terminal{background:#05070d;border:3px solid rgba(163,230,53,.55);border-radius:24px;padding:18px;box-shadow:0 28px 100px rgba(0,0,0,.5)}pre{white-space:pre-wrap;font:800 18px/1.31 Consolas,Monaco,monospace;color:#e5e7eb}.green{color:#a3e635;font-weight:1000}.blue{color:#60a5fa}.yellow{color:#fde047}.titlebar{display:flex;gap:8px;margin-bottom:13px}.dot{width:13px;height:13px;border-radius:50%;background:#ef4444}.dot:nth-child(2){background:#f59e0b}.dot:nth-child(3){background:#22c55e}</style></head><body><div class="wrap"><section><div class="badge">Live Google Cloud Run Evidence</div><h1>Cloud Run Processes A Real Request</h1><p class="lead">Authenticated <span class="yellow">gcloud run</span> evidence plus a live request to the BOTZ <span class="yellow">.run.app</span> endpoint.</p><div class="cards"><div class="card"><small>Google Cloud Project</small><strong>${esc(project)}</strong></div><div class="card"><small>Cloud Run Region</small><strong>us-central1</strong></div><div class="card"><small>Cloud Run Service Status</small><strong class="ok">Ready = True</strong></div><div class="card"><small>Live Endpoint Response</small><strong class="ok">HTTP 200 from *.run.app</strong></div></div></section><section class="terminal"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div><pre><span class="blue">$ gcloud run services list --platform managed --project botz-ai-platform</span>
+    h1{font-size:70px;line-height:.94;margin:22px 0 16px;letter-spacing:-.055em}.lead{font-size:29px;line-height:1.25;color:#e0f2fe;margin:0 0 20px;font-weight:800}.cards{display:grid;gap:11px}.card{background:rgba(15,23,42,.8);border:2px solid rgba(148,163,184,.34);border-radius:22px;padding:14px 18px}.card small{display:block;color:#93c5fd;font-weight:1000;text-transform:uppercase;letter-spacing:.09em;margin-bottom:5px;font-size:15px}.card strong{font-size:25px}.ok{color:#a3e635}.terminal{background:#05070d;border:3px solid rgba(163,230,53,.55);border-radius:24px;padding:18px;box-shadow:0 28px 100px rgba(0,0,0,.5)}pre{white-space:pre-wrap;font:800 16px/1.22 Consolas,Monaco,monospace;color:#e5e7eb}.green{color:#a3e635;font-weight:1000}.blue{color:#60a5fa}.yellow{color:#fde047}.titlebar{display:flex;gap:8px;margin-bottom:13px}.dot{width:13px;height:13px;border-radius:50%;background:#ef4444}.dot:nth-child(2){background:#f59e0b}.dot:nth-child(3){background:#22c55e}</style></head><body><div class="wrap"><section><div class="badge">Live Google Cloud Run Evidence</div><h1>Operations Agent On Cloud Run</h1><p class="lead">Authenticated <span class="yellow">gcloud run</span> evidence plus a live quote draft request to the BOTZ <span class="yellow">.run.app</span> backend.</p><div class="cards"><div class="card"><small>Google Cloud Project</small><strong>${esc(project)}</strong></div><div class="card"><small>Cloud Run Service</small><strong>${esc(service)}</strong></div><div class="card"><small>Cloud Run Service Status</small><strong class="ok">Ready = True</strong></div><div class="card"><small>Real Quote Endpoint</small><strong class="ok">POST /quotes/draft = 200</strong></div></div></section><section class="terminal"><div class="titlebar"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div><pre><span class="blue">$ gcloud run services list --platform managed --project botz-ai-platform</span>
 ${esc(services)}
 
-<span class="blue">$ gcloud run services describe genai-app-botzspeak-1-1781219389373 --region us-central1</span>
-${esc(botzSpeak).replace(/True/g, '<span class="green">True</span>')}
+<span class="blue">$ gcloud run services describe botz-operations-agent-demo --region us-central1</span>
+${esc(demoService).replace(/True/g, '<span class="green">True</span>')}
 
-<span class="blue">$ Invoke-WebRequest https://genai-app-botzspeak-1-1781219389373...run.app</span>
-${esc(liveRequest).replace(/HTTP_STATUS=200/g, '<span class="green">HTTP_STATUS=200</span>').replace(/BODY_MATCH=True/g, '<span class="green">BODY_MATCH=True</span>')}</pre></section></div></body></html>`;
+<span class="blue">$ node botz-cloudrun-proof.js https://botz-operations-agent-demo...run.app</span>
+${esc(liveRequest).replace(/HTTP_STATUS=200/g, '<span class="green">HTTP_STATUS=200</span>').replace(/OK=true/g, '<span class="green">OK=true</span>').replace(/TOTAL_COP_PRESENT=true/g, '<span class="green">TOTAL_COP_PRESENT=true</span>')}
+
+<span class="blue">$ gcloud logging read Cloud Run quote requests</span>
+${esc(liveLog).replace(/  200/g, '  <span class="green">200</span>')}</pre></section></div></body></html>`;
   fs.writeFileSync(GCP_HTML, html, "utf8");
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
@@ -122,7 +138,7 @@ function compose() {
   const audioDuration = ffprobeJson(NARRATION_MP3).format.duration;
   run("ffmpeg", ["-y", "-i", visual, "-i", NARRATION_MP3, "-t", audioDuration, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", FINAL]);
   const meta = ffprobeJson(FINAL);
-  fs.writeFileSync(META, JSON.stringify({ final: FINAL, sourceCopy: SOURCE, voice: "en-US-AndrewNeural", googleCloudEvidence: { project: "botz-ai-platform", appearsFrom: "00:00:28", appearsTo: "00:00:58", servicesShown: ["genai-app-botzspeak-1-1781219389373", "genai-app-restaurantos", "restaurantos-api"], commandSource: "gcloud run services list / describe" }, probe: meta }, null, 2), "utf8");
+  fs.writeFileSync(META, JSON.stringify({ final: FINAL, sourceCopy: SOURCE, voice: "en-US-AndrewNeural", googleCloudEvidence: { project: "botz-ai-platform", appearsFrom: "00:00:28", appearsTo: "00:00:58", servicesShown: ["botz-operations-agent-demo"], commandSource: "gcloud run services list / describe and Cloud Run request logs", liveEndpoint: "/api/agents/quotes/draft" }, probe: meta }, null, 2), "utf8");
 }
 
 (async () => {

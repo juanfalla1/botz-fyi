@@ -1,0 +1,30 @@
+.git
+.next
+node_modules
+npm-debug.log*
+.env
+.env.*
+artifacts
+coverage
+playwright-report
+test-results
+*.local
+.venv-faceswap
+.vercel
+output
+remotion-reels
+firecrawl_outputs
+tmp
+demo-output
+juan personal
+botz_geo_engine_frontend_pack
+.opencode.bak
+GRM
+smartdeals-ca
+amazon-product-scraper
+assets
+docs
+reports
+investor-deck
+Videos Marketing
+arabela
