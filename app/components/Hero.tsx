@@ -7,7 +7,7 @@ import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
 const Hero = () => {
   const [showModal, setShowModal] = useState(false);
-  const language = useBotzLanguage("en");
+  const language = useBotzLanguage("es");
   const t = language === "en"
     ? {
         title: "that transform your business",
