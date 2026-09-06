@@ -126,7 +126,7 @@ export const industries: Record<string, IndustryData> = {
         title: "Precalifica, documenta y da seguimiento sin friccion.",
         intro: "BOTZ organiza solicitudes, valida informacion y mantiene a clientes y asesores alineados en procesos donde la velocidad y la confianza son decisivas.",
         badge: "Expedientes y seguimiento sincronizados",
-        primaryCta: "Disenar mi flujo financiero",
+        primaryCta: "Diseñar mi flujo financiero",
         secondaryCta: "Ver el flujo",
         challengeEyebrow: "MAS CONTROL, MENOS ESPERA",
         challengeTitle: "Una experiencia clara para el cliente y una operacion trazable para el equipo.",

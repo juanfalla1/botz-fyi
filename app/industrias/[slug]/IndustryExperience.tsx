@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -19,6 +20,7 @@ import {
 import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 import type { IndustryData } from "./industryData";
 import styles from "./industry.module.css";
+import FlowBuilderModal from "./FlowBuilderModal";
 
 const capabilityIcons = [Radar, Bot, ClipboardCheck];
 const flowIcons = [MessageSquareText, Target, Layers3, Workflow, Gauge];
@@ -27,7 +29,9 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
   const language = useBotzLanguage("es");
   const content = language === "en" ? industry.copy.en : industry.copy.es;
   const restaurant = industry.slug === "restaurantes-hospitalidad";
+  const finanzas = industry.slug === "finanzas-hipotecas-seguros";
   const primaryHref = restaurant ? "https://restaurantos.botz.fyi/pricing" : "https://www.botz.fyi/#contacto";
+  const [builderOpen, setBuilderOpen] = useState(false);
 
   return (
     <main
@@ -42,7 +46,41 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
           <h1>{content.title}</h1>
           <p>{content.intro}</p>
           <div className={styles.heroActions}>
-            <a href={primaryHref}>{content.primaryCta} <ArrowRight size={17} /></a>
+            {finanzas ? (
+              <button
+                type="button"
+                onClick={() => setBuilderOpen(true)}
+                style={{
+                  display: "inline-flex",
+                  minHeight: 52,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 9,
+                  padding: "0 21px",
+                  border: "1px solid rgba(var(--industry-rgb),.45)",
+                  borderRadius: 14,
+                  background:
+                    "linear-gradient(120deg, rgba(var(--industry-rgb),.96), rgba(var(--industry-rgb),.58))",
+                  color: "#031019",
+                  fontSize: 13,
+                  fontWeight: 850,
+                  fontFamily: "inherit",
+                  boxShadow: "0 18px 42px rgba(var(--industry-rgb),.2)",
+                  cursor: "pointer",
+                  transition: "transform .2s ease",
+                }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.transform = "translateY(-2px)";
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.transform = "translateY(0)";
+                }}
+              >
+                {content.primaryCta} <ArrowRight size={17} />
+              </button>
+            ) : (
+              <a href={primaryHref}>{content.primaryCta} <ArrowRight size={17} /></a>
+            )}
             <a href="#industry-flow">{content.secondaryCta}</a>
           </div>
           <div className={styles.liveBadge}><i /> {content.badge}</div>
@@ -121,6 +159,10 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
         <div>{content.results.map((result) => <p key={result}><Check size={16} /> {result}</p>)}</div>
         <a href={primaryHref}>{content.finalCta} <ArrowRight size={17} /></a>
       </div>
+
+      {finanzas && (
+        <FlowBuilderModal open={builderOpen} onClose={() => setBuilderOpen(false)} />
+      )}
     </main>
   );
 }
