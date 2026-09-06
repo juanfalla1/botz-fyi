@@ -793,129 +793,6 @@ const Header = () => {
 
         .bz-logo-nav { display: flex; justify-content: space-between; align-items: center; width: 100%; min-width: 0; gap: 12px; }
 
-        .logo {
-          font-size: 34px;
-          font-weight: 900;
-          color: #10b2cb;
-          text-shadow: 0 0 10px rgba(16, 178, 203, 0.7);
-          transition: all 0.3s ease;
-        }
-
-        .logo:hover { text-shadow: 0 0 15px rgba(16, 178, 203, 1); transform: scale(1.05); }
-
-        .logo-stack {
-          display: inline-grid;
-          place-items: center;
-          gap: 3px;
-          width: 74px;
-          color: #22d3ee;
-          filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.48));
-          transition: filter 0.2s ease;
-          animation: logoFloat 3.2s ease-in-out infinite;
-        }
-
-        .logo-stack:hover {
-          filter: drop-shadow(0 0 18px rgba(34, 211, 238, 0.8));
-        }
-
-        .logo-bot {
-          position: relative;
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 8px;
-          align-items: center;
-          justify-items: center;
-          width: 39px;
-          height: 29px;
-          border: 4px solid currentColor;
-          border-radius: 14px;
-          box-shadow: inset 0 0 14px rgba(34, 211, 238, 0.2);
-        }
-
-        .logo-bot::before {
-          content: "";
-          position: absolute;
-          top: -12px;
-          left: 50%;
-          width: 3px;
-          height: 10px;
-          background: currentColor;
-          transform: translateX(-50%);
-        }
-
-        .logo-bot::after {
-          content: "";
-          position: absolute;
-          top: -18px;
-          left: 50%;
-          width: 11px;
-          height: 11px;
-          border-radius: 999px;
-          background: currentColor;
-          transform: translateX(-50%);
-        }
-
-        .logo-bot .logo-bot-eye:first-child::before,
-        .logo-bot .logo-bot-eye:nth-child(2)::before {
-          content: "";
-          position: absolute;
-          top: 7px;
-          width: 8px;
-          height: 14px;
-          border-radius: 4px;
-          background: currentColor;
-        }
-
-        .logo-bot .logo-bot-eye:first-child::before { left: -10px; }
-        .logo-bot .logo-bot-eye:nth-child(2)::before { right: -10px; }
-
-        .logo-bot-smile::before {
-          content: "";
-          position: absolute;
-          left: -18px;
-          bottom: -13px;
-          width: 12px;
-          height: 13px;
-          background: currentColor;
-          clip-path: polygon(0 0, 100% 0, 0 100%);
-        }
-
-        .logo-bot-eye {
-          width: 7px;
-          height: 7px;
-          border-radius: 999px;
-          background: currentColor;
-          animation: logoBlink 5s ease-in-out infinite;
-        }
-
-        .logo-bot-smile {
-          position: absolute;
-          bottom: 5px;
-          left: 50%;
-          width: 14px;
-          height: 6px;
-          border-bottom: 3px solid currentColor;
-          border-radius: 0 0 999px 999px;
-          transform: translateX(-50%);
-        }
-
-        .logo-word {
-          font-size: 20px;
-          line-height: 1;
-          font-weight: 950;
-          letter-spacing: -0.08em;
-        }
-
-        @keyframes logoFloat {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-3px); }
-        }
-
-        @keyframes logoBlink {
-          0%, 92%, 100% { transform: scaleY(1); }
-          95% { transform: scaleY(0.18); }
-        }
-
         .settings-btn {
           display: flex;
           align-items: center;
@@ -1292,7 +1169,6 @@ const Header = () => {
             padding: 8px 12px !important;
           }
           .bz-header-container { padding: 10px 16px; }
-          .logo { font-size: 30px; }
           .bz-nav-container { padding-left: 16px; }
         }
 
