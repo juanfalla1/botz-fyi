@@ -20,7 +20,7 @@ import {
 import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 import type { IndustryData } from "./industryData";
 import styles from "./industry.module.css";
-import FlowBuilderModal from "./FlowBuilderModal";
+import MortgageDemoModal from "./MortgageDemoModal";
 
 const capabilityIcons = [Radar, Bot, ClipboardCheck];
 const flowIcons = [MessageSquareText, Target, Layers3, Workflow, Gauge];
@@ -31,7 +31,7 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
   const restaurant = industry.slug === "restaurantes-hospitalidad";
   const finanzas = industry.slug === "finanzas-hipotecas-seguros";
   const primaryHref = restaurant ? "https://restaurantos.botz.fyi/pricing" : "https://www.botz.fyi/#contacto";
-  const [builderOpen, setBuilderOpen] = useState(false);
+  const [demoOpen, setDemoOpen] = useState(false);
 
   return (
     <main
@@ -49,7 +49,7 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
             {finanzas ? (
               <button
                 type="button"
-                onClick={() => setBuilderOpen(true)}
+                onClick={() => setDemoOpen(true)}
                 style={{
                   display: "inline-flex",
                   minHeight: 52,
@@ -161,7 +161,7 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
       </div>
 
       {finanzas && (
-        <FlowBuilderModal open={builderOpen} onClose={() => setBuilderOpen(false)} />
+        <MortgageDemoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
       )}
     </main>
   );
