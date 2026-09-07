@@ -21,6 +21,43 @@ import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 import type { IndustryData } from "./industryData";
 import styles from "./industry.module.css";
 import MortgageDemoModal from "./MortgageDemoModal";
+import IndustryContactForm from "./IndustryContactForm";
+
+const industryContext: Record<
+  string,
+  { industry: string; use_case: string; subtitle?: string }
+> = {
+  "finanzas-hipotecas-seguros": {
+    industry: "finanzas",
+    use_case: "expediente-financiero",
+    subtitle: "Cuéntanos qué proceso financiero quieres automatizar.",
+  },
+  "servicios-profesionales-b2b": {
+    industry: "servicios-b2b",
+    use_case: "operacion-comercial",
+    subtitle: "Cuéntanos qué parte de tu operación comercial quieres escalar.",
+  },
+  "restaurantes-hospitalidad": {
+    industry: "restaurantes",
+    use_case: "operaciones-restaurante",
+    subtitle: "Cuéntanos qué parte de tu operación quieres automatizar.",
+  },
+  "salud-bienestar": {
+    industry: "salud",
+    use_case: "atencion-y-operaciones",
+    subtitle: "Cuéntanos qué proceso de atención quieres mejorar.",
+  },
+  "ecommerce-atencion-cliente": {
+    industry: "ecommerce",
+    use_case: "atencion-y-ventas",
+    subtitle: "Cuéntanos qué parte de ventas, pedidos o soporte quieres automatizar.",
+  },
+  "inmobiliaria-construccion": {
+    industry: "inmobiliaria-construccion",
+    use_case: "gestion-operativa",
+    subtitle: "Cuéntanos qué proceso operativo o comercial quieres automatizar.",
+  },
+};
 
 const capabilityIcons = [Radar, Bot, ClipboardCheck];
 const flowIcons = [MessageSquareText, Target, Layers3, Workflow, Gauge];
@@ -32,6 +69,18 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
   const finanzas = industry.slug === "finanzas-hipotecas-seguros";
   const primaryHref = restaurant ? "https://restaurantos.botz.fyi/pricing" : "https://www.botz.fyi/#contacto";
   const [demoOpen, setDemoOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
+
+  const ctx = industryContext[industry.slug] ?? {
+    industry: industry.slug,
+    use_case: "generico",
+  };
+  const contactContext = {
+    industry: ctx.industry,
+    use_case: ctx.use_case,
+    source_page: `/industrias/${industry.slug}`,
+    source_cta: finanzas ? "mortgage-demo" : "industry-final-cta",
+  };
 
   return (
     <main
@@ -161,8 +210,22 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
       </div>
 
       {finanzas && (
-        <MortgageDemoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
+        <MortgageDemoModal
+          open={demoOpen}
+          onClose={() => setDemoOpen(false)}
+          onContact={() => {
+            setDemoOpen(false);
+            setContactOpen(true);
+          }}
+        />
       )}
+
+      <IndustryContactForm
+        open={contactOpen}
+        onClose={() => setContactOpen(false)}
+        context={contactContext}
+        subtitle={ctx.subtitle}
+      />
     </main>
   );
 }

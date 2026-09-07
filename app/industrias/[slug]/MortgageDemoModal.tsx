@@ -104,7 +104,15 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-export default function MortgageDemoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function MortgageDemoModal({
+  open,
+  onClose,
+  onContact,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onContact?: () => void;
+}) {
   const [state, dispatch] = useReducer(reducer, {
     phase: "idle",
     currentStep: "received",
@@ -287,9 +295,9 @@ export default function MortgageDemoModal({ open, onClose }: { open: boolean; on
                   <button type="button" className={styles.primary} onClick={() => dispatch({ type: "RESET" })}>
                     <RotateCw size={15} /> Repetir demo
                   </button>
-                  <a className={styles.secondary} href="/#contacto">
+                  <button type="button" className={styles.secondary} onClick={onContact}>
                     Quiero automatizar este proceso <ArrowRight size={15} />
-                  </a>
+                  </button>
                 </div>
               </div>
             ) : (
