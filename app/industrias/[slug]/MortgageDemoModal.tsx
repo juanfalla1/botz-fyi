@@ -287,8 +287,8 @@ export default function MortgageDemoModal({ open, onClose }: { open: boolean; on
                   <button type="button" className={styles.primary} onClick={() => dispatch({ type: "RESET" })}>
                     <RotateCw size={15} /> Repetir demo
                   </button>
-                  <a className={styles.secondary} href="https://www.botz.fyi/#contacto">
-                    Solicitar una demo <ArrowRight size={15} />
+                  <a className={styles.secondary} href="/#contacto">
+                    Quiero automatizar este proceso <ArrowRight size={15} />
                   </a>
                 </div>
               </div>
