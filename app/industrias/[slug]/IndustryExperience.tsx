@@ -22,40 +22,35 @@ import type { IndustryData } from "./industryData";
 import styles from "./industry.module.css";
 import MortgageDemoModal from "./MortgageDemoModal";
 import IndustryContactForm from "./IndustryContactForm";
+import RealEstateCommandCenter from "./RealEstateCommandCenter";
 
 const industryContext: Record<
   string,
-  { industry: string; use_case: string; subtitle?: string }
+  { industry: string; use_case: string }
 > = {
   "finanzas-hipotecas-seguros": {
     industry: "finanzas",
     use_case: "expediente-financiero",
-    subtitle: "Cuéntanos qué proceso financiero quieres automatizar.",
   },
   "servicios-profesionales-b2b": {
     industry: "servicios-b2b",
     use_case: "operacion-comercial",
-    subtitle: "Cuéntanos qué parte de tu operación comercial quieres escalar.",
   },
   "restaurantes-hospitalidad": {
     industry: "restaurantes",
     use_case: "operaciones-restaurante",
-    subtitle: "Cuéntanos qué parte de tu operación quieres automatizar.",
   },
   "salud-bienestar": {
     industry: "salud",
     use_case: "atencion-y-operaciones",
-    subtitle: "Cuéntanos qué proceso de atención quieres mejorar.",
   },
   "ecommerce-atencion-cliente": {
     industry: "ecommerce",
     use_case: "atencion-y-ventas",
-    subtitle: "Cuéntanos qué parte de ventas, pedidos o soporte quieres automatizar.",
   },
   "inmobiliaria-construccion": {
-    industry: "inmobiliaria-construccion",
-    use_case: "gestion-operativa",
-    subtitle: "Cuéntanos qué proceso operativo o comercial quieres automatizar.",
+    industry: "inmobiliaria",
+    use_case: "operacion-inmobiliaria",
   },
 };
 
@@ -67,6 +62,7 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
   const content = language === "en" ? industry.copy.en : industry.copy.es;
   const restaurant = industry.slug === "restaurantes-hospitalidad";
   const finanzas = industry.slug === "finanzas-hipotecas-seguros";
+  const inmobiliaria = industry.slug === "inmobiliaria-construccion";
   const primaryHref = restaurant ? "https://restaurantos.botz.fyi/pricing" : "https://www.botz.fyi/#contacto";
   const [demoOpen, setDemoOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
@@ -79,7 +75,11 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
     industry: ctx.industry,
     use_case: ctx.use_case,
     source_page: `/industrias/${industry.slug}`,
-    source_cta: finanzas ? "mortgage-demo" : "industry-final-cta",
+    source_cta: finanzas ? "mortgage-demo" : inmobiliaria ? "real-estate-command-center" : "industry-final-cta",
+  };
+
+  const scrollToCommandCenter = () => {
+    document.getElementById("real-estate-command-center")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
@@ -127,6 +127,10 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
               >
                 {content.primaryCta} <ArrowRight size={17} />
               </button>
+            ) : inmobiliaria ? (
+              <button type="button" onClick={scrollToCommandCenter}>
+                {content.primaryCta} <ArrowRight size={17} />
+              </button>
             ) : (
               <a href={primaryHref}>{content.primaryCta} <ArrowRight size={17} /></a>
             )}
@@ -135,6 +139,8 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
           <div className={styles.liveBadge}><i /> {content.badge}</div>
         </div>
       </div>
+
+      {inmobiliaria && <RealEstateCommandCenter onContact={() => setContactOpen(true)} />}
 
       <div className={styles.capabilitiesSection}>
         <div className={styles.sectionIntro}>
@@ -206,7 +212,13 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
       <div className={styles.resultsSection}>
         <div><span><Sparkles size={16} /> BOTZ INDUSTRY AI</span><h2>{content.resultTitle}</h2></div>
         <div>{content.results.map((result) => <p key={result}><Check size={16} /> {result}</p>)}</div>
-        <a href={primaryHref}>{content.finalCta} <ArrowRight size={17} /></a>
+        {inmobiliaria ? (
+          <button type="button" className={styles.resultsCta} onClick={() => setContactOpen(true)}>
+            {content.finalCta} <ArrowRight size={17} />
+          </button>
+        ) : (
+          <a href={primaryHref}>{content.finalCta} <ArrowRight size={17} /></a>
+        )}
       </div>
 
       {finanzas && (
@@ -224,7 +236,6 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
         open={contactOpen}
         onClose={() => setContactOpen(false)}
         context={contactContext}
-        subtitle={ctx.subtitle}
       />
     </main>
   );

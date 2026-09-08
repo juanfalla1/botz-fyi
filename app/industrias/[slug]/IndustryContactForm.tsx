@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { X, ArrowRight, Send, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
+import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 import styles from "./industryContactForm.module.css";
 
 type FormContext = {
@@ -15,12 +16,72 @@ type Props = {
   open: boolean;
   onClose: () => void;
   context: FormContext;
-  subtitle?: string;
 };
 
 type Status = "idle" | "sending" | "success" | "error";
 
-export default function IndustryContactForm({ open, onClose, context, subtitle }: Props) {
+const copy = {
+  es: {
+    close: "Cerrar",
+    thanks: "Gracias.",
+    received: "Recibimos tu solicitud y te contactaremos pronto.",
+    another: "Enviar otra solicitud",
+    title: "Cuéntanos qué quieres automatizar",
+    defaultSubtitle: "Cuéntanos brevemente cómo funciona hoy tu operación y te mostramos cómo BOTZ puede ayudarte.",
+    subtitles: {
+      "expediente-financiero": "Cuéntanos qué proceso financiero quieres automatizar.",
+      "operacion-comercial": "Cuéntanos qué parte de tu operación comercial quieres escalar.",
+      "operaciones-restaurante": "Cuéntanos qué parte de tu operación quieres automatizar.",
+      "atencion-y-operaciones": "Cuéntanos qué proceso de atención quieres mejorar.",
+      "atencion-y-ventas": "Cuéntanos qué parte de ventas, pedidos o soporte quieres automatizar.",
+      "operacion-inmobiliaria": "Cuéntanos qué parte de tu operación inmobiliaria quieres automatizar.",
+    },
+    name: "Nombre",
+    namePlaceholder: "Tu nombre",
+    email: "Correo",
+    company: "Empresa",
+    companyPlaceholder: "Nombre de tu empresa",
+    phone: "WhatsApp / Teléfono",
+    message: "Qué quieres mejorar o automatizar",
+    messagePlaceholder: "Cuéntanos brevemente tu proceso actual…",
+    rateLimited: "Demasiados intentos. Intenta más tarde.",
+    error: "Hubo un problema al enviar tu solicitud. Intenta nuevamente.",
+    sending: "Enviando…",
+    submit: "Quiero hablar con BOTZ",
+  },
+  en: {
+    close: "Close",
+    thanks: "Thank you.",
+    received: "We received your request and will contact you soon.",
+    another: "Send another request",
+    title: "Tell us what you want to automate",
+    defaultSubtitle: "Tell us briefly how your operation works today and we'll show you how BOTZ can help.",
+    subtitles: {
+      "expediente-financiero": "Tell us which financial process you want to automate.",
+      "operacion-comercial": "Tell us which part of your commercial operation you want to scale.",
+      "operaciones-restaurante": "Tell us which part of your operation you want to automate.",
+      "atencion-y-operaciones": "Tell us which customer care process you want to improve.",
+      "atencion-y-ventas": "Tell us which part of sales, orders or support you want to automate.",
+      "operacion-inmobiliaria": "Tell us which part of your real estate operation you want to automate.",
+    },
+    name: "Name",
+    namePlaceholder: "Your name",
+    email: "Email",
+    company: "Company",
+    companyPlaceholder: "Your company name",
+    phone: "WhatsApp / Phone",
+    message: "What do you want to improve or automate?",
+    messagePlaceholder: "Briefly describe your current process…",
+    rateLimited: "Too many attempts. Please try again later.",
+    error: "There was a problem sending your request. Please try again.",
+    sending: "Sending…",
+    submit: "I want to talk to BOTZ",
+  },
+} as const;
+
+export default function IndustryContactForm({ open, onClose, context }: Props) {
+  const language = useBotzLanguage("es");
+  const t = language === "en" ? copy.en : copy.es;
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [empresa, setEmpresa] = useState("");
@@ -78,7 +139,7 @@ export default function IndustryContactForm({ open, onClose, context, subtitle }
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         setStatus("error");
-        setError(data?.error === "RATE_LIMITED" ? "Demasiados intentos. Intenta más tarde." : null);
+        setError(data?.error === "RATE_LIMITED" ? t.rateLimited : null);
         return;
       }
       setStatus("success");
@@ -97,17 +158,17 @@ export default function IndustryContactForm({ open, onClose, context, subtitle }
         aria-modal="true"
         aria-labelledby="industry-contact-title"
       >
-        <button type="button" className={styles.close} onClick={onClose} aria-label="Cerrar">
+        <button type="button" className={styles.close} onClick={onClose} aria-label={t.close}>
           <X size={18} />
         </button>
 
         {status === "success" ? (
           <div className={styles.successWrap}>
             <CheckCircle2 size={40} className={styles.successIcon} />
-            <h2 id="industry-contact-title">Gracias.</h2>
-            <p>Recibimos tu solicitud y te contactaremos pronto.</p>
+            <h2 id="industry-contact-title">{t.thanks}</h2>
+            <p>{t.received}</p>
             <button type="button" className={styles.primaryBtn} onClick={reset}>
-              Enviar otra solicitud
+              {t.another}
             </button>
           </div>
         ) : (
@@ -116,29 +177,28 @@ export default function IndustryContactForm({ open, onClose, context, subtitle }
               <span className={styles.headerBadge}>
                 <Sparkles size={13} /> BOTZ
               </span>
-              <h2 id="industry-contact-title">Cuéntanos qué quieres automatizar</h2>
+              <h2 id="industry-contact-title">{t.title}</h2>
               <p>
-                {subtitle ||
-                  "Cuéntanos brevemente cómo funciona hoy tu operación y te mostramos cómo BOTZ puede ayudarte."}
+                {t.subtitles[context.use_case as keyof typeof t.subtitles] || t.defaultSubtitle}
               </p>
             </header>
 
             <form className={styles.form} onSubmit={handleSubmit} noValidate>
               <div className={styles.field}>
-                <label htmlFor="ic-name">Nombre</label>
+                <label htmlFor="ic-name">{t.name}</label>
                 <input
                   id="ic-name"
                   type="text"
                   value={nombre}
                   onChange={(event) => setNombre(event.target.value)}
                   maxLength={120}
-                  placeholder="Tu nombre"
+                  placeholder={t.namePlaceholder}
                   required
                 />
               </div>
 
               <div className={styles.field}>
-                <label htmlFor="ic-email">Correo</label>
+                <label htmlFor="ic-email">{t.email}</label>
                 <input
                   id="ic-email"
                   type="email"
@@ -151,20 +211,20 @@ export default function IndustryContactForm({ open, onClose, context, subtitle }
               </div>
 
               <div className={styles.field}>
-                <label htmlFor="ic-company">Empresa</label>
+                <label htmlFor="ic-company">{t.company}</label>
                 <input
                   id="ic-company"
                   type="text"
                   value={empresa}
                   onChange={(event) => setEmpresa(event.target.value)}
                   maxLength={160}
-                  placeholder="Nombre de tu empresa"
+                  placeholder={t.companyPlaceholder}
                   required
                 />
               </div>
 
               <div className={styles.field}>
-                <label htmlFor="ic-phone">WhatsApp / Teléfono</label>
+                <label htmlFor="ic-phone">{t.phone}</label>
                 <input
                   id="ic-phone"
                   type="tel"
@@ -177,14 +237,14 @@ export default function IndustryContactForm({ open, onClose, context, subtitle }
               </div>
 
               <div className={styles.field}>
-                <label htmlFor="ic-message">Qué quieres mejorar o automatizar</label>
+                <label htmlFor="ic-message">{t.message}</label>
                 <textarea
                   id="ic-message"
                   value={mensaje}
                   onChange={(event) => setMensaje(event.target.value)}
                   maxLength={2000}
                   rows={4}
-                  placeholder="Cuéntanos brevemente tu proceso actual…"
+                  placeholder={t.messagePlaceholder}
                   required
                 />
               </div>
@@ -193,7 +253,7 @@ export default function IndustryContactForm({ open, onClose, context, subtitle }
                 <div className={styles.errorBox} role="alert">
                   <AlertCircle size={16} />
                   <span>
-                    {error || "Hubo un problema al enviar tu solicitud. Intenta nuevamente."}
+                    {error || t.error}
                   </span>
                 </div>
               )}
@@ -201,11 +261,11 @@ export default function IndustryContactForm({ open, onClose, context, subtitle }
               <button type="submit" className={styles.primaryBtn} disabled={status === "sending"}>
                 {status === "sending" ? (
                   <>
-                    <span className={styles.spinner} /> Enviando…
+                    <span className={styles.spinner} /> {t.sending}
                   </>
                 ) : (
                   <>
-                    Quiero hablar con BOTZ <ArrowRight size={16} />
+                    {t.submit} <ArrowRight size={16} />
                   </>
                 )}
               </button>
