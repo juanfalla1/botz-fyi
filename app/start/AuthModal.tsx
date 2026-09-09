@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { supabase } from "../../supabaseClient"; // ✅ app/start/components -> app/supabaseClient
+import { supabase } from "../supabaseClient";
 
 export default function AuthModal({
   open,
