@@ -21,6 +21,9 @@
 !public/fondo-animado.mp4
 !public/botz-clinic.mp4
 !public/talleres.mp4
+!public/botz-commerce-operations-demo.mp4
+!public/botz-demo-comercial.mp4
+!public/botz-real-estate-operations-demo.mp4
 *.tsbuildinfo
 *.log
 GEO/node_modules
