@@ -32,12 +32,14 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
+  const [embedded, setEmbedded] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [stages, setStages] = useState<Stage[]>([]);
   const [form, setForm] = useState(emptyDeal());
   const [errors, setErrors] = useState<{ contactName?: string; businessName?: string; estimatedCloseDate?: string }>({});
 
   useEffect(() => {
+    setEmbedded(new URLSearchParams(window.location.search).get("embed") === "1");
     const loaded = loadStages();
     setStages(loaded);
     setForm((prev) => ({ ...prev, stage: loaded[0]?.id || prev.stage }));
@@ -116,11 +118,11 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
         }}
       >
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ fontWeight: 900, fontSize: 18 }}>Avanza CRM</div>
-          <div style={{ marginLeft: "auto", fontSize: 12, color: "#c4cbd5" }}>OHAUS · Comercial</div>
+          <div style={{ fontWeight: 900, fontSize: 18 }}>{embedded ? "BOTZ CRM" : "Avanza CRM"}</div>
+          <div style={{ marginLeft: "auto", fontSize: 12, color: "#c4cbd5" }}>{embedded ? "Servicios profesionales · Demo" : "OHAUS · Comercial"}</div>
         </div>
         <nav style={{ maxWidth: 1400, margin: "0 auto", padding: "0 8px 8px", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          <button
+          {!embedded ? <button
             onClick={goBack}
             style={{
               border: "1px solid rgba(255,255,255,0.25)",
@@ -133,13 +135,13 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
             }}
           >
             ←
-          </button>
-          {NAV_ITEMS.map((item) => {
+          </button> : null}
+          {NAV_ITEMS.filter((item) => !embedded || ["/avanza-crm/inicio", "/avanza-crm/dashboard", "/avanza-crm/negocios"].includes(item.href)).map((item) => {
             const active = pathname === item.href;
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={embedded ? `${item.href}?embed=1` : item.href}
                 style={{
                   textDecoration: "none",
                   color: active ? "#0e4f49" : C.white,
@@ -156,7 +158,7 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
-          <button
+          {!embedded ? <button
             onClick={() => setShowCreate(true)}
             style={{
               marginLeft: "auto",
@@ -170,7 +172,7 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
             }}
           >
             Crear negocio
-          </button>
+          </button> : null}
         </nav>
       </header>
 

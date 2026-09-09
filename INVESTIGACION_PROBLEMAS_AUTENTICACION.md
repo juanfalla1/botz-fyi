@@ -70,7 +70,7 @@ async function handleGoogleLogin() {
 ### 1.4 Configuración Disponible en .env.local
 ```
 GOOGLE_CLIENT_ID="417058045568-hheokiaia74qgr7lvfcgugpbenq8kq3t.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET="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"
+GOOGLE_CLIENT_SECRET="[REDACTED]"
 GOOGLE_REDIRECT_URI="http://localhost:3000/api/integrations/google/callback"
 ```
 
@@ -93,7 +93,7 @@ GOOGLE_REDIRECT_URI="http://localhost:3000/api/integrations/google/callback"
 2. Habilitar Google OAuth
 3. Agregar credenciales:
    - Client ID: 417058045568-hheokiaia74qgr7lvfcgugpbenq8kq3t.apps.googleusercontent.com
-   - Client Secret: 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
+   - Client Secret: [REDACTED]
 4. Configurar Redirect URI: https://chyzxaspglbwnenagtjv.supabase.co/auth/v1/callback
 ```
 

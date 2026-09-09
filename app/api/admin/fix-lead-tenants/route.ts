@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { getRequestUser, isPlatformAdmin } from "@/app/api/_utils/guards";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,6 +10,15 @@ const supabase = createClient(
 // ✅ Handler para validar y corregir leads con tenant incorrecto
 export async function POST(req: Request) {
   try {
+    const { user, error: authError } = await getRequestUser(req);
+    if (!user) {
+      return NextResponse.json({ ok: false, error: authError || "Unauthorized" }, { status: 401 });
+    }
+    const admin = await isPlatformAdmin(user.id);
+    if (!admin.isAdmin) {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
+
     console.log("🔍 [LEAD FIX] Iniciando validación de leads...");
 
     // ✅ Paso 1: Obtener todos los leads

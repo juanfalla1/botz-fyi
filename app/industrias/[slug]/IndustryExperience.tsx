@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -19,6 +20,42 @@ import {
 import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 import type { IndustryData } from "./industryData";
 import styles from "./industry.module.css";
+import MortgageDemoModal from "./MortgageDemoModal";
+import IndustryContactForm from "./IndustryContactForm";
+import RealEstateOperationsDemo from "./RealEstateOperationsDemo";
+import B2BCommercialDemo from "./B2BCommercialDemo";
+import HealthOperationsDemo from "./HealthOperationsDemo";
+import EcommerceOperationsDemo from "./EcommerceOperationsDemo";
+
+const industryContext: Record<
+  string,
+  { industry: string; use_case: string }
+> = {
+  "finanzas-hipotecas-seguros": {
+    industry: "finanzas",
+    use_case: "expediente-financiero",
+  },
+  "servicios-profesionales-b2b": {
+    industry: "servicios-b2b",
+    use_case: "operacion-comercial",
+  },
+  "restaurantes-hospitalidad": {
+    industry: "restaurantes",
+    use_case: "operaciones-restaurante",
+  },
+  "salud-bienestar": {
+    industry: "salud",
+    use_case: "atencion-y-operaciones",
+  },
+  "ecommerce-atencion-cliente": {
+    industry: "ecommerce",
+    use_case: "atencion-y-ventas",
+  },
+  "inmobiliaria-construccion": {
+    industry: "inmobiliaria",
+    use_case: "operacion-inmobiliaria",
+  },
+};
 
 const capabilityIcons = [Radar, Bot, ClipboardCheck];
 const flowIcons = [MessageSquareText, Target, Layers3, Workflow, Gauge];
@@ -27,7 +64,49 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
   const language = useBotzLanguage("es");
   const content = language === "en" ? industry.copy.en : industry.copy.es;
   const restaurant = industry.slug === "restaurantes-hospitalidad";
+  const finanzas = industry.slug === "finanzas-hipotecas-seguros";
+  const inmobiliaria = industry.slug === "inmobiliaria-construccion";
+  const b2b = industry.slug === "servicios-profesionales-b2b";
+  const health = industry.slug === "salud-bienestar";
+  const ecommerce = industry.slug === "ecommerce-atencion-cliente";
   const primaryHref = restaurant ? "https://restaurantos.botz.fyi/pricing" : "https://www.botz.fyi/#contacto";
+  const [demoOpen, setDemoOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [b2bDemoTrigger, setB2BDemoTrigger] = useState(0);
+  const [healthDemoTrigger, setHealthDemoTrigger] = useState(0);
+  const [ecommerceDemoTrigger, setEcommerceDemoTrigger] = useState(0);
+  const [realEstateDemoTrigger, setRealEstateDemoTrigger] = useState(0);
+
+  const ctx = industryContext[industry.slug] ?? {
+    industry: industry.slug,
+    use_case: "generico",
+  };
+  const contactContext = {
+    industry: ctx.industry,
+    use_case: ctx.use_case,
+    source_page: `/industrias/${industry.slug}`,
+    source_cta: finanzas ? "mortgage-demo" : inmobiliaria ? "real-estate-operations-demo" : b2b ? "b2b-commercial-demo" : "industry-final-cta",
+  };
+
+  const scrollToRealEstateDemo = () => {
+    setRealEstateDemoTrigger((value) => value + 1);
+    document.getElementById("real-estate-operations-demo")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const scrollToB2BDemo = () => {
+    setB2BDemoTrigger((value) => value + 1);
+    document.getElementById("b2b-commercial-demo")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const scrollToHealthDemo = () => {
+    setHealthDemoTrigger((value) => value + 1);
+    document.getElementById("health-operations-demo")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const scrollToEcommerceDemo = () => {
+    setEcommerceDemoTrigger((value) => value + 1);
+    document.getElementById("ecommerce-operations-demo")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <main
@@ -42,32 +121,92 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
           <h1>{content.title}</h1>
           <p>{content.intro}</p>
           <div className={styles.heroActions}>
-            <a href={primaryHref}>{content.primaryCta} <ArrowRight size={17} /></a>
+            {finanzas ? (
+              <button
+                type="button"
+                onClick={() => setDemoOpen(true)}
+                style={{
+                  display: "inline-flex",
+                  minHeight: 52,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 9,
+                  padding: "0 21px",
+                  border: "1px solid rgba(var(--industry-rgb),.45)",
+                  borderRadius: 14,
+                  background:
+                    "linear-gradient(120deg, rgba(var(--industry-rgb),.96), rgba(var(--industry-rgb),.58))",
+                  color: "#031019",
+                  fontSize: 13,
+                  fontWeight: 850,
+                  fontFamily: "inherit",
+                  boxShadow: "0 18px 42px rgba(var(--industry-rgb),.2)",
+                  cursor: "pointer",
+                  transition: "transform .2s ease",
+                }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.transform = "translateY(-2px)";
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.transform = "translateY(0)";
+                }}
+              >
+                {content.primaryCta} <ArrowRight size={17} />
+              </button>
+            ) : inmobiliaria ? (
+              <button type="button" onClick={scrollToRealEstateDemo}>
+                {content.primaryCta} <ArrowRight size={17} />
+              </button>
+            ) : b2b ? (
+              <button type="button" onClick={scrollToB2BDemo}>
+                {content.primaryCta} <ArrowRight size={17} />
+              </button>
+            ) : health ? (
+              <button type="button" onClick={scrollToHealthDemo}>
+                {content.primaryCta} <ArrowRight size={17} />
+              </button>
+            ) : ecommerce ? (
+              <button type="button" onClick={scrollToEcommerceDemo}>
+                {content.primaryCta} <ArrowRight size={17} />
+              </button>
+            ) : (
+              <a href={primaryHref}>{content.primaryCta} <ArrowRight size={17} /></a>
+            )}
             <a href="#industry-flow">{content.secondaryCta}</a>
           </div>
           <div className={styles.liveBadge}><i /> {content.badge}</div>
         </div>
       </div>
 
-      <div className={styles.capabilitiesSection}>
-        <div className={styles.sectionIntro}>
-          <span>{content.challengeEyebrow}</span>
-          <h2>{content.challengeTitle}</h2>
+      {inmobiliaria && <RealEstateOperationsDemo trigger={realEstateDemoTrigger} onContact={() => setContactOpen(true)} />}
+
+      {health && <HealthOperationsDemo trigger={healthDemoTrigger} onContact={() => setContactOpen(true)} />}
+
+      {b2b ? (
+        <B2BCommercialDemo trigger={b2bDemoTrigger} onContact={() => setContactOpen(true)} />
+      ) : ecommerce ? (
+        <EcommerceOperationsDemo trigger={ecommerceDemoTrigger} onContact={() => setContactOpen(true)} />
+      ) : (
+        <div className={styles.capabilitiesSection}>
+          <div className={styles.sectionIntro}>
+            <span>{content.challengeEyebrow}</span>
+            <h2>{content.challengeTitle}</h2>
+          </div>
+          <div className={styles.capabilityGrid}>
+            {content.capabilities.map((capability, index) => {
+              const Icon = capabilityIcons[index];
+              return (
+                <motion.article key={capability.title} initial={false} whileInView={{ y: 0, opacity: 1 }} viewport={{ once: true }}>
+                  <div className={styles.capabilityIcon}><Icon size={22} /></div>
+                  <h3>{capability.title}</h3>
+                  <p>{capability.text}</p>
+                  <strong>{capability.metric}</strong>
+                </motion.article>
+              );
+            })}
+          </div>
         </div>
-        <div className={styles.capabilityGrid}>
-          {content.capabilities.map((capability, index) => {
-            const Icon = capabilityIcons[index];
-            return (
-              <motion.article key={capability.title} initial={false} whileInView={{ y: 0, opacity: 1 }} viewport={{ once: true }}>
-                <div className={styles.capabilityIcon}><Icon size={22} /></div>
-                <h3>{capability.title}</h3>
-                <p>{capability.text}</p>
-                <strong>{capability.metric}</strong>
-              </motion.article>
-            );
-          })}
-        </div>
-      </div>
+      )}
 
       <div className={styles.flowSection} id="industry-flow">
         <div className={styles.flowVisual} style={{ backgroundImage: `linear-gradient(180deg, rgba(5,10,20,.08), rgba(5,10,20,.9)), url(${industry.secondaryImage})` }}>
@@ -119,8 +258,27 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
       <div className={styles.resultsSection}>
         <div><span><Sparkles size={16} /> BOTZ INDUSTRY AI</span><h2>{content.resultTitle}</h2></div>
         <div>{content.results.map((result) => <p key={result}><Check size={16} /> {result}</p>)}</div>
-        <a href={primaryHref}>{content.finalCta} <ArrowRight size={17} /></a>
+        <button type="button" className={styles.resultsCta} onClick={() => setContactOpen(true)}>
+          {content.finalCta} <ArrowRight size={17} />
+        </button>
       </div>
+
+      {finanzas && (
+        <MortgageDemoModal
+          open={demoOpen}
+          onClose={() => setDemoOpen(false)}
+          onContact={() => {
+            setDemoOpen(false);
+            setContactOpen(true);
+          }}
+        />
+      )}
+
+      <IndustryContactForm
+        open={contactOpen}
+        onClose={() => setContactOpen(false)}
+        context={contactContext}
+      />
     </main>
   );
 }

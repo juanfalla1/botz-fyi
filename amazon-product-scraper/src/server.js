@@ -5,6 +5,7 @@ import sharp from 'sharp';
 const app = express();
 const port = process.env.PORT || 8080;
 const extractTimeoutMs = Number(process.env.EXTRACT_TIMEOUT_MS || 30000);
+const smartDealsSiteUrl = normalizeSiteUrl(process.env.SMART_DEALS_SITE_URL || 'https://www.smart-deals-canada.com');
 
 app.use(express.json({ limit: '256kb' }));
 
@@ -53,6 +54,7 @@ app.post('/discover', async (req, res) => {
           products.push({
             asin,
             product_url: `https://www.amazon.ca/dp/${asin}`,
+            smart_deals_url: buildSmartDealsProductUrl(asin, 'instagram-discover'),
             source_url: sourceUrl,
             title,
             image_url: product.image_url || '',
@@ -521,6 +523,7 @@ app.post('/extract', async (req, res) => {
       images: mergedImages,
       video,
       product_url: productUrl,
+      smart_deals_url: asin ? buildSmartDealsProductUrl(asin, 'instagram') : '',
       input_url: validation.url.href,
     };
 
@@ -556,6 +559,7 @@ app.post('/extract', async (req, res) => {
         images: await filterProductImages(fallbackData.images),
         video: { available: Boolean(extractAmazonVideoPageUrl(validation.url.href)), poster: '', source: '', page_url: extractAmazonVideoPageUrl(validation.url.href) },
         product_url: fallbackAsin ? `https://www.amazon.ca/dp/${fallbackAsin}` : fallbackData.product_url || validation.url.href,
+        smart_deals_url: fallbackAsin ? buildSmartDealsProductUrl(fallbackAsin, 'instagram') : '',
         input_url: validation.url.href,
       });
     }
@@ -671,6 +675,22 @@ function chromiumLaunchOptions() {
       '--no-zygote',
     ],
   };
+}
+
+function normalizeSiteUrl(value) {
+  try {
+    const url = new URL(value);
+    return `${url.protocol}//${url.host}`.replace(/\/$/, '');
+  } catch {
+    return 'https://www.smart-deals-canada.com';
+  }
+}
+
+function buildSmartDealsProductUrl(asin, source = 'instagram') {
+  const cleanAsin = String(asin || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+  if (cleanAsin.length !== 10) return '';
+
+  return `${smartDealsSiteUrl}/go/${encodeURIComponent(cleanAsin)}?source=${encodeURIComponent(source)}`;
 }
 
 function defaultDiscoverySources() {

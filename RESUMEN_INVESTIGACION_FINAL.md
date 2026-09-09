@@ -40,7 +40,7 @@
 3. Toggle ON
 4. Agregar credenciales:
    - Client ID: 417058045568-hheokiaia74qgr7lvfcgugpbenq8kq3t.apps.googleusercontent.com
-   - Client Secret: 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
+   - Client Secret: [REDACTED]
 ```
 
 ---

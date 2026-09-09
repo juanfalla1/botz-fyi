@@ -46,7 +46,10 @@ Environment variables:
 NODE_ENV=production
 PORT=8080
 EXTRACT_TIMEOUT_MS=120000
+SMART_DEALS_SITE_URL=https://www.smart-deals-canada.com
 ```
+
+`/discover` and `/extract` include `smart_deals_url`, for example `https://www.smart-deals-canada.com/go/B0XXXXXXXX?source=instagram`. Use that value in the Instagram bio/link step so each Reel points to the exact product instead of the home page.
 
 After deployment, set this env var in n8n:
 

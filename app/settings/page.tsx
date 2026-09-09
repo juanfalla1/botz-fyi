@@ -111,34 +111,6 @@ export default function TenantSettings() {
     }
   };
 
-  const testEmailConfig = async () => {
-    setIsSaving(true);
-    try {
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'test',
-          tenant_config: config,
-          to: config.from_email || 'test@example.com',
-          subject: '📧 Prueba de Configuración SMTP',
-          html: `<h1>✅ Email de prueba enviado exitosamente</h1><p>Configuración SMTP funcionando correctamente para ${config.company_name}</p>`
-        })
-      });
-
-      if (response.ok) {
-        setMessage({ type: 'success', text: '✅ Email de prueba enviado exitosamente' });
-      } else {
-        throw new Error('Error enviando email de prueba');
-      }
-    } catch (error) {
-      setMessage({ type: 'error', text: '❌ Error en configuración SMTP' });
-    } finally {
-      setIsSaving(false);
-      setTimeout(() => setMessage(null), 3000);
-    }
-  };
-
   const handleInputChange = (field: keyof TenantConfig, value: any) => {
     setConfig(prev => ({ ...prev, [field]: value }));
   };
@@ -558,27 +530,6 @@ export default function TenantSettings() {
 
         {/* Botones de Acción */}
         <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginTop: '40px' }}>
-          <button
-            onClick={testEmailConfig}
-            disabled={isSaving}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '12px 24px',
-              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-              border: 'none',
-              borderRadius: '8px',
-              color: '#fff',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              cursor: isSaving ? 'not-allowed' : 'pointer'
-            }}
-          >
-            <Mail size={16} />
-            {isSaving ? 'Enviando...' : 'Probar Email'}
-          </button>
-          
           <button
             onClick={saveConfig}
             disabled={isSaving}

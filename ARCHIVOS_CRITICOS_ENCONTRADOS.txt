@@ -35,13 +35,13 @@ PROBLEMA 1: GOOGLE OAUTH ROTO (AUTENTICACIÓN DE USUARIO)
       - Sección: Authentication > Providers > Google
       - Agregar:
         * Client ID: 417058045568-hheokiaia74qgr7lvfcgugpbenq8kq3t.apps.googleusercontent.com
-        * Client Secret: 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
+        * Client Secret: [REDACTED]
 
 3. GOOGLE CREDENTIALS (PARA INTEGRACIONES, NO OAUTH AUTH):
    
    📄 .env.local (LÍNEAS 15-17)
       GOOGLE_CLIENT_ID="417058045568-hheokiaia74qgr7lvfcgugpbenq8kq3t.apps.googleusercontent.com"
-      GOOGLE_CLIENT_SECRET="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"
+      GOOGLE_CLIENT_SECRET="[REDACTED]"
       GOOGLE_REDIRECT_URI="http://localhost:3000/api/integrations/google/callback"
       Status: ✅ Presente
    

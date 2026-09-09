@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { money } from "../../_lib/deals";
 
 const USER_FILTERS = [
@@ -10,6 +10,8 @@ const USER_FILTERS = [
   "Carolina Varon",
   "Milena Bolanos",
 ];
+
+const DEMO_USER_FILTERS = ["Sofia Torres", "Mateo Silva", "Equipo comercial"];
 
 const PIE_ROWS = [
   { label: "Visita", value: 2, color: "#2f6db3" },
@@ -26,15 +28,24 @@ const STAGE_ROWS = [
   { label: "Orden de Compra", count: 0, value: 0 },
 ];
 
+const DEMO_STAGE_ROWS = [
+  { label: "Sin contactar", count: 1, value: 18000000 },
+  { label: "Calificado", count: 2, value: 36500000 },
+  { label: "Propuesta comercial", count: 2, value: 47000000 },
+  { label: "Confirmacion pago", count: 1, value: 28000000 },
+];
+
 function WidgetBox({
   title,
   filter,
   onFilter,
+  users,
   children,
 }: {
   title: string;
   filter: string;
   onFilter: (value: string) => void;
+  users: string[];
   children: ReactNode;
 }) {
   return (
@@ -42,7 +53,7 @@ function WidgetBox({
       <header style={{ display: "grid", gridTemplateColumns: "1fr 260px auto", gap: 10, alignItems: "center", padding: "8px 10px", borderBottom: "1px solid #dbe1e8" }}>
         <div style={{ fontWeight: 700 }}>{title}</div>
         <select value={filter} onChange={(e) => onFilter(e.target.value)} style={{ border: "1px solid #bfc7d2", height: 30, padding: "0 8px", background: "#fff" }}>
-          {USER_FILTERS.map((name) => (
+          {users.map((name) => (
             <option key={name}>{name}</option>
           ))}
         </select>
@@ -59,13 +70,26 @@ function WidgetBox({
 }
 
 export default function AvanzaDashboardPage() {
+  const [isDemo, setIsDemo] = useState(false);
   const [activityUser, setActivityUser] = useState(USER_FILTERS[3]);
   const [budgetUser, setBudgetUser] = useState(USER_FILTERS[0]);
   const [stageUser, setStageUser] = useState(USER_FILTERS[2]);
 
+  const users = isDemo ? DEMO_USER_FILTERS : USER_FILTERS;
+  const stageRows = isDemo ? DEMO_STAGE_ROWS : STAGE_ROWS;
   const pieTotal = useMemo(() => PIE_ROWS.reduce((acc, item) => acc + item.value, 0), []);
-  const stageTotal = useMemo(() => STAGE_ROWS.reduce((acc, item) => acc + item.value, 0), []);
-  const stageMax = useMemo(() => Math.max(...STAGE_ROWS.map((item) => item.value), 1), []);
+  const stageTotal = useMemo(() => stageRows.reduce((acc, item) => acc + item.value, 0), [stageRows]);
+  const stageMax = useMemo(() => Math.max(...stageRows.map((item) => item.value), 1), [stageRows]);
+
+  useEffect(() => {
+    const demoMode = new URLSearchParams(window.location.search).get("embed") === "1";
+    setIsDemo(demoMode);
+    if (demoMode) {
+      setActivityUser(DEMO_USER_FILTERS[0]);
+      setBudgetUser(DEMO_USER_FILTERS[1]);
+      setStageUser(DEMO_USER_FILTERS[2]);
+    }
+  }, []);
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -82,7 +106,7 @@ export default function AvanzaDashboardPage() {
       </section>
 
       <section style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <WidgetBox title="Actividades" filter={activityUser} onFilter={setActivityUser}>
+        <WidgetBox title="Actividades" filter={activityUser} onFilter={setActivityUser} users={users}>
           <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", alignItems: "center", minHeight: 220 }}>
             <div
               style={{
@@ -107,7 +131,7 @@ export default function AvanzaDashboardPage() {
           </div>
         </WidgetBox>
 
-        <WidgetBox title="Grafico de presupuesto por usuario" filter={budgetUser} onFilter={setBudgetUser}>
+        <WidgetBox title={isDemo ? "Pipeline por ejecutivo" : "Grafico de presupuesto por usuario"} filter={budgetUser} onFilter={setBudgetUser} users={users}>
           <div style={{ border: "1px solid #dbe1e8", overflow: "hidden" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr 1fr 1fr", background: "#1f5e9f", color: "#fff", fontSize: 13, fontWeight: 700 }}>
               <div style={{ padding: 7 }}>Usuario</div>
@@ -130,10 +154,10 @@ export default function AvanzaDashboardPage() {
         </WidgetBox>
       </section>
 
-      <WidgetBox title="Negocios por fase de venta" filter={stageUser} onFilter={setStageUser}>
+      <WidgetBox title="Negocios por fase de venta" filter={stageUser} onFilter={setStageUser} users={users}>
         <div style={{ textAlign: "center", color: "#6b7280", marginBottom: 8 }}>Total: {money(stageTotal)}</div>
         <div style={{ display: "grid", gap: 10 }}>
-          {STAGE_ROWS.map((row) => (
+          {stageRows.map((row) => (
             <div key={row.label} style={{ display: "grid", gridTemplateColumns: "220px 1fr auto", gap: 10, alignItems: "center" }}>
               <div style={{ fontSize: 14 }}>{row.label}({row.count})</div>
               <div style={{ height: 24, border: "1px solid #d1d5db", background: "#fff" }}>

@@ -201,12 +201,7 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(
-      "✅ [OTP] Sesión OTP creada para:",
-      email,
-      "| OTP:",
-      otp
-    );
+    console.log("✅ [OTP] Sesión OTP creada para:", email);
 
     return NextResponse.json(
       {

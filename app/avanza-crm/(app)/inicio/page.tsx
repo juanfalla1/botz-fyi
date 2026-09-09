@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Deal, DealActivity, Stage, loadDeals, loadStages, money, saveDeals, saveStages } from "../../_lib/deals";
+import { Deal, DealActivity, PROFESSIONAL_SERVICES_DEMO_DEALS, Stage, loadDeals, loadStages, money, saveDeals, saveStages } from "../../_lib/deals";
 
 const QUICK_ACTIONS: Array<{ label: DealActivity["type"]; active: boolean }> = [
   { label: "Actividad", active: true },
@@ -53,6 +53,7 @@ function makeStageId(label: string, existingIds: string[]): string {
 export default function AvanzaInicioPage() {
   const router = useRouter();
   const [allDeals, setAllDeals] = useState<Deal[]>([]);
+  const [isDemo, setIsDemo] = useState(false);
   const [stages, setStages] = useState<Stage[]>([]);
   const [query, setQuery] = useState("");
   const [openQuickMenuDealId, setOpenQuickMenuDealId] = useState<string | null>(null);
@@ -80,8 +81,10 @@ export default function AvanzaInicioPage() {
   const [newStageName, setNewStageName] = useState("");
 
   useEffect(() => {
+    const demoMode = new URLSearchParams(window.location.search).get("embed") === "1";
+    setIsDemo(demoMode);
     const loadedStages = loadStages();
-    const loadedDeals = loadDeals();
+    const loadedDeals = demoMode ? PROFESSIONAL_SERVICES_DEMO_DEALS : loadDeals();
     const validIds = new Set(loadedStages.map((s) => s.id));
     const firstStage = loadedStages[0]?.id || "sin_contactar";
     const normalizedDeals = loadedDeals.map((deal) => ({
@@ -91,7 +94,7 @@ export default function AvanzaInicioPage() {
 
     setStages(loadedStages);
     setAllDeals(normalizedDeals);
-    if (normalizedDeals.length !== loadedDeals.length || normalizedDeals.some((d, i) => d.stage !== loadedDeals[i]?.stage)) {
+    if (!demoMode && (normalizedDeals.length !== loadedDeals.length || normalizedDeals.some((d, i) => d.stage !== loadedDeals[i]?.stage))) {
       saveDeals(normalizedDeals);
     }
   }, []);
@@ -126,7 +129,7 @@ export default function AvanzaInicioPage() {
     saveStages(nextStages);
     if (nextDeals) {
       setAllDeals(nextDeals);
-      saveDeals(nextDeals);
+      if (!isDemo) saveDeals(nextDeals);
     }
   };
 
@@ -197,7 +200,7 @@ export default function AvanzaInicioPage() {
       deal.id === quickActionDealId ? { ...deal, activities: [activity, ...(deal.activities || [])] } : deal
     );
     setAllDeals(updated);
-    saveDeals(updated);
+    if (!isDemo) saveDeals(updated);
 
     closeQuickAction();
   };
@@ -207,7 +210,7 @@ export default function AvanzaInicioPage() {
     if (!source || source.stage === stageId) return;
     const updated = allDeals.map((d) => (d.id === dealId ? { ...d, stage: stageId } : d));
     setAllDeals(updated);
-    saveDeals(updated);
+    if (!isDemo) saveDeals(updated);
   };
 
   return (
@@ -268,7 +271,7 @@ export default function AvanzaInicioPage() {
                   setDragDealId(null);
                   setDragOverStageId(null);
                 }}
-                onClick={() => router.push(`/avanza-crm/negocios?deal=${deal.id}`)}
+                onClick={() => router.push(`/avanza-crm/negocios?deal=${deal.id}${isDemo ? "&embed=1" : ""}`)}
                 style={{
                   background: "#ffffff",
                   border: "1px solid #d8dee6",

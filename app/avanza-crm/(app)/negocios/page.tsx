@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Deal, DealActivity, Stage, createId, loadDeals, loadStages, money, saveDeals } from "../../_lib/deals";
+import { Deal, DealActivity, PROFESSIONAL_SERVICES_DEMO_DEALS, Stage, createId, loadDeals, loadStages, money, saveDeals } from "../../_lib/deals";
 
 const QUICK_TYPES: DealActivity["type"][] = ["Actividad", "WhatsApp", "Comentario", "Correo", "Documento", "Cotizacion"];
 
 export default function AvanzaNegociosPage() {
   const params = useSearchParams();
   const selectedId = params.get("deal") || "";
+  const isDemo = params.get("embed") === "1";
 
   const [allDeals, setAllDeals] = useState<Deal[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -21,12 +22,12 @@ export default function AvanzaNegociosPage() {
   const [activityNotes, setActivityNotes] = useState("");
 
   useEffect(() => {
-    const deals = loadDeals();
+    const deals = isDemo ? PROFESSIONAL_SERVICES_DEMO_DEALS : loadDeals();
     const currentStages = loadStages();
     setStages(currentStages);
     setAllDeals(deals);
     setActiveDealId(selectedId || deals[0]?.id || "");
-  }, [selectedId]);
+  }, [isDemo, selectedId]);
 
   const activeDeal = useMemo(() => allDeals.find((d) => d.id === activeDealId) || null, [allDeals, activeDealId]);
 
@@ -46,7 +47,7 @@ export default function AvanzaNegociosPage() {
     );
 
     setAllDeals(updatedDeals);
-    saveDeals(updatedDeals);
+    if (!isDemo) saveDeals(updatedDeals);
     setShowActivityModal(false);
     setActivityType("Actividad");
     setActivitySubject("");
