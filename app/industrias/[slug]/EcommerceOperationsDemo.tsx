@@ -31,6 +31,7 @@ const copy = {
 
 export default function EcommerceOperationsDemo({ trigger, onContact, language }: { trigger: number; onContact: () => void; language: "es" | "en" }) {
   const t = language === "en" ? copy.en : copy.es;
+  const source = language === "en" ? "/botz-commerce-operations-demo-en.mp4" : "/botz-commerce-operations-demo.mp4";
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
 
@@ -40,6 +41,11 @@ export default function EcommerceOperationsDemo({ trigger, onContact, language }
     video.currentTime = 0;
     void video.play();
   };
+
+  useEffect(() => {
+    videoRef.current?.load();
+    setPlaying(false);
+  }, [source]);
 
   useEffect(() => {
     if (trigger > 0) playFromStart();
@@ -59,7 +65,7 @@ export default function EcommerceOperationsDemo({ trigger, onContact, language }
       </div>
       <div className={styles.videoShell}>
         <div className={styles.videoTop}><strong>BOTZ</strong><span><i /> {playing ? t.playing : t.eyebrow}</span></div>
-        <video ref={videoRef} className={styles.video} src="/botz-commerce-operations-demo.mp4" controls muted loop playsInline preload="metadata" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} />
+        <video ref={videoRef} className={styles.video} src={source} controls loop playsInline preload="metadata" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} />
         <div className={styles.videoMeta}><span><Play size={13} /> {t.note}</span><span><Volume2 size={13} /> {t.sound}</span></div>
       </div>
     </section>
