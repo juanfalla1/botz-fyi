@@ -1,7 +1,6 @@
 "use client";
 
 import { ArrowRight, ExternalLink } from "lucide-react";
-import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 import styles from "./b2bCommercialDemo.module.css";
 
 const copy = {
@@ -23,9 +22,9 @@ const copy = {
   },
 } as const;
 
-export default function B2BCommercialDemo({ onContact }: { trigger: number; onContact: () => void }) {
-  const language = useBotzLanguage("es");
+export default function B2BCommercialDemo({ onContact, language }: { trigger: number; onContact: () => void; language: "es" | "en" }) {
   const t = language === "en" ? copy.en : copy.es;
+  const demoUrl = `/avanza-crm/inicio?embed=1&lang=${language}`;
 
   return (
     <section className={styles.section} id="b2b-commercial-demo">
@@ -36,7 +35,7 @@ export default function B2BCommercialDemo({ onContact }: { trigger: number; onCo
           <p>{t.intro}</p>
         </div>
         <div className={styles.actions}>
-          <a href="/avanza-crm/inicio?embed=1" target="_blank" rel="noreferrer">{t.open} <ExternalLink size={15} /></a>
+          <a href={demoUrl} target="_blank" rel="noreferrer">{t.open} <ExternalLink size={15} /></a>
           <button type="button" onClick={onContact}>{t.contact} <ArrowRight size={15} /></button>
         </div>
       </div>
@@ -47,7 +46,7 @@ export default function B2BCommercialDemo({ onContact }: { trigger: number; onCo
           <span>botz.fyi / crm / pipeline</span>
           <strong>LIVE DEMO</strong>
         </div>
-        <iframe src="/avanza-crm/inicio?embed=1" title={t.titleFrame} loading="lazy" />
+        <iframe key={language} src={demoUrl} title={t.titleFrame} loading="lazy" />
       </div>
       <p className={styles.mobileHint}>{t.open}</p>
     </section>

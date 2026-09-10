@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, Play, RefreshCw, Volume2 } from "lucide-react";
-import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 import styles from "./healthOperationsDemo.module.css";
 
 const copy = {
@@ -30,8 +29,7 @@ const copy = {
   },
 } as const;
 
-export default function EcommerceOperationsDemo({ trigger, onContact }: { trigger: number; onContact: () => void }) {
-  const language = useBotzLanguage("es");
+export default function EcommerceOperationsDemo({ trigger, onContact, language }: { trigger: number; onContact: () => void; language: "es" | "en" }) {
   const t = language === "en" ? copy.en : copy.es;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);

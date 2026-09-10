@@ -6,14 +6,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Deal, Stage, createId, emptyDeal, loadDeals, loadStages, saveDeals } from "../_lib/deals";
 
 const NAV_ITEMS = [
-  { href: "/avanza-crm/inicio", label: "⌂" },
-  { href: "/avanza-crm/dashboard", label: "Indicadores gerenciales" },
-  { href: "/avanza-crm/empresas", label: "Empresas" },
-  { href: "/avanza-crm/contactos", label: "Contactos" },
-  { href: "/avanza-crm/negocios", label: "Negocios" },
-  { href: "/avanza-crm/calendario", label: "Calendario" },
-  { href: "/avanza-crm/informes", label: "Informes" },
-  { href: "/avanza-crm/configuracion", label: "Configuración" },
+  { href: "/avanza-crm/inicio", es: "⌂", en: "⌂" },
+  { href: "/avanza-crm/dashboard", es: "Indicadores gerenciales", en: "Management dashboard" },
+  { href: "/avanza-crm/empresas", es: "Empresas", en: "Companies" },
+  { href: "/avanza-crm/contactos", es: "Contactos", en: "Contacts" },
+  { href: "/avanza-crm/negocios", es: "Negocios", en: "Deals" },
+  { href: "/avanza-crm/calendario", es: "Calendario", en: "Calendar" },
+  { href: "/avanza-crm/informes", es: "Informes", en: "Reports" },
+  { href: "/avanza-crm/configuracion", es: "Configuración", en: "Settings" },
 ];
 
 const C = {
@@ -33,13 +33,16 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
   const [embedded, setEmbedded] = useState(false);
+  const [language, setLanguage] = useState<"es" | "en">("es");
   const [showMore, setShowMore] = useState(false);
   const [stages, setStages] = useState<Stage[]>([]);
   const [form, setForm] = useState(emptyDeal());
   const [errors, setErrors] = useState<{ contactName?: string; businessName?: string; estimatedCloseDate?: string }>({});
 
   useEffect(() => {
-    setEmbedded(new URLSearchParams(window.location.search).get("embed") === "1");
+    const params = new URLSearchParams(window.location.search);
+    setEmbedded(params.get("embed") === "1");
+    setLanguage(params.get("lang") === "en" ? "en" : "es");
     const loaded = loadStages();
     setStages(loaded);
     setForm((prev) => ({ ...prev, stage: loaded[0]?.id || prev.stage }));
@@ -119,7 +122,7 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
       >
         <div style={{ maxWidth: 1400, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontWeight: 900, fontSize: 18 }}>{embedded ? "BOTZ CRM" : "Avanza CRM"}</div>
-          <div style={{ marginLeft: "auto", fontSize: 12, color: "#c4cbd5" }}>{embedded ? "Servicios profesionales · Demo" : "OHAUS · Comercial"}</div>
+          <div style={{ marginLeft: "auto", fontSize: 12, color: "#c4cbd5" }}>{embedded ? language === "en" ? "Professional services · Demo" : "Servicios profesionales · Demo" : "OHAUS · Comercial"}</div>
         </div>
         <nav style={{ maxWidth: 1400, margin: "0 auto", padding: "0 8px 8px", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           {!embedded ? <button
@@ -141,20 +144,20 @@ export function AvanzaCrmShell({ children }: { children: ReactNode }) {
             return (
               <Link
                 key={item.href}
-                href={embedded ? `${item.href}?embed=1` : item.href}
+                href={embedded ? `${item.href}?embed=1&lang=${language}` : item.href}
                 style={{
                   textDecoration: "none",
                   color: active ? "#0e4f49" : C.white,
                   background: active ? "#7fe1d7" : "rgba(255,255,255,0.08)",
                   padding: "7px 11px",
-                  minWidth: item.label === "⌂" ? 40 : undefined,
+                  minWidth: item.es === "⌂" ? 40 : undefined,
                   textAlign: "center",
                   borderRadius: 6,
                   fontSize: 13,
                   fontWeight: 700,
                 }}
               >
-                {item.label}
+                {item[language]}
               </Link>
             );
           })}

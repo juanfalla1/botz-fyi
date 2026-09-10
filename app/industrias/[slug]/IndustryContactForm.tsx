@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { X, ArrowRight, Send, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
-import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 import styles from "./industryContactForm.module.css";
 
 type FormContext = {
@@ -16,6 +15,7 @@ type Props = {
   open: boolean;
   onClose: () => void;
   context: FormContext;
+  language: "es" | "en";
 };
 
 type Status = "idle" | "sending" | "success" | "error";
@@ -79,8 +79,7 @@ const copy = {
   },
 } as const;
 
-export default function IndustryContactForm({ open, onClose, context }: Props) {
-  const language = useBotzLanguage("es");
+export default function IndustryContactForm({ open, onClose, context, language }: Props) {
   const t = language === "en" ? copy.en : copy.es;
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");

@@ -26,6 +26,7 @@ import RealEstateOperationsDemo from "./RealEstateOperationsDemo";
 import B2BCommercialDemo from "./B2BCommercialDemo";
 import HealthOperationsDemo from "./HealthOperationsDemo";
 import EcommerceOperationsDemo from "./EcommerceOperationsDemo";
+import RestaurantOperationsDemo from "./RestaurantOperationsDemo";
 
 const industryContext: Record<
   string,
@@ -69,13 +70,13 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
   const b2b = industry.slug === "servicios-profesionales-b2b";
   const health = industry.slug === "salud-bienestar";
   const ecommerce = industry.slug === "ecommerce-atencion-cliente";
-  const primaryHref = restaurant ? "https://restaurantos.botz.fyi/pricing" : "https://www.botz.fyi/#contacto";
   const [demoOpen, setDemoOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [b2bDemoTrigger, setB2BDemoTrigger] = useState(0);
   const [healthDemoTrigger, setHealthDemoTrigger] = useState(0);
   const [ecommerceDemoTrigger, setEcommerceDemoTrigger] = useState(0);
   const [realEstateDemoTrigger, setRealEstateDemoTrigger] = useState(0);
+  const [restaurantDemoTrigger, setRestaurantDemoTrigger] = useState(0);
 
   const ctx = industryContext[industry.slug] ?? {
     industry: industry.slug,
@@ -85,7 +86,19 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
     industry: ctx.industry,
     use_case: ctx.use_case,
     source_page: `/industrias/${industry.slug}`,
-    source_cta: finanzas ? "mortgage-demo" : inmobiliaria ? "real-estate-operations-demo" : b2b ? "b2b-commercial-demo" : "industry-final-cta",
+    source_cta: finanzas
+      ? "mortgage-demo"
+      : inmobiliaria
+        ? "real-estate-operations-demo"
+        : b2b
+          ? "b2b-commercial-demo"
+          : restaurant
+            ? "restaurant-operations-demo"
+            : health
+              ? "health-operations-demo"
+              : ecommerce
+                ? "ecommerce-operations-demo"
+                : "industry-final-cta",
   };
 
   const scrollToRealEstateDemo = () => {
@@ -106,6 +119,11 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
   const scrollToEcommerceDemo = () => {
     setEcommerceDemoTrigger((value) => value + 1);
     document.getElementById("ecommerce-operations-demo")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const scrollToRestaurantDemo = () => {
+    setRestaurantDemoTrigger((value) => value + 1);
+    document.getElementById("restaurant-operations-demo")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
@@ -153,6 +171,10 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
               >
                 {content.primaryCta} <ArrowRight size={17} />
               </button>
+            ) : restaurant ? (
+              <button type="button" onClick={scrollToRestaurantDemo}>
+                {content.primaryCta} <ArrowRight size={17} />
+              </button>
             ) : inmobiliaria ? (
               <button type="button" onClick={scrollToRealEstateDemo}>
                 {content.primaryCta} <ArrowRight size={17} />
@@ -170,7 +192,7 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
                 {content.primaryCta} <ArrowRight size={17} />
               </button>
             ) : (
-              <a href={primaryHref}>{content.primaryCta} <ArrowRight size={17} /></a>
+              <a href="https://www.botz.fyi/#contacto">{content.primaryCta} <ArrowRight size={17} /></a>
             )}
             <a href="#industry-flow">{content.secondaryCta}</a>
           </div>
@@ -178,14 +200,16 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
         </div>
       </div>
 
-      {inmobiliaria && <RealEstateOperationsDemo trigger={realEstateDemoTrigger} onContact={() => setContactOpen(true)} />}
+      {restaurant && <RestaurantOperationsDemo trigger={restaurantDemoTrigger} onContact={() => setContactOpen(true)} language={language} />}
 
-      {health && <HealthOperationsDemo trigger={healthDemoTrigger} onContact={() => setContactOpen(true)} />}
+      {inmobiliaria && <RealEstateOperationsDemo trigger={realEstateDemoTrigger} onContact={() => setContactOpen(true)} language={language} />}
+
+      {health && <HealthOperationsDemo trigger={healthDemoTrigger} onContact={() => setContactOpen(true)} language={language} />}
 
       {b2b ? (
-        <B2BCommercialDemo trigger={b2bDemoTrigger} onContact={() => setContactOpen(true)} />
+        <B2BCommercialDemo trigger={b2bDemoTrigger} onContact={() => setContactOpen(true)} language={language} />
       ) : ecommerce ? (
-        <EcommerceOperationsDemo trigger={ecommerceDemoTrigger} onContact={() => setContactOpen(true)} />
+        <EcommerceOperationsDemo trigger={ecommerceDemoTrigger} onContact={() => setContactOpen(true)} language={language} />
       ) : (
         <div className={styles.capabilitiesSection}>
           <div className={styles.sectionIntro}>
@@ -271,6 +295,7 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
             setDemoOpen(false);
             setContactOpen(true);
           }}
+          language={language}
         />
       )}
 
@@ -278,6 +303,7 @@ export default function IndustryExperience({ industry }: { industry: IndustryDat
         open={contactOpen}
         onClose={() => setContactOpen(false)}
         context={contactContext}
+        language={language}
       />
     </main>
   );

@@ -9,7 +9,6 @@ import {
   AlertTriangle,
   Clock,
 } from "lucide-react";
-import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 import styles from "./mortgageDemo.module.css";
 
 type StepId =
@@ -168,12 +167,13 @@ export default function MortgageDemoModal({
   open,
   onClose,
   onContact,
+  language,
 }: {
   open: boolean;
   onClose: () => void;
   onContact?: () => void;
+  language: "es" | "en";
 }) {
-  const language = useBotzLanguage("es");
   const t = (value: string) => language === "en" ? mortgageEn[value] || value : value;
   const [state, dispatch] = useReducer(reducer, {
     phase: "idle",

@@ -34,6 +34,32 @@ const EMAIL_TEMPLATES = [
   },
 ];
 
+const EN: Record<string, string> = {
+  "Sin contactar": "Not contacted",
+  Calificado: "Qualified",
+  "Propuesta comercial": "Commercial proposal",
+  "Confirmacion pago": "Payment confirmation",
+  "Diagnostico de operaciones": "Operations assessment",
+  "Agentes para gestion de cuentas": "Account management agents",
+  "Automatizacion de onboarding": "Onboarding automation",
+  "CRM y seguimiento comercial": "CRM and sales follow-up",
+  "Implementacion BOTZ Growth": "BOTZ Growth implementation",
+  Columnas: "Columns",
+  "Escribe la palabra": "Type a keyword",
+  Negocios: "Deals",
+  "Sin contacto": "No contact",
+  "Sin negocios en esta etapa.": "No deals in this stage.",
+  Actividad: "Activity",
+  Comentario: "Comment",
+  Correo: "Email",
+  Documento: "Document",
+  Cotizacion: "Quote",
+  "Configurar columnas del kanban": "Configure Kanban columns",
+  Quitar: "Remove",
+  "Nueva columna": "New column",
+  Agregar: "Add",
+};
+
 function makeStageId(label: string, existingIds: string[]): string {
   const base =
     label
@@ -54,6 +80,7 @@ export default function AvanzaInicioPage() {
   const router = useRouter();
   const [allDeals, setAllDeals] = useState<Deal[]>([]);
   const [isDemo, setIsDemo] = useState(false);
+  const [language, setLanguage] = useState<"es" | "en">("es");
   const [stages, setStages] = useState<Stage[]>([]);
   const [query, setQuery] = useState("");
   const [openQuickMenuDealId, setOpenQuickMenuDealId] = useState<string | null>(null);
@@ -81,10 +108,13 @@ export default function AvanzaInicioPage() {
   const [newStageName, setNewStageName] = useState("");
 
   useEffect(() => {
-    const demoMode = new URLSearchParams(window.location.search).get("embed") === "1";
+    const params = new URLSearchParams(window.location.search);
+    const demoMode = params.get("embed") === "1";
+    const demoLanguage = params.get("lang") === "en" ? "en" : "es";
+    setLanguage(demoLanguage);
     setIsDemo(demoMode);
-    const loadedStages = loadStages();
-    const loadedDeals = demoMode ? PROFESSIONAL_SERVICES_DEMO_DEALS : loadDeals();
+    const loadedStages = loadStages().map((stage) => demoLanguage === "en" ? { ...stage, label: EN[stage.label] || stage.label } : stage);
+    const loadedDeals = (demoMode ? PROFESSIONAL_SERVICES_DEMO_DEALS : loadDeals()).map((deal) => demoLanguage === "en" ? { ...deal, businessName: EN[deal.businessName] || deal.businessName } : deal);
     const validIds = new Set(loadedStages.map((s) => s.id));
     const firstStage = loadedStages[0]?.id || "sin_contactar";
     const normalizedDeals = loadedDeals.map((deal) => ({
@@ -98,6 +128,8 @@ export default function AvanzaInicioPage() {
       saveDeals(normalizedDeals);
     }
   }, []);
+
+  const t = (value: string) => language === "en" ? EN[value] || value : value;
 
   const filteredDeals = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -218,10 +250,10 @@ export default function AvanzaInicioPage() {
       <section style={{ background: "#ffffff", border: "1px solid #d8dee6", borderRadius: 10, padding: 12, display: "grid", gap: 10 }}>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button onClick={() => setShowStageManager(true)} style={{ background: "#ffffff", color: "#334155", border: "1px solid #cbd5e1", borderRadius: 10, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>
-            Columnas
+            {t("Columnas")}
           </button>
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Escribe la palabra" style={{ width: "min(340px, 100%)", borderRadius: 20, border: "1px solid #d8dee6", padding: "9px 14px" }} />
-          <div style={{ marginLeft: "auto", color: "#374151", fontWeight: 800 }}>{money(totals.totalAmount)} | {totals.totalDeals} Negocios</div>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Escribe la palabra")} style={{ width: "min(340px, 100%)", borderRadius: 20, border: "1px solid #d8dee6", padding: "9px 14px" }} />
+          <div style={{ marginLeft: "auto", color: "#374151", fontWeight: 800 }}>{money(totals.totalAmount)} | {totals.totalDeals} {t("Negocios")}</div>
         </div>
       </section>
 
@@ -255,7 +287,7 @@ export default function AvanzaInicioPage() {
           >
             <div style={{ borderRadius: 8, background: "#e7ebf3", padding: "10px 10px", border: "1px solid #d8dee6" }}>
               <div style={{ fontWeight: 800, color: "#2d3748", fontSize: 15 }}>{stage.label}</div>
-              <div style={{ color: "#6b7280", fontSize: 12 }}>{money(deals.reduce((sum, d) => sum + Number(d.totalOrderAmount || 0), 0))} - {deals.length} Negocios</div>
+              <div style={{ color: "#6b7280", fontSize: 12 }}>{money(deals.reduce((sum, d) => sum + Number(d.totalOrderAmount || 0), 0))} - {deals.length} {t("Negocios")}</div>
             </div>
 
             {deals.map((deal) => (
@@ -271,7 +303,7 @@ export default function AvanzaInicioPage() {
                   setDragDealId(null);
                   setDragOverStageId(null);
                 }}
-                onClick={() => router.push(`/avanza-crm/negocios?deal=${deal.id}${isDemo ? "&embed=1" : ""}`)}
+                onClick={() => router.push(`/avanza-crm/negocios?deal=${deal.id}${isDemo ? `&embed=1&lang=${language}` : ""}`)}
                 style={{
                   background: "#ffffff",
                   border: "1px solid #d8dee6",
@@ -310,7 +342,7 @@ export default function AvanzaInicioPage() {
                     </button>
                   </div>
                 </div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>{deal.contactName || deal.company || "Sin contacto"}</div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>{deal.contactName || deal.company || t("Sin contacto")}</div>
 
                 {openQuickMenuDealId === deal.id ? (
                   <div
@@ -365,7 +397,7 @@ export default function AvanzaInicioPage() {
                         >
                           +
                         </span>
-                        <span style={{ fontSize: 13 }}>{item.label}</span>
+                        <span style={{ fontSize: 13 }}>{t(item.label)}</span>
                       </button>
                     ))}
                   </div>
@@ -373,7 +405,7 @@ export default function AvanzaInicioPage() {
               </article>
             ))}
 
-            {deals.length === 0 ? <div style={{ fontSize: 12, color: "#9ca3af", padding: "4px 2px" }}>Sin negocios en esta etapa.</div> : null}
+            {deals.length === 0 ? <div style={{ fontSize: 12, color: "#9ca3af", padding: "4px 2px" }}>{t("Sin negocios en esta etapa.")}</div> : null}
           </section>
         ))}
       </div>
@@ -382,7 +414,7 @@ export default function AvanzaInicioPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 3100, display: "grid", placeItems: "center", padding: 16 }}>
           <section style={{ width: "min(680px, 96vw)", background: "#ffffff", border: "1px solid #d8dee6", borderRadius: 10, overflow: "hidden" }}>
             <div style={{ padding: "10px 14px", background: "#334155", color: "#ffffff", fontWeight: 800, display: "flex", alignItems: "center" }}>
-              Configurar columnas del kanban
+              {t("Configurar columnas del kanban")}
               <button onClick={() => setShowStageManager(false)} style={{ marginLeft: "auto", border: "none", background: "transparent", color: "#fff", fontSize: 16, cursor: "pointer" }}>x</button>
             </div>
             <div style={{ padding: 14, display: "grid", gap: 10 }}>
@@ -390,15 +422,15 @@ export default function AvanzaInicioPage() {
                 <div key={stage.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" }}>
                   <input value={stage.label} onChange={(e) => renameStage(stage.id, e.target.value)} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
                   <button onClick={() => removeStage(stage.id)} disabled={stages.length <= 1} style={{ border: "1px solid #fecaca", color: "#b91c1c", background: "#fff", borderRadius: 6, padding: "8px 10px", cursor: stages.length <= 1 ? "not-allowed" : "pointer", opacity: stages.length <= 1 ? 0.5 : 1 }}>
-                    Quitar
+                    {t("Quitar")}
                   </button>
                 </div>
               ))}
 
               <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 10, display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
-                <input value={newStageName} onChange={(e) => setNewStageName(e.target.value)} placeholder="Nueva columna" style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
+                <input value={newStageName} onChange={(e) => setNewStageName(e.target.value)} placeholder={t("Nueva columna")} style={{ border: "1px solid #d8dee6", borderRadius: 6, padding: "8px 10px" }} />
                 <button onClick={addStage} style={{ border: "none", background: "#22b8aa", color: "#fff", borderRadius: 6, padding: "8px 12px", fontWeight: 700, cursor: "pointer" }}>
-                  Agregar
+                  {t("Agregar")}
                 </button>
               </div>
             </div>
