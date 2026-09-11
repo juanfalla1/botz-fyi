@@ -102,9 +102,9 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
           </div>
         ) : (
           <div className="empty-state">
-            <span className="deal-badge">Sync pending</span>
+            <span className="deal-badge">No offers yet</span>
             <h2>No {label.toLowerCase()} products yet</h2>
-            <p>Run the Smart Deals n8n workflow after adding category support. Products in this category will appear here automatically.</p>
+            <p>There are currently no offers available in this category. Please check back soon.</p>
           </div>
         )}
       </section>

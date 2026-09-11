@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { cleanSearchQuery, searchProducts, smartDealCategories, type SmartDealProduct } from "@/lib/smartdeals";
+import { cleanSearchQuery, normalizeSearchParam, searchProducts, smartDealCategories, type SmartDealProduct } from "@/lib/smartdeals";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type SearchPageProps = {
-  searchParams: Promise<{ q?: string }> | { q?: string };
+  searchParams: Promise<{ q?: string | string[] }> | { q?: string | string[] };
 };
 
 export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
   const resolved = await searchParams;
-  const query = cleanSearchQuery(resolved.q || "");
+  const query = cleanSearchQuery(normalizeSearchParam(resolved.q));
 
   return {
     title: query ? `Search ${query}` : "Search Deals",
@@ -23,7 +23,7 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const resolved = await searchParams;
-  const query = cleanSearchQuery(resolved.q || "");
+  const query = cleanSearchQuery(normalizeSearchParam(resolved.q));
   const products = query ? await searchProducts(query, 72) : [];
 
   return (

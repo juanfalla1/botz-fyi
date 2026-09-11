@@ -114,14 +114,9 @@ export default async function Home() {
           </div>
         ) : (
           <div className="empty-state">
-            <span className="deal-badge">Coming online</span>
-            <h2>Products are syncing</h2>
-            <p>Run the Smart Deals n8n workflow once and this storefront will fill with Amazon.ca products automatically.</p>
-            <div className="empty-grid" aria-hidden="true">
-              <span>Amazon.ca finds</span>
-              <span>Auto-updated prices</span>
-              <span>Tracked clicks</span>
-            </div>
+            <span className="deal-badge">No offers yet</span>
+            <h2>No deals available right now</h2>
+            <p>There are currently no offers to display. Please check back soon.</p>
           </div>
         )}
       </section>
@@ -153,8 +148,8 @@ function EmptyHero() {
   return (
     <div className="featured-card empty-featured">
       <div className="brand-mark big">SD</div>
-      <h2>Products are syncing</h2>
-      <p>As soon as Supabase returns Amazon.ca products, this area becomes the featured deal.</p>
+      <h2>No deals available right now</h2>
+      <p>There are currently no offers to display. Please check back soon.</p>
     </div>
   );
 }
