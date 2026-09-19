@@ -168,6 +168,11 @@ export default function AgentChannelsPage() {
   const [evolutionStatus, setEvolutionStatus] = useState<"connected" | "pending" | "disconnected">("disconnected");
   const [evolutionQr, setEvolutionQr] = useState<string | null>(null);
   const [evolutionDisconnectBusy, setEvolutionDisconnectBusy] = useState(false);
+  const [metaModalOpen, setMetaModalOpen] = useState(false);
+  const [metaConnectionId, setMetaConnectionId] = useState("");
+  const [metaAgentId, setMetaAgentId] = useState("");
+  const [metaTesting, setMetaTesting] = useState(false);
+  const [metaTestOk, setMetaTestOk] = useState(false);
   const pollRef = useRef<number | null>(null);
 
   const tr = (es: string, en: string) => (language === "en" ? en : es);
@@ -212,6 +217,8 @@ export default function AgentChannelsPage() {
     notes: "Este canal no tiene plantilla predefinida. Completa campos basicos y webhook.",
     fields: [] as CredField[],
   };
+  const connectedMeta = rows.find((row) => row.channel_type === "whatsapp" && row.provider === "meta") || null;
+  const connectedMetaAgent = availableAgents.find((agent) => agent.id === connectedMeta?.assigned_agent_id) || null;
 
   const callbackUrl = typeof window !== "undefined"
     ? `${window.location.origin}/api/whatsapp/meta/callback`
@@ -393,7 +400,7 @@ export default function AgentChannelsPage() {
       setNumbers(Array.isArray(json.numbers) ? json.numbers : []);
       const advanced = Boolean(accessJson?.data?.advanced_channels);
       setCanAdvanced(advanced);
-      setAdvancedOpen(advanced);
+      setAdvancedOpen(false);
     } catch (e: any) {
       const msg = String(e?.message || "Error cargando canales");
       if (/unauthorized|auth|required/i.test(msg)) {
@@ -407,6 +414,14 @@ export default function AgentChannelsPage() {
   };
 
   useEffect(() => { void fetchData(); }, []);
+
+  useEffect(() => {
+    const connectionId = String(searchParams.get("meta_connection_id") || "").trim();
+    if (!connectionId) return;
+    setMetaConnectionId(connectionId);
+    setMetaModalOpen(true);
+    void fetchData();
+  }, [searchParams]);
 
   useEffect(() => {
     if (!preselectedAgentId || agents.length === 0) return;
@@ -481,6 +496,51 @@ export default function AgentChannelsPage() {
     if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo actualizar canal");
   };
 
+  const testMetaConnection = async (connectionId: string) => {
+    if (!connectionId) return;
+    setMetaTesting(true);
+    setError(null);
+    try {
+      if (metaAgentId) await patch(connectionId, { assigned_agent_id: metaAgentId });
+      const res = await authedFetch("/api/agents/channels/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel_type: "whatsapp", provider: "meta-embedded", connection_id: connectionId }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo validar Meta");
+      setMetaTestOk(true);
+      await fetchData();
+    } catch (e: any) {
+      setError(String(e?.message || "No se pudo validar Meta"));
+    } finally {
+      setMetaTesting(false);
+    }
+  };
+
+  const disconnectChannel = async (id: string) => {
+    if (!id || !window.confirm(tr("¿Desconectar este canal?", "Disconnect this channel?"))) return;
+    const res = await authedFetch(`/api/agents/channels/${id}`, { method: "DELETE" });
+    const json = await res.json();
+    if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo desconectar el canal");
+    setMetaModalOpen(false);
+    setMetaConnectionId("");
+    setMetaTestOk(false);
+    await fetchData();
+  };
+
+  const beginMetaSignup = async () => {
+    setError(null);
+    try {
+      const res = await authedFetch("/api/agents/channels/meta-embedded-callback?start=1");
+      const json = await res.json();
+      if (!res.ok || !json?.ok || !json?.url) throw new Error(json?.error || "No se pudo iniciar Meta");
+      window.location.assign(String(json.url));
+    } catch (e: any) {
+      setError(String(e?.message || "No se pudo iniciar Meta"));
+    }
+  };
+
   return (
     <div style={{ minHeight: "100vh", backgroundColor: C.bg, color: C.white, fontFamily: "Inter,-apple-system,sans-serif" }}>
       <div style={{ height: 56, backgroundColor: C.dark, borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 18px", gap: 12 }}>
@@ -489,13 +549,51 @@ export default function AgentChannelsPage() {
       </div>
 
       <div style={{ maxWidth: 1160, margin: "0 auto", padding: "22px 18px 36px" }}>
-        <div style={{ color: C.muted, marginBottom: 14 }}>{tr("Conecta canales reales (voz, WhatsApp, webchat), asigna numero y agente responsable.", "Connect real channels (voice, WhatsApp, webchat), assign number and responsible agent.")}</div>
+        <div style={{ marginBottom: 22 }}>
+          <h1 style={{ margin: 0, fontSize: 34, lineHeight: 1.1 }}>{tr("Canales", "Channels")}</h1>
+          <div style={{ color: C.muted, marginTop: 8 }}>{tr("Conecta los lugares donde tus clientes hablan con tu negocio.", "Connect the places where your customers talk to your business.")}</div>
+        </div>
         {preselectedAgent && (
           <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 12, border: `1px solid ${C.border}`, background: "rgba(163,230,53,0.12)", color: C.white, fontSize: 13 }}>
             {tr("Agente preseleccionado:", "Preselected agent:")} <strong>{preselectedAgent.name}</strong>. {tr("Las nuevas conexiones quedaran asignadas a este agente.", "New connections will be assigned to this agent.")}
           </div>
         )}
         {error && <div style={{ marginBottom: 12, border: `1px solid ${C.border}`, background: "rgba(239,68,68,0.12)", color: "#fca5a5", padding: "10px 12px", borderRadius: 10 }}>{error}</div>}
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 12, marginBottom: 18 }}>
+          {[
+            { name: "WhatsApp Business", description: tr("Mensajería con Meta Cloud API", "Messaging with Meta Cloud API"), action: connectedMeta ? tr("Administrar", "Manage") : tr("Connect Meta", "Connect Meta"), featured: true, onClick: () => connectedMeta ? (setMetaConnectionId(connectedMeta.id), setMetaAgentId(connectedMeta.assigned_agent_id || ""), setMetaTestOk(connectedMeta.status === "connected"), setMetaModalOpen(true)) : void beginMetaSignup() },
+            { name: "Instagram", description: tr("Mensajes directos con Meta", "Direct messages with Meta"), action: tr("Próximamente", "Coming soon") },
+            { name: "Facebook Messenger", description: tr("Conversaciones desde Facebook", "Conversations from Facebook"), action: tr("Próximamente", "Coming soon") },
+            { name: "Web Chat", description: tr("Widget embebido para tu sitio", "Embedded widget for your site"), action: tr("Configurar", "Configure"), onClick: () => { setForm((s) => ({ ...s, channel_type: "webchat", provider: "botz" })); setAdvancedOpen(true); } },
+            { name: "Voice", description: tr("Llamadas y voz en tiempo real", "Live calls and voice"), action: tr("Configurar", "Configure"), onClick: () => { setForm((s) => ({ ...s, channel_type: "voice", provider: "twilio" })); setAdvancedOpen(true); } },
+          ].map((item) => (
+            <div key={item.name} style={{ borderRadius: 16, border: `1px solid ${item.featured ? "rgba(163,230,53,0.45)" : C.border}`, background: item.featured ? "linear-gradient(145deg,rgba(163,230,53,0.12),rgba(34,38,45,0.95))" : C.card, padding: 18, minHeight: 156, display: "flex", flexDirection: "column" }}>
+              <div style={{ width: 38, height: 38, borderRadius: 12, display: "grid", placeItems: "center", background: item.featured ? "rgba(163,230,53,0.18)" : C.dark, color: item.featured ? C.lime : C.white, fontWeight: 900 }}>{item.name.slice(0, 1)}</div>
+              <div style={{ fontWeight: 900, fontSize: 17, marginTop: 14 }}>{item.name}</div>
+              <div style={{ color: C.muted, fontSize: 12, marginTop: 5, flex: 1 }}>{item.description}</div>
+              <button disabled={!item.onClick} onClick={item.onClick} style={{ marginTop: 14, borderRadius: 9, border: `1px solid ${item.featured ? C.lime : C.border}`, background: item.featured ? C.lime : "transparent", color: item.featured ? "#111" : item.onClick ? C.white : C.muted, padding: "8px 10px", cursor: item.onClick ? "pointer" : "not-allowed", fontWeight: 850 }}>{item.action}</button>
+            </div>
+          ))}
+        </div>
+
+        {connectedMeta && (
+          <div style={{ marginBottom: 18, borderRadius: 16, border: `1px solid ${C.border}`, background: C.card, padding: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontWeight: 900, fontSize: 17 }}>{String(connectedMeta.config?.business_name || connectedMeta.display_name || "WhatsApp Business")}</div>
+                <div style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>{String(connectedMeta.config?.display_phone_number || connectedMeta.config?.phone_number || connectedMeta.config?.phone_number_id || "-")}</div>
+              </div>
+              <span style={{ borderRadius: 999, padding: "5px 10px", background: connectedMeta.status === "connected" ? "rgba(16,185,129,0.16)" : "rgba(245,158,11,0.16)", color: connectedMeta.status === "connected" ? "#34d399" : "#fbbf24", fontSize: 12, fontWeight: 900 }}>{connectedMeta.status === "connected" ? tr("Conectado", "Connected") : tr("Pendiente", "Pending")}</span>
+            </div>
+            <div style={{ color: C.muted, fontSize: 13, marginTop: 10 }}>{tr("Agente BOTZ:", "BOTZ Agent:")} <span style={{ color: C.white }}>{connectedMetaAgent ? prettyName(connectedMetaAgent.name) : tr("Sin asignar", "Unassigned")}</span></div>
+            <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+              <button onClick={() => { setMetaConnectionId(connectedMeta.id); setMetaAgentId(connectedMeta.assigned_agent_id || ""); setMetaTestOk(false); setMetaModalOpen(true); }} style={{ borderRadius: 9, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "8px 11px", cursor: "pointer", fontWeight: 800 }}>{tr("Test / Re-test", "Test / Re-test")}</button>
+              <button onClick={() => { setMetaConnectionId(connectedMeta.id); setMetaAgentId(connectedMeta.assigned_agent_id || ""); setMetaTestOk(connectedMeta.status === "connected"); setMetaModalOpen(true); }} style={{ borderRadius: 9, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "8px 11px", cursor: "pointer", fontWeight: 800 }}>{tr("Cambiar agente", "Change Agent")}</button>
+              <button onClick={() => void disconnectChannel(connectedMeta.id).catch((e) => setError(String(e?.message || e)))} style={{ borderRadius: 9, border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.1)", color: "#fca5a5", padding: "8px 11px", cursor: "pointer", fontWeight: 800 }}>{tr("Desconectar", "Disconnect")}</button>
+            </div>
+          </div>
+        )}
 
         {!canAdvanced && (
           <div style={{ marginBottom: 12, padding: "12px 14px", borderRadius: 12, border: `1px solid ${C.border}`, background: "rgba(0,150,255,0.09)", color: C.white }}>
@@ -504,7 +602,10 @@ export default function AgentChannelsPage() {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, marginBottom: 12 }}>
+        <button type="button" onClick={() => setAdvancedOpen((open) => !open)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", borderRadius: 12, border: `1px solid ${C.border}`, background: C.card, color: C.white, padding: "13px 15px", cursor: "pointer", fontWeight: 900, marginBottom: advancedOpen ? 10 : 0 }}>
+          <span>Advanced / Legacy</span><span>{advancedOpen ? "−" : "+"}</span>
+        </button>
+        <div style={{ display: advancedOpen ? "grid" : "none", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, marginBottom: 12 }}>
           <div style={{ borderRadius: 12, border: "1px solid rgba(163,230,53,0.35)", background: "rgba(163,230,53,0.08)", padding: 12 }}>
               <div style={{ fontWeight: 900, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <span>WhatsApp QR (Evolution)</span>
@@ -579,7 +680,7 @@ export default function AgentChannelsPage() {
             ))}
         </div>
 
-        {canAdvanced && (
+        {advancedOpen && canAdvanced && (
         <div style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr .9fr 1fr 1fr auto", gap: 10, marginBottom: 10, padding: 14, borderRadius: 14, border: `1px solid ${C.border}`, background: C.card }}>
           <input value={form.display_name} onChange={(e) => setForm((s) => ({ ...s, display_name: e.target.value }))} placeholder="Nombre del canal" style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.dark, color: C.white }} />
           <select
@@ -613,7 +714,7 @@ export default function AgentChannelsPage() {
         </div>
         )}
 
-        <div style={{ marginBottom: 14, padding: 14, borderRadius: 14, border: `1px solid ${C.border}`, background: C.card }}>
+        <div style={{ display: advancedOpen ? "block" : "none", marginBottom: 14, padding: 14, borderRadius: 14, border: `1px solid ${C.border}`, background: C.card }}>
           {canAdvanced && (
             <button
               type="button"
@@ -725,6 +826,25 @@ export default function AgentChannelsPage() {
             </>
           )}
         </div>
+
+        {metaModalOpen && (
+          <div onClick={() => setMetaModalOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(2,6,23,0.82)", display: "grid", placeItems: "center", padding: 16 }}>
+            <div onClick={(event) => event.stopPropagation()} style={{ width: "100%", maxWidth: 560, borderRadius: 16, border: `1px solid ${C.border}`, background: C.card, padding: 20 }}>
+              <div style={{ fontWeight: 900, fontSize: 22 }}>WhatsApp Business</div>
+              <div style={{ color: C.muted, fontSize: 13, marginTop: 6 }}>{metaTestOk ? tr("La conexión está Live. Puedes cambiar el agente o repetir la prueba.", "The connection is Live. You can change the agent or repeat the test.") : tr("Asigna el agente BOTZ que responderá este número y prueba la conexión.", "Assign the BOTZ agent that will answer this number and test the connection.")}</div>
+              <label style={{ display: "block", color: C.muted, fontSize: 12, fontWeight: 800, marginTop: 18, marginBottom: 6 }}>{tr("Agente BOTZ", "BOTZ Agent")}</label>
+              <select value={metaAgentId} onChange={(event) => setMetaAgentId(event.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
+                <option value="">{tr("Seleccionar agente", "Select agent")}</option>
+                {availableAgents.map((agent) => <option key={agent.id} value={agent.id}>{prettyName(agent.name)} - {agentTypeLabel(agent.type)}</option>)}
+              </select>
+              <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
+                <button disabled={!metaAgentId || metaTesting} onClick={() => void testMetaConnection(metaConnectionId)} style={{ flex: 1, minWidth: 150, borderRadius: 9, border: "none", background: C.lime, color: "#111", padding: "10px 12px", cursor: !metaAgentId || metaTesting ? "not-allowed" : "pointer", opacity: !metaAgentId || metaTesting ? 0.65 : 1, fontWeight: 900 }}>{metaTesting ? tr("Probando...", "Testing...") : metaTestOk ? tr("Re-test", "Re-test") : tr("Probar conexión", "Test connection")}</button>
+                <button onClick={() => setMetaModalOpen(false)} style={{ borderRadius: 9, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer" }}>{tr("Cerrar", "Close")}</button>
+              </div>
+              {metaTestOk && <div style={{ color: "#34d399", fontWeight: 850, marginTop: 12 }}>{tr("Conexión Live", "Connection Live")}</div>}
+            </div>
+          </div>
+        )}
 
         <div style={{ borderRadius: 14, border: `1px solid ${C.border}`, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>

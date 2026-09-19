@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/app/api/_utils/auth";
+import { getServiceSupabase } from "@/app/api/_utils/supabase";
+import { revealConfig } from "@/app/api/_utils/secret-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,6 +51,28 @@ export async function POST(req: Request) {
     }
     if (provider === "twilio" && channelType === "voice") {
       const out = await testTwilioVoice(config);
+      return NextResponse.json(out, { status: out.ok ? 200 : 400 });
+    }
+    if (provider === "meta-embedded" && channelType === "whatsapp") {
+      const connectionId = String(body?.connection_id || "").trim();
+      const supabase = getServiceSupabase();
+      if (!connectionId || !supabase) return NextResponse.json({ ok: false, error: "Conexión inválida" }, { status: 400 });
+
+      const { data: connection, error } = await supabase
+        .from("agent_channel_connections")
+        .select("id,assigned_agent_id,config")
+        .eq("id", connectionId)
+        .eq("created_by", guard.user.id)
+        .eq("channel_type", "whatsapp")
+        .eq("provider", "meta")
+        .maybeSingle();
+      if (error || !connection) return NextResponse.json({ ok: false, error: error?.message || "Conexión no encontrada" }, { status: 404 });
+      if (!connection.assigned_agent_id) return NextResponse.json({ ok: false, error: "Asigna un agente antes de probar" }, { status: 400 });
+
+      const out = await testMetaWhatsApp(revealConfig(connection.config || {}));
+      if (out.ok) {
+        await supabase.from("agent_channel_connections").update({ status: "connected", updated_at: new Date().toISOString() }).eq("id", connectionId).eq("created_by", guard.user.id);
+      }
       return NextResponse.json(out, { status: out.ok ? 200 : 400 });
     }
 
