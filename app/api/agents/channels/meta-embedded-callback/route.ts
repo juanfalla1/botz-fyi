@@ -10,6 +10,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const META_CALLBACK_URL = "https://www.botz.fyi/api/agents/channels/meta-embedded-callback";
 const META_EMBEDDED_SIGNUP_CONFIG_ID = "901068936216673";
+type MetaOnboardingMode = "signup" | "existing";
 
 function appUrl() {
   return String(process.env.NEXT_PUBLIC_APP_URL || "https://www.botz.fyi").replace(/\/$/, "");
@@ -19,8 +20,8 @@ function errorRedirect(code: string) {
   return NextResponse.redirect(`${appUrl()}/start/agents/channels?meta_error=${encodeURIComponent(code)}`);
 }
 
-function signState(userId: string, agentId: string, secret: string) {
-  const payload = Buffer.from(JSON.stringify({ userId, agentId, issuedAt: Date.now() })).toString("base64url");
+function signState(userId: string, agentId: string, mode: MetaOnboardingMode, secret: string) {
+  const payload = Buffer.from(JSON.stringify({ userId, agentId, mode, issuedAt: Date.now() })).toString("base64url");
   const signature = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
   return `${payload}.${signature}`;
 }
@@ -33,7 +34,12 @@ function verifyState(state: string, secret: string) {
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!parsed?.userId || !parsed?.agentId || Date.now() - Number(parsed.issuedAt || 0) > 30 * 60 * 1000) return null;
-    return { userId: String(parsed.userId), agentId: String(parsed.agentId) };
+    const mode = parsed.mode === "existing" ? "existing" : "signup";
+    return { userId: String(parsed.userId), agentId: String(parsed.agentId), mode } as {
+      userId: string;
+      agentId: string;
+      mode: MetaOnboardingMode;
+    };
   } catch {
     return null;
   }
@@ -64,7 +70,8 @@ export async function GET(req: Request) {
     if (!agent || String(agent.status || "").toLowerCase() === "archived") {
       return NextResponse.json({ ok: false, error: "Agente BOTZ inválido" }, { status: 400 });
     }
-    const state = signState(guard.user.id, assignedAgentId, appSecret);
+    const mode: MetaOnboardingMode = url.searchParams.get("mode") === "existing" ? "existing" : "signup";
+    const state = signState(guard.user.id, assignedAgentId, mode, appSecret);
     const authorize = new URL("https://www.facebook.com/v21.0/dialog/oauth");
     authorize.searchParams.set("client_id", appId);
     authorize.searchParams.set("redirect_uri", META_CALLBACK_URL);
@@ -72,6 +79,12 @@ export async function GET(req: Request) {
     authorize.searchParams.set("response_type", "code");
     authorize.searchParams.set("override_default_response_type", "true");
     authorize.searchParams.set("state", state);
+    if (mode === "existing") {
+      authorize.searchParams.set("extras", JSON.stringify({
+        version: "v3",
+        features: [{ name: "app_only_install" }],
+      }));
+    }
     return NextResponse.json({ ok: true, url: authorize.toString() });
   }
 
@@ -81,7 +94,7 @@ export async function GET(req: Request) {
   const state = String(url.searchParams.get("state") || "").trim();
   const signup = verifyState(state, appSecret);
   if (!code || !signup) return errorRedirect("invalid_state");
-  const { userId, agentId } = signup;
+  const { userId, agentId, mode } = signup;
 
   const tokenUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
   tokenUrl.searchParams.set("client_id", appId);
@@ -162,6 +175,7 @@ export async function GET(req: Request) {
     verify_token: verifyToken,
     business_name: String(business?.name || waba?.name || "WhatsApp Business"),
     display_phone_number: String(phone?.display_phone_number || ""),
+    onboarding_mode: mode,
     _schema: "whatsapp:meta",
     _schema_title: "WhatsApp Cloud API (Meta)",
   });

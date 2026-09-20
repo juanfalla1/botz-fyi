@@ -537,7 +537,7 @@ export default function AgentChannelsPage() {
     await fetchData();
   };
 
-  const beginMetaSignup = async () => {
+  const beginMetaSignup = async (mode: "signup" | "existing") => {
     if (!metaAgentId) {
       setError(tr("Selecciona primero el agente BOTZ", "Select the BOTZ agent first"));
       return;
@@ -545,7 +545,12 @@ export default function AgentChannelsPage() {
     setMetaTesting(true);
     setError(null);
     try {
-      const res = await authedFetch(`/api/agents/channels/meta-embedded-callback?start=1&assigned_agent_id=${encodeURIComponent(metaAgentId)}`);
+      const params = new URLSearchParams({
+        start: "1",
+        assigned_agent_id: metaAgentId,
+        mode,
+      });
+      const res = await authedFetch(`/api/agents/channels/meta-embedded-callback?${params.toString()}`);
       const json = await res.json();
       if (!res.ok || !json?.ok || !json?.url) throw new Error(json?.error || "No se pudo iniciar Meta");
       window.location.assign(String(json.url));
@@ -845,14 +850,21 @@ export default function AgentChannelsPage() {
           <div onClick={() => setMetaModalOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(2,6,23,0.82)", display: "grid", placeItems: "center", padding: 16 }}>
             <div onClick={(event) => event.stopPropagation()} style={{ width: "100%", maxWidth: 560, borderRadius: 16, border: `1px solid ${C.border}`, background: C.card, padding: 20 }}>
               <div style={{ fontWeight: 900, fontSize: 22 }}>WhatsApp Business</div>
-              <div style={{ color: C.muted, fontSize: 13, marginTop: 6 }}>{!metaConnectionId ? tr("Selecciona primero el agente BOTZ que responderá este número y continúa con Meta.", "First select the BOTZ agent that will answer this number, then continue with Meta.") : metaTestOk ? tr("La conexión está Live. Puedes cambiar el agente o repetir la prueba.", "The connection is Live. You can change the agent or repeat the test.") : tr("El canal está pendiente. Prueba la conexión para activarlo.", "The channel is pending. Test the connection to activate it.")}</div>
+              <div style={{ color: C.muted, fontSize: 13, marginTop: 6 }}>{!metaConnectionId ? tr("Selecciona primero el agente BOTZ y elige si vas a conectar un número existente o registrar uno nuevo.", "First select the BOTZ agent, then choose whether to connect an existing number or register a new one.") : metaTestOk ? tr("La conexión está Live. Puedes cambiar el agente o repetir la prueba.", "The connection is Live. You can change the agent or repeat the test.") : tr("El canal está pendiente. Prueba la conexión para activarlo.", "The channel is pending. Test the connection to activate it.")}</div>
               <label style={{ display: "block", color: C.muted, fontSize: 12, fontWeight: 800, marginTop: 18, marginBottom: 6 }}>{tr("Agente BOTZ", "BOTZ Agent")}</label>
               <select value={metaAgentId} onChange={(event) => setMetaAgentId(event.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
                 <option value="">{tr("Seleccionar agente", "Select agent")}</option>
                 {availableAgents.map((agent) => <option key={agent.id} value={agent.id}>{prettyName(agent.name)} - {agentTypeLabel(agent.type)}</option>)}
               </select>
-              <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
-                <button disabled={!metaAgentId || metaTesting} onClick={() => void (metaConnectionId ? testMetaConnection(metaConnectionId) : beginMetaSignup())} style={{ flex: 1, minWidth: 150, borderRadius: 9, border: "none", background: C.lime, color: "#111", padding: "10px 12px", cursor: !metaAgentId || metaTesting ? "not-allowed" : "pointer", opacity: !metaAgentId || metaTesting ? 0.65 : 1, fontWeight: 900 }}>{metaTesting ? tr("Procesando...", "Processing...") : !metaConnectionId ? tr("Continuar con Meta", "Continue with Meta") : metaTestOk ? tr("Re-test", "Re-test") : tr("Probar conexión", "Test connection")}</button>
+              {!metaConnectionId && (
+                <div style={{ marginTop: 14, padding: 12, borderRadius: 10, border: `1px solid ${C.border}`, background: C.dark }}>
+                  <div style={{ color: C.white, fontSize: 13, fontWeight: 850 }}>{tr("¿Tu número ya está en Meta?", "Is your number already in Meta?")}</div>
+                  <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{tr("Autoriza el WABA y el número existentes. BOTZ no volverá a registrar el teléfono.", "Authorize the existing WABA and number. BOTZ will not register the phone again.")}</div>
+                  <button disabled={!metaAgentId || metaTesting} onClick={() => void beginMetaSignup("existing")} style={{ width: "100%", marginTop: 10, borderRadius: 9, border: "none", background: C.lime, color: "#111", padding: "10px 12px", cursor: !metaAgentId || metaTesting ? "not-allowed" : "pointer", opacity: !metaAgentId || metaTesting ? 0.65 : 1, fontWeight: 900 }}>{metaTesting ? tr("Procesando...", "Processing...") : tr("Conectar número existente", "Connect existing number")}</button>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                <button disabled={!metaAgentId || metaTesting} onClick={() => void (metaConnectionId ? testMetaConnection(metaConnectionId) : beginMetaSignup("signup"))} style={{ flex: 1, minWidth: 150, borderRadius: 9, border: metaConnectionId ? "none" : `1px solid ${C.border}`, background: metaConnectionId ? C.lime : "transparent", color: metaConnectionId ? "#111" : C.white, padding: "10px 12px", cursor: !metaAgentId || metaTesting ? "not-allowed" : "pointer", opacity: !metaAgentId || metaTesting ? 0.65 : 1, fontWeight: 900 }}>{metaTesting ? tr("Procesando...", "Processing...") : !metaConnectionId ? tr("Registrar número nuevo", "Register new number") : metaTestOk ? tr("Re-test", "Re-test") : tr("Probar conexión", "Test connection")}</button>
                 <button onClick={() => setMetaModalOpen(false)} style={{ borderRadius: 9, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer" }}>{tr("Cerrar", "Close")}</button>
               </div>
               {metaTestOk && <div style={{ color: "#34d399", fontWeight: 850, marginTop: 12 }}>{tr("Conexión Live", "Connection Live")}</div>}
