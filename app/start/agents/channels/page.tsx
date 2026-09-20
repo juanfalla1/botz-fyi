@@ -424,6 +424,14 @@ export default function AgentChannelsPage() {
   }, [searchParams]);
 
   useEffect(() => {
+    if (!metaConnectionId) return;
+    const connection = rows.find((row) => row.id === metaConnectionId);
+    if (!connection) return;
+    setMetaAgentId(connection.assigned_agent_id || "");
+    setMetaTestOk(connection.status === "connected");
+  }, [metaConnectionId, rows]);
+
+  useEffect(() => {
     if (!preselectedAgentId || agents.length === 0) return;
     const exists = agents.some((a) => a.id === preselectedAgentId);
     if (!exists) return;
@@ -530,14 +538,20 @@ export default function AgentChannelsPage() {
   };
 
   const beginMetaSignup = async () => {
+    if (!metaAgentId) {
+      setError(tr("Selecciona primero el agente BOTZ", "Select the BOTZ agent first"));
+      return;
+    }
+    setMetaTesting(true);
     setError(null);
     try {
-      const res = await authedFetch("/api/agents/channels/meta-embedded-callback?start=1");
+      const res = await authedFetch(`/api/agents/channels/meta-embedded-callback?start=1&assigned_agent_id=${encodeURIComponent(metaAgentId)}`);
       const json = await res.json();
       if (!res.ok || !json?.ok || !json?.url) throw new Error(json?.error || "No se pudo iniciar Meta");
       window.location.assign(String(json.url));
     } catch (e: any) {
       setError(String(e?.message || "No se pudo iniciar Meta"));
+      setMetaTesting(false);
     }
   };
 
@@ -562,7 +576,7 @@ export default function AgentChannelsPage() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 12, marginBottom: 18 }}>
           {[
-            { name: "WhatsApp Business", description: tr("Mensajería con Meta Cloud API", "Messaging with Meta Cloud API"), action: connectedMeta ? tr("Administrar", "Manage") : tr("Connect Meta", "Connect Meta"), featured: true, onClick: () => connectedMeta ? (setMetaConnectionId(connectedMeta.id), setMetaAgentId(connectedMeta.assigned_agent_id || ""), setMetaTestOk(connectedMeta.status === "connected"), setMetaModalOpen(true)) : void beginMetaSignup() },
+            { name: "WhatsApp Business", description: tr("Mensajería con Meta Cloud API", "Messaging with Meta Cloud API"), action: connectedMeta ? tr("Administrar", "Manage") : tr("Connect Meta", "Connect Meta"), featured: true, onClick: () => connectedMeta ? (setMetaConnectionId(connectedMeta.id), setMetaAgentId(connectedMeta.assigned_agent_id || ""), setMetaTestOk(connectedMeta.status === "connected"), setMetaModalOpen(true)) : (setMetaConnectionId(""), setMetaAgentId(preselectedAgentId), setMetaTestOk(false), setMetaModalOpen(true)) },
             { name: "Instagram", description: tr("Mensajes directos con Meta", "Direct messages with Meta"), action: tr("Próximamente", "Coming soon") },
             { name: "Facebook Messenger", description: tr("Conversaciones desde Facebook", "Conversations from Facebook"), action: tr("Próximamente", "Coming soon") },
             { name: "Web Chat", description: tr("Widget embebido para tu sitio", "Embedded widget for your site"), action: tr("Configurar", "Configure"), onClick: () => { setForm((s) => ({ ...s, channel_type: "webchat", provider: "botz" })); setAdvancedOpen(true); } },
@@ -831,14 +845,14 @@ export default function AgentChannelsPage() {
           <div onClick={() => setMetaModalOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(2,6,23,0.82)", display: "grid", placeItems: "center", padding: 16 }}>
             <div onClick={(event) => event.stopPropagation()} style={{ width: "100%", maxWidth: 560, borderRadius: 16, border: `1px solid ${C.border}`, background: C.card, padding: 20 }}>
               <div style={{ fontWeight: 900, fontSize: 22 }}>WhatsApp Business</div>
-              <div style={{ color: C.muted, fontSize: 13, marginTop: 6 }}>{metaTestOk ? tr("La conexión está Live. Puedes cambiar el agente o repetir la prueba.", "The connection is Live. You can change the agent or repeat the test.") : tr("Asigna el agente BOTZ que responderá este número y prueba la conexión.", "Assign the BOTZ agent that will answer this number and test the connection.")}</div>
+              <div style={{ color: C.muted, fontSize: 13, marginTop: 6 }}>{!metaConnectionId ? tr("Selecciona primero el agente BOTZ que responderá este número y continúa con Meta.", "First select the BOTZ agent that will answer this number, then continue with Meta.") : metaTestOk ? tr("La conexión está Live. Puedes cambiar el agente o repetir la prueba.", "The connection is Live. You can change the agent or repeat the test.") : tr("El canal está pendiente. Prueba la conexión para activarlo.", "The channel is pending. Test the connection to activate it.")}</div>
               <label style={{ display: "block", color: C.muted, fontSize: 12, fontWeight: 800, marginTop: 18, marginBottom: 6 }}>{tr("Agente BOTZ", "BOTZ Agent")}</label>
               <select value={metaAgentId} onChange={(event) => setMetaAgentId(event.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.dark, color: C.white }}>
                 <option value="">{tr("Seleccionar agente", "Select agent")}</option>
                 {availableAgents.map((agent) => <option key={agent.id} value={agent.id}>{prettyName(agent.name)} - {agentTypeLabel(agent.type)}</option>)}
               </select>
               <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
-                <button disabled={!metaAgentId || metaTesting} onClick={() => void testMetaConnection(metaConnectionId)} style={{ flex: 1, minWidth: 150, borderRadius: 9, border: "none", background: C.lime, color: "#111", padding: "10px 12px", cursor: !metaAgentId || metaTesting ? "not-allowed" : "pointer", opacity: !metaAgentId || metaTesting ? 0.65 : 1, fontWeight: 900 }}>{metaTesting ? tr("Probando...", "Testing...") : metaTestOk ? tr("Re-test", "Re-test") : tr("Probar conexión", "Test connection")}</button>
+                <button disabled={!metaAgentId || metaTesting} onClick={() => void (metaConnectionId ? testMetaConnection(metaConnectionId) : beginMetaSignup())} style={{ flex: 1, minWidth: 150, borderRadius: 9, border: "none", background: C.lime, color: "#111", padding: "10px 12px", cursor: !metaAgentId || metaTesting ? "not-allowed" : "pointer", opacity: !metaAgentId || metaTesting ? 0.65 : 1, fontWeight: 900 }}>{metaTesting ? tr("Procesando...", "Processing...") : !metaConnectionId ? tr("Continuar con Meta", "Continue with Meta") : metaTestOk ? tr("Re-test", "Re-test") : tr("Probar conexión", "Test connection")}</button>
                 <button onClick={() => setMetaModalOpen(false)} style={{ borderRadius: 9, border: `1px solid ${C.border}`, background: "transparent", color: C.white, padding: "10px 12px", cursor: "pointer" }}>{tr("Cerrar", "Close")}</button>
               </div>
               {metaTestOk && <div style={{ color: "#34d399", fontWeight: 850, marginTop: 12 }}>{tr("Conexión Live", "Connection Live")}</div>}
