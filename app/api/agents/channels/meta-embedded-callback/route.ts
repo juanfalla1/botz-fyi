@@ -8,6 +8,7 @@ import { checkEntitlementAccess, getPlanLimits, hasAdminEntitlementOverride } fr
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+const META_CALLBACK_URL = "https://www.botz.fyi/api/agents/channels/meta-embedded-callback";
 
 function appUrl() {
   return String(process.env.NEXT_PUBLIC_APP_URL || "https://www.botz.fyi").replace(/\/$/, "");
@@ -39,7 +40,6 @@ function verifyState(state: string, secret: string) {
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const callbackUrl = `${appUrl()}/api/agents/channels/meta-embedded-callback`;
   const appId = String(process.env.META_APP_ID || process.env.NEXT_PUBLIC_META_APP_ID || "").trim();
   const appSecret = String(process.env.META_APP_SECRET || "").trim();
   const configSecret = String(process.env.AGENTS_CONFIG_SECRET || "").trim();
@@ -53,7 +53,7 @@ export async function GET(req: Request) {
     const state = signState(guard.user.id, appSecret);
     const authorize = new URL("https://www.facebook.com/v21.0/dialog/oauth");
     authorize.searchParams.set("client_id", appId);
-    authorize.searchParams.set("redirect_uri", callbackUrl);
+    authorize.searchParams.set("redirect_uri", META_CALLBACK_URL);
     authorize.searchParams.set("scope", "business_management,whatsapp_business_management,whatsapp_business_messaging");
     authorize.searchParams.set("response_type", "code");
     authorize.searchParams.set("state", state);
@@ -70,7 +70,7 @@ export async function GET(req: Request) {
   const tokenUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
   tokenUrl.searchParams.set("client_id", appId);
   tokenUrl.searchParams.set("client_secret", appSecret);
-  tokenUrl.searchParams.set("redirect_uri", callbackUrl);
+  tokenUrl.searchParams.set("redirect_uri", META_CALLBACK_URL);
   tokenUrl.searchParams.set("code", code);
   const tokenRes = await fetch(tokenUrl, { headers: { accept: "application/json" }, cache: "no-store" });
   const tokenJson = await tokenRes.json().catch(() => ({}));
