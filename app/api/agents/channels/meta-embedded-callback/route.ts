@@ -9,6 +9,7 @@ import { checkEntitlementAccess, getPlanLimits, hasAdminEntitlementOverride } fr
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const META_CALLBACK_URL = "https://www.botz.fyi/api/agents/channels/meta-embedded-callback";
+const META_EMBEDDED_SIGNUP_CONFIG_ID = "901068936216673";
 
 function appUrl() {
   return String(process.env.NEXT_PUBLIC_APP_URL || "https://www.botz.fyi").replace(/\/$/, "");
@@ -54,8 +55,9 @@ export async function GET(req: Request) {
     const authorize = new URL("https://www.facebook.com/v21.0/dialog/oauth");
     authorize.searchParams.set("client_id", appId);
     authorize.searchParams.set("redirect_uri", META_CALLBACK_URL);
-    authorize.searchParams.set("scope", "business_management,whatsapp_business_management,whatsapp_business_messaging");
+    authorize.searchParams.set("config_id", META_EMBEDDED_SIGNUP_CONFIG_ID);
     authorize.searchParams.set("response_type", "code");
+    authorize.searchParams.set("override_default_response_type", "true");
     authorize.searchParams.set("state", state);
     return NextResponse.json({ ok: true, url: authorize.toString() });
   }
