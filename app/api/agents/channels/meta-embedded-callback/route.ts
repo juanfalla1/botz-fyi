@@ -45,66 +45,27 @@ function verifyState(state: string, secret: string) {
   }
 }
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const appId = String(process.env.META_APP_ID || process.env.NEXT_PUBLIC_META_APP_ID || "").trim();
-  const appSecret = String(process.env.META_APP_SECRET || "").trim();
-  const configSecret = String(process.env.AGENTS_CONFIG_SECRET || "").trim();
+type MetaCompletionResult = { ok: true; connectionId: string } | { ok: false; error: string };
 
-  if (url.searchParams.get("start") === "1") {
-    const guard = await getRequestUser(req);
-    if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
-    if (!appId || !appSecret || !configSecret) {
-      return NextResponse.json({ ok: false, error: "Meta no está configurado en este entorno" }, { status: 503 });
-    }
-    const assignedAgentId = String(url.searchParams.get("assigned_agent_id") || "").trim();
-    const supabase = getServiceSupabase();
-    if (!assignedAgentId || !supabase) return NextResponse.json({ ok: false, error: "Selecciona un agente BOTZ" }, { status: 400 });
-    const { data: agent } = await supabase
-      .from("ai_agents")
-      .select("id,status")
-      .eq("id", assignedAgentId)
-      .eq("tenant_id", SYSTEM_TENANT_ID)
-      .eq("created_by", guard.user.id)
-      .maybeSingle();
-    if (!agent || String(agent.status || "").toLowerCase() === "archived") {
-      return NextResponse.json({ ok: false, error: "Agente BOTZ inválido" }, { status: 400 });
-    }
-    const mode: MetaOnboardingMode = url.searchParams.get("mode") === "existing" ? "existing" : "signup";
-    const state = signState(guard.user.id, assignedAgentId, mode, appSecret);
-    const authorize = new URL("https://www.facebook.com/v21.0/dialog/oauth");
-    authorize.searchParams.set("client_id", appId);
-    authorize.searchParams.set("redirect_uri", META_CALLBACK_URL);
-    authorize.searchParams.set("config_id", META_EMBEDDED_SIGNUP_CONFIG_ID);
-    authorize.searchParams.set("response_type", "code");
-    authorize.searchParams.set("override_default_response_type", "true");
-    authorize.searchParams.set("state", state);
-    if (mode === "existing") {
-      authorize.searchParams.set("extras", JSON.stringify({
-        version: "v3",
-        features: [{ name: "app_only_install" }],
-      }));
-    }
-    return NextResponse.json({ ok: true, url: authorize.toString() });
-  }
-
-  if (!appId || !appSecret || !configSecret) return errorRedirect("meta_not_configured");
-
-  const code = String(url.searchParams.get("code") || "").trim();
-  const state = String(url.searchParams.get("state") || "").trim();
-  const signup = verifyState(state, appSecret);
-  if (!code || !signup) return errorRedirect("invalid_state");
+async function completeMetaAuthorization(input: {
+  appId: string;
+  appSecret: string;
+  code: string;
+  includeRedirectUri: boolean;
+  signup: NonNullable<ReturnType<typeof verifyState>>;
+}): Promise<MetaCompletionResult> {
+  const { appId, appSecret, code, includeRedirectUri, signup } = input;
   const { userId, agentId, mode } = signup;
-
+  const fail = (error: string): MetaCompletionResult => ({ ok: false, error });
   const tokenUrl = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
   tokenUrl.searchParams.set("client_id", appId);
   tokenUrl.searchParams.set("client_secret", appSecret);
-  tokenUrl.searchParams.set("redirect_uri", META_CALLBACK_URL);
+  if (includeRedirectUri) tokenUrl.searchParams.set("redirect_uri", META_CALLBACK_URL);
   tokenUrl.searchParams.set("code", code);
   const tokenRes = await fetch(tokenUrl, { headers: { accept: "application/json" }, cache: "no-store" });
   const tokenJson = await tokenRes.json().catch(() => ({}));
   const accessToken = String(tokenJson?.access_token || "").trim();
-  if (!tokenRes.ok || !accessToken) return errorRedirect("token_exchange_failed");
+  if (!tokenRes.ok || !accessToken) return fail("token_exchange_failed");
 
   const identityUrl = new URL("https://graph.facebook.com/v21.0/me");
   identityUrl.searchParams.set("fields", "id,client_business_id");
@@ -133,17 +94,17 @@ export async function GET(req: Request) {
   const business = businesses.find((item: any) => item?.owned_whatsapp_business_accounts?.data?.[0]?.phone_numbers?.data?.[0]) || businesses[0];
   const waba = business?.owned_whatsapp_business_accounts?.data?.[0];
   const phone = waba?.phone_numbers?.data?.[0];
-  if (!waba?.id || !phone?.id) return errorRedirect("whatsapp_business_not_found");
+  if (!waba?.id || !phone?.id) return fail("whatsapp_business_not_found");
 
   const subscribeRes = await fetch(`https://graph.facebook.com/v21.0/${encodeURIComponent(String(waba.id))}/subscribed_apps`, {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     cache: "no-store",
   });
-  if (!subscribeRes.ok) return errorRedirect("webhook_subscription_failed");
+  if (!subscribeRes.ok) return fail("webhook_subscription_failed");
 
   const supabase = getServiceSupabase();
-  if (!supabase) return errorRedirect("storage_unavailable");
+  if (!supabase) return fail("storage_unavailable");
   const { data: assignedAgent } = await supabase
     .from("ai_agents")
     .select("id,status")
@@ -151,16 +112,16 @@ export async function GET(req: Request) {
     .eq("tenant_id", SYSTEM_TENANT_ID)
     .eq("created_by", userId)
     .maybeSingle();
-  if (!assignedAgent || String(assignedAgent.status || "").toLowerCase() === "archived") return errorRedirect("assigned_agent_not_found");
+  if (!assignedAgent || String(assignedAgent.status || "").toLowerCase() === "archived") return fail("assigned_agent_not_found");
   const entitlement = await checkEntitlementAccess(supabase as any, userId);
-  if (!entitlement.ok) return errorRedirect("entitlement_blocked");
+  if (!entitlement.ok) return fail("entitlement_blocked");
   const { data: existingRows, error: existingError } = await supabase
     .from("agent_channel_connections")
     .select("id,config")
     .eq("created_by", userId)
     .eq("channel_type", "whatsapp")
     .eq("provider", "meta");
-  if (existingError) return errorRedirect("connection_lookup_failed");
+  if (existingError) return fail("connection_lookup_failed");
   const existing = (existingRows || []).find((row: any) => {
     const current = revealConfig(row?.config || {});
     return String(current?.phone_number_id || "") === String(phone.id);
@@ -182,7 +143,7 @@ export async function GET(req: Request) {
   let connectionId = String(existing?.id || "");
   if (connectionId) {
     const { error } = await supabase.from("agent_channel_connections").update({ display_name: String(business?.name || "WhatsApp Business"), assigned_agent_id: agentId, status: "pending", config, updated_at: new Date().toISOString() }).eq("id", connectionId).eq("created_by", userId);
-    if (error) return errorRedirect("connection_save_failed");
+    if (error) return fail("connection_save_failed");
   } else {
     if (!hasAdminEntitlementOverride(userId)) {
       const limits = getPlanLimits(String((entitlement as any)?.entitlement?.plan_key || "pro"));
@@ -190,13 +151,101 @@ export async function GET(req: Request) {
         .from("agent_channel_connections")
         .select("id", { count: "exact", head: true })
         .eq("created_by", userId);
-      if (countError) return errorRedirect("channel_limit_check_failed");
-      if (limits.max_channels > 0 && Number(count || 0) >= limits.max_channels) return errorRedirect("channels_limit_reached");
+      if (countError) return fail("channel_limit_check_failed");
+      if (limits.max_channels > 0 && Number(count || 0) >= limits.max_channels) return fail("channels_limit_reached");
     }
     const { data, error } = await supabase.from("agent_channel_connections").insert({ tenant_id: SYSTEM_TENANT_ID, created_by: userId, assigned_agent_id: agentId, channel_type: "whatsapp", provider: "meta", display_name: String(business?.name || "WhatsApp Business"), status: "pending", config }).select("id").single();
-    if (error || !data?.id) return errorRedirect("connection_save_failed");
+    if (error || !data?.id) return fail("connection_save_failed");
     connectionId = String(data.id);
   }
 
-  return NextResponse.redirect(`${appUrl()}/start/agents/channels?meta_connection_id=${encodeURIComponent(connectionId)}`);
+  return { ok: true, connectionId };
+}
+
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const appId = String(process.env.META_APP_ID || process.env.NEXT_PUBLIC_META_APP_ID || "").trim();
+  const appSecret = String(process.env.META_APP_SECRET || "").trim();
+  const configSecret = String(process.env.AGENTS_CONFIG_SECRET || "").trim();
+
+  if (url.searchParams.get("start") === "1") {
+    const guard = await getRequestUser(req);
+    if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
+    if (!appId || !appSecret || !configSecret) {
+      return NextResponse.json({ ok: false, error: "Meta no está configurado en este entorno" }, { status: 503 });
+    }
+    const assignedAgentId = String(url.searchParams.get("assigned_agent_id") || "").trim();
+    const supabase = getServiceSupabase();
+    if (!assignedAgentId || !supabase) return NextResponse.json({ ok: false, error: "Selecciona un agente BOTZ" }, { status: 400 });
+    const { data: agent } = await supabase
+      .from("ai_agents")
+      .select("id,status")
+      .eq("id", assignedAgentId)
+      .eq("tenant_id", SYSTEM_TENANT_ID)
+      .eq("created_by", guard.user.id)
+      .maybeSingle();
+    if (!agent || String(agent.status || "").toLowerCase() === "archived") {
+      return NextResponse.json({ ok: false, error: "Agente BOTZ inválido" }, { status: 400 });
+    }
+    const mode: MetaOnboardingMode = url.searchParams.get("mode") === "existing" ? "existing" : "signup";
+    const state = signState(guard.user.id, assignedAgentId, mode, appSecret);
+    if (mode === "existing") {
+      return NextResponse.json({
+        ok: true,
+        sdk: { app_id: appId, config_id: META_EMBEDDED_SIGNUP_CONFIG_ID, state },
+      });
+    }
+
+    const authorize = new URL("https://www.facebook.com/v21.0/dialog/oauth");
+    authorize.searchParams.set("client_id", appId);
+    authorize.searchParams.set("redirect_uri", META_CALLBACK_URL);
+    authorize.searchParams.set("config_id", META_EMBEDDED_SIGNUP_CONFIG_ID);
+    authorize.searchParams.set("response_type", "code");
+    authorize.searchParams.set("override_default_response_type", "true");
+    authorize.searchParams.set("state", state);
+    return NextResponse.json({ ok: true, url: authorize.toString() });
+  }
+
+  if (!appId || !appSecret || !configSecret) return errorRedirect("meta_not_configured");
+
+  const code = String(url.searchParams.get("code") || "").trim();
+  const state = String(url.searchParams.get("state") || "").trim();
+  const signup = verifyState(state, appSecret);
+  if (!code || !signup || signup.mode !== "signup") return errorRedirect("invalid_state");
+
+  const result = await completeMetaAuthorization({ appId, appSecret, code, includeRedirectUri: true, signup });
+  if (!result.ok) return errorRedirect(result.error);
+  return NextResponse.redirect(`${appUrl()}/start/agents/channels?meta_connection_id=${encodeURIComponent(result.connectionId)}`);
+}
+
+export async function POST(req: Request) {
+  const guard = await getRequestUser(req);
+  if (!guard.ok) return NextResponse.json({ ok: false, error: guard.error }, { status: 401 });
+
+  const appId = String(process.env.META_APP_ID || process.env.NEXT_PUBLIC_META_APP_ID || "").trim();
+  const appSecret = String(process.env.META_APP_SECRET || "").trim();
+  const configSecret = String(process.env.AGENTS_CONFIG_SECRET || "").trim();
+  if (!appId || !appSecret || !configSecret) {
+    return NextResponse.json({ ok: false, error: "Meta no está configurado en este entorno" }, { status: 503 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const code = String(body?.code || "").trim();
+  const state = String(body?.state || "").trim();
+  const sessionEvent = String(body?.session_event || "").trim();
+  const signup = verifyState(state, appSecret);
+  if (!code || !signup || signup.mode !== "existing" || signup.userId !== guard.user.id) {
+    return NextResponse.json({ ok: false, error: "Autorización Meta inválida" }, { status: 400 });
+  }
+  if (sessionEvent !== "FINISH_GRANT_ONLY_API_ACCESS") {
+    return NextResponse.json({ ok: false, error: "Meta no completó App-Only Install" }, { status: 400 });
+  }
+
+  const result = await completeMetaAuthorization({ appId, appSecret, code, includeRedirectUri: false, signup });
+  if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+  return NextResponse.json({
+    ok: true,
+    connection_id: result.connectionId,
+    redirect_url: `/start/agents/channels?meta_connection_id=${encodeURIComponent(result.connectionId)}`,
+  });
 }

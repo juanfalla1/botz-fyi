@@ -27,6 +27,63 @@ type Channel = {
   config?: Record<string, any>;
 };
 
+type FacebookSdk = {
+  init: (options: { appId: string; autoLogAppEvents: boolean; xfbml: boolean; version: string }) => void;
+  login: (
+    callback: (response: { authResponse?: { code?: string }; status?: string }) => void,
+    options: {
+      config_id: string;
+      response_type: "code";
+      override_default_response_type: true;
+      extras: { version: "v3"; features: Array<{ name: "app_only_install" }> };
+    }
+  ) => void;
+};
+
+type FacebookWindow = Window & typeof globalThis & {
+  FB?: FacebookSdk;
+  fbAsyncInit?: () => void;
+};
+
+let facebookSdkPromise: Promise<FacebookSdk> | null = null;
+
+function loadFacebookSdk(appId: string) {
+  if (facebookSdkPromise) return facebookSdkPromise;
+  facebookSdkPromise = new Promise<FacebookSdk>((resolve, reject) => {
+    const facebookWindow = window as FacebookWindow;
+    const initialize = () => {
+      if (!facebookWindow.FB) {
+        reject(new Error("No se pudo cargar Facebook SDK"));
+        return;
+      }
+      facebookWindow.FB.init({ appId, autoLogAppEvents: true, xfbml: false, version: "v26.0" });
+      resolve(facebookWindow.FB);
+    };
+
+    if (facebookWindow.FB) {
+      initialize();
+      return;
+    }
+
+    facebookWindow.fbAsyncInit = initialize;
+    const existingScript = document.getElementById("facebook-jssdk");
+    if (existingScript) return;
+
+    const script = document.createElement("script");
+    script.id = "facebook-jssdk";
+    script.async = true;
+    script.defer = true;
+    script.crossOrigin = "anonymous";
+    script.src = "https://connect.facebook.net/en_US/sdk.js";
+    script.onerror = () => {
+      facebookSdkPromise = null;
+      reject(new Error("No se pudo cargar Facebook SDK"));
+    };
+    document.head.appendChild(script);
+  });
+  return facebookSdkPromise;
+}
+
 type CredField = {
   key: string;
   label: string;
@@ -552,8 +609,97 @@ export default function AgentChannelsPage() {
       });
       const res = await authedFetch(`/api/agents/channels/meta-embedded-callback?${params.toString()}`);
       const json = await res.json();
-      if (!res.ok || !json?.ok || !json?.url) throw new Error(json?.error || "No se pudo iniciar Meta");
-      window.location.assign(String(json.url));
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "No se pudo iniciar Meta");
+      if (mode === "signup") {
+        if (!json?.url) throw new Error("No se pudo iniciar Meta");
+        window.location.assign(String(json.url));
+        return;
+      }
+
+      const appId = String(json?.sdk?.app_id || "").trim();
+      const configId = String(json?.sdk?.config_id || "").trim();
+      const signedState = String(json?.sdk?.state || "").trim();
+      if (!appId || !configId || !signedState) throw new Error("Configuración SDK de Meta inválida");
+      const facebook = await loadFacebookSdk(appId);
+      const code = await new Promise<string>((resolve, reject) => {
+        let authorizationCode = "";
+        let grantFinished = false;
+        let settled = false;
+        let timeout: number | null = null;
+
+        const cleanup = () => {
+          if (timeout !== null) window.clearTimeout(timeout);
+          window.removeEventListener("message", onMessage);
+        };
+        const finish = (failure?: Error) => {
+          if (settled) return;
+          if (failure) {
+            settled = true;
+            cleanup();
+            reject(failure);
+            return;
+          }
+          if (!authorizationCode || !grantFinished) return;
+          settled = true;
+          cleanup();
+          resolve(authorizationCode);
+        };
+        const onMessage = (event: MessageEvent) => {
+          let hostname = "";
+          try {
+            hostname = new URL(event.origin).hostname;
+          } catch {
+            return;
+          }
+          if (hostname !== "facebook.com" && !hostname.endsWith(".facebook.com")) return;
+          try {
+            const payload = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+            if (payload?.type !== "WA_EMBEDDED_SIGNUP") return;
+            if (payload?.event === "FINISH_GRANT_ONLY_API_ACCESS") {
+              grantFinished = true;
+              finish();
+            } else if (payload?.event === "ERROR" || payload?.event === "CANCEL") {
+              finish(new Error(String(payload?.data?.error_message || "Meta canceló App-Only Install")));
+            }
+          } catch {
+            // Ignore unrelated Facebook message events.
+          }
+        };
+
+        window.addEventListener("message", onMessage);
+        timeout = window.setTimeout(() => finish(new Error("Meta no completó la autorización")), 5 * 60 * 1000);
+        facebook.login((response) => {
+          authorizationCode = String(response?.authResponse?.code || "").trim();
+          if (!authorizationCode) {
+            finish(new Error("Meta no devolvió un código de autorización"));
+            return;
+          }
+          finish();
+        }, {
+          config_id: configId,
+          response_type: "code",
+          override_default_response_type: true,
+          extras: {
+            version: "v3",
+            features: [{ name: "app_only_install" }],
+          },
+        });
+      });
+
+      const completeRes = await authedFetch("/api/agents/channels/meta-embedded-callback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          state: signedState,
+          session_event: "FINISH_GRANT_ONLY_API_ACCESS",
+        }),
+      });
+      const completeJson = await completeRes.json();
+      if (!completeRes.ok || !completeJson?.ok || !completeJson?.redirect_url) {
+        throw new Error(completeJson?.error || "No se pudo guardar la conexión Meta");
+      }
+      window.location.assign(String(completeJson.redirect_url));
     } catch (e: any) {
       setError(String(e?.message || "No se pudo iniciar Meta"));
       setMetaTesting(false);
