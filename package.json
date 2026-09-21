@@ -10,6 +10,7 @@
     "catalog:ohaus:cotizaciones:sync": "python scripts/sync-ohaus-cotizaciones-folder.py",
     "catalog:ohaus:prices:sync": "python scripts/sync-ohaus-prices-from-list.py",
     "catalog:ohaus:assets:sync": "python scripts/sync-ohaus-cotizaciones-assets.py",
+    "test:agent-runtime": "tsx --test lib/agents/runtime/run-agent-tool-loop.test.ts",
     "webhook-v2:golden": "node scripts/webhook-v2-golden-check.mjs"
   },
   "dependencies": {
@@ -28,6 +29,7 @@
     "@upstash/redis": "^1.36.2",
     "@vapi-ai/web": "^2.5.2",
     "@xyflow/react": "^12.10.0",
+    "ajv": "^8.20.0",
     "animate.css": "^4.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -67,6 +69,7 @@
     "baseline-browser-mapping": "^2.10.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.11",
+    "tsx": "^4.23.15",
     "typescript": "5.8.3"
   }
 }
