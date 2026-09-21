@@ -5,6 +5,7 @@ import { authedFetch } from "@/app/start/agents/authedFetchAgents";
 import useBotzLanguage from "@/app/start/hooks/useBotzLanguage";
 
 interface ChatTestPanelProps {
+  agentId: string;
   agentName: string;
   agentRole: string;
   agentPrompt: string;
@@ -27,6 +28,7 @@ const C = {
 };
 
 export default function ChatTestPanel({
+  agentId,
   agentName,
   agentRole,
   agentPrompt,
@@ -79,6 +81,7 @@ ${indexedFiles.length > 0 ? `\nDocumentacion relevante disponible: ${indexedFile
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          agentId,
           message: userMessage,
           context,
           conversationHistory: messages,

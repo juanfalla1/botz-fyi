@@ -1577,6 +1577,7 @@ export default function AgentDetailPage() {
           {tab === "prueba" && agent.type === "text" && (
             <div style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, minHeight: 620, display: "flex" }}>
               <ChatTestPanel
+                agentId={agentId}
                 agentName={edit.name || agent.name}
                 agentRole={edit.role || agent.description}
                 agentPrompt={edit.prompt || String(cfg?.system_prompt || "")}

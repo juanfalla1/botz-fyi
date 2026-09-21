@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/app/api/_utils/auth";
 import { getAnonSupabaseWithToken } from "@/app/api/_utils/supabase";
@@ -5,6 +7,17 @@ import { checkEntitlementAccess, consumeEntitlementCredits, logUsageEvent } from
 import { getClientIp, rateLimit } from "@/app/api/_utils/rateLimit";
 import { logReq, makeReqContext } from "@/app/api/_utils/observability";
 import { SYSTEM_TENANT_ID } from "@/app/api/_utils/system";
+import { runAgentTest } from "@/lib/agents/agent-test-runtime";
+import { AgentRuntimeError } from "@/lib/agents/runtime/errors";
+import { OpenAIAgentModelAdapter } from "@/lib/agents/runtime/openai-adapter";
+import { createSupabaseToolPermissionResolver } from "@/lib/agents/runtime/permission-resolver";
+import type {
+  AgentModelAdapter,
+  AgentModelMessage,
+  AgentModelRequest,
+  AgentModelTurn,
+  AgentToolResultMessage,
+} from "@/lib/agents/runtime/types";
 
 function normalizeBrainFiles(raw: any): { name: string; content: string }[] {
   if (!Array.isArray(raw)) return [];
@@ -156,10 +169,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Too many requests", code: "RATE_LIMITED" }, { status: 429 });
     }
 
-    const { message, context, conversationHistory, brainFiles } = await req.json();
+    const { agentId, message, context, conversationHistory, brainFiles } = await req.json();
+    const normalizedAgentId = String(agentId || "").trim();
 
-    if (!message || !context) {
-      return NextResponse.json({ ok: false, error: "Missing message or context" }, { status: 400 });
+    if (!normalizedAgentId || !message || !context) {
+      return NextResponse.json({ ok: false, error: "Missing agentId, message or context" }, { status: 400 });
     }
 
     const indexedFiles = normalizeBrainFiles(brainFiles);
@@ -179,7 +193,14 @@ Si la informacion no aparece en los documentos ni en el contexto, dilo clarament
     const quoteMode = buildQuoteModeInstruction(message);
     const fullPrompt = systemPrompt + documentContext + catalogContext + quoteMode;
 
-    const generated = await generateResponse(message, fullPrompt, conversationHistory);
+    const generated = await generateResponse({
+      agentId: normalizedAgentId,
+      ownerId: guard.user.id,
+      message: String(message),
+      systemPrompt: fullPrompt,
+      conversationHistory,
+      permissionResolver: createSupabaseToolPermissionResolver(supabase as any),
+    });
     const response = generated.text;
     const creditDelta = Math.max(1, Number(generated.tokens || 0));
 
@@ -205,54 +226,77 @@ Si la informacion no aparece en los documentos ni en el contexto, dilo clarament
   }
 }
 
-// Función para generar respuestas (puede ser mejorada con LLM real)
-async function generateResponse(
-  message: string,
-  systemPrompt: string,
-  conversationHistory: any[] = []
-) {
-  // Intentar usar OpenAI si está disponible
+async function generateResponse(input: {
+  agentId: string;
+  ownerId: string;
+  message: string;
+  systemPrompt: string;
+  conversationHistory?: { role: "user" | "agent"; content: string }[];
+  permissionResolver: ReturnType<typeof createSupabaseToolPermissionResolver>;
+}) {
   const openaiKey = process.env.OPENAI_API_KEY;
+  const runId = randomUUID();
+  const runWithAdapter = (modelAdapter: AgentModelAdapter) => runAgentTest({
+    agentId: input.agentId,
+    tenantId: SYSTEM_TENANT_ID,
+    ownerId: input.ownerId,
+    actorId: input.ownerId,
+    runId,
+    systemPrompt: input.systemPrompt,
+    message: input.message,
+    conversationHistory: Array.isArray(input.conversationHistory) ? input.conversationHistory : [],
+    model: "gpt-4o-mini",
+    modelAdapter,
+    permissionResolver: input.permissionResolver,
+    temperature: 0.2,
+    maxOutputTokens: 500,
+  });
 
   if (openaiKey) {
     try {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${openaiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-           model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...conversationHistory.map((msg: any) => ({
-              role: msg.role === "user" ? "user" : "assistant",
-              content: msg.content,
-            })),
-            { role: "user", content: message },
-          ],
-          temperature: 0.2,
-          max_tokens: 500,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("OpenAI API error");
-      }
-
-      const data = await response.json();
-      const text = data.choices?.[0]?.message?.content || "No pude procesar tu solicitud.";
-      const tokens = Number(data?.usage?.total_tokens || 0);
-      return { text, tokens, usedOpenAI: true };
-    } catch (e) {
-      console.error("OpenAI error, falling back to mock response:", e);
+      const result = await runWithAdapter(new OpenAIAgentModelAdapter({
+        client: new OpenAI({ apiKey: openaiKey }),
+      }));
+      return {
+        text: result.finalText || "No pude procesar tu solicitud.",
+        tokens: Number(result.usage.totalTokens || 0),
+        usedOpenAI: true,
+      };
+    } catch (error) {
+      if (!(error instanceof AgentRuntimeError) || error.code !== "MODEL_FAILED") throw error;
+      console.error("OpenAI error, falling back to mock response:", error);
     }
   }
 
-  const text = generateMockResponse(message, systemPrompt);
-  const tokens = Math.ceil((String(message || "").length + String(text || "").length) / 4);
-  return { text, tokens, usedOpenAI: false };
+  const result = await runWithAdapter(new MockAgentModelAdapter());
+  return {
+    text: result.finalText,
+    tokens: Number(result.usage.totalTokens || 0),
+    usedOpenAI: false,
+  };
+}
+
+class MockAgentModelAdapter implements AgentModelAdapter {
+  async generate(request: AgentModelRequest): Promise<AgentModelTurn> {
+    const systemPrompt = request.messages.find((message) => message.role === "system")?.content || "";
+    const message = [...request.messages].reverse().find((item) => item.role === "user")?.content || "";
+    const text = generateMockResponse(message, systemPrompt);
+    const totalTokens = Math.ceil((message.length + text.length) / 4);
+    return { text, toolCalls: [], usage: { totalTokens } };
+  }
+
+  appendAssistantTurn(messages: readonly AgentModelMessage[], turn: AgentModelTurn) {
+    return [...messages, { role: "assistant" as const, content: turn.text, toolCalls: turn.toolCalls }];
+  }
+
+  appendToolResult(messages: readonly AgentModelMessage[], result: AgentToolResultMessage) {
+    return [...messages, {
+      role: "tool" as const,
+      content: result.content,
+      name: result.toolId,
+      toolCallId: result.toolCallId,
+    }];
+  }
 }
 
 // Generar respuestas mock cuando no hay IA disponible
