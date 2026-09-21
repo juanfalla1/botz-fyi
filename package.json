@@ -10,7 +10,7 @@
     "catalog:ohaus:cotizaciones:sync": "python scripts/sync-ohaus-cotizaciones-folder.py",
     "catalog:ohaus:prices:sync": "python scripts/sync-ohaus-prices-from-list.py",
     "catalog:ohaus:assets:sync": "python scripts/sync-ohaus-cotizaciones-assets.py",
-    "test:agent-runtime": "tsx --test lib/agents/runtime/run-agent-tool-loop.test.ts",
+    "test:agent-runtime": "tsx --test lib/agents/runtime/run-agent-tool-loop.test.ts lib/agents/executors/generate-pdf-executor.test.ts",
     "webhook-v2:golden": "node scripts/webhook-v2-golden-check.mjs"
   },
   "dependencies": {

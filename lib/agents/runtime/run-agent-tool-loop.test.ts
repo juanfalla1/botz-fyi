@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { generatePdfExecutor } from "../executors/generate-pdf-executor";
+import { getToolDefinition } from "../tool-registry";
 import { AgentRuntimeError } from "./errors";
 import { ToolExecutorRegistry } from "./executor-registry";
 import { OpenAIAgentModelAdapter } from "./openai-adapter";
@@ -93,6 +95,49 @@ function toolTurn(id = "call-1", args: unknown = { value: "hello" }): AgentModel
 function finalTurn(text = "final answer"): AgentModelTurn {
   return { text, toolCalls: [] };
 }
+
+test("runs model to generate_pdf executor to tool result to model", async () => {
+  const generatePdfDefinition = getToolDefinition("generate_pdf");
+  assert.ok(generatePdfDefinition);
+  const model = new QueueModelAdapter([{
+    text: "",
+    toolCalls: [{
+      id: "generate-pdf-call",
+      toolId: "generate_pdf",
+      arguments: {
+        template_id: "basic_document",
+        data: { title: "Project update", content: "The project is on schedule." },
+        filename: "project-update.pdf",
+      },
+    }],
+  }, finalTurn("The PDF was generated successfully.")]);
+
+  const result = await runAgentToolLoop({
+    context: { ...context, runId: "generate-pdf-run" },
+    messages: [{ role: "user", content: "Generate the project update PDF" }],
+    model: "test-model",
+    toolDefinitions: [generatePdfDefinition],
+    modelAdapter: model,
+    executorRegistry: new ToolExecutorRegistry([generatePdfExecutor]),
+    permissionResolver: permissions(["generate_pdf"]),
+    auditSink: silentAudit,
+  });
+
+  assert.equal(result.finalText, "The PDF was generated successfully.");
+  assert.equal(result.iterations, 2);
+  assert.equal(result.toolCalls, 1);
+  assert.equal(model.requests.length, 2);
+  const toolMessage = model.requests[1].messages.find((message) => message.role === "tool");
+  assert.ok(toolMessage);
+  const toolResult = JSON.parse(toolMessage.content);
+  assert.equal(toolResult.ok, true);
+  assert.deepEqual(Object.keys(toolResult.data).sort(), ["generated", "mimeType", "pdfName", "sizeBytes"]);
+  assert.equal(toolResult.data.generated, true);
+  assert.equal(toolResult.data.pdfName, "project-update.pdf");
+  assert.equal(toolResult.data.mimeType, "application/pdf");
+  assert.ok(toolResult.data.sizeBytes > 500);
+  assert.doesNotMatch(toolMessage.content, /base64|binary/i);
+});
 
 test("uses the provider-neutral adapter and revalidates permission before execution", async () => {
   let permissionChecks = 0;
