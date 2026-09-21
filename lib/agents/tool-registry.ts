@@ -38,13 +38,21 @@ export const TOOL_REGISTRY = [
   {
     id: "generate_pdf",
     name: "Generate PDF",
-    description: "Generate a PDF document from a business template and structured data.",
+    description: "Generate a PDF document using the supported basic_document template.",
     category: "documents",
     inputSchema: {
       type: "object",
       properties: {
-        template_id: { type: "string" },
-        data: { type: "object", additionalProperties: true },
+        template_id: { type: "string", enum: ["basic_document"] },
+        data: {
+          type: "object",
+          properties: {
+            title: { type: "string", minLength: 1, pattern: "\\S" },
+            content: { type: "string" },
+          },
+          required: ["title", "content"],
+          additionalProperties: false,
+        },
         filename: { type: "string" },
       },
       required: ["template_id", "data"],
