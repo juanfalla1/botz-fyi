@@ -8,6 +8,7 @@ import HistoryPanel from "@/app/start/agents/components/HistoryPanel";
 import FileUploadPanel from "@/app/start/agents/components/FileUploadPanel";
 import ChatTestPanel from "@/app/start/agents/components/ChatTestPanel";
 import VoiceTestPanel from "@/app/start/agents/components/VoiceTestPanel";
+import ToolSelector from "@/app/start/agents/components/ToolSelector";
 import { authedFetch, AuthRequiredError } from "../authedFetchAgents";
 import { jsPDF } from "jspdf";
 
@@ -304,6 +305,7 @@ export default function AgentDetailPage() {
     detectDtmf: true,
   });
   const [actionsCfg, setActionsCfg] = useState<string[]>(["call_end", "end_call"]);
+  const [selectedToolIds, setSelectedToolIds] = useState<string[]>([]);
   const [brainsAdvancedCfg, setBrainsAdvancedCfg] = useState({
     chunksToRetrieve: 3,
     similarityThreshold: 0.6,
@@ -718,6 +720,11 @@ export default function AgentDetailPage() {
           ? cfg.voice_runtime.actions.enabled.map((a: any) => String(a || "")).filter(Boolean)
           : ["call_end", "end_call"]
       );
+      setSelectedToolIds(
+        Array.isArray(cfg?.tools?.enabled)
+          ? Array.from(new Set(cfg.tools.enabled.map((id: any) => String(id || "")).filter(Boolean))) as string[]
+          : []
+      );
 
       setBrainsAdvancedCfg({
         chunksToRetrieve: Number(cfg?.brain?.advanced?.chunks_to_retrieve ?? 3),
@@ -781,6 +788,13 @@ export default function AgentDetailPage() {
           primary_color: publishForm.primaryColor,
           auto_open: publishForm.autoOpen,
         },
+      };
+      const existingToolsConfig = nextCfg.tools && typeof nextCfg.tools === "object" && !Array.isArray(nextCfg.tools)
+        ? nextCfg.tools
+        : {};
+      nextCfg.tools = {
+        ...existingToolsConfig,
+        enabled: selectedToolIds,
       };
 
       if (agent.type === "flow") {
@@ -2107,6 +2121,13 @@ export default function AgentDetailPage() {
                   </div>
                 </div>
               )}
+              <div style={{ marginTop: 14 }}>
+                <ToolSelector
+                  selectedToolIds={selectedToolIds}
+                  onChange={setSelectedToolIds}
+                  language={botzLanguage}
+                />
+              </div>
             </>
            )}
 

@@ -9,6 +9,7 @@ import VoiceTestPanel from "@/app/start/agents/components/VoiceTestPanel";
 import ChatTestPanel from "@/app/start/agents/components/ChatTestPanel";
 import AgentMetrics from "@/app/start/agents/components/AgentMetrics";
 import FileUploadPanel from "@/app/start/agents/components/FileUploadPanel";
+import ToolSelector from "@/app/start/agents/components/ToolSelector";
 
 
 const C = {
@@ -475,6 +476,7 @@ export default function CreateAgentPage() {
   const [confirmExitOpen, setConfirmExitOpen] = useState(false);
   const [promptTemplateId, setPromptTemplateId] = useState("ventas_consultiva");
   const [language, setLanguage] = useState<"es" | "en">("es");
+  const [selectedToolIds, setSelectedToolIds] = useState<string[]>([]);
 
   const tr = (es: string, en: string) => (language === "en" ? en : es);
 
@@ -747,6 +749,9 @@ export default function CreateAgentPage() {
         language: form.language,
         identity_name: form.agentName,
         purpose: form.agentRole,
+        tools: {
+          enabled: selectedToolIds,
+        },
       };
 
       if (agentType === "flow") {
@@ -1351,6 +1356,11 @@ export default function CreateAgentPage() {
                      </div>
                   </>
                 )}
+                <ToolSelector
+                  selectedToolIds={selectedToolIds}
+                  onChange={setSelectedToolIds}
+                  language={language}
+                />
               </>
             )}
 
