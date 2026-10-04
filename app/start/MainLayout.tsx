@@ -60,6 +60,7 @@ const ALL_FEATURES: string[] = [
   "agents",
   "n8n-config",
   "crm",
+  "research",
   "sla",
   "kanban",
 ];
@@ -85,6 +86,7 @@ const FEATURE_MIN_PLAN: Record<string, string> = {
   agents: "Básico",
   "n8n-config": "A la Medida",
   crm: "Growth",
+  research: "Growth",
   sla: "A la Medida",
   kanban: "Growth",
 };
@@ -97,6 +99,7 @@ const FEATURE_LABELS: Record<string, string> = {
   channels: "Gestión de Canales",
   agents: "Agentes IA",
   crm: "CRM en Vivo",
+  research: "Research Evidence",
   kanban: "Tablero Kanban",
   sla: "Alertas SLA",
   "n8n-config": "Dashboard Ejecutivo",
@@ -2620,6 +2623,10 @@ export default function MainLayout({
 
     if (hasFeatureAccess(accessId)) {
       console.log(`✅ Acceso permitido a: ${tabId}`);
+      if (tabId === "research") {
+        router.push("/start/research");
+        return;
+      }
       setActiveTab(tabId);
     } else {
       console.log(`🚫 Acceso denegado a: ${tabId} - Requiere: ${FEATURE_MIN_PLAN[accessId]}`);
@@ -2656,6 +2663,7 @@ export default function MainLayout({
     // ❌ REMOVIDO: Agentes ahora está en /agents (aplicación independiente, no en /start)
     { id: "n8n-config", label: text.execDashboard, icon: <Settings size={18} /> },
     { id: "crm", label: text.crmLive, icon: <Users size={18} /> },
+    { id: "research", label: "Research Evidence", icon: <BrainCircuit size={18} /> },
     { id: "sla", label: text.slaAlerts, icon: <BarChart3 size={18} /> },
     { id: "kanban", label: text.kanban, icon: <KanbanSquare size={18} /> },
   ];

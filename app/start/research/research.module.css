@@ -1,0 +1,285 @@
+.page {
+  --background: #060b13;
+  --panel: #0b1421;
+  --line: rgba(148, 180, 205, 0.14);
+  --muted: #7890a4;
+  --text: #e9f2f8;
+  --accent: #27d5ee;
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 75% 8%, rgba(39, 213, 238, 0.08), transparent 28rem),
+    var(--background);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.page * {
+  box-sizing: border-box;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  min-height: 64px;
+  padding: 0 28px;
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(6, 11, 19, 0.9);
+  backdrop-filter: blur(18px);
+}
+
+.brand {
+  color: var(--text);
+  font-size: 25px;
+  font-weight: 950;
+  letter-spacing: -0.08em;
+  text-decoration: none;
+}
+
+.brand span {
+  color: var(--accent);
+}
+
+.workspace {
+  display: grid;
+  gap: 2px;
+  margin-left: auto;
+  text-align: right;
+}
+
+.workspace span {
+  color: #a9bdcc;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.workspace small {
+  color: #526a7d;
+  font: 8px/1.2 monospace;
+}
+
+.avatar {
+  display: grid;
+  width: 35px;
+  height: 35px;
+  place-items: center;
+  border-radius: 10px;
+  color: #041016;
+  background: linear-gradient(145deg, #67e8f9, #34d399);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.content {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 64px 28px 80px;
+}
+
+.heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+.heading > div > span,
+.sectionHeading span {
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.17em;
+}
+
+.heading h1 {
+  margin: 9px 0 0;
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.heading p {
+  max-width: 650px;
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.primaryAction {
+  display: inline-flex;
+  min-height: 43px;
+  padding: 0 17px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 10px;
+  color: #061018;
+  background: linear-gradient(135deg, #67e8f9, #34d399);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.primaryAction:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.recent {
+  margin-top: 54px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.22);
+}
+
+.sectionHeading {
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sectionHeading h2 {
+  margin: 7px 0 0;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.emptyState {
+  display: grid;
+  min-height: 380px;
+  padding: 48px 24px;
+  place-items: center;
+  align-content: center;
+  text-align: center;
+}
+
+.emptyIcon {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border: 1px solid rgba(39, 213, 238, 0.2);
+  border-radius: 18px;
+  color: var(--accent);
+  background: rgba(39, 213, 238, 0.07);
+}
+
+.emptyState h3 {
+  margin: 22px 0 0;
+  font-size: 20px;
+}
+
+.emptyState p {
+  margin: 9px 0 22px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.statePage {
+  display: grid;
+  min-height: 100vh;
+  padding: 24px;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  color: #e9f2f8;
+  background: #060b13;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.statePage > p {
+  color: #7890a4;
+  font-size: 12px;
+}
+
+.loader {
+  width: 30px;
+  height: 30px;
+  border: 2px solid #183143;
+  border-top-color: #27d5ee;
+  border-radius: 50%;
+  animation: load 1s linear infinite;
+}
+
+.accessCard {
+  max-width: 440px;
+  padding: 38px;
+  border: 1px solid rgba(148, 180, 205, 0.14);
+  border-radius: 20px;
+  background: #0b1421;
+  text-align: center;
+}
+
+.accessCard > svg {
+  color: #27d5ee;
+}
+
+.accessCard h1 {
+  margin: 18px 0 0;
+  font-size: 25px;
+}
+
+.accessCard p {
+  margin: 12px 0 0;
+  color: #7890a4;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.accessCard a {
+  display: inline-flex;
+  margin-top: 20px;
+  padding: 10px 15px;
+  border-radius: 9px;
+  color: #061018;
+  background: #67e8f9;
+  font-size: 11px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+@keyframes load {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 700px) {
+  .topbar {
+    padding: 0 16px;
+  }
+
+  .workspace {
+    display: none;
+  }
+
+  .avatar {
+    margin-left: auto;
+  }
+
+  .content {
+    padding: 42px 16px 56px;
+  }
+
+  .heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .heading .primaryAction {
+    width: 100%;
+  }
+
+  .recent {
+    margin-top: 38px;
+  }
+
+  .emptyState {
+    min-height: 330px;
+  }
+}
